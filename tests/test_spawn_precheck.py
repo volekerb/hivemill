@@ -348,6 +348,16 @@ class SpawnPrecheckTests(FactoryTestCase):
         starts = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"]]
         self.assertEqual(starts, [])
 
+    def test_g3_queued_judge_bounce_on_a_cursor_goal_still_reaches_the_lead_that_started_it(self):
+        # T-1080: the bounce answers the lead's own spawn, so it stays with that lead whatever the goal's org
+        self._queue("judge")
+        self.env.sql("UPDATE goals SET org='cursor' WHERE id='G-001'")  # the goal moves while the spawn waits
+        self.conflicting_main()
+        p = self.run_cli("tick")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        msgs = self.env.sql("SELECT recipient FROM messages WHERE task_id='T-0001' AND subject LIKE 'spawn of%'")
+        self.assertEqual([m["recipient"] for m in msgs], ["zz-test-lead"])
+
     def test_g2_queued_judge_clean_behind_is_refreshed_then_stays_queued_until_ci(self):
         self._queue("judge")
         main = self.main_commit()

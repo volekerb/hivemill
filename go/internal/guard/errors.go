@@ -26,7 +26,7 @@ type ClaudeBlock struct{ Msg string }
 
 func (b *ClaudeBlock) Error() string { return b.Msg }
 
-// DynamicBlock is worker-guard.py:DynamicBlock: a command word that could expand to herdr or claude.
+// DynamicBlock is worker-guard.py:DynamicBlock: a command word that could expand to herdr, hc or claude.
 type DynamicBlock struct{ Msg string }
 
 func (b *DynamicBlock) Error() string { return b.Msg }

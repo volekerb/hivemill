@@ -13,7 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOL = os.path.join(ROOT, "ci", "guard_impl_unittest.py")
 WF = os.path.join(ROOT, ".github", "workflows", "tests.yml")
 # stems, .py appended at runtime (the coverage test greps test sources for the hook path spelling)
-DIFF_SET = [s + ".py" for s in ("test_worker_guard", "test_priv_guard", "test_guard_diff")]
+DIFF_SET = [s + ".py" for s in ("test_worker_guard", "test_priv_guard", "test_guard_diff", "test_worker_guard_public_text")]
 
 
 def run(*args):
@@ -61,7 +61,7 @@ class RoutedRestSelectorTest(unittest.TestCase):
         self.assertIn("run --routed-rest", rest_job)
         self.assertEqual(text.count("--impl go"), 1)
         self.assertEqual(text.count("--strict"), 1)
-        self.assertIn("needs: [unittest-shard, go, guard-unittest, guard-diff, guard-equiv, guard-equiv-rest]", text)
+        self.assertIn("needs: [unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-equiv, guard-equiv-rest]", text)
         self.assertIn("needs.guard-equiv.result", text)
         self.assertIn("needs.guard-equiv-rest.result", text)
         self.assertIn("if: ${{ !cancelled() && steps.paths.outputs.run == 'true' }}", rest_job)  # REAL_GO logs after a red step
@@ -73,7 +73,8 @@ class RoutedRestSelectorTest(unittest.TestCase):
         gate = text.split("\n  unittest:\n", 1)[1].split("        run: |\n", 1)[1].split("      - uses:", 1)[0]
         script = "\n".join(l[10:] for l in gate.splitlines())
         base = {"SHARD_RESULT": "success", "GO_RESULT": "success", "GUARD_UNITTEST_RESULT": "success",
-                "GUARD_DIFF_RESULT": "success", "GUARD_EQUIV_RESULT": "success", "GUARD_EQUIV_REST_RESULT": "success"}
+                "GUARD_DIFF_RESULT": "success", "GUARD_SELF_COMPARE_RESULT": "success",
+                "GUARD_EQUIV_RESULT": "success", "GUARD_EQUIV_REST_RESULT": "success"}
 
         def rc(**over):
             env = dict(os.environ, **base)
@@ -247,9 +248,12 @@ class RoutedRestRunnerTest(unittest.TestCase):
 
 
 class PathListTest(unittest.TestCase):
+    job_index = 0  # 0 = guard-equiv, 1 = guard-equiv-rest
+
     def step(self):
         with open(WF, encoding="utf-8") as f:
             job = f.read().split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]
+        job = job.split("  guard-equiv-rest:\n")[self.job_index]
         return job.split("Guard paths changed?", 1)[1].split("- uses: actions/setup-python", 1)[0]
 
     def test_path_step_covers_guard_impl_and_derives_routed_modules(self):
@@ -264,7 +268,7 @@ class PathListTest(unittest.TestCase):
         body = step.split("run: |\n", 1)[1]
         return "\n".join(l[10:] for l in body.splitlines())
 
-    def decide(self, changed, tool_src=None):
+    def decide(self, changed, tool_src=None, edit=None, broken_tar=False, stdout=None):
         """Execute the real "Guard paths changed?" script in a temp repo; return the run= output."""
         with tempfile.TemporaryDirectory() as d:
             def git(*a):
@@ -284,6 +288,15 @@ class PathListTest(unittest.TestCase):
             git("add", "-A")
             git("commit", "-q", "-m", "base")
             base = harness.git("rev-parse", "HEAD", cwd=d)
+            for rel, fn in (edit or {}).items():
+                path = os.path.join(d, rel)
+                if fn is None:
+                    os.remove(path)
+                else:
+                    with open(path, encoding="utf-8") as f:
+                        src = f.read()
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write(fn(src))
             for rel in changed:
                 path = os.path.join(d, rel)
                 os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -293,8 +306,17 @@ class PathListTest(unittest.TestCase):
             git("commit", "-q", "-m", "pr", "--allow-empty")
             out = os.path.join(d, "gh_output")
             env = dict(os.environ, EVENT="pull_request", BASE_SHA=base, GITHUB_OUTPUT=out, RUNNER_TEMP=d)
+            if broken_tar:
+                # only the BASE export fails: the HEAD lists are read by python, never through tar
+                shim = tempfile.mkdtemp(dir=d)
+                with open(os.path.join(shim, "tar"), "w") as f:
+                    f.write("#!/bin/sh\nexit 1\n")
+                os.chmod(os.path.join(shim, "tar"), 0o755)
+                env["PATH"] = shim + os.pathsep + env["PATH"]
             r = subprocess.run(["bash", "-e", "-c", self.script()], cwd=d, env=env, capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
+            if stdout is not None:
+                stdout.append(r.stdout)
             with open(out) as f:
                 return f.read().strip().splitlines()[-1]
 
@@ -320,6 +342,36 @@ class PathListTest(unittest.TestCase):
         self.assertEqual(self.decide(["README.md"], only_rest_fails), "run=true")
         only_rest_empty = ("import sys\nif '--routed-rest' not in sys.argv:\n    print('test_x.py')\n")
         self.assertEqual(self.decide(["README.md"], only_rest_empty), "run=true")
+
+    # T-1008: a shrink of the routed list since BASE must run the gate, in both jobs
+    def routed_module(self):
+        return "tests/" + run("list", "--routed-rest").stdout.split()[0]
+
+    def test_step_runs_when_a_routed_module_is_deleted(self):
+        m = self.routed_module()
+        self.assertEqual(self.decide([], edit={m: None}), "run=true")
+
+    def test_step_runs_when_a_python_only_marker_is_added(self):
+        m = self.routed_module()
+        self.assertEqual(self.decide([], edit={m: lambda t: t + "\nGUARD_IMPL_PYTHON_ONLY = True\n"}), "run=true")
+
+    def test_step_runs_when_hook_run_is_removed(self):
+        m = self.routed_module()
+        strip = lambda t: t.replace("guard_impl", "guard_imp1")
+        self.assertEqual(self.decide([], edit={m: strip}), "run=true")
+
+    def test_step_runs_when_base_list_is_unreadable(self):
+        # README-only diff, HEAD tool intact and unchanged: nothing but the failed BASE read can give run=true
+        out = []
+        self.assertEqual(self.decide(["README.md"], broken_tar=True, stdout=out), "run=true")
+        self.assertIn("base test list unreadable or empty: running", out[0])
+
+    def test_step_skips_for_readme_only_with_a_readable_base(self):
+        self.assertEqual(self.decide(["README.md"]), "run=false")
+
+
+class PathListRestJobTest(PathListTest):
+    job_index = 1
 
 
 if __name__ == "__main__":

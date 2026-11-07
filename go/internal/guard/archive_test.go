@@ -58,11 +58,19 @@ func TestNoPushGitFileAndExtractRefused(t *testing.T) {
 		"tar -xf a.tar -C "+o+"; tar -xf b.tar -C "+o)
 	a.expect(t, noPushRolesList, a.repo, 2, "tar -xf a.tar", "ar x a.a")
 	a.expect(t, noPushRolesList, s, 0,
-		"tar -tf a.tar", "tar -xf a.tar -C "+o, "unzip a.zip -d "+o, "cpio -id -D "+o+" < a.cpio", "rsync -a src/ "+o+"/",
+		"tar -tf a.tar", "cpio -id -D "+o+" < a.cpio", "rsync -a src/ "+o+"/",
 		"unzip -l a.zip", "7z l a.7z", "jar tf a.jar", "python3 -m zipfile -e a.zip "+o, "python3 -I -m tarfile -e a.tar "+o,
 		"python3 -m zipfile -l a.zip", "ar x --output="+o+" a.a", "ar --plugin x.so --output="+o+" x a.a", "ar t a.a",
-		"tar -tf a.tar && tar -xf a.tar -C "+o, "cat "+git+"/HEAD", "echo x > "+s+"/.gitignore")
+		"cat "+git+"/HEAD", "echo x > "+s+"/.gitignore")
 	a.expect(t, noPushRolesList, o, 0, "ar x a.a")
+	// a clean extraction passes every Go check; the member list is the Python hook's to read (T-1001 spec v2)
+	for _, role := range noPushRolesList {
+		for _, c := range []string{"tar -xf a.tar -C " + o, "unzip a.zip -d " + o, "tar -tf a.tar && tar -xf a.tar -C " + o} {
+			if err := a.check(c, s, role); !IsDelegate(err) {
+				t.Errorf("role %s: %q: want a Delegate, got %v", role, c, err)
+			}
+		}
+	}
 }
 
 func TestNoPushExtractWalk(t *testing.T) {

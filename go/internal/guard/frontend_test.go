@@ -75,7 +75,7 @@ func norm(p [][2]string) [][2]string {
 func checkPreprocess(t *testing.T, src, cmd string, fold bool, want ppResult) {
 	t.Helper()
 	var bodies []Heredoc
-	text, extras, err := Preprocess(cmd, fold, &bodies)
+	text, extras, err := Preprocess(cmd, fold, &bodies, nil)
 	if want.Error != "" {
 		if err == nil || err.Error() != want.Error {
 			t.Errorf("%s fold=%v %q: error %v, want %q", src, fold, cmd, err, want.Error)

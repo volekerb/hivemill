@@ -28,10 +28,10 @@ type pyCase struct {
 // casesPerModule is the number of distinct cases ported from each Python test module (a silent loss of cases
 // would otherwise pass).
 var casesPerModule = map[string]int{
-	"test_worker_guard":         327,
+	"test_worker_guard":         330,
 	"test_priv_guard":           572,
 	"test_worker_guard_heredoc": 101,
-	"test_worker_guard_units":   111,
+	"test_worker_guard_units":   113,
 	"test_worker_guard_reads":   152,
 }
 
@@ -452,9 +452,12 @@ func TestCommandsClaudeRule(t *testing.T) {
 func TestCommandsRawBackstop(t *testing.T) {
 	clearTermsEnv(t)
 	for _, c := range []string{
-		"export HERDR_SOCKET_PATH=/tmp/x", "HERDR_SESSION=x true", "cat ~/.config/herdr/config", "ls herdr.sock",
-		"unset HERDR_SOCKET_PATH; herdr list", "env -i herdr pane list", "cat < /usr/bin/herdr", "dd if=/usr/bin/herdr of=/tmp/h",
-		"xargs herdr", "find . -exec herdr server stop \\;", "env herdr agent start", "bash -c 'x' herdr pane close",
+		"export HERDR_SOCKET_PATH=/tmp/x", "export HC_SOCKET=/tmp/x", "HERDR_SESSION=x true",
+		"cat ~/.config/herdr/config", "ls herdr.sock",
+		"unset HERDR_SOCKET_PATH; herdr list", "unset HC_SOCKET; hc list", "env -i herdr pane list",
+		"cat < /usr/bin/herdr", "dd if=/usr/bin/herdr of=/tmp/h",
+		"xargs herdr", "find . -exec herdr server stop \\;", "hc server stop", "herdr-core server stop",
+		"env herdr agent start", "bash -c 'x' herdr pane close",
 	} {
 		if err := checkRole(c, "coder"); err == nil {
 			t.Errorf("%q allowed", c)
@@ -579,7 +582,8 @@ func TestCommandsOwnerTermsFile(t *testing.T) {
 
 func TestCommandsSystemctlAndXargs(t *testing.T) {
 	clearTermsEnv(t)
-	for _, c := range []string{"systemctl --user stop herdr.service", "systemctl --user daemon-reload", "systemctl --user enable factory-up.service",
+	for _, c := range []string{"systemctl --user stop herdr.service", "systemctl --user stop hc-serve-dfa32408.service",
+		"systemctl --user daemon-reload", "systemctl --user enable factory-up.service",
 		"systemctl --user kill 'factory-*'", "systemctl isolate x", "systemctl restart", "systemctl stop $UNIT", "xargs -I{} {} x", "xargs -I X X"} {
 		if err := checkRole(c, "coder"); err == nil {
 			t.Errorf("%q allowed", c)
@@ -743,6 +747,7 @@ func TestUvxRunnerRouting(t *testing.T) {
 		"uv tool -q run black", "uv tool uvx ruff", "uvx 'ruff >=0.5'",
 		"uvx pytestx", "uvx pytest-cov",
 	}
+	offRefused := map[string]bool{"uv -q tool run pytest": true, "uv tool -q run pytest": true, "uvx path/to/py.test": true}
 	for _, role := range []string{"coder", "qa"} {
 		for _, c := range routed {
 			t.Setenv("FACTORY_HOME", on)
@@ -750,7 +755,12 @@ func TestUvxRunnerRouting(t *testing.T) {
 				t.Errorf("%s: %q: err = %v, want the test_sandbox block", role, c, err)
 			}
 			t.Setenv("FACTORY_HOME", off)
-			if err := checkRole(c, role); err != nil {
+			err := checkRole(c, role)
+			if offRefused[c] { // T-0435 through uv (T-1018): a bare uv-wrapped pytest is the full suite, refused sandbox or not
+				if err == nil || !strings.Contains(err.Error(), "runs the full suite") {
+					t.Errorf("%s: %q with test_sandbox off: %v, want the full-suite refusal", role, c, err)
+				}
+			} else if err != nil {
 				t.Errorf("%s: %q with test_sandbox off: %v, want exit 0", role, c, err)
 			}
 		}

@@ -45,6 +45,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
 - [refresh-lane.md](refresh-lane.md): `refresh_lane` flag, only the merge-queue head is refreshed.
 - [red-pr-owner-alert.md](red-pr-owner-alert.md): `red_pr_owner_alert` flag, the tick mails the lead once per red or conflicted head with no coder.
+- [gh-quota.md](gh-quota.md): `pr_view_ttl_s` and `gh_quota_min`, the tick's PR probe cache and low GraphQL quota guard.
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
 - [merge-queue.md](merge-queue.md): the serial and batch-train merge path (`judge --train` without `--dry-run`).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
@@ -75,6 +76,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [contributor-flow.md](contributor-flow.md): how external pull requests are gated, and why fork code never runs before a read pass.
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
+- [unittest-shard-split.md](unittest-shard-split.md): when one module fills a shard, split its test ids across shards by sorted round-robin.
 - [testing.md](testing.md): local = fast checks, CI = full; the policy for coder, reviewer and QA.
 - [test-cgroups.md](test-cgroups.md): per-run cgroup caps for `factory test` and the user unit the owner installs.
 - [cli-layout.md](cli-layout.md): why `bin/factory` is a stub and the CLI code lives in `bin/factory_cli.py`.
@@ -87,6 +89,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [planning-rules.md](planning-rules.md): planning and retry rules carried by per-role skills.
 - [test-first-pilot.md](test-first-pilot.md): the pilot where QA writes the failing test first.
 - [guard-diff.md](guard-diff.md): compare the worker-guard hook against main before changing it.
+- [guard-unittest-shard.md](guard-unittest-shard.md): how guard unittest ids are sharded in CI and when a shard step fails the list check.
 - [scrub-scan.md](scrub-scan.md): the scanner that catches owner-specific or sensitive data.
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
 - [worker-guard-go.md](worker-guard-go.md): the Go port of the worker-guard hook (not wired; section status, golden data, lookaround map).
@@ -111,6 +114,8 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [research/cursor-harness.md](research/cursor-harness.md): research behind the Cursor Agent CLI runtime.
 - [research/cursor-e2e-issues.md](research/cursor-e2e-issues.md): issues found dogfooding Cursor coder, qa, reviewer and judge.
 - [web-design.md](web-design.md): the design pass behind the web UI styling.
+- [web-redesign-brief.md](web-redesign-brief.md): G-015 SC4 redesign brief: page audit from the before screenshots, decisions, F-27 tree, task split.
+- [web-redesign-review.md](web-redesign-review.md): G-015 SC4 design review: before and after screenshots per page, phone layout, contrast, open visual findings.
 - [web-perf.md](web-perf.md): measured cost of the web UI in time, memory and tick impact.
 - [web-tokens.md](web-tokens.md): worker roots and read limits for token accounting.
 - [skill-scout.md](skill-scout.md): how the scout finds and triages new Claude Code skills.

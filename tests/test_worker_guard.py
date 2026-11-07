@@ -40,9 +40,24 @@ class WorkerGuardTests(unittest.TestCase):
         p = run_hook(cmd)
         self.assertEqual(p.returncode, 0, f"should allow: {cmd!r}\n{p.stderr}")
 
+    def test_hc_in_interpreter_sinks_blocked_like_herdr(self):
+        for cmd in (
+            'python3 -c \'import os; os.system("hc server stop")\'',
+            'perl -e \'system("hc server stop")\'',
+            'awk \'BEGIN{system("hc server stop")}\'',
+            'vim -c \'!hc server stop\'',
+            "sed -n 'e hc server stop'",
+            "python3 <<'EOF'\nimport os\nos.system('hc server stop')\nEOF",
+        ):
+            with self.subTest(cmd=cmd):
+                self.assertBlocked(cmd)
+
     def test_spec_blocked(self):
         for cmd in (
             "herdr server stop",
+            "hc server stop",
+            "herdr-core server stop",
+            "HC_SOCKET=/tmp/x hc server stop",
             "HOME=x herdr server stop",
             "FOO=1 BAR=2 herdr agent list",
             "env HOME=x herdr pane list",
@@ -71,6 +86,9 @@ class WorkerGuardTests(unittest.TestCase):
             "cd /tmp\nherdr server stop",
             "echo hi # c\nherdr x",
             "systemctl --user stop herdr.service",
+            "systemctl --user stop hc-serve-dfa32408.service",
+            "systemctl --user kill hc-hold-63575dee.service",
+            "systemctl --user restart hc-serve-dfa32408.service",
             "X=1 systemctl --user daemon-reload",
             "systemctl --user enable factory-up.service",
             "systemctl --user restart factory-tick.timer",
@@ -460,9 +478,11 @@ class WorkerGuardTests(unittest.TestCase):
             "find / -name herdr -exec {} pane close 1 \\;",
             "echo herdr | xargs -I{} {} agent \\\n  start x",
             # R2: socket re-target, session, config paths, unsetting alongside herdr
-            "export HERDR_SOCKET_PATH=/x", "HERDR_SESSION=default true", "declare -x HERDR_SOCKET_PATH",
+            "export HERDR_SOCKET_PATH=/x", "export HC_SOCKET=/x", "HC_SOCKET=/tmp/x hc server stop",
+            "HERDR_SESSION=default true", "declare -x HERDR_SOCKET_PATH", "declare -x HC_SOCKET",
             "ls ~/.config/herdr", "ls $HOME/.config/herdr", "cat herdr.sock",
             "env -u HERDR_SOCKET_PATH herdr pane list", "unset HERDR_SOCKET_PATH; herdr pane list",
+            "env -u HC_SOCKET hc pane list", "unset HC_SOCKET; hc pane list",
             "env -i herdr pane list",
             # R3: binary copy / read
             "cat ~/.local/bin/herdr > /tmp/x", "dd if=" + HOME_DIR + "/.local/bin/herdr of=/tmp/x",

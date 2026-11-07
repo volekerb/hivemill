@@ -3,7 +3,7 @@
 Pure functions f(con, ...) -> list[dict] | dict on a connection from web.db.connect.
 No HTML, no writes. Results are plain JSON-serialisable dicts.
 
-Never selected: agents.spawn_args, messages.body, plans.body, tasks.spec, tasks.acceptance.
+Never selected: agents.spawn_args, messages.body (one exception: attended_tasks reads boss decision bodies to match task ids), plans.body, tasks.spec, tasks.acceptance.
 goals.intent is returned truncated to 600 characters (goal_detail only).
 Timestamps are the DB's ISO strings.
 """
@@ -254,6 +254,28 @@ def teams(con):
     gorgs = goal_orgs(con)
     return [dict(r, org=org_of_goal(gorgs, r["goal_id"]))
             for r in con.execute("SELECT id, goal_id, scope, lead_agent, status, created FROM teams ORDER BY id")]
+
+
+def goal_teams(con):
+    """{goal id: {"teams": [team + agents + tasks], "loose": [tasks of the goal with no team]}}: teams(), agents() and
+    tasks() joined by (goal, team), three reads whatever the number of goals. A team row has `agents` (its non-ended
+    agents) and `tasks`, both sorted by id/name. Goals with no team or task are absent; callers use .get(gid)."""
+    out = {}
+    by_team = {}
+    for t in teams(con):
+        row = dict(t, agents=[], tasks=[])
+        by_team[t["id"]] = row
+        out.setdefault(t["goal_id"], {"teams": [], "loose": []})["teams"].append(row)
+    for a in agents(con):
+        if a["team_id"] in by_team:
+            by_team[a["team_id"]]["agents"].append(a)
+    for t in tasks(con):
+        team = by_team.get(t["team_id"]) if t["team_id"] else None
+        if team is not None and team["goal_id"] == t["goal_id"]:
+            team["tasks"].append(t)
+        else:
+            out.setdefault(t["goal_id"], {"teams": [], "loose": []})["loose"].append(t)
+    return out
 
 
 def _spawn_runtime(spawn_args):
@@ -527,6 +549,29 @@ def throughput(con, days=14, now=None, *, goals=None):
         per_goal = [r for r in per_goal if r["goal_id"] in goals]
     return {"days": days, "merges_per_day": [{"day": d.isoformat(), "merges": n} for d, n in per_day.items()],
             "tasks_per_goal": per_goal, "tasks": items}
+
+
+def attended_tasks(con, ids):
+    """The subset of task ids `ids` that had the owner involved, read from factory records (one call per page load).
+
+    Attended = an `update` event whose detail holds waits=owner, OR a judge-blocked event whose detail holds
+    auto_merge=0, OR a `--kind decision` message from a boss (boss, claude-boss, cursor-boss) whose task_id is the task
+    or whose subject/body names the task id as a whole word (T-11 does not name T-111). Blind spots: a push the owner
+    makes by hand, and `--waits owner` on an already blocked task (it logs an empty detail).
+    """
+    ids = set(ids)
+    out = set()
+    for r in _in(con, "SELECT entity_id, action, detail FROM events WHERE entity='task' AND entity_id IN ({in}) "
+                      "AND action IN ('update','judge-blocked')", ids):
+        d = r["detail"] or ""
+        if (r["action"] == "update" and "waits=owner" in d) or (r["action"] == "judge-blocked" and "auto_merge=0" in d):
+            out.add(r["entity_id"])
+    bosses = ("boss", *(f"{o}-boss" for o in ORGS))
+    for r in con.execute("SELECT task_id, subject, body FROM messages WHERE kind='decision' AND sender IN (%s)"
+                         % ",".join("?" * len(bosses)), bosses):
+        out.add(r["task_id"])
+        out.update(re.findall(r"(?<![\w-])T-\d+(?!\w)", f"{r['subject'] or ''} {r['body'] or ''}"))
+    return out & ids
 
 
 # ───────────────────────────── quality / changelog ─────────────────────────────

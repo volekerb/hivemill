@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """CI tiers: classify a PR diff as docs, normal or risky and pick how much of the suite runs (T-0658).
 
+  Binary (T-1166): a changed file whose `git diff --numstat` added or deleted field is not a decimal count (e.g. `-`
+  for binary) is not docs-only: it is classified risky and the reason names that path before the all-docs return.
+
   ci_tier.py classify --base BASE [--head HEAD] [--root DIR] [--only-file F] [--github-output]
   ci_tier.py docs-check --base BASE [--head HEAD] [--root DIR]
 
@@ -60,13 +63,43 @@ def risky_def(name):
 
 
 def changed_lines(root, base, head):
-    """Added + deleted lines of `git diff base...head` (binary files count 0; their path rules still apply)."""
+    """Added + deleted lines of `git diff base...head` (binary files count 0 in the sum; classify handles them separately)."""
     out = affected.git(root, "diff", "--numstat", "--no-renames", "%s...%s" % (base, head))
     total = 0
     for line in out.splitlines():
         a, d, _ = line.split("\t", 2)
         total += (int(a) if a.isdigit() else 0) + (int(d) if d.isdigit() else 0)
     return total
+
+
+def numstat_non_line_paths(root, base, head):
+    """Paths in `git diff --numstat` where added or deleted is not a decimal line count (binary and similar)."""
+    out = affected.git(root, "diff", "--numstat", "--no-renames", "%s...%s" % (base, head))
+    hits = []
+    for line in out.splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) < 3:
+            continue
+        a, d, path = parts
+        if not (a.isdigit() and d.isdigit()):
+            hits.append(path)
+    return hits
+
+
+def base_top_level_names(root, base):
+    """Top-level entry names in `base` (git ls-tree --name-only)."""
+    out = affected.git(root, "ls-tree", "--name-only", base)
+    return {line for line in out.splitlines() if line}
+
+
+def new_top_level_risk(root, base, files):
+    """The first path component absent from the base tree, else None."""
+    known = base_top_level_names(root, base)
+    for path in files:
+        top = path.split("/", 1)[0]
+        if top not in known:
+            return top
+    return None
 
 
 def bin_factory_risk(root, base, head):
@@ -86,9 +119,16 @@ def classify(root, base, head):
     files = [p for p, _ in affected.changed_files(root, base, head)]
     if not files:
         return "normal", "empty diff"
+    non_line = numstat_non_line_paths(root, base, head)
+    if non_line:
+        p = sorted(non_line)[0]
+        return "risky", "binary or non-text diff (numstat not line counts): %s" % p
     for p in files:
         if risky_path(p):
             return "risky", "%s is on the risky path list" % p
+    top = new_top_level_risk(root, base, files)
+    if top:
+        return "risky", "new top-level entry %s" % top
     if BIN in files:
         why = bin_factory_risk(root, base, head)
         if why:

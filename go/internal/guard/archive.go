@@ -120,6 +120,9 @@ func (a *Analyzer) archiveTarget(name, d string) error {
 
 // archiveExtract is a port of Analyzer.archive_extract: it reports whether the command extracts.
 func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
+	if isTarName(name) || name == "unzip" {
+		return a.archiveRuleE(name, rest) // T-0805: one grammar; `--` kept, parseTar refuses it in extract mode
+	}
 	var args []string
 	for _, x := range rest {
 		if x != "--" {
@@ -129,43 +132,7 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 	var dirs []string
 	extract := false
 	const why = "name the target (tar -C, unzip -d, cpio -D) as a scratchpad dir that has no .git"
-	isTar := name == "tar" || name == "gtar" || name == "bsdtar"
 	switch {
-	case isTar:
-		for j, x := range args {
-			short := alphaCluster(x, true) && (j == 0 || strings.HasPrefix(x, "-")) && !strings.HasPrefix(x, "--")
-			if x == "--extract" || x == "--get" || (short && strings.Contains(x, "x")) {
-				extract = true
-			}
-			switch {
-			case (x == "-C" || x == "--directory") && j+1 < len(args):
-				dirs = append(dirs, args[j+1])
-			case strings.HasPrefix(x, "--directory="):
-				dirs = append(dirs, x[len("--directory="):])
-			case short && strings.Contains(x, "C"):
-				tail := x[strings.Index(x, "C")+1:]
-				if tail != "" {
-					dirs = append(dirs, tail)
-				} else {
-					for _, y := range args[j+1:] {
-						if !strings.HasPrefix(y, "-") {
-							dirs = append(dirs, y)
-						}
-					}
-				}
-			case strings.HasPrefix(x, "-C") && len(x) > 2:
-				dirs = append(dirs, x[2:])
-			}
-		}
-	case name == "unzip":
-		extract = !anyOf(args, func(x string) bool { return in(unzipNoExtract, x) })
-		for j, x := range args {
-			if x == "-d" && j+1 < len(args) {
-				dirs = append(dirs, args[j+1])
-			} else if strings.HasPrefix(x, "-d") && len(x) > 2 {
-				dirs = append(dirs, x[2:])
-			}
-		}
 	case name == "cpio":
 		var pos []string
 		for _, x := range args {
@@ -319,13 +286,6 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 			return false, blockf("`jar` extraction writes into the current directory under names the hook cannot see: " +
 				strings.ReplaceAll(why, "(tar -C, unzip -d, cpio -D) ", "") + "; use unzip -d")
 		}
-	}
-	if isTar && extract && anyOf(args, func(x string) bool {
-		return in(tarRewrite, x) || strings.HasPrefix(x, "--transform=") || strings.HasPrefix(x, "--xform=") ||
-			strings.HasPrefix(x, "--to-command=") || (alphaCluster(x, true) && strings.Contains(x, "P") && !strings.HasPrefix(x, "--"))
-	}) {
-		return false, blockf("`" + name + "` option that rewrites member names (-P, --transform, --to-command) can escape the -C target " +
-			"into a .git dir: " + why)
 	}
 	if !extract {
 		return false, nil

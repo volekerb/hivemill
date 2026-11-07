@@ -72,6 +72,7 @@ Later merges to main do not invalidate the candidate: the tag points at the SHA.
 5. The owner pushes the tag (see the next section).
 6. `.github/workflows/release.yml` runs on the `v*` tag push and creates the GitHub release from the notes.
 7. The director checks the release page and tells the boss.
+8. The owner closes the released milestone and creates the next one, with the commands the director sends (see [ISSUES.md](ISSUES.md)).
 
 ## Owner tag step
 

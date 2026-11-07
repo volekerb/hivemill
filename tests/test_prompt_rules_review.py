@@ -37,11 +37,11 @@ MARKERS = {
 
 EXISTING = {
     "reviewer.md": ["factory task show <T>", "gh pr view <url>", "gh pr diff <url>",
-                    "gh pr comment <url> --body-file -", "factory verdict <T> --pass|--fail",
+                    "gh pr comment <url> --body-file <path>", "factory verdict <T> --pass|--fail",
                     "## Gates", "factory done"],
     "qa.md": ["factory task show <T>", "gh pr view <url>", "gh pr diff <url>",
               "factory verdict <T> --pass --summary -", "## Gates", "--fail",
-              "gh pr comment <url> --body-file -", "factory done"],
+              "gh pr comment <url> --body-file <path>", "factory done"],
     "judge.md": ["factory task show <T>", "gh pr view <url> --comments", "gh pr checks <url>",
                  "factory judge <T> --merge", "factory judge <T> --reject", "factory done"],
 }

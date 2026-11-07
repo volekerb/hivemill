@@ -22,6 +22,7 @@ FLAGS = {
     "tick_async_start", "lead_wake_debounce_s", "tick_phase_timers", "orphan_reap_mode", "scout_enabled",
     "gate_fast_projects", "issue_intake_repos", "cursor_pilot_roles", "agent_runtimes",
     "red_pr_owner_alert", "coder_ci_handoff", "idle_coder_reap", "judge_wait_main_run",
+    "owner_alert_feed", "owner_alert_send",
 }
 BASELINE_ON = {"git_push", "stale_policy", "scout_enabled", "gate_fast_projects"}
 
@@ -79,6 +80,11 @@ class Registry(unittest.TestCase):
                 self.assertEqual(by[k]["state"], "shadow")
             else:
                 self.assertEqual(by[k]["state"], "off", k)
+
+    def test_coder_ci_resume_max_is_a_registered_setting(self):
+        e = {x["key"]: x for x in ENTRIES}["coder_ci_resume_max"]
+        self.assertEqual((e["kind"], e["default"], e["doc"]), ("setting", "2", "docs/lead-wake.md"))
+        self.assertEqual(CONFIG["coder_ci_resume_max"], "2")
 
     def test_unregistered_key_is_reported(self):
         """C4: the message of the coverage check names the key and says what to do."""

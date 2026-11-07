@@ -41,3 +41,22 @@ When `coder_ci_handoff` is `resume` or `fresh`, the coder leaves at PR open whil
 starts the reviewer and QA only once `ci_verdict` of the PR head is green, as the new-head pass already does. A pending or red head
 starts no reviewer or QA row; the next tick retries. `judge_autospawn_candidates` and `mech_candidates` are unchanged (they still need
 verdicts and green CI). With the flag `off` the first-round pass starts review at PR open as before. See [prcheck.md](prcheck.md#ci-handoff-coder_ci_handoff-t-1003).
+
+## Ordering, missing roles and verdict heads (T-1048)
+
+- **No review while the coder works.** Both passes skip a task (retry next tick, nothing logged) while an agent of
+  role `coder` for it is `queued`, `starting` or `live`. The prcheck result does not gate review.
+- **A verdict of one role never closes the head.** The new-head pass starts the role that has neither an agent row `<role>-<task>-<sha8>`
+  (the stored, org-prefixed name, e.g. `claude-qa-t-0001-1234abcd`) nor a verdict of that role on the head, even when the other role already has a verdict. A head whose only verdict is under
+  `REVIEW_VERDICT_GRACE_S` (300 s) and that has no tick-started agent waits, so a lead who is about to start the other half is not doubled.
+- **Ended without a verdict.** If a tick-started `<role>-<task>-<sha8>` row has ended with no verdict of its role on that head, the tick
+  sends one `request` to the lead (or director) and logs one `review-no-verdict` event, once per task, head and role. It starts no third agent.
+- **Verdict bound to the started head.** The `review-autospawn` event stores the full head (`sha`). A `factory verdict --pass` whose `--sha`
+  differs from the head that worker was started on is refused; a `--fail` without `--sha` is recorded on the started head. Verdicts of workers
+  the lead spawned (no event) behave as before, as do those of a same-name worker the lead respawned after the tick's event (the event
+  describes the earlier worker). No schema change; the merge gate is untouched.
+
+## Judge autospawn needs both verdicts on the current head; wait events (T-1098)
+
+- `judge_autospawn_tick` starts a judge only when the latest reviewer PASS and the latest QA PASS are each recorded on the PR's current head, or carry to it by the T-0095 rule (pure `origin/main` merges), the same test the merge gate applies. One verdict still on an older head (the other role is running on the new head) or an unverifiable carry starts no judge; the tick logs one `judge-autospawn-wait` event per task and reason and tries again next tick. Local-gate projects (`gate_cmd`) are not checked.
+- The first-round review pass used to skip silently while CI was not green under `coder_ci_handoff`, a coder agent of the task was live, or `gate()` was closed. It now logs one `review-autospawn-wait` event per task, head and kind (`ci`, `coder`, `gate`) per hour, with the reason. Behaviour is unchanged: it still retries each tick. The re-run pass (a task with an earlier round, new head) logs the same events for `ci`, `coder`, `verdict` and `gate`. A hung or missing `gh` (timeout, OSError) in the judge carry check counts as unverifiable: that task gets no judge, later candidates still do.

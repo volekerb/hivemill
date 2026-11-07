@@ -8,6 +8,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,6 +18,16 @@ sys.path.insert(0, str(ROOT / "ci"))
 import shard  # noqa: E402
 
 NAMES = ["test_%s.py" % c for c in "qwertyuiopasdfghjklzxcvbnm"] + ["test_a1.py", "test_a2.py", "test_b2.py"]
+
+
+def assert_module_counts(self, mods, total, timings=None):
+    """Each module appears once per shard, except split-by-id modules (T-1168) which appear on every shard."""
+    timings = shard.load_timings() if timings is None else timings
+    split = shard.split_modules(mods, timings, total)
+    got = [m for s in range(1, total + 1) for m in shard.select(mods, s, total)]
+    c = Counter(got)
+    for m in mods:
+        self.assertEqual(c[m], total if m in split else 1, "%s N=%d" % (m, total))
 
 
 class SelectTest(unittest.TestCase):
@@ -29,8 +41,7 @@ class SelectTest(unittest.TestCase):
         mods = shard.all_modules()
         self.assertGreater(len(mods), 10)
         for total in range(1, 11):
-            got = [m for s in range(1, total + 1) for m in shard.select(mods, s, total)]
-            self.assertEqual(sorted(got), mods)
+            assert_module_counts(self, mods, total)
 
     def test_selection_is_deterministic_and_input_order_free(self):
         self.assertEqual(shard.select(NAMES, 2, 4), shard.select(list(reversed(NAMES)), 2, 4))
@@ -72,8 +83,7 @@ class PackTest(unittest.TestCase):
 
     def test_exactly_once_for_n_1_to_10_with_timings(self):
         for total in range(1, 11):
-            got = [m for s in range(1, total + 1) for m in shard.select(self.MODS, s, total, self.T)]
-            self.assertEqual(sorted(got), self.MODS, "N=%d" % total)
+            assert_module_counts(self, self.MODS, total, self.T)
 
     def test_checked_in_timings_pack_within_15_percent(self):
         mods = shard.all_modules()
@@ -84,15 +94,28 @@ class PackTest(unittest.TestCase):
 
     def assert_packed(self, w, loads):
         """Pack rule for 10 shards. A module bigger than total/10*1.15 must sit alone on a shard, and the
-        other 9 shards must still pack within 15% of their own mean (no flat max(limit, largest) bound)."""
-        total, biggest = sum(w.values()), max(w.values())
-        limit = total / 10 * 1.15
+        other 9 shards must still pack within 15% of their own mean (no flat max(limit, largest) bound).
+        Split-by-id modules (T-1168) are excluded from the greedy loads but listed on every shard; only the
+        remaining modules are checked for the 15% bound."""
+        keys = list(w.keys())
+        sm = shard.split_modules(keys, w, 10)
+        total_w, biggest = sum(w.values()), max(w.values())
+        limit = total_w / 10 * 1.15
         if biggest <= limit:
             self.assertLessEqual(max(loads), limit, loads)
             return
+        if sm:
+            rest_total = sum(w[m] for m in keys if m not in sm)
+            rest_limit = rest_total / 10 * 1.15
+            packs = shard.pack(keys, 10, w)
+            for b in packs:
+                self.assertTrue(sm.issubset(set(b)), b)
+            loads_rest = [sum(w[m] for m in b if m not in sm) for b in packs]
+            self.assertLessEqual(max(loads_rest), rest_limit, (loads_rest, sm))
+            return
         self.assertAlmostEqual(max(loads), biggest, msg="big module shares its shard: %s" % loads)
         rest = sorted(loads)[:-1]
-        self.assertLessEqual(max(rest), (total - biggest) / 9 * 1.15, loads)
+        self.assertLessEqual(max(rest), (total_w - biggest) / 9 * 1.15, loads)
 
     def test_oversize_rule_goes_red_on_unbalanced_rest_or_shared_big_shard(self):
         w = {"test_big.py": 100.0}
@@ -109,9 +132,7 @@ class PackTest(unittest.TestCase):
 
     def test_real_modules_assigned_exactly_once_for_10_shards(self):
         mods = shard.all_modules()
-        got = [m for s in range(1, 11) for m in shard.select(mods, s, 10)]
-        self.assertEqual(sorted(got), mods)
-        self.assertEqual(len(got), len(set(got)))
+        assert_module_counts(self, mods, 10)
 
     def test_checked_in_timings_have_no_stale_modules(self):
         self.assertEqual(sorted(set(shard.load_timings()) - set(shard.all_modules())), [])
@@ -243,6 +264,82 @@ class RunTest(unittest.TestCase):
         self.assertEqual((rc2, rep2["modules"], rep2["tests"]), (1, ["test_y.py"], 1))
 
 
+class SplitModuleTest(unittest.TestCase):
+    """T-1168: one oversized module's test ids are split across shards (round-robin on sorted ids)."""
+
+    def test_shard_of_test_ids_matches_t1039_rule(self):
+        ids = ["a", "b", "c", "d", "e"]
+        shards = [shard.shard_of_test_ids(ids, i, 3) for i in (1, 2, 3)]
+        flat = [x for s in shards for x in s]
+        self.assertEqual(sorted(flat), sorted(ids))
+        self.assertEqual(len(flat), len(set(flat)))
+        self.assertEqual(shards[1], [ids[1], ids[4]])  # positions 1,4 -> shard 2
+
+    def test_verify_split_module_across_shards(self):
+        mod = "test_split_demo.py"
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        tests = os.path.join(tmp.name, "tests")
+        os.mkdir(tests)
+        lines = (
+            "import unittest\n"
+            "class T(unittest.TestCase):\n"
+            + "".join("    def test_%d(self): pass\n" % i for i in range(7))
+        )
+        Path(tests, mod).write_text(lines)
+        full = shard.collect_test_ids(mod, tests)
+        self.assertEqual(len(full), 7)
+        timings = {mod: 9999.0, "test_z.py": 1.0}
+        old_split = shard.SPLIT_TEST_IDS_MODULES
+        try:
+            shard.SPLIT_TEST_IDS_MODULES = frozenset({mod})
+            self.assertIn(mod, shard.split_modules([mod, "test_z.py"], timings, 3))
+            for i in (1, 2, 3):
+                chunk = shard.shard_of_test_ids(full, i, 3)
+                rpath = os.path.join(tmp.name, "shard-%d.json" % i)
+                Path(rpath).write_text(json.dumps({
+                    "shard": i, "total": 3, "modules": [mod],
+                    "tests": len(chunk), "seconds": {mod: 1.0},
+                    "test_ids": {mod: chunk},
+                }))
+            repdir = tmp.name
+            summary, n = shard.verify(repdir, 3, tests, only={mod})
+        finally:
+            shard.SPLIT_TEST_IDS_MODULES = old_split
+        self.assertEqual(n, 7)
+        self.assertIn("7 tests across 3 shards", summary)
+
+    def test_verify_split_module_rejects_duplicate_test_id_across_shards(self):
+        uid = uuid.uuid4().hex[:8]
+        mod = "test_split_dup_%s.py" % uid
+        base = mod[:-3]
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        tests = os.path.join(tmp.name, "tests")
+        os.mkdir(tests)
+        Path(tests, mod).write_text(
+            "import unittest\nclass T(unittest.TestCase):\n"
+            + "".join("    def test_%d(self): pass\n" % i for i in range(4)))
+        full = shard.collect_test_ids(mod, tests)
+        sys.modules.pop(base, None)
+        old_split = shard.SPLIT_TEST_IDS_MODULES
+        try:
+            shard.SPLIT_TEST_IDS_MODULES = frozenset({mod})
+            good1 = shard.shard_of_test_ids(full, 1, 2)
+            good2 = shard.shard_of_test_ids(full, 2, 2)
+            bad2 = good2 + good1[:1]
+            for i, chunk in ((1, good1), (2, bad2)):
+                Path(os.path.join(tmp.name, "shard-%d.json" % i)).write_text(json.dumps({
+                    "shard": i, "total": 2, "modules": [mod], "tests": len(chunk),
+                    "seconds": {mod: 1.0}, "test_ids": {mod: chunk},
+                }))
+            with self.assertRaisesRegex(shard.ShardError, "id coverage wrong"):
+                shard.verify(tmp.name, 2, tests, only={mod})
+        finally:
+            shard.SPLIT_TEST_IDS_MODULES = old_split
+            sys.modules.pop(base, None)
+
+
 class WorkflowTest(unittest.TestCase):
     wf = (ROOT / ".github" / "workflows" / "tests.yml").read_text()
 
@@ -252,8 +349,8 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual([int(x) for x in matrix.split(",")], list(range(1, total + 1)))
 
     def test_required_check_name_and_timeouts(self):
-        self.assertRegex(self.wf, r"(?m)^  unittest:\n    name: unittest\n    needs: \[unittest-shard, go, guard-unittest, guard-diff, guard-equiv, guard-equiv-rest\]\n    if: always\(\)")
-        self.assertEqual(re.findall(r"timeout-minutes: (\d+)", self.wf), ["20", "10", "30", "20", "30", "30", "5"])
+        self.assertRegex(self.wf, r"(?m)^  unittest:\n    name: unittest\n    needs: \[unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-equiv, guard-equiv-rest\]\n    if: always\(\)")
+        self.assertEqual(re.findall(r"timeout-minutes: (\d+)", self.wf), ["30", "10", "30", "5", "30", "30", "30", "30", "5"])
 
     def test_edited_trigger_is_not_used(self):
         # An `edited` run would put a second `unittest` check (or a skipped one, which counts as
@@ -267,6 +364,7 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("needs.unittest-shard.result", self.wf)
         self.assertIn("needs.guard-unittest.result", self.wf)
         self.assertIn("needs.guard-diff.result", self.wf)
+        self.assertIn("needs.guard-self-compare.result", self.wf)
         self.assertIn("GOTOOLCHAIN: local", self.wf)
 
 

@@ -23,6 +23,29 @@ success/neutral/skipped conclusion, it mails the lead `CI green: <task> PR #N @<
 failed or was cancelled, `CI red: ... : <failed checks>`. One message per (task, head sha) (throttle key `ci-green:`/`ci-red:`),
 pending checks send nothing, a gh failure logs a `ci-wake-error` event. The mail is unread, so step 1d wakes the lead in the same tick.
 
+## Coder restart on red CI (T-1004)
+
+With `coder_ci_handoff` on (`resume` or `fresh`, see [prcheck.md](prcheck.md#ci-handoff-coder_ci_handoff-t-1003)) the coder leaves at PR
+open, so a red head needs it back. Tick step 2c' (`coder_ci_resume_tick`, after the review autospawn) takes each `in_review` task of an
+active goal with a PR, no judge hold, and no coder agent that is live, starting or queued, reads the PR once, and when every check is done
+and one failed starts the coder again, once per (task, head sha) (throttle row `coder-resume:<task>:<sha>`).
+
+- **resume** mode: `spawn(resume=<session_id>)` of the recorded coder row, in the task's worktree. A resume sends no kickoff of its own, so the
+  tick mails the coder (`CI red: <task> PR #N @<sha8>`); the idle nudge wakes it.
+- **fresh** start, with the same kickoff: mode `fresh`, no recorded session, no worktree on disk, or a runtime other than Claude (resume is unproven
+  for Cursor). A missing worktree is rebuilt by spawn; the kickoff then tells the coder to `git reset --hard origin/<branch>` first.
+- The kickoff names the head, each failed check with its run id and `gh run view <id> --log-failed`.
+- Limits: `coder_ci_resume_max` starts per task (default 2); the next red head mails the lead once (`coder resume limit reached`) and starts
+  nothing. At most 2 starts per tick. Nothing starts for a task whose own repo has a red main (`red_main_freeze=1`); tasks of other repos still
+  start. A closed `gate()` stops the step for the tick; both retry next tick.
+- A refused spawn skips that task and the step goes on with the next one. After 3 refusals on one head the tick stops retrying that head and
+  mails the lead once (`coder restart refused`).
+- A conflicted PR (`mergeStateStatus` DIRTY), or one without any checks for over 60 minutes, mails the lead (once per head) and starts nothing.
+- Blocked and judge-held tasks start nothing (`red_pr_owner_alert` mails the lead for a blocked one). The task stays `in_review`; each
+  successful start adds 1 to `attempts` (T-1098), so the lead's 3-attempt rule and the scorecard retry count see tick resumes; a refused
+  spawn adds nothing. The review rerun on a new head and the worktree are untouched.
+- The lead gets an `fyi` per start (`coder restarted on red CI`); event `coder-ci-resume` on the task records mode and head.
+
 ## Idle coder reap (T-1028)
 
 Config `idle_coder_reap` = `off` (default) | `dry-run` | `on` (unknown = dry-run); threshold `idle_coder_reap_s` (default 900).

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "hivemill",
+  "description": "Hivemill: a local AI software factory. One plugin with a guided setup skill.",
+  "owner": {
+    "name": "volekerb",
+    "url": "https://github.com/volekerb"
+  },
+  "plugins": [
+    {
+      "name": "hivemill",
+      "source": "./plugins/hivemill",
+      "description": "Guided install of Hivemill: checks prerequisites, runs the installer, starts the factory, prints the web UI URL.",
+      "category": "development"
+    }
+  ]
+}

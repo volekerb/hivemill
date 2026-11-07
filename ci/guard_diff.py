@@ -22,6 +22,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -29,6 +30,9 @@ DEFAULT_HOOK = "roles/hooks/worker-guard.py"
 DEFAULT_CORPUS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "guard_corpus.json")
 BLOCK = 2
 TIMEOUT = "timeout"
+# Match go/internal/guard/guardexport.go GuardExportMaxAge. compare() can run longer; refresh seed exports first.
+_GUARD_EXPORT_MAX_AGE = 15 * 60
+_GUARD_EXPORT_REFRESH_AFTER = _GUARD_EXPORT_MAX_AGE - 3 * 60
 
 
 class UsageError(Exception):
@@ -90,7 +94,37 @@ def scratch_fixture():
         pass
     os.makedirs(os.path.join(path, "deep", "a", "b"), exist_ok=True)
     open(os.path.join(path, "deep", "a", "b", ".git"), "a").close()
+    # T-0331: `esc` is a symlink out of the scratchpad (the corpus' symlink-escape cases)
+    outside = os.path.join(tempfile.gettempdir(), f"guard-diff-outside-{os.getuid()}")
+    os.makedirs(outside, exist_ok=True)
+    try:
+        os.symlink(outside, os.path.join(path, "esc"))
+    except FileExistsError:
+        pass
     return path
+
+
+def install_fixture():
+    """T-0331: a stand-in live checkout at a fixed temp path whose systemd/install.sh is a byte copy of this repo's;
+    corpus commands spell that script @INSTALL@ and the hook is told it is the live home (WORKER_GUARD_LIVE_HOME), so a
+    `bash <script> --dry-run` is the byte-for-byte live install.sh on any machine."""
+    home = os.path.join(tempfile.gettempdir(), f"guard-diff-install-{os.getuid()}", "factory")
+    dest = os.path.join(home, "systemd", "install.sh")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "systemd", "install.sh")
+    with open(src, "rb") as f:
+        data = f.read()
+    try:
+        with open(dest, "rb") as f:
+            same = f.read() == data
+    except FileNotFoundError:
+        same = False
+    if not same:  # hook_env runs on several threads: write a private file and rename it into place
+        tmp = f"{dest}.{os.getpid()}.{threading.get_ident()}"
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, dest)
+    return os.path.realpath(dest)
 
 
 def worktree_fixture():
@@ -116,6 +150,8 @@ def hook_env(cmd, env=None):
         out["WORKER_GUARD_LIVE_HOME"] = shared_fixture()
     if scratch_fixture() in cmd:
         out["WORKER_GUARD_SCRATCH"] = scratch_fixture()
+    if f"guard-diff-install-{os.getuid()}" in cmd:  # only a command naming @INSTALL@ builds that fixture
+        out["WORKER_GUARD_LIVE_HOME"] = os.path.dirname(os.path.dirname(install_fixture()))
     return {**(os.environ if env is None else env), **out} if out else env
 
 
@@ -125,6 +161,7 @@ def expand(cmd):
                          "mixed with @LIVE_HOME@ (the live home would be unguarded); use one token")
     cmd = cmd.replace("@LIVE_HOME@", live_home())
     cmd = cmd.replace("@SHARED@", shared_fixture()) if "@SHARED@" in cmd else cmd
+    cmd = cmd.replace("@INSTALL@", install_fixture()) if "@INSTALL@" in cmd else cmd
     return cmd.replace("@SCRATCH@", scratch_fixture()) if "@SCRATCH@" in cmd else cmd
 
 
@@ -223,6 +260,31 @@ def make_seed_home(parent, seed, n, worktrees=None):
     return home
 
 
+def _export_age_seconds(doc):
+    at = datetime.fromisoformat(doc["generated_at"].replace("Z", "+00:00"))
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - at).total_seconds()
+
+
+def refresh_guard_export_if_stale(home, lock):
+    """Rewrite generated_at on a seed home's guard-export.json before the Go guard reads it as stale."""
+    path = os.path.join(home, "run", "guard-export.json")
+    with lock:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                doc = json.load(fh)
+        except (OSError, ValueError, json.JSONDecodeError):
+            return
+        if _export_age_seconds(doc) < _GUARD_EXPORT_REFRESH_AFTER:
+            return
+        doc["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh)
+        os.replace(tmp, path)
+
+
 def run_hook(hook, argv_extra, cmd, timeout, env=None, exe=None, cwd=None):
     """Run the Python hook, or the executable `exe` (a Go candidate) when given, on one command."""
     payload = {"tool_name": "Bash", "tool_input": {"command": cmd}}
@@ -262,6 +324,7 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
         specs = dict.fromkeys((w[3] or (), agent_task(w[4])) for w in work if w[3] or agent_task(w[4]))
         seed_homes = {sp: make_seed_home(seed_tmp.name, sp[0], i, {sp[1]: worktree_fixture()} if sp[1] else None)
                       for i, sp in enumerate(specs)}
+        export_locks = {home: threading.Lock() for home in seed_homes.values()}
     except BaseException:
         seed_tmp.cleanup()
         raise
@@ -273,7 +336,10 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
         task = agent_task(xenv)
         cwd = worktree_fixture() if task else None  # a task's agent runs from its own worktree fixture
         if seed or task:  # a seeded entry runs both sides against its own temp home (its config rows), never the live DB
-            env = {**(env or os.environ), "FACTORY_HOME": seed_homes[(seed or (), task)]}
+            shome = seed_homes[(seed or (), task)]
+            env = {**(env or os.environ), "FACTORY_HOME": shome}
+            if pr_exe:
+                refresh_guard_export_if_stale(shome, export_locks[shome])
         elif m == "worker" and r == "evaluator":
             env = {**(env or os.environ), "FACTORY_HOME": temp_home}
         if roles:

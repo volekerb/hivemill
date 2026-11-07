@@ -18,7 +18,7 @@ import (
 
 // Port of the PublicText class of worker-guard.py (G-021): the public-text and frozen-repo rule for git and gh
 // writes (T-0887). The config comes from the guard export (guardexport.go), the checker from scrub.go / ptcheck.go:
-// nothing is delegated to the Python hook any more. publictext.go holds the entry conditions and the Analyzer hook.
+// this rule delegates nothing to the Python hook (only the tar/unzip member list does, archive_rule.go). publictext.go holds the entry conditions and the Analyzer hook.
 
 var (
 	ptTextFlags = set("--title", "-t", "--body", "-b", "--subject", "--comment", "-c", "--notes", "-n", "--message", "-m",

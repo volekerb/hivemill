@@ -87,10 +87,22 @@ def chips(label, items):
     return el("div", el("span", label, class_="facet-label"), el("div", [chip(*i) for i in items], class_="chips"), class_="facet")
 
 
-def segmented(label, items):
-    """Capsule of 2-4 exclusive options, links with aria-current on the selected one. items: (text, href, current)."""
-    return el("nav", [el("a", t, href=h_, aria_current="true" if cur else None) for t, h_, cur in items],
-              class_="seg seg-links", aria_label=label)
+def filter_bar(main, rest=(), *, key="filters", active=0):
+    """One visible chips row (`main`) plus the secondary filters in a closed disclosure titled "Filters" with the
+    count of active non-default filters. No `rest`: no details. All links stay in the HTML (works without script)."""
+    parts = [x for x in (main if isinstance(main, (list, tuple)) else [main]) if x is not None]
+    rest = [x for x in rest if x is not None]
+    if rest:
+        parts.append(disclosure("Filters", *rest, key=key, count=active or None))
+    return el("div", *parts)
+
+
+def segmented(label, items, scroll_strip=False):
+    """Capsule of 2-4 exclusive options, links with aria-current on the selected one. items: (text, href, current).
+    When scroll_strip is True (many short tabs on a narrow card), links stay inline and the row scrolls instead of
+    stretching each tab to fill the width (which clips the last label)."""
+    cls = "seg seg-links" + (" seg-links--scroll" if scroll_strip else "")
+    return el("nav", [el("a", t, href=h_, aria_current="true" if cur else None) for t, h_, cur in items], class_=cls, aria_label=label)
 
 
 # ── C4 list row and data table ──
@@ -112,6 +124,16 @@ def _th(col, sort, sort_href):
     return el("th", el("a", col["label"], href=sort_href(col["key"]), class_="sortlink"), scope="col", class_=cls, aria_sort=arrow)
 
 
+def _labelled(col, cell):
+    """Cell content. A column with `phone_label` (True = its header label, or a text) gets a `cl` span before a
+    non-empty cell: real text, shown by the phone card layout and hidden on desktop where the <th> names the column.
+    Empty cells get no label. Columns without the key are unchanged."""
+    want = col.get("phone_label")
+    if not want or cell in ("", None):
+        return cell
+    return [el("span", want if isinstance(want, str) else col["label"], class_="cl"), cell]
+
+
 def _table(columns, groups, sort, sort_href, with_header=True):
     head = el("thead", el("tr", [_th(c, sort, sort_href) for c in columns]))
     bodies = []
@@ -121,13 +143,13 @@ def _table(columns, groups, sort, sort_href, with_header=True):
             rows.append(el("tr", el("th", g["label"], " ", el("span", g["count"], class_="grp-n"), colspan=len(columns), scope="colgroup"),
                            class_="grp"))
         for r in g["rows"]:
-            rows.append(el("tr", [el("td", cell, class_=c.get("cls")) for c, cell in zip(columns, r)]))
+            rows.append(el("tr", [el("td", _labelled(c, cell), class_=c.get("cls")) for c, cell in zip(columns, r)]))
         bodies.append(el("tbody", rows))
     return el("table", head, bodies, class_="dt")
 
 
 def data_table(columns, groups, sort=None, sort_href=None, key="tbl", empty=None):
-    """Real <table>, sortable headers, groups by status. columns: dicts {key, label, cls?, sortable?}.
+    """Real <table>, sortable headers, groups by status. columns: dicts {key, label, cls?, sortable?, phone_label?}.
     groups: dicts {key, label, count, rows, collapsed?}; rows are lists of cells (str escaped, Safe kept), one per
     column. `sort` is the effective (column key, "asc"|"desc") and gets aria-sort; `sort_href(col_key)` builds the
     header link. Open groups share one table (group header row "In review 1"); collapsed groups follow as
@@ -143,7 +165,8 @@ def data_table(columns, groups, sort=None, sort_href=None, key="tbl", empty=None
         if g.get("collapsed"):
             out.append(disclosure(g["label"], _table(columns, [{"rows": g["rows"]}], None, sort_href),
                                   key=f"{key}-{g['key']}", count=g["count"]))
-    return el("div", out, class_="dt-wrap")
+    cards = any(c.get("phone_label") for c in columns)   # opt-in: only tables with a phone-labelled column get the card layout
+    return el("div", out, class_="dt-wrap dt-wrap--cards" if cards else "dt-wrap")
 
 
 # ── C13 feed row ──
@@ -157,9 +180,10 @@ def feed_row(title, url, goal=None, pr_url=None, sha=None, when=None, when_title
               el("span", when, title=when_title, class_="feed-when") if when else None, class_="feed-row")
 
 
-def feed(rows):
-    """<ul> wrapper for feed_row items."""
-    return el("ul", rows, class_="feed")
+def feed(rows, modifier=None):
+    """<ul> wrapper for feed_row items. `modifier` ("log") adds the class feed--log (a bounded line length on desktop);
+    without it the markup is what every other page already renders."""
+    return el("ul", rows, class_=f"feed feed--{modifier}" if modifier else "feed")
 
 
 # ── C17 agent row ──
@@ -167,8 +191,8 @@ def feed(rows):
 AGENT_COLS = (
     {"key": "status", "label": "", "cls": "c-st"},
     {"key": "agent", "label": "Agent", "cls": "c-title"},
-    {"key": "task", "label": "Task", "cls": "c-who"},
-    {"key": "last", "label": "Last event", "cls": "c-age num"},
+    {"key": "task", "label": "Task", "cls": "c-who", "phone_label": True},
+    {"key": "last", "label": "Last event", "cls": "c-age num", "phone_label": "Last"},
 )
 
 
@@ -227,16 +251,21 @@ def agent_row(a, now=None):
 
 # ── C7 metric tile, C18 needs-you row (G-019 B4) ──
 
-def tile(label, value, unit=None, delta=None, definition=None, href=None):
+def tile(label, value, unit=None, delta=None, definition=None, href=None, unit_nl=False):
     """C7 metric tile: label, big value (+ small `unit`), optional `delta` line and an (i) definition disclosure.
     `delta` is a text or a (text, tone) pair, tone success|warning|danger|neutral (default neutral); `definition`
-    opens as a short paragraph under the label; `href` makes the label a link (to the detail page)."""
+    opens as a short paragraph under the label; `href` makes the label a link (to the detail page).
+    `unit_nl`: when True, `unit` renders on its own line under the value so a long unit does not touch the figure."""
     text, tone = (delta if isinstance(delta, tuple) else (delta, "neutral"))
     name = el("a", label, href=href) if href else el("span", label)
     info = (el("details", el("summary", "i", aria_label=f"What is {label}?"), el("p", definition, class_="tile-def"),
                class_="disc--i") if definition else None)
+    if unit_nl and unit:
+        metric = el("div", el("div", value, class_="metric-val"), el("small", unit, class_="tile-unit"), class_="metric metric--stack")
+    else:
+        metric = el("div", value, el("small", unit) if unit else None, class_="metric")
     return el("div", el("div", name, " ", info, class_="tile-label"),
-              el("div", value, el("small", unit) if unit else None, class_="metric"),
+              metric,
               el("div", text, class_=f"delta fg-{tone}") if text else None, class_="tile")
 
 

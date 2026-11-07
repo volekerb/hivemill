@@ -36,7 +36,7 @@ func FuzzPreprocess(f *testing.F) {
 		within(t, s, func() {
 			for _, fold := range []bool{false, true} {
 				var bodies []Heredoc
-				if text, _, err := Preprocess(s, fold, &bodies); err == nil {
+				if text, _, err := Preprocess(s, fold, &bodies, nil); err == nil {
 					_, _ = ExtractSubs(text)
 				}
 			}
@@ -51,9 +51,11 @@ var checkSeeds = []string{
 	"time -p ls", "echo é 日本 | sh", "bash <<< 'sudo x'", "cat < /usr/bin/herdr", "unset HERDR_SOCKET_PATH; herdr", "((((",
 	"sh -c 'sh -c \"sh -c x\"'", "find -exec find -exec find -exec find -exec x \\; \\; \\; \\;", "env env env env env env env env sudo",
 	"git status", "x=$(mktemp -d) y",
+	"gh api -X POST repos/o/r/issues -f body=x", "gh api repos/o/r --input f", "gh api -XGET repos/o/r -F a=b", "gh release create v1",
+	"gh api --method=get x --field=a=b", "gh -R o/r api x -f a=b", "gh api x -fbody=1", "gh release delete-asset v1 a",
 }
 
-// FuzzCheck checks only that Check neither panics nor hangs, as worker and in HQ mode, for any command text.
+// FuzzCheck checks only that Check neither panics nor hangs, as coder, no-push role and in HQ mode, for any command text.
 func FuzzCheck(f *testing.F) {
 	for _, s := range checkSeeds {
 		f.Add(s)
@@ -70,6 +72,8 @@ func FuzzCheck(f *testing.F) {
 		within(t, s, func() {
 			_ = Check(s, dir, "coder", false)
 			_ = Check(s, dir, "", true)
+			// a no-push role reaches inlineGhAPIBody, matchInlineGhAPIBody, bodyFlagAt and matchInlineGhGet
+			_ = Check(s, dir, "reviewer", false)
 		})
 	})
 }

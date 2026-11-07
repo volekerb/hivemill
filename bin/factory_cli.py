@@ -125,7 +125,8 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 CLAIM_TTL_S = 600
 # a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
 EVALUATOR_SPAWN_RETRY_MAX = 5
-UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer")  # G-018: what counts as a working slot (docs/utilization.md)
+START_FAILED_RETRY_S = 600  # a queued row at the failure cap is retried at most this often (T-1135)
+UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer", "researcher")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
 OWNER_CAP_KEYS = ("max_live_agents", "max_total_claude", "min_mem_available_mb", "max_five_hour_pct", "max_seven_day_pct",
@@ -149,7 +150,12 @@ DEFAULT_CONFIG = {
     "test_slots": "2",           # host-wide full-suite slots (tests/_slot.py); `factory res` shows how many are held
     "min_mem_available_mb": "1024",
     "ci_wake_workers": "4",      # tick_ci_wake runs its gh pr view probes in this many threads (1 = serial)
-    "red_pr_owner_alert": "0",   # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
+    "pr_view_ttl_s": "120",      # tick probes (ci wake, red PR alert, review autospawn) reuse one `gh pr view` per PR for this long; 0 = off (T-1014, docs/gh-quota.md)
+    "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
+    "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
+    "goal_token_tally_s": "0",   # 0 = off; >0 = seconds between the tick's drained per-goal token tally passes, read by `factory goal tokens` (G-015 SC3, F-74)
+    "owner_alert_send": "0",     # 1 (with owner_alert_feed=1) = the tick sends each open feed row to the owner's phone over ntfy, fixed fields only (G-015 SC3 A3)
+    "owner_alert_feed": "0",     # 1 = the tick records owner_attention() as a dark, deduped feed read by `factory alerts`; nothing is sent (G-015 SC3)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
@@ -161,6 +167,7 @@ DEFAULT_CONFIG = {
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
     "review_autospawn": "off",   # off | on: the tick starts reviewer + QA (or one combined agent for T0/T1) when a PR opens (G-022 #6, docs/review-autospawn.md)
     "coder_ci_handoff": "off",   # off | resume | fresh: coder runs factory done at PR open without waiting for CI; the tick starts review at green (T-1003, docs/prcheck.md)
+    "coder_ci_resume_max": "2",   # with coder_ci_handoff on: at most this many tick starts of a handed-off coder per task on a red head, then the lead is mailed (T-1004, docs/lead-wake.md)
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
@@ -288,6 +295,19 @@ CREATE TABLE IF NOT EXISTS lesson_links (
 CREATE INDEX IF NOT EXISTS idx_lesson_links ON lesson_links(lesson_id);
 """
 
+OWNER_ALERT_DDL = """
+CREATE TABLE IF NOT EXISTS owner_alert_feed (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, since TEXT NOT NULL,
+  link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT, sent TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_alert_open ON owner_alert_feed(kind, ref) WHERE closed IS NULL;
+"""
+
+GOAL_TOKEN_DDL = """
+CREATE TABLE IF NOT EXISTS goal_token_tally (
+  goal_id TEXT PRIMARY KEY, input INTEGER NOT NULL, output INTEGER NOT NULL, cache_read INTEGER NOT NULL,
+  cache_write_5m INTEGER NOT NULL, cache_write_1h INTEGER NOT NULL, cost REAL, computed_at TEXT NOT NULL);
+"""
+
 UTIL_DDL = """
 CREATE TABLE IF NOT EXISTS util_samples (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, live INTEGER NOT NULL, workers INTEGER NOT NULL,
@@ -321,7 +341,7 @@ CREATE TABLE IF NOT EXISTS goals (
   intent TEXT, success_criteria TEXT, status TEXT NOT NULL DEFAULT 'proposed',
   priority INTEGER NOT NULL DEFAULT 2, requested_by TEXT, workspace_id TEXT,
   created TEXT NOT NULL, updated TEXT NOT NULL,
-  org TEXT NOT NULL DEFAULT 'claude');
+  org TEXT NOT NULL DEFAULT 'claude', token_limit INTEGER);
 CREATE TABLE IF NOT EXISTS plans (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL REFERENCES goals(id),
   version INTEGER NOT NULL, body TEXT NOT NULL, author TEXT, created TEXT NOT NULL);
@@ -348,6 +368,8 @@ CREATE TABLE IF NOT EXISTS agents (
   start_pending REAL, start_pending_info TEXT, org TEXT);
 CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, ts TEXT NOT NULL);
 {UTIL_DDL}
+{OWNER_ALERT_DDL}
+{GOAL_TOKEN_DDL}
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT NOT NULL, recipient TEXT NOT NULL,
   kind TEXT NOT NULL DEFAULT 'msg', subject TEXT NOT NULL, body TEXT, goal_id TEXT, task_id TEXT,
@@ -408,6 +430,12 @@ def migrate(con):
             con.execute("ALTER TABLE goals ADD COLUMN org TEXT NOT NULL DEFAULT 'claude'")
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "org" not in {r["name"] for r in con.execute("PRAGMA table_info(goals)")}:
+                raise
+    if gcols and "token_limit" not in gcols:  # G-015 SC3 F-74 L2: NULL = no limit
+        try:
+            con.execute("ALTER TABLE goals ADD COLUMN token_limit INTEGER")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "token_limit" not in {r["name"] for r in con.execute("PRAGMA table_info(goals)")}:
                 raise
     for col, ddl in (("flagless", "INTEGER NOT NULL DEFAULT 0"), ("flagless_since", "TEXT"),
                      ("stop_requested_at", "TEXT"), ("stop_attempt_at", "TEXT"), ("stop_failed_kind", "TEXT"),
@@ -482,6 +510,14 @@ def migrate(con):
                 if col not in {r["name"] for r in con.execute("PRAGMA table_info(gate_runs)")}:
                     raise
     con.executescript(UTIL_DDL)
+    con.executescript(OWNER_ALERT_DDL)
+    if "sent" not in {r["name"] for r in con.execute("PRAGMA table_info(owner_alert_feed)")}:  # G-015 SC3 A3: NULL = unsent
+        try:
+            con.execute("ALTER TABLE owner_alert_feed ADD COLUMN sent TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "sent" not in {r["name"] for r in con.execute("PRAGMA table_info(owner_alert_feed)")}:
+                raise
+    con.executescript(GOAL_TOKEN_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
     have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -618,7 +654,7 @@ def require_known(a):
           or (a.cmd == "config" and a.value is None)
           or (a.cmd == "project" and a.action == "list")
           or (a.cmd == "gate" and a.action in ("show", "list"))
-          or (a.cmd == "goal" and a.action in ("list", "show"))
+          or (a.cmd == "goal" and a.action in ("list", "show", "tokens"))
           or (a.cmd == "team" and a.action == "list")
           or (a.cmd == "lesson" and a.action in ("list", "show"))
           or (a.cmd == "task" and a.action in ("list", "ready", "show"))
@@ -1101,6 +1137,39 @@ def close_named_pane(con, name, pane):
         return "not-found", None
     herdr("pane", "close", h["pane_id"], check=False)
     return "closed", h["pane_id"]
+
+
+def close_leftover_shell(con, name, pane):
+    """T-1118: a stopped agent's pane id is still listed but the host names no agent under it (the agent is gone, a bare
+    shell is left; close_named_pane skipped it). Close it only when no agent on the host carries that pane id, its
+    foreground is a plain shell and no live/starting/queued row holds the id. Anything else is kept and one
+    "leftover-shell-kept" event names why, a failed host read included. The pane cwd must also match the stopped
+    row's cwd. Returns "closed" or "kept"."""
+    def keep(reason):
+        event(con, "agent", name, "leftover-shell-kept", {"agent": name, "pane": pane, "reason": reason})
+        return "kept"
+    listed = herdr_agents()
+    gone = pane_gone(pane)
+    if listed is None or gone is None:
+        return keep("host read failed")
+    if gone is True:
+        return "closed"
+    holder = next((x.get("name") for x in listed if x.get("pane_id") == pane), None)
+    if holder:
+        return keep(f"pane held by agent {holder}")
+    if con.execute("SELECT 1 FROM agents WHERE pane_id=? AND name!=? AND status IN ('live','starting','queued')",
+                   (pane, name)).fetchone():
+        return keep("pane id held by another live row")
+    if not pane_at_shell(pane):
+        return keep("pane foreground is not a plain shell")
+    row = con.execute("SELECT cwd FROM agents WHERE name=?", (name,)).fetchone()
+    if not _pane_cwd_is(pane, row["cwd"] if row else None):
+        return keep("pane cwd is not the stopped row's cwd (the id may belong to another pane)")
+    herdr("pane", "close", pane, check=False)
+    if pane_gone(pane) is True:
+        event(con, "agent", name, "leftover-shell-closed", {"agent": name, "pane": pane})
+        return "closed"
+    return keep("close issued but the host still lists the pane")
 
 
 def herdr_workspaces():
@@ -2272,13 +2341,25 @@ def cmd_goal(a):
               ["id", "org", "status", "priority", "project_id", "done", "total", "title"])
     elif a.action == "show":
         show_goal(con, a.id, compact=compact_view(con, a))
+    elif a.action == "tokens":
+        goal_tokens(con, a.id)
     elif a.action == "edit":
         require_role(con, "boss", "director")
+        if a.token_limit is not None and a.token_limit < 0:
+            die("--token-limit must be a positive number of tokens, or 0 to clear the limit", 2)
         sets = [(c, v) for c, v in (("title", a.title), ("intent", read_text(a.intent)),
                                     ("success_criteria", read_text(a.success)),
                                     ("priority", a.priority)) if v is not None]
-        if not sets:
+        if a.token_limit:
+            sets.append(("token_limit", a.token_limit))
+        if not sets and a.token_limit is None:
             die("nothing to change")
+        if a.token_limit == 0:  # 0 clears: NULL needs its own clause
+            con.execute("UPDATE goals SET token_limit=NULL, updated=? WHERE id=?", (now(), a.id))
+            event(con, "goal", a.id, "edit", "token_limit cleared")
+            if not sets:
+                print(f"{a.id} updated")
+                return
         con.execute(f"UPDATE goals SET {', '.join(c + '=?' for c, _ in sets)}, updated=? WHERE id=?",
                     (*[v for _, v in sets], now(), a.id))
         event(con, "goal", a.id, "edit", ", ".join(c for c, _ in sets))
@@ -2441,6 +2522,10 @@ def show_goal(con, gid, compact=False):
         die(f"no goal {gid}")
     print(f"# {g['id']} — {g['title']}\nstatus={g['status']} priority={g['priority']} project={g['project_id']}"
           + (f" org={g['org']}" if "org" in g.keys() else ""))
+    if "token_limit" in g.keys() and g["token_limit"]:
+        t = con.execute("SELECT * FROM goal_token_tally WHERE goal_id=?", (gid,)).fetchone()
+        used = f"tally {tally_tokens(t)} tokens" if t else "no tally yet"
+        print(f"token limit: {g['token_limit']} tokens ({used}; `factory goal tokens {gid}`)")
     for k in ("intent", "success_criteria"):
         if g[k]:
             print(f"\n## {k}\n{g[k]}")
@@ -3153,7 +3238,10 @@ def cmd_task(a):
             goal_auto_active(con, t["goal_id"], f"task {a.id} in_progress (task update)")
         print(f"{a.id} updated")
     elif a.action == "note":
-        event(con, "task", a.id, "note", read_text(a.text))
+        text = read_text(a.text)
+        if not (text or "").strip():
+            die("task note text is empty; pass the note as an argument or on stdin with '-'. Nothing was written.", 2)
+        event(con, "task", a.id, "note", text)
         print("noted")
     elif a.action == "tier":
         task_tier_cmd(con, a)
@@ -3206,6 +3294,18 @@ def org_for(con, goal=None, task=None, sender=None, org=None):
         or agent_org(con, sender) or orgs.DEFAULT_ORG
 
 
+def goal_alert_to(con, goal, team=None, lead=None):
+    """Recipient of an unprompted tick alert about `goal`: the lead (`lead` name, else the lead of `team`) when that lead is
+    of the goal's org (default org when the goal has none), else "director" (resolved inside the goal's org by send).
+    A lead of another org gets no mail and no wake. Mail that answers a lead's own action does not use this."""
+    if not lead and team:
+        r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (team,)).fetchone()
+        lead = r["lead_agent"] if r else None
+    if lead and agent_org(con, lead) == (goal_org(con, goal) or orgs.DEFAULT_ORG):
+        return lead
+    return "director"
+
+
 def oname(con, org, base):
     """The agent name for `base` in `org`: <org>-<base>. The default org's prefix is behind config org_prefix_default
     (off: a single-org install keeps boss, director, coder-t-0001; on: claude-boss, claude-coder-t-0001). An already
@@ -3231,13 +3331,19 @@ def resolve_recipient(con, to, org=None):
         to = "boss"  # the boss is the owner's interface; it relays
     if to in orgs.SINGLETON_ROLES:
         cand = oname(con, org, to)
-        if con.execute("SELECT 1 FROM agents WHERE name=?", (cand,)).fetchone():
+        live = ("live", "starting", "queued")
+        if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN (?,?,?)", (cand, *live)).fetchone():
             return cand
-        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') "
-                        "ORDER BY started DESC", (to,)).fetchall()
+        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN (?,?,?) "
+                        "ORDER BY started DESC", (to, *live)).fetchall()
         for x in r:
             if agent_org(con, x["name"]) == org:
                 return x["name"]
+        if (org == orgs.DEFAULT_ORG and (cfg(con, "org_prefix_default") or "0").strip() == "1"
+                and not orgs.prefix_of(to)):
+            leg = con.execute("SELECT name FROM agents WHERE name=? AND status IN (?,?,?)", (to, *live)).fetchone()
+            if leg and agent_org(con, leg["name"]) == org:
+                return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
         r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
@@ -3355,6 +3461,14 @@ def warn_spec_by_msg(con, mid, sender_role, rcpt, kind, subject, body):
     event(con, "task", r["task_id"], "spec-by-msg", f"M{mid} {actor()}->{rcpt}")
 
 
+def sender_org_for(con, role, to, goal=None, task=None):
+    """The org a message is resolved in: a lead or worker (not CROSS_ORG_ROLES) addressing a bare singleton (director,
+    boss, owner, staff-engineer) reaches its OWN org's HQ whatever --goal/--task says; everyone else: goal, task, sender."""
+    if role not in CROSS_ORG_ROLES and (to == "owner" or to in orgs.SINGLETON_ROLES):
+        return agent_org(con, actor()) or orgs.DEFAULT_ORG
+    return org_for(con, goal, task, actor())
+
+
 def cmd_msg(a):
     con = db()
     role = actor_role(con)
@@ -3363,7 +3477,8 @@ def cmd_msg(a):
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
     refuse_cross_org(con, role, a.to, a.goal, a.task)
-    mid, rcpt = send(con, a.to, a.subject, body, a.kind, a.goal, a.task)
+    mid, rcpt = send(con, a.to, a.subject, body, a.kind, a.goal, a.task,
+                     org=sender_org_for(con, role, a.to, a.goal, a.task))
     print(f"M{mid} → {rcpt}")
     warn_spec_by_msg(con, mid, role, rcpt, a.kind, a.subject, body)
     if orgs.strip_prefix(rcpt) == ON_DEMAND and a.kind == "request":
@@ -3381,7 +3496,7 @@ def refuse_cross_org(con, role, to, goal=None, task=None):
     if role in CROSS_ORG_ROLES:
         return
     mine = agent_org(con, actor()) or orgs.DEFAULT_ORG
-    rcpt = resolve_recipient(con, to, org_for(con, goal, task, actor()))
+    rcpt = resolve_recipient(con, to, sender_org_for(con, role, to, goal, task))
     theirs = agent_org(con, rcpt) or orgs.prefix_of(rcpt)
     if theirs and theirs != mine:
         die(f"{actor()} ({mine} org) may not message {rcpt} ({theirs} org); only the boss and director talk across "
@@ -3411,7 +3526,7 @@ def inbox_show(con, a):
     m = con.execute("SELECT * FROM messages WHERE id=?", (int(arg),)).fetchone()
     if not m:
         die(f"no message M{arg}")
-    if m["recipient"] != actor() and actor_role(con) not in ("director", "boss", "owner"):
+    if actor() not in (m["recipient"], m["sender"]) and actor_role(con) not in ("director", "boss", "owner"):
         print(f"not your message: M{arg}", file=sys.stderr)
         sys.exit(3)
     print(inbox_header(m))
@@ -3473,7 +3588,8 @@ def cmd_report(a):
                     print(f"note: team {team} has no lead; report sent to director", file=sys.stderr)
     else:
         refuse_on_demand(con, to, role)
-    mid, rcpt = send(con, to, f"status: {a.goal or ''} {a.headline}".strip(), read_text(a.body), "report", a.goal)
+    mid, rcpt = send(con, to, f"status: {a.goal or ''} {a.headline}".strip(), read_text(a.body), "report", a.goal,
+                     org=sender_org_for(con, role, to, a.goal))
     print(f"M{mid} report → {rcpt}")
 
 
@@ -3774,6 +3890,29 @@ def combined_name(task, org=None, con=None):
     return oname(con, org, base) if con is not None else (orgs.name(org, base) if org and org != orgs.DEFAULT_ORG else base)
 
 
+def verdict_start_head(con, task, agent):
+    """The full PR head the tick started `agent` on (newest review-autospawn event for it, T-1048), else None. None too when the agent was
+    (re)started after that event (a lead's respawn of the same name records none): the event then describes an earlier worker."""
+    row = con.execute("SELECT started FROM agents WHERE name=?", (agent,)).fetchone()
+    try:
+        began = dt.datetime.fromisoformat(row["started"]) if row and row["started"] else None
+    except ValueError:
+        began = None
+    for e in con.execute("SELECT ts, detail FROM events WHERE entity='task' AND entity_id=? AND action='review-autospawn' ORDER BY id DESC", (task,)):
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("agent") == agent and re.fullmatch(r"[0-9a-f]{7,40}", str(d.get("sha", ""))):
+            try:
+                if began and dt.datetime.fromisoformat(e["ts"]) < began:
+                    return None
+            except ValueError:
+                return None
+            return d["sha"].lower()
+    return None
+
+
 def cmd_verdict(a):
     con = db()
     role = require_role(con, "qa", "reviewer")
@@ -3794,6 +3933,12 @@ def cmd_verdict(a):
     checked = (a.sha or "").lower()
     if checked and not re.fullmatch(r"[0-9a-f]{7,40}", checked):
         die(f"--sha must be 7-40 hex characters of the commit you checked, got {a.sha!r}", 5)
+    started_at = verdict_start_head(con, a.task, actor())
+    if started_at and not checked and not a.passed:
+        checked = started_at  # a FAIL with no --sha is bound to the head this worker was started on, not to whatever the head is now
+    if a.passed and started_at and checked and not started_at.startswith(checked) and not checked.startswith(started_at):
+        die(f"{role} PASS refused, nothing recorded: the tick started you on head {started_at}, you named {checked}. The PR head moved "
+            "after you started, so this worker's check is not of that head: record a FAIL/finding at the head you tested, or let the tick start a fresh round", 5)
     if a.passed:
         if not checked:
             die(f"{role} PASS refused, nothing recorded: pass --sha <the commit you checked> "
@@ -3906,7 +4051,7 @@ def _judge_wait_limit(con):
 
 
 STRICT_TTL_S = 600  # the live branch-protection answer is cached this long (config key stale_strict:<owner/repo>)
-BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base"
+BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base and no file changed by both main and the PR"
 CI_WORKFLOW = ".github/workflows/tests.yml"
 
 
@@ -3938,18 +4083,38 @@ def stale_behind_ok(con, owner_repo):
     return out == "false"
 
 
-def behind_ok_ci_changed(repo, sha, main_sha):
-    """T-1000: True when behind_ok must NOT apply: the CI workflow changed on main since the merge-base of the PR head `sha`
-    and main (`main_sha`, the verified main commit). The head never ran the jobs main now requires (T-0355 guard-equiv), so
-    it has to refresh and run CI. One definition for the judge and the mechanical merger (both go through cmd_judge's gate).
-    Fail closed: any git error, or an unknown main_sha, reads as changed (the head is refreshed or refused)."""
+def behind_ok_blocker(repo, sha, main_sha):
+    """T-1000 + T-1025: why behind_ok must NOT apply to the PR head `sha`, or None when it may. One definition for the judge
+    and the mechanical merger (both go through cmd_judge's gate). Relative to the merge-base of the head and main
+    (`main_sha`, the verified main commit), two reasons:
+    - the CI workflow changed on main (the head never ran the jobs main now requires, T-0355 guard-equiv);
+    - any file changed on main since the merge-base is also changed by the PR: merge-tree is clean but no CI ever ran the
+      combined tree (T-0435 #369 vs T-0880 #361 on worker-guard.py turned main red).
+    The head must then refresh and run CI (judge) or is refused (mech merger). Fail closed: a git error or an unknown
+    main_sha reads as blocked."""
     if not main_sha:
-        return True
-    rc, base, _ = _git_rc([*HARDENED_GIT_FLAGS, "merge-base", main_sha, sha], repo=repo, env=_carry_env())
+        return "origin/main is unknown"
+
+    def git(*a):
+        return _git_rc([*HARDENED_GIT_FLAGS, *a], repo=repo, env=_carry_env())
+
+    rc, base, _ = git("merge-base", main_sha, sha)
     if rc != 0 or not base:
-        return True
-    rc, _, _ = _git_rc([*HARDENED_GIT_FLAGS, "diff", "--quiet", base, main_sha, "--", CI_WORKFLOW], repo=repo, env=_carry_env())
-    return rc != 0  # 0 = identical, 1 = changed, anything else = could not decide
+        return "the merge-base with main is unknown"
+    rc, _, _ = git("diff", "--quiet", base, main_sha, "--", CI_WORKFLOW)
+    if rc != 0:  # 0 = identical, 1 = changed, anything else = could not decide
+        return f"{CI_WORKFLOW} changed on main since the merge-base"
+    sides = []
+    for tip in (main_sha, sha):
+        rc, out, _ = git("diff", "--name-only", "-z", "--no-renames", base, tip)
+        if rc != 0:
+            return "the changed files since the merge-base could not be listed"
+        sides.append({f for f in out.split("\0") if f})
+    both = sorted(sides[0] & sides[1])
+    if both:
+        more = f" and {len(both) - 3} more" if len(both) > 3 else ""
+        return f"main and the PR both changed {', '.join(both[:3])}{more} since the merge-base"
+    return None
 
 
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
@@ -4722,8 +4887,14 @@ def judge_requeue(con, task, proj, pr_url, new_head):
           "The tick launches the run and a judge is spawned when it passes.")
 
 
+STATUS_ONLY_PREFIX = "status-only: "
+STATUS_ONLY_HELD = STATUS_ONLY_PREFIX + "[head ready] "  # PR was ready when rejected: only a new verdict lifts the hold
+
+
 def cmd_judge(a):
     con = db()
+    if getattr(a, "no_code_change", False) and not a.reject:
+        die("--no-code-change only goes with --reject; nothing was merged or rejected", 2)
     if getattr(a, "train", None):
         if a.task or a.reason is not None:
             die("--train takes only task ids and --dry-run, no task argument or --reason", 2)
@@ -4753,6 +4924,19 @@ def cmd_judge(a):
         # CI still running (and nothing failing): wait for it instead of refusing; the full gate then runs on the fresh state
         pr, waited = judge_wait_ci(con, t["pr_url"], pr)
         sha = pr["headRefOid"]
+    if a.reject and getattr(a, "no_code_change", False):
+        # T-1055: status-only reject (CI wait, missing verdict on head): no code change asked, so the task stays in_review.
+        # The verdict row still counts as a reject in the scorecard; judge autospawn skips the task until a newer
+        # reviewer/QA verdict lands (judge_status_only_hold), and the merge gate is untouched.
+        # CI wait (PR not ready now): no hold; judge_hold keeps a judge queued and one spawns once CI is green.
+        # PR already ready (e.g. verdict missing on head): hold until a newer reviewer/QA verdict, or it would loop.
+        ready, _why = judge_pr_ready(con, t["pr_url"], True)
+        con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+                    (a.task, t["pr_url"], sha, "judge", "reject",
+                     (STATUS_ONLY_HELD if ready else STATUS_ONLY_PREFIX) + reason, actor(), now()))
+        event(con, "task", a.task, "judge-reject-status-only", reason)
+        print(f"{a.task} REJECTED (status-only, stays in_review) @ {sha[:8]}")
+        return
     if a.reject:
         con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                     (a.task, t["pr_url"], sha, "judge", "reject", reason, actor(), now()))
@@ -4855,16 +5039,16 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
         # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
         behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
-        ci_changed = behind_clean and behind_ok_ci_changed(git_repo, sha, stale[2])
-        if ci_changed:  # T-1000: the head predates a CI change on main: refresh (judge) or refuse (mech) instead of behind_ok
+        blocker = behind_clean and behind_ok_blocker(git_repo, sha, stale[2])
+        if blocker:  # T-1000/T-1025: CI changed on main, or main touched a file the PR also changes: refresh (judge) or refuse (mech)
             behind_clean = False
         if behind_clean:
             if BEHIND_OK_NOTE not in reason:
                 reason += "; " + BEHIND_OK_NOTE
         elif not stale[0]:
             problems.insert(0, ("STALE-ONLY: head does not contain origin/main"
-                                + (f" ({CI_WORKFLOW} changed on main since the merge-base: behind_ok does not apply, "
-                                   "refresh so CI runs the current jobs)" if ci_changed else "")) if stale[1] == "STALE"
+                                + (f" ({blocker}: behind_ok does not apply, refresh so CI runs the combined tree)"
+                                   if blocker else "")) if stale[1] == "STALE"
                             else f"cannot verify head contains origin/main: {stale[1]}")
         if pr["state"] != "OPEN":
             problems.append(f"PR is {pr['state']}")
@@ -5948,6 +6132,17 @@ def cmd_redmain(a):
     print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
 
 
+def _red_main_kept_text(con, tid, slug):
+    """Alert sentence for a stored fix task on a repeat red run. The record clears only on a green push run, so the task
+    may already be done/cancelled while main stays red: then say so and ask for a new fix task (message only)."""
+    row = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()
+    st = row["status"] if row else ""
+    if st in ("done", "cancelled"):
+        return (f"Stored fix task {tid} is {st} but main is still red; a new fix task is needed "
+                f"(director: factory redmain fix {slug} NEW_TASK_ID). No task was filed automatically.")
+    return f"Fix task {tid} is still open; no new task filed."
+
+
 def red_main_check(con):
     """Tick hook (flag red_main_freeze, default off): read the latest completed push run of tests.yml on main of each
     project repo, at most every red_main_interval_s while no repo is red. While any red_main:<slug> record exists the
@@ -5981,15 +6176,17 @@ def red_main_check(con):
                 if not old:
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
                     tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
+                kept = (old or {}).get("task") or ""
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
-                                          "task": tid or (old or {}).get("task") or "",
+                                          "task": tid or kept,
                                           "since": (old or {}).get("since") or now()})
                 event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
                 send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
                      f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
                      + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
-                        if tid else "No active goal for the project: file the revert task by hand.")
+                        if tid else _red_main_kept_text(con, kept, slug)
+                        if kept else "No active goal for the project: file the revert task by hand.")
                      + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
             elif run["conclusion"] == "success":
                 mark = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
@@ -6261,9 +6458,101 @@ def _sweep_candidates(con, t):
     return out
 
 
+TMP_LEFTOVER_MIN_AGE_S = 86400   # a listed leftover must be untouched (dir and everything inside) for this long
+TMP_LEFTOVER_CAP = 500           # at most this many leftovers per run
+# Same-uid daemons that are non-dumpable (EACCES on cwd/fd) and never hold /tmp entries. Exact comm match, not prefix.
+# comm can be spoofed via PR_SET_NAME only by our own uid, which can remove the dir anyway; this guards against accidents.
+TMP_LEFTOVER_IGNORE_COMMS = frozenset({"systemd", "(sd-pam)", "ssh-agent", "sshd-session"})
+TMP_LEFTOVER_THROTTLE_S = 600   # the walk of all listed entries (about 1 s on a 15000-entry /tmp) runs at most this often
+# Closed list of top-level <tmp> names that our own code leaves behind (tempfile.mkdtemp names: prefix + 8 chars):
+#   ci/guard_diff.py:615 (guard-diff-) and :293 (guard-diff-seed-), ci/screenshots.py:895 (factory-screenshots-),
+#   ci/freshbox_test.py:188 (freshbox-). Other litter seen in /tmp (go-build*, corp-*, gd-*, cursor-askpass-*) has no
+#   producer in this repo, so it is not listed.
+# Added by M26359 (producer rule waived for these four):
+#   zz-test-<name>-<8>: the test suites' mkdtemp(prefix="zz-test-<name>-") homes (tests/harness.py:272 makes
+#       zz-test-factory-<8>, which tmp_sweep_harness also sweeps after 1 h; whichever runs first wins, same result).
+#   zz-rv-<8>: no producer found in this repo (git grep); seen on the real /tmp, with locked subdirs.
+#   tmp<8> (python mkdtemp default) and tmp.<10> (mktemp default; the real /tmp also holds plain files of this shape):
+#       generic, not ours alone (mkdtemp() callers without a prefix, shell mktemp in docs/CI), so a process of our uid
+#       holding one (cwd or open fd) keeps it (_proc_holds).
+_LEFTOVER_NAME = re.compile(r"(guard-diff-(seed-)?|factory-screenshots-|freshbox-)[a-z0-9_]{8}"
+                            r"|zz-test-[a-z0-9-]+-[a-z0-9_]{8}|zz-rv-[a-z0-9_]{8}|tmp[a-z0-9_]{8}|tmp\.[A-Za-z0-9]{10}")
+
+
+def _sweep_leftovers(con, t):
+    """(removed [(path, bytes)], locked count, blocked). A run blocked by an unreadable pid of an unlisted comm removes
+    nothing and writes one tmp-sweep-blocked event. Entries of our uid directly under <tmp> whose name is in the closed list
+    above (real dirs, or plain files), with nothing in the tree touched for 24 h, not containing the cwd of an unfinished
+    agent and not held (cwd or open fd) by a process of ours. Symlinks are never followed. A tree that cannot be read or
+    removed completely is skipped and counted as locked, never an error (nothing is chmod-ed); _proc_holds None (an
+    unreadable pid outside TMP_LEFTOVER_IGNORE_COMMS) keeps everything. At most TMP_LEFTOVER_CAP removals per run."""
+    base = tmp_dir()
+    if not base.is_dir() or base.is_symlink():
+        return [], 0, False
+    cwds = [os.path.realpath(r["cwd"]) for r in con.execute(
+        "SELECT cwd FROM agents WHERE cwd IS NOT NULL AND cwd != '' AND status IN ('live','starting','queued','done')")]
+    old = []
+    locked = 0
+    for d in sorted(base.iterdir()):
+        if not _LEFTOVER_NAME.fullmatch(d.name):
+            continue
+        try:
+            st = d.lstat()
+            isdir = stat.S_ISDIR(st.st_mode)
+            if not (isdir or stat.S_ISREG(st.st_mode)) or st.st_uid != os.getuid():
+                continue
+            newest = _harness_newest_mtime(d) if isdir else st.st_mtime
+            if t - newest < TMP_LEFTOVER_MIN_AGE_S:
+                continue
+            real = os.path.realpath(d)
+            if any(c == real or c.startswith(real + os.sep) for c in cwds):
+                continue
+        except FileNotFoundError:
+            continue   # vanished while we looked
+        except OSError:
+            locked += 1   # unreadable subdir: cannot be measured, keep it
+            continue
+        old.append((d, isdir, real))
+    if not old:
+        return [], locked, False
+    blocker = []
+    held = _proc_holds([real for _, _, real in old], TMP_LEFTOVER_IGNORE_COMMS, blocker)
+    if held is None:
+        pid, _, comm = (blocker[0] if blocker else "?:?").partition(":")
+        kept_bytes = 0
+        for d, isdir, _ in old:
+            try:
+                kept_bytes += _tree_bytes(d) if isdir else d.lstat().st_size
+            except OSError:
+                pass   # vanished or unreadable: not counted in the MB figure
+        event_as(con, "tick", "tick", "tmp-sweep", "tmp-sweep-blocked",
+                 {"pid": pid, "comm": comm, "kept": len(old), "mb": round(kept_bytes / 1048576, 1)})
+        return [], locked, True
+    out = []
+    for d, isdir, real in old:
+        if len(out) >= TMP_LEFTOVER_CAP:
+            break
+        if real in held:
+            continue
+        try:
+            size = _tree_bytes(d) if isdir else d.lstat().st_size
+            if isdir:
+                shutil.rmtree(d)
+            else:
+                d.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            locked += 1   # partly removed or not removable: counted, not an error
+            continue
+        out.append((d, size))
+    return out, locked, False
+
+
 def tmp_sweep(con):
-    """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates),
-    write one tmp-swept event (MB freed, dir count), and alert the director once if /tmp is still over tmp_max_pct.
+    """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates)
+    and stale leftovers with a listed prefix (see _sweep_leftovers),
+    write one tmp-swept event (MB freed, dir count, leftover count), and alert the director once if /tmp is still over tmp_max_pct.
     No agent involved; any failure is an event, never a stopped tick."""
     try:
         tmp = tmp_usage()
@@ -6281,8 +6570,15 @@ def tmp_sweep(con):
                     continue
                 freed += size
                 n += 1
-            if n:
-                event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept", {"mb": round(freed / 1048576, 1), "dirs": n})
+            left, locked, blocked = [], 0, False
+            last = con.execute("SELECT ts FROM throttle WHERE key='tmpleftover'").fetchone()
+            if not (last and t - float(last["ts"]) < TMP_LEFTOVER_THROTTLE_S):
+                con.execute("INSERT INTO throttle(key,ts) VALUES('tmpleftover',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+                left, locked, blocked = _sweep_leftovers(con, t)
+            freed += sum(sz for _, sz in left)
+            if n or left or (locked and not blocked):
+                event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept",
+                         {"mb": round(freed / 1048576, 1), "dirs": n, "leftovers": len(left), "locked": locked})
             tmp = tmp_usage() or tmp
         over = tmp["pct"] >= float(cfg(con, "tmp_max_pct"))
         armed = con.execute("SELECT value FROM config WHERE key='tmp_sweep_alerted'").fetchone()
@@ -6375,10 +6671,21 @@ def _harness_newest_mtime(d):
     return newest
 
 
-def _proc_holds(roots):
+def _pid_comm(pdir):
+    """/proc/<pid>/comm of an unreadable pid, or None when it cannot be read; FileNotFoundError when the pid has exited."""
+    try:
+        return (pdir / "comm").read_text().strip()
+    except FileNotFoundError:
+        raise
+    except OSError:
+        return None
+
+
+def _proc_holds(roots, ignore_comms=frozenset(), blocker=None):
     """The `roots` (realpaths) that a process of our uid has as cwd or an open fd (or holds something inside); None when
     a pid of ours cannot be read completely, so the caller keeps everything. (A non-dumpable same-uid process has an
-    unreadable fd dir, which also lands in the keep-everything branch.)"""
+    unreadable fd dir, which also lands in the keep-everything branch.) An unreadable pid whose comm is in `ignore_comms`
+    is skipped; any other unreadable pid is appended to `blocker` as "pid:comm" (comm None if unreadable) before None."""
     held = set()
     uid = os.getuid()
     for pdir in _serve_proc_root().iterdir():
@@ -6392,6 +6699,16 @@ def _proc_holds(roots):
         except FileNotFoundError:
             continue   # the process exited while we looked
         except OSError:
+            if not ignore_comms and blocker is None:
+                return None   # defaults: exactly the old behaviour (tmp_sweep_harness)
+            try:
+                comm = _pid_comm(pdir)
+            except FileNotFoundError:
+                continue   # the process exited while we looked
+            if comm in ignore_comms:
+                continue
+            if blocker is not None:
+                blocker.append(f"{pdir.name}:{comm}")
             return None
         for tg in targets:
             for r in roots:
@@ -6403,7 +6720,8 @@ def _proc_holds(roots):
 def tmp_sweep_harness(con):
     """Tick hook, at most hourly: delete stale <tmp>/zz-test-factory-<8 chars> test-harness homes (killed or crashed test
     runs leave them). Only real dirs of our uid directly under <tmp>; kept when anything in the tree is under 1 h old or a
-    process of ours has its cwd or an fd inside; an unreadable pid of ours keeps everything. At most 500 per pass; one
+    process of ours has its cwd or an fd inside; an unreadable pid of ours keeps everything unless its comm is in
+    TMP_LEFTOVER_IGNORE_COMMS (skipped); an unlisted one is named in a tmp-harness-blocked event. At most 500 per pass; one
     tmp-harness-swept event per pass that removed something."""
     try:
         t = time.time()
@@ -6434,8 +6752,18 @@ def tmp_sweep_harness(con):
                      {"count": len(unmeasured), "kept": unmeasured[:20]})
         if not old:
             return
-        held = _proc_holds([os.path.realpath(d) for d in old])
+        blocker = []
+        held = _proc_holds([os.path.realpath(d) for d in old], TMP_LEFTOVER_IGNORE_COMMS, blocker)
         if held is None:
+            pid, _, comm = (blocker[0] if blocker else "?:?").partition(":")
+            kept_bytes = 0
+            for d in old:
+                try:
+                    kept_bytes += _tree_bytes(d)
+                except OSError:
+                    pass   # vanished or unreadable: not counted in the MB figure
+            event_as(con, "tick", "tick", "tmp-harness", "tmp-harness-blocked",
+                     {"pid": pid, "comm": comm, "kept": len(old), "mb": round(kept_bytes / 1048576, 1)})
             return
         n = busy = freed = 0
         for d in old:
@@ -6868,6 +7196,21 @@ EXITED_PANE_MIN_AGE_S = 600    # a row must have been 'exited' this long before 
 EXITED_PANE_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner")
 
 
+def _pane_cwd_is(pane, row_cwd):
+    """True when the host lists `pane` with a cwd equal to the row's recorded cwd (' (deleted)' ignored); unknown is False."""
+    if not row_cwd:
+        return False
+    r = herdr("pane", "list", check=False)
+    if not isinstance(r, dict) or not isinstance(r.get("panes"), list):
+        return False
+
+    def norm(c):
+        return os.path.normpath(c[:-len(" (deleted)")] if c.endswith(" (deleted)") else c)
+    want = norm(row_cwd)
+    return any(p.get("pane_id") == pane and isinstance(p.get(k), str) and p[k] and norm(p[k]) == want
+               for p in r["panes"] for k in ("cwd", "foreground_cwd"))
+
+
 def _pane_idle_in_cwd(h, pane, row_cwd):
     """True when host agent `h` is done or idle (never working) and its pane's cwd equals the row's recorded cwd
     (a ' (deleted)' suffix ignored). Anything unknown (no row cwd, pane list unavailable) is False: keep the pane."""
@@ -6893,7 +7236,8 @@ def reap_exited_panes(con, agents):
     stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed), and
     the host pane's agent_session, when it names one, is the row's session_id (as relaunch_agent checks). When the host
     names no session, the pane closes only if its agent_status is done/idle (never working) and its cwd equals the row's
-    recorded cwd (' (deleted)' suffix ignored).
+    recorded cwd (' (deleted)' suffix ignored) and no other live/starting row has that same cwd (T-1118); the event
+    detail's "branch" says which check decided ("session" or "cwd").
     Panes without an agents row, HQ rows and every non-exited row are never touched.
     `agents` is the tick's host agent list (None or empty = nothing to do)."""
     try:
@@ -6916,8 +7260,12 @@ def reap_exited_panes(con, agents):
             sess = (h.get("agent_session") or {}).get("value")
             if sess and sess != r["session_id"]:
                 continue  # the pane runs another session (a newer agent under this name): never ours to close
+            branch = "session" if sess else "cwd"
             if not sess and not _pane_idle_in_cwd(h, pane, r["cwd"]):
                 continue  # session unknown: only an idle/done pane sitting in this row's own cwd is provably its leftover
+            if not sess and con.execute("SELECT 1 FROM agents WHERE cwd=? AND name!=? AND status IN ('live','starting')",
+                                        (r["cwd"], name)).fetchone():
+                continue  # T-1118: a live peer shares the cwd, so the cwd cannot tell the panes apart: keep it
             ended = _ts(r["ended"])
             if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
                 continue
@@ -6926,7 +7274,7 @@ def reap_exited_panes(con, agents):
                 continue  # the pane id was handed to a newer live agent
             if pane_gone(pane) is not False:
                 continue  # the tick's list is stale (e.g. its reap loop just closed it) or the host cannot be asked
-            detail = {"agent": name, "pane": pane, "role": r["role"], "ended": r["ended"]}
+            detail = {"agent": name, "pane": pane, "role": r["role"], "ended": r["ended"], "branch": branch}
             key = json.dumps({"agent": name, "pane": pane})[:-1] + ","
 
             def seen(action):
@@ -7426,8 +7774,8 @@ def drift_pr_states(con):
 
 
 def tick_drift(con):
-    """Tick hook, at most hourly: one message per goal with drift items (D1-D4, docs/lifecycle.md) to its live lead, else
-    the director. An identical item set is not re-sent for 24 h. A gh failure, or the run's gh time budget
+    """Tick hook, at most hourly: one message per goal with drift items (D1-D4, docs/lifecycle.md) to its live (else parked) lead of the goal's org, else
+    the goal org's director. An identical item set is not re-sent for 24 h. A gh failure, or the run's gh time budget
     (DRIFT_GH_BUDGET_S, env FACTORY_DRIFT_GH_BUDGET_S) running out, leaves D2 unchecked; nothing here stops the tick."""
     try:
         t = time.time()
@@ -7471,9 +7819,11 @@ def tick_drift(con):
                       if _ts(e["ts"]) and (now_dt - _ts(e["ts"])).total_seconds() < DRIFT_DEDUPE_S]
             if key in recent:
                 continue
-            team = con.execute("SELECT t.id FROM teams t JOIN agents a ON a.name=t.lead_agent "
-                               "WHERE t.goal_id=? AND t.status='active' AND (a.status='live' OR t.parked_at IS NOT NULL) "
-                               "ORDER BY a.status='live' DESC, t.id", (g["id"],)).fetchone()
+            gorg = goal_org(con, g["id"]) or orgs.DEFAULT_ORG  # a lead of another org gets no drift mail and no wake
+            team = next((r for r in con.execute(
+                "SELECT t.id, t.lead_agent FROM teams t JOIN agents a ON a.name=t.lead_agent "
+                "WHERE t.goal_id=? AND t.status='active' AND (a.status='live' OR t.parked_at IS NOT NULL) "
+                "ORDER BY a.status='live' DESC, t.id", (g["id"],)) if agent_org(con, r["lead_agent"]) == gorg), None)
             body = "\n".join(items + [f"D2 unchecked {u}" for u in unchecked.get(g["id"], [])])
             send(con, f"lead:{team['id']}" if team else "director", f"drift {g['id']}: {len(items)} items", body,
                  "alert", g["id"], sender="tick")
@@ -8096,6 +8446,29 @@ def check_evaluator_spawn(con, role, cwd, env_extra, plugin_dirs, add_home_dir):
             die(f"plugin dir {d} is not prompt-only: {e}", 3)
 
 
+def _prior_spawn_arg(prior, key):
+    """One key of a prior agent row's spawn_args JSON (None for no row, empty or unparsable args)."""
+    if not prior:
+        return None
+    try:
+        return json.loads(prior["spawn_args"] or "{}").get(key)
+    except ValueError:
+        return None
+
+
+def spawn_org(con, prior, name, goal, task, org=None):
+    """The org spawn() puts an agent in: the caller's org, else the one stored in the prior row, else the name prefix, else the goal's."""
+    return org_for(con, goal, task, org=org or _prior_spawn_arg(prior, "org") or orgs.prefix_of(name)
+                   or (None if goal or task else agent_org(con, actor())))
+
+
+def _resume_runtime_change(con, prior, role, org):
+    """'runtime A -> B' when the session id recorded in prior is from another runtime than role's runtime in org (spawn drops it), else ''."""
+    prior_rt = _prior_spawn_arg(prior, "runtime") or "claude"
+    now_rt = org_runtime(con, role, org)
+    return f"runtime {prior_rt} -> {now_rt}" if prior_rt != now_rt else ""
+
+
 def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, prompt=None, model=None,
           resume=None, from_queue=False, pane=None, relaunch=False, env_extra=None, plugin_dirs=None,
           add_home_dir=True, fresh=False, sandbox_optin=False, hold=None, org=None, strict_name=False):
@@ -8124,21 +8497,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     # G-028: the org comes from the goal (else the task's goal, the existing row, the caller, the default org);
     # every agent name carries its org prefix (claude-boss, cursor-coder-t-0840)
     prior = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
-    prior_org = None
-    if prior:
-        try:
-            prior_org = json.loads(prior["spawn_args"] or "{}").get("org")
-        except ValueError:
-            prior_org = None
-    org = org_for(con, goal, task, org=org or prior_org or orgs.prefix_of(name)
-                  or (None if goal or task else agent_org(con, actor())))
+    org = spawn_org(con, prior, name, goal, task, org=org)
     if resume and prior:  # a session id only resumes on the runtime that recorded it (org move, legacy row, config change)
-        try:
-            prior_rt = json.loads(prior["spawn_args"] or "{}").get("runtime") or "claude"
-        except ValueError:
-            prior_rt = "claude"
-        if prior_rt != org_runtime(con, role, org):
-            event(con, "agent", name, "resume-dropped", f"runtime {prior_rt} -> {org_runtime(con, role, org)}")
+        rtchg = _resume_runtime_change(con, prior, role, org)
+        if rtchg:
+            event(con, "agent", name, "resume-dropped", rtchg)
             resume, fresh = None, True
     if role != "evaluator":
         asked = name
@@ -8152,6 +8515,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         if role == "evaluator":
             raise EvaluatorInvalid(e.code) from None  # the tick cancels on this one only; other exits are retried
         raise
+    if not relaunch:  # a relaunch restarts an agent that already runs: not new work
+        goal_token_gate(con, role, goal, task, org, from_queue)  # G-015 SC3 F-74 L3: before the gate and any queue row
     existing = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
     if existing and existing["status"] == "live" and not relaunch:
         # also for from_queue: run/<name>.prompt.md is read live by the running agent; never rewrite it under it
@@ -8182,6 +8547,15 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             held = judge_hold(con, task)  # the tick applies the same hold to rows it dequeues
             ok, why = (False, held) if held else (ok, why)
     if not ok:
+        if existing and existing["status"] in ("queued", "starting"):
+            # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
+            try:
+                old = json.loads(existing["spawn_args"] or "{}")
+            except ValueError:
+                old = {}
+            if not isinstance(old, dict):
+                old = {}
+            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at") if k in old})
         # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
         # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
         # and leaves a cancelled row alone
@@ -8480,22 +8854,114 @@ def sandbox_refuse(con, role, name, reason, why):
     raise e
 
 
+class GoalTokenRefused(SandboxRefused):
+    """A coder or pm spawn on a Claude-org goal whose cached token tally reached its token_limit (G-015 SC3, F-74 L3): exit 3,
+    nothing started. A direct spawn just exits; the tick's dequeue loop cancels the queued row once (sandbox_drop_queued)."""
+
+
+GOAL_TOKEN_REFUSED_ROLES = ("coder", "pm")  # new-work roles; judge, reviewer, qa, lead, cleaner still get PRs to main
+
+
+def goal_token_refusal(con, role, goal, org):
+    """Why a `role` spawn for `goal` is refused at the goal's token limit, else None. Reads the goals row and the cached
+    goal_token_tally row only, never a log. No limit, no tally row, an unreadable table or a non-Claude org: None (fails open,
+    on purpose: no figure, no refusal; the tally can also read low, which refuses less, never more)."""
+    # the goal's own org decides, never the resolved spawn org: a cursor-prefixed --name must not escape a Claude goal's limit
+    if role not in GOAL_TOKEN_REFUSED_ROLES or not goal or (goal_org(con, goal) or orgs.DEFAULT_ORG) != orgs.DEFAULT_ORG:
+        return None
+    try:
+        g = con.execute("SELECT token_limit FROM goals WHERE id=?", (goal,)).fetchone()
+        limit = g["token_limit"] if g else None
+        if not limit or limit <= 0:
+            return None
+        t = con.execute("SELECT * FROM goal_token_tally WHERE goal_id=?", (goal,)).fetchone()
+        if t is None:
+            return None
+        used = tally_tokens(t)
+    except sqlite3.OperationalError:  # pre-migrate DB without the column or table
+        return None
+    if used < limit:
+        return None
+    return (f"{goal} is at its token limit: tally {used} tokens, limit {limit}. A {role} is new work and is not started; "
+            f"judge, reviewer, qa, lead and cleaner still are. To go on, the director or owner raises it: "
+            f"factory goal edit {goal} --token-limit N")
+
+
+def goal_token_gate(con, role, goal, task, org, from_queue):
+    """spawn()'s limit check (the one place every coder/pm start passes). Direct: one event on the task, exit 3. Queued row:
+    raise GoalTokenRefused, the tick cancels it once and alerts the lead. Never leaves an agents row behind."""
+    why = goal_token_refusal(con, role, goal, org)
+    if not why:
+        return
+    if not from_queue:
+        if task:
+            event(con, "task", task, "goal-token-limit-refused", f"{role}: {why}")
+        con.commit()  # the exit follows: the event must survive
+    print(f"factory: {why}", file=sys.stderr)
+    e = GoalTokenRefused(3)
+    e.reason, e.why = "goal-token-limit", why
+    raise e
+
+
 def sandbox_drop_queued(con, row, s, e):
     """A queued sandboxed spawn that preflight refused needs a human fix, not time: cancel the row (never start it
     unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path.
     A worker gh credential refusal (GhCredRefused) is dropped the same way."""
-    what = "gh-cred" if isinstance(e, GhCredRefused) else "settings-render" if isinstance(e, SettingsRenderRefused) else "sandbox"
-    if not cancel_queued(con, row["name"], f"{what}-preflight", f"{e.reason}: {e.why}"):
+    what = ("gh-cred" if isinstance(e, GhCredRefused) else "settings-render" if isinstance(e, SettingsRenderRefused)
+            else "goal-token" if isinstance(e, GoalTokenRefused) else "sandbox")
+    if not cancel_queued(con, row["name"], "goal-token-limit" if what == "goal-token" else f"{what}-preflight",
+                         f"{e.reason}: {e.why}"):
         return
     team = s.get("team")
     subject = f"{what} refused queued spawn {row['name']}"
     body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: {what} preflight refused it "
             f"({e.reason}: {e.why}). Fix it and spawn again.")
+    if what == "goal-token":
+        body = f"The queued {s['role']} spawn {row['name']} was cancelled, not started: {e.why}"
     try:
         send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
              sender="factory")
     except SystemExit:  # the team has no lead any more: the director hears it instead
         send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
+
+
+def start_failed_queued(con, row, s, e):
+    """A queued non-evaluator row whose start died (spawn() restored it to queued): count the failure and its time on the row.
+    The first failure logs one `spawn-start-failed` event and alerts the team's lead once (director with no lead); the
+    failure that reaches EVALUATOR_SPAWN_RETRY_MAX sends one last alert. The row is never cancelled (T-1135, M26136): queued
+    rows are the work, and a pane-server outage must not drop them. At or past the cap the tick attempts the start at most
+    every START_FAILED_RETRY_S (see start_failed_wait); a start that works ends the episode. Gate refusals never reach here."""
+    name, team = row["name"], s.get("team")
+    fails = int(s.get("spawn_failures", 0)) + 1
+    why = f"exit {e.code}" if isinstance(e.code, int) else str(e.code)[:200]
+    cur = con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?,'$.spawn_failed_at',?) "
+                      "WHERE name=? AND status='queued'", (fails, digest_clock().timestamp(), name))
+    if cur.rowcount != 1:  # no longer queued (cancelled meanwhile): nothing to retry or report
+        return
+    if fails == 1:
+        event(con, "agent", name, "spawn-start-failed", f"queued {s['role']} start failed ({why}); retried next tick, "
+              f"every {START_FAILED_RETRY_S // 60} min from failure {EVALUATOR_SPAWN_RETRY_MAX}; stays queued")
+    if fails != 1 and fails != EVALUATOR_SPAWN_RETRY_MAX:
+        return
+    capped = fails >= EVALUATOR_SPAWN_RETRY_MAX
+    subject = f"start of queued {s['role']} {name} " + ("keeps failing" if capped else "failed")
+    body = (f"The start of queued {s['role']} {name} died ({why}). " +
+            (f"It failed {fails} times and stays queued, retried every {START_FAILED_RETRY_S // 60} minutes; this is the "
+             "last alert. Fix the cause: it starts on the next retry." if capped else
+             f"The tick retries it each tick; one more alert at failure {EVALUATOR_SPAWN_RETRY_MAX}, then none."))
+    up = {"lead": "director", "director": "boss"}.get(s["role"])  # never alert the failing row itself: one level up
+    try:
+        send(con, up or (f"lead:{team}" if team else "director"), subject, body, "alert", goal=s.get("goal"), org=s.get("org"),
+             task=s.get("task"), sender="factory")
+    except SystemExit:  # the team has no lead any more: the director hears it instead
+        send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory", org=s.get("org"))
+
+
+def start_failed_wait(s):
+    """True while a queued row at or past the failure cap is inside its retry window: the tick skips its start."""
+    if int(s.get("spawn_failures", 0)) < EVALUATOR_SPAWN_RETRY_MAX:
+        return False
+    return digest_clock().timestamp() - float(s.get("spawn_failed_at", 0)) < START_FAILED_RETRY_S
 
 
 def sandbox_prepare(con, role, name, cwd):
@@ -8697,6 +9163,11 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         plan = agent_runtime.plan_spawn(runtime, ctx)
     except (ValueError, FileNotFoundError) as e:
         die(str(e), 3)
+    if runtime == "cursor":
+        try:
+            cursor_harness.assert_add_dir_roots_clean(cursor_harness.add_dirs_from_cursor_argv(plan.argv))
+        except ValueError as e:
+            die(str(e), 3)
     args = {**args, "runtime": runtime, "launch": plan.launch, "notes": plan.notes,
             "herdr_kind": plan.herdr_kind}
     if plan.workspace:
@@ -9664,7 +10135,7 @@ def prcheck_done_refusal(con, r, t):
         "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
 
 
-JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject")  # what cmd_judge records
+JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject", "judge-reject-status-only")  # what cmd_judge records
 
 
 def judge_done_refusal(con, r):
@@ -9897,6 +10368,7 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
                 gone = None  # the host cannot be asked: nothing closed, the stop is retried
             elif st == "not-found":
                 gone = True  # no host pane under this name (today's no-pane path); the process check below decides
+                close_leftover_shell(con, name, pane)  # T-1118: the id may still list a bare shell; close it or say why not
             end = time.time() + wait
             while st == "closed":  # confirm: the host must stop listing the pane it closed
                 gone = pane_gone(hp)
@@ -11155,6 +11627,40 @@ def owner_blockers(con):
     return out
 
 
+def owner_attention(con):
+    """The one narrow "needs the owner" selector (G-015 SC3, D7): [{kind, org, ref, since, link}], never a subject, title or
+    body. Five sources: owner-waiting blocked tasks, judge auto_merge=0 holds, open "owner action" escalations and the
+    closed /tmp gate (both via owner_blockers, so the open/answered rule cannot drift), blocked goals. Other boss mail,
+    proposed goals and internal-blocked tasks are not listed. owner_blockers writes a throttle row: tick-side callers only."""
+    out = []
+
+    def row(kind, org, ref, since, link):
+        out.append({"kind": kind, "org": org, "ref": ref, "since": since, "link": link})
+
+    for t in con.execute("SELECT id, goal_id, updated FROM tasks WHERE status='blocked' AND waits='owner' ORDER BY id"):
+        ev = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                         "AND detail LIKE '%waits=owner%' ORDER BY id DESC LIMIT 1", (t["id"],)).fetchone()
+        row("task-owner-wait", org_for(con, goal=t["goal_id"]), t["id"], ev["ts"] if ev else t["updated"], f"/task/{t['id']}")
+    latest = {}
+    for e in con.execute("SELECT entity_id, ts, detail FROM events WHERE entity='task' AND action='judge-blocked' ORDER BY id"):
+        latest[e["entity_id"]] = e
+    for tid, e in latest.items():
+        t = con.execute("SELECT goal_id, status FROM tasks WHERE id=?", (tid,)).fetchone()
+        if t and t["status"] not in ("done", "cancelled") and "auto_merge=0" in (e["detail"] or ""):
+            row("judge-hold", org_for(con, goal=t["goal_id"]), tid, e["ts"], f"/task/{tid}")
+    for b in owner_blockers(con):
+        if b["key"].startswith("owner-blocker:M"):
+            mid = int(b["key"].rsplit("M", 1)[1])
+            m = con.execute("SELECT goal_id, task_id, recipient, created FROM messages WHERE id=?", (mid,)).fetchone()
+            row("escalation", org_for(con, goal=m["goal_id"], task=m["task_id"], sender=m["recipient"]), f"M{mid}",
+                m["created"], f"/goal/{m['goal_id']}" if m["goal_id"] else "/")
+        elif b["key"].startswith("owner-blocker:gate:"):
+            row("tmp-gate", "all", "tmp", b["since"], "/resources")
+    for g in con.execute("SELECT id, updated FROM goals WHERE status='blocked' ORDER BY id"):
+        row("goal-blocked", org_for(con, goal=g["id"]), g["id"], g["updated"], f"/goal/{g['id']}")
+    return out
+
+
 def owner_blocker_nudge(con, blockers):
     """The one night exception to "the tick never prompts the boss pane": prompt it once per alerted night blocker, like
     step 3 does for other agents (idle/done only, never into a running turn; retried each tick until delivered)."""
@@ -11195,6 +11701,268 @@ def owner_blocker_alerts(con):
                 event(con, "util", "-", "owner-blocker-failed", str(e))
         except Exception:  # noqa: BLE001 — not even the failure log may break the tick
             pass
+
+
+def owner_alert_feed_tick(con):
+    """Tick hook (G-015 SC3, F-50): config owner_alert_feed=1 mirrors owner_attention() into the owner_alert_feed table, one
+    open row per (kind, ref): new item -> row, still listed -> untouched, gone -> closed, back later -> a new row. Fixed fields
+    only, nothing is sent. At 0 it returns before reading anything. Never raises."""
+    try:
+        if cfg(con, "owner_alert_feed") != "1":
+            return
+        now = digest_clock().isoformat(timespec="seconds")
+        items = {(i["kind"], i["ref"]): i for i in owner_attention(con)}
+        for r in con.execute("SELECT id, kind, ref FROM owner_alert_feed WHERE closed IS NULL").fetchall():
+            if (r["kind"], r["ref"]) not in items:
+                con.execute("UPDATE owner_alert_feed SET closed=? WHERE id=?", (now, r["id"]))
+        for (kind, ref), i in items.items():
+            con.execute("INSERT OR IGNORE INTO owner_alert_feed(org,kind,ref,since,link,first_seen) VALUES(?,?,?,?,?,?)",
+                        (i["org"], kind, ref, i["since"], i["link"], now))
+        cutoff = digest_clock() - dt.timedelta(days=OWNER_ALERT_KEEP_DAYS)  # closed rows age out; an open row is never deleted
+        for r in con.execute("SELECT id, closed FROM owner_alert_feed WHERE closed IS NOT NULL").fetchall():
+            if dt.datetime.fromisoformat(r["closed"]) < cutoff:
+                con.execute("DELETE FROM owner_alert_feed WHERE id=? AND closed IS NOT NULL", (r["id"],))
+    except Exception as e:  # noqa: BLE001 — alerting must never break the tick
+        try:
+            if not _util_throttled(con, "owner-alert-feed-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "owner-alert-feed-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+OWNER_ALERT_KEEP_DAYS = 30
+NTFY_BASE = "https://ntfy.sh/"  # a constant on purpose: no config key or env var may point the feed elsewhere
+NTFY_TOPIC_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+NTFY_TIMEOUT_S = 5
+NTFY_RETRY_S = 300
+OWNER_ALERT_SEND_CAP = 5
+OWNER_ALERT_FLAP_S = 24 * 3600
+
+
+def ntfy_topic():
+    """The topic from the ntfy-topic file under ~/.config/factory, or None when the file is unsafe (_token_file_ok) or
+    malformed. The topic is a secret: it goes to the sender only, never into the DB, an event or a log."""
+    path = os.path.expanduser("~/.config/factory/ntfy-topic")
+    if not _token_file_ok(path):
+        return None
+    try:
+        with open(path) as f:
+            topic = f.read(256).strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return topic if NTFY_TOPIC_RE.match(topic) else None
+
+
+def _ntfy_post(topic, line):
+    """POST one line to NTFY_BASE + topic; returns the HTTP status. No redirects (a 3xx raises HTTPError), timeout 5 s, no ntfy
+    header. urllib is imported here so a tick with the flag off pays nothing."""
+    import urllib.request
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+
+    req = urllib.request.Request(NTFY_BASE + topic, data=line.encode(), method="POST",
+                                 headers={"Content-Type": "text/plain; charset=utf-8"})
+    with urllib.request.build_opener(NoRedirect).open(req, timeout=NTFY_TIMEOUT_S) as r:
+        return r.status
+
+
+def owner_alert_send_tick(con):
+    """Tick hook (G-015 SC3 A3, F-50): with owner_alert_send=1 AND owner_alert_feed=1, send each open, unsent feed row to ntfy,
+    oldest first, at most 5 per tick, `sent` set only after a 2xx. The first failure ends the tick's sending and pauses it 300 s.
+    A row is held while the same kind+ref was sent in the last 24 h. No write transaction is open during the HTTP call. Events
+    carry a fixed word, an exception class name or an HTTP status, never str(e) or the URL (either can hold the topic)."""
+    try:
+        if cfg(con, "owner_alert_send") != "1" or cfg(con, "owner_alert_feed") != "1":
+            return
+        t = digest_clock().timestamp()
+        last = con.execute("SELECT ts FROM throttle WHERE key='owner-alert-send-retry'").fetchone()
+        if last and 0 <= t - float(last["ts"]) < NTFY_RETRY_S:
+            return
+        rows = con.execute("SELECT id, org, kind, ref, since, link FROM owner_alert_feed WHERE closed IS NULL AND sent IS NULL "
+                           "ORDER BY first_seen, id").fetchall()
+        if not rows:
+            return
+        topic = ntfy_topic()
+        if topic is None:
+            if not _util_throttled(con, "owner-alert-send-blocked-ev", 3600, t):
+                event(con, "util", "-", "owner-alert-send-blocked", "topic file missing, unsafe or malformed")
+            con.commit()
+            return
+        now = digest_clock()
+        sent = 0
+        for r in rows:
+            if sent >= OWNER_ALERT_SEND_CAP:
+                break
+            held = any(now - dt.datetime.fromisoformat(x["sent"]) < dt.timedelta(seconds=OWNER_ALERT_FLAP_S)
+                       for x in con.execute("SELECT sent FROM owner_alert_feed WHERE kind=? AND ref=? AND sent IS NOT NULL",
+                                            (r["kind"], r["ref"])))
+            if held:
+                continue
+            line = " ".join(f"{k}={str(r[k]).replace(chr(10), ' ').replace(chr(13), ' ')}"
+                            for k in ("id", "org", "kind", "ref", "since", "link"))
+            con.commit()  # no write transaction may be open across the HTTP call
+            try:
+                status = _ntfy_post(topic, line)
+                fail = None if isinstance(status, int) and 200 <= status < 300 else f"HTTP {status}"
+            except Exception as e:  # noqa: BLE001 — any send failure is a retry, never a tick failure
+                code = getattr(e, "code", None)
+                fail = f"HTTP {code}" if isinstance(code, int) else type(e).__name__
+            if fail:
+                con.execute("INSERT INTO throttle(key,ts) VALUES('owner-alert-send-retry',?) "
+                            "ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(digest_clock().timestamp()),))
+                if not _util_throttled(con, "owner-alert-send-failed-ev", 3600, t):
+                    event(con, "util", "-", "owner-alert-send-failed", fail)
+                con.commit()
+                return
+            con.execute("UPDATE owner_alert_feed SET sent=? WHERE id=?",
+                        (digest_clock().isoformat(timespec="seconds"), r["id"]))
+            con.commit()
+            sent += 1
+    except Exception as e:  # noqa: BLE001 — alerting must never break the tick
+        try:
+            if not _util_throttled(con, "owner-alert-send-error-ev", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "owner-alert-send-error", type(e).__name__)
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+TALLY_COUNTERS = ("input", "output", "cache_write_5m", "cache_write_1h")  # the tally; cache_read is printed apart
+GOAL_TOKEN_DEADLINE_S = 60  # wall-clock cap of one drain; one refresh() can overrun it, it is only checked between refreshes
+
+
+def tally_tokens(row):
+    """Tally definition (G-015 SC3, F-74; read by L2 and L3): input + output + cache_write_5m + cache_write_1h.
+    cache_read is left out: it dwarfs the rest and costs far less."""
+    return sum(row[k] for k in TALLY_COUNTERS)
+
+
+def goal_tokens(con, gid):
+    """`factory goal tokens G`: read-only, reads the goal_token_tally table only, never a log."""
+    g = con.execute("SELECT id, org FROM goals WHERE id=?", (gid,)).fetchone() or die(f"no goal {gid}")
+    if (g["org"] or orgs.DEFAULT_ORG) != "claude":
+        print(f"{gid} ({g['org']}): Cursor reports agent-hours and no tokens; there is no token tally for this goal.")
+        return
+    rows = {r["goal_id"]: r for r in con.execute("SELECT * FROM goal_token_tally")}
+    if not rows:
+        print(f"{gid}: no tally yet (set config goal_token_tally_s above 0; the tick fills the table).")
+        return
+    r = rows.get(gid)
+    stamp = max(x["computed_at"] for x in rows.values())
+    if r is None:
+        print(f"{gid}: no tokens attributed to this goal as of {stamp}.")
+    else:
+        cost_s = "n/a" if r["cost"] is None else f"${r['cost']:.2f}"
+        print(f"{gid} tally: {tally_tokens(r)} tokens (input + output + cache_write_5m + cache_write_1h)")
+        for k in TALLY_COUNTERS:
+            print(f"  {k}: {r[k]}")
+        print(f"cache_read: {r['cache_read']} (printed apart, not in the tally)")
+        print(f"cost estimate: {cost_s}")
+        print(f"computed at: {r['computed_at']}")
+    u = rows.get("unattributed")
+    if u is not None:
+        print(f"unattributed: {tally_tokens(u)} tokens (cache_read {u['cache_read']}) not counted in any goal")
+
+
+class TallyDeadline(Exception):
+    pass
+
+
+def goal_token_tally_tick(con):
+    """Tick hook (G-015 SC3, F-74): config goal_token_tally_s > 0 = seconds between passes. A pass drains one fresh TokenIndex
+    (refresh() until a refresh reads 0 bytes, so no file is left half read), computes by_goal like web/tokens.py
+    attribute + rollup, and replaces the goal_token_tally rows in one transaction. Past the deadline nothing is stored: a
+    partial figure would be an undercount and let a limit be missed. The attempt time is stored when a pass starts, success
+    or not, so a failing pass is not retried every tick. Runs under the tick lock. Never raises."""
+    try:
+        try:
+            every = int(cfg(con, "goal_token_tally_s"))
+        except ValueError:
+            return
+        if every <= 0:
+            return
+        if _util_throttled(con, "goal-token-tally-attempt", every, digest_clock().timestamp()):
+            return
+        from web import tokens  # noqa: PLC0415 — web/ lives at the repo root, like scout/
+        idx = tokens.TokenIndex()
+        deadline = time.monotonic() + GOAL_TOKEN_DEADLINE_S
+        while True:
+            idx.refresh()
+            snap = idx.snapshot()
+            if snap["bytes_read"] == 0:
+                break
+            if time.monotonic() >= deadline:
+                raise TallyDeadline(f"drain not finished in {GOAL_TOKEN_DEADLINE_S}s; table left as it was")
+        by_goal = tokens.rollup(snap, tokens.attribute(snap, con))["by_goal"]
+        by_goal.setdefault("unattributed", {k: 0 for k in tokens.COUNTERS} | {"cost": 0.0})
+        at = digest_clock().isoformat(timespec="seconds")
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            con.execute("DELETE FROM goal_token_tally")
+            for gid, e in by_goal.items():
+                con.execute("INSERT INTO goal_token_tally(goal_id,input,output,cache_read,cache_write_5m,cache_write_1h,cost,computed_at)"
+                            " VALUES(?,?,?,?,?,?,?,?)",
+                            (gid, e["input"], e["output"], e["cache_read"], e["cache_write_5m"], e["cache_write_1h"], e["cost"], at))
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
+    except Exception as e:  # noqa: BLE001 — a tally must never break the tick
+        try:
+            if not _util_throttled(con, "goal-token-tally-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "goal-token-tally-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+GOAL_TOKEN_WARN_PCT = 80
+
+
+def goal_token_warn_tick(con):
+    """Tick hook right after the tally (G-015 SC3, F-74 L2): a Claude-org goal with token_limit whose cached tally reached 80%
+    of it gets one alert to its lead and one to its org's director (one, when the goal has no lead of its own). Once per
+    goal and limit: throttle key goal-token-warn:<goal>:<limit>, so a new limit arms it again. The text names goal, tally,
+    limit and percent only. Refuses nothing. Never raises."""
+    try:
+        rows = con.execute("SELECT g.id, g.token_limit FROM goals g WHERE g.token_limit IS NOT NULL AND g.token_limit > 0 "
+                           "AND g.org='claude' AND g.status NOT IN ('done','closed','cancelled') ORDER BY g.id").fetchall()
+        for g in rows:
+            gid, limit = g["id"], g["token_limit"]
+            t = con.execute("SELECT * FROM goal_token_tally WHERE goal_id=?", (gid,)).fetchone()
+            if t is None or tally_tokens(t) * 100 < GOAL_TOKEN_WARN_PCT * limit:
+                continue
+            key = f"goal-token-warn:{gid}:{limit}"
+            if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
+                continue
+            used = tally_tokens(t)
+            pct = used * 100 // limit
+            team = con.execute("SELECT lead_agent FROM teams WHERE goal_id=? AND lead_agent IS NOT NULL AND status='active' "
+                               "ORDER BY id LIMIT 1", (gid,)).fetchone()
+            to = goal_alert_to(con, gid, lead=team["lead_agent"] if team else None)
+            subject = f"token limit 80% reached: {gid}"
+            body = f"{gid}: tally {used} tokens of limit {limit} ({pct}%). Nothing is refused."
+            for rcpt in dict.fromkeys([to, "director"]):
+                send(con, rcpt, subject, body, kind="alert", goal=gid, sender="tick")
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                        (key, str(digest_clock().timestamp())))  # after the sends: a failed send is retried, not lost
+    except Exception as e:  # noqa: BLE001 — a warning must never break the tick
+        try:
+            if not _util_throttled(con, "goal-token-warn-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "goal-token-warn-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+def cmd_alerts(a):
+    """Read-only: the open rows of the dark needs-you feed, newest first. Reads the table only (no owner_attention, no writes)."""
+    con = db()
+    rows = [{k: r[k] for k in ("id", "org", "kind", "ref", "since", "link")} for r in con.execute(
+        "SELECT id, org, kind, ref, since, link FROM owner_alert_feed WHERE closed IS NULL ORDER BY id DESC")]
+    if a.json:
+        print(json.dumps(rows, indent=1))
+        return
+    table(rows, ["id", "org", "kind", "ref", "since", "link"])
 
 
 # ───────────────────────────── local merge gate (T-0515) ─────────────────────────────
@@ -11858,7 +12626,7 @@ def gate_notify_fail(con, pr_url, r):
     t = con.execute("SELECT t.id,t.goal_id,t.team_id FROM tasks t WHERE t.pr_url=?", (pr_url,)).fetchone()
     if not t or not t["team_id"]:
         return
-    send(con, f"lead:{t['team_id']}", f"local gate {r['status']}: {t['id']} @{(r['head_sha'] or '?')[:8]}",
+    send(con, goal_alert_to(con, t["goal_id"], team=t["team_id"]), f"local gate {r['status']}: {t['id']} @{(r['head_sha'] or '?')[:8]}",
          f"gate run #{r['id']} {r['status']} (exit {r['exit_code']}); {r['note'] or ''}\nlog: {r['log_path']}\n"
          f"`factory gate show {r['id']}`. Fix the head and push; the tick enqueues a new run.", "report", t["goal_id"], t["id"], sender="tick")
 
@@ -12079,9 +12847,10 @@ def _migrated(new, counts, problems):
 
 
 def blocked_alert_target(con, r):
-    """(recipient, body hint) of the tick's "blocked >10 min" alert. A team worker's alert goes to its lead (L-021);
-    a worker without a team, or whose team has no live lead, and every lead goes to the director; the director to the
-    boss. Never raises: this runs inside the tick loop."""
+    """(recipient, body hint) of the tick's "blocked >10 min" alert. A team worker's alert goes to its live or parked lead
+    (L-021) when that lead is of the worker's goal org (goal_alert_to); a worker without a team, whose team has no such
+    lead, or whose lead is of another org, and every lead goes to the goal org's director (the default director when
+    there is no goal); the director to the boss. Never raises: this runs inside the tick loop."""
     if r["role"] == "director":
         return "boss", ""
     if r["role"] not in WORKER_ROLES:
@@ -12092,7 +12861,7 @@ def blocked_alert_target(con, r):
     lead = con.execute("SELECT a.name FROM teams t JOIN agents a ON a.name=t.lead_agent "
                        "WHERE t.id=? AND (a.status='live' OR t.parked_at IS NOT NULL)",  # a parked lead wakes on the message
                        (r["team_id"],)).fetchone() if r["team_id"] else None
-    return (lead["name"] if lead else "director"), hint
+    return (goal_alert_to(con, r["goal_id"], lead=lead["name"]) if lead else "director"), hint
 
 
 SETTINGS_WARN_HEAD = "SettingsWarning"
@@ -12435,12 +13204,24 @@ def log_task_judge_hold(con, task, reason):
     if not task:
         return
     print(f"judge-hold {task}: {reason}")
+    last = con.execute("SELECT action, detail FROM events WHERE entity='task' AND entity_id=? "
+                       "AND action IN ('judge-hold','judge-hold-clear') ORDER BY id DESC LIMIT 1", (task,)).fetchone()
+    if last and last["action"] == "judge-hold" and (last["detail"] or "") == reason[:300]:
+        return  # same hold already on record: one event per hold, not one per tick (T-1130)
     event(con, "task", task, "judge-hold", reason[:300])
+
+
+def mech_refused(con, task):
+    """True when the merger's latest verdict on the task is a block ("the judge decides"): the LLM judge owns it from then
+    on, however old the event, so the merger's retry window can never take it back from the judge (T-1025 B1)."""
+    last = con.execute("SELECT action FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
+                       "ORDER BY id DESC LIMIT 1", (task, *MECH_EVENTS)).fetchone()
+    return bool(last) and last["action"] == "mech-blocked"
 
 
 def judge_autospawn_candidates(con):
     """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
-    mech_ids = {t["id"] for t in mech_candidates(con)} if mech_mode(con) == "on" else set()
+    mech_ids = {t["id"] for t in mech_candidates(con) if not mech_refused(con, t["id"])} if mech_mode(con) == "on" else set()
     out = []
     for t in con.execute(
             "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' "
@@ -12455,12 +13236,64 @@ def judge_autospawn_candidates(con):
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
             continue
+        if judge_status_only_hold(con, t["id"]):
+            continue
         out.append(t)
     return out
 
 
+def judge_status_only_hold(con, task_id):
+    """True while the newest judge verdict is a status-only reject made while the PR was ready (T-1055) and no
+    reviewer/QA verdict is newer: a judge would only repeat it. A fresh verdict lifts the hold. A CI-wait reject (PR not
+    ready then) never holds: judge_hold waits for CI and one judge spawns once it is green."""
+    jr = con.execute("SELECT id, summary FROM verdicts WHERE task_id=? AND role='judge' ORDER BY id DESC LIMIT 1",
+                     (task_id,)).fetchone()
+    if not jr or not (jr["summary"] or "").startswith(STATUS_ONLY_HELD):
+        return False
+    newer = con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND role IN ('reviewer','qa') AND id>?",
+                        (task_id, jr["id"])).fetchone()
+    return not newer
+
+
+def judge_verdicts_stale(con, t, clock):
+    """T-1098: (throttle key part, why) when the latest reviewer and QA PASS do not both hold for the PR's CURRENT head, else None. A PASS recorded on an older head
+    counts only when the T-0095 carry rule does (pure origin/main merges since): the same test the merge gate applies, so a judge
+    never starts only to reject on head. Fails closed: an unreadable PR or an unverifiable carry is a reason. Local-gate projects
+    (gate_cmd, decided from gate_runs) are not checked here."""
+    if gate_project_for(con, t["pr_url"]):
+        return None
+    pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock)
+    if isinstance(pr, BaseException) or not isinstance(pr, dict) or not pr.get("headRefOid"):
+        return "head", f"cannot read the PR head: {pr if isinstance(pr, BaseException) else 'no headRefOid'}"[:200]
+    sha, number = pr["headRefOid"], pr.get("number")
+    wt = t["worktree"]
+    git_repo = wt if wt and Path(wt).is_dir() else HOME
+    owner_repo = "/".join(t["pr_url"].split("/")[3:5])
+    repo_url, carry = None, {}
+    for role in ("reviewer", "qa"):
+        last = con.execute("SELECT head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1", (t["id"], role)).fetchone()
+        x = (last["head_sha"] or "") if last else ""
+        if x.lower() == sha.lower():
+            continue
+        if x not in carry:
+            try:
+                repo_url = repo_url or gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+                carry[x] = verdict_carries(git_repo, x, sha, number, repo_url, owner_repo) if x else (False, "verdict has no head", None, [])
+            except (SystemExit, ValueError, KeyError, subprocess.TimeoutExpired, OSError) as e:  # a hung gh must not end the tick
+                carry[x] = (False, f"cannot verify: {e}", None, [])
+        if not carry[x][0]:
+            return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} ({carry[x][1]})"[:300]
+    return None
+
+
 def judge_autospawn_tick(con):
-    """Tick: after reviewer and QA PASS, start a judge when CI is ready unless the task is judge-held or mech will merge."""
+    """Tick: after reviewer and QA PASS on the current head (or carried to it), start a judge when CI is ready unless the task is
+    judge-held or mech will merge."""
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    batch = []  # T-1153: one ls-remote per tick for the red-main wait key
     for t in judge_autospawn_candidates(con):
         tid = t["id"]
         jhr = task_judge_hold_reason(con, tid)
@@ -12472,6 +13305,25 @@ def judge_autospawn_tick(con):
         _o = org_for(con, t["goal_id"], tid)
         name = oname(con, _o, slug(f"judge-{tid}"))
         if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (name,)).fetchone():
+            continue  # cheap DB check first: the stale check below costs gh calls
+        slugs = _judge_slugs(con, t, "/".join((t["pr_url"] or "").split("/")[3:5]))
+        red = red_main_refusal(con, slugs, tid)
+        if red:  # T-1153: the judge would only end in a status-only reject while the freeze refuses merges
+            try:
+                head = _ci_remote_head(t["branch"], batch)  # None: no branch or unreadable; no gh call
+            except (OSError, subprocess.SubprocessError):  # a probe failure must not end the tick
+                head = None
+            rkey = f"judge-redmain:{tid}:{head}" if head else f"judge-redmain:{tid}:head"  # fixed shape: tid + PR head
+            if not _throttled(con, rkey, clock, float("inf") if head else REVIEW_WAIT_EVERY_S):  # one event per head; unknown head hourly
+                _throttle_set(con, rkey, clock)
+                event(con, "task", tid, "judge-autospawn-wait", f"{red} (head {head[:8]})" if head else red)
+            continue
+        stale = judge_verdicts_stale(con, t, clock)
+        if stale:  # T-1098: both verdicts must hold on the current head; the review pass starts what is missing
+            key = f"judge-stale:{tid}:{stale[0]}"  # fixed-shape key: no free-form reason text
+            if not _throttled(con, key, clock, REVIEW_WAIT_EVERY_S if stale[0] == "head" else float("inf")):
+                _throttle_set(con, key, clock)
+                event(con, "task", tid, "judge-autospawn-wait", stale[1])
             continue
         if not gate(con, load_exempt=True, role="judge", runtime=org_runtime(con, "judge", _o))[0]:
             break
@@ -12500,8 +13352,8 @@ def tick_judge_ci_prune(con, now=None):
     open_urls = {r["pr_url"] for r in con.execute(
         "SELECT DISTINCT pr_url FROM tasks WHERE pr_url IS NOT NULL AND status NOT IN ('done','cancelled')")}
     dead = []
-    for r in con.execute("SELECT key, value FROM config WHERE substr(key, 1, 9) = 'judge_ci:'").fetchall():  # LIKE ignores case
-        url = r["key"][len("judge_ci:"):]
+    for r in con.execute("SELECT key, value FROM config WHERE substr(key, 1, 9) = 'judge_ci:' OR substr(key, 1, 7) = 'prview:'").fetchall():  # LIKE ignores case; prview: = tick PR probe cache (T-1014)
+        url = r["key"].split(":", 1)[1]
         try:
             at = float(json.loads(r["value"])["at"])
             stale = not math.isfinite(at) or now - at > JUDGE_CI_PRUNE_AGE_S
@@ -13050,6 +13902,8 @@ def cmd_tick(a, locked=False):
         s = json.loads(cur["spawn_args"])
         if time.time() - s.get("claimed_at", 0) < CLAIM_TTL_S:
             continue  # a msg is spawning this one right now
+        if s["role"] != "evaluator" and start_failed_wait(s):
+            continue  # T-1135: at the failure cap the start is retried every START_FAILED_RETRY_S, not every tick
         if recently_stopped_in(con, s.get("cwd") or queued_worktree(con, s.get("task"))):
             continue  # the stopped agent may still be writing in that worktree: start on a later tick
         if s["role"] == "judge":
@@ -13075,9 +13929,10 @@ def cmd_tick(a, locked=False):
             con.execute("UPDATE skill_trials SET status='cancelled', passed=0, ended=?, check_output=? "
                         "WHERE agent=? AND status='running'", (now(), "queued evaluator no longer validates", q["name"]))
             event(con, "agent", q["name"], "evaluator-spawn-refused", "queued evaluator no longer validates")
-        except SystemExit:
+        except SystemExit as e:
             if s["role"] != "evaluator":
-                raise
+                start_failed_queued(con, q, s, e)  # T-1135: one dying start must not end the tick; later rows and phases run
+                continue
             # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
             # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
             fails = int(s.get("spawn_failures", 0)) + 1
@@ -13114,6 +13969,11 @@ def cmd_tick(a, locked=False):
         review_autospawn_tick(con)
     except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
         event(con, "tick", "review-autospawn", "review-autospawn-error", str(e)[:300])
+
+    try:
+        coder_ci_resume_tick(con)
+    except Exception as e:  # noqa: BLE001 — a bad PR or task row must never stop the tick
+        event(con, "tick", "coder-ci-resume", "coder-ci-resume-error", str(e)[:300])
 
     try:
         judge_autospawn_tick(con)
@@ -13221,6 +14081,10 @@ def cmd_tick(a, locked=False):
     util_sample(con)
     util_alerts(con)
     owner_blocker_alerts(con)
+    owner_alert_feed_tick(con)
+    owner_alert_send_tick(con)
+    goal_token_tally_tick(con)
+    goal_token_warn_tick(con)
     _pt_lap("util")
     _pt_emit(con)
 
@@ -14203,10 +15067,24 @@ def dispatch_tick(con):
             if not _throttled(con, key, clock, 10 * 365 * 86400):
                 _throttle_set(con, key, clock)
                 event(con, "task", tid, "dispatch-refused", f"{name}: qa task has no PR and no worktree")
-                send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
+                send(con, goal_alert_to(con, t["goal_id"], team=team), f"dispatch refused: {tid} has no PR and no worktree",
                      f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
                      f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
                      "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
+            continue
+        why = goal_token_refusal(con, role, t["goal_id"], None)  # G-015 F-74: same check as spawn(), before it can log per tick
+        if why:
+            try:
+                clock = digest_clock().timestamp()
+            except FactoryNowError:
+                clock = time.time()
+            key = f"dispatch-token-limit:{tid}"
+            if not _throttled(con, key, clock, 10 * 365 * 86400):  # once per task: one event, one alert, never retried per tick
+                _throttle_set(con, key, clock)
+                event(con, "task", tid, "goal-token-limit-refused", f"{role}: {why}")
+                send(con, goal_alert_to(con, t["goal_id"], team=team), f"dispatch refused: {tid}: goal at its token limit",
+                     f"{t['title']}\n\nLead-less dispatch did not start {name}: {why}", kind="alert", goal=t["goal_id"], task=tid,
+                     sender="tick")
             continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
@@ -14227,10 +15105,16 @@ def dispatch_tick(con):
         status = row["status"] if row else "unknown"
         event(con, "task", tid, "dispatch", {"agent": name, "role": role, "team": team, "status": status})
         spawned += 1
-        send(con, f"lead:{team}", f"dispatch: {name} started on {tid}",
-             f"{t['title']}\n\nLead-less dispatch (lead_less_dispatch=1): you are parked, so the tick started this worker. "
-             "Sequencing stays yours: set --after/priorities on tasks that must wait; `factory stop " + name + "` undoes it. "
-             "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+        to = goal_alert_to(con, t["goal_id"], team=team)
+        if to != "director":
+            who, tail = "you are parked", "Sequencing stays yours: set --after/priorities on tasks that must wait; "
+        else:
+            who = f"the lead of {team} is parked or of another org"
+            tail = "Sequencing stays with that lead; "
+        send(con, to, f"dispatch: {name} started on {tid}",
+             f"{t['title']}\n\nLead-less dispatch (lead_less_dispatch=1): {who}, so the tick started this worker. "
+             + tail + "`factory stop " + name + "` undoes it. This mail does not wake you.",
+             kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
         if status == "queued":
             break
 
@@ -14266,7 +15150,15 @@ def _review_dead_recent(con, t, clock):
     return _throttled(con, _review_dead_key(t), clock, max(window, REVIEW_DEAD_RECHECK_MIN_S))
 
 
-def _review_probe(pr_url, timeout):
+def _review_probe(pr_url, timeout, con=None, clock=None, head=None):
+    """The review tick's PR probe: with `con`, through pr_probe (cached per pr_view_ttl_s, same head; never skipped for quota:
+    review start is not optional); else one gh call."""
+    if con is None:
+        return _review_fetch(pr_url, timeout)
+    return pr_probe(con, pr_url, timeout, clock, head=head, fetch=_review_fetch)
+
+
+def _review_fetch(pr_url, timeout):
     """_ci_wake_probe for the review tick. A gh failure that says the PR does not exist stays a SystemExit (dead PR); any other
     gh failure comes back as an OSError (transient: the caller logs a probe error, never a skip)."""
     err = io.StringIO()
@@ -14291,6 +15183,18 @@ def _review_skip(con, t, reason, clock):
     _throttle_set(con, _review_dead_key(t), clock)  # a dead task is not probed again for a while
     if not _throttled(con, key, clock, REVIEW_SKIP_EVERY_S):
         event(con, "task", t["id"], "review-autospawn-skip", reason[:300])
+        _throttle_set(con, key, clock)
+
+
+REVIEW_WAIT_EVERY_S = 3600  # one review-autospawn-wait event per task, head and reason kind per hour
+
+
+def _review_wait(con, t, head, kind, why, clock):
+    """T-1098: the first-round pass is not starting review on t yet (CI not green, a coder still live, spawn gate closed). Until now it
+    skipped silently, so 'no review started' could not be told from a bug. One `review-autospawn-wait` event per task, head and kind per hour."""
+    key = f"review-wait:{t['id']}:{head[:8]}:{kind}"
+    if not _throttled(con, key, clock, REVIEW_WAIT_EVERY_S):
+        event(con, "task", t["id"], "review-autospawn-wait", {"head": head[:8], "kind": kind, "why": why[:200]})
         _throttle_set(con, key, clock)
 
 
@@ -14369,19 +15273,62 @@ def review_rerun_candidates(con):
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
 
 
+def _rerun_name(con, tid, role, head):
+    """The stored agent name of the re-run <role> on head: spawn() keeps the org prefix (claude-qa-t-0001-1234abcd), so every lookup,
+    spawn, event and alert uses this one name (T-1048: unprefixed lookups never found the row)."""
+    return oname(con, org_for(con, None, tid), slug(f"{role}-{tid}-{head[:8]}"))
+
+
 def _rerun_agents(con, tid, head):
-    """The reviewer/qa agent rows the re-run pass started on head, by name (<role>-<task>-<sha8>)."""
-    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (slug(f"{r}-{tid}-{head[:8]}"),)).fetchone()]
+    """The reviewer/qa agent rows the re-run pass started on head, by stored name (<org>-<role>-<task>-<sha8>)."""
+    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (_rerun_name(con, tid, r, head),)).fetchone()]
 
 
 def _rerun_missing(con, tid, head):
     """The roles (reviewer, qa) the re-run pass still has to start on head. A role is done when it has an agent row named <role>-<task>-<sha8>
-    or a verdict of that role on head. A head with a verdict but no re-run agent at all (a round the lead ran) is done as a whole."""
+    or a verdict of that role on head. A verdict of one role never marks the other done (T-1048: a reviewer verdict with a qa that ended
+    without one left the head "done" and nothing started the qa)."""
     started = _rerun_agents(con, tid, head)
-    if not started and con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?)", (tid, head)).fetchone():
-        return []
     return [r for r in ("reviewer", "qa") if r not in started and not con.execute(
         "SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, r)).fetchone()]
+
+
+REVIEW_VERDICT_GRACE_S = 300  # a verdict this young may belong to a round whose other half the lead is about to start
+
+
+def _review_hold(con, t, head, clock):
+    """True when review must not start yet (T-1048): a coder agent of the task is queued, starting or live. The prcheck result does not gate review."""
+    return bool(con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('queued','starting','live')", (t["id"],)).fetchone())
+
+
+def _review_verdict_fresh(con, tid, head, clock):
+    """True when the newest verdict on head is younger than REVIEW_VERDICT_GRACE_S (an unreadable stamp counts as old)."""
+    row = con.execute("SELECT created FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) ORDER BY id DESC", (tid, head)).fetchone()
+    try:
+        return clock - dt.datetime.fromisoformat(row["created"]).timestamp() < REVIEW_VERDICT_GRACE_S
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
+def _review_alert_no_verdict(con, t, head, clock):
+    """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role: one escalation per task, head and role.
+    Goes to the lead of the goal's org, else that org's director (goal_alert_to): an unprompted alert never wakes another org's lead."""
+    for role in _rerun_agents(con, t["id"], head):
+        name = _rerun_name(con, t["id"], role, head)
+        row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+        if not row or row["status"] in ("queued", "starting", "live"):
+            continue
+        if con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (t["id"], head, role)).fetchone():
+            continue
+        key = f"review-noverdict:{t['id']}:{head}:{role}"
+        if _throttled(con, key, clock, float("inf")):
+            continue
+        _throttle_set(con, key, clock)
+        event(con, "task", t["id"], "review-no-verdict", {"agent": name, "role": role, "head": head[:8]})
+        send(con, goal_alert_to(con, t["goal_id"], team=t["team_id"]), f"review autospawn: {role} ended with no verdict on {t['id']} @{head[:8]}",
+             f"{t['title']}\n\n{name} ended (status {row['status']}) without recording a {role} verdict on head {head}. "
+             f"The tick starts no further {role} on this head: spawn one or decide.",
+             kind="request", goal=t["goal_id"], task=t["id"], sender="tick")
 
 
 def _review_head_done(con, tid, head, clock):
@@ -14410,21 +15357,37 @@ def review_rerun_tick(con):
         if _review_dead_recent(con, t, clock):
             continue
         head = _ci_remote_head(t["branch"], batch)
+        if head:
+            _review_alert_no_verdict(con, t, head, clock)
         if head and _review_head_done(con, tid, head, clock):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        if head and _review_hold(con, t, head, clock):
+            _review_wait(con, t, head, "coder", "a coder agent of the task is queued, starting or live, or prcheck is not ok on the head", clock)
+            continue
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, head)
         if _review_pr_problem(con, t, pr, batch, clock, head_known=bool(head)):
             continue
         sha = pr["headRefOid"]
-        if _review_head_done(con, tid, sha, clock) or ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        if _review_head_done(con, tid, sha, clock):
             continue
+        if ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+            _review_wait(con, t, sha, "ci", "CI is not green on the new head", clock)
+            continue
+        if _review_hold(con, t, sha, clock):
+            _review_wait(con, t, sha, "coder", "a coder agent of the task is queued, starting or live, or prcheck is not ok on the head", clock)
+            continue
+        if not _rerun_agents(con, tid, sha) and _review_verdict_fresh(con, tid, sha, clock):
+            _review_wait(con, t, sha, "verdict", "a lead-run round on this head just got its first verdict", clock)
+            continue  # a lead-run round on this head that just got its first verdict: its other half may be about to start
         boss = f"lead:{team}" if team else "director"
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
         started = []
         gate_closed = False
         for role in _rerun_missing(con, tid, sha):
-            name = slug(f"{role}-{tid}-{sha[:8]}")
-            if not gate(con, role=role)[0]:
+            name = _rerun_name(con, tid, role, sha)
+            g_ok, g_why = gate(con, role=role)[:2]
+            if not g_ok:
+                _review_wait(con, t, sha, "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
                 break
             try:
@@ -14434,14 +15397,14 @@ def review_rerun_tick(con):
                 break
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
-            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8]})
+            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8], "sha": sha})
             started.append(name)
             if status == "queued":
                 break
         if not _rerun_missing(con, tid, sha):  # the mark only when both halves are done; a queued reviewer or refused qa retries
             _throttle_set(con, f"review-head:{tid}:{sha}", clock)
         if started:
-            send(con, boss, f"review autospawn: new head review started on {tid} @{sha[:8]}",
+            send(con, goal_alert_to(con, t["goal_id"], team=team), f"review autospawn: new head review started on {tid} @{sha[:8]}",
                  f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} because head {sha} has all checks green "
                  "and no verdict yet. This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
         if gate_closed:
@@ -14473,11 +15436,15 @@ def review_autospawn_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _ci_remote_head(t["branch"], batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+            _review_wait(con, t, pr["headRefOid"], "ci", "CI is not green on the head (coder_ci_handoff waits for green)", clock)
             continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
+        if _review_hold(con, t, pr["headRefOid"], clock):
+            _review_wait(con, t, pr["headRefOid"], "coder", "a coder agent of the task is queued, starting or live", clock)
+            continue  # T-1048: a coder is still live/queued, or the latest prcheck on this head is not ok: retry next tick
         boss = f"lead:{team}" if team else "director"  # a team-less task (director dispatch) reports to the director
         has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
         # a plain reviewer row (the lead's, or a partial start) cannot record the qa verdict: such a task gets a qa, not a combined agent
@@ -14492,7 +15459,9 @@ def review_autospawn_tick(con):
                     continue
             elif con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
                 continue
-            if not gate(con, role=role)[0]:
+            g_ok, g_why = gate(con, role=role)[:2]
+            if not g_ok:
+                _review_wait(con, t, pr["headRefOid"], "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 return
             brief = REVIEW_BRIEF.format(boss=boss)
             if low:
@@ -14504,16 +15473,161 @@ def review_autospawn_tick(con):
                 break
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
-            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status})
+            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "sha": pr["headRefOid"]})
             started.append(name)
             if status == "queued":
                 return
         else:
             if not started:
                 continue
-            send(con, boss, f"review autospawn: {'combined ' if low else ''}review started on {tid}",
+            send(con, goal_alert_to(con, t["goal_id"], team=team), f"review autospawn: {'combined ' if low else ''}review started on {tid}",
                  f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} when the PR opened. "
                  "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+
+
+CODER_RESUME_MAX_STARTS = 2      # coder starts per tick
+CODER_RESUME_REFUSED_MAX = 3     # refused spawns on one head before the tick gives up and mails the lead
+CODER_RESUME_PROBE_S = 120      # a probed head that is not red is not probed again for this long
+CODER_RESUME_NO_CHECKS_S = 3600  # a head with no checks for this long is mailed to the lead, no spawn
+
+
+def _failed_runs(rollup, names):
+    """[(check name, run id or '?')] of the failed checks `names`: the run id is the one in the check's details url (/actions/runs/<id>/...)."""
+    out = []
+    for c in latest_checks(rollup):
+        n = c.get("name") or c.get("context") or "?"
+        if n in names:
+            m = re.search(r"/actions/runs/(\d+)", c.get("detailsUrl") or c.get("targetUrl") or "")
+            out.append((n, m.group(1) if m else "?"))
+    return out
+
+
+def coder_ci_resume_kickoff(sha, failed, resumed, fresh_wt, branch):
+    runs = ", ".join(f"{n} (run {r})" for n, r in failed)
+    first = next((r for _, r in failed if r != "?"), "<run id>")
+    text = (f"CI is RED on PR head {sha[:8]} of your task: failed checks: {runs}. Read the failure with `gh run view {first} --log-failed`, "
+            "fix what you caused, run `git fetch origin && git merge origin/main`, push to the existing PR (same branch, no new PR), "
+            "rerun pre-pr-check, then `factory done` again. The task stays in_review; do not change its status (the tick has already counted this run in attempts).")
+    if not resumed:
+        text += " You are a fresh session: read `factory task show` and the PR first."
+    if fresh_wt:
+        text += f" Your worktree was missing: after it is created run `git fetch origin && git reset --hard origin/{branch}` so you start from the pushed head."
+    return text
+
+
+def coder_ci_resume_tick(con):
+    """Tick step 2c': with coder_ci_handoff on (resume|fresh) an in_review task whose PR head is red and has no coder live/starting/queued gets
+    its coder started again, once per (task, head sha; throttle row `coder-resume:<task>:<sha>`). resume mode resumes the recorded session in the
+    task's worktree; a missing session or worktree, fresh mode, or a runtime that is not Claude starts a fresh session. The kickoff names the head,
+    the failed checks, their run ids and `gh run view <id> --log-failed`. At most coder_ci_resume_max starts per task (then one mail to the lead),
+    2 per tick, none while the red-main freeze says main is red or the gate is closed (retried next tick). A conflicted PR, or one with no checks for
+    over 60 min, is mailed to the lead, never spawned. Blocked and judge-held tasks are skipped (red_pr_owner_alert mails them). The task status is
+    untouched; each successful start adds 1 to attempts (T-1098: the lead's 3-attempt rule sees tick resumes)."""
+    if not ci_handoff_on(con):
+        return
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    try:
+        cap = int(cfg(con, "coder_ci_resume_max"))
+    except (TypeError, ValueError):
+        cap = 2
+    batch, starts = [], 0
+    for t in con.execute(
+            "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.role='coder' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
+            "AND g.status='active' AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND a.role='coder' "
+            "AND a.status NOT IN ('done','exited','lost','cancelled')) ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
+        if starts >= CODER_RESUME_MAX_STARTS:
+            return
+        tid, team = t["id"], t["team_id"]
+        if task_judge_hold_reason(con, tid) or _review_repo_mismatch(con, t):
+            continue
+        head = _ci_remote_head(t["branch"], batch)
+        if head and _throttled(con, f"coder-resume:{tid}:{head}", clock, float("inf")):
+            continue
+        probe_key = f"coder-resume-probe:{tid}:{head or ''}"
+        if _throttled(con, probe_key, clock, CODER_RESUME_PROBE_S):
+            continue
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        if isinstance(pr, BaseException) or pr.get("state", "OPEN") != "OPEN":
+            _throttle_set(con, probe_key, clock)  # no gh call per tick for an unreadable or closed PR; a new head is a new key
+            continue  # the review tick logs dead or unreadable PRs
+        sha = pr["headRefOid"]
+        to = goal_alert_to(con, t["goal_id"], team=team)
+        label = f"{tid} PR #{pr.get('number', '?')} @{sha[:8]}"
+        rollup = pr.get("statusCheckRollup")
+        if (pr.get("mergeStateStatus") or "").upper() == "DIRTY":
+            _throttle_set(con, probe_key, clock)
+            if not _throttled(con, f"coder-resume-dirty:{tid}:{sha}", clock, float("inf")):
+                _throttle_set(con, f"coder-resume-dirty:{tid}:{sha}", clock)
+                send(con, to, f"coder not resumed, PR conflicted: {label}",
+                     f"head {sha}: merge conflict with main (mergeStateStatus DIRTY). The tick does not start the coder for a conflict.",
+                     "report", t["goal_id"], tid, sender="tick")
+            continue
+        if not latest_checks(rollup):
+            _throttle_set(con, probe_key, clock)
+            nk = f"coder-resume-nochecks:{tid}:{sha}"
+            if not _throttled(con, nk, clock, float("inf")):
+                _throttle_set(con, nk, clock)  # first seen without checks
+            elif not _throttled(con, nk, clock, CODER_RESUME_NO_CHECKS_S) and not _throttled(con, nk + ":mail", clock, float("inf")):
+                _throttle_set(con, nk + ":mail", clock)
+                send(con, to, f"no CI checks for over 60 min: {label}",
+                     f"head {sha} has had no checks since the tick first saw it. Coder not started.", "report", t["goal_id"], tid, sender="tick")
+            continue
+        verdict, names = ci_verdict(rollup)
+        if verdict != "red":
+            _throttle_set(con, probe_key, clock)
+            continue
+        mark = f"coder-resume:{tid}:{sha}"
+        if _throttled(con, mark, clock, float("inf")):
+            continue
+        used = con.execute("SELECT count(*) c FROM events WHERE entity='task' AND entity_id=? AND action='coder-ci-resume'", (tid,)).fetchone()["c"]
+        if used >= cap:
+            _throttle_set(con, mark, clock)
+            if not _throttled(con, f"coder-resume-max:{tid}", clock, float("inf")):
+                _throttle_set(con, f"coder-resume-max:{tid}", clock)
+                send(con, to, f"coder resume limit reached: {label}",
+                     f"head {sha} is red ({', '.join(names)}) and the tick already started the coder {used} times for {tid} "
+                     f"(coder_ci_resume_max={cap}). Decide: spawn a fix coder by hand or block the task.", "report", t["goal_id"], tid, sender="tick")
+            continue
+        slugs = [x for x in [_repo_slug(re.sub(r"/pull/\d+.*$", "", t["pr_url"] or ""))] if x]
+        if red_main_refusal(con, slugs, tid):
+            continue  # main is red in THIS task's repo: a red PR is not the PR's fault; retry when main is green. Other repos' tasks go on
+        prior = con.execute("SELECT * FROM agents WHERE task_id=? AND role='coder' ORDER BY started DESC LIMIT 1", (tid,)).fetchone()
+        name = prior["name"] if prior else slug(f"coder-{tid}")
+        org = spawn_org(con, prior, name, t["goal_id"], tid)  # spawn's own org order: the tick's resume decision must match it
+        name = prior["name"] if prior else oname(con, org, name)
+        wt_ok = bool(t["worktree"]) and Path(t["worktree"]).exists()
+        resume = (prior["session_id"] if prior and prior["session_id"] and wt_ok and cfg(con, "coder_ci_handoff") == "resume"
+                  and org_runtime(con, "coder", org) == "claude" else None)
+        dropped = bool(resume) and bool(_resume_runtime_change(con, prior, "coder", org))  # spawn drops a session recorded on another runtime and starts fresh
+        resumed = bool(resume) and not dropped
+        kick = coder_ci_resume_kickoff(sha, _failed_runs(rollup, names), resumed, not wt_ok, t["branch"] or f"factory/{tid.lower()}")
+        if not gate(con, role="coder")[0]:
+            return
+        try:
+            spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume)
+        except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
+            event(con, "task", tid, "coder-ci-resume-error", f"@{sha[:8]} {name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
+            refused = con.execute("SELECT count(*) c FROM events WHERE entity='task' AND entity_id=? AND action='coder-ci-resume-error' "
+                                  "AND detail LIKE ?", (tid, f"@{sha[:8]} %")).fetchone()["c"]
+            if refused >= CODER_RESUME_REFUSED_MAX:  # give up on this head and tell the lead once; later red tasks are not held back
+                _throttle_set(con, mark, clock)
+                if not _throttled(con, f"coder-resume-refused:{tid}", clock, float("inf")):
+                    _throttle_set(con, f"coder-resume-refused:{tid}", clock)
+                    send(con, to, f"coder restart refused: {label}",
+                         f"head {sha}: spawn of {name} was refused {refused} times (see the coder-ci-resume-error events of {tid}). "
+                         "The tick stops retrying this head. Fix the cause or start a fix coder by hand.", "report", t["goal_id"], tid, sender="tick")
+            continue
+        _throttle_set(con, mark, clock)
+        con.execute("UPDATE tasks SET attempts=attempts+1 WHERE id=?", (tid,))  # T-1098: a tick resume is an attempt
+        if resumed:  # a resume sends no kickoff of its own: the mail is what the agent reads (the nudge wakes it)
+            send(con, name, f"CI red: {label}", kick, "request", t["goal_id"], tid, sender="tick")
+        event(con, "task", tid, "coder-ci-resume", {"agent": name, "mode": "resume" if resumed else "fresh", "head": sha[:8], "failed": names})
+        send(con, to, f"coder restarted on red CI: {label}", f"{name} started ({'resume' if resumed else 'fresh'}) for failed {', '.join(names)}. "
+             "This mail does not wake you.", "fyi", t["goal_id"], tid, sender="tick")
+        starts += 1
 
 
 SPEC_FILL_ROLES = ("coder", "qa", "reviewer", "cleaner")
@@ -14588,7 +15702,7 @@ def spec_fill_tick(con):
                          SPEC_FILL_ACCEPTANCE, now(), now()))
             event_as(con, "tick", "task", tid, "add", title)
             event_as(con, "tick", "goal", gid, "spec-fill", {"task": tid, "tasks": ids})
-            send(con, f"lead:{team}", f"spec-fill: {tid} filed for {joined}",
+            send(con, goal_alert_to(con, gid, team=team), f"spec-fill: {tid} filed for {joined}",
                  f"{title}\n\nLead-less dispatch (lead_less_dispatch=1): {team} is parked and goal {gid} had no ready specced "
                  "task, so the tick filed a pm task to write the missing specs. This mail does not wake you.",
                  kind="fyi", goal=gid, task=tid, sender="tick")
@@ -14670,8 +15784,98 @@ def _ci_wake_probe(pr_url, timeout):
         return e
 
 
+PR_VIEW_TTL_S = 120    # default of config pr_view_ttl_s
+PRVIEW_PREFIX = "prview:"  # config key of one PR's cached probe: {"at", "head", "pr"}
+GH_QUOTA_READ_S = 50   # the GraphQL quota is read at most this often: once per (60 s) tick
+GH_QUOTA_ALERT_S = 3600
+GH_QUOTA_QUERY = "query{rateLimit{remaining limit resetAt}}"
+
+
+def _pr_cache_get(con, pr_url, clock, head=None):
+    """The cached probe dict of pr_url when it is younger than pr_view_ttl_s and, if `head` (read from origin with git, no gh)
+    is for that head; else None (an unknown head, ls-remote failed, is a miss). An unreadable entry is a miss. Only optional tick probes call this: the merge
+    gate (pr_state, judge_pr_ready, mech merger) never reads this cache."""
+    ttl = _int_cfg(con, "pr_view_ttl_s", PR_VIEW_TTL_S)
+    if ttl <= 0:
+        return None
+    row = con.execute("SELECT value FROM config WHERE key=?", (PRVIEW_PREFIX + pr_url,)).fetchone()
+    try:
+        c = json.loads(row["value"]) if row else None
+        if c and 0 <= clock - float(c["at"]) < ttl and isinstance(c["pr"], dict) and head is not None and c["head"] == head:
+            _pt_count("pr_view_cached")
+            return c["pr"]
+    except (ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def _pr_cache_put(con, pr_url, pr, clock):
+    """Store a successful probe (never an error: a failed gh read is retried next tick, not remembered as an answer)."""
+    if _int_cfg(con, "pr_view_ttl_s", PR_VIEW_TTL_S) <= 0 or not isinstance(pr, dict):
+        return
+    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (PRVIEW_PREFIX + pr_url, json.dumps({"at": clock, "head": pr.get("headRefOid"), "pr": pr})))
+
+
+def gh_quota_low(con, clock):
+    """True when the GraphQL quota is below config gh_quota_min. The rateLimit query runs at most once per GH_QUOTA_READ_S (one tick;
+    the answer is kept in config gh_quota) and only when an optional probe is about to call gh. A failed read is "not low"
+    (these probes are optional; the merge gate does not use it) unless gh says the rate limit is exceeded, which is 0 left.
+    Low: one gh-quota-low event and one director mail per GH_QUOTA_ALERT_S."""
+    floor = _int_cfg(con, "gh_quota_min", 300)
+    if floor <= 0:
+        return False
+    row = con.execute("SELECT value FROM config WHERE key='gh_quota'").fetchone()
+    left = reset = None
+    try:
+        c = json.loads(row["value"]) if row else None
+        fresh = bool(c) and 0 <= clock - float(c["at"]) < GH_QUOTA_READ_S
+        if fresh:
+            left, reset = c["remaining"], c.get("reset")
+    except (ValueError, KeyError, TypeError):
+        fresh = False
+    if not fresh:
+        _pt_count("gh_quota_read")
+        try:
+            p = subprocess.run(["gh", "api", "graphql", "-f", f"query={GH_QUOTA_QUERY}"], capture_output=True, text=True,
+                               timeout=CI_WAKE_GH_TIMEOUT_S)
+            if p.returncode == 0:
+                rl = json.loads(p.stdout)["data"]["rateLimit"]
+                left, reset = int(rl["remaining"]), rl.get("resetAt")
+            elif re.search(r"rate limit", p.stderr or "", re.I):
+                left = 0
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+            left = None
+        con.execute("INSERT INTO config(key,value) VALUES('gh_quota',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (json.dumps({"at": clock, "remaining": left, "reset": reset}),))
+    if left is None or left >= floor:
+        return False
+    if not _throttled(con, "gh-quota-low", clock, GH_QUOTA_ALERT_S):
+        _throttle_set(con, "gh-quota-low", clock)
+        msg = (f"GitHub GraphQL quota {left} left (gh_quota_min={floor}), resets {reset or '?'}. Optional tick probes (CI wake, red PR alert) "
+               "are skipped until it recovers; merge-gate reads are not skipped and fail closed. See docs/gh-quota.md.")
+        event(con, "tick", "gh-quota", "gh-quota-low", msg[:300])
+        send(con, "director", f"gh quota low: {left} left", msg, "report", sender="tick")
+    return True
+
+
+def pr_probe(con, pr_url, timeout, clock, head=None, optional=False, fetch=None):
+    """One PR probe for a tick step: the cached answer when fresh (pr_view_ttl_s, same head), else one gh call (`fetch`, default
+    _ci_wake_probe; an exception instance comes back as the answer and is never cached). optional=True: a cache miss while the
+    GraphQL quota is low returns None (skip) instead of calling gh."""
+    hit = _pr_cache_get(con, pr_url, clock, head)
+    if hit is not None:
+        return hit
+    if optional and gh_quota_low(con, clock):
+        return None
+    _pt_count("ci_wake_gh")
+    pr = (fetch or _ci_wake_probe)(pr_url, timeout)
+    _pr_cache_put(con, pr_url, pr, clock)
+    return pr
+
+
 def tick_ci_wake(con):
-    """Tick step 1c': message the lead of a parked team when an in_review PR of the team is CLEAN with all checks green
+    """Tick step 1c': message the lead of a parked team (the goal org's director when the lead is of another org: goal_alert_to) when an in_review PR of the team is CLEAN with all checks green
     (or all checks done and one failed), once per (task, head sha); tick_wake_leads then wakes it on the unread mail.
     Only parked teams whose lead is not live/starting/queued; off with lead_parking=0. A gh failure or timeout
     (CI_WAKE_GH_TIMEOUT_S) is logged and skipped. The gh call is skipped for a task when the branch head on origin
@@ -14700,8 +15904,8 @@ def tick_ci_wake(con):
             if _throttled(con, f"ci-head:{k['id']}", clock, CI_WAKE_RECHECK_S) and (
                     head is None or _throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))):
                 continue  # head unreadable, or a red already mailed for it: re-poll after the window (a rerun may turn it green)
-            _pt_count("ci_wake_gh")
-            todo.append((t, k))
+            # the probe cache is only valid for the head origin has now (git ls-remote, one per tick, no GraphQL)
+            todo.append((t, k, head if head is not None else _ci_remote_head(k["branch"], batch)))
     if not todo:
         return
     try:
@@ -14712,14 +15916,31 @@ def tick_ci_wake(con):
         workers = int(cfg(con, "ci_wake_workers"))
     except (TypeError, ValueError):
         workers = 1
-    urls = [k["pr_url"] for _, k in todo]
+    results = [None] * len(todo)  # None = skipped (quota low); else the cached or probed PR dict, or the error
+    miss = []
+    for i, (_t, k, head) in enumerate(todo):
+        hit = _pr_cache_get(con, k["pr_url"], clock, head)
+        if hit is not None:
+            results[i] = hit
+        else:
+            miss.append(i)
+    if miss and gh_quota_low(con, clock):
+        miss = []  # optional step: no gh call while the GraphQL quota is low
+    for _ in miss:
+        _pt_count("ci_wake_gh")
+    urls = [todo[i][1]["pr_url"] for i in miss]
     if workers < 2 or len(urls) < 2:
-        results = [_ci_wake_probe(u, timeout) for u in urls]
+        probed = [_ci_wake_probe(u, timeout) for u in urls]
     else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-            results = list(pool.map(lambda u: _ci_wake_probe(u, timeout), urls))
-    for (t, k), pr in zip(todo, results):
-        lead = t["lead_agent"]
+            probed = list(pool.map(lambda u: _ci_wake_probe(u, timeout), urls))
+    for i, pr in zip(miss, probed):
+        results[i] = pr
+        _pr_cache_put(con, todo[i][1]["pr_url"], pr, clock)
+    for (t, k, _head), pr in zip(todo, results):
+        if pr is None:
+            continue
+        lead = goal_alert_to(con, t["goal_id"], lead=t["lead_agent"])
         if isinstance(pr, BaseException):
             event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
             continue
@@ -14752,8 +15973,8 @@ def tick_ci_wake(con):
 
 
 def tick_red_pr_owner(con):
-    """Tick step 1c'': config red_pr_owner_alert=1 mails the task's lead (the director when the task has no team or the team
-    has no lead) once per (task, head sha) when its PR is open, red or conflicted, and no coder is live/starting/queued for
+    """Tick step 1c'': config red_pr_owner_alert=1 mails the task's lead (the goal org's director when the task has no team, the team
+    has no lead, or the lead is of another org: goal_alert_to) once per (task, head sha) when its PR is open, red or conflicted, and no coder is live/starting/queued for
     the task. Tasks in_progress, in_review or blocked (a blocked one's mail carries its waits value and recorded reason); independent of lead_parking; never spawns. A red head
     shares tick_ci_wake's `ci-red:<task>:<sha>` throttle row, so a parked team gets one mail; a conflict uses `red-pr:<task>:<sha>`.
     The gh call is skipped when origin's head (one batched ls-remote) is already mailed; an unreadable head is re-probed only
@@ -14778,12 +15999,13 @@ def tick_red_pr_owner(con):
         probe_key = f"red-pr-probe:{k['id']}:{head or ''}"
         if _throttled(con, probe_key, clock, CI_WAKE_RECHECK_S):
             continue  # probed lately: a green/pending/closed head costs one gh call per window, not per tick
-        _pt_count("ci_wake_gh")
         try:
             timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
         except ValueError:
             timeout = float(CI_WAKE_GH_TIMEOUT_S)
-        pr = _ci_wake_probe(k["pr_url"], timeout)
+        pr = pr_probe(con, k["pr_url"], timeout, clock, head=head, optional=True)
+        if pr is None:
+            continue  # quota low: no probe, no throttle mark, so the next tick tries again
         _throttle_set(con, probe_key, clock)
         if isinstance(pr, BaseException):
             event(con, "task", k["id"], "red-pr-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
@@ -14801,7 +16023,7 @@ def tick_red_pr_owner(con):
         if _throttled(con, key, clock, float("inf")):
             continue
         _throttle_set(con, key, clock)
-        to = k["lead_agent"] or "director"
+        to = goal_alert_to(con, k["goal_id"], lead=k["lead_agent"])
         label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
         tail = "Decide: spawn a fix coder or block the task with a reason."
         if k["status"] == "blocked":
@@ -15714,7 +16936,7 @@ def main():
     x.add_argument("--gate-count-cmd", default=None, help="prints the test count of a tree (director only)")
     x.add_argument("--gate-timeout-s", type=int, default=None); x.set_defaults(fn=cmd_project)
 
-    x = sp.add_parser("goal"); x.add_argument("action", choices=["new", "list", "show", "edit", "status", "audit", "signoff", "close", "org"])
+    x = sp.add_parser("goal"); x.add_argument("action", choices=["new", "list", "show", "edit", "status", "audit", "signoff", "close", "org", "tokens"])
     x.add_argument("--org", help="goal new: the owning org (default: your own org); goal list: filter")
     x.add_argument("id", nargs="?"); x.add_argument("status", nargs="?")
     x.add_argument("--ready", action="store_true"); x.add_argument("--gaps", action="store_true")
@@ -15722,6 +16944,7 @@ def main():
     x.add_argument("--report"); x.add_argument("--audit", type=int); x.add_argument("--reason")
     x.add_argument("--title"); x.add_argument("--project"); x.add_argument("--intent"); x.add_argument("--success")
     x.add_argument("--priority", type=int); x.add_argument("--requested-by"); x.add_argument("--note")
+    x.add_argument("--token-limit", type=int, help="goal edit: token limit for the goal (director/boss/owner); 0 clears it")
     x.add_argument("--all", action="store_true"); x.set_defaults(fn=cmd_goal)
 
     x = sp.add_parser("plan", help="store a new plan version: factory plan G-001 - <<'EOF' ... EOF")
@@ -15798,6 +17021,7 @@ def main():
     g.add_argument("--record-merged", metavar="SHA", help="record a PR whose squash already landed on origin/main (judge, director)")
     g.add_argument("--train", nargs="+", metavar="TASK", help=f"plan a batch merge train of 2..{TRAIN_MAX} tasks (with --dry-run: plan only; without: gate the tip once and merge the passing prefix, needs a project gate_cmd)")
     x.add_argument("--dry-run", action="store_true", help="with --train: print the plan only")
+    x.add_argument("--no-code-change", action="store_true", help="with --reject: no code change is asked (CI wait, missing verdict on head); the task stays in_review")
     x.add_argument("--reason"); x.set_defaults(fn=cmd_judge)
     x = sp.add_parser("refresh"); x.add_argument("task"); x.add_argument("--dry-run", action="store_true")
     x.set_defaults(fn=cmd_refresh)
@@ -15863,6 +17087,8 @@ def main():
     x.add_argument("--no-cache", action="store_true", help="run: do not reuse a pass row of the same (project, head, main)")
     x.add_argument("--run-id", type=int, help=argparse.SUPPRESS)  # the tick launching an enqueued row
     x.set_defaults(fn=cmd_gate)
+    x = sp.add_parser("alerts", help="the dark needs-you feed: open rows, newest first (read-only; reaches nobody)")
+    x.add_argument("--json", action="store_true"); x.set_defaults(fn=cmd_alerts)
     sp.add_parser("res", help="resources and spawn-gate state").set_defaults(fn=cmd_res)
     x = sp.add_parser("serve", help="read-only web UI on the LAN (no writes, no auth)")
     x.add_argument("--bind"); x.add_argument("--port", type=int)

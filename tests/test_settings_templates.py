@@ -152,6 +152,23 @@ class TemplateFileTests(unittest.TestCase):
             env = dict(os.environ, HOME=home)  # no flag, no Go binary: the shim runs the Python hook
             return subprocess.run(["sh", "-c", cmd], input=payload, capture_output=True, text=True, timeout=60, env=env)
 
+    def test_worker_guard_entries_time_out_closed_and_hq_templates_are_unchanged(self):
+        """T-0960: a worker-guard hook that hangs must block the call (docs: onFailure "block")."""
+        def guard_entries(role):
+            data = json.loads(substitute((SETTINGS / f"{role}.json.in").read_text()))
+            return [h for g in data["hooks"]["PreToolUse"] for h in g["hooks"] if "worker-guard" in h.get("command", "")]
+        for r in WORKERS:
+            entries = guard_entries(r)
+            self.assertTrue(entries, r)
+            for h in entries:
+                self.assertEqual((h.get("timeout"), h.get("onFailure")), (120, "block"), r)
+        for r in ("boss", "director", "lead"):
+            data = json.loads(substitute((SETTINGS / f"{r}.json.in").read_text()))
+            for g in data["hooks"]["PreToolUse"]:
+                for h in g["hooks"]:
+                    self.assertNotIn("onFailure", h, r)
+                    self.assertNotIn("timeout", h, r)
+
     def test_hook_entry_point_blocks_and_allows_with_the_rendered_coder_settings(self):
         cmd = self.rendered_hook_command("coder")
         self.assertEqual(cmd, f"sh {REPO}/roles/hooks/worker-guard --role coder")

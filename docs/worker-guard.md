@@ -52,6 +52,27 @@ Known gaps (documented and accepted; tracked in T-0021). The guard is aimed at a
 
 Known false positive (C9): any command text containing a dollar-paren sequence is blocked, even inside quotes (a PR body with command substitution text). Pass long PR or commit text with `--body-file <file>` / `git commit -F <file>`.
 
+## Scratch-home setup commands (T-0331)
+
+A `coder` or `qa` (never the evaluator or another role) may run `factory init`, `factory project add` and
+`bash systemd/install.sh --dry-run`, and only when BOTH `HOME` and `FACTORY_HOME` are static absolute paths whose
+realpath is inside the worker's own scratchpad. Each comes from the command's own assignments, else an earlier
+assignment/export in the same command line, else the hook's environment. Unset, relative, `~`, dynamic, `..` or symlink
+escapes, the live home and another agent's scratchpad all block, as does `factory init --live-home`. `factory init` and
+`factory project add` are refused for these two roles in every other form. `factory up|tick|spawn|relaunch` keep the
+existing rule (allowed only against a non-live `FACTORY_HOME`, blocked without one).
+
+`qa` is a no-push role and may not assign `HOME`; the one exception is a `HOME=<scratch>` prefix on exactly one of the
+three commands above (an `export HOME=` stays blocked). `install.sh --dry-run` is run unparsed (its case arms and `"$@"`
+trip the glob and dynamic-word rules) only when the script is byte-for-byte the `systemd/install.sh` of a live checkout,
+which a worker cannot write; an edited copy is inspected as before and refused. Only the exact argument `--dry-run` counts.
+Tight form: the whole command line is the lone command (`lone_command`): only `HOME=`/`FACTORY_HOME=` assignments
+(inline, or as `export HOME=v FACTORY_HOME=v;` statements before it), the literal word `factory` (never a path or a script
+merely named so) or `bash` (never `zsh`, `sh`, `/bin/bash`), printable ASCII only. `unset`, `env -u`, `env`, a subshell, `PATH=`,
+`BASH_ENV=`, `ENV=` or any other assignment keep the command blocked. The corpus fixtures `@SCRATCH@/esc` (symlink out) and
+`@INSTALL@` (a live install.sh copy) live in `ci/guard_diff.py`.
+Go: `factory.go` `scratchHomes`, `loneCommand`, `installDryRun`, `scratchForm`.
+
 ## Mutating systemd commands (T-0102 part D, owner M2108)
 
 No agent manages units: the owner installs them, and `factory up` runs from systemd, not via it.
@@ -71,7 +92,7 @@ Heredoc body scanning (T-0178 attempt 3): in an unquoted body bash joins backsla
 A worker never changes the shared checkout `~/factory` (branch `main`), where the tick commits and pushes state every minute. For a command word `git` (also behind wrappers, `sh -c`, `$( )`), the hook works out the effective directory: the hook's cwd, moved by a preceding `cd`/`pushd`, then `git -C <dir>` (last wins, relative to the current dir), `--work-tree` and `--git-dir` (also as `GIT_WORK_TREE`/`GIT_DIR` assignments, e.g. `env GIT_DIR=... git ...`). A `cd` inside `sh -c '...'` does not move the caller; a `cd` in a plain `( ... )` subshell does (known false positive). A dynamic directory (`$VAR`, `$( )`, a glob, `cd -`, `popd`) counts as the shared checkout.
 - `.git` test, no git run: walk up from `realpath(dir)` to the first ancestor containing `.git`. A `.git` FILE is a linked worktree (every task worktree under `~/factory/worktrees/`), never shared, so there is no prefix match on the live home. A `.git` DIRECTORY is a main checkout, shared when its realpath is the live home. A `--git-dir` inside `<home>/.git` (not under `.git/worktrees/`) is shared too.
 - In the shared checkout, mutating subcommands are blocked for every worker role (pm, coder, qa, reviewer, judge, cleaner, staff-engineer): commit, push, merge, rebase, reset, checkout, switch, restore, stash, clean, cherry-pick, revert, am, apply, pull, rm, mv, add, tag, update-ref, gc, prune, filter-branch, `branch` with a flag other than the list/verbose ones or with a new-branch name, `worktree` add/remove/move/prune/lock/unlock/repair, `config` with a value or `--unset/--add/--edit`, `remote` add/remove/set-url/..., `notes` add/remove, and any unknown subcommand (fail closed). Boss, director and lead (`--hq`) are not covered.
-- Read-only subcommands stay allowed everywhere: status, log, diff, show, rev-parse, ls-files, ls-tree, cat-file, blame, grep, describe, fetch (all worktrees share one `.git`, so blocking it protects nothing), shortlog, rev-list, show-ref, merge-base, ls-remote, for-each-ref, diff-tree, name-rev, `branch` with no args or `--list/-a/-r/-v`, `worktree list`, `remote -v`, `config --get/--list`, `notes list/show`.
+- Read-only subcommands stay allowed everywhere: status, log, diff, show, rev-parse, ls-files, ls-tree, cat-file, blame, grep, describe, fetch (all worktrees share one `.git`, so blocking it protects nothing), shortlog, rev-list, show-ref, merge-base, ls-remote, for-each-ref, diff-tree, name-rev, `branch` with no args or `--list/-a/-r/-v`, `worktree list`, `remote -v`, `config --get/--list`, `notes list/show`. A `git config` argument built by an expansion (dollar forms, backtick, brace list) is refused for every non-HQ role, and so is a glob before a read action flag; an action flag that is the value of a value option (`--comment --get al*`, `--file --get al*`, also unique abbreviations such as `--com`) does not count as the action flag, and an option outside the exact table before the glob fails closed (T-1063, T-1097). The command's own parsed arguments are also checked when no read action is proven: an action flag or word swallowed as a value (`--comment --get`), a value option with no value, and a missing or non-literal key (a zsh glob such as `(alias.x|y)`, `<->`, `^z`, `a~b`, `al#` leaves no literal key) are refused, at any depth (eval, `zsh -c`). Bare `git config` is refused too. Literal reads (`--get al*`, `--comment c --get alias.x`) stay allowed.
 - Cleaner exemption, shared checkout only: `git worktree remove <path>` (not with `-f/--force`), `git worktree prune` and lowercase `git branch -d <name>`. The branch scope of T-0057 (`factory/*` only) still applies on top. Everything else stays blocked for the cleaner.
 - Block reason: the command plus "workers never change the shared checkout ~/factory (branch main); work in your own worktree (your cwd under ~/factory/worktrees/)".
 - Tests set `WORKER_GUARD_LIVE_HOME=<fixture home>` in the hook's environment to replace the live home for this rule; it is read from the hook process, which a command run by the worker cannot change. Settings apply only to newly spawned workers; rollback = revert the PR.
@@ -107,7 +128,7 @@ Several guards ask "is this the live factory home?" (the evaluator tripwire, the
 
 The hook is the one place every agent-written public text passes before it leaves the box, so it also guards what git and gh write. Both worker mode (`--role <r>`) and `--hq` mode run it; the existing rules are unchanged. It reads three config keys read-only from the factory DB (same path rules as the goal lookup): `public_text_repos` and `frozen_repos` (comma-separated `OWNER/NAME`) and `scrub_terms_file`. Missing key = empty list. While both lists are empty the rule does nothing (no checker import, no git call), so private projects and the factory before cutover behave as before.
 
-- **Commands in scope:** `git commit` (also `--amend`), `git tag -a/-m`, `git push` (every form), `git merge`; `gh pr create|edit|comment|review|close|merge`, `gh issue create|edit|comment|close`, `gh release create|edit`, and `gh api` with `-f/-F/--field/--raw-field/--input` or `-X POST|PATCH|PUT|DELETE`. They are found by the existing parser, so env prefixes, `sh -c`, chains and `$( )` are followed (in `--hq` mode the wrappers and `sh -c`/`eval` are followed by the rule itself).
+- **Commands in scope:** `git commit` (also `--amend`), `git tag -a/-m`, `git push` (every form), `git merge`; `gh pr create|new|edit|comment|review|close|merge`, `gh issue create|new|edit|comment|close`, `gh release create|new|edit` (`new` is gh's alias of `create`; `-R`/`--repo` counts before or after the group, `gh -R a/b pr create` is read like `gh pr create -R a/b`), and `gh api` with `-f/-F/--field/--raw-field/--input` or `-X POST|PATCH|PUT|DELETE`. They are found by the existing parser, so env prefixes, `sh -c`, chains and `$( )` are followed (in `--hq` mode the wrappers and `sh -c`/`eval` are followed by the rule itself).
 - **Target repo:** `-R/--repo`, else the `gh api` path `repos/OWNER/NAME/...`, else `git remote get-url <remote>` (the named push remote, else `origin`) of the command's directory (`git -C` and `cd` are followed). A target that cannot be told is treated as public while `public_text_repos` is not empty.
 - **Frozen rule:** target in `frozen_repos` -> `worker-guard: blocked (repo <slug> is frozen, G-021; work in the public repo)` for every command above, cleaner branch deletes included.
 - **Public-text rule:** target in `public_text_repos` (or unknown). The text is the text flags of that one simple command (`-m/--message`, `--title/-t`, `--body/-b`, `--subject`, `--comment/-c`, `--notes/-n`, `-f/-F` field values), the files named by `--body-file/-F/--notes-file/--input` (unreadable -> blocked), and heredoc payloads (`--body-file - <<'EOF'`, `"$(cat <<'EOF' ... EOF)"`). Other commands in the chain (`cd <path> && git commit -m ok`) are not scanned. A body file (`--body-file/-F/--notes-file/--input`) is read when the hook runs, before the command does, so it is accepted only when the command is exactly that one `gh`/`git` call (no `;`, `&&`, `||`, `|`, `&`, `$(`, backtick, `<(`, `>(` or newline outside quotes; `2>&1` and `2>/dev/null` are fine) and the path is a regular file that is not a symlink and has one hard link; the real path's content is scanned. Anything else (a file written, checked out or rewritten in the same command) is blocked with "write the file in a separate command first". Dynamic text (`$VAR`, `$(cmd)`, backticks) is blocked with "write the text to a file and pass --body-file/-F". For `git push` every destination ref name is checked and so are the commits it would publish (messages, author/committer identities, paths, added lines) against the remote-tracking ref, or `git merge-base <src> origin/main` when there is none.
@@ -122,3 +143,41 @@ Known limits: split or encoded terms (as in PUBLISHING.md); text produced by a p
 ## Full local test runs (T-0642)
 
 For `--role coder|qa|reviewer`, a Python command `-m unittest` is refused when it would run the full suite: no test argument, or `discover` without a single-module `-p test_X.py` pattern (a wildcard pattern counts as full). `python3 -m unittest tests.test_x` and `discover -s tests -p test_x.py` are allowed; other roles are not restricted. The message points to `python3 ci/affected.py --base origin/main --quick --run`. Policy: `docs/testing.md`. Tests: `tests/test_worker_guard_unittest.py`.
+
+## Declared limits: `git config` zsh globs (T-1097)
+
+The check reads the arguments of the `git config` command itself. Two shapes stay exit 0 and are tracked in a separate held task (no worse than origin/main):
+
+1. A zsh glob in the value position after a literal key: `git config alias.x (y|z)`, `git config alias.x <->`, `git config alias.x <(echo y)`, also inside eval. The arguments equal a plain read, so an argument check cannot see it. Measured by the lead (zsh 5.9): all three write.
+2. Git alias indirection, and git called by a full path, where the command is not seen as `git config`.
+
+## Coder git runners (T-0908)
+
+For `--role coder`, the push pin reads the inner command of the git subcommands that run one, the same way `bash -c <inner>` is checked: `git submodule foreach`, `git rebase -x/--exec` (any prefix, `=value`, attached, end of a short cluster), `git bisect run` and `git difftool -x/--extcmd` (same forms, `-yx`). A missing, dynamic or unparseable inner command is refused, as is a dynamic word right after `submodule` or `bisect`. `xargs git rebase|difftool`, and `xargs git submodule|bisect` with no literal subcommand or with `foreach`/`run`, are refused because stdin adds arguments. `xargs git submodule update` and `xargs git bisect good` stay allowed. An inner `pytest -q` meets the full-suite rule. Other roles and HQ mode are unchanged. Tests: `tests/test_worker_guard_coder_git_runners.py`. Go mirror follow-up in G-016.
+
+## Declared limits: coder git runners (T-0908)
+
+These exit 0 on origin/main too, so they are no worse than before; no check was added.
+
+1. A script as the inner command: `git rebase -x ./x.sh HEAD~1`. The file content is not read, the same as `./x.sh` alone.
+2. git called by a full path: `/usr/bin/git bisect run ...`.
+3. Other git paths that run commands: `git filter-branch --tree-filter ...`, and git config or aliases that run a program.
+4. An expansion as a plain argument: `git rebase "$X"`, `git difftool "$X"`. Its value could be an option.
+
+## No-push roles: gh issue, workflow and pr writes (T-0995)
+
+For qa, reviewer, pm, staff-engineer, scout and evaluator (researcher already refuses them), `gh` writes through these subcommands exit 2: `gh issue create|new|edit|close|reopen|comment|delete|transfer|pin|unpin|lock|unlock|develop`, `gh release create|new|edit|delete|upload|delete-asset`, `gh repo create|new|fork|sync`, `gh label create`, `gh secret set`, `gh variable set` (T-1156), `gh workflow run|enable|disable`, `gh pr create|new|edit|close|reopen|ready|review|merge|lock|unlock|update-branch|revert`, also after `gh -R a/b`, `bash -c`, inline interpreter code and `xargs`. `gh pr comment` stays allowed for reviewer and qa only (their contract posts the summary with it) and exits 2 for the other four. Read forms (list, view, status, diff, checks, `gh api` GET) stay exit 0. Coder, judge, cleaner, HQ and researcher behave as on origin/main. Tests: `tests/test_worker_guard_nopush_gh_writes.py`. Go mirror follow-up in G-016.
+
+## Declared limits: no-push gh writes (T-0995)
+
+These still exit 0 and are no worse than origin/main; the hook is defense in depth, the sandbox and worker PAT are the boundary.
+
+1. gh subcommand groups and verbs not listed above: label edit|delete|clone, secret delete|remove, variable delete|remove, repo deploy-key, repo autolink, and run, gist, cache, alias and others (T-1156 closed repo create|new|fork|sync, label create, secret set, variable set).
+2. A verb only known at run time: `gh issue $X`, `echo create | xargs gh issue`.
+3. `gh pr comment` inside inline interpreter code for pm, staff-engineer, scout and evaluator (it is kept out of the inline scan so reviewer and qa can use it).
+
+## Owner-terms brace check: quoted patterns (T-1121)
+
+The owner-terms rule refuses a comma brace or a `{a..b}` range next to a listed name (the terms file, its parent directory such as `factory`, `scrub`, `terms`). `terms_brace_view` (roles/hooks/worker-guard.py, depth 0 only, used for that one search) now blanks one single-quoted word so a read-only review command is not refused for a brace the shell never expands: the pattern of `grep`/`egrep`/`rg` (after only plain short-flag bundles, or after `-e`/`--regexp`), the program of `jq` (after only plain flag bundles), and the value after `--jq`, `-q` or `--template` of `gh pr list|view|checks|status`, `gh issue list|view|status`, `gh run list|view`, `gh repo view`. A grep/egrep/rg/jq word whose content starts with a dash (`rg '--glob=...'`, `grep '--include=...'`, `jq '--arg=...'`, also after `-e`) blanks nothing, because it may be an option and not the pattern. It gives up (nothing blanked) unless the whole command is one line of such segments joined by `;`, `&&`, `||`, `|`, with no double quote, backslash, backtick, parenthesis, hash, brace, `<`, `>` or non-ASCII outside single quotes and only `$name` dollars. The `${!` test and every later check still read the original command. The forms listed in the task were reconstructed, not recorded.
+
+Limits: heredoc bodies (`python3 - <<'EOF'`, `cat > file <<'EOF'`) stay refused when they hold a brace next to a listed name; reviewers and QA report that refusal as a limit. Go mirror (go/internal/guard/terms.go) is a G-016 follow-up. Tests: `tests/test_worker_guard_terms_gh_fp.py`.

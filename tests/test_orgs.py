@@ -1,6 +1,7 @@
 """G-028: two orgs (claude, cursor) side by side — goal ownership, org-prefixed names, per-org runtime and models,
 recipient routing inside an org, and the cross-org chain-of-command rule (docs/runtimes.md "Two orgs")."""
 import json
+import time
 import unittest
 
 from harness import FactoryTestCase
@@ -163,6 +164,146 @@ class RoutingTests(FactoryTestCase):
         self.assertIn("only the boss and director talk across orgs", p.stderr)
         p = self.refused(3, "msg", "cursor-director", "zz-test s", "b", agent="lead-g-001-a")
         self.assertIn("across orgs", p.stderr)
+
+
+class LeadBareHqRoutingTests(RoutingTests):
+    """T-1075: a lead or worker's bare director/boss/owner is its OWN org's, whatever --goal says."""
+
+    def test_claude_lead_bare_hq_with_cursor_goal_stays_in_own_org(self):
+        for to, want in (("director", "director"), ("boss", "boss"), ("owner", "boss")):
+            self.ok("msg", to, "zz-test s", "b", "--goal", "G-002", agent="lead-g-001-a")
+            self.assertEqual(self.last_rcpt(), want)
+
+    def test_cursor_lead_bare_director_with_claude_goal_stays_in_cursor(self):
+        self.ok("msg", "director", "zz-test s", "b", "--goal", "G-001", agent="cursor-lead-g-002-a")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+
+    def test_worker_bare_director_with_other_org_goal_stays_in_own_org(self):
+        self.env.seed_agent("zz-test-coder", "coder", goal="G-001", team="g-001-a")
+        self.env.sql("UPDATE agents SET org='claude' WHERE name='zz-test-coder'")
+        self.ok("msg", "director", "zz-test s", "b", "--goal", "G-002", agent="zz-test-coder")
+        self.assertEqual(self.last_rcpt(), "director")
+
+    def test_explicit_other_org_agent_still_refused(self):
+        p = self.refused(3, "msg", "cursor-director", "zz-test s", "b", "--goal", "G-002", agent="lead-g-001-a")
+        self.assertIn("across orgs", p.stderr)
+        p = self.refused(3, "msg", "cursor-lead-g-002-a", "zz-test s", "b", "--goal", "G-001", agent="lead-g-001-a")
+        self.assertIn("across orgs", p.stderr)
+
+    def test_director_with_cursor_goal_still_resolves_to_cursor_director(self):
+        self.ok("msg", "director", "zz-test s", "b", "--goal", "G-002", agent="director")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+
+    def test_lead_report_to_director_with_cursor_goal_stays_in_own_org(self):
+        self.ok("report", "zz-test h", "b", "--goal", "G-002", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "director")
+
+
+class OrgPrefixDefaultRoutingTests(RoutingTests):
+    """Bare boss/director under org_prefix_default=1: legacy unprefixed HQ rows still receive mail."""
+
+    def setUp(self):
+        super().setUp()
+        self.ok("config", "org_prefix_default", "1")
+
+    def test_default_org_bare_hq_reaches_legacy_row(self):
+        e = self.env
+        e.sql("DELETE FROM agents WHERE name IN ('claude-director', 'claude-boss')")
+        self.ok("msg", "director", "zz-test s", "b", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "director")
+        self.ok("msg", "boss", "zz-test s", "b", agent="director")
+        self.assertEqual(self.last_rcpt(), "boss")
+
+    def test_live_prefixed_hq_wins_over_legacy(self):
+        e = self.env
+        e.seed_agent("claude-director", "director")
+        e.seed_agent("claude-boss", "boss")
+        self.ok("msg", "director", "zz-test s", "b", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "claude-director")
+        self.assertNotEqual(self.last_rcpt(), "cursor-director")
+
+    def test_stopped_prefixed_row_falls_back_to_legacy(self):
+        e = self.env
+        e.seed_agent("claude-director", "director", status="stopped")
+        self.ok("msg", "director", "zz-test s", "b", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "director")
+
+    def test_cursor_hq_unchanged_under_org_prefix_default(self):
+        self.ok("msg", "director", "zz-test s", "b", agent="cursor-lead-g-002-a")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+        self.ok("msg", "cursor-director", "zz-test s", "b", agent="director")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+        self.ok("msg", "cursor-boss", "zz-test s", "b", agent="director")
+        self.assertEqual(self.last_rcpt(), "cursor-boss")
+
+
+class GoalAlertRoutingTests(FactoryTestCase):
+    """T-1080: an unprompted tick alert about a goal goes to the lead of the goal's org, else to that org's director."""
+    LEAD, TEAM, SHA = "claude-lead-g-001-a", "g-001-a", "a" * 40
+    BAD = {"name": "build", "status": "COMPLETED", "conclusion": "FAILURE"}
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_goal()
+        e.seed_team(self.TEAM, lead=self.LEAD)
+        e.seed_agent(self.LEAD, "lead", goal="G-001", team=self.TEAM, status="live")
+        e.sql("UPDATE agents SET org='claude' WHERE name=?", (self.LEAD,))
+        e.seed_agent("cursor-director", "director")
+        e.sql("UPDATE agents SET org='cursor' WHERE name='cursor-director'")
+        e.seed_agent("claude-director", "director")
+        e.sql("UPDATE agents SET org='claude' WHERE name='claude-director'")
+        e.seed_task("T-0001", status="in_progress", team=self.TEAM)
+        self.ok("config", "red_pr_owner_alert", "1")
+        e.seed_pr(sha=self.SHA, checks=[self.BAD])
+
+    def red_pr_mails(self):
+        return {r["recipient"] for r in self.env.sql("SELECT recipient FROM messages WHERE subject LIKE 'red PR%'")}
+
+    def test_red_pr_on_a_cursor_goal_goes_to_the_cursor_director_not_the_claude_lead(self):
+        self.env.sql("UPDATE goals SET org='cursor' WHERE id='G-001'")
+        self.ok("tick")
+        self.assertEqual(self.red_pr_mails(), {"cursor-director"})
+
+    def test_red_pr_on_a_claude_goal_goes_to_its_claude_lead(self):
+        self.ok("tick")
+        self.assertEqual(self.red_pr_mails(), {self.LEAD})
+
+    def blocked_alert_mails(self, goal_org):
+        """Drive a real tick: a blocked worker (no task) on a goal of goal_org."""
+        e = self.env
+        e.sql("UPDATE goals SET org=? WHERE id='G-001'", (goal_org,))
+        e.seed_agent("coder-x", "coder", goal="G-001", team=self.TEAM, pane_id="p-c")
+        e.sql("UPDATE agents SET pane_id='p-lead' WHERE name=?", (self.LEAD,))
+        e.sql("UPDATE agents SET blocked_since=? WHERE name='coder-x'", (time.time() - 3600,))
+        e.set_herdr(workspaces=[{"workspace_id": "w1", "label": "w"}],
+                    panes=[{"pane_id": p, "tab_id": "t1", "workspace_id": "w1"} for p in ("p-c", "p-lead")],
+                    agents=[{"name": "coder-x", "agent": "claude", "pane_id": "p-c", "agent_status": "blocked"},
+                            {"name": self.LEAD, "agent": "claude", "pane_id": "p-lead", "agent_status": "idle"}])
+        self.ok("tick")
+        return {r["recipient"] for r in e.sql("SELECT recipient FROM messages WHERE subject='coder-x blocked >10 min'")}
+
+    def test_blocked_alert_on_a_cursor_goal_goes_to_the_cursor_director_not_the_claude_lead(self):
+        self.assertEqual(self.blocked_alert_mails("cursor"), {"cursor-director"})
+
+    def test_blocked_alert_on_a_claude_goal_goes_to_its_claude_lead(self):
+        self.assertEqual(self.blocked_alert_mails("claude"), {self.LEAD})
+
+    def review_alert_mails(self, goal_org):
+        e = self.env
+        e.sql("UPDATE goals SET org=? WHERE id='G-001'", (goal_org,))
+        with e.load_factory() as f:
+            con = f.db()
+            e.seed_agent(f._rerun_name(con, "T-0001", "qa", self.SHA), "qa", goal="G-001", team=self.TEAM, task="T-0001", status="exited")
+            f._review_alert_no_verdict(con, con.execute("SELECT * FROM tasks WHERE id='T-0001'").fetchone(), self.SHA, 1.0)
+            con.commit()
+        return {r["recipient"] for r in e.sql("SELECT recipient FROM messages WHERE subject LIKE 'review autospawn: qa ended%'")}
+
+    def test_review_no_verdict_alert_on_a_cursor_goal_goes_to_the_cursor_director_not_the_claude_lead(self):
+        self.assertEqual(self.review_alert_mails("cursor"), {"cursor-director"})
+
+    def test_review_no_verdict_alert_on_a_claude_goal_goes_to_its_claude_lead(self):
+        self.assertEqual(self.review_alert_mails("claude"), {self.LEAD})
 
 
 if __name__ == "__main__":

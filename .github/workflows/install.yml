@@ -1,0 +1,46 @@
+name: install
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "plugins/hivemill/**"
+      - ".github/workflows/install.yml"
+      - "ci/install_container_test.py"
+      - "systemd/**"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: "install-${{ github.event_name == 'push' && github.sha || github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: "${{ github.event_name != 'push' }}"
+
+permissions:
+  contents: read
+
+jobs:
+  install-smoke:
+    name: install-smoke (${{ matrix.image }}, ${{ matrix.ref }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:12", "ubuntu:24.04"]
+        ref: [head, latest]
+    steps:
+      # a bare image has no git: install it first so checkout leaves a real clone (the test installs the same packages)
+      - name: Bootstrap git and python3
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends git python3 ca-certificates
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # the workspace is copied to the plain user: no token in its git config
+      - name: Run the installer as a plain user
+        env:
+          MODE: ${{ matrix.ref }}
+        run: python3 ci/install_container_test.py --mode "$MODE" --workspace "$GITHUB_WORKSPACE"

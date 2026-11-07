@@ -122,6 +122,18 @@
       "Edit(/@FACTORY_LIVE_HOME@/ci/**)",
       "Write(/@FACTORY_LIVE_HOME@/ci/**)",
       "NotebookEdit(/@FACTORY_LIVE_HOME@/ci/**)",
+      "Edit(/@FACTORY_LIVE_HOME@/plugins)",
+      "Write(/@FACTORY_LIVE_HOME@/plugins)",
+      "NotebookEdit(/@FACTORY_LIVE_HOME@/plugins)",
+      "Edit(/@FACTORY_LIVE_HOME@/plugins/**)",
+      "Write(/@FACTORY_LIVE_HOME@/plugins/**)",
+      "NotebookEdit(/@FACTORY_LIVE_HOME@/plugins/**)",
+      "Edit(/@FACTORY_LIVE_HOME@/.claude-plugin)",
+      "Write(/@FACTORY_LIVE_HOME@/.claude-plugin)",
+      "NotebookEdit(/@FACTORY_LIVE_HOME@/.claude-plugin)",
+      "Edit(/@FACTORY_LIVE_HOME@/.claude-plugin/**)",
+      "Write(/@FACTORY_LIVE_HOME@/.claude-plugin/**)",
+      "NotebookEdit(/@FACTORY_LIVE_HOME@/.claude-plugin/**)",
       "Edit(/@FACTORY_LIVE_HOME@/go)",
       "Write(/@FACTORY_LIVE_HOME@/go)",
       "NotebookEdit(/@FACTORY_LIVE_HOME@/go)",
@@ -208,7 +220,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       },
@@ -217,7 +231,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       },
@@ -226,7 +242,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       }

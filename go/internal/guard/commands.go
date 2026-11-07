@@ -135,39 +135,19 @@ func checkScrub(name string, rest []string) (string, error) {
 		return "", nil
 	}
 	scrub := ""
-	for j, x := range rest {
-		if !strings.HasPrefix(x, "-") && !IsAssign(x) {
-			break
-		}
-		if (x == "-u" || x == "--unset") && j+1 < len(rest) && in(ScrubVars, rest[j+1]) {
-			return "", blockf("env -u FACTORY_ROLE/HERDR_PANE_ID")
-		}
-		if strings.HasPrefix(x, "-u") && in(ScrubVars, x[2:]) || strings.HasPrefix(x, "--unset=") && in(ScrubVars, x[8:]) {
-			return "", blockf("env -u FACTORY_ROLE/HERDR_PANE_ID")
-		}
-		if x == "-" || x == "--ignore-environment" || isEnvIFlag(x) {
+	for _, opt := range envOptions(rest) {
+		switch opt.kind {
+		case "split":
+			return "", blockf(envSplitMsg)
+		case "unset":
+			if in(ScrubVars, opt.value) {
+				return "", blockf("env -u FACTORY_ROLE/HERDR_PANE_ID")
+			}
+		case "clear", "clear-attached":
 			scrub = "env -i"
 		}
 	}
 	return scrub, nil
-}
-
-// isEnvIFlag is re.match(r"^-[A-Za-z]*i[A-Za-z]*$", a).
-func isEnvIFlag(a string) bool {
-	a = strings.TrimSuffix(a, "\n")
-	if len(a) < 2 || a[0] != '-' {
-		return false
-	}
-	seen := false
-	for i := 1; i < len(a); i++ {
-		c := a[i]
-		if c == 'i' {
-			seen = true
-		} else if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z') {
-			return false
-		}
-	}
-	return seen
 }
 
 // factoryScript is a port of Analyzer.factory_script: the index of the `factory` script word in an
@@ -643,7 +623,7 @@ func isDurationWord(w string) bool {
 }
 
 // cmd is a port of Analyzer.cmd. envAssigns are the FACTORY_HOME= assignments an enclosing wrapper passes down.
-func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, envAssigns []string) error {
+func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, envAssigns []string, stdin *stdinChannel) error {
 	assigns := append([]string(nil), envAssigns...)
 	stripped := StripPrefix(words)
 	for _, x := range words[:len(words)-len(stripped)] {
@@ -653,13 +633,23 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	}
 	words = stripped
 	if a.noPush() {
-		if err := a.gitConfigEnv(assigns, words); err != nil {
+		// T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|bash install.sh --dry-run`
+		chk := assigns
+		if a.scratchForm(words, assigns) {
+			chk = nil
+			for _, x := range assigns {
+				if !strings.HasPrefix(x, "HOME=") {
+					chk = append(chk, x)
+				}
+			}
+		}
+		if err := a.gitConfigEnv(chk, words); err != nil {
 			return err
 		}
-		if err := a.builtinAssign(assigns, words, hstrs); err != nil {
+		if err := a.builtinAssign(chk, words, hstrs); err != nil {
 			return err
 		}
-		if err := a.gitLaunch(assigns, words); err != nil {
+		if err := a.gitLaunch(chk, words); err != nil {
 			return err
 		}
 	}
@@ -729,7 +719,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		a.ranFactory = true
 	}
 	if IsDynamic(w, !inLoose) {
-		return &DynamicBlock{Msg: "dynamic command word " + pyRepr(w) + " could expand to herdr or claude"}
+		return &DynamicBlock{Msg: "dynamic command word " + pyRepr(w) + " could expand to herdr, hc or claude"}
 	}
 	if IsHerdr(w) {
 		return blockf("direct herdr invocation")
@@ -776,6 +766,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 	}
+	if a.noPush() && name == "gh" {
+		if err := a.noPushGhWrite(rest); err != nil {
+			return err
+		}
+	}
 	if in(Copiers, name) { // R3: no copying/encoding/reading the real herdr binary
 		for _, x := range rest {
 			if strings.HasPrefix(x, "if=") || strings.HasPrefix(x, "of=") {
@@ -789,6 +784,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	switch {
 	case in(Shells, name):
 		savedCwd, savedDyn, savedC, savedCK := a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown // a cd inside `sh -c` does not move the caller
+		a.shellAssigns = assigns
 		err := a.shell(rest, depth, piped, hstrs)
 		a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown = savedCwd, savedDyn, savedC, savedCK
 		if err != nil {
@@ -819,6 +815,19 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			if err := a.interpInlinePush(name, rest); err != nil {
 				return err
 			}
+			ch := a.activeStdin(stdin, piped, hstrs)
+			if stdinProgram(name, rest) {
+				var scan []string
+				scan = append(scan, ch.hs...)
+				if ch.piped && ch.pipe != "" {
+					scan = append(scan, ch.pipe)
+				}
+				for _, h := range scan {
+					if err := a.stdinScan(name, h); err != nil {
+						return err
+					}
+				}
+			}
 		}
 		if err := a.unittestFull(name, rest); err != nil {
 			return err
@@ -827,7 +836,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 		for j := 0; j+1 < len(rest); j++ {
-			if (reDashCeEr.MatchString(rest[j]) || rest[j] == "--eval") && strings.Contains(rest[j+1], "herdr") {
+			if (reDashCeEr.MatchString(rest[j]) || rest[j] == "--eval") && HasHerdrWord(rest[j+1]) {
 				return blockf("herdr in inline interpreter code")
 			}
 		}
@@ -836,12 +845,12 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 	case in(Awks, name) || in(Editors, name):
-		if anyOf(rest, func(x string) bool { return strings.Contains(x, "herdr") }) {
+		if anyOf(rest, func(x string) bool { return HasHerdrWord(x) }) {
 			return blockf("herdr in " + name + " program text (can run shell commands)")
 		}
 	case name == "sed":
 		for _, x := range rest {
-			if strings.Contains(x, "herdr") && sedHerdr(x) {
+			if HasHerdrWord(x) && sedHerdr(x) {
 				return blockf("herdr in a sed e command")
 			}
 		}
@@ -875,24 +884,29 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 	}
+	if name == "uv" || name == "uvx" { // T-0880: `uv run CMD` / `uvx CMD` is checked like CMD run directly
+		if err := a.uvCheck(name, rest, depth, piped, inLoose, hstrs, assigns, stdin); err != nil {
+			return err
+		}
+	}
 	if name == "command" && len(rest) > 0 && (rest[0] == "-v" || rest[0] == "-V" || rest[0] == "-pv") {
 		return nil
 	}
 	if name == "find" {
 		for j, x := range rest {
 			if in(FindExec, x) {
-				if err := a.loose(rest[j+1:], depth, nil); err != nil {
+				if err := a.loose(rest[j+1:], depth, nil, nil); err != nil {
 					return err
 				}
 			}
 		}
 	} else if in(Wrappers, name) && !inLoose {
 		if name == "xargs" {
-			if err := xargs(rest); err != nil {
+			if err := a.xargs(rest); err != nil {
 				return err
 			}
 		}
-		return a.loose(rest, depth, assigns)
+		return a.loose(rest, depth, assigns, stdin)
 	}
 	return nil
 }
@@ -1040,7 +1054,7 @@ func (a *Analyzer) claudeLaunchers(name string, rest []string) error {
 }
 
 // loose is a port of Analyzer.loose.
-func (a *Analyzer) loose(rest []string, depth int, envAssigns []string) error {
+func (a *Analyzer) loose(rest []string, depth int, envAssigns []string, stdin *stdinChannel) error {
 	for k := range rest {
 		whole := true
 		if IsAssign(rest[k]) {
@@ -1071,7 +1085,7 @@ func (a *Analyzer) loose(rest []string, depth int, envAssigns []string) error {
 				env = append(env, x)
 			}
 		}
-		if err := a.cmd(rest[k:], depth, false, true, nil, env); err != nil {
+		if err := a.cmd(rest[k:], depth, false, true, nil, env, stdin); err != nil {
 			return err
 		}
 	}
@@ -1079,33 +1093,64 @@ func (a *Analyzer) loose(rest []string, depth int, envAssigns []string) error {
 }
 
 // xargs is a port of Analyzer.xargs.
-func xargs(rest []string) error {
+func (a *Analyzer) xargs(rest []string) error {
 	repl, replSet := "", false
 	first, firstSet := "", false
-	for j := 0; j < len(rest); {
+	firstIdx := 0
+	j := 0
+	for j < len(rest) {
 		x := rest[j]
-		if x == "-I" || x == "-J" {
+		switch {
+		case x == "-I" || x == "-J":
 			repl, replSet = "", false
 			if j+1 < len(rest) {
 				repl, replSet = rest[j+1], true
 			}
 			j += 2
-			continue
-		}
-		if strings.HasPrefix(x, "-I") && len(x) > 2 {
+		case strings.HasPrefix(x, "-I") && len(x) > 2:
 			repl, replSet = x[2:], true
-		} else if x == "-i" || x == "--replace" {
+			j++
+		case x == "-i" || x == "--replace":
 			repl, replSet = "{}", true
-		} else if v, ok := strings.CutPrefix(x, "--replace="); ok {
-			repl, replSet = v, true
-		} else if !strings.HasPrefix(x, "-") {
-			first, firstSet = x, true
-			break
+			j++
+		case strings.HasPrefix(x, "--replace="):
+			repl, replSet = strings.TrimPrefix(x, "--replace="), true
+			j++
+		case WrapValueOpts["xargs"] != nil && in(WrapValueOpts["xargs"], x):
+			j += 2
+		case !strings.HasPrefix(x, "-"):
+			first, firstSet, firstIdx = x, true, j
+			j = len(rest)
+		default:
+			j++
 		}
-		j++
 	}
 	if replSet && firstSet && first == repl {
 		return blockf("xargs replacement string used as the command word")
+	}
+	if a.Role == "coder" && !a.HQ {
+		n := 0
+		for _, w := range rest {
+			if reXargsGitToken.MatchString(w) {
+				n++
+			}
+		}
+		if n > 0 {
+			if !(n == 1 && firstSet && pyBasename(first) == "git") {
+				return blockf("xargs with git: the command or its arguments could come from stdin; run git directly, " +
+					"not through xargs")
+			}
+			words := rest[firstIdx:]
+			if replSet {
+				for _, w := range words[1:] {
+					if strings.Contains(w, repl) {
+						return blockf("xargs git: the replacement string stands in for part of git's arguments (an alias or " +
+							"subcommand could come from stdin); coders push only `git push origin HEAD:factory/<task id>`")
+					}
+				}
+			}
+			return a.xargsGit(words[1:])
+		}
 	}
 	return nil
 }
@@ -1142,6 +1187,9 @@ loop:
 	}
 	switch {
 	case i < len(rest):
+		if i == 0 && a.installDryRun(rest, a.shellAssigns) { // T-0331: the one unparsed script
+			return nil
+		}
 		return a.file(rest[i], depth)
 	case len(hstrs) > 0:
 		return nil
@@ -1266,7 +1314,8 @@ func (a *Analyzer) systemctl(rest []string) error {
 		return blockf("systemctl " + verbs[0] + " without a unit")
 	}
 	for _, u := range units {
-		if strings.HasPrefix(u, "factory") || strings.HasPrefix(u, "herdr") || strings.ContainsAny(u, "*?[") ||
+		if strings.HasPrefix(u, "factory") || strings.HasPrefix(u, "herdr") || strings.HasPrefix(u, "hc-") ||
+			strings.ContainsAny(u, "*?[") ||
 			strings.Contains(u, "$") || strings.Contains(u, "`") {
 			return blockf("systemctl " + verbs[0] + " " + u)
 		}

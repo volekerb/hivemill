@@ -6,6 +6,7 @@ test_*.py that imports hook_run — the wider set has known Python/Go stderr dri
 Stdlib only except importing tests/test_guard_impl_coverage.py to verify hook_run usage.
 """
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -14,6 +15,7 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.loader
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -24,6 +26,7 @@ DOC_DIFF_BASENAMES = (
     "test_worker_guard.py",
     "test_priv_guard.py",
     "test_guard_diff.py",
+    "test_worker_guard_public_text.py",
 )
 
 
@@ -113,6 +116,106 @@ class CountingResult(unittest.TextTestResult):
         if not self._whole and not (self._sub_skip and not self._sub_ok):
             CountingResult.executed += 1
         self._cur = None
+
+
+def _is_module_skipped_placeholder(t):
+    """True if discover turned import-time SkipTest into unittest.loader.ModuleSkipped (stdlib 3.11+)."""
+    cls = type(t)
+    return cls.__name__ == "ModuleSkipped" and cls.__module__ == unittest.loader.__name__
+
+
+def collect_ids(names, tests_dir=TESTS):
+    """Load every module in `names`; return (sorted test ids, id -> test, problems).
+
+    problems lists loader errors, _FailedTest ids (a module that fails to import) and modules that yield no test, so an
+    import failure can never shrink the id set unnoticed (T-1039). Import-time SkipTest becomes unittest.loader.ModuleSkipped;
+    that is a problem: the shard must not green with real ids missing (T-1172). Loading puts tests_dir on sys.path, as discover does.
+    """
+    problems, tests = [], []
+    for base in names:
+        loader = unittest.TestLoader()
+        found = list(_flatten(loader.discover(tests_dir, pattern=base)))
+        problems += ["%s: loader error: %s" % (base, e.strip().splitlines()[-1] if e.strip() else e) for e in loader.errors]
+        bad = [t.id() for t in found if type(t).__name__ == "_FailedTest"]
+        problems += ["%s: failed to load: %s" % (base, i) for i in bad]
+        good = []
+        for t in found:
+            if type(t).__name__ == "_FailedTest":
+                continue
+            if _is_module_skipped_placeholder(t):
+                problems.append(
+                    "%s: ModuleSkipped (import-time SkipTest): %s" % (base, t.id()))
+                continue
+            good.append(t)
+        if not good:
+            if not any(p.startswith("%s: ModuleSkipped (import-time SkipTest)" % base) for p in problems):
+                problems.append("%s: no tests found" % base)
+        tests += good
+    by_id = {}
+    for t in tests:
+        if t.id() in by_id:
+            problems.append("duplicate test id %s" % t.id())
+        by_id[t.id()] = t
+    return sorted(by_id), by_id, problems
+
+
+def _flatten(suite):
+    for t in suite:
+        if isinstance(t, unittest.TestSuite):
+            yield from _flatten(t)
+        else:
+            yield t
+
+
+def shard_of(ids, index, total):
+    """Ids of shard `index` (1-based) of `total`: round-robin on the sorted position, so no timing and no randomness."""
+    return [i for pos, i in enumerate(sorted(ids)) if pos % total == index - 1]
+
+
+def ids_digest(ids):
+    return hashlib.sha256("\n".join(sorted(ids)).encode("utf-8")).hexdigest()
+
+
+def run_shard(index, total, names=None, tests_dir=TESTS, out=None):
+    """Run shard `index` of `total` of the guard-diff test ids; 0 only if every assigned test passed (T-1039).
+
+    Non-zero on: loader error or _FailedTest, an empty id list, a failing test, or zero tests really executed.
+    Prints the shard's id count and the sha256 of the full sorted id list, so logs can show every shard saw one list.
+    """
+    out = out or sys.stdout
+    if not 1 <= index <= total:
+        out.write("guard-unittest shard: --shard must be 1..%d, got %d\n" % (total, index))
+        return 2
+    os.environ.update(GUARD_IMPL="diff", GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off")
+    names = diff_module_names() if names is None else names
+    cwd = os.getcwd()
+    os.chdir(ROOT)
+    try:
+        all_ids, by_id, problems = collect_ids(names, tests_dir)
+        mine = shard_of(all_ids, index, total)
+        out.write("guard-unittest shard %d/%d: assigned=%d total=%d ids_sha256=%s\n" % (
+            index, total, len(mine), len(all_ids), ids_digest(all_ids)))
+        out.flush()
+        if problems:
+            out.write("guard-unittest shard %d/%d: FAIL, the test list is not trustworthy:\n  %s\n" % (
+                index, total, "\n  ".join(problems)))
+            return 1
+        if not mine:
+            out.write("guard-unittest shard %d/%d: FAIL, empty id list (fewer tests than shards?)\n" % (index, total))
+            return 1
+        CountingResult.executed = 0
+        suite = unittest.TestSuite(by_id[i] for i in mine)
+        res = unittest.TextTestRunner(stream=out, resultclass=CountingResult).run(suite)
+        out.write("guard-unittest shard %d/%d: ran=%d executed=%d failures=%d errors=%d skipped=%d\n" % (
+            index, total, res.testsRun, CountingResult.executed, len(res.failures), len(res.errors), len(res.skipped)))
+        if not res.wasSuccessful():
+            return 1
+        if CountingResult.executed == 0:
+            out.write("guard-unittest shard %d/%d: FAIL, zero tests executed (a whole-shard skip is not green)\n" % (index, total))
+            return 1
+        return 0
+    finally:
+        os.chdir(cwd)
 
 
 def _count_child(base, tests_dir, json_path):
@@ -211,6 +314,10 @@ def main(argv=None):
     runp = sub.add_parser("run", help="run GUARD_IMPL=diff over the module set; exit code from unittest")
     runp.add_argument(rest, action="store_true", help=rest_help)
     runp.add_argument("--jobs", type=int, default=None, help="--routed-rest: modules in parallel (default: CPUs, max 4)")
+    runp.add_argument("--shard", type=int, default=None, help="run only shard I (1-based) of --shards N of the test ids")
+    runp.add_argument("--shards", type=int, default=None, help="number of shards (needs --shard)")
+    runp.add_argument("--tests-dir", default=TESTS, help=argparse.SUPPRESS)
+    runp.add_argument("--modules", default=None, help=argparse.SUPPRESS)
     hidden = sub.add_parser("_count", help=argparse.SUPPRESS)
     for arg in ("base", "tests_dir", "json_path"):
         hidden.add_argument(arg)
@@ -223,6 +330,13 @@ def main(argv=None):
     if a.cmd == "modules":
         print("\n".join(unittest_modules(a.routed_rest)))
         return 0
+    if (a.shard is None) != (a.shards is None):
+        ap.error("--shard and --shards go together")
+    if a.shard is not None:
+        if a.routed_rest:
+            ap.error("--shard does not combine with --routed-rest")
+        names = a.modules.split(",") if a.modules else None
+        return run_shard(a.shard, a.shards, names=names, tests_dir=a.tests_dir)
     if a.routed_rest:
         return run_routed_rest(jobs=a.jobs)
     return run_guard_diff_unittest().returncode

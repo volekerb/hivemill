@@ -37,10 +37,12 @@ type Analyzer struct {
 	ccwdKnown bool              // false where Python holds None: a `cd` target is only known at run time
 
 	skipPriv         bool
-	unitRule         bool // HQ mode: block mutating systemctl (workers keep the factory unit rule)
+	shellAssigns     []string // env assignments of the shell command being analysed (T-0331)
+	unitRule         bool     // HQ mode: block mutating systemctl (workers keep the factory unit rule)
 	text             string
 	ranFactory       bool
 	scrubWithFactory string
+	pipeSrc          string // set in script() for echo|printf|cat pipe literals (T-0882)
 }
 
 // NewAnalyzer is a port of Analyzer.__init__.
@@ -282,7 +284,8 @@ func (a *Analyzer) script(text string, depth int) error {
 		nbodies = &a.pt.bodies
 	}
 	seen := len(*nbodies)
-	text, extras, err := Preprocess(text, a.HQ, nbodies)
+	var slots []HeredocSlot
+	text, extras, err := Preprocess(text, a.HQ, nbodies, &slots)
 	if err != nil {
 		return err
 	}
@@ -309,7 +312,7 @@ func (a *Analyzer) script(text string, depth int) error {
 			if !a.HQ && PersistCode(x.Body) {
 				return blockf("interpreter code naming a protected config/init file: " + persistWhy)
 			}
-		case !a.HQ && strings.Contains(x.Body, "herdr"):
+		case !a.HQ && HasHerdrWord(x.Body):
 			return blockf("herdr in an interpreter heredoc")
 		}
 	}
@@ -334,6 +337,8 @@ func (a *Analyzer) script(text string, depth int) error {
 		target string
 	}
 	var reds []red
+	hds := map[int][]string{} // T-0882: heredoc bodies join the here-string stdin channel
+	slotPop := 0
 	var stack []pcmd
 	assignOrReserved := func(w string) bool { return IsAssign(w) || in(Reserved, w) }
 	for i := 0; i < len(toks); {
@@ -381,6 +386,19 @@ func (a *Analyzer) script(text string, depth int) error {
 			if hasNxt && !IsPunct(nxt) {
 				if tok == "<<<" {
 					hs = append(hs[:len(hs):len(hs)], nxt)
+				} else if tok == "<<" {
+					strip := false
+					if slotPop < len(slots) {
+						sl := slots[slotPop]
+						slotPop++
+						strip = sl.Strip
+						if sl.HasBody {
+							hds[len(cmds)] = append(hds[len(cmds)], sl.Body)
+						}
+					}
+					if strip && nxt == "-" && i+2 < len(toks) && !IsPunct(toks[i+2]) {
+						i++ // `<<-` delimiter word is `-`: skip it, not a command argument
+					}
 				} else if strings.Contains(tok, ">") && (!strings.Contains(tok, "&") ||
 					((tok == "&>" || tok == "&>>" || tok == ">&") && !isFdOrDash(nxt))) {
 					reds = append(reds, red{len(cmds), nxt}) // `>&2` / `>&-` duplicate or close an fd: no file target
@@ -436,7 +454,33 @@ func (a *Analyzer) script(text string, depth int) error {
 				}
 			}
 		}
-		if err := a.soft(a.cmd(c.words, depth, c.piped, false, c.hs, nil)); err != nil {
+		k := n - 1
+		for k > 0 && cmds[k].piped && len(cmds[k].words) > 0 {
+			b := pyBasename(cmds[k].words[0])
+			if b != "tee" && b != "cat" {
+				break
+			}
+			k--
+		}
+		var prev []string
+		if c.piped && k >= 0 && k < len(cmds) {
+			prev = cmds[k].words
+		}
+		pipeSrc := ""
+		if len(prev) > 0 {
+			base := pyBasename(prev[0])
+			if base == "echo" || base == "printf" {
+				pipeSrc = strings.Join(prev[1:], " ")
+			}
+			if base == "cat" && (len(hds[k]) > 0 || len(cmds[k].hs) > 0) {
+				parts := append(append([]string{}, hds[k]...), cmds[k].hs...)
+				pipeSrc = strings.Join(parts, "\n")
+			}
+		}
+		a.pipeSrc = pipeSrc
+		stdinHS := append(append([]string{}, c.hs...), hds[n]...)
+		chin := &stdinChannel{piped: c.piped, hs: stdinHS, pipe: pipeSrc}
+		if err := a.soft(a.cmd(c.words, depth, c.piped, false, c.hs, nil, chin)); err != nil {
 			return err
 		}
 		for _, r := range reds {

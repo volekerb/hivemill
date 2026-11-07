@@ -43,6 +43,14 @@
    "state": "off"
   },
   {
+   "key": "coder_ci_resume_max",
+   "kind": "setting",
+   "default": "2",
+   "summary": "with coder_ci_handoff on: tick starts of a handed-off coder per task on a red head, then the lead is mailed",
+   "goal": "G-018",
+   "doc": "docs/lead-wake.md"
+  },
+  {
    "key": "cursor_pilot_roles",
    "kind": "flag",
    "default": "",
@@ -184,6 +192,14 @@
    "doc": ""
   },
   {
+   "key": "gh_quota_min",
+   "kind": "setting",
+   "default": "300",
+   "summary": "GraphQL points left below which optional tick probes are skipped and one alert per hour is raised; 0 = never read the quota",
+   "goal": "G-022",
+   "doc": "docs/gh-quota.md"
+  },
+  {
    "key": "gh_rw_roles",
    "kind": "setting",
    "default": "coder,judge,cleaner",
@@ -216,6 +232,14 @@
    "doc": "",
    "state": "on",
    "promoted_in": "baseline"
+  },
+  {
+   "key": "goal_token_tally_s",
+   "kind": "setting",
+   "default": "0",
+   "summary": "seconds between the tick's per-goal token tally passes read by factory goal tokens; 0 = off",
+   "goal": "G-015",
+   "doc": "docs/goal-lifecycle.md"
   },
   {
    "key": "guard_impl",
@@ -448,6 +472,32 @@
    "goal": "",
    "doc": "",
    "state": "shadow"
+  },
+  {
+   "key": "owner_alert_feed",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = the tick records the owner needs-you list as a dark deduped feed read by factory alerts; nothing is sent",
+   "goal": "G-015",
+   "doc": "docs/boss-mail.md",
+   "state": "off"
+  },
+  {
+   "key": "owner_alert_send",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 (with owner_alert_feed=1) = the tick sends each open needs-you row to the owner's phone over ntfy, fixed fields only",
+   "goal": "G-015",
+   "doc": "docs/boss-mail.md",
+   "state": "off"
+  },
+  {
+   "key": "pr_view_ttl_s",
+   "kind": "setting",
+   "default": "120",
+   "summary": "seconds the tick's optional PR probes (CI wake, red PR alert, review autospawn) reuse one gh pr view per PR and head; 0 = off",
+   "goal": "G-022",
+   "doc": "docs/gh-quota.md"
   },
   {
    "key": "prcheck_required",

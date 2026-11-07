@@ -74,6 +74,8 @@ class HqUnitTests(Base):
     def test_worker_mode_keeps_factory_unit_rule_only(self):
         self.blocked("systemctl --user restart factory-tick.timer", mode="worker")
         self.blocked("systemctl --user restart herdr-server", mode="worker")
+        self.blocked("systemctl --user stop hc-serve-dfa32408.service", mode="worker")
+        self.blocked("systemctl --user kill hc-hold-63575dee.service", mode="worker")
         self.allowed("systemctl --user restart other.service", mode="worker")
         self.allowed("systemctl --user status factory-tick.timer", mode="worker")
 
