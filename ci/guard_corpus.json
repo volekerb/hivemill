@@ -6613,6 +6613,26 @@
    "role": "qa"
   },
   {
+   "cmd": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+   "role": "qa"
+  },
+  {
+   "cmd": "python3 -Wonce -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+   "role": "qa"
+  },
+  {
+   "cmd": "python3 --some-unknown-opt -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+   "role": "qa"
+  },
+  {
+   "cmd": "python3 -m tarfile.__main__ -e a.tar @SCRATCH@/r/.git",
+   "role": "qa"
+  },
+  {
+   "cmd": "python3 -Im tarfile.__main__ -e a.tar @SCRATCH@/r/.git",
+   "role": "qa"
+  },
+  {
    "cmd": "ar @optsfile a.a",
    "role": "qa"
   },
@@ -20680,6 +20700,22 @@
   },
   {
    "cmd": "python3 -m tarfile -l a.tar",
+   "role": "qa"
+  },
+  {
+   "cmd": "python3 -m json.tool",
+   "role": "qa"
+  },
+  {
+   "cmd": "python3 -m zipfile.__main__ -l a.zip",
+   "role": "qa"
+  },
+  {
+   "cmd": "python3 -m tarfile.__main__ -l a.tar",
+   "role": "qa"
+  },
+  {
+   "cmd": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/clean",
    "role": "qa"
   },
   {
