@@ -5802,6 +5802,43 @@ def mech_tier(con, t, sha, git_repo):
     return top, "; ".join(why) or "no sensitive path or def"
 
 
+def mech_main_run_refusal(con, slugs, git_repo, task_id=None):
+    """Hold reason (str) unless the latest tests.yml push run on main of every repo in `slugs` is completed+success for the
+    current origin/main head of `git_repo`; None lets the mechanical merger go on. Fail closed: no run, a gh failure, a
+    timeout or unreadable JSON hold. A run whose headSha is not the current main always holds (including the revert/fix task).
+    The revert/fix task of red_main:<slug> (`task_id`) may proceed only on a failed run for the current main head (it turns
+    main green) but still waits for a run in progress. Read-only: never records red main (red_main_check owns that)."""
+    rc, head, err = _git_rc(["rev-parse", "--verify", "origin/main"], repo=git_repo)
+    if rc != 0 or not head:
+        return f"cannot read main push run: origin/main unknown ({err or 'no output'}); hold"
+    if not slugs:
+        return "cannot read main push run: no repo slug; hold"
+    for slug in slugs:
+        try:
+            p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
+                                "--limit", "1", "--json", "databaseId,status,conclusion,headSha,url"],
+                               capture_output=True, text=True, timeout=30, env=gh_git_env())
+            if p.returncode != 0:
+                return f"cannot read main push run: gh run list exit {p.returncode}: {p.stderr.strip()[:200]}; hold"
+            runs = json.loads(p.stdout)
+            run = runs[0] if isinstance(runs, list) and runs else None
+            if not isinstance(run, dict):
+                return f"cannot read main push run: no {RED_MAIN_WORKFLOW} push run on {slug} main; hold"
+            status, concl, rid = str(run.get("status") or ""), str(run.get("conclusion") or ""), run.get("databaseId")
+        except (OSError, ValueError, subprocess.SubprocessError) as e:
+            return f"cannot read main push run: {type(e).__name__}: {e}; hold"
+        if status != "completed":
+            return f"main push run {rid} still {status or 'unknown'}; hold"
+        if run.get("headSha") != head:
+            return f"no push run yet for main {head[:8]}; hold"
+        if concl != "success":
+            st = red_main_state(con, slug)
+            if task_id and st and st.get("task") == task_id:
+                continue  # failed run for current main head: the revert/fix task may land on red main
+            return f"main push run {rid} {concl or 'unknown'}; hold"
+    return None
+
+
 def mech_try(con, t, mode, retry_s):
     """Evaluate one candidate: 'merged', 'blocked' (event written) or 'skipped' (not ready yet; nothing written)."""
     tid, url = t["id"], t["pr_url"]
@@ -5843,6 +5880,9 @@ def mech_try(con, t, mode, retry_s):
         return block(f"{tier_why}; the judge decides")
     if tier > MECH_MAX_TIER:
         return block(f"tier {tier} ({tier_why}); the judge decides")
+    held = mech_main_run_refusal(con, _judge_slugs(con, t, "/".join(url.split("/")[3:5])), git_repo, tid)
+    if held:
+        return block(held)
     jhr = task_judge_hold_reason(con, tid)  # the hold may have arrived after the candidate list was built
     if jhr:
         log_task_judge_hold(con, tid, jhr)
