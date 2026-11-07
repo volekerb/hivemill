@@ -536,12 +536,16 @@ class ClosedListWritersT0988(ProtTreesCase):
     def test_allowed_in_scratch_and_worktree(self):
         p = paths()
         bind = os.path.join(os.path.expanduser("~"), ".local", "bin")
+        hooksd = os.path.join(p["live"], "roles", "hooks")
         bind_x = os.path.join(bind, "x")
         self.allowed([
             "patch -o /tmp/x a b", "gzip -d /tmp/x.gz", "gzip -dc ~/.local/bin/x.gz > /tmp/y",
             f"gzip -d --to-stdout {bind_x}.gz", f"cd {bind} && gzip -d",
             f"cd {bind} && cpio -i -t < a.cpio", f"cd {bind} && cpio -i --to-stdout < a.cpio",
             f"cpio -id -D {bind} --to-stdout < a.cpio",
+            f"cd {hooksd} && cpio -i --only-verify-crc < a.cpio",
+            f"cpio -i --only-verify-crc -D {bind} < a.cpio",
+            f"cd {hooksd} && cpio --extract --only-verify-crc < a.cpio",
             "cpio -id < a.cpio", "git init /tmp/x", "git worktree add /tmp/x",
             "GOBIN=/tmp/b go install ./cmd/x", "gcc -MF /tmp/x.d -c a.c", "cargo build --target-dir /tmp/t",
         ], cwds=("other",))

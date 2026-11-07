@@ -567,7 +567,7 @@ func (a *Analyzer) protWrite(name string, rest []string, assigns []string) error
 			if x == "--extract" || (short && strings.Contains(x, "i")) {
 				extract = true
 			}
-			if x == "-t" || x == "--list" || x == "--to-stdout" || (short && strings.Contains(x, "t")) {
+			if x == "-t" || x == "--list" || x == "--to-stdout" || x == "--only-verify-crc" || (short && strings.Contains(x, "t")) {
 				listMode = true
 			}
 			if (x == "-D" || x == "--directory") && j+1 < len(args) {
