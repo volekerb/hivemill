@@ -16,8 +16,9 @@ Config `mech_merge` (default `off`):
 Needs `risk_tiers=on`: the merger classifies the exact PR head itself (fetch, rules from the main checkout) and stores
 max(old, new); with `risk_tiers` off, or a tier it cannot decide, it records a block and leaves the PR to the judge.
 
-**Candidates** (oldest first): `in_review`, tier T2 or lower, latest reviewer and QA verdict PASS, no live/starting/queued
-judge on the task, no merger event for it in the last `mech_merge_retry_s` (600), no merge freeze.
+**Candidates** (oldest first): `in_review`, tier T2 or lower, latest reviewer and QA verdict PASS, no
+`judge_status_only_hold` (status-only judge reject while the PR was ready; a newer reviewer or QA verdict lifts it), no
+live/starting/queued judge on the task, no merger event for it in the last `mech_merge_retry_s` (600), no merge freeze.
 **To the LLM judge**: T3, a dispute (reviewer and QA disagree on one head, two or more FAIL verdicts, a verdict text line
 starting `judge:`), or any gate refusal (`mech-blocked` in `on`, the judge's normal path then applies).
 The merger never refreshes a stale head (`STALE-ONLY` block); refresh stays with the judge or `factory refresh`.
@@ -31,4 +32,4 @@ waits on gh). Merges are serial: a second run exits 4 while `run/mech-merge.lock
 QA records the result as a new verdict with `live-run: done AC<n> exit=<code>`; until then only the judge may merge
 (the lead routes it).
 
-Rollback: `factory config mech_merge off`. Tests: `tests/test_mech_merge.py`.
+Rollback: `factory config mech_merge off`. Tests: `tests/test_mech_merge.py`, `tests/test_mech_status_only_hold.py`.

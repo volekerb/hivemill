@@ -5710,8 +5710,9 @@ def mech_dispute(con, tid):
 
 def mech_candidates(con, only=None):
     """Tasks the merger may look at, oldest first: in_review with a PR, tier not above T2 (an unset tier is classified
-    later), latest reviewer and QA verdict PASS, no dispute, no judge live/starting/queued on it, and no merger event in
-    the last mech_merge_retry_s. DB only: the tick calls this to decide whether to launch a unit."""
+    later), latest reviewer and QA verdict PASS, no dispute, no judge_status_only_hold, no judge live/starting/queued on
+    it, and no merger event in the last mech_merge_retry_s. DB only: the tick calls this to decide whether to launch a
+    unit."""
     retry = _int_cfg(con, "mech_merge_retry_s", 600)
     nowdt = dt.datetime.now().astimezone()
     out = []
@@ -5723,6 +5724,8 @@ def mech_candidates(con, only=None):
         if mech_dispute(con, t["id"]):
             continue
         if task_judge_hold_reason(con, t["id"]):  # a held task is not merged mechanically; judge_autospawn_tick logs the hold
+            continue
+        if judge_status_only_hold(con, t["id"]):
             continue
         if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                             (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa")):
