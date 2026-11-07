@@ -11,8 +11,6 @@ import unittest
 
 from guard_impl import hook_run
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
-
 ROLES = ("coder", "reviewer", "qa", "judge", "pm")
 GH = "gh pr comment 1 --body-file - <<'EOF'\nfind / -name x\nEOF"  # the approved gh grammar with a plain find body line
 FUNC = "gh() { bash; }"
