@@ -3628,6 +3628,11 @@ def spawn_on_demand(con, goal, org=None):
         if not release_stale_pane(con, se):
             con.execute("COMMIT")  # old pane still there: keep its pane_id, claim nothing; the next routed message retries
             return
+        if terminal_backend_effective(con)[1] == "hc":
+            fin = con.execute("SELECT status, pane_id FROM agents WHERE name=?", (se,)).fetchone()
+            if fin and fin["pane_id"] and fin["status"] in ("done", "exited"):
+                con.execute("COMMIT")  # hc spawn not wired (T-1188): do not queue over a finished row or clear pane_id
+                return
         args = {"role": ON_DEMAND, "goal": goal, "team": None, "task": None, "name": se, "cwd": None,
                 "prompt": None, "model": None, "resume": None, "claimed_at": time.time(), "org": org}
         con.execute("INSERT INTO agents(name,role,goal_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?) "
