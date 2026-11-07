@@ -2383,7 +2383,7 @@ class Analyzer:
                 short = re.match(r"^-[A-Za-z]+$", a)
                 if a == "--extract" or (short and "i" in a):
                     extract = True
-                if a in ("-t", "--list") or (short and "t" in a):
+                if a in ("-t", "--list", "--to-stdout") or (short and "t" in a):
                     list_mode = True
                 if (a == "-D" or a == "--directory") and j + 1 < len(args):
                     dirs.append(args[j + 1])

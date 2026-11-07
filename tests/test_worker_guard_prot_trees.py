@@ -539,7 +539,9 @@ class ClosedListWritersT0988(ProtTreesCase):
         bind_x = os.path.join(bind, "x")
         self.allowed([
             "patch -o /tmp/x a b", "gzip -d /tmp/x.gz", "gzip -dc ~/.local/bin/x.gz > /tmp/y",
-            f"gzip -d --to-stdout {bind_x}.gz", f"cd {bind} && gzip -d", f"cd {bind} && cpio -i -t < a.cpio",
+            f"gzip -d --to-stdout {bind_x}.gz", f"cd {bind} && gzip -d",
+            f"cd {bind} && cpio -i -t < a.cpio", f"cd {bind} && cpio -i --to-stdout < a.cpio",
+            f"cpio -id -D {bind} --to-stdout < a.cpio",
             "cpio -id < a.cpio", "git init /tmp/x", "git worktree add /tmp/x",
             "GOBIN=/tmp/b go install ./cmd/x", "gcc -MF /tmp/x.d -c a.c", "cargo build --target-dir /tmp/t",
         ], cwds=("other",))
