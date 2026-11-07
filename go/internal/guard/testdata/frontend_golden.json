@@ -48568,6 +48568,260 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+53,
+[
+"python3",
+"-m",
+"zipfile.__main__",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+53,
+[
+"python3",
+"-m",
+"zipfile.__main__",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -Wonce -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -Wonce -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -Wonce -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Wonce -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Wonce -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+60,
+[
+"python3",
+"-Wonce",
+"-m",
+"zipfile.__main__",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+60,
+[
+"python3",
+"-Wonce",
+"-m",
+"zipfile.__main__",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 --some-unknown-opt -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 --some-unknown-opt -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 --some-unknown-opt -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 --some-unknown-opt -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 --some-unknown-opt -m zipfile.__main__ -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+72,
+[
+"python3",
+"--some-unknown-opt",
+"-m",
+"zipfile.__main__",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+72,
+[
+"python3",
+"--some-unknown-opt",
+"-m",
+"zipfile.__main__",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m tarfile.__main__ -e a.tar @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -m tarfile.__main__ -e a.tar @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -m tarfile.__main__ -e a.tar @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile.__main__ -e a.tar @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile.__main__ -e a.tar @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+53,
+[
+"python3",
+"-m",
+"tarfile.__main__",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+53,
+[
+"python3",
+"-m",
+"tarfile.__main__",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -Im tarfile.__main__ -e a.tar @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -Im tarfile.__main__ -e a.tar @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -Im tarfile.__main__ -e a.tar @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Im tarfile.__main__ -e a.tar @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Im tarfile.__main__ -e a.tar @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"python3",
+"-Im",
+"tarfile.__main__",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"python3",
+"-Im",
+"tarfile.__main__",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "ar @optsfile a.a",
 "mask_quotes_pre": "ar @optsfile a.a",
 "mask_quotes_raw": "ar @optsfile a.a",
@@ -138964,6 +139218,196 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "python3 -m json.tool",
+"mask_quotes_pre": "python3 -m json.tool",
+"mask_quotes_raw": "python3 -m json.tool",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m json.tool"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m json.tool"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"python3",
+"-m",
+"json.tool"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"python3",
+"-m",
+"json.tool"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m zipfile.__main__ -l a.zip",
+"mask_quotes_pre": "python3 -m zipfile.__main__ -l a.zip",
+"mask_quotes_raw": "python3 -m zipfile.__main__ -l a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile.__main__ -l a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile.__main__ -l a.zip"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"python3",
+"-m",
+"zipfile.__main__",
+"-l",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"python3",
+"-m",
+"zipfile.__main__",
+"-l",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m tarfile.__main__ -l a.tar",
+"mask_quotes_pre": "python3 -m tarfile.__main__ -l a.tar",
+"mask_quotes_raw": "python3 -m tarfile.__main__ -l a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile.__main__ -l a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile.__main__ -l a.tar"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"python3",
+"-m",
+"tarfile.__main__",
+"-l",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"python3",
+"-m",
+"tarfile.__main__",
+"-l",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out",
+"mask_quotes_pre": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out",
+"mask_quotes_raw": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"python3",
+"-m",
+"zipfile.__main__",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"python3",
+"-m",
+"zipfile.__main__",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "ar t a.a",
 "mask_quotes_pre": "ar t a.a",
 "mask_quotes_raw": "ar t a.a",
@@ -155135,7 +155579,7 @@
 ]
 }
 },
-"corpus_commands": 2861,
+"corpus_commands": 2870,
 "edge_inputs": 97,
 "python": "3.13"
 }
