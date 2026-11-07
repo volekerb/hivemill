@@ -147,14 +147,12 @@ class TickCase(Base):
         self.limit(1000)
         self.tally(1000)
         name = self.queue_coder()
-        calls = []
         spy = []
 
         def patch(m):
             real = m._timed_spawn
 
             def wrapped(con, role, *a, **k):
-                calls.append(a[2] if len(a) > 2 else None)
                 spy.append(a)
                 return real(con, role, *a, **k)
             p = mock.patch.object(m, "_timed_spawn", wrapped)
@@ -192,6 +190,22 @@ class TickCase(Base):
         self.assertEqual(len(started), 1)  # the cursor row was looked at and started, not skipped
         self.assertEqual(started[0][0], "coder")
         self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action='dequeued'", (name,))), 0)
+
+    def test_gate_queued_relaunch_at_limit_is_cancelled(self):
+        """A relaunch queued while the gate was closed loses the relaunch exemption: dequeue passes no relaunch=True."""
+        self.limit(1000)
+        self.tally(1000)
+        name = "claude-coder-t-0001"
+        args = ('{"role":"coder","goal":"G-001","team":"g-001-a","task":"T-0001","name":"%s","cwd":null,'
+                '"prompt":null,"model":null,"resume":"sess-old","fresh":false,"org":"claude"}' % name)
+        self.env.sql("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at,session_id,org) "
+                     "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                     (name, "coder", "G-001", "g-001-a", "T-0001", "queued", args, "2026-11-05T11:00:00", "sess-old", "claude"))
+        self.tick()
+        self.assertEqual(self.agent_rows(name)[0]["status"], "cancelled")
+        deq = self.env.sql("SELECT detail FROM events WHERE entity_id=? AND action='dequeued'", (name,))
+        self.assertEqual(len(deq), 1)
+        self.assertIn('"by": "goal-token-limit"', deq[0]["detail"])
 
     def test_tick_warns_the_lead_at_80_percent_and_survives_a_warn_failure(self):
         self.limit(1000)

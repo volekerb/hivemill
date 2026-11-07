@@ -17,7 +17,7 @@ With config `owner_alert_feed=1` the tick records `owner_attention()` as a dedup
 With `owner_alert_send=1` **and** `owner_alert_feed=1` the tick sends each open, unsent feed row over ntfy. Default `owner_alert_send=0`; with either flag at 0 the tick reads and sends nothing.
 
 - Topic: one line in `~/.config/factory/ntfy-topic`, a regular file owned by the factory user with mode 0600 (a symlink is refused), content matching `[A-Za-z0-9_-]{16,64}`. The topic is a secret: it is never stored in the DB, config, events, messages or logs. A missing or unsafe file means no send and one `owner-alert-send-blocked` event per hour.
-- Request: POST to the fixed `https://ntfy.sh/<topic>`, timeout 5 s, no redirects, no Title/Tags/Click header; only a 2xx counts.
+- Request: POST to the fixed `https://ntfy.sh/<topic>`, timeout 5 s (connect and read only; DNS resolution is not capped), no redirects, no Title/Tags/Click header; only a 2xx counts.
 - Payload, one line: `id=<id> org=<org> kind=<kind> ref=<ref> since=<since> link=<link>`. Never a subject, title or body.
 - Order and cap: oldest first, at most 5 rows per tick; `sent` is set only after a 2xx. A closed row is never sent.
 - Failure: the first failure ends the tick's sending, nothing is tried for 300 s, the row stays unsent and is retried. One `owner-alert-send-failed` event per hour, holding only an exception class name or `HTTP <status>`.

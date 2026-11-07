@@ -73,6 +73,21 @@ class TickCallsFeed(FactoryTestCase):
         self.tick(patch)
         self.assertEqual(calls, [])
 
+    def test_feed_off_send_on_tick_sends_nothing_and_reads_no_topic(self):
+        self.flag("0")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('owner_alert_send','1')")
+        calls = []
+
+        def patch(m):
+            for name in ("_ntfy_post", "ntfy_topic"):
+                p = mock.patch.object(m, name, side_effect=lambda *a, **k: calls.append(name))
+                p.start()
+                self.addCleanup(p.stop)
+
+        self.tick(patch)
+        self.assertEqual(calls, [])
+        self.assertEqual(self.feed_rows(), [])
+
     def test_raising_sender_does_not_stop_later_steps(self):
         self.flag("1")
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('owner_alert_send','1')")
