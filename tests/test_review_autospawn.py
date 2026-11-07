@@ -18,6 +18,7 @@ class Base(FactoryTestCase):
         e.seed_goal()
         e.seed_team(TEAM, lead=LEAD)
         e.seed_agent(LEAD, "lead", goal="G-001", team=TEAM, status="exited")
+        e.seed_pr()  # gh pr view gate for _tick_pr_probe (status comes from stubbed _ci_wake_probe in tick_step)
 
     def task(self, tid="T-0001", **kw):
         kw.setdefault("team", TEAM)

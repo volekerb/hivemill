@@ -1,7 +1,8 @@
-"""T-1014 (G-022 SC3): the tick's optional PR probes reuse one `gh pr view` per PR and head for pr_view_ttl_s, and are skipped
+"""T-1014/T-1194 (G-022 SC3): the tick's optional PR probes reuse one REST probe per PR and head for pr_view_ttl_s, and are skipped
 (one alert per hour) while the GraphQL quota is below gh_quota_min. Merge-gate reads never use the cache and never skip."""
 import datetime as dt
 import json
+import re
 
 from harness import FactoryTestCase, PR_URL
 
@@ -48,10 +49,10 @@ class Base(FactoryTestCase):
         return probes
 
     def quota_stub(self, **rule):
-        self.env.set_gh(api=[{"match": ["graphql"], **rule}])
+        self.env.set_gh(api=[{"match": ["rate_limit"], **rule}])
 
     def quota_calls(self):
-        return [c for c in self.env.calls("gh") if c["argv"][:2] == ["api", "graphql"]]
+        return [c for c in self.env.calls("gh") if c["argv"][:2] == ["api", "rate_limit"]]
 
 
 class PrViewCacheTests(Base):
@@ -109,7 +110,7 @@ class QuotaTests(Base):
         return self.env.sql("SELECT subject FROM messages WHERE subject LIKE 'gh quota low%'")
 
     def test_low_quota_skips_the_probe_and_alerts_once_per_hour(self):
-        self.quota_stub(out={"data": {"rateLimit": {"remaining": 12, "limit": 5000, "resetAt": "2026-11-04T08:21:46Z"}}})
+        self.quota_stub(out={"resources": {"graphql": {"remaining": 12, "limit": 5000, "reset": 0}}})
         self.assertEqual(self.step(T0), [])
         self.assertEqual(self.step(T0 + 60), [])
         self.assertEqual(self.step(T0 + 120), [])
@@ -120,14 +121,14 @@ class QuotaTests(Base):
         self.assertEqual(len(self.alerts()), 2)  # a new hour, a new alert
 
     def test_quota_read_once_per_tick_even_with_several_probes(self):
-        self.quota_stub(out={"data": {"rateLimit": {"remaining": 12, "limit": 5000, "resetAt": "x"}}})
+        self.quota_stub(out={"resources": {"graphql": {"remaining": 12, "limit": 5000, "reset": 0}}})
         self.env.seed_task("T-0002", status="in_review", team=TEAM, pr_url=PR_URL.replace("/1", "/2"))
         self.env.sql("UPDATE tasks SET branch='factory/t-0002' WHERE id='T-0002'")
         self.step(T0)
         self.assertEqual(len(self.quota_calls()), 1)
 
     def test_red_pr_alert_probe_skipped_without_throttle_mark(self):
-        self.quota_stub(out={"data": {"rateLimit": {"remaining": 1, "limit": 5000, "resetAt": "x"}}})
+        self.quota_stub(out={"resources": {"graphql": {"remaining": 1, "limit": 5000, "reset": 0}}})
         self.ok("config", "red_pr_owner_alert", "1")
         probes = []
         with self.env.load_factory() as f:
@@ -142,7 +143,7 @@ class QuotaTests(Base):
         self.assertEqual(len(self.alerts()), 1)
 
     def test_enough_quota_probes_normally(self):
-        self.quota_stub(out={"data": {"rateLimit": {"remaining": 4000, "limit": 5000, "resetAt": "x"}}})
+        self.quota_stub(out={"resources": {"graphql": {"remaining": 4000, "limit": 5000, "reset": 0}}})
         self.assertEqual(len(self.step(T0)), 1)
         self.assertEqual(self.alerts(), [])
 
@@ -160,13 +161,28 @@ class QuotaTests(Base):
         self.ok("config", "gh_quota_min", "0")
         self.step(T0)
         self.ok("config", "gh_quota_min", "300")
-        self.quota_stub(out={"data": {"rateLimit": {"remaining": 1, "limit": 5000, "resetAt": "x"}}})
+        self.quota_stub(out={"resources": {"graphql": {"remaining": 1, "limit": 5000, "reset": 0}}})
         self.assertEqual(self.step(T0 + 60), [])
         self.assertEqual(self.quota_calls(), [])  # answered from the cache: no probe, so no quota read
 
+    def test_cache_hit_reported_on_tick_counters(self):
+        hits = []
+        with self.env.load_factory() as f:
+            con = f.db()
+            f.digest_clock = lambda: dt.datetime.fromtimestamp(T0, dt.timezone.utc)
+            f._ci_remote_heads = lambda: {BRANCH: SHA1}
+            f._pt_count = lambda k, n=1: hits.append(k) if k == "pr_probe_cache_hit" else None
+            f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": SHA1,
+                                                       "mergeStateStatus": "CLEAN", "statusCheckRollup": [RUNNING]}
+            f.tick_ci_wake(con)
+            f.digest_clock = lambda: dt.datetime.fromtimestamp(T0 + 60, dt.timezone.utc)
+            f.tick_ci_wake(con)
+            con.commit()
+        self.assertEqual(hits.count("pr_probe_cache_hit"), 1)
+
     def test_merge_gate_reads_are_not_skipped_while_quota_is_low(self):
         """judge_pr_ready (the judge's CI check) still calls gh with the quota at 0; gh decides, the quota signal does not."""
-        self.quota_stub(out={"data": {"rateLimit": {"remaining": 0, "limit": 5000, "resetAt": "x"}}})
+        self.quota_stub(out={"resources": {"graphql": {"remaining": 0, "limit": 5000, "reset": 0}}})
         self.step(T0)  # quota now known to be low
         self.env.seed_pr(sha=SHA1, checks=[{"name": "ok", "status": "COMPLETED", "conclusion": "SUCCESS"}])
         with self.env.load_factory() as f:
@@ -175,3 +191,20 @@ class QuotaTests(Base):
         self.assertEqual((ready, why), (True, "CI green"))
         views = [c for c in self.env.calls("gh") if c["argv"][:2] == ["pr", "view"]]
         self.assertEqual(len(views), 1)
+
+
+class RestProbeTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.env.seed_pr(checks=[RUNNING])
+
+    def test_ci_wake_uses_rest_not_graphql_pr_view(self):
+        with self.env.load_factory() as f:
+            con = f.db()
+            f.digest_clock = lambda: dt.datetime.fromtimestamp(T0, dt.timezone.utc)
+            f._ci_remote_heads = lambda: {BRANCH: SHA1}
+            f.tick_ci_wake(con)
+            con.commit()
+        self.assertEqual([c for c in self.env.calls("gh") if c["argv"][:2] == ["pr", "view"]], [])
+        pulls = [c for c in self.env.calls("gh") if len(c["argv"]) > 1 and re.search(r"/pulls/\d+$", c["argv"][1])]
+        self.assertEqual(len(pulls), 1)

@@ -9,7 +9,51 @@ $FAKE_CALLS. `repo_url` is a git remote path: `repo view` returns it and `api ..
 first rule whose substrings all occur in the space-joined argv wins (a substring ending in $ must end it); with no rule, `.../commits/main` falls back to repo_url's main sha, else exit 1. Anything else exits 1."""
 import json
 import os
+import re
 import sys
+
+
+def _stub_pr_by_num(st, num, repo_path=None):
+    num = str(num)
+    for url, pr in st.get("prs", {}).items():
+        m = re.search(r"/pull/(\d+)(?:[/?#]|$)", url or "")
+        if not m or m.group(1) != num:
+            continue
+        if repo_path:
+            um = re.match(r"https?://[^/]+/([^/]+/[^/]+)/pull/", url or "")
+            if um and um.group(1) != repo_path:
+                continue
+        return pr
+    return None
+
+
+def _stub_mergeable_state(pr):
+    if pr.get("mergeStateStatus"):
+        return (pr.get("mergeStateStatus") or "").lower()
+    return {"MERGEABLE": "clean", "CONFLICTING": "dirty"}.get((pr.get("mergeable") or "").upper(), "unknown")
+
+
+def _stub_rest_check_runs(rollup):
+    runs = []
+    for c in rollup or []:
+        if c.get("__typename") == "StatusContext" or (c.get("context") and not c.get("name")):
+            continue
+        status = (c.get("status") or "").lower()
+        if status == "in_progress":
+            status = "in_progress"
+        elif status:
+            status = status.replace("_", "_").lower()
+        concl = (c.get("conclusion") or "").lower() or None
+        runs.append({"name": c.get("name"), "status": status or "queued", "conclusion": concl})
+    return runs
+
+
+def _stub_rest_statuses(rollup):
+    out = []
+    for c in rollup or []:
+        if c.get("__typename") == "StatusContext" or (c.get("context") and not c.get("name")):
+            out.append({"context": c.get("context"), "state": (c.get("state") or "").lower()})
+    return out
 
 argv = sys.argv[1:]
 with open(os.environ["FAKE_CALLS"], "a") as f:
@@ -119,6 +163,49 @@ elif argv[:1] == ["api"]:
                 out = rule.get("out", "")
             sys.stdout.write(out if isinstance(out, str) else json.dumps(out))
             sys.exit(0)
+    if st.get("pr_view_sleep") and "/pulls/" in argv[1]:
+        import time
+        time.sleep(st["pr_view_sleep"])
+    if argv[1] == "rate_limit":
+        out = st.get("rate_limit") or {"resources": {"graphql": {"remaining": 5000, "limit": 5000, "reset": 0},
+                                                  "core": {"remaining": 5000, "limit": 5000, "reset": 0}}}
+        print(json.dumps(out))
+        sys.exit(0)
+    m_pull = re.match(r"repos/([^/]+/[^/]+)/pulls/(\d+)$", argv[1])
+    if m_pull:
+        pr = _stub_pr_by_num(st, m_pull.group(2), m_pull.group(1))
+        if pr is None:
+            print(f"gh: no pull request {m_pull.group(1)}", file=sys.stderr)
+            sys.exit(1)
+        print(json.dumps({"number": pr.get("number", int(m_pull.group(2))), "state": (pr.get("state") or "OPEN").lower(),
+                          "head": {"sha": pr.get("headRefOid")}, "mergeable_state": _stub_mergeable_state(pr)}))
+        sys.exit(0)
+    m_runs = re.match(r"repos/[^/]+/[^/]+/commits/([0-9a-f]{40})/check-runs$", argv[1])
+    if m_runs:
+        sha = m_runs.group(1)
+        rollup = []
+        for pr in st.get("prs", {}).values():
+            if pr.get("headRefOid") == sha:
+                rollup = pr.get("statusCheckRollup") or []
+                break
+        print(json.dumps({"check_runs": _stub_rest_check_runs(rollup), "total_count": len(rollup)}))
+        sys.exit(0)
+    m_status = re.match(r"repos/[^/]+/[^/]+/commits/([0-9a-f]{40})/status$", argv[1])
+    if m_status:
+        sha = m_status.group(1)
+        rollup = []
+        for pr in st.get("prs", {}).values():
+            if pr.get("headRefOid") == sha:
+                rollup = pr.get("statusCheckRollup") or []
+                break
+        statuses = _stub_rest_statuses(rollup)
+        state = "success"
+        if any(s.get("state") in ("failure", "error") for s in statuses):
+            state = "failure"
+        elif any(s.get("state") == "pending" for s in statuses):
+            state = "pending"
+        print(json.dumps({"state": state, "statuses": statuses}))
+        sys.exit(0)
     if argv[1].endswith("/commits/main") and "repo_url" in st:
         import subprocess
         print(subprocess.run(["git", "-C", st["repo_url"], "rev-parse", "refs/heads/main"], capture_output=True, text=True).stdout.strip())
