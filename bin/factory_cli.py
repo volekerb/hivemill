@@ -3584,6 +3584,9 @@ def release_stale_pane(con, name):
     r = con.execute("SELECT status, pane_id FROM agents WHERE name=?", (name,)).fetchone()
     if not r or not r["pane_id"] or r["status"] not in ("done", "exited"):
         return True
+    if terminal_backend_effective(con)[1] == "hc":
+        # hc ls omits TUI pane ids; close_named_pane would spuriously reap before spawn's T-1188 refusal
+        return True
     pane = r["pane_id"]
     gone = False
     if r["status"] == "done":
