@@ -67,6 +67,42 @@ class TerminalBackendTests(FactoryTestCase):
         finally:
             f._HC_RUN_CWD = None
 
+    def test_hc_agent_start_cursor_uses_resolved_binary_not_shim(self):
+        f = _load_factory_cli()
+        argv = ("agent", "start", "zz-cur", "--kind", "cursor", "--pane", "p9", "--timeout", "90000",
+                "--", "--workspace", "/tmp/wt", "--model", "opus", "--trust", "--force")
+        f._HC_RUN_CWD = "/tmp/wt"
+        f._HC_RUN_PROGRAM = "/usr/bin/agent"
+        try:
+            self.assertEqual(
+                f._hc_translate_args(argv),
+                ["run", "--bg", "--name", "zz-cur", "--cwd", "/tmp/wt",
+                 "/usr/bin/agent", "--workspace", "/tmp/wt", "--model", "opus", "--trust", "--force"],
+            )
+        finally:
+            f._HC_RUN_CWD = f._HC_RUN_PROGRAM = None
+
+    def test_hc_agent_start_wraps_spawn_env_for_child(self):
+        f = _load_factory_cli()
+        argv = ("agent", "start", "zz-coder", "--kind", "claude", "--pane", "p1", "--timeout", "90000",
+                "--", "-n", "zz-coder")
+        f._HC_RUN_CWD = "/tmp/wt"
+        f._HC_RUN_ENV = {
+            "FACTORY_AGENT": "zz-coder",
+            "HERDR_SOCKET_PATH": "/proc/nonexistent/worker-no-herdr.sock",
+        }
+        try:
+            self.assertEqual(
+                f._hc_translate_args(argv),
+                ["run", "--bg", "--name", "zz-coder", "--cwd", "/tmp/wt",
+                 "env",
+                 "FACTORY_AGENT=zz-coder",
+                 "HERDR_SOCKET_PATH=/proc/nonexistent/worker-no-herdr.sock",
+                 "--", "claude", "-n", "zz-coder"],
+            )
+        finally:
+            f._HC_RUN_CWD = f._HC_RUN_ENV = None
+
     def test_hc_piped_read_keeps_jsonish_screen_as_text(self):
         f = _load_factory_cli()
         for screen in ('line\n{"ok": true}', "hello\n[1, 2]", "done\ntrue"):
