@@ -2,6 +2,7 @@ package guard
 
 import (
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -172,10 +173,30 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 			}
 		}
 	case isPythonName(name):
-		mod, modSet, k := "", false, 0
-		for k < len(args) && strings.HasPrefix(args[k], "-") && !strings.HasPrefix(args[k], "--") && len(args[k]) > 1 {
-			cl := []rune(args[k]) // a short-flag cluster: -I, -Bm, -Im zipfile, -mzipfile
+		mod, modSet, code, codeSet, k := "", false, "", false, 0
+	pyopts:
+		for k < len(args) && strings.HasPrefix(args[k], "-") && len(args[k]) > 1 {
+			cl := []rune(args[k])
 			k++
+			if strings.HasPrefix(args[k-1], "--") { // T-0808 F2: skip a known long option (and its value); an unknown one fails closed
+				base, _, hasEq := strings.Cut(args[k-1], "=")
+				switch {
+				case in(pyLongValue, base):
+					if !hasEq {
+						k++ // `--opt value` takes the next argument; `--opt=value` carries its own
+					}
+				case !in(pyLongFlag, base):
+					// unknown arity: block only when a later argument names an archive module (`--bogus -m pytest` stays allowed)
+					if anyOf(args[min(k, len(args)):], func(x string) bool { return strings.HasSuffix(x, "zipfile") || strings.HasSuffix(x, "tarfile") }) {
+						return false, blockf("`" + name + "` with the unknown option " + pyRepr(args[k-1]) + " before -m zipfile/tarfile: the target " +
+							"cannot be bounded; drop the option or extract with unzip -d")
+					}
+					break pyopts
+				}
+				continue
+			}
+			// a short-flag cluster: -I, -Bm, -Im zipfile, -mzipfile. T-0808 F1: walk it char by char; only a bare c/m ends the
+			// loop, and -W/-X/-Q (value-taking) consume the rest of the cluster or the next argument as their value
 		cluster:
 			for i := 1; i < len(cl); i++ {
 				tail := string(cl[i+1:])
@@ -193,6 +214,10 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 					}
 					break cluster
 				case 'c':
+					code, codeSet = tail, true
+					if tail == "" && k < len(args) {
+						code = args[k]
+					}
 					break cluster
 				case 'W', 'X', 'Q': // takes a value
 					if tail == "" {
@@ -201,9 +226,13 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 					break cluster
 				}
 			}
-			if modSet || containsRune(cl, 'c') {
+			if modSet || codeSet {
 				break
 			}
+		}
+		if codeSet && pyExtractCode.MatchString(code) {
+			return false, blockf("`" + name + " -c` code that extracts an archive cannot be bounded (it may write .git/config or hooks): " +
+				why + "; use unzip -d or tar -C")
 		}
 		if modSet && (mod == "zipfile" || mod == "tarfile") {
 			for j := k; j < len(args); j++ {
@@ -218,6 +247,11 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 	case name == "ar":
 		var ops, outs []string
 		k, opseen := 0, false
+		for _, x := range args {
+			if strings.HasPrefix(x, "@") { // T-0808 F3: a response file adds options the hook cannot see, even as an option value
+				return false, blockf("`ar @file`: the response file's options cannot be inspected; pass the options on the command line")
+			}
+		}
 		for k < len(args) {
 			x := args[k]
 			k++
@@ -269,6 +303,58 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 }
 
 var (
+	// T-0808 F2: python long options that may precede -m (value-taking ones named separately); any other fails closed
+	pyLongFlag  = set("--version", "--help", "--help-env", "--help-xoptions", "--help-all")
+	pyLongValue = set("--check-hash-based-pycs")
+	// T-0808 F4: python -c code that extracts. \s is Python's unicode \s: ASCII whitespace plus \v, \x1c-\x1f, \x85 and Z*.
+	pyExtractCode  = regexp.MustCompile(`extractall|extract[\s\x0b\p{Z}\x{1c}-\x{1f}\x{85}]*\(|unpack_archive`)
 	unzipNoExtract = set("-l", "-v", "-t", "-p", "-c", "-z", "-Z")
 	tarRewrite     = set("--absolute-names", "--transform", "--xform", "--to-command", "--one-top-level")
 )
+
+// pyInlineCode is py_inline_code (T-0808 F5): a python command line carries its program inline: -c (bare, in a cluster such
+// as -Bc, attached code too), or `-` / no program at all (heredoc or pipe on stdin). -m module and a script file are not inline.
+func pyInlineCode(args []string) bool {
+	k := 0
+	for k < len(args) && strings.HasPrefix(args[k], "-") && len(args[k]) > 1 {
+		cl := args[k]
+		k++
+		if strings.HasPrefix(cl, "--") {
+			if in(pyLongFlag, cl) {
+				return false // --version/--help print and exit: no program runs
+			}
+			if base, _, hasEq := strings.Cut(cl, "="); !hasEq && in(pyLongValue, base) {
+				k++
+			}
+			continue
+		}
+		rs := []rune(cl)
+	cluster:
+		for i := 1; i < len(rs); i++ {
+			switch rs[i] {
+			case 'c':
+				return true
+			case 'm', 'V', 'h', '?':
+				return false // -m module, or -V/-h/-? print and exit
+			case 'W', 'X', 'Q':
+				if i+1 >= len(rs) {
+					k++
+				}
+				break cluster
+			}
+		}
+	}
+	return k >= len(args) || args[k] == "-"
+}
+
+// inlineInterpreter is inline_interpreter (T-0808 F5): an interpreter invocation whose program is inline (stdin heredoc or
+// pipe for every interpreter, -c for python; other options are not tightened, T-0953).
+func inlineInterpreter(name string, rest []string) bool {
+	if !interpreterFull(name) {
+		return false
+	}
+	if isPythonName(name) {
+		return pyInlineCode(rest)
+	}
+	return len(rest) == 0 || rest[0] == "-"
+}
