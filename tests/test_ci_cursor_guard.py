@@ -60,6 +60,7 @@ def assert_workflow_guard_diff(text):
         ("guard-unittest", workflow_job_block(text, "guard-unittest")),
         ("guard-diff", workflow_guard_diff_job_block(text)),
         ("guard-self-compare", workflow_job_block(text, "guard-self-compare")),
+        ("guard-evaluator-home-loosen", workflow_job_block(text, "guard-evaluator-home-loosen")),
     ):
         if re.search(r"(?m)^\s+continue-on-error:\s*true", block):
             raise AssertionError("%s job must not use continue-on-error: true" % job)
@@ -89,7 +90,7 @@ class WorkflowGuardDiffTest(unittest.TestCase):
 
     def test_continue_on_error_in_guard_unittest_or_guard_diff_fails_this_check(self):
         wf = WF.read_text()
-        for job in ("guard-unittest-shard", "guard-unittest", "guard-diff", "guard-self-compare"):
+        for job in ("guard-unittest-shard", "guard-unittest", "guard-diff", "guard-self-compare", "guard-evaluator-home-loosen"):
             block = workflow_job_block(wf, job)
             mutated = wf.replace(block, block.rstrip("\n") + "\n    continue-on-error: true\n\n", 1)
             self.assertNotEqual(mutated, wf)
