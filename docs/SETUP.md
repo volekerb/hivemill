@@ -77,14 +77,14 @@ python3 plugins/hivemill/scripts/install.py --yes
 | 0 | Done |
 | 1 | A step failed, or a refusal (root, agent pane) |
 | 2 | Usage error |
-| 3 | You must do something first; the command is printed. Then re-run with `--resume` |
-| 4 | Already installed |
+| 3 | You must do something first; the command is printed. Then re-run (with `--resume` after a login) |
+| 4 | Already installed, or a partial install (use `--resume` to finish it) |
 
 The last line of a run is `RESULT PASS url=... version=...` or `RESULT FAIL step=...`.
 
 What it installs: missing `herdr`, `gh` and Claude Code (herdr and gh are pinned releases checked against size and sha256, into `~/.local/bin`), a clone in `~/factory`, the `factory` link in `~/.local/bin`, the database, the config, the systemd user units, and a smoke test. The web UI binds to `127.0.0.1` only.
 
-What it never does: it never uses elevated rights (no `sudo`), never edits your dotfiles (if `~/.local/bin` is not on your `PATH` it prints the line to add), and never prompts. It never reads, prints or stores a token. You create the tokens yourself in your own terminal: `gh auth login`, and `claude` followed by `/login`. If either is missing the installer stops with exit 3 and the command to run.
+Claude Code, if missing, comes from Anthropic's own installer script: the installer downloads it to a file and logs its sha256, but does not pin it, and that script is not part of this installer. What it never does: it never uses elevated rights (no `sudo`), never edits your dotfiles itself (if `~/.local/bin` is not on your `PATH` it prints the line to add), and never prompts. It never reads, prints or stores a token. You create the tokens yourself in your own terminal: `gh auth login`, and `claude` followed by `/login`. If either is missing the installer stops with exit 3 and the command to run.
 
 Prefer to do it by hand, or want to know what each step does? Every manual step is below, starting at [Install](#install). [docs/adopt/ADOPT.md](adopt/ADOPT.md) lets your own Claude Code walk through them.
 
