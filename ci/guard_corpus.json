@@ -18528,43 +18528,39 @@
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "# it's\n{CH} {ALT}"
+      "cmd": "# it's\ngit config --comment --get (alias.x|y)"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "builtin eval '{CH} {ALT}'"
+      "cmd": "builtin eval 'git config --comment --get (alias.x|y)'"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "cat <<EOF\nit's\nEOF\n{CH} {ALT}"
+      "cmd": "cat <<EOF\nit's\nEOF\ngit config --comment --get (alias.x|y)"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "command eval '{CH} {ALT}'"
+      "cmd": "command eval 'git config --comment --get (alias.x|y)'"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "emulate -L zsh -o extended_glob; {CH} ^z"
+      "cmd": "emulate -L zsh -o extended_glob; git config --comment --get ^z"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "emulate zsh -o extendedglob; {CH} ^z"
+      "cmd": "emulate zsh -o extendedglob; git config --comment --get ^z"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "eval 'setopt extendedglob; {CH} ^z'"
+      "cmd": "eval 'setopt extendedglob; git config --comment --get ^z'"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "eval '{CH} <->'"
+      "cmd": "eval 'git config --comment --get <->'"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "eval '{CH} {ALT}'"
-    },
-    {
-      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "eval git config --comment --get '{ALT}'"
+      "cmd": "eval git config --comment --get '(alias.x|y)'"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
@@ -18624,79 +18620,79 @@
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "set -o extendedglob; {CH} ^z"
+      "cmd": "set -o extendedglob; git config --comment --get ^z"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "setopt EXTENDEDGLOB; {CH} ^z"
+      "cmd": "setopt EXTENDEDGLOB; git config --comment --get ^z"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "setopt extended_glob; {CH} ^z"
+      "cmd": "setopt extended_glob; git config --comment --get ^z"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "setopt extendedglob && {CH} ^z"
+      "cmd": "setopt extendedglob && git config --comment --get ^z"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "setopt extendedglob; {CH} ^z"
+      "cmd": "setopt extendedglob; git config --comment --get ^z"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "setopt extendedglob; {CH} al#"
+      "cmd": "setopt extendedglob; git config --comment --get al#"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "setopt extendedglob; {CH} a~b"
+      "cmd": "setopt extendedglob; git config --comment --get a~b"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "zsh -c '{CH} {ALT}'"
+      "cmd": "zsh -o extendedglob -c 'git config --comment --get ^z'"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "zsh -o extendedglob -c '{CH} ^z'"
+      "cmd": "git config --comment --get <1-2>"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} '(a|b)'"
+      "cmd": "git config --comment --get a~b"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} 'x y'"
+      "cmd": "git config --comment --get (alias.x|y)\n# it's"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} (alias.x|y)"
+      "cmd": "git config --file --get x.y"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} <->"
+      "cmd": "eval \"git config --comment --get (alias.x|y)\""
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} <1-2>"
+      "cmd": "cd /x && echo alias.x push | xargs git config"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} ^z"
+      "cmd": "bash -c \"echo alias.x push | xargs git config\""
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} a~b"
+      "cmd": "zsh -c \"echo alias.x push | xargs git config\""
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} x#"
+      "cmd": "cd /x && printf 'alias.x\\npush\\n' | xargs git config"
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} {ALT}"
+      "cmd": "bash -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\""
     },
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
-      "cmd": "{CH} {ALT}\n# it's"
+      "cmd": "zsh -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\""
     }
   ],
   "must_allow": [
@@ -22962,6 +22958,98 @@
     {
       "note": "T-1103: git config expansion-built args (mirror T-1063)",
       "cmd": "git config --get al*"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --comment c --get alias.x"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --get (a|b)"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --get <->"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --comment c --get (alias.x|y)"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --comment '(a|b)' --get alias.x"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --get-regexp ^alias"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config -l"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config get user.name"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config core.bare < /dev/null"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config user.name 2>/dev/null"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --default -1 --get a.b"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --type=bool core.bare"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --file=f a.b"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --comment c --get al*"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --file=f --get al*"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "x=$(git config user.name)"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "echo $(git config user.name)"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "(git config user.name)"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config user.name; (ls)"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config user.name && echo $(date)"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "f() { ls; }; git config user.name"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "for i in $(ls); do git config user.name; done"
+    },
+    {
+      "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
+      "cmd": "git config --get 'branch.fix#12.remote'"
     }
   ]
 }
