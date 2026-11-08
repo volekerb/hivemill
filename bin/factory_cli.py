@@ -134,6 +134,7 @@ OWNER_CAP_KEYS = ("max_live_agents", "max_total_claude", "min_mem_available_mb",
                   "max_live_judges")
 TASK_STATUSES = ["todo", "in_progress", "in_review", "blocked", "done", "cancelled"]
 TASK_WAITS = ["owner", "internal"]
+TASK_ID_RE = re.compile(r"^T-\d+$", re.I)
 GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled"]
 
 DEFAULT_CONFIG = {
@@ -3299,6 +3300,18 @@ def task_sandbox_required(con, task):
     return bool(r and r["sandbox_required"])
 
 
+def task_note_refuse_id(a):
+    """Refusal reason when `factory task note` was not given exactly one task id, else None."""
+    if getattr(a, "extra", None) is not None:
+        return "task note takes one task id and note text; extra arguments were given. Nothing was written."
+    tid = (a.id or "").strip()
+    if not tid or not TASK_ID_RE.fullmatch(tid):
+        return f"task note id is not one task id ({a.id!r}). Nothing was written."
+    if a.text is not None and TASK_ID_RE.fullmatch((a.text or "").strip()):
+        return "task note takes one task id and note text; a second task id was given. Nothing was written."
+    return None
+
+
 # same pattern as web/queries.py _TAG_RE, so a title is tagged exactly when the goal page counts it
 SC_TAG_RE = r"\[(SC\d+(?:\s*,\s*SC\d+)*)\]"
 
@@ -3602,10 +3615,16 @@ def cmd_task(a):
             goal_auto_active(con, t["goal_id"], f"task {a.id} in_progress (task update)")
         print(f"{a.id} updated")
     elif a.action == "note":
+        why = task_note_refuse_id(a)
+        if why:
+            die(why, 2)
+        tid = (a.id or "").strip()
+        if not con.execute("SELECT 1 FROM tasks WHERE id=?", (tid,)).fetchone():
+            die(f"no task {tid}. Nothing was written.", 2)
         text = read_text(a.text)
         if not (text or "").strip():
             die("task note text is empty; pass the note as an argument or on stdin with '-'. Nothing was written.", 2)
-        event(con, "task", a.id, "note", text)
+        event(con, "task", tid, "note", text)
         print("noted")
     elif a.action == "tier":
         task_tier_cmd(con, a)
