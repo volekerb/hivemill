@@ -8568,7 +8568,7 @@ def git_run(repo, *args, env=None, text=True, **kw):
     """subprocess.run of git in `repo` with hooks, fsmonitor, non-https transports and the system config off, and no prompts."""
     why = live_checkout_head_refusal(repo, args)
     if why:
-        return subprocess.CompletedProcess(args=["git", *args], returncode=1, stdout="", stderr=why + "\n")
+        return subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=why + "\n")
     _PT["git_n"] += 1  # tick phase timers: export_git counts these
     return subprocess.run(git_argv(repo, *args), capture_output=True, text=text,
                           env={**(os.environ if env is None else env), "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"}, **kw)
