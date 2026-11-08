@@ -11,11 +11,26 @@ import "strings"
 var (
 	ptGitSubs  = set("commit", "tag", "push", "merge", "commit-tree", "notes")
 	ptGhWrites = map[string]map[string]struct{}{
-		"pr":      set("create", "edit", "comment", "review", "close", "merge"),
-		"issue":   set("create", "edit", "comment", "close"),
-		"release": set("create", "edit"),
+		"pr":      set("create", "new", "edit", "comment", "review", "close", "merge"),
+		"issue":   set("create", "new", "edit", "comment", "close"),
+		"release": set("create", "new", "edit"),
 	}
 )
+
+// ghPositionals is worker-guard.py PublicText.gh's pos: skip -R/--repo flag values (T-1156).
+func ghPositionals(a []string) []string {
+	var pos []string
+	for k, x := range a {
+		if strings.HasPrefix(x, "-") {
+			continue
+		}
+		if k > 0 && (a[k-1] == "-R" || a[k-1] == "--repo") {
+			continue
+		}
+		pos = append(pos, x)
+	}
+	return pos
+}
 
 // ptShellPayload is the code of `sh -c CODE` / `eval ARGS` for PublicText.command (HQ mode), "" for none.
 func ptShellPayload(name string, rest []string) string {
@@ -228,12 +243,7 @@ func annotatedTagFlag(a string) bool {
 
 // ptGhReaches is PublicText.gh (and gh_api) up to the first use of the config.
 func ptGhReaches(args []string) bool {
-	var pos []string
-	for _, x := range args {
-		if !strings.HasPrefix(x, "-") {
-			pos = append(pos, x)
-		}
-	}
+	pos := ghPositionals(args)
 	if len(pos) < 2 && !(len(pos) > 0 && pos[0] == "api") {
 		return false
 	}

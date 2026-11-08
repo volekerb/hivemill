@@ -102,26 +102,46 @@ func foldWordAt(s string, i int, words ...string) bool {
 	return false
 }
 
-// ghWriteTail matches what follows `\bgh\b(flags)*?\W+` at q: pr merge|create, repo, or api ... -X/--method WRITE.
-func ghWriteTail(s string, q int) bool {
-	if hasAt(s, q, "pr") {
-		for _, e := range nonWordEnds(s, q+2) {
-			if hasAt(s, e, "merge") && boundary(s, e+5) || hasAt(s, e, "create") && boundary(s, e+6) {
+// ghSubVerb reports whether s has gh ... sub W+ verb with a word boundary after verb (INLINE_GH_WRITE tail).
+func ghSubVerb(s string, q int, sub string, verbs ...string) bool {
+	if !hasAt(s, q, sub) || !boundary(s, q+len(sub)) {
+		return false
+	}
+	for _, e := range nonWordEnds(s, q+len(sub)) {
+		for _, v := range verbs {
+			if hasAt(s, e, v) && boundary(s, e+len(v)) {
 				return true
 			}
 		}
 	}
+	return false
+}
+
+// ghWriteTail matches what follows `\bgh\b(flags)*?\W+` at q (worker-guard.py:INLINE_GH_WRITE; `gh pr comment` is not included).
+func ghWriteTail(s string, q int) bool {
+	if ghSubVerb(s, q, "pr", "merge", "create", "new", "edit", "close", "reopen", "ready", "review", "lock", "unlock", "update-branch", "revert") {
+		return true
+	}
+	if ghSubVerb(s, q, "issue", "create", "new", "edit", "close", "reopen", "comment", "delete", "transfer", "pin", "unpin", "lock", "unlock", "develop") {
+		return true
+	}
+	if ghSubVerb(s, q, "workflow", "run", "enable", "disable") {
+		return true
+	}
 	if hasAt(s, q, "repo") && boundary(s, q+4) {
 		return true
 	}
-	if hasAt(s, q, "release") { // T-0881: release\W+(create|edit|delete|upload|delete-asset)\b
-		for _, e := range nonWordEnds(s, q+7) {
-			for _, w := range []string{"create", "edit", "delete-asset", "delete", "upload"} {
-				if hasAt(s, e, w) && boundary(s, e+len(w)) {
-					return true
-				}
-			}
-		}
+	if ghSubVerb(s, q, "label", "create") {
+		return true
+	}
+	if ghSubVerb(s, q, "secret", "set") {
+		return true
+	}
+	if ghSubVerb(s, q, "variable", "set") {
+		return true
+	}
+	if ghSubVerb(s, q, "release", "create", "new", "edit", "delete-asset", "delete", "upload") {
+		return true
 	}
 	if hasAt(s, q, "api") && boundary(s, q+3) {
 		for m := q + 3; m <= len(s); m++ {
