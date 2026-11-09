@@ -164918,6 +164918,300 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "env --uns GIT_DIR git push",
+"mask_quotes_pre": "env --uns GIT_DIR git push",
+"mask_quotes_raw": "env --uns GIT_DIR git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env --uns GIT_DIR git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env --uns GIT_DIR git push"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"env",
+"--uns",
+"GIT_DIR",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"env",
+"--uns",
+"GIT_DIR",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "noglob git push",
+"mask_quotes_pre": "noglob git push",
+"mask_quotes_raw": "noglob git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "noglob git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "noglob git push"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"noglob",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"noglob",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nocorrect git push",
+"mask_quotes_pre": "nocorrect git push",
+"mask_quotes_raw": "nocorrect git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "nocorrect git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "nocorrect git push"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"nocorrect",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"nocorrect",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "repeat 2 git push",
+"mask_quotes_pre": "repeat 2 git push",
+"mask_quotes_raw": "repeat 2 git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "repeat 2 git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "repeat 2 git push"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"repeat",
+"2",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"repeat",
+"2",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c alias.x=push x origin main",
+"mask_quotes_pre": "git -c alias.x=push x origin main",
+"mask_quotes_raw": "git -c alias.x=push x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.x=push x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.x=push x origin main"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"git",
+"-c",
+"alias.x=push",
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"git",
+"-c",
+"alias.x=push",
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs git",
+"mask_quotes_pre": "echo push origin main | xargs git",
+"mask_quotes_raw": "echo push origin main | xargs git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+33,
+[
+"xargs",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+33,
+[
+"xargs",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -172030,7 +172324,7 @@
 ]
 }
 },
-"corpus_commands": 3172,
+"corpus_commands": 3178,
 "edge_inputs": 97,
 "python": "3.13"
 }
