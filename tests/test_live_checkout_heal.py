@@ -194,15 +194,12 @@ class LiveCheckoutHealTests(FactoryTestCase):
 
     def test_temp_home_does_not_heal_or_touch_live_db(self):
         """A temp FACTORY_HOME tick must not heal LIVE_HOME or record heal-fail keys."""
-        decoy = self.env.home / "decoy-live-factory"
-        decoy.mkdir()
-        git("init", "-q", "-b", "main", cwd=decoy)
-        git("commit", "-q", "--allow-empty", "-m", "decoy", cwd=decoy)
-        git("config", "remote.origin.url", BAD, cwd=decoy)
         self.ok("config", "factory_remote_url", GOOD)
+        git("config", "remote.origin.url", BAD, cwd=self.h)
         with self.env.load_factory() as mod:
-            mod.LIVE_HOME = str(decoy)
+            mod.LIVE_HOME = str(self.h)
             self.assertFalse(mod.home_is_live())
+            self.assertTrue(mod.is_live_factory_toplevel(str(self.h)))
             con = mod.db()
             try:
                 mod.tick_live_checkout_heal(con)
@@ -212,7 +209,7 @@ class LiveCheckoutHealTests(FactoryTestCase):
         self.assertEqual(rows, [])
         self.assertEqual(self.heal_events(), [])
         self.assertEqual(self.fail_alerts(), [])
-        self.assertEqual(git("config", "remote.origin.url", cwd=decoy), BAD)
+        self.assertEqual(git("config", "remote.origin.url", cwd=self.h), BAD)
 
 
 if __name__ == "__main__":
