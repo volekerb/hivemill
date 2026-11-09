@@ -14728,9 +14728,14 @@ def cmd_tick(a, locked=False):
         cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
         if not cur:
             continue
-        s = json.loads(cur["spawn_args"])
+        try:
+            s = json.loads(cur["spawn_args"] or "{}")
+        except ValueError:
+            s = {}
         if time.time() - s.get("claimed_at", 0) < CLAIM_TTL_S:
             continue  # a msg is spawning this one right now
+        if "role" not in s:
+            continue  # spawn() has not finished writing the queue snapshot
         if s["role"] != "evaluator" and start_failed_wait(s):
             continue  # T-1135: at the failure cap the start is retried every START_FAILED_RETRY_S, not every tick
         if recently_stopped_in(con, s.get("cwd") or queued_worktree(con, s.get("task"))):
