@@ -618,14 +618,14 @@ def _retro_resolve_path_expr(expr):
 
 def retro_roles_subst(text):
     """Spellings that name a live roles tree, else resolve $(`…`) targets; unresolved counts as under roles (fail closed)."""
-    if retro_roles_code(text):
+    if any(c in text for c in "$`"):
+        resolved = _retro_resolve_path_expr(_retro_path_expr(text))
+        if resolved is not None:
+            if retro_roles_path(resolved, spelled=False):
+                return True
+            return retro_roles_code(text)
         return True
-    if not any(c in text for c in "$`"):
-        return False
-    resolved = _retro_resolve_path_expr(_retro_path_expr(text))
-    if resolved is None:
-        return True
-    return retro_roles_path(resolved, spelled=False)
+    return retro_roles_code(text)
 
 
 def retro_subst_redirect_frags(text):
