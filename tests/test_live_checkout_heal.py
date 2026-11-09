@@ -41,11 +41,12 @@ class LiveCheckoutHealTests(FactoryTestCase):
     def run_heal(self):
         with self.env.load_factory() as mod:
             mod.LIVE_HOME = str(self.h)
-            con = mod.db()
-            try:
-                mod.tick_live_checkout_heal(con)
-            finally:
-                con.close()
+            with mock.patch.object(mod, "home_is_live", return_value=True):
+                con = mod.db()
+                try:
+                    mod.tick_live_checkout_heal(con)
+                finally:
+                    con.close()
         return mod
 
     def test_origin_healed_from_factory_remote_url(self):
@@ -64,13 +65,14 @@ class LiveCheckoutHealTests(FactoryTestCase):
         git("config", "remote.origin.url", BAD, cwd=self.h)
         with self.env.load_factory() as mod:
             mod.LIVE_HOME = str(self.h)
-            with mock.patch.object(mod, "factory_remote_url", wraps=mod.factory_remote_url) as tofu:
-                con = mod.db()
-                try:
-                    mod.tick_live_checkout_heal(con)
-                finally:
-                    con.close()
-                tofu.assert_not_called()
+            with mock.patch.object(mod, "home_is_live", return_value=True):
+                with mock.patch.object(mod, "factory_remote_url", wraps=mod.factory_remote_url) as tofu:
+                    con = mod.db()
+                    try:
+                        mod.tick_live_checkout_heal(con)
+                    finally:
+                        con.close()
+                    tofu.assert_not_called()
         self.assertEqual(git("config", "remote.origin.url", cwd=self.h), BAD)
         self.assertEqual(self.heal_events(), [])
         self.assertTrue(self.fail_alerts())
@@ -106,12 +108,13 @@ class LiveCheckoutHealTests(FactoryTestCase):
                 calls.append(args)
                 return real(repo, *args, **kw)
 
-            with mock.patch.object(mod, "_live_heal_git", spy):
-                con = mod.db()
-                try:
-                    mod.tick_live_checkout_heal(con)
-                finally:
-                    con.close()
+            with mock.patch.object(mod, "home_is_live", return_value=True):
+                with mock.patch.object(mod, "_live_heal_git", spy):
+                    con = mod.db()
+                    try:
+                        mod.tick_live_checkout_heal(con)
+                    finally:
+                        con.close()
         self.assertEqual(git("rev-parse", "HEAD", cwd=self.h), head_before)
         self.assertNotIn(tuple(["switch", "main"]), calls)
         self.assertNotIn(tuple(["checkout", "main"]), calls)
@@ -125,12 +128,13 @@ class LiveCheckoutHealTests(FactoryTestCase):
         self.assertNotEqual(ahead, git("rev-parse", "origin/main", cwd=self.h))
         with self.env.load_factory() as mod:
             mod.LIVE_HOME = str(self.h)
-            con = mod.db()
-            try:
-                mod.tick_live_checkout_heal(con)
-                mod.sync_pull(con, push_ok=True)
-            finally:
-                con.close()
+            with mock.patch.object(mod, "home_is_live", return_value=True):
+                con = mod.db()
+                try:
+                    mod.tick_live_checkout_heal(con)
+                    mod.sync_pull(con, push_ok=True)
+                finally:
+                    con.close()
         self.assertEqual(git("rev-parse", "main", cwd=self.h), ahead)
         self.assertNotEqual(git("rev-parse", "main", cwd=self.h), git("rev-parse", "origin/main", cwd=self.h))
 
@@ -154,12 +158,13 @@ class LiveCheckoutHealTests(FactoryTestCase):
                 calls.append(args)
                 return real(repo, *args, **kw)
 
-            with mock.patch.object(mod, "_live_heal_git", spy):
-                con = mod.db()
-                try:
-                    mod.tick_live_checkout_heal(con)
-                finally:
-                    con.close()
+            with mock.patch.object(mod, "home_is_live", return_value=True):
+                with mock.patch.object(mod, "_live_heal_git", spy):
+                    con = mod.db()
+                    try:
+                        mod.tick_live_checkout_heal(con)
+                    finally:
+                        con.close()
         self.assertEqual(git("rev-parse", "HEAD", cwd=self.h), head_before)
         sym_after = subprocess.run(
             ["git", "symbolic-ref", "-q", "HEAD"], cwd=self.h, capture_output=True,
@@ -177,14 +182,37 @@ class LiveCheckoutHealTests(FactoryTestCase):
         self.assertIn("/tmp/evil", (self.h / ".git" / "config").read_text())
         with self.env.load_factory() as mod:
             mod.LIVE_HOME = str(self.h)
-            con = mod.db()
-            try:
-                self.assertFalse(mod.sync_pull(con))
-            finally:
-                con.close()
+            with mock.patch.object(mod, "home_is_live", return_value=True):
+                con = mod.db()
+                try:
+                    self.assertFalse(mod.sync_pull(con))
+                finally:
+                    con.close()
         refused = self.env.sql("SELECT detail FROM events WHERE action='git-config-refused'")
         self.assertTrue(refused)
         self.assertIn("include", refused[-1]["detail"])
+
+    def test_temp_home_does_not_heal_or_touch_live_db(self):
+        """A temp FACTORY_HOME tick must not heal LIVE_HOME or record heal-fail keys."""
+        decoy = self.env.home / "decoy-live-factory"
+        decoy.mkdir()
+        git("init", "-q", "-b", "main", cwd=decoy)
+        git("commit", "-q", "--allow-empty", "-m", "decoy", cwd=decoy)
+        git("config", "remote.origin.url", BAD, cwd=decoy)
+        self.ok("config", "factory_remote_url", GOOD)
+        with self.env.load_factory() as mod:
+            mod.LIVE_HOME = str(decoy)
+            self.assertFalse(mod.home_is_live())
+            con = mod.db()
+            try:
+                mod.tick_live_checkout_heal(con)
+            finally:
+                con.close()
+        rows = self.env.sql("SELECT 1 FROM config WHERE key='last_live_checkout_heal_fail_ts'")
+        self.assertEqual(rows, [])
+        self.assertEqual(self.heal_events(), [])
+        self.assertEqual(self.fail_alerts(), [])
+        self.assertEqual(git("config", "remote.origin.url", cwd=decoy), BAD)
 
 
 if __name__ == "__main__":

@@ -14870,6 +14870,8 @@ def _live_checkout_heal_report(con, field, old, new):
 def tick_live_checkout_heal(con):
     """Before sync_pull: on LIVE_HOME only, restore remote.origin.url from config factory_remote_url and a clean
     detached HEAD to main. Other refused config keys are never removed; failures alert at most once an hour."""
+    if not home_is_live():
+        return
     live = Path(LIVE_HOME).resolve()
     if not live.is_dir() or not is_live_factory_toplevel(str(live)):
         return
