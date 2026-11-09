@@ -9786,7 +9786,7 @@ def _write_cursor_start_log(name, pane, start_err, env):
     if start_err:
         parts.append("=== herdr agent start ===\n" + _redact_cursor_start_text(start_err, env) + "\n")
     if pane:
-        proc = herdr("pane", "process-info", pane, check=False)
+        proc = herdr("pane", "process-info", "--pane", pane, check=False)
         if proc is not None:
             blob = (json.dumps(proc, indent=2, sort_keys=True) if isinstance(proc, dict) else str(proc))
             parts.append("=== herdr pane process-info ===\n" + _redact_cursor_start_text(blob, env) + "\n")

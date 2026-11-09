@@ -79,6 +79,14 @@ class CursorStartLogTests(FactoryTestCase):
         text = self.log.read_text()
         self.assertIn("herdr agent start", text)
         self.assertIn("herdr pane process-info", text)
+        self.assertIn("foreground_processes", text)
+        proc_calls = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "process-info"]]
+        self.assertEqual(len(proc_calls), 1, proc_calls)
+        argv = proc_calls[0]["argv"]
+        self.assertIn("--pane", argv)
+        pane_i = argv.index("--pane")
+        self.assertGreater(len(argv), pane_i + 1)
+        self.assertTrue(argv[pane_i + 1])
         self.assertNotIn(PLANT_TOKEN, text)
         self.assertNotIn(PLANT_ENV, text)
         self.assertIn("[redacted-token]", text)
