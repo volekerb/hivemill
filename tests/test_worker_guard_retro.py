@@ -51,6 +51,13 @@ class RetroGuardTests(unittest.TestCase):
             f"cd {LIVE} && echo x > \"$(printf %s roles/coder.md)\"",
             f"cd {LIVE} && echo x > \"$(printf %s ./roles/coder.md)\"",
             f"ZZ=$(printf '%s/%s' {LIVE} roles/coder.md); echo x > \"$ZZ\"",
+            "cd $HOME/factory && echo x > roles/coder.md",
+            "cd ${HOME}/factory && echo x > roles/retro.md",
+            f"cd $HOME/factory && cp /tmp/zz-retro-src.txt roles/coder.md",
+            "cd $HOME/factory && echo x > \"$(printf %s roles/coder.md)\"",
+            f"echo x > \"$(printf '%s %s %s' a b c)\"",
+            f"X=$(printf %s hi > {LIVE}/run/guard-export.json)",
+            f"X=$(mktemp > {LIVE}/run/guard-export.json)",
             "git push origin main  # please merge",
         ):
             with self.subTest(cmd=cmd):
@@ -109,6 +116,8 @@ class RetroGuardTests(unittest.TestCase):
         self.assert_rc(0, role="coder", raw=w)
         self.assert_rc(0, role="coder", command="factory config retro_enabled 0")
         self.assert_rc(0, role="coder", command="git log -1")
+        self.assert_rc(2, role="coder", command=f"X=$(printf %s hi > {LIVE}/run/guard-export.json)")
+        self.assert_rc(2, role="reviewer", command=f"X=$(mktemp > {LIVE}/run/guard-export.json)")
 
 
 if __name__ == "__main__":

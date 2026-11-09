@@ -495,6 +495,13 @@ def prot_glob(p, ancestor=False):
     return any(m(0, 0, d.strip("/").split("/")) for d in prot_trees())
 
 
+def cd_home_factory_word(w):
+    """`$HOME/factory` and `${HOME}/factory` expand to the passwd-home factory checkout for ccwd tracking."""
+    if w in ("$HOME/factory", "${HOME}/factory"):
+        return os.path.join(PW_DIR, "factory")
+    return None
+
+
 def tilde_expand(w, cwd):
     """A leading `~`, `$HOME`, `${HOME}` is the passwd home (never $HOME). T-0983: `~name` is that user's passwd home and
     `~+` is `cwd`. A word that cannot be resolved (no such user, `~-`, a `~+` with an unknown cwd) is returned unchanged,
@@ -656,14 +663,6 @@ def _retro_printf_segment(text):
         return "".join(rest)
     if fmt == "%s/%s" and len(rest) == 2:
         return rest[0].rstrip("/") + "/" + rest[1].lstrip("/")
-    if fmt.startswith("%s") and all(p == "%s" for p in re.findall(r"%.", fmt)) and len(rest) == fmt.count("%"):
-        out, j = [], 0
-        for p in re.findall(r"%.", fmt):
-            if p != "%s":
-                return None
-            out.append(rest[j])
-            j += 1
-        return "".join(out)
     return None
 
 
@@ -739,7 +738,9 @@ def _retro_roles_subst_resolved(resolved, text, ccwd=None):
     if resolved is None:
         return None
     rp = resolved
-    if not os.path.isabs(rp) and ccwd:
+    if not os.path.isabs(rp):
+        if ccwd is None:
+            return True
         rp = os.path.normpath(os.path.join(ccwd, rp))
     if retro_roles_path(rp, spelled=False):
         return True
@@ -1382,6 +1383,8 @@ def under(path, root):
 def _fold_assign_inner(inner):
     """Only fold assignment $( ) that the guard models as a static value (mktemp, printf)."""
     if not inner:
+        return False
+    if any("<" in t or ">" in t for t in inner):
         return False
     if inner[0] == "mktemp":
         return all(not x.startswith("-") or x in ("-d", "-p") for x in inner[1:])
@@ -2382,10 +2385,16 @@ class Analyzer:
         """Track the directory for the CFG_DIR write detector (`~` is the passwd home, never $HOME)."""
         args = [a for a in rest if not a.startswith("-") or a == "-"]
         self.cwd_unres = False
-        if name == "popd" or (args and (args[0] == "-" or self.dynamic_dir(args[0]))):
+        if name == "popd":
             self.ccwd = None
         elif not args:
             self.ccwd = PW_DIR
+        elif args[0] == "-":
+            self.ccwd = None
+        elif (hf := cd_home_factory_word(args[0])) is not None:
+            self.ccwd = hf
+        elif self.dynamic_dir(args[0]):
+            self.ccwd = None
         else:
             p = self.cfg_expand(args[0])
             if tilde_unres(args[0], self.ccwd):  # `cd ~nosuchuser`, `cd ~-`: as on main, a path relative to the known cwd
@@ -2942,6 +2951,8 @@ class Analyzer:
             if not os.path.isabs(t):
                 if self.ccwd is None:
                     if persist_code(t):
+                        return True
+                    if self.role == RETRO and not self.hq and retro_roles_path(t, spelled=True):
                         return True
                     continue
                 t = os.path.join(self.ccwd, t)
