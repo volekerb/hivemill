@@ -3092,8 +3092,8 @@ class Analyzer:
                     raise Block(f"cannot parse git alias ({e})")
                 if words[:1] == ["config"]:
                     self.git_persist(["config", *words[1:], *used], depth)
-                elif words[:1] == ["remote"] and len(words) > 1 and words[1] in REMOTE_WRITE:
-                    self.repo_cfg_refuse(f"git remote {words[1]}", cwd, git_dir, work_tree, [])
+                elif words[:1] == ["remote"]:
+                    self.git_persist(["remote", *words[1:], *used], depth)
         if i < len(rest) and rest[i] == "remote":
             if rest[i + 1:i + 2] and rest[i + 1] in REMOTE_WRITE:
                 self.repo_cfg_refuse(f"git remote {rest[i + 1]}", cwd, git_dir, work_tree, [])

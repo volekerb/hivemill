@@ -110,6 +110,12 @@ class LiveRemoteGuardTests(unittest.TestCase):
         for role in ("coder", "judge", "cleaner"):
             self.blocked(f"git -c alias.s='remote set-url origin {evil}' s", role)
 
+    def test_alias_remote_body_trailing_set_url_add_blocked(self):
+        evil = "https://evil.example/from-probe.git"
+        for role in ("coder", "judge", "cleaner"):
+            self.blocked(f"git -c alias.s=remote s set-url origin {evil}", role)
+            self.blocked(f"git -c alias.s=remote s add evil {evil}", role)
+
     def test_config_trailing_worktree_is_value_not_scope(self):
         evil = "https://evil.example/trail.git"
         for role in ("coder", "judge", "cleaner"):
