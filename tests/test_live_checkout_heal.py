@@ -134,6 +134,43 @@ class LiveCheckoutHealTests(FactoryTestCase):
         self.assertEqual(git("rev-parse", "main", cwd=self.h), ahead)
         self.assertNotEqual(git("rev-parse", "main", cwd=self.h), git("rev-parse", "origin/main", cwd=self.h))
 
+    def test_detached_clean_refused_filter_does_not_switch(self):
+        script = self.env.home / "clean.sh"
+        script.write_text("#!/bin/sh\necho clean\n")
+        script.chmod(0o755)
+        git("config", "filter.x.clean", str(script), cwd=self.h)
+        git("checkout", "-q", "--detach", "HEAD", cwd=self.h)
+        head_before = git("rev-parse", "HEAD", cwd=self.h)
+        sym_before = subprocess.run(
+            ["git", "symbolic-ref", "-q", "HEAD"], cwd=self.h, capture_output=True,
+        ).stdout.decode().strip()
+        self.assertEqual(sym_before, "")
+        with self.env.load_factory() as mod:
+            mod.LIVE_HOME = str(self.h)
+            calls = []
+            real = mod._live_heal_git
+
+            def spy(repo, *args, **kw):
+                calls.append(args)
+                return real(repo, *args, **kw)
+
+            with mock.patch.object(mod, "_live_heal_git", spy):
+                con = mod.db()
+                try:
+                    mod.tick_live_checkout_heal(con)
+                finally:
+                    con.close()
+        self.assertEqual(git("rev-parse", "HEAD", cwd=self.h), head_before)
+        sym_after = subprocess.run(
+            ["git", "symbolic-ref", "-q", "HEAD"], cwd=self.h, capture_output=True,
+        ).stdout.decode().strip()
+        self.assertEqual(sym_after, "")
+        self.assertNotIn(tuple(["switch", "main"]), calls)
+        self.assertEqual(self.heal_events(), [])
+        alerts = self.fail_alerts()
+        self.assertEqual({r["recipient"] for r in alerts}, {"zz-test-director", "zz-test-boss"})
+        self.assertTrue(any("filter.x.clean" in r["subject"] for r in alerts))
+
     def test_other_refused_config_keys_not_removed(self):
         git("config", "--file", f"{self.h}/.git/config", "include.path", "/tmp/evil", cwd=self.h)
         self.run_heal()

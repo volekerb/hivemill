@@ -8687,18 +8687,19 @@ def _project_remote_urls(common):
         return set()
 
 
-def _remote_url_ok(url, project_urls=()):
+def _remote_url_ok(url, project_urls=(), factory_url_for_check=...):
     """The factory https remote, or exactly the one of the clone's registered project (project_urls); under a temp
-    home also a plain absolute path (the tests' bare remote)."""
+    home also a plain absolute path (the tests' bare remote). factory_url_for_check: when not ..., use that value
+    instead of factory_remote_url() (avoids TOFU on the live-checkout heal path)."""
     if git_file_protocol() == "always" and url.startswith("/") and "::" not in url:
         return True
     if url in project_urls:
         return True
-    factory_url = factory_remote_url()
+    factory_url = factory_url_for_check if factory_url_for_check is not ... else factory_remote_url()
     return bool(factory_url) and url == factory_url
 
 
-def git_config_refusal(repo):
+def git_config_refusal(repo, factory_url_for_check=...):
     """Allow-list of repo-scope git config (an unknown key can run code or redirect git; a denylist never ends).
     Reads, WITHOUT includes, `<common-dir>/config`, every `<common-dir>/worktrees/*/config.worktree` and the target
     worktree's own config.worktree. Refuses (returns the offending keys; empty = clean): any include.*/includeIf.*
@@ -8738,7 +8739,7 @@ def git_config_refusal(repo):
             k, _, v = ent.partition("\n")
             if _INCLUDE_KEY.match(k) or not _ALLOWED_KEY.match(k):
                 keys.append(k)
-            elif k.lower() == "remote.origin.url" and not _remote_url_ok(v, project_urls):
+            elif k.lower() == "remote.origin.url" and not _remote_url_ok(v, project_urls, factory_url_for_check):
                 keys.append(f"{k}={v}")
             elif k.lower() == "user.email" and not v.strip().lower().endswith("@users.noreply.github.com"):
                 keys.append(k)  # a real address in repo config would be committed under; only the noreply form is allowed
@@ -14830,7 +14831,8 @@ def _live_origin_url_from_file(repo):
 
 
 def _live_heal_git(repo, *args, **kw):
-    """Git in the live checkout for tick self-heal only; bypasses live_checkout_head_refusal on switch/checkout."""
+    """Git in the live checkout for tick self-heal only. git_run refuses switch on the live toplevel, so the HEAD
+    heal must call git here, not through git_run."""
     _PT["git_n"] += 1
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"}
     if kw.get("env") is not None:
@@ -14893,6 +14895,12 @@ def tick_live_checkout_heal(con):
                     _live_checkout_heal_failed(con, (p.stderr or p.stdout or f"git config exited {p.returncode}").strip())
                 else:
                     _live_checkout_heal_report(con, "remote.origin.url", cur, want)
+
+    refused = git_config_refusal(repo, factory_url_for_check=want)
+    if refused:
+        _live_checkout_heal_failed(con, f"git config in live checkout would run code: {', '.join(refused)}; "
+                                   "not running status or switch")
+        return
 
     sym = _live_heal_git(repo, "symbolic-ref", "-q", "HEAD", timeout=30)
     head_ref = sym.stdout.strip() if sym.returncode == 0 else ""
