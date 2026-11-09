@@ -73,6 +73,7 @@ import re
 import shlex
 import sqlite3
 import stat
+import subprocess
 import sys
 import urllib.parse
 
@@ -581,6 +582,62 @@ def retro_roles_code(text):
     if "tory/roles" in norm:
         return True
     return bool(re.search(r"(?:^|/)(?:\S+/)?factory/roles(?:/|$)", norm))
+
+
+def _retro_path_expr(text):
+    s = text.strip()
+    s = re.sub(r"^>[>|]?\s*", "", s)
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
+        s = s[1:-1]
+    return s
+
+
+def _retro_resolve_path_expr(expr):
+    if not expr:
+        return None
+    if not any(c in expr for c in "$`"):
+        return expr
+    env = {**os.environ, "RETRO_GUARD_EXPR": expr}
+    try:
+        p = subprocess.run(
+            ["bash", "-c", 'eval x="$RETRO_GUARD_EXPR"; printf %s "$x"'],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if p.returncode != 0:
+        return None
+    out = p.stdout.rstrip("\n")
+    if not out or "\n" in out:
+        return None
+    return out
+
+
+def retro_roles_subst(text):
+    """Spellings that name a live roles tree, else resolve $(`…`) targets; unresolved counts as under roles (fail closed)."""
+    if retro_roles_code(text):
+        return True
+    if not any(c in text for c in "$`"):
+        return False
+    resolved = _retro_resolve_path_expr(_retro_path_expr(text))
+    if resolved is None:
+        return True
+    return retro_roles_path(resolved, spelled=False)
+
+
+def retro_subst_redirect_frags(text):
+    """Redirect targets with command substitution; quoted targets may contain `;` inside $( )."""
+    frags = []
+    for m in re.finditer(r'>[>|]?\s*"([^"]*(?:\$\(|`)[^"]*)"', text):
+        frags.append('> "' + m.group(1) + '"')
+    for m in re.finditer(r">[>|]?\s*'([^']*(?:\$\(|`)[^']*)'", text):
+        frags.append("> '" + m.group(1) + "'")
+    if not frags:
+        frags = [m.group(0) for m in re.finditer(r">[>|]?\s*[^\s;|&]*(?:\$\(|`)[^;|&\n]*", text)]
+    return frags
 
 
 def retro_roles_glob(p, ancestor=False):
@@ -1842,11 +1899,13 @@ class Analyzer:
         if depth == 0:
             self.text = text
             if not self.hq:  # a redirect whose target is built by a substitution and ends in a protected name
-                for m in re.finditer(r">[>|]?\s*[^\s;|&]*(?:\$\(|`)[^;|&\n]*", text):
-                    frag = m.group(0)
+                red_frags = retro_subst_redirect_frags(text) if self.role == RETRO else [
+                    m.group(0) for m in re.finditer(r">[>|]?\s*[^\s;|&]*(?:\$\(|`)[^;|&\n]*", text)
+                ]
+                for frag in red_frags:
                     if persist_code(frag):
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
-                    if self.role == RETRO and retro_roles_code(frag):
+                    if self.role == RETRO and retro_roles_subst(frag):
                         raise Block(f"a redirect built by a substitution into a role file: {RETRO_ROLE_WHY}")
         nbodies = self.pt.bodies if self.pt else []
         seen = len(nbodies)
@@ -2721,7 +2780,7 @@ class Analyzer:
             t = self.cfg_expand(t)
             if any(c in t for c in "$`"):
                 # an expansion we cannot resolve: refuse when it spells a protected name or sits under the home
-                if self.role == RETRO and not self.hq and retro_roles_code(t):
+                if self.role == RETRO and not self.hq and retro_roles_subst(t):
                     return True
                 if persist_code(t) or t.startswith(("~", PW_DIR)) or "~" in t or "HOME" in t:
                     return True
@@ -6152,7 +6211,7 @@ def persist_edit(data, role=None):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {EXPORT_WHY}. Tell your lead if this is wrong.\n")
         return 2
     if role == RETRO and (retro_roles_path(p) or (unres and retro_roles_path(path, spelled=True))
-                          or ("$" in p and retro_roles_code(p))):
+                          or (any(c in path for c in "$`") and retro_roles_subst(path))):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {RETRO_ROLE_WHY}. Tell your lead if this is wrong.\n")
         return 2
     if prot_edit_path(p) or (unres and prot_edit_path(path, spelled=True)):  # T-0925 gap g: the Edit tools were checked against the persist paths only

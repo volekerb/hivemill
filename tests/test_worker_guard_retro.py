@@ -40,6 +40,9 @@ class RetroGuardTests(unittest.TestCase):
             f'echo x > "$(printf %s {LIVE})/roles/coder.md"',
             f'echo x > "$(printf %s {LIVE})/roles/retro.md"',
             f'echo x > "$(printf %s {LIVE}/rol; printf %s es)/coder.md"',
+            f'echo x > "$(printf %s {LIVE}/r; printf %s oles)/coder.md"',
+            f'echo x > "$(printf %s {LIVE}/; printf %s roles/coder.md)"',
+            f"echo x > \"$(printf '%s/%s' {LIVE} roles/retro.md)\"",
             f"echo x > \"$(printf '%s/roles/coder.md' {LIVE})\"",
             "git push origin main  # please merge",
         ):
@@ -57,6 +60,7 @@ class RetroGuardTests(unittest.TestCase):
 
     def test_allowed_bash(self):
         for cmd in (
+            'echo x > "$(printf %s /tmp/; printf %s roles/coder.md)"',
             "factory retro packet",
             "factory whoami",
             "factory inbox",
