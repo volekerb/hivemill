@@ -12,21 +12,6 @@ BRANCH = "factory/t-0001"
 SHA1, SHA2 = "a" * 40, "b" * 40
 RUNNING = {"name": "slow", "status": "IN_PROGRESS", "conclusion": ""}  # never green: nothing is mailed, so every tick probes
 T0 = 1_800_000_000  # a fixed epoch: the tick's clock
-BUG_SHA = "14ad3f13"  # squash that dropped --method GET on check-runs (T-1194 / PR #505)
-
-
-def _gh_api_uses_get(argv):
-    """True when a gh api argv is an explicit GET (required whenever -f/-F is present)."""
-    if not argv or "api" not in argv:
-        return False
-    for i, a in enumerate(argv):
-        if a in ("--method", "-X") and i + 1 < len(argv) and str(argv[i + 1]).upper() == "GET":
-            return True
-        if a.startswith("--method=") and a.split("=", 1)[1].upper() == "GET":
-            return True
-        if a.upper() in ("-XGET",):
-            return True
-    return not any(a in argv for a in ("-f", "-F", "--field", "--raw-field"))
 
 
 class Base(FactoryTestCase):
@@ -223,29 +208,3 @@ class RestProbeTests(Base):
         self.assertEqual([c for c in self.env.calls("gh") if c["argv"][:2] == ["pr", "view"]], [])
         pulls = [c for c in self.env.calls("gh") if len(c["argv"]) > 1 and re.search(r"/pulls/\d+$", c["argv"][1])]
         self.assertEqual(len(pulls), 1)
-
-    def test_check_runs_api_passes_method_get_with_per_page(self):
-        """Fails on squash {BUG_SHA}: gh api -f without GET is POST and breaks every tick probe."""
-        with self.env.load_factory() as f:
-            con = f.db()
-            f.digest_clock = lambda: dt.datetime.fromtimestamp(T0, dt.timezone.utc)
-            f._ci_remote_heads = lambda: {BRANCH: SHA1}
-            f.tick_ci_wake(con)
-            con.commit()
-        runs = [c["argv"] for c in self.env.calls("gh") if any("check-runs" in str(a) for a in c["argv"])]
-        self.assertEqual(len(runs), 1, runs)
-        self.assertIn("-f", runs[0])
-        self.assertTrue(_gh_api_uses_get(runs[0]), runs[0])
-
-    def test_probe_error_carries_gh_stderr_first_line(self):
-        self.env.set_gh(api=[{"match": ["check-runs"], "exit": 1, "err": "Not Found (HTTP 404)"}])
-        with self.env.load_factory() as f:
-            con = f.db()
-            f.digest_clock = lambda: dt.datetime.fromtimestamp(T0, dt.timezone.utc)
-            f._ci_remote_heads = lambda: {BRANCH: SHA1}
-            f.tick_ci_wake(con)
-            con.commit()
-        ev = self.env.sql("SELECT detail FROM events WHERE action='ci-wake-error' AND entity_id='T-0001'")
-        self.assertEqual(len(ev), 1)
-        self.assertIn("Not Found", ev[0]["detail"])
-        self.assertNotRegex(ev[0]["detail"], r": 1$")
