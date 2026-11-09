@@ -250,7 +250,7 @@ REPO_CFG_WHY = ("every worktree shares the repo's .git/config, so a key such as 
                 "use `git config --file <file in your scratchpad>` or a clone inside your scratchpad. This guard is "
                 "accident prevention, not a security boundary (T-0226)")
 # T-1200: a -c remote.<name>.url=... on push overrides the shared origin for one command; config that rewrites origin belongs in the DB.
-LIVE_REMOTE_CFG = re.compile(r"(?i)^(remote\.\w+\.(url|pushurl|fetch)|url\..+\.insteadof)=")
+LIVE_REMOTE_CFG = re.compile(r"(?i)^(remote\.\w+\.(url|pushurl|fetch)|url\..+\.(insteadof|pushinsteadof)|include\.path)=")
 _A = chr(64)
 PUSH_URL_CRED = re.compile(rf"^(?:https?|git|ssh)://[^/\s]+:[^/\s]+{_A}|^[^/\s]+:[^/\s]+{_A}[\w.-]+:")
 FACTORY_URL_SHAPE = re.compile(r"https://github\.com/(?!\.\.?/)[A-Za-z0-9_.-]+/(?!\.\.?\.git)[A-Za-z0-9_.-]+\.git")
@@ -2989,6 +2989,23 @@ class Analyzer:
         """True when `git config <args>` writes: anything config_is_read cannot prove a read."""
         return not config_is_read(args)
 
+    @staticmethod
+    def config_worktree_scope(args):
+        """True when --worktree is a scope flag, not the value of --comment/--type/... (T-1200)."""
+        skip = False
+        for a in args:
+            if skip:
+                skip = False
+                continue
+            abbrev = len(a) >= 3 and a.startswith("--") and "=" not in a and any(
+                o.startswith(a) for o in ("--type", "--default", "--comment", "--blob", "--value"))
+            if a in CONFIG_VALUE_OPTS or abbrev:
+                skip = True
+                continue
+            if a == "--worktree" or a.startswith("--worktree="):
+                return True
+        return False
+
     def config_expansion_refuse(self, toks):
         """T-1063: a raw `git config` token built by an expansion (dollar forms, backtick, brace list, or a glob before
         any read action) could expand into a write the parser cannot see. A dollar ending a token is regexp text."""
@@ -3139,8 +3156,7 @@ class Analyzer:
         finally:
             self.ccwd = saved
         # T-1200: --worktree writes only affect this worktree's config.worktree; they do not touch <common-dir>/config.
-        worktree_scope = any(a == "--worktree" or (a.startswith("--worktree") and len(a) > len("--worktree"))
-                             for a in args)
+        worktree_scope = self.config_worktree_scope(args)
         if worktree_scope and self.uses_live_common(cwd, git_dir, work_tree):
             if self.config_targets_live_common_file(files, cwd, git_dir, work_tree):
                 raise GitBlock(f"`git config --file <common-dir>/config` write: {REPO_CFG_WHY}")
@@ -3304,37 +3320,11 @@ class Analyzer:
         url = (row[0] if row and row[0] else "").strip()
         return url if FACTORY_URL_SHAPE.fullmatch(url) else ""
 
-    def git_live_push_guard(self, rest):
-        """T-1200: refuse push URL credentials and -c remote URL overrides when the git common dir is the live checkout."""
-        if self.hq:
-            return
-        i, cwd, git_dir, work_tree, remote_cfg = 0, self.ccwd, None, None, False
-        while i < len(rest) and rest[i].startswith("-"):
-            o = rest[i]
-            val = None
-            if o in GIT_VALUE_OPTS and i + 1 < len(rest):
-                val, i = rest[i + 1], i + 2
-            else:
-                if o.startswith("-c") and not o.startswith("--") and len(o) > 2:
-                    val = o[2:]
-                    o = "-c"
-                elif o.startswith(("--git-dir=", "--work-tree=")):
-                    o, val = o.split("=", 1)
-                i += 1
-            if o == "-C" and val is not None and cwd is not None:
-                cwd = None if self.dynamic_dir(val) else os.path.join(cwd, os.path.expanduser(val))
-            elif o == "--git-dir":
-                git_dir = val
-            elif o == "--work-tree":
-                work_tree = val
-            elif o == "-c" and val and LIVE_REMOTE_CFG.match(val):
-                remote_cfg = True
-        if i >= len(rest) or rest[i] != "push" or not self.uses_live_common(cwd, git_dir, work_tree):
-            return
+    def git_live_push_guard_push_args(self, args, remote_cfg):
+        """T-1200: shared checks for `git push` and alias-expanded push on the live common dir."""
         if remote_cfg:
             raise GitBlock("`git -c remote.<name>.url=... push` overrides the shared origin from a worktree; push with "
                            "origin or the plain factory URL only (T-1200)")
-        args = rest[i + 1:]
         pos, k = [], 0
         while k < len(args):
             a = args[k]
@@ -3350,9 +3340,57 @@ class Analyzer:
         if remote and push_url_has_credentials(remote):
             raise GitBlock("git push: a remote URL must not embed credentials; use origin or the plain https remote (T-1200)")
         fac = self.factory_remote_url()
-        if remote and fac and normalize_push_url(remote) != normalize_push_url(fac) and re.match(r"[\w.-]+://", remote):
-            raise GitBlock("git push: only the configured factory origin URL or the `origin` remote is allowed from a "
-                           "worktree of the live checkout (T-1200)")
+        if remote and re.match(r"[\w.-]+://", remote):
+            if not fac or normalize_push_url(remote) != normalize_push_url(fac):
+                raise GitBlock("git push: only the configured factory origin URL or the `origin` remote is allowed from a "
+                               "worktree of the live checkout (T-1200)")
+
+    def git_live_push_guard(self, rest):
+        """T-1200: refuse push URL credentials and -c remote URL overrides when the git common dir is the live checkout."""
+        if self.hq:
+            return
+        i, cwd, git_dir, work_tree, remote_cfg, aliases = 0, self.ccwd, None, None, False, []
+        while i < len(rest) and rest[i].startswith("-"):
+            o = rest[i]
+            val = None
+            if o in GIT_VALUE_OPTS and i + 1 < len(rest):
+                val, i = rest[i + 1], i + 2
+            else:
+                if o.startswith("-c") and not o.startswith("--") and len(o) > 2:
+                    val = o[2:]
+                    o = "-c"
+                elif o.startswith(("--git-dir=", "--work-tree=")):
+                    o, val = o.split("=", 1)
+                i += 1
+            if o == "-c" and val and re.match(r"(?i)alias\.[^=]+=", val):
+                aliases.append(tuple(val[6:].split("=", 1)))
+            elif o == "-C" and val is not None and cwd is not None:
+                cwd = None if self.dynamic_dir(val) else os.path.join(cwd, os.path.expanduser(val))
+            elif o == "--git-dir":
+                git_dir = val
+            elif o == "--work-tree":
+                work_tree = val
+            elif o == "-c" and val and LIVE_REMOTE_CFG.match(val):
+                remote_cfg = True
+        if i >= len(rest) or not self.uses_live_common(cwd, git_dir, work_tree):
+            return
+        sub, push_args = rest[i], None
+        if sub == "push":
+            push_args = rest[i + 1:]
+        else:
+            for alias, body in aliases:
+                if sub != alias:
+                    continue
+                try:
+                    aw = shlex.split(body)
+                except ValueError:
+                    return
+                if aw and aw[0] == "push":
+                    push_args = [*aw[1:], *rest[i + 1:]]
+                break
+        if push_args is None:
+            return
+        self.git_live_push_guard_push_args(push_args, remote_cfg)
 
     def git_is_shared(self, cwd, dyn, git_dir, work_tree):
         if (git_dir and self.dynamic_dir(git_dir)) or (work_tree and self.dynamic_dir(work_tree)):
