@@ -3059,10 +3059,11 @@ class Analyzer:
     def git_persist(self, rest, depth):
         """T-0334: `git config --global|--system|-f <protected file>` writes, also behind `git -c ... config` and an
         alias. Read-only forms (`--global --get`, `--global --list`) and repo-local writes stay allowed."""
-        i, cwd, alias_map, git_dir, work_tree = 0, self.ccwd, {}, None, None
+        i, cwd, alias_map, git_dir, work_tree, persist_opts = 0, self.ccwd, {}, None, None, []
         while i < len(rest) and rest[i].startswith("-"):
             o = rest[i]
             val = None
+            raw_tok = o
             if o in GIT_VALUE_OPTS and i + 1 < len(rest):
                 val, i = rest[i + 1], i + 2
             else:
@@ -3075,11 +3076,19 @@ class Analyzer:
             if o == "-c" and val and re.match(r"(?i)alias\.[^=]+=", val):
                 name, body = val[6:].split("=", 1)
                 alias_map[name] = body
-            elif o == "-C" and val is not None and cwd is not None:
-                cwd = None if self.dynamic_dir(val) else os.path.join(cwd, os.path.expanduser(val))
+            elif o == "-C" and val is not None:
+                persist_opts.extend(["-C", val])
+                if cwd is not None:
+                    cwd = None if self.dynamic_dir(val) else os.path.join(cwd, os.path.expanduser(val))
             elif o == "--git-dir":
+                persist_opts.append(f"--git-dir={val}" if "=" in raw_tok else "--git-dir")
+                if "=" not in raw_tok and val is not None:
+                    persist_opts.append(val)
                 git_dir = val
             elif o == "--work-tree":
+                persist_opts.append(f"--work-tree={val}" if "=" in raw_tok else "--work-tree")
+                if "=" not in raw_tok and val is not None:
+                    persist_opts.append(val)
                 work_tree = val
         for alias, body in alias_map.items():
             used = rest[i + 1:] if i < len(rest) and rest[i] == alias else []
@@ -3090,13 +3099,17 @@ class Analyzer:
                     words = shlex.split(body)
                 except ValueError as e:
                     raise Block(f"cannot parse git alias ({e})")
+                inner = [*persist_opts]
                 if words[:1] == ["config"]:
-                    self.git_persist(["config", *words[1:], *used], depth)
+                    self.git_persist([*inner, "config", *words[1:], *used], depth)
                 elif words[:1] == ["remote"]:
-                    self.git_persist(["remote", *words[1:], *used], depth)
+                    self.git_persist([*inner, "remote", *words[1:], *used], depth)
         if i < len(rest) and rest[i] == "remote":
-            if rest[i + 1:i + 2] and rest[i + 1] in REMOTE_WRITE:
-                self.repo_cfg_refuse(f"git remote {rest[i + 1]}", cwd, git_dir, work_tree, [])
+            remote_args = rest[i + 1:]
+            if not self.git_remote_read(remote_args):
+                hit = next((a for a in remote_args if a in REMOTE_WRITE), None)
+                if hit is not None:
+                    self.repo_cfg_refuse(f"git remote {hit}", cwd, git_dir, work_tree, [])
             return
         if i >= len(rest) or rest[i] != "config":
             return

@@ -116,6 +116,29 @@ class LiveRemoteGuardTests(unittest.TestCase):
             self.blocked(f"git -c alias.s=remote s set-url origin {evil}", role)
             self.blocked(f"git -c alias.s=remote s add evil {evil}", role)
 
+    def test_remote_verbose_flags_before_write_blocked(self):
+        evil = "https://evil.example/verbose.git"
+        for role in ("coder", "judge", "cleaner"):
+            for cmd in (f"git remote -v set-url origin {evil}",
+                        f"git remote --verbose set-url origin {evil}",
+                        f"git remote --ver set-url origin {evil}",
+                        f"git remote -v add evil {evil}",
+                        f"git -c alias.s=remote s -v set-url origin {evil}",
+                        f"git -c alias.s='remote -v' s set-url origin {evil}"):
+                self.blocked(cmd, role)
+        for role in ("coder", "qa"):
+            self.allowed("git remote -v", role)
+
+    def test_alias_reentry_keeps_c_git_dir_worktree(self):
+        evil = "https://evil.example/from-c-alias.git"
+        live = self.home
+        for role in ("coder", "judge", "cleaner"):
+            self.blocked(f"git -C {live} -c alias.s=remote s set-url origin {evil}", role, cwd=self.clone)
+            self.blocked(f"git -C {live} -c alias.s='remote set-url origin {evil}' s", role, cwd=self.clone)
+            self.blocked(f"git -C {live} -c alias.c=config c remote.origin.url {evil}", role, cwd=self.clone)
+        self.blocked(f"git -C {live} remote set-url origin {evil}", cwd=self.clone)
+        self.blocked(f"git -C {live} config remote.origin.url {evil}", cwd=self.clone)
+
     def test_config_trailing_worktree_is_value_not_scope(self):
         evil = "https://evil.example/trail.git"
         for role in ("coder", "judge", "cleaner"):
