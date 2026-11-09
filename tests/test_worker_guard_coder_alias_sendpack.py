@@ -41,7 +41,6 @@ EXTRA_DENIED = [
     "git --config-env alias.x=X x origin main",
     "git --attr-source HEAD status",
 ]
-# corpus entry is now tagged role reviewer in ci/guard_corpus.json (python/go stderr parity); coder stays refused here
 ATTR_CLONE = ["git --attr-source HEAD clone URL ~/.local/" + "go/x"]
 ALLOWED = [
     "git -c alias.st=status st",

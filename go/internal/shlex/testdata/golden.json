@@ -108206,6 +108206,2501 @@
 "src": "corpus"
 },
 {
+"input": "git -c alias.x=send-pack x origin HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git -c alias.x=send-pack x origin HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git -c alias.x=send-pack x origin HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git -c alias.x=send-pack x origin HEAD",
+"mode": "quote",
+"quoted": "'git -c alias.x=send-pack x origin HEAD'",
+"src": "corpus"
+},
+{
+"input": "X=push git --config-env=alias.x=X x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"X=push",
+"git",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "X=push git --config-env=alias.x=X x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"X=push",
+"git",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "X=push git --config-env=alias.x=X x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"X=push",
+"git",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "X=push git --config-env=alias.x=X x origin main",
+"mode": "quote",
+"quoted": "'X=push git --config-env=alias.x=X x origin main'",
+"src": "corpus"
+},
+{
+"input": "X=push git --config-env alias.x=X x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"X=push",
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "X=push git --config-env alias.x=X x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"X=push",
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "X=push git --config-env alias.x=X x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"X=push",
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "X=push git --config-env alias.x=X x origin main",
+"mode": "quote",
+"quoted": "'X=push git --config-env alias.x=X x origin main'",
+"src": "corpus"
+},
+{
+"input": "git -calias.x=send-pack x origin HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-calias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git -calias.x=send-pack x origin HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-calias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git -calias.x=send-pack x origin HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-calias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git -calias.x=send-pack x origin HEAD",
+"mode": "quote",
+"quoted": "'git -calias.x=send-pack x origin HEAD'",
+"src": "corpus"
+},
+{
+"input": "git -calias.x=push x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-calias.x=push",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "git -calias.x=push x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-calias.x=push",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "git -calias.x=push x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-calias.x=push",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "git -calias.x=push x origin main",
+"mode": "quote",
+"quoted": "'git -calias.x=push x origin main'",
+"src": "corpus"
+},
+{
+"input": "echo user.name | xargs git config --get --add",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"user.name",
+"|",
+"xargs",
+"git",
+"config",
+"--get",
+"--add"
+]
+},
+{
+"input": "echo user.name | xargs git config --get --add",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"user.name",
+"|",
+"xargs",
+"git",
+"config",
+"--get",
+"--add"
+]
+},
+{
+"input": "echo user.name | xargs git config --get --add",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"user.name",
+"|",
+"xargs",
+"git",
+"config",
+"--get",
+"--add"
+]
+},
+{
+"input": "echo user.name | xargs git config --get --add",
+"mode": "quote",
+"quoted": "'echo user.name | xargs git config --get --add'",
+"src": "corpus"
+},
+{
+"input": "echo alias.y push | xargs git -c alias.x=config x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.y",
+"push",
+"|",
+"xargs",
+"git",
+"-c",
+"alias.x=config",
+"x"
+]
+},
+{
+"input": "echo alias.y push | xargs git -c alias.x=config x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.y",
+"push",
+"|",
+"xargs",
+"git",
+"-c",
+"alias.x=config",
+"x"
+]
+},
+{
+"input": "echo alias.y push | xargs git -c alias.x=config x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.y",
+"push",
+"|",
+"xargs",
+"git",
+"-c",
+"alias.x=config",
+"x"
+]
+},
+{
+"input": "echo alias.y push | xargs git -c alias.x=config x",
+"mode": "quote",
+"quoted": "'echo alias.y push | xargs git -c alias.x=config x'",
+"src": "corpus"
+},
+{
+"input": "echo alias.y push | xargs git -calias.x=config x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.y",
+"push",
+"|",
+"xargs",
+"git",
+"-calias.x=config",
+"x"
+]
+},
+{
+"input": "echo alias.y push | xargs git -calias.x=config x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.y",
+"push",
+"|",
+"xargs",
+"git",
+"-calias.x=config",
+"x"
+]
+},
+{
+"input": "echo alias.y push | xargs git -calias.x=config x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.y",
+"push",
+"|",
+"xargs",
+"git",
+"-calias.x=config",
+"x"
+]
+},
+{
+"input": "echo alias.y push | xargs git -calias.x=config x",
+"mode": "quote",
+"quoted": "'echo alias.y push | xargs git -calias.x=config x'",
+"src": "corpus"
+},
+{
+"input": "git --config-env core.sshCommand=X fetch origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"core.sshCommand=X",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git --config-env core.sshCommand=X fetch origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"core.sshCommand=X",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git --config-env core.sshCommand=X fetch origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"core.sshCommand=X",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git --config-env core.sshCommand=X fetch origin",
+"mode": "quote",
+"quoted": "'git --config-env core.sshCommand=X fetch origin'",
+"src": "corpus"
+},
+{
+"input": "git --config-env core.fsmonitor=X status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"core.fsmonitor=X",
+"status"
+]
+},
+{
+"input": "git --config-env core.fsmonitor=X status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"core.fsmonitor=X",
+"status"
+]
+},
+{
+"input": "git --config-env core.fsmonitor=X status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"core.fsmonitor=X",
+"status"
+]
+},
+{
+"input": "git --config-env core.fsmonitor=X status",
+"mode": "quote",
+"quoted": "'git --config-env core.fsmonitor=X status'",
+"src": "corpus"
+},
+{
+"input": "git --config-env core.pager=X log",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"core.pager=X",
+"log"
+]
+},
+{
+"input": "git --config-env core.pager=X log",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"core.pager=X",
+"log"
+]
+},
+{
+"input": "git --config-env core.pager=X log",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"core.pager=X",
+"log"
+]
+},
+{
+"input": "git --config-env core.pager=X log",
+"mode": "quote",
+"quoted": "'git --config-env core.pager=X log'",
+"src": "corpus"
+},
+{
+"input": "git --config-env remote.origin.url=X fetch origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"remote.origin.url=X",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git --config-env remote.origin.url=X fetch origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"remote.origin.url=X",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git --config-env remote.origin.url=X fetch origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"remote.origin.url=X",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git --config-env remote.origin.url=X fetch origin",
+"mode": "quote",
+"quoted": "'git --config-env remote.origin.url=X fetch origin'",
+"src": "corpus"
+},
+{
+"input": "git --config-env user.name=X status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"user.name=X",
+"status"
+]
+},
+{
+"input": "git --config-env user.name=X status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"user.name=X",
+"status"
+]
+},
+{
+"input": "git --config-env user.name=X status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"user.name=X",
+"status"
+]
+},
+{
+"input": "git --config-env user.name=X status",
+"mode": "quote",
+"quoted": "'git --config-env user.name=X status'",
+"src": "corpus"
+},
+{
+"input": "git --attr-source HEAD send-pack origin HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"send-pack",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git --attr-source HEAD send-pack origin HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"send-pack",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git --attr-source HEAD send-pack origin HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"send-pack",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git --attr-source HEAD send-pack origin HEAD",
+"mode": "quote",
+"quoted": "'git --attr-source HEAD send-pack origin HEAD'",
+"src": "corpus"
+},
+{
+"input": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD",
+"mode": "quote",
+"quoted": "'git --attr-source HEAD -c alias.x=send-pack x origin HEAD'",
+"src": "corpus"
+},
+{
+"input": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"X=push",
+"git",
+"--attr-source",
+"HEAD",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"X=push",
+"git",
+"--attr-source",
+"HEAD",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"X=push",
+"git",
+"--attr-source",
+"HEAD",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main",
+"mode": "quote",
+"quoted": "'X=push git --attr-source HEAD --config-env=alias.x=X x origin main'",
+"src": "corpus"
+},
+{
+"input": "echo alias.x push | xargs git --attr-source HEAD config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"--attr-source",
+"HEAD",
+"config"
+]
+},
+{
+"input": "echo alias.x push | xargs git --attr-source HEAD config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"--attr-source",
+"HEAD",
+"config"
+]
+},
+{
+"input": "echo alias.x push | xargs git --attr-source HEAD config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"--attr-source",
+"HEAD",
+"config"
+]
+},
+{
+"input": "echo alias.x push | xargs git --attr-source HEAD config",
+"mode": "quote",
+"quoted": "'echo alias.x push | xargs git --attr-source HEAD config'",
+"src": "corpus"
+},
+{
+"input": "git --shallow-file x send-pack origin HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--shallow-file",
+"x",
+"send-pack",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git --shallow-file x send-pack origin HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--shallow-file",
+"x",
+"send-pack",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git --shallow-file x send-pack origin HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--shallow-file",
+"x",
+"send-pack",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git --shallow-file x send-pack origin HEAD",
+"mode": "quote",
+"quoted": "'git --shallow-file x send-pack origin HEAD'",
+"src": "corpus"
+},
+{
+"input": "echo alias.x push | xargs git --shallow-file x config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"--shallow-file",
+"x",
+"config"
+]
+},
+{
+"input": "echo alias.x push | xargs git --shallow-file x config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"--shallow-file",
+"x",
+"config"
+]
+},
+{
+"input": "echo alias.x push | xargs git --shallow-file x config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"--shallow-file",
+"x",
+"config"
+]
+},
+{
+"input": "echo alias.x push | xargs git --shallow-file x config",
+"mode": "quote",
+"quoted": "'echo alias.x push | xargs git --shallow-file x config'",
+"src": "corpus"
+},
+{
+"input": "git --config-env alias.x=X x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "git --config-env alias.x=X x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "git --config-env alias.x=X x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "git --config-env alias.x=X x origin main",
+"mode": "quote",
+"quoted": "'git --config-env alias.x=X x origin main'",
+"src": "corpus"
+},
+{
+"input": "git --attr-source HEAD status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"status"
+]
+},
+{
+"input": "git --attr-source HEAD status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"status"
+]
+},
+{
+"input": "git --attr-source HEAD status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"status"
+]
+},
+{
+"input": "git --attr-source HEAD status",
+"mode": "quote",
+"quoted": "'git --attr-source HEAD status'",
+"src": "corpus"
+},
+{
+"input": "xargs -0 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-0",
+"git"
+]
+},
+{
+"input": "xargs -0 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-0",
+"git"
+]
+},
+{
+"input": "xargs -0 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-0",
+"git"
+]
+},
+{
+"input": "xargs -0 git",
+"mode": "quote",
+"quoted": "'xargs -0 git'",
+"src": "corpus"
+},
+{
+"input": "xargs -n1 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs -n1 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs -n1 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs -n1 git",
+"mode": "quote",
+"quoted": "'xargs -n1 git'",
+"src": "corpus"
+},
+{
+"input": "printf '%s\\n' config --global core.hooksPath /tmp/x | xargs git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"%s\\n",
+"config",
+"--global",
+"core.hooksPath",
+"/tmp/x",
+"|",
+"xargs",
+"git"
+]
+},
+{
+"input": "printf '%s\\n' config --global core.hooksPath /tmp/x | xargs git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"%s\\n",
+"config",
+"--global",
+"core.hooksPath",
+"/tmp/x",
+"|",
+"xargs",
+"git"
+]
+},
+{
+"input": "printf '%s\\n' config --global core.hooksPath /tmp/x | xargs git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"%s\\n",
+"config",
+"--global",
+"core.hooksPath",
+"/tmp/x",
+"|",
+"xargs",
+"git"
+]
+},
+{
+"input": "printf '%s\\n' config --global core.hooksPath /tmp/x | xargs git",
+"mode": "quote",
+"quoted": "'printf '\"'\"'%s\\n'\"'\"' config --global core.hooksPath /tmp/x | xargs git'",
+"src": "corpus"
+},
+{
+"input": "xargs git <<< 'push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"git",
+"<<<",
+"push origin main"
+]
+},
+{
+"input": "xargs git <<< 'push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"git",
+"<<<",
+"push origin main"
+]
+},
+{
+"input": "xargs git <<< 'push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"git",
+"<<<",
+"push origin main"
+]
+},
+{
+"input": "xargs git <<< 'push origin main'",
+"mode": "quote",
+"quoted": "'xargs git <<< '\"'\"'push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "xargs -I{} git {}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-I{}",
+"git",
+"{}"
+]
+},
+{
+"input": "xargs -I{} git {}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-I",
+"{",
+"}",
+"git",
+"{",
+"}"
+]
+},
+{
+"input": "xargs -I{} git {}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-I{}",
+"git",
+"{}"
+]
+},
+{
+"input": "xargs -I{} git {}",
+"mode": "quote",
+"quoted": "'xargs -I{} git {}'",
+"src": "corpus"
+},
+{
+"input": "xargs -n 1 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-n",
+"1",
+"git"
+]
+},
+{
+"input": "xargs -n 1 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-n",
+"1",
+"git"
+]
+},
+{
+"input": "xargs -n 1 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-n",
+"1",
+"git"
+]
+},
+{
+"input": "xargs -n 1 git",
+"mode": "quote",
+"quoted": "'xargs -n 1 git'",
+"src": "corpus"
+},
+{
+"input": "git -c alias.x='!git push' x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=!git push",
+"x"
+]
+},
+{
+"input": "git -c alias.x='!git push' x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=!git push",
+"x"
+]
+},
+{
+"input": "git -c alias.x='!git push' x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=!git push",
+"x"
+]
+},
+{
+"input": "git -c alias.x='!git push' x",
+"mode": "quote",
+"quoted": "'git -c alias.x='\"'\"'!git push'\"'\"' x'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs env git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"env",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs env git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"env",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs env git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"env",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs env git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs env git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs nice git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"nice",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs nice git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"nice",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs nice git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"nice",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs nice git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs nice git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs command git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"command",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs command git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"command",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs command git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"command",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs command git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs command git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs timeout 9 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"timeout",
+"9",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs timeout 9 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"timeout",
+"9",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs timeout 9 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"timeout",
+"9",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs timeout 9 git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs timeout 9 git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs stdbuf -o0 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"stdbuf",
+"-o0",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs stdbuf -o0 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"stdbuf",
+"-o0",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs stdbuf -o0 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"stdbuf",
+"-o0",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs stdbuf -o0 git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs stdbuf -o0 git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs env -i git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"env",
+"-i",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs env -i git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"env",
+"-i",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs env -i git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"env",
+"-i",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs env -i git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs env -i git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs env A=1 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"env",
+"A=1",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs env A=1 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"env",
+"A=1",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs env A=1 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"env",
+"A=1",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs env A=1 git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs env A=1 git'",
+"src": "corpus"
+},
+{
+"input": "echo alias.x=push | xargs -I{} git -c {} x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"-I{}",
+"git",
+"-c",
+"{}",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs -I{} git -c {} x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"-I",
+"{",
+"}",
+"git",
+"-c",
+"{",
+"}",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs -I{} git -c {} x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"-I{}",
+"git",
+"-c",
+"{}",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs -I{} git -c {} x origin main",
+"mode": "quote",
+"quoted": "'echo alias.x=push | xargs -I{} git -c {} x origin main'",
+"src": "corpus"
+},
+{
+"input": "echo alias.x=push | xargs -I% git -c % x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"-I%",
+"git",
+"-c",
+"%",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs -I% git -c % x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"-I",
+"%",
+"git",
+"-c",
+"%",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs -I% git -c % x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"-I%",
+"git",
+"-c",
+"%",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs -I% git -c % x origin main",
+"mode": "quote",
+"quoted": "'echo alias.x=push | xargs -I% git -c % x origin main'",
+"src": "corpus"
+},
+{
+"input": "echo alias.x=push | xargs --replace git -c {} x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"--replace",
+"git",
+"-c",
+"{}",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs --replace git -c {} x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"--replace",
+"git",
+"-c",
+"{",
+"}",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs --replace git -c {} x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"--replace",
+"git",
+"-c",
+"{}",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs --replace git -c {} x origin main",
+"mode": "quote",
+"quoted": "'echo alias.x=push | xargs --replace git -c {} x origin main'",
+"src": "corpus"
+},
+{
+"input": "echo alias.x=push | xargs -i git -c {} x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"-i",
+"git",
+"-c",
+"{}",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs -i git -c {} x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"-i",
+"git",
+"-c",
+"{",
+"}",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs -i git -c {} x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x=push",
+"|",
+"xargs",
+"-i",
+"git",
+"-c",
+"{}",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "echo alias.x=push | xargs -i git -c {} x origin main",
+"mode": "quote",
+"quoted": "'echo alias.x=push | xargs -i git -c {} x origin main'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs time git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"time",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs time git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"time",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs time git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"time",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs time git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs time git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs taskset 1 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"taskset",
+"1",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs taskset 1 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"taskset",
+"1",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs taskset 1 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"taskset",
+"1",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs taskset 1 git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs taskset 1 git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs flock /tmp/x git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"flock",
+"/tmp/x",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs flock /tmp/x git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"flock",
+"/tmp/x",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs flock /tmp/x git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"flock",
+"/tmp/x",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs flock /tmp/x git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs flock /tmp/x git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs chrt 0 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"chrt",
+"0",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs chrt 0 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"chrt",
+"0",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs chrt 0 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"chrt",
+"0",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs chrt 0 git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs chrt 0 git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs unbuffer git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"unbuffer",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs unbuffer git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"unbuffer",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs unbuffer git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"unbuffer",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs unbuffer git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs unbuffer git'",
+"src": "corpus"
+},
+{
+"input": "xargs xargs -n1 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs xargs -n1 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs xargs -n1 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs xargs -n1 git",
+"mode": "quote",
+"quoted": "'xargs xargs -n1 git'",
+"src": "corpus"
+},
+{
+"input": "xargs xargs -r git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"xargs",
+"-r",
+"git"
+]
+},
+{
+"input": "xargs xargs -r git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"xargs",
+"-r",
+"git"
+]
+},
+{
+"input": "xargs xargs -r git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"xargs",
+"-r",
+"git"
+]
+},
+{
+"input": "xargs xargs -r git",
+"mode": "quote",
+"quoted": "'xargs xargs -r git'",
+"src": "corpus"
+},
+{
+"input": "xargs nice xargs -n1 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"nice",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs nice xargs -n1 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"nice",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs nice xargs -n1 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"nice",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs nice xargs -n1 git",
+"mode": "quote",
+"quoted": "'xargs nice xargs -n1 git'",
+"src": "corpus"
+},
+{
+"input": "xargs -I{} xargs -n1 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-I{}",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs -I{} xargs -n1 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-I",
+"{",
+"}",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs -I{} xargs -n1 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-I{}",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "xargs -I{} xargs -n1 git",
+"mode": "quote",
+"quoted": "'xargs -I{} xargs -n1 git'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs -l git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"-l",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs -l git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"-l",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs -l git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"-l",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs -l git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs -l git'",
+"src": "corpus"
+},
+{
+"input": "xargs -s git env git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-s",
+"git",
+"env",
+"git"
+]
+},
+{
+"input": "xargs -s git env git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-s",
+"git",
+"env",
+"git"
+]
+},
+{
+"input": "xargs -s git env git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-s",
+"git",
+"env",
+"git"
+]
+},
+{
+"input": "xargs -s git env git",
+"mode": "quote",
+"quoted": "'xargs -s git env git'",
+"src": "corpus"
+},
+{
+"input": "xargs sh -c 'git \"$@\"' _",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"sh",
+"-c",
+"git \"$@\"",
+"_"
+]
+},
+{
+"input": "xargs sh -c 'git \"$@\"' _",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"sh",
+"-c",
+"git \"$@\"",
+"_"
+]
+},
+{
+"input": "xargs sh -c 'git \"$@\"' _",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"sh",
+"-c",
+"git \"$@\"",
+"_"
+]
+},
+{
+"input": "xargs sh -c 'git \"$@\"' _",
+"mode": "quote",
+"quoted": "'xargs sh -c '\"'\"'git \"$@\"'\"'\"' _'",
+"src": "corpus"
+},
+{
+"input": "xargs git-send-pack",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"git-send-pack"
+]
+},
+{
+"input": "xargs git-send-pack",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"git-send-pack"
+]
+},
+{
+"input": "xargs git-send-pack",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"git-send-pack"
+]
+},
+{
+"input": "xargs git-send-pack",
+"mode": "quote",
+"quoted": "'xargs git-send-pack'",
+"src": "corpus"
+},
+{
+"input": "xargs /usr/bin/git push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"/usr/bin/git",
+"push"
+]
+},
+{
+"input": "xargs /usr/bin/git push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"/usr/bin/git",
+"push"
+]
+},
+{
+"input": "xargs /usr/bin/git push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"/usr/bin/git",
+"push"
+]
+},
+{
+"input": "xargs /usr/bin/git push",
+"mode": "quote",
+"quoted": "'xargs /usr/bin/git push'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -134780,6 +137275,601 @@
 "src": "corpus"
 },
 {
+"input": "git -c alias.st=status st",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.st=status",
+"st"
+]
+},
+{
+"input": "git -c alias.st=status st",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.st=status",
+"st"
+]
+},
+{
+"input": "git -c alias.st=status st",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.st=status",
+"st"
+]
+},
+{
+"input": "git -c alias.st=status st",
+"mode": "quote",
+"quoted": "'git -c alias.st=status st'",
+"src": "corpus"
+},
+{
+"input": "echo user.name | xargs git config --get",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"user.name",
+"|",
+"xargs",
+"git",
+"config",
+"--get"
+]
+},
+{
+"input": "echo user.name | xargs git config --get",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"user.name",
+"|",
+"xargs",
+"git",
+"config",
+"--get"
+]
+},
+{
+"input": "echo user.name | xargs git config --get",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"user.name",
+"|",
+"xargs",
+"git",
+"config",
+"--get"
+]
+},
+{
+"input": "echo user.name | xargs git config --get",
+"mode": "quote",
+"quoted": "'echo user.name | xargs git config --get'",
+"src": "corpus"
+},
+{
+"input": "echo x | xargs git config --list",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"git",
+"config",
+"--list"
+]
+},
+{
+"input": "echo x | xargs git config --list",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"git",
+"config",
+"--list"
+]
+},
+{
+"input": "echo x | xargs git config --list",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"git",
+"config",
+"--list"
+]
+},
+{
+"input": "echo x | xargs git config --list",
+"mode": "quote",
+"quoted": "'echo x | xargs git config --list'",
+"src": "corpus"
+},
+{
+"input": "echo x | xargs git config --get-all",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"git",
+"config",
+"--get-all"
+]
+},
+{
+"input": "echo x | xargs git config --get-all",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"git",
+"config",
+"--get-all"
+]
+},
+{
+"input": "echo x | xargs git config --get-all",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"git",
+"config",
+"--get-all"
+]
+},
+{
+"input": "echo x | xargs git config --get-all",
+"mode": "quote",
+"quoted": "'echo x | xargs git config --get-all'",
+"src": "corpus"
+},
+{
+"input": "git --config-env=user.name=X status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env=user.name=X",
+"status"
+]
+},
+{
+"input": "git --config-env=user.name=X status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env=user.name=X",
+"status"
+]
+},
+{
+"input": "git --config-env=user.name=X status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env=user.name=X",
+"status"
+]
+},
+{
+"input": "git --config-env=user.name=X status",
+"mode": "quote",
+"quoted": "'git --config-env=user.name=X status'",
+"src": "corpus"
+},
+{
+"input": "git -cuser.name=x status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-cuser.name=x",
+"status"
+]
+},
+{
+"input": "git -cuser.name=x status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-cuser.name=x",
+"status"
+]
+},
+{
+"input": "git -cuser.name=x status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-cuser.name=x",
+"status"
+]
+},
+{
+"input": "git -cuser.name=x status",
+"mode": "quote",
+"quoted": "'git -cuser.name=x status'",
+"src": "corpus"
+},
+{
+"input": "git -C . status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+".",
+"status"
+]
+},
+{
+"input": "git -C . status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+".",
+"status"
+]
+},
+{
+"input": "git -C . status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+".",
+"status"
+]
+},
+{
+"input": "git -C . status",
+"mode": "quote",
+"quoted": "'git -C . status'",
+"src": "corpus"
+},
+{
+"input": "git --attr-source=HEAD status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source=HEAD",
+"status"
+]
+},
+{
+"input": "git --attr-source=HEAD status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source=HEAD",
+"status"
+]
+},
+{
+"input": "git --attr-source=HEAD status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source=HEAD",
+"status"
+]
+},
+{
+"input": "git --attr-source=HEAD status",
+"mode": "quote",
+"quoted": "'git --attr-source=HEAD status'",
+"src": "corpus"
+},
+{
+"input": "git log",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log"
+]
+},
+{
+"input": "git log",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log"
+]
+},
+{
+"input": "git log",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log"
+]
+},
+{
+"input": "git log",
+"mode": "quote",
+"quoted": "'git log'",
+"src": "corpus"
+},
+{
+"input": "xargs grep foo",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"grep",
+"foo"
+]
+},
+{
+"input": "xargs grep foo",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"grep",
+"foo"
+]
+},
+{
+"input": "xargs grep foo",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"grep",
+"foo"
+]
+},
+{
+"input": "xargs grep foo",
+"mode": "quote",
+"quoted": "'xargs grep foo'",
+"src": "corpus"
+},
+{
+"input": "xargs git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"git",
+"status"
+]
+},
+{
+"input": "xargs git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"git",
+"status"
+]
+},
+{
+"input": "xargs git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"git",
+"status"
+]
+},
+{
+"input": "xargs git status",
+"mode": "quote",
+"quoted": "'xargs git status'",
+"src": "corpus"
+},
+{
+"input": "xargs -0 git log",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-0",
+"git",
+"log"
+]
+},
+{
+"input": "xargs -0 git log",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-0",
+"git",
+"log"
+]
+},
+{
+"input": "xargs -0 git log",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"xargs",
+"-0",
+"git",
+"log"
+]
+},
+{
+"input": "xargs -0 git log",
+"mode": "quote",
+"quoted": "'xargs -0 git log'",
+"src": "corpus"
+},
+{
+"input": "git -c alias.x=status x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=status",
+"x"
+]
+},
+{
+"input": "git -c alias.x=status x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=status",
+"x"
+]
+},
+{
+"input": "git -c alias.x=status x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=status",
+"x"
+]
+},
+{
+"input": "git -c alias.x=status x",
+"mode": "quote",
+"quoted": "'git -c alias.x=status x'",
+"src": "corpus"
+},
+{
+"input": "git push origin HEAD:factory/t-0907",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0907"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-0907",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD",
+":",
+"factory/t-0907"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-0907",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0907"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-0907",
+"mode": "quote",
+"quoted": "'git push origin HEAD:factory/t-0907'",
+"src": "corpus"
+},
+{
+"input": "git push origin HEAD:factory/t-0799",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0799"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-0799",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD",
+":",
+"factory/t-0799"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-0799",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0799"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-0799",
+"mode": "quote",
+"quoted": "'git push origin HEAD:factory/t-0799'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -138811,7 +141901,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3178,
+"corpus_commands": 3246,
 "edge_inputs": 123,
 "python": "3.13"
 }
