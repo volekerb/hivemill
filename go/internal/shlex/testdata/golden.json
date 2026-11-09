@@ -107960,6 +107960,252 @@
 "src": "corpus"
 },
 {
+"input": "env --uns GIT_DIR git push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"GIT_DIR",
+"git",
+"push"
+]
+},
+{
+"input": "env --uns GIT_DIR git push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"GIT_DIR",
+"git",
+"push"
+]
+},
+{
+"input": "env --uns GIT_DIR git push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"GIT_DIR",
+"git",
+"push"
+]
+},
+{
+"input": "env --uns GIT_DIR git push",
+"mode": "quote",
+"quoted": "'env --uns GIT_DIR git push'",
+"src": "corpus"
+},
+{
+"input": "noglob git push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"noglob",
+"git",
+"push"
+]
+},
+{
+"input": "noglob git push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"noglob",
+"git",
+"push"
+]
+},
+{
+"input": "noglob git push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"noglob",
+"git",
+"push"
+]
+},
+{
+"input": "noglob git push",
+"mode": "quote",
+"quoted": "'noglob git push'",
+"src": "corpus"
+},
+{
+"input": "nocorrect git push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"nocorrect",
+"git",
+"push"
+]
+},
+{
+"input": "nocorrect git push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"nocorrect",
+"git",
+"push"
+]
+},
+{
+"input": "nocorrect git push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"nocorrect",
+"git",
+"push"
+]
+},
+{
+"input": "nocorrect git push",
+"mode": "quote",
+"quoted": "'nocorrect git push'",
+"src": "corpus"
+},
+{
+"input": "repeat 2 git push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"repeat",
+"2",
+"git",
+"push"
+]
+},
+{
+"input": "repeat 2 git push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"repeat",
+"2",
+"git",
+"push"
+]
+},
+{
+"input": "repeat 2 git push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"repeat",
+"2",
+"git",
+"push"
+]
+},
+{
+"input": "repeat 2 git push",
+"mode": "quote",
+"quoted": "'repeat 2 git push'",
+"src": "corpus"
+},
+{
+"input": "git -c alias.x=push x origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=push",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "git -c alias.x=push x origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=push",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "git -c alias.x=push x origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.x=push",
+"x",
+"origin",
+"main"
+]
+},
+{
+"input": "git -c alias.x=push x origin main",
+"mode": "quote",
+"quoted": "'git -c alias.x=push x origin main'",
+"src": "corpus"
+},
+{
+"input": "echo push origin main | xargs git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"git"
+]
+},
+{
+"input": "echo push origin main | xargs git",
+"mode": "quote",
+"quoted": "'echo push origin main | xargs git'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -138565,7 +138811,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3172,
+"corpus_commands": 3178,
 "edge_inputs": 123,
 "python": "3.13"
 }

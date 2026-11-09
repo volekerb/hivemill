@@ -622,6 +622,33 @@ func isDurationWord(w string) bool {
 	return true
 }
 
+var reZshRepeatCount = regexp.MustCompile(`^[0-9]+$`)
+
+// stripZshPrecommands removes zsh precommand modifiers (noglob, nocorrect, repeat N, -) before the command word,
+// matching worker-guard.py Analyzer.cmd (T-0826).
+func (a *Analyzer) stripZshPrecommands(words []string, assigns []string) ([]string, []string, error) {
+	for len(words) > 0 && (words[0] == "noglob" || words[0] == "nocorrect" || words[0] == "-" ||
+		(words[0] == "repeat" && len(words) > 1)) {
+		if words[0] == "repeat" {
+			if !reZshRepeatCount.MatchString(words[1]) && a.noPush() {
+				return nil, nil, blockf(a.Role + " may not use a non-literal repeat count (" + pyRepr(words[1]) +
+					": zsh evaluates it as arithmetic and can assign PATH or GIT_*); use a plain integer, or ask your lead")
+			}
+			words = words[2:]
+		} else {
+			words = words[1:]
+		}
+		stripped := StripPrefix(words)
+		for _, x := range words[:len(words)-len(stripped)] {
+			if IsAssign(x) {
+				assigns = append(assigns, x)
+			}
+		}
+		words = stripped
+	}
+	return words, assigns, nil
+}
+
 // cmd is a port of Analyzer.cmd. envAssigns are the FACTORY_HOME= assignments an enclosing wrapper passes down.
 func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, envAssigns []string, stdin *stdinChannel) error {
 	assigns := append([]string(nil), envAssigns...)
@@ -632,6 +659,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 	}
 	words = stripped
+	var err error
+	words, assigns, err = a.stripZshPrecommands(words, assigns)
+	if err != nil {
+		return err
+	}
 	if a.noPush() {
 		// T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|bash install.sh --dry-run`
 		chk := assigns
