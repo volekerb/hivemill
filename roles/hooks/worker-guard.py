@@ -558,6 +558,36 @@ def prot_edit_path(p, spelled=False):
     return prot_path(p)
 
 
+def retro_roles_trees():
+    return tuple(os.path.join(h, "roles") for h in LIVE_HOMES)
+
+
+def retro_roles_code(text):
+    norm = text.replace("\\", "/")
+    for tree in retro_roles_trees():
+        rel = tree.replace("\\", "/")
+        if rel in norm:
+            return True
+    return bool(re.search(r"(?:^|/)(?:\S+/)?factory/roles(?:/|$)", norm))
+
+
+def retro_roles_path(p, spelled=False):
+    """True when `p` is under <live>/roles/ for any live home (G-036 SC3, role retro only)."""
+    if spelled or any(c in p for c in "$`"):
+        return retro_roles_code(p)
+    for t in brace_expand(p):
+        cands = {os.path.normpath(t)}
+        if not GLOB.search(t):
+            try:
+                cands.add(os.path.realpath(t))
+            except OSError:
+                pass
+        for c in cands:
+            if any(c == d or under(c, d) for d in retro_roles_trees()):
+                return True
+    return False
+
+
 def tar_dirs(args):
     """-C/--directory targets of tar, also in a bundle (`-xCf DIR a.tar`, `xfC a.tar DIR`): every letter C or f takes a
     word, so the glued rest and the next words are all candidates (over-approximate; options are skipped)."""
@@ -753,8 +783,12 @@ ARCHIVE_ENV_RE = re.compile(r"\b(?:" + "|".join(ARCHIVE_ENV_NAMES) + r")\b")
 UNZIP_LISTING = {"-l", "-v", "-t", "-p", "-c", "-z", "-Z"}
 ARCHIVE_SIZE_MAX = 256 << 20  # T-0805: largest archive file the hook lists before refusing
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
-NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher"}
+NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher", "retro"}
 RESEARCHER = "researcher"
+RETRO = "retro"
+RETRO_FACTORY_CMDS = frozenset({"whoami", "inbox", "done", "retro"})
+RETRO_ROLE_WHY = ("the retro agent may not edit files under <live>/roles/; role prompts and hooks are changed only "
+                  "by the owner and the tick")
 RESEARCH_GH_GROUPS = {"pr", "issue", "release", "repo", "run"}
 RESEARCH_GH_READ = {"view", "list", "diff", "status", "checks"}
 RESEARCH_FACTORY = {"whoami", "inbox", "msg", "done", "report"}
@@ -1570,6 +1604,8 @@ class Analyzer:
         sub = nonopt[0] if nonopt else None
         if self.role == "evaluator":
             self.evaluator_factory(sub, nonopt, assigns)
+        if self.role == RETRO:
+            self.retro_factory(sub, nonopt, assigns)
         if self.role in ("coder", "qa") and not self.hq and sub == "init" \
                 and not self.scratch_homes(assigns):
             raise Block(f"workers may run `factory init` only with HOME and FACTORY_HOME both "
@@ -1596,6 +1632,12 @@ class Analyzer:
             ok = bool(env) and os.path.realpath(env) not in self.live_homes() and self.outside_live(env)
         if not ok:
             raise Block("the evaluator may run factory commands only against its temp FACTORY_HOME, not the live home")
+
+    def retro_factory(self, sub, nonopt, assigns):
+        """G-036 SC3: retro may run only whoami, inbox, done and retro (packet, file, ...); no merge, config or gate."""
+        if sub not in RETRO_FACTORY_CMDS:
+            allowed = ", ".join(sorted(RETRO_FACTORY_CMDS))
+            raise Block(f"the retro agent may not run `factory {sub or ''}`; allowed: {allowed}")
 
     def factory_script(self, name, rest):
         """Index of the `factory` script word in an interpreter's args, else None. bin/factory is a stub for
@@ -1717,10 +1759,15 @@ class Analyzer:
         """Block broad factory reads (res, agents, goal list, task list, ...) against the live home for workers.
         `rest` = the tokens after `factory` (options included). Exempt: --role staff-engineer, `agents` for
         --role cleaner, `goal show <own goal>`, lead `goal show` for goals their teams own, a temp FACTORY_HOME.
+        `factory config <key> [value]` is not a broad read (the CLI enforces who may change config; T-1208 keeps coders
+        allowed at the hook).
         Fail closed on options: we do not model which argparse flags take a value (--goal X, --note x) versus
         flags that do not (--all), so any option token (`-x`, `--x`, `--x=v`, `--`) before the action word (or
         before the id of `goal show`) blocks the command; `factory goal --goal G-005 show G-005` is blocked too."""
         if self.role == "staff-engineer":
+            return
+        nonopt = [a for a in rest if not a.startswith("-")]
+        if sub == "config" and len(nonopt) > 1 and self.role == "coder":
             return
         seconds = BROAD_READS[sub]
         shown = f"factory {sub}"
@@ -2637,6 +2684,8 @@ class Analyzer:
             t = self.cfg_expand(t)
             if any(c in t for c in "$`"):
                 # an expansion we cannot resolve: refuse when it spells a protected name or sits under the home
+                if self.role == RETRO and not self.hq and retro_roles_code(t):
+                    return True
                 if persist_code(t) or t.startswith(("~", PW_DIR)) or "~" in t or "HOME" in t:
                     return True
                 continue
@@ -2648,6 +2697,8 @@ class Analyzer:
                         return True
                     continue
                 t = os.path.join(self.ccwd, t)
+            if self.role == RETRO and not self.hq and retro_roles_path(t):
+                return True
             nopush = self.role in NO_PUSH_ROLES and not self.hq  # T-0770: no scratchpad exemption for git config/hooks
             if persist_path(t, ancestor, not nopush) or (nopush and git_hooks_path(t)):
                 return True
@@ -6062,6 +6113,10 @@ def persist_edit(data, role=None):
         p = os.path.join(cwd, p)
     if export_path(p) or ("$" in p and "guard-export" in p):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {EXPORT_WHY}. Tell your lead if this is wrong.\n")
+        return 2
+    if role == RETRO and (retro_roles_path(p) or (unres and retro_roles_path(path, spelled=True))
+                          or ("$" in p and retro_roles_code(p))):
+        sys.stderr.write(f"worker-guard: blocked ({path!r}): {RETRO_ROLE_WHY}. Tell your lead if this is wrong.\n")
         return 2
     if prot_edit_path(p) or (unres and prot_edit_path(path, spelled=True)):  # T-0925 gap g: the Edit tools were checked against the persist paths only
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {PROT_WHY}. Tell your lead if this is wrong.\n")
