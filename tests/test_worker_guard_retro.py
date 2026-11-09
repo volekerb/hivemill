@@ -2,10 +2,13 @@
 import json
 import os
 import pwd
-import subprocess
+import sys
 import unittest
 
-from test_worker_guard import HOOK, run_hook
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from guard_impl import hook_run  # noqa: E402
+
+GUARD_IMPL_PYTHON_ONLY = "G-036 SC3 retro_factory and retro role-file edits are Python-only until the Go mirror (#517)"
 
 LIVE = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")
 
@@ -13,14 +16,13 @@ LIVE = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")
 class RetroGuardTests(unittest.TestCase):
     def assert_rc(self, expect, *, role="retro", tool="Bash", command=None, raw=None):
         if raw is None:
-            raw = json.dumps({"tool_name": tool, "tool_input": {"command": command}})
-        p = subprocess.run(
-            ["python3", HOOK, "--role", role],
-            input=raw if isinstance(raw, str) else json.dumps(raw),
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(p.returncode, expect, (command or raw, p.stderr))
+            payload = {"tool_name": tool, "tool_input": {"command": command}}
+        elif isinstance(raw, str):
+            payload = json.loads(raw)
+        else:
+            payload = raw
+        p = hook_run(json.dumps(payload), ["--role", role])
+        self.assertEqual(p.returncode, expect, (command or payload, p.stderr))
         return p
 
     def test_blocked_bash(self):
@@ -43,7 +45,6 @@ class RetroGuardTests(unittest.TestCase):
                 self.assert_rc(
                     2,
                     role="retro",
-                    tool=tool,
                     raw={"tool_name": tool, "tool_input": {"file_path": f"{LIVE}/roles/coder.md", "content": "x"}},
                 )
 
@@ -64,7 +65,6 @@ class RetroGuardTests(unittest.TestCase):
         self.assert_rc(
             0,
             role="retro",
-            tool="Write",
             raw={"tool_name": "Write", "tool_input": {"file_path": "/tmp/zz-retro-note.txt", "content": "x"}},
         )
 
