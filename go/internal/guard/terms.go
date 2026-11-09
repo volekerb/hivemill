@@ -461,6 +461,15 @@ func termsBraceFlagRe(head string) *regexp.Regexp {
 	return nil
 }
 
+// termsBraceFlagWord is Python TERMS_BRACE_FLAGS[head].fullmatch(s).
+func termsBraceFlagWord(re *regexp.Regexp, s string) bool {
+	if re == nil || s == "" {
+		return false
+	}
+	loc := re.FindStringIndex(s)
+	return loc != nil && loc[0] == 0 && loc[1] == len(s)
+}
+
 // termsBraceView is a port of worker-guard.py:terms_brace_view (T-1121): the text TERMS_BRACE is searched in at depth 0.
 func termsBraceView(cmd string) string {
 	t := strings.Trim(cmd, " \t\n")
@@ -586,7 +595,7 @@ func termsBraceView(cmd string) string {
 		}
 		k := 1
 		flagRe := termsBraceFlagRe(head)
-		for k < len(words) && txt[k] != "" && flagRe != nil && flagRe.MatchString(txt[k]) {
+		for k < len(words) && txt[k] != "" && termsBraceFlagWord(flagRe, txt[k]) {
 			k++
 		}
 		if head != "jq" && k < len(words) && (txt[k] == "-e" || txt[k] == "--regexp") {

@@ -98,6 +98,32 @@ func TestTermsBraceViewDashQuotedRefused(t *testing.T) {
 	}
 }
 
+func TestTermsBraceViewLongFlagNotSkipped(t *testing.T) {
+	_, work := termsGhFpEnv(t)
+	if err := os.MkdirAll(filepath.Join(filepath.Dir(filepath.Dir(work)), "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	refused := []string{
+		"grep --include '{s,x}' a . factory",
+		"grep file-name 'keep{a,b}' factory",
+		"grep --ignore-case 'a{1,2}' roles/factory.md",
+		"grep -n --ignore-case 'a{1,2}' roles/factory.md",
+		"jq --arg '{a,b}' . factory.json",
+		"jq --raw-output '{a:.a,b:.b}' factory.json",
+		"rg --heading 'a{1,2}' roles/factory.md",
+		"egrep --include '{s,x}' a factory",
+		"grep -nE=foo 'a{1,2}' factory",
+		"cd sub && grep --ignore-case 'a{1,2}' factory",
+	}
+	for _, cmd := range refused {
+		for _, role := range []string{"coder", "qa", "reviewer", "judge", "pm"} {
+			if got := termsGhCheck(t, cmd, work, role); got != 2 {
+				t.Errorf("long-flag/substring: role %s cmd %q exit %d, want 2", role, cmd, got)
+			}
+		}
+	}
+}
+
 func TestTermsBraceViewGiveUpRefused(t *testing.T) {
 	_, work := termsGhFpEnv(t)
 	for _, cmd := range []string{
@@ -124,9 +150,12 @@ func TestTermsBraceViewDepthStaysOriginal(t *testing.T) {
 // TestTermsBraceViewHelper pins blanking on a few strings without the full Check path.
 func TestTermsBraceViewHelper(t *testing.T) {
 	cases := map[string]string{
-		"grep -nE 'by [0-9]{1,3}' roles/factory.md": "grep -nE '' roles/factory.md",
-		"rg -n 'a{1,2}' roles/factory.md":           "rg -n '' roles/factory.md",
-		"rg '--glob={s,x}*' a . factory":            "rg '--glob={s,x}*' a . factory",
+		"grep -nE 'by [0-9]{1,3}' roles/factory.md":    "grep -nE '' roles/factory.md",
+		"rg -n 'a{1,2}' roles/factory.md":              "rg -n '' roles/factory.md",
+		"rg '--glob={s,x}*' a . factory":               "rg '--glob={s,x}*' a . factory",
+		"grep --include '{s,x}' a . factory":           "grep --include '{s,x}' a . factory",
+		"grep --ignore-case 'a{1,2}' roles/factory.md": "grep --ignore-case 'a{1,2}' roles/factory.md",
+		"grep file-name 'keep{a,b}' factory":           "grep file-name 'keep{a,b}' factory",
 	}
 	for in, want := range cases {
 		if got := termsBraceView(in); got != want {
