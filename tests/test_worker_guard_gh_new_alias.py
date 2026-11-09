@@ -9,8 +9,6 @@ import unittest
 
 from guard_impl import hook_run
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
-
 NP6 = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
 NEW = ("gh pr new", "gh issue new", "gh release new v1")
 CREATE = ("gh pr create", "gh issue create", "gh release create v1")

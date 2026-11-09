@@ -137,6 +137,13 @@ func TestNoPushInterpInlineOtherRolesUnchanged(t *testing.T) {
 func TestMatchInlineGhWrite(t *testing.T) {
 	for s, want := range map[string]bool{
 		"gh pr merge 1":                  true,
+		"gh pr new":                      true,
+		"gh issue create":                true,
+		"gh issue new":                   true,
+		"gh workflow run x.yml":          true,
+		"gh label create bug":            true,
+		"gh secret set X":                true,
+		"gh variable set X":              true,
 		"gh pr  create":                  true,
 		"gh -R a/b pr merge":             true,
 		"gh --repo=a/b pr create":        true,

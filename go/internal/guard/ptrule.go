@@ -831,12 +831,7 @@ func (pt *publicText) gh(a []string) error {
 			repo = x[2:]
 		}
 	}
-	var pos []string
-	for _, x := range a {
-		if !strings.HasPrefix(x, "-") {
-			pos = append(pos, x)
-		}
-	}
+	pos := ghPositionals(a)
 	if len(pos) < 2 && !(len(pos) > 0 && pos[0] == "api") {
 		return nil
 	}

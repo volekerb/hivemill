@@ -6,8 +6,6 @@ import unittest
 
 from guard_impl import hook_run
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
-
 # T-0995: NO_PUSH roles may not run gh issue, workflow or pr writes; reviewer and qa keep `gh pr comment`.
 NP6 = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
 COMMENTERS = ("qa", "reviewer")
