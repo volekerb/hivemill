@@ -8532,8 +8532,43 @@ def git_argv(repo, *args):
     return ["git", "-C", str(repo), *[x for k, v in git_overrides() for x in ("-c", f"{k}={v}")], *args]
 
 
+def is_live_factory_toplevel(repo):
+    """True when `repo` is the shared main checkout the tick syncs (FACTORY_HOME / ~/factory), not a task worktree."""
+    p = str(Path(repo).resolve())
+    if p == str(HOME.resolve()):
+        return True
+    return p in {os.path.realpath(h) for h in LIVE_HOMES}
+
+
+_LIVE_HEAD_MOVE_SUBS = frozenset({"checkout", "switch"})
+_LIVE_HEAD_RESET = "reset"
+
+
+def live_checkout_head_refusal(repo, args):
+    """Refuse git checkout/switch/reset on the live factory toplevel (T-1197). Returns an error string or None.
+    reset --keep on branch main stays allowed for sync_pull's state migration."""
+    if not args or not is_live_factory_toplevel(repo):
+        return None
+    sub = args[0]
+    if sub in _LIVE_HEAD_MOVE_SUBS:
+        return (f"refusing `git {sub}` on the live factory checkout ({repo}); "
+                "only the tick may move main (factory sync_pull)")
+    if sub == _LIVE_HEAD_RESET:
+        if "--keep" in args[1:]:
+            sym = subprocess.run(git_argv(repo, "symbolic-ref", "-q", "HEAD"), capture_output=True, text=True,
+                                 env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"})
+            if sym.returncode == 0 and sym.stdout.strip() == "refs/heads/main":
+                return None
+        return (f"refusing `git reset` on the live factory checkout ({repo}); "
+                "only `git reset --keep` on branch main is allowed for the tick")
+    return None
+
+
 def git_run(repo, *args, env=None, text=True, **kw):
     """subprocess.run of git in `repo` with hooks, fsmonitor, non-https transports and the system config off, and no prompts."""
+    why = live_checkout_head_refusal(repo, args)
+    if why:
+        return subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=why + "\n")
     _PT["git_n"] += 1  # tick phase timers: export_git counts these
     return subprocess.run(git_argv(repo, *args), capture_output=True, text=text,
                           env={**(os.environ if env is None else env), "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"}, **kw)
@@ -14829,10 +14864,10 @@ def sync_pull(con, push_ok=True):
     FETCH_HEAD holds several for-merge heads). On failure: report at most once an hour. True if ok."""
     if not git_config_guard(con, HOME):
         return False  # a planted driver/filter/attributes file: no git action at all
-    if _git(HOME, "rev-parse", "--abbrev-ref", "@{u}").returncode != 0:
-        return True  # no upstream configured (nothing to pull from or push to)
     if _git(HOME, "symbolic-ref", "-q", "HEAD").stdout.strip() != "refs/heads/main":
         return _sync_failed(con, "HEAD is not main")  # never reset or pull whatever else is checked out
+    if _git(HOME, "rev-parse", "--abbrev-ref", "@{u}").returncode != 0:
+        return True  # no upstream configured (nothing to pull from or push to)
     tracked = _git(HOME, "ls-files", "-z", "--", "exports", "state").stdout
     if tracked:
         _git_rc(["restore", "--worktree", "--source=HEAD", "--pathspec-from-file=-", "--pathspec-file-nul"], input=tracked)
