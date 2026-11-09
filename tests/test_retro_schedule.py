@@ -84,6 +84,22 @@ class RetroScheduleTests(FactoryTestCase):
         self.assertEqual(self.runs(), [])
         self.assertTrue(self.env.sql("SELECT 1 FROM events WHERE action='retro-failed'"))
 
+    def test_bad_max_minutes_records_retro_failed_and_does_not_spawn(self):
+        self.ok("config", "retro_max_minutes", "0")
+        self.tick(at("06:01"))
+        self.assertEqual(self.runs(), [])
+        self.assertEqual(self.starts(), [])
+        self.assertTrue(self.env.sql("SELECT 1 FROM events WHERE action='retro-failed'"))
+
+    def test_bad_max_minutes_stops_live_run(self):
+        self.tick(at("06:01"))
+        self.ok("config", "retro_max_minutes", "abc")
+        self.tick(at("06:05"))
+        self.assertEqual(self.agent()["status"], "stopped")
+        (run,) = self.runs()
+        self.assertEqual((run["status"], run["stop_reason"]), ("stopped", "config"))
+        self.assertTrue(self.env.sql("SELECT 1 FROM events WHERE action='retro-failed'"))
+
     def test_deferred_while_other_agents_queued(self):
         self.env.seed_goal()
         self.env.seed_task(status="todo", pr_url=None)

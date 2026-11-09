@@ -61,6 +61,29 @@ def _finish(con, api, run_id, status, reason=None):
                 (status, reason, _stamp(api.clock()), run_id))
 
 
+def _stop_live_retro(con, api, run_id, agent, event_kind, stop_reason):
+    if agent is None or agent["status"] != "live" or agent["stop_requested_at"]:
+        return
+    con.execute("UPDATE retro_runs SET stop_reason=? WHERE id=?", (stop_reason, run_id))
+    if con.execute("UPDATE agents SET stop_requested_at=?, stop_attempt_at=NULL, stop_failed_kind=NULL "
+                   "WHERE name=? AND status='live' AND stop_requested_at IS NULL", (api.now(), agent["name"])).rowcount != 1:
+        return
+    api.event(con, "retro", "-", event_kind, stop_reason)
+    res, _note = api.force_stop(con, agent["name"], "config")
+    if res == "stopped":
+        _finish(con, api, run_id, "stopped", stop_reason)
+
+
+def _abort_live_on_config_error(con, api):
+    agent = con.execute("SELECT * FROM agents WHERE name=? AND status='live'", (NAME,)).fetchone()
+    if agent is None:
+        return
+    run = con.execute("SELECT * FROM retro_runs WHERE status NOT IN ('done','stopped','failed','skipped') "
+                      "ORDER BY id DESC").fetchone()
+    if run:
+        _stop_live_retro(con, api, run["id"], agent, "retro-config", "config")
+
+
 def _budget(con, api, clock, run, agent):
     if agent["stop_requested_at"]:
         return
@@ -68,6 +91,7 @@ def _budget(con, api, clock, run, agent):
         limit_m = parse_max_minutes(api.cfg(con, "retro_max_minutes"))
     except ValueError as e:
         _record_config_fail(con, api, str(e))
+        _stop_live_retro(con, api, run["id"], agent, "retro-config", "config")
         return
     started = _ts(agent["started"])
     if started and (clock - started).total_seconds() > limit_m * 60:
@@ -162,8 +186,10 @@ def tick(con, api):
         return
     try:
         hour = parse_hour(api.cfg(con, "retro_hour"))
+        parse_max_minutes(api.cfg(con, "retro_max_minutes"))
     except ValueError as e:
         _record_config_fail(con, api, str(e))
+        _abort_live_on_config_error(con, api)
         return
     if clock.hour < hour:
         return
