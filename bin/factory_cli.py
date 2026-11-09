@@ -14816,6 +14816,104 @@ def _git_rc(args, timeout=60, env=None, input=None, repo=None):
         return 124, "", f"git {args[0]} timed out"
 
 
+def _live_origin_url_from_file(repo):
+    """Read remote.origin.url from a checkout's .git/config only; never used to pick a heal target."""
+    cfg_path = Path(repo) / ".git" / "config"
+    if not cfg_path.is_file():
+        return ""
+    try:
+        p = subprocess.run(["git", "config", "--file", str(cfg_path), "remote.origin.url"], capture_output=True,
+                             text=True, timeout=30, env={**os.environ, "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0"})
+        return p.stdout.strip() if p.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _live_heal_git(repo, *args, **kw):
+    """Git in the live checkout for tick self-heal only; bypasses live_checkout_head_refusal on switch/checkout."""
+    _PT["git_n"] += 1
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"}
+    if kw.get("env") is not None:
+        env = {**env, **kw.pop("env")}
+    text = kw.pop("text", True)
+    return subprocess.run(git_argv(repo, *args), capture_output=True, text=text, env=env, **kw)
+
+
+def _live_checkout_heal_failed(con, err):
+    """Record a failed live-checkout heal; the event and the alerts go out at most once an hour."""
+    try:
+        last = con.execute("SELECT value FROM config WHERE key='last_live_checkout_heal_fail_ts'").fetchone()
+        if not last or time.time() - float(last["value"]) >= 3600:
+            event(con, "tick", "live-checkout", "live-checkout-heal-failed", err)
+            subj = f"live checkout heal failed: {err.splitlines()[0][:80]}"
+            body = (f"The tick could not heal the live factory checkout at {LIVE_HOME}: {err}\n"
+                    "No automatic repair was applied.")
+            for to in ("director", "boss"):
+                send(con, to, subj, body, "alert", sender="tick")
+            con.execute("INSERT INTO config(key,value) VALUES('last_live_checkout_heal_fail_ts',?) "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(time.time()),))
+    except Exception:  # noqa: BLE001 — the tick must go on
+        pass
+
+
+def _live_checkout_heal_report(con, field, old, new):
+    detail = json.dumps({"field": field, "old": old, "new": new})
+    event(con, "tick", "live-checkout", "live-checkout-heal", detail)
+    subj = f"live checkout heal: {field}"
+    body = (f"The tick healed the live factory checkout at {LIVE_HOME}: {field} changed from {old!r} to {new!r}.")
+    for to in ("director", "boss"):
+        send(con, to, subj, body, "report", sender="tick")
+
+
+def tick_live_checkout_heal(con):
+    """Before sync_pull: on LIVE_HOME only, restore remote.origin.url from config factory_remote_url and a clean
+    detached HEAD to main. Other refused config keys are never removed; failures alert at most once an hour."""
+    live = Path(LIVE_HOME).resolve()
+    if not live.is_dir() or not is_live_factory_toplevel(str(live)):
+        return
+    repo = str(live)
+    want = cfg(con, "factory_remote_url").strip()
+    cur = _live_origin_url_from_file(repo)
+    if cur != want:
+        if not want:
+            _live_checkout_heal_failed(con, f"remote.origin.url is {cur!r} but factory_remote_url is empty; "
+                                           "will not heal or trust the live origin")
+        elif not _FACTORY_URL_SHAPE.fullmatch(want):
+            _live_checkout_heal_failed(con, f"factory_remote_url {want!r} is not a valid factory URL shape")
+        else:
+            cfg_path = live / ".git" / "config"
+            try:
+                p = subprocess.run(["git", "config", "--file", str(cfg_path), "remote.origin.url", want],
+                                   capture_output=True, text=True, timeout=30,
+                                   env={**os.environ, "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0"})
+            except (OSError, subprocess.SubprocessError) as e:
+                _live_checkout_heal_failed(con, f"git config --file remote.origin.url: {e}")
+            else:
+                if p.returncode != 0:
+                    _live_checkout_heal_failed(con, (p.stderr or p.stdout or f"git config exited {p.returncode}").strip())
+                else:
+                    _live_checkout_heal_report(con, "remote.origin.url", cur, want)
+
+    sym = _live_heal_git(repo, "symbolic-ref", "-q", "HEAD", timeout=30)
+    head_ref = sym.stdout.strip() if sym.returncode == 0 else ""
+    if head_ref == "refs/heads/main":
+        return
+    st = _live_heal_git(repo, "status", "--porcelain", "-z", "--untracked-files=no",
+                        text=False, timeout=30, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})
+    if st.returncode != 0:
+        _live_checkout_heal_failed(con, f"git status exited {st.returncode}: "
+                                       f"{st.stderr.decode('utf-8', 'replace').strip()[-200:]}")
+        return
+    if st.stdout.strip():
+        _live_checkout_heal_failed(con, "HEAD is not main and tracked files are dirty; not switching")
+        return
+    sw = _live_heal_git(repo, "switch", "main", timeout=60)
+    if sw.returncode != 0:
+        _live_checkout_heal_failed(con, (sw.stderr or sw.stdout or f"git switch exited {sw.returncode}").strip())
+        return
+    _live_checkout_heal_report(con, "HEAD", head_ref or "detached", "refs/heads/main")
+
+
 def _sync_failed(con, err):
     """Record a main-sync failure; the event and the director message go out at most once an hour."""
     try:
@@ -15170,6 +15268,10 @@ def export(con, push=None):
     push_ok = cfg(con, "git_push") == "1" and (push is None or push)
     state_ok = cfg(con, "state_push") == "1" and not _state_push_refusal(con)  # never to a public or frozen origin, whatever state_push says
     public_main_pr_check(con)  # before the sync: it must never move the checkout to a main with a non-PR commit
+    try:
+        tick_live_checkout_heal(con)
+    except Exception as e:  # noqa: BLE001 — the heal must never stop export
+        event(con, "tick", "live-checkout", "live-checkout-heal-error", str(e)[:300])
     sync_pull(con, push_ok and state_ok)  # first: merged code goes live and tracked generated files are restored before they are rewritten
     public_main_email_check(con)
     banner = "<!-- generated by `factory export` from factory.db — edits here are overwritten -->\n"
