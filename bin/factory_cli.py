@@ -4110,8 +4110,18 @@ def cmd_pr(a):
 def gh_json(*args, timeout=120):
     p = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout)
     if p.returncode != 0:
-        die(f"gh {' '.join(args[:3])}: {p.stderr.strip()}")
+        err = (p.stderr.strip().splitlines() or [""])[0]
+        msg = f"gh {' '.join(args[:3])}: {err}"
+        print(f"factory: {msg}", file=sys.stderr)
+        raise SystemExit(msg)
     return json.loads(p.stdout)
+
+
+def _tick_gh_detail(e):
+    """One-line detail for a tick PR probe gh failure (stderr first line when available, never a token)."""
+    if isinstance(e, SystemExit):
+        return f"exit {e.code}" if isinstance(e.code, int) else str(e.code)[:200]
+    return str(e)[:200]
 
 
 def verify_merged_externally(pr_url):
@@ -15909,7 +15919,7 @@ def _review_pr_problem(con, t, pr, batch, clock, head_known=False):
         _review_skip(con, t, f"gh cannot resolve {t['pr_url']} (gh pr view exit {pr.code})", clock)
         return True
     if isinstance(pr, BaseException):
-        _review_probe_error(con, t, f"gh pr view {t['pr_url']}: {pr}", clock)
+        _review_probe_error(con, t, f"gh pr view {t['pr_url']}: {_tick_gh_detail(pr)}", clock)
         return True
     if pr.get("state", "OPEN") != "OPEN":
         _review_skip(con, t, f"PR is {pr.get('state')}", clock)
@@ -16494,7 +16504,7 @@ def _rest_check_rollup(check_runs, statuses):
 
 def _ci_wake_status_rollup(slug, head, timeout):
     """REST check-runs + legacy commit statuses for one head sha (no GraphQL statusCheckRollup)."""
-    page = gh_json("api", f"repos/{slug}/commits/{head}/check-runs", "-f", "per_page=100", timeout=timeout)
+    page = gh_json("api", f"repos/{slug}/commits/{head}/check-runs", "--method", "GET", "-f", "per_page=100", timeout=timeout)
     runs = page.get("check_runs") if isinstance(page, dict) else []
     statuses = []
     try:
@@ -16705,7 +16715,7 @@ def tick_ci_wake(con):
             continue
         lead = goal_alert_to(con, t["goal_id"], lead=t["lead_agent"])
         if isinstance(pr, BaseException):
-            event(con, "task", k["id"], "ci-wake-error", f"PR probe {k['pr_url']}: {pr}"[:300])
+            event(con, "task", k["id"], "ci-wake-error", f"PR probe {k['pr_url']}: {_tick_gh_detail(pr)}"[:300])
             continue
         sha = pr["headRefOid"]
         if pr.get("state", "OPEN") != "OPEN":
@@ -16771,7 +16781,7 @@ def tick_red_pr_owner(con):
             continue  # quota low: no probe, no throttle mark, so the next tick tries again
         _throttle_set(con, probe_key, clock)
         if isinstance(pr, BaseException):
-            event(con, "task", k["id"], "red-pr-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
+            event(con, "task", k["id"], "red-pr-error", f"gh pr view {k['pr_url']}: {_tick_gh_detail(pr)}"[:300])
             continue
         if pr.get("state", "OPEN") != "OPEN":
             continue
