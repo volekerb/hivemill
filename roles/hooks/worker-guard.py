@@ -73,7 +73,6 @@ import re
 import shlex
 import sqlite3
 import stat
-import subprocess
 import sys
 import urllib.parse
 
@@ -736,14 +735,23 @@ def _retro_resolve_path_expr(expr):
     return merged if merged and "\n" not in merged else None
 
 
-def retro_roles_subst(text):
+def _retro_roles_subst_resolved(resolved, text, ccwd=None):
+    if resolved is None:
+        return None
+    rp = resolved
+    if not os.path.isabs(rp) and ccwd:
+        rp = os.path.normpath(os.path.join(ccwd, rp))
+    if retro_roles_path(rp, spelled=False):
+        return True
+    return retro_roles_code(text)
+
+
+def retro_roles_subst(text, ccwd=None):
     """Spellings that name a live roles tree, else resolve $(`…`) targets; unresolved counts as under roles (fail closed)."""
     if any(c in text for c in "$`"):
-        resolved = _retro_resolve_path_expr(_retro_path_expr(text))
-        if resolved is not None:
-            if retro_roles_path(resolved, spelled=False):
-                return True
-            return retro_roles_code(text)
+        hit = _retro_roles_subst_resolved(_retro_resolve_path_expr(_retro_path_expr(text)), text, ccwd)
+        if hit is not None:
+            return hit
         return True
     return retro_roles_code(text)
 
@@ -785,9 +793,6 @@ def retro_roles_path(p, spelled=False):
             if retro_roles_glob(t):
                 return True
             continue
-        rel = os.path.normpath(t).lstrip("./")
-        if rel == "roles" or rel.startswith("roles/"):
-            return True
         cands = {os.path.normpath(t)}
         try:
             cands.add(os.path.realpath(t))
@@ -1374,40 +1379,46 @@ def under(path, root):
     return path == root or path.startswith(root.rstrip("/") + "/")
 
 
+def _fold_assign_inner(inner):
+    """Only fold assignment $( ) that the guard models as a static value (mktemp, printf)."""
+    if not inner:
+        return False
+    if inner[0] == "mktemp":
+        return all(not x.startswith("-") or x in ("-d", "-p") for x in inner[1:])
+    if inner[0] == "printf":
+        return all("$" not in x and "`" not in x and ";" not in x for x in inner[1:])
+    return False
+
+
 def fold_mktemp(toks):
-    """Merge `NAME=$ ( … )` (shlex splits on the parens) into `NAME=$(…)` so the assignment value can be judged."""
+    """Merge `NAME=$ ( … )` (shlex splits on the parens) into `NAME=$(…)` for mktemp and static printf values."""
     out, i = [], 0
     while i < len(toks):
         t = toks[i]
         if ASSIGN.match(t) and t.endswith("=$") and i + 1 < len(toks) and toks[i + 1] == "(":
             depth, j = 1, i + 2
-            closed = False
+            merged = False
             while j < len(toks) and depth:
                 tok = toks[j]
                 if tok == "(":
                     depth += 1
                     j += 1
-                elif tok == ")":
-                    depth -= 1
-                    j += 1
-                    if depth == 0:
-                        closed = True
-                        break
-                elif tok.startswith(")") and depth:
+                elif depth and tok.startswith(")"):
                     depth -= 1
                     tail = tok[1:]
                     j += 1
                     if depth == 0:
                         inner = toks[i + 2:j - 1]
-                        out.append(t[:-1] + "$(" + " ".join(inner) + ")")
-                        if tail:
-                            out.append(tail)
-                        i = j
-                        closed = True
+                        if _fold_assign_inner(inner):
+                            out.append(t[:-1] + "$(" + " ".join(inner) + ")")
+                            if tail:
+                                out.append(tail)
+                            i = j
+                            merged = True
                         break
                 else:
                     j += 1
-            if closed:
+            if merged:
                 continue
         out.append(t)
         i += 1
@@ -2046,7 +2057,7 @@ class Analyzer:
                 for frag in red_frags:
                     if persist_code(frag):
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
-                    if self.role == RETRO and retro_roles_subst(frag):
+                    if self.role == RETRO and retro_roles_subst(frag, self.ccwd):
                         raise Block(f"a redirect built by a substitution into a role file: {RETRO_ROLE_WHY}")
         nbodies = self.pt.bodies if self.pt else []
         seen = len(nbodies)
@@ -2921,7 +2932,7 @@ class Analyzer:
             t = self.cfg_expand(t)
             if any(c in t for c in "$`"):
                 # an expansion we cannot resolve: refuse when it spells a protected name or sits under the home
-                if self.role == RETRO and not self.hq and retro_roles_subst(t):
+                if self.role == RETRO and not self.hq and retro_roles_subst(t, self.ccwd):
                     return True
                 if persist_code(t) or t.startswith(("~", PW_DIR)) or "~" in t or "HOME" in t:
                     return True
