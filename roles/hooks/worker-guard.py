@@ -250,7 +250,8 @@ REPO_CFG_WHY = ("every worktree shares the repo's .git/config, so a key such as 
                 "use `git config --file <file in your scratchpad>` or a clone inside your scratchpad. This guard is "
                 "accident prevention, not a security boundary (T-0226)")
 # T-1200: a -c remote.<name>.url=... on push overrides the shared origin for one command; config that rewrites origin belongs in the DB.
-LIVE_REMOTE_CFG = re.compile(r"(?i)^(remote\.\w+\.(url|pushurl|fetch)|url\..+\.(insteadof|pushinsteadof)|include\.path)=")
+LIVE_REMOTE_CFG = re.compile(
+    r"(?i)^(remote\.\w+\.(url|pushurl|fetch)|url\..+\.(insteadof|pushinsteadof)|include\.path|includeif\..+\.path)=")
 _A = chr(64)
 PUSH_URL_CRED = re.compile(rf"^(?:https?|git|ssh)://[^/\s]+:[^/\s]+{_A}|^[^/\s]+:[^/\s]+{_A}[\w.-]+:")
 FACTORY_URL_SHAPE = re.compile(r"https://github\.com/(?!\.\.?/)[A-Za-z0-9_.-]+/(?!\.\.?\.git)[A-Za-z0-9_.-]+\.git")
@@ -2991,8 +2992,9 @@ class Analyzer:
 
     @staticmethod
     def config_worktree_scope(args):
-        """True when --worktree is a scope flag, not the value of --comment/--type/... (T-1200)."""
+        """True when --worktree is a scope flag, not a value option's value or a legacy value-pattern (T-1200)."""
         skip = False
+        seen_key = False
         for a in args:
             if skip:
                 skip = False
@@ -3002,8 +3004,12 @@ class Analyzer:
             if a in CONFIG_VALUE_OPTS or abbrev:
                 skip = True
                 continue
+            if not a.startswith("-") or a == "-":
+                seen_key = True
             if a == "--worktree" or a.startswith("--worktree="):
-                return True
+                if not seen_key:
+                    return True
+                continue
         return False
 
     def config_expansion_refuse(self, toks):
@@ -3053,7 +3059,7 @@ class Analyzer:
     def git_persist(self, rest, depth):
         """T-0334: `git config --global|--system|-f <protected file>` writes, also behind `git -c ... config` and an
         alias. Read-only forms (`--global --get`, `--global --list`) and repo-local writes stay allowed."""
-        i, cwd, aliases, git_dir, work_tree = 0, self.ccwd, [], None, None
+        i, cwd, alias_map, git_dir, work_tree = 0, self.ccwd, {}, None, None
         while i < len(rest) and rest[i].startswith("-"):
             o = rest[i]
             val = None
@@ -3067,14 +3073,15 @@ class Analyzer:
                     o, val = o.split("=", 1)
                 i += 1
             if o == "-c" and val and re.match(r"(?i)alias\.[^=]+=", val):
-                aliases.append(tuple(val[6:].split("=", 1)))
+                name, body = val[6:].split("=", 1)
+                alias_map[name] = body
             elif o == "-C" and val is not None and cwd is not None:
                 cwd = None if self.dynamic_dir(val) else os.path.join(cwd, os.path.expanduser(val))
             elif o == "--git-dir":
                 git_dir = val
             elif o == "--work-tree":
                 work_tree = val
-        for alias, body in aliases:
+        for alias, body in alias_map.items():
             used = rest[i + 1:] if i < len(rest) and rest[i] == alias else []
             if body.startswith("!"):
                 self.script(" ".join([body[1:], *map(shlex.quote, used)]), depth + 1)
@@ -3085,6 +3092,8 @@ class Analyzer:
                     raise Block(f"cannot parse git alias ({e})")
                 if words[:1] == ["config"]:
                     self.git_persist(["config", *words[1:], *used], depth)
+                elif words[:1] == ["remote"] and len(words) > 1 and words[1] in REMOTE_WRITE:
+                    self.repo_cfg_refuse(f"git remote {words[1]}", cwd, git_dir, work_tree, [])
         if i < len(rest) and rest[i] == "remote":
             if rest[i + 1:i + 2] and rest[i + 1] in REMOTE_WRITE:
                 self.repo_cfg_refuse(f"git remote {rest[i + 1]}", cwd, git_dir, work_tree, [])
@@ -3349,7 +3358,7 @@ class Analyzer:
         """T-1200: refuse push URL credentials and -c remote URL overrides when the git common dir is the live checkout."""
         if self.hq:
             return
-        i, cwd, git_dir, work_tree, remote_cfg, aliases = 0, self.ccwd, None, None, False, []
+        i, cwd, git_dir, work_tree, remote_cfg, alias_map = 0, self.ccwd, None, None, False, {}
         while i < len(rest) and rest[i].startswith("-"):
             o = rest[i]
             val = None
@@ -3363,7 +3372,8 @@ class Analyzer:
                     o, val = o.split("=", 1)
                 i += 1
             if o == "-c" and val and re.match(r"(?i)alias\.[^=]+=", val):
-                aliases.append(tuple(val[6:].split("=", 1)))
+                name, body = val[6:].split("=", 1)
+                alias_map[name] = body
             elif o == "-C" and val is not None and cwd is not None:
                 cwd = None if self.dynamic_dir(val) else os.path.join(cwd, os.path.expanduser(val))
             elif o == "--git-dir":
@@ -3375,19 +3385,17 @@ class Analyzer:
         if i >= len(rest) or not self.uses_live_common(cwd, git_dir, work_tree):
             return
         sub, push_args = rest[i], None
-        if sub == "push":
+        if sub in ("push", "send-pack"):
             push_args = rest[i + 1:]
         else:
-            for alias, body in aliases:
-                if sub != alias:
-                    continue
+            body = alias_map.get(sub)
+            if body is not None:
                 try:
                     aw = shlex.split(body)
                 except ValueError:
                     return
-                if aw and aw[0] == "push":
+                if aw and aw[0] in ("push", "send-pack"):
                     push_args = [*aw[1:], *rest[i + 1:]]
-                break
         if push_args is None:
             return
         self.git_live_push_guard_push_args(push_args, remote_cfg)
