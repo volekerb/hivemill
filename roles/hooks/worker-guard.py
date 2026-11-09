@@ -568,6 +568,16 @@ def retro_roles_code(text):
         rel = tree.replace("\\", "/")
         if rel in norm:
             return True
+    for h in LIVE_HOMES:
+        hr = re.escape(h.replace("\\", "/"))
+        if not re.search(hr, norm):
+            continue
+        if re.search(hr + r"\)?/roles(?:/|$)", norm):
+            return True
+        if re.search(hr + r"/rol[^;]*;[^)]*es\)", norm):
+            return True
+        if re.search(r"%s/roles(?:/|$)", norm):
+            return True
     if "tory/roles" in norm:
         return True
     return bool(re.search(r"(?:^|/)(?:\S+/)?factory/roles(?:/|$)", norm))

@@ -37,6 +37,10 @@ class RetroGuardTests(unittest.TestCase):
             f"cp /tmp/zz-retro-src.txt {LIVE}/rol*/coder.md",
             f"echo x > {LIVE}/rol*/coder.md",
             f'echo x > "$(printf %s {LIVE[:-7]}f; printf %s tory/roles)/coder.md"',
+            f'echo x > "$(printf %s {LIVE})/roles/coder.md"',
+            f'echo x > "$(printf %s {LIVE})/roles/retro.md"',
+            f'echo x > "$(printf %s {LIVE}/rol; printf %s es)/coder.md"',
+            f"echo x > \"$(printf '%s/roles/coder.md' {LIVE})\"",
             "git push origin main  # please merge",
         ):
             with self.subTest(cmd=cmd):
