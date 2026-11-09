@@ -44,10 +44,30 @@ class RetroGuardTests(unittest.TestCase):
             f'echo x > "$(printf %s {LIVE}/; printf %s roles/coder.md)"',
             f"echo x > \"$(printf '%s/%s' {LIVE} roles/retro.md)\"",
             f"echo x > \"$(printf '%s/roles/coder.md' {LIVE})\"",
+            'echo x > "$(printf %s /tmp/zz-out); touch /tmp/zz-retro-hook-exec-semi"',
+            f'echo x > "$(touch /tmp/zz-retro-hook-exec-block; printf \'%s/%s\' {LIVE} roles/coder.md)"',
+            f'echo x > "$(printf %s /tmp/zz-ok.txt)" > $(printf %s {LIVE}/roles/coder.md)',
+            f'echo x > $(printf %s {LIVE}/roles/coder.md) > "$(printf %s /tmp/zz-ok.txt)"',
+            f"cd {LIVE} && echo x > \"$(printf %s roles/coder.md)\"",
+            f"cd {LIVE} && echo x > \"$(printf %s ./roles/coder.md)\"",
+            f"ZZ=$(printf '%s/%s' {LIVE} roles/coder.md); echo x > \"$ZZ\"",
             "git push origin main  # please merge",
         ):
             with self.subTest(cmd=cmd):
+                for marker in (
+                    "/tmp/zz-retro-hook-exec-semi",
+                    "/tmp/zz-retro-hook-exec-block",
+                ):
+                    if marker in cmd:
+                        if os.path.exists(marker):
+                            os.remove(marker)
                 self.assert_rc(2, command=cmd)
+                for marker in (
+                    "/tmp/zz-retro-hook-exec-semi",
+                    "/tmp/zz-retro-hook-exec-block",
+                ):
+                    if marker in cmd:
+                        self.assertFalse(os.path.exists(marker), marker)
 
     def test_blocked_edit_tools(self):
         for tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
@@ -59,6 +79,11 @@ class RetroGuardTests(unittest.TestCase):
                 )
 
     def test_allowed_bash(self):
+        only_printf_tmp = 'echo x > "$(printf %s /tmp/zz-only-printf)"'
+        if os.path.exists("/tmp/zz-only-printf"):
+            os.remove("/tmp/zz-only-printf")
+        self.assert_rc(0, command=only_printf_tmp)
+        self.assertFalse(os.path.exists("/tmp/zz-only-printf"))
         for cmd in (
             'echo x > "$(printf %s /tmp/; printf %s roles/coder.md)"',
             "factory retro packet",

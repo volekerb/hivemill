@@ -592,28 +592,148 @@ def _retro_path_expr(text):
     return s
 
 
+def _retro_quote_unquote(word):
+    s = word.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
+        return s[1:-1]
+    return s
+
+
+def _retro_split_shell_words(text):
+    """Split `text` into words like bash for simple literals; stop at top-level ; | & newline."""
+    words, cur, quote, i, n = [], [], None, 0, len(text)
+    while i < n:
+        c = text[i]
+        if quote == "'":
+            cur.append(c)
+            if c == "'":
+                quote = None
+            i += 1
+        elif quote == '"':
+            if c == "\\" and i + 1 < n:
+                cur.append(c)
+                i += 1
+                c = text[i]
+            cur.append(c)
+            if c == '"':
+                quote = None
+            i += 1
+        elif c == "'":
+            quote = "'"
+            cur.append(c)
+            i += 1
+        elif c == '"':
+            quote = '"'
+            cur.append(c)
+            i += 1
+        elif c in ";|&\n":
+            if cur:
+                words.append("".join(cur))
+                cur = []
+            i += 1
+        elif c in " \t":
+            if cur:
+                words.append("".join(cur))
+                cur = []
+            i += 1
+        else:
+            cur.append(c)
+            i += 1
+    if cur:
+        words.append("".join(cur))
+    return words
+
+
+def _retro_printf_segment(text):
+    """Static result of one `printf …` segment, or None when it is not printf-only."""
+    words = _retro_split_shell_words(text.strip())
+    if len(words) < 2 or words[0] != "printf":
+        return None
+    args = [_retro_quote_unquote(w) for w in words[1:]]
+    if not args:
+        return None
+    fmt, rest = args[0], args[1:]
+    if fmt == "%s":
+        return "".join(rest)
+    if fmt == "%s/%s" and len(rest) == 2:
+        return rest[0].rstrip("/") + "/" + rest[1].lstrip("/")
+    if fmt.startswith("%s") and all(p == "%s" for p in re.findall(r"%.", fmt)) and len(rest) == fmt.count("%"):
+        out, j = [], 0
+        for p in re.findall(r"%.", fmt):
+            if p != "%s":
+                return None
+            out.append(rest[j])
+            j += 1
+        return "".join(out)
+    return None
+
+
 def _retro_resolve_path_expr(expr):
+    """Resolve a redirect substitution target without running a shell (G-036 SC3)."""
     if not expr:
         return None
-    if not any(c in expr for c in "$`"):
-        return expr
-    env = {**os.environ, "RETRO_GUARD_EXPR": expr}
-    try:
-        p = subprocess.run(
-            ["bash", "-c", 'eval x="$RETRO_GUARD_EXPR"; printf %s "$x"'],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+    s = expr.strip()
+    unwrapped = False
+    if s.startswith("$(") and s.endswith(")"):
+        s = s[2:-1]
+        unwrapped = True
+    elif len(s) >= 2 and s[0] == s[-1] and s[0] == "`":
+        s = s[1:-1]
+        unwrapped = True
+    if not unwrapped:
+        if not any(c in s for c in "$`"):
+            return s
         return None
-    if p.returncode != 0:
-        return None
-    out = p.stdout.rstrip("\n")
-    if not out or "\n" in out:
-        return None
-    return out
+    parts = []
+    seg, quote, i, n, depth = [], None, 0, len(s), 0
+    while i < n:
+        c = s[i]
+        if quote == "'":
+            seg.append(c)
+            if c == "'":
+                quote = None
+            i += 1
+        elif quote == '"':
+            if c == "\\" and i + 1 < n:
+                seg.append(c)
+                i += 1
+                c = s[i]
+            seg.append(c)
+            if c == '"':
+                quote = None
+            i += 1
+        elif c == "'":
+            quote = "'"
+            seg.append(c)
+            i += 1
+        elif c == '"':
+            quote = '"'
+            seg.append(c)
+            i += 1
+        elif c == "(":
+            depth += 1
+            seg.append(c)
+            i += 1
+        elif c == ")":
+            depth -= 1
+            seg.append(c)
+            i += 1
+        elif c == ";" and depth == 0 and quote is None:
+            parts.append("".join(seg))
+            seg = []
+            i += 1
+        else:
+            seg.append(c)
+            i += 1
+    parts.append("".join(seg))
+    out = []
+    for p in parts:
+        got = _retro_printf_segment(p)
+        if got is None:
+            return None
+        out.append(got)
+    merged = "".join(out)
+    return merged if merged and "\n" not in merged else None
 
 
 def retro_roles_subst(text):
@@ -635,8 +755,8 @@ def retro_subst_redirect_frags(text):
         frags.append('> "' + m.group(1) + '"')
     for m in re.finditer(r">[>|]?\s*'([^']*(?:\$\(|`)[^']*)'", text):
         frags.append("> '" + m.group(1) + "'")
-    if not frags:
-        frags = [m.group(0) for m in re.finditer(r">[>|]?\s*[^\s;|&]*(?:\$\(|`)[^;|&\n]*", text)]
+    for m in re.finditer(r">[>|]?\s*[^\s;|&\"']*(?:\$\(|`)[^;|&\n]*", text):
+        frags.append(m.group(0))
     return frags
 
 
@@ -665,6 +785,9 @@ def retro_roles_path(p, spelled=False):
             if retro_roles_glob(t):
                 return True
             continue
+        rel = os.path.normpath(t).lstrip("./")
+        if rel == "roles" or rel.startswith("roles/"):
+            return True
         cands = {os.path.normpath(t)}
         try:
             cands.add(os.path.realpath(t))
@@ -1252,21 +1375,39 @@ def under(path, root):
 
 
 def fold_mktemp(toks):
-    """Merge `NAME=$ ( mktemp [-d] [-p dir] )` (shlex splits it on the parens) into one token
-    `NAME=$(mktemp -d -p dir)` so the assignment value can be judged; the inner words are exactly mktemp
-    plus those flags, so they need no command analysis of their own. Anything else is left as it is."""
+    """Merge `NAME=$ ( … )` (shlex splits on the parens) into `NAME=$(…)` so the assignment value can be judged."""
     out, i = [], 0
     while i < len(toks):
         t = toks[i]
         if ASSIGN.match(t) and t.endswith("=$") and i + 1 < len(toks) and toks[i + 1] == "(":
-            j = i + 2
-            while j < len(toks) and not is_punct(toks[j]):
-                j += 1
-            inner = toks[i + 2:j]
-            if j < len(toks) and toks[j] == ")" and inner[:1] == ["mktemp"] and \
-                    all(not x.startswith("-") or x in ("-d", "-p") for x in inner[1:]):
-                out.append(t + "(" + " ".join(inner) + ")")
-                i = j + 1
+            depth, j = 1, i + 2
+            closed = False
+            while j < len(toks) and depth:
+                tok = toks[j]
+                if tok == "(":
+                    depth += 1
+                    j += 1
+                elif tok == ")":
+                    depth -= 1
+                    j += 1
+                    if depth == 0:
+                        closed = True
+                        break
+                elif tok.startswith(")") and depth:
+                    depth -= 1
+                    tail = tok[1:]
+                    j += 1
+                    if depth == 0:
+                        inner = toks[i + 2:j - 1]
+                        out.append(t[:-1] + "$(" + " ".join(inner) + ")")
+                        if tail:
+                            out.append(tail)
+                        i = j
+                        closed = True
+                        break
+                else:
+                    j += 1
+            if closed:
                 continue
         out.append(t)
         i += 1
