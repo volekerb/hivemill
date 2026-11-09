@@ -44,7 +44,19 @@ var (
 	termsGreps     = set("grep", "egrep", "fgrep", "cp", "scp")
 	termsWrappers  = set("env", "command", "nice", "time", "nohup", "xargs")
 	termsShells    = set("bash", "sh", "zsh", "dash", "ksh")
+
+	termsBraceHeads        = set("grep", "egrep", "rg", "jq", "gh")
+	reTermsBraceGrepFlags  = regexp.MustCompile(`-[EFGHIPRUZachilnoqrsvwxz]+`)
+	reTermsBraceEgrepFlags = regexp.MustCompile(`-[EFGHIPRUZachilnoqrsvwxz]+`)
+	reTermsBraceRgFlags    = regexp.MustCompile(`-[FHILPSUchilnopqsuvwxz]+`)
+	reTermsBraceJqFlags    = regexp.MustCompile(`-[CMRSaceJjnrst]+`)
 )
+
+var termsBraceGhSub = map[string]struct{}{
+	"pr|list": {}, "pr|view": {}, "pr|checks": {}, "pr|status": {},
+	"issue|list": {}, "issue|view": {}, "issue|status": {},
+	"run|list": {}, "run|view": {}, "repo|view": {},
+}
 
 // isTermsEnvAssign is TERMS_ENV_ASSIGN.match: ^[A-Za-z_]\w*=
 func isTermsEnvAssign(s string) bool {
@@ -402,6 +414,196 @@ func termsSplit(cmd string) []string {
 	return append(segs, string(cur))
 }
 
+// termsBraceDollarEnd is TERMS_BRACE_DOLLAR.match in worker-guard.py without a regex lookahead (Go has none).
+func termsBraceDollarEnd(t string, i int) int {
+	if i >= len(t) || t[i] != '$' {
+		return -1
+	}
+	j := i + 1
+	if j >= len(t) {
+		return -1
+	}
+	c := t[j]
+	if c != '_' && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
+		return -1
+	}
+	j++
+	for j < len(t) {
+		c = t[j]
+		if c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			j++
+			continue
+		}
+		break
+	}
+	if j < len(t) {
+		switch t[j] {
+		case ' ', '\t', ';', '&', '|':
+		default:
+			return -1
+		}
+	}
+	return j
+}
+
+// termsBraceFlagRe is TERMS_BRACE_FLAGS[head] in worker-guard.py.
+func termsBraceFlagRe(head string) *regexp.Regexp {
+	switch head {
+	case "grep":
+		return reTermsBraceGrepFlags
+	case "egrep":
+		return reTermsBraceEgrepFlags
+	case "rg":
+		return reTermsBraceRgFlags
+	case "jq":
+		return reTermsBraceJqFlags
+	}
+	return nil
+}
+
+// termsBraceView is a port of worker-guard.py:terms_brace_view (T-1121): the text TERMS_BRACE is searched in at depth 0.
+func termsBraceView(cmd string) string {
+	t := strings.Trim(cmd, " \t\n")
+	if t == "" {
+		return cmd
+	}
+	for _, c := range t {
+		if (c < 32 && c != ' ' && c != '\t') || c == 127 {
+			return cmd
+		}
+	}
+	type word struct {
+		start, end, quoted int
+	}
+	type segWords []word
+
+	var segs []segWords
+	words := segWords{}
+	ws := -1
+	parts := 0
+	n := len(t)
+
+	endWord := func(at int) {
+		if ws >= 0 {
+			words = append(words, word{ws, at, parts})
+		}
+		ws, parts = -1, 0
+	}
+
+	for i := 0; i < n; {
+		c := t[i]
+		switch {
+		case c == '\'':
+			j := strings.IndexByte(t[i+1:], '\'')
+			if j < 0 {
+				return cmd
+			}
+			j += i + 1
+			if ws < 0 {
+				ws = i
+			}
+			parts++
+			i = j + 1
+		case c == ' ' || c == '\t':
+			endWord(i)
+			i++
+		case c == ';' || c == '&' || c == '|':
+			endWord(i)
+			two := t[i:]
+			if len(two) >= 2 {
+				two = two[:2]
+			}
+			if (c == '&' && two != "&&") || two == "|&" {
+				return cmd
+			}
+			segs = append(segs, words)
+			words = segWords{}
+			if two == "&&" || two == "||" {
+				i += 2
+			} else {
+				i++
+			}
+		case c == '"' || c == '\\' || c == '`' || c == '(' || c == ')' || c == '{' || c == '}' || c == '#' || c == '<' || c == '>' || c > 126:
+			return cmd
+		case c == '$':
+			end := termsBraceDollarEnd(t, i)
+			if end < 0 {
+				return cmd
+			}
+			if ws < 0 {
+				ws = i
+			}
+			i = end
+		default:
+			if ws < 0 {
+				ws = i
+			}
+			i++
+		}
+	}
+	endWord(n)
+	segs = append(segs, words)
+
+	var blank [][2]int
+	for _, words := range segs {
+		if len(words) == 0 {
+			return cmd
+		}
+		txt := make([]string, len(words))
+		for i, w := range words {
+			if w.quoted == 0 {
+				txt[i] = t[w.start:w.end]
+			}
+		}
+		head := txt[0]
+		if head == "cd" || head == "pushd" {
+			continue
+		}
+		if !in(termsBraceHeads, head) {
+			return cmd
+		}
+		if head == "gh" {
+			if len(txt) < 3 {
+				return cmd
+			}
+			if _, ok := termsBraceGhSub[txt[1]+"|"+txt[2]]; !ok {
+				return cmd
+			}
+			whole := func(k int) bool {
+				w := words[k]
+				return w.quoted == 1 && t[w.start] == '\'' && t[w.end-1] == '\''
+			}
+			for k := 1; k < len(words)-1; k++ {
+				if (txt[k] == "--jq" || txt[k] == "-q" || txt[k] == "--template") && whole(k+1) {
+					blank = append(blank, [2]int{words[k+1].start, words[k+1].end})
+				}
+			}
+			continue
+		}
+		whole := func(k int) bool {
+			w := words[k]
+			return w.quoted == 1 && t[w.start] == '\'' && t[w.end-1] == '\''
+		}
+		k := 1
+		flagRe := termsBraceFlagRe(head)
+		for k < len(words) && txt[k] != "" && flagRe != nil && flagRe.MatchString(txt[k]) {
+			k++
+		}
+		if head != "jq" && k < len(words) && (txt[k] == "-e" || txt[k] == "--regexp") {
+			k++
+		}
+		if k < len(words) && whole(k) && t[words[k].start+1] != '-' {
+			blank = append(blank, [2]int{words[k].start, words[k].end})
+		}
+	}
+	out := t
+	for i := len(blank) - 1; i >= 0; i-- {
+		a, b := blank[i][0], blank[i][1]
+		out = out[:a] + "''" + out[b:]
+	}
+	return out
+}
+
 // TermsBash is a port of terms_bash(cmd, cwd): nil when the command does not read the owner-terms file.
 func TermsBash(cmd, cwd string) error { return termsBash(cmd, cwd, map[string]string{}, 0) }
 
@@ -433,7 +635,11 @@ func termsBash(cmd, cwd string, env map[string]string, depth int) error {
 			}
 		}
 	}
-	if strings.Contains(cmd, "${!") || reTermsBrace.MatchString(cmd) {
+	braceView := cmd
+	if depth == 0 {
+		braceView = termsBraceView(cmd)
+	}
+	if strings.Contains(cmd, "${!") || reTermsBrace.MatchString(braceView) {
 		low := strings.ToLower(cmd)
 		for n := range names {
 			if strings.Contains(low, n) {
