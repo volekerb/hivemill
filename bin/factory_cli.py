@@ -9197,6 +9197,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if existing and existing["status"] == "starting" and not from_queue:
         die(f"{name} is already starting (claimed by the tick); wait for it to go live", 2)
     rt = org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
+    if role == "researcher" and rt == "cursor":
+        die("the researcher role is not supported on the Cursor runtime (docs/research-team.md); use the claude org", 3)
     ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
                           own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt)
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
@@ -9801,6 +9803,77 @@ def _cursor_enter_after_prompt(name, runtime, prompt_ok):
         herdr("agent", "send-keys", name, "Enter", check=False)
 
 
+CURSOR_START_LOG_MAX_S = 600  # director lost alert names logs/<name>-cursor-start.log only within this after agents.started
+_CURSOR_START_LOG_ENV_KEYS = frozenset((*GH_SCRUB_ENV, *HC_SPAWN_DROP, "CURSOR_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"))
+
+
+def cursor_start_log_path(name):
+    return HOME / "logs" / f"{name}-cursor-start.log"
+
+
+def _redact_cursor_start_text(text, env=None):
+    """Strip token-shaped strings and known env values before writing a cursor start log."""
+    if not text:
+        return ""
+    from scout import nsbox
+    out = nsbox.redact(text)
+    vals = []
+    if env:
+        vals.extend(str(v) for v in env.values() if v)
+    for key in _CURSOR_START_LOG_ENV_KEYS:
+        val = os.environ.get(key)
+        if val:
+            vals.append(val)
+    for val in sorted({v for v in vals if len(v) >= 8}, key=len, reverse=True):
+        out = out.replace(val, "[redacted-env]")
+    return out
+
+
+def _write_cursor_start_log(name, pane, start_err, env):
+    """Persist herdr start failure output for a herdr-kind cursor spawn (mode 0600, no tokens or env values)."""
+    parts = []
+    if start_err:
+        parts.append("=== herdr agent start ===\n" + _redact_cursor_start_text(start_err, env) + "\n")
+    if pane:
+        proc = herdr("pane", "process-info", "--pane", pane, check=False)
+        if proc is not None:
+            blob = (json.dumps(proc, indent=2, sort_keys=True) if isinstance(proc, dict) else str(proc))
+            parts.append("=== herdr pane process-info ===\n" + _redact_cursor_start_text(blob, env) + "\n")
+    if not parts:
+        return
+    path = cursor_start_log_path(name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".log.tmp")
+    body = "\n".join(parts)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(body)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def _cursor_lost_log_hint(row, spawn_args):
+    """Extra text on the director lost alert when an early herdr-kind cursor vanish left a start log."""
+    if agent_runtime_of(row) != "cursor" or spawn_args.get("launch") != "herdr-kind":
+        return ""
+    try:
+        age = (dt.datetime.now().astimezone() - dt.datetime.fromisoformat(row["started"])).total_seconds()
+    except (TypeError, ValueError):
+        return ""
+    if age < STARTUP_GRACE_S or age > CURSOR_START_LOG_MAX_S:
+        return ""
+    path = cursor_start_log_path(row["name"])
+    if not path.is_file():
+        return ""
+    return f" Start diagnostics: {path}."
+
+
 def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                           env, settings_path, settings_obj, prompt_text, kick, runtime):
     """Non-Claude runtime via the same place → herdr agent start --kind → prompt path as Claude.
@@ -9893,11 +9966,12 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
     _HC_RUN_PROGRAM, _HC_RUN_NAME = plan.binary, name
     try:
-        r = herdr(*start_args, check=False)
+        r, start_err = herdr_start_error(*start_args)
     finally:
         _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
     if r is None:
         event(con, "agent", name, "start-uncertain", {"pane": pane, "runtime": runtime, "kind": plan.herdr_kind})
+        _write_cursor_start_log(name, pane, start_err, env)
     if not hc_back:
         herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
               f"{role}·{task or team or goal or 'hq'}"[:28], check=False)
@@ -14522,8 +14596,10 @@ def cmd_tick(a, locked=False):
             con.execute("UPDATE agents SET status='lost', ended=? WHERE name=?", (now(), r["name"]))
             event(con, "agent", r["name"], "lost", r["pane_id"])
             if r["role"] != "director":
-                send(con, "director", f"agent {r['name']} vanished", f"pane {r['pane_id']} no longer hosts it. "
-                     f"Task {r['task_id']}. Decide: respawn or reassign.", "alert", r["goal_id"], r["task_id"], sender="tick")
+                body = (f"pane {r['pane_id']} no longer hosts it. "
+                        f"Task {r['task_id']}. Decide: respawn or reassign.{_cursor_lost_log_hint(r, _sa)}")
+                send(con, "director", f"agent {r['name']} vanished", body, "alert", r["goal_id"], r["task_id"],
+                     sender="tick")
             continue
         sess = (h.get("agent_session") or {}).get("value")
         if sess and sess != r["session_id"]:

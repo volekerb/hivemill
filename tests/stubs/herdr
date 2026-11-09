@@ -114,7 +114,14 @@ elif cmd == ("pane", "split"):
             t["pane_count"] += 1
     out({"pane": pane})
 elif cmd == ("pane", "process-info"):
-    pane = next((p for p in st["panes"] if p["pane_id"] == opt("--pane")), {})
+    pane_id = opt("--pane")
+    if pane_id is None:
+        if len(argv) > 2 and not argv[2].startswith("-"):
+            print(f"herdr: unknown option: {argv[2]}", file=sys.stderr)
+            sys.exit(2)
+        print("herdr: pane process-info requires --pane", file=sys.stderr)
+        sys.exit(2)
+    pane = next((p for p in st["panes"] if p["pane_id"] == pane_id), {})
     if pane.get("fixture"):  # a pane may set "fixture": a file whose raw stdout is printed verbatim
         print(open(pane["fixture"]).read().strip())
     elif pane.get("raw_result") is not None:  # an arbitrary result object (unknown shapes)
