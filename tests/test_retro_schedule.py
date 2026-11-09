@@ -15,6 +15,9 @@ def at(hhmm, day=D):
 class RetroScheduleTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
+        fake = self.env.stub_bin / "agent"  # cursor runtime: agent/cursor-agent not on PATH in CI
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
         self.ok("config", "retro_enabled", "1")
         self.ok("config", "retro_hour", "6")
         self.ok("config", "retro_max_minutes", "20")
@@ -80,6 +83,16 @@ class RetroScheduleTests(FactoryTestCase):
         self.tick(at("06:01"))
         self.assertEqual(self.runs(), [])
         self.assertTrue(self.env.sql("SELECT 1 FROM events WHERE action='retro-failed'"))
+
+    def test_deferred_while_other_agents_queued(self):
+        self.env.seed_goal()
+        self.env.seed_task(status="todo", pr_url=None)
+        self.env.sql(
+            "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at,org) "
+            "VALUES('claude-coder-t-0001','coder','G-001','g-001-a','T-0001','queued','{}','2026-10-26T05:00:00','claude')")
+        self.tick(at("06:01"))
+        self.assertEqual(self.runs(), [])
+        self.assertEqual(self.starts(), [])
 
     def test_live_run_blocks_second_day_claim_as_skipped(self):
         self.tick(at("06:01"))

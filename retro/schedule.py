@@ -167,6 +167,9 @@ def tick(con, api):
         return
     if clock.hour < hour:
         return
+    # T-1135: do not claim or spawn while other rows are still queued — the tick dequeue owns their starts.
+    if con.execute("SELECT 1 FROM agents WHERE status IN ('queued','starting') AND role != ? LIMIT 1", (ROLE,)).fetchone():
+        return
     day = clock.date().isoformat()
     if con.execute("SELECT 1 FROM retro_runs WHERE day=?", (day,)).fetchone():
         return

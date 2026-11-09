@@ -20,6 +20,9 @@ class RoleTableTests(unittest.TestCase):
 class SpawnTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
+        fake = self.env.stub_bin / "agent"  # cursor runtime: agent/cursor-agent not on PATH in CI
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
         self.env.seed_goal()
         self.env.seed_team(lead="zz-test-lead")
         for n, r in (("zz-test-director", "director"), ("zz-test-lead", "lead"), ("zz-test-boss", "boss")):

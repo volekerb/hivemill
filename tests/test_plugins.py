@@ -36,6 +36,9 @@ def spawn_cmd(role):
 class PluginDirSpawnTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
+        fake = self.env.stub_bin / "agent"  # cursor retro/scout runtime spawns need the agent binary on PATH
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
         prep(self.env)  # goal, team and the sandbox ingredients: the researcher is always sandboxed (T-0847)
         self.env.seed_task("T-0001", role="coder", status="todo", pr_url=None, team="g-001-a")
         self.env.run("config", "max_live_agents", "99")
