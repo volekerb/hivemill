@@ -200,8 +200,27 @@ func (a *Analyzer) builtinAssign(assigns, words, extra []string) error {
 				targets = append(targets, rest[j+1])
 			}
 		}
-	case (name == "for" || name == "select") && len(rest) > 0:
-		targets = append(targets, rest[0])
+	case (name == "for" || name == "select" || name == "foreach") && len(rest) > 0: // T-0826: zsh assigns every name before `(` or `in`
+		for _, w := range rest {
+			if w == "in" || strings.HasPrefix(w, "(") {
+				break
+			}
+			targets = append(targets, w)
+		}
+	case name == "vared": // T-0826: vared NAME edits the parameter; options take values, so fail closed on every word
+		for _, w := range rest {
+			if !strings.HasPrefix(w, "-") {
+				targets = append(targets, w)
+			}
+		}
+	case name == "integer" || name == "float": // T-0826: zsh declarers re-type the parameter (path is tied to PATH)
+		for _, w := range rest {
+			if strings.HasPrefix(w, "-") || strings.HasPrefix(w, "+") {
+				continue
+			}
+			t, _, _ := strings.Cut(w, "=")
+			targets = append(targets, t)
+		}
 	case name == "set": // T-0788: `set -A path ...` assigns the array
 		for j, w := range rest {
 			if (w == "-A" || w == "+A" || w == "-a" || w == "+a") && j+1 < len(rest) {
