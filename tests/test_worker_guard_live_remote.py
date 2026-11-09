@@ -7,7 +7,10 @@ import subprocess
 import tempfile
 import unittest
 
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 from guard_impl import hook_run
+
+GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROLES = ("coder", "qa", "reviewer", "judge", "cleaner", "pm", "scout", "evaluator")
