@@ -9,8 +9,6 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard_impl import hook_run  # noqa: E402
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
-
 WORKER_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner", "scout", "researcher", "evaluator", None)
 FORMS = ("factory flags", "factory flags --all", "factory flags --json", "factory flags --all --json",
          "factory --x flags", "cd /x && factory flags --all --json", "zsh -c 'factory flags --json'",
