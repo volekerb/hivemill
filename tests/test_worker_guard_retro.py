@@ -34,6 +34,9 @@ class RetroGuardTests(unittest.TestCase):
             "factory project update factory --gate-cmd true",
             "factory gate run T-1",
             f"cp /tmp/zz-retro-src.txt {LIVE}/roles/retro.md",
+            f"cp /tmp/zz-retro-src.txt {LIVE}/rol*/coder.md",
+            f"echo x > {LIVE}/rol*/coder.md",
+            f'echo x > "$(printf %s {LIVE[:-7]}f; printf %s tory/roles)/coder.md"',
             "git push origin main  # please merge",
         ):
             with self.subTest(cmd=cmd):

@@ -568,7 +568,25 @@ def retro_roles_code(text):
         rel = tree.replace("\\", "/")
         if rel in norm:
             return True
+    if "tory/roles" in norm:
+        return True
     return bool(re.search(r"(?:^|/)(?:\S+/)?factory/roles(?:/|$)", norm))
+
+
+def retro_roles_glob(p, ancestor=False):
+    """True when glob pattern `p` can match <live>/roles or a path under it (G-036 SC3)."""
+    pat = os.path.normpath(p).strip("/").split("/")
+
+    def m(i, j, parts):
+        if j == len(parts):
+            return True
+        if i == len(pat):
+            return ancestor
+        if pat[i] == "**":
+            return m(i + 1, j, parts) or m(i, j + 1, parts)
+        return fnmatch.fnmatchcase(parts[j], pat[i]) and m(i + 1, j + 1, parts)
+
+    return any(m(0, 0, d.strip("/").split("/")) for d in retro_roles_trees())
 
 
 def retro_roles_path(p, spelled=False):
@@ -576,12 +594,15 @@ def retro_roles_path(p, spelled=False):
     if spelled or any(c in p for c in "$`"):
         return retro_roles_code(p)
     for t in brace_expand(p):
+        if GLOB.search(t):
+            if retro_roles_glob(t):
+                return True
+            continue
         cands = {os.path.normpath(t)}
-        if not GLOB.search(t):
-            try:
-                cands.add(os.path.realpath(t))
-            except OSError:
-                pass
+        try:
+            cands.add(os.path.realpath(t))
+        except OSError:
+            pass
         for c in cands:
             if any(c == d or under(c, d) for d in retro_roles_trees()):
                 return True
@@ -1812,8 +1833,11 @@ class Analyzer:
             self.text = text
             if not self.hq:  # a redirect whose target is built by a substitution and ends in a protected name
                 for m in re.finditer(r">[>|]?\s*[^\s;|&]*(?:\$\(|`)[^;|&\n]*", text):
-                    if persist_code(m.group(0)):
+                    frag = m.group(0)
+                    if persist_code(frag):
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
+                    if self.role == RETRO and retro_roles_code(frag):
+                        raise Block(f"a redirect built by a substitution into a role file: {RETRO_ROLE_WHY}")
         nbodies = self.pt.bodies if self.pt else []
         seen = len(nbodies)
         slots = []
