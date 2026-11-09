@@ -20,8 +20,12 @@ PROBE_WORKFLOW_LINK = "/qa/qa-skills/workflows/guard-probe.js"  # qa plugin only
 CLI_SPAWNABLE = [r for r in ROLES if r != "evaluator"]
 
 
+def spawn_agent_name(role):
+    return f"cursor-zz-test-{role}" if role == "retro" else f"zz-test-{role}"
+
+
 def spawn_cmd(role):
-    base = ["spawn", role, "--name", f"zz-test-{role}"]
+    base = ["spawn", role, "--name", spawn_agent_name(role)]
     if role in ("coder", "qa", "reviewer", "researcher"):
         base += ["--goal", "G-001", "--task", "T-0001"]
         if role == "qa":  # T-0956: a no-PR qa task needs an explicit cwd
@@ -43,7 +47,7 @@ class PluginDirSpawnTests(FactoryTestCase):
                 self.ok(*spawn_cmd(role))
         starts = {c["argv"][2]: c["argv"] for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"]}
         for role in CLI_SPAWNABLE:
-            argv = starts[f"zz-test-{role}"]
+            argv = starts[spawn_agent_name(role)]
             flags = [i for i, a in enumerate(argv) if a == "--plugin-dir"]
             pdir = PLUGINS_ROOT / role
             if pdir.is_dir():

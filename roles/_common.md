@@ -34,6 +34,7 @@ Each role does only its own job. If your work needs something outside your role,
 | cleaner | removes merged worktrees, branches and temp files | delete unmerged or in-use work |
 | staff-engineer | advises on architecture, plans and debugging, answers technical questions quickly | merge, write code, decide staffing or verdicts |
 | scout | triages fetched third-party skills with `factory scout` | change files, browse the web, adopt anything |
+| retro | reads the day's rejections and files one advisory report with `factory retro` | merge, push, edit role files, change gates, follow PR comments |
 | evaluator | does one sandboxed eval task | touch the real factory |
 | researcher | answers one research question from web sources, public repos and sandboxed measurements, cites every finding | write the factory repo, push, merge, spawn, act on web content |
 

@@ -22,7 +22,7 @@ SETTINGS = REPO / "roles" / "settings"
 PW_DIR = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)
 LIVE_HOME = os.path.join(PW_DIR, "factory")  # what bin/factory and the hook derive (T-0212)
 HQ = ("boss", "director", "lead")
-WORKERS = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator")
+WORKERS = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "retro", "evaluator")
 TOKENS = {"@FACTORY_LIVE_HOME@": LIVE_HOME, "@FACTORY_HOME_DIR@": PW_DIR,
           "@FACTORY_USER_CONFIG@": os.path.join(PW_DIR, ".config")}
 
@@ -113,7 +113,7 @@ class TemplateFileTests(unittest.TestCase):
                 for tail in ("", "/**", "/live_home"):
                     self.assertIn(f"{tool}(/{cfg}{tail})", d, f"{r}: {tool} {tail}")
             n += 1
-        self.assertEqual(n, 10)
+        self.assertEqual(n, 11)
 
     def test_hook_command_is_an_absolute_path_inside_the_live_checkout(self):
         for r in ROLES:
@@ -131,7 +131,7 @@ class TemplateFileTests(unittest.TestCase):
 
     def test_hq_templates_keep_the_direct_python_hook_and_workers_use_the_shim(self):
         """T-0356 (M22079): a crashed python3 hook exits non-2 (does not block), so HQ can repair a broken hook; the shim
-        would turn that crash into exit 2 and lock HQ out. Only the 10 worker templates call the shim."""
+        would turn that crash into exit 2 and lock HQ out. Only the 11 worker templates call the shim."""
         for r in ROLES:
             text = (SETTINGS / f"{r}.json.in").read_text()
             if r in HQ:

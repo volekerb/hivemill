@@ -600,6 +600,30 @@
    "doc": ""
   },
   {
+   "key": "retro_enabled",
+   "kind": "setting",
+   "default": "1",
+   "summary": "only the exact string 1 starts a new daily retro run",
+   "goal": "G-036",
+   "doc": ""
+  },
+  {
+   "key": "retro_hour",
+   "kind": "setting",
+   "default": "6",
+   "summary": "local hour from which the tick may claim today's retro",
+   "goal": "G-036",
+   "doc": ""
+  },
+  {
+   "key": "retro_max_minutes",
+   "kind": "setting",
+   "default": "20",
+   "summary": "wall budget of one retro run",
+   "goal": "G-036",
+   "doc": ""
+  },
+  {
    "key": "review_autospawn",
    "kind": "flag",
    "default": "off",

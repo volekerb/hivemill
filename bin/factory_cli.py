@@ -102,14 +102,14 @@ agent_runtime = _LazyScout("agent_runtime")
 orgs = _LazyScout("orgs")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
-         "staff-engineer", "researcher", "scout", "evaluator"]
+         "staff-engineer", "researcher", "scout", "retro", "evaluator"]
 # Opus for judgement-heavy roles, Sonnet for builders. Never Fable (owner rule).
 MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
     "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
     "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
     "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
-    "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
+    "scout": "claude-sonnet-5-5", "retro": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
 PERSISTENT_ROLES = {"boss", "director", "lead"}  # never reaped; everyone else is one task, one pane
 ON_DEMAND = "staff-engineer"  # fixed agent name; spawned by the first message, reaped after `factory done`
@@ -170,6 +170,9 @@ DEFAULT_CONFIG = {
     "coder_ci_handoff": "off",   # off | resume | fresh: coder runs factory done at PR open without waiting for CI; the tick starts review at green (T-1003, docs/prcheck.md)
     "coder_ci_resume_max": "2",   # with coder_ci_handoff on: at most this many tick starts of a handed-off coder per task on a red head, then the lead is mailed (T-1004, docs/lead-wake.md)
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
+    "retro_enabled": "1",        # only the exact string "1" starts a new daily retro run from retro_hour
+    "retro_hour": "6",           # local hour from which the tick may claim today's retro (before digest_hour)
+    "retro_max_minutes": "20",   # wall budget of one retro run; over it the tick force-stops it
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
     "tmp_sweep_pct": "80",       # over this, the tick deletes scratch dirs of finished agents (T-0606); keep it below tmp_max_pct
@@ -322,6 +325,25 @@ CREATE INDEX IF NOT EXISTS idx_rejection_incidents_cause ON rejection_incidents(
 CREATE INDEX IF NOT EXISTS idx_rejection_incidents_task ON rejection_incidents(task_id);
 """
 
+RETRO_DDL = """
+CREATE TABLE IF NOT EXISTS retro_runs (
+  id INTEGER PRIMARY KEY,
+  day TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL,
+  agent TEXT,
+  stop_reason TEXT,
+  started TEXT,
+  ended TEXT);
+CREATE TABLE IF NOT EXISTS retro_reports (
+  id INTEGER PRIMARY KEY,
+  day TEXT NOT NULL UNIQUE,
+  causes TEXT NOT NULL,
+  evidence TEXT NOT NULL,
+  fixes TEXT NOT NULL,
+  author TEXT NOT NULL,
+  created TEXT NOT NULL);
+"""
+
 OWNER_ALERT_DDL = """
 CREATE TABLE IF NOT EXISTS owner_alert_feed (
   id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, since TEXT NOT NULL,
@@ -413,7 +435,7 @@ CREATE TABLE IF NOT EXISTS events (
   entity_id TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS idx_msg_rcpt ON messages(recipient, read_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
-""" + GATE_RUNS_DDL + LESSONS_DDL + REJECTION_INCIDENTS_DDL
+""" + GATE_RUNS_DDL + LESSONS_DDL + REJECTION_INCIDENTS_DDL + RETRO_DDL
 
 
 # ───────────────────────────── basics ─────────────────────────────
@@ -548,6 +570,7 @@ def migrate(con):
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
     con.executescript(REJECTION_INCIDENTS_DDL)
+    con.executescript(RETRO_DDL)
     have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     if not SCOUT_TABLES <= have:  # scout DDL is idempotent; skip it (and the scout.db import) once every table exists
         con.executescript(scoutdb.SCOUT_DDL)
@@ -700,7 +723,7 @@ def actor_role(con):
     return r["role"] if r else "unknown"
 
 
-WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator"}
+WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "retro", "evaluator"}
 
 def derive_live_homes(uid=None):
     """(primary, homes): the live factory home(s), derived from the passwd entry and nothing the caller controls.
@@ -2621,6 +2644,8 @@ def cmd_whoami(a):
 
 def cmd_project(a):
     con = db()
+    if actor_role(con) == "retro":
+        die(f"role 'retro' ({actor()}) may not run `factory project`; ask your lead", 3)
     if a.action == "add":
         require_role(con, "boss", "director")
         pid = slug(a.id, 24)
@@ -6478,6 +6503,8 @@ def build_digest(con, goal=None, date=None, hours=24):
         out += ["## Closed earlier", "", *closed_earlier, ""]
     if not goal:
         out += [scoutreport.build_skill_scout_section(con, start, end), ""]
+        import retro.report as retroreport  # lazy: kept out of module import
+        out += [retroreport.build_digest_section(con, start, end), ""]
     if not goal and con.execute("SELECT 1 FROM lessons LIMIT 1").fetchone():
         ls = con.execute("SELECT * FROM lessons ORDER BY id").fetchall()
 
@@ -8260,6 +8287,26 @@ def scout_tick(con):
             pass
 
 
+@_pt_phase("retro")
+def retro_tick(con):
+    """Tick hook: start the daily retro agent from retro_hour (retro/schedule.py). Never breaks the tick."""
+    try:
+        import retro.schedule as retrosched
+        retrosched.tick(con, types.SimpleNamespace(
+            clock=digest_clock, cfg=cfg, event=event, now=now, spawn=spawn, force_stop=force_stop))
+    except (Exception, SystemExit) as e:  # noqa: BLE001
+        try:
+            today = digest_clock().date().isoformat()
+            failed = con.execute("SELECT value FROM config WHERE key='last_retro_tick_fail_date'").fetchone()
+            if failed and failed["value"] == today:
+                return
+            event(con, "retro", "-", "retro-tick-failed", str(e) or repr(e))
+            con.execute("INSERT INTO config(key,value) VALUES('last_retro_tick_fail_date',?) "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (today,))
+        except Exception:  # noqa: BLE001
+            pass
+
+
 @_pt_phase("skilleval")
 def skilleval_tick(con):
     """Tick hook: collect and start skill-eval trials under the caps (scout/skilleval.py). Never breaks the tick."""
@@ -9102,6 +9149,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         die(f"--sandbox: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
     if role == "researcher" and not task:
         die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
+    if role == "retro":
+        org = "cursor"  # the daily retro job is always cursor runtime (retro/schedule.py passes the same org)
     if task and not (goal and team):  # a team-less `spawn --task` still belongs to the task's goal/team (utilization, alerts)
         trow = con.execute("SELECT goal_id, team_id FROM tasks WHERE id=?", (task,)).fetchone()
         if trow:
@@ -10239,6 +10288,8 @@ def cmd_spawn(a):
     caller = require_role(con, "director", "lead", "boss")
     if a.role == "scout" and caller not in ("director", "owner"):
         die("only the director (or the owner) spawns a scout; the tick does it on schedule", 3)
+    if a.role == "retro" and caller not in ("director", "owner"):
+        die("only the director (or the owner) spawns a retro; the tick does it on schedule", 3)
     if caller == "boss" and a.role not in ("director",):
         die("the boss only (re)starts the director; ask the director for teams", 3)
     if caller == "lead" and a.role in ("boss", "director", "lead"):
@@ -14403,6 +14454,7 @@ def cmd_tick(a, locked=False):
         _pt_emit(con)
         return
     scout_tick(con)
+    retro_tick(con)
     skilleval_tick(con)
     hc_back = terminal_backend_effective(con)[1] == "hc"
     by_name, by_pane = _agents_index(agents)
@@ -17708,6 +17760,49 @@ def scout_report(con, a):
         print(text, end="")
 
 
+def cmd_retro(a):
+    con = db()
+    import retro.report as retroreport
+    role = actor_role(con)
+    if a.action == "packet":
+        if role not in ("retro", "director", "boss", "lead") and actor() != "owner":
+            die(f"role '{role}' ({actor()}) may not run `factory retro packet`", 3)
+        try:
+            clock = digest_clock()
+        except FactoryNowError as e:
+            die(str(e), 2)
+        print(json.dumps(retroreport.build_packet(con, clock), indent=2))
+        return
+    if a.action == "file":
+        if role != "retro":
+            die(f"role '{role}' ({actor()}) may not run `factory retro file`; only the retro agent files reports", 3)
+        if a.body != "-":
+            die("`factory retro file` takes JSON on stdin only: pass -", 2)
+        try:
+            body = json.loads(read_text("-") or "{}")
+        except json.JSONDecodeError as e:
+            die(f"stdin is not valid JSON: {e}", 2)
+        try:
+            day, norm = retroreport.validate_file(con, body)
+        except ValueError as e:
+            die(str(e), 2)
+        retroreport.store_report(con, day, norm, actor(), digest_clock().isoformat(timespec="seconds"))
+        con.commit()
+        print(f"filed retro report for {day}")
+        return
+    if a.action == "show":
+        require_role(con, "retro", "director", "boss", "lead")
+        day = a.day or digest_clock().date().isoformat()
+        row = retroreport.load_report(con, day)
+        if not row:
+            die(f"no retro report for {day}", 2)
+        print(json.dumps({"day": row["day"], "causes": json.loads(row["causes"]),
+                          "evidence": json.loads(row["evidence"]), "fixes": json.loads(row["fixes"]),
+                          "author": row["author"], "created": row["created"]}, indent=2))
+        return
+    die(f"unknown retro action {a.action!r}", 2)
+
+
 def cmd_scout(a):
     # workers first: require_role trusts FACTORY_AGENT. The scout role (added later) is checked by name.
     w = caller_is_worker()
@@ -17943,6 +18038,12 @@ def main():
     x.add_argument("--note"); x.add_argument("--evidence"); x.add_argument("--reason"); x.add_argument("--title"); x.add_argument("--roles"); x.add_argument("--rule")
     x.add_argument("--what"); x.add_argument("--source"); x.add_argument("--status"); x.add_argument("--role")
     x.set_defaults(fn=cmd_lesson)
+
+    x = sp.add_parser("retro", help="daily rejection retro: packet, file, show")
+    x.add_argument("action", choices=["packet", "file", "show"])
+    x.add_argument("body", nargs="?", default=None, help="file: use - for stdin")
+    x.add_argument("--day", help="show: YYYY-MM-DD (default today)")
+    x.set_defaults(fn=cmd_retro)
 
     x = sp.add_parser("scout", help="skill scout candidates: fetch, pending, triage, list, show, runs, report")
     x.add_argument("action", choices=["fetch", "pending", "triage", "list", "show", "runs", "report"]); x.add_argument("id", nargs="?")

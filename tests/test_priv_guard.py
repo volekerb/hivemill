@@ -22,7 +22,7 @@ from guard_impl import hook_run
 SETTINGS = sorted(glob.glob(os.path.join(str(rendered_settings_dir()), "*.json")))
 DENY = ["Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)", "Bash(pkexec:*)", "Bash(docker:*)"]
 HQ_ROLES = ("boss", "director", "lead")
-WORKER_ROLES = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator")
+WORKER_ROLES = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "retro", "evaluator")
 MODES = {"worker": ["--role", "coder"], "hq": ["--hq"]}
 
 BLOCKED = [
