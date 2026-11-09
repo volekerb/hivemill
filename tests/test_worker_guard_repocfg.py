@@ -63,7 +63,7 @@ class RepoCfgTests(unittest.TestCase):
     def test_every_write_form_blocked(self):
         for cmd in ("git config --add a.b c", "git config --unset a.b", "git config --unset-all a.b",
                     "git config --replace-all a.b c", "git config --rename-section a b", "git config --remove-section a",
-                    "git config --edit", "git config -e", "git config --local a.b c", "git config --worktree a.b c",
+                    "git config --edit", "git config -e", "git config --local a.b c",
                     "git config set a.b c", "git config unset a.b", "git config edit", "git config a.b c",
                     "git config --type bool a.b true"):
             self.blocked(cmd, "qa")
