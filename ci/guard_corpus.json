@@ -18792,7 +18792,7 @@
     },
     {
         "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
-        "cmd": "git --config-env remote.origin.url=X fetch origin"
+        "cmd": "git --config-env remote.origin.url=X fetch"
     },
     {
         "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",

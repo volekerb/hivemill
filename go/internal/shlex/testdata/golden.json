@@ -108704,45 +108704,42 @@
 "src": "corpus"
 },
 {
-"input": "git --config-env remote.origin.url=X fetch origin",
+"input": "git --config-env remote.origin.url=X fetch",
 "mode": "script",
 "src": "corpus",
 "tokens": [
 "git",
 "--config-env",
 "remote.origin.url=X",
-"fetch",
-"origin"
+"fetch"
 ]
 },
 {
-"input": "git --config-env remote.origin.url=X fetch origin",
+"input": "git --config-env remote.origin.url=X fetch",
 "mode": "default",
 "src": "corpus",
 "tokens": [
 "git",
 "--config-env",
 "remote.origin.url=X",
-"fetch",
-"origin"
+"fetch"
 ]
 },
 {
-"input": "git --config-env remote.origin.url=X fetch origin",
+"input": "git --config-env remote.origin.url=X fetch",
 "mode": "split",
 "src": "corpus",
 "tokens": [
 "git",
 "--config-env",
 "remote.origin.url=X",
-"fetch",
-"origin"
+"fetch"
 ]
 },
 {
-"input": "git --config-env remote.origin.url=X fetch origin",
+"input": "git --config-env remote.origin.url=X fetch",
 "mode": "quote",
-"quoted": "'git --config-env remote.origin.url=X fetch origin'",
+"quoted": "'git --config-env remote.origin.url=X fetch'",
 "src": "corpus"
 },
 {

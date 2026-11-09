@@ -133009,42 +133009,40 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "git --config-env remote.origin.url=X fetch origin",
-"mask_quotes_pre": "git --config-env remote.origin.url=X fetch origin",
-"mask_quotes_raw": "git --config-env remote.origin.url=X fetch origin",
+"input": "git --config-env remote.origin.url=X fetch",
+"mask_quotes_pre": "git --config-env remote.origin.url=X fetch",
+"mask_quotes_raw": "git --config-env remote.origin.url=X fetch",
 "preprocess": {
 "bodies": [],
 "extras": [],
-"text": "git --config-env remote.origin.url=X fetch origin"
+"text": "git --config-env remote.origin.url=X fetch"
 },
 "preprocess_fold": {
 "bodies": [],
 "extras": [],
-"text": "git --config-env remote.origin.url=X fetch origin"
+"text": "git --config-env remote.origin.url=X fetch"
 },
 "segments_pre": [
 [
 0,
-49,
+42,
 [
 "git",
 "--config-env",
 "remote.origin.url=X",
-"fetch",
-"origin"
+"fetch"
 ]
 ]
 ],
 "segments_raw": [
 [
 0,
-49,
+42,
 [
 "git",
 "--config-env",
 "remote.origin.url=X",
-"fetch",
-"origin"
+"fetch"
 ]
 ]
 ],
