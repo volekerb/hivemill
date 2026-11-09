@@ -14714,7 +14714,8 @@ def cmd_tick(a, locked=False):
                             pane_text = tail.get("text")
                             if pane_text is None:
                                 pane_text = tail.get("raw")
-                        if tail is not None and pane_text is not None and not has_unsent_input(pane_text):
+                        if (tail is not None and pane_text is not None and not has_unsent_input(pane_text)
+                                and classify_dialog(pane_text)[0] == "unknown"):
                             kinds = ",".join(sorted({m["kind"] for m in qualifying}))
                             oldest = qualifying[0]
                             age_min = int((clock - _ts(oldest["created"]).timestamp()) // 60)

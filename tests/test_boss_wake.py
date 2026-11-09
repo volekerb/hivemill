@@ -7,6 +7,7 @@ import unittest
 from unittest import mock
 
 from harness import FACTORY, FactoryTestCase
+from test_auto_clear import PERM, WARN
 
 T0 = dt.datetime(2026, 6, 1, 12, 0, 0, tzinfo=dt.timezone.utc)
 BOSS = "boss"
@@ -42,6 +43,9 @@ class BossWakeBase(FactoryTestCase):
     def prompts(self):
         return [c["argv"] for c in self.env.calls("herdr")
                 if c["argv"][:2] == ["agent", "prompt"] and len(c["argv"]) > 2 and c["argv"][2] == BOSS]
+
+    def send_keys(self):
+        return [c["argv"] for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "send-keys"]]
 
     def wake_events(self):
         return self.env.sql("SELECT detail, action FROM events WHERE entity='agent' AND entity_id=? AND action='boss-wake'",
@@ -115,6 +119,28 @@ class BossWakeTests(BossWakeBase):
         self.tick()
         self.assertEqual(len(self.prompts()), 1)
         self.assertIn("[request]", self.prompts()[0][3])
+
+    def test_permission_dialog_no_wake(self):
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name=?", ('{"runtime":"cursor"}', BOSS))
+        self.mail("request", 16)
+        self.env.set_herdr(agents=[{"name": BOSS, "pane_id": PANE, "agent_status": "idle",
+                                    "agent_session": {"value": "s-boss"}}],
+                           read_text={BOSS: PERM})
+        self.tick()
+        self.assertEqual(self.prompts(), [])
+        self.assertEqual(self.send_keys(), [])
+        self.assertEqual(self.wake_events(), [])
+
+    def test_settings_warning_no_wake(self):
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name=?", ('{"runtime":"cursor"}', BOSS))
+        self.mail("escalation", 16)
+        self.env.set_herdr(agents=[{"name": BOSS, "pane_id": PANE, "agent_status": "idle",
+                                    "agent_session": {"value": "s-boss"}}],
+                           read_text={BOSS: WARN})
+        self.tick()
+        self.assertEqual(self.prompts(), [])
+        self.assertEqual(self.send_keys(), [])
+        self.assertEqual(self.wake_events(), [])
 
 
 class BossWakeUnreadable(FactoryTestCase):
