@@ -51,6 +51,7 @@ class RetroGuardTests(unittest.TestCase):
         for cmd in (
             "factory retro packet",
             "factory whoami",
+            "factory inbox",
             "factory done x",
             "git log -1",
             "git diff",
