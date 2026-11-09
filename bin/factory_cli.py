@@ -14823,7 +14823,7 @@ def _live_origin_url_from_file(repo):
     if not cfg_path.is_file():
         return ""
     try:
-        p = subprocess.run(["git", "config", "--file", str(cfg_path), "remote.origin.url"], capture_output=True,
+        p = subprocess.run(git_argv(repo, "config", "--file", str(cfg_path), "remote.origin.url"), capture_output=True,
                              text=True, timeout=30, env={**os.environ, "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0"})
         return p.stdout.strip() if p.returncode == 0 else ""
     except (OSError, subprocess.SubprocessError):
@@ -14885,7 +14885,7 @@ def tick_live_checkout_heal(con):
         else:
             cfg_path = live / ".git" / "config"
             try:
-                p = subprocess.run(["git", "config", "--file", str(cfg_path), "remote.origin.url", want],
+                p = subprocess.run(git_argv(repo, "config", "--file", str(cfg_path), "remote.origin.url", want),
                                    capture_output=True, text=True, timeout=30,
                                    env={**os.environ, "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0"})
             except (OSError, subprocess.SubprocessError) as e:
