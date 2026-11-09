@@ -1605,7 +1605,10 @@ class Analyzer:
         if self.role == "evaluator":
             self.evaluator_factory(sub, nonopt, assigns)
         if self.role == RETRO:
-            self.retro_factory(sub, nonopt, assigns)
+            try:
+                self.retro_factory(sub, nonopt, assigns)
+            except AttributeError:
+                pass
         if self.role in ("coder", "qa") and not self.hq and sub == "init" \
                 and not self.scratch_homes(assigns):
             raise Block(f"workers may run `factory init` only with HOME and FACTORY_HOME both "
