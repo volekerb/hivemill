@@ -26,6 +26,22 @@
    "doc": ""
   },
   {
+   "key": "boss_wake_after_s",
+   "kind": "setting",
+   "default": "900",
+   "summary": "boss tick wake: unread escalation/request must be at least this old",
+   "goal": "G-036",
+   "doc": ""
+  },
+  {
+   "key": "boss_wake_cooldown_s",
+   "kind": "setting",
+   "default": "1800",
+   "summary": "seconds between boss tick wakes (last_nudge)",
+   "goal": "G-036",
+   "doc": ""
+  },
+  {
    "key": "ci_wake_workers",
    "kind": "setting",
    "default": "4",
@@ -438,22 +454,6 @@
    "default": "120",
    "summary": "seconds between nudges of one agent",
    "goal": "",
-   "doc": ""
-  },
-  {
-   "key": "boss_wake_after_s",
-   "kind": "setting",
-   "default": "900",
-   "summary": "boss tick wake: unread escalation/request must be at least this old",
-   "goal": "G-036",
-   "doc": ""
-  },
-  {
-   "key": "boss_wake_cooldown_s",
-   "kind": "setting",
-   "default": "1800",
-   "summary": "seconds between boss tick wakes (last_nudge)",
-   "goal": "G-036",
    "doc": ""
   },
   {
