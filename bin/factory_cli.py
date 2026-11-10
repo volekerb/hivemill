@@ -2624,7 +2624,11 @@ def config_check_all(con):
     """[(key, message)] for every live config value the set path would refuse."""
     bad = []
     for k in DEFAULT_CONFIG:
-        _, err = _config_trap(_config_value_rules, k, cfg(con, k))
+        v = cfg(con, k)
+        if v is None:  # a NULL row; the set path can never store one
+            bad.append((k, f"{k} is NULL: fix it with `factory config {k} <value>`"))
+            continue
+        _, err = _config_trap(_config_value_rules, k, v)
         if err:
             bad.append((k, err[0]))
     return bad

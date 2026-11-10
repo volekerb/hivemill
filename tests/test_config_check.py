@@ -43,6 +43,16 @@ class ConfigCheck(FactoryTestCase):
         self.assertIn("guard_impl", r.stdout)
         self.assertIn("task_clones: task_clones must be 0 or 1, not '7'", r.stdout)  # does not stop at the first bad key
 
+    def test_check_null_stored_value(self):
+        # the schema says NOT NULL, so model a damaged DB: rebuild the table without the constraint
+        self.db_exec("DROP TABLE config")
+        self.db_exec("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)")
+        self.db_exec("INSERT INTO config(key,value) VALUES('guard_impl',NULL)")
+        r = self.env.run("config", "--check")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("guard_impl: guard_impl is NULL", r.stdout)
+        self.assertNotIn("Traceback", r.stderr)
+
     def test_set_path_unchanged(self):
         r = self.env.run("config", "guard_impl", "bogus", agent="claude-director")
         self.assertEqual(r.returncode, 2)
