@@ -66,6 +66,12 @@ class LegacyCase(FactoryTestCase):
             Path(str(self.new) + ext).unlink(missing_ok=True)
         self.new.parent.rmdir()
         fill_every_table(self.legacy)
+        # the tick starts the daily retro agent once the local hour is >= retro_hour (6): that spawn writes the
+        # hq_workspace config key, so the counts below depended on the wall clock. These tests are not about retro.
+        con = sqlite3.connect(self.legacy)
+        con.execute("UPDATE config SET value='0' WHERE key='retro_enabled'")
+        con.commit()
+        con.close()
 
     def events(self, action, path=None):
         con = sqlite3.connect(path or self.new)
