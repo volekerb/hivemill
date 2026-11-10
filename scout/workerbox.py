@@ -270,6 +270,91 @@ def _seed_claude_json(config_dir, cwd):
     _atomic_write(config_dir, ".claude.json", (json.dumps(cur, indent=1) + "\n").encode(), 0o600)
 
 
+def clone_path_refusal(path, worktrees):
+    """None when `path` may carry a pre-registered trust entry, else the reason: it must lie strictly under the
+    worktrees/ directory (by realpath), not be worktrees/ itself, and have no symlink in any component."""
+    try:
+        path, worktrees = os.path.abspath(str(path)), os.path.abspath(str(worktrees))
+        if os.path.realpath(worktrees) != worktrees:
+            return "worktrees/ itself is or sits behind a symlink"
+        if os.path.realpath(path) != path:
+            return "the clone path has a symlink component"
+    except (OSError, ValueError) as e:
+        return f"path unreadable: {e}"
+    if path == worktrees or not path.startswith(worktrees + os.sep):
+        return "the clone path is not under worktrees/"
+    return None
+
+
+def _read_owner_json(home):
+    """(raw bytes, (ino, mtime_ns, size), parsed dict) of <home>/.claude.json; ValueError (with the reason) when it is
+    missing, a symlink, not a regular file, not ours, too large, not valid JSON or not an object. Never followed."""
+    path = os.path.join(home, ".claude.json")
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        raise ValueError(f"{path} is missing") from None
+    except OSError as e:
+        raise ValueError(f"{path} is unreadable or a symlink: {e.strerror}") from None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise ValueError(f"{path} is not a regular file")
+        if st.st_uid != os.getuid():
+            raise ValueError(f"{path} is not owned by uid {os.getuid()}")
+        with os.fdopen(fd, "rb", closefd=False) as f:
+            raw = f.read(CLAUDE_JSON_MAX + 1)
+    finally:
+        os.close(fd)
+    if len(raw) > CLAUDE_JSON_MAX:
+        raise ValueError(f"{path} is larger than {CLAUDE_JSON_MAX} bytes")
+    try:
+        cur = json.loads(raw)
+    except ValueError:
+        raise ValueError(f"{path} is not valid JSON") from None
+    if not isinstance(cur, dict) or not isinstance(cur.get("projects", {}), dict):
+        raise ValueError(f"{path} is not a JSON object with a projects object")
+    return (st.st_ino, st.st_mtime_ns, st.st_size), cur
+
+
+def _edit_owner_projects(home, key, add):
+    """Add (add=True, only when missing) or remove (only when present) projects[key] in <home>/.claude.json, merged onto
+    a fresh read and written via temp + rename at mode 0600. A file changed between read and write is re-read once, then
+    given up. Returns "added" | "removed" | "unchanged"; ValueError with the reason when nothing may be written."""
+    path = os.path.join(home, ".claude.json")
+    for _ in range(2):
+        ident, cur = _read_owner_json(home)
+        projects = cur.get("projects", {})
+        if (key in projects) == add:
+            return "unchanged"
+        if add:
+            cur.setdefault("projects", {})[key] = dict(PROJECT_SEED)
+        else:
+            del projects[key]
+        try:
+            st = os.lstat(path)
+        except OSError as e:
+            raise ValueError(f"{path} vanished: {e.strerror}") from None
+        if (st.st_ino, st.st_mtime_ns, st.st_size) != ident:
+            continue  # a live Claude process rewrote it since our read: merge onto the new content
+        _atomic_write(home, ".claude.json", (json.dumps(cur, indent=1) + "\n").encode(), 0o600)
+        return "added" if add else "removed"
+    raise ValueError(f"{path} changed twice while editing; the dialog may show once")
+
+
+def set_clone_trust(home, worktrees, clone, add=True):
+    """Pre-register (add) or drop workspace trust for one factory clone in the owner's ~/.claude.json (T-1220). Scope
+    first: refused unless the clone is strictly under `worktrees` with no symlink. Returns ("added"|"removed"|"unchanged",
+    None) or ("refused", reason); never raises for those, never touches another key."""
+    why = clone_path_refusal(clone, worktrees)
+    if why:
+        return "refused", why
+    try:
+        return _edit_owner_projects(home, os.path.abspath(str(clone)), add), None
+    except ValueError as e:
+        return "refused", str(e)
+
+
 def check_cwd(agent, cwd, factory_home, *, home=None, token_dir=None, workers_root=None, runtime=None, hide_extra=(), research_root=None):
     """The cwd rule of prepare_agent, alone: no side effects. Raises ValueError("cwd ...") for a refused cwd.
     HQ's preflight calls it so a refusal comes before any pane is touched."""
