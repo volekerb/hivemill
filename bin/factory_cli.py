@@ -9903,6 +9903,16 @@ def _write_cursor_start_log(name, pane, start_err, env):
         if proc is not None:
             blob = (json.dumps(proc, indent=2, sort_keys=True) if isinstance(proc, dict) else str(proc))
             parts.append("=== herdr pane process-info ===\n" + _redact_cursor_start_text(blob, env) + "\n")
+        read_result = herdr("pane", "read", pane, "--source", "recent", check=False)
+        if read_result is None:
+            read_body = "pane read unavailable"
+        elif isinstance(read_result, dict):
+            read_body = read_result.get("text") or read_result.get("raw") or str(read_result)
+        else:
+            read_body = str(read_result)
+        if not read_body:
+            read_body = "pane read unavailable"
+        parts.append("=== herdr pane read ===\n" + _redact_cursor_start_text(read_body, env) + "\n")
     if not parts:
         return
     path = cursor_start_log_path(name)
@@ -10019,11 +10029,6 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
                 "spawn_args=excluded.spawn_args, started=excluded.started, ended=NULL, summary=NULL, blocked_since=NULL, blocked_alerted=0, "
                 "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL, start_pending=NULL, start_pending_info=NULL",
                 (name, role, goal, team, task, "live", pane, ws, tab, model, sid, cwd, json.dumps(args), now()))
-    if role == "lead" and team:
-        con.execute("UPDATE teams SET lead_agent=?, tab_id=?, parked_at=NULL WHERE id=?", (name, tab, team))
-    if task and role == "coder":
-        con.execute("UPDATE tasks SET assignee=?, updated=? WHERE id=?", (name, now(), task))
-    task_auto_start(con, task, f"spawn {name}", role)
     start_args = ("agent", "start", name, "--kind", plan.herdr_kind, "--pane", pane, "--timeout", "90000",
                   "--", *plan.argv)
     global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME
@@ -10036,6 +10041,14 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     if r is None:
         event(con, "agent", name, "start-uncertain", {"pane": pane, "runtime": runtime, "kind": plan.herdr_kind})
         _write_cursor_start_log(name, pane, start_err, env)
+        con.execute("UPDATE agents SET status='exited', ended=? WHERE name=? AND status='live'", (now(), name))
+        log_path = cursor_start_log_path(name)
+        die(f"cursor start failed for {name}; agent row not left live. Start log: {log_path}", 3)
+    if role == "lead" and team:
+        con.execute("UPDATE teams SET lead_agent=?, tab_id=?, parked_at=NULL WHERE id=?", (name, tab, team))
+    if task and role == "coder":
+        con.execute("UPDATE tasks SET assignee=?, updated=? WHERE id=?", (name, now(), task))
+    task_auto_start(con, task, f"spawn {name}", role)
     if not hc_back:
         herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
               f"{role}·{task or team or goal or 'hq'}"[:28], check=False)
