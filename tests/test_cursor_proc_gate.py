@@ -40,7 +40,7 @@ def fake_cursor(env, pid, workspace, ppid=1, binary="cursor-agent"):
 
 
 def cursor_workspace(env, name):
-    return env.home_dir / "run" / "cursor" / name
+    return env.user_home / ".local" / "state" / "factory" / "cursor" / name
 
 
 def write_cursor_hooks(workspace, role="coder", ok=True):

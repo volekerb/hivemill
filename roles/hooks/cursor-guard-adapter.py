@@ -16,6 +16,7 @@ This adapter is the pilot bridge. It does not weaken worker-guard rules.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import subprocess
@@ -142,11 +143,34 @@ def run_guard(payload: dict, role: str | None, hq: bool) -> subprocess.Completed
     )
 
 
+_LOG_ROLE: str | None = None
+
+
+def log_decision(event: str, allow: bool, role: str | None = None) -> None:
+    """Append {ts, agent, role, event, decision} to FACTORY_CURSOR_HOOK_LOG. Never raises, never logs command text."""
+    try:
+        path = os.environ.get("FACTORY_CURSOR_HOOK_LOG")
+        if not path:
+            return
+        rec = {
+            "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            "agent": os.environ.get("FACTORY_AGENT", ""),
+            "role": role or os.environ.get("FACTORY_ROLE", ""),
+            "event": event,
+            "decision": "allow" if allow else "deny",
+        }
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec) + "\n")
+    except Exception:  # logging must never change the decision or exit code
+        pass
+
+
 def emit_cursor_decision(event: str, allow: bool, reason: str) -> int:
     """Print Cursor hook JSON. Always exit 0 after a valid decision body (deny is in JSON).
 
     Fail-closed callers should set failClosed:true so a crash/timeout still blocks.
     """
+    log_decision(event, allow, _LOG_ROLE)
     if allow:
         print(json.dumps({"permission": "allow"}))
         return 0
@@ -167,6 +191,8 @@ def main(argv: list[str] | None = None) -> int:
         help="beforeShellExecution|beforeMCPExecution|preToolUse (else read hook_event_name from stdin JSON)",
     )
     args = p.parse_args(argv)
+    global _LOG_ROLE
+    _LOG_ROLE = args.role
 
     try:
         data = json.load(sys.stdin)

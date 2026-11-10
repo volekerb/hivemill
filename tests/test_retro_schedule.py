@@ -48,7 +48,7 @@ class RetroScheduleTests(FactoryTestCase):
         self.assertEqual(row["org"], "cursor")
         (run,) = self.runs()
         self.assertEqual((run["day"], run["status"]), (D, "running"))
-        hooks = self.env.home_dir / "run" / "cursor" / "cursor-retro" / ".cursor" / "hooks.json"
+        hooks = self.env.user_home / ".local" / "state" / "factory" / "cursor" / "cursor-retro" / ".cursor" / "hooks.json"
         self.assertTrue(hooks.is_file(), hooks)
         text = hooks.read_text()
         self.assertIn("cursor-guard-adapter.py", text)

@@ -1,4 +1,4 @@
-"""T-0822: Cursor policy materializes under run/cursor/<agent>; shared checkout and --add-dir roots stay clean."""
+"""T-0822: Cursor policy materializes under STATE/factory/cursor/<agent>; shared checkout and --add-dir roots stay clean."""
 import importlib
 import json
 import os
@@ -58,7 +58,7 @@ class CursorSpawnWorkspaceTests(FactoryTestCase):
         agent_argv = argv[dash + 1:]
         self.assertIn("--workspace", agent_argv)
         ws = Path(agent_argv[agent_argv.index("--workspace") + 1])
-        self.assertTrue(str(ws).endswith(f"/run/cursor/{name}"))
+        self.assertTrue(str(ws).endswith(f"/state/factory/cursor/{name}"))
         self.assertIn("--add-dir", agent_argv)
         home = self.env.home_dir
         self.assertFalse((home / ".cursor").exists())
@@ -73,7 +73,9 @@ class CursorSpawnWorkspaceTests(FactoryTestCase):
         h = load_harness()
         settings = {"permissions": {"deny": [], "allow": []}}
         home = self.env.home_dir
-        ws = h.isolated_policy_dir(home, "zz-cursor-remat")
+        state = self.env.user_home / ".local" / "state"
+        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(state)}):
+            ws = h.isolated_policy_dir(home, "zz-cursor-remat")
         hooks = ws / ".cursor" / "hooks.json"
         h.materialize_cursor_policy(
             ws, "lead", hooks_dir=HOOKS, claude_settings=settings, system_prompt="# lead\n",
@@ -86,7 +88,7 @@ class CursorSpawnWorkspaceTests(FactoryTestCase):
             hq=True, factory_home=home,
         )
         self.assertGreaterEqual(hooks.stat().st_mtime, mtime1)
-        self.assertEqual(len(list((home / "run" / "cursor").glob("zz-cursor-remat"))), 1)
+        self.assertEqual(len(list((state / "factory" / "cursor").glob("zz-cursor-remat"))), 1)
 
     def test_claude_pm_unchanged_when_runtimes_empty(self):
         self.ok("config", "agent_runtimes", "", agent="zz-test-director")
@@ -132,7 +134,7 @@ class AddDirLeakSpawnTests(FactoryTestCase):
             agent_argv = argv[dash + 1:]
             self.assertIn("--workspace", agent_argv)
             ws = Path(agent_argv[agent_argv.index("--workspace") + 1])
-            self.assertTrue(str(ws).startswith(str(self.env.home_dir / "run" / "cursor")))
+            self.assertTrue(str(ws).startswith(str(self.env.user_home / ".local" / "state" / "factory" / "cursor")))
             add_dirs = [agent_argv[i + 1] for i, x in enumerate(agent_argv) if x == "--add-dir"]
             for d in add_dirs:
                 p = Path(d).resolve()

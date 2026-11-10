@@ -148,9 +148,44 @@ def is_factory_worktree_path(home: Path | str, path: Path | str) -> bool:
     return True
 
 
+def state_root() -> Path:
+    """XDG state dir (env XDG_STATE_HOME, else ~/.local/state)."""
+    xdg = os.environ.get("XDG_STATE_HOME")
+    return Path(xdg) if xdg else Path.home() / ".local" / "state"
+
+
+def nearest_git_holder(path: Path | str) -> Path | None:
+    """Nearest directory (path itself or an ancestor) holding a .git file or dir; None when none.
+
+    Pure filesystem walk, no git subprocess."""
+    p = Path(path).resolve()
+    for d in (p, *p.parents):
+        if (d / ".git").exists() or (d / ".git").is_symlink():
+            return d
+    return None
+
+
+def inside_git_worktree(path: Path | str) -> bool:
+    """True when path or any ancestor has a .git (Cursor would resolve the project to that top level)."""
+    return nearest_git_holder(path) is not None
+
+
+def _is_under(path: Path, root: Path) -> bool:
+    return path == root or root in path.parents
+
+
 def isolated_policy_dir(home: Path | str, name: str) -> Path:
-    """run/cursor/<agent name>/ (0700): per-agent policy; never inside a task worktree."""
-    ws = Path(home).resolve() / "run" / "cursor" / name
+    """STATE/factory/cursor/<agent name>/ (0700): per-agent policy, outside every git work tree.
+
+    Cursor resolves the project to the git top level and loads hooks from there, so the dir must not
+    sit inside FACTORY_HOME (a git work tree) or any task worktree."""
+    home_r = Path(home).resolve()
+    ws = (state_root() / "factory" / "cursor" / name).resolve()
+    if _is_under(ws, home_r) or inside_git_worktree(ws):
+        raise ValueError(
+            f"cursor policy dir {ws} is inside a git work tree or FACTORY_HOME; Cursor would not load its hooks. "
+            "Set XDG_STATE_HOME to a directory outside every git work tree (default ~/.local/state)."
+        )
     ws.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(ws, 0o700)
     return ws
@@ -178,19 +213,16 @@ def assert_policy_target_allowed(home: Path | str, target: Path | str) -> None:
             f"cursor policy must not be written into a factory worktree ({path_r}); "
             f"use policy_workspace() and --add-dir for the task tree"
         )
-    if path_r == home_r:
+    if _is_under(path_r, home_r):
         raise ValueError(
-            f"cursor policy must not be written into FACTORY_HOME ({path_r}); "
-            f"use run/cursor/<agent> via policy_workspace()"
+            f"cursor policy must not be written under FACTORY_HOME ({path_r}); "
+            f"use STATE/factory/cursor/<agent> via policy_workspace() (XDG_STATE_HOME)"
         )
-    try:
-        rel = path_r.relative_to(home_r)
-    except ValueError:
-        return
-    parts = rel.parts
-    if len(parts) < 3 or parts[0] != "run" or parts[1] != "cursor":
+    holder = nearest_git_holder(path_r)
+    if holder is not None:
         raise ValueError(
-            f"cursor policy must not be written under FACTORY_HOME outside run/cursor/<agent> ({path_r})"
+            f"cursor policy must not be written inside a git work tree ({path_r}, git root {holder}); "
+            "Cursor would load hooks from the git top level instead. Use a dir outside it (XDG_STATE_HOME)"
         )
 
 
@@ -350,7 +382,7 @@ def works_needs_work() -> list[dict]:
         {"item": "Headless agent CLI installed", "status": "WORKS" if agent else "NEEDS_WORK",
          "detail": agent or "install: curl https://cursor.com/install | bash"},
         {"item": "Materialize .cursor/hooks.json + cli.json + role rule", "status": "WORKS",
-         "detail": "scout.cursor_harness.materialize_cursor_policy; HQ and worktrees → run/cursor/<name>"},
+         "detail": "scout.cursor_harness.materialize_cursor_policy; HQ and worktrees → STATE/factory/cursor/<name>"},
         {"item": "Shell gate via beforeShellExecution → worker-guard", "status": "WORKS",
          "detail": "cursor-guard-adapter.py; require failClosed:true"},
         {"item": "Write gate via preToolUse → worker-guard", "status": "WORKS",

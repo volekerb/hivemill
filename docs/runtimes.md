@@ -83,7 +83,7 @@ factory relaunch boss --fresh --force
 # workers: stop+respawn or wait for the next task cycle
 ```
 
-Each Cursor agent: `place()` → `herdr agent start --kind cursor` → policy in `run/cursor/<name>/` (HQ) or the worktree → `herdr agent prompt`.
+Each Cursor agent: `place()` → `herdr agent start --kind cursor` → policy in `$XDG_STATE_HOME/factory/cursor/<name>/` (HQ and task worktrees; see T-1252 below) → `herdr agent prompt`.
 
 Models: factory `MODELS` / `model_<role>` pass through to Cursor `--model`.
 
@@ -111,10 +111,18 @@ Models: factory `MODELS` / `model_<role>` pass through to Cursor `--model`.
 - Launch: `herdr --kind cursor`
 - Helpers: `factory cursor-pilot status|prepare|probe|run`
 - Research: `docs/research/cursor-harness.md`
-- Per-agent `.cursor/cli.json` under `run/cursor/<name>/` sets `attribution.attributeCommitsToAgent` and `attribution.attributePRsToAgent` to JSON `false` so the Cursor CLI does not add agent Co-authored-by trailers on commits or PRs. The worker-guard public-text rule is not loosened; those trailers and the Cursor agent attribution address remain refused on push (same as any other blocked public text).
+- Per-agent `.cursor/cli.json` under `$XDG_STATE_HOME/factory/cursor/<name>/` sets `attribution.attributeCommitsToAgent` and `attribution.attributePRsToAgent` to JSON `false` so the Cursor CLI does not add agent Co-authored-by trailers on commits or PRs. The worker-guard public-text rule is not loosened; those trailers and the Cursor agent attribution address remain refused on push (same as any other blocked public text).
 
 ## Safe claim wording
 
 **OK:** “Hivemill can run the factory org on Cursor Agent via `agent_runtimes=*=cursor` (herdr `--kind cursor`), with Claude still the default and skilleval on Claude. The UI shows both runtimes.”
 
 **Not OK yet:** “Cursor is bit-for-bit equivalent to Claude for skilleval / MCP strict / flagless audits.”
+
+### Cursor policy dir outside every git work tree (T-1252)
+
+Cursor CLI resolves the project to the git top level and loads `.cursor/hooks.json` from there. A policy dir inside `FACTORY_HOME` (a git work tree) was never read, so no guard hook ran. Policy now lives in `$XDG_STATE_HOME/factory/cursor/<name>/` (default `~/.local/state`, mode 0700), outside every git work tree.
+
+- `policy_workspace()` raises `ValueError` naming `XDG_STATE_HOME` when that dir would sit inside `FACTORY_HOME` or any git work tree. `assert_policy_target_allowed()` refuses any target inside a git work tree or `FACTORY_HOME`.
+- `cursor_hooks_ok()` (the flagless gate) is false for a workspace nested under a `.git` holder, so a pane still on the old `run/cursor/*` path is reported as flagless.
+- Each Cursor pane gets `FACTORY_CURSOR_HOOK_LOG=<workspace>/hook-events.jsonl`. The adapter appends one line `{ts, agent, role, event, decision}` per hook call (no command text). Write errors never change the decision or exit code. An empty log for a live pane means Cursor did not run the hooks.
