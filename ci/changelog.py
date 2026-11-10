@@ -47,7 +47,7 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [0.4.0] - 2026-11-10
 """
-# The previous release (tag v0.2.0); the generated list covers the commits after it. Update it with HEADER at each release.
+# The previous release (tag v0.3.0); the generated list covers the commits after it. Update it with HEADER at each release.
 SINCE = "318e55a1c"
 # Older releases sit below the generated lists of the newest one; each carries only its curated notes.
 OLDER = """
