@@ -562,6 +562,11 @@ def template_roles(top):
     return sorted(roles)
 
 
+def roles_for_all(top):
+    """Like template_roles, but for ``--roles all`` (T-1219: omit retro until the Go mirror lands)."""
+    return [r for r in template_roles(top) if r != "retro"]
+
+
 def go_candidate(top, go_bin, tmp):
     """Path of the Go candidate: --go-bin, or `go build` of go/cmd/worker-guard into tmp. Fails closed (UsageError)."""
     if go_bin:
@@ -632,7 +637,7 @@ def main(argv=None):
         if rel.startswith(".."):
             rel = DEFAULT_HOOK  # hook copy outside the repo (scratch experiment): compare with main's hook
         base_src = None if go else git(a.repo, "show", "--end-of-options", f"{a.base}:{rel}")
-        roles = template_roles(top) if a.roles else None
+        roles = roles_for_all(top) if a.roles else None
         cmds = []
         for path in a.corpus or [DEFAULT_CORPUS]:
             cmds += load_corpus(path)
