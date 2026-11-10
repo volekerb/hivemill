@@ -42,6 +42,14 @@
    "doc": ""
   },
   {
+   "key": "cap_fallback_offer",
+   "kind": "setting",
+   "default": "0",
+   "summary": "1 = at the Claude weekly cap the tick mails claude-boss one offer per goal to move it to cursor; never moves or spawns",
+   "goal": "G-038",
+   "doc": "docs/runtimes.md"
+  },
+  {
    "key": "ci_wake_workers",
    "kind": "setting",
    "default": "4",
