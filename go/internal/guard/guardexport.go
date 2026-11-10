@@ -10,8 +10,8 @@ import (
 )
 
 // The guard export (T-0767): bin/factory writes one plain JSON file every tick with the guard-relevant rows of the
-// factory DB, so the binary decides own_goal, git_push_pin, test_sandbox, public_text_repos / frozen_repos and
-// scrub_terms_file itself instead of re-running the Python hook. Go opens no sqlite (stdlib only).
+// factory DB, so the binary decides own_goal, git_push_pin, test_sandbox, public_text_repos / frozen_repos,
+// scrub_terms_file and factory_remote_url (T-1200) itself instead of re-running the Python hook. Go opens no sqlite (stdlib only).
 //
 //	<FACTORY_HOME>/run/guard-export.json   mode 0600, written atomically
 //	{"version":1, "generated_at":"<RFC 3339>", "config":{"public_text_repos":..,"frozen_repos":..,

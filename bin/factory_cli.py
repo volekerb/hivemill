@@ -15425,7 +15425,7 @@ def state_commit(msg, dump=True):
 
 
 GUARD_EXPORT_VERSION = 1
-GUARD_EXPORT_KEYS = ("public_text_repos", "frozen_repos", "scrub_terms_file", "test_sandbox")
+GUARD_EXPORT_KEYS = ("public_text_repos", "frozen_repos", "scrub_terms_file", "test_sandbox", "factory_remote_url")
 
 
 def write_guard_export(con, path=None):

@@ -572,11 +572,13 @@ func (a *Analyzer) gitDelete(rest []string) error {
 func (a *Analyzer) gitPersist(rest []string, depth int) error {
 	type aliasDef struct{ name, body string }
 	var aliases []aliasDef
+	var persistOpts []string
 	i := 0
 	cwd, cwdOK := a.ccwd, a.ccwdKnown
 	var gitDir, workTree *string
 	for i < len(rest) && strings.HasPrefix(rest[i], "-") {
 		o := rest[i]
+		rawTok := o
 		val, hasVal := "", false
 		if in(GitValueOpts, o) && i+1 < len(rest) {
 			val, hasVal, i = rest[i+1], true, i+2
@@ -598,22 +600,45 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 				}
 				aliases = append(aliases, aliasDef{name, b})
 			}
-		case o == "-C" && hasVal && cwdOK:
-			if dynamicDir(val) {
-				cwdOK = false
-			} else {
-				cwd = pyJoin(cwd, expandUser(val))
+		case o == "-C" && hasVal:
+			persistOpts = append(persistOpts, "-C", val)
+			if cwdOK {
+				if dynamicDir(val) {
+					cwdOK = false
+				} else {
+					cwd = pyJoin(cwd, expandUser(val))
+				}
 			}
-		case o == "--git-dir" && hasVal:
-			v := val
-			gitDir = &v
 		case o == "--git-dir":
-			gitDir = nil
-		case o == "--work-tree" && hasVal:
-			v := val
-			workTree = &v
+			if strings.Contains(rawTok, "=") {
+				persistOpts = append(persistOpts, rawTok)
+			} else {
+				persistOpts = append(persistOpts, "--git-dir")
+				if hasVal {
+					persistOpts = append(persistOpts, val)
+				}
+			}
+			if hasVal {
+				v := val
+				gitDir = &v
+			} else {
+				gitDir = nil
+			}
 		case o == "--work-tree":
-			workTree = nil
+			if strings.Contains(rawTok, "=") {
+				persistOpts = append(persistOpts, rawTok)
+			} else {
+				persistOpts = append(persistOpts, "--work-tree")
+				if hasVal {
+					persistOpts = append(persistOpts, val)
+				}
+			}
+			if hasVal {
+				v := val
+				workTree = &v
+			} else {
+				workTree = nil
+			}
 		}
 	}
 	for _, al := range aliases {
@@ -636,15 +661,25 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 			return blockf("cannot parse git alias (" + err.Error() + ")")
 		}
 		if len(words) > 0 && words[0] == "config" {
-			next := append(append([]string{"config"}, words[1:]...), used...)
+			next := append(append(append(persistOpts, "config"), words[1:]...), used...)
+			if err := a.gitPersist(next, depth); err != nil {
+				return err
+			}
+		} else if len(words) > 0 && words[0] == "remote" {
+			next := append(append(append(persistOpts, "remote"), words[1:]...), used...)
 			if err := a.gitPersist(next, depth); err != nil {
 				return err
 			}
 		}
 	}
 	if i < len(rest) && rest[i] == "remote" {
-		if i+1 < len(rest) && in(RemoteWrite, rest[i+1]) {
-			return a.repoCfgRefuse("git remote "+rest[i+1], cwd, cwdOK, gitDir, workTree, nil)
+		remoteArgs := rest[i+1:]
+		if !gitRemoteRead(remoteArgs) {
+			for _, sub := range remoteArgs {
+				if in(RemoteWrite, sub) {
+					return a.repoCfgRefuse("git remote "+sub, cwd, cwdOK, gitDir, workTree, nil)
+				}
+			}
 		}
 		return nil
 	}
@@ -727,6 +762,12 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 		}
 	}
 	a.ccwd, a.ccwdKnown = saved, savedOK
+	if configWorktreeScope(args) && usesLiveCommon(cwd, cwdOK, gitDir, workTree) {
+		if a.configTargetsLiveCommonFile(files, cwd, cwdOK, gitDir, workTree) {
+			return gitBlockf("`git config --file <common-dir>/config` write: " + repoCfgWhy)
+		}
+		return nil
+	}
 	if err := a.repoCfgRefuse("git config", cwd, cwdOK, gitDir, workTree, files); err != nil {
 		return err
 	}
@@ -781,6 +822,9 @@ func (a *Analyzer) repoCfgRefuse(what, cwd string, cwdOK bool, gitDir, workTree 
 		return why
 	}
 	if !cwdOK || hasGitDirEnv(a.text) {
+		return why
+	}
+	if isLiveGitCommon(gitCommonDir(cwd, cwdOK, gitDir, workTree)) {
 		return why
 	}
 	for _, opt := range []*string{gitDir, workTree} {
@@ -1121,6 +1165,9 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 			return blockf("git -c alias.<x>=...push/send-pack...: an alias can hide a push; coders push only " +
 				"`git push origin HEAD:factory/<task id>`")
 		}
+		if cv := gitPinConfigValue(rest[i], rest, i); cv != "" && reLiveRemoteCfg.MatchString(cv) {
+			return blockf("git -c remote.<name>.url=...: cannot override the shared origin for push (T-1200)")
+		}
 		if ce := gitPinConfigEnvKey(rest[i], rest, i); ce != "" && reGitAliasAssign.MatchString(ce) {
 			return blockf("git --config-env alias.<x>=<VAR>: the alias value comes from the environment and could be a push or send-pack; " +
 				"coders push only `git push origin HEAD:factory/<task id>`")
@@ -1152,12 +1199,18 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 	if !ok {
 		return blockf("git push: cannot tell this pane's task id (FACTORY_AGENT); ask your lead")
 	}
-	if len(args) != 2 || args[0] != "origin" || args[1] != "HEAD:factory/"+task {
+	fac, ferr := factoryRemoteURL()
+	if ferr != nil {
+		return ferr
+	}
+	ref := "HEAD:factory/" + task
+	pushOK := len(args) == 2 && args[1] == ref && (args[0] == "origin" || (fac != "" && normalizePushURL(args[0]) == normalizePushURL(fac)))
+	if !pushOK {
 		return blockf("coders push exactly `git push origin HEAD:factory/" + task + "` (no other remote, refspec, " +
 			"force, --all/--mirror/--tags/--delete or option)")
 	}
 	// fail closed: the whole Bash call must be the one push (optionally `-C <static path>`)
-	if _, _, ok := wholePush(strings.TrimFunc(a.text, pyIsSpace), task); !ok {
+	if _, _, ok := wholePush(strings.TrimFunc(a.text, pyIsSpace), task, fac); !ok {
 		return blockf("coders push exactly `git push origin HEAD:factory/" + task + "` as the whole command " +
 			"(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
 	}
@@ -1175,7 +1228,7 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 		return blockf("coders push exactly `git push origin HEAD:factory/" + task + "` from their own worktree " + own +
 			"; this pane is in " + cwd + ": cd back to your worktree")
 	}
-	if dir, hasDir, _ := wholePush(strings.TrimFunc(a.text, pyIsSpace), task); hasDir {
+	if dir, hasDir, _ := wholePush(strings.TrimFunc(a.text, pyIsSpace), task, fac); hasDir {
 		tgt := dir
 		if !strings.HasPrefix(dir, "/") {
 			tgt = pyJoin(a.Cwd, dir)
@@ -1233,8 +1286,8 @@ func coderTask(agent string) (string, bool) {
 	return "t-" + digits, true
 }
 
-// wholePush is re.fullmatch(r"(?:uv run (?:-- )?)?git(?: -C ([\w./-]+))? push origin HEAD:factory/<task>", text) (T-0880).
-func wholePush(text, task string) (dir string, hasDir, ok bool) {
+// wholePush matches the coder's one allowed push command (T-0880, T-1200 factory URL).
+func wholePush(text, task, fac string) (dir string, hasDir, ok bool) {
 	if r, found := strings.CutPrefix(text, "uv run "); found {
 		text = strings.TrimPrefix(r, "-- ")
 	}
@@ -1256,7 +1309,22 @@ func wholePush(text, task string) (dir string, hasDir, ok bool) {
 		}
 		dir, hasDir, rest = r[:j], true, r[j:]
 	}
-	return dir, hasDir, rest == " push origin HEAD:factory/"+task
+	rest, ok = strings.CutPrefix(rest, " push ")
+	if !ok {
+		return "", false, false
+	}
+	wantTail := " HEAD:factory/" + task
+	if !strings.HasSuffix(rest, wantTail) {
+		return "", false, false
+	}
+	remote := strings.TrimSuffix(rest, wantTail)
+	if remote == "origin" {
+		return dir, hasDir, true
+	}
+	if fac != "" && normalizePushURL(remote) == normalizePushURL(fac) {
+		return dir, hasDir, true
+	}
+	return "", false, false
 }
 
 // aliasAssign is re.match(r"(?i)alias\.[^=]+=", val); it returns val[6:].

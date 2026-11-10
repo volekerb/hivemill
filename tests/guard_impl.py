@@ -64,7 +64,8 @@ def normalize_go_stderr(text):
 # fixtures have a temp FACTORY_HOME with a DB and no export, so under go/diff hook_run seeds one (a small copy of the
 # CLI's write_guard_export; tests/test_guard_impl.py pins the constants to the real source).
 EXPORT_VERSION = 1
-EXPORT_DEFAULTS = {"public_text_repos": "", "frozen_repos": "", "scrub_terms_file": "", "test_sandbox": "0"}
+EXPORT_DEFAULTS = {"public_text_repos": "", "frozen_repos": "", "scrub_terms_file": "", "test_sandbox": "0",
+                   "factory_remote_url": ""}
 _seeded = {}  # export path -> bytes the seam last wrote there; any other content belongs to the test
 
 
