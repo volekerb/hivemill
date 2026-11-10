@@ -12762,7 +12762,7 @@ def cap_fallback_offer_tick(con):
         rows = con.execute(
             "SELECT g.id, g.title FROM goals g WHERE g.org='claude' AND g.status='active' AND g.priority IN (1,2) "
             "AND EXISTS (SELECT 1 FROM tasks t WHERE t.goal_id=g.id AND t.status='todo') "
-            "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.goal_id=g.id AND a.status IN ('live','starting')) ORDER BY g.id").fetchall()
+            "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.goal_id=g.id AND a.status IN ('live','starting','queued')) ORDER BY g.id").fetchall()
         for g in rows:
             key = CAP_OFFER_PREFIX + g["id"]
             if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
