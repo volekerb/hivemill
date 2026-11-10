@@ -83,7 +83,7 @@ class MetricsCols(unittest.TestCase):
 
     def test_wall_asc(self):
         ids, _, _ = self.order("wall", "asc")
-        self.assertEqual(ids[:3], ["T-5", "T-1", "T-2"])   # 30m, 1h, 2h; the open T-3 and T-4 (no merge event... T-4 has none) last
+        self.assertEqual(ids[:3], ["T-5", "T-1", "T-2"])   # 30m, 1h, 2h; T-3 and T-4 have no merge time and sort last
 
     def test_cursor_task_shows_na_and_never_zero(self):
         _, data, html = self.order("cost", "desc")

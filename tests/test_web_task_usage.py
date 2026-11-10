@@ -119,6 +119,26 @@ class TaskUsageTests(Base):
             self.assertIsNone(t[k])
         self.assertGreater(t["wall_s"], 0)
 
+    def test_unprefixed_agent_with_cursor_org_gets_cursor_row(self):
+        self.con.execute("ALTER TABLE agents ADD COLUMN org TEXT")
+        self.agent("plain-coder", "coder", "T-1", None, "2026-11-09T10:00:00+00:00", "2026-11-09T10:30:00+00:00")
+        self.con.execute("UPDATE agents SET org='cursor' WHERE name='plain-coder'")
+        _, _, u = self.usage([])
+        self.assertEqual([(r["agent"], r["runtime"], r["state"]) for r in u["rows"]],
+                         [("plain-coder", "cursor", "not_available")])
+        for k in ("input", "output", "cache_read", "cache_write", "cost"):
+            self.assertIsNone(u["rows"][0][k])
+
+    def test_rows_sort_by_parsed_start_across_offsets(self):
+        # 11:00+01:00 is 10:00Z, before 10:30Z, though the raw strings sort the other way
+        self.agent("a-late", "coder", "T-1", "s0", "2026-11-09T10:30:00Z")
+        self.agent("b-early", "qa", "T-1", "s1", "2026-11-09T11:00:00+01:00")
+        self.agent("c-none", "judge", "T-1", "s2", None)
+        self.agent("d-junk", "reviewer", "T-1", "s3", "not-a-time")
+        _, _, u = self.usage([row("s0"), row("s1"), row("s2"), row("s3")])
+        self.assertEqual([r["agent"] for r in u["rows"]][:2], ["b-early", "a-late"])
+        self.assertEqual({r["agent"] for r in u["rows"][2:]}, {"c-none", "d-junk"})
+
     def test_not_ready(self):
         s = snap([row("s0")], ready=False)
         u = task_usage(s, {}, self.con, "T-1", NOW)

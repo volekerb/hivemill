@@ -577,20 +577,29 @@ _TOKEN_KEYS = ("input", "output", "cache_read", "cache_write")
 
 
 def _usage_agents(con):
-    """name -> agent row (plus spawn_args when the table has it: the runtime of legacy unprefixed agents)."""
+    """name -> agent row (plus org and spawn_args when the table has them: the same inputs scout.orgs.of_agent uses)."""
     rows = {a["name"]: dict(a) for a in _agent_rows(con)}
-    try:
-        for r in con.execute("SELECT name, spawn_args FROM agents"):
+    for cols in ("name, org, spawn_args", "name, spawn_args"):   # an older schema lacks org; the prefix still decides
+        try:
+            extra = con.execute(f"SELECT {cols} FROM agents").fetchall()
+        except sqlite3.OperationalError:
+            continue
+        for r in extra:
             if r["name"] in rows:
-                rows[r["name"]]["spawn_args"] = r["spawn_args"]
-    except sqlite3.OperationalError:
-        pass    # an older schema without spawn_args: the name prefix still decides the org
+                rows[r["name"]].update({k: r[k] for k in r.keys() if k != "name"})
+        break
     return rows
 
 
 def _is_cursor(agent_row):
     from scout import orgs as _orgs
     return _orgs.of_agent(agent_row) == "cursor"
+
+
+def _start_key(agent):
+    """Sort key by the parsed, timezone-aware start; a missing or unparseable start sorts last."""
+    t = _parse_ts(agent["started"]) if agent and agent["started"] else None
+    return (0, t.timestamp()) if t else (1, 0.0)
 
 
 def _first_rejection(con, task_id):
@@ -619,6 +628,27 @@ def _usage_buckets(snapshot, attribution, keep):
         sess.setdefault(name, set()).add(r["session"])
     _finish({"x": by})
     return by, sess
+
+
+def _usage_buckets_multi(snapshot, attribution, task_ids, goal_id):
+    """One pass over the snapshot: {task id: (by, sess)} for `task_ids`, and None -> (by, sess) for the goal's
+    sessions without a task. Same buckets _usage_buckets gives per task."""
+    out = {}
+    for r in snapshot["rows"]:
+        a = attribution.get(r["session"]) or {"agent": None, "task": None, "goal": None}
+        if a["task"] in task_ids:
+            key = a["task"]
+        elif a["goal"] == goal_id and not a["task"]:
+            key = None
+        else:
+            continue
+        by, sess = out.setdefault(key, ({}, {}))
+        name = a["agent"] or "unattributed"
+        _add(by, name, r, cost(r["model"], r, "fast" if r["fast"] else None))
+        sess.setdefault(name, set()).add(r["session"])
+    for by, _ in out.values():
+        _finish({"x": by})
+    return out
 
 
 def _tokens(e):
@@ -670,8 +700,12 @@ def task_usage(snapshot, attribution, con, task_id, now=None):
         return {"state": NOT_READY, "task": task_id, "rows": [], "totals": None, "first_rejection": None}
     now = now or dt.datetime.now().astimezone()
     agents = _usage_agents(con)
-    rej = _first_rejection(con, task_id)
     by, sess = _usage_buckets(snapshot, attribution, lambda a: a["task"] == task_id)
+    return _task_usage(task_id, agents, by, sess, con, now)
+
+
+def _task_usage(task_id, agents, by, sess, con, now):
+    rej = _first_rejection(con, task_id)
     rows = []
     for name, e in by.items():
         a = agents.get(name)
@@ -685,7 +719,7 @@ def task_usage(snapshot, attribution, con, task_id, now=None):
         a = agents.get(r["agent"])
         start = _parse_ts(a["started"]) if a and a["started"] else None
         r["rework"] = bool(rej and start and start > rej and r["state"] == "ok")
-    rows.sort(key=lambda r: (agents[r["agent"]]["started"] or "") if r["agent"] in agents else "")
+    rows.sort(key=lambda r: _start_key(agents.get(r["agent"])))
     return {"state": "ok", "task": task_id, "rows": rows, "totals": _totals(rows),
             "first_rejection": rej.isoformat() if rej else None}
 
@@ -700,8 +734,10 @@ def goal_usage(snapshot, attribution, con, goal_id, now=None):
     agents = _usage_agents(con)
     ids = {a["task"] for a in attribution.values() if a["goal"] == goal_id and a["task"]}
     ids |= {a["task_id"] for a in agents.values() if a["goal_id"] == goal_id and a["task_id"]}
-    tasks = {t: task_usage(snapshot, attribution, con, t, now) for t in sorted(ids)}
-    by, sess = _usage_buckets(snapshot, attribution, lambda a: a["goal"] == goal_id and not a["task"])
+    buckets = _usage_buckets_multi(snapshot, attribution, ids, goal_id)    # one scan of the snapshot for all tasks
+    empty = ({}, {})
+    tasks = {t: _task_usage(t, agents, *buckets.get(t, empty), con, now) for t in sorted(ids)}
+    by, sess = buckets.get(None, empty)
     over = []
     for name, e in by.items():
         a = agents.get(name)
