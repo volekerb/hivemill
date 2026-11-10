@@ -332,6 +332,8 @@ class FactoryEnv:
         self.run("config", "digest_hour", "24")
         # nor may the tick start a scout in unrelated tests (tests/test_scout_schedule.py turns it on)
         self.run("config", "scout_enabled", "0")
+        # nor the daily retro (starts once the local hour >= retro_hour): tests/test_retro_schedule.py turns it on
+        self.run("config", "retro_enabled", "0")
         # the tick PR-probe cache and the GraphQL quota read are off in unrelated tests: they count gh calls per tick (tests/test_gh_quota.py turns them on)
         self.run("config", "pr_view_ttl_s", "0")
         self.run("config", "gh_quota_min", "0")
