@@ -110698,6 +110698,1919 @@
 "src": "corpus"
 },
 {
+"input": "git submodule foreach 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach 'git push origin main'",
+"mode": "quote",
+"quoted": "'git submodule foreach '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git submodule --quiet foreach 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"--quiet",
+"foreach",
+"git push origin main"
+]
+},
+{
+"input": "git submodule --quiet foreach 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"--quiet",
+"foreach",
+"git push origin main"
+]
+},
+{
+"input": "git submodule --quiet foreach 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"--quiet",
+"foreach",
+"git push origin main"
+]
+},
+{
+"input": "git submodule --quiet foreach 'git push origin main'",
+"mode": "quote",
+"quoted": "'git submodule --quiet foreach '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git submodule foreach --recursive 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach --recursive 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach --recursive 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach --recursive 'git push origin main'",
+"mode": "quote",
+"quoted": "'git submodule foreach --recursive '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git submodule foreach 'echo a && git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"echo a && git push origin main"
+]
+},
+{
+"input": "git submodule foreach 'echo a && git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"echo a && git push origin main"
+]
+},
+{
+"input": "git submodule foreach 'echo a && git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"echo a && git push origin main"
+]
+},
+{
+"input": "git submodule foreach 'echo a && git push origin main'",
+"mode": "quote",
+"quoted": "'git submodule foreach '\"'\"'echo a && git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git submodule foreach 'git push origin HEAD:factory/t-0908'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git push origin HEAD:factory/t-0908"
+]
+},
+{
+"input": "git submodule foreach 'git push origin HEAD:factory/t-0908'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git push origin HEAD:factory/t-0908"
+]
+},
+{
+"input": "git submodule foreach 'git push origin HEAD:factory/t-0908'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git push origin HEAD:factory/t-0908"
+]
+},
+{
+"input": "git submodule foreach 'git push origin HEAD:factory/t-0908'",
+"mode": "quote",
+"quoted": "'git submodule foreach '\"'\"'git push origin HEAD:factory/t-0908'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git submodule foreach -- 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"--",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach -- 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"--",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach -- 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"--",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach -- 'git push origin main'",
+"mode": "quote",
+"quoted": "'git submodule foreach -- '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git submodule foreach --recursive -- 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"--",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach --recursive -- 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"--",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach --recursive -- 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"--",
+"git push origin main"
+]
+},
+{
+"input": "git submodule foreach --recursive -- 'git push origin main'",
+"mode": "quote",
+"quoted": "'git submodule foreach --recursive -- '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git bisect run -- git push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"--",
+"git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git bisect run -- git push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"--",
+"git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git bisect run -- git push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"--",
+"git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git bisect run -- git push origin main",
+"mode": "quote",
+"quoted": "'git bisect run -- git push origin main'",
+"src": "corpus"
+},
+{
+"input": "git rebase -x 'git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -x '\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase -x'git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-xgit push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x'git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-xgit push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x'git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-xgit push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x'git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -x'\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase -ix 'git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-ix",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -ix 'git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-ix",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -ix 'git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-ix",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -ix 'git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -ix '\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase -i -x 'git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-i",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -i -x 'git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-i",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -i -x 'git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-i",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -i -x 'git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -i -x '\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase --exec 'git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec 'git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec 'git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec 'git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase --exec '\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase --exec='git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec=git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec='git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec=git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec='git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec=git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec='git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase --exec='\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase --exe='git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exe=git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exe='git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exe=git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exe='git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exe=git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exe='git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase --exe='\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase --exec 'echo a; git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec",
+"echo a; git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec 'echo a; git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec",
+"echo a; git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec 'echo a; git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec",
+"echo a; git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec 'echo a; git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase --exec '\"'\"'echo a; git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase -x 'git status' -x 'git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"git status",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'git status' -x 'git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"git status",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'git status' -x 'git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"git status",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'git status' -x 'git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -x '\"'\"'git status'\"'\"' -x '\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase -ix'git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-ixgit push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -ix'git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-ixgit push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -ix'git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-ixgit push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -ix'git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -ix'\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git bisect run git push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git bisect run git push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git bisect run git push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git bisect run git push origin main",
+"mode": "quote",
+"quoted": "'git bisect run git push origin main'",
+"src": "corpus"
+},
+{
+"input": "git bisect run bash -c 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"bash",
+"-c",
+"git push origin main"
+]
+},
+{
+"input": "git bisect run bash -c 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"bash",
+"-c",
+"git push origin main"
+]
+},
+{
+"input": "git bisect run bash -c 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"bash",
+"-c",
+"git push origin main"
+]
+},
+{
+"input": "git bisect run bash -c 'git push origin main'",
+"mode": "quote",
+"quoted": "'git bisect run bash -c '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git difftool -x 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x",
+"git push origin main"
+]
+},
+{
+"input": "git difftool -x 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x",
+"git push origin main"
+]
+},
+{
+"input": "git difftool -x 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x",
+"git push origin main"
+]
+},
+{
+"input": "git difftool -x 'git push origin main'",
+"mode": "quote",
+"quoted": "'git difftool -x '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git difftool -x'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-xgit push origin main"
+]
+},
+{
+"input": "git difftool -x'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-xgit push origin main"
+]
+},
+{
+"input": "git difftool -x'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-xgit push origin main"
+]
+},
+{
+"input": "git difftool -x'git push origin main'",
+"mode": "quote",
+"quoted": "'git difftool -x'\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git difftool -yx 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-yx",
+"git push origin main"
+]
+},
+{
+"input": "git difftool -yx 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-yx",
+"git push origin main"
+]
+},
+{
+"input": "git difftool -yx 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-yx",
+"git push origin main"
+]
+},
+{
+"input": "git difftool -yx 'git push origin main'",
+"mode": "quote",
+"quoted": "'git difftool -yx '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git difftool --extcmd='git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--extcmd=git push origin main"
+]
+},
+{
+"input": "git difftool --extcmd='git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--extcmd=git push origin main"
+]
+},
+{
+"input": "git difftool --extcmd='git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--extcmd=git push origin main"
+]
+},
+{
+"input": "git difftool --extcmd='git push origin main'",
+"mode": "quote",
+"quoted": "'git difftool --extcmd='\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git difftool --extcmd 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--extcmd",
+"git push origin main"
+]
+},
+{
+"input": "git difftool --extcmd 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--extcmd",
+"git push origin main"
+]
+},
+{
+"input": "git difftool --extcmd 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--extcmd",
+"git push origin main"
+]
+},
+{
+"input": "git difftool --extcmd 'git push origin main'",
+"mode": "quote",
+"quoted": "'git difftool --extcmd '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git difftool --ext='git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--ext=git push origin main"
+]
+},
+{
+"input": "git difftool --ext='git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--ext=git push origin main"
+]
+},
+{
+"input": "git difftool --ext='git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--ext=git push origin main"
+]
+},
+{
+"input": "git difftool --ext='git push origin main'",
+"mode": "quote",
+"quoted": "'git difftool --ext='\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git -C . submodule foreach 'git push origin main'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+".",
+"submodule",
+"foreach",
+"git push origin main"
+]
+},
+{
+"input": "git -C . submodule foreach 'git push origin main'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+".",
+"submodule",
+"foreach",
+"git push origin main"
+]
+},
+{
+"input": "git -C . submodule foreach 'git push origin main'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+".",
+"submodule",
+"foreach",
+"git push origin main"
+]
+},
+{
+"input": "git -C . submodule foreach 'git push origin main'",
+"mode": "quote",
+"quoted": "'git -C . submodule foreach '\"'\"'git push origin main'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git -c core.quotepath=off rebase -x 'git push origin main' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.quotepath=off",
+"rebase",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git -c core.quotepath=off rebase -x 'git push origin main' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.quotepath=off",
+"rebase",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git -c core.quotepath=off rebase -x 'git push origin main' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.quotepath=off",
+"rebase",
+"-x",
+"git push origin main",
+"HEAD~1"
+]
+},
+{
+"input": "git -c core.quotepath=off rebase -x 'git push origin main' HEAD~1",
+"mode": "quote",
+"quoted": "'git -c core.quotepath=off rebase -x '\"'\"'git push origin main'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "echo foreach 'git push origin main' | xargs git submodule",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"foreach",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"submodule"
+]
+},
+{
+"input": "echo foreach 'git push origin main' | xargs git submodule",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"foreach",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"submodule"
+]
+},
+{
+"input": "echo foreach 'git push origin main' | xargs git submodule",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"foreach",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"submodule"
+]
+},
+{
+"input": "echo foreach 'git push origin main' | xargs git submodule",
+"mode": "quote",
+"quoted": "'echo foreach '\"'\"'git push origin main'\"'\"' | xargs git submodule'",
+"src": "corpus"
+},
+{
+"input": "echo 'git push origin main' | xargs git submodule foreach",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"submodule",
+"foreach"
+]
+},
+{
+"input": "echo 'git push origin main' | xargs git submodule foreach",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"submodule",
+"foreach"
+]
+},
+{
+"input": "echo 'git push origin main' | xargs git submodule foreach",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"submodule",
+"foreach"
+]
+},
+{
+"input": "echo 'git push origin main' | xargs git submodule foreach",
+"mode": "quote",
+"quoted": "'echo '\"'\"'git push origin main'\"'\"' | xargs git submodule foreach'",
+"src": "corpus"
+},
+{
+"input": "echo -x 'git push origin main' | xargs git rebase",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"-x",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"rebase"
+]
+},
+{
+"input": "echo -x 'git push origin main' | xargs git rebase",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"-x",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"rebase"
+]
+},
+{
+"input": "echo -x 'git push origin main' | xargs git rebase",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"-x",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"rebase"
+]
+},
+{
+"input": "echo -x 'git push origin main' | xargs git rebase",
+"mode": "quote",
+"quoted": "'echo -x '\"'\"'git push origin main'\"'\"' | xargs git rebase'",
+"src": "corpus"
+},
+{
+"input": "echo run git push origin main | xargs git bisect",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"run",
+"git",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"git",
+"bisect"
+]
+},
+{
+"input": "echo run git push origin main | xargs git bisect",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"run",
+"git",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"git",
+"bisect"
+]
+},
+{
+"input": "echo run git push origin main | xargs git bisect",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"run",
+"git",
+"push",
+"origin",
+"main",
+"|",
+"xargs",
+"git",
+"bisect"
+]
+},
+{
+"input": "echo run git push origin main | xargs git bisect",
+"mode": "quote",
+"quoted": "'echo run git push origin main | xargs git bisect'",
+"src": "corpus"
+},
+{
+"input": "echo -x 'git push origin main' | xargs git difftool",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"-x",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"difftool"
+]
+},
+{
+"input": "echo -x 'git push origin main' | xargs git difftool",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"-x",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"difftool"
+]
+},
+{
+"input": "echo -x 'git push origin main' | xargs git difftool",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"-x",
+"git push origin main",
+"|",
+"xargs",
+"git",
+"difftool"
+]
+},
+{
+"input": "echo -x 'git push origin main' | xargs git difftool",
+"mode": "quote",
+"quoted": "'echo -x '\"'\"'git push origin main'\"'\"' | xargs git difftool'",
+"src": "corpus"
+},
+{
+"input": "git submodule foreach \"$X\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"$X"
+]
+},
+{
+"input": "git submodule foreach \"$X\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"$X"
+]
+},
+{
+"input": "git submodule foreach \"$X\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"$X"
+]
+},
+{
+"input": "git submodule foreach \"$X\"",
+"mode": "quote",
+"quoted": "'git submodule foreach \"$X\"'",
+"src": "corpus"
+},
+{
+"input": "git rebase -x \"$X\" HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"$X",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x \"$X\" HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"$X",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x \"$X\" HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"$X",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x \"$X\" HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -x \"$X\" HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git bisect run \"$X\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"$X"
+]
+},
+{
+"input": "git bisect run \"$X\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"$X"
+]
+},
+{
+"input": "git bisect run \"$X\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"$X"
+]
+},
+{
+"input": "git bisect run \"$X\"",
+"mode": "quote",
+"quoted": "'git bisect run \"$X\"'",
+"src": "corpus"
+},
+{
+"input": "git difftool -x \"$X\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x",
+"$X"
+]
+},
+{
+"input": "git difftool -x \"$X\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x",
+"$X"
+]
+},
+{
+"input": "git difftool -x \"$X\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x",
+"$X"
+]
+},
+{
+"input": "git difftool -x \"$X\"",
+"mode": "quote",
+"quoted": "'git difftool -x \"$X\"'",
+"src": "corpus"
+},
+{
+"input": "git submodule $S",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"$S"
+]
+},
+{
+"input": "git submodule $S",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"$",
+"S"
+]
+},
+{
+"input": "git submodule $S",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"$S"
+]
+},
+{
+"input": "git submodule $S",
+"mode": "quote",
+"quoted": "'git submodule $S'",
+"src": "corpus"
+},
+{
+"input": "git bisect $S",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"$S"
+]
+},
+{
+"input": "git bisect $S",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"$",
+"S"
+]
+},
+{
+"input": "git bisect $S",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"$S"
+]
+},
+{
+"input": "git bisect $S",
+"mode": "quote",
+"quoted": "'git bisect $S'",
+"src": "corpus"
+},
+{
+"input": "git submodule foreach",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach"
+]
+},
+{
+"input": "git submodule foreach",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach"
+]
+},
+{
+"input": "git submodule foreach",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach"
+]
+},
+{
+"input": "git submodule foreach",
+"mode": "quote",
+"quoted": "'git submodule foreach'",
+"src": "corpus"
+},
+{
+"input": "git rebase -x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x"
+]
+},
+{
+"input": "git rebase -x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x"
+]
+},
+{
+"input": "git rebase -x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x"
+]
+},
+{
+"input": "git rebase -x",
+"mode": "quote",
+"quoted": "'git rebase -x'",
+"src": "corpus"
+},
+{
+"input": "git bisect run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run"
+]
+},
+{
+"input": "git bisect run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run"
+]
+},
+{
+"input": "git bisect run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run"
+]
+},
+{
+"input": "git bisect run",
+"mode": "quote",
+"quoted": "'git bisect run'",
+"src": "corpus"
+},
+{
+"input": "git difftool -x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x"
+]
+},
+{
+"input": "git difftool -x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x"
+]
+},
+{
+"input": "git difftool -x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x"
+]
+},
+{
+"input": "git difftool -x",
+"mode": "quote",
+"quoted": "'git difftool -x'",
+"src": "corpus"
+},
+{
+"input": "git rebase --exec",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec"
+]
+},
+{
+"input": "git rebase --exec",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec"
+]
+},
+{
+"input": "git rebase --exec",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec"
+]
+},
+{
+"input": "git rebase --exec",
+"mode": "quote",
+"quoted": "'git rebase --exec'",
+"src": "corpus"
+},
+{
+"input": "git rebase -x 'pytest -q' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"pytest -q",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'pytest -q' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"pytest -q",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'pytest -q' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"pytest -q",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'pytest -q' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -x '\"'\"'pytest -q'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git bisect run pytest -q",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"pytest",
+"-q"
+]
+},
+{
+"input": "git bisect run pytest -q",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"pytest",
+"-q"
+]
+},
+{
+"input": "git bisect run pytest -q",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"pytest",
+"-q"
+]
+},
+{
+"input": "git bisect run pytest -q",
+"mode": "quote",
+"quoted": "'git bisect run pytest -q'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -137867,6 +139780,765 @@
 "src": "corpus"
 },
 {
+"input": "git submodule foreach 'git status'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git status"
+]
+},
+{
+"input": "git submodule foreach 'git status'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git status"
+]
+},
+{
+"input": "git submodule foreach 'git status'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git status"
+]
+},
+{
+"input": "git submodule foreach 'git status'",
+"mode": "quote",
+"quoted": "'git submodule foreach '\"'\"'git status'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git submodule foreach ./x.sh",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"./x.sh"
+]
+},
+{
+"input": "git submodule foreach ./x.sh",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"./x.sh"
+]
+},
+{
+"input": "git submodule foreach ./x.sh",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"./x.sh"
+]
+},
+{
+"input": "git submodule foreach ./x.sh",
+"mode": "quote",
+"quoted": "'git submodule foreach ./x.sh'",
+"src": "corpus"
+},
+{
+"input": "git rebase -x 'pytest tests/test_x.py' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"pytest tests/test_x.py",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'pytest tests/test_x.py' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"pytest tests/test_x.py",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'pytest tests/test_x.py' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"pytest tests/test_x.py",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x 'pytest tests/test_x.py' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -x '\"'\"'pytest tests/test_x.py'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase -x ./x.sh HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"./x.sh",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x ./x.sh HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"./x.sh",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x ./x.sh HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"./x.sh",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x ./x.sh HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -x ./x.sh HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase -Xours origin/main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-Xours",
+"origin/main"
+]
+},
+{
+"input": "git rebase -Xours origin/main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-Xours",
+"origin/main"
+]
+},
+{
+"input": "git rebase -Xours origin/main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-Xours",
+"origin/main"
+]
+},
+{
+"input": "git rebase -Xours origin/main",
+"mode": "quote",
+"quoted": "'git rebase -Xours origin/main'",
+"src": "corpus"
+},
+{
+"input": "git rebase origin/main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"origin/main"
+]
+},
+{
+"input": "git rebase origin/main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"origin/main"
+]
+},
+{
+"input": "git rebase origin/main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"origin/main"
+]
+},
+{
+"input": "git rebase origin/main",
+"mode": "quote",
+"quoted": "'git rebase origin/main'",
+"src": "corpus"
+},
+{
+"input": "git rebase -sx origin/main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-sx",
+"origin/main"
+]
+},
+{
+"input": "git rebase -sx origin/main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-sx",
+"origin/main"
+]
+},
+{
+"input": "git rebase -sx origin/main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-sx",
+"origin/main"
+]
+},
+{
+"input": "git rebase -sx origin/main",
+"mode": "quote",
+"quoted": "'git rebase -sx origin/main'",
+"src": "corpus"
+},
+{
+"input": "git rebase -C4 origin/main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-C4",
+"origin/main"
+]
+},
+{
+"input": "git rebase -C4 origin/main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-C4",
+"origin/main"
+]
+},
+{
+"input": "git rebase -C4 origin/main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-C4",
+"origin/main"
+]
+},
+{
+"input": "git rebase -C4 origin/main",
+"mode": "quote",
+"quoted": "'git rebase -C4 origin/main'",
+"src": "corpus"
+},
+{
+"input": "git submodule update --init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"update",
+"--init"
+]
+},
+{
+"input": "git submodule update --init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"update",
+"--init"
+]
+},
+{
+"input": "git submodule update --init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"update",
+"--init"
+]
+},
+{
+"input": "git submodule update --init",
+"mode": "quote",
+"quoted": "'git submodule update --init'",
+"src": "corpus"
+},
+{
+"input": "git bisect start",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"start"
+]
+},
+{
+"input": "git bisect start",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"start"
+]
+},
+{
+"input": "git bisect start",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"start"
+]
+},
+{
+"input": "git bisect start",
+"mode": "quote",
+"quoted": "'git bisect start'",
+"src": "corpus"
+},
+{
+"input": "git bisect run pytest tests/test_x.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"pytest",
+"tests/test_x.py"
+]
+},
+{
+"input": "git bisect run pytest tests/test_x.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"pytest",
+"tests/test_x.py"
+]
+},
+{
+"input": "git bisect run pytest tests/test_x.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"pytest",
+"tests/test_x.py"
+]
+},
+{
+"input": "git bisect run pytest tests/test_x.py",
+"mode": "quote",
+"quoted": "'git bisect run pytest tests/test_x.py'",
+"src": "corpus"
+},
+{
+"input": "git bisect run ./x.sh",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"./x.sh"
+]
+},
+{
+"input": "git bisect run ./x.sh",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"./x.sh"
+]
+},
+{
+"input": "git bisect run ./x.sh",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"./x.sh"
+]
+},
+{
+"input": "git bisect run ./x.sh",
+"mode": "quote",
+"quoted": "'git bisect run ./x.sh'",
+"src": "corpus"
+},
+{
+"input": "git difftool --stat",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--stat"
+]
+},
+{
+"input": "git difftool --stat",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--stat"
+]
+},
+{
+"input": "git difftool --stat",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--stat"
+]
+},
+{
+"input": "git difftool --stat",
+"mode": "quote",
+"quoted": "'git difftool --stat'",
+"src": "corpus"
+},
+{
+"input": "git difftool --tool=vimdiff",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--tool=vimdiff"
+]
+},
+{
+"input": "git difftool --tool=vimdiff",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--tool=vimdiff"
+]
+},
+{
+"input": "git difftool --tool=vimdiff",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"--tool=vimdiff"
+]
+},
+{
+"input": "git difftool --tool=vimdiff",
+"mode": "quote",
+"quoted": "'git difftool --tool=vimdiff'",
+"src": "corpus"
+},
+{
+"input": "git difftool -x ./x.sh",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x",
+"./x.sh"
+]
+},
+{
+"input": "git difftool -x ./x.sh",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x",
+"./x.sh"
+]
+},
+{
+"input": "git difftool -x ./x.sh",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-x",
+"./x.sh"
+]
+},
+{
+"input": "git difftool -x ./x.sh",
+"mode": "quote",
+"quoted": "'git difftool -x ./x.sh'",
+"src": "corpus"
+},
+{
+"input": "git difftool -tx",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-tx"
+]
+},
+{
+"input": "git difftool -tx",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-tx"
+]
+},
+{
+"input": "git difftool -tx",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool",
+"-tx"
+]
+},
+{
+"input": "git difftool -tx",
+"mode": "quote",
+"quoted": "'git difftool -tx'",
+"src": "corpus"
+},
+{
+"input": "echo f | xargs git submodule update",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"f",
+"|",
+"xargs",
+"git",
+"submodule",
+"update"
+]
+},
+{
+"input": "echo f | xargs git submodule update",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"f",
+"|",
+"xargs",
+"git",
+"submodule",
+"update"
+]
+},
+{
+"input": "echo f | xargs git submodule update",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"f",
+"|",
+"xargs",
+"git",
+"submodule",
+"update"
+]
+},
+{
+"input": "echo f | xargs git submodule update",
+"mode": "quote",
+"quoted": "'echo f | xargs git submodule update'",
+"src": "corpus"
+},
+{
+"input": "echo f | xargs git bisect good",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"f",
+"|",
+"xargs",
+"git",
+"bisect",
+"good"
+]
+},
+{
+"input": "echo f | xargs git bisect good",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"f",
+"|",
+"xargs",
+"git",
+"bisect",
+"good"
+]
+},
+{
+"input": "echo f | xargs git bisect good",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"f",
+"|",
+"xargs",
+"git",
+"bisect",
+"good"
+]
+},
+{
+"input": "echo f | xargs git bisect good",
+"mode": "quote",
+"quoted": "'echo f | xargs git bisect good'",
+"src": "corpus"
+},
+{
+"input": "echo x | xargs git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"git",
+"status"
+]
+},
+{
+"input": "echo x | xargs git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"git",
+"status"
+]
+},
+{
+"input": "echo x | xargs git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"git",
+"status"
+]
+},
+{
+"input": "echo x | xargs git status",
+"mode": "quote",
+"quoted": "'echo x | xargs git status'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -141898,7 +144570,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3246,
+"corpus_commands": 3311,
 "edge_inputs": 123,
 "python": "3.13"
 }
