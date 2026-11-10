@@ -5,6 +5,7 @@ import os
 import stat
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from harness import FactoryTestCase
 from test_sandbox_spawn import prep
@@ -122,6 +123,35 @@ class CursorStartLogTests(FactoryTestCase):
         task_row = self.env.sql("SELECT status, attempts FROM tasks WHERE id='T-0001'")[0]
         self.assertEqual(task_row["status"], "todo")
         self.assertEqual(task_row["attempts"], 0)
+
+    def test_pane_read_unavailable_when_text_empty_or_missing(self):
+        name = "zz-pane-read-unavail-1247"
+        pane = "p-zz-1247"
+        log = self.env.home_dir / "logs" / f"{name}-cursor-start.log"
+        proc_info = {
+            "process_info": {"foreground_processes": [{"argv": ["zsh"], "cmdline": "zsh", "name": "zsh", "pid": 1}]},
+            "type": "pane_process_info",
+        }
+        cases = (("none", None), ("empty_text", {"text": ""}), ("empty_dict", {}))
+        for label, read_result in cases:
+            with self.subTest(label=label):
+                log.unlink(missing_ok=True)
+                with self.env.load_factory() as f:
+                    def fake_herdr(*args, check=False, **kwargs):
+                        if args[:2] == ("pane", "process-info"):
+                            return proc_info
+                        if args[:2] == ("pane", "read"):
+                            return read_result
+                        return None
+
+                    with mock.patch.object(f, "herdr", side_effect=fake_herdr):
+                        f._write_cursor_start_log(name, pane, "agent_not_ready", {})
+                text = log.read_text()
+                self.assertIn("=== herdr pane read ===", text)
+                marker = "=== herdr pane read ===\n"
+                section = text.split(marker, 1)[1].split("\n", 1)
+                self.assertEqual(section[0], "pane read unavailable")
+                self.assertNotIn("{'text': ''}", text.split(marker, 1)[1].split("\n", 1)[0])
 
     def test_successful_start_writes_no_log(self):
         self.env.set_herdr(start_fail=False)

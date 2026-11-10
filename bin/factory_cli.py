@@ -9907,7 +9907,12 @@ def _write_cursor_start_log(name, pane, start_err, env):
         if read_result is None:
             read_body = "pane read unavailable"
         elif isinstance(read_result, dict):
-            read_body = read_result.get("text") or read_result.get("raw") or str(read_result)
+            text_val = read_result.get("text")
+            if text_val:
+                read_body = text_val
+            else:
+                raw_val = read_result.get("raw")
+                read_body = raw_val if raw_val else ""
         else:
             read_body = str(read_result)
         if not read_body:
