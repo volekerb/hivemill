@@ -5,6 +5,7 @@ import os
 import sqlite3
 import sys
 import threading
+import time
 import unittest
 from unittest import mock
 
@@ -15,19 +16,37 @@ from scout import schedule  # noqa: E402
 
 D = "2026-10-26"
 PRIOR = "2026-10-25"
+TZ = "UTC"  # scout_slots and current_slot() use api.clock() / naive FACTORY_NOW as local time
 
 
 def at(hhmm, day=D):
     return f"{day}T{hhmm}:00"
 
 
+def now_env(now):
+    return {"FACTORY_NOW": now, "TZ": TZ}
+
+
+def _restore_tz(old):
+    if old is not None:
+        os.environ["TZ"] = old
+    else:
+        os.environ.pop("TZ", None)
+    time.tzset()
+
+
 class Base(FactoryTestCase):
     def setUp(self):
         super().setUp()
         self.ok("config", "scout_enabled", "1")
+        self.ok("config", "retro_enabled", "0")  # these tests own scout_tick, not retro_tick
+        old = os.environ.get("TZ")
+        os.environ["TZ"] = TZ
+        time.tzset()
+        self.addCleanup(_restore_tz, old)
 
     def tick(self, now, rc=0):
-        p = self.env.run("tick", extra_env={"FACTORY_NOW": now})
+        p = self.env.run("tick", extra_env=now_env(now))
         self.assertEqual(p.returncode, rc, f"tick {now}: rc={p.returncode}\n{p.stdout}\n{p.stderr}")
         return p
 
@@ -82,7 +101,7 @@ class SlotTests(Base):
         self.assertIn("started=", out)
 
     def test_two_connections_racing_for_one_slot_spawn_once(self):
-        with mock.patch.dict(os.environ, {"FACTORY_NOW": at("09:01")}), self.env.load_factory() as f:
+        with mock.patch.dict(os.environ, now_env(at("09:01"))), self.env.load_factory() as f:
             go, errors = threading.Barrier(2), []
             # two connections of their own: load_factory closes the ones f.db() hands out, from the main thread
             def connect():
@@ -280,7 +299,7 @@ class SlotTests(Base):
             calls.append(1)
             raise SystemExit(2)
 
-        with mock.patch.dict(os.environ, {"FACTORY_NOW": at("09:01")}), self.env.load_factory() as f:
+        with mock.patch.dict(os.environ, now_env(at("09:01"))), self.env.load_factory() as f:
             f.spawn = refuse
             f.scout_tick(f.db())
             f.scout_tick(f.db())
@@ -316,7 +335,7 @@ class BudgetTests(Base):
             con.execute("UPDATE agents SET status='stopped' WHERE name=?", (name,))
             return "stopped", None
 
-        with mock.patch.dict(os.environ, {"FACTORY_NOW": at("09:21")}), self.env.load_factory() as f:
+        with mock.patch.dict(os.environ, now_env(at("09:21"))), self.env.load_factory() as f:
             f.force_stop = fake
             f.scout_tick(f.db())
         self.assertEqual(calls, [("scout", "budget")])
@@ -338,7 +357,7 @@ class BudgetTests(Base):
         def failing(con, name, how, **kw):
             return "failed:close-failed", None
 
-        with mock.patch.dict(os.environ, {"FACTORY_NOW": at(first)}), self.env.load_factory() as f:
+        with mock.patch.dict(os.environ, now_env(at(first))), self.env.load_factory() as f:
             f.force_stop = failing
             f.scout_tick(f.db())
         self.assertEqual((self.agent()["status"], self.runs()[0]["stop_reason"]), ("live", why))
