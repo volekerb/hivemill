@@ -21,7 +21,7 @@ ALLOWLIST = {
 KNOWN = {
     "test_guard_build",
     "test_ci_corpus_step", "test_ci_cursor_guard", "test_ci_wait_guard", "test_clean_remote_branch", "test_cursor_mcp", "test_db_layout", "test_guard_diff", "test_guard_golden",
-    "test_guard_factory_cli", "test_guard_impl", "test_guard_probe", "test_guard_shim", "test_worker_guard_units",
+    "test_guard_factory_cli", "test_guard_impl", "test_guard_probe", "test_guard_rollback", "test_guard_shim", "test_worker_guard_units",
     "test_guard_test_sandbox", "test_guard_test_sandbox_pilot", "test_judge_merged_tree_route", "test_lessons_flow", "test_live_home", "test_local_fast_policy",
     "test_priv_guard", "test_risk_tier", "test_scout_roles", "test_settings_templates", "test_skilleval_guard_copy",
     "test_cursor_lead_goals",

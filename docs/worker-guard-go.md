@@ -326,6 +326,80 @@ setting `go` or `shadow` while it is not `ok` prints a warning (the key is still
 - The tick path stays silent when `go` is missing (it would log every minute); `factory up` logs the `skipped` line, and `factory config` shows `guard binary: missing`.
 - The flag and the stamp are written through a unique temp file in the same directory, never a fixed `.new` name, so a planted symlink is not followed.
 
+## Rollback
+
+Production default stays `guard_impl=python` (the DB key and `run/guard_impl`). Rolling back from `go` or `shadow` is one director command:
+
+    factory config guard_impl python
+
+(Only a registered director agent may set the key; anything else is refused.)
+
+**No relaunch.** `write_guard_impl()` runs as part of that `factory config` call and rewrites
+`<live home>/run/guard_impl` to a single line `python <srchash>`. The shim reads that file on **every** Bash hook
+invocation (`roles/hooks/worker-guard`); the next call after the config command uses Python even though no agent pane was
+restarted and no settings JSON was regenerated. Workers already call the shim (T-0356); HQ keeps calling
+`worker-guard.py` directly.
+
+**Automatic fallbacks to Python** (same per-call read, no relaunch): a missing, unreadable or malformed `run/guard_impl`
+line; an unknown impl; `go` or `shadow` when `~/.local/lib/factory/worker-guard` is absent, not executable, or its
+stamp does not equal the flag’s `<srchash>`; a failed or timed-out Go build deletes the stamp (the old binary may remain
+on disk but the shim ignores it until stamp and srchash match again).
+
+**Confirm rollback.** `factory config` prints the live `guard_impl` value and a trailing `guard binary: ok|missing|stale`
+line after any `go`/`shadow` setting. After `factory config guard_impl python` the flag file should start with
+`python ` (see `run/guard_impl`). For a single manual hook call, `WORKER_GUARD_SHIM_TRACE=1` makes the shim print
+`impl=python` or `impl=go` on stderr (`tests/test_guard_rollback.py` and `tests/test_guard_shim.py`).
+
+**Emergency when the CLI is broken.** From an owner shell (not through a worker hook):
+
+    printf 'python -\n' > ~/factory/run/guard_impl
+
+That forces Python immediately. The tick still runs `write_guard_impl()` from the DB on the next minute; if the DB key
+still says `go` or `shadow`, the file will flip back until you fix the key. As soon as `factory config` works again, run
+`factory config guard_impl python` so the DB and file agree.
+
+**Reverting the T-0356 settings switch** (worker templates from `python3 …/worker-guard.py` back to direct python3, or
+the reverse) is a git change to `roles/settings/*.json.in` and **does** require a relaunch of affected agents so Claude
+reloads `--settings`; it is unrelated to `guard_impl` rollback above.
+
+## Before any flip
+
+The director decides any production flip of `guard_impl` to `go` or `shadow`; Python remains the default until then.
+Do not flip while `ci/guard_diff.py` still skips the retro corpus (T-1219 removes that skip first).
+
+**Go-tighter behaviour (director ruling M20992).** With `guard_impl=go`, a corrupt or non-SQLite `db/factory.db` leaves
+Go with no seeded `run/guard-export.json`: decisions that read the DB **fail closed** (exit 2), including bare test
+runners that Python still allows when the export is missing (`tests/test_guard_test_sandbox_pilot.py`, item on unreadable
+DB). Python falls back; Go does not. With `guard_impl=shadow`, the shim always runs Python and returns Python's exit
+status (`finish python`); when Go disagrees it only logs Go's exit to `guard-shadow.log` and still returns Python's
+status. That corrupt-DB case is **not** a Go-vs-shadow differential. Accept the `go` differential before any flip to
+`go`.
+
+**Python-only rules that must have a merged Go mirror first (M21163).** Each row is merged on `origin/main` as of
+T-0357 (SC5); name the merge commit when auditing a later flip:
+
+| Python task | Go mirror | Status (T-0357) |
+|---|---|---|
+| T-0983 (~user targets, copy into a parent, `find -delete`, both guards, every protected tree) | (same PR, Go port in tree) | merged `d6a53d2ad` (#395) |
+| T-0985 (python flags, `ar @file`, `python -c` extract, inline writer before unzip) | T-0985 | merged `f5dde531e` (#390) |
+| T-0988 (closed-list writers: patch, gzip -d, cpio -id, git init, git worktree add, GOBIN= go install, gcc -MF, cargo --target-dir) | T-0988 | merged `a52a34295` (#501) |
+| (lead-listed follow-ups from T-0988) | T-0990 | merged `6f026fb3a` (#517) |
+| T-0881 (no-push `gh api` body, `gh release` writes) | T-0993 | merged `1e8d5975b` (#396) |
+| T-0805 / no-push tar-unzip grammar | T-1001 | merged `19ca1c528` (#399) |
+| T-0880 (unwrap `uv run` / `uvx` before git/gh write checks) | T-1018 | merged `7cbc90fa0` (#401) |
+| T-0987 (`gh api` non-GET method guard) | T-1038 | merged `8c1fbb692` (#433) |
+| T-0907 (coder push pin and xargs) | T-1040 | merged `d53e490d0` (#519) |
+
+Further Python-only rules filed after this table follow the same rule: the lead names the Go mirror and it must merge
+before any `go` or `shadow` flip (not required for doc-only or rollback work while the flag stays `python`).
+
+**Archive extraction delegation (T-0355 / T-1001).** FIFO members, oversize archives and symlink-heavy inputs have **no**
+Go-vs-Python differential on the list step: when Go cannot read the archive it always delegates to Python (`Delegate`);
+disagreement is impossible by construction (director ruling M23000 C).
+
+**After any flip to `go`, Python stays required** for no-push `tar`/`unzip` extractions that reach the member-list step
+(see [No-push `tar` / `unzip` extraction](#no-push-tar--unzip-extraction-t-1001-mirror-of-t-0805) below).
+
 ## Latency
 
 Per-call latency of the shim `sh roles/hooks/worker-guard` through the real entry point (T-0355, SC4), python vs go. Command:
