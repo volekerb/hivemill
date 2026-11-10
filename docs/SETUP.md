@@ -152,7 +152,7 @@ Read the Upgrade section of that version's release notes (https://github.com/vol
 
 ## Configuration
 
-`factory config` prints every key with its current value; `factory config <key> <value>` sets one (owner or director only). Unknown keys are refused. `max_live_judges` (default 3, 0 = no cap) caps live judges; see [spawn-queue.md](spawn-queue.md). Values are strings in the database; numbers are read as integers or floats where the code needs them.
+`factory config` prints every key with its current value; `factory config <key> <value>` sets one (owner or director only). Unknown keys are refused. `factory config --changed` prints only the keys whose live value differs from the default (`key = live (default: X)`, or `no changes from defaults`); `factory config --check` validates every live value with the same checks as the set path, prints one line per bad key and exits 2 if any is bad (both are read-only, any role, and take no key or value). `max_live_judges` (default 3, 0 = no cap) caps live judges; see [spawn-queue.md](spawn-queue.md). Values are strings in the database; numbers are read as integers or floats where the code needs them.
 
 | Key | Default | Meaning |
 |---|---|---|
