@@ -2,6 +2,7 @@
 (temp HOME only), strictly under FACTORY_HOME/worktrees/, and `factory clean` drops it again."""
 import json
 import os
+import stat
 import unittest
 import unittest.mock
 
@@ -193,7 +194,7 @@ class CloneTrustBranchTests(TrustBase, FactoryTestCase):
                     if name == "directory":
                         self.assertEqual([x.name for x in p.iterdir()], ["keep"])
                     else:
-                        self.assertTrue(__import__("stat").S_ISFIFO(os.lstat(p).st_mode))
+                        self.assertTrue(stat.S_ISFIFO(os.lstat(p).st_mode))
                         p.unlink()
                         p.mkdir()  # next subtest cleans this up again
 
