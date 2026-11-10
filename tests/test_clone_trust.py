@@ -2,6 +2,7 @@
 (temp HOME only), strictly under FACTORY_HOME/worktrees/, and `factory clean` drops it again."""
 import json
 import os
+import stat
 import unittest
 import unittest.mock
 
@@ -132,6 +133,143 @@ class CloneTrustSpawnTests(TrustBase, FactoryTestCase):
                     con.commit()
                     self.assertEqual(len(self.refusals()), 1)
                     self.assertEqual(self.cj().read_bytes(), before)
+
+
+class CloneTrustBranchTests(TrustBase, FactoryTestCase):
+    """The security branches of the ~/.claude.json write: foreign owner, not a regular file, a racing writer, and
+    the clean-side (add=False) scope refusal."""
+
+    def setUp(self):
+        super().setUp()
+        self.env.seed_project()
+        self.env.seed_goal(project="zz-test-proj", title="zz-test clone goal")
+        self.env.seed_task(goal="G-001", status="in_progress")
+        self.wts = self.env.home_dir / "worktrees"
+        self.wts.mkdir(exist_ok=True)
+        self.clone = self.wts / "G-001-T-0001"
+        self.clone.mkdir()
+
+    def trust(self, mod, con, add=True, path=None):
+        res = mod.trust_task_clone(con, "T-0001", path or self.clone, add)
+        con.commit()
+        return res
+
+    def test_foreign_uid_owner_writes_nothing_and_records_a_refusal(self):
+        p = self.write_cj()
+        before = p.read_bytes()
+        real_fstat = os.fstat
+
+        def foreign(fd):
+            st = real_fstat(fd)
+            return os.stat_result((st.st_mode, st.st_ino, st.st_dev, st.st_nlink, os.getuid() + 1, *tuple(st)[5:]))
+
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            with unittest.mock.patch.object(mod.workerbox.os, "fstat", foreign):
+                self.assertEqual(self.trust(mod, con), "refused")
+        self.assertEqual(p.read_bytes(), before)
+        got = self.refusals()
+        self.assertEqual(len(got), 1)
+        self.assertIn("not owned by uid", got[0]["reason"])
+
+    def test_non_regular_file_writes_nothing_and_records_a_refusal(self):
+        p = self.cj()
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            for name in ("directory", "fifo"):
+                with self.subTest(name):
+                    con.execute("DELETE FROM events WHERE action='clone-trust-refused'")
+                    if p.is_dir():
+                        (p / "keep").unlink()
+                        p.rmdir()
+                    if name == "directory":
+                        p.mkdir()
+                        (p / "keep").write_text("x")
+                    else:
+                        os.mkfifo(p)
+                    self.assertEqual(self.trust(mod, con), "refused")
+                    got = self.refusals()
+                    self.assertEqual(len(got), 1)
+                    self.assertIn("not a regular file", got[0]["reason"])
+                    if name == "directory":
+                        self.assertEqual([x.name for x in p.iterdir()], ["keep"])
+                    else:
+                        self.assertTrue(stat.S_ISFIFO(os.lstat(p).st_mode))
+                        p.unlink()
+                        p.mkdir()  # next subtest cleans this up again
+
+    def racing(self, mod, rewrites):
+        """Patch lstat so the first `rewrites` lstat calls on ~/.claude.json are preceded by another writer's rewrite."""
+        real = os.lstat
+        state = {"n": 0}
+        other = self.cj()
+
+        def lstat(path, *a, **k):
+            if str(path) == str(other) and state["n"] < rewrites:
+                state["n"] += 1
+                data = dict(OTHER, racer=state["n"], pad="y" * state["n"])
+                tmp = other.with_name("racer.tmp")
+                tmp.write_text(json.dumps(data))
+                tmp.chmod(0o600)
+                os.replace(tmp, other)
+            return real(path, *a, **k)
+
+        return unittest.mock.patch.object(mod.workerbox.os, "lstat", lstat), state
+
+    def test_a_rewrite_between_read_and_rename_is_retried_once_then_merged(self):
+        self.write_cj()
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            ctx, state = self.racing(mod, 1)
+            with ctx:
+                self.assertEqual(self.trust(mod, con), "added")
+        self.assertEqual(state["n"], 1)
+        got = self.load()
+        self.assertEqual(got["racer"], 1)  # the other writer's key survived
+        self.assertEqual(got["projects"][os.path.realpath(self.clone)], SEED)
+        self.assertEqual(self.refusals(), [])
+
+    def test_a_second_rewrite_gives_up_without_dropping_the_other_writers_keys(self):
+        self.write_cj()
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            ctx, state = self.racing(mod, 99)
+            reads = []
+            real_read = mod.workerbox._read_owner_json
+
+            def counting(home):
+                reads.append(1)
+                return real_read(home)
+
+            with ctx, unittest.mock.patch.object(mod.workerbox, "_read_owner_json", counting):
+                self.assertEqual(self.trust(mod, con), "refused")
+        self.assertEqual(len(reads), 2)  # one read plus exactly one retry
+        self.assertEqual(state["n"], 2)
+        got = self.load()
+        self.assertEqual(got["racer"], 2)  # the last writer's content, untouched
+        self.assertNotIn(os.path.realpath(self.clone), got["projects"])
+        self.assertEqual(len(self.refusals()), 1)
+        self.assertIn("changed twice", self.refusals()[0]["reason"])
+
+    def test_clean_side_refuses_outside_and_symlinked_paths_and_removes_no_entry(self):
+        outside = self.env.home / "outside"
+        (outside / "sub").mkdir(parents=True)
+        (self.wts / "link").symlink_to(outside)
+        link_clone = self.wts / "linkclone"
+        link_clone.symlink_to(self.clone)
+        cases = (outside, outside / "sub", self.wts, self.wts / "link" / "sub", link_clone)
+        entries = {str(c): SEED for c in cases}
+        entries[os.path.realpath(self.clone)] = SEED
+        p = self.write_cj({**OTHER, "projects": entries})
+        before = p.read_bytes()
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            for path in cases:
+                with self.subTest(path=str(path)):
+                    con.execute("DELETE FROM events WHERE action='clone-trust-refused'")
+                    self.assertEqual(self.trust(mod, con, add=False, path=path), "refused")
+                    self.assertEqual(len(self.refusals()), 1)
+                    self.assertEqual(p.read_bytes(), before)
 
 
 class CloneTrustCleanTests(TrustBase, CloneCleanBase):
