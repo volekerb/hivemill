@@ -2635,7 +2635,7 @@ def cmd_config(a):
         a.config_parser.error("--changed and --check take no key, no value and not each other")
     con = db()
     if a.changed:
-        diff = [(k, cfg(con, k)) for k in DEFAULT_CONFIG if cfg(con, k) != DEFAULT_CONFIG[k]]
+        diff = [(k, v) for k, v in ((k, cfg(con, k)) for k in DEFAULT_CONFIG) if v != DEFAULT_CONFIG[k]]
         for k, v in diff:
             print(f"{k} = {v} (default: {DEFAULT_CONFIG[k]})")
         if not diff:

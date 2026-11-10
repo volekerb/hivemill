@@ -41,7 +41,7 @@ class ConfigCheck(FactoryTestCase):
         r = self.env.run("config", "--check")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn("guard_impl", r.stdout)
-        self.assertIn("task_clones", r.stdout)  # does not stop at the first bad key
+        self.assertIn("task_clones: task_clones must be 0 or 1, not '7'", r.stdout)  # does not stop at the first bad key
 
     def test_set_path_unchanged(self):
         r = self.env.run("config", "guard_impl", "bogus", agent="claude-director")
