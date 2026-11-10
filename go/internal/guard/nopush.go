@@ -8,7 +8,7 @@ import (
 // T-0755 (worker-guard.py): NO_PUSH_ROLES run only read-only git, fail closed.
 
 // noPushRoles is worker-guard.py:NO_PUSH_ROLES.
-var noPushRoles = set("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher")
+var noPushRoles = set("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher", "retro")
 
 var (
 	gitOptsAllowed = set("-P", "--no-pager", "--no-optional-locks", "--version", "--help")

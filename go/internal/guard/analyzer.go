@@ -272,9 +272,16 @@ func (a *Analyzer) script(text string, depth int) error {
 	if depth == 0 {
 		a.text = text
 		if !a.HQ { // a redirect whose target is built by a substitution and ends in a protected name
-			for _, m := range redirSubstMatches(text) {
+			frags := redirSubstMatches(text)
+			if a.Role == retroRole {
+				frags = retroSubstRedirectFrags(text)
+			}
+			for _, m := range frags {
 				if PersistCode(m) {
 					return blockf("a redirect built by a substitution into a protected config/init file: " + persistWhy)
+				}
+				if a.Role == retroRole && retroRolesSubst(m, a.ccwd, a.ccwdKnown) {
+					return blockf("a redirect built by a substitution into a role file: " + retroRoleWhy)
 				}
 			}
 		}

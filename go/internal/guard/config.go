@@ -75,6 +75,25 @@ func tildeUnres(w string, cwdKnown bool) bool {
 // cfgExpand (method) is Analyzer.cfg_expand: tildeExpand against the tracked cwd.
 func (a *Analyzer) cfgExpand(w string) string { return tildeExpand(w, a.ccwd, a.ccwdKnown) }
 
+var reCdHomeFactory = regexp.MustCompile(`^\$(?:\{HOME\}|HOME)(/.*)?$`)
+
+// cdHomeFactoryWord is cd_home_factory_word: `$HOME/factory` and `${HOME}/factory` for ccwd tracking.
+func cdHomeFactoryWord(w string) string {
+	factory := pyJoin(mustHost().pwDir, "factory")
+	if w == "$HOME/factory" || w == "${HOME}/factory" {
+		return factory
+	}
+	m := reCdHomeFactory.FindStringSubmatch(w)
+	if m == nil || m[1] == "" {
+		return ""
+	}
+	tail := pyNormpath(pyJoin("/", strings.TrimPrefix(m[1], "/")))
+	if tail == "/factory" {
+		return factory
+	}
+	return ""
+}
+
 // cfgCd is a port of Analyzer.cfg_cd: track the directory for the CFG_DIR write detector.
 func (a *Analyzer) cfgCd(name string, rest []string) {
 	var args []string
@@ -85,10 +104,16 @@ func (a *Analyzer) cfgCd(name string, rest []string) {
 	}
 	a.cwdUnres = false
 	switch {
-	case name == "popd" || (len(args) > 0 && (args[0] == "-" || dynamicDir(args[0]))):
+	case name == "popd":
 		a.ccwdKnown = false
 	case len(args) == 0:
 		a.ccwd, a.ccwdKnown = mustHost().pwDir, true
+	case args[0] == "-":
+		a.ccwdKnown = false
+	case cdHomeFactoryWord(args[0]) != "":
+		a.ccwd, a.ccwdKnown = cdHomeFactoryWord(args[0]), true
+	case dynamicDir(args[0]):
+		a.ccwdKnown = false
 	default:
 		p := a.cfgExpand(args[0])
 		if tildeUnres(args[0], a.ccwdKnown) { // `cd ~nosuchuser`, `cd ~-`: as on main, a path relative to the known cwd

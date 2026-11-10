@@ -370,9 +370,9 @@ class GoImplTests(GuardDiffCase):
                          sorted(("cleaner", "coder", "evaluator", "judge", "pm", "qa", "researcher", "retro", "reviewer", "scout", "staff-engineer")))
 
     def test_roles_for_all_skips_retro_until_t_1219(self):
-        """T-1225: --roles all must not compare retro until T-1219 mirrors retro in Go."""
+        """T-1219: --roles all includes retro after the Go mirror."""
         self.assertIn("retro", guard_diff.template_roles(harness.REPO))
-        self.assertNotIn("retro", guard_diff.roles_for_all(harness.REPO))
+        self.assertIn("retro", guard_diff.roles_for_all(harness.REPO))
 
     def test_roles_all_derived_from_templates(self):
         sdir = os.path.join(self.repo, "roles", "settings")

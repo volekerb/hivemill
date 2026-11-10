@@ -563,8 +563,8 @@ def template_roles(top):
 
 
 def roles_for_all(top):
-    """Like template_roles, but for ``--roles all`` (T-1219: omit retro until the Go mirror lands)."""
-    return [r for r in template_roles(top) if r != "retro"]
+    """Like template_roles, for ``--roles all``."""
+    return template_roles(top)
 
 
 def go_candidate(top, go_bin, tmp):
