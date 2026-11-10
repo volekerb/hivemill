@@ -1746,7 +1746,10 @@ def agent_cursor_workspace(r):
     if not r["name"]:
         return None
     cwd = r["cwd"] or str(HOME)
-    return str(cursor_harness.policy_workspace(HOME, r["name"], cwd).resolve())
+    try:
+        return str(cursor_harness.policy_workspace(HOME, r["name"], cwd).resolve())
+    except ValueError:  # bad XDG_STATE_HOME: the workspace is unknown, the gate must not crash
+        return None
 
 
 def cursor_hooks_ok(workspace):

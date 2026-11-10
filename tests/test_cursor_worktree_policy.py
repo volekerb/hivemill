@@ -138,7 +138,7 @@ class HqPolicyIsolationTests(FactoryTestCase):
         fake.write_text("#!/bin/sh\necho ok\n")
         fake.chmod(0o755)
 
-    def test_pm_at_factory_home_uses_state_dir(self):
+    def test_pm_at_factory_home_uses_run_cursor(self):
         name = "zz-hq-pm"
         self.ok("spawn", "pm", "--name", name, "--goal", "G-001", "--team", "g-001-a",
                 agent="zz-test-director")
