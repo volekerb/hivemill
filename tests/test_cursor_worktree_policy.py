@@ -170,7 +170,8 @@ class PolicyWorkspaceUnitTests(unittest.TestCase):
             home.mkdir()
             ext = Path(tmp) / "cursor-pilot-ws"
             ext.mkdir()
-            ws = h.policy_workspace(home, "cursor-pilot", ext)
+            with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(Path(tmp) / "state")}):
+                ws = h.policy_workspace(home, "cursor-pilot", ext)
             self.assertEqual(ws.resolve(), ext.resolve())
 
 

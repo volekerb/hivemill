@@ -343,6 +343,8 @@ class FactoryEnv:
         env = {
             "PATH": f"{self.stub_bin}{os.pathsep}{os.environ.get('PATH', '/usr/bin:/bin')}",
             "HOME": str(self.user_home),
+            # pinned (the default under HOME) so a runner's own XDG_STATE_HOME cannot redirect the Cursor policy dir
+            "XDG_STATE_HOME": str(self.user_home / ".local" / "state"),
             "SHELL": shutil.which("sh") or "/bin/sh",  # the pane shell the PATH-order check runs; it fails closed without one
             **{k: v for k, v in os.environ.items() if k.startswith(("GIT_AUTHOR_", "GIT_COMMITTER_"))},
             "FACTORY_HOME": str(self.home_dir),
