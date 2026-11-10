@@ -181,6 +181,9 @@ func (a *Analyzer) persistHit(word string, ancestor, gitfile bool) bool {
 		t := a.cfgExpand(substVars(w, a.vars))
 		if strings.ContainsAny(t, "$`") {
 			// an expansion we cannot resolve: refuse when it spells a protected name or sits under the home
+			if a.Role == retroRole && !a.HQ && retroRolesSubst(t, a.ccwd, a.ccwdKnown) {
+				return true
+			}
 			if PersistCode(t) || strings.HasPrefix(t, "~") || strings.HasPrefix(t, h.pwDir) || strings.Contains(t, "~") || strings.Contains(t, "HOME") {
 				return true
 			}
@@ -194,9 +197,15 @@ func (a *Analyzer) persistHit(word string, ancestor, gitfile bool) bool {
 				if PersistCode(t) {
 					return true
 				}
+				if a.Role == retroRole && !a.HQ && retroRolesPath(t, true) {
+					return true
+				}
 				continue
 			}
 			t = pyJoin(a.ccwd, t)
+		}
+		if a.Role == retroRole && !a.HQ && retroRolesPath(t, false) {
+			return true
 		}
 		noPush := a.noPush() // T-0770: no scratchpad exemption for git config/hooks
 		if persistPath(t, ancestor, !noPush) || (noPush && gitHooksPath(t, false)) {

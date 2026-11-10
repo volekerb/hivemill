@@ -228,29 +228,72 @@ func IsAssign(s string) bool {
 	return i < len(s) && s[i] == '='
 }
 
+func foldAssignInner(inner []string) bool {
+	if len(inner) == 0 {
+		return false
+	}
+	for _, t := range inner {
+		if strings.ContainsAny(t, "<>") {
+			return false
+		}
+	}
+	switch inner[0] {
+	case "mktemp":
+		for _, x := range inner[1:] {
+			if strings.HasPrefix(x, "-") && x != "-d" && x != "-p" {
+				return false
+			}
+		}
+		return true
+	case "printf":
+		for _, x := range inner[1:] {
+			if strings.ContainsAny(x, "$`;") {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
 // FoldMktemp is a port of worker-guard.py:fold_mktemp.
 func FoldMktemp(toks []string) []string {
 	var out []string
 	for i := 0; i < len(toks); {
 		t := toks[i]
 		if IsAssign(t) && strings.HasSuffix(t, "=$") && i+1 < len(toks) && toks[i+1] == "(" {
-			j := i + 2
-			for j < len(toks) && !IsPunct(toks[j]) {
-				j++
-			}
-			inner := toks[i+2 : j]
-			if j < len(toks) && toks[j] == ")" && len(inner) > 0 && inner[0] == "mktemp" {
-				ok := true
-				for _, x := range inner[1:] {
-					if strings.HasPrefix(x, "-") && x != "-d" && x != "-p" {
-						ok = false
-					}
-				}
-				if ok {
-					out = append(out, t+"("+strings.Join(inner, " ")+")")
-					i = j + 1
+			depth, j := 1, i+2
+			merged := false
+			for j < len(toks) && depth > 0 {
+				tok := toks[j]
+				if tok == "(" {
+					depth++
+					j++
 					continue
 				}
+				if depth > 0 && strings.HasPrefix(tok, ")") {
+					depth--
+					tail := tok[1:]
+					j++
+					if depth == 0 {
+						inner := toks[i+2 : j-1]
+						if foldAssignInner(inner) {
+							out = append(out, t[:len(t)-1]+"$("+strings.Join(inner, " ")+")")
+							if tail != "" {
+								out = append(out, tail)
+							}
+							i = j
+							merged = true
+						}
+						break
+					}
+					continue
+				}
+				j++
+			}
+			if merged {
+				continue
 			}
 		}
 		out = append(out, t)

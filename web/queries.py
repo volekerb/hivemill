@@ -493,6 +493,93 @@ def _stages(merged_e, evs, verdicts, spawns):
             "review_s": d(in_review, last_pass), "judge_s": d(last_pass, merged_e), "rework_s": rework}
 
 
+def task_lifecycle(con, tid, now=None):
+    """Ordered stages of one task from idea to merge (read-only; None = unknown, never a guess).
+
+    Returns {task_id, stages, waits, waits_total, total, gaps_s}. `stages` are the non-overlapping working
+    stages, each {stage, start, end, seconds[, head]}: spec (the pm task that created this one, only when the
+    `add` actor is a pm agent with a task_id), queued (created -> first coder spawn), coding (first coder spawn
+    -> PR opened), review (one per in_review update -> the last reviewer/QA verdict before the next in_review),
+    judge (last reviewer/QA pass -> merged). `waits` sit inside those stages and are summed on their own:
+    ci (review-autospawn-wait -> next review-autospawn) and blocked (status=blocked update -> next status
+    change, a re-block included so spans never overlap; waits=owner|internal, internal when the update names none;
+    still blocked = until `now`). `total` runs from the first of (spec start,
+    created) to merged, or `now` when open. gaps_s = total minus the union of the stages (rework etc.).
+    A missing input or a negative span gives None; a review round with no reviewer/QA verdict before the next
+    in_review has seconds None, so gaps_s is None too (and while open: judge is None).
+    """
+    t = con.execute("SELECT created, status FROM tasks WHERE id=?", (tid,)).fetchone()
+    if t is None:
+        return None
+
+    def span(a, b, **extra):
+        ea, eb = _epoch(a), _epoch(b)
+        sec = round(eb - ea) if ea is not None and eb is not None and eb >= ea else None
+        return {"start": a, "end": b, "seconds": sec, **extra}
+
+    evs = _dicts(con.execute("SELECT ts, actor, action, detail FROM events WHERE entity='task' AND entity_id=? ORDER BY id", (tid,)))
+    verdicts = _dicts(con.execute("SELECT role, verdict, head_sha, created FROM verdicts WHERE task_id=? ORDER BY id", (tid,)))
+    spawns = [r["started"] for r in con.execute(
+        "SELECT started FROM agents WHERE task_id=? AND role='coder' AND started IS NOT NULL", (tid,)) if _epoch(r["started"]) is not None]
+    first_spawn = min(spawns, key=_epoch, default=None)
+    merged = max((e["ts"] for e in evs if e["action"] == "merged" and _epoch(e["ts"]) is not None), key=_epoch, default=None)
+    ups = [(e["ts"], e["detail"] or "") for e in evs if e["action"] == "update" and _epoch(e["ts"]) is not None]
+    stages = []
+    spec_start = None
+    add = next((e for e in evs if e["action"] == "add"), None)
+    if add is not None:
+        pm = con.execute("SELECT task_id FROM agents WHERE name=? AND role='pm' AND task_id IS NOT NULL", (add["actor"],)).fetchone()
+        pt = con.execute("SELECT created FROM tasks WHERE id=?", (pm["task_id"],)).fetchone() if pm else None
+        if pt is not None:
+            spec_start = pt["created"]
+            stages.append({"stage": "spec", **span(spec_start, t["created"])})
+    stages.append({"stage": "queued", **span(t["created"], first_spawn)})
+    pr_open = min((u for u, x in ups if "pr=" in x or "status=in_review" in x), key=_epoch, default=None)
+    stages.append({"stage": "coding", **span(first_spawn, pr_open)})
+    rounds = sorted((u for u, x in ups if "status=in_review" in x), key=_epoch)
+    rv = [v for v in verdicts if v["role"] in ("reviewer", "qa") and _epoch(v["created"]) is not None]
+    for i, r0 in enumerate(rounds):
+        r1 = rounds[i + 1] if i + 1 < len(rounds) else None
+        got = [v for v in rv if _epoch(v["created"]) >= _epoch(r0) and (r1 is None or _epoch(v["created"]) < _epoch(r1))]
+        last = max(got, key=lambda v: _epoch(v["created"]), default=None)
+        stages.append({"stage": "review", **span(r0, last["created"] if last else None),
+                       "head": ((last["head_sha"] or "")[:8] or None) if last else None})
+    last_pass = max((v["created"] for v in rv if v["verdict"] == "pass"), key=_epoch, default=None)
+    stages.append({"stage": "judge", **span(last_pass, merged)})
+    waits = []
+    autos = [e["ts"] for e in evs if e["action"] == "review-autospawn" and _epoch(e["ts"]) is not None]
+    prev_end = None
+    for e in evs:
+        if e["action"] != "review-autospawn-wait" or _epoch(e["ts"]) is None:
+            continue
+        nxt = min((a for a in autos if _epoch(a) >= _epoch(e["ts"])), key=_epoch, default=None)
+        if prev_end is not None and nxt == prev_end:
+            continue  # repeated hourly wait event of the same wait
+        prev_end = nxt
+        waits.append({"kind": "ci", **span(e["ts"], nxt)})
+    for i, (u, x) in enumerate(ups):
+        if not re.search(r"\bstatus=blocked\b", x):
+            continue
+        m = re.search(r"waits=(\w+)", x)
+        nxt = next((u2 for u2, x2 in ups[i + 1:] if re.search(r"\bstatus=\w+", x2)), None)
+        if nxt is None and t["status"] == "blocked":
+            nxt = _now(now).isoformat(timespec="seconds")
+        waits.append({"kind": "blocked", "waits": m.group(1) if m else "internal", **span(u, nxt)})
+    t0 = min((s for s in (spec_start, t["created"]) if _epoch(s) is not None), key=_epoch, default=None)
+    end = merged if merged else _now(now).isoformat(timespec="seconds")
+    total = {**span(t0, end), "open": merged is None}
+    gaps = None
+    if total["seconds"] is not None and all(s["seconds"] is not None for s in stages):
+        gaps = round(total["seconds"] - _union_len([(_epoch(s["start"]), _epoch(s["end"])) for s in stages]))
+    sums = {"ci_s": 0, "owner_blocked_s": 0, "internal_blocked_s": 0}
+    for w in waits:
+        if w["seconds"] is None:
+            continue
+        k = "ci_s" if w["kind"] == "ci" else f"{'owner' if w['waits'] == 'owner' else 'internal'}_blocked_s"
+        sums[k] += w["seconds"]
+    return {"task_id": tid, "stages": stages, "waits": waits, "waits_total": sums, "total": total, "gaps_s": gaps}
+
+
 def _task_goals(con):
     return {r[0]: r[1] for r in con.execute("SELECT id, goal_id FROM tasks")}
 

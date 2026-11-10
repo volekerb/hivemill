@@ -567,3 +567,184 @@ def rollup(snapshot, attribution, org_of=None):
     res["total"] = res["total"].get("all") or {k: 0 for k in COUNTERS} | {"cost": 0.0, "cost_unknown": False, "priced": 0}
     _finish(res)
     return res
+
+
+# ───────────────────────────── per-task / per-goal usage (C2) ─────────────────────────────
+
+NOT_READY = "not_ready"
+NOT_AVAILABLE = "not_available"
+_TOKEN_KEYS = ("input", "output", "cache_read", "cache_write")
+
+
+def _usage_agents(con):
+    """name -> agent row (plus org and spawn_args when the table has them: the same inputs scout.orgs.of_agent uses)."""
+    rows = {a["name"]: dict(a) for a in _agent_rows(con)}
+    for cols in ("name, org, spawn_args", "name, spawn_args"):   # an older schema lacks org; the prefix still decides
+        try:
+            extra = con.execute(f"SELECT {cols} FROM agents").fetchall()
+        except sqlite3.OperationalError:
+            continue
+        for r in extra:
+            if r["name"] in rows:
+                rows[r["name"]].update({k: r[k] for k in r.keys() if k != "name"})
+        break
+    return rows
+
+
+def _is_cursor(agent_row):
+    from scout import orgs as _orgs
+    return _orgs.of_agent(agent_row) == "cursor"
+
+
+def _start_key(agent):
+    """Sort key by the parsed, timezone-aware start; a missing or unparseable start sorts last."""
+    t = _parse_ts(agent["started"]) if agent and agent["started"] else None
+    return (0, t.timestamp()) if t else (1, 0.0)
+
+
+def _first_rejection(con, task_id):
+    """Earliest fail/reject verdict or judge-reject event of the task, as a datetime (None when never rejected)."""
+    stamps = []
+    try:
+        stamps += [r[0] for r in con.execute(
+            "SELECT created FROM verdicts WHERE task_id=? AND verdict IN ('fail','reject')", (task_id,))]
+        stamps += [r[0] for r in con.execute(
+            "SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='judge-reject'", (task_id,))]
+    except sqlite3.Error:
+        return None
+    parsed = [p for p in (_parse_ts(s) for s in stamps) if p]
+    return min(parsed) if parsed else None
+
+
+def _usage_buckets(snapshot, attribution, keep):
+    """agent name -> bucket (rollup counters, cost, sessions set) for the rows whose attribution passes `keep`."""
+    by, sess = {}, {}
+    for r in snapshot["rows"]:
+        a = attribution.get(r["session"]) or {"agent": None, "task": None, "goal": None}
+        if not keep(a):
+            continue
+        name = a["agent"] or "unattributed"
+        _add(by, name, r, cost(r["model"], r, "fast" if r["fast"] else None))
+        sess.setdefault(name, set()).add(r["session"])
+    _finish({"x": by})
+    return by, sess
+
+
+def _usage_buckets_multi(snapshot, attribution, task_ids, goal_id):
+    """One pass over the snapshot: {task id: (by, sess)} for `task_ids`, and None -> (by, sess) for the goal's
+    sessions without a task. Same buckets _usage_buckets gives per task."""
+    out = {}
+    for r in snapshot["rows"]:
+        a = attribution.get(r["session"]) or {"agent": None, "task": None, "goal": None}
+        if a["task"] in task_ids:
+            key = a["task"]
+        elif a["goal"] == goal_id and not a["task"]:
+            key = None
+        else:
+            continue
+        by, sess = out.setdefault(key, ({}, {}))
+        name = a["agent"] or "unattributed"
+        _add(by, name, r, cost(r["model"], r, "fast" if r["fast"] else None))
+        sess.setdefault(name, set()).add(r["session"])
+    for by, _ in out.values():
+        _finish({"x": by})
+    return out
+
+
+def _tokens(e):
+    return {"input": e["input"], "output": e["output"], "cache_read": e["cache_read"],
+            "cache_write": e["cache_write_5m"] + e["cache_write_1h"]}
+
+
+def _wall_seconds(a, now):
+    start = _parse_ts(a["started"]) if a["started"] else None
+    end = _parse_ts(a["ended"]) if a["ended"] else now
+    return max(0.0, (end - start).total_seconds()) if start and end else None
+
+
+def _cursor_row(a, now):
+    return {"agent": a["name"], "role": a["role"], "runtime": "cursor", "sessions": 1, "wall_s": _wall_seconds(a, now),
+            "input": None, "output": None, "cache_read": None, "cache_write": None, "cost": None,
+            "rework": False, "state": NOT_AVAILABLE}
+
+
+def _claude_row(name, e, sessions, agent):
+    return {"agent": name, "role": agent["role"] if agent else None, "runtime": "claude", "sessions": len(sessions),
+            "wall_s": None, **_tokens(e), "cost": None if e["cost_unknown"] else e["cost"], "rework": False, "state": "ok"}
+
+
+def _totals(rows):
+    """Totals over the Claude rows; Cursor rows have no tokens or cost and are counted in `cursor_rows` only."""
+    real = [r for r in rows if r["state"] == "ok"]
+    cursor = [r for r in rows if r["state"] == NOT_AVAILABLE]
+    costs = [r["cost"] for r in real]
+    unknown = any(c is None for c in costs)
+    total = None if unknown or (not real and cursor) else sum(costs)
+    rework = None if unknown or not real else sum(r["cost"] for r in real if r["rework"])
+    share = rework / total if total and rework is not None else None
+    tokens = None if not real else sum(r[k] for r in real for k in _TOKEN_KEYS)
+    state = "ok" if real and not cursor else ("partial" if real else (NOT_AVAILABLE if cursor else "ok"))
+    return {"state": state, "tokens": tokens, "cost": total, "rework_cost": rework, "rework_share": share,
+            "sessions": sum(r["sessions"] for r in rows), "cursor_rows": len(cursor),
+            "wall_s": sum(r["wall_s"] or 0 for r in cursor) if cursor else None,
+            **{k: (sum(r[k] for r in real) if real else None) for k in _TOKEN_KEYS}}
+
+
+def task_usage(snapshot, attribution, con, task_id, now=None):
+    """Per-agent usage of one task: {"state", "task", "rows", "totals", "first_rejection"}. A row has agent, role,
+    sessions, input, output, cache_read, cache_write (5m + 1h), cost (None when the model has no price) and `rework`
+    (the agent started after the task's first rejection). Cursor agents get a row with sessions and wall_s but
+    tokens and cost None and state "not_available", never 0. Lead/HQ cost is goal overhead (goal_usage), not here.
+    A token index that is not ready gives state "not_ready" and no rows."""
+    if not snapshot.get("ready"):
+        return {"state": NOT_READY, "task": task_id, "rows": [], "totals": None, "first_rejection": None}
+    now = now or dt.datetime.now().astimezone()
+    agents = _usage_agents(con)
+    by, sess = _usage_buckets(snapshot, attribution, lambda a: a["task"] == task_id)
+    return _task_usage(task_id, agents, by, sess, con, now)
+
+
+def _task_usage(task_id, agents, by, sess, con, now):
+    rej = _first_rejection(con, task_id)
+    rows = []
+    for name, e in by.items():
+        a = agents.get(name)
+        if a is not None and _is_cursor(a):
+            continue
+        rows.append(_claude_row(name, e, sess[name], a))
+    for a in agents.values():
+        if a["task_id"] == task_id and _is_cursor(a):
+            rows.append(_cursor_row(a, now))
+    for r in rows:
+        a = agents.get(r["agent"])
+        start = _parse_ts(a["started"]) if a and a["started"] else None
+        r["rework"] = bool(rej and start and start > rej and r["state"] == "ok")
+    rows.sort(key=lambda r: _start_key(agents.get(r["agent"])))
+    return {"state": "ok", "task": task_id, "rows": rows, "totals": _totals(rows),
+            "first_rejection": rej.isoformat() if rej else None}
+
+
+def goal_usage(snapshot, attribution, con, goal_id, now=None):
+    """A goal's usage: its tasks (task_usage each), plus "goal overhead": sessions attributed to the goal without a
+    task (lead, pm without a task, HQ), and Cursor agents of the goal without a task. {"state", "goal", "tasks",
+    "overhead", "totals"}; totals = tasks + overhead."""
+    if not snapshot.get("ready"):
+        return {"state": NOT_READY, "goal": goal_id, "tasks": {}, "overhead": None, "totals": None}
+    now = now or dt.datetime.now().astimezone()
+    agents = _usage_agents(con)
+    ids = {a["task"] for a in attribution.values() if a["goal"] == goal_id and a["task"]}
+    ids |= {a["task_id"] for a in agents.values() if a["goal_id"] == goal_id and a["task_id"]}
+    buckets = _usage_buckets_multi(snapshot, attribution, ids, goal_id)    # one scan of the snapshot for all tasks
+    empty = ({}, {})
+    tasks = {t: _task_usage(t, agents, *buckets.get(t, empty), con, now) for t in sorted(ids)}
+    by, sess = buckets.get(None, empty)
+    over = []
+    for name, e in by.items():
+        a = agents.get(name)
+        if a is not None and _is_cursor(a):
+            continue
+        over.append(_claude_row(name, e, sess[name], a))
+    over += [_cursor_row(a, now) for a in agents.values() if a["goal_id"] == goal_id and not a["task_id"] and _is_cursor(a)]
+    allrows = over + [r for t in tasks.values() for r in t["rows"]]
+    return {"state": "ok", "goal": goal_id, "tasks": tasks, "overhead": {"rows": over, "totals": _totals(over)},
+            "totals": _totals(allrows)}

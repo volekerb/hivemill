@@ -256,6 +256,7 @@ func TestFoldMktemp(t *testing.T) {
 		{[]string{"D=$", "(", "mktemp", "-p", "x", ")"}, []string{"D=$(mktemp -p x)"}},
 		{[]string{"D=$", "(", "mktemp", "-u", ")"}, []string{"D=$", "(", "mktemp", "-u", ")"}},
 		{[]string{"D=$", "(", "date", ")"}, []string{"D=$", "(", "date", ")"}},
+		{[]string{"ZZ=$", "(", "printf", "'%s/%s'", "/x", "roles/y", ")"}, []string{"ZZ=$(printf '%s/%s' /x roles/y)"}},
 		{[]string{"D=$", "(", "mktemp"}, []string{"D=$", "(", "mktemp"}},
 		{[]string{"echo", "$", "("}, []string{"echo", "$", "("}},
 	}
