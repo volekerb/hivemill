@@ -39,6 +39,25 @@ func TestRetroResolvePrintf(t *testing.T) {
 	}
 }
 
+func TestRetroPrintfSegmentEmptyVsNonPrintf(t *testing.T) {
+	got, ok := retroPrintfSegment("printf %s")
+	if !ok || got != "" {
+		t.Errorf("empty %%s printf = %q ok=%v, want \"\" true", got, ok)
+	}
+	got, ok = retroPrintfSegment("echo /tmp/zz-retro-note.txt")
+	if ok {
+		t.Errorf("non-printf segment = %q ok=%v, want unresolved", got, ok)
+	}
+	resolved, ok := retroResolvePathExpr("$(printf %s; printf %s /tmp/zz-retro-note.txt)")
+	if !ok || resolved != "/tmp/zz-retro-note.txt" {
+		t.Errorf("joined empty+path = %q ok=%v, want /tmp/zz-retro-note.txt true", resolved, ok)
+	}
+	resolved, ok = retroResolvePathExpr("$(echo /tmp/zz-retro-note.txt)")
+	if ok {
+		t.Errorf("echo segment = %q ok=%v, want unresolved", resolved, ok)
+	}
+}
+
 func TestRetroRedirectFragUnicodeWhitespace(t *testing.T) {
 	fs := string(rune(0x1c))
 	cmd := `echo x >` + fs + ` "$(printf %s /tmp/zz-retro-note.txt)"`

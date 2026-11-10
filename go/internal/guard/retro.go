@@ -141,26 +141,29 @@ func retroSplitShellWords(text string) []string {
 	return words
 }
 
-func retroPrintfSegment(text string) string {
+// retroPrintfSegment returns the static result of one printf segment. ok is false when the segment is
+// not printf-only (Python _retro_printf_segment returns None); ok is true with an empty string when
+// printf %s has no payload (Python returns "").
+func retroPrintfSegment(text string) (got string, ok bool) {
 	words := retroSplitShellWords(strings.TrimFunc(text, pyIsSpace))
 	if len(words) < 2 || words[0] != "printf" {
-		return ""
+		return "", false
 	}
 	args := make([]string, 0, len(words)-1)
 	for _, w := range words[1:] {
 		args = append(args, retroQuoteUnquote(w))
 	}
 	if len(args) == 0 {
-		return ""
+		return "", false
 	}
 	fmt, rest := args[0], args[1:]
 	if fmt == "%s" {
-		return strings.Join(rest, "")
+		return strings.Join(rest, ""), true
 	}
 	if fmt == "%s/%s" && len(rest) == 2 {
-		return strings.TrimRight(rest[0], "/") + "/" + strings.TrimLeft(rest[1], "/")
+		return strings.TrimRight(rest[0], "/") + "/" + strings.TrimLeft(rest[1], "/"), true
 	}
-	return ""
+	return "", false
 }
 
 func retroResolvePathExpr(expr string) (string, bool) {
@@ -247,8 +250,8 @@ func retroResolvePathExpr(expr string) (string, bool) {
 	parts = append(parts, string(seg))
 	var out []string
 	for _, p := range parts {
-		got := retroPrintfSegment(p)
-		if got == "" {
+		got, segOk := retroPrintfSegment(p)
+		if !segOk {
 			return "", false
 		}
 		out = append(out, got)
