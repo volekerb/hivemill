@@ -66,7 +66,9 @@ class AuditTest(unittest.TestCase):
         row = d["logs"][0]
         self.assertEqual(row["guarded"], "NO")
         self.assertEqual(row["pid"], 111)
-        self.assertEqual(row["risky"], [{"command": HERD + " agent list", "outcome": "ran unguarded"}])
+        self.assertEqual(row["risky"], [{"word": HERD, "outcome": "ran unguarded"}])
+        self.assertEqual(row["ran"], {PRIV: 0, HERD: 1})
+        self.assertEqual(row["session"], "c1")
         self.assertEqual(d["summary"]["unguarded"], 1)
         self.assertEqual(d["summary"]["risky_unguarded"], 1)
 
@@ -125,13 +127,17 @@ class AuditTest(unittest.TestCase):
         d = self.result("--agents-json", af)
         self.assertEqual({r["pid"]: r["agent"] for r in d["logs"]}, {777: "cursor-pm-t-1", 778: "?"})
 
-    def test_output_has_no_message_text_and_excerpt_is_80_chars(self):
+    def test_output_has_no_command_or_message_text(self):
         self.log("session-2026-11-10T10-00-00-000Z-888-1.log", [
-            init("c9"), ev("logger", {"message": "SECRET prose"}), shell(PRIV + " " + "x" * 200)])
-        p = run(self.home, self.logs)
-        self.assertNotIn("SECRET", p.stdout)
-        self.assertIn(PRIV + " " + "x" * 75 + "'", p.stdout)
-        self.assertNotIn("x" * 76, p.stdout)
+            init("c9"), ev("logger", {"message": "SECRET prose"}), shell(PRIV + " SECRETARG " + HERD + " x"),
+            shell(PRIV + " again")])
+        for extra in ([], ["--json"]):
+            p = run(self.home, self.logs, *extra)
+            self.assertNotIn("SECRET", p.stdout)
+            self.assertNotIn("again", p.stdout)
+        text = run(self.home, self.logs).stdout
+        self.assertIn("%s=yes(2) %s=yes(1)" % (PRIV, HERD), text)
+        self.assertIn("beforeShellExecution=no", text)
 
     def test_innocent_commands_not_risky(self):
         self.log("session-2026-11-10T10-00-00-000Z-999-1.log", [init("c10"), shell("ls -la && git status")])

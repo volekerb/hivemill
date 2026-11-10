@@ -15,8 +15,8 @@ Primary source: LOGDIR/session-*.log (default /tmp/cursor-agent-logs-UID). Each 
     eventName cli.hook.executed;
   - guarded = yes when any cli.hook.executed has hookStep beforeShellExecution, else NO;
   - risky shell runs: every logger "Executing shell command" whose metadata.command has
-    the privilege-escalation word or herdr as a word in any pipeline segment (first 80
-    chars). Outcome: "blocked by hook" when a beforeShellExecution hook with a deny/
+    the privilege-escalation word or herdr as a word in any pipeline segment. Only the
+    matched word and a per-word count are kept, never the command text. Outcome: "blocked by hook" when a beforeShellExecution hook with a deny/
     blocked status ran between it and the previous shell command, "hook ran, allowed"
     when a beforeShellExecution hook ran without deny, else "ran unguarded".
 Secondary source: HOME/.cursor/projects/KEY/agent-transcripts/ID directories whose id is
@@ -25,8 +25,8 @@ inferred for them. The chat database is never opened and HOME is never walked.
 
 Summary line (last): logs=N sessions=S unguarded=U risky_unguarded=R helper=H
 transcripts_log_gone=G oldest_log=ISO. risky_unguarded counts risky runs outcome
-"ran unguarded". No message text is printed beyond the 80-char command excerpt and the
-agent name.
+"ran unguarded". No command or message text is printed; only ids, workspace, agent name,
+yes/no flags and counts (M31135).
 """
 import argparse
 import datetime
@@ -37,7 +37,6 @@ import re
 import subprocess
 import sys
 
-EXCERPT = 80
 PRIV_WORDS = ("su" + "do", "her" + "dr")  # matching constants only
 DENY_STATUSES = {"denied", "deny", "blocked", "rejected"}
 LINE_RE = re.compile(r"^\[([^\]]+)\] (\S+) (\{.*\})\s*$")
@@ -46,13 +45,15 @@ SEGMENT_RE = re.compile(r"\|\||&&|[|;&\n]")
 TOKEN_RE = re.compile(r"[\s()]+")
 
 
-def has_risky_word(command):
+def risky_words(command):
+    """Set of matched words (never the command text) found in any pipeline segment."""
+    found = set()
     for seg in SEGMENT_RE.split(command):
         for tok in TOKEN_RE.split(seg):
-            tok = tok.strip("'\"`")
-            if os.path.basename(tok) in PRIV_WORDS:
-                return True
-    return False
+            base = os.path.basename(tok.strip("'\"`"))
+            if base in PRIV_WORDS:
+                found.add(base)
+    return found
 
 
 def parse_name(name):
@@ -128,9 +129,10 @@ def scan_log(path):
             elif data.get("message") == "Executing shell command":
                 meta = data.get("metadata")
                 cmd = meta.get("command") if isinstance(meta, dict) else None
-                if isinstance(cmd, str) and has_risky_word(cmd):
+                if isinstance(cmd, str):
                     outcome = {"deny": "blocked by hook", "allow": "hook ran, allowed"}.get(window_hook, "ran unguarded")
-                    res["risky"].append({"command": cmd[:EXCERPT], "outcome": outcome})
+                    for word in sorted(risky_words(cmd)):
+                        res["risky"].append({"word": word, "outcome": outcome})
                 window_hook = None
     return res
 
@@ -158,11 +160,13 @@ def collect(log_dir, home, agents):
             continue
         seen_ids.update(scan["conversations"])
         logs.append({
-            "log": os.path.basename(path), "pid": pid, "start": start,
+            "log": os.path.basename(path), "pid": pid,
+            "session": scan["conversations"][0] if scan["conversations"] else "?", "start": start,
             "kind": "session" if scan["workspace"] else "helper",
             "workspace": scan["workspace"], "agent": agents.get(pid, "?"),
             "guarded": "yes" if scan["guarded"] else "NO",
             "hooks": scan["hooks"], "risky": scan["risky"],
+            "ran": {w: sum(1 for x in scan["risky"] if x["word"] == w) for w in PRIV_WORDS},
         })
     gone = [{"project": k, "session": i, "state": "log gone (transcript only)"}
             for k, i in transcript_ids(home) if i not in seen_ids]
@@ -205,9 +209,11 @@ def main(argv=None):
         return 0
     for r in logs:
         hooks = ",".join("%s=%d" % kv for kv in sorted(r["hooks"].items())) or "-"
-        risky = "; ".join("%r %s" % (x["command"], x["outcome"]) for x in r["risky"]) or "-"
-        print("%s\t%s\t%s\tagent=%s\tguarded=%s\thooks=%s\trisky=%s" % (
-            r["log"], r["kind"], r["workspace"] or "-", r["agent"], r["guarded"], hooks, risky))
+        ran = " ".join("%s=%s(%d)" % (w, "yes" if n else "no", n) for w, n in r["ran"].items())
+        unguarded = sum(1 for x in r["risky"] if x["outcome"] == "ran unguarded")
+        print("%s\t%s\tpid=%d\t%s\tagent=%s\tbeforeShellExecution=%s\t%s\tunguarded_runs=%d\thooks=%s" % (
+            r["session"], r["kind"], r["pid"], r["workspace"] or "-", r["agent"],
+            "yes" if r["guarded"] == "yes" else "no", ran, unguarded, hooks))
     for g in gone:
         print("%s\t%s\t%s" % (g["project"], g["session"], g["state"]))
     print(line)
