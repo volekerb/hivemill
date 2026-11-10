@@ -8903,6 +8903,16 @@ def install_pre_push_hook(repo):
         die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
 
 
+def trust_task_clone(con, task, wt, add=True):
+    """T-1220: pre-register (add) or drop the Claude workspace-trust entry of a per-task clone in the owner's
+    ~/.claude.json, only under worktrees/. A refusal records one clone-trust-refused event and goes on (the dialog shows)."""
+    home = str(sandbox_home() or workerbox.nsbox.real_home())
+    res, why = workerbox.set_clone_trust(home, WORKTREES, wt, add)
+    if res == "refused":
+        event(con, "task", task, "clone-trust-refused", {"path": str(wt), "reason": why})
+    return res
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -8932,6 +8942,7 @@ def prepare_worktree(con, task, role):
     start = f"origin/{base}" if has_remote else base
     if cfg(con, "task_clones") == "1":
         make_task_clone(con, repo, wt, branch, base)
+        trust_task_clone(con, task, wt)
         install_pre_push_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
@@ -11940,6 +11951,7 @@ def cmd_clean(a):
                     raise OSError("not a direct child of worktrees/")
                 shutil.rmtree(wt)
                 gone.append("clone")
+                trust_task_clone(con, t["id"], wt, add=False)
             except OSError as e:
                 err = "clone remove failed: " + str(e)[:80]
         elif wt:
