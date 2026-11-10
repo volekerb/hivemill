@@ -5,6 +5,7 @@ import os
 import stat
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from harness import FactoryTestCase
 from test_sandbox_spawn import prep
@@ -70,15 +71,27 @@ class CursorStartLogTests(FactoryTestCase):
         )
 
     def test_start_uncertain_writes_log_without_secrets(self):
-        self.env.set_herdr(start_fail=f"agent_not_ready {PLANT_TOKEN} GH_TOKEN={PLANT_ENV}")
+        scrollback = f"ZZ-PANE-SCROLLBACK-1247 {PLANT_TOKEN} GH_TOKEN={PLANT_ENV}"
+        self.env.set_herdr(start_fail=f"agent_not_ready {PLANT_TOKEN} GH_TOKEN={PLANT_ENV}", pane_read_text=scrollback)
+        self.env.seed_task("T-0001", role="pm", status="todo", team="g-001-a", spec="pm task", acceptance="1. ok")
         env = {**self.env.env(), "GH_TOKEN": PLANT_ENV}
-        p = self.spawn_pm(extra_env=env)
-        self.assertEqual(p.returncode, 0, p.stderr)
+        p = self.env.run(
+            "spawn", "pm", "--name", self.name, "--goal", "G-001", "--team", "g-001-a", "--task", "T-0001",
+            extra_env=env,
+        )
+        self.assertEqual(p.returncode, 3, p.stdout + p.stderr)
+        self.assertNotIn("SPAWNED", p.stdout)
+        self.assertNotIn("SPAWNED", p.stderr)
+        row = self.env.sql("SELECT status, ended FROM agents WHERE name=?", (self.name,))[0]
+        self.assertEqual(row["status"], "exited")
+        self.assertIsNotNone(row["ended"])
         self.assertTrue(self.log.is_file())
         self.assertEqual(stat.S_IMODE(self.log.stat().st_mode), 0o600)
         text = self.log.read_text()
-        self.assertIn("herdr agent start", text)
-        self.assertIn("herdr pane process-info", text)
+        self.assertIn("=== herdr agent start ===", text)
+        self.assertIn("=== herdr pane process-info ===", text)
+        self.assertIn("=== herdr pane read ===", text)
+        self.assertIn("ZZ-PANE-SCROLLBACK-1247", text)
         self.assertIn("foreground_processes", text)
         proc_calls = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "process-info"]]
         self.assertEqual(len(proc_calls), 1, proc_calls)
@@ -91,12 +104,68 @@ class CursorStartLogTests(FactoryTestCase):
         self.assertNotIn(PLANT_ENV, text)
         self.assertIn("[redacted-token]", text)
         self.assertIn("[redacted-env]", text)
+        read_calls = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "read"]]
+        self.assertEqual(len(read_calls), 1, read_calls)
+        rargv = read_calls[0]["argv"]
+        self.assertIn("--source", rargv)
+        self.assertEqual(rargv[rargv.index("--source") + 1], "recent")
+        self.assertGreater(len(rargv[2]), 0)
+        start_calls = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"]]
+        self.assertEqual(len(start_calls), 1, start_calls)
+        sargv = start_calls[0]["argv"]
+        self.assertIn("--timeout", sargv)
+        self.assertEqual(sargv[sargv.index("--timeout") + 1], "90000")
+        self.assertEqual([c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "prompt"]], [])
+        self.assertEqual(
+            len(self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action='start-uncertain'", (self.name,))), 1)
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action='spawn'", (self.name,))), 0)
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM messages WHERE recipient=?", (self.name,))), 0)
+        task_row = self.env.sql("SELECT status, attempts FROM tasks WHERE id='T-0001'")[0]
+        self.assertEqual(task_row["status"], "todo")
+        self.assertEqual(task_row["attempts"], 0)
+
+    def test_pane_read_unavailable_when_text_empty_or_missing(self):
+        name = "zz-pane-read-unavail-1247"
+        pane = "p-zz-1247"
+        log = self.env.home_dir / "logs" / f"{name}-cursor-start.log"
+        proc_info = {
+            "process_info": {"foreground_processes": [{"argv": ["zsh"], "cmdline": "zsh", "name": "zsh", "pid": 1}]},
+            "type": "pane_process_info",
+        }
+        cases = (("none", None), ("empty_text", {"text": ""}), ("empty_dict", {}))
+        for label, read_result in cases:
+            with self.subTest(label=label):
+                log.unlink(missing_ok=True)
+                with self.env.load_factory() as f:
+                    def fake_herdr(*args, check=False, **kwargs):
+                        if args[:2] == ("pane", "process-info"):
+                            return proc_info
+                        if args[:2] == ("pane", "read"):
+                            return read_result
+                        return None
+
+                    with mock.patch.object(f, "herdr", side_effect=fake_herdr):
+                        f._write_cursor_start_log(name, pane, "agent_not_ready", {})
+                text = log.read_text()
+                self.assertIn("=== herdr pane read ===", text)
+                marker = "=== herdr pane read ===\n"
+                section = text.split(marker, 1)[1].split("\n", 1)
+                self.assertEqual(section[0], "pane read unavailable")
+                self.assertNotIn("{'text': ''}", text.split(marker, 1)[1].split("\n", 1)[0])
 
     def test_successful_start_writes_no_log(self):
         self.env.set_herdr(start_fail=False)
         p = self.spawn_pm()
         self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("SPAWNED", p.stdout)
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (self.name,))[0]["status"], "live")
         self.assertFalse(self.log.exists())
+        start_calls = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"]]
+        self.assertEqual(len(start_calls), 1, start_calls)
+        sargv = start_calls[0]["argv"]
+        self.assertIn("--timeout", sargv)
+        self.assertEqual(sargv[sargv.index("--timeout") + 1], "90000")
+        self.assertEqual([c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "read"]], [])
 
 
 class CursorLostLogAlertTests(FactoryTestCase):

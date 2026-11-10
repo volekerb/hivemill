@@ -147,6 +147,8 @@ elif cmd == ("pane", "close"):
     out({})
 elif cmd == ("agent", "read"):  # state "read_text": {agent name: pane text}
     out({"text": st.get("read_text", {}).get(argv[2], "")})
+elif cmd == ("pane", "read"):
+    out({"text": st.get("pane_read_text", "")})
 else:  # agent prompt, pane run/close/report-metadata, workspace report-metadata, ...
     out({"text": ""})
 
