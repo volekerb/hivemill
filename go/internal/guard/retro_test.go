@@ -52,6 +52,22 @@ func TestRetroRedirectFragUnicodeWhitespace(t *testing.T) {
 			t.Fatalf("retroRolesSubst(%q) = true, want false for /tmp target", m)
 		}
 	}
+	if err := Check(cmd, ccwd, retroRole, false); err != nil {
+		t.Fatalf("quoted /tmp redirect should allow: %v", err)
+	}
+}
+
+func TestRetroRedirectFragUnicodeWhitespaceUnquoted(t *testing.T) {
+	fs := string(rune(0x1c))
+	cmd := `echo x >` + fs + `$(printf %s /tmp/zz-retro-note.txt)`
+	frags := retroSubstRedirectFrags(cmd)
+	if len(frags) == 0 {
+		t.Fatalf("no redirect frags from %q", cmd)
+	}
+	ccwd := t.TempDir()
+	if err := Check(cmd, ccwd, retroRole, false); err == nil {
+		t.Fatal("unquoted U+001C redirect to /tmp should block")
+	}
 }
 
 func TestRetroRolesCodePrintfFrag(t *testing.T) {
