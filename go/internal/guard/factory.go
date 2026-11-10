@@ -316,6 +316,11 @@ func (a *Analyzer) factoryUnit(name string, rest []string, assigns []string) err
 			return err
 		}
 	}
+	if a.Role == retroRole {
+		if err := a.retroFactory(sub, hasSub); err != nil {
+			return err
+		}
+	}
 	if (a.Role == "coder" || a.Role == "qa") && !a.HQ && hasSub &&
 		sub == "init" && !a.scratchHomes(assigns) {
 		return blockf("workers may run `factory init` only with HOME and FACTORY_HOME both set (same command or " +
@@ -346,6 +351,15 @@ func (a *Analyzer) factoryUnit(name string, rest []string, assigns []string) err
 // any option token before the action word (or before the id of `goal show`) blocks the command.
 func (a *Analyzer) broadRead(sub string, rest []string, assigns []string) error {
 	if a.Role == "staff-engineer" {
+		return nil
+	}
+	var nonopt []string
+	for _, x := range rest {
+		if !strings.HasPrefix(x, "-") {
+			nonopt = append(nonopt, x)
+		}
+	}
+	if sub == "config" && len(nonopt) > 1 && a.Role == "coder" {
 		return nil
 	}
 	seconds := BroadReads[sub]

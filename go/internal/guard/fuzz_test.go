@@ -74,6 +74,11 @@ func FuzzCheck(f *testing.F) {
 			_ = Check(s, dir, "", true)
 			// a no-push role reaches inlineGhAPIBody, matchInlineGhAPIBody, bodyFlagAt and matchInlineGhGet
 			_ = Check(s, dir, "reviewer", false)
+			_ = Check(s, dir, retroRole, false)
+			for _, frag := range retroSubstRedirectFrags(s) {
+				_ = retroSplitShellWords(frag)
+				_, _ = retroResolvePathExpr(retroPathExpr(frag))
+			}
 		})
 	})
 }
