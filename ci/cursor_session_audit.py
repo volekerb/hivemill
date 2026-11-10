@@ -105,16 +105,20 @@ def scan_transcript(path):
             if not isinstance(msg, dict):
                 continue
             content = (msg.get("message") or {}).get("content")
-            if not isinstance(content, list):
-                continue
             if msg.get("role") == "user" and first_user:
                 first_user = False
+                if isinstance(content, str):
+                    content = [{"type": "text", "text": content}]
+                if not isinstance(content, list):
+                    continue
                 for part in content:
                     if isinstance(part, dict) and part.get("type") == "text":
                         m = AGENT_RE.search(part.get("text") or "")
                         if m:
                             agent = m.group(1)
                             break
+                continue
+            if not isinstance(content, list):
                 continue
             for part in content:
                 if not isinstance(part, dict) or part.get("type") != "tool_use" or part.get("name") != "Shell":
@@ -139,7 +143,10 @@ def cwd_key(cwd):
 
 
 def fmt_time(ts):
-    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (OverflowError, OSError, ValueError):
+        return "?"
 
 
 def collect(home):
@@ -232,7 +239,6 @@ def main(argv=None):
         r.pop("_ts")
     if args.json:
         print(json.dumps({"sessions": rows, "summary": summary}, indent=2))
-        print(line)
         return 0
     for r in rows:
         attempts = "; ".join("%r %s" % (a["command"], a["outcome"]) for a in r["sudo_or_herdr"]) or "-"

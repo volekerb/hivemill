@@ -55,7 +55,7 @@ class AuditTest(unittest.TestCase):
     def rows(self, *args):
         p = run(self.home, "--json", *args)
         self.assertEqual(p.returncode, 0, p.stderr)
-        data = json.loads(p.stdout.rsplit("\n", 2)[0])
+        data = json.loads(p.stdout)
         return {r["session"]: r for r in data["sessions"]}, data["summary"], p.stdout
 
     def test_factory_root_without_hooks_json_is_no_and_sudo_listed(self):
