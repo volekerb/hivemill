@@ -287,9 +287,9 @@ func retroRolesSubst(text, ccwd string, ccwdKnown bool) bool {
 }
 
 var (
-	reRetroRedirDQ = regexp.MustCompile(`>[>|]?\s*"([^"]*(?:\$\(|` + "`" + `)[^"]*)"`)
-	reRetroRedirSQ = regexp.MustCompile(`>[>|]?\s*'([^']*(?:\$\(|` + "`" + `)[^']*)'`)
-	reRetroRedirUQ = regexp.MustCompile(`>[>|]?\s*[^\s;|&"']*(?:\$\(|` + "`" + `)[^;|&\n]*`)
+	reRetroRedirDQ = regexp.MustCompile(`>[>|]?[` + gitSp + `]*"([^"]*(?:\$\(|` + "`" + `)[^"]*)"`)
+	reRetroRedirSQ = regexp.MustCompile(`>[>|]?[` + gitSp + `]*'([^']*(?:\$\(|` + "`" + `)[^']*)'`)
+	reRetroRedirUQ = regexp.MustCompile(`>[>|]?[` + gitSp + `]*[^` + gitSp + `;|&"']*(?:\$\(|` + "`" + `)[^;|&\n]*`)
 )
 
 // retroSubstRedirectFrags is retro_subst_redirect_frags.

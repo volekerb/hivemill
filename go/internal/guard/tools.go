@@ -81,7 +81,7 @@ func PersistEdit(data map[string]any, role string) (int, string) {
 		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + exportWhy + ". Tell your lead if this is wrong.\n"
 	}
 	if role == retroRole && (retroRolesPath(p, false) || (unres && retroRolesPath(ps, true)) ||
-		(strings.ContainsAny(ps, "$`") && retroRolesSubst(ps, cwd, true))) {
+		(strings.ContainsAny(ps, "$`") && retroRolesSubst(ps, "", false))) {
 		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + retroRoleWhy + ". Tell your lead if this is wrong.\n"
 	}
 	if protEditPath(p, false) || (unres && protEditPath(ps, true)) { // T-0925 gap g: the Edit tools were checked against the persist paths only
