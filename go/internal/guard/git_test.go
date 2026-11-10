@@ -775,6 +775,43 @@ func TestXargsGitConfig(t *testing.T) {
 	}
 }
 
+// T-1142: gitRunners inspects inner commands of submodule foreach, rebase -x, bisect run, difftool -x (T-0908).
+func TestCoderGitRunnersInnerRefused(t *testing.T) {
+	f := newGitFix(t)
+	push := "git push origin main"
+	cases := []struct {
+		cmd  string
+		want string
+	}{
+		{"git submodule foreach", "without a command"},
+		{"git rebase -x", "without a command"},
+		{`git rebase -x '` + push + `' HEAD~1`, "push origin"},
+		{"git submodule $S", "subcommand is dynamic"},
+		{`git rebase -x 'pytest -q' HEAD~1`, "full suite"},
+	}
+	for _, c := range cases {
+		err := f.check(c.cmd, f.wt, "coder")
+		if err == nil || IsDelegate(err) {
+			t.Fatalf("%q: allowed, want block", c.cmd)
+		}
+		msg := Explain(err)
+		if !strings.Contains(msg, c.want) {
+			t.Fatalf("%q: %q, want substring %q", c.cmd, msg, c.want)
+		}
+	}
+}
+
+func TestCoderGitRunnersControlsAllowed(t *testing.T) {
+	f := newGitFix(t)
+	for _, cmd := range []string{
+		"git submodule foreach 'git status'",
+		"git rebase -x ./x.sh HEAD~1",
+		"echo f | xargs git bisect good",
+	} {
+		f.allowed(t, cmd, f.wt, "coder")
+	}
+}
+
 // T-1040: xargs git rebase/difftool must refuse (stdin could supply -x/--exec).
 func TestXargsGitRebaseDifftool(t *testing.T) {
 	f := newGitFix(t)
