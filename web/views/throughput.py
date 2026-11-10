@@ -22,6 +22,7 @@ HQ_ROLES = ("boss", "director", "staff-engineer")
 SORTS = {"total": "desc", "task": "asc", "merged": "desc"}   # sortable column of the slowest table -> first-click direction
 GETTERS = {"total": lambda s: s["total_s"], "task": lambda s: s["task_id"], "merged": lambda s: s["merged"]}
 LIMITS = "Counted from factory records only. It cannot see a push the owner makes by hand, or an owner wait set on a task that was already blocked."
+TOKEN_KEYS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
 STAGES = (("coding_s", "Coding"), ("review_s", "Review / QA wait"), ("judge_s", "Judge"), ("rework_s", "Rework"))
 
 
@@ -62,7 +63,9 @@ def _cost(ctx, items, org, days):
     cursor_ids = [i["task_id"] for i in items if queries.org_of_goal(gorgs, i["goal_id"]) == "cursor"]
     claude_ids = [i["task_id"] for i in items if queries.org_of_goal(gorgs, i["goal_id"]) != "cursor"]
     out = {"state": "ready", "figure": None, "priced": 0, "left_out": 0, "merged": len(claude_ids),
-           "cursor_tasks": len(cursor_ids), "cursor_hours": None, "prices_as_of": PRICES_AS_OF}
+           "cursor_tasks": len(cursor_ids), "cursor_hours": None, "prices_as_of": PRICES_AS_OF,
+           "cursor_ids": sorted(cursor_ids), "left_out_ids": [], "cost_median": None, "cost_p90": None,
+           "tokens_median": None, "tokens_p90": None}
     if org in (None, "cursor"):
         since = (queries._now(ctx.now).astimezone().date() - dt.timedelta(days=days - 1)).isoformat()
         ag = queries.agents(ctx.db, include_ended=True, now=ctx.now)
@@ -77,11 +80,16 @@ def _cost(ctx, items, org, days):
     if not claude_ids:
         return out
     by_task = wtokens.rollup(snap, wtokens.attribute(snap, ctx.db))["by_task"]
-    costs = [by_task[t]["cost"] for t in claude_ids if t in by_task and by_task[t]["cost"] is not None
-             and not by_task[t]["cost_unknown"]]     # a part-priced task has a partial cost: left out too
+    priced = [t for t in claude_ids if t in by_task and by_task[t]["cost"] is not None
+              and not by_task[t]["cost_unknown"]]     # a part-priced task has a partial cost: left out too
+    costs = [by_task[t]["cost"] for t in priced]
     out["priced"], out["left_out"] = len(costs), len(claude_ids) - len(costs)
+    out["left_out_ids"] = sorted(set(claude_ids) - set(priced))
     if costs:
         out["figure"] = round(sum(costs) / len(costs), 4)
+        toks = [sum(by_task[t][k] for k in TOKEN_KEYS) for t in priced]    # tokens of the same priced set
+        out["cost_median"], out["cost_p90"] = round(statistics.median(costs), 4), round(_p90(costs), 4)
+        out["tokens_median"], out["tokens_p90"] = round(statistics.median(toks)), _p90(toks)
     return out
 
 
@@ -184,6 +192,46 @@ def _cost_tile(d):
     return tile("Cost per merged PR", value, delta=delta, definition=definition)
 
 
+def _ids(ids, cap=8):
+    return ", ".join(ids[:cap]) + (f" and {len(ids) - cap} more" if len(ids) > cap else "")
+
+
+def _money(x):
+    return f"${x:,.2f}" if x is not None else "-"
+
+
+def _count(x):
+    return f"{x:,}" if x is not None else "-"
+
+
+def _spread(d):
+    """Median and p90 of cost and of tokens per merged PR, over the same priced set as the average cost tile. A figure
+    that cannot be computed shows "-", never zero; tasks left out and Cursor tasks are named."""
+    c = d["cost"]
+    title = "Cost and tokens per merged PR"
+    if c["state"] == "cursor":
+        return section(title, empty_state(f"Not available for Cursor: {c['cursor_hours']} agent-hours, no cost or tokens reported."))
+    if c["state"] == "not_ready":
+        return section(title, empty_state("Not ready: the token index is still warming up."))
+    grid = el("div",
+              tile("Median cost per merged PR", _money(c["cost_median"]),
+                   definition="Median estimated cost of a merged Claude-org PR, over the same priced tasks as the average."),
+              tile("p90 cost per merged PR", _money(c["cost_p90"]),
+                   definition="90th percentile (nearest rank) of the same costs."),
+              tile("Median tokens per merged PR", _count(c["tokens_median"]),
+                   definition="Median of input, output and cache tokens of the same priced tasks."),
+              tile("p90 tokens per merged PR", _count(c["tokens_p90"]),
+                   definition="90th percentile (nearest rank) of the same token counts."),
+              class_="tiles")
+    notes = [f"{c['priced']} of {c['merged']} Claude tasks priced; estimated at list prices as of {c['prices_as_of']} "
+             "(API-equivalent, not a bill)."]
+    if c["left_out_ids"]:
+        notes.append(f"Left out (no tokens or no price): {_ids(c['left_out_ids'])}.")
+    if c["cursor_ids"]:
+        notes.append(f"Cursor tasks, no cost or tokens reported: {_ids(c['cursor_ids'])}.")
+    return section(title, grid, el("p", " ".join(notes), class_="muted"))
+
+
 def _per_day(d):
     points = [(r["day"], r["merges"]) for r in d["merges_per_day"]]
     return section("Merges per day", charts.columns(points, "merges", height=96))
@@ -236,4 +284,4 @@ def _slowest(ctx, d):
 def render(ctx, d):
     open_note = el("p", f"{d['open_tasks']} tasks open now (in progress or in review), {d['live_workers']} agents working on a task.",
                    class_="muted")
-    return el("div", _range(d), _tiles(d), open_note, _per_day(d), _stage_card(d), _goals(d), _slowest(ctx, d))
+    return el("div", _range(d), _tiles(d), _spread(d), open_note, _per_day(d), _stage_card(d), _goals(d), _slowest(ctx, d))
