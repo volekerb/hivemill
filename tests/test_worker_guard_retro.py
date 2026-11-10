@@ -8,7 +8,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard_impl import hook_run  # noqa: E402
 
-GUARD_IMPL_PYTHON_ONLY = "G-036 SC3 retro_factory and retro role-file edits are Python-only until the Go mirror (#517)"
+GUARD_IMPL_PYTHON_ONLY = "G-036 SC3 retro_factory and retro role-file edits are Python-only until the Go mirror (T-1219)"
 
 LIVE = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")
 

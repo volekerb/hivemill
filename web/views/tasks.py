@@ -7,7 +7,7 @@ from web.queries import parse_ts
 from web.components import (data_table, disclosure, empty_state, filter_bar, ago, chips, ctx_org, href, org_badge, org_href, pr_label, row_status,
                             GROUP_ORDER, COLLAPSED)
 from web.prices import PRICES_AS_OF
-from web.tokens import attribute, rollup
+from web.tokens import attribute, rollup, task_usage
 from web.html import LABELS, badge, card, dur, el, empty, kpi, link, table, ts
 from web.views.goals import status_badge, task_badge
 
@@ -60,8 +60,39 @@ SORT_KEYS = {
     "rejections": lambda t: t["rejections"],
     "updated": lambda t: t["updated"] or "",
 }
+METRIC_KEYS = {"cost": "cost", "tokens": "tokens", "wall": "wall_s"}   # sort key -> row field; None sorts last in both directions
+SORT_KEYS.update({k: (lambda t, fld=fld: t[fld]) for k, fld in METRIC_KEYS.items()})
 DEFAULT_SORT = ("updated", "desc")
 GOAL_CHIPS = 6
+
+
+def _metrics(ctx, tasks):
+    """task id -> {cost, tokens, wall_s, na}: one rollup of the TokenIndex snapshot per page load (never waits: an index
+    that is not ready gives None, shown "-"). Cursor tasks have no token counts: na=True, shown "n/a", never 0.
+    wall_s = created -> merge event for merged tasks, else None."""
+    snap = ctx.tokens() if getattr(ctx, "tokens", None) else None
+    by_task = {}
+    if snap and snap.get("ready"):
+        by_task = rollup(snap, attribute(snap, ctx.db))["by_task"]
+    merged_at = {}
+    for r in ctx.db.execute("SELECT entity_id, MAX(ts) ts FROM events WHERE entity='task' AND action='merged' GROUP BY entity_id"):
+        merged_at[r["entity_id"]] = r["ts"]
+    gorgs = queries.goal_orgs(ctx.db)
+    out = {}
+    for t in tasks:
+        m = {"cost": None, "tokens": None, "wall_s": None, "na": queries.org_of_goal(gorgs, t["goal_id"]) == "cursor"}
+        e = by_task.get(t["id"])
+        if e is not None and not m["na"]:
+            tok = sum(e[k] for k in ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h"))
+            if tok:
+                m["tokens"] = tok
+                if e["cost"] is not None and not e["cost_unknown"]:
+                    m["cost"] = e["cost"]
+        a, b = parse_ts(t["created"]), parse_ts(merged_at.get(t["id"]))
+        if a is not None and b is not None and b >= a:
+            m["wall_s"] = round((b - a).total_seconds())
+        out[t["id"]] = m
+    return out
 
 
 def _sort_state(q):
@@ -95,11 +126,13 @@ def data(ctx, goal=None, status=None, **params):
     for t in in_status:
         goal_counts[t["goal_id"]] = goal_counts.get(t["goal_id"], 0) + 1
     rows = []
-    for t in (t for t in in_goal if not status or t["status"] == status):
+    shown = [t for t in in_goal if not status or t["status"] == status]
+    met = _metrics(ctx, shown)
+    for t in shown:
         label, _ = _ci_for(t, merged)
         rows.append({"id": t["id"], "goal_id": t["goal_id"], "title": t["title"], "status": t["status"], "waits": t["waits"], "pr_url": t["pr_url"],
                      "ci": label, "rejections": rej.get(t["id"], 0), "attempts": t["attempts"],
-                     "assignee": t["assignee"], "updated": t["updated"], "org": queries.org_of_goal(gorgs, t["goal_id"])})
+                     "assignee": t["assignee"], "updated": t["updated"], **met[t["id"]], "org": queries.org_of_goal(gorgs, t["goal_id"])})
     sort = _sort_state(q)
     return {"org": org, "filter": {"goal": goal, "status": status}, "goals": sorted(known), "statuses": list(STATUSES), "tasks": rows,
             "counts": counts, "goal_counts": dict(sorted(goal_counts.items())), "total": len(in_goal),
@@ -114,6 +147,9 @@ COLUMNS = (
     {"key": "assignee", "label": "Assignee", "cls": "c-who", "sortable": True, "phone_label": True},
     {"key": "pr", "label": "PR", "cls": "c-who", "sortable": True, "phone_label": True},
     {"key": "rejections", "label": "Rejections", "cls": "c-who", "sortable": True, "phone_label": True},
+    {"key": "cost", "label": "Cost", "cls": "c-who num", "sortable": True, "phone_label": True},
+    {"key": "tokens", "label": "Tokens", "cls": "c-who num", "sortable": True, "phone_label": True},
+    {"key": "wall", "label": "Wall time", "cls": "c-who num", "sortable": True, "phone_label": True},
     {"key": "updated", "label": "Updated", "cls": "c-age num", "sortable": True},
 )
 
@@ -130,6 +166,13 @@ def _ci_word(label):
     return el("span", CI_WORDS[label], class_="muted") if label in CI_WORDS else ""
 
 
+def _metric_cell(t, field, fmt):
+    """Value, "n/a" for a Cursor task (no token counts), "-" when unknown; never 0 for a missing value."""
+    if t[field] is None:
+        return "n/a" if t["na"] and field != "wall_s" else "-"
+    return fmt(t[field])
+
+
 def _row(t, now):
     pr = el("span", link(t["pr_url"], pr_label(t["pr_url"])), " ", _ci_word(t["ci"])) if t["pr_url"] else ""
     n = t["rejections"]
@@ -137,12 +180,17 @@ def _row(t, now):
     title = el("span", el("a", t["title"], href=f"/task/{t['id']}"), " ", task_badge("blocked", t["waits"]) if t["status"] == "blocked" else None)
     goal = el("span", link(f"/goal/{t['goal_id']}", t["goal_id"]), " ", org_badge(t.get("org")), class_="orgrow") if t["goal_id"] else ""
     return [row_status(t["status"]), t["id"], title, goal,
-            t["assignee"] or "", pr, rej, el("span", ago(t["updated"], now), title=t["updated"])]
+            t["assignee"] or "", pr, rej, _metric_cell(t, "cost", lambda v: f"${v:,.2f}"), _metric_cell(t, "tokens", lambda v: f"{v:,}"),
+            _metric_cell(t, "wall_s", dur), el("span", ago(t["updated"], now), title=t["updated"])]
 
 
 def _sorted(rows, sort):
     key, d = sort
     rows = sorted(rows, key=lambda t: t["id"])
+    if key in METRIC_KEYS:   # unknown values go last whichever the direction
+        fld = METRIC_KEYS[key]
+        known = sorted((t for t in rows if t[fld] is not None), key=SORT_KEYS[key], reverse=d == "desc")
+        return known + [t for t in rows if t[fld] is None]
     return sorted(rows, key=SORT_KEYS[key], reverse=d == "desc")
 
 
@@ -292,7 +340,25 @@ def _detail_data(ctx, id=None, **params):
             "assignee": t["assignee"], "team_id": t["team_id"], "pr_url": t["pr_url"], "follow_up_of": t["follow_up_of"], "follow_ups": follow,
             "created": t["created"], "merged": bool(merged_ev), "ci": label, "ci_checks": checks,
             "rejections": cyc["rejections"], "retries": cyc["retries"], "attempts": cyc["attempts"], "reopens": cyc["reopens"],
-            "total_s": total, "steps": steps, "cost": _cost_data(ctx, t)}
+            "total_s": total, "steps": steps, "cost": _cost_data(ctx, t),
+            "lifecycle": queries.task_lifecycle(con, id, ctx.now), "usage": _usage_data(ctx, id),
+            "incidents": _incident_causes(con, id)}
+
+
+def _usage_data(ctx, task_id):
+    """C2 per-agent usage of the task from the same TokenIndex snapshot; None while the index is warming or not wired."""
+    snap = ctx.tokens() if getattr(ctx, "tokens", None) else None
+    if not snap or not snap.get("ready"):
+        return None
+    return task_usage(snap, attribute(snap, ctx.db), ctx.db, task_id, ctx.now)
+
+
+def _incident_causes(con, task_id):
+    """cause -> count of this task's rejection_incidents rows (structured cause only, never free text)."""
+    out = {}
+    for r in con.execute("SELECT cause FROM rejection_incidents WHERE task_id=? ORDER BY id", (task_id,)):
+        out[r["cause"]] = out.get(r["cause"], 0) + 1
+    return out
 
 
 _ROLE = {"qa": "QA"}
@@ -458,6 +524,77 @@ def _cost_line(c):
     return f"Cost: ${c['cost']:.2f}" + note
 
 
+_WAIT_LABEL = {"ci": "waiting: CI", "blocked": "waiting: blocked"}
+_NA = "not available"
+
+
+def _share(sec, total):
+    return f"{sec / total:.0%}" if sec is not None and total else "unknown"
+
+
+def _lifecycle_section(d):
+    lc = d.get("lifecycle")
+    if not lc:
+        return None
+    total = lc["total"]["seconds"]
+    rows = [[st["stage"], (dur(st["seconds"]), "num"), (_share(st["seconds"], total), "num")] for st in lc["stages"]]
+    for w in lc["waits"]:
+        kind = _WAIT_LABEL.get(w["kind"], w["kind"]) + (f" ({w['waits']})" if w["kind"] == "blocked" else "")
+        rows.append([el("span", kind, " ", el("span", "inside a stage", class_="muted")), (dur(w["seconds"]), "num"),
+                     (_share(w["seconds"], total), "num")])
+    if lc["gaps_s"] is not None:
+        rows.append(["other (rework, idle)", (dur(lc["gaps_s"]), "num"), (_share(lc["gaps_s"], total), "num")])
+    rows.append([el("strong", "total" + (" (open)" if lc["total"]["open"] else "")), (dur(total), "num"), ("100%" if total else "unknown", "num")])
+    return section("Lifecycle", table(["Stage", "Duration", "Share"], rows))
+
+
+def _n(v):
+    return _NA if v is None else f"{v:,}"
+
+
+def _money(v):
+    return "unknown" if v is None else f"${v:,.2f}"
+
+
+def _usage_cells(r):
+    if r.get("state") == "not_available":
+        return [(_NA, "num")] * 5
+    return [(_n(r["input"]), "num"), (_n(r["output"]), "num"), (_n(r["cache_read"]), "num"), (_n(r["cache_write"]), "num"),
+            (_money(r["cost"]), "num")]
+
+
+def _rework_line(d):
+    u, inc = d.get("usage"), d.get("incidents") or {}
+    t = (u or {}).get("totals")
+    if t and t.get("rework_cost") is not None and t.get("rework_share") is not None:
+        cost = f"{_money(t['rework_cost'])} ({t['rework_share']:.0%} of cost)"
+    else:
+        cost = "unknown"
+    causes = [f"{c} ×{n}" for c, n in sorted(inc.items())]
+    missing = (d.get("rejections") or 0) - sum(inc.values())
+    if missing > 0:
+        causes.append(f"cause not recorded ×{missing}")
+    if not causes and not (d.get("rejections") or 0):
+        return "Rework: none (no rejections)"
+    return f"Rework: {cost} · causes: {', '.join(causes)}"
+
+
+def _usage_section(d):
+    u = d.get("usage")
+    if u is None:
+        return section("Cost and tokens", el("p", "Not ready (the token index is still warming up).", class_="muted"),
+                       el("p", _rework_line(d), class_="muted"))
+    head = el("p", f"Estimated at list prices as of {PRICES_AS_OF} (API-equivalent, not a bill)", class_="muted")
+    if not u["rows"]:
+        return section("Cost and tokens", head, empty_state("No tokens attributed to this task."), el("p", _rework_line(d), class_="muted"))
+    rows = [[r["role"] or "-", r["agent"], (str(r["sessions"]), "num"), *_usage_cells(r)] for r in u["rows"]]
+    t = u["totals"]
+    rows.append([el("strong", "Total"), "", (str(t["sessions"]), "num"), *_usage_cells(t)])
+    note = el("p", "Totals cover the Claude agents only; Cursor reports no token counts.", class_="muted") if t["cursor_rows"] else None
+    return section("Cost and tokens", head, table(["Role", "Agent", "Sessions", "Input", "Output", "Cache read", "Cache write", "Cost"], rows),
+                   note, el("p", _rework_line(d), class_="muted"))
+
+
 def _detail_render(ctx, d):
     crumb = crumbs(("/tasks", "Tasks"), (f"/task/{d.get('id')}", d.get("id") or "?"))
     if not d.get("found"):
@@ -467,7 +604,7 @@ def _detail_render(ctx, d):
     blocks = _attempt_blocks(d["steps"])
     cycle = ([_attempt(n, b, n == len(blocks), ctx.now) for n, b in enumerate(blocks, 1)] if blocks else [empty_state("No events yet.")])
     parts = [el("div", crumb, _meta(d), el("p", _cost_line(d["cost"]), class_="muted"), class_="tblock tblock--wide"), section("Verdicts", _verdict_summary(d) or empty_state("No verdicts yet.")), tiles,
-             section("PR cycle", *cycle)]
+             _lifecycle_section(d), _usage_section(d), section("PR cycle", *cycle)]
     fu = [el("span", link(f"/task/{f['id']}", f["id"]), " ", f["title"], " ", task_badge(f["status"], f["waits"]), " ") for f in d["follow_ups"]]
     if d["follow_up_of"]:
         fu.insert(0, el("span", "follow-up of ", link(f"/task/{d['follow_up_of']}", d["follow_up_of"]), " "))

@@ -1,12 +1,14 @@
 """Goals page and goal detail: progress, success criteria, owner-pending items. Never renders plan bodies."""
+import statistics
 from threading import local as _thread_local
 from types import SimpleNamespace
 
-from web import charts, queries
+from web import charts, queries, tokens as wtokens
+from web.prices import PRICES_AS_OF
 from scout import orgs as _orgs
 from web.components import (AGENT_COLS, COLLAPSED, agent_row, GROUP_ORDER, ago, chip, chips, ctx_org, data_table, disclosure, empty_state, filter_bar, needs_you_row,
                             org_badge, org_href, row_status, section, segmented)
-from web.html import CLASSES, LABELS, badge, card, crumbs, el, link, table, ts
+from web.html import CLASSES, LABELS, badge, card, crumbs, dur, el, link, table, ts
 from web.views.home import _needs, goal_row, needs_by_goal
 
 TITLE = "Goals"
@@ -16,7 +18,8 @@ _KIND = {"done": "ok", "active": "info", "in_progress": "info", "in_review": "in
          "proposed": "warn", "todo": "muted", "blocked": "bad", "cancelled": "muted"}
 TEAM_SCOPE_MAX = 120
 SORTS = ("priority", "progress", "updated")
-INTENT_OPEN_MAX = 480   # a longer intent collapses behind a disclosure
+ALL_DAYS = 3650         # "all time" window for the goal's merged-PR count and median
+INTENT_OPEN_MAX =480   # a longer intent collapses behind a disclosure
 
 
 class DetailView:
@@ -163,7 +166,69 @@ def _detail_data(ctx, id=None, **params):
     g["plan"] = {"version": p["version"], "created": p["created"]} if p else None
     ids = {t["id"] for t in g["tasks"]}
     g["blocking"] = [i for i in _needs(ctx) if i.get("ref") == id or i.get("ref") in ids]
+    g["usage"] = _usage(ctx, id)
     return g
+
+
+def _usage(ctx, gid):
+    """Numbers of the "Cost and time" card (JSON-safe). Merged PRs and the median spawn-to-merge come from
+    queries.throughput over all time; tokens, cost and rework share from tokens.goal_usage. A Cursor goal has agent-hours
+    and no tokens or cost; an index that is not ready is reported as such, never as zero."""
+    t = queries.throughput(ctx.db, days=ALL_DAYS, now=ctx.now, goals={gid})
+    times = [i["total_s"] for i in t["tasks"] if i["total_s"] is not None]
+    out = {"state": "ok", "merged": len(t["tasks"]), "timed": len(times),
+           "median_s": round(statistics.median(times)) if times else None, "prices_as_of": PRICES_AS_OF,
+           "tokens": None, "cost": None, "tasks_cost": None, "overhead_cost": None, "rework_share": None, "hours": None}
+    if queries.org_of_goal(queries.goal_orgs(ctx.db), gid) == "cursor":
+        snap, att = {"ready": True, "rows": [], "sessions": {}}, {}
+        out["state"] = "cursor"
+    else:
+        snap = ctx.tokens() if getattr(ctx, "tokens", None) else None
+        if not snap or not snap.get("ready"):
+            out["state"] = "not_ready"
+            return out
+        att = wtokens.attribute(snap, ctx.db)
+    u = wtokens.goal_usage(snap, att, ctx.db, gid, ctx.now)
+    tot = u["totals"]
+    if out["state"] == "cursor":
+        out["hours"] = round((tot["wall_s"] or 0) / 3600, 2) if tot["wall_s"] is not None else None
+        return out
+    tasks = [x["totals"] for x in u["tasks"].values() if x["totals"] and x["totals"]["tokens"] is not None]
+    t_costs = [x["cost"] for x in tasks]
+    out["tokens"], out["rework_share"] = tot["tokens"], tot["rework_share"]
+    out["cost"] = tot["cost"] if tot["tokens"] is not None else None     # no tokens: no cost, not $0.00
+    out["tasks_cost"] = None if None in t_costs or not tasks else sum(t_costs)
+    out["overhead_cost"] = u["overhead"]["totals"]["cost"] if u["overhead"]["totals"]["tokens"] is not None else None
+    out["unpriced"] = any(c is None for c in t_costs) or (u["overhead"]["totals"]["tokens"] is not None
+                                                          and u["overhead"]["totals"]["cost"] is None)
+    return out
+
+
+def _cost_time_card(d):
+    u = d["usage"]
+    money = lambda x: f"${x:,.2f}" if x is not None else "-"   # noqa: E731
+    if u["state"] == "not_ready":
+        body = el("p", "Cost: not ready (the token index is still warming up).", class_="muted")
+        rows = []
+    elif u["state"] == "cursor":
+        hours = f"{u['hours']} agent-hours" if u["hours"] is not None else "-"
+        body = el("p", "Tokens and cost: not available. The Cursor CLI reports no token counts.", class_="muted")
+        rows = [("Agent-hours", hours)]
+    else:
+        body = el("p", f"Estimated at list prices as of {u['prices_as_of']} (API-equivalent, not a bill)."
+                  + (" Some tokens are on a model without a price, so the cost is unknown." if u.get("unpriced") else ""),
+                  class_="muted")
+        rows = [("Tokens", f"{u['tokens']:,}" if u["tokens"] is not None else "-"),
+                ("Estimated cost, tasks", money(u["tasks_cost"])),
+                ("Estimated cost, goal overhead", money(u["overhead_cost"])),
+                ("Estimated cost, total", money(u["cost"])),
+                ("Rework share", f"{round(100 * u['rework_share'])}%" if u["rework_share"] is not None else "-")]
+    rows += [("Merged PRs", u["merged"]),
+             ("Median wall time per merged PR", dur(u["median_s"]) if u["median_s"] is not None else "-")]
+    if u["state"] == "not_ready":
+        rows = rows[-2:]
+    dl = el("dl", [[el("dt", k), el("dd", v)] for k, v in rows], class_="rail-dl")
+    return section("Cost and time", dl, body)
 
 
 def _crumb(ident):
@@ -263,7 +328,7 @@ def _detail_render(ctx, d):
     meta = el("p", status_badge(d["status"]), " ", org_badge(d.get("org")), " · ",
               f"P{d['priority']}" if d["priority"] is not None else "no priority",
               " · ", team or "no team", " · updated ", ts(d["updated"]), class_="metarow")
-    main = el("div", meta, _intent(d), _teams(d, ctx.now), charts.meter(done, total, summary), _blocking(d, ctx.now), _criteria(d), _tasks_table(d, ctx.now),
+    main = el("div", meta, _intent(d), _teams(d, ctx.now), charts.meter(done, total, summary), _cost_time_card(d), _blocking(d, ctx.now), _criteria(d), _tasks_table(d, ctx.now),
               class_="gd-main")
     return el("div", _crumb(d["id"]), el("div", main, _rail(d), class_="gd"))
 

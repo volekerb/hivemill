@@ -2555,63 +2555,113 @@ def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
         print(f"guard go build: tick step failed ({e})", file=sys.stderr)
 
 
+def _config_trap(fn, *args):
+    """(result, None) from fn, or (None, (message, exit code)) when fn would die(): one validator for set and --check."""
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            return fn(*args), None
+    except SystemExit as e:
+        msg = err.getvalue().strip()
+        return None, (msg[len("factory: "):] if msg.startswith("factory: ") else msg, e.code if isinstance(e.code, int) else 1)
+
+
+def _config_value_rules(key, value):
+    """The per-key rules of `factory config <key> <value>` (the helpers die() on a bad value); returns the value to store."""
+    a = types.SimpleNamespace(key=key, value=value)
+    if a.key in ("public_text_repos", "frozen_repos", "issue_intake_repos") and any(not _repo_slug(x) for x in a.value.split(",") if x.strip()):
+        die(f"{a.key} takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
+    if a.key == "noreply_email" and a.value.strip() and not a.value.strip().lower().endswith(NOREPLY_SUFFIX):
+        die(f"noreply_email must end in {NOREPLY_SUFFIX} (e.g. 123+handle{NOREPLY_SUFFIX}), or be empty", 2)
+    if a.key == "opus_effort":
+        check_effort_level(a.value.strip())
+    if a.key == "scout_triage_per_run":
+        triage_per_run(a.value)
+    if a.key == "model_cleaner":
+        check_model_override(a.key, a.value)
+        a.value = a.value.strip()
+    if a.key == "guard_impl":
+        a.value = a.value.strip()
+        if a.value not in GUARD_IMPLS:
+            die(f"guard_impl must be one of {', '.join(GUARD_IMPLS)}, not {a.value!r}: "
+                f"fix it with `factory config guard_impl python`", 2)
+    if a.key == "sandbox_roles":
+        a.value = check_sandbox_roles(a.value)
+    if a.key in ("worker_gh_roles", "gh_rw_roles"):
+        a.value = check_gh_roles(a.key, a.value)
+    if a.key == "cursor_pilot_roles":
+        try:
+            a.value = ",".join(cursor_harness.parse_pilot_roles(a.value))
+        except ValueError as e:
+            die(str(e), 2)
+    if a.key == "agent_runtimes":
+        try:
+            parsed = agent_runtime.parse_runtimes(a.value, "")
+            a.value = ",".join(f"{r}={rt}" for r, rt in parsed.items())
+        except ValueError as e:
+            die(str(e), 2)
+    if a.key == "worker_gh_repos" and any(not ghcred.SLUG_RE.fullmatch(x.strip()) for x in a.value.split(",") if x.strip()):
+        die(f"worker_gh_repos takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
+    if a.key == "factory_remote_url":
+        a.value = a.value.strip()
+        if a.value and not _FACTORY_URL_SHAPE.fullmatch(a.value):
+            die(f"factory_remote_url must be https://github.com/<owner>/<repo>.git (no '.' or '..' segments); {a.value!r} is not", 2)
+    if a.key == "task_clones":
+        a.value = a.value.strip()
+        if a.value not in ("0", "1"):
+            die(f"task_clones must be 0 or 1, not {a.value!r}", 2)
+    if a.key == "terminal_backend":
+        v = a.value.strip().lower()
+        if v not in ("auto", "herdr", "hc"):
+            die("terminal_backend must be auto, herdr or hc", 2)
+        a.value = v
+    if a.key == "skilleval_root":
+        try:
+            scoutvendor.resolve_root(a.value, HOME)
+        except scoutvendor.VendorError as e:
+            die(str(e), 2)
+    return a.value
+
+
+def config_check_all(con):
+    """[(key, message)] for every live config value the set path would refuse."""
+    bad = []
+    for k in DEFAULT_CONFIG:
+        v = cfg(con, k)
+        if v is None:  # a NULL row; the set path can never store one
+            bad.append((k, f"{k} is NULL: fix it with `factory config {k} <value>`"))
+            continue
+        _, err = _config_trap(_config_value_rules, k, v)
+        if err:
+            bad.append((k, err[0]))
+    return bad
+
+
 def cmd_config(a):
+    if (a.changed or a.check) and (a.key or a.value is not None or (a.changed and a.check)):
+        a.config_parser.error("--changed and --check take no key, no value and not each other")
     con = db()
+    if a.changed:
+        diff = [(k, v) for k, v in ((k, cfg(con, k)) for k in DEFAULT_CONFIG) if v != DEFAULT_CONFIG[k]]
+        for k, v in diff:
+            print(f"{k} = {v} (default: {DEFAULT_CONFIG[k]})")
+        if not diff:
+            print("no changes from defaults")
+        return
+    if a.check:
+        bad = config_check_all(con)
+        for k, why in bad:
+            print(f"{k}: {why}")
+        if bad:
+            sys.exit(2)
+        return
     if a.key and a.value is not None:
         require_role(con, "director")
         if a.key not in DEFAULT_CONFIG:
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
-        if a.key in ("public_text_repos", "frozen_repos", "issue_intake_repos") and any(not _repo_slug(x) for x in a.value.split(",") if x.strip()):
-            die(f"{a.key} takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
-        if a.key == "noreply_email" and a.value.strip() and not a.value.strip().lower().endswith(NOREPLY_SUFFIX):
-            die(f"noreply_email must end in {NOREPLY_SUFFIX} (e.g. 123+handle{NOREPLY_SUFFIX}), or be empty", 2)
-        if a.key == "opus_effort":
-            check_effort_level(a.value.strip())
-        if a.key == "scout_triage_per_run":
-            triage_per_run(a.value)
-        if a.key == "model_cleaner":
-            check_model_override(a.key, a.value)
-            a.value = a.value.strip()
-        if a.key == "guard_impl":
-            a.value = a.value.strip()
-            if a.value not in GUARD_IMPLS:
-                die(f"guard_impl must be one of {', '.join(GUARD_IMPLS)}, not {a.value!r}: "
-                    f"fix it with `factory config guard_impl python`", 2)
-        if a.key == "sandbox_roles":
-            a.value = check_sandbox_roles(a.value)
-        if a.key in ("worker_gh_roles", "gh_rw_roles"):
-            a.value = check_gh_roles(a.key, a.value)
-        if a.key == "cursor_pilot_roles":
-            try:
-                a.value = ",".join(cursor_harness.parse_pilot_roles(a.value))
-            except ValueError as e:
-                die(str(e), 2)
-        if a.key == "agent_runtimes":
-            try:
-                parsed = agent_runtime.parse_runtimes(a.value, "")
-                a.value = ",".join(f"{r}={rt}" for r, rt in parsed.items())
-            except ValueError as e:
-                die(str(e), 2)
-        if a.key == "worker_gh_repos" and any(not ghcred.SLUG_RE.fullmatch(x.strip()) for x in a.value.split(",") if x.strip()):
-            die(f"worker_gh_repos takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
-        if a.key == "factory_remote_url":
-            a.value = a.value.strip()
-            if a.value and not _FACTORY_URL_SHAPE.fullmatch(a.value):
-                die(f"factory_remote_url must be https://github.com/<owner>/<repo>.git (no '.' or '..' segments); {a.value!r} is not", 2)
-        if a.key == "task_clones":
-            a.value = a.value.strip()
-            if a.value not in ("0", "1"):
-                die(f"task_clones must be 0 or 1, not {a.value!r}", 2)
-        if a.key == "terminal_backend":
-            v = a.value.strip().lower()
-            if v not in ("auto", "herdr", "hc"):
-                die("terminal_backend must be auto, herdr or hc", 2)
-            a.value = v
-        if a.key == "skilleval_root":
-            try:
-                scoutvendor.resolve_root(a.value, HOME)
-            except scoutvendor.VendorError as e:
-                die(str(e), 2)
+        a.value, err = _config_trap(_config_value_rules, a.key, a.value)
+        if err:
+            die(*err)
         con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (a.key, a.value))
         event(con, "config", a.key, "set", a.value)
@@ -18122,7 +18172,10 @@ def main():
     x.add_argument("action", choices=["fix"]); x.add_argument("repo", help="OWNER/NAME"); x.add_argument("task"); x.set_defaults(fn=cmd_redmain)
     x = sp.add_parser("test", help="run <cmd> in the cwd under the test sandbox (config test_sandbox)")
     x.add_argument("cmd", nargs=argparse.REMAINDER); x.set_defaults(fn=cmd_test)
-    x = sp.add_parser("config"); x.add_argument("key", nargs="?"); x.add_argument("value", nargs="?"); x.set_defaults(fn=cmd_config)
+    x = sp.add_parser("config"); x.add_argument("key", nargs="?"); x.add_argument("value", nargs="?")
+    x.add_argument("--changed", action="store_true", help="list only the keys whose live value differs from the default")
+    x.add_argument("--check", action="store_true", help="validate every live value; exit 2 if any is bad")
+    x.set_defaults(fn=cmd_config, config_parser=x)
     x = sp.add_parser("main-unfreeze", help="director/boss: clear the merge freeze set by a non-PR push on public main")
     x.add_argument("--reason", required=True); x.set_defaults(fn=cmd_main_unfreeze)
     sp.add_parser("whoami").set_defaults(fn=cmd_whoami)

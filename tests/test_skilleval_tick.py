@@ -6,8 +6,10 @@ The CLI tests (queue, cancel, config, the tick entry point) run bin/factory as a
 """
 import datetime as dt
 import json
+import os
 import sqlite3
 import sys
+import time
 import threading
 import types
 import unittest
@@ -24,12 +26,28 @@ from scout import skilleval as se  # noqa: E402
 
 DAY = "2026-10-25"  # the day of the make_trial fixtures (started 10:00)
 NEXT_DAY = "2026-10-26"
+TZ = "UTC"  # _started_today() compares trial started timestamps to clock.date() in local time
 KEYS = {"skilleval_max_trials_per_day": "6", "skilleval_max_concurrent": "1", "skilleval_trial_minutes": "15",
         "skilleval_trial_max_tokens": "300000", "skilleval_keep_failed_h": "48"}
 
 
 def at(hhmm, day=DAY):
-    return dt.datetime.fromisoformat(f"{day}T{hhmm}:00+00:00").astimezone()
+    return dt.datetime.fromisoformat(f"{day}T{hhmm}:00+00:00")
+
+
+def _restore_tz(old):
+    if old is not None:
+        os.environ["TZ"] = old
+    else:
+        os.environ.pop("TZ", None)
+    time.tzset()
+
+
+def _pin_utc_tz(case):
+    old = os.environ.get("TZ")
+    os.environ["TZ"] = TZ
+    time.tzset()
+    case.addCleanup(_restore_tz, old)
 
 
 class TickApi(FakeApi):
@@ -69,6 +87,7 @@ class TickApi(FakeApi):
 class TickBase(CollectBase):
     def setUp(self):
         super().setUp()
+        _pin_utc_tz(self)
         for p in (mock.patch.object(sandbox, "check_token"), mock.patch.object(sandbox, "check_userns"),
                   mock.patch.object(nsbox, "userns_available", return_value=(True, "")),
                   mock.patch.object(nsbox, "run_contained", return_value=nsbox.Contained(0, PASS_OUT, False))):
@@ -452,6 +471,7 @@ class SummaryTests(TickBase):
 class CliBase(FactoryTestCase):
     def setUp(self):
         super().setUp()
+        _pin_utc_tz(self)
         e = self.env
         self.root = e.home / "evalroot"
         self.ok("config", "skilleval_root", str(self.root), agent="owner")
@@ -639,7 +659,7 @@ class VoidCliTests(CliBase):
 
 class EntryPointTests(CliBase):
     def tick(self, now="2026-10-26T10:00:00"):
-        p = self.env.run("tick", extra_env={"FACTORY_NOW": now})
+        p = self.env.run("tick", extra_env={"FACTORY_NOW": now, "TZ": TZ})
         self.assertEqual(p.returncode, 0, f"{p.stdout}\n{p.stderr}")
         return p
 
