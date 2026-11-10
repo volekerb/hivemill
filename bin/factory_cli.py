@@ -1746,7 +1746,10 @@ def agent_cursor_workspace(r):
     if not r["name"]:
         return None
     cwd = r["cwd"] or str(HOME)
-    return str(cursor_harness.policy_workspace(HOME, r["name"], cwd).resolve())
+    try:
+        return str(cursor_harness.policy_workspace(HOME, r["name"], cwd).resolve())
+    except ValueError:  # bad XDG_STATE_HOME: the workspace is unknown, the gate must not crash
+        return None
 
 
 def cursor_hooks_ok(workspace):
@@ -1754,6 +1757,9 @@ def cursor_hooks_ok(workspace):
     hooks = Path(workspace) / ".cursor" / "hooks.json"
     if not hooks.is_file():
         return False
+    holder = cursor_harness.nearest_git_holder(workspace)
+    if holder is not None and holder != Path(workspace).resolve():
+        return False  # Cursor resolves the project to the git top level and would not load this file
     try:
         data = json.loads(hooks.read_text())
     except (OSError, ValueError, json.JSONDecodeError):
@@ -9981,6 +9987,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             cursor_harness.assert_add_dir_roots_clean(cursor_harness.add_dirs_from_cursor_argv(plan.argv))
         except ValueError as e:
             die(str(e), 3)
+        if plan.workspace:  # the adapter appends one decision line per hook call (no command text)
+            env["FACTORY_CURSOR_HOOK_LOG"] = str(Path(plan.workspace) / "hook-events.jsonl")
     hc_back = terminal_backend_effective(con)[1] == "hc"
     args = {**args, "runtime": runtime, "launch": plan.launch, "notes": plan.notes,
             "herdr_kind": plan.herdr_kind}

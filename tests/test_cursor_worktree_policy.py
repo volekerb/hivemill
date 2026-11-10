@@ -1,4 +1,4 @@
-"""T-0833: Cursor policy lives under run/cursor/<agent>, not in shared task worktrees."""
+"""T-0833: Cursor policy lives under STATE/factory/cursor/<agent>, not in shared task worktrees."""
 import importlib
 import json
 import os
@@ -52,12 +52,12 @@ class WorktreePolicySpawnTests(FactoryTestCase):
         self._spawn("coder", self.CODER, cwd=self.wt)
         self.assertFalse((self.wt / ".cursor").exists())
         self.assertFalse((self.wt / "AGENTS.md").exists())
-        coder_hooks = self.env.home_dir / "run" / "cursor" / self.CODER / ".cursor" / "hooks.json"
+        coder_hooks = self.env.user_home / ".local" / "state" / "factory" / "cursor" / self.CODER / ".cursor" / "hooks.json"
         self.assertTrue(coder_hooks.is_file())
 
     def test_reviewer_spawn_does_not_clobber_coder_policy(self):
         self._spawn("coder", self.CODER, cwd=self.wt)
-        coder_hooks = self.env.home_dir / "run" / "cursor" / self.CODER / ".cursor" / "hooks.json"
+        coder_hooks = self.env.user_home / ".local" / "state" / "factory" / "cursor" / self.CODER / ".cursor" / "hooks.json"
         before = coder_hooks.read_bytes()
         self.assertIn("--role coder", hook_command(coder_hooks))
 
@@ -68,7 +68,7 @@ class WorktreePolicySpawnTests(FactoryTestCase):
         self.assertEqual(coder_hooks.read_bytes(), before)
         self.assertIn("--role coder", hook_command(coder_hooks))
 
-        reviewer_hooks = self.env.home_dir / "run" / "cursor" / self.REVIEWER / ".cursor" / "hooks.json"
+        reviewer_hooks = self.env.user_home / ".local" / "state" / "factory" / "cursor" / self.REVIEWER / ".cursor" / "hooks.json"
         self.assertTrue(reviewer_hooks.is_file())
         self.assertNotEqual(reviewer_hooks, coder_hooks)
         self.assertIn("--role reviewer", hook_command(reviewer_hooks))
@@ -144,7 +144,7 @@ class HqPolicyIsolationTests(FactoryTestCase):
                 agent="zz-test-director")
         home = self.env.home_dir
         self.assertFalse((home / ".cursor" / "hooks.json").exists())
-        hooks = home / "run" / "cursor" / name / ".cursor" / "hooks.json"
+        hooks = self.env.user_home / ".local" / "state" / "factory" / "cursor" / name / ".cursor" / "hooks.json"
         self.assertTrue(hooks.is_file())
 
 
@@ -156,8 +156,10 @@ class PolicyWorkspaceUnitTests(unittest.TestCase):
             home.mkdir()
             wt = home / "worktrees" / "G-001-T-1"
             wt.mkdir(parents=True)
-            ws = h.policy_workspace(home, "zz-agent", wt)
-            self.assertEqual(ws, (home / "run" / "cursor" / "zz-agent").resolve())
+            state = Path(tmp) / "state"
+            with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(state)}):
+                ws = h.policy_workspace(home, "zz-agent", wt)
+            self.assertEqual(ws, (state / "factory" / "cursor" / "zz-agent").resolve())
             self.assertTrue(ws.is_dir())
             self.assertEqual(oct(ws.stat().st_mode & 0o777), oct(0o700))
 
@@ -168,7 +170,8 @@ class PolicyWorkspaceUnitTests(unittest.TestCase):
             home.mkdir()
             ext = Path(tmp) / "cursor-pilot-ws"
             ext.mkdir()
-            ws = h.policy_workspace(home, "cursor-pilot", ext)
+            with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(Path(tmp) / "state")}):
+                ws = h.policy_workspace(home, "cursor-pilot", ext)
             self.assertEqual(ws.resolve(), ext.resolve())
 
 

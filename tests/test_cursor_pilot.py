@@ -213,7 +213,7 @@ class ConfigAndCliTests(FactoryTestCase):
         sa = json.loads(lead["spawn_args"])
         self.assertEqual(sa.get("herdr_kind"), "cursor")
         ws = Path(sa.get("cursor_workspace") or "")
-        self.assertTrue(str(ws).endswith("/run/cursor/zz-cursor-lead"), ws)
+        self.assertTrue(str(ws).endswith("/factory/cursor/zz-cursor-lead"), ws)
         self.assertTrue((ws / ".cursor" / "hooks.json").is_file())
         # HQ cwd is FACTORY_HOME; policy must not land in the shared checkout root's .cursor/
         self.assertFalse((Path(lead["cwd"]) / ".cursor" / "hooks.json").is_file())
