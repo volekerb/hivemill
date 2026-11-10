@@ -495,6 +495,20 @@ def prot_glob(p, ancestor=False):
     return any(m(0, 0, d.strip("/").split("/")) for d in prot_trees())
 
 
+def cd_home_factory_word(w):
+    """`$HOME/factory` and `${HOME}/factory` expand to the passwd-home factory checkout for ccwd tracking."""
+    factory = os.path.join(PW_DIR, "factory")
+    if w in ("$HOME/factory", "${HOME}/factory"):
+        return factory
+    m = re.match(r"^\$(?:\{HOME\}|HOME)(/.*)?$", w)
+    if not m or not m.group(1):
+        return None
+    tail = os.path.normpath(os.path.join("/", m.group(1).lstrip("/")))
+    if tail == "/factory":
+        return factory
+    return None
+
+
 def tilde_expand(w, cwd):
     """A leading `~`, `$HOME`, `${HOME}` is the passwd home (never $HOME). T-0983: `~name` is that user's passwd home and
     `~+` is `cwd`. A word that cannot be resolved (no such user, `~-`, a `~+` with an unknown cwd) is returned unchanged,
@@ -556,6 +570,246 @@ def prot_edit_path(p, spelled=False):
     if spelled or any(c in p for c in "$`"):
         return any(m in p for m in PROT_MARKERS) or bool(re.search(r"\.local/bin(?![A-Za-z0-9_])", p))
     return prot_path(p)
+
+
+def retro_roles_trees():
+    return tuple(os.path.join(h, "roles") for h in LIVE_HOMES)
+
+
+def retro_roles_code(text):
+    norm = text.replace("\\", "/")
+    for tree in retro_roles_trees():
+        rel = tree.replace("\\", "/")
+        if rel in norm:
+            return True
+    for h in LIVE_HOMES:
+        hr = re.escape(h.replace("\\", "/"))
+        if not re.search(hr, norm):
+            continue
+        if re.search(hr + r"\)?/roles(?:/|$)", norm):
+            return True
+        if re.search(hr + r"/rol[^;]*;[^)]*es\)", norm):
+            return True
+        if re.search(r"%s/roles(?:/|$)", norm):
+            return True
+    if "tory/roles" in norm:
+        return True
+    return bool(re.search(r"(?:^|/)(?:\S+/)?factory/roles(?:/|$)", norm))
+
+
+def _retro_path_expr(text):
+    s = text.strip()
+    s = re.sub(r"^>[>|]?\s*", "", s)
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
+        s = s[1:-1]
+    return s
+
+
+def _retro_quote_unquote(word):
+    s = word.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
+        return s[1:-1]
+    return s
+
+
+def _retro_split_shell_words(text):
+    """Split `text` into words like bash for simple literals; stop at top-level ; | & newline."""
+    words, cur, quote, i, n = [], [], None, 0, len(text)
+    while i < n:
+        c = text[i]
+        if quote == "'":
+            cur.append(c)
+            if c == "'":
+                quote = None
+            i += 1
+        elif quote == '"':
+            if c == "\\" and i + 1 < n:
+                cur.append(c)
+                i += 1
+                c = text[i]
+            cur.append(c)
+            if c == '"':
+                quote = None
+            i += 1
+        elif c == "'":
+            quote = "'"
+            cur.append(c)
+            i += 1
+        elif c == '"':
+            quote = '"'
+            cur.append(c)
+            i += 1
+        elif c in ";|&\n":
+            if cur:
+                words.append("".join(cur))
+                cur = []
+            i += 1
+        elif c in " \t":
+            if cur:
+                words.append("".join(cur))
+                cur = []
+            i += 1
+        else:
+            cur.append(c)
+            i += 1
+    if cur:
+        words.append("".join(cur))
+    return words
+
+
+def _retro_printf_segment(text):
+    """Static result of one `printf …` segment, or None when it is not printf-only."""
+    words = _retro_split_shell_words(text.strip())
+    if len(words) < 2 or words[0] != "printf":
+        return None
+    args = [_retro_quote_unquote(w) for w in words[1:]]
+    if not args:
+        return None
+    fmt, rest = args[0], args[1:]
+    if fmt == "%s":
+        return "".join(rest)
+    if fmt == "%s/%s" and len(rest) == 2:
+        return rest[0].rstrip("/") + "/" + rest[1].lstrip("/")
+    return None
+
+
+def _retro_resolve_path_expr(expr):
+    """Resolve a redirect substitution target without running a shell (G-036 SC3)."""
+    if not expr:
+        return None
+    s = expr.strip()
+    unwrapped = False
+    if s.startswith("$(") and s.endswith(")"):
+        s = s[2:-1]
+        unwrapped = True
+    elif len(s) >= 2 and s[0] == s[-1] and s[0] == "`":
+        s = s[1:-1]
+        unwrapped = True
+    if not unwrapped:
+        if not any(c in s for c in "$`"):
+            return s
+        return None
+    parts = []
+    seg, quote, i, n, depth = [], None, 0, len(s), 0
+    while i < n:
+        c = s[i]
+        if quote == "'":
+            seg.append(c)
+            if c == "'":
+                quote = None
+            i += 1
+        elif quote == '"':
+            if c == "\\" and i + 1 < n:
+                seg.append(c)
+                i += 1
+                c = s[i]
+            seg.append(c)
+            if c == '"':
+                quote = None
+            i += 1
+        elif c == "'":
+            quote = "'"
+            seg.append(c)
+            i += 1
+        elif c == '"':
+            quote = '"'
+            seg.append(c)
+            i += 1
+        elif c == "(":
+            depth += 1
+            seg.append(c)
+            i += 1
+        elif c == ")":
+            depth -= 1
+            seg.append(c)
+            i += 1
+        elif c == ";" and depth == 0 and quote is None:
+            parts.append("".join(seg))
+            seg = []
+            i += 1
+        else:
+            seg.append(c)
+            i += 1
+    parts.append("".join(seg))
+    out = []
+    for p in parts:
+        got = _retro_printf_segment(p)
+        if got is None:
+            return None
+        out.append(got)
+    merged = "".join(out)
+    return merged if merged and "\n" not in merged else None
+
+
+def _retro_roles_subst_resolved(resolved, text, ccwd=None):
+    if resolved is None:
+        return None
+    rp = resolved
+    if not os.path.isabs(rp):
+        if ccwd is None:
+            return True
+        rp = os.path.normpath(os.path.join(ccwd, rp))
+    if retro_roles_path(rp, spelled=False):
+        return True
+    return retro_roles_code(text)
+
+
+def retro_roles_subst(text, ccwd=None):
+    """Spellings that name a live roles tree, else resolve $(`…`) targets; unresolved counts as under roles (fail closed)."""
+    if any(c in text for c in "$`"):
+        hit = _retro_roles_subst_resolved(_retro_resolve_path_expr(_retro_path_expr(text)), text, ccwd)
+        if hit is not None:
+            return hit
+        return True
+    return retro_roles_code(text)
+
+
+def retro_subst_redirect_frags(text):
+    """Redirect targets with command substitution; quoted targets may contain `;` inside $( )."""
+    frags = []
+    for m in re.finditer(r'>[>|]?\s*"([^"]*(?:\$\(|`)[^"]*)"', text):
+        frags.append('> "' + m.group(1) + '"')
+    for m in re.finditer(r">[>|]?\s*'([^']*(?:\$\(|`)[^']*)'", text):
+        frags.append("> '" + m.group(1) + "'")
+    for m in re.finditer(r">[>|]?\s*[^\s;|&\"']*(?:\$\(|`)[^;|&\n]*", text):
+        frags.append(m.group(0))
+    return frags
+
+
+def retro_roles_glob(p, ancestor=False):
+    """True when glob pattern `p` can match <live>/roles or a path under it (G-036 SC3)."""
+    pat = os.path.normpath(p).strip("/").split("/")
+
+    def m(i, j, parts):
+        if j == len(parts):
+            return True
+        if i == len(pat):
+            return ancestor
+        if pat[i] == "**":
+            return m(i + 1, j, parts) or m(i, j + 1, parts)
+        return fnmatch.fnmatchcase(parts[j], pat[i]) and m(i + 1, j + 1, parts)
+
+    return any(m(0, 0, d.strip("/").split("/")) for d in retro_roles_trees())
+
+
+def retro_roles_path(p, spelled=False):
+    """True when `p` is under <live>/roles/ for any live home (G-036 SC3, role retro only)."""
+    if spelled or any(c in p for c in "$`"):
+        return retro_roles_code(p)
+    for t in brace_expand(p):
+        if GLOB.search(t):
+            if retro_roles_glob(t):
+                return True
+            continue
+        cands = {os.path.normpath(t)}
+        try:
+            cands.add(os.path.realpath(t))
+        except OSError:
+            pass
+        for c in cands:
+            if any(c == d or under(c, d) for d in retro_roles_trees()):
+                return True
+    return False
 
 
 def tar_dirs(args):
@@ -753,8 +1007,12 @@ ARCHIVE_ENV_RE = re.compile(r"\b(?:" + "|".join(ARCHIVE_ENV_NAMES) + r")\b")
 UNZIP_LISTING = {"-l", "-v", "-t", "-p", "-c", "-z", "-Z"}
 ARCHIVE_SIZE_MAX = 256 << 20  # T-0805: largest archive file the hook lists before refusing
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
-NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher"}
+NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher", "retro"}
 RESEARCHER = "researcher"
+RETRO = "retro"
+RETRO_FACTORY_CMDS = frozenset({"whoami", "inbox", "done", "retro"})
+RETRO_ROLE_WHY = ("the retro agent may not edit files under <live>/roles/; role prompts and hooks are changed only "
+                  "by the owner and the tick")
 RESEARCH_GH_GROUPS = {"pr", "issue", "release", "repo", "run"}
 RESEARCH_GH_READ = {"view", "list", "diff", "status", "checks"}
 RESEARCH_FACTORY = {"whoami", "inbox", "msg", "done", "report"}
@@ -1129,22 +1387,48 @@ def under(path, root):
     return path == root or path.startswith(root.rstrip("/") + "/")
 
 
+def _fold_assign_inner(inner):
+    """Only fold assignment $( ) that the guard models as a static value (mktemp, printf)."""
+    if not inner:
+        return False
+    if any("<" in t or ">" in t for t in inner):
+        return False
+    if inner[0] == "mktemp":
+        return all(not x.startswith("-") or x in ("-d", "-p") for x in inner[1:])
+    if inner[0] == "printf":
+        return all("$" not in x and "`" not in x and ";" not in x for x in inner[1:])
+    return False
+
+
 def fold_mktemp(toks):
-    """Merge `NAME=$ ( mktemp [-d] [-p dir] )` (shlex splits it on the parens) into one token
-    `NAME=$(mktemp -d -p dir)` so the assignment value can be judged; the inner words are exactly mktemp
-    plus those flags, so they need no command analysis of their own. Anything else is left as it is."""
+    """Merge `NAME=$ ( … )` (shlex splits on the parens) into `NAME=$(…)` for mktemp and static printf values."""
     out, i = [], 0
     while i < len(toks):
         t = toks[i]
         if ASSIGN.match(t) and t.endswith("=$") and i + 1 < len(toks) and toks[i + 1] == "(":
-            j = i + 2
-            while j < len(toks) and not is_punct(toks[j]):
-                j += 1
-            inner = toks[i + 2:j]
-            if j < len(toks) and toks[j] == ")" and inner[:1] == ["mktemp"] and \
-                    all(not x.startswith("-") or x in ("-d", "-p") for x in inner[1:]):
-                out.append(t + "(" + " ".join(inner) + ")")
-                i = j + 1
+            depth, j = 1, i + 2
+            merged = False
+            while j < len(toks) and depth:
+                tok = toks[j]
+                if tok == "(":
+                    depth += 1
+                    j += 1
+                elif depth and tok.startswith(")"):
+                    depth -= 1
+                    tail = tok[1:]
+                    j += 1
+                    if depth == 0:
+                        inner = toks[i + 2:j - 1]
+                        if _fold_assign_inner(inner):
+                            out.append(t[:-1] + "$(" + " ".join(inner) + ")")
+                            if tail:
+                                out.append(tail)
+                            i = j
+                            merged = True
+                        break
+                else:
+                    j += 1
+            if merged:
                 continue
         out.append(t)
         i += 1
@@ -1570,6 +1854,11 @@ class Analyzer:
         sub = nonopt[0] if nonopt else None
         if self.role == "evaluator":
             self.evaluator_factory(sub, nonopt, assigns)
+        if self.role == RETRO:
+            try:
+                self.retro_factory(sub, nonopt, assigns)
+            except AttributeError:
+                pass
         if self.role in ("coder", "qa") and not self.hq and sub == "init" \
                 and not self.scratch_homes(assigns):
             raise Block(f"workers may run `factory init` only with HOME and FACTORY_HOME both "
@@ -1596,6 +1885,12 @@ class Analyzer:
             ok = bool(env) and os.path.realpath(env) not in self.live_homes() and self.outside_live(env)
         if not ok:
             raise Block("the evaluator may run factory commands only against its temp FACTORY_HOME, not the live home")
+
+    def retro_factory(self, sub, nonopt, assigns):
+        """G-036 SC3: retro may run only whoami, inbox, done and retro (packet, file, ...); no merge, config or gate."""
+        if sub not in RETRO_FACTORY_CMDS:
+            allowed = ", ".join(sorted(RETRO_FACTORY_CMDS))
+            raise Block(f"the retro agent may not run `factory {sub or ''}`; allowed: {allowed}")
 
     def factory_script(self, name, rest):
         """Index of the `factory` script word in an interpreter's args, else None. bin/factory is a stub for
@@ -1717,10 +2012,15 @@ class Analyzer:
         """Block broad factory reads (res, agents, goal list, task list, ...) against the live home for workers.
         `rest` = the tokens after `factory` (options included). Exempt: --role staff-engineer, `agents` for
         --role cleaner, `goal show <own goal>`, lead `goal show` for goals their teams own, a temp FACTORY_HOME.
+        `factory config <key> [value]` is not a broad read (the CLI enforces who may change config; T-1208 keeps coders
+        allowed at the hook).
         Fail closed on options: we do not model which argparse flags take a value (--goal X, --note x) versus
         flags that do not (--all), so any option token (`-x`, `--x`, `--x=v`, `--`) before the action word (or
         before the id of `goal show`) blocks the command; `factory goal --goal G-005 show G-005` is blocked too."""
         if self.role == "staff-engineer":
+            return
+        nonopt = [a for a in rest if not a.startswith("-")]
+        if sub == "config" and len(nonopt) > 1 and self.role == "coder":
             return
         seconds = BROAD_READS[sub]
         shown = f"factory {sub}"
@@ -1761,9 +2061,14 @@ class Analyzer:
         if depth == 0:
             self.text = text
             if not self.hq:  # a redirect whose target is built by a substitution and ends in a protected name
-                for m in re.finditer(r">[>|]?\s*[^\s;|&]*(?:\$\(|`)[^;|&\n]*", text):
-                    if persist_code(m.group(0)):
+                red_frags = retro_subst_redirect_frags(text) if self.role == RETRO else [
+                    m.group(0) for m in re.finditer(r">[>|]?\s*[^\s;|&]*(?:\$\(|`)[^;|&\n]*", text)
+                ]
+                for frag in red_frags:
+                    if persist_code(frag):
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
+                    if self.role == RETRO and retro_roles_subst(frag, self.ccwd):
+                        raise Block(f"a redirect built by a substitution into a role file: {RETRO_ROLE_WHY}")
         nbodies = self.pt.bodies if self.pt else []
         seen = len(nbodies)
         slots = []
@@ -2087,10 +2392,16 @@ class Analyzer:
         """Track the directory for the CFG_DIR write detector (`~` is the passwd home, never $HOME)."""
         args = [a for a in rest if not a.startswith("-") or a == "-"]
         self.cwd_unres = False
-        if name == "popd" or (args and (args[0] == "-" or self.dynamic_dir(args[0]))):
+        if name == "popd":
             self.ccwd = None
         elif not args:
             self.ccwd = PW_DIR
+        elif args[0] == "-":
+            self.ccwd = None
+        elif (hf := cd_home_factory_word(args[0])) is not None:
+            self.ccwd = hf
+        elif self.dynamic_dir(args[0]):
+            self.ccwd = None
         else:
             p = self.cfg_expand(args[0])
             if tilde_unres(args[0], self.ccwd):  # `cd ~nosuchuser`, `cd ~-`: as on main, a path relative to the known cwd
@@ -2637,6 +2948,8 @@ class Analyzer:
             t = self.cfg_expand(t)
             if any(c in t for c in "$`"):
                 # an expansion we cannot resolve: refuse when it spells a protected name or sits under the home
+                if self.role == RETRO and not self.hq and retro_roles_subst(t, self.ccwd):
+                    return True
                 if persist_code(t) or t.startswith(("~", PW_DIR)) or "~" in t or "HOME" in t:
                     return True
                 continue
@@ -2646,8 +2959,12 @@ class Analyzer:
                 if self.ccwd is None:
                     if persist_code(t):
                         return True
+                    if self.role == RETRO and not self.hq and retro_roles_path(t, spelled=True):
+                        return True
                     continue
                 t = os.path.join(self.ccwd, t)
+            if self.role == RETRO and not self.hq and retro_roles_path(t):
+                return True
             nopush = self.role in NO_PUSH_ROLES and not self.hq  # T-0770: no scratchpad exemption for git config/hooks
             if persist_path(t, ancestor, not nopush) or (nopush and git_hooks_path(t)):
                 return True
@@ -6062,6 +6379,10 @@ def persist_edit(data, role=None):
         p = os.path.join(cwd, p)
     if export_path(p) or ("$" in p and "guard-export" in p):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {EXPORT_WHY}. Tell your lead if this is wrong.\n")
+        return 2
+    if role == RETRO and (retro_roles_path(p) or (unres and retro_roles_path(path, spelled=True))
+                          or (any(c in path for c in "$`") and retro_roles_subst(path))):
+        sys.stderr.write(f"worker-guard: blocked ({path!r}): {RETRO_ROLE_WHY}. Tell your lead if this is wrong.\n")
         return 2
     if prot_edit_path(p) or (unres and prot_edit_path(path, spelled=True)):  # T-0925 gap g: the Edit tools were checked against the persist paths only
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {PROT_WHY}. Tell your lead if this is wrong.\n")

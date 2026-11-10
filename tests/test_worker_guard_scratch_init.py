@@ -11,7 +11,7 @@ import sys
 import tempfile
 import unittest
 
-from guard_impl import ROOT, hook_run
+from guard_impl import HOOK, ROOT, hook_run, impl
 
 _tmp = []
 INSTALL = os.path.join(ROOT, "systemd", "install.sh")
@@ -42,7 +42,12 @@ def run(cmd, role="coder", cwd="wt", extra_env=None):
     env = {**os.environ, "WORKER_GUARD_SCRATCH": root + "/scratch", "WORKER_GUARD_LIVE_HOME": root + "/live",
            **(extra_env or {})}
     payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": os.path.join(root, cwd)}
-    return hook_run(json.dumps(payload), ["--role", role], env=env, cwd=root)
+    data = json.dumps(payload)
+    # retro_factory is Python-only until the Go mirror (#517); still assert the Python hook refuses.
+    if role == "retro" and impl() != "python":
+        return subprocess.run([sys.executable, HOOK, "--role", role], input=data, capture_output=True, text=True,
+                              timeout=30, env=env, cwd=root)
+    return hook_run(data, ["--role", role], env=env, cwd=root)
 
 
 H = "HOME=@S@/h FACTORY_HOME=@S@/f"
