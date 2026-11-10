@@ -55,10 +55,10 @@ func retroRolesCode(text string) bool {
 	return reRetroFactory.MatchString(norm)
 }
 
-var reRetroPathStrip = regexp.MustCompile(`^>[>|]?\s*`)
+var reRetroPathStrip = regexp.MustCompile(`^>[>|]?[` + gitSp + `]*`)
 
 func retroPathExpr(text string) string {
-	s := strings.TrimSpace(text)
+	s := strings.TrimFunc(text, pyIsSpace)
 	s = reRetroPathStrip.ReplaceAllString(s, "")
 	if len(s) >= 2 && s[0] == s[len(s)-1] && (s[0] == '"' || s[0] == '\'') {
 		s = s[1 : len(s)-1]
@@ -67,7 +67,7 @@ func retroPathExpr(text string) string {
 }
 
 func retroQuoteUnquote(word string) string {
-	s := strings.TrimSpace(word)
+	s := strings.TrimFunc(word, pyIsSpace)
 	if len(s) >= 2 && s[0] == s[len(s)-1] && (s[0] == '"' || s[0] == '\'') {
 		return s[1 : len(s)-1]
 	}
@@ -142,7 +142,7 @@ func retroSplitShellWords(text string) []string {
 }
 
 func retroPrintfSegment(text string) string {
-	words := retroSplitShellWords(strings.TrimSpace(text))
+	words := retroSplitShellWords(strings.TrimFunc(text, pyIsSpace))
 	if len(words) < 2 || words[0] != "printf" {
 		return ""
 	}
@@ -167,7 +167,7 @@ func retroResolvePathExpr(expr string) (string, bool) {
 	if expr == "" {
 		return "", false
 	}
-	s := strings.TrimSpace(expr)
+	s := strings.TrimFunc(expr, pyIsSpace)
 	unwrapped := false
 	if strings.HasPrefix(s, "$(") && strings.HasSuffix(s, ")") {
 		s = s[2 : len(s)-1]

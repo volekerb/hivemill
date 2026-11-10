@@ -39,6 +39,21 @@ func TestRetroResolvePrintf(t *testing.T) {
 	}
 }
 
+func TestRetroRedirectFragUnicodeWhitespace(t *testing.T) {
+	fs := string(rune(0x1c))
+	cmd := `echo x >` + fs + ` "$(printf %s /tmp/zz-retro-note.txt)"`
+	frags := retroSubstRedirectFrags(cmd)
+	if len(frags) == 0 {
+		t.Fatalf("no redirect frags from %q", cmd)
+	}
+	ccwd := t.TempDir()
+	for _, m := range frags {
+		if retroRolesSubst(m, ccwd, true) {
+			t.Fatalf("retroRolesSubst(%q) = true, want false for /tmp target", m)
+		}
+	}
+}
+
 func TestRetroRolesCodePrintfFrag(t *testing.T) {
 	frag := "$(printf %s /tmp/; printf %s roles/coder.md)"
 	if retroRolesCode(frag) {
