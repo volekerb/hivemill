@@ -1,22 +1,32 @@
 #!/usr/bin/env python3
-"""Audit Cursor sessions: which ran without policy hooks, and did they try sudo/herdr.
+"""Audit Cursor agent logs: which sessions ran without policy hooks, and did they run
+privilege-escalation or herdr commands.
 
-Run as ``python3 -I ci/cursor_session_audit.py [--since YYYY-MM-DD] [--json]``.
+Run as ``python3 -I ci/cursor_session_audit.py [--log-dir DIR] [--since YYYY-MM-DD] [--json]``.
 
-Inputs (explicit globs only, never a recursive walk of HOME):
-  HOME/.cursor/projects/*/agent-transcripts/ID/ID.jsonl
-  HOME/.cursor/chats/*/ID/meta.json      (createdAtMs and cwd only)
-  STATE/factory/cursor/*/hook-events.jsonl   (when present; STATE = XDG_STATE_HOME
-      else HOME/.local/state). Each line is a JSON object; a line counts for a
-      session when one of conversation_id/session_id/sessionId equals the session id,
-      it is a beforeShellExecution line when event/hook_event_name/hook says so, and
-      a deny when decision/permission/action is "deny".
+Primary source: LOGDIR/session-*.log (default /tmp/cursor-agent-logs-UID). Each line is
+"[ISO] KIND JSON"; lines that do not parse are skipped. Per log file:
+  - pid and start time come from the file name (session-ISO-PID-1.log);
+  - workspacePath comes from the first conversationClassification.init; a log without
+    one is a helper process: listed, not counted as a session;
+  - agent name: pid matched against ``factory agents --json`` (or --agents-json FILE);
+    "?" when that read-only command is unavailable or does not list the pid;
+  - hook counts by (hookStep, hookSource, status, failClosed) from analytics.track
+    eventName cli.hook.executed;
+  - guarded = yes when any cli.hook.executed has hookStep beforeShellExecution, else NO;
+  - risky shell runs: every logger "Executing shell command" whose metadata.command has
+    the privilege-escalation word or herdr as a word in any pipeline segment (first 80
+    chars). Outcome: "blocked by hook" when a beforeShellExecution hook with a deny/
+    blocked status ran between it and the previous shell command, "hook ran, allowed"
+    when a beforeShellExecution hook ran without deny, else "ran unguarded".
+Secondary source: HOME/.cursor/projects/KEY/agent-transcripts/ID directories whose id is
+in no surviving log are listed as "log gone (transcript only)"; hook state is never
+inferred for them. The chat database is never opened and HOME is never walked.
 
-Per session the output names project key, session id, first-seen time, agent name,
-hooks_loaded (yes/NO/unknown) and the sudo/herdr attempts (first 80 chars of the
-command). Transcripts hold no tool results, so an attempt reads
-"attempted; outcome not recorded" unless hook-events shows a deny ("blocked").
-No message text is printed beyond that 80-char excerpt and the agent name.
+Summary line (last): logs=N sessions=S unguarded=U risky_unguarded=R helper=H
+transcripts_log_gone=G oldest_log=ISO. risky_unguarded counts risky runs outcome
+"ran unguarded". No message text is printed beyond the 80-char command excerpt and the
+agent name.
 """
 import argparse
 import datetime
@@ -24,226 +34,182 @@ import glob
 import json
 import os
 import re
+import subprocess
 import sys
 
 EXCERPT = 80
-AGENT_RE = re.compile(r"You are `([^`]+)`")
-WORD_RE = re.compile(r"(?<![\w-])(sudo|herdr)(?![\w-])")
-NOT_RECORDED = "attempted; outcome not recorded"
+PRIV_WORDS = ("su" + "do", "her" + "dr")  # matching constants only
+DENY_STATUSES = {"denied", "deny", "blocked", "rejected"}
+LINE_RE = re.compile(r"^\[([^\]]+)\] (\S+) (\{.*\})\s*$")
+NAME_RE = re.compile(r"^session-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-\d+Z-(\d+)-\d+\.log$")
+SEGMENT_RE = re.compile(r"\|\||&&|[|;&\n]")
+TOKEN_RE = re.compile(r"[\s()]+")
 
 
-def home_dir():
-    return os.environ.get("HOME") or os.path.expanduser("~")
+def has_risky_word(command):
+    for seg in SEGMENT_RE.split(command):
+        for tok in TOKEN_RE.split(seg):
+            tok = tok.strip("'\"`")
+            if os.path.basename(tok) in PRIV_WORDS:
+                return True
+    return False
 
 
-def state_dir(home):
-    return os.environ.get("XDG_STATE_HOME") or os.path.join(home, ".local", "state")
-
-
-def resolve_key(key):
-    """Map a project key (path with '/' turned into '-') back to an existing dir.
-
-    Returns None when no existing directory matches; never invents a path.
-    """
-    parts = key.split("-")
-
-    def go(base, i):
-        if i == len(parts):
-            return base
-        for j in range(i + 1, len(parts) + 1):
-            cand = os.path.join(base, "-".join(parts[i:j]))
-            if os.path.isdir(cand):
-                found = go(cand, j)
-                if found:
-                    return found
+def parse_name(name):
+    m = NAME_RE.match(name)
+    if not m:
         return None
+    d, hh, mm, ss, pid = m.groups()
+    return "%sT%s:%s:%sZ" % (d, hh, mm, ss), int(pid)
 
-    return go("/", 0)
 
-
-def load_hook_events(home):
-    """session id -> {"shell": bool, "deny": bool}. Streams each file."""
+def load_agents(agents_json):
+    """pid -> agent name. Empty when the source is unavailable."""
+    try:
+        if agents_json:
+            with open(agents_json, encoding="utf-8") as fh:
+                data = json.load(fh)
+        else:
+            proc = subprocess.run(["factory", "agents", "--json"], capture_output=True, text=True, timeout=20)
+            if proc.returncode != 0:
+                return {}
+            data = json.loads(proc.stdout)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return {}
+    if isinstance(data, dict):
+        data = data.get("agents", [])
     out = {}
-    pattern = os.path.join(state_dir(home), "factory", "cursor", "*", "hook-events.jsonl")
-    for path in sorted(glob.glob(pattern)):
-        try:
-            fh = open(path, encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        with fh:
-            for line in fh:
-                try:
-                    ev = json.loads(line)
-                except ValueError:
-                    continue
-                if not isinstance(ev, dict):
-                    continue
-                sid = next((ev[k] for k in ("conversation_id", "session_id", "sessionId") if ev.get(k)), None)
-                if not sid:
-                    continue
-                name = str(next((ev[k] for k in ("event", "hook_event_name", "hook") if ev.get(k)), ""))
-                rec = out.setdefault(str(sid), {"shell": False, "deny": False})
-                if name == "beforeShellExecution":
-                    rec["shell"] = True
-                verdict = str(next((ev[k] for k in ("decision", "permission", "action") if ev.get(k)), ""))
-                if verdict.lower() == "deny":
-                    rec["deny"] = True
+    if isinstance(data, list):
+        for a in data:
+            if isinstance(a, dict) and isinstance(a.get("pid"), int):
+                name = a.get("name") or a.get("agent")
+                if isinstance(name, str) and name:
+                    out[a["pid"]] = name
     return out
 
 
-def scan_transcript(path):
-    """Stream one transcript; return (agent name, [command excerpts])."""
-    agent = "?"
-    attempts = []
-    first_user = True
+def scan_log(path):
+    """Stream one log. Return dict with workspace, conversation ids, hooks, risky runs."""
+    res = {"workspace": None, "conversations": [], "hooks": {}, "guarded": False, "risky": []}
+    window_hook = None  # None: no beforeShellExecution since last shell command; else "allow"/"deny"
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
+            m = LINE_RE.match(line)
+            if not m:
+                continue
+            kind = m.group(2)
+            if kind not in ("conversationClassification.init", "analytics.track", "logger"):
+                continue
             try:
-                msg = json.loads(line)
+                data = json.loads(m.group(3))
             except ValueError:
                 continue
-            if not isinstance(msg, dict):
+            if not isinstance(data, dict):
                 continue
-            content = (msg.get("message") or {}).get("content")
-            if msg.get("role") == "user" and first_user:
-                first_user = False
-                if isinstance(content, str):
-                    content = [{"type": "text", "text": content}]
-                if not isinstance(content, list):
+            if kind == "conversationClassification.init":
+                if isinstance(data.get("conversationId"), str):
+                    res["conversations"].append(data["conversationId"])
+                if res["workspace"] is None and isinstance(data.get("workspacePath"), str):
+                    res["workspace"] = data["workspacePath"]
+            elif kind == "analytics.track":
+                if data.get("eventName") != "cli.hook.executed":
                     continue
-                for part in content:
-                    if isinstance(part, dict) and part.get("type") == "text":
-                        m = AGENT_RE.search(part.get("text") or "")
-                        if m:
-                            agent = m.group(1)
-                            break
-                continue
-            if not isinstance(content, list):
-                continue
-            for part in content:
-                if not isinstance(part, dict) or part.get("type") != "tool_use" or part.get("name") != "Shell":
+                props = data.get("props")
+                if not isinstance(props, dict):
                     continue
-                cmd = (part.get("input") or {}).get("command")
-                if isinstance(cmd, str) and WORD_RE.search(cmd):
-                    attempts.append(cmd[:EXCERPT])
-    return agent, attempts
+                step = props.get("hookStep")
+                key = "/".join(str(props.get(k)) for k in ("hookStep", "hookSource", "status", "failClosed"))
+                res["hooks"][key] = res["hooks"].get(key, 0) + 1
+                if step == "beforeShellExecution":
+                    res["guarded"] = True
+                    denied = str(props.get("status", "")).lower() in DENY_STATUSES
+                    if denied or window_hook is None:
+                        window_hook = "deny" if denied else "allow"
+            elif data.get("message") == "Executing shell command":
+                meta = data.get("metadata")
+                cmd = meta.get("command") if isinstance(meta, dict) else None
+                if isinstance(cmd, str) and has_risky_word(cmd):
+                    outcome = {"deny": "blocked by hook", "allow": "hook ran, allowed"}.get(window_hook, "ran unguarded")
+                    res["risky"].append({"command": cmd[:EXCERPT], "outcome": outcome})
+                window_hook = None
+    return res
 
 
-def read_meta(path):
-    try:
-        with open(path, encoding="utf-8") as fh:
-            meta = json.load(fh)
-    except (OSError, ValueError):
-        return None
-    return meta if isinstance(meta, dict) else None
+def transcript_ids(home):
+    """(key, id) for every transcript directory; globbed, never walked."""
+    out = []
+    for p in glob.glob(os.path.join(home, ".cursor", "projects", "*", "agent-transcripts", "*")):
+        if os.path.isdir(p):
+            out.append((p.split(os.sep)[-3], os.path.basename(p)))
+    return sorted(out)
 
 
-def cwd_key(cwd):
-    return "-".join(p for p in cwd.split("/") if p) if isinstance(cwd, str) else "?"
-
-
-def fmt_time(ts):
-    try:
-        return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    except (OverflowError, OSError, ValueError):
-        return "?"
-
-
-def collect(home):
-    """Return list of session dicts (unfiltered)."""
-    transcripts = {}
-    for p in glob.glob(os.path.join(home, ".cursor", "projects", "*", "agent-transcripts", "*", "*.jsonl")):
-        sid = os.path.basename(os.path.dirname(p))
-        if os.path.basename(p) != sid + ".jsonl":
+def collect(log_dir, home, agents):
+    logs = []
+    seen_ids = set()
+    for path in sorted(glob.glob(os.path.join(log_dir, "session-*.log"))):
+        parsed = parse_name(os.path.basename(path))
+        if parsed is None:
             continue
-        key = p.split(os.sep)[-4]
-        transcripts[sid] = (key, p)
-    metas = {}
-    for p in glob.glob(os.path.join(home, ".cursor", "chats", "*", "*", "meta.json")):
-        metas[os.path.basename(os.path.dirname(p))] = p
-    events = load_hook_events(home)
-    key_state = {}
-
-    def hooks_file_state(key):
-        if key not in key_state:
-            root = resolve_key(key)
-            if root is None:
-                key_state[key] = "unknown"
-            elif os.path.isfile(os.path.join(root, ".cursor", "hooks.json")):
-                key_state[key] = "unknown"  # hooks.json exists but loading is not proven
-            else:
-                key_state[key] = "NO"
-        return key_state[key]
-
-    rows = []
-    for sid in sorted(set(transcripts) | set(metas)):
-        meta = read_meta(metas[sid]) if sid in metas else None
-        tr = transcripts.get(sid)
-        created = meta.get("createdAtMs") if meta else None
-        if isinstance(created, (int, float)) and not isinstance(created, bool):
-            first = created / 1000.0
-        elif tr:
-            try:
-                first = os.stat(tr[1]).st_mtime
-            except OSError:
-                first = None
-        else:
-            first = None
-        key = tr[0] if tr else cwd_key(meta.get("cwd") if meta else None)
-        row = {"project": key, "session": sid, "first_seen": fmt_time(first) if first is not None else "?",
-               "_ts": first, "agent": "?", "hooks_loaded": "gone", "sudo_or_herdr": []}
-        if meta is None or tr is None:
-            rows.append(row)
-            continue
+        start, pid = parsed
         try:
-            agent, attempts = scan_transcript(tr[1])
+            scan = scan_log(path)
         except OSError:
-            rows.append(row)
             continue
-        ev = events.get(sid, {})
-        row["agent"] = agent
-        if ev.get("shell"):
-            row["hooks_loaded"] = "yes"
-        else:
-            row["hooks_loaded"] = hooks_file_state(key)
-        outcome = "blocked" if ev.get("deny") else NOT_RECORDED
-        row["sudo_or_herdr"] = [{"command": c, "outcome": outcome} for c in attempts]
-        rows.append(row)
-    return rows
+        seen_ids.update(scan["conversations"])
+        logs.append({
+            "log": os.path.basename(path), "pid": pid, "start": start,
+            "kind": "session" if scan["workspace"] else "helper",
+            "workspace": scan["workspace"], "agent": agents.get(pid, "?"),
+            "guarded": "yes" if scan["guarded"] else "NO",
+            "hooks": scan["hooks"], "risky": scan["risky"],
+        })
+    gone = [{"project": k, "session": i, "state": "log gone (transcript only)"}
+            for k, i in transcript_ids(home) if i not in seen_ids]
+    return logs, gone
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--since", metavar="YYYY-MM-DD", help="only sessions first seen on or after this UTC date")
+    ap.add_argument("--log-dir", help="Cursor agent log dir (default /tmp/cursor-agent-logs-UID)")
+    ap.add_argument("--since", metavar="YYYY-MM-DD", help="only logs started on or after this UTC date")
     ap.add_argument("--json", action="store_true", help="emit JSON (rows plus summary)")
+    ap.add_argument("--agents-json", metavar="FILE", help="read the pid->agent list from FILE instead of factory agents --json")
     args = ap.parse_args(argv)
     since = None
     if args.since:
         try:
-            since = datetime.datetime.strptime(args.since, "%Y-%m-%d").replace(tzinfo=datetime.timezone.utc).timestamp()
+            datetime.datetime.strptime(args.since, "%Y-%m-%d")
         except ValueError:
             print("error: --since must be YYYY-MM-DD, e.g. --since 2026-11-03", file=sys.stderr)
             return 2
-    rows = collect(home_dir())
-    if since is not None:
-        rows = [r for r in rows if r["_ts"] is not None and r["_ts"] >= since]
-    rows.sort(key=lambda r: (r["_ts"] is None, r["_ts"] or 0, r["session"]))
+        since = args.since
+    home = os.environ.get("HOME") or os.path.expanduser("~")
+    log_dir = args.log_dir or "/tmp/cursor-agent-logs-%d" % os.getuid()
+    logs, gone = collect(log_dir, home, load_agents(args.agents_json))
+    if since:
+        logs = [r for r in logs if r["start"][:10] >= since]
+    sessions = [r for r in logs if r["kind"] == "session"]
     summary = {
-        "sessions": len(rows),
-        "hooks_loaded_no": sum(1 for r in rows if r["hooks_loaded"] == "NO"),
-        "sudo_or_herdr_attempted": sum(1 for r in rows if r["sudo_or_herdr"]),
-        "gone": sum(1 for r in rows if r["hooks_loaded"] == "gone"),
+        "logs": len(logs),
+        "sessions": len(sessions),
+        "unguarded": sum(1 for r in sessions if r["guarded"] == "NO"),
+        "risky_unguarded": sum(1 for r in sessions for x in r["risky"] if x["outcome"] == "ran unguarded"),
+        "helper": len(logs) - len(sessions),
+        "transcripts_log_gone": len(gone),
+        "oldest_log": min((r["start"] for r in logs), default="none"),
     }
-    line = "sessions={sessions} hooks_loaded_no={hooks_loaded_no} sudo_or_herdr_attempted={sudo_or_herdr_attempted} gone={gone}".format(**summary)
-    for r in rows:
-        r.pop("_ts")
+    line = " ".join("%s=%s" % kv for kv in summary.items())
     if args.json:
-        print(json.dumps({"sessions": rows, "summary": summary}, indent=2))
+        print(json.dumps({"logs": logs, "transcripts_log_gone": gone, "summary": summary}, indent=2))
         return 0
-    for r in rows:
-        attempts = "; ".join("%r %s" % (a["command"], a["outcome"]) for a in r["sudo_or_herdr"]) or "-"
-        print("%s\t%s\t%s\t%s\thooks_loaded=%s\tsudo_or_herdr=%s" % (
-            r["project"], r["session"], r["first_seen"], r["agent"], r["hooks_loaded"], attempts))
+    for r in logs:
+        hooks = ",".join("%s=%d" % kv for kv in sorted(r["hooks"].items())) or "-"
+        risky = "; ".join("%r %s" % (x["command"], x["outcome"]) for x in r["risky"]) or "-"
+        print("%s\t%s\t%s\tagent=%s\tguarded=%s\thooks=%s\trisky=%s" % (
+            r["log"], r["kind"], r["workspace"] or "-", r["agent"], r["guarded"], hooks, risky))
+    for g in gone:
+        print("%s\t%s\t%s" % (g["project"], g["session"], g["state"]))
     print(line)
     return 0
 
