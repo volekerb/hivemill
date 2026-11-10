@@ -9,6 +9,7 @@ from harness import FactoryTestCase
 class ConfigCheck(FactoryTestCase):
     def setUp(self):
         super().setUp()
+        self.env.seed_agent("claude-director", "director")
         self.db_exec("DELETE FROM config")  # the harness pre-sets a few keys; start from the defaults
 
     def db_exec(self, sql, *args):
