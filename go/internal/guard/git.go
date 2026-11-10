@@ -866,6 +866,29 @@ func (a *Analyzer) xargsGit(gargs []string) error {
 				"`--get-all`, `--get-regexp`, `--list`, `-l`) and exact options is allowed; run `git config` directly")
 		}
 	}
+	sub := gargs[i]
+	if sub == "rebase" || sub == "difftool" {
+		return blockf("xargs git " + sub + ": stdin adds arguments, so the -x/--exec command cannot be inspected; run git " + sub + " directly")
+	}
+	if sub == "submodule" || sub == "bisect" {
+		run := "foreach"
+		if sub == "bisect" {
+			run = "run"
+		}
+		word := ""
+		found := false
+		for _, w := range gargs[i+1:] {
+			if !strings.HasPrefix(w, "-") {
+				word = w
+				found = true
+				break
+			}
+		}
+		if !found || !reGitSubcommand.MatchString(word) || word == run {
+			return blockf("xargs git " + sub + ": stdin adds arguments, so without a literal subcommand other than " + run + " the inner " +
+				"command cannot be inspected; run git " + sub + " directly")
+		}
+	}
 	return a.gitPushPin(gargs)
 }
 

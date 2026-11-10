@@ -774,3 +774,21 @@ func TestXargsGitConfig(t *testing.T) {
 		t.Fatalf("cleaner stderr %q, want value-option refusal", msg)
 	}
 }
+
+// T-1040: xargs git rebase/difftool must refuse (stdin could supply -x/--exec).
+func TestXargsGitRebaseDifftool(t *testing.T) {
+	f := newGitFix(t)
+	want := "stdin adds arguments"
+	for _, cmd := range []string{
+		"echo pick | xargs git rebase",
+		"echo vimdiff | xargs git difftool",
+	} {
+		err := f.check(cmd, f.wt, "coder")
+		if err == nil || IsDelegate(err) {
+			t.Fatalf("%q: allowed, want block", cmd)
+		}
+		if !strings.Contains(Explain(err), want) {
+			t.Fatalf("%q: %q, want %q in message", cmd, Explain(err), want)
+		}
+	}
+}

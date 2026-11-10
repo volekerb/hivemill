@@ -10844,10 +10844,7 @@
     "git clone --dep 1 URL ~/.local/go/x",
     "git clone --bra main URL ~/.config/factory/x",
     "git clone --ref-format files URL ~/.local/lib/factory/x",
-    {
-      "cmd": "git --attr-source HEAD clone URL ~/.local/go/x",
-      "role": "reviewer"
-    },
+    "git --attr-source HEAD clone URL ~/.local/go/x",
     "cd ~/.local/go && git clone --dep 1 /tmp/r",
     "cp -rt ~/.local/go /tmp/x",
     "cp -t~/.local/go /tmp/x",
@@ -18744,6 +18741,230 @@
       "note": "T-0990: T-0799 coder xargs git and git -c alias (push pin)",
       "cmd": "echo push origin main | xargs git",
       "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -c alias.x=send-pack x origin HEAD"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git send-pack origin HEAD"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "X=push git --config-env=alias.x=X x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "X=push git --config-env alias.x=X x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -calias.x=send-pack x origin HEAD"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -calias.x=push x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo user.name | xargs git config --get --add"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo alias.y push | xargs git -c alias.x=config x"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo alias.y push | xargs git -calias.x=config x"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --config-env core.sshCommand=X fetch origin"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --config-env core.fsmonitor=X status"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --config-env core.pager=X log"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --config-env remote.origin.url=X fetch"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --config-env user.name=X status"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --attr-source HEAD send-pack origin HEAD"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo alias.x push | xargs git --attr-source HEAD config"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --shallow-file x send-pack origin HEAD"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo alias.x push | xargs git --shallow-file x config"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --config-env alias.x=X x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --attr-source HEAD status"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs -0 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs -n1 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "printf '%s\\n' config --global core.hooksPath /tmp/x | xargs git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs git <<< 'push origin main'"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs -I{} git {}"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs -n 1 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -c alias.x=push x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -c alias.x='!git push' x"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs env git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs nice git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs command git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs timeout 9 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs stdbuf -o0 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs env -i git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs env A=1 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo alias.x=push | xargs -I{} git -c {} x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo alias.x=push | xargs -I% git -c % x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo alias.x=push | xargs --replace git -c {} x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo alias.x=push | xargs -i git -c {} x origin main"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs time git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs taskset 1 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs flock /tmp/x git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs chrt 0 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs unbuffer git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs xargs -n1 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs xargs -r git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs nice xargs -n1 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs -I{} xargs -n1 git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo push origin main | xargs -l git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs -s git env git"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs sh -c 'git \"$@\"' _"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs git-send-pack"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs /usr/bin/git push"
     }
   ],
   "must_allow": [
@@ -23110,6 +23331,97 @@
     {
       "note": "T-1137: git config parsed-arg checks (mirror T-1097)",
       "cmd": "git config --get 'branch.fix#12.remote'"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -c alias.st=status st",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo user.name | xargs git config --get",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo x | xargs git config --list",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "echo x | xargs git config --get-all",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --config-env=user.name=X status",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -cuser.name=x status",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -C . status",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git --attr-source=HEAD status",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git log",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git commit -m x",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs grep foo",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs git status",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "xargs -0 git log",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -c core.pager=cat log",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git -c alias.x=status x",
+        "role": "coder"
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git push origin HEAD:factory/t-0907",
+        "role": "coder",
+        "env": {
+            "FACTORY_AGENT": "coder-t-0907"
+        }
+    },
+    {
+        "note": "T-1040: T-0907 coder push pin and xargs (mirror Go guard)",
+        "cmd": "git push origin HEAD:factory/t-0799",
+        "role": "coder",
+        "env": {
+            "FACTORY_AGENT": "coder-t-0799"
+        }
     }
   ]
 }

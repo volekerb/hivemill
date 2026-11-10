@@ -132427,6 +132427,3024 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git -c alias.x=send-pack x origin HEAD",
+"mask_quotes_pre": "git -c alias.x=send-pack x origin HEAD",
+"mask_quotes_raw": "git -c alias.x=send-pack x origin HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.x=send-pack x origin HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.x=send-pack x origin HEAD"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"git",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"git",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "X=push git --config-env=alias.x=X x origin main",
+"mask_quotes_pre": "X=push git --config-env=alias.x=X x origin main",
+"mask_quotes_raw": "X=push git --config-env=alias.x=X x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "X=push git --config-env=alias.x=X x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "X=push git --config-env=alias.x=X x origin main"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"X=push",
+"git",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"X=push",
+"git",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "X=push git --config-env alias.x=X x origin main",
+"mask_quotes_pre": "X=push git --config-env alias.x=X x origin main",
+"mask_quotes_raw": "X=push git --config-env alias.x=X x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "X=push git --config-env alias.x=X x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "X=push git --config-env alias.x=X x origin main"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"X=push",
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"X=push",
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -calias.x=send-pack x origin HEAD",
+"mask_quotes_pre": "git -calias.x=send-pack x origin HEAD",
+"mask_quotes_raw": "git -calias.x=send-pack x origin HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -calias.x=send-pack x origin HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -calias.x=send-pack x origin HEAD"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"git",
+"-calias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"git",
+"-calias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -calias.x=push x origin main",
+"mask_quotes_pre": "git -calias.x=push x origin main",
+"mask_quotes_raw": "git -calias.x=push x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -calias.x=push x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -calias.x=push x origin main"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"git",
+"-calias.x=push",
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"git",
+"-calias.x=push",
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo user.name | xargs git config --get --add",
+"mask_quotes_pre": "echo user.name | xargs git config --get --add",
+"mask_quotes_raw": "echo user.name | xargs git config --get --add",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo user.name | xargs git config --get --add"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo user.name | xargs git config --get --add"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"echo",
+"user.name"
+]
+],
+[
+16,
+45,
+[
+"xargs",
+"git",
+"config",
+"--get",
+"--add"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"echo",
+"user.name"
+]
+],
+[
+16,
+45,
+[
+"xargs",
+"git",
+"config",
+"--get",
+"--add"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo alias.y push | xargs git -c alias.x=config x",
+"mask_quotes_pre": "echo alias.y push | xargs git -c alias.x=config x",
+"mask_quotes_raw": "echo alias.y push | xargs git -c alias.x=config x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.y push | xargs git -c alias.x=config x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.y push | xargs git -c alias.x=config x"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"echo",
+"alias.y",
+"push"
+]
+],
+[
+19,
+49,
+[
+"xargs",
+"git",
+"-c",
+"alias.x=config",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"echo",
+"alias.y",
+"push"
+]
+],
+[
+19,
+49,
+[
+"xargs",
+"git",
+"-c",
+"alias.x=config",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo alias.y push | xargs git -calias.x=config x",
+"mask_quotes_pre": "echo alias.y push | xargs git -calias.x=config x",
+"mask_quotes_raw": "echo alias.y push | xargs git -calias.x=config x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.y push | xargs git -calias.x=config x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.y push | xargs git -calias.x=config x"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"echo",
+"alias.y",
+"push"
+]
+],
+[
+19,
+48,
+[
+"xargs",
+"git",
+"-calias.x=config",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"echo",
+"alias.y",
+"push"
+]
+],
+[
+19,
+48,
+[
+"xargs",
+"git",
+"-calias.x=config",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --config-env core.sshCommand=X fetch origin",
+"mask_quotes_pre": "git --config-env core.sshCommand=X fetch origin",
+"mask_quotes_raw": "git --config-env core.sshCommand=X fetch origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env core.sshCommand=X fetch origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env core.sshCommand=X fetch origin"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"git",
+"--config-env",
+"core.sshCommand=X",
+"fetch",
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"git",
+"--config-env",
+"core.sshCommand=X",
+"fetch",
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --config-env core.fsmonitor=X status",
+"mask_quotes_pre": "git --config-env core.fsmonitor=X status",
+"mask_quotes_raw": "git --config-env core.fsmonitor=X status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env core.fsmonitor=X status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env core.fsmonitor=X status"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"git",
+"--config-env",
+"core.fsmonitor=X",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"git",
+"--config-env",
+"core.fsmonitor=X",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --config-env core.pager=X log",
+"mask_quotes_pre": "git --config-env core.pager=X log",
+"mask_quotes_raw": "git --config-env core.pager=X log",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env core.pager=X log"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env core.pager=X log"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"git",
+"--config-env",
+"core.pager=X",
+"log"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"git",
+"--config-env",
+"core.pager=X",
+"log"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --config-env remote.origin.url=X fetch",
+"mask_quotes_pre": "git --config-env remote.origin.url=X fetch",
+"mask_quotes_raw": "git --config-env remote.origin.url=X fetch",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env remote.origin.url=X fetch"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env remote.origin.url=X fetch"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"git",
+"--config-env",
+"remote.origin.url=X",
+"fetch"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"git",
+"--config-env",
+"remote.origin.url=X",
+"fetch"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --config-env user.name=X status",
+"mask_quotes_pre": "git --config-env user.name=X status",
+"mask_quotes_raw": "git --config-env user.name=X status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env user.name=X status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env user.name=X status"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"git",
+"--config-env",
+"user.name=X",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"git",
+"--config-env",
+"user.name=X",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --attr-source HEAD send-pack origin HEAD",
+"mask_quotes_pre": "git --attr-source HEAD send-pack origin HEAD",
+"mask_quotes_raw": "git --attr-source HEAD send-pack origin HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --attr-source HEAD send-pack origin HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --attr-source HEAD send-pack origin HEAD"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"git",
+"--attr-source",
+"HEAD",
+"send-pack",
+"origin",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"git",
+"--attr-source",
+"HEAD",
+"send-pack",
+"origin",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD",
+"mask_quotes_pre": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD",
+"mask_quotes_raw": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --attr-source HEAD -c alias.x=send-pack x origin HEAD"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"git",
+"--attr-source",
+"HEAD",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"git",
+"--attr-source",
+"HEAD",
+"-c",
+"alias.x=send-pack",
+"x",
+"origin",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main",
+"mask_quotes_pre": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main",
+"mask_quotes_raw": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "X=push git --attr-source HEAD --config-env=alias.x=X x origin main"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"X=push",
+"git",
+"--attr-source",
+"HEAD",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"X=push",
+"git",
+"--attr-source",
+"HEAD",
+"--config-env=alias.x=X",
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo alias.x push | xargs git --attr-source HEAD config",
+"mask_quotes_pre": "echo alias.x push | xargs git --attr-source HEAD config",
+"mask_quotes_raw": "echo alias.x push | xargs git --attr-source HEAD config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x push | xargs git --attr-source HEAD config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x push | xargs git --attr-source HEAD config"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"echo",
+"alias.x",
+"push"
+]
+],
+[
+19,
+55,
+[
+"xargs",
+"git",
+"--attr-source",
+"HEAD",
+"config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"echo",
+"alias.x",
+"push"
+]
+],
+[
+19,
+55,
+[
+"xargs",
+"git",
+"--attr-source",
+"HEAD",
+"config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --shallow-file x send-pack origin HEAD",
+"mask_quotes_pre": "git --shallow-file x send-pack origin HEAD",
+"mask_quotes_raw": "git --shallow-file x send-pack origin HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --shallow-file x send-pack origin HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --shallow-file x send-pack origin HEAD"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"git",
+"--shallow-file",
+"x",
+"send-pack",
+"origin",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"git",
+"--shallow-file",
+"x",
+"send-pack",
+"origin",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo alias.x push | xargs git --shallow-file x config",
+"mask_quotes_pre": "echo alias.x push | xargs git --shallow-file x config",
+"mask_quotes_raw": "echo alias.x push | xargs git --shallow-file x config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x push | xargs git --shallow-file x config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x push | xargs git --shallow-file x config"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"echo",
+"alias.x",
+"push"
+]
+],
+[
+19,
+53,
+[
+"xargs",
+"git",
+"--shallow-file",
+"x",
+"config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"echo",
+"alias.x",
+"push"
+]
+],
+[
+19,
+53,
+[
+"xargs",
+"git",
+"--shallow-file",
+"x",
+"config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --config-env alias.x=X x origin main",
+"mask_quotes_pre": "git --config-env alias.x=X x origin main",
+"mask_quotes_raw": "git --config-env alias.x=X x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env alias.x=X x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env alias.x=X x origin main"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"git",
+"--config-env",
+"alias.x=X",
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --attr-source HEAD status",
+"mask_quotes_pre": "git --attr-source HEAD status",
+"mask_quotes_raw": "git --attr-source HEAD status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --attr-source HEAD status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --attr-source HEAD status"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"git",
+"--attr-source",
+"HEAD",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"git",
+"--attr-source",
+"HEAD",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs -0 git",
+"mask_quotes_pre": "xargs -0 git",
+"mask_quotes_raw": "xargs -0 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs -0 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs -0 git"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"xargs",
+"-0",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"xargs",
+"-0",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs -n1 git",
+"mask_quotes_pre": "xargs -n1 git",
+"mask_quotes_raw": "xargs -n1 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs -n1 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs -n1 git"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"xargs",
+"-n1",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"xargs",
+"-n1",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf '%s\\n' config --global core.hooksPath /tmp/x | xargs git",
+"mask_quotes_pre": "printf 'QQQQ' config --global core.hooksPath /tmp/x | xargs git",
+"mask_quotes_raw": "printf 'QQQQ' config --global core.hooksPath /tmp/x | xargs git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf '%s\\n' config --global core.hooksPath /tmp/x | xargs git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf '%s\\n' config --global core.hooksPath /tmp/x | xargs git"
+},
+"segments_pre": [
+[
+0,
+52,
+[
+"printf",
+"'QQQQ'",
+"config",
+"--global",
+"core.hooksPath",
+"/tmp/x"
+]
+],
+[
+53,
+63,
+[
+"xargs",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+52,
+[
+"printf",
+"'QQQQ'",
+"config",
+"--global",
+"core.hooksPath",
+"/tmp/x"
+]
+],
+[
+53,
+63,
+[
+"xargs",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs git <<< 'push origin main'",
+"mask_quotes_pre": "xargs git <<< 'QQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "xargs git <<< 'QQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs git <<< 'push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs git <<< 'push origin main'"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"xargs",
+"git",
+"<<<",
+"'QQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"xargs",
+"git",
+"<<<",
+"'QQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs -I{} git {}",
+"mask_quotes_pre": "xargs -I{} git {}",
+"mask_quotes_raw": "xargs -I{} git {}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs -I{} git {}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs -I{} git {}"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"xargs",
+"-I"
+]
+],
+[
+10,
+15,
+[
+"git"
+]
+],
+[
+17,
+17,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"xargs",
+"-I"
+]
+],
+[
+10,
+15,
+[
+"git"
+]
+],
+[
+17,
+17,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs -n 1 git",
+"mask_quotes_pre": "xargs -n 1 git",
+"mask_quotes_raw": "xargs -n 1 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs -n 1 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs -n 1 git"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"xargs",
+"-n",
+"1",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"xargs",
+"-n",
+"1",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c alias.x='!git push' x",
+"mask_quotes_pre": "git -c alias.x='QQQQQQQQQ' x",
+"mask_quotes_raw": "git -c alias.x='QQQQQQQQQ' x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.x='!git push' x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.x='!git push' x"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"git",
+"-c",
+"alias.x='QQQQQQQQQ'",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"git",
+"-c",
+"alias.x='QQQQQQQQQ'",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs env git",
+"mask_quotes_pre": "echo push origin main | xargs env git",
+"mask_quotes_raw": "echo push origin main | xargs env git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs env git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs env git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+37,
+[
+"xargs",
+"env",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+37,
+[
+"xargs",
+"env",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs nice git",
+"mask_quotes_pre": "echo push origin main | xargs nice git",
+"mask_quotes_raw": "echo push origin main | xargs nice git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs nice git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs nice git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+38,
+[
+"xargs",
+"nice",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+38,
+[
+"xargs",
+"nice",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs command git",
+"mask_quotes_pre": "echo push origin main | xargs command git",
+"mask_quotes_raw": "echo push origin main | xargs command git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs command git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs command git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+41,
+[
+"xargs",
+"command",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+41,
+[
+"xargs",
+"command",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs timeout 9 git",
+"mask_quotes_pre": "echo push origin main | xargs timeout 9 git",
+"mask_quotes_raw": "echo push origin main | xargs timeout 9 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs timeout 9 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs timeout 9 git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+43,
+[
+"xargs",
+"timeout",
+"9",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+43,
+[
+"xargs",
+"timeout",
+"9",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs stdbuf -o0 git",
+"mask_quotes_pre": "echo push origin main | xargs stdbuf -o0 git",
+"mask_quotes_raw": "echo push origin main | xargs stdbuf -o0 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs stdbuf -o0 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs stdbuf -o0 git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+44,
+[
+"xargs",
+"stdbuf",
+"-o0",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+44,
+[
+"xargs",
+"stdbuf",
+"-o0",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs env -i git",
+"mask_quotes_pre": "echo push origin main | xargs env -i git",
+"mask_quotes_raw": "echo push origin main | xargs env -i git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs env -i git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs env -i git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+40,
+[
+"xargs",
+"env",
+"-i",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+40,
+[
+"xargs",
+"env",
+"-i",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs env A=1 git",
+"mask_quotes_pre": "echo push origin main | xargs env A=1 git",
+"mask_quotes_raw": "echo push origin main | xargs env A=1 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs env A=1 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs env A=1 git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+41,
+[
+"xargs",
+"env",
+"A=1",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+41,
+[
+"xargs",
+"env",
+"A=1",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo alias.x=push | xargs -I{} git -c {} x origin main",
+"mask_quotes_pre": "echo alias.x=push | xargs -I{} git -c {} x origin main",
+"mask_quotes_raw": "echo alias.x=push | xargs -I{} git -c {} x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x=push | xargs -I{} git -c {} x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x=push | xargs -I{} git -c {} x origin main"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"echo",
+"alias.x=push"
+]
+],
+[
+19,
+28,
+[
+"xargs",
+"-I"
+]
+],
+[
+30,
+38,
+[
+"git",
+"-c"
+]
+],
+[
+40,
+54,
+[
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"echo",
+"alias.x=push"
+]
+],
+[
+19,
+28,
+[
+"xargs",
+"-I"
+]
+],
+[
+30,
+38,
+[
+"git",
+"-c"
+]
+],
+[
+40,
+54,
+[
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo alias.x=push | xargs -I% git -c % x origin main",
+"mask_quotes_pre": "echo alias.x=push | xargs -I% git -c % x origin main",
+"mask_quotes_raw": "echo alias.x=push | xargs -I% git -c % x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x=push | xargs -I% git -c % x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x=push | xargs -I% git -c % x origin main"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"echo",
+"alias.x=push"
+]
+],
+[
+19,
+52,
+[
+"xargs",
+"-I%",
+"git",
+"-c",
+"%",
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"echo",
+"alias.x=push"
+]
+],
+[
+19,
+52,
+[
+"xargs",
+"-I%",
+"git",
+"-c",
+"%",
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo alias.x=push | xargs --replace git -c {} x origin main",
+"mask_quotes_pre": "echo alias.x=push | xargs --replace git -c {} x origin main",
+"mask_quotes_raw": "echo alias.x=push | xargs --replace git -c {} x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x=push | xargs --replace git -c {} x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x=push | xargs --replace git -c {} x origin main"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"echo",
+"alias.x=push"
+]
+],
+[
+19,
+43,
+[
+"xargs",
+"--replace",
+"git",
+"-c"
+]
+],
+[
+45,
+59,
+[
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"echo",
+"alias.x=push"
+]
+],
+[
+19,
+43,
+[
+"xargs",
+"--replace",
+"git",
+"-c"
+]
+],
+[
+45,
+59,
+[
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo alias.x=push | xargs -i git -c {} x origin main",
+"mask_quotes_pre": "echo alias.x=push | xargs -i git -c {} x origin main",
+"mask_quotes_raw": "echo alias.x=push | xargs -i git -c {} x origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x=push | xargs -i git -c {} x origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x=push | xargs -i git -c {} x origin main"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"echo",
+"alias.x=push"
+]
+],
+[
+19,
+36,
+[
+"xargs",
+"-i",
+"git",
+"-c"
+]
+],
+[
+38,
+52,
+[
+"x",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"echo",
+"alias.x=push"
+]
+],
+[
+19,
+36,
+[
+"xargs",
+"-i",
+"git",
+"-c"
+]
+],
+[
+38,
+52,
+[
+"x",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs time git",
+"mask_quotes_pre": "echo push origin main | xargs time git",
+"mask_quotes_raw": "echo push origin main | xargs time git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs time git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs time git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+38,
+[
+"xargs",
+"time",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+38,
+[
+"xargs",
+"time",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs taskset 1 git",
+"mask_quotes_pre": "echo push origin main | xargs taskset 1 git",
+"mask_quotes_raw": "echo push origin main | xargs taskset 1 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs taskset 1 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs taskset 1 git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+43,
+[
+"xargs",
+"taskset",
+"1",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+43,
+[
+"xargs",
+"taskset",
+"1",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs flock /tmp/x git",
+"mask_quotes_pre": "echo push origin main | xargs flock /tmp/x git",
+"mask_quotes_raw": "echo push origin main | xargs flock /tmp/x git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs flock /tmp/x git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs flock /tmp/x git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+46,
+[
+"xargs",
+"flock",
+"/tmp/x",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+46,
+[
+"xargs",
+"flock",
+"/tmp/x",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs chrt 0 git",
+"mask_quotes_pre": "echo push origin main | xargs chrt 0 git",
+"mask_quotes_raw": "echo push origin main | xargs chrt 0 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs chrt 0 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs chrt 0 git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+40,
+[
+"xargs",
+"chrt",
+"0",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+40,
+[
+"xargs",
+"chrt",
+"0",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs unbuffer git",
+"mask_quotes_pre": "echo push origin main | xargs unbuffer git",
+"mask_quotes_raw": "echo push origin main | xargs unbuffer git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs unbuffer git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs unbuffer git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+42,
+[
+"xargs",
+"unbuffer",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+42,
+[
+"xargs",
+"unbuffer",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs xargs -n1 git",
+"mask_quotes_pre": "xargs xargs -n1 git",
+"mask_quotes_raw": "xargs xargs -n1 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs xargs -n1 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs xargs -n1 git"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"xargs",
+"xargs",
+"-n1",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"xargs",
+"xargs",
+"-n1",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs xargs -r git",
+"mask_quotes_pre": "xargs xargs -r git",
+"mask_quotes_raw": "xargs xargs -r git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs xargs -r git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs xargs -r git"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"xargs",
+"xargs",
+"-r",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"xargs",
+"xargs",
+"-r",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs nice xargs -n1 git",
+"mask_quotes_pre": "xargs nice xargs -n1 git",
+"mask_quotes_raw": "xargs nice xargs -n1 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs nice xargs -n1 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs nice xargs -n1 git"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"xargs",
+"nice",
+"xargs",
+"-n1",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"xargs",
+"nice",
+"xargs",
+"-n1",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs -I{} xargs -n1 git",
+"mask_quotes_pre": "xargs -I{} xargs -n1 git",
+"mask_quotes_raw": "xargs -I{} xargs -n1 git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs -I{} xargs -n1 git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs -I{} xargs -n1 git"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"xargs",
+"-I"
+]
+],
+[
+10,
+24,
+[
+"xargs",
+"-n1",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"xargs",
+"-I"
+]
+],
+[
+10,
+24,
+[
+"xargs",
+"-n1",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo push origin main | xargs -l git",
+"mask_quotes_pre": "echo push origin main | xargs -l git",
+"mask_quotes_raw": "echo push origin main | xargs -l git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs -l git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo push origin main | xargs -l git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+36,
+[
+"xargs",
+"-l",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"push",
+"origin",
+"main"
+]
+],
+[
+23,
+36,
+[
+"xargs",
+"-l",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs -s git env git",
+"mask_quotes_pre": "xargs -s git env git",
+"mask_quotes_raw": "xargs -s git env git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs -s git env git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs -s git env git"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"xargs",
+"-s",
+"git",
+"env",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"xargs",
+"-s",
+"git",
+"env",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs sh -c 'git \"$@\"' _",
+"mask_quotes_pre": "xargs sh -c 'QQQQQQQQ' _",
+"mask_quotes_raw": "xargs sh -c 'QQQQQQQQ' _",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs sh -c 'git \"$@\"' _"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs sh -c 'git \"$@\"' _"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"xargs",
+"sh",
+"-c",
+"'QQQQQQQQ'",
+"_"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"xargs",
+"sh",
+"-c",
+"'QQQQQQQQ'",
+"_"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs git-send-pack",
+"mask_quotes_pre": "xargs git-send-pack",
+"mask_quotes_raw": "xargs git-send-pack",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs git-send-pack"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs git-send-pack"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"xargs",
+"git-send-pack"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"xargs",
+"git-send-pack"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs /usr/bin/git push",
+"mask_quotes_pre": "xargs /usr/bin/git push",
+"mask_quotes_raw": "xargs /usr/bin/git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs /usr/bin/git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs /usr/bin/git push"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"xargs",
+"/usr/bin/git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"xargs",
+"/usr/bin/git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -165212,6 +168230,730 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git -c alias.st=status st",
+"mask_quotes_pre": "git -c alias.st=status st",
+"mask_quotes_raw": "git -c alias.st=status st",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.st=status st"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.st=status st"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"git",
+"-c",
+"alias.st=status",
+"st"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"git",
+"-c",
+"alias.st=status",
+"st"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo user.name | xargs git config --get",
+"mask_quotes_pre": "echo user.name | xargs git config --get",
+"mask_quotes_raw": "echo user.name | xargs git config --get",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo user.name | xargs git config --get"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo user.name | xargs git config --get"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"echo",
+"user.name"
+]
+],
+[
+16,
+39,
+[
+"xargs",
+"git",
+"config",
+"--get"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"echo",
+"user.name"
+]
+],
+[
+16,
+39,
+[
+"xargs",
+"git",
+"config",
+"--get"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x | xargs git config --list",
+"mask_quotes_pre": "echo x | xargs git config --list",
+"mask_quotes_raw": "echo x | xargs git config --list",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x | xargs git config --list"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x | xargs git config --list"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+32,
+[
+"xargs",
+"git",
+"config",
+"--list"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+32,
+[
+"xargs",
+"git",
+"config",
+"--list"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x | xargs git config --get-all",
+"mask_quotes_pre": "echo x | xargs git config --get-all",
+"mask_quotes_raw": "echo x | xargs git config --get-all",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x | xargs git config --get-all"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x | xargs git config --get-all"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+35,
+[
+"xargs",
+"git",
+"config",
+"--get-all"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+35,
+[
+"xargs",
+"git",
+"config",
+"--get-all"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --config-env=user.name=X status",
+"mask_quotes_pre": "git --config-env=user.name=X status",
+"mask_quotes_raw": "git --config-env=user.name=X status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env=user.name=X status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --config-env=user.name=X status"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"git",
+"--config-env=user.name=X",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"git",
+"--config-env=user.name=X",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -cuser.name=x status",
+"mask_quotes_pre": "git -cuser.name=x status",
+"mask_quotes_raw": "git -cuser.name=x status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -cuser.name=x status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -cuser.name=x status"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"git",
+"-cuser.name=x",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"git",
+"-cuser.name=x",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C . status",
+"mask_quotes_pre": "git -C . status",
+"mask_quotes_raw": "git -C . status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C . status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C . status"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"git",
+"-C",
+".",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"git",
+"-C",
+".",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --attr-source=HEAD status",
+"mask_quotes_pre": "git --attr-source=HEAD status",
+"mask_quotes_raw": "git --attr-source=HEAD status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --attr-source=HEAD status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --attr-source=HEAD status"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"git",
+"--attr-source=HEAD",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"git",
+"--attr-source=HEAD",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log",
+"mask_quotes_pre": "git log",
+"mask_quotes_raw": "git log",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"git",
+"log"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"git",
+"log"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs grep foo",
+"mask_quotes_pre": "xargs grep foo",
+"mask_quotes_raw": "xargs grep foo",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs grep foo"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs grep foo"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"xargs",
+"grep",
+"foo"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"xargs",
+"grep",
+"foo"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs git status",
+"mask_quotes_pre": "xargs git status",
+"mask_quotes_raw": "xargs git status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs git status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs git status"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"xargs",
+"git",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"xargs",
+"git",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "xargs -0 git log",
+"mask_quotes_pre": "xargs -0 git log",
+"mask_quotes_raw": "xargs -0 git log",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "xargs -0 git log"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "xargs -0 git log"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"xargs",
+"-0",
+"git",
+"log"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"xargs",
+"-0",
+"git",
+"log"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c alias.x=status x",
+"mask_quotes_pre": "git -c alias.x=status x",
+"mask_quotes_raw": "git -c alias.x=status x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.x=status x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.x=status x"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"-c",
+"alias.x=status",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"-c",
+"alias.x=status",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git push origin HEAD:factory/t-0907",
+"mask_quotes_pre": "git push origin HEAD:factory/t-0907",
+"mask_quotes_raw": "git push origin HEAD:factory/t-0907",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-0907"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-0907"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0907"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0907"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git push origin HEAD:factory/t-0799",
+"mask_quotes_pre": "git push origin HEAD:factory/t-0799",
+"mask_quotes_raw": "git push origin HEAD:factory/t-0799",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-0799"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-0799"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0799"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0799"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -172324,7 +176066,7 @@
 ]
 }
 },
-"corpus_commands": 3178,
+"corpus_commands": 3246,
 "edge_inputs": 97,
 "python": "3.13"
 }
