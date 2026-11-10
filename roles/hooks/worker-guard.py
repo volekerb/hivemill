@@ -497,8 +497,15 @@ def prot_glob(p, ancestor=False):
 
 def cd_home_factory_word(w):
     """`$HOME/factory` and `${HOME}/factory` expand to the passwd-home factory checkout for ccwd tracking."""
+    factory = os.path.join(PW_DIR, "factory")
     if w in ("$HOME/factory", "${HOME}/factory"):
-        return os.path.join(PW_DIR, "factory")
+        return factory
+    m = re.match(r"^\$(?:\{HOME\}|HOME)(/.*)?$", w)
+    if not m or not m.group(1):
+        return None
+    tail = os.path.normpath(os.path.join("/", m.group(1).lstrip("/")))
+    if tail == "/factory":
+        return factory
     return None
 
 
