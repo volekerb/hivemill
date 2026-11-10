@@ -12,10 +12,10 @@ import (
 // T-1200: live-checkout common dir — block shared repo config/remote writes and push URL overrides.
 
 var (
-	reLiveRemoteCfg = regexp.MustCompile(`(?i)^(remote\.\w+\.(url|pushurl|fetch)|url\..+\.(insteadof|pushinsteadof)|include\.path|includeif\..+\.path)=`)
-	rePushURLCred       = regexp.MustCompile(`^(?:https?|git|ssh)://[^/\s]+:[^/\s]+@|^[^/\s]+:[^/\s]+@[\w.-]+:`)
-	rePushURLCredSCP    = regexp.MustCompile(`^[^/\s]+@[^/\s]+:`)
-	rePushURLScheme     = regexp.MustCompile(`^[\w.-]+://`)
+	reLiveRemoteCfg  = regexp.MustCompile(`(?i)^(remote\.\w+\.(url|pushurl|fetch)|url\..+\.(insteadof|pushinsteadof)|include\.path|includeif\..+\.path)=`)
+	rePushURLCred    = regexp.MustCompile(`^(?:https?|git|ssh)://[^/\s]+:[^/\s]+@|^[^/\s]+:[^/\s]+@[\w.-]+:`)
+	rePushURLCredSCP = regexp.MustCompile(`^[^/\s]+@[^/\s]+:`)
+	rePushURLScheme  = regexp.MustCompile(`^[\w.-]+://`)
 )
 
 // factoryURLShapeOK mirrors worker-guard.py FACTORY_URL_SHAPE (RE2 has no lookahead).
