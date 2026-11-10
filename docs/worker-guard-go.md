@@ -13,15 +13,17 @@ The Python hook on `origin/main` is the behaviour contract.
 | git rules | T-0350 | merged |
 | config, persist, factory rules, Edit/Write and Read/Grep tools, gh rules, the decisions that read the DB | T-0351 | here |
 
-Every rule is ported; no command exits 2 with a "not ported" message. Payloads Python allows without analysis (other
-tools, `--hq` with a non-Bash tool) are allowed here too.
+Every rule is ported except forms still covered only by the Python hook in follow-up tasks (T-1210 `--repo` space form,
+T-1211 `--config-env` remote URL, T-1212 `http-push`). The live-checkout common-dir rules of T-1200
+(`tests/test_worker_guard_live_remote.py`) are ported. Payloads Python allows without analysis (other tools, `--hq` with
+a non-Bash tool) are allowed here too.
 
 ## Decisions that read the factory DB (T-0351, T-0767)
 
-Go is stdlib only and opens no sqlite. Five decisions of the hook read the factory DB (read-only, `FACTORY_HOME` or the
+Go is stdlib only and opens no sqlite. Six decisions of the hook read the factory DB (read-only, `FACTORY_HOME` or the
 live home): the agent's own goal (`own_goal`, for `factory goal show <own goal>`), the `test_sandbox` config row
 (`sandbox_route`), the `public_text_repos` / `frozen_repos` rows (`PublicText`, git and gh writes; decided in Go since T-0887), the task worktree of a
-coder's `git push` (`git_push_pin`) and the `scrub_terms_file` row (`terms_paths`).
+coder's `git push` (`git_push_pin`), the `scrub_terms_file` row (`terms_paths`) and `factory_remote_url` (T-1200 push URL allow).
 
 ### The guard export (T-0767)
 
@@ -30,7 +32,7 @@ Every tick (`export()` in `bin/factory_cli.py`, also `factory export`) writes `<
 
 ```json
 {"version": 1, "generated_at": "2026-11-02T07:00:00+00:00",
- "config": {"public_text_repos": "", "frozen_repos": "", "scrub_terms_file": "", "test_sandbox": "0"},
+ "config": {"public_text_repos": "", "frozen_repos": "", "scrub_terms_file": "", "test_sandbox": "0", "factory_remote_url": ""},
  "agent_goals": {"claude-coder-t-0767": "G-016"}, "task_worktrees": {"T-0767": "/path/to/worktree"}}
 ```
 
@@ -97,7 +99,8 @@ decides this payload". `RepoProtBlock` (a `PrivBlock`) is the `gh` R-a refusal.
 
 ## Git rules (T-0350)
 
-`git.go` ports `git_homes`, `dynamic_dir`, `git_cd`, `git_join`, `git_top_shared`, `git_is_shared`, `git_shared`,
+`live_remote.go` (T-1200) ports `uses_live_common`, `git_common_dir`, `git_live_push_guard`, `factory_remote_url` (from
+the export), repo-config refuses on the live common dir and live push URL checks. `git.go` ports `git_homes`, `dynamic_dir`, `git_cd`, `git_join`, `git_top_shared`, `git_is_shared`, `git_shared`,
 `git_outside_shared`, `branch_mutates`, `config_mutates`, `git_mutates`, `git_cleaner_ok`, `git_delete`,
 `config_args_write`, `git_persist` (up to the file rules), the tail of `cmd`'s git branch and `derive_live_homes`.
 `GitBlock` mirrors Python's class (a `Block` for `errors.As`). The tests override the hook's own environment exactly as

@@ -700,6 +700,9 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		return nil
 	}
 	if pyBasename(words[0]) == "git" {
+		if err := a.gitLivePushGuard(words[1:]); err != nil { // T-1200: live common push / remote overrides
+			return err
+		}
 		if err := a.gitPushPin(words[1:]); err != nil { // before the public-text push check: names the one allowed push
 			return err
 		}

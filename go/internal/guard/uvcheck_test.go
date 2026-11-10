@@ -105,7 +105,7 @@ func TestWholePushAcceptsUvPrefix(t *testing.T) {
 		"uv  run git push origin HEAD:factory/t-1":           false,
 		"uv run git push origin HEAD:factory/t-1 && echo hi": false,
 	} {
-		if _, _, ok := wholePush(text, "t-1"); ok != want {
+		if _, _, ok := wholePush(text, "t-1", ""); ok != want {
 			t.Errorf("wholePush(%q) = %v, want %v", text, ok, want)
 		}
 	}
