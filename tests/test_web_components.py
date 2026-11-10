@@ -180,7 +180,7 @@ class TestPages(PageCase):
         self.assertIn('<table class="dt">', t)
         self.assertEqual(t.count("aria-sort="), 1)
         self.assertRegex(t, r'aria-sort="descending"><a href="/tasks\?sort=updated&amp;dir=asc"[^>]*>Updated')
-        self.assertRegex(t, r'<tr class="grp"><th colspan="8" scope="colgroup">In review <span class="grp-n">1</span>')
+        self.assertRegex(t, r'<tr class="grp"><th colspan="11" scope="colgroup">In review <span class="grp-n">1</span>')
         self.assertRegex(t, r'class="chip"[^>]*><span>In progress</span> <span class="chip-n">1<')
         self.assertIn('data-key="tasks-done"', t)   # Done is collapsed
 
@@ -262,7 +262,7 @@ class TestPages(PageCase):
     def test_filtering_to_done_opens_the_done_group(self):
         t = self.text("/tasks?status=done")
         self.assertNotIn('data-key="tasks-done"', t)
-        self.assertRegex(t, r'<th colspan="8" scope="colgroup">Done <span class="grp-n">2<')
+        self.assertRegex(t, r'<th colspan="11" scope="colgroup">Done <span class="grp-n">2<')
 
 
 class TestCounts(PageCase):

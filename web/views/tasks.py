@@ -60,8 +60,39 @@ SORT_KEYS = {
     "rejections": lambda t: t["rejections"],
     "updated": lambda t: t["updated"] or "",
 }
+METRIC_KEYS = {"cost": "cost", "tokens": "tokens", "wall": "wall_s"}   # sort key -> row field; None sorts last in both directions
+SORT_KEYS.update({k: (lambda t, fld=fld: t[fld]) for k, fld in METRIC_KEYS.items()})
 DEFAULT_SORT = ("updated", "desc")
 GOAL_CHIPS = 6
+
+
+def _metrics(ctx, tasks):
+    """task id -> {cost, tokens, wall_s, na}: one rollup of the TokenIndex snapshot per page load (never waits: an index
+    that is not ready gives None, shown "-"). Cursor tasks have no token counts: na=True, shown "n/a", never 0.
+    wall_s = created -> merge event for merged tasks, else None."""
+    snap = ctx.tokens() if getattr(ctx, "tokens", None) else None
+    by_task = {}
+    if snap and snap.get("ready"):
+        by_task = rollup(snap, attribute(snap, ctx.db))["by_task"]
+    merged_at = {}
+    for r in ctx.db.execute("SELECT entity_id, MAX(ts) ts FROM events WHERE entity='task' AND action='merged' GROUP BY entity_id"):
+        merged_at[r["entity_id"]] = r["ts"]
+    gorgs = queries.goal_orgs(ctx.db)
+    out = {}
+    for t in tasks:
+        m = {"cost": None, "tokens": None, "wall_s": None, "na": queries.org_of_goal(gorgs, t["goal_id"]) == "cursor"}
+        e = by_task.get(t["id"])
+        if e is not None and not m["na"]:
+            tok = sum(e[k] for k in ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h"))
+            if tok:
+                m["tokens"] = tok
+                if e["cost"] is not None and not e["cost_unknown"]:
+                    m["cost"] = e["cost"]
+        a, b = parse_ts(t["created"]), parse_ts(merged_at.get(t["id"]))
+        if a is not None and b is not None and b >= a:
+            m["wall_s"] = round((b - a).total_seconds())
+        out[t["id"]] = m
+    return out
 
 
 def _sort_state(q):
@@ -95,11 +126,13 @@ def data(ctx, goal=None, status=None, **params):
     for t in in_status:
         goal_counts[t["goal_id"]] = goal_counts.get(t["goal_id"], 0) + 1
     rows = []
-    for t in (t for t in in_goal if not status or t["status"] == status):
+    shown = [t for t in in_goal if not status or t["status"] == status]
+    met = _metrics(ctx, shown)
+    for t in shown:
         label, _ = _ci_for(t, merged)
         rows.append({"id": t["id"], "goal_id": t["goal_id"], "title": t["title"], "status": t["status"], "waits": t["waits"], "pr_url": t["pr_url"],
                      "ci": label, "rejections": rej.get(t["id"], 0), "attempts": t["attempts"],
-                     "assignee": t["assignee"], "updated": t["updated"], "org": queries.org_of_goal(gorgs, t["goal_id"])})
+                     "assignee": t["assignee"], "updated": t["updated"], **met[t["id"]], "org": queries.org_of_goal(gorgs, t["goal_id"])})
     sort = _sort_state(q)
     return {"org": org, "filter": {"goal": goal, "status": status}, "goals": sorted(known), "statuses": list(STATUSES), "tasks": rows,
             "counts": counts, "goal_counts": dict(sorted(goal_counts.items())), "total": len(in_goal),
@@ -114,6 +147,9 @@ COLUMNS = (
     {"key": "assignee", "label": "Assignee", "cls": "c-who", "sortable": True, "phone_label": True},
     {"key": "pr", "label": "PR", "cls": "c-who", "sortable": True, "phone_label": True},
     {"key": "rejections", "label": "Rejections", "cls": "c-who", "sortable": True, "phone_label": True},
+    {"key": "cost", "label": "Cost", "cls": "c-who num", "sortable": True, "phone_label": True},
+    {"key": "tokens", "label": "Tokens", "cls": "c-who num", "sortable": True, "phone_label": True},
+    {"key": "wall", "label": "Wall time", "cls": "c-who num", "sortable": True, "phone_label": True},
     {"key": "updated", "label": "Updated", "cls": "c-age num", "sortable": True},
 )
 
@@ -130,6 +166,13 @@ def _ci_word(label):
     return el("span", CI_WORDS[label], class_="muted") if label in CI_WORDS else ""
 
 
+def _metric_cell(t, field, fmt):
+    """Value, "n/a" for a Cursor task (no token counts), "-" when unknown; never 0 for a missing value."""
+    if t[field] is None:
+        return "n/a" if t["na"] and field != "wall_s" else "-"
+    return fmt(t[field])
+
+
 def _row(t, now):
     pr = el("span", link(t["pr_url"], pr_label(t["pr_url"])), " ", _ci_word(t["ci"])) if t["pr_url"] else ""
     n = t["rejections"]
@@ -137,12 +180,17 @@ def _row(t, now):
     title = el("span", el("a", t["title"], href=f"/task/{t['id']}"), " ", task_badge("blocked", t["waits"]) if t["status"] == "blocked" else None)
     goal = el("span", link(f"/goal/{t['goal_id']}", t["goal_id"]), " ", org_badge(t.get("org")), class_="orgrow") if t["goal_id"] else ""
     return [row_status(t["status"]), t["id"], title, goal,
-            t["assignee"] or "", pr, rej, el("span", ago(t["updated"], now), title=t["updated"])]
+            t["assignee"] or "", pr, rej, _metric_cell(t, "cost", lambda v: f"${v:,.2f}"), _metric_cell(t, "tokens", lambda v: f"{v:,}"),
+            _metric_cell(t, "wall_s", dur), el("span", ago(t["updated"], now), title=t["updated"])]
 
 
 def _sorted(rows, sort):
     key, d = sort
     rows = sorted(rows, key=lambda t: t["id"])
+    if key in METRIC_KEYS:   # unknown values go last whichever the direction
+        fld = METRIC_KEYS[key]
+        known = sorted((t for t in rows if t[fld] is not None), key=SORT_KEYS[key], reverse=d == "desc")
+        return known + [t for t in rows if t[fld] is None]
     return sorted(rows, key=SORT_KEYS[key], reverse=d == "desc")
 
 
