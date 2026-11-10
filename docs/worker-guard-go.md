@@ -367,10 +367,13 @@ reloads `--settings`; it is unrelated to `guard_impl` rollback above.
 The director decides any production flip of `guard_impl` to `go` or `shadow`; Python remains the default until then.
 Do not flip while `ci/guard_diff.py` still skips the retro corpus (T-1219 removes that skip first).
 
-**Go-tighter behaviour (director ruling M20992).** With `guard_impl=go` or `shadow`, a corrupt or non-SQLite
-`db/factory.db` leaves Go with no seeded `run/guard-export.json`: decisions that read the DB **fail closed** (exit 2),
-including bare test runners that Python still allows when the export is missing (`tests/test_guard_test_sandbox_pilot.py`,
-item on unreadable DB). Python falls back; Go does not. Accept that differential before any flip.
+**Go-tighter behaviour (director ruling M20992).** With `guard_impl=go`, a corrupt or non-SQLite `db/factory.db` leaves
+Go with no seeded `run/guard-export.json`: decisions that read the DB **fail closed** (exit 2), including bare test
+runners that Python still allows when the export is missing (`tests/test_guard_test_sandbox_pilot.py`, item on unreadable
+DB). Python falls back; Go does not. With `guard_impl=shadow`, the shim always runs Python and returns Python's exit
+status (`finish python`); when Go disagrees it only logs Go's exit to `guard-shadow.log` and still returns Python's
+status. That corrupt-DB case is **not** a Go-vs-shadow differential. Accept the `go` differential before any flip to
+`go`.
 
 **Python-only rules that must have a merged Go mirror first (M21163).** Each row is merged on `origin/main` as of
 T-0357 (SC5); name the merge commit when auditing a later flip:
