@@ -367,7 +367,7 @@ class GoImplTests(GuardDiffCase):
 
     def test_template_roles_of_the_real_templates_are_the_worker_roles(self):
         self.assertEqual(guard_diff.template_roles(harness.REPO),
-                         sorted(("cleaner", "coder", "evaluator", "judge", "pm", "qa", "researcher", "reviewer", "scout", "staff-engineer")))
+                         sorted(("cleaner", "coder", "evaluator", "judge", "pm", "qa", "researcher", "retro", "reviewer", "scout", "staff-engineer")))
 
     def test_roles_all_derived_from_templates(self):
         sdir = os.path.join(self.repo, "roles", "settings")

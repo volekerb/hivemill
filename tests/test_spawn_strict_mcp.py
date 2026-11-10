@@ -40,8 +40,8 @@ class StrictMcpSpawnTests(test_plugins.PluginDirSpawnTests):
                 self.ok(*spawn_cmd(role))
         starts = self.starts()
         for role in CLI_SPAWNABLE:
-            argv = starts[f"zz-test-{role}"]
-            if role == "boss":
+            argv = starts[test_plugins.spawn_agent_name(role)]
+            if role in ("boss", "retro"):  # retro is cursor runtime; strict MCP flags are Claude-only (_spawn_start)
                 self.assertNotIn("--strict-mcp-config", argv)
                 self.assertNotIn("--mcp-config", argv)
             else:

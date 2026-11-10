@@ -116,7 +116,7 @@ class LayoutTests(FactoryTestCase):
 
     def test_settings_have_db_and_legacy_deny_lines(self):
         files = sorted(glob.glob(str(rendered_settings_dir() / "*.json")))
-        self.assertEqual(len(files), 13)
+        self.assertEqual(len(files), 14)
         for f in files:
             deny = json.loads(Path(f).read_text())["permissions"]["deny"]
             for tool in ("Edit", "Write"):

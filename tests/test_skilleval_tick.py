@@ -656,7 +656,7 @@ class EntryPointTests(CliBase):
         body = src[src.index("def cmd_tick"):]
         body = body[:body.index("\ndef ", 1)]
         self.assertEqual(body.count("skilleval_tick(con)"), 1)
-        self.assertIn("    scout_tick(con)\n    skilleval_tick(con)\n", body)
+        self.assertIn("    scout_tick(con)\n    retro_tick(con)\n    skilleval_tick(con)\n", body)
 
     def test_an_exception_in_skilleval_tick_does_not_break_the_tick_and_is_reported_once_a_day(self):
         self.ok("config", "skilleval_trial_minutes", "abc", agent="owner")  # int() raises inside skilleval_tick

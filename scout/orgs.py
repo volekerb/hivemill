@@ -15,7 +15,7 @@ DEFAULT_ORG = "claude"
 
 # Judgement roles think (plan, review, decide); build roles produce code/tests. Same split as factory MODELS.
 JUDGEMENT_ROLES = ("boss", "director", "lead", "pm", "reviewer", "judge", "staff-engineer", "researcher")
-BUILD_ROLES = ("coder", "qa", "cleaner", "scout", "evaluator")
+BUILD_ROLES = ("coder", "qa", "cleaner", "scout", "retro", "evaluator")
 
 ORGS = {
     "claude": {
@@ -27,7 +27,7 @@ ORGS = {
             "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
             "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
             "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
-            "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
+            "scout": "claude-sonnet-5-5", "retro": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
         },
     },
     "cursor": {
@@ -40,6 +40,7 @@ ORGS = {
             "staff-engineer": "grok-4.7-high", "researcher": "grok-4.7-high",
             "coder": "composer-2.5", "qa": "composer-2.5", "cleaner": "composer-2.5",
             "scout": "composer-2.5",
+            "retro": "composer-2.5",
             # skilleval evaluator always runs on Claude (agent_runtime: cursor refuses it)
             "evaluator": "claude-sonnet-5-5",
         },
