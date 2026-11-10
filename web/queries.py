@@ -502,9 +502,11 @@ def task_lifecycle(con, tid, now=None):
     -> PR opened), review (one per in_review update -> the last reviewer/QA verdict before the next in_review),
     judge (last reviewer/QA pass -> merged). `waits` sit inside those stages and are summed on their own:
     ci (review-autospawn-wait -> next review-autospawn) and blocked (status=blocked update -> next status
-    change; waits=owner|internal; still blocked = until `now`). `total` runs from the first of (spec start,
+    change, a re-block included so spans never overlap; waits=owner|internal, internal when the update names none;
+    still blocked = until `now`). `total` runs from the first of (spec start,
     created) to merged, or `now` when open. gaps_s = total minus the union of the stages (rework etc.).
-    A missing input or a negative span gives None.
+    A missing input or a negative span gives None; a review round with no reviewer/QA verdict before the next
+    in_review has seconds None, so gaps_s is None too (and while open: judge is None).
     """
     t = con.execute("SELECT created, status FROM tasks WHERE id=?", (tid,)).fetchone()
     if t is None:
@@ -556,10 +558,10 @@ def task_lifecycle(con, tid, now=None):
         prev_end = nxt
         waits.append({"kind": "ci", **span(e["ts"], nxt)})
     for i, (u, x) in enumerate(ups):
-        if "status=blocked" not in x:
+        if not re.search(r"\bstatus=blocked\b", x):
             continue
         m = re.search(r"waits=(\w+)", x)
-        nxt = next((u2 for u2, x2 in ups[i + 1:] if re.search(r"status=(?!blocked)\w+", x2)), None)
+        nxt = next((u2 for u2, x2 in ups[i + 1:] if re.search(r"\bstatus=\w+", x2)), None)
         if nxt is None and t["status"] == "blocked":
             nxt = _now(now).isoformat(timespec="seconds")
         waits.append({"kind": "blocked", "waits": m.group(1) if m else "internal", **span(u, nxt)})

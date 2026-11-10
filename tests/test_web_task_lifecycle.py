@@ -162,6 +162,36 @@ class TestLifecycle(LifecycleCase):
         self.assertEqual([s["seconds"] for s in r["stages"]], [None, None, None])
         self.assertIsNone(r["gaps_s"])
 
+    def test_reblock_does_not_double_count_and_open_block_runs_to_now(self):
+        self.task(status="blocked")
+        x = self.con.execute
+        x(E, (ts(8, 15), "lead", "task", "T-1", "update", "status=blocked waits=internal"))
+        x(E, (ts(8, 25), "lead", "task", "T-1", "update", "status=blocked waits=owner"))
+        r = q.task_lifecycle(self.con, "T-1", NOW)
+        self.assertEqual([(w["waits"], w["seconds"]) for w in r["waits"]], [("internal", 600), ("owner", 12900)])
+        self.assertEqual(r["waits_total"]["internal_blocked_s"], 600)
+        self.assertEqual(r["waits_total"]["owner_blocked_s"], 12900)  # 08:25 -> NOW 12:00
+
+    def test_negative_wait_spans_give_none(self):
+        self.task()
+        self.basic()
+        x = self.con.execute
+        x(E, (ts(8, 30), "lead", "task", "T-1", "update", "status=blocked waits=owner"))
+        x(E, (ts(8, 20), "lead", "task", "T-1", "update", "status=in_progress"))
+        x(E, (ts(8, 50), "tick", "task", "T-1", "review-autospawn-wait", "{}"))
+        x(E, (ts(8, 45), "tick", "task", "T-1", "review-autospawn", "{}"))
+        r = q.task_lifecycle(self.con, "T-1", NOW)
+        self.assertEqual([w["seconds"] for w in r["waits"]], [None, None])
+        self.assertEqual(r["waits_total"], {"ci_s": 0, "owner_blocked_s": 0, "internal_blocked_s": 0})
+
+    def test_unreviewed_round_is_none_and_blanks_gaps(self):
+        self.task()
+        self.basic()
+        self.con.execute(E, (ts(8, 50), "coder-1", "task", "T-1", "update", "status=in_review"))
+        r = q.task_lifecycle(self.con, "T-1", NOW)
+        self.assertIsNone(self.stage(r, "review")[0]["seconds"])
+        self.assertIsNone(r["gaps_s"])
+
     def test_unknown_task_is_none(self):
         self.assertIsNone(q.task_lifecycle(self.con, "T-404", NOW))
 
