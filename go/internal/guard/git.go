@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -827,6 +828,156 @@ func (a *Analyzer) cfgInScratch(word string) bool {
 		t = pyJoin(a.ccwd, t)
 	}
 	return inScratchpad(pyRealpath(t))
+}
+
+// gitRunners is a port of Analyzer.git_runners (T-0908): a coder's git may run a command through submodule foreach,
+// rebase -x/--exec, bisect run and difftool -x/--extcmd. The inner command is checked as bash -c <inner> would be;
+// a missing, dynamic or unparseable inner command is refused. Coder only.
+func (a *Analyzer) gitRunners(rest []string, depth int) error {
+	if a.Role != "coder" {
+		return nil
+	}
+	i := 0
+	for i < len(rest) && strings.HasPrefix(rest[i], "-") {
+		if rest[i] == "-C" || rest[i] == "-c" || rest[i] == "--git-dir" || rest[i] == "--work-tree" ||
+			rest[i] == "--namespace" || rest[i] == "--exec-path" {
+			i += 2
+		} else {
+			i++
+		}
+	}
+	if i >= len(rest) {
+		return nil
+	}
+	sub, args := rest[i], rest[i+1:]
+	switch sub {
+	case "submodule", "bisect":
+		j := 0
+		for j < len(args) && strings.HasPrefix(args[j], "-") {
+			j++
+		}
+		if j >= len(args) {
+			return nil
+		}
+		word := args[j]
+		if IsDynamic(word, true) || hasGlob(word) {
+			return blockf("git " + sub + " " + word + ": the " + sub + " subcommand is dynamic and could run a command; write it literally")
+		}
+		want := "foreach"
+		if sub == "bisect" {
+			want = "run"
+		}
+		if word != want {
+			return nil
+		}
+		inner := append([]string(nil), args[j+1:]...)
+		if sub == "submodule" {
+			for len(inner) > 0 && (inner[0] == "--recursive" || inner[0] == "--quiet" || inner[0] == "-q") {
+				inner = inner[1:]
+			}
+		}
+		if len(inner) > 0 && inner[0] == "--" {
+			inner = inner[1:]
+		}
+		return a.gitInner("git "+sub+" "+word, inner, depth, sub == "bisect")
+	case "rebase":
+		return a.gitExecOpts(sub, args, 'x', "--exec", "XsCS", depth)
+	case "difftool":
+		return a.gitExecOpts(sub, args, 'x', "--extcmd", "tOSG", depth)
+	}
+	return nil
+}
+
+func (a *Analyzer) gitInner(what string, words []string, depth int, quote bool) error {
+	if len(words) == 0 {
+		return blockf(what + " without a command: the inner command cannot be inspected; give it a literal command")
+	}
+	for _, w := range words {
+		if IsDynamic(w, true) {
+			return blockf(what + " " + pyRepr(w) + ": the inner command is built from an expansion and cannot be inspected")
+		}
+	}
+	inner := strings.Join(words, " ")
+	if quote {
+		parts := make([]string, len(words))
+		for i, w := range words {
+			parts[i] = shlex.Quote(w)
+		}
+		inner = strings.Join(parts, " ")
+	}
+	if err := a.script(inner, depth+1); err != nil {
+		var b *Block
+		var gb *GitBlock
+		if errors.As(err, &b) || errors.As(err, &gb) {
+			return err
+		}
+		return blockf(what + ": the inner command cannot be parsed (" + err.Error() + ")")
+	}
+	return nil
+}
+
+func (a *Analyzer) gitExecOpts(sub string, args []string, short byte, long, valued string, depth int) error {
+	k := 0
+	for k < len(args) {
+		tok := args[k]
+		k++
+		if tok == "--" {
+			return nil
+		}
+		if strings.HasPrefix(tok, "--") {
+			name, val, hasEq := strings.Cut(tok, "=")
+			if len(name) > 2 && strings.HasPrefix(long, name) {
+				if !hasEq {
+					if k < len(args) {
+						val = args[k]
+						k++
+					} else {
+						val = ""
+					}
+				}
+				words := []string(nil)
+				if val != "" {
+					words = []string{val}
+				}
+				if err := a.gitInner("git "+sub+" "+long, words, depth, false); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(tok, "-") && len(tok) > 1 {
+			for n := 1; n < len(tok); n++ {
+				c := tok[n]
+				if c == short {
+					val := tok[n+1:]
+					if val == "" {
+						if k < len(args) {
+							val = args[k]
+							k++
+						} else {
+							val = ""
+						}
+					}
+					words := []string(nil)
+					if val != "" {
+						words = []string{val}
+					}
+					if err := a.gitInner("git "+sub+" -"+string(short), words, depth, false); err != nil {
+						return err
+					}
+					break
+				}
+				if strings.ContainsRune(valued, rune(c)) {
+					if n == len(tok)-1 && c != 'S' {
+						k++
+					}
+					break
+				}
+			}
+			continue
+		}
+	}
+	return nil
 }
 
 var xargsGitForbidden = set("push", "send-pack", "http-push", "subtree")

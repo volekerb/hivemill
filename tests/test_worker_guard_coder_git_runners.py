@@ -8,8 +8,6 @@ import unittest
 from harness import git
 from guard_impl import hook_run
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
-
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TASK = "t-0908"
 P = "git push origin main"

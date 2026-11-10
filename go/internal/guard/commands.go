@@ -703,6 +703,9 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		if err := a.gitPushPin(words[1:]); err != nil { // before the public-text push check: names the one allowed push
 			return err
 		}
+		if err := a.gitRunners(words[1:], depth); err != nil { // T-0908: inner commands of git runners
+			return err
+		}
 	}
 	if a.pt != nil {
 		if err := a.ptCommand(words); err != nil {

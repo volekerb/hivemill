@@ -135445,6 +135445,2250 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git submodule foreach 'git push origin main'",
+"mask_quotes_pre": "git submodule foreach 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git submodule foreach 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"git",
+"submodule",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"git",
+"submodule",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule --quiet foreach 'git push origin main'",
+"mask_quotes_pre": "git submodule --quiet foreach 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git submodule --quiet foreach 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule --quiet foreach 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule --quiet foreach 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+52,
+[
+"git",
+"submodule",
+"--quiet",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+52,
+[
+"git",
+"submodule",
+"--quiet",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule foreach --recursive 'git push origin main'",
+"mask_quotes_pre": "git submodule foreach --recursive 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git submodule foreach --recursive 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach --recursive 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach --recursive 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+56,
+[
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+56,
+[
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule foreach 'echo a && git push origin main'",
+"mask_quotes_pre": "git submodule foreach 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git submodule foreach 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach 'echo a && git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach 'echo a && git push origin main'"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"git",
+"submodule",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"git",
+"submodule",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule foreach 'git push origin HEAD:factory/t-0908'",
+"mask_quotes_pre": "git submodule foreach 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git submodule foreach 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach 'git push origin HEAD:factory/t-0908'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach 'git push origin HEAD:factory/t-0908'"
+},
+"segments_pre": [
+[
+0,
+59,
+[
+"git",
+"submodule",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+59,
+[
+"git",
+"submodule",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule foreach -- 'git push origin main'",
+"mask_quotes_pre": "git submodule foreach -- 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git submodule foreach -- 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach -- 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach -- 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"git",
+"submodule",
+"foreach",
+"--",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"git",
+"submodule",
+"foreach",
+"--",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule foreach --recursive -- 'git push origin main'",
+"mask_quotes_pre": "git submodule foreach --recursive -- 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git submodule foreach --recursive -- 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach --recursive -- 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach --recursive -- 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+59,
+[
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"--",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+59,
+[
+"git",
+"submodule",
+"foreach",
+"--recursive",
+"--",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect run -- git push origin main",
+"mask_quotes_pre": "git bisect run -- git push origin main",
+"mask_quotes_raw": "git bisect run -- git push origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run -- git push origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run -- git push origin main"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"git",
+"bisect",
+"run",
+"--",
+"git",
+"push",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"git",
+"bisect",
+"run",
+"--",
+"git",
+"push",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -x 'git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase -x 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase -x 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x 'git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x 'git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"git",
+"rebase",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"git",
+"rebase",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -x'git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase -x'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase -x'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x'git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x'git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"git",
+"rebase",
+"-x'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"git",
+"rebase",
+"-x'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -ix 'git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase -ix 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase -ix 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -ix 'git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -ix 'git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"git",
+"rebase",
+"-ix",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"git",
+"rebase",
+"-ix",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -i -x 'git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase -i -x 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase -i -x 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -i -x 'git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -i -x 'git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"git",
+"rebase",
+"-i",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"git",
+"rebase",
+"-i",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase --exec 'git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase --exec 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase --exec 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exec 'git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exec 'git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"git",
+"rebase",
+"--exec",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"git",
+"rebase",
+"--exec",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase --exec='git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase --exec='QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase --exec='QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exec='git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exec='git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"git",
+"rebase",
+"--exec='QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"git",
+"rebase",
+"--exec='QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase --exe='git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase --exe='QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase --exe='QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exe='git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exe='git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"git",
+"rebase",
+"--exe='QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"git",
+"rebase",
+"--exe='QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase --exec 'echo a; git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase --exec 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase --exec 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exec 'echo a; git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exec 'echo a; git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+55,
+[
+"git",
+"rebase",
+"--exec",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+55,
+[
+"git",
+"rebase",
+"--exec",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -x 'git status' -x 'git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase -x 'QQQQQQQQQQ' -x 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase -x 'QQQQQQQQQQ' -x 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x 'git status' -x 'git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x 'git status' -x 'git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+59,
+[
+"git",
+"rebase",
+"-x",
+"'QQQQQQQQQQ'",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+59,
+[
+"git",
+"rebase",
+"-x",
+"'QQQQQQQQQQ'",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -ix'git push origin main' HEAD~1",
+"mask_quotes_pre": "git rebase -ix'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase -ix'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -ix'git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -ix'git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"git",
+"rebase",
+"-ix'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"git",
+"rebase",
+"-ix'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect run git push origin main",
+"mask_quotes_pre": "git bisect run git push origin main",
+"mask_quotes_raw": "git bisect run git push origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run git push origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run git push origin main"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"git",
+"bisect",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"git",
+"bisect",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect run bash -c 'git push origin main'",
+"mask_quotes_pre": "git bisect run bash -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git bisect run bash -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run bash -c 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run bash -c 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"git",
+"bisect",
+"run",
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"git",
+"bisect",
+"run",
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool -x 'git push origin main'",
+"mask_quotes_pre": "git difftool -x 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git difftool -x 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"git",
+"difftool",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"git",
+"difftool",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool -x'git push origin main'",
+"mask_quotes_pre": "git difftool -x'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git difftool -x'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"git",
+"difftool",
+"-x'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"git",
+"difftool",
+"-x'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool -yx 'git push origin main'",
+"mask_quotes_pre": "git difftool -yx 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git difftool -yx 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -yx 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -yx 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"git",
+"difftool",
+"-yx",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"git",
+"difftool",
+"-yx",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool --extcmd='git push origin main'",
+"mask_quotes_pre": "git difftool --extcmd='QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git difftool --extcmd='QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --extcmd='git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --extcmd='git push origin main'"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"git",
+"difftool",
+"--extcmd='QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"git",
+"difftool",
+"--extcmd='QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool --extcmd 'git push origin main'",
+"mask_quotes_pre": "git difftool --extcmd 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git difftool --extcmd 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --extcmd 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --extcmd 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"git",
+"difftool",
+"--extcmd",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"git",
+"difftool",
+"--extcmd",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool --ext='git push origin main'",
+"mask_quotes_pre": "git difftool --ext='QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git difftool --ext='QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --ext='git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --ext='git push origin main'"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"git",
+"difftool",
+"--ext='QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"git",
+"difftool",
+"--ext='QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C . submodule foreach 'git push origin main'",
+"mask_quotes_pre": "git -C . submodule foreach 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git -C . submodule foreach 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C . submodule foreach 'git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C . submodule foreach 'git push origin main'"
+},
+"segments_pre": [
+[
+0,
+49,
+[
+"git",
+"-C",
+".",
+"submodule",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+49,
+[
+"git",
+"-C",
+".",
+"submodule",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c core.quotepath=off rebase -x 'git push origin main' HEAD~1",
+"mask_quotes_pre": "git -c core.quotepath=off rebase -x 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git -c core.quotepath=off rebase -x 'QQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.quotepath=off rebase -x 'git push origin main' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.quotepath=off rebase -x 'git push origin main' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+65,
+[
+"git",
+"-c",
+"core.quotepath=off",
+"rebase",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+65,
+[
+"git",
+"-c",
+"core.quotepath=off",
+"rebase",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo foreach 'git push origin main' | xargs git submodule",
+"mask_quotes_pre": "echo foreach 'QQQQQQQQQQQQQQQQQQQQ' | xargs git submodule",
+"mask_quotes_raw": "echo foreach 'QQQQQQQQQQQQQQQQQQQQ' | xargs git submodule",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo foreach 'git push origin main' | xargs git submodule"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo foreach 'git push origin main' | xargs git submodule"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"echo",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+37,
+57,
+[
+"xargs",
+"git",
+"submodule"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"echo",
+"foreach",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+37,
+57,
+[
+"xargs",
+"git",
+"submodule"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'git push origin main' | xargs git submodule foreach",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQ' | xargs git submodule foreach",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQ' | xargs git submodule foreach",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'git push origin main' | xargs git submodule foreach"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'git push origin main' | xargs git submodule foreach"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+29,
+57,
+[
+"xargs",
+"git",
+"submodule",
+"foreach"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+29,
+57,
+[
+"xargs",
+"git",
+"submodule",
+"foreach"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo -x 'git push origin main' | xargs git rebase",
+"mask_quotes_pre": "echo -x 'QQQQQQQQQQQQQQQQQQQQ' | xargs git rebase",
+"mask_quotes_raw": "echo -x 'QQQQQQQQQQQQQQQQQQQQ' | xargs git rebase",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo -x 'git push origin main' | xargs git rebase"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo -x 'git push origin main' | xargs git rebase"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"echo",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+32,
+49,
+[
+"xargs",
+"git",
+"rebase"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"echo",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+32,
+49,
+[
+"xargs",
+"git",
+"rebase"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo run git push origin main | xargs git bisect",
+"mask_quotes_pre": "echo run git push origin main | xargs git bisect",
+"mask_quotes_raw": "echo run git push origin main | xargs git bisect",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo run git push origin main | xargs git bisect"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo run git push origin main | xargs git bisect"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"echo",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+],
+[
+31,
+48,
+[
+"xargs",
+"git",
+"bisect"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"echo",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+],
+[
+31,
+48,
+[
+"xargs",
+"git",
+"bisect"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo -x 'git push origin main' | xargs git difftool",
+"mask_quotes_pre": "echo -x 'QQQQQQQQQQQQQQQQQQQQ' | xargs git difftool",
+"mask_quotes_raw": "echo -x 'QQQQQQQQQQQQQQQQQQQQ' | xargs git difftool",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo -x 'git push origin main' | xargs git difftool"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo -x 'git push origin main' | xargs git difftool"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"echo",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+32,
+51,
+[
+"xargs",
+"git",
+"difftool"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"echo",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+32,
+51,
+[
+"xargs",
+"git",
+"difftool"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule foreach \"$X\"",
+"mask_quotes_pre": "git submodule foreach \"QQ\"",
+"mask_quotes_raw": "git submodule foreach \"QQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach \"$X\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach \"$X\""
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"git",
+"submodule",
+"foreach",
+"\"QQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"git",
+"submodule",
+"foreach",
+"\"QQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -x \"$X\" HEAD~1",
+"mask_quotes_pre": "git rebase -x \"QQ\" HEAD~1",
+"mask_quotes_raw": "git rebase -x \"QQ\" HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x \"$X\" HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x \"$X\" HEAD~1"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"git",
+"rebase",
+"-x",
+"\"QQ\"",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"git",
+"rebase",
+"-x",
+"\"QQ\"",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect run \"$X\"",
+"mask_quotes_pre": "git bisect run \"QQ\"",
+"mask_quotes_raw": "git bisect run \"QQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run \"$X\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run \"$X\""
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"git",
+"bisect",
+"run",
+"\"QQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"git",
+"bisect",
+"run",
+"\"QQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool -x \"$X\"",
+"mask_quotes_pre": "git difftool -x \"QQ\"",
+"mask_quotes_raw": "git difftool -x \"QQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x \"$X\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x \"$X\""
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"git",
+"difftool",
+"-x",
+"\"QQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"git",
+"difftool",
+"-x",
+"\"QQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule $S",
+"mask_quotes_pre": "git submodule $S",
+"mask_quotes_raw": "git submodule $S",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule $S"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule $S"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"git",
+"submodule",
+"$S"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"git",
+"submodule",
+"$S"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect $S",
+"mask_quotes_pre": "git bisect $S",
+"mask_quotes_raw": "git bisect $S",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect $S"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect $S"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"git",
+"bisect",
+"$S"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"git",
+"bisect",
+"$S"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule foreach",
+"mask_quotes_pre": "git submodule foreach",
+"mask_quotes_raw": "git submodule foreach",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"git",
+"submodule",
+"foreach"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"git",
+"submodule",
+"foreach"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -x",
+"mask_quotes_pre": "git rebase -x",
+"mask_quotes_raw": "git rebase -x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"git",
+"rebase",
+"-x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"git",
+"rebase",
+"-x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect run",
+"mask_quotes_pre": "git bisect run",
+"mask_quotes_raw": "git bisect run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"git",
+"bisect",
+"run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"git",
+"bisect",
+"run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool -x",
+"mask_quotes_pre": "git difftool -x",
+"mask_quotes_raw": "git difftool -x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"git",
+"difftool",
+"-x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"git",
+"difftool",
+"-x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase --exec",
+"mask_quotes_pre": "git rebase --exec",
+"mask_quotes_raw": "git rebase --exec",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exec"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase --exec"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"git",
+"rebase",
+"--exec"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"git",
+"rebase",
+"--exec"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -x 'pytest -q' HEAD~1",
+"mask_quotes_pre": "git rebase -x 'QQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase -x 'QQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x 'pytest -q' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x 'pytest -q' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"git",
+"rebase",
+"-x",
+"'QQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"git",
+"rebase",
+"-x",
+"'QQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect run pytest -q",
+"mask_quotes_pre": "git bisect run pytest -q",
+"mask_quotes_raw": "git bisect run pytest -q",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run pytest -q"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run pytest -q"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"git",
+"bisect",
+"run",
+"pytest",
+"-q"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"git",
+"bisect",
+"run",
+"pytest",
+"-q"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -168954,6 +171198,922 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git submodule foreach 'git status'",
+"mask_quotes_pre": "git submodule foreach 'QQQQQQQQQQ'",
+"mask_quotes_raw": "git submodule foreach 'QQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach 'git status'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach 'git status'"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"git",
+"submodule",
+"foreach",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"git",
+"submodule",
+"foreach",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule foreach ./x.sh",
+"mask_quotes_pre": "git submodule foreach ./x.sh",
+"mask_quotes_raw": "git submodule foreach ./x.sh",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach ./x.sh"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule foreach ./x.sh"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"git",
+"submodule",
+"foreach",
+"./x.sh"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"git",
+"submodule",
+"foreach",
+"./x.sh"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -x 'pytest tests/test_x.py' HEAD~1",
+"mask_quotes_pre": "git rebase -x 'QQQQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"mask_quotes_raw": "git rebase -x 'QQQQQQQQQQQQQQQQQQQQQQ' HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x 'pytest tests/test_x.py' HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x 'pytest tests/test_x.py' HEAD~1"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"git",
+"rebase",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"git",
+"rebase",
+"-x",
+"'QQQQQQQQQQQQQQQQQQQQQQ'",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -x ./x.sh HEAD~1",
+"mask_quotes_pre": "git rebase -x ./x.sh HEAD~1",
+"mask_quotes_raw": "git rebase -x ./x.sh HEAD~1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x ./x.sh HEAD~1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -x ./x.sh HEAD~1"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"rebase",
+"-x",
+"./x.sh",
+"HEAD~1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"rebase",
+"-x",
+"./x.sh",
+"HEAD~1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -Xours origin/main",
+"mask_quotes_pre": "git rebase -Xours origin/main",
+"mask_quotes_raw": "git rebase -Xours origin/main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -Xours origin/main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -Xours origin/main"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"git",
+"rebase",
+"-Xours",
+"origin/main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"git",
+"rebase",
+"-Xours",
+"origin/main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase origin/main",
+"mask_quotes_pre": "git rebase origin/main",
+"mask_quotes_raw": "git rebase origin/main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase origin/main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase origin/main"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"git",
+"rebase",
+"origin/main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"git",
+"rebase",
+"origin/main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -sx origin/main",
+"mask_quotes_pre": "git rebase -sx origin/main",
+"mask_quotes_raw": "git rebase -sx origin/main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -sx origin/main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -sx origin/main"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"git",
+"rebase",
+"-sx",
+"origin/main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"git",
+"rebase",
+"-sx",
+"origin/main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git rebase -C4 origin/main",
+"mask_quotes_pre": "git rebase -C4 origin/main",
+"mask_quotes_raw": "git rebase -C4 origin/main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -C4 origin/main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git rebase -C4 origin/main"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"git",
+"rebase",
+"-C4",
+"origin/main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"git",
+"rebase",
+"-C4",
+"origin/main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git submodule update --init",
+"mask_quotes_pre": "git submodule update --init",
+"mask_quotes_raw": "git submodule update --init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git submodule update --init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git submodule update --init"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"submodule",
+"update",
+"--init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"submodule",
+"update",
+"--init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect start",
+"mask_quotes_pre": "git bisect start",
+"mask_quotes_raw": "git bisect start",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect start"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect start"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"git",
+"bisect",
+"start"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"git",
+"bisect",
+"start"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect run pytest tests/test_x.py",
+"mask_quotes_pre": "git bisect run pytest tests/test_x.py",
+"mask_quotes_raw": "git bisect run pytest tests/test_x.py",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run pytest tests/test_x.py"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run pytest tests/test_x.py"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"git",
+"bisect",
+"run",
+"pytest",
+"tests/test_x.py"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"git",
+"bisect",
+"run",
+"pytest",
+"tests/test_x.py"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git bisect run ./x.sh",
+"mask_quotes_pre": "git bisect run ./x.sh",
+"mask_quotes_raw": "git bisect run ./x.sh",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run ./x.sh"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git bisect run ./x.sh"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"git",
+"bisect",
+"run",
+"./x.sh"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"git",
+"bisect",
+"run",
+"./x.sh"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool --stat",
+"mask_quotes_pre": "git difftool --stat",
+"mask_quotes_raw": "git difftool --stat",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --stat"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --stat"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"git",
+"difftool",
+"--stat"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"git",
+"difftool",
+"--stat"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool --tool=vimdiff",
+"mask_quotes_pre": "git difftool --tool=vimdiff",
+"mask_quotes_raw": "git difftool --tool=vimdiff",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --tool=vimdiff"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool --tool=vimdiff"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"difftool",
+"--tool=vimdiff"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"difftool",
+"--tool=vimdiff"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool -x ./x.sh",
+"mask_quotes_pre": "git difftool -x ./x.sh",
+"mask_quotes_raw": "git difftool -x ./x.sh",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x ./x.sh"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -x ./x.sh"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"git",
+"difftool",
+"-x",
+"./x.sh"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"git",
+"difftool",
+"-x",
+"./x.sh"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git difftool -tx",
+"mask_quotes_pre": "git difftool -tx",
+"mask_quotes_raw": "git difftool -tx",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -tx"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git difftool -tx"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"git",
+"difftool",
+"-tx"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"git",
+"difftool",
+"-tx"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo f | xargs git submodule update",
+"mask_quotes_pre": "echo f | xargs git submodule update",
+"mask_quotes_raw": "echo f | xargs git submodule update",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo f | xargs git submodule update"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo f | xargs git submodule update"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"f"
+]
+],
+[
+8,
+35,
+[
+"xargs",
+"git",
+"submodule",
+"update"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"f"
+]
+],
+[
+8,
+35,
+[
+"xargs",
+"git",
+"submodule",
+"update"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo f | xargs git bisect good",
+"mask_quotes_pre": "echo f | xargs git bisect good",
+"mask_quotes_raw": "echo f | xargs git bisect good",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo f | xargs git bisect good"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo f | xargs git bisect good"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"f"
+]
+],
+[
+8,
+30,
+[
+"xargs",
+"git",
+"bisect",
+"good"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"f"
+]
+],
+[
+8,
+30,
+[
+"xargs",
+"git",
+"bisect",
+"good"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x | xargs git status",
+"mask_quotes_pre": "echo x | xargs git status",
+"mask_quotes_raw": "echo x | xargs git status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x | xargs git status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x | xargs git status"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+25,
+[
+"xargs",
+"git",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+25,
+[
+"xargs",
+"git",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -176066,7 +179226,7 @@
 ]
 }
 },
-"corpus_commands": 3246,
+"corpus_commands": 3311,
 "edge_inputs": 97,
 "python": "3.13"
 }
