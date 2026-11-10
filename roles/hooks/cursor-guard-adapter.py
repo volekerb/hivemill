@@ -181,6 +181,13 @@ def emit_cursor_decision(event: str, allow: bool, reason: str) -> int:
     return 2 if event in ("preToolUse", "beforeMCPExecution") else 0
 
 
+def deny_direct(event: object, msg: str) -> int:
+    """Early deny (bad stdin, unsupported event, guard crash): log it, print the deny body, exit 2."""
+    log_decision(event if isinstance(event, str) and event else "unknown", False, _LOG_ROLE)
+    print(json.dumps({"permission": "deny", "agent_message": msg}))
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--role", default=None, help="worker role for worker-guard (default: non-cleaner worker)")
@@ -197,27 +204,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         data = json.load(sys.stdin)
     except Exception as e:
-        print(json.dumps({
-            "permission": "deny",
-            "agent_message": f"cursor-guard-adapter: bad JSON on stdin ({e})",
-        }))
-        return 2
+        return deny_direct(args.event, f"cursor-guard-adapter: bad JSON on stdin ({e})")
 
     if not isinstance(data, dict):
-        print(json.dumps({
-            "permission": "deny",
-            "agent_message": "cursor-guard-adapter: stdin JSON must be an object",
-        }))
-        return 2
+        return deny_direct(args.event, "cursor-guard-adapter: stdin JSON must be an object")
 
     event = args.event or data.get("hook_event_name") or data.get("event")
     if event not in ("beforeShellExecution", "preToolUse", "beforeMCPExecution"):
         # Unknown event: fail closed for this adapter (it is only wired for these).
-        print(json.dumps({
-            "permission": "deny",
-            "agent_message": f"cursor-guard-adapter: unsupported event {event!r}",
-        }))
-        return 2
+        return deny_direct(event, f"cursor-guard-adapter: unsupported event {event!r}")
 
     if event == "beforeMCPExecution":
         role = args.role or "worker"
@@ -228,11 +223,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             r = run_guard(payload, role, args.hq)
         except Exception as e:
-            print(json.dumps({
-                "permission": "deny",
-                "agent_message": f"cursor-guard-adapter: guard failed ({e})",
-            }))
-            return 2
+            return deny_direct(event, f"cursor-guard-adapter: guard failed ({e})")
         if r.returncode == 0:
             return emit_cursor_decision(event, True, "")
         reason = (r.stderr or r.stdout or f"worker-guard exit {r.returncode}").strip()
@@ -256,11 +247,7 @@ def main(argv: list[str] | None = None) -> int:
                 last_reason = (r.stderr or r.stdout or f"worker-guard exit {r.returncode}").strip()
                 return emit_cursor_decision(event, False, last_reason)
     except Exception as e:
-        print(json.dumps({
-            "permission": "deny",
-            "agent_message": f"cursor-guard-adapter: guard failed ({e})",
-        }))
-        return 2
+        return deny_direct(event, f"cursor-guard-adapter: guard failed ({e})")
 
     return emit_cursor_decision(event, True, "")
 

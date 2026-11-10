@@ -139,3 +139,53 @@ class AdapterSubprocessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EarlyDenyLogTests(unittest.TestCase):
+    """Early/direct denies (before any guard decision) are logged like normal ones."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="zz-cursor-adapter-log-")
+        self.tmp = Path(self._tmpdir.name)
+        self.addCleanup(self._tmpdir.cleanup)
+
+    def run_adapter(self, log, stdin_text, event="beforeShellExecution"):
+        env = {
+            **os.environ,
+            "FACTORY_HOME": str(self.tmp),
+            "HOME": str(self.tmp),
+            "XDG_STATE_HOME": str(self.tmp / "state"),
+            "FACTORY_AGENT": "cursor-coder-x",
+            "FACTORY_CURSOR_HOOK_LOG": str(log),
+        }
+        return subprocess.run(
+            [sys.executable, str(ADAPTER), "--role", "pm", "--event", event],
+            input=stdin_text, capture_output=True, text=True, timeout=60, env=env,
+        )
+
+    def test_early_deny_bad_json_appends_one_line_without_command_text(self):
+        log = self.tmp / "hook.log"
+        r = self.run_adapter(log, "not json SECRET-CMD-TEXT")
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(_last_json(r.stdout)["permission"], "deny")
+        lines = log.read_text().splitlines()
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        self.assertEqual(set(rec), {"ts", "agent", "role", "event", "decision"})
+        self.assertEqual(rec["decision"], "deny")
+        self.assertEqual(rec["agent"], "cursor-coder-x")
+        self.assertNotIn("SECRET-CMD-TEXT", lines[0])
+
+    def test_early_deny_unsupported_event_is_logged(self):
+        log = self.tmp / "hook.log"
+        r = self.run_adapter(log, json.dumps({"hook_event_name": "bogus"}), event="bogus")
+        self.assertEqual(r.returncode, 2)
+        rec = json.loads(log.read_text().splitlines()[0])
+        self.assertEqual((rec["event"], rec["decision"]), ("bogus", "deny"))
+
+    def test_early_deny_with_unwritable_log_same_deny_and_exit_code(self):
+        bad = self.tmp / "no-such-dir" / "hook.log"
+        r = self.run_adapter(bad, "not json")
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(_last_json(r.stdout)["permission"], "deny")
+        self.assertFalse(bad.exists())

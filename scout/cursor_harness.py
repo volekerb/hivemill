@@ -194,7 +194,7 @@ def isolated_policy_dir(home: Path | str, name: str) -> Path:
 def policy_workspace(home: Path | str, name: str, cwd: Path | str) -> Path:
     """Where .cursor/ policy is written.
 
-    HQ cwd (FACTORY_HOME) and any task worktree cwd → run/cursor/<name> (isolated).
+    HQ cwd (FACTORY_HOME) and any task worktree cwd → (XDG_STATE_HOME or ~/.local/state)/factory/cursor/<name> (isolated).
     Other cwds (e.g. cursor-pilot --cwd temp dir) → that directory unchanged.
     """
     home_r = Path(home).resolve()
