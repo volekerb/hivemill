@@ -9,8 +9,9 @@ Primary source: LOGDIR/session-*.log (default /tmp/cursor-agent-logs-UID). Each 
   - pid and start time come from the file name (session-ISO-PID-1.log);
   - workspacePath comes from the first conversationClassification.init; a log without
     one is a helper process: listed, not counted as a session;
-  - agent name: pid matched against ``factory agents --json`` (or --agents-json FILE);
-    "?" when that read-only command is unavailable or does not list the pid;
+  - agent name: the "You are `NAME`" line of the first user message of
+    HOME/.cursor/projects/*/agent-transcripts/SESSION/SESSION.jsonl (read only up to that
+    message); "?" when there is no such transcript or line;
   - hook counts by (hookStep, hookSource, status, failClosed) from analytics.track
     eventName cli.hook.executed;
   - guarded = yes when any cli.hook.executed has hookStep beforeShellExecution, else NO;
@@ -25,7 +26,8 @@ inferred for them. The chat database is never opened and HOME is never walked.
 
 Summary line (last): logs=N sessions=S unguarded=U risky_unguarded=R helper=H
 transcripts_log_gone=G oldest_log=ISO. risky_unguarded counts risky runs outcome
-"ran unguarded". No command or message text is printed; only ids, workspace, agent name,
+"ran unguarded". The risky counts are a lower bound (the word match misses quoting tricks,
+variables, eval and encoded forms); this is a log audit, not a guard. No command or message text is printed; only ids, workspace, agent name,
 yes/no flags and counts (M31135).
 """
 import argparse
@@ -34,7 +36,6 @@ import glob
 import json
 import os
 import re
-import subprocess
 import sys
 
 PRIV_WORDS = ("su" + "do", "her" + "dr")  # matching constants only
@@ -42,6 +43,7 @@ DENY_STATUSES = {"denied", "deny", "blocked", "rejected"}
 LINE_RE = re.compile(r"^\[([^\]]+)\] (\S+) (\{.*\})\s*$")
 NAME_RE = re.compile(r"^session-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-\d+Z-(\d+)-\d+\.log$")
 SEGMENT_RE = re.compile(r"\|\||&&|[|;&\n]")
+NAME_IN_TEXT_RE = re.compile(r"You are `([A-Za-z0-9_.-]+)`")
 TOKEN_RE = re.compile(r"[\s()]+")
 
 
@@ -64,29 +66,37 @@ def parse_name(name):
     return "%sT%s:%s:%sZ" % (d, hh, mm, ss), int(pid)
 
 
-def load_agents(agents_json):
-    """pid -> agent name. Empty when the source is unavailable."""
-    try:
-        if agents_json:
-            with open(agents_json, encoding="utf-8") as fh:
-                data = json.load(fh)
-        else:
-            proc = subprocess.run(["factory", "agents", "--json"], capture_output=True, text=True, timeout=20)
-            if proc.returncode != 0:
-                return {}
-            data = json.loads(proc.stdout)
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return {}
-    if isinstance(data, dict):
-        data = data.get("agents", [])
-    out = {}
-    if isinstance(data, list):
-        for a in data:
-            if isinstance(a, dict) and isinstance(a.get("pid"), int):
-                name = a.get("name") or a.get("agent")
-                if isinstance(name, str) and name:
-                    out[a["pid"]] = name
-    return out
+def agent_name(home, session):
+    """Agent name from the first user message ("You are `NAME`") of the session transcript.
+
+    Globbed (no walk), streamed only until the first user line; "?" when absent."""
+    if not session or session == "?" or os.sep in session:
+        return "?"
+    pattern = os.path.join(glob.escape(home), ".cursor", "projects", "*", "agent-transcripts",
+                           glob.escape(session), glob.escape(session) + ".jsonl")
+    for path in sorted(glob.glob(pattern)):
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    try:
+                        rec = json.loads(line)
+                    except ValueError:
+                        continue
+                    if not isinstance(rec, dict) or rec.get("role") != "user":
+                        continue
+                    msg = rec.get("message")
+                    content = msg.get("content") if isinstance(msg, dict) else None
+                    if isinstance(content, str):
+                        content = [{"text": content}]
+                    for part in content if isinstance(content, list) else []:
+                        text = part.get("text") if isinstance(part, dict) else None
+                        m = NAME_IN_TEXT_RE.search(text) if isinstance(text, str) else None
+                        if m:
+                            return m.group(1)
+                    break  # first user message only
+        except OSError:
+            continue
+    return "?"
 
 
 def scan_log(path):
@@ -146,7 +156,7 @@ def transcript_ids(home):
     return sorted(out)
 
 
-def collect(log_dir, home, agents):
+def collect(log_dir, home):
     logs = []
     seen_ids = set()
     for path in sorted(glob.glob(os.path.join(log_dir, "session-*.log"))):
@@ -159,11 +169,12 @@ def collect(log_dir, home, agents):
         except OSError:
             continue
         seen_ids.update(scan["conversations"])
+        session = scan["conversations"][0] if scan["conversations"] else "?"
         logs.append({
             "log": os.path.basename(path), "pid": pid,
-            "session": scan["conversations"][0] if scan["conversations"] else "?", "start": start,
+            "session": session, "start": start,
             "kind": "session" if scan["workspace"] else "helper",
-            "workspace": scan["workspace"], "agent": agents.get(pid, "?"),
+            "workspace": scan["workspace"], "agent": agent_name(home, session),
             "guarded": "yes" if scan["guarded"] else "NO",
             "hooks": scan["hooks"], "risky": scan["risky"],
             "ran": {w: sum(1 for x in scan["risky"] if x["word"] == w) for w in PRIV_WORDS},
@@ -178,7 +189,6 @@ def main(argv=None):
     ap.add_argument("--log-dir", help="Cursor agent log dir (default /tmp/cursor-agent-logs-UID)")
     ap.add_argument("--since", metavar="YYYY-MM-DD", help="only logs started on or after this UTC date")
     ap.add_argument("--json", action="store_true", help="emit JSON (rows plus summary)")
-    ap.add_argument("--agents-json", metavar="FILE", help="read the pid->agent list from FILE instead of factory agents --json")
     args = ap.parse_args(argv)
     since = None
     if args.since:
@@ -190,7 +200,7 @@ def main(argv=None):
         since = args.since
     home = os.environ.get("HOME") or os.path.expanduser("~")
     log_dir = args.log_dir or "/tmp/cursor-agent-logs-%d" % os.getuid()
-    logs, gone = collect(log_dir, home, load_agents(args.agents_json))
+    logs, gone = collect(log_dir, home)
     if since:
         logs = [r for r in logs if r["start"][:10] >= since]
     sessions = [r for r in logs if r["kind"] == "session"]
@@ -210,10 +220,12 @@ def main(argv=None):
     for r in logs:
         hooks = ",".join("%s=%d" % kv for kv in sorted(r["hooks"].items())) or "-"
         ran = " ".join("%s=%s(%d)" % (w, "yes" if n else "no", n) for w, n in r["ran"].items())
+        oc = ["%s=%d" % (o.split()[0], sum(1 for x in r["risky"] if x["outcome"] == o))
+              for o in ("ran unguarded", "blocked by hook", "hook ran, allowed")]
         unguarded = sum(1 for x in r["risky"] if x["outcome"] == "ran unguarded")
-        print("%s\t%s\tpid=%d\t%s\tagent=%s\tbeforeShellExecution=%s\t%s\tunguarded_runs=%d\thooks=%s" % (
+        print("%s\t%s\tpid=%d\t%s\tagent=%s\tbeforeShellExecution=%s\t%s\tunguarded_runs=%d\toutcomes=%s\thooks=%s" % (
             r["session"], r["kind"], r["pid"], r["workspace"] or "-", r["agent"],
-            "yes" if r["guarded"] == "yes" else "no", ran, unguarded, hooks))
+            "yes" if r["guarded"] == "yes" else "no", ran, unguarded, ",".join(oc), hooks))
     for g in gone:
         print("%s\t%s\t%s" % (g["project"], g["session"], g["state"]))
     print(line)

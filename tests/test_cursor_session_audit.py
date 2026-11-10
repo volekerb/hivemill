@@ -118,14 +118,25 @@ class AuditTest(unittest.TestCase):
                          "logs=1 sessions=1 unguarded=1 risky_unguarded=0 helper=0 "
                          "transcripts_log_gone=0 oldest_log=2026-11-10T10:00:00Z")
 
-    def test_agent_name_from_agents_json_else_unknown(self):
+    def transcript_file(self, sid, records, key="proj-a"):
+        d = os.path.join(self.home, ".cursor", "projects", key, "agent-transcripts", sid)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, sid + ".jsonl"), "w") as fh:
+            fh.write("".join(json.dumps(r) + "\n" for r in records))
+
+    def test_agent_name_from_first_user_message_else_unknown(self):
         self.log("session-2026-11-10T10-00-00-000Z-777-1.log", [init("c7")])
         self.log("session-2026-11-10T10-00-01-000Z-778-1.log", [init("c8")])
-        af = os.path.join(self.logs, "..", "agents.json")
-        with open(af, "w") as fh:
-            json.dump([{"pid": 777, "name": "cursor-pm-t-1"}], fh)
-        d = self.result("--agents-json", af)
-        self.assertEqual({r["pid"]: r["agent"] for r in d["logs"]}, {777: "cursor-pm-t-1", 778: "?"})
+        self.log("session-2026-11-10T10-00-02-000Z-779-1.log", [init("c9")])
+        self.transcript_file("c7", [
+            {"role": "assistant", "message": {"content": [{"type": "text", "text": "You are `wrong`"}]}},
+            {"role": "user", "message": {"content": [{"type": "text",
+             "text": "<timestamp>x</timestamp>\nYou are `cursor-pm-t-1`, the pm."}]}},
+            {"role": "user", "message": {"content": [{"type": "text", "text": "You are `second`"}]}}])
+        self.transcript_file("c8", [{"role": "user", "message": {"content": [{"type": "text", "text": "hello"}]}},
+                                    {"role": "user", "message": {"content": [{"type": "text", "text": "You are `late`"}]}}])
+        d = self.result()
+        self.assertEqual({r["pid"]: r["agent"] for r in d["logs"]}, {777: "cursor-pm-t-1", 778: "?", 779: "?"})
 
     def test_output_has_no_command_or_message_text(self):
         self.log("session-2026-11-10T10-00-00-000Z-888-1.log", [
