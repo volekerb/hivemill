@@ -12,10 +12,10 @@ import (
 // T-1200: live-checkout common dir — block shared repo config/remote writes and push URL overrides.
 
 var (
-	reLiveRemoteCfg  = regexp.MustCompile(`(?i)^(remote\.\w+\.(url|pushurl|fetch)|url\..+\.(insteadof|pushinsteadof)|include\.path|includeif\..+\.path)=`)
+	reLiveRemoteCfg  = regexp.MustCompile(`(?i)^(remote\.[\p{L}\p{N}_]+\.(url|pushurl|fetch)|url\..+\.(insteadof|pushinsteadof)|include\.path|includeif\..+\.path)=`)
 	rePushURLCred    = regexp.MustCompile(`^(?:https?|git|ssh)://[^/\s]+:[^/\s]+@|^[^/\s]+:[^/\s]+@[\w.-]+:`)
 	rePushURLCredSCP = regexp.MustCompile(`^[^/\s]+@[^/\s]+:`)
-	rePushURLScheme  = regexp.MustCompile(`^[\w.-]+://`)
+	rePushURLScheme  = regexp.MustCompile(`^[\p{L}\p{N}_.-]+://`)
 )
 
 // factoryURLShapeOK mirrors worker-guard.py FACTORY_URL_SHAPE (RE2 has no lookahead).
@@ -32,7 +32,10 @@ func factoryURLShapeOK(url string) bool {
 	if owner == "." || owner == ".." || repo == "." || repo == ".." {
 		return false
 	}
-	if strings.HasPrefix(owner, ".") || strings.HasPrefix(repo, ".") {
+	if strings.HasPrefix(owner, "./") || strings.HasPrefix(owner, "../") {
+		return false
+	}
+	if strings.HasPrefix(repo, "..git") || strings.HasPrefix(repo, "...git") {
 		return false
 	}
 	for _, part := range []string{owner, repo} {

@@ -812,6 +812,24 @@ func TestCoderGitRunnersControlsAllowed(t *testing.T) {
 	}
 }
 
+func TestWholePushFactoryRemoteLiteral(t *testing.T) {
+	fac := "https://github.com/acme/widget.git"
+	task := "t-1213"
+	refTail := " HEAD:factory/" + task
+	for _, remote := range []string{fac, "origin"} {
+		text := "git push " + remote + refTail
+		if _, _, ok := wholePush(text, task, fac); !ok {
+			t.Errorf("wholePush(%q) = false, want true", text)
+		}
+	}
+	for _, remote := range []string{fac + "/", fac + "//"} {
+		text := "git push " + remote + refTail
+		if _, _, ok := wholePush(text, task, fac); ok {
+			t.Errorf("wholePush(%q) = true, want false", text)
+		}
+	}
+}
+
 // T-1040: xargs git rebase/difftool must refuse (stdin could supply -x/--exec).
 func TestXargsGitRebaseDifftool(t *testing.T) {
 	f := newGitFix(t)

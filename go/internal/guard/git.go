@@ -1321,7 +1321,7 @@ func wholePush(text, task, fac string) (dir string, hasDir, ok bool) {
 	if remote == "origin" {
 		return dir, hasDir, true
 	}
-	if fac != "" && normalizePushURL(remote) == normalizePushURL(fac) {
+	if fac != "" && remote == fac {
 		return dir, hasDir, true
 	}
 	return "", false, false
