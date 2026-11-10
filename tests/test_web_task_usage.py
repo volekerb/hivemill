@@ -87,6 +87,13 @@ class TaskUsageTests(Base):
         self.assertIsNone(u["totals"]["rework_share"])
         self.assertGreater(u["totals"]["tokens"], 0)
 
+    def test_partially_priced_agent_has_no_cost(self):
+        self.agent("coder-1", "coder", "T-1", "s0", "2026-11-09T10:00:00+00:00")
+        _, _, u = self.usage([row("s0"), row("s0", "mystery-model")])
+        self.assertIsNone(u["rows"][0]["cost"])
+        self.assertIsNone(u["totals"]["cost"])
+        self.assertIsNone(u["totals"]["rework_share"])
+
     def test_zero_cost_gives_no_share(self):
         self.agent("coder-1", "coder", "T-1", "s0", "2026-11-09T10:00:00+00:00")
         _, _, u = self.usage([row("s0", inp=0, out=0, cr=0, w5=0, w1=0)])

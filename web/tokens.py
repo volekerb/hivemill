@@ -640,7 +640,7 @@ def _cursor_row(a, now):
 
 def _claude_row(name, e, sessions, agent):
     return {"agent": name, "role": agent["role"] if agent else None, "runtime": "claude", "sessions": len(sessions),
-            "wall_s": None, **_tokens(e), "cost": e["cost"], "rework": False, "state": "ok"}
+            "wall_s": None, **_tokens(e), "cost": None if e["cost_unknown"] else e["cost"], "rework": False, "state": "ok"}
 
 
 def _totals(rows):
