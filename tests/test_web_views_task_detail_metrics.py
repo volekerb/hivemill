@@ -105,6 +105,19 @@ class TestMetricsPanel(MetricsCase):
         self.assertIn("Cost and tokens", text)
         self.assertNotIn("Estimated at list prices", text)
 
+    def test_not_ready_index_keeps_causes_and_says_cost_unknown(self):
+        self.seed_task(rejections=("bug",))
+        self.httpd.app.tokens = None
+        text = " ".join(self.text().split())
+        self.assertIn("Rework: unknown · causes: bug ×1", text)
+
+    def test_no_rejections_reads_none_and_total_row_sums(self):
+        self.seed_task()
+        self.snapshot([row("sess-90")])
+        text = " ".join(self.text().split())
+        self.assertIn("Rework: none (no rejections)", text)
+        self.assertRegex(text, r"Total\s+1 1,000,000 100,000 2,000 0 \$6\.00")
+
     def test_free_text_summary_never_rendered(self):
         self.seed_task()
         self.con.execute("UPDATE verdicts SET summary='SECRET-NOTE-TEXT'")

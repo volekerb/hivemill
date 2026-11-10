@@ -534,7 +534,8 @@ def _rework_line(d):
 def _usage_section(d):
     u = d.get("usage")
     if u is None:
-        return section("Cost and tokens", el("p", "Not ready (the token index is still warming up).", class_="muted"))
+        return section("Cost and tokens", el("p", "Not ready (the token index is still warming up).", class_="muted"),
+                       el("p", _rework_line(d), class_="muted"))
     head = el("p", f"Estimated at list prices as of {PRICES_AS_OF} (API-equivalent, not a bill)", class_="muted")
     if not u["rows"]:
         return section("Cost and tokens", head, empty_state("No tokens attributed to this task."), el("p", _rework_line(d), class_="muted"))
