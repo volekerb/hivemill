@@ -45,12 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
-## [0.3.0] - 2026-11-05
+## [0.4.0] - 2026-11-10
 """
-# The previous release (tag v0.2.0); the generated list covers the commits after it. Update it with HEADER at each release.
-SINCE = "3b1d99516"
+# The previous release (tag v0.3.0); the generated list covers the commits after it. Update it with HEADER at each release.
+SINCE = "318e55a1c"
 # Older releases sit below the generated lists of the newest one; each carries only its curated notes.
 OLDER = """
+## [0.3.0] - 2026-11-05
+
 ## [0.2.0] - 2026-10-30
 
 ## [0.1.0] - Initial public release
@@ -140,7 +142,7 @@ def render(subjects):
             continue
         groups[section_of(subj)].append(f"- {subj}")
     out = [with_curated_notes(HEADER)]
-    out.append("### All merged changes since v0.2.0\n")
+    out.append("### All merged changes since v0.3.0\n")
     for name in SECTIONS:
         if groups[name]:
             out.append(f"#### {name}\n\n" + "\n".join(groups[name]) + "\n")

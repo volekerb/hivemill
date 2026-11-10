@@ -7,6 +7,179 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
+## [0.4.0] - 2026-11-10
+
+Hivemill v0.4.0 is a pre-release. It adds a daily retro report on why work was rejected, an experimental second terminal backend, a one-prompt installer and Claude Code plugin, a per-goal token limit, a redesigned web UI, an optional phone alert feed and a large round of worker-guard hardening, including more of the Go guard. Everything new that acts on its own is off by default or advisory only; the Upgrade section lists the few changes that are active after the upgrade.
+
+### Highlights
+
+- **Daily retro loop.** Once a day the tick starts one advisory agent that reads the day's rejections and gate refusals and files a report with the top causes, evidence and one or two proposed fixes. The report reaches the owner in the daily digest under a `## Retro` heading. The agent cannot merge, push, edit role files or change a gate. It is on by default (`retro_enabled`, `1`); set it to `0` to turn it off. See [docs/retro.md](https://github.com/volekerb/hivemill/blob/main/docs/retro.md).
+- **Terminal backend choice.** `terminal_backend` (`auto`, `herdr` or `hc`) selects whether factory drives the herdr terminal UI or the herdr-core `hc` binary. The `hc` backend is experimental and off by default: it is never chosen on its own while `herdr` is installed, `auto` prefers `herdr` when both are on `PATH`. A pane with no reported status is treated as unknown, never idle. See [docs/terminal-backends.md](https://github.com/volekerb/hivemill/blob/main/docs/terminal-backends.md).
+- **One-prompt install.** A Claude Code plugin (`/plugin marketplace add`, `/plugin install hivemill`, `/hivemill:setup`) and a non-interactive installer (`plugins/hivemill/scripts/install.py`) replace the long manual steps; the README install section is three commands. A CI job runs the installer in clean containers. See [docs/SETUP.md](https://github.com/volekerb/hivemill/blob/main/docs/SETUP.md).
+- **Go worker guard closer to parity.** The Go guard (opt-in through `guard_impl`; Python stays the default) now mirrors many more rules of the Python guard, and a guard-diff check compares the two. See [docs/worker-guard-go.md](https://github.com/volekerb/hivemill/blob/main/docs/worker-guard-go.md).
+- **Per-goal token limit.** `factory goal edit` with `--token-limit N` sets a limit; the tick tallies tokens per goal (`goal_token_tally_s`, `0` = off), warns once at 80% and refuses new coder and pm spawns on a goal that has reached its limit. The limit applies only to goals in the Claude org. See [docs/goal-lifecycle.md](https://github.com/volekerb/hivemill/blob/main/docs/goal-lifecycle.md).
+- **Web UI redesign.** Phone-first layouts, a goal-and-team tree with a "needs you" strip on the Overview, cost per merged PR and unattended share on the throughput page, a per-task cost line, and a changelog page (#460, #465, #472, #474, #486, #440, #441, #443).
+
+### New and changed
+
+- **Retro.** New `retro` role and `factory retro` commands (packet, file); every rejection now stores a cause, and `--cause` is required (see Upgrade). Config keys `retro_enabled` (default `1`), `retro_hour` (default `6`, local hour from which the tick may claim the day's retro) and `retro_max_minutes` (default `20`). A missed day is not backfilled (#515, #516, #521, #523).
+- **Terminal backends.** `factory doctor` and `factory res` print the configured and the effective backend. On `hc`, `factory spawn` starts agents through a generated spawn script that clears the environment and passes only what the role needs (#485, #489, #495). On `hc` the tick also closes terminals of finished agents. Reviewer and qa rule text now posts with `gh pr comment --body-file` (#418).
+- **Install.** The installer takes `--check`, `--dry-run`, `--yes`, `--ref`, `--project-id`/`--project-repo`, `--no-systemd` and `--resume`, never prompts and refuses to run as root. A plugin marketplace manifest and the `/hivemill:setup` skill ship in the repository (#438, #457, #458, #494).
+- **Owner alerts.** `owner_alert_feed` (default `0`) records the owner's needs-you list as a deduplicated feed read with `factory alerts`; nothing is sent. `owner_alert_send` (default `0`, needs the feed on) sends each open row over ntfy with fixed fields only; the topic is read from a private file and is never stored in the database. See [docs/boss-mail.md](https://github.com/volekerb/hivemill/blob/main/docs/boss-mail.md) (#439, #442, #453).
+- **Boss wake.** The tick wakes the boss when an escalation or request has been unread for `boss_wake_after_s` (default `900`), at most once per `boss_wake_cooldown_s` (default `1800`). Reports never wake it. Alerts about a goal go to that goal's org lead, else its director (#428, #513).
+- **Spend and limits.** `goal_token_tally_s` (default `0`), the goal token limit above, `factory goal tokens`, a per-goal token tally on the web UI and a limit-aware dispatch throttle (#445, #446, #447, #497).
+- **Pull request loop.** The tick caches PR probes and uses REST check-runs instead of GraphQL (#505, #510), a judge is not auto-started on a head without current verdicts or while the red-main freeze refuses merges (#452, #483), the judge refuses to merge when the agent is stopped or the task is on hold (#500), the hold event is logged once per hold (#451), and coder CI resume gets a role filter, a dropped-resume record and a probe throttle (#437). The mechanical merger waits until the latest push test run on main is green and matches main's current commit (#503), and skips tasks under a status-only judge hold (#499). A judge is also not started on a head that already has current verdicts (#504).
+- **Tick resilience.** A failed start of one queued row, or an exception raised while starting one, no longer ends the tick (#455, #502). The tick sweeps stale CI leftovers in `/tmp` (#463). `factory stop` closes leftover shells and the reaper checks panes that share a working directory (#484).
+- **Research and review skills.** Research skills require hypotheses, counter-evidence and a verification gate; the multi-angle review skill records the workflow run id; the reviewer skill reports the quick run on the PR head (#436, #480, #464).
+- **Other CLI.** `factory inbox --show` lets the sender read its own message (#476). `factory task note` refuses a bad or duplicate task id (#507). Starting a researcher on the Cursor runtime is refused, and start diagnostics are saved when it is unclear whether a start worked (#514). Utilization counts the researcher as a worker (#430). A temp-home tick no longer touches the live checkout (#512).
+- **Worker plugins.** Account plugins are disabled on roles other than the boss through `enabledPlugins`, and coder and qa may not edit the live checkout's `plugins/` or the top-level `.claude-plugin` (#491, #450, #461).
+- **CI.** The guard-diff test is split across shards, the guard-diff and guard-equiv jobs share a 30 minute cap, binary diffs and new top-level paths count as risky and run the full suite, and GitHub Actions are updated (checkout, setup-python, setup-go, upload and download artifact) (#481, #471, #479, #467, #487, #488, #490, #522).
+- **Docs.** New [docs/terminal-backends.md](https://github.com/volekerb/hivemill/blob/main/docs/terminal-backends.md), [docs/retro.md](https://github.com/volekerb/hivemill/blob/main/docs/retro.md), [docs/web-redesign-brief.md](https://github.com/volekerb/hivemill/blob/main/docs/web-redesign-brief.md), [docs/guard-diff.md](https://github.com/volekerb/hivemill/blob/main/docs/guard-diff.md) updates and a documented milestone step in the release steps (#449, #466).
+
+### Security
+
+- **Worker guard (Python).** Restricted roles can no longer: pass `git config` arguments built from a shell expansion, or put a value option before `--get` to get past the key check; close `~user` targets, copy into a parent directory, run `find -delete` or `git init` in a protected tree; run `git push` through `git submodule foreach`, `rebase -x`, `bisect run` or `difftool -x`. Roles that may not push also lose `gh issue`, `gh workflow` and `gh pr` writes (reviewer and qa keep `gh pr comment`), `gh pr/issue/release new`, and `gh repo`, `label`, `secret` and `variable` writes. Hook entries now carry a 120 second timeout and block on failure (#429, #448, #395, #454, #462, #470, #473, #342).
+- **Live checkout.** The tick's own git helper refuses `git checkout`, `switch` and most `reset` on the live factory checkout, so a sync path cannot move it off main (#508). The Python guard also refuses live-checkout `git remote` and repo-config writes (including alias, include and push-URL overrides, also when they follow verbose flags), and `send-pack` for the judge and cleaner (#511). The lead's goal-only command runs the same guard descent, closing a trap and git alias hole (#408).
+- **Go guard.** Mirrors of the `gh api` non-GET refusal, `env -S`, the git config read rules and expansion refusal, the coder push pin and `xargs`, the `gh` no-push writes, owner-terms brace handling and the earlier flag and archive rules (#433, #427, #432, #496, #498, #519, #509, #518, #390, #520, #517, #501, #493, #468, #434).
+- **Owner-terms check.** The brace check ignores words that appear only inside single-quoted `grep`, `rg`, `jq` or `gh --jq` arguments, and handles `cd` before `gh --jq` (#475, #506).
+- **Sandbox and alerts.** `owner_alert_send` sends fixed fields only and reads its topic from a private file (#453). Account plugins are off for workers (#491).
+
+### Known limits
+
+- **Pre-release.** Interfaces and behaviour may change before 1.0.
+- **hc backend.** Experimental and off by default. In one trial `hc wait` printed its output but did not return, so automation must not rely on it. Worker-guard parity and the full spawn path are not complete for `hc`; keep `terminal_backend` at `herdr` or `auto`.
+- **Worker sandbox.** Opt-in through `sandbox_roles` (empty, so off) and unchanged in this release. It is a tripwire, not a boundary against a determined adversary, and has no egress filter. Read [SECURITY.md](https://github.com/volekerb/hivemill/blob/main/SECURITY.md) first.
+- **Go guard.** Python stays the default guard; the Go guard is opt-in through `guard_impl` and its parity is still being completed.
+- **Retro.** The retro agent runs on the Cursor runtime; a host without Cursor set up gets no daily report. A real Cursor session needs `agent login` or `CURSOR_API_KEY`.
+- **Single box.** It is built for one machine, and it needs herdr and either Claude Code or Cursor.
+
+### Upgrade
+
+- **Database.** New tables `rejection_incidents`, `retro_runs`, `retro_reports`, `owner_alert_feed` and `goal_token_tally`, and a new column `goals.token_limit` (empty means no limit). The CLI creates them itself on the first run and the migration is idempotent. No table or column is removed or renamed.
+- **Breaking: `--cause`.** `factory verdict --fail` and `factory judge --reject` now exit 2 without `--cause`, and record nothing. Allowed values: `unclear_spec`, `bug`, `missing_test`, `stale_or_conflicting_branch`, `wrong_review`, `gate_refusal`, `other`. Update any script or role text that calls them without it.
+- **Config.** 9 keys added since v0.3.0, none renamed or removed: `boss_wake_after_s`, `boss_wake_cooldown_s`, `goal_token_tally_s`, `owner_alert_feed`, `owner_alert_send`, `retro_enabled`, `retro_hour`, `retro_max_minutes` and `terminal_backend`. The registry is `bin/flags.json`; run `factory flags` to see all keys.
+- **Flags.** No default of an existing key changed. Off by default: `owner_alert_feed`, `owner_alert_send`, `goal_token_tally_s` (`0`) and every `hc` use (`terminal_backend` is `auto`, which keeps `herdr` when it is installed). Active after the upgrade: `retro_enabled` (`1`; `factory config retro_enabled 0` turns the daily retro off), and the boss wake (`boss_wake_after_s` `900`, `boss_wake_cooldown_s` `1800`).
+- **Steps.** Update the checkout to the new tag (`git checkout v0.4.0` in `~/factory`), run any `factory` command once so the migration runs, and run `factory flags` to review the keys. To use the daily retro, make sure the Cursor runtime is set up (see [docs/runtimes.md](https://github.com/volekerb/hivemill/blob/main/docs/runtimes.md)); otherwise set `retro_enabled` to `0`. See [docs/SETUP.md](https://github.com/volekerb/hivemill/blob/main/docs/SETUP.md).
+
+### All merged changes since v0.3.0
+
+#### Added
+
+- test: drop dead home continue in HQ add-dir loop
+- T-1145: treat new top-level paths as risky full CI
+
+#### Changed
+
+- T-1226: link retro.md from docs index under Operate it
+- T-1209: document daily retro loop and config keys
+- T-1142
+- T-1207
+- T-1040: Go mirror of T-0907 coder push pin and xargs
+- T-1167: Go mirror of terms_brace_view and dash rule
+- T-0990
+- T-1206
+- T-1200
+- T-1199
+- T-1198
+- T-1155: mirror T-0995/T-1154/T-1156 gh no-push writes in Go
+- T-1197
+- T-1078
+- T-1194: cache tick PR probes with REST check-runs
+- T-0836: let terms_brace_view handle cd before gh --jq
+- T-0988
+- T-0969
+- T-0917
+- T-1184: keep cmd_tick alive when dequeue spawn raises Exception
+- T-1085: refuse judge merge when agent is stopped or task is on hold
+- T-1137: Go mirror of T-1097 git config parsed-arg checks
+- T-1125
+- T-1103: Go mirror of T-1063 git config expansion refusal
+- T-1188
+- T-1093: README install = 3 commands + link; SETUP documents the installer
+- T-1175
+- T-0644: disable account plugins via enabledPlugins on non-boss roles
+- T-1043
+- T-1189
+- T-1084: terminal backends (herdr/hc), doctor/res, missing status
+- T-1187
+- T-1181: bump actions/setup-python to v7 in CI workflows
+- T-1172
+- T-1180: bump actions/setup-go to v7 in tests workflow
+- T-1179: use actions/checkout@v7 in GitHub workflows
+- T-1178: actions/download-artifact v4 to v8 in tests workflow
+- T-1177: bump actions/upload-artifact to v7 in tests workflow
+- T-1153: tick does not autospawn a judge while the red-main freeze refuses merges
+- T-1157: multi-angle-review skill: record workflow run id; empty result is not clean-diff evidence
+- T-1168: split test_guard_diff across unittest shards by test id
+- T-0822
+- ci: classify binary numstat diffs as risky tier (T-1166)
+- T-1147: reviewer skill S1 reports quick run on PR head, merged-tree check left to CI/judge
+- T-1165: allowlist goal-light-phone.png random-byte email false positive
+- T-1162: inbox --show lets the sender read its own message
+- T-1160: R4 redesign: chart labels, quality/resources phone cards, throughput grid, changelog, width pass
+- T-1159: R3 phone cards, task title block, goal Intent and Teams first
+- T-1148: R2 F-27 goal-and-team tree and Needs-you strip on Overview, same goal row on /goals
+- T-1150: tmp_sweep_harness passes the closed comm list to _proc_holds
+- T-0995: no-push roles: gh issue, workflow and pr writes refused; reviewer and qa keep gh pr comment
+- T-1146: tick sweeps stale CI leftovers in /tmp
+- T-1152
+- T-1083: Go mirror git config exact-table read rules (T-1035/T-1064)
+- T-1141: R1 shell redesign: stacked phone header, no-wrap switches, Filters disclosure, More on demand, Over cap row
+- T-0908: coder push pin covers git submodule foreach, rebase -x, bisect run, difftool -x
+- T-1135: a failed start of one queued row no longer ends the tick
+- T-1092: hivemill plugin marketplace manifest and /hivemill:setup skill
+- T-1091: CI job runs the installer in clean containers
+- T-1139: test Host.download uses HttpsOnlyRedirect; curl test independent of tmpdir name
+- T-1136: ntfy sender for the needs-you feed (flag off), closed-feed pruning
+- T-1090: non-interactive installer plugins/hivemill/scripts/install.py
+- T-1098: judge autospawn needs verdicts on the current head; tick resumes count as attempts
+- T-1097: git config value option before --get no longer passes the glob check
+- T-1117: refuse coder and pm at the goal's token limit (F-74, L3)
+- T-1130: judge-hold event once per hold, not every tick
+- T-1104: coder_ci_resume_tick follow-ups (role filter, resume-dropped, probe throttle, Cursor test)
+- T-1128: milestone step in release steps; setup label in owner commands
+- T-1105: research skills: hypotheses, counter-evidence, verification gate
+- T-1116: per-goal token limit, one warning at 80% (F-74, L2)
+- T-1120: test cmd_tick calls owner_alert_feed_tick (F-50)
+- T-1114: per-goal token tally in the tick, factory goal tokens (F-74, L1)
+- T-1111: dark needs-you feed and factory alerts (F-50)
+- T-1115: Cost per merged PR on /throughput (F-06)
+- T-1113: per-task list-price cost line on the task page
+- T-1112: Unattended share tile on /throughput (F-06)
+- T-1110: owner_attention(con), one narrow needs-you selector
+- T-1073
+- T-1067: utilization counts researcher as a worker (UTIL_WORKER_ROLES)
+- T-1057: reviewer/qa rule text posts with gh pr comment --body-file <path>
+- T-1080: tick alerts about a goal reach the goal org's lead, else its director
+
+#### Fixed
+
+- Fix tick check-runs gh api to use GET with -f query params.
+- T-1176: Web UI SC4 visual fixes (G-015)
+- T-1164: R6 redesign evidence: after screenshots, review doc, screenshot tool fixes
+- T-1144: deny coder/qa edits to top-level .claude-plugin (fixes red main)
+- T-1140: R0 redesign brief, 44 before screenshots, screenshots --evidence, web-design.md fix
+
+#### Security
+
+- Skip retro in guard-equiv --roles all until T-1219.
+- T-1208: retro role guard (SC3)
+- T-1134: limit-aware dispatch throttle, owner-alert hardening, token limit cleanup
+- T-0983: guard closes ~user targets, copy into a parent, find -delete, git init for every protected tree
+- T-0985: Go guard mirror of T-0808 (python flags, ar @file, python -c extract, inline writer)
+- T-1190: split hc guard parity from PR #485
+- T-1038: Go mirror gh api non-GET method guard (T-0987/T-1030)
+- T-1118: reap same-cwd guard; stop closes leftover shells
+- T-0960: worker-guard hook entries: timeout 120 and onFailure block
+- T-1071: Go mirror env -S/--split-string deny (T-1037)
+- T-1121: worker-guard: owner-terms brace check ignores single-quoted grep/rg/jq/gh --jq words
+- T-1156: worker-guard: gh repo/label/secret/variable writes for no-push roles; -R-first frozen gap
+- T-1154: worker-guard: gh pr/issue/release new count as create
+- T-1158: guard-diff job cap 20 to 30 min, same as guard-equiv
+- T-1149: docs/guard-diff.md: guard_diff ignores modes; untagged runs every role plus hq
+- T-1132: deny Edit/Write on live checkout plugins/ for coder and qa
+- T-1063: worker-guard refuses git config args built from an expansion
+
 ## [0.3.0] - 2026-11-05
 
 Hivemill v0.3.0 is a pre-release. It adds a versioned release process and flag registry, a second agent runtime (Cursor) with support for several orgs side by side, a tighter pull request loop and a lot more worker-guard hardening. Most new automations are opt-in and off by default; a few small housekeeping changes are active after the upgrade, and the Upgrade section lists them and how to turn them off.
@@ -51,229 +224,6 @@ Hivemill v0.3.0 is a pre-release. It adds a versioned release process and flag r
 - **Database.** Three columns are added, and the CLI adds them itself on the first run (the migration is idempotent): `goals.org` (default `claude`, so existing goals stay in the default org), `agents.org` and `tasks.judge_hold_reason`. Nothing is removed or renamed.
 - **Config.** 16 keys added since v0.2.0, none renamed or removed: `issue_intake_repos` and `agent_runtimes`, `coder_ci_handoff`, `coder_ci_resume_max`, `cursor_pilot_roles`, `exited_pane_reap_mode`, `gh_quota_min`, `guard_impl`, `idle_coder_reap`, `idle_coder_reap_s`, `judge_wait_main_run`, `org_prefix_default`, `orgs_enabled`, `pr_view_ttl_s`, `red_pr_owner_alert`, `state_dump_interval_s`. The registry is `bin/flags.json`.
 - **Flags.** No default of an existing key changed. The new flags (`agent_runtimes`, `cursor_pilot_roles`, `coder_ci_handoff`, `idle_coder_reap`, `judge_wait_main_run`, `red_pr_owner_alert`, `guard_impl`) are off, or keep the old behaviour, by default. Active after the upgrade: `gh_quota_min` (`300`; set `0` to never read the quota), `pr_view_ttl_s` (`120`; `0` turns the cache off), `state_dump_interval_s` (`3600`; `0` exports every tick), `exited_pane_reap_mode` (`dry-run`; `off` stops the log entries) and the live-checkout dirty-file alert to the director (no setting). The only wording change in the registry is the summary of `red_main_interval_s`; its default is still `120`. Run `factory flags` to see the full list. See [docs/SETUP.md](https://github.com/volekerb/hivemill/blob/main/docs/SETUP.md).
-
-### All merged changes since v0.2.0
-
-#### Added
-
-- T-0894: add researcher to interp-inline NO_PUSH test set
-- review_autospawn: R+Q for a new green head after an earlier round (T-0812)
-- Tick issue intake: one director message per new public issue (flag issue_intake_repos, T-0797)
-- docs: ISSUES.md labels, triage rule, milestones; templates add triage label (T-0796)
-
-#### Changed
-
-- T-1058: factory task note refuses an empty body
-- T-1004: tick restarts the handed-off coder on a red head (coder_ci_handoff)
-- T-1065: agent CI watchers poll every 60 s (--interval 60)
-- T-1075: drift mail routes to the goal org; lead bare HQ address resolves in own org
-- T-1070: unittest-shard timeout 20 to 30 min (shard 1 had no margin)
-- T-0907: coder push pin: alias via send-pack, --config-env alias, xargs git config
-- T-1055: judge --reject --no-code-change keeps the task in_review
-- T-1054: read-only roles' test-count/merge-base rule text uses literal ids
-- T-1048: review autospawn waits for coder/prcheck, restarts missing role, binds verdict head
-- T-1018: Go mirror of uv run/uvx unwrap (uv_check), uv own-push pin, corpus and goldens
-- T-1044: red_main alert names the real repo slug
-- T-1025: behind_ok does not apply when main changed a file the PR also changes
-- T-1014: cache the tick's PR probes, skip optional ones when GraphQL quota is low
-- T-1010: stale-policy doc names the tests.yml exception and current reason
-- T-1031: multi-angle-review rejects a non-numeric pr before any agent starts
-- T-0863: deliver bare boss/director to legacy HQ rows under org_prefix_default
-- T-1001: Go mirror of T-0805 tar/unzip extraction grammar
-- T-1034: exited-pane-reap doc: mode on needs T-1033 and director approval, names shared-worktree limit
-- T-1028: tick stops idle coders with a clean tree and pushed PR head
-- T-1020: multi-angle-review stops on bad args before any agent starts
-- T-1005: reap_exited_panes closes the host's pane id, not the row's stale one
-- T-1029: judge waits for the main push run (flag judge_wait_main_run)
-- T-0870: refuse cursor spawns when pane limit is recorded
-- T-0987: no-push roles: gh api with a non-GET method is a gh write
-- T-1021: refresh shard timings, oversize-module pack rule
-- T-1007: verify the host pane's name before closing a row's pane_id
-- T-1012: mech merger honours judge_hold_reason on the task
-- T-1011: test_guard_impl_coverage knows test_lessons_flow
-- T-1003: coder_ci_handoff flag (coder done at PR open, review at green)
-- T-1000: behind_ok does not apply when tests.yml changed on main since the merge-base
-- T-0991: judge merged-tree check via git -C task worktree
-- T-0992: hook-only roles/ merges do not mark HQ stale
-- T-0998: Go nopush inline gh-write reason matches Python (T-0881)
-- T-0986: direct released-row test, pane_gone False/None after close
-- T-0881: no-push roles: gh api body flags and gh release writes are gh writes
-- T-0982: red-PR owner alert (red_pr_owner_alert, default off)
-- T-0979: prcheck evidence fence opener/closer per CommonMark; 'failed in a row' not output
-- T-0957: ~/.local/bin is a protected tree for workers
-- T-0978: release_stale_pane keeps pane_id when the close is not confirmed
-- T-0961: no-push roles refused before the public-text push scan; git timeout in public_text_guard
-- T-0970: prcheck evidence: unclosed fence fails closed, exact heading, N failed prose
-- T-0952: qa.md step 2 verifies PR head; Q1 merge-base in two steps
-- T-0974: dispatch-refused mail is kind report (wakes parked lead); document it
-- T-0976: live-run pending marker holds numbered/checkbox/bold forms; combined brief carries the done wording
-- T-0972: tick closes the live pane of a worker row that is exited
-- T-0973: scout: non-UTF-8 gh output raises GhError (one candidate fails, not the source)
-- T-0950: live-run pending marker accepts bullet/quote/backtick prefix; combined agent brief gets Q7
-- T-0967: tick alerts director once on a dirty tracked file in the live checkout
-- T-0837: notify coder on judge reject with in_progress status
-- T-0918: mech merger holds a PR with a QA live-run: pending line; qa.md Q7
-- T-0966: dispatch_tick applies the qa no-PR/no-worktree refusal, once per task
-- T-0954: prcheck evidence: heading mention, indented/~~~ fences, N failed marker
-- T-0956: qa spawn needs a PR, worktree or cwd; qa done BLOCKED reopens the task
-- T-0941: task update --role applies with checks and a history event
-- T-0951: pr-description step 11, coder C9 and no-PR message point at factory pr create
-- T-0946: risk tier: roles/*.md and merge-gate defs are sensitive
-- T-0947: prcheck body check: Test evidence needs a command line plus an output line
-- T-0937: task update --spec/--acceptance - refuses empty stdin
-- T-0939: evidence review as fresh researcher; one heading list; sandbox docs name researcher
-- T-0835: judge hold flag blocks judge autospawn
-- T-0924: prcheck check 5 never runs ci/affected.py for gate_fast_projects; defers to green PR CI
-- T-0864: daily digest grouped by org
-- T-0923: done accepts merged task; clean keeps worktree of live-pane agent
-- T-0893
-- T-0922: deflake test_serve_mem_fn_honours_the_pin (mock live mem reader)
-- T-0827: count Cursor agent processes in spawn gate and flagless audit
-- T-0859: factory res per-org agent mix (G-028 SC5)
-- T-0920: spawn --task derives agent goal_id/team_id from the task row
-- T-0916: affected selects test_shard.py on deleted tests / shard_timings change
-- T-0359: render settings before sandbox/worktree prep; cancel a queued spawn once on render failure
-- T-0913: affected --quick hard wall-clock cap + QUICK_SKIP
-- T-0130: re-queue keeps queued_at for queued/starting rows
-- T-0874: researcher gh api only when method resolves to GET
-- T-0144: role-file merge notice to director only
-- T-0197: prepare_worktree cleanup on failed checkout, control test, docs
-- T-0905: M16816 load gate on every local suite path
-- T-0911: spawn --name help wording + prefix-off/cursor tests
-- T-0304: project remote rule fails closed on NUL repo_path, duplicate rows, dot gh_repo parts
-- [T-0872] spawn --name refused when the org rule would change it
-- T-0799: coder push pin covers xargs git and git -c alias.X
-- docs(T-0823): align runtimes and cursor-harness with multi-runtime main
-- T-0902: throttle state-branch dumps to state_dump_interval_s
-- T-0850: docs/research-team.md and index line
-- T-0903: one local suite box-wide while load1 >= load cap (M16816)
-- T-0834: disable Cursor commit/PR attribution in spawned cli.json
-- T-0849: research flow skills, boss/_common/delivery lines, tests
-- T-0205: ci/state_load.py builds a temp DB from state/ including events
-- T-0833: isolate Cursor policy under run/cursor/<agent>
-- T-0847: researcher always runs in the G-010 worker sandbox
-- T-0202: tests.<module> from repo root; QA serve --port 0
-- T-0860: auto-Enter after Cursor agent prompt
-- T-0900: isolate workflow transcripts in web.adoption so per-role attribution matches pre-#272
-- T-0857: reviewer kickoff carries the Gated PR line (multi-angle-review)
-- [T-0853] skilleval positive control: marker plugin + factory skilleval control
-- T-0856: count Workflow subagent tokens (subagents/workflows/<run>) in web.adoption
-- [T-0848] research-skills plugin: six text-only researcher skills + tests
-- T-0862: G6 cursor-runtime release gate and freshbox probe
-- T-0817: cursor spawns skip Claude usage caps
-- T-0895: drop stale test_delegate_search_skill.py from shard_timings
-- T-0263: tick alerts director when installed factory-serve unit drifts from main
-- [T-0851] Scout: pin to claude org, follow the spawned row, unknown tokens are NULL
-- T-0878: Cursor limits and time spent in header, Overview, Resources
-- [T-0855] Roll back T-0244 delegate-search coder skill (0/69 uses)
-- T-0876: prcheck affected run takes a test slot and waits
-- [T-0845] researcher role: prompt, settings, registration, research dir
-- T-0868: overview lanes count active teams with parked leads
-- T-0873: factory done accepts green CI on PR head instead of local affected run
-- [T-0858] factory-serve Restart=always; reapers skip the unit's cgroup without systemctl
-- T-0865
-- red_main: re-check every tick while a repo is red (T-0841)
-- [T-0869] usage(): parse five_hour/seven_day per field; weekly cap enforced when 5h is empty
-- T-0819
-- [T-0867] Lead wakes and dequeues skip only the CPU-load gate
-- [T-0839] Prune judge_ci:<url> cache rows of closed or old PRs in the tick
-- spawn: drop --resume when the runtime changed (legacy cursor lead respawned in the claude org) (G-028)
-- Two orgs (claude + cursor) side by side, and the Cursor runtime on main (G-027 T-0819, G-028)
-- cleaner: drop dead pane_reused term in pane_holds; rename stale leftover-pane test (T-0764)
-- T-0829: web runtime chip (Claude/Cursor) + tests (G-027 Cursor dogfood)
-- review autospawn: throttle the gh probe per dead task; transient gh failure logs a probe-error event (T-0816)
-- review autospawn/re-run: skip dead or foreign PRs (T-0815)
-- review_rerun_tick: send the fyi for the reviewer started when qa is gate-refused; docs for the re-run pass (T-0814)
-- release_check: exact smoke version, spec placeholder regex, freshbox cwd (T-0811)
-- tests/harness: assert_hermetic accepts the temp root the home was created under (T-0807)
-- Flag registry bin/flags.json + factory flags + coverage test (T-0793)
-- tests/_gitenv: normalise pane config/credential env instead of refusing it (T-0804)
-- ci/release_check.py: release gate that prints the owner tag commands (T-0794)
-- docs/worker-sandbox.md: post-cutover protection facts, preflight flags (T-0634)
-- tests/_gitenv: accept the harness's own config-isolation env so unsandboxed gate children can import it (T-0801)
-- docs/ISSUES.md: owner creates only triage/accepted/needs-info labels with descriptions (T-0802)
-- VERSION file, factory --version, release.yml tag/VERSION check (T-0792)
-- Install from the latest release tag; SETUP Upgrade section; release notes TEMPLATE (T-0795)
-- docs: RELEASING.md release process and flag lifecycle (T-0791)
-
-#### Fixed
-
-- T-1016: red_main alert names the stored fix task
-- T-1024: uv-wrapped bare pytest stays refused; fix stale test/corpus/Go-test expectations
-- T-0904: validate events.jsonl keys against table columns; fix live_homes doc wording
-
-#### Security
-
-- T-1064: worker-guard: restore real git config reads lost in #411
-- T-1037: worker-guard: deny env -S, --split-string and every prefix for worker roles
-- T-0882: worker-guard scans interpreter stdin code for no-push roles
-- T-1035: worker-guard: git config value-taking options no longer hide a write
-- T-1062: guard-diff base-tool archive carries systemd/install.sh
-- T-0331: guard allows factory init / project add / install.sh --dry-run in scratch homes (coder, qa)
-- T-1030: worker-guard: pin gh api -X forms, refuse X-HTTP-Method-Override write
-- T-0999: docs/guard-diff.md names guard-equiv; manual-run is python-only
-- T-0993: Go guard mirror of T-0881 (gh api body flags, gh release writes, no-push roles)
-- T-0964: worker-guard env value options and check_scrub forms
-- T-1039: guard-unittest in 3 test-id shards plus fan-in
-- T-1008: guard-equiv path steps compare base and HEAD routed lists
-- T-0984: run test_worker_guard_public_text.py under GUARD_IMPL=diff in CI
-- T-0945: worker-guard treats -m zipfile.__main__/tarfile.__main__ as zipfile/tarfile for no-push extraction
-- T-1009: guard-equiv routed-rest modules run in parallel
-- T-0356: worker settings call the worker-guard shim (27 lines), HQ stays python3
-- T-0989: guard-equiv path list covers guard test sources; all-skipped module not green
-- T-0925: worker-guard protected trees: globs, writer flags, cd then write, Go trees, live go/bin/roles, Edit tools
-- T-0435: guard refuses full pytest runs; -k allowed
-- T-0880: worker-guard unwraps uv run / uvx before git/gh write checks
-- T-1002: guard-change rule for Python-only guard PRs under guard-equiv
-- T-0975: guard_diff hook field types, newline event name, Go section note
-- T-0355: guard-equiv CI job (strict Go gate) + hook latency report
-- T-0808: worker-guard: close T-0783 follow-up bypasses
-- T-0981: raise real-corpus guard_diff test timeout 300s -> 600s (matches neighbours)
-- T-0955: guard-diff doc heading, go-only note, ALLOWLIST entry
-- T-0977: guard_impl seam seeds run/guard-export.json under go/diff
-- T-0968: CI split guard-unittest and guard-diff jobs
-- T-0826: worker-guard: env long-option prefixes and zsh precommand modifiers
-- T-0965: guard_diff settings_rules fails closed on malformed shapes; automode key carried whole
-- T-0354: build+stamp Go guard in factory up/tick; guard_impl config -> run/guard_impl
-- T-0949: risk tier: Go guard paths and merge/verdict defs are sensitive
-- T-0944: guard_diff settings compare covers ask, autoMode, hook timeout
-- T-0948: README and settings-templates point at the CI guard-diff job
-- T-0928: CI runs ci/guard_diff.py on guard-path PRs
-- T-0327: guard_diff settings compare covers hook matcher/event, env, removed templates
-- T-0353: sh shim worker-guard with guard_impl flag, stamp fallback and shadow mode
-- T-0806: worker-guard: block factory flags like factory config
-- T-0805: worker-guard: no-push roles may not extract archives holding .git or config+HEAD
-- T-0887: port the public-text checker and rule to the Go guard
-- T-0339: factory src: caller row from the live home, scrub GIT_DIR, TOCTOU documented
-- T-0885: Go guard mirror of the no-push interpreter inline-code rule (#241)
-- T-0914: prune 12 stale scrub tree-allowlist entries
-- T-0883: protect run/guard-export.json from worker writes
-- T-0320: factory_remote_url hardening: reject dot segments, config set validates shape, live_home docstring
-- T-0560: scrub_scan summary says N hits not allowlisted, M allowlisted
-- T-0912: load_slot_cap sys.path once, guard_diff parses args before load gate, restore FACTORY_LOADAVG
-- T-0906: drop dead scrub allowlist entry; warn on unused tree-allowlist entries
-- T-0871: per-entry env in guard_corpus.json (push-pin agent cases)
-- T-0828: Cursor MCP hook + edit-tool guard parity
-- T-0232: test harness hygiene: FactoryEnv ctor cleanup, live-home guard
-- T-0558: define factory-root placeholder, drop unused scrub allowlist entry
-- T-0875: guard_diff extracts base ci/*.py next to the base hook
-- [T-0767] Go guard reads exported DB config + agent goals; no Python spawn for git/gh writes
-- T-0559: scrub_scan high-entropy-id with bounded lookback
-- T-0877: scrub_scan: templated systemd unit names are not emails
-- [T-0846] worker-guard: researcher role (no-push, public clone into research dir, Edit/Write only there)
-- T-0861: CI guard-diff job and cursor suite checks
-- worker-guard: no-push roles may not run interpreter inline code that launches git push or gh writes (T-0789)
-- T-0830: Go guard mirror of T-0788 zsh path + env unset rules
-- [T-0844] worker-guard: coder push pin accepts the claude-/cursor- org prefix (G-010, G-028)
-- guard_diff: scratch_fixture tolerates losing the linked/l symlink race (T-0825)
-- worker-guard: no-push roles may not assign zsh path or unset/clear protected env (T-0788)
-- Go guard: mirror T-0783 gitfile + archive-extract refusal for no-push roles (T-0809)
-- GUARD_IMPL=python|go|diff for every guard test + coverage check (T-0352)
-- release_check: freshbox reminder passes --repo/--ref, quoted cd; scrub_terms_file from config (T-0813)
-- issue_intake_check: guard event() in except; write seen markers after send succeeds (T-0810)
-- worker-guard: no-push roles may not use .git gitfile or archive extract to reach git config (T-0783)
-- worker-guard: coder git subcommand must be a literal word (T-0775)
-- worker-guard: no-push roles may not assign HOME/PATH/GIT_* via read, printf -v, mapfile, for, getopts (T-0771)
 
 ## [0.2.0] - 2026-10-30
 
