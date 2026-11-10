@@ -576,6 +576,18 @@ NOT_AVAILABLE = "not_available"
 _TOKEN_KEYS = ("input", "output", "cache_read", "cache_write")
 
 
+def _usage_agents(con):
+    """name -> agent row (plus spawn_args when the table has it: the runtime of legacy unprefixed agents)."""
+    rows = {a["name"]: dict(a) for a in _agent_rows(con)}
+    try:
+        for r in con.execute("SELECT name, spawn_args FROM agents"):
+            if r["name"] in rows:
+                rows[r["name"]]["spawn_args"] = r["spawn_args"]
+    except sqlite3.OperationalError:
+        pass    # an older schema without spawn_args: the name prefix still decides the org
+    return rows
+
+
 def _is_cursor(agent_row):
     from scout import orgs as _orgs
     return _orgs.of_agent(agent_row) == "cursor"
@@ -638,7 +650,7 @@ def _totals(rows):
     costs = [r["cost"] for r in real]
     unknown = any(c is None for c in costs)
     total = None if unknown or (not real and cursor) else sum(costs)
-    rework = None if unknown else sum(r["cost"] for r in real if r["rework"])
+    rework = None if unknown or not real else sum(r["cost"] for r in real if r["rework"])
     share = rework / total if total and rework is not None else None
     tokens = None if not real else sum(r[k] for r in real for k in _TOKEN_KEYS)
     state = "ok" if real and not cursor else ("partial" if real else (NOT_AVAILABLE if cursor else "ok"))
@@ -657,7 +669,7 @@ def task_usage(snapshot, attribution, con, task_id, now=None):
     if not snapshot.get("ready"):
         return {"state": NOT_READY, "task": task_id, "rows": [], "totals": None, "first_rejection": None}
     now = now or dt.datetime.now().astimezone()
-    agents = {a["name"]: a for a in _agent_rows(con)}
+    agents = _usage_agents(con)
     rej = _first_rejection(con, task_id)
     by, sess = _usage_buckets(snapshot, attribution, lambda a: a["task"] == task_id)
     rows = []
@@ -685,7 +697,7 @@ def goal_usage(snapshot, attribution, con, goal_id, now=None):
     if not snapshot.get("ready"):
         return {"state": NOT_READY, "goal": goal_id, "tasks": {}, "overhead": None, "totals": None}
     now = now or dt.datetime.now().astimezone()
-    agents = {a["name"]: a for a in _agent_rows(con)}
+    agents = _usage_agents(con)
     ids = {a["task"] for a in attribution.values() if a["goal"] == goal_id and a["task"]}
     ids |= {a["task_id"] for a in agents.values() if a["goal_id"] == goal_id and a["task_id"]}
     tasks = {t: task_usage(snapshot, attribution, con, t, now) for t in sorted(ids)}
