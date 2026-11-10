@@ -50,7 +50,7 @@ func factoryURLShapeOK(url string) bool {
 }
 
 func normalizePushURL(url string) string {
-	return strings.TrimSuffix(url, "/")
+	return strings.TrimRight(url, "/")
 }
 
 func pushURLHasCredentials(url string) bool {

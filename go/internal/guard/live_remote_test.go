@@ -2,6 +2,27 @@ package guard
 
 import "testing"
 
+func TestNormalizePushURL(t *testing.T) {
+	bare := "https://github.com/acme/widget.git"
+	other := "https://github.com/other/repo.git"
+	for _, tc := range []struct {
+		in, want string
+	}{
+		{bare, bare},
+		{bare + "/", bare},
+		{bare + "//", bare},
+		{bare + "///", bare},
+		{other, other},
+	} {
+		if got := normalizePushURL(tc.in); got != tc.want {
+			t.Errorf("normalizePushURL(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+	if normalizePushURL(other) == normalizePushURL(bare) {
+		t.Errorf("normalizePushURL(%q) must not equal normalizePushURL(%q)", other, bare)
+	}
+}
+
 func TestReLiveRemoteCfgUnicodeRemoteName(t *testing.T) {
 	for _, s := range []string{
 		"remote.ünicode.url=",
