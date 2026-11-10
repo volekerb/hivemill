@@ -275,6 +275,9 @@ DEFAULT_CONFIG = {
     # A goal's org (goals.org) picks the runtime, model map and name prefix of every agent spawned for it.
     "orgs_enabled": "claude",
     "org_prefix_default": "0",  # 1 = the default org's agents are prefixed too (claude-boss); other orgs always are
+    # G-038 F-44: 1 = while the Claude weekly gate is closed (seven_day >= max_seven_day_pct), mail claude-boss once per goal and
+    # cap window to offer moving a queued P1/P2 claude goal to cursor. It only mails; it never moves a goal. 0 = off.
+    "cap_fallback_offer": "0",
 }
 
 AUDIT_DDL = """
@@ -12781,6 +12784,53 @@ def goal_token_warn_tick(con):
             pass
 
 
+CAP_OFFER_PREFIX = "cap-offer:"
+
+
+def cap_fallback_offer_tick(con):
+    """Tick hook (G-038 F-44): config cap_fallback_offer=1 and fresh usage with seven_day >= max_seven_day_pct: for each active
+    P1/P2 claude goal with a todo task and no live agent, one report to claude-boss naming `factory goal org <goal> cursor`.
+    Once per goal and cap window (throttle key cap-offer:<goal>, cleared while seven_day is back under the cap). No mail when
+    cursor is not in orgs_enabled or any Cursor model is limited, or when usage is stale/unreadable. Never moves a goal,
+    never spawns, never raises."""
+    try:
+        if cfg(con, "cap_fallback_offer") != "1":
+            return
+        u = usage()
+        if not u["fresh"] or u["seven_day"] is None:
+            return
+        if u["seven_day"] < float(cfg(con, "max_seven_day_pct")):
+            con.execute("DELETE FROM throttle WHERE key LIKE ?", (CAP_OFFER_PREFIX + "%",))  # window over: arm again
+            return
+        if "cursor" not in enabled_orgs(con):
+            return
+        from web import cursor_limits  # noqa: PLC0415
+        if any(isinstance(e, dict) and e.get("status") == "limited" for e in cursor_limits.load_state(con).values()):
+            return
+        reset = u.get("seven_day_resets_at")
+        reset_txt = dt.datetime.fromtimestamp(reset).astimezone().isoformat(timespec="minutes") if reset else "unknown"
+        rows = con.execute(
+            "SELECT g.id, g.title FROM goals g WHERE g.org='claude' AND g.status='active' AND g.priority IN (1,2) "
+            "AND EXISTS (SELECT 1 FROM tasks t WHERE t.goal_id=g.id AND t.status='todo') "
+            "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.goal_id=g.id AND a.status IN ('live','starting','queued')) ORDER BY g.id").fetchall()
+        for g in rows:
+            key = CAP_OFFER_PREFIX + g["id"]
+            if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
+                continue
+            body = (f"{g['id']} ({g['title']}) has todo work but the Claude weekly gate is closed "
+                    f"({u['seven_day']:.0f}% >= {cfg(con, 'max_seven_day_pct')}%). Weekly reset: {reset_txt}.\n"
+                    f"To move it: factory goal org {g['id']} cursor")
+            send(con, "boss", f"cap: {g['id']} could move to cursor", body, kind="report", goal=g["id"], sender="tick", org="claude")
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                        (key, str(digest_clock().timestamp())))  # after the send: a failed send is retried, not lost
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — an offer must never break the tick (die() raises SystemExit)
+        try:
+            if not _util_throttled(con, "cap-fallback-offer-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "cap-fallback-offer-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
 def cmd_alerts(a):
     """Read-only: the open rows of the dark needs-you feed, newest first. Reads the table only (no owner_attention, no writes)."""
     con = db()
@@ -15020,6 +15070,7 @@ def cmd_tick(a, locked=False):
     owner_alert_send_tick(con)
     goal_token_tally_tick(con)
     goal_token_warn_tick(con)
+    cap_fallback_offer_tick(con)
     _pt_lap("util")
     _pt_emit(con)
 
