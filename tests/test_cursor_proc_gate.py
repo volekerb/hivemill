@@ -234,6 +234,34 @@ class CursorProcGateTests(FactoryTestCase):
         closes = [c for c in self.env.calls("herdr") if c["argv"][:2] == ("pane", "close")]
         self.assertEqual(closes, [])
 
+    def test_git_nested_workspace_flags_but_never_stops_or_relaunches(self):
+        """T-1252: a pane still on a workspace under a git tree turns flagless; the pane is left alone."""
+        name = "zz-cur-nested"
+        repo = self.env.user_home / "repo"
+        (repo / ".git").mkdir(parents=True)
+        ws = repo / "run" / "cursor" / name
+        import scout.cursor_harness as ch
+        ch.write_atomic(ws / ".cursor" / "hooks.json",
+                        json.dumps(ch.cursor_hooks_json(REPO / "roles" / "hooks", "coder")))
+        fake_cursor(self.env, 502, ws)
+        spawn_args = json.dumps({"runtime": "cursor", "cursor_workspace": str(ws)})
+        self.env.sql("INSERT INTO agents(name,role,goal_id,status,spawn_args,pane_id,flagless) VALUES(?,?,?,?,?,?,0)",
+                     (name, "coder", "G-001", "live", spawn_args, "p-nested",))
+        before = len(self.env.calls("herdr"))
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            row = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
+            self.assertFalse(mod.cursor_hooks_ok(ws))
+            self.assertEqual(mod.flagless_state(row)[0], "flagless")
+            self.assertEqual(len(mod.flagless_scan(con, [row])), 1)
+            after = con.execute("SELECT status, pane_id FROM agents WHERE name=?", (name,)).fetchone()
+            self.assertEqual((after["status"], after["pane_id"]), ("live", "p-nested"))
+            actions = [e["action"] for e in con.execute("SELECT action FROM events WHERE entity_id=?", (name,))]
+            self.assertEqual(actions, ["flagless"])
+            con.close()
+        new = [c["argv"][:2] for c in self.env.calls("herdr")[before:]]
+        self.assertEqual([a for a in new if a[0] in ("pane", "agent", "tab", "workspace")], [])
+
     def test_unreadable_proc_skips_cap(self):
         self.env.proc_dir.chmod(0)
         self.addCleanup(self.env.proc_dir.chmod, 0o755)
