@@ -187,6 +187,9 @@ Read the Upgrade section of that version's release notes (https://github.com/vol
 | `judge_ci_wait_s` | `2400` | `factory judge --merge` waits this long for pending CI before refusing. |
 | `skilleval_root` | `~/.cache/factory-skilleval` | Where vendored third-party skills are kept for evaluation. Must lie outside the factory home and `~/.claude`. |
 | `digest_hour` | `8` | Local hour from which the tick sends the daily digest (director to boss), once a day. |
+| `retro_enabled` | `1` | `1` starts the daily retro agent. `0` turns it off. Any other value does not start a new run. See docs/retro.md. |
+| `retro_hour` | `6` | Local hour from which the tick may start that day's retro. |
+| `retro_max_minutes` | `20` | Wall-clock budget of one retro run. |
 | `scout_enabled` | `1` | `1` = the tick starts the skill scout at each slot; `0` = no new runs. |
 | `scout_slots` | `09,18` | Local hours at which the scout runs, comma separated. |
 | `scout_max_minutes` | `20` | Wall-clock budget of one scout run. |
