@@ -13,8 +13,9 @@ import (
 
 var (
 	reLiveRemoteCfg = regexp.MustCompile(`(?i)^(remote\.\w+\.(url|pushurl|fetch)|url\..+\.(insteadof|pushinsteadof)|include\.path|includeif\..+\.path)=`)
-	rePushURLCred   = regexp.MustCompile(`^(?:https?|git|ssh)://[^/\s]+:[^/\s]+@|^[^/\s]+:[^/\s]+@[\w.-]+:`)
-	rePushURLScheme = regexp.MustCompile(`^[\w.-]+://`)
+	rePushURLCred       = regexp.MustCompile(`^(?:https?|git|ssh)://[^/\s]+:[^/\s]+@|^[^/\s]+:[^/\s]+@[\w.-]+:`)
+	rePushURLCredSCP    = regexp.MustCompile(`^[^/\s]+@[^/\s]+:`)
+	rePushURLScheme     = regexp.MustCompile(`^[\w.-]+://`)
 )
 
 // factoryURLShapeOK mirrors worker-guard.py FACTORY_URL_SHAPE (RE2 has no lookahead).
@@ -64,7 +65,7 @@ func pushURLHasCredentials(url string) bool {
 		host := strings.SplitN(body, "/", 2)[0]
 		return strings.Contains(host, ":") && strings.Contains(host, "@")
 	}
-	return regexp.MustCompile(`^[^/\s]+@[^/\s]+:`).MatchString(url)
+	return rePushURLCredSCP.MatchString(url)
 }
 
 // factoryRemoteURL is config factory_remote_url from the guard export; "" when unset, invalid or unreadable.
@@ -158,7 +159,7 @@ func isLiveGitCommon(common string) bool {
 	common = pyRealpath(common)
 	homes, err := gitHomes()
 	if err != nil {
-		return false
+		return true
 	}
 	for _, h := range homes {
 		if common == pyRealpath(pyJoin(h, ".git")) {

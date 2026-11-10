@@ -15,7 +15,7 @@ import (
 //
 //	<FACTORY_HOME>/run/guard-export.json   mode 0600, written atomically
 //	{"version":1, "generated_at":"<RFC 3339>", "config":{"public_text_repos":..,"frozen_repos":..,
-//	 "scrub_terms_file":..,"test_sandbox":..}, "agent_goals":{"<agent>":"<goal id>"}, "task_worktrees":{"T-0001":"<path>"}}
+//	 "scrub_terms_file":..,"test_sandbox":..,"factory_remote_url":..}, "agent_goals":{"<agent>":"<goal id>"}, "task_worktrees":{"T-0001":"<path>"}}
 //
 // It lives in run/ (git-ignored), not state/: state/ is committed and pushed, and a timestamp that changes every tick
 // would add a commit per tick.
