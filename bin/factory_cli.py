@@ -952,7 +952,22 @@ def _pane_row_stale(con, name, claimed):
         return False
     if csid not in (_caller_claude_sessions() or []):
         return False
+    if sid == csid:  # the incident: the row's session was overwritten with the HQ agent's own (see _pane_host)
+        return True
     return not claude_procs(sid, {p: v[0] for p, v in procs.items()})
+
+
+def _pane_host(con, by_name, by_pane, r):
+    """T-1292: the host entry for agents row `r`: by its name, else by its pane id, but never a pane now held by
+    ANOTHER agent's row (a reused pane id). Otherwise the tick copies that agent's session id onto `r`."""
+    h = by_name.get(r["name"])
+    if h:
+        return h
+    h = by_pane.get(r["pane_id"])
+    other = h.get("name") if h else None
+    if other and other != r["name"] and con.execute("SELECT 1 FROM agents WHERE name=?", (other,)).fetchone():
+        return None
+    return h
 
 
 def _record_pane_conflict(con, pane, row, fa, fa_role):
@@ -14802,7 +14817,7 @@ def cmd_tick(a, locked=False):
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
         if hc_back and not _row_hosted_on_hc(r):
             continue
-        h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
+        h = _pane_host(con, by_name, by_pane, r)
         if r["status"] == "done":
             if hc_back:
                 if r["name"] in by_name:

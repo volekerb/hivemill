@@ -180,6 +180,27 @@ class StalePaneRowTests(FactoryTestCase):
         self.env.sql("UPDATE agents SET session_id=NULL WHERE name='zz-test-reviewer'")
         self.assertEqual(self.worker_of(), "reviewer")
 
+    def test_real_incident_row_session_overwritten_with_leads_own_session(self):
+        # the stale reviewer row's session_id equals the lead's session; the lead's claude runs it
+        self.env.sql("UPDATE agents SET session_id='sess-lead' WHERE name='zz-test-reviewer'")
+        self.ancestry("sess-lead")
+        self.assertIsNone(self.worker_of())
+        self.assertEqual(len(self.events("identity-conflict")), 1)
+
+    def test_forger_with_row_session_equal_to_leads_but_own_ancestry_refused(self):
+        self.env.sql("UPDATE agents SET session_id='sess-lead' WHERE name='zz-test-reviewer'")
+        self.ancestry("sess-forger")
+        self.assertEqual(self.worker_of(), "reviewer")
+
+    def test_tick_on_reused_pane_never_rewrites_another_rows_session_id(self):
+        self.env.sql("UPDATE agents SET status='live', pane_id=? WHERE name='zz-test-lead'", (PANE,))
+        self.env.set_herdr(agents=[{"name": "zz-test-lead", "agent": "claude", "pane_id": PANE,
+                                    "agent_status": "idle", "agent_session": {"value": "sess-lead"}}])
+        self.ok("tick")
+        self.assertEqual(self.env.sql("SELECT session_id FROM agents WHERE name='zz-test-reviewer'")[0]["session_id"],
+                         "sess-rev")
+        self.assertEqual(self.events("session-mismatch"), [])
+
     def test_stopped_row_no_longer_matches_its_pane_id(self):
         self.env.fake_claude(4101, argv=("claude", "--resume", "sess-rev"))
         self.assertEqual(self.worker_of(), "reviewer")
