@@ -43,23 +43,35 @@ class PaneFallbackTests(FactoryTestCase):
         self.assertEqual(code, 3)
         self.assertEqual((herdr, spawns), ([], []))
 
-    def relaunch(self, agents, procs, dry_run=False, force=False, patches=None, cursor_ws_procs=None):
+    def relaunch(self, agents, procs, dry_run=False, force=False, patches=None, fast_poll=False,
+                 cursor_ws_procs=None, cursor_ws_sequence=None, cursor_ws_calls=None):
         """Run relaunch_agent with herdr mocked; returns (exit code or None, stdout, herdr calls, spawn calls)."""
         out = io.StringIO()
         with self.env.load_factory() as mod:
             con = mod.db()
             r = con.execute("SELECT * FROM agents WHERE name=?", (NAME,)).fetchone()
             seq = iter([procs, []])  # the process is gone once the pane is closed
-            cursor_seq = iter([cursor_ws_procs if cursor_ws_procs is not None else [], []])
+            if cursor_ws_sequence is not None:
+                cursor_seq = iter(cursor_ws_sequence)
+            else:
+                cursor_seq = iter([cursor_ws_procs if cursor_ws_procs is not None else [], []])
+
+            def cursor_procs_stub(ws):
+                if cursor_ws_calls is not None:
+                    cursor_ws_calls.append(ws)
+                return next(cursor_seq, [])
+
             herdr_calls, spawns, code = [], [], None
             with mock.patch.object(mod, "herdr_agents", return_value=agents), \
                     mock.patch.object(mod, "claude_procs", side_effect=lambda s: next(seq, [])), \
-                    mock.patch.object(mod, "cursor_procs", side_effect=lambda ws: next(cursor_seq, [])), \
+                    mock.patch.object(mod, "cursor_procs", side_effect=cursor_procs_stub), \
                     mock.patch.object(mod, "find_pane", return_value=None), \
                     mock.patch.object(mod, "herdr", side_effect=lambda *a: herdr_calls.append(list(a))), \
                     mock.patch.object(mod, "spawn", side_effect=lambda *a, **k: spawns.append(k)), \
                     contextlib.ExitStack() as stack, \
                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                if fast_poll:
+                    stack.enter_context(mock.patch.object(mod.time, "sleep", lambda *_: None))
                 for name, val in (patches or {}).items():
                     stack.enter_context(mock.patch.object(
                         mod, name, **({"side_effect": val} if callable(val) else {"return_value": val})))
@@ -131,10 +143,28 @@ class PaneFallbackTests(FactoryTestCase):
         self.assertEqual((herdr, spawns), ([], []))
 
     def test_cursor_pane_and_name_match_closes_that_pane_and_resumes(self):
-        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_ws_procs=self.cursor_proc)
+        ws_calls = []
+        code, out, herdr, spawns = self.relaunch(
+            [entry()], [], cursor_ws_sequence=[self.cursor_proc, []], cursor_ws_calls=ws_calls)
         self.assertIsNone(code)
         self.assertEqual(herdr, [["pane", "close", PANE]])
         self.assertEqual([s["resume"] for s in spawns], [SESS])
+        self.assertGreaterEqual(len(ws_calls), 2)
+        self.assertEqual(ws_calls[0], self.policy_ws)
+        self.assertEqual(ws_calls[-1], self.policy_ws)
+
+    def test_cursor_still_live_on_workspace_after_pane_close_exits_3_without_spawn(self):
+        """Post-close wait must use cursor_procs(policy workspace); a survivor blocks spawn."""
+        ws_calls = []
+        live = [self.cursor_proc] * 25  # proof + post-close poll iterations stay non-empty
+        code, out, herdr, spawns = self.relaunch(
+            [entry()], [], cursor_ws_sequence=live, cursor_ws_calls=ws_calls, fast_poll=True,
+        )
+        self.assertEqual(code, 3)
+        self.assertEqual(herdr, [["pane", "close", PANE]])
+        self.assertEqual(spawns, [])
+        self.assertGreaterEqual(len(ws_calls), 2)
+        self.assertEqual(ws_calls[-1], self.policy_ws)
 
     def test_two_cursor_processes_for_the_workspace_are_refused(self):
         extra = [(5253, ["cursor-agent", "--workspace", self.policy_ws])]
