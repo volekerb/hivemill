@@ -71,6 +71,8 @@ Because the rw PAT has no Workflows permission, a push that changes `.github/wor
 
 The `judge` role is not sandboxed: it merges by design and would need the rw PAT or the owner token inside, which isolates nothing.
 
+**Live rollout (as of 2026-11-11).** `worker_gh_roles` is `reviewer,qa,pm,coder,judge,cleaner` (the "Worker GitHub credential (R-c)" section describes the mechanism). reviewer, qa and pm use the read-only token; coder, judge and cleaner use the read-write token (`gh_rw_roles`). The files are `~/.config/factory/gh-worker-ro-token` and `~/.config/factory/gh-worker-rw-token`, both mode 0600. GitHub shows the owner's login for a push or merge made with either token, because both are fine-grained PATs of the owner account, so the PR timeline is not the proof. The proof is what the pane can reach: in an unsandboxed worker pane `GH_TOKEN`, `GITHUB_TOKEN` and `GH_ENTERPRISE_TOKEN` are empty, `gh` is the `ghcred` shim, `GH_CONFIG_DIR` is not the owner's `~/.config/gh`, and `FACTORY_GH_TOKEN_FILE` is the rw token path, followed by a successful push or merge. The pane env holds only token file paths, never a token value (a sandboxed pane keeps `GH_TOKEN` in env, see below). Rollback: `factory config worker_gh_roles reviewer,qa,pm` (the previous set; `''` turns the worker credential off). Known limit: the rw token can merge a green PR through the API without `factory judge` (see above).
+
 ## 3. Owner steps (O1-O4)
 
 The director routes these to the boss; the owner runs them in a plain shell on the factory host. The factory does not run them.
@@ -253,7 +255,7 @@ The bridge for that case is the rollback below, not `sandbox_roles ''`.
 **Rollout order.**
 
 1. Merged and live: `factory config worker_gh_roles reviewer,qa,pm`. This needs only the read-only token (O3). Check: a new reviewer's `gh pr view <n>` works, and `git config --get-all credential.https://github.com.helper` inside its pane shows only the `ghcred.py` helper.
-2. After the owner has created the read-write token (O4): `factory config worker_gh_roles reviewer,qa,pm,coder,judge,cleaner`. Check: a coder pushes its branch and `gh pr view` works, `factory judge` merges one PR, and the GitHub PR timeline shows the PAT's actor, not the owner.
+2. After the owner has created the read-write token (O4): `factory config worker_gh_roles reviewer,qa,pm,coder,judge,cleaner`. Check: a coder pushes its branch and `gh pr view` works, `factory judge` merges one PR, and the pane shows the proof above (GitHub itself shows the owner login for any token of the owner account).
 3. Never list `coder`, `judge` or `cleaner` before the rw token file exists: the preflight refuses their spawns.
 
 Agents that are already running keep the credential they started with until their next relaunch.
