@@ -34,7 +34,8 @@ class WorkerEscapeTests(WorkerGateBase):
     def in_home(self, home, argv, path):
         with self.env.load_factory() as f:
             f.HOME = home
-            with mock.patch.dict(os.environ, {"FACTORY_AGENT": "zz-test-director", "PATH": path}):
+            with mock.patch.dict(os.environ, {"FACTORY_AGENT": "zz-test-director", "PATH": path,
+                                                  "FACTORY_ROLE": "coder"}):  # live home ignores the fake /proc (T-1322)
                 try:
                     return None, f.worker_stub_exempt(), f.herdr(*argv)
                 except SystemExit as x:
@@ -57,7 +58,7 @@ class WorkerEscapeTests(WorkerGateBase):
         self.assertEqual(self.herdr_argvs(), [["agent", "start", "x"]])
         # refuse_worker uses the same predicate: the live home refuses, the temp home does not
         for home, want in ((LIVE, 3), (self.env.home_dir, None)):
-            with self.env.load_factory() as f, mock.patch.dict(os.environ, {"PATH": path}):
+            with self.env.load_factory() as f, mock.patch.dict(os.environ, {"PATH": path, "FACTORY_ROLE": "coder"}):
                 f.HOME = home
                 try:
                     f.refuse_worker("up")
