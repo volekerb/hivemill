@@ -177,6 +177,16 @@ class AuditTest(unittest.TestCase):
         self.log("session-2026-11-10T10-00-00-000Z-1-1.log", [init("c1"), shell(PRIV + " ls")])
         text = run(self.home, self.logs).stdout
         self.assertIn("outcomes=ran_unguarded=1,blocked_by_hook=0,hook_allowed=0", text)
+        self.log("session-2026-11-10T11-00-00-000Z-2-1.log", [
+            init("c2"), hook("beforeShellExecution", "denied"), shell(PRIV + " ls"),
+            hook("beforeShellExecution"), shell(HERD + " ls")])
+        text = run(self.home, self.logs).stdout
+        self.assertIn("outcomes=ran_unguarded=0,blocked_by_hook=1,hook_allowed=1", text)
+
+    def test_gone_row_fields_are_escaped(self):
+        self.transcript("pro\tj", "s\nid")
+        rows = [ln for ln in run(self.home, self.logs).stdout.splitlines() if "log gone" in ln]
+        self.assertEqual(rows, ["pro j\ts id\tlog gone (transcript only)"])
 
     def test_json_and_summary_keys_unchanged(self):
         self.log("session-2026-11-10T10-00-00-000Z-1-1.log", [init("c1"), shell(PRIV + " ls")])
