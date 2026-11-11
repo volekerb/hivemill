@@ -1,4 +1,6 @@
+import os
 import unittest
+from unittest import mock
 
 from harness import FactoryTestCase
 
@@ -104,6 +106,107 @@ class IdentityTests(FactoryTestCase):
         p = self.ok("whoami", agent="zz-test-director", extra_env=IN_PANE)
         self.assertIn("role=director", p.stdout)
         self.assertEqual(p.stderr, "")
+
+
+class StalePaneRowTests(FactoryTestCase):
+    """T-1292: a stale live worker row on a reused pane id must not make an HQ agent resolve as a worker."""
+
+    def setUp(self):
+        super().setUp()
+        self.env.seed_goal()
+        self.env.seed_team(lead="zz-test-lead")
+        self.env.seed_agent("zz-test-lead", "lead", goal="G-001", team="g-001-a")
+        self.env.seed_agent("zz-test-reviewer", "reviewer", goal="G-001", team="g-001-a", pane_id=PANE)
+        self.env.sql("UPDATE agents SET session_id='sess-rev' WHERE name='zz-test-reviewer'")
+        self.env.sql("UPDATE agents SET session_id='sess-lead' WHERE name='zz-test-lead'")
+
+    def ancestry(self, session):
+        """The test process runs under a fake claude --resume <session> (what a lead's pane looks like)."""
+        self.env.fake_claude(4201, argv=("claude", "--resume", session))
+        d = self.env.proc_dir / str(os.getpid())
+        d.mkdir(exist_ok=True)
+        (d / "cmdline").write_bytes(b"python3\0")
+        (d / "stat").write_text(f"{os.getpid()} (python3) S 4201 1 1 0 -1 0\n")
+
+    def worker_of(self, agent="zz-test-lead"):
+        env = {"FACTORY_AGENT": agent, "HERDR_PANE_ID": PANE, "FACTORY_PROC_DIR": str(self.env.proc_dir)}
+        with self.env.load_factory() as f:
+            with mock.patch.dict(os.environ, env):
+                os.environ.pop("FACTORY_ROLE", None)
+                return f.caller_is_worker()
+
+    def events(self, action):
+        return self.env.sql("SELECT * FROM events WHERE action=?", (action,))
+
+    def test_lead_on_reused_pane_with_stale_reviewer_row_is_not_worker(self):
+        self.ancestry('sess-lead')
+        # the T-1292 incident: the reviewer's claude is gone, its row stayed live on the pane id the lead now holds
+        self.assertIsNone(self.worker_of())
+        ev = self.events("identity-conflict")
+        self.assertEqual(len(ev), 1)
+        self.assertIn("zz-test-reviewer", ev[0]["detail"])
+        self.assertIn("zz-test-lead", ev[0]["detail"])
+        self.assertEqual(self.events("identity-spoof"), [])
+        self.assertIsNone(self.worker_of())  # asking again records no second event
+        self.assertEqual(len(self.events("identity-conflict")), 1)
+
+    def test_lead_on_reused_pane_can_run_park_via_the_cli(self):
+        self.ancestry('sess-lead')
+        p = self.env.run("park", "zz-test note", agent="zz-test-lead",
+                         extra_env={"HERDR_PANE_ID": PANE, "CLAUDECODE": "1"})
+        self.assertNotIn("workers may not run", p.stderr)
+
+    def test_worker_forging_hq_env_in_its_own_pane_still_refused(self):
+        # a live worker: a claude process runs its session, so the row is not stale whatever env it forges
+        self.env.fake_claude(4101, argv=("claude", "--resume", "sess-rev"))
+        self.assertEqual(self.worker_of(), "reviewer")
+        self.assertEqual(len(self.events("identity-spoof")), 1)
+        self.assertEqual(self.events("identity-conflict"), [])
+        self.refused(3, "park", "zz-test note", agent="zz-test-lead",
+                     extra_env={"HERDR_PANE_ID": PANE, "CLAUDECODE": "1"})
+
+    def test_forger_whose_session_drifted_from_its_row_still_refused(self):
+        # no claude runs the row's stored session (drift), but the caller's claude is not the lead's session
+        self.ancestry("sess-drifted-worker")
+        self.assertEqual(self.worker_of(), "reviewer")
+        self.assertEqual(self.events("identity-conflict"), [])
+
+    def test_cursor_runtime_worker_row_is_never_stale(self):
+        self.env.sql("UPDATE agents SET spawn_args='{\"runtime\": \"cursor\"}' WHERE name='zz-test-reviewer'")
+        self.ancestry("sess-lead")
+        self.assertEqual(self.worker_of(), "reviewer")
+
+    def test_worker_row_without_session_id_fails_closed(self):
+        self.env.sql("UPDATE agents SET session_id=NULL WHERE name='zz-test-reviewer'")
+        self.assertEqual(self.worker_of(), "reviewer")
+
+    def test_real_incident_row_session_overwritten_with_leads_own_session(self):
+        # the stale reviewer row's session_id equals the lead's session; the lead's claude runs it
+        self.env.sql("UPDATE agents SET session_id='sess-lead' WHERE name='zz-test-reviewer'")
+        self.ancestry("sess-lead")
+        self.assertIsNone(self.worker_of())
+        self.assertEqual(len(self.events("identity-conflict")), 1)
+
+    def test_forger_with_row_session_equal_to_leads_but_own_ancestry_refused(self):
+        self.env.sql("UPDATE agents SET session_id='sess-lead' WHERE name='zz-test-reviewer'")
+        self.ancestry("sess-forger")
+        self.assertEqual(self.worker_of(), "reviewer")
+
+    def test_tick_on_reused_pane_never_rewrites_another_rows_session_id(self):
+        self.env.sql("UPDATE agents SET status='live', pane_id=? WHERE name='zz-test-lead'", (PANE,))
+        self.env.set_herdr(agents=[{"name": "zz-test-lead", "agent": "claude", "pane_id": PANE,
+                                    "agent_status": "idle", "agent_session": {"value": "sess-lead"}}])
+        self.ok("tick")
+        self.assertEqual(self.env.sql("SELECT session_id FROM agents WHERE name='zz-test-reviewer'")[0]["session_id"],
+                         "sess-rev")
+        self.assertEqual(self.events("session-mismatch"), [])
+
+    def test_stopped_row_no_longer_matches_its_pane_id(self):
+        self.env.fake_claude(4101, argv=("claude", "--resume", "sess-rev"))
+        self.assertEqual(self.worker_of(), "reviewer")
+        self.env.sql("UPDATE agents SET status='stopped' WHERE name='zz-test-reviewer'")
+        self.assertIsNone(self.worker_of())
+        self.assertEqual(self.events("identity-conflict"), [])
 
 
 if __name__ == "__main__":

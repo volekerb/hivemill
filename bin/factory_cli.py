@@ -913,6 +913,82 @@ def _ancestry_worker():
     return None
 
 
+def _caller_claude_sessions():
+    """Session ids named by the caller's first claude ancestor (None when there is none or /proc is unreadable)."""
+    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    pid = os.getpid()
+    if not (root / str(pid) / "stat").exists():
+        pid = os.getppid()
+    for _ in range(64):
+        try:
+            argv = [x.decode(errors="replace") for x in (root / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
+            stat = (root / str(pid) / "stat").read_text(errors="replace")
+            ppid = int(stat[stat.rindex(")") + 1:].split()[1])
+        except (OSError, ValueError, IndexError):
+            return None
+        if any(os.path.basename(x) == "claude" for x in argv[:3]):
+            return _argv_sessions(argv)
+        pid = ppid
+        if pid <= 1:
+            return None
+    return None
+
+
+def _pane_row_stale(con, name, claimed):
+    """T-1292: True only when a live worker row provably no longer owns its pane. All must hold, any doubt = False
+    (fail closed): the worker row is a claude-runtime row with a session id; NO claude process runs that session;
+    and the caller's own claude ancestor runs the session recorded for the HQ agent it claims (`claimed`). The last
+    condition is what a forging worker cannot meet: its ancestor runs its own session, never the lead's. So a worker
+    whose stored session id drifted, or a cursor worker, is still refused."""
+    try:
+        r = con.execute("SELECT session_id, spawn_args FROM agents WHERE name=?", (name,)).fetchone()
+        c = con.execute("SELECT session_id FROM agents WHERE name=?", (claimed,)).fetchone()
+    except sqlite3.Error:
+        return False
+    sid = r["session_id"] if r else None
+    csid = c["session_id"] if c else None
+    procs = _scan_claude()
+    if not sid or not csid or procs is None or _agent_runtime(r) != "claude":
+        return False
+    if csid not in (_caller_claude_sessions() or []):
+        return False
+    if sid == csid:  # the incident: the row's session was overwritten with the HQ agent's own (see _pane_host)
+        return True
+    return not claude_procs(sid, {p: v[0] for p, v in procs.items()})
+
+
+_PANE_FOREIGN = object()
+
+
+def _pane_host(con, by_name, by_pane, r):
+    """T-1292: the host entry for agents row `r`: by its name, else by its pane id, but never a pane now held by
+    ANOTHER agent's row (a reused pane id). Otherwise the tick copies that agent's session id onto `r`."""
+    h = by_name.get(r["name"])
+    if h:
+        return h
+    h = by_pane.get(r["pane_id"])
+    other = h.get("name") if h else None
+    if other and other != r["name"]:
+        o = con.execute("SELECT status FROM agents WHERE name=?", (other,)).fetchone()
+        if o:
+            # a live peer holds the pane: `r` is gone from it. A non-live row (exited leftover) holds the host entry:
+            # the pane is not r's to judge, so leave r and the pane alone (never lost, never closed).
+            return None if o["status"] in ("live", "starting", "queued", "stopped") else _PANE_FOREIGN
+    return h
+
+
+def _record_pane_conflict(con, pane, row, fa, fa_role):
+    """T-1292: one event per (pane, stale row, claimed identity) naming both identities."""
+    detail = (f"pane {pane}: stale live row {row['name']} ({row['role']}, no claude process runs its session) "
+              f"ignored; caller is {fa} ({fa_role})")
+    try:
+        if not con.execute("SELECT 1 FROM events WHERE action='identity-conflict' AND entity_id=? AND detail=?",
+                           (row["name"], detail)).fetchone():
+            event_as(con, f"pane:{pane}", "agent", row["name"], "identity-conflict", detail)
+    except sqlite3.Error:
+        pass
+
+
 def _detect_worker():
     role = _ancestry_worker()
     if role:
@@ -934,6 +1010,9 @@ def _detect_worker():
                 if r["role"] in WORKER_ROLES:
                     fa = os.environ.get("FACTORY_AGENT") or ""
                     fr = con.execute("SELECT role FROM agents WHERE name=?", (fa,)).fetchone() if fa else None
+                    if fr and fr["role"] not in WORKER_ROLES and _pane_row_stale(con, r["name"], fa):
+                        _record_pane_conflict(con, pane, r, fa, fr["role"])
+                        continue
                     if fa and (fr["role"] if fr else "unknown") not in WORKER_ROLES:  # claims a non-worker identity
                         try:
                             event_as(con, f"pane:{pane}", "agent", r["name"], "identity-spoof",
@@ -14745,7 +14824,14 @@ def cmd_tick(a, locked=False):
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
         if hc_back and not _row_hosted_on_hc(r):
             continue
-        h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
+        h = _pane_host(con, by_name, by_pane, r)
+        if h is _PANE_FOREIGN and r["status"] == "done":
+            h = None  # the done path closes by host NAME only, so another row's pane is never touched
+        if h is _PANE_FOREIGN:
+            if not con.execute("SELECT 1 FROM events WHERE action='pane-foreign-skip' AND entity_id=? AND detail=?",
+                               (r["name"], str(r["pane_id"]))).fetchone():
+                event(con, "agent", r["name"], "pane-foreign-skip", str(r["pane_id"]))
+            continue
         if r["status"] == "done":
             if hc_back:
                 if r["name"] in by_name:
