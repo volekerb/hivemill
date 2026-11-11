@@ -4,7 +4,7 @@ Goal G-010. Workers of the listed roles run `claude` inside an unprivileged user
 
 Code: `scout/nsbox.py` (allow mode, see [scout-nsbox.md](scout-nsbox.md)), `scout/workerbox.py` (the worker profile and shim), `bin/factory` (`sandbox_roles`, preflight, spawn wiring). Tests: `tests/test_nsbox_allow.py`, `tests/test_workerbox.py`, `tests/test_sandbox_spawn.py`.
 
-Status at the time of writing (checked against the code on main): present are T-0159 (DB in its own dir), T-0160 (nsbox allow mode), T-0161 (worker profile), T-0162 (flag, preflight, golden test), T-0225 (workerbox nits), T-0209 (tmpfs sizes) and T-0174 (sandbox escape detection). Still **pending**, and marked where it matters below: T-0165 (per-task `git clone --shared`) and T-0167 (qa and coder rw on clones).
+Status at the time of writing (checked against the code on main): present are T-0159 (DB in its own dir), T-0160 (nsbox allow mode), T-0161 (worker profile), T-0162 (flag, preflight, golden test), T-0225 (workerbox nits), T-0209 (tmpfs sizes) and T-0174 (sandbox escape detection). Per-task `git clone --shared` (config `task_clones`, off by default; see [git-hardening.md](git-hardening.md)) and qa and coder rw on those clones are also in place. The sandbox itself stays opt-in: `sandbox_roles` is empty by default.
 
 ## 1. What it is
 
@@ -128,7 +128,7 @@ Every step: before it, the event log shows no `sandbox-refused` or `start-uncert
 - Hold: at least 24 h and 3 reviews with none of those events.
 
 ### Step 2: qa (T-0170)
-- Preconditions: step 1 held; T-0165, T-0166 (clean for clones) and T-0167 (qa and coder rw on clones) merged: **pending**. Until then the preflight refuses qa and coder with reason `clone`. A task whose cwd is a per-task clone (`.git` is a directory).
+- Preconditions: step 1 held; per-task clones, `factory clean` for clones and qa and coder rw on clones are merged. The preflight refuses qa and coder with reason `clone` unless the task's cwd is a per-task clone (`.git` is a directory), so turn `task_clones` on first.
 - Command: `factory config sandbox_roles reviewer,qa`.
 - Checks: QA checks out the PR head, runs the tests and records PASS or FAIL; no write outside the clone; the test count equals an unsandboxed run of the same PR; `factory clean` removes the clone after the merge.
 - Hold: 24 h and 3 QA runs with no refused or escape events.
@@ -184,7 +184,7 @@ The sandbox hides the owner's credentials and keeps code HQ runs read-only. It i
 4. see the pids and command lines of outside processes and kill same-uid processes (denial of service; no pid namespace, section 1);
 5. reach localhost and LAN TCP services (today DNS and `factory serve` on `203.0.113.5:8765`, which shows DB content the worker can read anyway) and the internet (network is on);
 6. read world-readable files outside `$HOME`;
-7. plant hooks or config in the git repository it works in. Until per-task clones (T-0165) exist and are used, the worktree shares `~/factory/.git`, which is read-only inside the reviewer sandbox. A lead or the owner who runs plain `git` in a worker's clone would run what the worker planted there: see section 7.
+7. plant hooks or config in the git repository it works in. Unless per-task clones are used (`task_clones`), the worktree shares `~/factory/.git`, which is read-only inside the reviewer sandbox. A lead or the owner who runs plain `git` in a worker's clone would run what the worker planted there: see section 7.
 
 A worker also cannot be assumed to be honest about its own state: the spawn refuses to start a listed role unsandboxed (fail closed), and escape detection (T-0174, merged) closes a sandboxed role's claude found in the host user namespace with event `sandbox-escaped` and alerts the director, so a bare `claude --resume` pane started by the multiplexer after a restart is caught.
 
