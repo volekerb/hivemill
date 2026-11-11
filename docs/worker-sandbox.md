@@ -71,6 +71,8 @@ Because the rw PAT has no Workflows permission, a push that changes `.github/wor
 
 The `judge` role is not sandboxed: it merges by design and would need the rw PAT or the owner token inside, which isolates nothing.
 
+**Live rollout (as of 2026-11-11).** `worker_gh_roles` is `reviewer,qa,pm,coder,judge,cleaner` (the "Worker GitHub credential (R-c)" section describes the mechanism). reviewer, qa and pm use the read-only token; coder, judge and cleaner use the read-write token (`gh_rw_roles`). The files are `~/.config/factory/gh-worker-ro-token` and `~/.config/factory/gh-worker-rw-token`, both mode 0600. A coder push and a judge merge on this token show the token's actor in the PR timeline, not the owner's `gh` login. The pane env holds only token file paths, never a token value. Rollback: `factory config worker_gh_roles reviewer,qa,pm` (the previous set; `''` turns the worker credential off). Known limit: the rw token can merge a green PR through the API without `factory judge` (see above).
+
 ## 3. Owner steps (O1-O4)
 
 The director routes these to the boss; the owner runs them in a plain shell on the factory host. The factory does not run them.
