@@ -752,6 +752,23 @@ class ReapAgentTests(StopBase):
     def test_lead_caller_is_refused(self):
         self.assert_refused(3, agent="zz-lead")
 
+    def test_row_without_session_id_fails_closed(self):
+        self.env.sql("UPDATE agents SET session_id=NULL WHERE name='zz-rev'")
+        self.assertIn("no session id", self.assert_refused(2).stderr)
+
+    def test_row_without_pane_id_is_refused(self):
+        self.env.sql("UPDATE agents SET pane_id=NULL WHERE name='zz-rev'")
+        self.assertIn("no pane id", self.assert_refused(2).stderr)
+
+    def test_unknown_agent_is_refused(self):
+        self.refused(2, "reap-agent", "zz-nobody", agent="zz-director")
+
+    def test_owner_can_reap_and_event_carries_evidence(self):
+        self.ok("reap-agent", "zz-rev")
+        self.assertEqual(self.row("zz-rev")["status"], "stopped")
+        d = json.loads(self.events("reaped-reused-pane", "zz-rev")[0]["detail"])
+        self.assertEqual((d["pane_host_status"], d["session_id"], d["was"]), ("live", self.REV_SID, "live"))
+
     def test_non_live_row_is_refused(self):
         self.env.sql("UPDATE agents SET status='stopped' WHERE name='zz-rev'")
         self.refused(2, "reap-agent", "zz-rev", agent="zz-director")

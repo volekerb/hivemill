@@ -11780,6 +11780,8 @@ def cmd_reap_agent(a):
     if not host or host == a.agent or not hrow:
         die(f"pane {pane} does not host a different registered agent (host: {host or 'none'}): no proof the pane "
             "was reused; use factory stop", 2)
+    if not r["session_id"]:
+        die(f"{a.agent} has no session id: cannot tell which claude process could be its own; use factory stop", 2)
     procs = _agent_procs_alive(a.agent, r["session_id"])
     if procs is None:
         die("/proc is unreadable: cannot prove no process of the agent is alive", 2)
