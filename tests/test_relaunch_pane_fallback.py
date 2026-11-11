@@ -146,6 +146,16 @@ class PaneFallbackTests(FactoryTestCase):
         self.assertEqual(code, 3)
         self.assertEqual((herdr, spawns), ([], []))
 
+    def test_cursor_pane_entry_with_a_different_agent_session_is_refused(self):
+        code, out, herdr, spawns = self.relaunch([entry(session="sess-other")], [], cursor_procs=CURSOR_PROC)
+        self.assertEqual(code, 3)
+        self.assertEqual((herdr, spawns), ([], []))
+
+    def test_cursor_no_entry_for_the_pane_is_refused(self):
+        code, out, herdr, spawns = self.relaunch([entry(pane="pw9")], [], cursor_procs=CURSOR_PROC)
+        self.assertEqual(code, 3)
+        self.assertEqual((herdr, spawns), ([], []))
+
 
 if __name__ == "__main__":
     unittest.main()
