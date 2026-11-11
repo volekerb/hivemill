@@ -161,6 +161,15 @@ class CloneCleanTests(CloneCleanBase):
         self.assertIn("unpushed commits", self.clean().stdout)
         self.assertTrue(wt.exists())
 
+    def test_clone_replace_ref_cannot_hide_unpushed_commit(self):
+        wt, _ = self.clone_task()
+        head = git("rev-parse", "HEAD", cwd=wt)
+        self.commit_in(wt, "extra")
+        x = git("rev-parse", "HEAD", cwd=wt)
+        git("replace", x, head, cwd=wt)  # X now looks like the PR head to a default git
+        self.assertIn("unpushed commits", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
     def prless_cancelled_clone(self, commit=False):
         """A cancelled task with no PR and a clone cut from origin/main, optionally holding one local commit."""
         e = self.env
