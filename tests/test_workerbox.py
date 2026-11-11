@@ -778,13 +778,13 @@ class OwnerIdentityTests(unittest.TestCase):
         (self.home / ("." + "gitconfig")).write_text(
             "[user]\n\tname = Default Test\n\temail = test@example.invalid\n"
             f'[includeIf "gitdir:{self.tmp}/tree/repo/"]\n\tpath = {self.home}/inc\n')
-        (self.home / "inc").write_text("[user]\n\tname = Noreply Test\n\temail = 1+t@users.noreply.github.com\n")
+        (self.home / "inc").write_text("[user]\n\tname = Noreply Test\n\temail = zz-include@example.invalid\n")
         subprocess.run(["git", "init", "-q", str(self.repo)], check=True,
                        env={"HOME": str(self.home), "PATH": os.environ["PATH"]})
 
     def test_cwd_inside_includeif_tree_gets_noreply(self):
         self.assertEqual(workerbox.owner_identity(str(self.home), str(self.repo)),
-                         ("Noreply Test", "1+t@users.noreply.github.com"))
+                         ("Noreply Test", "zz-include@example.invalid"))
 
     def test_cwd_outside_tree_gets_default(self):
         self.assertEqual(workerbox.owner_identity(str(self.home), str(self.tmp)),
