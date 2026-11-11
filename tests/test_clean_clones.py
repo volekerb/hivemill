@@ -170,6 +170,21 @@ class CloneCleanTests(CloneCleanBase):
         self.assertIn("unpushed commits", self.clean().stdout)
         self.assertTrue(wt.exists())
 
+    def test_clone_grafts_cannot_hide_unpushed_commit(self):
+        wt, _ = self.clone_task()
+        head = git("rev-parse", "HEAD", cwd=wt)
+        parent = git("rev-parse", "HEAD~1", cwd=wt)
+        branch = git("rev-parse", "--abbrev-ref", "HEAD", cwd=wt)
+        git("checkout", "-q", "-b", "wip", parent, cwd=wt)
+        self.commit_in(wt, "extra")
+        x = git("rev-parse", "HEAD", cwd=wt)
+        git("checkout", "-q", branch, cwd=wt)
+        # graft: the PR head gains X as a parent, so a default git says X is an ancestor of the head
+        (wt / ".git" / "info").mkdir(exist_ok=True)
+        (wt / ".git" / "info" / "grafts").write_text(f"{head} {parent} {x}\n")
+        self.assertIn("unpushed commits", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
     def prless_cancelled_clone(self, commit=False):
         """A cancelled task with no PR and a clone cut from origin/main, optionally holding one local commit."""
         e = self.env
