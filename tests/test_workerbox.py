@@ -765,6 +765,38 @@ class SandboxTests(unittest.TestCase):
         self.assertEqual(info["argv"], argv)
 
 
+class OwnerIdentityTests(unittest.TestCase):
+    """owner_identity resolves in the pane cwd with --includes so the owner's includeIf gitdir identity applies."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.home = self.tmp / "home"
+        self.repo = self.tmp / "tree" / "repo"
+        self.repo.mkdir(parents=True)
+        self.home.mkdir()
+        (self.home / ("." + "gitconfig")).write_text(
+            "[user]\n\tname = Default Test\n\temail = test@example.invalid\n"
+            f'[includeIf "gitdir:{self.tmp}/tree/repo/"]\n\tpath = {self.home}/inc\n')
+        (self.home / "inc").write_text("[user]\n\tname = Noreply Test\n\temail = zz-include@example.invalid\n")
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True,
+                       env={"HOME": str(self.home), "PATH": os.environ["PATH"]})
+
+    def test_cwd_inside_includeif_tree_gets_noreply(self):
+        self.assertEqual(workerbox.owner_identity(str(self.home), str(self.repo)),
+                         ("Noreply Test", "zz-include@example.invalid"))
+
+    def test_cwd_outside_tree_gets_default(self):
+        self.assertEqual(workerbox.owner_identity(str(self.home), str(self.tmp)),
+                         ("Default Test", "test@example.invalid"))
+
+    def test_missing_or_none_cwd_falls_back_to_root(self):
+        want = ("Default Test", "test@example.invalid")
+        self.assertEqual(workerbox.owner_identity(str(self.home), None), want)
+        self.assertEqual(workerbox.owner_identity(str(self.home), str(self.tmp / "nope")), want)
+        self.assertEqual(workerbox.owner_identity(str(self.home)), want)
+
+
 @NEEDS_USERNS
 class RealPathTests(unittest.TestCase):
     """Group C: the owner's real paths (read-only probes, nothing printed). Each check is skipped if its path is absent."""
