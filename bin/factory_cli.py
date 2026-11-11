@@ -1675,15 +1675,6 @@ def claude_procs(session_id, argvs=None):
     return [(p, argv) for p, argv in sorted(argvs.items()) if session_id in _argv_sessions(argv)]
 
 
-def cursor_session_procs(session_id, argvs=None):
-    """[(pid, argv)] of live cursor-agent processes running --resume/--session-id <session_id>.
-    argvs: a {pid: argv} map from total_claude_procs, to avoid scanning /proc again."""
-    if argvs is None:
-        scan = _scan_host_agent_procs() or {}
-        argvs = {p: v[0] for p, v in scan.items() if _is_cursor_agent_argv(v[0])}
-    return [(p, argv) for p, argv in sorted(argvs.items()) if session_id in _argv_sessions(argv)]
-
-
 def _argv_workspace(argv):
     vals = [argv[i + 1] for i, x in enumerate(argv[:-1]) if x == "--workspace"]
     vals += [x.split("=", 1)[1] for x in argv if x.startswith("--workspace=")]
@@ -15867,6 +15858,7 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     Callers check permissions first. Exits (die) with 2 when the agent is mid-turn (unless force), 3 when refused."""
     if not r["session_id"]:
         die(f"{r['name']} has no recorded session id; nothing to resume", 3)
+    cursor_ws = agent_cursor_workspace(r) if _agent_runtime(r) == "cursor" else None
     agents = herdr_agents()
     if agents is None:
         die("herdr is unreachable")
@@ -15884,11 +15876,18 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             die(f"a live claude process runs session {r['session_id']} but herdr lists no pane for it; "
                 "refusing to start a second copy", 3)
         by_pane = True
-    elif procs := cursor_session_procs(r["session_id"]):
+    elif _agent_runtime(r) == "cursor":
+        ws = agent_cursor_workspace(r)
+        if not ws:
+            die(f"{r['name']} has no cursor policy workspace; refusing to relaunch", 3)
+        procs = cursor_procs(ws)
+        if len(procs) != 1:
+            die(f"expected exactly one cursor-agent on workspace {ws}, found {len(procs)}; "
+                "refusing to start a second copy", 3)
         host = next((x for x in agents if pane and x.get("pane_id") == pane and x.get("name") == r["name"]
-                     and not (x.get("agent_session") or {}).get("value")), None) if len(procs) == 1 else None
+                     and not (x.get("agent_session") or {}).get("value")), None)
         if not host:
-            die(f"a live cursor-agent process runs session {r['session_id']} but herdr lists no pane for it; "
+            die(f"a live cursor-agent process runs workspace {ws} but herdr lists no pane for it; "
                 "refusing to start a second copy", 3)
         by_pane, by_pane_cursor = True, True
     else:
@@ -15916,9 +15915,12 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     steps = []
     if close:
         if by_pane:
-            agent = "cursor-agent" if by_pane_cursor else "claude"
-            steps.append(f"fallback: pane {pane} ({r['name']}) has no agent_session in the agent list; its one {agent} "
-                         f"process runs session {r['session_id']}, so pane {pane} is the host")
+            if by_pane_cursor:
+                steps.append(f"fallback: pane {pane} ({r['name']}) has no agent_session in the agent list; "
+                             f"its one cursor-agent process uses workspace {cursor_ws}, so pane {pane} is the host")
+            else:
+                steps.append(f"fallback: pane {pane} ({r['name']}) has no agent_session in the agent list; "
+                             f"its one claude process runs session {r['session_id']}, so pane {pane} is the host")
         steps.append(f"herdr pane close {pane}  (`/exit` via `herdr agent prompt` is not a documented clean exit; "
                      "this ends the agent process)")
         steps.append(f"wait until pane {pane} is gone, then place a new pane")
@@ -15954,10 +15956,16 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             time.sleep(_relaunch_poll_s())
         pane = None
         for _ in range(10):  # the prompt file is rewritten next: the old process must be gone first
-            if not claude_procs(r["session_id"]) and not cursor_session_procs(r["session_id"]):
+            if by_pane_cursor and cursor_ws:
+                gone = not claude_procs(r["session_id"]) and not cursor_procs(cursor_ws)
+            else:
+                gone = not claude_procs(r["session_id"])
+            if gone:
                 break
             time.sleep(_relaunch_poll_s())
         else:
+            if by_pane_cursor and cursor_ws:
+                die(f"a cursor-agent process still runs workspace {cursor_ws} after its pane closed; not restarting", 3)
             die(f"an agent process still runs session {r['session_id']} after its pane closed; not restarting", 3)
     event(con, "agent", r["name"], "relaunch", {"pane": r["pane_id"], "session": r["session_id"]})
     con.commit()

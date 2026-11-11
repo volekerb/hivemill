@@ -2,16 +2,18 @@
 (workers, sandboxed or not): the row's own pane, when exactly one claude or cursor-agent process runs the session."""
 import contextlib
 import io
+import json
 import unittest
 from unittest import mock
 
 from harness import FactoryTestCase
+from scout import cursor_harness
 
 NAME = "zz-test-coder"
 SESS = "sess-zz-coder"
 PANE = "pw1"
 PROC = [(4242, ["claude", "--session-id", SESS])]
-CURSOR_PROC = [(5252, ["cursor-agent", "--resume", SESS])]
+OTHER_WS = "/tmp/other-cursor-policy"
 
 
 def entry(session=None, name=NAME, pane=PANE, status="idle"):
@@ -27,7 +29,11 @@ class PaneFallbackTests(FactoryTestCase):
         self.env.seed_goal()
         self.env.seed_team(lead="zz-test-lead")
         self.env.seed_agent(NAME, "coder", goal="G-001", team="g-001-a", pane_id=PANE)
-        self.env.sql("UPDATE agents SET session_id=?, cwd=? WHERE name=?", (SESS, str(self.env.home), NAME))
+        self.policy_ws = str(cursor_harness.policy_workspace(self.env.home, NAME, self.env.home))
+        spawn_args = json.dumps({"runtime": "cursor", "cursor_workspace": self.policy_ws})
+        self.env.sql("UPDATE agents SET session_id=?, cwd=?, spawn_args=? WHERE name=?",
+                     (SESS, str(self.env.home), spawn_args, NAME))
+        self.cursor_proc = [(5252, ["cursor-agent", "--workspace", self.policy_ws])]
 
     def test_sandbox_refusal_on_the_fallback_path_happens_before_the_pane_is_closed(self):
         def refuse(*a, **k):
@@ -37,18 +43,18 @@ class PaneFallbackTests(FactoryTestCase):
         self.assertEqual(code, 3)
         self.assertEqual((herdr, spawns), ([], []))
 
-    def relaunch(self, agents, procs, dry_run=False, force=False, patches=None, cursor_procs=None):
+    def relaunch(self, agents, procs, dry_run=False, force=False, patches=None, cursor_ws_procs=None):
         """Run relaunch_agent with herdr mocked; returns (exit code or None, stdout, herdr calls, spawn calls)."""
         out = io.StringIO()
         with self.env.load_factory() as mod:
             con = mod.db()
             r = con.execute("SELECT * FROM agents WHERE name=?", (NAME,)).fetchone()
             seq = iter([procs, []])  # the process is gone once the pane is closed
-            cursor_seq = iter([cursor_procs if cursor_procs is not None else [], []])
+            cursor_seq = iter([cursor_ws_procs if cursor_ws_procs is not None else [], []])
             herdr_calls, spawns, code = [], [], None
             with mock.patch.object(mod, "herdr_agents", return_value=agents), \
                     mock.patch.object(mod, "claude_procs", side_effect=lambda s: next(seq, [])), \
-                    mock.patch.object(mod, "cursor_session_procs", side_effect=lambda s: next(cursor_seq, [])), \
+                    mock.patch.object(mod, "cursor_procs", side_effect=lambda ws: next(cursor_seq, [])), \
                     mock.patch.object(mod, "find_pane", return_value=None), \
                     mock.patch.object(mod, "herdr", side_effect=lambda *a: herdr_calls.append(list(a))), \
                     mock.patch.object(mod, "spawn", side_effect=lambda *a, **k: spawns.append(k)), \
@@ -116,43 +122,66 @@ class PaneFallbackTests(FactoryTestCase):
         self.assertEqual(code, 2)
 
     def test_cursor_dry_run_names_the_pane_the_fallback_would_close(self):
-        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_procs=CURSOR_PROC, dry_run=True)
+        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_ws_procs=self.cursor_proc, dry_run=True)
         self.assertIsNone(code)
         self.assertIn(f"fallback: pane {PANE} ({NAME}) has no agent_session", out)
         self.assertIn("cursor-agent", out)
+        self.assertIn(self.policy_ws, out)
         self.assertIn(f"herdr pane close {PANE}", out)
         self.assertEqual((herdr, spawns), ([], []))
 
     def test_cursor_pane_and_name_match_closes_that_pane_and_resumes(self):
-        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_procs=CURSOR_PROC)
+        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_ws_procs=self.cursor_proc)
         self.assertIsNone(code)
         self.assertEqual(herdr, [["pane", "close", PANE]])
         self.assertEqual([s["resume"] for s in spawns], [SESS])
 
-    def test_two_cursor_processes_for_the_session_are_refused(self):
-        extra = [(5253, ["cursor-agent", "--resume", SESS])]
-        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_procs=CURSOR_PROC + extra)
+    def test_two_cursor_processes_for_the_workspace_are_refused(self):
+        extra = [(5253, ["cursor-agent", "--workspace", self.policy_ws])]
+        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_ws_procs=self.cursor_proc + extra)
         self.assertEqual(code, 3)
         self.assertEqual((herdr, spawns), ([], []))
 
-    def test_cursor_no_process_for_row_session_refuses_without_closing(self):
-        """A herdr entry with no agent_session and no cursor-agent argv carrying the row session stays a refusal."""
-        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_procs=[])
+    def test_cursor_no_process_for_policy_workspace_refuses_without_closing(self):
+        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_ws_procs=[])
         self.assertEqual(code, 3)
         self.assertEqual((herdr, spawns), ([], []))
+
+    def test_cursor_resume_on_a_different_workspace_does_not_set_by_pane(self):
+        """--resume of the row session on another workspace is not this agent."""
+        out = io.StringIO()
+        argv_map = {5252: ["cursor-agent", "--resume", SESS, "--workspace", OTHER_WS]}
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            r = con.execute("SELECT * FROM agents WHERE name=?", (NAME,)).fetchone()
+            real_cursor_procs = mod.cursor_procs
+            herdr_calls, code = [], None
+            with mock.patch.object(mod, "herdr_agents", return_value=[entry()]), \
+                    mock.patch.object(mod, "claude_procs", return_value=[]), \
+                    mock.patch.object(mod, "cursor_procs",
+                                      side_effect=lambda ws, argvs=None: real_cursor_procs(ws, argv_map)), \
+                    mock.patch.object(mod, "find_pane", return_value=None), \
+                    mock.patch.object(mod, "herdr", side_effect=lambda *a: herdr_calls.append(list(a))), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                try:
+                    mod.relaunch_agent(con, r)
+                except SystemExit as e:
+                    code = e.code
+        self.assertEqual(code, 3)
+        self.assertEqual(herdr_calls, [])
 
     def test_cursor_name_mismatch_on_the_pane_is_refused(self):
-        code, out, herdr, spawns = self.relaunch([entry(name="zz-someone-else")], [], cursor_procs=CURSOR_PROC)
+        code, out, herdr, spawns = self.relaunch([entry(name="zz-someone-else")], [], cursor_ws_procs=self.cursor_proc)
         self.assertEqual(code, 3)
         self.assertEqual((herdr, spawns), ([], []))
 
     def test_cursor_pane_entry_with_a_different_agent_session_is_refused(self):
-        code, out, herdr, spawns = self.relaunch([entry(session="sess-other")], [], cursor_procs=CURSOR_PROC)
+        code, out, herdr, spawns = self.relaunch([entry(session="sess-other")], [], cursor_ws_procs=self.cursor_proc)
         self.assertEqual(code, 3)
         self.assertEqual((herdr, spawns), ([], []))
 
     def test_cursor_no_entry_for_the_pane_is_refused(self):
-        code, out, herdr, spawns = self.relaunch([entry(pane="pw9")], [], cursor_procs=CURSOR_PROC)
+        code, out, herdr, spawns = self.relaunch([entry(pane="pw9")], [], cursor_ws_procs=self.cursor_proc)
         self.assertEqual(code, 3)
         self.assertEqual((herdr, spawns), ([], []))
 
