@@ -11848,11 +11848,12 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
     branch = t["branch"]
     if branch and not branch.startswith("factory/"):
         return "branch is not factory/*", None, False
-    # a clone's refs/replace/* is worker-writable and git honours it by default: ancestry must see the real objects
-    noreplace = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"}
+    # a clone's refs/replace/*, info/grafts and commit-graph are worker-writable and git honours them by default:
+    # ancestry must see the real objects and parents (same values as _carry_env / HARDENED_GIT_FLAGS)
+    noreplace = _carry_env()
 
     def cgit(where, *args):
-        return git_run(where, *args, env=noreplace)
+        return git_run(where, *HARDENED_GIT_FLAGS, *args, env=noreplace)
 
     tip = None
     if branch:
