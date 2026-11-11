@@ -327,7 +327,7 @@ class PrepareDirTests(Base):
 
 class IncludeIfIdentityTests(Base):
     PRIVATE = "a@example.invalid"
-    NOREPLY = "1+x@users.noreply.github.com"
+    NOREPLY = "zz-test@example.invalid"
 
     def setUp(self):
         super().setUp()
