@@ -109,6 +109,17 @@ class SpawnHqName(FactoryTestCase):
         self.assertEqual(self.names("boss"), ["cursor-boss"])
         self.assertEqual(self.pane_ops(), before)
 
+    def test_second_boss_refused_with_goal(self):
+        self.env.seed_agent("claude-boss", "boss")
+        before = self.pane_ops()
+        for extra in ((), ("--name", "claude-boss-x")):
+            p = self.spawn("boss", "--goal", "G-001", *extra)
+            out = p.stdout + p.stderr
+            self.assertEqual(p.returncode, 3, out)
+            self.assertIn("factory relaunch claude-boss", out)
+        self.assertEqual(self.names("boss"), ["claude-boss"])
+        self.assertEqual(self.pane_ops(), before)
+
     def test_other_org_boss_not_blocked(self):
         self.env.seed_agent("claude-boss", "boss")
         p = self.spawn("boss", "--org", "cursor")
@@ -135,7 +146,6 @@ class SpawnHqName(FactoryTestCase):
         p = self.spawn("coder", "--goal", "G-001", "--team", "g-001-a", "--task", "T-0001")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(self.names("coder"), ["claude-coder-t-0001"])
-
 
 
 if __name__ == "__main__":
