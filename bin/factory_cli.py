@@ -14825,7 +14825,12 @@ def cmd_tick(a, locked=False):
         if hc_back and not _row_hosted_on_hc(r):
             continue
         h = _pane_host(con, by_name, by_pane, r)
+        if h is _PANE_FOREIGN and r["status"] == "done":
+            h = None  # the done path closes by host NAME only, so another row's pane is never touched
         if h is _PANE_FOREIGN:
+            if not con.execute("SELECT 1 FROM events WHERE action='pane-foreign-skip' AND entity_id=? AND detail=?",
+                               (r["name"], str(r["pane_id"]))).fetchone():
+                event(con, "agent", r["name"], "pane-foreign-skip", str(r["pane_id"]))
             continue
         if r["status"] == "done":
             if hc_back:
