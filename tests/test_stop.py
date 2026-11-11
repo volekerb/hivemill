@@ -678,5 +678,101 @@ class ForceStopReturnTests(StopBase):
         self.assertNotIn(("pane", "close"), self.herdr_verbs())
 
 
+class ReapAgentTests(StopBase):
+    """T-1293: `factory reap-agent` marks a dead row stopped when its pane id was reused by another agent."""
+    REV_SID = "sess-zz-rev"
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_agent("zz-rev", "reviewer", goal="G-001", team="g-001-a", pane_id="p3", started=ago(3600))
+        e.sql("UPDATE agents SET session_id=? WHERE name='zz-rev'", (self.REV_SID,))
+        # the incident: the lead now holds p3, and its claude process runs the reviewer's session id
+        self.herdr_agents(["zz-lead", "p3"], ["zz-coder", "p1"])
+        e.fake_claude(4300, argv=("claude", "--resume", self.REV_SID))
+        self.set_environ(4300, "zz-lead")
+
+    def set_environ(self, pid, agent):
+        (self.env.proc_dir / str(pid) / "environ").write_bytes(
+            b"PATH=/usr/bin\0FACTORY_AGENT=" + agent.encode() + b"\0HOME=/x\0")
+
+    def test_reused_pane_row_is_reaped_pane_untouched_event_written(self):
+        p = self.ok("reap-agent", "zz-rev", agent="zz-director")
+        self.assertIn("marked stopped", p.stdout)
+        r = self.row("zz-rev")
+        self.assertEqual(r["status"], "stopped")
+        self.assertIsNotNone(r["ended"])
+        self.assertIsNone(r["pane_id"])
+        self.assertEqual(self.row("zz-lead")["status"], "live")
+        ev = self.events("reaped-reused-pane", "zz-rev")
+        self.assertEqual(len(ev), 1)
+        d = json.loads(ev[0]["detail"])
+        self.assertEqual((d["pane"], d["pane_host"], d["by"]), ("p3", "zz-lead", "zz-director"))
+        self.assertNotIn(("pane", "close"), self.herdr_verbs())
+        self.assertTrue((self.env.proc_dir / "4300").exists())
+
+    def test_dry_run_changes_nothing(self):
+        p = self.ok("reap-agent", "zz-rev", "--dry-run", agent="zz-director")
+        self.assertIn("DRY RUN", p.stdout)
+        self.assertEqual(self.row("zz-rev")["status"], "live")
+        self.assertEqual(self.events("reaped-reused-pane", "zz-rev"), [])
+
+    def assert_refused(self, code, *args, **kw):
+        p = self.refused(code, "reap-agent", "zz-rev", *args, agent=kw.pop("agent", "zz-director"))
+        self.assertEqual(self.row("zz-rev")["status"], "live")
+        self.assertEqual(self.events("reaped-reused-pane", "zz-rev"), [])
+        return p
+
+    def test_agent_with_live_process_is_refused(self):
+        self.env.fake_claude(4301, argv=("claude", "--resume", "other-sid"))
+        self.set_environ(4301, "zz-rev")
+        p = self.assert_refused(2)
+        self.assertIn("4301", p.stderr)
+
+    def test_agent_still_listed_by_host_is_refused(self):
+        self.herdr_agents(["zz-rev", "p3"], ["zz-lead", "p4"])
+        self.assertIn("still listed", self.assert_refused(2).stderr)
+
+    def test_pane_without_another_agent_is_refused(self):
+        self.herdr_agents(["zz-coder", "p1"])
+        self.assertIn("does not host a different registered agent", self.assert_refused(2).stderr)
+
+    def test_pane_hosting_unregistered_name_is_refused(self):
+        self.herdr_agents(["zz-ghost", "p3"])
+        self.assert_refused(2)
+
+    def test_unreadable_environ_of_session_claude_fails_closed(self):
+        (self.env.proc_dir / "4300" / "environ").unlink()
+        (self.env.proc_dir / "4300" / "environ").mkdir()  # reading a directory raises OSError
+        self.assertIn("cannot read", self.assert_refused(2).stderr)
+
+    def test_worker_caller_is_refused(self):
+        self.assert_refused(3, agent="zz-coder")
+
+    def test_lead_caller_is_refused(self):
+        self.assert_refused(3, agent="zz-lead")
+
+    def test_row_without_session_id_fails_closed(self):
+        self.env.sql("UPDATE agents SET session_id=NULL WHERE name='zz-rev'")
+        self.assertIn("no session id", self.assert_refused(2).stderr)
+
+    def test_row_without_pane_id_is_refused(self):
+        self.env.sql("UPDATE agents SET pane_id=NULL WHERE name='zz-rev'")
+        self.assertIn("no pane id", self.assert_refused(2).stderr)
+
+    def test_unknown_agent_is_refused(self):
+        self.refused(2, "reap-agent", "zz-nobody", agent="zz-director")
+
+    def test_owner_can_reap_and_event_carries_evidence(self):
+        self.ok("reap-agent", "zz-rev")
+        self.assertEqual(self.row("zz-rev")["status"], "stopped")
+        d = json.loads(self.events("reaped-reused-pane", "zz-rev")[0]["detail"])
+        self.assertEqual((d["pane_host_status"], d["session_id"], d["was"]), ("live", self.REV_SID, "live"))
+
+    def test_non_live_row_is_refused(self):
+        self.env.sql("UPDATE agents SET status='stopped' WHERE name='zz-rev'")
+        self.refused(2, "reap-agent", "zz-rev", agent="zz-director")
+
+
 if __name__ == "__main__":
     unittest.main()

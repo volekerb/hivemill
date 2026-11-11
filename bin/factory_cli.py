@@ -879,10 +879,36 @@ DEAD_SOCKET = "/proc/nonexistent/worker-no-herdr.sock"
 _WORKER = {}
 
 
+_PROC_IGNORED = []
+
+
+def proc_root():
+    """Where the role/identity checks read processes: /proc, or $FACTORY_PROC_DIR (a fake /proc for tests) ONLY when
+    FACTORY_HOME is not a live home. On a live home a set $FACTORY_PROC_DIR is ignored (a worker could forge an HQ
+    ancestry with it) and one proc-dir-ignored event is recorded per process so the attempt is visible."""
+    fake = os.environ.get("FACTORY_PROC_DIR")
+    if not fake:
+        return Path("/proc")
+    if not home_is_live():
+        return Path(fake)
+    if not _PROC_IGNORED:
+        _PROC_IGNORED.append(fake)
+        who = os.environ.get("FACTORY_AGENT") or "unknown"
+        try:
+            con = db()
+            try:
+                event_as(con, who, "agent", who, "proc-dir-ignored", {"FACTORY_PROC_DIR": fake})
+            finally:
+                con.close()
+        except (sqlite3.Error, OSError) as e:
+            print(f"factory: ignoring FACTORY_PROC_DIR on the live home; event not recorded: {e}", file=sys.stderr)
+    return Path("/proc")
+
+
 def _ancestry_worker():
     """Worker role from the process tree (env cannot spoof it): the first claude ancestor's --settings file.
     A claude without --settings (the flagless live HQ/leads) is not a worker. $FACTORY_PROC_DIR = fake /proc."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
 
     def ppid_of(pid):
         try:
@@ -913,6 +939,82 @@ def _ancestry_worker():
     return None
 
 
+def _caller_claude_sessions():
+    """Session ids named by the caller's first claude ancestor (None when there is none or /proc is unreadable)."""
+    root = proc_root()
+    pid = os.getpid()
+    if not (root / str(pid) / "stat").exists():
+        pid = os.getppid()
+    for _ in range(64):
+        try:
+            argv = [x.decode(errors="replace") for x in (root / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
+            stat = (root / str(pid) / "stat").read_text(errors="replace")
+            ppid = int(stat[stat.rindex(")") + 1:].split()[1])
+        except (OSError, ValueError, IndexError):
+            return None
+        if any(os.path.basename(x) == "claude" for x in argv[:3]):
+            return _argv_sessions(argv)
+        pid = ppid
+        if pid <= 1:
+            return None
+    return None
+
+
+def _pane_row_stale(con, name, claimed):
+    """T-1292: True only when a live worker row provably no longer owns its pane. All must hold, any doubt = False
+    (fail closed): the worker row is a claude-runtime row with a session id; NO claude process runs that session;
+    and the caller's own claude ancestor runs the session recorded for the HQ agent it claims (`claimed`). The last
+    condition is what a forging worker cannot meet: its ancestor runs its own session, never the lead's. So a worker
+    whose stored session id drifted, or a cursor worker, is still refused."""
+    try:
+        r = con.execute("SELECT session_id, spawn_args FROM agents WHERE name=?", (name,)).fetchone()
+        c = con.execute("SELECT session_id FROM agents WHERE name=?", (claimed,)).fetchone()
+    except sqlite3.Error:
+        return False
+    sid = r["session_id"] if r else None
+    csid = c["session_id"] if c else None
+    procs = _scan_claude()
+    if not sid or not csid or procs is None or _agent_runtime(r) != "claude":
+        return False
+    if csid not in (_caller_claude_sessions() or []):
+        return False
+    if sid == csid:  # the incident: the row's session was overwritten with the HQ agent's own (see _pane_host)
+        return True
+    return not claude_procs(sid, {p: v[0] for p, v in procs.items()})
+
+
+_PANE_FOREIGN = object()
+
+
+def _pane_host(con, by_name, by_pane, r):
+    """T-1292: the host entry for agents row `r`: by its name, else by its pane id, but never a pane now held by
+    ANOTHER agent's row (a reused pane id). Otherwise the tick copies that agent's session id onto `r`."""
+    h = by_name.get(r["name"])
+    if h:
+        return h
+    h = by_pane.get(r["pane_id"])
+    other = h.get("name") if h else None
+    if other and other != r["name"]:
+        o = con.execute("SELECT status FROM agents WHERE name=?", (other,)).fetchone()
+        if o:
+            # a live peer holds the pane: `r` is gone from it. A non-live row (exited leftover) holds the host entry:
+            # the pane is not r's to judge, so leave r and the pane alone (never lost, never closed).
+            return None if o["status"] in ("live", "starting", "queued", "stopped") else _PANE_FOREIGN
+    return h
+
+
+def _record_pane_conflict(con, pane, row, fa, fa_role):
+    """T-1292: one event per (pane, stale row, claimed identity) naming both identities."""
+    detail = (f"pane {pane}: stale live row {row['name']} ({row['role']}, no claude process runs its session) "
+              f"ignored; caller is {fa} ({fa_role})")
+    try:
+        if not con.execute("SELECT 1 FROM events WHERE action='identity-conflict' AND entity_id=? AND detail=?",
+                           (row["name"], detail)).fetchone():
+            event_as(con, f"pane:{pane}", "agent", row["name"], "identity-conflict", detail)
+    except sqlite3.Error:
+        pass
+
+
 def _detect_worker():
     role = _ancestry_worker()
     if role:
@@ -934,6 +1036,9 @@ def _detect_worker():
                 if r["role"] in WORKER_ROLES:
                     fa = os.environ.get("FACTORY_AGENT") or ""
                     fr = con.execute("SELECT role FROM agents WHERE name=?", (fa,)).fetchone() if fa else None
+                    if fr and fr["role"] not in WORKER_ROLES and _pane_row_stale(con, r["name"], fa):
+                        _record_pane_conflict(con, pane, r, fa, fr["role"])
+                        continue
                     if fa and (fr["role"] if fr else "unknown") not in WORKER_ROLES:  # claims a non-worker identity
                         try:
                             event_as(con, f"pane:{pane}", "agent", r["name"], "identity-spoof",
@@ -1655,7 +1760,7 @@ def export_in_shell(pane, env, cwd):
 
 def _scan_claude():
     """{pid: (argv, ppid)} of every claude process under the proc dir; None when it is unreadable."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         entries = list(root.iterdir())
     except OSError:
@@ -1718,7 +1823,7 @@ def _is_cursor_agent_argv(argv):
 
 def _scan_host_agent_procs():
     """{pid: (argv, ppid)} of every claude and cursor-agent process; None when the proc dir is unreadable."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         entries = list(root.iterdir())
     except OSError:
@@ -1886,7 +1991,7 @@ def notify_flagless(con, found):
 
 def _proc_ppid(pid):
     """Parent pid of any process under the proc dir (not only claude); None when unreadable."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         stat = (root / str(pid) / "stat").read_text(errors="replace")
         return int(stat[stat.rindex(")") + 1:].split()[1])
@@ -1908,7 +2013,7 @@ def _is_claude_cmd(argv):
 
 def _userns_link(pid):
     """readlink of <proc>/<pid>/ns/user, None when unreadable. $FACTORY_PROC_DIR = fake /proc."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         return os.readlink(root / str(pid) / "ns" / "user")
     except OSError:
@@ -1917,7 +2022,7 @@ def _userns_link(pid):
 
 def _proc_start(pid):
     """Start time (clock ticks since boot, field 22 of <proc>/<pid>/stat), None when unreadable."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         stat = (root / str(pid) / "stat").read_text(errors="replace")
         return stat[stat.rindex(")") + 1:].split()[19]
@@ -3400,12 +3505,13 @@ def check_sandbox_required_role(role):
         die(f"--sandbox-required: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
 
 
-def task_sandbox_required(con, task):
-    """True when the task carries the sandbox_required flag (False when it does not exist)."""
+def task_sandbox_required(con, task, role=None):
+    """True when the task carries the sandbox_required flag (False when it does not exist). With `role` (T-1291) only
+    for the task's own role: a reviewer/qa/judge/cleaner spawned on a sandbox_required coder task is not forced."""
     if not task:
         return False
-    r = con.execute("SELECT sandbox_required FROM tasks WHERE id=?", (task,)).fetchone()
-    return bool(r and r["sandbox_required"])
+    r = con.execute("SELECT sandbox_required, role FROM tasks WHERE id=?", (task,)).fetchone()
+    return bool(r and r["sandbox_required"] and (role is None or r["role"] == role))
 
 
 def task_note_refuse_id(a):
@@ -4656,7 +4762,10 @@ def stale_behind_ok(con, owner_repo):
     """G-022 stale_policy: True when a clean BEHIND head may be merged/spawned on without a refresh. Needs config
     stale_policy=behind_ok (default; `factory config stale_policy strict` is the rollback) AND GitHub's branch
     protection of main reading required_status_checks.strict == false, read live via `gh api` (cached STRICT_TTL_S).
-    strict true, no protection, or any read failure -> False (behave as strict)."""
+    When classic protection is missing (HTTP 404), the repository rulesets for main are read instead: behind_ok applies
+    only when that call succeeds and no required_status_checks rule has
+    strict_required_status_checks_policy == true. strict true, no protection/ruleset read, or any other read failure ->
+    False (behave as strict)."""
     if (cfg(con, "stale_policy") or "strict").strip().lower() != "behind_ok":
         return False
     key, t = "stale_strict:" + owner_repo, time.time()
@@ -4673,11 +4782,32 @@ def stale_behind_ok(con, owner_repo):
     except (OSError, subprocess.SubprocessError):
         return False
     out = p.stdout.strip()
-    if p.returncode != 0 or out not in ("true", "false"):
-        return False  # unreadable or not required at all: cannot confirm strict=false
+    if p.returncode == 0 and out in ("true", "false"):
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, json.dumps({"at": t, "strict": out == "true"})))
+        return out == "false"
+    err = (p.stderr or "") + (p.stdout or "")
+    if not (p.returncode != 0 and "Branch not protected" in err):
+        return False  # unreadable classic protection: cannot confirm strict=false
+    try:
+        r = subprocess.run(["gh", "api", "--paginate", f"repos/{owner_repo}/rules/branches/main"],
+                           capture_output=True, text=True, timeout=GH_API_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if r.returncode != 0:
+        return False
+    try:
+        rules = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(rules, list):
+        return False
+    strict = any(rule.get("type") == "required_status_checks"
+                 and (rule.get("parameters") or {}).get("strict_required_status_checks_policy") is True
+                 for rule in rules)
     con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                (key, json.dumps({"at": t, "strict": out == "true"})))
-    return out == "false"
+                (key, json.dumps({"at": t, "strict": strict})))
+    return not strict
 
 
 def behind_ok_blocker(repo, sha, main_sha):
@@ -9286,7 +9416,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if not release_stale_pane(con, name):  # name reuse after `done` but before the tick reaped the old pane
         die(f"{name}: its old pane {existing['pane_id']} could not be confirmed closed; not reusing the name. The row keeps "
             "the pane id (the exited-pane reaper retries it); retry the spawn later.")
-    if role in workerbox.SANDBOXABLE and task_sandbox_required(con, task):
+    if role in workerbox.SANDBOXABLE and task_sandbox_required(con, task, role):
         sandbox_optin = True  # a sandbox_required task never starts unsandboxed, whoever spawns it (queue and relaunch keep it)
     args = {"role": role, "goal": goal, "team": team, "task": task, "name": name, "cwd": cwd,
             "prompt": prompt, "model": model, "resume": resume, "fresh": fresh, "org": org}
@@ -10186,6 +10316,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if evaluator:
         env.update(env_extra)  # validated: FACTORY_HOME is the trial's temp home, never the live one
     sandboxed = sandbox_wanted(con, role, optin)
+    own_wt = (con.execute("SELECT worktree FROM tasks WHERE id=?", (task,)).fetchone() or {"worktree": None})["worktree"] if task else None
+    if (not sandboxed and own_wt and role in ("coder", "qa", "reviewer")
+            and os.path.realpath(str(cwd)) == os.path.realpath(own_wt)
+            and os.path.realpath(own_wt).startswith(os.path.realpath(str(WORKTREES)) + os.sep)):
+        trust_task_clone(con, task, cwd)  # T-1328: a clone made for a sandbox_required task skipped T-1220; idempotent
     if runtime != "claude":
         if evaluator:
             die(f"runtime {runtime}: evaluator/skilleval stays on Claude", 3)
@@ -10508,7 +10643,7 @@ def cmd_spawn(a):
             event(con, "task", a.task, "spawn-bounced", f"{a.role}: {why}")
             con.commit()
             die(why, 2)
-        if a.role in workerbox.SANDBOXABLE and not a.sandbox and task_sandbox_required(con, a.task):
+        if a.role in workerbox.SANDBOXABLE and not a.sandbox and task_sandbox_required(con, a.task, a.role):
             event(con, "task", a.task, "sandbox-required-refused", f"{a.role} {a.name or a.role}")
             con.commit()
             die(f"{a.task} is sandbox_required: rerun with --sandbox (factory spawn {a.role} ... --task {a.task} --sandbox)", 3)
@@ -11642,6 +11777,98 @@ def cmd_stop(a):
     # b/c. interrupt the turn, wait for it to settle, then nudge to read the order
     esc_wait_nudge(con, name, nudge, "STOP order")
     print(f"If {name} is still live after stop_timeout_s={timeout}s the tick closes its pane (hard fallback).")
+
+
+def _agent_procs_alive(name, sid):
+    """T-1293: (alive_pids, unknown_pids) for agent `name`: processes whose own FACTORY_AGENT is `name`, plus claude
+    processes running its session id whose environ cannot be read (unknown = cannot be cleared, so a refusal).
+    A claude that runs the session but names ANOTHER agent (a reused session id) is not `name`'s. None when /proc
+    is unreadable."""
+    root = proc_root()
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return None
+    alive, unknown = [], []
+    for d in entries:
+        if not d.name.isdigit():
+            continue
+        try:
+            env = (d / "environ").read_bytes()
+        except OSError:
+            env = None
+        if env is not None:
+            if f"FACTORY_AGENT={name}".encode() in env.split(b"\0"):
+                alive.append(int(d.name))
+            continue
+        try:
+            argv = [x.decode(errors="replace") for x in (d / "cmdline").read_bytes().split(b"\0") if x]
+        except OSError:
+            continue
+        if sid and any(os.path.basename(x) == "claude" for x in argv[:3]) and sid in _argv_sessions(argv):
+            unknown.append(int(d.name))
+    return alive, unknown
+
+
+def cmd_reap_agent(a):
+    """director/owner: mark a dead agent row stopped when its pane id was reused (T-1293). Only the DB row changes:
+    never a pane close, never a signal. Every proof below must hold; any doubt refuses."""
+    refuse_worker("reap-agent")
+    con = db()
+    require_role(con, "director")
+    r = con.execute("SELECT * FROM agents WHERE name=?", (a.agent,)).fetchone()
+    if not r:
+        die(f"unknown agent {a.agent}", 2)
+    if r["status"] not in ("live", "starting"):
+        die(f"{a.agent} is '{r['status']}', not live: nothing to reap", 2)
+    pane = r["pane_id"]
+    if not pane:
+        die(f"{a.agent} has no pane id: nothing proves its pane was reused; use factory stop", 2)
+    agents = herdr_agents()
+    if agents is None:
+        die("the pane server is unreachable: cannot see which agent hosts the pane; retry later", 2)
+    by_name, by_pane = _agents_index(agents)
+    if a.agent in by_name:
+        die(f"{a.agent} is still listed by the pane server (pane {by_name[a.agent].get('pane_id')}): it is alive, "
+            "not reaped; use factory stop", 2)
+    host = (by_pane.get(pane) or {}).get("name")
+    hrow = con.execute("SELECT name, status FROM agents WHERE name=?", (host,)).fetchone() if host else None
+    if not host or host == a.agent or not hrow:
+        die(f"pane {pane} does not host a different registered agent (host: {host or 'none'}): no proof the pane "
+            "was reused; use factory stop", 2)
+    if not r["session_id"]:
+        die(f"{a.agent} has no session id: cannot tell which claude process could be its own; use factory stop", 2)
+    procs = _agent_procs_alive(a.agent, r["session_id"])
+    if procs is None:
+        die("/proc is unreadable: cannot prove no process of the agent is alive", 2)
+    alive, unknown = procs
+    if alive:
+        die(f"{a.agent} has a live process with FACTORY_AGENT={a.agent} (pids {', '.join(map(str, alive))}): "
+            "it is alive; use factory stop", 2)
+    if unknown:
+        die(f"cannot read the environment of claude pids {', '.join(map(str, unknown))} running session "
+            f"{r['session_id']}: cannot prove they are not {a.agent}'s", 2)
+    ev = {"by": actor(), "pane": pane, "pane_host": host, "pane_host_status": hrow["status"],
+          "session_id": r["session_id"], "was": r["status"], "procs_alive": 0}
+    if a.dry_run:
+        print(f"DRY RUN: would mark {a.agent} stopped: pane {pane} hosts {host}, no process runs as {a.agent}; "
+              "no pane or process is touched")
+        return
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        if con.execute("UPDATE agents SET status='stopped', ended=coalesce(ended,?), pane_id=NULL "
+                       "WHERE name=? AND status IN ('live','starting') AND pane_id=?",
+                       (now(), a.agent, pane)).rowcount != 1:
+            con.execute("ROLLBACK")
+            die(f"{a.agent} changed meanwhile: nothing reaped", 2)
+        event(con, "agent", a.agent, "reaped-reused-pane", ev)
+        con.execute("COMMIT")
+    except BaseException:
+        if con.in_transaction:
+            con.execute("ROLLBACK")
+        raise
+    print(f"{a.agent} marked stopped: pane {pane} hosts {host}, no process runs as {a.agent} "
+          "(event reaped-reused-pane; pane and processes untouched)")
 
 
 def cmd_unblock(a):
@@ -14745,7 +14972,14 @@ def cmd_tick(a, locked=False):
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
         if hc_back and not _row_hosted_on_hc(r):
             continue
-        h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
+        h = _pane_host(con, by_name, by_pane, r)
+        if h is _PANE_FOREIGN and r["status"] == "done":
+            h = None  # the done path closes by host NAME only, so another row's pane is never touched
+        if h is _PANE_FOREIGN:
+            if not con.execute("SELECT 1 FROM events WHERE action='pane-foreign-skip' AND entity_id=? AND detail=?",
+                               (r["name"], str(r["pane_id"]))).fetchone():
+                event(con, "agent", r["name"], "pane-foreign-skip", str(r["pane_id"]))
+            continue
         if r["status"] == "done":
             if hc_back:
                 if r["name"] in by_name:
@@ -15946,7 +16180,7 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             die(f"pane {pane} runs a process that is not a registered agent; refusing to touch it", 3)
     else:
         pane = None
-    optin = optin_of(r) or (r["role"] in workerbox.SANDBOXABLE and task_sandbox_required(con, r["task_id"]))
+    optin = optin_of(r) or (r["role"] in workerbox.SANDBOXABLE and task_sandbox_required(con, r["task_id"], r["role"]))
     if sandbox_wanted(con, r["role"], optin):  # refuse before the old pane is closed: a refused restart must not kill a running agent
         bad = sandbox_preflight(r["role"], r["cwd"], r["name"], con) if r["cwd"] else (
             "cwd", "the agent row has no recorded cwd; spawn it again instead of relaunching")
@@ -18442,6 +18676,9 @@ def main():
     x.add_argument("agent"); x.add_argument("--reason")
     x.add_argument("--now", action="store_true", help="skip the Esc/wait/nudge and close the pane now")
     x.add_argument("--dry-run", action="store_true"); x.set_defaults(fn=cmd_stop)
+    x = sp.add_parser("reap-agent", help="director/owner: mark a dead agent row stopped when its pane id is now held by "
+                                         "another registered agent (DB only; no pane or process is touched)")
+    x.add_argument("agent"); x.add_argument("--dry-run", action="store_true"); x.set_defaults(fn=cmd_reap_agent)
     x = sp.add_parser("src", help="export a ref into your scratchpad with the caller's git config, filters and attributes "
                                   "switched off (QA, verifiers)",
                       description="factory src <ref> <dest> [-- <paths>...]: git archive <ref> | tar -x into <dest> with a scrubbed "

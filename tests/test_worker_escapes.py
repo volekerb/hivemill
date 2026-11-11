@@ -34,7 +34,8 @@ class WorkerEscapeTests(WorkerGateBase):
     def in_home(self, home, argv, path):
         with self.env.load_factory() as f:
             f.HOME = home
-            with mock.patch.dict(os.environ, {"FACTORY_AGENT": "zz-test-director", "PATH": path}):
+            with mock.patch.dict(os.environ, {"FACTORY_AGENT": "zz-test-director", "PATH": path,
+                                                  "FACTORY_ROLE": "coder"}):  # live home ignores the fake /proc (T-1322)
                 try:
                     return None, f.worker_stub_exempt(), f.herdr(*argv)
                 except SystemExit as x:
@@ -57,7 +58,7 @@ class WorkerEscapeTests(WorkerGateBase):
         self.assertEqual(self.herdr_argvs(), [["agent", "start", "x"]])
         # refuse_worker uses the same predicate: the live home refuses, the temp home does not
         for home, want in ((LIVE, 3), (self.env.home_dir, None)):
-            with self.env.load_factory() as f, mock.patch.dict(os.environ, {"PATH": path}):
+            with self.env.load_factory() as f, mock.patch.dict(os.environ, {"PATH": path, "FACTORY_ROLE": "coder"}):
                 f.HOME = home
                 try:
                     f.refuse_worker("up")
@@ -154,6 +155,57 @@ class WorkerEscapeTests(WorkerGateBase):
             with self.subTest(role=role):
                 self.refused(3, "team", "new", "--goal", "G-001", "--scope", "x", agent="zz-test-director",
                              extra_env={"FACTORY_ROLE": role})
+
+
+class ProcDirLiveHomeTests(WorkerGateBase):
+    """T-1322: $FACTORY_PROC_DIR is honoured only off the live home; on it /proc is read and the attempt is recorded."""
+
+    def fake_proc(self, name, argv):
+        d = self.env.home / name
+        (d / str(os.getpid())).mkdir(parents=True)
+        (d / str(os.getpid()) / "cmdline").write_bytes(b"\0".join(x.encode() for x in argv) + b"\0")
+        (d / str(os.getpid()) / "stat").write_text(f"{os.getpid()} (x) S 1 1 1 0 -1 0\n")
+        return d
+
+    def proc_events(self):
+        return self.env.sql("SELECT * FROM events WHERE action='proc-dir-ignored'")
+
+    def test_temp_home_honours_fake_proc_dir(self):
+        with self.env.load_factory() as f:
+            with mock.patch.dict(os.environ, {"FACTORY_PROC_DIR": "/some/fake"}):
+                self.assertFalse(f.home_is_live())
+                self.assertEqual(f.proc_root(), Path("/some/fake"))
+        self.assertEqual(self.proc_events(), [])
+
+    def test_live_home_ignores_fake_proc_dir_and_records_one_event(self):
+        with self.env.load_factory() as f:
+            f.LIVE_HOMES = f.LIVE_HOMES | {str(self.env.home_dir.resolve())}
+            with mock.patch.dict(os.environ, {"FACTORY_PROC_DIR": "/some/fake", "FACTORY_AGENT": "zz-test-coder"}):
+                self.assertTrue(f.home_is_live())
+                self.assertEqual(f.proc_root(), Path("/proc"))
+                self.assertEqual(f.proc_root(), Path("/proc"))
+            with mock.patch.dict(os.environ, {"FACTORY_PROC_DIR": ""}):
+                self.assertEqual(f.proc_root(), Path("/proc"))
+        ev = self.proc_events()
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(ev[0]["actor"], "zz-test-coder")
+        self.assertIn("/some/fake", ev[0]["detail"])
+
+    def test_live_home_forged_hq_ancestry_still_a_worker(self):
+        real = self.fake_proc("realproc", ["claude", "--settings", WORKER_SETTINGS])
+        forged = self.fake_proc("forged", ["claude", "--resume", "lead-session"])
+        with self.env.load_factory() as f:
+            f.LIVE_HOMES = f.LIVE_HOMES | {str(self.env.home_dir.resolve())}
+            real_path = f.Path
+            f.Path = lambda p, *a: real_path(real if str(p) == "/proc" else p, *a)
+            with mock.patch.dict(os.environ, {"FACTORY_PROC_DIR": str(forged), "FACTORY_AGENT": "zz-test-coder"}):
+                self.assertEqual(f._ancestry_worker(), "coder")
+                with self.assertRaises(SystemExit) as x:
+                    f.refuse_worker("up")
+                self.assertEqual(x.exception.code, 3)
+            f.LIVE_HOMES = set()  # temp home: the forged dir is the one read
+            with mock.patch.dict(os.environ, {"FACTORY_PROC_DIR": str(forged)}):
+                self.assertIsNone(f._ancestry_worker())
 
 
 if __name__ == "__main__":

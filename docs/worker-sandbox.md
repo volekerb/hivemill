@@ -217,6 +217,10 @@ A worker also cannot be assumed to be honest about its own state: the spawn refu
 - Why a flag and not agent names in `sandbox_roles`: names there would turn the role-checked list into a mixed list, and `check_sandbox_roles` and every reader would have to tell roles from names. A flag keeps the decision on the one spawn, recorded in that spawn's own row.
 - Staged rollout: canary with `--sandbox` on a single agent, then `factory config sandbox_roles reviewer` for the role, then `reviewer,qa,coder`. Rollback of a canary: stop the agent and spawn it again without the flag (a running agent keeps its sandbox until then).
 
+### Per-task flag (`sandbox_required`)
+
+A lead, director or the owner can set `sandbox_required=1` on a task (`factory task update T --sandbox-required 1`): spawn refuses it without `--sandbox`, and the tick, the queue and `relaunch` force the sandbox. It applies to the task's own role only (`tasks.role`): the reviewer, qa, judge or cleaner spawned on a `sandbox_required` coder task follow the normal `sandbox_roles` and `--sandbox` rules (T-1291).
+
 ## Worker GitHub credential (R-c)
 
 Owner rule R-c: a worker's `git push` and `gh` calls use a worker token file, never the owner's `~/.config/gh/hosts.yml` or the owner's git credential helper. The sandbox (sections 1-2) already does this for sandboxed roles. This section covers the same credential for roles that run **unsandboxed**, and the config that selects the token for both. Code: `scout/ghcred.py` (the scoped git credential helper and the `gh` shim) and `bin/factory` (`gh_cred_*`, wired into the spawn). It is off by default.
