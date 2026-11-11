@@ -10,6 +10,7 @@ import time
 import unittest
 
 from harness import FACTORY, PR_URL, REPO, FactoryTestCase, gates_summary
+from test_gate_integration import seed_run
 from test_judge_wait import GH_STUB, GREEN, FAILED, git
 
 # st["run_list"] answers `gh run list` (the main push run check): {"exit": n} fails, {"raw": text} prints text, {"runs": [...]}
@@ -677,6 +678,26 @@ class MechMergeTests(FactoryTestCase):
         self.assertEqual(len(ev), 1)
         self.assertIn("main push run", ev[0])
         self.assertIn("hold", ev[0])
+
+    # -- T-1308: local gate without tests.yml on main ------------------------------------------
+    def test_main_run_skipped_for_local_gate_without_tests_yml(self):
+        main = git(self.wt, "rev-parse", "refs/remotes/origin/main")
+        self.env.sql("UPDATE projects SET gate_cmd='true', gh_repo='zz-test/repo' WHERE id='zz-test-proj'")
+        seed_run(self.env, self.x, main=main)
+        self.main_run(run_list={"exit": 1})
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("main-run check skipped: project zz-test-proj has no CI workflow", p.stderr)
+        self.assertEqual(self.events("mech-blocked"), [])
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.status(), "done")
+
+    def test_main_run_github_project_still_held_without_workflow(self):
+        self.env.sql("UPDATE projects SET gh_repo='zz-test/repo', gate_cmd='' WHERE id='zz-test-proj'")
+        self.main_run(run_list={"exit": 1})
+        self.assert_held(self.mech("on"), "cannot read main push run")
+        blocked = "; ".join(self.events("mech-blocked"))
+        self.assertNotIn("main-run check skipped", blocked)
 
 
 if __name__ == "__main__":

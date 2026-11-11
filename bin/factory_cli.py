@@ -6094,18 +6094,43 @@ def mech_tier(con, t, sha, git_repo):
     return top, "; ".join(why) or "no sensitive path or def"
 
 
+def _pr_repo_slug(pr_url):
+    m = re.match(r"https?://[^/]+/([^/]+/[^/]+)/pull/", pr_url or "")
+    return _repo_slug(m.group(1)) if m else None
+
+
+def mech_main_run_skip_project(con, slug, task_id=None):
+    """Project id when this slug has no tests.yml on main to wait for: local gate (gate_cmd) and no per-project required_checks.
+    GitHub-mode projects return None and keep the full main-run check."""
+    slug = (_repo_slug(slug) or slug or "").lower()
+    r = con.execute("SELECT id, gate_cmd, required_checks FROM projects WHERE lower(trim(gh_repo))=?", (slug,)).fetchone()
+    if not r and task_id:
+        t = con.execute("SELECT t.pr_url, p.id, p.gate_cmd, p.required_checks FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                        "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task_id,)).fetchone()
+        if t and _pr_repo_slug(t["pr_url"]) == slug:
+            r = t
+    if not r or not (r["gate_cmd"] or "").strip() or (r["required_checks"] or "").strip():
+        return None
+    return r["id"]
+
+
 def mech_main_run_refusal(con, slugs, git_repo, task_id=None):
     """Hold reason (str) unless the latest tests.yml push run on main of every repo in `slugs` is completed+success for the
     current origin/main head of `git_repo`; None lets the mechanical merger go on. Fail closed: no run, a gh failure, a
     timeout or unreadable JSON hold. A run whose headSha is not the current main always holds (including the revert/fix task).
     The revert/fix task of red_main:<slug> (`task_id`) may proceed only on a failed run for the current main head (it turns
-    main green) but still waits for a run in progress. Read-only: never records red main (red_main_check owns that)."""
+    main green) but still waits for a run in progress. Read-only: never records red main (red_main_check owns that).
+    Local-gate projects (gate_cmd, no project required_checks) skip the check for their slug."""
     rc, head, err = _git_rc(["rev-parse", "--verify", "origin/main"], repo=git_repo)
     if rc != 0 or not head:
         return f"cannot read main push run: origin/main unknown ({err or 'no output'}); hold"
     if not slugs:
         return "cannot read main push run: no repo slug; hold"
     for slug in slugs:
+        skip = mech_main_run_skip_project(con, slug, task_id)
+        if skip:
+            print(f"main-run check skipped: project {skip} has no CI workflow", file=sys.stderr)
+            continue
         try:
             p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
                                 "--limit", "1", "--json", "databaseId,status,conclusion,headSha,url"],
