@@ -15,7 +15,7 @@ You build one task, in your own git worktree (your cwd, branch `factory/<task>`)
 9. Wait for CI in the background (skill `coder-skills:ci-wait`) and fix red checks you caused. Commit and push first (stuck-and-finish skill).
    `factory done "<PR url, what changed, test evidence, anything the reviewer should look at>"`
 
-Wrong spec or resource problem: stop, tell your lead (stuck-and-finish skill).
+Wrong spec/resource problem: stop, tell your lead (stuck-and-finish skill).
 
 ## Quality bar
 - C1 Tests assert outcomes (output, exit code, DB rows, files), not internals. Mock only at the process boundary: network, gh and the herdr stub (tests/stubs), clock, filesystem root.
@@ -23,14 +23,15 @@ Wrong spec or resource problem: stop, tell your lead (stuck-and-finish skill).
 - C3 Every new or changed guard (hook rule, deny rule, CLI refusal, CI check) ships a test it must reject and one it must accept, run through the real entry point (hook as invoked, CLI as a subprocess).
 - C4 For a bug fix or new guard, run the new test once with the fix removed and see it fail. Say so in the PR body.
 - C5 0 tests, or fewer than main (merge-tree count), is a failure even with exit code 0.
-- C6 Tests never touch the live home, ~/.claude or machine-local paths. Use a temp FACTORY_HOME and temp dirs.
-- C7 Catch specific exceptions. A check that cannot decide fails or reports unknown, never success. No `|| true` or `2>/dev/null` hiding a failure. Error messages say what to do next.
-- C8 Out-of-scope problems (failing test, wrong doc, gap): do not fix them in this PR. List them as `follow-ups:` lines in your `factory done` summary. Never walk away silently.
+- C6 Tests never touch the live home, ~/.claude or machine-local paths; use a temp FACTORY_HOME and dirs.
+- C7 Catch specific exceptions. A check that cannot decide fails or reports unknown, never success. No `|| true` or `2>/dev/null` hiding a failure. Errors say what to do next.
+- C8 Out-of-scope problems (failing test, wrong doc, gap): do not fix them in this PR. List them as `follow-ups:` lines in your `factory done` summary. Never skip silently.
 - C9 The worker guard blocks command text containing a dollar-paren sequence, even inside quotes. Pass long text via a file or stdin, not inline: a new PR goes through step 5 (`factory pr create --body -`, quoted heredoc); `--body-file` applies to `gh pr edit`, `-F <file>` to commits.
-- C10 Local fast, CI full (docs/testing.md): lint, `python3 ci/affected.py --base origin/main --quick --run` (quote it; `FULL needed: rely on CI` = stop), one file as `python3 -m unittest discover -s tests -p test_X.py`. Never a full suite (guard refuses). CI: skill `coder-skills:ci-wait`. No GIT_* env (L-050). At load1 >= the load cap (gate_max_load_ratio x CPUs; exit 5 from the tool means the same) skip the local run and use the PR CI result instead (L-052/M16816): not a FAIL, not a blocker.
+- C10 Local fast, CI full (docs/testing.md): lint, `python3 ci/affected.py --base origin/main --quick --run` (quote it; `FULL needed: rely on CI` = stop), one file as `python3 -m unittest discover -s tests -p test_X.py`. Never a full suite (guard refuses). No GIT_* env (L-050). At load1 >= the load cap (gate_max_load_ratio x CPUs; tool exit 5 too) skip the local run and use the PR CI result instead (L-052/M16816): not a FAIL, not a blocker.
 - K1 No machine-level changes (sudo, installs, dotfiles, global tool versions); full text: skill `coder-skills:stuck-and-finish`.
 - K2 External repositories: never open issues or PRs, post comments or reviews, or add reactions in a GitHub repo outside this project's own, unless the owner named both that repo and that action. Reading public repos is fine.
-- Language: follow docs/adr/0001-language-policy.md (Go primary, Rust only by exception ADR, Python for CLI/tick/serve/scout/glue); Go work follows the coder-skills:go-change skill.
+- No new .py files (G-041 SC4): add Python tests to an existing tests/test_*.py; new code is Go.
+- Language: docs/adr/0001-language-policy.md (Go primary, Rust only by exception ADR, Python for CLI/tick/serve/scout/glue); Go work follows the coder-skills:go-change skill.
 
 ## Standing rules (lessons)
 - Run `git fetch origin && git merge origin/main` and rerun the tests right before opening or updating the PR. (M605)
