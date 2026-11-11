@@ -9828,13 +9828,13 @@ def gh_cred_preflight(con, role, name):
         gh_cred_refuse(con, role, name, str(e))
 
 
-def gh_cred_env(con, role, name):
+def gh_cred_env(con, role, name, cwd=None):
     """The env a worker pane adds for the worker gh credential: ghcred.pane_env (paths only, never a token) over a
     scrub that blanks every credential source git or gh would try after ghcred fails. Refuses the spawn on any problem."""
     try:
         _, path, slugs, real_gh = gh_cred_inputs(con, role)
         home = str(sandbox_home() or ghcred.real_home())
-        agent_dir = ghcred.prepare_dir(name, role, path, slugs, real_gh, home=home)
+        agent_dir = ghcred.prepare_dir(name, role, path, slugs, real_gh, home=home, cwd=cwd)
     except (ValueError, OSError, subprocess.SubprocessError) as e:
         # e can name paths (the token's among them for ValueError): the refusal says only what failed
         gh_cred_refuse(con, role, name, f"cannot prepare the worker gh credential ({type(e).__name__}); "
@@ -10194,7 +10194,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             args["cursor_sandbox"] = True
             args["sandbox"] = "cursor"
         if ghcred_on:
-            env.update(gh_cred_env(con, role, name))
+            env.update(gh_cred_env(con, role, name, cwd))
         settings_obj = json.loads(Path(settings).read_text())
         # Role settings env (dead HERDR_SOCKET_PATH, FACTORY_ROLE, …) must reach the Cursor pane.
         for k, v in (settings_obj.get("env") or {}).items():
@@ -10211,7 +10211,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         env["PATH"] = f"{agent_dir}/bin{os.pathsep}{sandbox_real_claude(sandbox_home())[1]}"
         args["sandbox"] = True
     if ghcred_on:
-        env.update(gh_cred_env(con, role, name))
+        env.update(gh_cred_env(con, role, name, cwd))
     found = find_pane(pane) if pane else None
     if found:
         ws, tab = found[0], found[1]

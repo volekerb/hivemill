@@ -325,5 +325,54 @@ class PrepareDirTests(Base):
             ghcred.prepare_dir("a", "coder", str(self.token), [SLUG], "gh", home=str(self.home), root=str(self.root))
 
 
+class IncludeIfIdentityTests(Base):
+    PRIVATE = "a@example.invalid"
+    NOREPLY = "zz-test@example.invalid"
+
+    def setUp(self):
+        super().setUp()
+        inc = self.tmp / "hivemill.gitconfig"
+        inc.write_text(f"[user]\n\temail = {self.NOREPLY}\n")
+        (self.home / ".gitconfig").write_text(
+            f"[user]\n\tname = Owner\n\temail = {self.PRIVATE}\n"
+            f'[includeIf "gitdir:{self.tmp}/factory/"]\n\tpath = {inc}\n')
+        self.repo = self.tmp / "factory" / "worktrees" / "G-1-T-1"
+        self.repo.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+
+    def written(self, d):
+        return (Path(d) / "gitconfig").read_text()
+
+    def test_cwd_in_included_tree_gets_noreply(self):
+        d = self.prepare(cwd=str(self.repo))
+        self.assertIn(self.NOREPLY, self.written(d))
+        self.assertNotIn(self.PRIVATE, self.written(d))
+
+    def test_no_or_bad_cwd_falls_back(self):
+        for cwd in (None, "/", str(self.tmp / "missing")):
+            d = self.prepare(cwd=cwd)
+            self.assertIn(self.PRIVATE, self.written(d), cwd)
+            self.assertNotIn(self.NOREPLY, self.written(d), cwd)
+
+    def test_written_config_has_no_include_or_foreign_helper(self):
+        d = self.prepare(cwd=str(self.repo))
+        out = subprocess.run(["git", "config", "--file", str(Path(d) / "gitconfig"), "--list"],
+                             capture_output=True, text=True, check=True).stdout
+        keys = [ln.split("=", 1)[0] for ln in out.splitlines()]
+        self.assertFalse([k for k in keys if k.startswith("include")], keys)
+        helpers = [ln for ln in out.splitlines() if ".helper=" in ln]
+        self.assertEqual(len(helpers), 1, helpers)
+        self.assertIn("ghcred.py", helpers[0])
+
+    def test_commit_uses_noreply_identity(self):
+        d = self.prepare(cwd=str(self.repo))
+        env = {"PATH": os.environ["PATH"], "HOME": str(self.tmp / "nohome"),
+               "GIT_CONFIG_GLOBAL": str(Path(d) / "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1"}
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "x"], cwd=str(self.repo), env=env, check=True)
+        r = subprocess.run(["git", "log", "-1", "--format=%ae %ce"], cwd=str(self.repo), env=env,
+                           capture_output=True, text=True, check=True)
+        self.assertEqual(r.stdout.split(), [self.NOREPLY, self.NOREPLY])
+
+
 if __name__ == "__main__":
     unittest.main()
