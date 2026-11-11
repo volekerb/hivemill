@@ -957,6 +957,9 @@ def _pane_row_stale(con, name, claimed):
     return not claude_procs(sid, {p: v[0] for p, v in procs.items()})
 
 
+_PANE_FOREIGN = object()
+
+
 def _pane_host(con, by_name, by_pane, r):
     """T-1292: the host entry for agents row `r`: by its name, else by its pane id, but never a pane now held by
     ANOTHER agent's row (a reused pane id). Otherwise the tick copies that agent's session id onto `r`."""
@@ -965,8 +968,12 @@ def _pane_host(con, by_name, by_pane, r):
         return h
     h = by_pane.get(r["pane_id"])
     other = h.get("name") if h else None
-    if other and other != r["name"] and con.execute("SELECT 1 FROM agents WHERE name=?", (other,)).fetchone():
-        return None
+    if other and other != r["name"]:
+        o = con.execute("SELECT status FROM agents WHERE name=?", (other,)).fetchone()
+        if o:
+            # a live peer holds the pane: `r` is gone from it. A non-live row (exited leftover) holds the host entry:
+            # the pane is not r's to judge, so leave r and the pane alone (never lost, never closed).
+            return None if o["status"] in ("live", "starting", "queued", "stopped") else _PANE_FOREIGN
     return h
 
 
@@ -14818,6 +14825,8 @@ def cmd_tick(a, locked=False):
         if hc_back and not _row_hosted_on_hc(r):
             continue
         h = _pane_host(con, by_name, by_pane, r)
+        if h is _PANE_FOREIGN:
+            continue
         if r["status"] == "done":
             if hc_back:
                 if r["name"] in by_name:
