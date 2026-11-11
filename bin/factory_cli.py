@@ -913,18 +913,44 @@ def _ancestry_worker():
     return None
 
 
-def _pane_row_stale(con, name):
-    """T-1292: True only when a live worker row provably no longer owns its pane: the row records a session id, the
-    process table is readable, and NO claude process on the host runs that session. A live worker always has such a
-    process (it cannot hide it), so a worker cannot use this to pass as HQ by forging env. No session id, an
-    unreadable /proc or any doubt = not stale (fail closed)."""
+def _caller_claude_sessions():
+    """Session ids named by the caller's first claude ancestor (None when there is none or /proc is unreadable)."""
+    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    pid = os.getpid()
+    if not (root / str(pid) / "stat").exists():
+        pid = os.getppid()
+    for _ in range(64):
+        try:
+            argv = [x.decode(errors="replace") for x in (root / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
+            stat = (root / str(pid) / "stat").read_text(errors="replace")
+            ppid = int(stat[stat.rindex(")") + 1:].split()[1])
+        except (OSError, ValueError, IndexError):
+            return None
+        if any(os.path.basename(x) == "claude" for x in argv[:3]):
+            return _argv_sessions(argv)
+        pid = ppid
+        if pid <= 1:
+            return None
+    return None
+
+
+def _pane_row_stale(con, name, claimed):
+    """T-1292: True only when a live worker row provably no longer owns its pane. All must hold, any doubt = False
+    (fail closed): the worker row is a claude-runtime row with a session id; NO claude process runs that session;
+    and the caller's own claude ancestor runs the session recorded for the HQ agent it claims (`claimed`). The last
+    condition is what a forging worker cannot meet: its ancestor runs its own session, never the lead's. So a worker
+    whose stored session id drifted, or a cursor worker, is still refused."""
     try:
-        r = con.execute("SELECT session_id FROM agents WHERE name=?", (name,)).fetchone()
+        r = con.execute("SELECT session_id, spawn_args FROM agents WHERE name=?", (name,)).fetchone()
+        c = con.execute("SELECT session_id FROM agents WHERE name=?", (claimed,)).fetchone()
     except sqlite3.Error:
         return False
     sid = r["session_id"] if r else None
+    csid = c["session_id"] if c else None
     procs = _scan_claude()
-    if not sid or procs is None:
+    if not sid or not csid or procs is None or _agent_runtime(r) != "claude":
+        return False
+    if csid not in (_caller_claude_sessions() or []):
         return False
     return not claude_procs(sid, {p: v[0] for p, v in procs.items()})
 
@@ -962,7 +988,7 @@ def _detect_worker():
                 if r["role"] in WORKER_ROLES:
                     fa = os.environ.get("FACTORY_AGENT") or ""
                     fr = con.execute("SELECT role FROM agents WHERE name=?", (fa,)).fetchone() if fa else None
-                    if fr and fr["role"] not in WORKER_ROLES and _pane_row_stale(con, r["name"]):
+                    if fr and fr["role"] not in WORKER_ROLES and _pane_row_stale(con, r["name"], fa):
                         _record_pane_conflict(con, pane, r, fa, fr["role"])
                         continue
                     if fa and (fr["role"] if fr else "unknown") not in WORKER_ROLES:  # claims a non-worker identity
