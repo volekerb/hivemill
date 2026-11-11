@@ -132,10 +132,10 @@ func isNewPython(c Change, read Reader) (bool, error) {
 	}
 	// Head has a python shebang: new unless the source already had one.
 	src := c.Path
-	if c.Status == "R" || c.Status == "C" {
+	if c.Status == "R" {
 		src = c.Old
 	}
-	if c.Status == "A" {
+	if c.Status == "A" || c.Status == "C" { // a copy of a python script is new Python too
 		return true, nil
 	}
 	old, ok, err := read(false, src)
@@ -147,6 +147,11 @@ func isNewPython(c Change, read Reader) (bool, error) {
 
 // Run diffs base...head in repo and returns the violations and the number of changed files.
 func Run(repo, base, head string) ([]Violation, int, error) {
+	for _, rev := range []string{base, head} {
+		if strings.HasPrefix(rev, "-") {
+			return nil, 0, fmt.Errorf("revision %q starts with '-': pass a commit sha", rev)
+		}
+	}
 	out, err := git(repo, "diff", "--name-status", "-z", "-M50%", "-C50%", "--find-copies-harder", base+"..."+head, "--")
 	if err != nil {
 		return nil, 0, err

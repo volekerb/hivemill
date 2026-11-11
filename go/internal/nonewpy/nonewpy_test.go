@@ -146,6 +146,12 @@ func TestRunScenarios(t *testing.T) {
 			gitIn(t, d, "mv", "notes.txt", "notes.py")
 		}, []Violation{{"notes.py", "R"}}},
 		{"copy py blocked", map[string]string{"a.py": body}, func(d string) { write(t, d, "c.py", body) }, []Violation{{"c.py", "C"}}},
+		{"rename keeps shebang script allowed", map[string]string{"tool": "#!/usr/bin/env python3\n" + body}, func(d string) {
+			gitIn(t, d, "mv", "tool", "tool2")
+		}, nil},
+		{"copy of shebang script blocked", map[string]string{"tool": "#!/usr/bin/env python3\n" + body}, func(d string) {
+			write(t, d, "tool2", "#!/usr/bin/env python3\n"+body)
+		}, []Violation{{"tool2", "C"}}},
 		{"uppercase .PY blocked", nil, func(d string) { write(t, d, "X.PY", body) }, []Violation{{"X.PY", "A"}}},
 		{".pyi blocked", nil, func(d string) { write(t, d, "s.pyi", body) }, []Violation{{"s.pyi", "A"}}},
 		{".pyw blocked", nil, func(d string) { write(t, d, "s.pyw", body) }, []Violation{{"s.pyw", "A"}}},
@@ -161,6 +167,12 @@ func TestRunScenarios(t *testing.T) {
 				t.Fatalf("got %+v, want %+v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestRunRejectsOptionLikeRevision(t *testing.T) {
+	if _, _, err := Run(t.TempDir(), "--output=x", "HEAD"); err == nil || !strings.Contains(err.Error(), "starts with '-'") {
+		t.Fatalf("want option-like revision rejected, got %v", err)
 	}
 }
 
