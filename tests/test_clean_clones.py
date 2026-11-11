@@ -1,5 +1,6 @@
 import datetime as dt
 import os
+import subprocess
 import unittest
 
 from harness import FactoryTestCase, git
@@ -117,6 +118,47 @@ class CloneCleanTests(CloneCleanBase):
         git("-c", "user.name=zz", "-c", "user.email=zz@example.invalid", "stash", "push", "-q", cwd=wt)
         p = self.clean()
         self.assertIn("unpushed commits", p.stdout)
+        self.assertTrue(wt.exists())
+
+    def merged_clone_unknown_to_main(self):
+        """A merged clone whose commits the main repo never fetched; the remote branch is deleted (as at merge)."""
+        wt, branch = self.clone_task()
+        sha = git("rev-parse", "HEAD", cwd=wt)
+        git("push", "-q", "origin", "--delete", branch, cwd=wt)
+        miss = subprocess.run(["git", "-C", str(self.repo), "cat-file", "-e", sha], capture_output=True)
+        self.assertNotEqual(miss.returncode, 0, "main repo must lack the clone's objects")
+        return wt, branch
+
+    def commit_in(self, wt, name):
+        (wt / name).write_text("more\n")
+        git("add", name, cwd=wt)
+        git("-c", "user.name=zz", "-c", "user.email=zz@example.invalid", "commit", "-q", "-m", name, cwd=wt)
+
+    def test_clone_merged_objects_missing_in_main_repo_removed(self):
+        wt, _ = self.merged_clone_unknown_to_main()
+        p = self.clean()
+        self.assertNotIn("unpushed commits", p.stdout)
+        self.assertFalse(wt.exists())
+
+    def test_clone_merged_objects_missing_in_main_repo_extra_commit_kept(self):
+        wt, _ = self.merged_clone_unknown_to_main()
+        self.commit_in(wt, "extra")
+        self.assertIn("unpushed commits", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
+    def test_clone_merged_objects_missing_in_main_repo_other_branch_kept(self):
+        wt, branch = self.merged_clone_unknown_to_main()
+        git("checkout", "-q", "-b", "wip", cwd=wt)
+        self.commit_in(wt, "wip-only")
+        git("checkout", "-q", branch, cwd=wt)
+        self.assertIn("unpushed commits", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
+    def test_clone_merged_objects_missing_in_main_repo_stash_kept(self):
+        wt, _ = self.merged_clone_unknown_to_main()
+        (wt / "f1").write_text("stashed\n")
+        git("-c", "user.name=zz", "-c", "user.email=zz@example.invalid", "stash", "push", "-q", cwd=wt)
+        self.assertIn("unpushed commits", self.clean().stdout)
         self.assertTrue(wt.exists())
 
     def test_clone_blocked_live_pane_cwd_inside(self):
