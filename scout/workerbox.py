@@ -267,8 +267,16 @@ def _seed_claude_json(config_dir, cwd):
             os.close(fd)
     if not isinstance(cur, dict) or not isinstance(cur.get("projects", {}), dict):
         cur = json.loads(json.dumps(SEED))
-    elif cwd in cur.get("projects", {}):
-        return
+    else:
+        have = cur["projects"].get(cwd) if "projects" in cur else None
+        if isinstance(have, dict) and have.get("hasTrustDialogAccepted") is True:
+            return
+        # T-1291: an entry that exists without trust (Claude rewrote it, or a pre-existing stub) used to stop the seed, so
+        # the dialog showed: keep its other keys, set the trust flags, touch no other project.
+        if isinstance(have, dict):
+            cur["projects"][cwd] = {**have, **PROJECT_SEED}
+            _atomic_write(config_dir, ".claude.json", (json.dumps(cur, indent=1) + "\n").encode(), 0o600)
+            return
     cur.setdefault("projects", {})[cwd] = dict(PROJECT_SEED)
     _atomic_write(config_dir, ".claude.json", (json.dumps(cur, indent=1) + "\n").encode(), 0o600)
 

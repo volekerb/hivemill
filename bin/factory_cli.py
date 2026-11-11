@@ -3479,12 +3479,13 @@ def check_sandbox_required_role(role):
         die(f"--sandbox-required: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
 
 
-def task_sandbox_required(con, task):
-    """True when the task carries the sandbox_required flag (False when it does not exist)."""
+def task_sandbox_required(con, task, role=None):
+    """True when the task carries the sandbox_required flag (False when it does not exist). With `role` (T-1291) only
+    for the task's own role: a reviewer/qa/judge/cleaner spawned on a sandbox_required coder task is not forced."""
     if not task:
         return False
-    r = con.execute("SELECT sandbox_required FROM tasks WHERE id=?", (task,)).fetchone()
-    return bool(r and r["sandbox_required"])
+    r = con.execute("SELECT sandbox_required, role FROM tasks WHERE id=?", (task,)).fetchone()
+    return bool(r and r["sandbox_required"] and (role is None or r["role"] == role))
 
 
 def task_note_refuse_id(a):
@@ -9389,7 +9390,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if not release_stale_pane(con, name):  # name reuse after `done` but before the tick reaped the old pane
         die(f"{name}: its old pane {existing['pane_id']} could not be confirmed closed; not reusing the name. The row keeps "
             "the pane id (the exited-pane reaper retries it); retry the spawn later.")
-    if role in workerbox.SANDBOXABLE and task_sandbox_required(con, task):
+    if role in workerbox.SANDBOXABLE and task_sandbox_required(con, task, role):
         sandbox_optin = True  # a sandbox_required task never starts unsandboxed, whoever spawns it (queue and relaunch keep it)
     args = {"role": role, "goal": goal, "team": team, "task": task, "name": name, "cwd": cwd,
             "prompt": prompt, "model": model, "resume": resume, "fresh": fresh, "org": org}
@@ -10611,7 +10612,7 @@ def cmd_spawn(a):
             event(con, "task", a.task, "spawn-bounced", f"{a.role}: {why}")
             con.commit()
             die(why, 2)
-        if a.role in workerbox.SANDBOXABLE and not a.sandbox and task_sandbox_required(con, a.task):
+        if a.role in workerbox.SANDBOXABLE and not a.sandbox and task_sandbox_required(con, a.task, a.role):
             event(con, "task", a.task, "sandbox-required-refused", f"{a.role} {a.name or a.role}")
             con.commit()
             die(f"{a.task} is sandbox_required: rerun with --sandbox (factory spawn {a.role} ... --task {a.task} --sandbox)", 3)
@@ -16148,7 +16149,7 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             die(f"pane {pane} runs a process that is not a registered agent; refusing to touch it", 3)
     else:
         pane = None
-    optin = optin_of(r) or (r["role"] in workerbox.SANDBOXABLE and task_sandbox_required(con, r["task_id"]))
+    optin = optin_of(r) or (r["role"] in workerbox.SANDBOXABLE and task_sandbox_required(con, r["task_id"], r["role"]))
     if sandbox_wanted(con, r["role"], optin):  # refuse before the old pane is closed: a refused restart must not kill a running agent
         bad = sandbox_preflight(r["role"], r["cwd"], r["name"], con) if r["cwd"] else (
             "cwd", "the agent row has no recorded cwd; spawn it again instead of relaunching")
