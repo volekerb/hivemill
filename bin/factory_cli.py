@@ -15900,10 +15900,11 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     Callers check permissions first. Exits (die) with 2 when the agent is mid-turn (unless force), 3 when refused."""
     if not r["session_id"]:
         die(f"{r['name']} has no recorded session id; nothing to resume", 3)
+    cursor_ws = agent_cursor_workspace(r) if _agent_runtime(r) == "cursor" else None
     agents = herdr_agents()
     if agents is None:
         die("herdr is unreachable")
-    pane, close, by_pane = r["pane_id"], False, False
+    pane, close, by_pane, by_pane_cursor = r["pane_id"], False, False, False
     # the session decides which pane hosts the agent; the row's pane id may be stale
     host = next((x for x in agents if (x.get("agent_session") or {}).get("value") == r["session_id"]), None)
     if host:
@@ -15917,6 +15918,20 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             die(f"a live claude process runs session {r['session_id']} but herdr lists no pane for it; "
                 "refusing to start a second copy", 3)
         by_pane = True
+    elif _agent_runtime(r) == "cursor":
+        ws = agent_cursor_workspace(r)
+        if not ws:
+            die(f"{r['name']} has no cursor policy workspace; refusing to relaunch", 3)
+        procs = cursor_procs(ws)
+        if len(procs) != 1:
+            die(f"expected exactly one cursor-agent on workspace {ws}, found {len(procs)}; "
+                "refusing to start a second copy", 3)
+        host = next((x for x in agents if pane and x.get("pane_id") == pane and x.get("name") == r["name"]
+                     and not (x.get("agent_session") or {}).get("value")), None)
+        if not host:
+            die(f"a live cursor-agent process runs workspace {ws} but herdr lists no pane for it; "
+                "refusing to start a second copy", 3)
+        by_pane, by_pane_cursor = True, True
     else:
         host = next((x for x in agents if pane and x.get("pane_id") == pane), None)
     if host:
@@ -15942,8 +15957,12 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     steps = []
     if close:
         if by_pane:
-            steps.append(f"fallback: pane {pane} ({r['name']}) has no agent_session in the agent list; its one claude "
-                         f"process runs session {r['session_id']}, so pane {pane} is the host")
+            if by_pane_cursor:
+                steps.append(f"fallback: pane {pane} ({r['name']}) has no agent_session in the agent list; "
+                             f"its one cursor-agent process uses workspace {cursor_ws}, so pane {pane} is the host")
+            else:
+                steps.append(f"fallback: pane {pane} ({r['name']}) has no agent_session in the agent list; "
+                             f"its one claude process runs session {r['session_id']}, so pane {pane} is the host")
         steps.append(f"herdr pane close {pane}  (`/exit` via `herdr agent prompt` is not a documented clean exit; "
                      "this ends the agent process)")
         steps.append(f"wait until pane {pane} is gone, then place a new pane")
@@ -15979,11 +15998,17 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             time.sleep(_relaunch_poll_s())
         pane = None
         for _ in range(10):  # the prompt file is rewritten next: the old process must be gone first
-            if not claude_procs(r["session_id"]):
+            if by_pane_cursor and cursor_ws:
+                gone = not claude_procs(r["session_id"]) and not cursor_procs(cursor_ws)
+            else:
+                gone = not claude_procs(r["session_id"])
+            if gone:
                 break
             time.sleep(_relaunch_poll_s())
         else:
-            die(f"a claude process still runs session {r['session_id']} after its pane closed; not restarting", 3)
+            if by_pane_cursor and cursor_ws:
+                die(f"a cursor-agent process still runs workspace {cursor_ws} after its pane closed; not restarting", 3)
+            die(f"an agent process still runs session {r['session_id']} after its pane closed; not restarting", 3)
     event(con, "agent", r["name"], "relaunch", {"pane": r["pane_id"], "session": r["session_id"]})
     con.commit()
     try:
