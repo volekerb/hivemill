@@ -5,12 +5,13 @@
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.svg"><img src="docs/images/wordmark-light.svg" alt="Hivemill" height="72"></picture></p>
 
-<h3 align="center">Hivemill is a self-hosted software factory of Claude Code agents,<br>with separate review, QA and a judge that decides the merge.</h3>
+<h3 align="center">Hivemill is a self-hosted software factory of AI coding agents (Claude Code and Cursor),<br>with separate review, QA and a judge that decides the merge.</h3>
 
 <p align="center">
   <a href="https://github.com/volekerb/hivemill/actions/workflows/tests.yml"><img src="https://github.com/volekerb/hivemill/actions/workflows/tests.yml/badge.svg?branch=main&event=push" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="docs/SETUP.md"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+"></a>
+  <a href="docs/go-toolchain.md"><img src="https://img.shields.io/badge/go-guard-00ADD8.svg" alt="Go (worker guard)"></a>
   <a href="https://github.com/volekerb/hivemill/releases"><img src="https://img.shields.io/github/v/release/volekerb/hivemill?include_prereleases&sort=semver" alt="Release"></a>
 </p>
 
@@ -49,7 +50,11 @@ You describe what you want built to one boss agent. A director staffs a team, an
   <tr>
     <td><b>One source of truth</b><br>Goals, tasks, messages and verdicts are rows in SQLite with an append-only log.</td>
     <td><b>Small-box friendly</b><br>A spawn gate queues agents until RAM, load and Claude process count allow.</td>
-    <td><b>A read-only web UI</b><br>Goals, agents, throughput and quality, in light and dark.</td>
+  </tr>
+  <tr>
+    <td><b>Two runtimes, side by side</b><br>A Claude org and a Cursor org, each a full chain of command, share one box and one DB (<a href="docs/runtimes.md">runtimes</a>).</td>
+    <td><b>A read-only web UI</b><br>Goals, agents, throughput, quality, and cost, tokens and wall time per task, in light and dark.</td>
+    <td><b>Opt-in containment</b><br>A worker guard on every tool call, an optional sandbox, a GitHub token per worker role and optional per-task clones (<a href="docs/worker-guard.md">guard</a>, <a href="docs/worker-sandbox.md">sandbox</a>).</td>
   </tr>
 </table>
 
@@ -69,7 +74,7 @@ The factory runs on [herdr](https://herdr.dev), the terminal multiplexer that ho
 
 ### Install
 
-Needs a fresh Debian or Ubuntu machine and a logged-in Claude Code. In Claude Code:
+Needs a fresh Debian or Ubuntu machine and a logged-in Claude Code (the Cursor org also needs the Cursor Agent CLI, see [docs/runtimes.md](docs/runtimes.md)). In Claude Code:
 
 ```
 /plugin marketplace add volekerb/hivemill
@@ -98,8 +103,10 @@ Three walkthroughs with full output on the demo data: [from a goal to a merged P
 ## How it works
 
 - **Separation of roles.** Each role has its own prompt and its own permission settings, enforced by hooks rather than by trust.
+- **Two orgs, one box.** An org is a complete chain of command (boss, director, leads, workers) on one runtime and one model map: `claude` (Claude Code, the default) and `cursor` (Cursor Agent). Each goal belongs to one org, every spawn inherits it, and both orgs share one agent cap and one resource gate ([docs/runtimes.md](docs/runtimes.md)).
 - **Evidence over claims.** A task is done when a reviewer and QA have checked the PR diff and a real test run, not when an agent says so.
 - **Resource-aware on a small box.** A spawn gate watches RAM, load and the number of Claude processes, and queues new agents until there is room. The whole factory runs on one modest VM.
+- **Contained workers.** A worker guard hook blocks actions outside a role's job. Opt-in extras: the worker sandbox (`sandbox_roles`), a worker GitHub token per role (`worker_gh_roles`) and a standalone clone per coder task instead of a worktree (`task_clones`, off by default; [docs/git-hardening.md](docs/git-hardening.md)). The guard is Python by default; a Go port is available through `guard_impl` ([docs/worker-guard-go.md](docs/worker-guard-go.md)).
 - **Everything auditable.** Goals, plans, tasks, messages, verdicts and decisions are rows in SQLite with an append-only event log, exported to readable markdown every minute.
 
 ```mermaid
@@ -158,8 +165,11 @@ Details: [docs/lifecycle.md](docs/lifecycle.md), [docs/verdict-gates.md](docs/ve
 | Goal lifecycle | From request to goal to done, with plan and success criteria | [goal-lifecycle](docs/goal-lifecycle.md) |
 | **Contain agents** | | |
 | Worker guard | Hooks that block actions outside a role's job | [worker-guard](docs/worker-guard.md) |
-| Worker sandbox | Namespaced spawn for workers, with its known limits | [worker-sandbox](docs/worker-sandbox.md) |
+| Worker sandbox | Opt-in namespaced spawn and worker GitHub tokens, with known limits |
+| Per-task clones | Optional standalone clone per coder task (`task_clones`) | [git-hardening](docs/git-hardening.md) | [worker-sandbox](docs/worker-sandbox.md) |
 | Stopping a worker | Stop one agent cleanly without losing its work | [stopping-a-worker](docs/stopping-a-worker.md) |
+| **Two runtimes** | | |
+| Claude and Cursor orgs | Orgs, runtimes, model maps and message routing | [runtimes](docs/runtimes.md) |
 | **See it** | | |
 | Web UI | Read-only pages for goals, tasks, agents, throughput and quality | [web-ui](docs/web-ui.md) |
 | State branch | Markdown exports and a DB dump pushed to the `state` branch | [state-branch](docs/state-branch.md) |
@@ -179,11 +189,11 @@ Each feature has its own file under docs/ (all pages: [docs/README.md](docs/READ
 | Resource gate | None | None | A spawn gate queues agents until RAM, load and Claude process count allow ([spawn-queue](docs/spawn-queue.md)) |
 | Recovery after reboot | Start over | Start over | Boot units resume the headquarters and active teams ([operations](docs/operations.md)) |
 
-Works with: Claude Code, [herdr](https://github.com/herdrdev/herdr), `gh`, systemd user units and the [Moshi](#use-it-from-your-phone) phone app.
+Works with: Claude Code, Cursor Agent, [herdr](https://github.com/herdrdev/herdr), `gh`, systemd user units and the [Moshi](#use-it-from-your-phone) phone app.
 
 ## The web UI
 
-A read-only web UI shows goals, tasks, live agents, throughput and quality, in light and dark themes. Start it with `factory serve` ([docs/web-ui.md](docs/web-ui.md)). The screenshots come from fictional demo data only ([docs/demo-data.md](docs/demo-data.md)); click one for the full-size light image.
+A read-only web UI shows goals, tasks, live agents, throughput and quality, in light and dark themes, with an org filter, a runtime chip per agent and cost, tokens and wall time per task. Start it with `factory serve` ([docs/web-ui.md](docs/web-ui.md)). The screenshots come from fictional demo data only ([docs/demo-data.md](docs/demo-data.md)); click one for the full-size light image.
 
 <!-- SLOT:GALLERY (T-0480): six page shots in a 3x2 table; swap paths and alt text only. -->
 <table>
@@ -246,10 +256,11 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
 
 ## Status and limits
 
-- Every agent is a Claude Code session, so it uses your Claude usage.
+- An agent is a Claude Code or a Cursor Agent session, depending on its org, so it uses your Claude or Cursor usage. Claude is the default.
+- The `hc` (herdr-core) terminal backend is experimental and off by default ([docs/terminal-backends.md](docs/terminal-backends.md)).
 - It is built for a single box, not a cluster. State is one SQLite file.
 - Agent isolation is a tripwire, not a sandbox. Hooks and permission settings stop honest mistakes and make bypasses visible; they do not contain a determined adversary. Read [SECURITY.md](SECURITY.md) for the threat model and the known limits before you point it at anything you cannot afford to lose.
-- The worker sandbox, which would add real containment, is [in progress](docs/worker-sandbox.md).
+- The worker sandbox is opt-in (`sandbox_roles`, off by default) and a tripwire, not a boundary: it has no egress filter ([docs/worker-sandbox.md](docs/worker-sandbox.md)).
 - The web UI is read-only and has no authentication; bind it to an address you trust.
 
 Not affiliated with Anthropic. Claude and Claude Code are products of Anthropic.
