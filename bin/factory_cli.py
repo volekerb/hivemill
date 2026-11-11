@@ -11848,6 +11848,12 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
     branch = t["branch"]
     if branch and not branch.startswith("factory/"):
         return "branch is not factory/*", None, False
+    # a clone's refs/replace/* is worker-writable and git honours it by default: ancestry must see the real objects
+    noreplace = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"}
+
+    def cgit(where, *args):
+        return git_run(where, *args, env=noreplace)
+
     tip = None
     if branch:
         r = _git(repo, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")
@@ -11888,13 +11894,13 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
                     return "outside worktrees/ (clone must be a direct, non-symlink child)", None, tip is not None
                 if not git_config_guard(con, wt, always_event=True):  # before any git call in the clone: its config is worker-writable
                     return "git config refused", None, tip is not None
-            top = _git(wt, "rev-parse", "--show-toplevel")
+            top = cgit(wt, "rev-parse", "--show-toplevel")
             if top.returncode != 0 or Path(top.stdout.strip()).resolve() != wt:
                 return "not a git worktree", None, tip is not None
-            st = _git(wt, "status", "--porcelain", "--untracked-files=no")
+            st = cgit(wt, "status", "--porcelain", "--untracked-files=no")
             if st.returncode != 0 or st.stdout.strip():
                 return "dirty", None, tip is not None
-            un = _git(wt, "ls-files", "--others", "--exclude-standard")
+            un = cgit(wt, "ls-files", "--others", "--exclude-standard")
             stray = [f for f in un.stdout.splitlines() if "__pycache__" not in Path(f).parts]
             if un.returncode != 0 or stray:
                 return "untracked files: " + ", ".join(stray[:5]), None, tip is not None
@@ -11907,16 +11913,16 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
     tips = [(tip, repo)] if tip else []
     seen = {tip} if tip else set()
     if wt:
-        h = _git(wt, "rev-parse", "HEAD").stdout.strip()
+        h = cgit(wt, "rev-parse", "HEAD").stdout.strip()
         if h and h not in seen:
             tips.append((h, wt if clone else repo))
             seen.add(h)
     if wt and clone and branch:  # the clone's own branch is lost with it too, whatever HEAD points at
-        r = _git(wt, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")
+        r = cgit(wt, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")
         if r.returncode == 0 and r.stdout.strip() not in seen:
             tips.append((r.stdout.strip(), wt))
             seen.add(r.stdout.strip())
-        refs = _git(wt, "for-each-ref", "--format=%(objectname)", "refs/heads/", "refs/stash")  # any other branch or the stash dies with the clone too
+        refs = cgit(wt, "for-each-ref", "--format=%(objectname)", "refs/heads/", "refs/stash")  # any other branch or the stash dies with the clone too
         if refs.returncode != 0:
             return "unpushed commits", None, tip is not None
         for x in refs.stdout.split():
@@ -11925,7 +11931,7 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
                 seen.add(x)
     for sha, where in tips:
         if head:
-            if not _is_ancestor(where, sha, head):
+            if sha != head and cgit(where, "merge-base", "--is-ancestor", sha, head).returncode != 0:
                 return "unpushed commits", None, tip is not None
         else:
             lower = f"origin/{base}"
@@ -11934,7 +11940,7 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
                 if b.returncode != 0:
                     return "unpushed commits", None, tip is not None
                 lower = b.stdout.strip()
-            r = _git(where, "rev-list", "--count", f"{lower}..{sha}")
+            r = cgit(where, "rev-list", "--count", f"{lower}..{sha}")
             if r.returncode != 0 or r.stdout.strip() != "0":
                 return "unpushed commits", None, tip is not None
     return None, wt, tip is not None
