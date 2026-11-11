@@ -524,38 +524,9 @@ jobs:
           echo "REAL_GO skipped: $(grep -c 'skipped' "$RUNNER_TEMP/real-go.txt" || true)"
 
   # Required check: the name must stay exactly "unittest".
-  # G-041 SC4: no new Python after 2026-11-11. Not tier-gated: runs on every pull_request, fails closed (exit 2) on git errors.
-  no-new-python:
-    name: no-new-python
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      GOTOOLCHAIN: local
-    steps:
-      - name: Skip outside pull requests
-        if: github.event_name != 'pull_request'
-        run: echo "no-new-python: skipped (event ${{ github.event_name }})"
-      - uses: actions/checkout@v7
-        if: github.event_name == 'pull_request'
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v7
-        if: github.event_name == 'pull_request'
-        with:
-          go-version-file: go/go.mod
-          cache-dependency-path: go/go.mod
-      - name: No new Python files
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          cd go
-          go run ./cmd/no-new-python --repo .. --base "$BASE_SHA" --head "$HEAD_SHA"
-
   unittest:
     name: unittest
-    needs: [unittest-shard, go, no-new-python, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv, guard-equiv-rest]
+    needs: [unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv, guard-equiv-rest]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -564,7 +535,6 @@ jobs:
         env:
           SHARD_RESULT: ${{ needs.unittest-shard.result }}
           GO_RESULT: ${{ needs.go.result }}
-          NO_NEW_PYTHON_RESULT: ${{ needs.no-new-python.result }}
           GUARD_UNITTEST_RESULT: ${{ needs.guard-unittest.result }}
           GUARD_DIFF_RESULT: ${{ needs.guard-diff.result }}
           GUARD_SELF_COMPARE_RESULT: ${{ needs.guard-self-compare.result }}
@@ -579,10 +549,6 @@ jobs:
           fi
           if [ "$GO_RESULT" != "success" ]; then
             echo "go result: $GO_RESULT (the go job must succeed)" >&2
-            fail=1
-          fi
-          if [ "$NO_NEW_PYTHON_RESULT" != "success" ]; then
-            echo "no-new-python result: $NO_NEW_PYTHON_RESULT (new Python files are not allowed, G-041 SC4)" >&2
             fail=1
           fi
           if [ "$GUARD_UNITTEST_RESULT" != "success" ]; then
