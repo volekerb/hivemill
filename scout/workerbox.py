@@ -215,13 +215,16 @@ def render_gitconfig(helper, name=None, email=None):
     return "\n".join(out) + "\n"
 
 
-def owner_identity(home):
-    """user.name / user.email from the owner's global git config at generation time (None when unset)."""
+def owner_identity(home, cwd=None):
+    """user.name / user.email from the owner's global git config at generation time (None when unset).
+    Resolved in `cwd` so the owner's includeIf gitdir rules apply; a missing or non-directory cwd falls back to "/"."""
+    cwd = cwd if cwd and os.path.isdir(cwd) else "/"
     env = {"HOME": home, "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "GIT_CONFIG_NOSYSTEM": "1"}
     vals = []
     for key in ("user.name", "user.email"):
-        r = subprocess.run(["git", "config", "--global", "--get", key], capture_output=True, text=True, env=env,
-                           cwd="/", timeout=20)
+        # --includes is required: git leaves includes off under --global, so includeIf would never match
+        r = subprocess.run(["git", "config", "--global", "--includes", "--get", key], capture_output=True, text=True,
+                           env=env, cwd=cwd, timeout=20)
         vals.append(r.stdout.strip() or None)
     return tuple(vals)
 
@@ -403,7 +406,7 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
             raise ValueError(f"{d} must be a real directory owned by uid {os.getuid()}")
     repo = Path(repo).resolve() if repo else Path(__file__).resolve().parent.parent
     helper = gh_helper(repo, gh_slugs)
-    name, email = identity if identity is not None else owner_identity(home)
+    name, email = identity if identity is not None else owner_identity(home, cwd)
     _atomic_write(str(agent_dir), "gitconfig", render_gitconfig(helper, name, email).encode(), 0o644)  # before make_cfg: it refuses a symlink there
     cfg = make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, home=home, runtime=runtime,
                    hide_extra=hide_extra, research_root=research_root)
