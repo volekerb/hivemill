@@ -191,6 +191,25 @@ class ProcDirLiveHomeTests(WorkerGateBase):
         self.assertEqual(ev[0]["actor"], "zz-test-coder")
         self.assertIn("/some/fake", ev[0]["detail"])
 
+    def test_serve_proc_dir_honoured_off_live_home(self):
+        with self.env.load_factory() as f:
+            with mock.patch.dict(os.environ, {"FACTORY_SERVE_PROC_DIR": "/some/fake"}):
+                self.assertEqual(f._serve_proc_root(), Path("/some/fake"))
+        self.assertEqual(self.proc_events(), [])
+
+    def test_live_home_serve_proc_dir_ignored_and_one_event(self):
+        with self.env.load_factory() as f:
+            f.LIVE_HOMES = f.LIVE_HOMES | {str(self.env.home_dir.resolve())}
+            with mock.patch.dict(os.environ, {"FACTORY_SERVE_PROC_DIR": "/some/fake", "FACTORY_AGENT": "zz-test-coder"}):
+                self.assertEqual(f._serve_proc_root(), Path("/proc"))
+                self.assertEqual(f._serve_proc_root(), Path("/proc"))
+            with mock.patch.dict(os.environ, {"FACTORY_SERVE_PROC_DIR": ""}):
+                self.assertEqual(f._serve_proc_root(), Path("/proc"))
+        ev = self.proc_events()
+        self.assertEqual(len(ev), 1)
+        self.assertIn("FACTORY_SERVE_PROC_DIR", ev[0]["detail"])
+        self.assertIn("/some/fake", ev[0]["detail"])
+
     def test_live_home_forged_hq_ancestry_still_a_worker(self):
         real = self.fake_proc("realproc", ["claude", "--settings", WORKER_SETTINGS])
         forged = self.fake_proc("forged", ["claude", "--resume", "lead-session"])
