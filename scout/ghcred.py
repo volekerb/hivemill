@@ -131,6 +131,7 @@ def _git_value(home, key, cwd=None):
     """`git config --global --get key` as the owner, run in `cwd` so the owner's includeIf gitdir rules apply.
     A missing or non-directory cwd falls back to "/"."""
     cwd = cwd if cwd and os.path.isdir(cwd) else "/"
+    # --includes is required: git leaves includes off under --global, so includeIf would never match
     env = {"HOME": home, "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "GIT_CONFIG_NOSYSTEM": "1"}
     r = subprocess.run(["git", "config", "--global", "--includes", "--get", key], capture_output=True, text=True, env=env,
                        cwd=cwd, timeout=20)
