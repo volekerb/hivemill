@@ -49,7 +49,7 @@ You describe what you want built to one boss agent. A director staffs a team, an
   </tr>
   <tr>
     <td><b>One source of truth</b><br>Goals, tasks, messages and verdicts are rows in SQLite with an append-only log.</td>
-    <td><b>Small-box friendly</b><br>A spawn gate queues agents until RAM, load and Claude process count allow.</td>
+    <td colspan="2"><b>Small-box friendly</b><br>A spawn gate queues agents until RAM, load and Claude process count allow.</td>
   </tr>
   <tr>
     <td><b>Two runtimes, side by side</b><br>A Claude org and a Cursor org, each a full chain of command, share one box and one DB (<a href="docs/runtimes.md">runtimes</a>).</td>
@@ -165,8 +165,8 @@ Details: [docs/lifecycle.md](docs/lifecycle.md), [docs/verdict-gates.md](docs/ve
 | Goal lifecycle | From request to goal to done, with plan and success criteria | [goal-lifecycle](docs/goal-lifecycle.md) |
 | **Contain agents** | | |
 | Worker guard | Hooks that block actions outside a role's job | [worker-guard](docs/worker-guard.md) |
-| Worker sandbox | Opt-in namespaced spawn and worker GitHub tokens, with known limits |
-| Per-task clones | Optional standalone clone per coder task (`task_clones`) | [git-hardening](docs/git-hardening.md) | [worker-sandbox](docs/worker-sandbox.md) |
+| Worker sandbox | Opt-in namespaced spawn and worker GitHub tokens, with known limits | [worker-sandbox](docs/worker-sandbox.md) |
+| Per-task clones | Optional standalone clone per coder task (`task_clones`) | [git-hardening](docs/git-hardening.md) |
 | Stopping a worker | Stop one agent cleanly without losing its work | [stopping-a-worker](docs/stopping-a-worker.md) |
 | **Two runtimes** | | |
 | Claude and Cursor orgs | Orgs, runtimes, model maps and message routing | [runtimes](docs/runtimes.md) |
