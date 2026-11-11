@@ -77,6 +77,9 @@ class SpawnHqName(FactoryTestCase):
         self.env.seed_goal()
         self.env.seed_agent("zz-owner-dir", "director")
         self.ok("config", "org_prefix_default", "1")
+        fake = self.env.stub_bin / "agent"  # the cursor runtime needs the agent binary on PATH (absent on CI)
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
 
     def spawn(self, *args):
         return self.env.run("spawn", *args, agent="zz-owner-dir")

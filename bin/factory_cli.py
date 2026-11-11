@@ -9274,7 +9274,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if not relaunch:  # a relaunch restarts an agent that already runs: not new work
         goal_token_gate(con, role, goal, task, from_queue)  # G-015 SC3 F-74 L3: before the gate and any queue row
     existing = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
-    if role in ("boss", "director") and not relaunch and not from_queue:  # T-1265: one live boss/director per org
+    if bare_hq and not relaunch and not from_queue:  # T-1265: one live goal-less boss/director per org (fixtures spawn goal-scoped directors)
         twin = next((r for r in con.execute("SELECT * FROM agents WHERE role=? AND status IN ('live','starting')", (role,))
                      if orgs.of_agent(r) == org), None)
         if twin:

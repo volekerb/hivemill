@@ -44,6 +44,7 @@ class RoleTests(FactoryTestCase):
     def test_roles_boss_can_only_spawn_director(self):
         for role in ("coder", "lead", "pm", "judge"):
             self.refused(3, "spawn", role, "--name", "zz-test-x", agent="zz-test-boss")
+        self.env.sql("UPDATE agents SET status='exited' WHERE name='zz-test-director'")  # T-1265: one live goal-less director per org
         p = self.ok("spawn", "director", "--name", "zz-test-director2", agent="zz-test-boss")
         self.assertIn("SPAWNED zz-test-director2", p.stdout)
 
