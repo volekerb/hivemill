@@ -120,7 +120,7 @@ class SpawnHqName(FactoryTestCase):
         self.env.sql("UPDATE agents SET org='cursor', session_id='sid-1' WHERE name='cursor-boss'")
         p = self.env.run("relaunch", "cursor-boss", "--fresh", "--force", agent="zz-owner-dir")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertNotIn("is already the live", p.stdout + p.stderr)
+        self.assertNotIn("is already live as the", p.stdout + p.stderr)
         self.assertEqual(self.names("boss"), ["cursor-boss"])
 
     def test_legacy_unprefixed_live_boss_blocks_second(self):

@@ -9278,7 +9278,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         twin = next((r for r in con.execute("SELECT * FROM agents WHERE role=? AND status IN ('live','starting')", (role,))
                      if orgs.of_agent(r) == org), None)
         if twin:
-            die(f"{twin['name']} is already the live {org} {role}; not starting {name}. "
+            die(f"{twin['name']} is already live as the {org} {role}; not starting {name}. "
                 f"To restart it use `factory relaunch {twin['name']}` (add --fresh for a new session).", 3)
     if existing and existing["status"] == "live" and not relaunch:
         # also for from_queue: run/<name>.prompt.md is read live by the running agent; never rewrite it under it
