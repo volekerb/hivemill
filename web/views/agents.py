@@ -4,6 +4,7 @@ Never shows spawn_args (kickoff text); summaries are truncated to 200 characters
 """
 import datetime as dt
 import os
+import pwd
 import re
 import threading
 import time
@@ -48,8 +49,23 @@ _cache = {"at": None, "value": None}
 _clock = time.monotonic
 
 
+def _live_homes():
+    """Mirror of home_is_live() in bin/factory_cli.py for the default live home (web never imports bin/factory): the
+    passwd home's factory dir, never $HOME."""
+    return {os.path.realpath(os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory"))}
+
+
 def _proc_dir():
-    return Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    """/proc, or $FACTORY_PROC_DIR (a fake /proc for tests) only when FACTORY_HOME is not the live home; same rule as
+    proc_root() in bin/factory_cli.py (T-1322/T-1329). Display only and read-only, so no proc-dir-ignored event here."""
+    fake = os.environ.get("FACTORY_PROC_DIR")
+    if not fake:
+        return Path("/proc")
+    live = _live_homes()
+    home = os.environ.get("FACTORY_HOME") or next(iter(live))
+    if os.path.realpath(home) in live:
+        return Path("/proc")
+    return Path(fake)
 
 
 def _scan():

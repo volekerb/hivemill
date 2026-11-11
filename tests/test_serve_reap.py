@@ -245,7 +245,7 @@ class UnitProcessNeverSignalled(FactoryTestCase):
         (d / "cgroup").write_text(cgroup)
         os.symlink(str(pad), d / "cwd")
 
-    def reap(self, mainpid, cgroup):
+    def reap(self, mainpid, cgroup, live=False):
         e = self.env
         e.seed_goal()
         e.seed_task(status="todo", pr_url=None)
@@ -261,12 +261,18 @@ class UnitProcessNeverSignalled(FactoryTestCase):
         sent = []
         with mock.patch.dict(os.environ, env), self.env.load_factory() as mod:
             mod.WORKTREES = e.home_dir / "worktrees"
+            if live:
+                mod.LIVE_HOMES = mod.LIVE_HOMES | {str(e.home_dir.resolve())}
             with mock.patch.object(mod, "_serve_kill", lambda pid, sig: sent.append((pid, sig))):
                 mod.reap_stray_serves(mod.db())
         return sent
 
     def test_control_a_stray_serve_outside_the_unit_is_signalled(self):
         self.assertEqual(self.reap("", "0::/user.slice/other.service\n")[0], (4242, signal.SIGTERM))
+
+    def test_live_home_forged_serve_proc_dir_cannot_steer_the_reaper(self):
+        """T-1329: on the live home the forged dir is ignored (real /proc has no pid 4242), so nothing is signalled."""
+        self.assertEqual(self.reap("", "0::/user.slice/other.service\n", live=True), [])
 
     def test_unit_cgroup_is_untouched_when_mainpid_is_unknown(self):
         self.assertEqual(self.reap("", self.UNIT_CG), [])
