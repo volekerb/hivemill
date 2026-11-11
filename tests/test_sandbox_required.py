@@ -152,6 +152,23 @@ class ManualSpawnTests(Base):
         self.assertIsNotNone(row, p.stderr)
         self.assertNotIn("sandbox_optin", json.loads(row["spawn_args"]))
 
+    def test_reviewer_and_qa_on_a_flagged_coder_task_are_not_forced_or_refused(self):
+        """T-1291: the flag applies to the task's own role (coder) only."""
+        self.task(role="coder")
+        for role in ("reviewer", "qa"):
+            self.env.sql("UPDATE tasks SET worktree=? WHERE id=?", (str(self.env.home_dir / "worktrees" / f"w-{role}"), T))
+            p = self.spawn(role, name=f"zz-{role}")
+            self.assertEqual(p.returncode, 0, (role, p.stderr))
+            self.assertNotIn("sandbox_required", p.stderr)
+            self.assertNotIn("sandbox", json.loads(self.agent(f"zz-{role}")["spawn_args"]), role)
+        self.assertEqual(self.events("sandbox-required-refused"), [])
+
+    def test_coder_on_a_flagged_coder_task_is_still_refused_without_sandbox(self):
+        self.task(role="coder")
+        p = self.spawn("coder", name=ROLE_NAMES["coder"])
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn(f"{T} is sandbox_required: rerun with --sandbox", p.stderr)
+
     def test_unflagged_task_spawns_as_before(self):
         self.task(flag=0)
         p = self.spawn("reviewer", name="zz-reviewer")
@@ -225,6 +242,24 @@ class RelaunchTests(Base):
         self.assertIn("sandbox refused", p.stderr)
         self.assertEqual(self.mux("pane", "close"), [])
         self.assertEqual(self.agent("zz-reviewer")["status"], "live")
+
+    def test_relaunch_of_a_reviewer_on_a_flagged_coder_task_stays_unsandboxed(self):
+        self.task(role="coder", flag=0)
+        self.env.sql("UPDATE tasks SET worktree=? WHERE id=?", (str(self.env.home_dir / "worktrees" / "w-reviewer"), T))
+        self.assertEqual(self.spawn("reviewer", name="zz-reviewer").returncode, 0)
+        self.env.sql("UPDATE tasks SET sandbox_required=1 WHERE id=?", (T,))
+        (self.env.stub_bin / "unshare").write_text("#!/bin/sh\nexit 1\n")  # a sandboxed relaunch would be refused
+        self.ok("relaunch", "zz-reviewer", "--force")
+        self.assertNotIn("sandbox", json.loads(self.agent("zz-reviewer")["spawn_args"]))
+
+    def test_relaunch_of_a_flagged_coder_is_still_sandboxed(self):
+        self.task(role="coder", flag=0)
+        self.assertEqual(self.spawn("coder", "--sandbox", name=ROLE_NAMES["coder"]).returncode, 0)
+        self.env.sql("UPDATE tasks SET sandbox_required=1 WHERE id=?", (T,))
+        (self.env.stub_bin / "unshare").write_text("#!/bin/sh\nexit 1\n")
+        p = self.env.run("relaunch", ROLE_NAMES["coder"], "--force")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("sandbox refused", p.stderr)
 
     def test_flagged_task_relaunch_with_a_passing_preflight_is_sandboxed(self):
         self.task(flag=0)
