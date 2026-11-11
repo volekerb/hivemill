@@ -57,7 +57,9 @@ def hc_ls_envelope():
     terminals = []
     for a in st["agents"]:
         t = {"name": a.get("name"), "agent": a.get("agent", "claude"), "state": "live"}
-        if a.get("agent_status"):
+        if "osc_status" in a:
+            t["status"] = a["osc_status"]
+        elif a.get("agent_status"):
             t["status"] = a["agent_status"]
         terminals.append(t)
     return {"hidden_finished": 0, "terminals": terminals}
