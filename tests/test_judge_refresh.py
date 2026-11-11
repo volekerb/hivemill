@@ -683,5 +683,89 @@ class JudgeRefreshTests(FactoryTestCase):
         self.assertNoMerge()
 
 
+class StaleBehindOkRulesetTests(FactoryTestCase):
+    """T-1310: stale_behind_ok ruleset fallback when classic branch protection is missing (SC1)."""
+    SLUG = "acme/rules-repo"
+
+    def setUp(self):
+        super().setUp()
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_policy','behind_ok')")
+
+    def _gh_api(self, *, prot=None, prot_exit=0, prot_err="", rules=None, rules_exit=0, rules_err=""):
+        api = []
+        if prot_exit:
+            api.append({"match": [f"repos/{self.SLUG}/branches/main/protection"],
+                        "exit": prot_exit, "err": prot_err})
+        else:
+            api.append({"match": [f"repos/{self.SLUG}/branches/main/protection"], "out": prot})
+        if rules_exit:
+            api.append({"match": [f"repos/{self.SLUG}/rules/branches/main"],
+                        "exit": rules_exit, "err": rules_err})
+        elif rules is not None:
+            api.append({"match": [f"repos/{self.SLUG}/rules/branches/main"], "out": rules})
+        self.env.set_gh(api=api)
+
+    def _behind_ok(self):
+        with self.env.load_factory() as f:
+            return f.stale_behind_ok(f.db(), self.SLUG)
+
+    def test_sc1_ruleset_without_strict_status_checks_is_behind_ok_and_cached(self):
+        rules = [{"type": "deletion"}, {"type": "non_fast_forward"}, {"type": "pull_request", "parameters": {}}]
+        self._gh_api(prot_exit=1, prot_err="gh: Branch not protected (HTTP 404)", rules=rules)
+        self.env.calls_file.write_text("")
+        self.assertTrue(self._behind_ok())
+        [row] = self.env.sql("SELECT value FROM config WHERE key=?", ("stale_strict:" + self.SLUG,))
+        self.assertEqual(json.loads(row["value"])["strict"], False)
+        rules_calls = lambda: sum(1 for c in self.env.calls() if "rules/branches/main" in " ".join(c["argv"]))
+        self.assertEqual(rules_calls(), 1)
+        self.assertTrue(self._behind_ok())
+        self.assertEqual(rules_calls(), 1)
+
+    def test_sc1_ruleset_strict_required_status_checks_is_strict(self):
+        rules = [{"type": "required_status_checks",
+                  "parameters": {"strict_required_status_checks_policy": True, "required_status_checks": []}}]
+        self._gh_api(prot_exit=1, prot_err="gh: Branch not protected (HTTP 404)", rules=rules)
+        self.assertFalse(self._behind_ok())
+
+    def test_sc1_ruleset_read_failure_is_strict(self):
+        self._gh_api(prot_exit=1, prot_err="gh: Branch not protected (HTTP 404)",
+                     rules_exit=1, rules_err="gh: forbidden")
+        self.assertFalse(self._behind_ok())
+
+    def test_sc1_ruleset_bad_json_is_strict(self):
+        self._gh_api(prot_exit=1, prot_err="gh: Branch not protected (HTTP 404)", rules="{")
+        self.assertFalse(self._behind_ok())
+
+    def test_sc1_classic_strict_false_is_behind_ok(self):
+        self._gh_api(prot="false")
+        self.assertTrue(self._behind_ok())
+
+    def test_sc1_classic_strict_true_is_strict(self):
+        self._gh_api(prot="true")
+        self.assertFalse(self._behind_ok())
+
+    def test_sc1_classic_404_not_found_does_not_use_ruleset_or_cache_non_strict(self):
+        self._gh_api(prot_exit=1, prot_err="gh: Not Found (HTTP 404)", rules=[])
+        self.env.calls_file.write_text("")
+        self.assertFalse(self._behind_ok())
+        row = self.env.sql("SELECT value FROM config WHERE key=?", ("stale_strict:" + self.SLUG,))
+        self.assertFalse(row)
+        rules_calls = sum(1 for c in self.env.calls() if "rules/branches/main" in " ".join(c["argv"]))
+        self.assertEqual(rules_calls, 0)
+
+    def test_sc1_ruleset_paginated_strict_rule_on_later_page_is_strict(self):
+        # First page alone would be non-strict; --paginate must include the strict rule from a later page.
+        rules = [{"type": "deletion"},
+                 {"type": "required_status_checks",
+                  "parameters": {"strict_required_status_checks_policy": True, "required_status_checks": []}}]
+        self._gh_api(prot_exit=1, prot_err="gh: Branch not protected (HTTP 404)", rules=rules)
+        self.env.calls_file.write_text("")
+        self.assertFalse(self._behind_ok())
+        rules_argv = [c["argv"] for c in self.env.calls()
+                      if "rules/branches/main" in " ".join(c["argv"])]
+        self.assertEqual(len(rules_argv), 1)
+        self.assertIn("--paginate", rules_argv[0])
+
+
 if __name__ == "__main__":
     unittest.main()
