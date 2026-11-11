@@ -72,6 +72,11 @@ def fuzzcheck_retro_gaps(fuzz_src, retro_src):
 
 
 class RetroMirrorTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # hook_run(..., cwd=LIVE) needs the passwd live home on disk (CI has no ~/factory).
+        os.makedirs(os.path.join(LIVE, "roles"), exist_ok=True)
+
     def _retro_write(self, file_path, *, payload_cwd=None, hook_cwd=None, content="x"):
         payload = {"tool_name": "Write", "tool_input": {"file_path": file_path, "content": content}}
         if payload_cwd is not None:
