@@ -131,6 +131,23 @@ class Host:
                     pass
         return n
 
+    def count_procs_for_uid(self, uid):
+        n = 0
+        want = str(uid)
+        for d in os.listdir("/proc"):
+            if not d.isdigit():
+                continue
+            try:
+                with open("/proc/%s/status" % d) as f:
+                    for line in f:
+                        if line.startswith("Uid:"):
+                            if line.split()[1] == want:
+                                n += 1
+                            break
+            except OSError:
+                pass
+        return n
+
     def run(self, argv, capture=True, timeout=None, cwd=None, input_text=None):
         """-> (returncode, merged output). capture=False passes the TTY through and returns no output.
         input_text is fed on stdin (never on argv)."""
@@ -218,6 +235,7 @@ class Ctx:
         self.failed = []
         self.inconclusive = []
         self.gh_token = None
+        self.test_uid = None
 
     # -- logging
     def emit(self, text):
@@ -330,6 +348,7 @@ def step_user(c):
         # touch it. Any other outcome (timeout, signal) with the user present is treated as ours.
         if not c.plan and rc != 9 and c.host.user_exists(c.user):
             c.created = True
+            c.test_uid = c.host.ids(c.user)[0]
     if rc == 9:
         raise StepFail("user appeared after preflight; not touching it")
     if rc != 0:
@@ -533,6 +552,44 @@ STEPS = [("preflight", step_preflight), ("create-user", step_user), ("install-he
 
 # ───────────────────────────── cleanup ─────────────────────────────
 
+def owner_cleanup_commands(user):
+    return ("sudo pkill -KILL -u %s" % user, "sudo userdel -r %s" % user)
+
+
+def cleanup_verify(c):
+    """After userdel/pkill: the account must be gone and no process may still own the test uid."""
+    if c.plan:
+        c.note("verify: `id %s` must fail and no process may have the test uid" % c.user)
+        return True
+    rc, _ = c.host.run(["id", c.user])
+    user_gone = rc != 0
+    uid = c.test_uid
+    if uid is None and not user_gone:
+        try:
+            uid = c.host.ids(c.user)[0]
+        except KeyError:
+            user_gone = True
+    procs = c.host.count_procs_for_uid(uid) if uid is not None else 0
+    ok = user_gone and procs == 0
+    if user_gone:
+        c.step_line("PASS" if procs == 0 else "FAIL", "cleanup", "verify-no-procs",
+                    "uid %s: %d process(es) left" % (uid, procs))
+    else:
+        c.step_line("FAIL", "cleanup", "verify-user-gone",
+                    "id %s still succeeds: REMOVE IT BY HAND (userdel -r %s)" % (c.user, c.user))
+        if procs:
+            c.step_line("FAIL", "cleanup", "verify-no-procs",
+                        "uid %s: %d process(es) still running" % (uid, procs))
+    if not ok:
+        for cmd in owner_cleanup_commands(c.user):
+            c.emit("    owner cleanup: %s" % cmd)
+        c.failed.append("cleanup")
+    elif user_gone:
+        c.step_line("PASS", "cleanup", "verify-user-gone",
+                    "id %s fails: user is gone" % c.user)
+    return ok
+
+
 def cleanup(c):
     """Always runs. Removes only what this run created: the test user (and its home) and its own temp dir."""
     c.emit("--- cleanup")
@@ -570,14 +627,8 @@ def cleanup(c):
             if c.plan or c.host.run(["id", c.user])[0] != 0:
                 break
         if c.plan:
-            c.note("verify: `id %s` must fail" % c.user)
             c.note("remove the tool's own temp dir (<tmpdir>) only")
-        else:
-            rc, _ = c.host.run(["id", c.user])
-            c.step_line("PASS" if rc != 0 else "FAIL", "cleanup", "verify-user-gone",
-                        "id %s %s" % (c.user, "fails: user is gone" if rc != 0 else "still succeeds: REMOVE IT BY HAND (userdel -r %s)" % c.user))
-            if rc == 0:
-                c.failed.append("cleanup")
+        cleanup_verify(c)
     if c.tmp and not c.plan:
         try:
             c.host.rmtree(c.tmp)
@@ -717,6 +768,8 @@ def main(argv=None, host=None, env=None, now=None, out=None):
                 c.results.close()
             for s, h in old.items():
                 signal.signal(s, h)
+    if "cleanup" in c.failed:
+        return 1
     return 1 if c.failed and rc in (0, 3) else rc  # a cleanup failure after a clean or inconclusive run still fails
 
 

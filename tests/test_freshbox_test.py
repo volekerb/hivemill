@@ -44,6 +44,8 @@ class FakeHost(fb.Host):
         self.tmp, self._euid, self._tty, self.users, self.busy = tmp, euid, tty, set(users), busy
         self.rules, self.assets = rules or {}, assets or {}
         self.calls, self.downloads, self.chowns, self.rmtrees, self.procs = [], [], [], [], []
+        self.user_uids = {u: 61001 + i for i, u in enumerate(sorted(self.users))}
+        self.proc_count_by_uid = {}
         self.inv_home = os.path.join(tmp, "alice-home")
         os.makedirs(self.inv_home, exist_ok=True)
 
@@ -51,7 +53,13 @@ class FakeHost(fb.Host):
     def isatty(self): return self._tty
     def user_exists(self, name): return name in self.users
     def pw_dir(self, name): return self.inv_home
-    def ids(self, name): return 4242, 4243
+    def ids(self, name):
+        if name in self.users:
+            return self.user_uids[name], self.user_uids[name] + 1
+        return 4242, 4243
+
+    def count_procs_for_uid(self, uid):
+        return self.proc_count_by_uid.get(uid, 0)
     def port_busy(self, port): return self.busy
     def count_claude(self): return 3
     def lexists(self, path): return path in self.leftovers
@@ -83,6 +91,7 @@ class FakeHost(fb.Host):
                 return val
         if argv[0] == "useradd":
             self.users.add(argv[-1])
+            self.user_uids.setdefault(argv[-1], 61001)
         elif argv[0] == "userdel":
             self.users.discard(argv[-1])
         elif argv[0] == "id":
@@ -555,7 +564,43 @@ class Cleanup(Base):
     def test_user_still_present_after_cleanup_is_a_failure(self):
         h = FakeHost(self.tmp, rules={"userdel": (1, "busy")})
         self.assertEqual(self.go_bin(h), 1)
-        self.assertIn("[FAIL] cleanup verify-user-gone", self.results())
+        res = self.results()
+        self.assertIn("[FAIL] cleanup verify-user-gone", res)
+        self.assertIn("owner cleanup: sudo pkill -KILL -u fbtest", res)
+        self.assertIn("owner cleanup: sudo userdel -r fbtest", res)
+
+    def test_uid_process_survives_after_user_gone_is_nonzero(self):
+        class OrphanProcs(FakeHost):
+            def run(self, argv, capture=True, timeout=None, cwd=None, input_text=None):
+                if argv[0] == "userdel":
+                    self.calls.append((list(argv), capture))
+                    self.users.discard(argv[-1])
+                    self.proc_count_by_uid[self.user_uids[argv[-1]]] = 1
+                    return 0, ""
+                return FakeHost.run(self, argv, capture, timeout, cwd, input_text)
+
+        h = OrphanProcs(self.tmp)
+        self.assertEqual(self.go_bin(h), 1)
+        res = self.results()
+        self.assertIn("[FAIL] cleanup verify-no-procs", res)
+        self.assertIn("owner cleanup: sudo pkill -KILL -u fbtest", res)
+        self.assertIn("owner cleanup: sudo userdel -r fbtest", res)
+
+    def test_clean_success_exit_unchanged(self):
+        h = FakeHost(self.tmp)
+        rc = self.go_bin(h)
+        res = self.results()
+        self.assertEqual(rc, 0)
+        self.assertIn("RESULT PASS steps=10 failed=none", res)
+        self.assertIn("[PASS] cleanup verify-user-gone", res)
+
+    def test_interrupt_still_runs_cleanup_with_verify(self):
+        h = FakeHost(self.tmp, rules={"userdel": (1, "busy"), "git clone": lambda: os.kill(os.getpid(), signal.SIGINT)})
+        self.assertEqual(self.go_bin(h), 1)
+        res = self.results()
+        self.assertIn("--- cleanup", res)
+        self.assertIn("[FAIL] cleanup verify-user-gone", res)
+        self.assertGreaterEqual(len(h.argvs("userdel")), 1)
 
     def test_only_the_users_own_things_are_killed_or_removed(self):
         h = FakeHost(self.tmp)
