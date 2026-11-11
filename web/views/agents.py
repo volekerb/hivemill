@@ -51,7 +51,8 @@ _clock = time.monotonic
 
 def _live_homes():
     """Mirror of home_is_live() in bin/factory_cli.py for the default live home (web never imports bin/factory): the
-    passwd home's factory dir, never $HOME."""
+    passwd home's factory dir, never $HOME. Known gap: the extra home a ~/.config/factory/live_home file can add is not
+    mirrored (display-only page)."""
     return {os.path.realpath(os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory"))}
 
 
