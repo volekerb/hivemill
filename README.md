@@ -271,6 +271,7 @@ Install [Moshi](https://getmoshi.app) on your phone, connect to your box over SS
 
 ## Resources
 
+- [What's new in v0.4.0](docs/releases/v0.4.0-announcement.md): a short plain-English summary of this release.
 - [docs/examples/](docs/examples/README.md): three walkthroughs with real output.
 - [docs/README.md](docs/README.md): index of every docs page. [docs/SETUP.md](docs/SETUP.md): install and troubleshooting.
 - [docs/finishing-coders.md](docs/finishing-coders.md): how coders finish. [Known gaps](docs/worker-guard.md) of the worker guard.
