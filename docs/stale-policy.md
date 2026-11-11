@@ -6,8 +6,9 @@ With `behind_ok`, a PR whose head does not contain `origin/main` ("BEHIND") is n
 
 - GitHub's branch protection of `main` reads `required_status_checks.strict == false`. It is read live with
   `gh api repos/<owner>/<repo>/branches/main/protection` and cached 10 minutes (config key `stale_strict:<owner/repo>`).
-  `strict == true`, no protection or any read failure behaves as `strict`. Some repos use repository rulesets instead of
-  classic branch protection (some personal-account repos): when the protection call returns HTTP 404 "Branch not protected",
+  `strict == true`, classic read failure or any outcome other than a known non-strict answer behaves as `strict` (fail closed).
+  Some repos use repository rulesets instead of classic branch protection (some personal-account repos): when the protection
+  call returns HTTP 404 "Branch not protected" (not other 404 responses such as a hidden protection endpoint),
   `stale_behind_ok` reads `gh api repos/<owner>/<repo>/rules/branches/main` and treats main as non-strict only when that
   succeeds and no rule of type `required_status_checks` has `strict_required_status_checks_policy == true`; ruleset read
   failure or a strict status-check rule keeps `strict` behaviour (fail closed).

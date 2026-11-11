@@ -744,6 +744,28 @@ class StaleBehindOkRulesetTests(FactoryTestCase):
         self._gh_api(prot="true")
         self.assertFalse(self._behind_ok())
 
+    def test_sc1_classic_404_not_found_does_not_use_ruleset_or_cache_non_strict(self):
+        self._gh_api(prot_exit=1, prot_err="gh: Not Found (HTTP 404)", rules=[])
+        self.env.calls_file.write_text("")
+        self.assertFalse(self._behind_ok())
+        row = self.env.sql("SELECT value FROM config WHERE key=?", ("stale_strict:" + self.SLUG,))
+        self.assertFalse(row)
+        rules_calls = sum(1 for c in self.env.calls() if "rules/branches/main" in " ".join(c["argv"]))
+        self.assertEqual(rules_calls, 0)
+
+    def test_sc1_ruleset_paginated_strict_rule_on_later_page_is_strict(self):
+        # First page alone would be non-strict; --paginate must include the strict rule from a later page.
+        rules = [{"type": "deletion"},
+                 {"type": "required_status_checks",
+                  "parameters": {"strict_required_status_checks_policy": True, "required_status_checks": []}}]
+        self._gh_api(prot_exit=1, prot_err="gh: Branch not protected (HTTP 404)", rules=rules)
+        self.env.calls_file.write_text("")
+        self.assertFalse(self._behind_ok())
+        rules_argv = [c["argv"] for c in self.env.calls()
+                      if "rules/branches/main" in " ".join(c["argv"])]
+        self.assertEqual(len(rules_argv), 1)
+        self.assertIn("--paginate", rules_argv[0])
+
 
 if __name__ == "__main__":
     unittest.main()

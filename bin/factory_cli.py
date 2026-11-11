@@ -4681,10 +4681,10 @@ def stale_behind_ok(con, owner_repo):
                     (key, json.dumps({"at": t, "strict": out == "true"})))
         return out == "false"
     err = (p.stderr or "") + (p.stdout or "")
-    if not (p.returncode != 0 and ("Branch not protected" in err or "HTTP 404" in err)):
+    if not (p.returncode != 0 and "Branch not protected" in err):
         return False  # unreadable classic protection: cannot confirm strict=false
     try:
-        r = subprocess.run(["gh", "api", f"repos/{owner_repo}/rules/branches/main"],
+        r = subprocess.run(["gh", "api", "--paginate", f"repos/{owner_repo}/rules/branches/main"],
                            capture_output=True, text=True, timeout=GH_API_TIMEOUT)
     except (OSError, subprocess.SubprocessError):
         return False
