@@ -15,7 +15,7 @@ Follow these steps in order.
    Test count: count `def test_` on the tree of `git merge-tree --write-tree origin/main HEAD` (the PR merged into current main) and on origin/main; the merged count must be >= the main count. Also confirm the PR removes or renames no `def test_` relative to its merge-base (run `git merge-base origin/main HEAD`, then `git diff <sha>..HEAD` with the literal sha). Put both numbers in the PR body.
 5. Run `python3 -m unittest discover -s tests -p test_no_duplicate_defs.py`. Fix a duplicate def or dead code you introduced.
 6. Before `factory task update <T> --status in_review`, wait for every check to be terminal and green with skill `coder-skills:ci-wait` (one background watch, no foreground polling). A red check on your head is yours until shown otherwise; check `gh pr view <url> --json mergeable` first (L-013).
-7. No new Python (G-041 SC4): `git diff --name-status origin/main...HEAD | grep -E '^(A|C|R[0-9]*\s+\S+\s)\S*\.py[iwx]?$'` must print nothing. If it prints a file, move the tests into an existing tests/test_*.py module (new code is Go).
+7. No new Python (G-041 SC4): `git diff --name-status origin/main...HEAD | grep -E '^(A|C[0-9]*)\s+\S*\.py[iwx]?$|^[RC][0-9]*\s+\S+\s+\S*\.py[iwx]?$'` must print nothing. If it prints a file, move the tests into an existing tests/test_*.py module (new code is Go).
 8. Repeat steps 1-7 before pushing a retry, and list which findings from the earlier round each line answers.
 
 Stop and tell your lead if a spec item is impossible or ambiguous, or if a check fails for a reason outside your diff (name the check and the output).
