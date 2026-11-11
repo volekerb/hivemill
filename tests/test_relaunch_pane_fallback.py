@@ -1,5 +1,5 @@
 """T-0757 (G-010): relaunch finds the host pane of an agent the agent list reports without agent_session
-(workers, sandboxed or not): the row's own pane, when exactly one claude process runs the session."""
+(workers, sandboxed or not): the row's own pane, when exactly one claude or cursor-agent process runs the session."""
 import contextlib
 import io
 import unittest
@@ -11,6 +11,7 @@ NAME = "zz-test-coder"
 SESS = "sess-zz-coder"
 PANE = "pw1"
 PROC = [(4242, ["claude", "--session-id", SESS])]
+CURSOR_PROC = [(5252, ["cursor-agent", "--resume", SESS])]
 
 
 def entry(session=None, name=NAME, pane=PANE, status="idle"):
@@ -36,16 +37,18 @@ class PaneFallbackTests(FactoryTestCase):
         self.assertEqual(code, 3)
         self.assertEqual((herdr, spawns), ([], []))
 
-    def relaunch(self, agents, procs, dry_run=False, force=False, patches=None):
+    def relaunch(self, agents, procs, dry_run=False, force=False, patches=None, cursor_procs=None):
         """Run relaunch_agent with herdr mocked; returns (exit code or None, stdout, herdr calls, spawn calls)."""
         out = io.StringIO()
         with self.env.load_factory() as mod:
             con = mod.db()
             r = con.execute("SELECT * FROM agents WHERE name=?", (NAME,)).fetchone()
             seq = iter([procs, []])  # the process is gone once the pane is closed
+            cursor_seq = iter([cursor_procs if cursor_procs is not None else [], []])
             herdr_calls, spawns, code = [], [], None
             with mock.patch.object(mod, "herdr_agents", return_value=agents), \
                     mock.patch.object(mod, "claude_procs", side_effect=lambda s: next(seq, [])), \
+                    mock.patch.object(mod, "cursor_session_procs", side_effect=lambda s: next(cursor_seq, [])), \
                     mock.patch.object(mod, "find_pane", return_value=None), \
                     mock.patch.object(mod, "herdr", side_effect=lambda *a: herdr_calls.append(list(a))), \
                     mock.patch.object(mod, "spawn", side_effect=lambda *a, **k: spawns.append(k)), \
@@ -111,6 +114,37 @@ class PaneFallbackTests(FactoryTestCase):
     def test_working_without_force_is_refused_with_2_on_the_session_path(self):
         code, *_ = self.relaunch([entry(session=SESS, status="working")], PROC)
         self.assertEqual(code, 2)
+
+    def test_cursor_dry_run_names_the_pane_the_fallback_would_close(self):
+        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_procs=CURSOR_PROC, dry_run=True)
+        self.assertIsNone(code)
+        self.assertIn(f"fallback: pane {PANE} ({NAME}) has no agent_session", out)
+        self.assertIn("cursor-agent", out)
+        self.assertIn(f"herdr pane close {PANE}", out)
+        self.assertEqual((herdr, spawns), ([], []))
+
+    def test_cursor_pane_and_name_match_closes_that_pane_and_resumes(self):
+        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_procs=CURSOR_PROC)
+        self.assertIsNone(code)
+        self.assertEqual(herdr, [["pane", "close", PANE]])
+        self.assertEqual([s["resume"] for s in spawns], [SESS])
+
+    def test_two_cursor_processes_for_the_session_are_refused(self):
+        extra = [(5253, ["cursor-agent", "--resume", SESS])]
+        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_procs=CURSOR_PROC + extra)
+        self.assertEqual(code, 3)
+        self.assertEqual((herdr, spawns), ([], []))
+
+    def test_cursor_no_process_for_row_session_refuses_without_closing(self):
+        """A herdr entry with no agent_session and no cursor-agent argv carrying the row session stays a refusal."""
+        code, out, herdr, spawns = self.relaunch([entry()], [], cursor_procs=[])
+        self.assertEqual(code, 3)
+        self.assertEqual((herdr, spawns), ([], []))
+
+    def test_cursor_name_mismatch_on_the_pane_is_refused(self):
+        code, out, herdr, spawns = self.relaunch([entry(name="zz-someone-else")], [], cursor_procs=CURSOR_PROC)
+        self.assertEqual(code, 3)
+        self.assertEqual((herdr, spawns), ([], []))
 
 
 if __name__ == "__main__":
