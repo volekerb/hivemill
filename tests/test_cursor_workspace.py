@@ -120,7 +120,13 @@ class AddDirLeakSpawnTests(FactoryTestCase):
             agent="zz-test-director",
         )
 
+    def _retire_seeded_director(self):
+        """T-1265: one live director per org. These tests spawn a director to check its add-dir roots, not the twin
+        rule, so the fixture director (the caller) stops counting as the org's live director first."""
+        self.env.sql("UPDATE agents SET status='exited' WHERE name='zz-test-director'")
+
     def test_hq_roles_add_dir_roots_clean(self):
+        self._retire_seeded_director()
         before = len(self.env.calls("herdr"))
         for role, name in (("director", "zz-c-dir"), ("boss", "zz-c-boss"), ("lead", "zz-c-lead")):
             with self.subTest(role=role):
@@ -154,6 +160,7 @@ class AddDirLeakSpawnTests(FactoryTestCase):
         agents_md = self.env.home_dir / "AGENTS.md"
         agents_md.write_text("# leak\n")
         before = len(self.env.calls("herdr"))
+        self._retire_seeded_director()
         p = self._spawn_hq_role("director", "zz-leak-dir")
         self.assertIn("add-dir", p.stderr.lower())
         starts = [c for c in self.env.calls("herdr")[before:] if c.get("argv", [])[:2] == ["agent", "start"]]
