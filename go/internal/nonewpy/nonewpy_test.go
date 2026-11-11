@@ -187,3 +187,39 @@ func TestRunBadBaseFailsClosed(t *testing.T) {
 		t.Fatalf("want a git error, got %v", err)
 	}
 }
+
+func TestReadErrorFailsClosed(t *testing.T) {
+	boom := func(bool, string) ([]byte, bool, error) { return nil, false, os.ErrPermission }
+	if _, err := Evaluate([]Change{{Status: "A", Path: "tool"}}, boom); err == nil {
+		t.Fatal("want a read error to fail the check, got nil")
+	}
+}
+
+func TestReadFirstBytesHeadMissingIsError(t *testing.T) {
+	dir := t.TempDir()
+	gitIn(t, dir, "init", "-q", "-b", "main")
+	write(t, dir, "a", "x")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "c")
+	if _, _, err := readFirstBytes(dir, "HEAD", "nope", true); err == nil {
+		t.Fatal("want error for a path missing at head")
+	}
+	if _, ok, err := readFirstBytes(dir, "HEAD", "nope", false); err != nil || ok {
+		t.Fatalf("missing at merge base: ok=%v err=%v, want absent without error", ok, err)
+	}
+	if _, _, err := readFirstBytes(dir, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "a", true); err == nil {
+		t.Fatal("want error for an unreadable revision, not absent")
+	}
+}
+
+func TestReadFirstBytesBounded(t *testing.T) {
+	dir := t.TempDir()
+	gitIn(t, dir, "init", "-q", "-b", "main")
+	write(t, dir, "big", "#!/usr/bin/env python3\n"+strings.Repeat("x", 100000))
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "c")
+	b, ok, err := readFirstBytes(dir, "HEAD", "big", true)
+	if err != nil || !ok || len(b) != maxHead || !HasPythonShebang(b) {
+		t.Fatalf("len=%d ok=%v err=%v, want %d bytes with shebang", len(b), ok, err, maxHead)
+	}
+}

@@ -4,12 +4,15 @@ package nonewpy
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // allowList holds paths exempt from the check. It stays empty (G-041 D2: new Python test files count too);
@@ -120,9 +123,6 @@ func isNewPython(c Change, read Reader) (bool, error) {
 			return true, nil
 		}
 	}
-	if c.Status == "R" && c.Old == "" {
-		return false, nil
-	}
 	head, ok, err := read(true, c.Path)
 	if err != nil {
 		return false, err
@@ -170,25 +170,84 @@ func Run(repo, base, head string) ([]Violation, int, error) {
 		if atHead {
 			rev = head
 		}
-		if _, err := git(repo, "cat-file", "-e", rev+":"+p); err != nil {
-			return nil, false, nil // absent at that commit
-		}
-		b, err := git(repo, "cat-file", "blob", rev+":"+p)
-		return b, err == nil, err
+		return readFirstBytes(repo, rev, p, atHead)
 	}
 	bad, err := Evaluate(changes, read)
 	return bad, len(changes), err
 }
 
+// gitTimeout bounds every git call so a hung process (lazy fetch, lock wait) fails the check instead of blocking it.
+const gitTimeout = 2 * time.Minute
+
+// maxHead is how many bytes of a blob are read: only the first line is needed for the shebang test.
+const maxHead = 256
+
+// readFirstBytes returns the first bytes of repo's rev:p blob. ok is false for an entry that is not a blob
+// (a submodule) or a path missing at the merge base. Any other git failure is an error, never "absent".
+func readFirstBytes(repo, rev, p string, headRead bool) ([]byte, bool, error) {
+	out, err := git(repo, "ls-tree", "-z", rev, "--", p)
+	if err != nil {
+		return nil, false, err
+	}
+	var typ string
+	for _, ent := range strings.Split(string(out), "\x00") {
+		meta, name, found := strings.Cut(ent, "\t")
+		if !found || name != p {
+			continue
+		}
+		if f := strings.Fields(meta); len(f) == 3 {
+			typ = f[1]
+		}
+	}
+	if typ == "" {
+		if headRead {
+			return nil, false, fmt.Errorf("%s missing at head %s although git diff lists it: rerun with a full clone", p, rev)
+		}
+		return nil, false, nil // absent at the merge base: a new file
+	}
+	if typ != "blob" {
+		return nil, false, nil
+	}
+	return gitHead(repo, maxHead, "cat-file", "blob", rev+":"+p)
+}
+
+// gitHead runs git and returns at most limit bytes of stdout.
+func gitHead(repo string, limit int64, args ...string) ([]byte, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)
+	cmd.Env = cleanEnv()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, false, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, false, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	buf, rerr := io.ReadAll(io.LimitReader(pipe, limit))
+	_, _ = io.Copy(io.Discard, pipe) // drain so git exits normally
+	if werr := cmd.Wait(); werr != nil || rerr != nil {
+		if werr == nil {
+			werr = rerr
+		}
+		return nil, false, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), werr, strings.TrimSpace(stderr.String()))
+	}
+	return buf, true, nil
+}
+
 // git runs git with argv (never a shell) and returns stdout; errors carry stderr.
 func git(repo string, args ...string) ([]byte, error) {
-	cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)
 	cmd.Env = cleanEnv()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
 	return out, nil
 }
