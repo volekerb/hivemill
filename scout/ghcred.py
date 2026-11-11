@@ -127,10 +127,13 @@ def check_token_path(token_path, home):
     return real
 
 
-def _git_value(home, key):
+def _git_value(home, key, cwd=None):
+    """`git config --global --get key` as the owner, run in `cwd` so the owner's includeIf gitdir rules apply.
+    A missing or non-directory cwd falls back to "/"."""
+    cwd = cwd if cwd and os.path.isdir(cwd) else "/"
     env = {"HOME": home, "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "GIT_CONFIG_NOSYSTEM": "1"}
-    r = subprocess.run(["git", "config", "--global", "--get", key], capture_output=True, text=True, env=env,
-                       cwd="/", timeout=20)
+    r = subprocess.run(["git", "config", "--global", "--includes", "--get", key], capture_output=True, text=True, env=env,
+                       cwd=cwd, timeout=20)
     return r.stdout.strip() or None
 
 
@@ -169,8 +172,9 @@ def _open_dir(path, parent_fd=None):
     return fd
 
 
-def prepare_dir(agent, role, token_path, slugs, real_gh, home=None, root=None):
-    """Write the per-agent dir and return its path. `role` is for the caller's records; nothing here depends on it."""
+def prepare_dir(agent, role, token_path, slugs, real_gh, home=None, root=None, cwd=None):
+    """Write the per-agent dir and return its path. `role` is for the caller's records; nothing here depends on it.
+    `cwd` is the pane cwd: user.name/email resolve there so the owner's includeIf gitdir identity applies."""
     if not NAME_RE.fullmatch(agent):
         raise ValueError(f"bad agent name {agent!r}")
     slugs = list(slugs)
@@ -185,7 +189,7 @@ def prepare_dir(agent, role, token_path, slugs, real_gh, home=None, root=None):
     agent_dir = os.path.join(root, agent)
     helper = f"!{shlex.quote(sys.executable)} -I {shlex.quote(SELF)} git-credential {shlex.quote(','.join(slugs))}"
     lines = ["[user]"]
-    for key, val in (("name", _git_value(home, "user.name")), ("email", _git_value(home, "user.email"))):
+    for key, val in (("name", _git_value(home, "user.name", cwd)), ("email", _git_value(home, "user.email", cwd))):
         if val:
             lines.append(f"\t{key} = {_gq(val)}")
     lines += ["[credential]", "\tuseHttpPath = true", f'[credential "https://{HOST}"]', f"\thelper = {_gq(helper)}", ""]
