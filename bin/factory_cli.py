@@ -11902,21 +11902,39 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
             if why:
                 return why, None, tip is not None
     # everything that would be lost must already be on the PR head (or on base, for a cancelled task with no PR)
-    tips = [x for x in (tip, _git(wt, "rev-parse", "HEAD").stdout.strip() if wt else None) if x]
+    # (sha, repo to check in): the main repo's branch tip is checked there; a clone's own tips exist only in the clone's
+    # object store (the main repo never fetched them), so they are checked inside the clone
+    tips = [(tip, repo)] if tip else []
+    seen = {tip} if tip else set()
+    if wt:
+        h = _git(wt, "rev-parse", "HEAD").stdout.strip()
+        if h and h not in seen:
+            tips.append((h, wt if clone else repo))
+            seen.add(h)
     if wt and clone and branch:  # the clone's own branch is lost with it too, whatever HEAD points at
         r = _git(wt, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")
-        if r.returncode == 0 and r.stdout.strip() not in tips:
-            tips.append(r.stdout.strip())
+        if r.returncode == 0 and r.stdout.strip() not in seen:
+            tips.append((r.stdout.strip(), wt))
+            seen.add(r.stdout.strip())
         refs = _git(wt, "for-each-ref", "--format=%(objectname)", "refs/heads/", "refs/stash")  # any other branch or the stash dies with the clone too
         if refs.returncode != 0:
             return "unpushed commits", None, tip is not None
-        tips += [x for x in refs.stdout.split() if x not in tips]
-    for sha in tips:
+        for x in refs.stdout.split():
+            if x not in seen:
+                tips.append((x, wt))
+                seen.add(x)
+    for sha, where in tips:
         if head:
-            if not _is_ancestor(repo, sha, head):
+            if not _is_ancestor(where, sha, head):
                 return "unpushed commits", None, tip is not None
         else:
-            r = _git(repo, "rev-list", "--count", f"origin/{base}..{sha}")
+            lower = f"origin/{base}"
+            if where != repo:  # a clone's own origin/<base> is worker-writable: use the main repo's sha, fail closed if the clone lacks it
+                b = _git(repo, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{base}")
+                if b.returncode != 0:
+                    return "unpushed commits", None, tip is not None
+                lower = b.stdout.strip()
+            r = _git(where, "rev-list", "--count", f"{lower}..{sha}")
             if r.returncode != 0 or r.stdout.strip() != "0":
                 return "unpushed commits", None, tip is not None
     return None, wt, tip is not None
