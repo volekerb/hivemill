@@ -913,6 +913,34 @@ def _ancestry_worker():
     return None
 
 
+def _pane_row_stale(con, name):
+    """T-1292: True only when a live worker row provably no longer owns its pane: the row records a session id, the
+    process table is readable, and NO claude process on the host runs that session. A live worker always has such a
+    process (it cannot hide it), so a worker cannot use this to pass as HQ by forging env. No session id, an
+    unreadable /proc or any doubt = not stale (fail closed)."""
+    try:
+        r = con.execute("SELECT session_id FROM agents WHERE name=?", (name,)).fetchone()
+    except sqlite3.Error:
+        return False
+    sid = r["session_id"] if r else None
+    procs = _scan_claude()
+    if not sid or procs is None:
+        return False
+    return not claude_procs(sid, {p: v[0] for p, v in procs.items()})
+
+
+def _record_pane_conflict(con, pane, row, fa, fa_role):
+    """T-1292: one event per (pane, stale row, claimed identity) naming both identities."""
+    detail = (f"pane {pane}: stale live row {row['name']} ({row['role']}, no claude process runs its session) "
+              f"ignored; caller is {fa} ({fa_role})")
+    try:
+        if not con.execute("SELECT 1 FROM events WHERE action='identity-conflict' AND entity_id=? AND detail=?",
+                           (row["name"], detail)).fetchone():
+            event_as(con, f"pane:{pane}", "agent", row["name"], "identity-conflict", detail)
+    except sqlite3.Error:
+        pass
+
+
 def _detect_worker():
     role = _ancestry_worker()
     if role:
@@ -934,6 +962,9 @@ def _detect_worker():
                 if r["role"] in WORKER_ROLES:
                     fa = os.environ.get("FACTORY_AGENT") or ""
                     fr = con.execute("SELECT role FROM agents WHERE name=?", (fa,)).fetchone() if fa else None
+                    if fr and fr["role"] not in WORKER_ROLES and _pane_row_stale(con, r["name"]):
+                        _record_pane_conflict(con, pane, r, fa, fr["role"])
+                        continue
                     if fa and (fr["role"] if fr else "unknown") not in WORKER_ROLES:  # claims a non-worker identity
                         try:
                             event_as(con, f"pane:{pane}", "agent", r["name"], "identity-spoof",
