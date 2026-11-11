@@ -8,7 +8,8 @@ Every command here was run on this branch under a temporary `HOME` and `FACTORY_
 
 | Tool | Check | Notes |
 |---|---|---|
-| Claude Code | `claude --version`, and you are logged in | Every agent is a Claude Code session. **Not run in CI.** |
+| Claude Code | `claude --version`, and you are logged in | Agents of the default `claude` org are Claude Code sessions. **Not run in CI.** |
+| Cursor Agent CLI | `agent --version` | Optional: only for the `cursor` org and the daily retro agent. Log in with `agent login` or set `CURSOR_API_KEY`. See [runtimes.md](runtimes.md). **Not run in CI.** |
 | herdr | `herdr --version` | The terminal multiplexer that hosts the agent panes. Install: see [Install herdr](#install-herdr). **Not run in CI.** |
 | gh | `gh auth status` | Used for PRs, CI status and merges. Install: <https://github.com/cli/cli/blob/trunk/docs/install_linux.md>. **Not run in CI.** |
 | git | `git --version` | Each task gets its own worktree. |
