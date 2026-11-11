@@ -55,7 +55,7 @@ var checkSeeds = []string{
 	"gh api --method=get x --field=a=b", "gh -R o/r api x -f a=b", "gh api x -fbody=1", "gh release delete-asset v1 a",
 }
 
-// FuzzCheck checks only that Check neither panics nor hangs, as coder, no-push role and in HQ mode, for any command text.
+// FuzzCheck checks only that Check neither panics nor hangs, as coder, no-push role, retro, and in HQ mode, for any command text.
 func FuzzCheck(f *testing.F) {
 	for _, s := range checkSeeds {
 		f.Add(s)
@@ -77,6 +77,8 @@ func FuzzCheck(f *testing.F) {
 			_ = Check(s, dir, retroRole, false)
 			for _, frag := range retroSubstRedirectFrags(s) {
 				_ = retroSplitShellWords(frag)
+				_ = retroQuoteUnquote(frag)
+				_, _ = retroPrintfSegment(frag)
 				_, _ = retroResolvePathExpr(retroPathExpr(frag))
 			}
 		})
