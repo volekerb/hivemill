@@ -122,24 +122,28 @@ Every step: before it, the event log shows no `sandbox-refused` or `start-uncert
   7. `readlink /proc/<claude pid>/ns/user` differs from the pane shell's;
   8. `factory config sandbox_roles ''`, then the next spawn is unsandboxed (same user ns as the pane shell).
 - Hold: until all eight are ticked (same day). If the multiplexer does not detect the shimmed claude (R1), stop: the fallback is to run the shim as the pane command, which is a new task.
+- Status: done 2026-10-30.
 
 ### Step 1: reviewer (T-0169, success criterion 2)
 - Preconditions: step 0 passed; O3 done.
 - Command: `factory config sandbox_roles reviewer`.
 - Checks: a real PR review end to end: `gh pr view`, `gh pr diff`, `gh pr checks` work with the ro PAT; the verdict is recorded; the judge proceeds; no `sandbox-refused`, `start-uncertain` or `sandbox-escaped` event (the last one: T-0174).
 - Hold: at least 24 h and 3 reviews with none of those events.
+- Status: done 2026-10-31 (hold passed).
 
 ### Step 2: qa (T-0170)
 - Preconditions: step 1 held; per-task clones, `factory clean` for clones and qa and coder rw on clones are merged. The preflight refuses qa and coder with reason `clone` unless the task's cwd is a per-task clone (`.git` is a directory), so turn `task_clones` on first.
 - Command: `factory config sandbox_roles reviewer,qa`.
 - Checks: QA checks out the PR head, runs the tests and records PASS or FAIL; no write outside the clone; the test count equals an unsandboxed run of the same PR; `factory clean` removes the clone after the merge.
 - Hold: 24 h and 3 QA runs with no refused or escape events.
+- Status: done 2026-11-11 (hold passed).
 
 ### Step 3: coder (T-0171)
 - Preconditions: step 2 held; O4 done; `main` protection still as in section 2 (`enforce_admins` on, PR required, checks `unittest-shard (1)` to `(10)`, `go`, `unittest`). Protection must be in place before O4; if it is off, do not create the rw token.
 - Command: `factory config sandbox_roles reviewer,qa,coder`.
 - Checks: a small real task: commit, `git push` of `factory/<task>`, `gh pr create`, CI green, judge merges. The lead confirms the main protection with `gh api repos/volekerb/hivemill/branches/main/protection`; the rw PAT has no admin and no Workflows; the done guard works (`factory done` refuses uncommitted or unpushed work). Never test by pushing to `main`.
 - Hold: 3 tasks merged with no refused or escape events before more coders are sandboxed.
+- Status: in progress since 2026-11-11 (sandboxed coder canary with `spawn --sandbox`; `sandbox_roles` unchanged).
 
 ### Step 4: pm (documented, not built)
 `pm` is not in `workerbox.SANDBOXABLE`, so `factory config sandbox_roles pm` is refused with exit 2. A pm runs in `~/factory`, which the cwd rule refuses. It would use the reviewer profile with `~/factory` read-only, and `git fetch` inside would fail because `FETCH_HEAD` sits in the read-only `.git`, so pm reads `origin/main` as fetched by HQ. It needs a small follow-up to the cwd rule. Check when built: one plan task end to end. Enable after step 3 is stable.
