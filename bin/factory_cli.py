@@ -1199,6 +1199,28 @@ def _host_ipc_env(exe):
     return {**os.environ, "HERDR_SOCKET_PATH": herdr_socket()}
 
 
+def _hc_status_word(terminal):
+    """Map one hc ls terminal's OSC 7501 `status` field to a normalized agent_status string.
+    Fallback: a missing OSC 7501 status is unknown. Factory does not call hc wait and does not infer idle from a quiet screen."""
+    if not isinstance(terminal, dict):
+        return "unknown"
+    st = terminal.get("status")
+    if st is None or st == "":
+        return "unknown"
+    if isinstance(st, dict):
+        state = st.get("state")
+        if state in ("idle", "working", "done", "blocked"):
+            return state
+        if state == "error":
+            return "error"
+        return "unknown"
+    if isinstance(st, str):
+        if st in ("idle", "working", "done", "blocked", "error", "unknown"):
+            return st
+        return "unknown"
+    return "unknown"
+
+
 def _hc_terminal_to_agent_row(t):
     """Map one hc ls terminal object into the row shape the tick already normalizes (no invented fields)."""
     if not isinstance(t, dict):
@@ -1208,9 +1230,9 @@ def _hc_terminal_to_agent_row(t):
         row["name"] = t["name"]
     if t.get("agent") is not None:
         row["agent"] = t["agent"]
-    st = t.get("status")
-    if st is not None and st != "":
-        row["agent_status"] = st
+    word = _hc_status_word(t)
+    if "status" in t or word != "unknown":
+        row["agent_status"] = word
     return row
 
 
@@ -11313,6 +11335,18 @@ def esc_wait_nudge(con, name, nudge, what, defer=False):
             r = con.execute("SELECT pane_id, started FROM agents WHERE name=?", (name,)).fetchone()
             event_as(con, "tick", "agent", name, "nudge-pending", {"nudge": nudge, "what": what,
                                                                    "pane_id": r["pane_id"], "started": r["started"]})
+        return
+    hc_back = terminal_backend_effective(con)[1] == "hc"
+    if hc_back:
+        st = None
+        h = next((x for x in (herdr_agents() or []) if x.get("name") == name), None)
+        if h:
+            st = h.get("agent_status")
+        if live() and st in ("idle", "done"):
+            herdr("agent", "prompt", name, nudge, check=False)
+            print(f"nudged {name} to read the {what}")
+        elif live() and (st is None or st == "unknown"):
+            print("missing status is not idle")
         return
     if live():
         herdr("agent", "wait", name, "--until", "idle", "--until", "done", "--until", "blocked", "--timeout", "30000",
