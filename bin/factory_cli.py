@@ -10316,6 +10316,9 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if evaluator:
         env.update(env_extra)  # validated: FACTORY_HOME is the trial's temp home, never the live one
     sandboxed = sandbox_wanted(con, role, optin)
+    if (not sandboxed and task and role in ("coder", "qa", "reviewer")
+            and os.path.realpath(str(cwd)).startswith(os.path.realpath(str(WORKTREES)) + os.sep)):
+        trust_task_clone(con, task, cwd)  # T-1328: a clone made for a sandbox_required task skipped T-1220; idempotent
     if runtime != "claude":
         if evaluator:
             die(f"runtime {runtime}: evaluator/skilleval stays on Claude", 3)

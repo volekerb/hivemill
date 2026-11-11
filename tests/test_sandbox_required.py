@@ -176,6 +176,45 @@ class ManualSpawnTests(Base):
         self.assertNotIn("sandbox", json.loads(self.agent("zz-reviewer")["spawn_args"]))
 
 
+class OwnerTrustTests(Base):
+    """T-1328: an unsandboxed pane on a task clone gets the T-1220 owner trust entry; a sandboxed one does not."""
+    SEED = {"hasTrustDialogAccepted": True, "hasCompletedProjectOnboarding": True}
+
+    def owner_json(self, data):
+        p = self.env.user_home / ".claude.json"
+        p.write_text(json.dumps(data))
+        p.chmod(0o600)
+        return p
+
+    def test_unsandboxed_reviewer_on_a_flagged_clone_registers_only_that_clone(self):
+        self.task(role="coder")
+        wt = self.env.home_dir / "worktrees" / "w-reviewer"
+        self.env.sql("UPDATE tasks SET worktree=? WHERE id=?", (str(wt), T))
+        other = {"theme": "dark", "projects": {"/elsewhere": {"x": 1}}}
+        p = self.owner_json(other)
+        r = self.spawn("reviewer", name="zz-reviewer")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        want = {"theme": "dark", "projects": {"/elsewhere": {"x": 1}, str(wt.resolve()): self.SEED}}
+        self.assertEqual(json.loads(p.read_text()), want)
+
+    def test_cwd_outside_worktrees_is_never_written(self):
+        self.task(role="coder", flag=0)
+        outside = self.env.home / "outside"
+        outside.mkdir()
+        p = self.owner_json({"projects": {}})
+        before = p.read_bytes()
+        self.spawn("reviewer", "--cwd", str(outside), name="zz-reviewer")
+        self.assertEqual(p.read_bytes(), before)
+
+    def test_sandboxed_spawn_leaves_the_owner_file_unchanged(self):
+        self.task(role="reviewer")
+        p = self.owner_json({"projects": {}})
+        before = p.read_bytes()
+        r = self.spawn("reviewer", "--sandbox", name="zz-reviewer")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(p.read_bytes(), before)
+
+
 class AutoStartTests(Base):
     def park(self):
         self.env.sql("UPDATE teams SET lead_agent=?, parked_at='2026-01-01T00:00:00+00:00' WHERE id=?", (LEAD, TEAM))
