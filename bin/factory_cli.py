@@ -4656,7 +4656,10 @@ def stale_behind_ok(con, owner_repo):
     """G-022 stale_policy: True when a clean BEHIND head may be merged/spawned on without a refresh. Needs config
     stale_policy=behind_ok (default; `factory config stale_policy strict` is the rollback) AND GitHub's branch
     protection of main reading required_status_checks.strict == false, read live via `gh api` (cached STRICT_TTL_S).
-    strict true, no protection, or any read failure -> False (behave as strict)."""
+    When classic protection is missing (HTTP 404), the repository rulesets for main are read instead: behind_ok applies
+    only when that call succeeds and no required_status_checks rule has
+    strict_required_status_checks_policy == true. strict true, no protection/ruleset read, or any other read failure ->
+    False (behave as strict)."""
     if (cfg(con, "stale_policy") or "strict").strip().lower() != "behind_ok":
         return False
     key, t = "stale_strict:" + owner_repo, time.time()
@@ -4673,11 +4676,32 @@ def stale_behind_ok(con, owner_repo):
     except (OSError, subprocess.SubprocessError):
         return False
     out = p.stdout.strip()
-    if p.returncode != 0 or out not in ("true", "false"):
-        return False  # unreadable or not required at all: cannot confirm strict=false
+    if p.returncode == 0 and out in ("true", "false"):
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, json.dumps({"at": t, "strict": out == "true"})))
+        return out == "false"
+    err = (p.stderr or "") + (p.stdout or "")
+    if not (p.returncode != 0 and ("Branch not protected" in err or "HTTP 404" in err)):
+        return False  # unreadable classic protection: cannot confirm strict=false
+    try:
+        r = subprocess.run(["gh", "api", f"repos/{owner_repo}/rules/branches/main"],
+                           capture_output=True, text=True, timeout=GH_API_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if r.returncode != 0:
+        return False
+    try:
+        rules = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(rules, list):
+        return False
+    strict = any(rule.get("type") == "required_status_checks"
+                 and (rule.get("parameters") or {}).get("strict_required_status_checks_policy") is True
+                 for rule in rules)
     con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                (key, json.dumps({"at": t, "strict": out == "true"})))
-    return out == "false"
+                (key, json.dumps({"at": t, "strict": strict})))
+    return not strict
 
 
 def behind_ok_blocker(repo, sha, main_sha):
