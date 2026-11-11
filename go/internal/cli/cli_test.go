@@ -333,10 +333,13 @@ func TestFlagsJSONMatchesPythonDumps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if d, _ := parseJSON([]byte(`["\u007f",-0]`)); dumpIndent1(d) != "[\n \"\\u007f\",\n 0\n]" {
+		t.Fatalf("DEL / -0: %q", dumpIndent1(d))
+	}
 	if got := dumpIndent1(n); got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
-	for _, bad := range []string{`[1.5]`, `[1e3]`, `{"a":1,"a":2}`, `[NaN]`} {
+	for _, bad := range []string{`[1.5]`, `[1e3]`, `{"a":1,"a":2}`, `[NaN]`, `["\\ud800"]`, "[\"\xff\"]"} {
 		if _, err := parseJSON([]byte(bad)); err == nil {
 			t.Errorf("%s must be refused so Python answers", bad)
 		}

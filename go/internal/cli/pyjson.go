@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf16"
+	"unicode/utf8"
 )
 
 // jnode is a JSON value that keeps object key order, so json.dumps(..., indent=1) can be reproduced exactly.
@@ -25,7 +26,15 @@ var errUnsupportedJSON = errors.New("json value this binary cannot reproduce byt
 
 var intLit = regexp.MustCompile(`^-?[0-9]+$`)
 
+var loneSurrogate = regexp.MustCompile(`(?i)\\u[dD][89a-fA-F][0-9a-fA-F]{2}`)
+
 func parseJSON(data []byte) (*jnode, error) {
+	if !utf8.Valid(data) {
+		return nil, errUnsupportedJSON // Python's read_text raises; let it word the error
+	}
+	if loneSurrogate.Match(data) {
+		return nil, errUnsupportedJSON // surrogate escapes: Python keeps them, Go would not
+	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	n, err := parseValue(dec)
@@ -53,6 +62,9 @@ func parseValue(dec *json.Decoder) (*jnode, error) {
 	case json.Number:
 		if !intLit.MatchString(t.String()) {
 			return nil, errUnsupportedJSON // Python prints floats with repr(); not reproduced
+		}
+		if t.String() == "-0" {
+			return &jnode{kind: 'i', s: "0"}, nil // Python parses -0 as the int 0
 		}
 		return &jnode{kind: 'i', s: t.String()}, nil
 	case json.Delim:
@@ -223,7 +235,7 @@ func dumpString(b *strings.Builder, s string) {
 			b.WriteString(`\f`)
 		case r < 0x20:
 			fmt.Fprintf(b, `\u%04x`, r)
-		case r < 0x7f+1:
+		case r < 0x7f:
 			b.WriteRune(r)
 		case r >= 0x10000:
 			r1, r2 := utf16.EncodeRune(r)
