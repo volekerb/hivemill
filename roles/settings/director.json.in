@@ -83,6 +83,7 @@
       "Bash(factory config scout_max_minutes *)",
       "Bash(factory config recycle_context_tokens *)",
       "Bash(factory stop *)",
+      "Bash(factory reap-agent *)",
       "Bash(factory task update *)",
       "Bash(factory task add *)",
       "Bash(factory task note *)",
