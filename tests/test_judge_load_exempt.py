@@ -42,6 +42,7 @@ class JudgeLoadExempt(DequeueBase):
 
     def test_tick_judge_starts_behind_queued_lead_and_director_under_load_only(self):
         self.queue_judge()
+        self.env.sql("UPDATE agents SET status='exited' WHERE name='zz-director'")  # T-1265: one live director per org
         self.queue("zz-l", "lead", "G-003", at(1))
         self.queue("zz-d", "director", "G-003", at(0))
         self.ok("config", "max_live_agents", "10")
