@@ -9275,8 +9275,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         goal_token_gate(con, role, goal, task, from_queue)  # G-015 SC3 F-74 L3: before the gate and any queue row
     existing = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
     if role in ("boss", "director") and not relaunch and not from_queue:  # T-1265: one live boss/director per org
-        twin = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting') AND "
-                           "(org=? OR (org IS NULL AND name LIKE ?)) LIMIT 1", (role, org, f"{org}-%")).fetchone()
+        twin = next((r for r in con.execute("SELECT * FROM agents WHERE role=? AND status IN ('live','starting')", (role,))
+                     if orgs.of_agent(r) == org), None)
         if twin:
             die(f"{twin['name']} is already the live {org} {role}; not starting {name}. "
                 f"To restart it use `factory relaunch {twin['name']}` (add --fresh for a new session).", 3)

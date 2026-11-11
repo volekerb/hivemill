@@ -50,8 +50,15 @@ class SpawnHqName(FactoryTestCase):
         self.env.seed_agent("cursor-boss", "boss")
         self.env.sql("UPDATE agents SET org='cursor', session_id='sid-1' WHERE name='cursor-boss'")
         p = self.env.run("relaunch", "cursor-boss", "--fresh", "--force", agent="zz-owner-dir")
-        self.assertNotEqual(p.returncode, 3, p.stdout + p.stderr)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertNotIn("is already the live", p.stdout + p.stderr)
+        self.assertEqual(self.names("boss"), ["cursor-boss"])
+
+    def test_legacy_unprefixed_live_boss_blocks_second(self):
+        self.env.seed_agent("boss", "boss")  # org NULL, no prefix: the default (claude) org
+        p = self.spawn("boss", "--org", "claude")
+        self.assertEqual(p.returncode, 3, p.stdout + p.stderr)
+        self.assertIn("factory relaunch boss", p.stdout + p.stderr)
 
     def test_worker_default_name_unchanged(self):
         self.env.seed_team("g-001-a", lead="zz-lead")
