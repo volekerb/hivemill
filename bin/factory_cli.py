@@ -11723,6 +11723,96 @@ def cmd_stop(a):
     print(f"If {name} is still live after stop_timeout_s={timeout}s the tick closes its pane (hard fallback).")
 
 
+def _agent_procs_alive(name, sid):
+    """T-1293: (alive_pids, unknown_pids) for agent `name`: processes whose own FACTORY_AGENT is `name`, plus claude
+    processes running its session id whose environ cannot be read (unknown = cannot be cleared, so a refusal).
+    A claude that runs the session but names ANOTHER agent (a reused session id) is not `name`'s. None when /proc
+    is unreadable."""
+    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return None
+    alive, unknown = [], []
+    for d in entries:
+        if not d.name.isdigit():
+            continue
+        try:
+            env = (d / "environ").read_bytes()
+        except OSError:
+            env = None
+        if env is not None:
+            if f"FACTORY_AGENT={name}".encode() in env.split(b"\0"):
+                alive.append(int(d.name))
+            continue
+        try:
+            argv = [x.decode(errors="replace") for x in (d / "cmdline").read_bytes().split(b"\0") if x]
+        except OSError:
+            continue
+        if sid and any(os.path.basename(x) == "claude" for x in argv[:3]) and sid in _argv_sessions(argv):
+            unknown.append(int(d.name))
+    return alive, unknown
+
+
+def cmd_reap_agent(a):
+    """director/owner: mark a dead agent row stopped when its pane id was reused (T-1293). Only the DB row changes:
+    never a pane close, never a signal. Every proof below must hold; any doubt refuses."""
+    refuse_worker("reap-agent")
+    con = db()
+    require_role(con, "director")
+    r = con.execute("SELECT * FROM agents WHERE name=?", (a.agent,)).fetchone()
+    if not r:
+        die(f"unknown agent {a.agent}", 2)
+    if r["status"] not in ("live", "starting"):
+        die(f"{a.agent} is '{r['status']}', not live: nothing to reap", 2)
+    pane = r["pane_id"]
+    if not pane:
+        die(f"{a.agent} has no pane id: nothing proves its pane was reused; use factory stop", 2)
+    agents = herdr_agents()
+    if agents is None:
+        die("the pane server is unreachable: cannot see which agent hosts the pane; retry later", 2)
+    by_name, by_pane = _agents_index(agents)
+    if a.agent in by_name:
+        die(f"{a.agent} is still listed by the pane server (pane {by_name[a.agent].get('pane_id')}): it is alive, "
+            "not reaped; use factory stop", 2)
+    host = (by_pane.get(pane) or {}).get("name")
+    hrow = con.execute("SELECT name, status FROM agents WHERE name=?", (host,)).fetchone() if host else None
+    if not host or host == a.agent or not hrow:
+        die(f"pane {pane} does not host a different registered agent (host: {host or 'none'}): no proof the pane "
+            "was reused; use factory stop", 2)
+    procs = _agent_procs_alive(a.agent, r["session_id"])
+    if procs is None:
+        die("/proc is unreadable: cannot prove no process of the agent is alive", 2)
+    alive, unknown = procs
+    if alive:
+        die(f"{a.agent} has a live process with FACTORY_AGENT={a.agent} (pids {', '.join(map(str, alive))}): "
+            "it is alive; use factory stop", 2)
+    if unknown:
+        die(f"cannot read the environment of claude pids {', '.join(map(str, unknown))} running session "
+            f"{r['session_id']}: cannot prove they are not {a.agent}'s", 2)
+    ev = {"by": actor(), "pane": pane, "pane_host": host, "pane_host_status": hrow["status"],
+          "session_id": r["session_id"], "was": r["status"], "procs_alive": 0}
+    if a.dry_run:
+        print(f"DRY RUN: would mark {a.agent} stopped: pane {pane} hosts {host}, no process runs as {a.agent}; "
+              "no pane or process is touched")
+        return
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        if con.execute("UPDATE agents SET status='stopped', ended=coalesce(ended,?), pane_id=NULL "
+                       "WHERE name=? AND status IN ('live','starting') AND pane_id=?",
+                       (now(), a.agent, pane)).rowcount != 1:
+            con.execute("ROLLBACK")
+            die(f"{a.agent} changed meanwhile: nothing reaped", 2)
+        event(con, "agent", a.agent, "reaped-reused-pane", ev)
+        con.execute("COMMIT")
+    except BaseException:
+        if con.in_transaction:
+            con.execute("ROLLBACK")
+        raise
+    print(f"{a.agent} marked stopped: pane {pane} hosts {host}, no process runs as {a.agent} "
+          "(event reaped-reused-pane; pane and processes untouched)")
+
+
 def cmd_unblock(a):
     """director/lead: deny a blocked worker's permission dialog once (Esc + nudge). The worker keeps running: no pane
     close, no stop flag, no task change (L-021)."""
@@ -18528,6 +18618,9 @@ def main():
     x.add_argument("agent"); x.add_argument("--reason")
     x.add_argument("--now", action="store_true", help="skip the Esc/wait/nudge and close the pane now")
     x.add_argument("--dry-run", action="store_true"); x.set_defaults(fn=cmd_stop)
+    x = sp.add_parser("reap-agent", help="director/owner: mark a dead agent row stopped when its pane id is now held by "
+                                         "another registered agent (DB only; no pane or process is touched)")
+    x.add_argument("agent"); x.add_argument("--dry-run", action="store_true"); x.set_defaults(fn=cmd_reap_agent)
     x = sp.add_parser("src", help="export a ref into your scratchpad with the caller's git config, filters and attributes "
                                   "switched off (QA, verifiers)",
                       description="factory src <ref> <dest> [-- <paths>...]: git archive <ref> | tar -x into <dest> with a scrubbed "
