@@ -5,6 +5,7 @@ unshare chain against a fake home that mirrors the real layout and skips with us
 box cannot. Group C probes the owner's REAL paths (your-box only, read-only, content never printed; a check is skipped
 when its path is absent). Everything else lives in temp dirs under /var/tmp (/tmp is a hide tree).
 """
+import ast
 import errno
 import hashlib
 import json
@@ -328,6 +329,37 @@ class AgentDirTests(unittest.TestCase):
         now = json.loads(path.read_text())
         self.assertEqual(now["sessionNote"], "written by claude")
         self.assertEqual(sorted(now["projects"]), sorted([str(self.w.own), str(self.w.fh / "worktrees/other")]))
+
+    def test_trust_entry_is_under_the_file_and_key_claude_reads(self):
+        """T-1291. File: with CLAUDE_CONFIG_DIR set, Claude (2.1.322) keeps its global config at <CLAUDE_CONFIG_DIR>/.claude.json
+        (the live worker dirs hold the 70 KB file Claude itself rewrites there). Key: projects[<git root of the cwd>], which
+        for a clone is the cwd, and the pane cwd is the realpath the namespace was built with (cfg["cwd"])."""
+        owner = put(self.w.home / ".claude.json", json.dumps({"projects": {}}))
+        before = sha(owner)
+        d = self.w.prepare()
+        env = workerbox.build_env({}, str(self.w.home), str(d / "claude"), "g", "o", "t")
+        path = Path(env["CLAUDE_CONFIG_DIR"]) / ".claude.json"
+        shim = ast.parse((d / "bin/claude").read_text().split("\n", 1)[1])  # the baked cfg: json.loads('<json>')
+        cfg = json.loads(next(n.args[0].value for n in ast.walk(shim) if isinstance(n, ast.Call)
+                              and getattr(n.func, "attr", "") == "loads"))
+        key = cfg["ns"]["cwd"]
+        self.assertEqual(key, os.path.realpath(self.w.own))
+        self.assertEqual(json.loads(path.read_text())["projects"][key]["hasTrustDialogAccepted"], True)
+        self.assertEqual(list(json.loads(path.read_text())["projects"]), [key])  # the pane cwd only: no wildcard, no parent
+        self.assertEqual(sha(owner), before)  # the owner's ~/.claude.json is not touched by the sandbox path
+
+    def test_existing_untrusted_entry_for_the_cwd_gets_trust(self):
+        d = self.w.prepare()
+        path = d / "claude/.claude.json"
+        cur = json.loads(path.read_text())
+        cur["projects"][str(self.w.own)] = {"hasTrustDialogAccepted": False, "lastCost": 1}
+        cur["projects"]["/elsewhere"] = {"hasTrustDialogAccepted": False}
+        path.write_text(json.dumps(cur))
+        self.w.prepare()
+        now = json.loads(path.read_text())["projects"]
+        self.assertEqual(now[str(self.w.own)], {"hasTrustDialogAccepted": True, "lastCost": 1,
+                                                "hasCompletedProjectOnboarding": True})
+        self.assertEqual(now["/elsewhere"], {"hasTrustDialogAccepted": False})
 
     def test_claude_dir_is_kept_across_calls(self):
         d = self.w.prepare()
