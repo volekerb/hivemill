@@ -879,10 +879,36 @@ DEAD_SOCKET = "/proc/nonexistent/worker-no-herdr.sock"
 _WORKER = {}
 
 
+_PROC_IGNORED = []
+
+
+def proc_root():
+    """Where the role/identity checks read processes: /proc, or $FACTORY_PROC_DIR (a fake /proc for tests) ONLY when
+    FACTORY_HOME is not a live home. On a live home a set $FACTORY_PROC_DIR is ignored (a worker could forge an HQ
+    ancestry with it) and one proc-dir-ignored event is recorded per process so the attempt is visible."""
+    fake = os.environ.get("FACTORY_PROC_DIR")
+    if not fake:
+        return Path("/proc")
+    if not home_is_live():
+        return Path(fake)
+    if not _PROC_IGNORED:
+        _PROC_IGNORED.append(fake)
+        who = os.environ.get("FACTORY_AGENT") or "unknown"
+        try:
+            con = db()
+            try:
+                event_as(con, who, "agent", who, "proc-dir-ignored", {"FACTORY_PROC_DIR": fake})
+            finally:
+                con.close()
+        except (sqlite3.Error, OSError) as e:
+            print(f"factory: ignoring FACTORY_PROC_DIR on the live home; event not recorded: {e}", file=sys.stderr)
+    return Path("/proc")
+
+
 def _ancestry_worker():
     """Worker role from the process tree (env cannot spoof it): the first claude ancestor's --settings file.
     A claude without --settings (the flagless live HQ/leads) is not a worker. $FACTORY_PROC_DIR = fake /proc."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
 
     def ppid_of(pid):
         try:
@@ -915,7 +941,7 @@ def _ancestry_worker():
 
 def _caller_claude_sessions():
     """Session ids named by the caller's first claude ancestor (None when there is none or /proc is unreadable)."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     pid = os.getpid()
     if not (root / str(pid) / "stat").exists():
         pid = os.getppid()
@@ -1734,7 +1760,7 @@ def export_in_shell(pane, env, cwd):
 
 def _scan_claude():
     """{pid: (argv, ppid)} of every claude process under the proc dir; None when it is unreadable."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         entries = list(root.iterdir())
     except OSError:
@@ -1797,7 +1823,7 @@ def _is_cursor_agent_argv(argv):
 
 def _scan_host_agent_procs():
     """{pid: (argv, ppid)} of every claude and cursor-agent process; None when the proc dir is unreadable."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         entries = list(root.iterdir())
     except OSError:
@@ -1965,7 +1991,7 @@ def notify_flagless(con, found):
 
 def _proc_ppid(pid):
     """Parent pid of any process under the proc dir (not only claude); None when unreadable."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         stat = (root / str(pid) / "stat").read_text(errors="replace")
         return int(stat[stat.rindex(")") + 1:].split()[1])
@@ -1987,7 +2013,7 @@ def _is_claude_cmd(argv):
 
 def _userns_link(pid):
     """readlink of <proc>/<pid>/ns/user, None when unreadable. $FACTORY_PROC_DIR = fake /proc."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         return os.readlink(root / str(pid) / "ns" / "user")
     except OSError:
@@ -1996,7 +2022,7 @@ def _userns_link(pid):
 
 def _proc_start(pid):
     """Start time (clock ticks since boot, field 22 of <proc>/<pid>/stat), None when unreadable."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         stat = (root / str(pid) / "stat").read_text(errors="replace")
         return stat[stat.rindex(")") + 1:].split()[19]
@@ -11753,7 +11779,7 @@ def _agent_procs_alive(name, sid):
     processes running its session id whose environ cannot be read (unknown = cannot be cleared, so a refusal).
     A claude that runs the session but names ANOTHER agent (a reused session id) is not `name`'s. None when /proc
     is unreadable."""
-    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    root = proc_root()
     try:
         entries = list(root.iterdir())
     except OSError:
