@@ -9247,7 +9247,9 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         trow = con.execute("SELECT goal_id, team_id FROM tasks WHERE id=?", (task,)).fetchone()
         if trow:
             goal, team = goal or trow["goal_id"], team or trow["team_id"]
-    name = slug(name or f"{role}-{(task or team or goal or role)}")
+    # T-1265: a goal-less boss/director keeps its bare role name (the org prefix then gives <org>-boss, never <org>-boss-boss)
+    bare_hq = role in ("boss", "director") and not (task or team or goal)
+    name = slug(name or (role if bare_hq else f"{role}-{(task or team or goal or role)}"))
     # G-028: the org comes from the goal (else the task's goal, the existing row, the caller, the default org);
     # every agent name carries its org prefix (claude-boss, cursor-coder-t-0840)
     prior = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
@@ -9272,6 +9274,12 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if not relaunch:  # a relaunch restarts an agent that already runs: not new work
         goal_token_gate(con, role, goal, task, from_queue)  # G-015 SC3 F-74 L3: before the gate and any queue row
     existing = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
+    if role in ("boss", "director") and not relaunch and not from_queue:  # T-1265: one live boss/director per org
+        twin = next((r for r in con.execute("SELECT * FROM agents WHERE role=? AND status IN ('live','starting')", (role,))
+                     if orgs.of_agent(r) == org), None)
+        if twin:
+            die(f"{twin['name']} is already live as the {org} {role}; not starting {name}. "
+                f"To restart it use `factory relaunch {twin['name']}` (add --fresh for a new session).", 3)
     if existing and existing["status"] == "live" and not relaunch:
         # also for from_queue: run/<name>.prompt.md is read live by the running agent; never rewrite it under it
         die(f"{name} is already live in {existing['pane_id']}")
