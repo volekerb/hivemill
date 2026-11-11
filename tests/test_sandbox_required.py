@@ -203,7 +203,8 @@ class OwnerTrustTests(Base):
         outside.mkdir()
         p = self.owner_json({"projects": {}})
         before = p.read_bytes()
-        self.spawn("reviewer", "--cwd", str(outside), name="zz-reviewer")
+        r = self.spawn("reviewer", "--cwd", str(outside), name="zz-reviewer")
+        self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(p.read_bytes(), before)
 
     def test_sandboxed_spawn_leaves_the_owner_file_unchanged(self):
