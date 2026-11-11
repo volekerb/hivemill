@@ -154,6 +154,42 @@ class AuditTest(unittest.TestCase):
         self.log("session-2026-11-10T10-00-00-000Z-999-1.log", [init("c10"), shell("ls -la && git status")])
         self.assertEqual(self.result()["logs"][0]["risky"], [])
 
+    def test_since_unpadded_equals_padded(self):
+        self.log("session-2026-11-01T08-00-00-000Z-1-1.log", [init("old")])
+        self.log("session-2026-11-03T10-00-00-000Z-2-1.log", [init("mid")])
+        self.log("session-2026-11-10T10-00-00-000Z-3-1.log", [init("new")])
+        a = self.result("--since", "2026-11-3")
+        b = self.result("--since", "2026-11-03")
+        self.assertEqual([r["log"] for r in a["logs"]], [r["log"] for r in b["logs"]])
+        self.assertEqual(len(a["logs"]), 2)
+
+    def test_text_row_with_tab_and_newline_stays_one_line(self):
+        self.log("session-2026-11-10T10-00-00-000Z-1-1.log", [init("plain", "/work/a")])
+        self.log("session-2026-11-10T10-00-00-000Z-2-1.log", [init("c\tx\ry", "/work/a\tb\nc")])
+        out = run(self.home, self.logs).stdout.splitlines()
+        rows = [ln for ln in out if ln.startswith(("plain\t", "c x y\t"))]
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(len({ln.count("\t") for ln in rows}), 1)
+        self.assertEqual(len(out), 3)  # two rows plus the summary line
+        self.assertIn("/work/a b c", rows[1])
+
+    def test_text_outcome_labels(self):
+        self.log("session-2026-11-10T10-00-00-000Z-1-1.log", [init("c1"), shell(PRIV + " ls")])
+        text = run(self.home, self.logs).stdout
+        self.assertIn("outcomes=ran_unguarded=1,blocked_by_hook=0,hook_allowed=0", text)
+
+    def test_json_and_summary_keys_unchanged(self):
+        self.log("session-2026-11-10T10-00-00-000Z-1-1.log", [init("c1"), shell(PRIV + " ls")])
+        self.transcript("proj", "gone1")
+        d = self.result()
+        self.assertEqual(set(d), {"logs", "transcripts_log_gone", "summary"})
+        self.assertEqual(set(d["summary"]), {"logs", "sessions", "unguarded", "risky_unguarded",
+                                             "helper", "transcripts_log_gone", "oldest_log"})
+        self.assertEqual(set(d["logs"][0]), {"log", "pid", "session", "start", "kind", "workspace",
+                                             "agent", "guarded", "hooks", "risky", "ran"})
+        self.assertEqual(d["logs"][0]["risky"][0]["outcome"], "ran unguarded")
+        self.assertEqual(set(d["transcripts_log_gone"][0]), {"project", "session", "state"})
+
     def test_bad_since_exits_2(self):
         self.assertEqual(run(self.home, self.logs, "--since", "yesterday").returncode, 2)
 

@@ -44,6 +44,8 @@ LINE_RE = re.compile(r"^\[([^\]]+)\] (\S+) (\{.*\})\s*$")
 NAME_RE = re.compile(r"^session-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-\d+Z-(\d+)-\d+\.log$")
 SEGMENT_RE = re.compile(r"\|\||&&|[|;&\n]")
 NAME_IN_TEXT_RE = re.compile(r"You are `([A-Za-z0-9_.-]+)`")
+OUTCOME_LABELS = (("ran_unguarded", "ran unguarded"), ("blocked_by_hook", "blocked by hook"),
+                  ("hook_allowed", "hook ran, allowed"))
 TOKEN_RE = re.compile(r"[\s()]+")
 
 
@@ -56,6 +58,11 @@ def risky_words(command):
             if base in PRIV_WORDS:
                 found.add(base)
     return found
+
+
+def cell(value):
+    """Text-mode field: tab, CR and LF become one space so a row stays one line."""
+    return re.sub(r"[\t\r\n]", " ", str(value))
 
 
 def parse_name(name):
@@ -197,7 +204,7 @@ def main(argv=None):
         except ValueError:
             print("error: --since must be YYYY-MM-DD, e.g. --since 2026-11-03", file=sys.stderr)
             return 2
-        since = args.since
+        since = datetime.datetime.strptime(args.since, "%Y-%m-%d").strftime("%Y-%m-%d")
     home = os.environ.get("HOME") or os.path.expanduser("~")
     log_dir = args.log_dir or "/tmp/cursor-agent-logs-%d" % os.getuid()
     logs, gone = collect(log_dir, home)
@@ -220,14 +227,14 @@ def main(argv=None):
     for r in logs:
         hooks = ",".join("%s=%d" % kv for kv in sorted(r["hooks"].items())) or "-"
         ran = " ".join("%s=%s(%d)" % (w, "yes" if n else "no", n) for w, n in r["ran"].items())
-        oc = ["%s=%d" % (o.split()[0], sum(1 for x in r["risky"] if x["outcome"] == o))
-              for o in ("ran unguarded", "blocked by hook", "hook ran, allowed")]
+        oc = ["%s=%d" % (label, sum(1 for x in r["risky"] if x["outcome"] == o))
+              for label, o in OUTCOME_LABELS]
         unguarded = sum(1 for x in r["risky"] if x["outcome"] == "ran unguarded")
         print("%s\t%s\tpid=%d\t%s\tagent=%s\tbeforeShellExecution=%s\t%s\tunguarded_runs=%d\toutcomes=%s\thooks=%s" % (
-            r["session"], r["kind"], r["pid"], r["workspace"] or "-", r["agent"],
+            cell(r["session"]), r["kind"], r["pid"], cell(r["workspace"] or "-"), cell(r["agent"]),
             "yes" if r["guarded"] == "yes" else "no", ran, unguarded, ",".join(oc), hooks))
     for g in gone:
-        print("%s\t%s\t%s" % (g["project"], g["session"], g["state"]))
+        print("%s\t%s\t%s" % (cell(g["project"]), cell(g["session"]), cell(g["state"])))
     print(line)
     return 0
 
