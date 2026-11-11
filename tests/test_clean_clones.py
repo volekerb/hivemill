@@ -161,6 +161,36 @@ class CloneCleanTests(CloneCleanBase):
         self.assertIn("unpushed commits", self.clean().stdout)
         self.assertTrue(wt.exists())
 
+    def prless_cancelled_clone(self, commit=False):
+        """A cancelled task with no PR and a clone cut from origin/main, optionally holding one local commit."""
+        e = self.env
+        wt, branch = self.wts / "G-001-T-0001", "factory/t-0001"
+        git("-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", str(self.repo), str(wt), cwd=e.home)
+        git("remote", "set-url", "origin", str(self.origin), cwd=wt)
+        git("fetch", "-q", "origin", cwd=wt)
+        git("checkout", "-q", "-b", branch, "origin/main", cwd=wt)
+        if commit:
+            self.commit_in(wt, "local-only")
+        e.seed_task("T-0001", status="cancelled")
+        e.sql("UPDATE tasks SET worktree=?, branch=?, pr_url=NULL WHERE id='T-0001'", (str(wt), branch))
+        return wt
+
+    def test_clone_prless_cancelled_without_commits_removed(self):
+        wt = self.prless_cancelled_clone()
+        self.clean()
+        self.assertFalse(wt.exists())
+
+    def test_clone_prless_cancelled_with_commit_kept(self):
+        wt = self.prless_cancelled_clone(commit=True)
+        self.assertIn("unpushed commits", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
+    def test_clone_prless_cancelled_forged_origin_base_kept(self):
+        wt = self.prless_cancelled_clone(commit=True)
+        git("update-ref", "refs/remotes/origin/main", "HEAD", cwd=wt)  # a worker forging its own base ref
+        self.assertIn("unpushed commits", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
     def test_clone_blocked_live_pane_cwd_inside(self):
         wt, _ = self.clone_task()
         pane = {"pane_id": "p9", "tab_id": "t9", "workspace_id": "w9"}

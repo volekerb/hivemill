@@ -11928,7 +11928,13 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
             if not _is_ancestor(where, sha, head):
                 return "unpushed commits", None, tip is not None
         else:
-            r = _git(where, "rev-list", "--count", f"origin/{base}..{sha}")
+            lower = f"origin/{base}"
+            if where != repo:  # a clone's own origin/<base> is worker-writable: use the main repo's sha, fail closed if the clone lacks it
+                b = _git(repo, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{base}")
+                if b.returncode != 0:
+                    return "unpushed commits", None, tip is not None
+                lower = b.stdout.strip()
+            r = _git(where, "rev-list", "--count", f"{lower}..{sha}")
             if r.returncode != 0 or r.stdout.strip() != "0":
                 return "unpushed commits", None, tip is not None
     return None, wt, tip is not None
