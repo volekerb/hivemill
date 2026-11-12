@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -51,4 +52,27 @@ func taskTables(r *rig) {
 	r.sql("CREATE TABLE tasks (id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, title TEXT NOT NULL, created TEXT NOT NULL, updated TEXT NOT NULL)")
 	r.sql("CREATE TABLE verdicts (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, pr_url TEXT, head_sha TEXT, " +
 		"role TEXT NOT NULL, verdict TEXT NOT NULL, summary TEXT, author TEXT, created TEXT NOT NULL)")
+}
+
+// TestTaskShowCompactFromAncestry: an owner identity under a claude --settings coder ancestor gets the compact view
+// (the goldens only reach the FACTORY_ROLE and DB-role signals); --full and a lead ancestor do not.
+func TestTaskShowCompactFromAncestry(t *testing.T) {
+	proc := t.TempDir()
+	r := newRig(t, map[string]string{"FACTORY_AGENT": "owner", "FACTORY_PROC_DIR": proc})
+	taskTables(r)
+	r.sql("INSERT INTO tasks(id,goal_id,title,created,updated) VALUES('T-1','G-1','t','c','u')")
+	for i := 0; i < 7; i++ {
+		r.sql("INSERT INTO events(ts,actor,entity,entity_id,action) VALUES('2026-01-01','a','task','T-1','update')")
+	}
+	fakeProc{proc}.add(t, os.Getppid(), 1, "claude", "--settings", "/x/settings/coder.json")
+	if r.run("task", "show", "T-1"); !strings.Contains(r.out.String(), "(2 earlier events: factory task show T-1 --full)") {
+		t.Fatalf("want the compact history, got:\n%s%s", r.out.String(), r.errb.String())
+	}
+	if r.run("task", "show", "T-1", "--full"); strings.Contains(r.out.String(), "earlier events") {
+		t.Fatalf("--full must be uncompacted:\n%s", r.out.String())
+	}
+	fakeProc{proc}.add(t, os.Getppid(), 1, "claude", "--settings", "/x/settings/lead.json")
+	if r.run("task", "show", "T-1"); strings.Contains(r.out.String(), "earlier events") {
+		t.Fatalf("a lead ancestor is not a worker:\n%s", r.out.String())
+	}
 }

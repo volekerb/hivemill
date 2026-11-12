@@ -241,6 +241,9 @@ func showVerdicts(c *ctx, id string) error {
 		switch x := v[2].(type) {
 		case nil:
 		case string:
+			if !utf8.ValidString(x) {
+				return errDelegate
+			}
 			sha = pyTrunc(x, 8)
 		default:
 			return errDelegate
