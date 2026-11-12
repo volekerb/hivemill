@@ -97,11 +97,11 @@ func FuzzDgParseDeps(f *testing.F) {
 }
 
 func FuzzParseDigest(f *testing.F) {
-	for _, s := range []string{"--goal,G-1", "--goal,G-1,--hours,6,--date,2026-11-12", "--send", "--goal", "--goal,G-1,--goal,G-2", ""} {
+	for _, s := range []string{"--goal\x00G-1", "--goal\x00G-1\x00--hours\x006\x00--date\x002026-11-12", "--goal\x00a,b", "--send", "--goal", "--goal\x00G-1\x00--goal\x00G-2", ""} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, joined string) {
-		args := strings.Split(joined, ",")
+		args := strings.Split(joined, "\x00")
 		p, ok := parseDigest(args)
 		if !ok {
 			return

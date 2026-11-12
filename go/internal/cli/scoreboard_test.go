@@ -153,7 +153,7 @@ func TestPyIntStr(t *testing.T) {
 }
 
 func FuzzSbParseTS(f *testing.F) {
-	for _, s := range []string{"2026-10-10T09:00:00+02:00", "0000-01-01", "9999-12-31T23:59:59Z", "2026-02-30", "x", ""} {
+	for _, s := range []string{"2026-10-10T09:00:00+02:00", "0000-01-01", "9999-12-31T23:59:59Z", "2026-10-10T09:00:00.5", "2026-10-10T09:00:00+01:00:30", "2026-02-30", "x", ""} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, s string) {
@@ -166,7 +166,8 @@ func FuzzSbParseTS(f *testing.F) {
 		}
 		iso := sbISO(got)
 		back, ok2, err2 := sbParseTS(iso, time.UTC)
-		if err2 != nil || !ok2 || !back.Equal(got) {
+		// sbISO drops fractional seconds and offset seconds, so compare at its precision.
+		if err2 != nil || !ok2 || sbISO(back) != iso {
 			t.Fatalf("%q: sbISO %q does not round-trip (ok=%v err=%v)", s, iso, ok2, err2)
 		}
 	})
