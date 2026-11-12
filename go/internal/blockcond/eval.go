@@ -231,7 +231,7 @@ func evalGoal(c Cond, goals map[string]GoalFacts, releases []ReleaseFacts) (bool
 		}
 		closedAt, err := time.Parse(time.RFC3339, g.ClosedAt)
 		if err != nil {
-			return false, "unmet", fmt.Errorf("parse goal closed_at: %w", err)
+			return false, "unmet", nil
 		}
 		for _, rel := range releases {
 			if !reReleaseTag.MatchString(rel.Tag) {

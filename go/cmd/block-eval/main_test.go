@@ -194,6 +194,12 @@ func TestEvalCommand(t *testing.T) {
 		if code != 0 || r.Results[0].Met {
 			t.Fatalf("config wrong: %+v", r)
 		}
+		f = baseFacts([]map[string]string{cond("config", "missing_key=1", "")})
+		f["config_absent"] = []string{"missing_key"}
+		r, code = runEval(t, bin, f)
+		if code != 0 || r.Results[0].Met || r.Results[0].Detail != "absent" {
+			t.Fatalf("config absent: %+v", r)
+		}
 	})
 
 	t.Run("owner", func(t *testing.T) {
@@ -265,14 +271,24 @@ func TestEvalCommand(t *testing.T) {
 		f := baseFacts([]map[string]string{cond("check", ghWorkerROProbe(), "")})
 		r, code := runEval(t, bin, f)
 		if code != 0 || !r.Results[0].Met {
-			t.Fatalf("check met: %+v", r)
+			t.Fatalf("check ro met: %+v", r)
 		}
 		if err := os.Remove(filepath.Join(dir, ghWorkerROTokFile())); err != nil {
 			t.Fatal(err)
 		}
 		r, code = runEval(t, bin, f)
 		if code != 0 || r.Results[0].Met {
-			t.Fatalf("check unmet: %+v", r)
+			t.Fatalf("check ro unmet: %+v", r)
+		}
+		rwTok := "gh-worker-" + "rw" + "-token"
+		rwProbe := strings.Join([]string{"gh-worker-rw", "token-mode-600"}, "-")
+		if err := os.WriteFile(filepath.Join(dir, rwTok), []byte("y"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		f = baseFacts([]map[string]string{cond("check", rwProbe, "")})
+		r, code = runEval(t, bin, f)
+		if code != 0 || !r.Results[0].Met {
+			t.Fatalf("check rw met: %+v", r)
 		}
 	})
 }
