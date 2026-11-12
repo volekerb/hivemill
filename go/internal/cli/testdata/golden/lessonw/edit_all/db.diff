@@ -1,0 +1,4 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="lw-lead" entity="lesson" entity_id="L-003" action="edit" detail="title,roles,rule,what,sources"
+- lessons 3 id="L-003" title="Open, merged task link" roles="all" what=NULL rule="Rule three." sources="#5" status="open" recurrences=0 author="lw-lead" created="2026-10-03T10:00:00+01:00" updated="2026-10-03T10:00:00+01:00" applied_at=NULL verified_at=NULL verified_by=NULL evidence=NULL
++ lessons 3 id="L-003" title="T3" roles="lead,coder" what="New what" rule="New rule" sources="#5,M9" status="open" recurrences=0 author="lw-lead" created="2026-10-03T10:00:00+01:00" updated="2026-11-12T01:02:03+00:00" applied_at=NULL verified_at=NULL verified_by=NULL evidence=NULL
++ sqlite_sequence 3 name="events" seq=1

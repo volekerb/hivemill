@@ -1,0 +1,5 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="owner" entity="lesson" entity_id="L-001" action="link" detail="T-0001 (merged)"
++ lesson_links 6 id=6 lesson_id="L-001" task_id="T-0001" pr_url="https://github.com/o/r/pull/1" via="skill" merged_at="2026-11-02T09:00:00+01:00" author="owner" created="2026-11-12T01:02:03+00:00"
+- sqlite_sequence 2 name="lesson_links" seq=5
++ sqlite_sequence 2 name="lesson_links" seq=6
++ sqlite_sequence 3 name="events" seq=1
