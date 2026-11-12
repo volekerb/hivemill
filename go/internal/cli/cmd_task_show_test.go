@@ -76,3 +76,30 @@ func TestTaskShowCompactFromAncestry(t *testing.T) {
 		t.Fatalf("a lead ancestor is not a worker:\n%s", r.out.String())
 	}
 }
+
+// FuzzParseTaskShow: no panic, and it accepts only one <ID> not starting with "-" plus an optional --full.
+func FuzzParseTaskShow(f *testing.F) {
+	f.Add("T-1", "--full", "")
+	f.Add("--full", "T-1", "--full")
+	f.Add("", "-h", "x")
+	f.Fuzz(func(t *testing.T, a, b, c string) {
+		got, ok := parseTaskShow([]string{a, b, c})
+		if !ok {
+			return
+		}
+		cmd := got.(taskShowCmd)
+		ids := 0
+		for _, x := range []string{a, b, c} {
+			switch {
+			case x == "--full":
+			case x != "" && !strings.HasPrefix(x, "-"):
+				ids++
+			default:
+				t.Fatalf("accepted %q", x)
+			}
+		}
+		if ids != 1 || cmd.id == "" {
+			t.Fatalf("accepted %q %q %q with id %q", a, b, c, cmd.id)
+		}
+	})
+}

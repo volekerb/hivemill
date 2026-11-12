@@ -79,6 +79,18 @@ func TestCallerIsWorker(t *testing.T) {
 			f.add(t, own, parent, "factory")
 			f.add(t, parent, 300, "claude", "--settings", "/x/settings/lead.json", "--settings=/x/settings/pm.json")
 		}, "pm"},
+		{"non-ASCII dir before the role file", func(t *testing.T, f fakeProc) {
+			f.add(t, own, parent, "factory")
+			f.add(t, parent, 300, "claude", "--settings", "/settings/é/settings/coder.json")
+		}, "coder"},
+		{"non-ASCII role name is not a worker", func(t *testing.T, f fakeProc) {
+			f.add(t, own, parent, "factory")
+			f.add(t, parent, 300, "claude", "--settings", "/settings/cödér.json")
+		}, ""},
+		{"trailing newline after the role file (Python $)", func(t *testing.T, f fakeProc) {
+			f.add(t, own, parent, "factory")
+			f.add(t, parent, 300, "claude", "--settings", "/x/settings/coder.json\n")
+		}, "coder"},
 		{"a settings path that is not settings/<role>.json", func(t *testing.T, f fakeProc) {
 			f.add(t, own, parent, "factory")
 			f.add(t, parent, 300, "claude", "--settings", "/x/coder.json")
@@ -187,4 +199,31 @@ func TestWorkerRolesMatchPython(t *testing.T) {
 	if strings.Join(py, ",") != strings.Join(gos, ",") {
 		t.Fatalf("workerRoles %v differ from Python WORKER_ROLES %v", gos, py)
 	}
+}
+
+// FuzzAncestryWorker feeds arbitrary stat/cmdline bytes through procStatPPid and ancestryWorker: no panic, and the
+// answer is "" or a worker role.
+func FuzzAncestryWorker(f *testing.F) {
+	f.Add([]byte("500 (a (b) c) S 400 1 1 0\n"), []byte("claude\x00--settings\x00/x/settings/coder.json\x00"))
+	f.Add([]byte(""), []byte(""))
+	f.Add([]byte(")"), []byte("\x00\x00claude"))
+	f.Add([]byte("1 (x) S abc"), []byte("--settings=/settings/\xff.json"))
+	f.Fuzz(func(t *testing.T, stat, cmdline []byte) {
+		root := t.TempDir()
+		d := filepath.Join(root, "500")
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, "stat"), stat, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, "cmdline"), cmdline, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		procStatPPid(root, 500)
+		got := ancestryWorker(root, 500, 400)
+		if got != "" && !workerRoles[got] {
+			t.Fatalf("ancestryWorker = %q, not empty and not a worker role", got)
+		}
+	})
 }

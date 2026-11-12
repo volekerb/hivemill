@@ -35,8 +35,8 @@ func parseTaskShow(rest []string) (any, bool) {
 	return c, have
 }
 
-// pyStr is str(v) of a SQLite value as an f-string prints it: None for NULL; a float or blob is Python's to print.
-func pyStr(v any) (string, error) {
+// taskPyStr is str(v) of a SQLite value as an f-string prints it: None for NULL; a float or blob is Python's to print.
+func taskPyStr(v any) (string, error) {
 	switch x := v.(type) {
 	case nil:
 		return "None", nil
@@ -138,7 +138,7 @@ func runTaskShow(c *ctx, p any) (int, error) {
 				return 0, errDelegate
 			}
 		}
-		s, err := pyStr(v)
+		s, err := taskPyStr(v)
 		if err != nil {
 			return 0, err
 		}
@@ -150,7 +150,7 @@ func runTaskShow(c *ctx, p any) (int, error) {
 			return 0, err
 		}
 		if ok {
-			s, err := pyStr(t[k])
+			s, err := taskPyStr(t[k])
 			if err != nil {
 				return 0, err
 			}
@@ -197,7 +197,7 @@ func runTaskShow(c *ctx, p any) (int, error) {
 	for _, n := range notes {
 		var f [3]string
 		for i := range f {
-			if f[i], err = pyStr(n[i]); err != nil {
+			if f[i], err = taskPyStr(n[i]); err != nil {
 				return 0, err
 			}
 		}
@@ -205,7 +205,7 @@ func runTaskShow(c *ctx, p any) (int, error) {
 		if ok, err := truthy(n[3]); err != nil {
 			return 0, err
 		} else if ok {
-			d, err := pyStr(n[3])
+			d, err := taskPyStr(n[3])
 			if err != nil {
 				return 0, err
 			}
@@ -250,7 +250,7 @@ func showVerdicts(c *ctx, id string) error {
 		}
 		var f [4]string // role, author, created, summary
 		for i, idx := range []int{0, 3, 4, 5} {
-			if f[i], err = pyStr(v[idx]); err != nil {
+			if f[i], err = taskPyStr(v[idx]); err != nil {
 				return err
 			}
 		}
