@@ -115,8 +115,9 @@ class UtilCase(Base):
         self.p1_goal()
         self.env.seed_task("T-0001", goal="G-W", status="in_review")
         self.env.sql("INSERT INTO agents(name,role,goal_id,status,ended) VALUES('reviewer-old','reviewer','G-W','done','2026-10-27T09:25:00+00:00')")
+        con = self.load()  # load() sets FACTORY_HOME; do it outside the env patch so its cleanup still finds it
         with mock.patch.dict(os.environ, {"FACTORY_NOW": "2026-10-27T10:00:00+00:00"}):
-            u = self.mod_util()
+            u = self.mod.utilization(con)
         self.assertEqual((u["p1_starved"], u["p1_waiting"]), ([], ["G-W"]))
         self.assertEqual(u["waiting_line"], "P1 waiting on owner/CI: G-W (35 min)")
         self.assertTrue(u["line"].endswith("P1 goals without workers: none"))
