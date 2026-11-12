@@ -78,8 +78,8 @@ func TestStmtOrderDigestSend(t *testing.T) {
 	}
 }
 
-// TestDigestAllMessageSubject: --send stores the digest under "daily digest <day>" with the goal on the row.
-func TestDigestAllMessageSubject(t *testing.T) {
+// TestDigestAllSendToCursorBoss: --send for a cursor goal reaches that org boss (subject and goal_id are in the send_goal db.diff goldens).
+func TestDigestAllSendToCursorBoss(t *testing.T) {
 	_, out, _, code, execs := dgaRun(t, "claude-director", "digest", "--send", "--goal", "G-7")
 	if code != 0 || execs != 0 || out != "M1 digest → cursor-boss\n" {
 		t.Fatalf("code %d execs %d out %q", code, execs, out)
