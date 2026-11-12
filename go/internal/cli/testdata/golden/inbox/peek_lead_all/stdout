@@ -1,0 +1,25 @@
+── M1 [report] from dir-a @ 2026-11-02T10:00:00+01:00 goal=G-9
+   status: G-9 weekly
+   line one
+   (+3 lines: factory inbox --show M1)
+── M2 [report] from dir-a @ 2026-11-02T10:01:00+01:00 task=T-9
+   status: long single line
+   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   (truncated: factory inbox --show M2)
+── M3 [report] from dir-a @ 2026-11-02T10:02:00+01:00
+   Daily Digest 2026-11-02
+   a
+   b
+   c
+   d
+   e
+── M4 [request] from coder-a @ 2026-11-02T10:03:00+01:00 goal=G-9 task=T-9
+   question
+   short body
+── M5 [msg] from coder-a @ 2026-11-01T10:03:00+01:00
+   already read
+   old body
+── M16 [report] from coder-a @ 2026-11-03T12:00:00+01:00
+   status: odd ünï subject
+   α
+   (+3 lines: factory inbox --show M16)
