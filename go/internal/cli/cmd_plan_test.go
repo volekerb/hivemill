@@ -34,3 +34,29 @@ func TestParsePlan(t *testing.T) {
 		}
 	}
 }
+
+func TestParsePlanUnicodeDigitsDelegate(t *testing.T) {
+	if _, ok := parsePlan([]string{"G-1", "-١"}); ok {
+		t.Fatal("dash + Arabic-Indic digit body should delegate")
+	}
+	if _, ok := parsePlan([]string{"G-1", "-1"}); !ok {
+		t.Fatal("negative ASCII number is a valid positional")
+	}
+}
+
+func FuzzParsePlan(f *testing.F) {
+	f.Add("G-1", "body")
+	f.Add("G-1", "-")
+	f.Add("G-1", "-x")
+	f.Add("G-1", "-١")
+	f.Fuzz(func(t *testing.T, a, b string) {
+		got, ok := parsePlan([]string{a, b})
+		if !ok {
+			return
+		}
+		pc := got.(planCmd)
+		if pc.goal != a || pc.body != b || !gwDashValue(a) || !gwDashValue(b) {
+			t.Fatalf("bad parse %+v", pc)
+		}
+	})
+}

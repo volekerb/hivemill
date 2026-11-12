@@ -109,3 +109,74 @@ func TestGoalWriteParse(t *testing.T) {
 		}
 	}
 }
+
+// Unicode digits are valid for Python's int() and argparse's negative-number check; the Go regexps are ASCII, so
+// these must delegate (never be accepted with a different meaning).
+func TestGoalWriteParseUnicodeDigitsDelegate(t *testing.T) {
+	for _, a := range [][]string{
+		{"--priority", "١"},    // Arabic-Indic one
+		{"--priority=١٢"},      // two of them
+		{"--title", "-١"},      // dash + Arabic-Indic digit as a value
+		{"--token-limit", "１"}, // fullwidth one
+		{"-١"},                 // dash-led "number" positional
+	} {
+		if _, ok := gwSplit(a, 2); ok {
+			t.Errorf("%q should delegate", a)
+		}
+	}
+}
+
+func FuzzGwSplit(f *testing.F) {
+	f.Add("--title", "x", "")
+	f.Add("G-1", "--token-limit", "-1")
+	f.Add("--priority", "١", "")
+	f.Add("--title", "-١", "--ready")
+	f.Fuzz(func(t *testing.T, a, b, c string) {
+		got, ok := gwSplit([]string{a, b, c}, 2)
+		if !ok {
+			return
+		}
+		if len(got.pos) > 2 {
+			t.Fatalf("accepted %d positionals", len(got.pos))
+		}
+		for fl := range got.str {
+			if gwFlags[fl] != 's' {
+				t.Fatalf("string flag %s has kind %c", fl, gwFlags[fl])
+			}
+		}
+		for fl := range got.num {
+			if gwFlags[fl] != 'i' {
+				t.Fatalf("int flag %s has kind %c", fl, gwFlags[fl])
+			}
+		}
+		for fl := range got.bools {
+			if gwFlags[fl] != 'b' {
+				t.Fatalf("bool flag %s has kind %c", fl, gwFlags[fl])
+			}
+		}
+	})
+}
+
+func FuzzGwParseFor(f *testing.F) {
+	f.Add("status", "G-1", "active")
+	f.Add("new", "--title", "x")
+	f.Add("edit", "", "--title")
+	f.Fuzz(func(t *testing.T, action, a, b string) {
+		switch action {
+		case "new", "edit", "status", "audit", "signoff":
+		default:
+			return
+		}
+		got, ok := gwParseFor(action)([]string{a, b})
+		if !ok {
+			return
+		}
+		ga := got.(gwArgs)
+		if ga.action != action || len(ga.pos) > 2 {
+			t.Fatalf("bad parse %+v", ga)
+		}
+		if action != "new" && (len(ga.pos) == 0 || ga.pos[0] == "") {
+			t.Fatalf("%s accepted without a goal id", action)
+		}
+	})
+}
