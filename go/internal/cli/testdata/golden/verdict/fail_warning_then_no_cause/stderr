@@ -1,0 +1,2 @@
+WARNING: --sha deadbeefdead is not the current PR head 0123456789abcdef0123456789abcdef01234567; recording the FAIL at deadbeefdead
+factory: rejection refused, nothing recorded: pass --cause (unclear_spec, bug, missing_test, stale_or_conflicting_branch, wrong_review, gate_refusal, other)

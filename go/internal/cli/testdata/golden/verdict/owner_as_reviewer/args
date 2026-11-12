@@ -1,0 +1,9 @@
+verdict
+T-0001
+--pass
+--summary
+fine
+--sha
+0123456789abcdef0123456789abcdef01234567
+--as
+reviewer

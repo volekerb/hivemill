@@ -1,0 +1,1 @@
+factory: role 'lead' (claude-lead) may not do this; allowed: qa, reviewer

@@ -1,0 +1,4 @@
+## Gates
+- a exit=0 cmd=x
+- b exit=1 cmd=y
+- c exit=unknown cmd=z

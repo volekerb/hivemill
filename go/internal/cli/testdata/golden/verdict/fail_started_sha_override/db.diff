@@ -1,0 +1,8 @@
++ events 4 id=4 ts="2026-11-12T01:02:03+00:00" actor="claude-qa2" entity="task" entity_id="T-0002" action="qa-fail" detail="@01234567"
++ rejection_incidents 1 id=1 cause="other" kind="qa" task_id="T-0002" verdict_id=2 event_id=NULL created="2026-11-12T01:02:03+00:00"
+- sqlite_sequence 1 name="events" seq=3
++ sqlite_sequence 1 name="events" seq=4
+- sqlite_sequence 2 name="verdicts" seq=1
++ sqlite_sequence 2 name="verdicts" seq=2
++ sqlite_sequence 3 name="rejection_incidents" seq=1
++ verdicts 2 id=2 task_id="T-0002" pr_url="https://github.com/x/y/pull/2" head_sha="0123456789abcdef0123456789abcdef01234567" role="qa" verdict="fail" summary="broken" author="claude-qa2" created="2026-11-12T01:02:03+00:00"

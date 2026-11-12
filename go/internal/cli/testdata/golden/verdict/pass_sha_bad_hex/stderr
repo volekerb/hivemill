@@ -1,0 +1,1 @@
+factory: --sha must be 7-40 hex characters of the commit you checked, got 'xyz123'

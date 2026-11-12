@@ -1,0 +1,6 @@
++ events 4 id=4 ts="2026-11-12T01:02:03+00:00" actor="claude-reviewer4" entity="task" entity_id="T-0004" action="reviewer-pass" detail="@01234567"
+- sqlite_sequence 1 name="events" seq=3
++ sqlite_sequence 1 name="events" seq=4
+- sqlite_sequence 2 name="verdicts" seq=1
++ sqlite_sequence 2 name="verdicts" seq=2
++ verdicts 2 id=2 task_id="T-0004" pr_url="https://github.com/x/y/pull/4" head_sha="0123456789abcdef0123456789abcdef01234567" role="reviewer" verdict="pass" summary="fine" author="claude-reviewer4" created="2026-11-12T01:02:03+00:00"

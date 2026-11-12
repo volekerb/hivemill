@@ -1,0 +1,7 @@
+verdict
+T-0002
+--fail
+--summary
+broken
+--cause
+wrong_review
