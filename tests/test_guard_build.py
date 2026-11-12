@@ -683,6 +683,7 @@ class CliGoDepsTests(FactoryTestCase):
                      f"GOMODCACHE={self.lib}/go/mod"):
             self.assertIn(want, text)
 
+    @unittest.skipIf(os.geteuid() == 0, "root ignores file modes, so the read-only premise cannot hold")
     def test_cleanup_removes_a_read_only_go_module_cache(self):
         """T-1413: go writes its module cache dirs 0555 and files 0444; a plain rmtree leaves it in /tmp."""
         cache = self.tmp / "lib" / "go" / "mod" / "example.com" / "m-v1.0.0"
