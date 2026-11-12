@@ -71,7 +71,7 @@ func TestInboxNoReadAt(t *testing.T) {
 				return n
 			}
 			before := count()
-			env := goldenEnv(home, procDir, c.env)
+			env := goldenEnv(home, procDir, "", c.env)
 			m := envMap(env)
 			argv0, err := filepath.Abs(filepath.Join("..", "..", "..", "bin", "factory"))
 			if err != nil {
