@@ -12058,12 +12058,21 @@ def pane_holds(con, pane_id, listed):
     return any(r["status"] in ("live", "starting", "queued") for r in rows)
 
 
+def pane_gone(r, panes, listed):
+    """True only with proof a done/stopped row's pane is gone: the agent list is known, the row has a pane id, the
+    pane server lists no agent on that pane id or under that name, and the pane id is not in the live pane list.
+    Anything else (live rows, no list, no pane id, no pane list) is not proof: the cwd still holds the worktree."""
+    return (r["status"] in ("done", "stopped") and listed is not None and panes is not None and bool(r["pane_id"])
+            and not any(x.get("pane_id") == r["pane_id"] or x.get("name") == r["name"] for x in listed)
+            and not any(pid == r["pane_id"] for pid, _ in panes))
+
+
 def protected_by(con, wt, panes, listed=None):
     """Reason if an agent's recorded cwd or a live pane sits in the worktree, else None. A stale live row (its pane now
     used by another agent) and a pane whose owner ended no longer hold it; unknown owners and running agents do."""
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','starting','queued','done','stopped') AND cwd IS NOT NULL AND cwd!=''"):
         if _within(_real(r["cwd"]), wt):
-            if pane_reused(r, listed):
+            if pane_reused(r, listed) or pane_gone(r, panes, listed):
                 continue
             return f"protected: cwd of agent {r['name']}"
     for pane_id, c in panes:
