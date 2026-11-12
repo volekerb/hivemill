@@ -2,7 +2,8 @@
 """One-command fresh-install test: a throwaway user follows docs/SETUP.md up to `factory up` and the web UI.
 
   sudo python3 ci/freshbox_test.py [--repo URL] [--ref REF] [--user NAME] [--port N] [--out PATH]
-                                   [--herdr-bin PATH] [--max-total-claude N] [--gh-token-file PATH] [--dry-run]
+                                   [--herdr-bin PATH] [--max-total-claude N] [--gh-token-file PATH]
+                                   [--login-timeout SEC] [--dry-run]
 
 Run it in your own terminal (two interactive logins need a TTY). It creates a user, installs herdr and Claude
 Code for that user, follows the docs, and always deletes the user again. It starts REAL Claude agents for
@@ -157,7 +158,8 @@ class Host:
                                    stdin=subprocess.DEVNULL if input_text is None else None, input=input_text,
                                    universal_newlines=True, errors="replace")
                 return p.returncode, p.stdout
-            return subprocess.run(argv, cwd=cwd).returncode, ""
+            p = subprocess.run(argv, cwd=cwd, timeout=timeout)
+            return p.returncode, ""
         except subprocess.TimeoutExpired:
             return 124, "timed out after %ss" % timeout
         except FileNotFoundError as e:
@@ -417,18 +419,22 @@ def step_prereqs(c):
 
 def step_logins(c):
     tokfile = c.args.gh_token_file
+    login_to = c.args.login_timeout
     c.emit(">>> Log in to Claude Code: complete /login, then type /exit")
-    c.do(c.as_user(["claude"]), tty=True, cwd=c.home, timeout=None, what="claude")
+    c.emit("waiting for owner input: claude login")
+    c.do(c.as_user(["claude"]), tty=True, cwd=c.home, timeout=login_to, what="claude login")
     if tokfile:
         c.emit(">>> Logging in to GitHub with the token from %s (fed on stdin)" % ("stdin" if tokfile == "-" else tokfile))
         c.do(c.as_user(["gh", "auth", "login", "--with-token"]), cwd=c.home, what="gh auth login --with-token",
              stdin_text=(c.gh_token + "\n") if c.gh_token else None, stdin_note="token on stdin only")
         c.do(c.as_user(["gh", "auth", "setup-git"]), cwd=c.home, what="gh auth setup-git")
         return "claude login, gh auth login --with-token, gh auth setup-git done (token never logged)"
-    for line, cmd in (("Log in to GitHub: answer the gh prompts", ["gh", "auth", "login"]),
-                      ("Setting up git credentials via gh (so a private --repo clones)", ["gh", "auth", "setup-git"])):
+    for line, step, cmd in (("Log in to GitHub: answer the gh prompts", "gh auth login", ["gh", "auth", "login"]),
+                            ("Setting up git credentials via gh (so a private --repo clones)", "gh auth setup-git",
+                             ["gh", "auth", "setup-git"])):
         c.emit(">>> " + line)
-        c.do(c.as_user(cmd), tty=True, cwd=c.home, timeout=None, what=" ".join(cmd[:2]))
+        c.emit("waiting for owner input: %s" % step)
+        c.do(c.as_user(cmd), tty=True, cwd=c.home, timeout=login_to, what=step)
     return "claude, gh auth login, gh auth setup-git done (output not logged)"
 
 
@@ -649,6 +655,9 @@ def parse(argv, host, env):
     ap.add_argument("--max-total-claude", type=int, help="factory gate cap (default: claude processes running when `factory up` starts + %d)" % CLAUDE_HEADROOM)
     ap.add_argument("--gh-token-file", metavar="PATH", help="file with a short-lived fine-grained GitHub token for the test user (`-` reads stdin, which must still be your terminal: paste the token, then Enter; input is hidden); "
                     "fed to `gh auth login --with-token` on stdin, so no interactive gh login (default: interactive)")
+    ap.add_argument("--login-timeout", type=int, default=900, metavar="SEC",
+                    help="max seconds per interactive login step (claude, gh); default %(default)s (15 min); prints "
+                    "'waiting for owner input: …' then times out and cleans up")
     ap.add_argument("--dry-run", action="store_true", help="print the plan and the exact argv; no root, no TTY, nothing run")
     a = ap.parse_args(argv)
     if not USER_RE.match(a.user) or a.user == "root":
@@ -659,6 +668,8 @@ def parse(argv, host, env):
             ap.error("--%s must not start with '-'" % name)
     if not 1 <= a.port <= 65535:
         ap.error("--port out of range")
+    if a.login_timeout < 1:
+        ap.error("--login-timeout must be at least 1 second")
     return a
 
 
