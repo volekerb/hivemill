@@ -179,7 +179,7 @@ func TestProcDirIgnoredOnLiveHome(t *testing.T) {
 	}
 }
 
-func TestWorkerRolesMatchPython(t *testing.T) {
+func TestWorkerDetectRolesMatchPython(t *testing.T) {
 	src, err := os.ReadFile(repoFile(t, "bin/factory_cli.py"))
 	if err != nil {
 		t.Fatal(err)

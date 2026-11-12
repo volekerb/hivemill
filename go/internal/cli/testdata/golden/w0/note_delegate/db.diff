@@ -1,2 +1,2 @@
-+ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="owner" entity="task" entity_id="T-0001" action="note" detail="hello"
++ events 1 id=1 ts="2026-11-12T10:54:42+00:00" actor="owner" entity="task" entity_id="T-0001" action="note" detail="hello"
 + sqlite_sequence 1 name="events" seq=1
