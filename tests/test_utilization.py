@@ -100,6 +100,53 @@ class UtilCase(Base):
         con = self.load()
         return self.mod.utilization(con)
 
+    def p1_goal(self, gid="G-W"):
+        self.env.seed_goal(gid)
+        self.env.sql("UPDATE goals SET priority=1 WHERE id=?", (gid,))
+
+    def test_ready_task_no_worker_is_starved(self):
+        self.p1_goal()
+        self.env.seed_task("T-0001", goal="G-W", role="coder", status="todo")
+        u = self.mod_util()
+        self.assertEqual((u["p1_starved"], u["p1_waiting"], u["waiting_line"]), (["G-W"], [], ""))
+        self.assertTrue(u["line"].endswith("P1 goals without workers: G-W"))
+
+    def test_only_in_review_task_is_waiting(self):
+        self.p1_goal()
+        self.env.seed_task("T-0001", goal="G-W", status="in_review")
+        self.env.sql("INSERT INTO agents(name,role,goal_id,status,ended) VALUES('reviewer-old','reviewer','G-W','done','2026-10-27T09:25:00+00:00')")
+        con = self.load()  # load() sets FACTORY_HOME; do it outside the env patch so its cleanup still finds it
+        with mock.patch.dict(os.environ, {"FACTORY_NOW": "2026-10-27T10:00:00+00:00"}):
+            u = self.mod.utilization(con)
+        self.assertEqual((u["p1_starved"], u["p1_waiting"]), ([], ["G-W"]))
+        self.assertEqual(u["waiting_line"], "P1 waiting on owner/CI: G-W (35 min)")
+        self.assertTrue(u["line"].endswith("P1 goals without workers: none"))
+
+    def test_only_owner_or_internal_blocked_is_waiting(self):
+        self.p1_goal()
+        self.env.seed_task("T-0001", goal="G-W", status="blocked")
+        self.env.sql("UPDATE tasks SET waits='owner' WHERE id='T-0001'")
+        self.env.seed_task("T-0002", goal="G-W", role="coder", status="todo")
+        self.env.sql("UPDATE tasks SET depends_on='[\"T-0001\"]' WHERE id='T-0002'")
+        u = self.mod_util()
+        self.assertEqual((u["p1_starved"], u["p1_waiting"]), ([], ["G-W"]))
+
+    def test_ready_task_among_blocked_is_starved(self):
+        self.p1_goal()
+        self.env.seed_task("T-0001", goal="G-W", status="blocked")
+        self.env.sql("UPDATE tasks SET waits='owner' WHERE id='T-0001'")
+        self.env.seed_task("T-0002", goal="G-W", role="coder", status="todo")
+        u = self.mod_util()
+        self.assertEqual((u["p1_starved"], u["p1_waiting"]), (["G-W"], []))
+
+    def test_res_prints_waiting_line_after_utilization_line(self):
+        self.p1_goal()
+        self.env.seed_task("T-0001", goal="G-W", status="in_review")
+        out = self.env.run("res").stdout.splitlines()
+        i = next(k for k, l in enumerate(out) if l.startswith("live ") and "P1 goals without workers: none" in l)
+        self.assertRegex(out[i + 1], r"^P1 waiting on owner/CI: G-W \(\d+ min\)$")
+        self.assertTrue(out[i + 2].startswith("utilization: workers"))
+
     def test_cap_variants(self):
         con = self.load()
         con.execute("INSERT OR REPLACE INTO config(key,value) VALUES('max_live_agents','6')")

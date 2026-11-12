@@ -12743,15 +12743,49 @@ def utilization(con):
         f"SELECT goal_id FROM agents WHERE goal_id IS NOT NULL AND role IN ({gmarks}) AND status IN ('live','starting','queued')",
         UTIL_GOAL_ROLES)}
 
-    def starved(prio):
+    def unstaffed(prio):
         return sorted(r["id"] for r in con.execute(
             "SELECT id FROM goals WHERE status IN ('planning','active') AND priority=?", (prio,)) if r["id"] not in staffed)
-    p1, p2 = starved(1), starved(2)
+
+    def waiting_on_owner_ci(gid):
+        """T-1401 (owner M33717): the goal has open tasks, none ready, and each one waits on the owner, on CI/review
+        (in_review) or on another task. DB state only; anything else (in_progress without a worker, no tasks) stays starved."""
+        open_t = con.execute("SELECT status,depends_on FROM tasks WHERE goal_id=? AND status NOT IN ('done','cancelled')",
+                             (gid,)).fetchall()
+        if not open_t:
+            return False
+        for t in open_t:
+            if t["status"] in ("in_review", "blocked"):
+                continue  # blocked: waits=owner, or waits=internal on another task
+            if t["status"] != "todo":
+                return False
+            try:
+                deps = json.loads(t["depends_on"] or "[]")
+            except ValueError:
+                deps = []
+            if all(d in done for d in deps):
+                return False  # a ready task: the goal is starved
+        return True
+    p2 = unstaffed(2)
+    p1, p1_waiting = [], []
+    for gid in unstaffed(1):
+        (p1_waiting if waiting_on_owner_ci(gid) else p1).append(gid)
+    now = digest_clock().timestamp()
+    wait_txt = []
+    for gid in p1_waiting:
+        last = con.execute(f"SELECT max(julianday(ended)) FROM agents WHERE goal_id=? AND role IN ({marks}) AND ended IS NOT NULL",
+                           (gid, *UTIL_WORKER_ROLES)).fetchone()[0]
+        if last is None:
+            last = con.execute("SELECT julianday(created) FROM goals WHERE id=?", (gid,)).fetchone()[0]
+        mins = max(0, int((now - (last - 2440587.5) * 86400) // 60)) if last else 0
+        wait_txt.append(f"{gid} ({mins} min)")
     line = (f"live {n}: workers {live['workers']} / leads {live['leads']} / judges {live['judges']} / HQ {live['hq']} / queued {queued}; "
             f"P1 goals without workers: {', '.join(p1) or 'none'}")
+    waiting_line = f"P1 waiting on owner/CI: {', '.join(wait_txt)}" if wait_txt else ""
     return {**live, "live": n, "queued": queued, "queued_workers": queued_workers, "cap": cap, "target": target,
             "under": live["workers"] < target, "ready": ready, "demand": queued_workers > 0 or ready > 0,
-            "hq_heavy": (live["leads"] + live["judges"]) * 3 > n, "p1_starved": p1, "p2_starved": p2, "line": line}
+            "hq_heavy": (live["leads"] + live["judges"]) * 3 > n, "p1_starved": p1, "p1_waiting": p1_waiting,
+            "p2_starved": p2, "line": line, "waiting_line": waiting_line}
 
 
 def cap_breaches(con, start_iso, end_iso):
@@ -14047,6 +14081,8 @@ def cmd_res(a):
           + ("" if cfg(con, "lead_parking") == "1" else " · lead parking off"))
     u2 = utilization(con)
     print(u2["line"])
+    if u2["waiting_line"]:
+        print(u2["waiting_line"])
     print(f"utilization: workers {u2['workers']}/{u2['target']} target · leads+judges {u2['leads'] + u2['judges']}/{u2['live']} (max 1/3)"
           + (" · UNDER TARGET" if u2["under"] and u2["demand"] else "") + (" · HQ-HEAVY" if u2["hq_heavy"] else ""))
     om = res_org_mix(con)

@@ -38,3 +38,12 @@ The hook never breaks the tick. A failure logs the event `util-alert-failed` at 
 `owner_blocker_alerts()` (tick) sends the boss one `escalation` ("OWNER-ONLY BLOCKER (night): ...") for each owner-only blocker raised outside `[day_start_hour, day_end_hour)`. Sources: an escalation to the boss whose subject contains "owner action" (case-insensitive; the tick's own messages are ignored), which stays open until a boss `--kind decision` quotes its M-id, and a spawn gate closed on `/tmp` usage. One alert per blocker (throttle key `alerted:owner-blocker:...`). `factory res` prints `owner-only blockers: N` with each blocker's age. The boss tells the owner at once and again at `day_start_hour` (roles/boss.md).
 
 At night the tick also prompts the boss pane once per such blocker (the only night nudge; the boss pane is otherwise never prompted), when the boss is idle, retrying each tick until delivered; each prompt is logged as event `owner-blocker-nudge`.
+
+## P1 waiting on owner/CI (T-1401, owner decision M33717)
+
+A P1 goal with no worker (coder/pm/qa/reviewer/researcher/judge live, starting or queued) is **starved** unless it is **waiting**. Waiting means it has open tasks, none of them ready, and every open task is `blocked` (`waits=owner`, or `waits=internal` on another task), `in_review` (CI pending or review/judge about to be autospawned), or `todo` with an unfinished dependency. `utilization()` decides from DB state only (no `gh` call).
+
+- Starved goals keep the `P1 goals without workers: ...` part of the utilization line, are stored in `util_samples.p1_starved`, and are the only ones that alert (`starved P1 goal`, boss escalation) or count in the scorecard's `P1 starved` minutes.
+- Waiting goals are stored nowhere as starved, never alert, and are printed by `factory res` on a separate line right below the utilization line: `P1 waiting on owner/CI: G-010 (35 min), ...`. The minutes count from the goal's last ended worker (the goal's creation if it never had one). The line is absent when no goal waits.
+- A ready task (status `todo`, all dependencies `done`, same rule as `factory task ready`) always makes the goal starved, even next to blocked tasks.
+- A goal with no open tasks at all, or with an `in_progress` task and no live worker, stays starved (as before): nobody is working and nothing explains why.
