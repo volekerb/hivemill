@@ -476,12 +476,14 @@ class CliImplTests(FactoryTestCase):
 
     def setUp(self):
         super().setUp()
-        if self.bin is None:
-            self.skipTest("no ~/.local/go/bin/go toolchain, or GOMODCACHE_SEED unset (the factory-go build needs its modules)")
         self.h = write_go(self.env.home_dir)
         self.lib = self.env.user_home / ".local" / "lib" / "factory"
         self.lib.mkdir(parents=True)
-        shutil.copy(self.bin, self.lib / "factory-go")
+        if self.bin is None:  # no real factory-go (needs go + GOMODCACHE_SEED): a fake one is enough for dispatch/flag tests
+            (self.lib / "factory-go").write_text("#!/bin/sh\necho FAKE-GO\n")
+            (self.lib / "factory-go").chmod(0o755)
+        else:
+            shutil.copy(self.bin, self.lib / "factory-go")
         self.stamp = self.lib / "factory-go.stamp"
         self.stamp.write_text(self.h + "\n")
         self.flag = self.env.home_dir / "run" / "cli_impl"
@@ -489,6 +491,10 @@ class CliImplTests(FactoryTestCase):
         self.env.seed_agent("lead-1", "lead")
         self.cfg("cli_impl", "go")
         self.cfg("cli_go_cmds", "whoami")
+
+    def need_real(self):
+        if self.bin is None:
+            self.skipTest("needs the real factory-go: a go toolchain and GOMODCACHE_SEED (CI wires it after setup-go)")
 
     def cfg(self, key, value, agent="dir-1"):
         p = self.env.run("config", key, value, agent=agent, inproc=False)
@@ -511,6 +517,7 @@ class CliImplTests(FactoryTestCase):
         self.assertEqual(self.flag.read_text(), "python -\n")
 
     def test_go_answers_when_flagged_and_listed(self):  # acceptance 2
+        self.need_real()
         p = self.call("whoami")
         self.assertEqual(self.impl(p), "impl=go")
         self.assertEqual(p.returncode, 0, p.stderr)
@@ -551,6 +558,7 @@ class CliImplTests(FactoryTestCase):
         self.assertEqual(con.execute("PRAGMA user_version").fetchone()[0], want)
 
     def test_go_gets_argv0_of_bin_factory(self):  # S1-b handoff: Go derives its Python entry from argv[0]
+        self.need_real()
         self.cfg("cli_go_cmds", "agents")
         p = self.call("agents", "--bogus")  # Go delegates this shape to <dir of argv[0]>/factory under python3
         self.assertEqual(self.impl(p), "impl=go")
@@ -558,6 +566,7 @@ class CliImplTests(FactoryTestCase):
         self.assertIn("unrecognized arguments: --bogus", p.stderr)
 
     def test_shadow_python_answers_and_a_diff_is_logged_as_hashes_only(self):
+        self.need_real()
         self.cfg("cli_impl", "shadow")
         want = self.python_answer("whoami")
         log = self.env.home_dir / "logs" / "cli-shadow.log"
@@ -574,8 +583,8 @@ class CliImplTests(FactoryTestCase):
         self.assertRegex(text, r"[0-9a-f]{64} py=0 go=0 [0-9a-f]{64} [0-9a-f]{64}\n")
 
     def test_shadow_never_runs_a_write_twice(self):
+        self.cfg("cli_impl", "shadow")  # first: with "config" listed and mode go, the fake factory-go would swallow this write
         self.cfg("cli_go_cmds", "config")
-        self.cfg("cli_impl", "shadow")
         self.assertEqual(self.impl(self.call("config", "cli_go_cmds", "config")), "impl=python")  # write: Python only
         self.assertEqual(self.impl(self.call("config", "cli_go_cmds")), "impl=shadow")  # read
 
@@ -600,6 +609,7 @@ class CliImplTests(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.flag.read_text(), f"go {self.h} whoami\n")
 
+    @unittest.skipUnless(REAL_GO, "no ~/.local/go/bin/go toolchain")
     def test_build_cli_go_writes_binary_then_stamp(self):
         repo, lib = self.lib.parent / "repo", self.lib.parent / "lib2"
         repo.mkdir()

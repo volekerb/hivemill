@@ -26,11 +26,11 @@ A missing or malformed file, a stale or missing binary or stamp, or a command no
 
 ## Shadow mode
 
-Only read-only calls are shadowed (`whoami`, `agents`, `flags`, `config` with at most one argument); a write would run twice. Python's output and exit code are what the caller gets. When Go's exit code, stdout or stderr differ, one line goes to `$FACTORY_HOME/logs/cli-shadow.log`: timestamp, sha256 of the argv, both exit codes, sha256 of each output. Never the text.
+Only read-only calls are shadowed (`whoami`, `agents`, `flags`, `config` with at most one argument); a write would run twice. Python's output and exit code are what the caller gets. When Go's exit code, stdout or stderr differ, one line goes to `$FACTORY_HOME/logs/cli-shadow.log`: timestamp, sha256 of the argv, both exit codes, sha256 of each output. Never the text. A shadowed read that Go delegates back to Python (a shape Go does not answer itself) can run Python twice; the output is still Python's.
 
 ## Build
 
-The tick and `factory up` build `go/cmd/factory` into `~/.local/lib/factory/factory-go` (CGO off, same allowlisted environment as the guard build), rename it into place and write `factory-go.stamp` last. Builds happen only when `cli_impl` is not `python`.
+The tick and `factory up` build `go/cmd/factory` into `~/.local/lib/factory/factory-go` (CGO off, same allowlisted environment as the guard build), rename it into place and write `factory-go.stamp` last. Builds happen only when `cli_impl` is not `python`. `factory up` also fetches the modules (two steps, 120 s each); with the guard build (300 s) and this build (300 s) the worst case exceeds the 600 s of factory-up.service. That is safe: the flags are written before each build, so a killed `up` leaves a stale or missing stamp and every command stays on Python.
 
 ## Protected from workers
 

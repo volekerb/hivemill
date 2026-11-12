@@ -2543,6 +2543,7 @@ GUARD_IMPLS = ("python", "go", "shadow")
 CLI_IMPLS = ("python", "go", "shadow")
 CLI_GO_CMDS_KNOWN = ("whoami", "flags", "agents", "config")  # the S1 set the Go binary answers (go/internal/cli)
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
+CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
 GUARD_TICK_BUILD_TIMEOUT_S = 120  # the tick (factory-tick.service TimeoutStartSec=240): a build must not kill the tick
 GUARD_FAILED_BACKOFF_S = 30 * 60  # the tick skips a build that failed for this srchash for this long
 
@@ -2736,7 +2737,7 @@ def fetch_cli_go_deps(lib=None, src=None, proxy=None, go=None):
     try:
         Path(env["GOTMPDIR"]).mkdir(parents=True, exist_ok=True)
         for sub in ("download", "verify"):
-            rc, err = _run_build([go, "mod", sub], src / "go", GUARD_BUILD_TIMEOUT_S, env)
+            rc, err = _run_build([go, "mod", sub], src / "go", CLI_FETCH_TIMEOUT_S, env)
             if rc != 0:
                 first = (err or "").strip().splitlines()[:1]
                 print(f"go mod {sub}: failed ({first[0] if first else f'exit {rc}'}); factory-go stays on Python", file=sys.stderr)
@@ -2772,18 +2773,22 @@ def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
     """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (only when guard_impl != python: at the
     default no Go toolchain runs; cheap no-op when stamped; skipped under load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
     (the shim uses Python) before a slow or killed build. Never raises: the guard falls back to Python on its own."""
+    cap = None
     try:
         write_guard_impl(con, src)
         cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
         if build and cfg(con, "guard_impl") != "python" and load1() <= cap \
                 and build_guard_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_guard_impl(con, src)
+    except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
+        print(f"guard go build: tick step failed ({e})", file=sys.stderr)
+    try:  # its own step: a failing guard build must not leave run/cli_impl stale
         write_cli_impl(con, src)  # G-041: written first too, so a changed go/ makes srchash differ from the stamp
-        if build and cfg(con, "cli_impl") != "python" and load1() <= cap \
+        if build and cap is not None and cfg(con, "cli_impl") != "python" and load1() <= cap \
                 and build_cli_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_cli_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
-        print(f"guard go build: tick step failed ({e})", file=sys.stderr)
+        print(f"cli go build: tick step failed ({e})", file=sys.stderr)
 
 
 def _config_trap(fn, *args):
