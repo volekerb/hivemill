@@ -33,9 +33,9 @@ QA records the result as a new verdict with `live-run: done AC<n> exit=<code>`; 
 (the lead routes it).
 
 **Main push run (T-0917)**: before the gate, the merger checks that the latest completed `tests.yml` push run on main of each
-candidate repo slug matches the current `origin/main` head and succeeded. Projects in local-gate mode (`gate_cmd` set, no
-per-project `required_checks`) skip that check for their slug and log
-`main-run check skipped: project <id> has no CI workflow` (local-gate repos with no `tests.yml` on main). GitHub-mode
-projects keep the full check.
+candidate repo slug matches the current `origin/main` head and succeeded. When `gh run list` reports the `tests.yml`
+workflow is missing on the default branch, local-gate projects (`gate_cmd` set) skip that slug and log
+`main-run check skipped: project <id> has no CI workflow`. Blank per-project `required_checks` still means the global list,
+not “no CI” (project `factory` / hivemill keeps this check). GitHub-mode projects keep the full check on every gh error.
 
 Rollback: `factory config mech_merge off`. Tests: `tests/test_mech_merge.py`, `tests/test_mech_status_only_hold.py`.
