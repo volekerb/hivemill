@@ -39,3 +39,12 @@ The tick and `factory up` build `go/cmd/factory` into `~/.local/lib/factory/fact
 ## Schema version
 
 `SCHEMA_VERSION` in `bin/factory_cli.py` is written to `PRAGMA user_version` by `factory init` and by every `migrate()`. The Go side (`go/internal/factorydb` `SchemaVersion`) answers only when it reads the same number. Changing `SCHEMA` or `migrate()` requires bumping both constants; `tests/test_db_layout.py` pins a hash of the two and fails until the pin is renewed.
+
+## Building and dependencies
+
+`factory-go` has one external module (modernc.org/sqlite, pinned by `go/go.sum`); the worker-guard stays dependency-free
+(`go list -deps ./cmd/worker-guard` lists only this module). Builds are always offline (`GOPROXY=off`, private
+`GOMODCACHE=~/.local/lib/factory/go/mod`), so the tick never touches the network. `fetch_cli_go_deps` is the only network
+step: `factory up` runs `go mod download` then `go mod verify` (`-mod=readonly`, checksum database on) when `cli_impl` is
+not python. When the modules are missing the build fails with "deps not fetched: run factory up" and `bin/factory`
+stays on Python. CI seeds a module cache and exports `GOMODCACHE_SEED`; the real-Go tests skip without it.

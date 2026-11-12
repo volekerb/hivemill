@@ -2659,6 +2659,8 @@ def build_guard_go(src=None, lib=None, tick=False, go=None, name="worker-guard",
             ok = rc == 0
             first = (stderr or "").strip().splitlines()[:1]
             err = first[0] if first else f"exit {rc}"
+            if not ok and name == CLI_GO_BIN and "module lookup disabled" in (stderr or ""):
+                err += "; deps not fetched: run factory up"  # the build is offline; only `factory up` fetches (fetch_cli_go_deps)
         except (OSError, subprocess.SubprocessError) as e:
             ok, err = False, str(e)[:200]
         if not ok:
@@ -2700,6 +2702,31 @@ def build_cli_go(src=None, lib=None, tick=False, go=None):
     """Build go/cmd/factory into <lib>/factory-go (CGO_ENABLED=0 comes from guard_build_env), stamped last. Same
     contract as build_guard_go: built | current | skipped | failed, never raises."""
     return build_guard_go(src, lib, tick=tick, go=go, name=CLI_GO_BIN, pkg="./cmd/factory")
+
+
+def fetch_cli_go_deps(lib=None, src=None, proxy=None, go=None):
+    """Download and verify the modules go/cmd/factory needs into the private GOMODCACHE (<lib>/go/mod), go.sum-pinned.
+    The only network step of the Go CLI: called from `factory up` / install, never from the tick (the build stays
+    GOPROXY=off). proxy defaults to https://proxy.golang.org. Returns "fetched" | "skipped" | "failed", never raises."""
+    lib = Path(lib or guard_lib_dir())
+    src = Path(src or Path(__file__).resolve().parent.parent)
+    go = str(go) if go else str(guard_go_path())
+    if not os.access(go, os.X_OK) or not (src / "go" / "go.mod").is_file():
+        return "skipped"
+    env = {**guard_build_env(lib), "GOPROXY": proxy or "https://proxy.golang.org", "GOSUMDB": "sum.golang.org",
+           "GOFLAGS": "-mod=readonly"}
+    try:
+        Path(env["GOTMPDIR"]).mkdir(parents=True, exist_ok=True)
+        for sub in ("download", "verify"):
+            rc, err = _run_build([go, "mod", sub], src / "go", GUARD_BUILD_TIMEOUT_S, env)
+            if rc != 0:
+                first = (err or "").strip().splitlines()[:1]
+                print(f"go mod {sub}: failed ({first[0] if first else f'exit {rc}'}); factory-go stays on Python", file=sys.stderr)
+                return "failed"
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"go mod download: failed ({e}); factory-go stays on Python", file=sys.stderr)
+        return "failed"
+    return "fetched"
 
 
 def cli_binary_state(src=None, lib=None):
@@ -16115,6 +16142,8 @@ def cmd_up(a):
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started
+    if cfg(con, "cli_impl") != "python":
+        fetch_cli_go_deps()  # the one network step of the Go CLI; the build below is offline
     guard_tick(con, tick=False)
     agents = herdr_agents()
     if agents is None:  # let systemd show the failure instead of queueing everything against a dead server
@@ -18590,7 +18619,63 @@ def evaluator_home_guard():
             "(FACTORY_HOME=<temp dir> factory <cmd>)", 3)
 
 
+def cli_dispatch_mode(argv, environ=None):
+    """(mode, go binary) from run/cli_impl and the factory-go stamp, as bin/factory reads them; ("python", None) on any
+    doubt. Only the stub execs Go (mode go); here a shadow call is told apart so main() can compare both answers."""
+    environ = os.environ if environ is None else environ
+    if len(argv) < 2 or environ.get("FACTORY_CLI_IMPL") == "python":
+        return "python", None
+    try:
+        mode, srchash, cmds = (RUN / "cli_impl").read_text().strip().split(" ", 2)
+        lib = Path(guard_lib_dir())
+        if mode in ("go", "shadow") and srchash and argv[1] in cmds.split(",") \
+                and _read_line(lib / f"{CLI_GO_BIN}.stamp") == srchash and os.access(lib / CLI_GO_BIN, os.X_OK):
+            return mode, str(lib / CLI_GO_BIN)
+    except (OSError, ValueError):
+        pass
+    return "python", None
+
+
+def cli_shadow(binary, argv, environ):
+    """Python answers (its output and exit code are passed through), then Go runs the same argv under a 2 s timeout;
+    a difference is logged to logs/cli-shadow.log as hashes only, never text. Returns the exit code."""
+    import hashlib
+    py_env = {k: v for k, v in environ.items() if k != "FACTORY_CLI_TRACE"}  # the parent already traced
+    py_env["FACTORY_CLI_IMPL"] = "python"
+    py = subprocess.run([sys.executable, os.path.realpath(argv[0]), *argv[1:]], env=py_env, capture_output=True)
+    sys.stdout.buffer.write(py.stdout)
+    sys.stdout.buffer.flush()
+    sys.stderr.buffer.write(py.stderr)
+    sys.stderr.buffer.flush()
+    try:
+        go = subprocess.run([argv[0], *argv[1:]], executable=binary, env=environ, capture_output=True,
+                            stdin=subprocess.DEVNULL, timeout=2)
+        go_rc, go_out, go_err = go.returncode, go.stdout, go.stderr
+    except subprocess.TimeoutExpired:
+        go_rc, go_out, go_err = "timeout", b"", b""
+    except OSError:
+        go_rc, go_out, go_err = "oserror", b"", b""
+    if (go_rc, go_out, go_err) != (py.returncode, py.stdout, py.stderr):
+        sha = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
+        line = " ".join([time.strftime("%Y-%m-%dT%H:%M:%S"), sha("\0".join(argv[1:]).encode()), f"py={py.returncode}",
+                         f"go={go_rc}", sha(py.stdout + b"\0" + py.stderr), sha(go_out + b"\0" + go_err)])
+        try:
+            (RUN.parent / "logs").mkdir(parents=True, exist_ok=True)
+            with open(RUN.parent / "logs" / "cli-shadow.log", "a") as f:
+                f.write(line + "\n")
+        except OSError:
+            pass  # the log is best effort; the answer already went out
+    return py.returncode
+
+
 def main():
+    mode, binary = cli_dispatch_mode(sys.argv)
+    if mode == "shadow" and not (sys.argv[1] in ("whoami", "agents", "flags") or (sys.argv[1] == "config" and len(sys.argv) <= 3)):
+        mode = "python"  # only read-only commands are shadowed: a write would run twice
+    if os.environ.get("FACTORY_CLI_TRACE") == "1":
+        print(f"impl={'python' if mode == 'go' else mode}", file=sys.stderr, flush=True)  # go here: the stub could not exec it
+    if mode == "shadow":
+        sys.exit(cli_shadow(binary, sys.argv, os.environ))
     evaluator_home_guard()
     p = argparse.ArgumentParser(prog="factory", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 

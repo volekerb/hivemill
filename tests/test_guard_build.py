@@ -461,11 +461,13 @@ class CliImplTests(FactoryTestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.bin = None
-        if REAL_GO:
+        cls.seed = os.environ.get("GOMODCACHE_SEED")  # a module cache holding go/go.mod's deps (CI: setup-go + go mod download)
+        if REAL_GO and cls.seed:
             cls.tmpdir = Path(tempfile.mkdtemp(prefix="zz-cli-impl-"))
             cls.addClassCleanup(shutil.rmtree, cls.tmpdir, True)
             out = cls.tmpdir / "factory-go"
-            env = {**os.environ, "CGO_ENABLED": "0", "GOTOOLCHAIN": "local", "GOFLAGS": "", "GOPROXY": "off"}
+            env = {**os.environ, "CGO_ENABLED": "0", "GOTOOLCHAIN": "local", "GOFLAGS": "", "GOPROXY": "off",
+                   "GOMODCACHE": cls.seed}
             p = subprocess_run([REAL_GO, "build", "-buildvcs=false", "-trimpath", "-o", str(out), "./cmd/factory"],
                                BIN_DIR.parent / "go", env)
             if p.returncode:
@@ -475,7 +477,7 @@ class CliImplTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
         if self.bin is None:
-            self.skipTest("no ~/.local/go/bin/go toolchain")
+            self.skipTest("no ~/.local/go/bin/go toolchain, or GOMODCACHE_SEED unset (the factory-go build needs its modules)")
         self.h = write_go(self.env.home_dir)
         self.lib = self.env.user_home / ".local" / "lib" / "factory"
         self.lib.mkdir(parents=True)
@@ -616,6 +618,79 @@ class CliImplTests(FactoryTestCase):
             self.assertEqual(f.cli_binary_state(repo, lib), "ok")
             self.assertEqual(f.build_cli_go(repo, lib, go=REAL_GO), "current")
             self.assertFalse((lib / "worker-guard").exists(), "the guard build was not asked for")
+
+
+class CliGoDepsTests(FactoryTestCase):
+    """T-1336 item 3: the factory-go build is offline (GOPROXY=off); only fetch_cli_go_deps, called from `factory up`,
+    reaches a proxy, with -mod=readonly and the checksum database on. A fake go records each call and its environment."""
+
+    def setUp(self):
+        super().setUp()
+        self.tmp = Path(tempfile.mkdtemp(prefix="zz-cli-deps-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.repo, self.lib = self.tmp / "repo", self.tmp / "lib"
+        (self.repo / "go" / "cmd" / "factory").mkdir(parents=True)
+        (self.repo / "go" / "cmd" / "factory" / "main.go").write_text(MAIN_OK)
+        (self.repo / "go" / "go.mod").write_text(GO_MOD)
+        git("init", "-q", "-b", "main", cwd=self.repo)
+        git("add", "-A", cwd=self.repo)
+        git("commit", "-q", "-m", "go", cwd=self.repo)
+        self.log = self.tmp / "calls"
+        self.go = str(self.tmp / "go")
+
+    def fake_go(self, build_body="exit 0"):
+        Path(self.go).write_text(f'#!/bin/sh\necho "$1 $2" >> "{self.log}"\nenv | sort >> "{self.log}"\n'
+                                 f'if [ "$1" = build ]; then\n{build_body}\nfi\n')
+        Path(self.go).chmod(0o755)
+
+    def test_fetch_runs_download_then_verify_with_readonly_and_sumdb_on(self):
+        self.fake_go()
+        with self.env.load_factory() as f:
+            self.assertEqual(f.fetch_cli_go_deps(self.lib, self.repo, go=self.go), "fetched")
+        text = self.log.read_text()
+        self.assertLess(text.index("mod download"), text.index("mod verify"))
+        for want in ("GOFLAGS=-mod=readonly", "GOSUMDB=sum.golang.org", "GOPROXY=https://proxy.golang.org",
+                     f"GOMODCACHE={self.lib}/go/mod"):
+            self.assertIn(want, text)
+
+    def test_fetch_failure_is_reported_not_raised(self):
+        Path(self.go).write_text("#!/bin/sh\necho 'no network' >&2\nexit 1\n")
+        Path(self.go).chmod(0o755)
+        with self.env.load_factory() as f:
+            self.assertEqual(f.fetch_cli_go_deps(self.lib, self.repo, go=self.go), "failed")
+
+    def test_the_tick_build_never_downloads_and_stays_offline(self):
+        self.fake_go('while [ $# -gt 0 ]; do [ "$1" = -o ] && echo x > "$2"; shift; done')
+        with self.env.load_factory() as f:
+            self.assertEqual(f.build_cli_go(self.repo, self.lib, tick=True, go=self.go), "built")
+        text = self.log.read_text()
+        self.assertNotIn("mod download", text)
+        self.assertIn("GOPROXY=off", text)
+        self.assertNotIn("GOPROXY=https", text)
+
+    def test_missing_deps_fail_with_the_run_factory_up_hint_and_python_stays(self):
+        self.fake_go('echo "go: downloading modernc.org/sqlite v1.62.0: module lookup disabled by GOPROXY=off" >&2\nexit 1')
+        with self.env.load_factory() as f:
+            self.assertEqual(f.build_cli_go(self.repo, self.lib, tick=True, go=self.go), "failed")
+            self.assertEqual(f.cli_binary_state(self.repo, self.lib), "missing")
+        self.assertFalse((self.lib / "factory-go.stamp").exists())
+
+    @unittest.skipUnless(REAL_GO, "no ~/.local/go/bin/go toolchain")
+    def test_worker_guard_has_no_dependency_outside_this_module(self):
+        p = subprocess_run([REAL_GO, "list", "-deps", "-f", "{{if not .Standard}}{{.ImportPath}}{{end}}", "./cmd/worker-guard"],
+                           BIN_DIR.parent / "go", {**os.environ, "GOFLAGS": "-mod=readonly", "GOPROXY": "off",
+                                                    "GOTOOLCHAIN": "local"})
+        self.assertEqual(p.returncode, 0, p.stderr)
+        bad = [x for x in p.stdout.split() if not x.startswith("factory/go")]
+        self.assertEqual(bad, [], "the guard stays dependency-free (ADR 0001)")
+
+    @unittest.skipUnless(REAL_GO and os.environ.get("GOMODCACHE_SEED"),
+                         "needs a real go and GOMODCACHE_SEED (CI wires it after setup-go; not applied yet means skipped)")
+    def test_real_fetch_from_a_file_proxy_then_an_offline_build(self):
+        seed = os.environ["GOMODCACHE_SEED"]
+        with self.env.load_factory() as f:
+            src = Path(f.__file__).resolve().parent.parent
+            self.assertEqual(f.fetch_cli_go_deps(self.lib, src, proxy=f"file://{seed}/cache/download", go=REAL_GO), "fetched")
 
 
 def subprocess_run(cmd, cwd, env):

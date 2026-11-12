@@ -1,92 +1,19 @@
 #!/usr/bin/env python3
 """factory CLI entry point. The code lives in factory_cli.py: a script run as __main__ never gets a cached .pyc, an imported module does.
-
-G-041: before factory_cli is imported, $FACTORY_HOME/run/cli_impl ("<mode> <srchash> <csv>", written by factory_cli
-from the cli_impl and cli_go_cmds config keys) may hand the command to the Go binary ~/.local/lib/factory/factory-go.
-Anything missing, malformed, stale (stamp != srchash) or not listed means Python; FACTORY_CLI_IMPL=python also forces
-Python and nothing can force Go. Only os and sys are imported on this path (docs/cli-go.md)."""
+G-041 fast path (docs/cli-go.md): run/cli_impl "<mode> <srchash> <csv>" may hand a listed command to ~/.local/lib/factory/factory-go.
+Missing, malformed, stale (stamp != srchash) or unlisted means Python; FACTORY_CLI_IMPL=python forces Python, nothing forces Go."""
 import os
 import sys
-
-_SHADOW_READ_ONLY = ("whoami", "agents", "flags")
-
-
-def _go_binary(argv, environ):
-    """(mode, path of an executable, stamped factory-go) when this call may go to Go, else (None, None)."""
-    if len(argv) < 2 or environ.get("FACTORY_CLI_IMPL") == "python":
-        return None, None
-    home = environ["FACTORY_HOME"] if "FACTORY_HOME" in environ else os.path.join(os.path.expanduser("~"), "factory")
-    try:
-        with open(os.path.join(home, "run", "cli_impl")) as f:
-            parts = f.read(4096).strip().split(" ", 2)
-    except (OSError, ValueError):
-        return None, None
-    if len(parts) < 3 or parts[0] not in ("go", "shadow") or not parts[1] or argv[1] not in parts[2].split(","):
-        return None, None
-    lib = os.path.join(os.path.expanduser("~"), ".local", "lib", "factory")
-    try:
-        with open(os.path.join(lib, "factory-go.stamp")) as f:
-            if f.read(4096).strip() != parts[1]:
-                return None, None
-    except (OSError, ValueError):
-        return None, None
-    binary = os.path.join(lib, "factory-go")
-    return (parts[0], binary) if os.access(binary, os.X_OK) else (None, None)
-
-
-def _shadow(binary, argv, environ):
-    """Python answers (its output and exit code are passed through), then Go runs the same argv under a 2 s timeout;
-    a difference is logged to logs/cli-shadow.log as hashes only, never text. Returns the exit code."""
-    import hashlib
-    import subprocess
-    import time
-    py_env = {k: v for k, v in environ.items() if k != "FACTORY_CLI_TRACE"}  # the parent already traced
-    py_env["FACTORY_CLI_IMPL"] = "python"
-    py = subprocess.run([sys.executable, os.path.realpath(__file__), *argv[1:]], env=py_env, capture_output=True)
-    sys.stdout.buffer.write(py.stdout)
-    sys.stdout.buffer.flush()
-    sys.stderr.buffer.write(py.stderr)
-    sys.stderr.buffer.flush()
-    try:
-        go = subprocess.run([argv[0], *argv[1:]], executable=binary, env=environ, capture_output=True,
-                            stdin=subprocess.DEVNULL, timeout=2)
-        go_rc, go_out, go_err = go.returncode, go.stdout, go.stderr
-    except subprocess.TimeoutExpired:
-        go_rc, go_out, go_err = "timeout", b"", b""
-    except OSError:
-        go_rc, go_out, go_err = "oserror", b"", b""
-    if (go_rc, go_out, go_err) != (py.returncode, py.stdout, py.stderr):
-        sha = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
-        home = environ["FACTORY_HOME"] if "FACTORY_HOME" in environ else os.path.join(os.path.expanduser("~"), "factory")
-        line = " ".join([time.strftime("%Y-%m-%dT%H:%M:%S"), sha("\0".join(argv[1:]).encode()), f"py={py.returncode}",
-                         f"go={go_rc}", sha(py.stdout + b"\0" + py.stderr), sha(go_out + b"\0" + go_err)])
-        try:
-            os.makedirs(os.path.join(home, "logs"), exist_ok=True)
-            with open(os.path.join(home, "logs", "cli-shadow.log"), "a") as f:
-                f.write(line + "\n")
-        except OSError:
-            pass  # the log is best effort; the answer already went out
-    return py.returncode
-
-
-def _dispatch():
-    mode, binary = _go_binary(sys.argv, os.environ)
-    trace = os.environ.get("FACTORY_CLI_TRACE") == "1"
-    if mode == "shadow" and not (sys.argv[1] in _SHADOW_READ_ONLY or (sys.argv[1] == "config" and len(sys.argv) <= 3)):
-        mode = None  # only read-only commands are shadowed: a write would run twice
-    if trace:
-        print(f"impl={mode or 'python'}", file=sys.stderr, flush=True)
-    if mode == "go":
-        try:
-            os.execv(binary, [sys.argv[0], *sys.argv[1:]])  # argv[0] stays the bin/factory path: Go derives the Python entry from it
-        except OSError:
-            pass  # cannot exec: Python answers
-    elif mode == "shadow":
-        sys.exit(_shadow(binary, sys.argv, os.environ))
-
-
-_dispatch()
+try:
+    lib = os.path.expanduser("~/.local/lib/factory/")
+    home = os.environ.get("FACTORY_HOME", os.path.expanduser("~/factory"))
+    mode, srchash, cmds = open(os.path.join(home, "run", "cli_impl")).read(4096).split(" ", 2)
+    if mode == "go" and srchash and os.environ.get("FACTORY_CLI_IMPL") != "python" and sys.argv[1] in cmds.strip().split(",") \
+            and open(lib + "factory-go.stamp").read(4096).strip() == srchash and os.access(lib + "factory-go", os.X_OK):
+        print("impl=go", file=sys.stderr, flush=True) if os.environ.get("FACTORY_CLI_TRACE") == "1" else None
+        os.execv(lib + "factory-go", [sys.argv[0], *sys.argv[1:]])  # argv[0] stays this path: Go derives the Python entry from it
+except (OSError, ValueError, IndexError):
+    pass  # any doubt: Python answers
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import factory_cli
-
 factory_cli.main()
