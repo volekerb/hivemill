@@ -1,0 +1,18 @@
+── M6 [report] from lead-a @ 2026-11-02T11:00:00+01:00 task=T-9
+   status: not collapsed for workers
+   l1
+   l2
+   l3
+   l4
+   l5
+── M7 [msg] from lead-a @ 2026-11-02T11:01:00+01:00
+   no body
+── M8 [msg] from lead-a @ 2026-11-02T11:02:00+01:00
+   odd lines ünï
+   first
+
+   
+   tab	x   cr line
+   crlf line   vt   ff    ls 
+   last
+
