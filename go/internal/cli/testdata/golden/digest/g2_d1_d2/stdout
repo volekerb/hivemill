@@ -1,0 +1,41 @@
+# Factory digest 2026-11-12
+
+Leads: 1 live, 1 parked, 0 queued; workers live 3
+
+## Director
+
+director (24h, daytime 08-20): no utilization samples · cap breaches 0 · boss scores -
+
+Orgs: claude 1 active · cursor 0 active
+
+## Org claude
+
+## G-2 — Planning goal (planning)
+
+### Done
+_nothing_
+
+### In progress
+- T-32 pr merged (in_review, unassigned, attempts 1)
+- T-33 pr closed (in_review, unassigned, attempts 1)
+- T-34 pr unknown (in_review, unassigned, attempts 1)
+
+### Blocked
+_nothing_
+
+### Up next
+0 ready todo task(s)
+
+Drift: D1 G-2 is planning but has done tasks and live team TG2; D2 T-32 in_review but PR #77 MERGED; D2 T-33 in_review but PR #78 CLOSED
+
+Freshness: claude-boss (roles); claude-coder-14 (bin, roles)
+
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| TG2 | 4 | 1 | 0 | 0 | 0 |  |
+
+## Org cursor
+
+_no active goals_
