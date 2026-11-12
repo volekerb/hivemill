@@ -1,0 +1,2 @@
+ID   GOAL_ID  STATUS  WAITS  ROLE   ASSIGNEE          ATTEMPTS  PR_URL                     TITLE           
+T-1  G-1      done           coder  claude-coder-t-1  1         https://example.test/pr/1  First task, done
