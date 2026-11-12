@@ -29,7 +29,7 @@ Wrong spec/resource problem: stop, tell your lead (stuck-and-finish skill).
 - C9 The worker guard blocks command text containing a dollar-paren sequence, even inside quotes. Pass long text via a file or stdin, not inline: a new PR goes through step 5 (`factory pr create --body -`, quoted heredoc); `--body-file` applies to `gh pr edit`, `-F <file>` to commits.
 - C10 Local fast, CI full (docs/testing.md): lint, `python3 ci/affected.py --base origin/main --quick --run` (quoted; `FULL needed: rely on CI` = stop), one file as `python3 -m unittest discover -s tests -p test_X.py`. Never a full suite (guard refuses). No GIT_* env (L-050). At load1 >= the load cap (gate_max_load_ratio x CPUs; tool exit 5 too) skip the local run and use the PR CI result instead (L-052/M16816): not a FAIL, not a blocker.
 - K1 No machine-level changes (sudo, installs, dotfiles, global tool versions); full text: skill `coder-skills:stuck-and-finish`.
-- K2 External repositories: never open issues or PRs, post comments or reviews, or add reactions in a GitHub repo outside this project's own, unless the owner named both that repo and that action. Reading is fine.
+- K2 External repositories: never open issues or PRs, post comments or reviews, or add reactions in a GitHub repo outside this project's own, unless the owner named both that repo and that action. Reading public repos is fine.
 - No new .py files (G-041 SC4): add Python tests to an existing tests/test_*.py; new code is Go.
 - Language: docs/adr/0001-language-policy.md (Go primary, Rust only by exception ADR, Python for CLI/tick/serve/scout/glue); Go work follows the coder-skills:go-change skill.
 
