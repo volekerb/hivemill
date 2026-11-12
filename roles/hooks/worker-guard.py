@@ -5206,18 +5206,37 @@ def r2_path_hit(cmd):
 
 
 R2_ASSIGN_WORDS = frozenset({"export", "readonly", "declare", "typeset"})
+R2_ASSIGN_WRAPPERS = frozenset({"eval", "command", "builtin"})
+
+
+def r2_segment_words(seg):
+    """Words of one segment with bash quote removal; segments() mask blanks quoted spans for splitting only."""
+    seg = seg.strip()
+    if not seg:
+        return []
+    try:
+        lex = shlex.shlex(seg, posix=True)
+        lex.whitespace_split = True
+        return list(lex)
+    except ValueError:
+        return seg.split()
 
 
 def r2_assign_builtin_words(cmd):
     """True when a simple-command starts with export/readonly/declare/typeset (not mere mention in data args)."""
-    for _, _, words in segments(cmd):
-        rest = list(words)
+    for start, end, _ in segments(cmd):
+        rest = r2_segment_words(cmd[start:end])
         while rest and (rest[0] in RESERVED or ASSIGN.match(rest[0])):
             kw = rest.pop(0)
             if kw == "time":
                 while rest and rest[0].startswith("-"):
                     rest.pop(0)
-        if rest and rest[0] in R2_ASSIGN_WORDS:
+        if not rest:
+            continue
+        head = rest[0]
+        if head in R2_ASSIGN_WORDS:
+            return True
+        if head in R2_ASSIGN_WRAPPERS and len(rest) > 1 and rest[1] in R2_ASSIGN_WORDS:
             return True
     return False
 
