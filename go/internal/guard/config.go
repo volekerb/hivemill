@@ -168,12 +168,12 @@ func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 		t := a.cfgExpand(w)
 		if tildeUnres(w, a.ccwdKnown) && (strings.Contains(w, ".config/factory") || strings.Contains(w, "run/settings") ||
 			strings.Contains(w, "guard-export") || strings.Contains(w, ".local/lib/factory") ||
-			strings.Contains(w, "run/guard_impl") || hasLocalBin(w)) {
+			strings.Contains(w, "run/guard_impl") || strings.Contains(w, "run/cli_impl") || hasLocalBin(w)) {
 			return true // rule A: an unresolvable `~name/...` that spells a protected name counts
 		}
 		if strings.ContainsAny(t, "$`*?[{") {
 			if strings.Contains(t, ".config/factory") || strings.Contains(t, "run/settings") || strings.Contains(t, "guard-export") ||
-				strings.Contains(t, ".local/lib/factory") || strings.Contains(t, "run/guard_impl") || hasLocalBin(t) {
+				strings.Contains(t, ".local/lib/factory") || strings.Contains(t, "run/guard_impl") || strings.Contains(t, "run/cli_impl") || hasLocalBin(t) {
 				return true
 			}
 			if a.exportGlob(t) {
@@ -394,7 +394,7 @@ func (a *Analyzer) cfgWrite(name string, rest []string) error {
 				if strings.Contains(x, "guard-export") {
 					return blockf("`" + name + "` on <live>/run/guard-export.json: it holds the guard's own decisions; only the tick writes it")
 				}
-				if strings.Contains(x, "guard_impl") || strings.Contains(x, ".local/lib/factory") || a.inGuardImpl(x) {
+				if strings.Contains(x, "guard_impl") || strings.Contains(x, "cli_impl") || strings.Contains(x, ".local/lib/factory") || a.inGuardImpl(x) {
 					return blockf("`" + name + "` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the " +
 						"guard implementation; only the owner and `factory` change them")
 				}

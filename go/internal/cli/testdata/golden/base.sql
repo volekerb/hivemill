@@ -149,6 +149,8 @@ CREATE TABLE skill_trials (
   UNIQUE(candidate_id, vendor_sha, task, condition));
 INSERT INTO "config"("key","value") VALUES('guard_impl','python');
 INSERT INTO "config"("key","value") VALUES('model_cleaner','');
+INSERT INTO "config"("key","value") VALUES('cli_impl','python');
+INSERT INTO "config"("key","value") VALUES('cli_go_cmds','');
 INSERT INTO "config"("key","value") VALUES('max_live_agents','6');
 INSERT INTO "config"("key","value") VALUES('max_total_claude','10');
 INSERT INTO "config"("key","value") VALUES('gate_max_load_ratio','1.25');

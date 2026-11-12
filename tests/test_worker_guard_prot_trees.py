@@ -81,6 +81,19 @@ class GlobTargets(ProtTreesCase):
                       "cat ~/.local/lib/fact*/worker-guard.stamp"])
 
 
+class CliImplFlag(ProtTreesCase):
+    """T-1336 (G-041 S1-c): <live>/run/cli_impl and ~/.local/lib/factory/factory-go are held like run/guard_impl."""
+
+    def test_cli_impl_flag_and_binary_writes_blocked(self):
+        self.blocked(["echo go > @L@/run/cli_impl", "rm @L@/run/cli_impl", "tee @L@/run/cli_impl", "echo x > @L@/run/cli_im?l",
+                      "cp /tmp/x ~/.local/lib/factory/factory-go", "mv /tmp/x ~/.local/lib/factory/factory-go.stamp",
+                      "cd @L@/run && echo go > cli_impl"])
+
+    def test_cli_impl_reads_allowed(self):
+        self.allowed(["cat @L@/run/cli_impl", "cat ~/.local/lib/factory/factory-go.stamp",
+                      "cp ~/.local/lib/factory/factory-go /tmp/copy"])
+
+
 class WriterFlags(ProtTreesCase):
     """Gaps b, e and f: writers the hook did not treat as writers."""
 
@@ -194,7 +207,7 @@ class EditTools(unittest.TestCase):
         for path in ("~/.local/lib/factory/worker-guard", "~/.config/factory/live_home", "~/.local/go/go.env",
                      "~/.config/go/env", live + "/bin/factory_cli.py", live + "/go/cmd/x.go",
                      live + "/roles/hooks/worker-guard.py", live + "/roles/settings/coder.json.in",
-                     live + "/run/settings/coder.json", live + "/run/guard_impl"):
+                     live + "/run/settings/coder.json", live + "/run/guard_impl", live + "/run/cli_impl"):
             for tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
                 for cwd in ("other", "live", "wt"):
                     r = run(tool=(tool, path.replace("~", PW, 1)), cwd=cwd)
