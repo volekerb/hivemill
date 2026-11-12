@@ -55,3 +55,79 @@ func TestGateListLimitParsed(t *testing.T) {
 		}
 	}
 }
+
+// The Fuzz targets below: no panic; an accepted argv is exactly one of the S2q spec forms, everything else delegates.
+
+func FuzzParseAlerts(f *testing.F) {
+	f.Add("--json", "", "")
+	f.Add("--jso", "--json", "")
+	f.Fuzz(func(t *testing.T, a, b, c string) {
+		rest := []string{a, b, c}
+		for n := 0; n <= 3; n++ {
+			got, ok := parseAlerts(rest[:n])
+			if !ok {
+				continue
+			}
+			if n > 1 || (n == 1 && rest[0] != "--json") || got.(alertsCmd).json != (n == 1) {
+				t.Fatalf("alerts accepted %q", rest[:n])
+			}
+		}
+	})
+}
+
+func FuzzParseGateShow(f *testing.F) {
+	f.Add("T-1", "")
+	f.Add("-x", "y")
+	f.Fuzz(func(t *testing.T, a, b string) {
+		rest := []string{a, b}
+		for n := 0; n <= 2; n++ {
+			got, ok := parseGateShow(rest[:n])
+			if !ok {
+				continue
+			}
+			if n > 1 || (n == 1 && (rest[0] == "" || rest[0][0] == '-' || got.(gateShowCmd).task != rest[0])) {
+				t.Fatalf("gate show accepted %q", rest[:n])
+			}
+		}
+	})
+}
+
+func FuzzParseGateList(f *testing.F) {
+	f.Add("--limit", "-5", "--project", "p")
+	f.Add("--limit=3", "", "--", "x")
+	f.Fuzz(func(t *testing.T, a, b, c, d string) {
+		rest := []string{a, b, c, d}
+		for n := 0; n <= 4; n++ {
+			got, ok := parseGateList(rest[:n])
+			if !ok {
+				continue
+			}
+			g := got.(gateListCmd)
+			if n%2 != 0 {
+				t.Fatalf("gate list accepted odd argv %q", rest[:n])
+			}
+			for i := 0; i < n; i += 2 {
+				if (rest[i] != "--project" && rest[i] != "--limit") || rest[i+1] == "" {
+					t.Fatalf("gate list accepted %q", rest[:n])
+				}
+				if rest[i] == "--project" && g.project != rest[i+1] {
+					t.Fatalf("gate list project %q", rest[:n])
+				}
+			}
+		}
+	})
+}
+
+func FuzzParseGoalTokens(f *testing.F) {
+	f.Add("G-1", "")
+	f.Add("-h", "")
+	f.Fuzz(func(t *testing.T, a, b string) {
+		rest := []string{a, b}
+		for n := 0; n <= 2; n++ {
+			got, ok := parseGoalTokens(rest[:n])
+			if ok && (n != 1 || rest[0] == "" || rest[0][0] == '-' || got.(goalTokensCmd).id != rest[0]) {
+				t.Fatalf("goal tokens accepted %q", rest[:n])
+			}
+		}
+	})
+}

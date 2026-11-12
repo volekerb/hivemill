@@ -36,6 +36,16 @@ func r2Str(v any) (string, error) {
 
 // r2Or is `v or "-"`: None and "" give the dash.
 func r2Or(v any) (string, error) {
+	switch n := v.(type) { // Python truthiness: 0 and 0.0 are falsy too
+	case int64:
+		if n == 0 {
+			return "-", nil
+		}
+	case float64:
+		if n == 0 {
+			return "-", nil
+		}
+	}
 	s, err := cell(v)
 	if err != nil {
 		return "", err
