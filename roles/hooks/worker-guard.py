@@ -345,6 +345,8 @@ RUN_SETTINGS = {os.path.realpath(os.path.join(h, "run", "settings")) for h in LI
 # and its stamp): a Bash write there flips the implementation or swaps the binary, so they are protected like
 # RUN_SETTINGS and CFG_DIR (writers, redirects, cd + write); reads stay allowed.
 RUN_GUARD_IMPL = {os.path.realpath(os.path.join(h, "run", "guard_impl")) for h in LIVE_HOMES}
+# T-1336: <live>/run/cli_impl (the cli_impl flag bin/factory reads before it execs factory-go) is protected the same way
+RUN_CLI_IMPL = {os.path.realpath(os.path.join(h, "run", "cli_impl")) for h in LIVE_HOMES}
 LIB_DIR = os.path.realpath(os.path.join(PW_DIR, ".local", "lib", "factory"))
 # T-0957: ~/.local/bin is first on the tick's and factory-up's PATH, so a file a worker plants there (git, factory, go)
 # runs with their credentials. Protected like LIB_DIR, but matched on the path AS WRITTEN too: its entries are
@@ -373,7 +375,7 @@ EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, th
 # whole live checkout. Reads and runs stay allowed; worktrees are not under them.
 PROT_LIVE_SUBDIRS = ("go", "roles/hooks", "roles/settings", "bin")
 PROT_MARKERS = (".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
-                "run/settings", "run/guard_impl")  # an expansion we cannot resolve that spells one of these counts
+                "run/settings", "run/guard_impl", "run/cli_impl")  # an expansion we cannot resolve that spells one of these counts
 PROT_WHY = ("it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; ~/.local/bin: first on the tick's PATH; "
             "~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, "
             "<live>/bin, <live>/roles/hooks, <live>/roles/settings: what the tick builds, runs and renders); only the owner "
@@ -389,7 +391,7 @@ def prot_trees():
     base = [CFG_DIR, LIB_DIR, os.path.join(PW_DIR, ".config", "factory"), os.path.join(PW_DIR, ".local", "lib", "factory"),
             os.path.join(PW_DIR, ".local", "go"), os.path.join(PW_DIR, ".config", "go")] + sorted(BIN_DIRS)  # T-0957 family
     for h in homes:
-        base += [os.path.join(h, "run", "settings"), os.path.join(h, "run", "guard_impl")]
+        base += [os.path.join(h, "run", "settings"), os.path.join(h, "run", "guard_impl"), os.path.join(h, "run", "cli_impl")]
         base += [os.path.join(h, *sub.split("/")) for sub in PROT_LIVE_SUBDIRS]
     return sorted({q for b in base for q in (os.path.normpath(b), os.path.realpath(b))})
 
@@ -876,7 +878,7 @@ def opt_values(args, letters="", longs=()):
     return out
 
 
-CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|\.local/bin(?![A-Za-z0-9_])|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
+CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|\.local/bin(?![A-Za-z0-9_])|run/guard_impl|run/cli_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
 HOOK_REAL = os.path.realpath(__file__)
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "ash", "fish", "csh", "tcsh", "rbash"}
 INTERPRETERS = re.compile(r"^(python[\d.]*|perl|ruby|node|nodejs|php|lua|deno|bun)$")
@@ -2437,12 +2439,12 @@ class Analyzer:
             w = re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w)
             t = self.cfg_expand(w)
             if tilde_unres(w, self.ccwd) and (".config/factory" in w or ".local/lib/factory" in w or "run/settings" in w
-                                              or "run/guard_impl" in w or "guard-export" in w
+                                              or "run/guard_impl" in w or "run/cli_impl" in w or "guard-export" in w
                                               or re.search(r"\.local/bin(?![A-Za-z0-9_])", w)):
                 return True  # rule A: an unresolvable `~name/...` that spells a protected name counts
             if any(c in t for c in "$`*?[{"):
                 if (".config/factory" in t or ".local/lib/factory" in t or "run/settings" in t
-                        or "run/guard_impl" in t or "guard-export" in t or re.search(r"\.local/bin(?![A-Za-z0-9_])", t)):
+                        or "run/guard_impl" in t or "run/cli_impl" in t or "guard-export" in t or re.search(r"\.local/bin(?![A-Za-z0-9_])", t)):
                     return True
                 if self.export_glob(t):
                     return True
@@ -2451,7 +2453,7 @@ class Analyzer:
                 continue
             full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
             p = os.path.realpath(full)
-            for d in {CFG_DIR, LIB_DIR} | RUN_SETTINGS | RUN_GUARD_IMPL:
+            for d in {CFG_DIR, LIB_DIR} | RUN_SETTINGS | RUN_GUARD_IMPL | RUN_CLI_IMPL:
                 if p == d or under(p, d) or (ancestor and under(d, p)):
                     return True
             for q in (p, os.path.normpath(full)):  # T-0957: the spelled path too (a symlink in ~/.local/bin)
@@ -2480,7 +2482,7 @@ class Analyzer:
     def in_guard_impl(self, w):
         """Message only (the block fires on cfg_hit): w resolves to run/guard_impl or to LIB_DIR or a file under it."""
         p = self.cfg_path(w)
-        return p is not None and (p in RUN_GUARD_IMPL or under(p, LIB_DIR))
+        return p is not None and (p in RUN_GUARD_IMPL or p in RUN_CLI_IMPL or under(p, LIB_DIR))
 
     def in_bin_dir(self, w):
         """Message only (the block fires on cfg_hit): w, as spelled or resolved, is ~/.local/bin or under it."""
@@ -2548,7 +2550,7 @@ class Analyzer:
                     if "guard-export" in a:
                         raise Block(f"`{name}` on <live>/run/guard-export.json: it holds the guard's own decisions; "
                                     "only the tick writes it")
-                    if "guard_impl" in a or ".local/lib/factory" in a or self.in_guard_impl(a):
+                    if "guard_impl" in a or "cli_impl" in a or ".local/lib/factory" in a or self.in_guard_impl(a):
                         raise Block(f"`{name}` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the "
                                     "guard implementation; only the owner and `factory` change them")
                     if self.in_bin_dir(a):

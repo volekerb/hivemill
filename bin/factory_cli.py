@@ -140,6 +140,8 @@ GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled
 DEFAULT_CONFIG = {
     "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
+    "cli_impl": "python",        # G-041: python | go | shadow; run/cli_impl is rewritten from this (docs/cli-go.md); director-only
+    "cli_go_cmds": "",           # G-041: comma list of subcommands bin/factory may hand to factory-go (S1 set only)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
     "max_live_agents": "6",
@@ -381,6 +383,11 @@ CREATE TABLE IF NOT EXISTS gate_runs (
 CREATE INDEX IF NOT EXISTS idx_gate_runs_head ON gate_runs(project_id, head_sha);
 """
 
+# T-1336 (G-041 S1-c): PRAGMA user_version of every DB this code has migrated. The Go CLI (go/internal/factorydb
+# SchemaVersion) answers only when it reads the same number; bump it, and the Go constant, with any SCHEMA or migrate()
+# change (tests/test_db_layout.py hashes both and fails until the pinned hash is renewed together with this number).
+SCHEMA_VERSION = 1
+
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS projects (
@@ -585,6 +592,8 @@ def migrate(con):
             except sqlite3.OperationalError:  # a concurrent process added it first
                 if col not in {r["name"] for r in con.execute("PRAGMA table_info(skill_trials)")}:
                     raise
+    if con.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:  # a write only when it differs
+        con.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
 
 
 def cfg(con, key):
@@ -2463,6 +2472,7 @@ def cmd_init(a):
         write_live_home(a.live_home)
     con = db(create=True)
     con.executescript(SCHEMA + scoutdb.SCOUT_DDL)
+    con.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
     for k, v in DEFAULT_CONFIG.items():
         con.execute("INSERT OR IGNORE INTO config(key,value) VALUES(?,?)", (k, v))
     if (ROLES_DIR / "settings").is_dir():  # a bare data dir without a checkout (tests, dry installs) has no templates to render
@@ -2512,7 +2522,9 @@ def check_gh_roles(key, value):
 
 
 GUARD_IMPLS = ("python", "go", "shadow")
-GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
+CLI_IMPLS = ("python", "go", "shadow")
+CLI_GO_CMDS_KNOWN = ("whoami", "flags", "agents", "config")  # the S1 set the Go binary answers (go/internal/cli)
+GUARD_BUILD_TIMEOUT_S = 300 # `factory up` (factory-up.service allows 600 s)
 GUARD_TICK_BUILD_TIMEOUT_S = 120  # the tick (factory-tick.service TimeoutStartSec=240): a build must not kill the tick
 GUARD_FAILED_BACKOFF_S = 30 * 60  # the tick skips a build that failed for this srchash for this long
 
@@ -2593,8 +2605,10 @@ def _run_build(cmd, cwd, timeout, env):
     return p.returncode, err
 
 
-def build_guard_go(src=None, lib=None, tick=False, go=None):
+def build_guard_go(src=None, lib=None, tick=False, go=None, name="worker-guard", pkg="./cmd/worker-guard"):
     """Build go/cmd/worker-guard into <lib>/worker-guard and stamp it with the srchash. Never raises.
+    name/pkg pick another binary of the same go/ tree (build_cli_go: factory-go from ./cmd/factory), with its own
+    <name>.stamp and <name>.failed.
 
     No-op when the stamp already equals HEAD:go and the binary exists. A failed build deletes the stamp (the shim then
     runs Python) and leaves an old binary alone. The stamp is written last, after the rename. Returns
@@ -2614,10 +2628,10 @@ def build_guard_go(src=None, lib=None, tick=False, go=None):
     srchash = guard_srchash(src)
     if not srchash:
         return "skipped"
-    stamp, binary = lib / "worker-guard.stamp", lib / "worker-guard"
+    stamp, binary = lib / f"{name}.stamp", lib / name
     if _read_line(stamp) == srchash and os.access(binary, os.X_OK):
         return "current"
-    failed = lib / "worker-guard.failed"
+    failed = lib / f"{name}.failed"
     if tick and _read_line(failed) == srchash:
         try:
             if time.time() - failed.stat().st_mtime < GUARD_FAILED_BACKOFF_S:
@@ -2635,12 +2649,12 @@ def build_guard_go(src=None, lib=None, tick=False, go=None):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             return "skipped"  # another build is running
-        new = lib / "worker-guard.new"
+        new = lib / f"{name}.new"
         try:
             env = guard_build_env(lib)
             Path(env["GOTMPDIR"]).mkdir(parents=True, exist_ok=True)  # go refuses a missing GOTMPDIR
             nice = ["/usr/bin/nice", "-n", "10"] if os.access("/usr/bin/nice", os.X_OK) else []
-            rc, stderr = _run_build([*nice, go, "build", "-buildvcs=false", "-trimpath", "-o", str(new), "./cmd/worker-guard"],
+            rc, stderr = _run_build([*nice, go, "build", "-buildvcs=false", "-trimpath", "-o", str(new), pkg],
                                     src / "go", GUARD_TICK_BUILD_TIMEOUT_S if tick else GUARD_BUILD_TIMEOUT_S, env)
             ok = rc == 0
             first = (stderr or "").strip().splitlines()[:1]
@@ -2679,6 +2693,36 @@ def write_guard_impl(con, src=None):
     return line
 
 
+CLI_GO_BIN = "factory-go"
+
+
+def build_cli_go(src=None, lib=None, tick=False, go=None):
+    """Build go/cmd/factory into <lib>/factory-go (CGO_ENABLED=0 comes from guard_build_env), stamped last. Same
+    contract as build_guard_go: built | current | skipped | failed, never raises."""
+    return build_guard_go(src, lib, tick=tick, go=go, name=CLI_GO_BIN, pkg="./cmd/factory")
+
+
+def cli_binary_state(src=None, lib=None):
+    """ok | missing | stale: factory-go against its stamp and the srchash of the checkout's go/."""
+    lib = Path(lib or guard_lib_dir())
+    stamp = _read_line(lib / f"{CLI_GO_BIN}.stamp")
+    if not os.access(lib / CLI_GO_BIN, os.X_OK) or not stamp:
+        return "missing"
+    return "ok" if stamp == guard_srchash(src) else "stale"
+
+
+def write_cli_impl(con, src=None):
+    """Rewrite $FACTORY_HOME/run/cli_impl from the DB: "<mode> <srchash> <csv>" (what bin/factory reads before it execs
+    factory-go), or "python -" when cli_impl is python or go/ has no tree."""
+    mode = cfg(con, "cli_impl")
+    srchash = guard_srchash(src)
+    csv = ",".join(x.strip() for x in cfg(con, "cli_go_cmds").split(",") if x.strip())
+    line = f"{mode} {srchash} {csv}" if srchash and mode in CLI_IMPLS and mode != "python" else "python -"
+    RUN.mkdir(parents=True, exist_ok=True)
+    _write_atomic(RUN / "cli_impl", line + "\n")
+    return line
+
+
 def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
     """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (only when guard_impl != python: at the
     default no Go toolchain runs; cheap no-op when stamped; skipped under load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
@@ -2689,6 +2733,10 @@ def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
         if build and cfg(con, "guard_impl") != "python" and load1() <= cap \
                 and build_guard_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_guard_impl(con, src)
+        write_cli_impl(con, src)  # G-041: written first too, so a changed go/ makes srchash differ from the stamp
+        if build and cfg(con, "cli_impl") != "python" and load1() <= cap \
+                and build_cli_go(src, lib, tick=tick, go=go) in ("built", "failed"):
+            write_cli_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
         print(f"guard go build: tick step failed ({e})", file=sys.stderr)
 
@@ -2723,6 +2771,18 @@ def _config_value_rules(key, value):
         if a.value not in GUARD_IMPLS:
             die(f"guard_impl must be one of {', '.join(GUARD_IMPLS)}, not {a.value!r}: "
                 f"fix it with `factory config guard_impl python`", 2)
+    if a.key == "cli_impl":
+        a.value = a.value.strip()
+        if a.value not in CLI_IMPLS:
+            die(f"cli_impl must be one of {', '.join(CLI_IMPLS)}, not {a.value!r}: "
+                f"fix it with `factory config cli_impl python`", 2)
+    if a.key == "cli_go_cmds":
+        names = [x.strip() for x in a.value.split(",") if x.strip()]
+        bad = [n for n in names if n not in CLI_GO_CMDS_KNOWN]
+        if bad:
+            die(f"cli_go_cmds takes a comma list of {', '.join(CLI_GO_CMDS_KNOWN)}; "
+                f"{', '.join(repr(b) for b in bad)} is not one: fix it with `factory config cli_go_cmds whoami`", 2)
+        a.value = ",".join(dict.fromkeys(names))
     if a.key == "sandbox_roles":
         a.value = check_sandbox_roles(a.value)
     if a.key in ("worker_gh_roles", "gh_rw_roles"):
@@ -2808,6 +2868,12 @@ def cmd_config(a):
             state = guard_binary_state()
             if a.value != "python" and state != "ok":
                 print(f"warning: guard binary is {state}; the shim uses python until `factory up` or the tick builds it",
+                      file=sys.stderr)
+        if a.key in ("cli_impl", "cli_go_cmds"):
+            write_cli_impl(con)
+            state = cli_binary_state()
+            if cfg(con, "cli_impl") != "python" and state != "ok":
+                print(f"warning: factory-go is {state}; bin/factory uses python until `factory up` or the tick builds it",
                       file=sys.stderr)
     elif a.key:
         if a.key not in DEFAULT_CONFIG:
