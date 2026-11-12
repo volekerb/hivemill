@@ -2,7 +2,7 @@
 
 Goal G-010. Workers of the listed roles run `claude` inside an unprivileged user and mount namespace with an allow-list view of the owner's home. They log in with a worker-only token and a per-role GitHub token, so a worker cannot reach the owner's Claude login, ssh keys, gh login, systemd user bus or multiplexer socket. It is behind one config flag and is **not a full security boundary** (section 6).
 
-Code: `scout/nsbox.py` (allow mode, see [scout-nsbox.md](scout-nsbox.md)), `scout/workerbox.py` (the worker profile and shim), `bin/factory` (`sandbox_roles`, preflight, spawn wiring). Tests: `tests/test_nsbox_allow.py`, `tests/test_workerbox.py`, `tests/test_sandbox_spawn.py`.
+Code: `scout/nsbox.py` (allow mode, see [scout-nsbox.md](scout-nsbox.md)), `scout/workerbox.py` (the worker profile and shim), `bin/factory` (`sandbox_roles`, preflight, spawn wiring). Tests: `tests/test_nsbox_allow.py`, `tests/test_workerbox.py` (its `Go*` classes cover the Go toolchain, T-1395), `tests/test_sandbox_spawn.py`.
 
 Status at the time of writing (checked against the code on main): present are T-0159 (DB in its own dir), T-0160 (nsbox allow mode), T-0161 (worker profile), T-0162 (flag, preflight, golden test), T-0225 (workerbox nits), T-0209 (tmpfs sizes) and T-0174 (sandbox escape detection). Per-task `git clone --shared` (config `task_clones`, off by default; see [git-hardening.md](git-hardening.md)) and qa and coder rw on those clones are also in place. The sandbox itself stays opt-in: `sandbox_roles` is empty by default.
 
@@ -13,8 +13,8 @@ Status at the time of writing (checked against the code on main): present are T-
 | | what |
 |---|---|
 | Hidden (empty tmpfs) | the whole of `$HOME`: owner Claude OAuth (`~/.claude`), `~/.ssh`, the gh config and the git credential helper in `~/.gitconfig`, `~/.zshrc`, `~/.local/bin` (except the two links below); `/run/user/<uid>`: the systemd user bus and the ssh-agent proxy socket; the multiplexer control socket and agent socket (they live under `~/.config`); `/tmp` and `/dev/shm`. `SSH_AUTH_SOCK` and `DBUS_SESSION_BUS_ADDRESS` are not in the env either |
-| Visible read-only | `~/factory` (code, `roles/`, `run/`, `docs/`, `.git`), the claude link and its install dir under `~/.local/share/claude`, the `~/.local/bin/factory` link, the agent's own `bin/` and `gitconfig`, the one owner scrub-terms file under `~/.config/factory` (when it exists; see below), system dirs |
-| Visible read-write | `~/factory/db/` (the DB, WAL needs the whole dir), the agent's `claude/` config dir, and the cwd for qa and coder (read-only for the reviewer) |
+| Visible read-only | `~/factory` (code, `roles/`, `run/`, `docs/`, `.git`), the claude link and its install dir under `~/.local/share/claude`, the `~/.local/bin/factory` link, the agent's own `bin/` and `gitconfig`, the one owner scrub-terms file under `~/.config/factory` (when it exists; see below), the Go toolchain `~/.local/go` (resolved through symlinks; T-1395) and the Go module cache `~/.cache/go/path/pkg/mod`, system dirs |
+| Visible read-write | `~/factory/db/` (the DB, WAL needs the whole dir), the agent's `claude/` config dir, and the cwd for qa and coder (read-only for the reviewer), the agent's `go/` dir (`GOCACHE`, `GOTMPDIR`, `GOPATH`; T-1395) |
 | Masked | `~/factory/worktrees/` is an empty tmpfs; only the agent's own cwd is bound back, so a worker does not see other tasks' worktrees |
 | Network | ON. Workers need the Claude API, GitHub and the local factory server. No egress filter |
 | Pid namespace | none (`pid=False`) |
@@ -44,6 +44,15 @@ qa and coder run with `rw_cwd=True` on a per-task clone (`git clone --shared`, o
 | Not visible | other tasks' clones (`~/factory/worktrees/` is masked; only the own clone is bound back), the owner's home, the user bus, the ssh-agent and multiplexer sockets (these are tested in `tests/test_workerbox.py`) |
 
 The clone reads the shared objects through `<clone>/.git/objects/info/alternates`, so `git cat-file` of an object that exists only in `~/factory/.git/objects` works. New objects are written to the clone, never to `~/factory/.git`. `git push` and `git fetch` authenticate with the `credential.https://github.com.helper` of the agent's `gitconfig` (`username=x-access-token`, `password=$GH_TOKEN`: the rw token for coder, the read-only one for qa). The reviewer profile is unchanged: its cwd is read-only.
+
+### Go toolchain (T-1395)
+
+v0.5.0 is the Go port, so sandboxed coder, qa and reviewer run `go`, `gofmt`, `go vet` and `go test -race`. `prepare_agent` binds the host GOROOT (`~/.local/go`, resolved with realpath because CI makes it a symlink) and the module cache (first existing of `~/.cache/go/path/pkg/mod`, `~/.local/lib/factory/go/mod`) read-only, and creates `<agent dir>/go/cache` and `<agent dir>/go/tmp` (mode 0700, symlink and foreign-owner refusal like `claude/`) as the only new read-write path. Without `<goroot>/bin/go` nothing is bound and the sandbox starts as before. `~/.config/go` stays hidden. The shim sets (HQ values, never passed through from the caller): `GOROOT`, `GOCACHE=<agent dir>/go/cache`, `GOTMPDIR=<agent dir>/go/tmp` (on disk: `-race` test binaries could fill the 512m `/tmp` tmpfs), `GOMODCACHE`, `GOPATH=<agent dir>/go/path`, `GOTOOLCHAIN=local`, `GOPROXY=off`, `GOSUMDB=off`, `GOFLAGS=-mod=readonly`, `GOENV=off`, `GOWORK=off`. `<goroot>/bin` is appended to `PATH`, so the `claude` shim stays first.
+
+- **GOPROXY=off consequence.** Nothing is downloaded inside. A PR that adds a new Go module cannot fetch it there: the lead gets the check run unsandboxed, or asks HQ to populate the host module cache.
+- **Cache.** The GOCACHE is cold and per agent (never shared between agents: cache poisoning). The first `-race` build of `go/` (modernc sqlite) takes minutes and about 1 GB of disk under the agent dir until the agent dir is cleaned (T-0166).
+- **Tests.** `tests/test_workerbox.py` (`Go*` classes): unit (binds, env, PATH, symlinked root, no-Go fallback, symlinked `go/` refused), real namespace (toolchain EROFS, cache writable, home hidden), real toolchain, and an opt-in heavy run (`FACTORY_GO_SANDBOX_HEAVY=1`) of `go vet` and `go test -race` on `go/` for coder, qa and reviewer.
+- **Rollback.** Revert the PR (no DB, config or migration). Running agents keep the Go binds until relaunch. Turning the sandbox off (`factory config sandbox_roles ''`, or spawn without `--sandbox`) also bypasses it.
 
 ### researcher profile (G-029, T-0847)
 

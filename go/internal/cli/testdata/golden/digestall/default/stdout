@@ -1,0 +1,247 @@
+# Factory digest 2026-11-12
+
+Leads: 1 live, 1 parked, 0 queued; workers live 3
+
+## Director
+
+director (24h, daytime 08-20): no utilization samples · cap breaches 0 · boss scores -
+
+Orgs: claude 5 active · cursor 1 active
+
+## Org claude
+
+## G-1 — Active goal (active)
+
+### Done
+- T-11 merged in window — https://github.com/o/r/pull/11 @abc1234
+- T-12 merge verdict in window @deadbeef
+- T-13 closed by factory done
+- T-14 building
+- T-21 blocked then merged @feedface
+
+### In progress
+- T-14 building (in_progress, claude-coder-14, attempts 2)
+- T-15 in review (in_review, unassigned, attempts 1)
+- T-20 judge blocked (in_review, claude-judge, attempts 1)
+- T-21 blocked then merged (in_review, unassigned, attempts 1)
+
+### Blocked
+Blocked tasks: 2 owner-blocked, 2 internal-blocked
+- T-16 blocked on owner — blocked (owner): needs owner answer
+- T-17 blocked internal — blocked: waiting on X
+- T-20 judge blocked — judge-blocked: CI red on the PR
+- T-22 merge failed — merge-failed: conflict
+- T-23 blocked without a reason (blocked)
+- agent claude-lost-1 lost at 2026-11-12T08:50:00+00:00
+- agent claude-lost-3 lost at 2026-11-12T08:52:00+00:00
+- agent claude-flagless running without role flags since 2026-11-12T09:00:00+00:00
+
+### Up next
+1 ready todo task(s)
+
+Drift: D3 T-18 todo with no live or queued agent and no activity for over 2 h
+
+Freshness: claude-boss (roles); claude-coder-14 (bin, roles)
+
+- TB parked since 2026-11-10T08:30 (2 wakes in window)
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| TA | 13 | 3 | 3 | 0 | 1 | 3.5 |
+| TB | 0 | 0 | 0 | 0 | 0 | 5.0 |
+
+## G-2 — Planning goal (planning)
+
+### Done
+_nothing_
+
+### In progress
+- T-32 pr merged (in_review, unassigned, attempts 1)
+- T-33 pr closed (in_review, unassigned, attempts 1)
+- T-34 pr unknown (in_review, unassigned, attempts 1)
+
+### Blocked
+_nothing_
+
+### Up next
+0 ready todo task(s)
+
+Drift: D1 G-2 is planning but has done tasks and live team TG2; D2 T-32 in_review but PR #77 MERGED; D2 T-33 in_review but PR #78 CLOSED
+
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| TG2 | 4 | 1 | 0 | 0 | 0 |  |
+
+## G-3 — Drift goal (active)
+
+### Done
+_nothing_
+
+### In progress
+- T-43 idle building (in_progress, unassigned, attempts 1)
+- T-44 old with live agent (in_progress, claude-coder-44, attempts 1)
+
+### Blocked
+Blocked tasks: 0 owner-blocked, 2 internal-blocked
+- T-46 blocked long (blocked)
+- T-47 blocked recently (blocked)
+
+### Up next
+1 ready todo task(s)
+
+Drift: D3 T-42 todo but its dependency T-41 is cancelled; D3 T-43 in_progress with no live or queued agent and no activity for over 2 h; D4 T-46 blocked for over 24 h
+
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| TG3 | 8 | 0 | 0 | 0 | 0 |  |
+
+## G-4 — Closed today (done)
+
+### Done
+_nothing_
+
+### In progress
+_nothing_
+
+### Blocked
+_nothing_
+
+### Up next
+0 ready todo task(s)
+
+Drift: none
+
+
+### Team scores
+_nothing_
+
+## G-8 — Zürich — überwachung ✓ | pipe (active)
+
+### Done
+- T-81 Übergabe — |x| ✓ @x@
+
+### In progress
+_nothing_
+
+### Blocked
+_nothing_
+
+### Up next
+0 ready todo task(s)
+
+Drift: none
+
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ | 0 | 0 | 0 | 0 | 0 |  |
+
+## Org cursor
+
+## G-7 — Cursor goal (active)
+
+### Done
+_nothing_
+
+### In progress
+_nothing_
+
+### Blocked
+_nothing_
+
+### Up next
+1 ready todo task(s)
+
+Drift: none
+
+
+### Team scores
+_nothing_
+
+## Skill scout
+
+### Finds (5 of 5 triaged)
+
+- **C-1** https://github.com/o/adopt — REC **adopt**: good fit
+  - ★ 120 (+4.2/day) · licence MIT · last commit 2026-11-01
+  - purpose: review helper
+  - target roles: reviewer · overlap: none
+  - install risk: prompt-only
+- **C-6** https://github.com/o/n — REC **adopt**: non-breaking space and ٣ digits
+  - ★ 3 (+0.0/day) · licence MIT · last commit 2026-11-01
+  - purpose: Zürich ٣ 12
+  - target roles: qa · overlap: none
+  - install risk: shell-in-markdown
+- **C-4** https://github.com/o/older — REC **watch**: newer triage
+  - ★ 9 (+1.0/day) · licence MIT · last commit 2026-10-01
+  - purpose: newer
+  - target roles: qa · overlap: none
+  - install risk: scripts
+- **C-2** https://example.org/w — REC **watch**: wait
+  - ★ - (-) · licence - · last commit -
+  - purpose: p
+  - target roles: coder · overlap: some
+  - install risk: hooks
+- **C-3** https://example.org/skip — REC **skip**: dup
+  - ★ 5 (-0.0/day) · licence Apache-2.0 · last commit 2026-10-01
+  - purpose: p
+  - target roles: qa · overlap: full
+  - install risk: unknown
+
+### Eval results (indicative, n=1 per cell)
+
+**C-1** gh:o/adopt
+
+| task | with | without | tokens with / without | wall s with / without | skill invoked |
+|---|---|---|---|---|---|
+| fix bug | P/F | timeout | 35 / 24 | 150.5 / - | yes |
+| other | F | - | 2 / - | 5 / - | - |
+
+**C-2** gh:o/watch
+
+| task | with | without | tokens with / without | wall s with / without | skill invoked |
+|---|---|---|---|---|---|
+| t | - | error | - / - | - / - | - |
+
+### Needs owner decision: executable parts
+
+- C-6 https://github.com/o/n — adopt, risk flags: shell-in-markdown (x)
+- C-4 https://github.com/o/older — watch, risk flags: scripts (a, b, c)
+- C-2 https://example.org/w — watch, risk flags: hooks (hooks/a.sh, b.sh, 7)
+
+Adoption of any third-party skill needs owner approval through the boss.
+
+
+## Retro
+
+- ci-red: 3
+- spec: 1
+- T-11 https://github.com/o/r/pull/11 (ci-red)
+- T-12  (spec)
+- check — add a lint
+- prompt_rule — x
+
+
+## Lessons
+
+### New
+- L-1 [coder,qa] new lesson (open)
+
+### Applied
+- L-2 applied lesson — https://github.com/o/r/pull/11, https://github.com/o/r/pull/13
+- L-4 applied, no link
+
+### Verified
+- L-3 verified lesson — works well on the PRs
+
+Open: 2 · applied, awaiting verification: 2
+
+## HQ
+
+- agent claude-hq-flagless running without role flags since 2026-11-12T09:00:00+00:00

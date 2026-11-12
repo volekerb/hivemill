@@ -1,0 +1,183 @@
+# Factory digest 2026-10-02
+
+Leads: 1 live, 1 parked, 0 queued; workers live 3
+
+## Director
+
+director (24h, daytime 08-20): no utilization samples · cap breaches 0 · boss scores -
+
+Orgs: claude 5 active · cursor 1 active
+
+## Org claude
+
+## G-1 — Active goal (active)
+
+### Done
+_nothing_
+
+### In progress
+- T-14 building (in_progress, claude-coder-14, attempts 2)
+- T-15 in review (in_review, unassigned, attempts 1)
+- T-20 judge blocked (in_review, claude-judge, attempts 1)
+- T-21 blocked then merged (in_review, unassigned, attempts 1)
+
+### Blocked
+Blocked tasks: 2 owner-blocked, 2 internal-blocked
+- T-16 blocked on owner — blocked (owner): needs owner answer
+- T-17 blocked internal — blocked: waiting on X
+- T-22 merge failed (blocked (owner))
+- T-23 blocked without a reason (blocked)
+- agent claude-flagless running without role flags since 2026-11-12T09:00:00+00:00
+
+### Up next
+1 ready todo task(s)
+
+Drift: none
+
+Freshness: claude-boss (roles); claude-coder-14 (bin, roles)
+
+- TB parked since 2026-11-10T08:30 (0 wakes in window)
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| TA | 13 | 3 | 3 | 0 | 1 | 3.5 |
+| TB | 0 | 0 | 0 | 0 | 0 | 5.0 |
+
+## G-2 — Planning goal (planning)
+
+### Done
+_nothing_
+
+### In progress
+- T-32 pr merged (in_review, unassigned, attempts 1)
+- T-33 pr closed (in_review, unassigned, attempts 1)
+- T-34 pr unknown (in_review, unassigned, attempts 1)
+
+### Blocked
+_nothing_
+
+### Up next
+0 ready todo task(s)
+
+Drift: D1 G-2 is planning but has done tasks and live team TG2; D2 T-32 in_review but PR #77 MERGED; D2 T-33 in_review but PR #78 CLOSED
+
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| TG2 | 4 | 1 | 0 | 0 | 0 |  |
+
+## G-3 — Drift goal (active)
+
+### Done
+_nothing_
+
+### In progress
+- T-43 idle building (in_progress, unassigned, attempts 1)
+- T-44 old with live agent (in_progress, claude-coder-44, attempts 1)
+
+### Blocked
+Blocked tasks: 0 owner-blocked, 2 internal-blocked
+- T-46 blocked long (blocked)
+- T-47 blocked recently (blocked)
+
+### Up next
+1 ready todo task(s)
+
+Drift: none
+
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| TG3 | 8 | 0 | 0 | 0 | 0 |  |
+
+## G-5 — Closed long ago (done)
+
+### Done
+_nothing_
+
+### In progress
+_nothing_
+
+### Blocked
+_nothing_
+
+### Up next
+0 ready todo task(s)
+
+Drift: none
+
+
+### Team scores
+_nothing_
+
+## G-8 — Zürich — überwachung ✓ | pipe (active)
+
+### Done
+_nothing_
+
+### In progress
+_nothing_
+
+### Blocked
+_nothing_
+
+### Up next
+0 ready todo task(s)
+
+Drift: none
+
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ | 0 | 0 | 0 | 0 | 0 |  |
+
+## Org cursor
+
+## G-7 — Cursor goal (active)
+
+### Done
+_nothing_
+
+### In progress
+_nothing_
+
+### Blocked
+_nothing_
+
+### Up next
+1 ready todo task(s)
+
+Drift: none
+
+
+### Team scores
+_nothing_
+
+## Skill scout
+No new finds.
+
+
+## Retro
+_nothing_
+
+
+## Lessons
+
+### New
+_nothing_
+
+### Applied
+- L-3 verified lesson
+
+### Verified
+_nothing_
+
+Open: 2 · applied, awaiting verification: 2
+
+## HQ
+
+- agent claude-hq-flagless running without role flags since 2026-11-12T09:00:00+00:00
