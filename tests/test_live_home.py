@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -335,6 +336,50 @@ class HookTests(Tmp):
             for cmd in ("factory init", f"FACTORY_HOME={s}/f factory init", f"HOME={s}/h factory init"):
                 with self.subTest(f"{role}: {cmd}"):
                     self.blocked(cmd, role)
+
+
+class TestNowClock(Tmp):
+    """T-1369: FACTORY_TEST_NOW fixes now() on a non-live home only; home_is_live is asked once per process."""
+    FIXED = "2026-11-12T01:02:03+00:00"
+
+    def env(self):
+        import harness
+        e = harness.FactoryEnv()
+        self.addCleanup(e.cleanup)
+        e.seed_project()
+        e.seed_goal()
+        e.seed_task()
+        return e
+
+    def test_note_event_ts_is_the_fixed_clock(self):
+        e = self.env()
+        r = e.run("task", "note", "T-0001", "x", extra_env={"FACTORY_TEST_NOW": self.FIXED, "TZ": "UTC"}, inproc=False)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rows = e.sql("SELECT ts FROM events WHERE entity_id='T-0001' ORDER BY id DESC LIMIT 1")
+        self.assertEqual(rows[0]["ts"], self.FIXED)
+
+    def test_bad_value_dies(self):
+        e = self.env()
+        for bad in ("yesterday", "2026-11-12T01:02:03"):  # not ISO; naive (no offset)
+            with self.subTest(bad):
+                r = e.run("task", "note", "T-0001", "x", extra_env={"FACTORY_TEST_NOW": bad}, inproc=False)
+                self.assertEqual(r.returncode, 1)
+                self.assertIn(f"factory: FACTORY_TEST_NOW must be an ISO timestamp with an offset, got {bad}", r.stderr)
+
+    def test_live_home_ignores_it(self):
+        mod = load_factory(self.h, {"FACTORY_HOME": os.path.join(self.h, "factory")})
+        with mock.patch.dict(os.environ, {"FACTORY_TEST_NOW": "2001-01-01T00:00:00+00:00"}):
+            self.assertFalse(mod.now().startswith("2001-"))
+
+    def test_home_is_live_asked_once(self):
+        mod = load_factory(self.h, {"FACTORY_HOME": os.path.join(self.tmp, "temp-home")})
+        self.addCleanup(time.tzset)
+        with mock.patch.object(mod, "home_is_live", return_value=False) as m, \
+                mock.patch.dict(os.environ, {"FACTORY_TEST_NOW": self.FIXED, "TZ": "UTC"}):
+            time.tzset()
+            for _ in range(3):
+                self.assertEqual(mod.now(), self.FIXED)
+        self.assertEqual(m.call_count, 1)
 
 
 if __name__ == "__main__":

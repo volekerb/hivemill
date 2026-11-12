@@ -443,7 +443,25 @@ CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
 
 # ───────────────────────────── basics ─────────────────────────────
 
+_NOW_HOME_LIVE = None  # home_is_live() answer for this process (now() runs per event; asked once)
+
+
 def now():
+    """Current time as ISO seconds. $FACTORY_TEST_NOW (ISO with an offset) fixes it, but ONLY on a non-live home: the live
+    factory never honours it, so an agent exporting it cannot fake event times on the live DB."""
+    global _NOW_HOME_LIVE
+    fixed = os.environ.get("FACTORY_TEST_NOW")
+    if fixed:
+        if _NOW_HOME_LIVE is None:
+            _NOW_HOME_LIVE = home_is_live()
+        if not _NOW_HOME_LIVE:
+            try:
+                t = dt.datetime.fromisoformat(fixed)
+            except ValueError:
+                t = None
+            if t is None or t.tzinfo is None:
+                die(f"FACTORY_TEST_NOW must be an ISO timestamp with an offset, got {fixed}")
+            return t.astimezone().isoformat(timespec="seconds")
     return dt.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
