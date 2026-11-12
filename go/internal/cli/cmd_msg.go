@@ -137,13 +137,13 @@ func runMsg(c *ctx, parsed any) (int, error) {
 	if orgStripPrefix(rcpt) == msgOnDemand {
 		return 0, errDelegate
 	}
-	// Python's warn_spec_by_msg regex is Unicode-aware; RE2's is not.
-	if msgSpecWarnApplies(role, a.kind) && !(msgIsASCII(a.subject) && msgIsASCII(msgStr(a.body))) {
-		return 0, errDelegate
-	}
-	body, err := readText(c, a.body, false)
-	if err != nil {
-		return 0, err
+	// Python's warn_spec_by_msg regex is Unicode-aware; RE2's is not. The body of "-" (stdin) or "@file" is only known
+	// after it is read, and a hand-over after that would lose stdin, so those run in Python too.
+	if msgSpecWarnApplies(role, a.kind) {
+		b := msgStr(a.body)
+		if !msgIsASCII(a.subject) || !msgIsASCII(b) || b == "-" || strings.HasPrefix(b, "@") {
+			return 0, errDelegate
+		}
 	}
 	goal, task := msgStr(a.goal), msgStr(a.task)
 	if err := msgRefuseCrossOrg(c, role, a.to, goal, task); err != nil {
@@ -158,7 +158,11 @@ func runMsg(c *ctx, parsed any) (int, error) {
 		return 0, err
 	}
 	if orgStripPrefix(rcpt) == msgOnDemand {
-		return 0, errDelegate // another org's staff-engineer: still Python's spawn path
+		return 0, errDelegate // another org's staff-engineer: still Python's spawn path (before stdin is read)
+	}
+	body, err := readText(c, a.body, false)
+	if err != nil {
+		return 0, err
 	}
 	mid, rcpt, err := msgSend(c, a.to, a.subject, body, a.kind, a.goal, a.task, org)
 	if err != nil {
