@@ -1,0 +1,1 @@
+factory: role 'coder' (owner) may not run `factory lesson add`; report lessons to your lead

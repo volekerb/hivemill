@@ -1,0 +1,12 @@
+lesson
+add
+--title
+  New lesson 
+--roles
+coder,coder,qa
+--rule
+Do it.
+--what
+Context
+--source
+M1,M1,#4

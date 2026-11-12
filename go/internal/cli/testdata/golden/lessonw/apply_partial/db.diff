@@ -1,0 +1,2 @@
+- lesson_links 1 id=1 lesson_id="L-002" task_id="T-0001" pr_url=NULL via="hook" merged_at=NULL author="lw-lead" created="2026-10-02T11:00:00+01:00"
++ lesson_links 1 id=1 lesson_id="L-002" task_id="T-0001" pr_url="https://github.com/o/r/pull/1" via="hook" merged_at="2026-11-02T09:00:00+01:00" author="lw-lead" created="2026-10-02T11:00:00+01:00"

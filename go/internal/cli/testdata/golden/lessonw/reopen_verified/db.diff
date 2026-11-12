@@ -1,0 +1,4 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="lw-lead" entity="lesson" entity_id="L-005" action="recurrence" detail="again"
+- lessons 5 id="L-005" title="Verified" roles="qa" what="x" rule="Rule five." sources="M7" status="verified" recurrences=2 author="lw-lead" created="2026-10-05T10:00:00+01:00" updated="2026-10-05T10:00:00+01:00" applied_at="2026-10-05T10:00:00+01:00" verified_at="2026-10-06T10:00:00+01:00" verified_by="lw-director" evidence="evidence five"
++ lessons 5 id="L-005" title="Verified" roles="qa" what="x" rule="Rule five." sources="M7" status="open" recurrences=3 author="lw-lead" created="2026-10-05T10:00:00+01:00" updated="2026-11-12T01:02:03+00:00" applied_at="2026-10-05T10:00:00+01:00" verified_at=NULL verified_by=NULL evidence=NULL
++ sqlite_sequence 3 name="events" seq=1

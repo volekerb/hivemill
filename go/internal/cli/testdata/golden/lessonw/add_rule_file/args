@@ -1,0 +1,10 @@
+lesson
+add
+--title
+T
+--roles
+all
+--rule
+@rule.txt
+--what
+@what.txt
