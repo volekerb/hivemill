@@ -44,6 +44,8 @@ class FakeHost(fb.Host):
         self.tmp, self._euid, self._tty, self.users, self.busy = tmp, euid, tty, set(users), busy
         self.rules, self.assets = rules or {}, assets or {}
         self.calls, self.downloads, self.chowns, self.rmtrees, self.procs = [], [], [], [], []
+        self.user_uids = {u: 61001 + i for i, u in enumerate(sorted(self.users))}
+        self.proc_count_by_uid = {}
         self.inv_home = os.path.join(tmp, "alice-home")
         os.makedirs(self.inv_home, exist_ok=True)
 
@@ -51,7 +53,13 @@ class FakeHost(fb.Host):
     def isatty(self): return self._tty
     def user_exists(self, name): return name in self.users
     def pw_dir(self, name): return self.inv_home
-    def ids(self, name): return 4242, 4243
+    def ids(self, name):
+        if name in self.users:
+            return self.user_uids[name], self.user_uids[name] + 1
+        return 4242, 4243
+
+    def count_procs_for_uid(self, uid):
+        return self.proc_count_by_uid.get(uid, 0)
     def port_busy(self, port): return self.busy
     def count_claude(self): return 3
     def lexists(self, path): return path in self.leftovers
@@ -70,7 +78,7 @@ class FakeHost(fb.Host):
 
     def run(self, argv, capture=True, timeout=None, cwd=None, input_text=None):
         j = " ".join(argv)
-        self.calls.append((list(argv), capture))
+        self.calls.append((list(argv), capture, timeout))
         if input_text is not None:
             self.stdin_seen = (list(argv), input_text)
         for key, val in self.rules.items():
@@ -83,6 +91,7 @@ class FakeHost(fb.Host):
                 return val
         if argv[0] == "useradd":
             self.users.add(argv[-1])
+            self.user_uids.setdefault(argv[-1], 61001)
         elif argv[0] == "userdel":
             self.users.discard(argv[-1])
         elif argv[0] == "id":
@@ -98,7 +107,7 @@ class FakeHost(fb.Host):
         return 0, ""
 
     def popen(self, argv, logpath, cwd=None):
-        self.calls.append((list(argv), None))
+        self.calls.append((list(argv), None, None))
         p = FakeProc()
         self.procs.append(p)
         return p
@@ -119,10 +128,10 @@ class FakeHost(fb.Host):
         super().rmtree(d)
 
     def argvs(self, name):
-        return [a for a, _ in self.calls if a[0] == name]
+        return [a for a, *_ in self.calls if a[0] == name]
 
     def joined(self):
-        return [" ".join(a) for a, _ in self.calls]
+        return [" ".join(a) for a, *_ in self.calls]
 
 
 class Base(unittest.TestCase):
@@ -365,7 +374,8 @@ class GhLoginAndLogout(Base):
         h = FakeHost(self.tmp)
         self.assertEqual(self.go_bin(h), 0)
         self.assertIsNone(h.stdin_seen)
-        self.assertIn((h.argvs("runuser")[[a[-3:] for a in h.argvs("runuser")].index(["gh", "auth", "login"])], False), h.calls)
+        gh_login = h.argvs("runuser")[[a[-3:] for a in h.argvs("runuser")].index(["gh", "auth", "login"])]
+        self.assertIn((gh_login, False, 900), h.calls)
 
     def test_dry_run_shows_logout_and_token_login(self):
         fb.main(["--dry-run", "--gh-token-file", "-"], host=FakeHost(self.tmp), env=self.env, out=self.sink)
@@ -374,12 +384,51 @@ class GhLoginAndLogout(Base):
         self.assertIn("token on stdin only", out)
         self.assertLess(out.index("gh auth logout -h github.com"), out.index("userdel -r fbtest"))
 
+    def test_interactive_logins_emit_waiting_for_owner(self):
+        h = FakeHost(self.tmp)
+        self.go_bin(h)
+        out = self.results() + self.sink.getvalue()
+        self.assertIn("waiting for owner input: claude login", out)
+        self.assertIn("waiting for owner input: gh auth login", out)
+        self.assertIn("waiting for owner input: gh auth setup-git", out)
+
+    def test_login_timeout_default_is_fifteen_minutes_on_tty_steps(self):
+        h = FakeHost(self.tmp)
+        self.go_bin(h)
+        tty = [(a, cap, to) for a, cap, to in h.calls if cap is False and a[0] == "runuser"
+               and a[-1] in ("claude", "login", "setup-git")]
+        self.assertEqual(len(tty), 3)
+        self.assertTrue(all(to == 900 for _, _, to in tty), tty)
+
+    def test_custom_login_timeout_is_honored(self):
+        h = FakeHost(self.tmp)
+        self.go(h, BIN, __file__, "--login-timeout", "42")
+        tty = [to for argv, cap, to in h.calls if cap is False and argv[0] == "runuser"
+               and argv[-1] in ("claude", "login", "setup-git")]
+        self.assertEqual(tty, [42, 42, 42])
+
+    def test_gh_login_timeout_fails_step_and_cleans_up(self):
+        h = FakeHost(self.tmp, rules={"auth login": (124, "timed out after 42s")})
+        self.assertEqual(self.go(h, BIN, __file__, "--login-timeout", "42"), 1)
+        res = self.results()
+        self.assertIn("waiting for owner input: gh auth login", res)
+        self.assertIn("[FAIL] 6 logins", res)
+        self.assertIn("--- cleanup", res)
+        self.assertEqual(len(h.argvs("userdel")), 1)
+        self.assertNotIn("fbtest", h.users)
+
+    def test_host_tty_run_passes_subprocess_timeout(self):
+        with mock.patch("subprocess.run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0)
+            fb.Host().run(["claude"], capture=False, timeout=900)
+        self.assertEqual(run.call_args[1]["timeout"], 900)
+
 
 class Preflight(Base):
     def refused(self, host, *args, env=None):
         rc = self.go(host, *args, env=env)
         self.assertEqual(rc, 2)
-        self.assertEqual([a for a, _ in host.calls], [], "refusal must have no side effects")
+        self.assertEqual([a for a, *_ in host.calls], [], "refusal must have no side effects")
         self.assertFalse(os.path.exists(self.out))
 
     def test_not_root(self):
@@ -477,7 +526,7 @@ class Cleanup(Base):
         class Raced(FakeHost):
             def run(self, argv, capture=True, timeout=None, cwd=None):
                 if argv[0] == "useradd":
-                    self.calls.append((list(argv), capture))
+                    self.calls.append((list(argv), capture, timeout))
                     self.users.add(argv[-1])
                     return 9, "user exists"
                 return FakeHost.run(self, argv, capture, timeout, cwd)
@@ -504,7 +553,7 @@ class Cleanup(Base):
         class Slow(FakeHost):
             def run(self, argv, capture=True, timeout=None, cwd=None):
                 if argv[0] == "useradd":
-                    self.calls.append((list(argv), capture))
+                    self.calls.append((list(argv), capture, timeout))
                     self.users.add(argv[-1])
                     return 124, "timed out"
                 return FakeHost.run(self, argv, capture, timeout, cwd)
@@ -522,7 +571,7 @@ class Cleanup(Base):
                 if argv[0] == "userdel":
                     self.n += 1
                     if self.n < 3:
-                        self.calls.append((list(argv), capture))
+                        self.calls.append((list(argv), capture, timeout))
                         return 8, "user is currently used by process"
                 return FakeHost.run(self, argv, capture, timeout, cwd)
 
@@ -555,7 +604,43 @@ class Cleanup(Base):
     def test_user_still_present_after_cleanup_is_a_failure(self):
         h = FakeHost(self.tmp, rules={"userdel": (1, "busy")})
         self.assertEqual(self.go_bin(h), 1)
-        self.assertIn("[FAIL] cleanup verify-user-gone", self.results())
+        res = self.results()
+        self.assertIn("[FAIL] cleanup verify-user-gone", res)
+        self.assertIn("owner cleanup: sudo pkill -KILL -u fbtest", res)
+        self.assertIn("owner cleanup: sudo userdel -r fbtest", res)
+
+    def test_uid_process_survives_after_user_gone_is_nonzero(self):
+        class OrphanProcs(FakeHost):
+            def run(self, argv, capture=True, timeout=None, cwd=None, input_text=None):
+                if argv[0] == "userdel":
+                    self.calls.append((list(argv), capture, timeout))
+                    self.users.discard(argv[-1])
+                    self.proc_count_by_uid[self.user_uids[argv[-1]]] = 1
+                    return 0, ""
+                return FakeHost.run(self, argv, capture, timeout, cwd, input_text)
+
+        h = OrphanProcs(self.tmp)
+        self.assertEqual(self.go_bin(h), 1)
+        res = self.results()
+        self.assertIn("[FAIL] cleanup verify-no-procs", res)
+        self.assertIn("owner cleanup: sudo pkill -KILL -u fbtest", res)
+        self.assertIn("owner cleanup: sudo userdel -r fbtest", res)
+
+    def test_clean_success_exit_unchanged(self):
+        h = FakeHost(self.tmp)
+        rc = self.go_bin(h)
+        res = self.results()
+        self.assertEqual(rc, 0)
+        self.assertIn("RESULT PASS steps=10 failed=none", res)
+        self.assertIn("[PASS] cleanup verify-user-gone", res)
+
+    def test_interrupt_still_runs_cleanup_with_verify(self):
+        h = FakeHost(self.tmp, rules={"userdel": (1, "busy"), "git clone": lambda: os.kill(os.getpid(), signal.SIGINT)})
+        self.assertEqual(self.go_bin(h), 1)
+        res = self.results()
+        self.assertIn("--- cleanup", res)
+        self.assertIn("[FAIL] cleanup verify-user-gone", res)
+        self.assertGreaterEqual(len(h.argvs("userdel")), 1)
 
     def test_only_the_users_own_things_are_killed_or_removed(self):
         h = FakeHost(self.tmp)
@@ -733,7 +818,7 @@ class ResultsFile(Base):
         h = FakeHost(self.tmp)
         self.go_bin(h)
         want = (["claude"], ["gh", "auth", "login"], ["gh", "auth", "setup-git"])
-        logins = [(a, cap) for a, cap in h.calls if a[0] == "runuser" and any(a[-len(w):] == w for w in want)]
+        logins = [(a, cap) for a, cap, _ in h.calls if a[0] == "runuser" and any(a[-len(w):] == w for w in want)]
         self.assertEqual(len(logins), 3)
         self.assertTrue(all(cap is False for _, cap in logins), "logins must pass the TTY through, not capture")
 
@@ -754,7 +839,7 @@ class ResultsFile(Base):
         h = FakeHost(self.tmp)
         self.go_bin(h)
         seen = 0
-        for argv, _ in h.calls:
+        for argv, *_ in h.calls:
             if argv[0] == "runuser":
                 seen += 1
                 self.assertEqual(argv[1:4], ["-u", "fbtest", "--"])

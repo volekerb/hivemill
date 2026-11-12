@@ -23,16 +23,24 @@ The owner asked for more performant and safer code, "go or rust". The factory is
 - Rust only through an exception ADR. That ADR must justify why Go cannot do the job (a measured need, such as
   no GC pauses or a library only Rust has), name the toolchain install without root, the CI job (`cargo fmt --check`,
   `clippy -D warnings`, `cargo test`), and the dependency pins.
-- **Python** stays for the CLI, the tick, `serve`, scout, and glue or one-off scripts.
+- **Python** stays for the CLI, the tick, `serve`, scout and CI scripts only until goal G-041 ports each of them to
+  Go (amendment below); it is not used for new code.
+- **Amendment (G-041, 2026-11-11).** The owner decided (M32349): "all the code I want to write in go not python".
+  The CLI, tick, `serve`, scout and CI scripts are ported to Go in stages; Python stays the default until each
+  stage flips.
+- No new Python files after 2026-11-11 (CI job no-new-python). Director decision D2: new Python test files count as
+  new Python; tests for still-Python code go into EXISTING test modules. Director decision Q5: new skilleval fixture
+  repos are written in Go.
 
 | component | language | why |
 |---|---|---|
 | worker-guard hook (`roles/hooks/worker-guard.py`) | Go port behind a flag, Python stays default and fallback | runs on every Bash call; parser with repeated security gaps; see [Port decision](#port-decision) |
-| CLI `bin/factory` | Python | startup cost is mostly imports; fixed with lazy imports (T-0345), no rewrite |
-| tick | Python | I/O bound (git, gh, sqlite, journald); profile with cProfile before any port; not ported |
-| `factory serve` | Python | not measured as hot; not ported |
-| scout | Python | glue around fetch and sandbox; not hot |
-| CI scripts, tests, one-off tools | Python | glue; the test suite is the behaviour contract |
+| CLI `bin/factory` | Go (G-041 port, Python until each stage flips) | startup cost is mostly imports; lazy imports (T-0345) in the meantime |
+| tick | Go (G-041 port, Python until each stage flips) | I/O bound (git, gh, sqlite, journald) |
+| `factory serve` | Go (G-041 port, Python until each stage flips) | not measured as hot; ported for the single-language rule |
+| scout | Go (G-041 port, Python until each stage flips) | glue around fetch and sandbox; not hot |
+| CI scripts | Go (G-041 port, Python until each stage flips) | glue |
+| existing Python tests, one-off tools | Python (existing files only) | the test suite is the behaviour contract; no new Python files |
 | future parsers or long-running daemons | Go | memory safety, static types, one static binary |
 
 ## Safety
@@ -87,6 +95,7 @@ toolchains; a missing `go` is reported to the lead.
 | dependency | pinned version | status |
 |---|---|---|
 | Go toolchain | go1.27.3 (`go/go.mod`) | in use |
+| modernc.org/sqlite (pure-Go SQLite driver, no cgo, G-041) | v1.62.0 (latest stable on proxy.golang.org) | approved, owner M32349 |
 | `mvdan.cc/sh/v3` (shell AST pre-check, phase 2) | not pinned | OWNER-GATED, not approved; no task is filed until the owner approves |
 
 ## How agents test Go code
@@ -191,8 +200,7 @@ Worker-guard phase 1, per plan v1 and v2 (the tasks that remain after the verdic
 
 ## Not doing
 
-- No CLI rewrite. If the numbers ever justify one, it comes back to the boss as a proposal with numbers.
-- tick and `serve` are not ported.
+- The CLI, tick and `serve` ports are tracked in goal G-041, not decided here; see the amendment above.
 - Phase 2 (`mvdan.cc/sh/v3`) is owner-gated; nothing is built before the owner approves the dependency.
 - No Rust code without an exception ADR.
 
