@@ -913,6 +913,10 @@ R2_SET = re.compile(
     r"\b(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\s*\+?=|"
     r"\bexport\s+(?:-\w+\s+)*(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b|"
     r"\b(?:declare|typeset)\s+-\w*x\w*\s+(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b")
+R2_SET_SHELL = re.compile(
+    r"\bexport\s+(?:-\w+\s+)*(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b|"
+    r"\b(?:declare|typeset)\s+-\w*x\w*\s+(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b")
+R2_SET_VAR = re.compile(r"\b(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\s*\+?=")
 R2_PATH = re.compile(r"herdr\.sock|\.config/herdr")
 # commands that only print/search/record text: a quoted herdr.sock / .config/herdr there is data, not a target
 FACTORY_NAMES = ("factory", "factory_cli.py", "factory_cli")  # script basenames that run the factory CLI
@@ -5201,6 +5205,62 @@ def r2_path_hit(cmd):
     return False
 
 
+R2_ASSIGN_WORDS = frozenset({"export", "readonly", "declare", "typeset"})
+R2_ASSIGN_WRAPPERS = frozenset({"eval", "command", "builtin"})
+
+
+def r2_segment_words(seg):
+    """Words of one segment with bash quote removal; segments() mask blanks quoted spans for splitting only."""
+    seg = seg.strip()
+    if not seg:
+        return []
+    try:
+        lex = shlex.shlex(seg, posix=True)
+        lex.whitespace_split = True
+        return list(lex)
+    except ValueError:
+        return seg.split()
+
+
+def r2_assign_builtin_words(cmd):
+    """True when a simple-command starts with export/readonly/declare/typeset (not mere mention in data args)."""
+    for start, end, _ in segments(cmd):
+        rest = r2_segment_words(cmd[start:end])
+        while rest and (rest[0] in RESERVED or ASSIGN.match(rest[0])):
+            kw = rest.pop(0)
+            if kw == "time":
+                while rest and rest[0].startswith("-"):
+                    rest.pop(0)
+        if not rest:
+            continue
+        head = rest[0]
+        if head in R2_ASSIGN_WORDS:
+            return True
+        if head in R2_ASSIGN_WRAPPERS and len(rest) > 1 and rest[1] in R2_ASSIGN_WORDS:
+            return True
+    return False
+
+
+def r2_set_hit(cmd):
+    """R2 socket/session assignment: in data-only commands, VAR=value in arguments is text, not a retarget."""
+    for start, end, words in segments(cmd):
+        seg = cmd[start:end]
+        if not words or os.path.basename(words[0]) not in DATA_CMDS:
+            if R2_SET.search(seg):
+                return True
+        else:
+            if R2_SET_SHELL.search(seg):
+                return True
+            rest = list(words)
+            while rest and ASSIGN.match(rest[0]):
+                if R2_SET_VAR.search(rest[0]):
+                    return True
+                rest = rest[1:]
+    if r2_assign_builtin_words(cmd) and R2_SET_VAR.search(cmd):
+        return True
+    return False
+
+
 def claude_over_priv(cmd, cwd, role):
     """`sudo ... claude` is both a PRIV and a Claude start: raise the Claude block (T-0067 wording) if the
     worker pass finds one with the PRIV rule switched off; the caller re-raises the PrivBlock otherwise."""
@@ -5932,7 +5992,7 @@ def check(cmd, cwd=None, role=None, hq=False):
     if role == RESEARCHER and RESEARCH_SECRET_TEXT.search(cmd):
         raise Block("a researcher may not name credentials, tokens or the factory/gh config dirs")
     # layer 2: raw text, independent of the parser
-    if R2_SET.search(cmd) or r2_path_hit(cmd):
+    if r2_set_hit(cmd) or r2_path_hit(cmd):
         raise Block("R2: re-targeting the herdr socket/session or naming herdr's socket/config path")
     if R2_UNSET.search(cmd) and HERDR_WORD.search(cmd):
         raise Block("R2: unsetting HERDR_SOCKET_PATH in a command that mentions herdr")
