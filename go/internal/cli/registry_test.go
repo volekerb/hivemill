@@ -60,6 +60,13 @@ func TestRegistry(t *testing.T) {
 			}
 		}
 	})
+	t.Run("empty action is an argument and delegates", func(t *testing.T) {
+		for _, name := range []string{"whoami", "agents", "flags", "config"} {
+			if _, _, ok := lookup([]string{name, ""}); ok {
+				t.Fatalf("%s with an empty argument must delegate", name)
+			}
+		}
+	})
 	t.Run("parse false delegates", func(t *testing.T) {
 		withHandler(t, "zz-no", "", handler{parse: func([]string) (any, bool) { return nil, false },
 			run: func(*ctx, any) (int, error) { t.Fatal("run must not be called"); return 0, nil }})

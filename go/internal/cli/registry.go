@@ -57,7 +57,7 @@ func lookup(args []string) (handler, any, bool) {
 		return handler{}, nil, false
 	}
 	h, rest, found := handler{}, []string(nil), false
-	if len(args) >= 2 {
+	if len(args) >= 2 && args[1] != "" { // an empty argv[1] is an argument, never an action
 		h, found = registry[key{args[0], args[1]}]
 		rest = args[2:]
 	}
