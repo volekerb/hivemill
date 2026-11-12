@@ -1,4 +1,4 @@
-NAME              ORG     ROLE   STATUS  RUNTIME  FLAGLESS  RELAUNCH          GOAL_ID  TEAM_ID  TASK_ID  PANE_ID  MODEL              STARTED                  
-claude-qa-t-3     claude  qa     done    claude                               G-3               T-3               claude-opus-5-5    2026-10-30T08:00:00+01:00
-cursor-pm-g-9     cursor  pm     live    cursor   FLAGLESS  RELAUNCH-PENDING  G-9      TM-1              p-10                        2026-11-01T09:00:00+01:00
-claude-coder-t-9  claude  coder  live    claude                               G-9               T-9      p-9      claude-sonnet-5-5  2026-11-01T10:00:00+01:00
+NAME              ORG     ROLE   STATUS  RUNTIME  FLAGLESS  RELAUNCH          GOAL_ID  TEAM_ID  TASK_ID  PANE_ID  MODEL              STARTED                    BACKEND
+claude-qa-t-3     claude  qa     done    claude                               G-3               T-3               claude-opus-5-5    2026-10-30T08:00:00+01:00  herdr  
+cursor-pm-g-9     cursor  pm     live    cursor   FLAGLESS  RELAUNCH-PENDING  G-9      TM-1              p-10                        2026-11-01T09:00:00+01:00  herdr  
+claude-coder-t-9  claude  coder  live    claude                               G-9               T-9      p-9      claude-sonnet-5-5  2026-11-01T10:00:00+01:00  herdr  
