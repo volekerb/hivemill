@@ -907,7 +907,7 @@ REAL_HOME = Path(nsbox.real_home())
 REAL_GO = REAL_HOME / ".local/go"
 REAL_MOD = next((REAL_HOME / rel for rel in workerbox.GO_MODCACHE_REL if (REAL_HOME / rel).is_dir()), None)
 NEEDS_GO = unittest.skipUnless((REAL_GO / "bin/go").is_file(), "no ~/.local/go/bin/go on this host")
-GO_HEAVY = unittest.skipUnless(os.environ.get("FACTORY_GO_SANDBOX_HEAVY") == "1", "set FACTORY_GO_SANDBOX_GO_HEAVY=1")
+GO_HEAVY = unittest.skipUnless(os.environ.get("FACTORY_GO_SANDBOX_HEAVY") == "1", "set FACTORY_GO_SANDBOX_HEAVY=1")
 GO_KEYS = {"GOROOT", "GOCACHE", "GOTMPDIR", "GOMODCACHE", "GOPATH", "GOTOOLCHAIN", "GOPROXY", "GOSUMDB", "GOFLAGS",
            "GOENV", "GOWORK"}
 
@@ -1118,6 +1118,15 @@ class GoUnitTests(GoBoxCase):
         with self.assertRaises(ValueError):
             self.box.prepare()
         self.assertEqual(os.listdir(target), [])
+
+    def test_prepare_agent_refuses_a_dangling_symlink_at_go_tmp(self):
+        fake_go(self.home / ".local/go")
+        d = self.box.prepare()
+        shutil.rmtree(d / "go/tmp")
+        (d / "go/tmp").symlink_to(self.box.base / "nowhere")
+        with self.assertRaises(ValueError):
+            self.box.prepare()
+        self.assertFalse((self.box.base / "nowhere").exists())
 
     def test_prepare_agent_refuses_a_symlinked_go_cache_dir(self):
         fake_go(self.home / ".local/go")

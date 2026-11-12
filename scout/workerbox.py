@@ -463,8 +463,8 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
     if go:  # worker-writable: refuse a symlink or foreign owner before anything is created below it
         for rel in (GO_DIR, f"{GO_DIR}/cache", f"{GO_DIR}/tmp"):
             d = agent_dir / rel
-            d.mkdir(mode=0o700, exist_ok=True)
             try:
+                d.mkdir(mode=0o700, exist_ok=True)  # a dangling symlink raises FileExistsError
                 os.close(_open_dir(str(d)))
             except OSError as e:
                 raise ValueError(f"{d} must be a real directory owned by uid {os.getuid()} ({e.strerror}); remove it") from e
