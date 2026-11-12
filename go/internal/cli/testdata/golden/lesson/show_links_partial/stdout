@@ -1,0 +1,21 @@
+id: L-003
+title: Leads route, they do not code
+roles: lead,director
+sources: #12
+status: applied
+recurrences: 0
+author: claude-boss
+created: 2026-10-03T10:00:00+01:00
+updated: 2026-10-04T10:00:00+01:00
+applied_at: 2026-10-04T10:00:00+01:00
+
+## what
+Leads wrote code twice.
+
+## rule
+Ask the coder.
+
+## links
+- 2026-10-04T09:30:00+01:00 task_id=T-1001 via=hook author=claude-boss
+
+## history
