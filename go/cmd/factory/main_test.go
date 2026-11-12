@@ -68,6 +68,26 @@ func TestTestClock(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+	t.Run("no offset on a temp home: error", func(t *testing.T) {
+		for _, raw := range []string{"2026-11-12T01:02:03", "2026-11-12T01:02", "2026-11-12"} {
+			env := clockEnv(t, map[string]string{"FACTORY_TEST_NOW": raw, "FACTORY_HOME": t.TempDir()})
+			if _, err := testClock(env); err == nil || err.Error() != "FACTORY_TEST_NOW must be an ISO timestamp" {
+				t.Fatalf("%q: err = %v", raw, err)
+			}
+		}
+	})
+	t.Run("no offset on the live home: ignored", func(t *testing.T) {
+		env := clockEnv(t, map[string]string{})
+		pw, _ := env.PwDir(0)
+		env.Getenv = func(k string) string {
+			return map[string]string{"FACTORY_TEST_NOW": "2026-11-12T01:02:03", "FACTORY_HOME": filepath.Join(pw, "factory")}[k]
+		}
+		env.LookupEnv = nil
+		now, err := testClock(env)
+		if err != nil || time.Since(now()) > time.Minute {
+			t.Fatalf("live home must use the real clock: %v, %v", now(), err)
+		}
+	})
 	t.Run("unparsable on the live home: ignored", func(t *testing.T) {
 		env := clockEnv(t, map[string]string{"FACTORY_TEST_NOW": "yesterday"})
 		pw, _ := env.PwDir(0)
