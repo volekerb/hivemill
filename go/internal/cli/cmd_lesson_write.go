@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // factory lesson add / edit / link / apply / verify / reopen (cmd_lesson write branches in bin/factory_cli.py).
@@ -42,6 +43,11 @@ var lessonFlagNames = map[string]bool{"--task": true, "--pr": true, "--via": tru
 
 func lessonWriteParser(action string) func([]string) (any, bool) {
 	return func(rest []string) (any, bool) {
+		for _, x := range rest {
+			if !utf8.ValidString(x) {
+				return nil, false // Python holds surrogate-escaped text and fails differently
+			}
+		}
 		c := lessonWriteCmd{action: action, flags: map[string]*string{}}
 		i := 0
 		if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
@@ -377,7 +383,7 @@ func lessonLink(c *ctx, a lessonWriteCmd) (int, error) {
 		return 0, err
 	}
 	task, via := a.flag("--task"), a.flag("--via")
-	if lwTruthy(task) == lwTruthy(a.flag("--pr")) { // --pr never reaches here unless empty: parse delegates it
+	if lwTruthy(task) == lwTruthy(a.flag("--pr")) { // parse delegates any --pr, so only --task can be set here
 		return 0, dieErr(2, "give exactly one of --task and --pr: "+usage)
 	}
 	if lwTruthy(via) && !inList(lessonVias, *via) {

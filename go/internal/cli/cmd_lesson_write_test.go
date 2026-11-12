@@ -150,6 +150,7 @@ func TestParseLessonWrite(t *testing.T) {
 		{"add", []string{"-h"}, false},
 		{"add", []string{"--title", "T", "L-001"}, false}, // positional after a flag
 		{"add", []string{"--title", ""}, true},            // empty value is a value
+		{"add", []string{"--title", "\xff"}, false},       // invalid UTF-8
 		{"edit", []string{"L-001", "--title", "T"}, true},
 		{"edit", []string{"", "--title", "T"}, false},
 		{"edit", []string{"--title", "T", "L-001"}, false},
