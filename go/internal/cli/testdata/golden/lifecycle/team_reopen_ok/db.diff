@@ -1,0 +1,4 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="team" entity_id="g-8-a" action="reopen" detail=NULL
++ sqlite_sequence 3 name="events" seq=1
+- teams 2 id="g-8-a" goal_id="G-8" scope="closed team" lead_agent=NULL tab_id=NULL status="closed" created="2026-11-01T00:00:00+01:00" parked_at=NULL resume_note=NULL
++ teams 2 id="g-8-a" goal_id="G-8" scope="closed team" lead_agent=NULL tab_id=NULL status="active" created="2026-11-01T00:00:00+01:00" parked_at="2026-11-12T01:02:03+00:00" resume_note="reopened from closed on 2026-11-12; read your inbox and factory goal show G-8"

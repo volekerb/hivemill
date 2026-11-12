@@ -1,0 +1,2 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="goal" entity_id="G-4" action="close-refused" detail="no audit for G-4: run factory goal audit"
++ sqlite_sequence 3 name="events" seq=1

@@ -1,0 +1,12 @@
+project
+add
+New Proj
+--name
+Shiny
+--gh
+o/n
+--notes
+hello
+--required-checks
+ a, b ,,c 
+--no-auto-merge

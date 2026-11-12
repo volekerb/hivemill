@@ -1,0 +1,3 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="project" entity_id="p2" action="add" detail=NULL
++ projects 2 id="p2" name="p2" repo_path="/srv/golden/x/y" gh_repo=NULL base_branch="main" auto_merge=1 notes=NULL created="2026-11-12T01:02:03+00:00" required_checks="" gate_cmd="" gate_count_cmd="" gate_timeout_s=3600
++ sqlite_sequence 3 name="events" seq=1
