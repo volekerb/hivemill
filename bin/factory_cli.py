@@ -6165,12 +6165,39 @@ def mech_tier(con, t, sha, git_repo):
     return top, "; ".join(why) or "no sensitive path or def"
 
 
+def _pr_repo_slug(pr_url):
+    m = re.match(r"https?://[^/]+/([^/]+/[^/]+)/pull/", pr_url or "")
+    return _repo_slug(m.group(1)) if m else None
+
+
+def mech_main_run_local_project(con, slug, task_id=None):
+    """Project id for `slug` when it is in local-gate mode (gate_cmd set); else None."""
+    slug = (_repo_slug(slug) or slug or "").lower()
+    r = con.execute("SELECT id, gate_cmd FROM projects WHERE lower(trim(gh_repo))=?", (slug,)).fetchone()
+    if not r and task_id:
+        t = con.execute("SELECT t.pr_url, p.id, p.gate_cmd FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                        "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task_id,)).fetchone()
+        if t and _pr_repo_slug(t["pr_url"]) == slug:
+            r = t
+    if not r or not (r["gate_cmd"] or "").strip():
+        return None
+    return r["id"]
+
+
+def _gh_red_main_workflow_missing(stderr):
+    """True when gh run list says the repo has no tests.yml workflow on the default branch."""
+    s = (stderr or "").lower()
+    return "workflow" in s and "not found" in s
+
+
 def mech_main_run_refusal(con, slugs, git_repo, task_id=None):
     """Hold reason (str) unless the latest tests.yml push run on main of every repo in `slugs` is completed+success for the
     current origin/main head of `git_repo`; None lets the mechanical merger go on. Fail closed: no run, a gh failure, a
     timeout or unreadable JSON hold. A run whose headSha is not the current main always holds (including the revert/fix task).
     The revert/fix task of red_main:<slug> (`task_id`) may proceed only on a failed run for the current main head (it turns
-    main green) but still waits for a run in progress. Read-only: never records red main (red_main_check owns that)."""
+    main green) but still waits for a run in progress. Read-only: never records red main (red_main_check owns that).
+    Local-gate repos with no tests.yml workflow on main skip after gh reports the workflow missing; blank required_checks
+    still uses the global list and does not skip."""
     rc, head, err = _git_rc(["rev-parse", "--verify", "origin/main"], repo=git_repo)
     if rc != 0 or not head:
         return f"cannot read main push run: origin/main unknown ({err or 'no output'}); hold"
@@ -6182,6 +6209,10 @@ def mech_main_run_refusal(con, slugs, git_repo, task_id=None):
                                 "--limit", "1", "--json", "databaseId,status,conclusion,headSha,url"],
                                capture_output=True, text=True, timeout=30, env=gh_git_env())
             if p.returncode != 0:
+                local = mech_main_run_local_project(con, slug, task_id)
+                if local and _gh_red_main_workflow_missing(p.stderr):
+                    print(f"main-run check skipped: project {local} has no CI workflow", file=sys.stderr)
+                    continue
                 return f"cannot read main push run: gh run list exit {p.returncode}: {p.stderr.strip()[:200]}; hold"
             runs = json.loads(p.stdout)
             run = runs[0] if isinstance(runs, list) and runs else None

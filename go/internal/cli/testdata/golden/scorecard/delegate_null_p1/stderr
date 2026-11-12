@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "/tmp/TestGolden3420501402/001/checkout/bin/factory", line 9, in <module>
+    factory_cli.main()
+    ~~~~~~~~~~~~~~~~^^
+  File "/tmp/TestGolden3420501402/001/checkout/bin/factory_cli.py", line 18776, in main
+    a.fn(a)
+    ~~~~^^^
+  File "/tmp/TestGolden3420501402/001/checkout/bin/factory_cli.py", line 6558, in cmd_scorecard
+    print(director_line(director_row(con, now - dt.timedelta(days=days), now, hours=days * 24)))
+                        ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/TestGolden3420501402/001/checkout/bin/factory_cli.py", line 6516, in director_row
+    starved += w * len(ids)
+                   ~~~^^^^^
+TypeError: object of type 'NoneType' has no len()

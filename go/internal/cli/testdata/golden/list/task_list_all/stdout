@@ -1,0 +1,11 @@
+ID    GOAL_ID  STATUS       WAITS     ROLE      ASSIGNEE          ATTEMPTS  PR_URL                     TITLE                                                       
+T-1   G-1      done                   coder     claude-coder-t-1  1         https://example.test/pr/1  First task, done                                            
+T-10  G-3      todo                   coder                       0                                    Zażółć gęślą jaźń — ünïcödé 日本語                             
+T-2   G-1      in_progress            coder     claude-coder-t-2  2                                    Second task in progress                                     
+T-3   G-1      blocked      owner     pm                          0                                    Blocked on the owner                                        
+T-4   G-2      blocked      internal  coder                       0                                    Blocked internally                                          
+T-5   G-2      todo                   qa                          0                                    Todo with deps met                                          
+T-6   G-2      todo                   coder                       0                                    Todo with deps unmet                                        
+T-7   G-1      todo                   reviewer                    0                                    Todo no deps                                                
+T-8   G-1      cancelled              coder                       0                                    Cancelled task                                              
+T-9   G-2      in_review              coder     claude-coder-t-9  1         https://example.test/pr/9  A very long task title that runs well past the sixty charact

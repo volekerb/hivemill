@@ -2,7 +2,8 @@
 """One-command fresh-install test: a throwaway user follows docs/SETUP.md up to `factory up` and the web UI.
 
   sudo python3 ci/freshbox_test.py [--repo URL] [--ref REF] [--user NAME] [--port N] [--out PATH]
-                                   [--herdr-bin PATH] [--max-total-claude N] [--gh-token-file PATH] [--dry-run]
+                                   [--herdr-bin PATH] [--max-total-claude N] [--gh-token-file PATH]
+                                   [--login-timeout SEC] [--dry-run]
 
 Run it in your own terminal (two interactive logins need a TTY). It creates a user, installs herdr and Claude
 Code for that user, follows the docs, and always deletes the user again. It starts REAL Claude agents for
@@ -131,6 +132,23 @@ class Host:
                     pass
         return n
 
+    def count_procs_for_uid(self, uid):
+        n = 0
+        want = str(uid)
+        for d in os.listdir("/proc"):
+            if not d.isdigit():
+                continue
+            try:
+                with open("/proc/%s/status" % d) as f:
+                    for line in f:
+                        if line.startswith("Uid:"):
+                            if line.split()[1] == want:
+                                n += 1
+                            break
+            except OSError:
+                pass
+        return n
+
     def run(self, argv, capture=True, timeout=None, cwd=None, input_text=None):
         """-> (returncode, merged output). capture=False passes the TTY through and returns no output.
         input_text is fed on stdin (never on argv)."""
@@ -140,7 +158,8 @@ class Host:
                                    stdin=subprocess.DEVNULL if input_text is None else None, input=input_text,
                                    universal_newlines=True, errors="replace")
                 return p.returncode, p.stdout
-            return subprocess.run(argv, cwd=cwd).returncode, ""
+            p = subprocess.run(argv, cwd=cwd, timeout=timeout)
+            return p.returncode, ""
         except subprocess.TimeoutExpired:
             return 124, "timed out after %ss" % timeout
         except FileNotFoundError as e:
@@ -218,6 +237,7 @@ class Ctx:
         self.failed = []
         self.inconclusive = []
         self.gh_token = None
+        self.test_uid = None
 
     # -- logging
     def emit(self, text):
@@ -330,6 +350,7 @@ def step_user(c):
         # touch it. Any other outcome (timeout, signal) with the user present is treated as ours.
         if not c.plan and rc != 9 and c.host.user_exists(c.user):
             c.created = True
+            c.test_uid = c.host.ids(c.user)[0]
     if rc == 9:
         raise StepFail("user appeared after preflight; not touching it")
     if rc != 0:
@@ -398,18 +419,22 @@ def step_prereqs(c):
 
 def step_logins(c):
     tokfile = c.args.gh_token_file
+    login_to = c.args.login_timeout
     c.emit(">>> Log in to Claude Code: complete /login, then type /exit")
-    c.do(c.as_user(["claude"]), tty=True, cwd=c.home, timeout=None, what="claude")
+    c.emit("waiting for owner input: claude login")
+    c.do(c.as_user(["claude"]), tty=True, cwd=c.home, timeout=login_to, what="claude login")
     if tokfile:
         c.emit(">>> Logging in to GitHub with the token from %s (fed on stdin)" % ("stdin" if tokfile == "-" else tokfile))
         c.do(c.as_user(["gh", "auth", "login", "--with-token"]), cwd=c.home, what="gh auth login --with-token",
              stdin_text=(c.gh_token + "\n") if c.gh_token else None, stdin_note="token on stdin only")
         c.do(c.as_user(["gh", "auth", "setup-git"]), cwd=c.home, what="gh auth setup-git")
         return "claude login, gh auth login --with-token, gh auth setup-git done (token never logged)"
-    for line, cmd in (("Log in to GitHub: answer the gh prompts", ["gh", "auth", "login"]),
-                      ("Setting up git credentials via gh (so a private --repo clones)", ["gh", "auth", "setup-git"])):
+    for line, step, cmd in (("Log in to GitHub: answer the gh prompts", "gh auth login", ["gh", "auth", "login"]),
+                            ("Setting up git credentials via gh (so a private --repo clones)", "gh auth setup-git",
+                             ["gh", "auth", "setup-git"])):
         c.emit(">>> " + line)
-        c.do(c.as_user(cmd), tty=True, cwd=c.home, timeout=None, what=" ".join(cmd[:2]))
+        c.emit("waiting for owner input: %s" % step)
+        c.do(c.as_user(cmd), tty=True, cwd=c.home, timeout=login_to, what=step)
     return "claude, gh auth login, gh auth setup-git done (output not logged)"
 
 
@@ -533,6 +558,44 @@ STEPS = [("preflight", step_preflight), ("create-user", step_user), ("install-he
 
 # ───────────────────────────── cleanup ─────────────────────────────
 
+def owner_cleanup_commands(user):
+    return ("sudo pkill -KILL -u %s" % user, "sudo userdel -r %s" % user)
+
+
+def cleanup_verify(c):
+    """After userdel/pkill: the account must be gone and no process may still own the test uid."""
+    if c.plan:
+        c.note("verify: `id %s` must fail and no process may have the test uid" % c.user)
+        return True
+    rc, _ = c.host.run(["id", c.user])
+    user_gone = rc != 0
+    uid = c.test_uid
+    if uid is None and not user_gone:
+        try:
+            uid = c.host.ids(c.user)[0]
+        except KeyError:
+            user_gone = True
+    procs = c.host.count_procs_for_uid(uid) if uid is not None else 0
+    ok = user_gone and procs == 0
+    if user_gone:
+        c.step_line("PASS" if procs == 0 else "FAIL", "cleanup", "verify-no-procs",
+                    "uid %s: %d process(es) left" % (uid, procs))
+    else:
+        c.step_line("FAIL", "cleanup", "verify-user-gone",
+                    "id %s still succeeds: REMOVE IT BY HAND (userdel -r %s)" % (c.user, c.user))
+        if procs:
+            c.step_line("FAIL", "cleanup", "verify-no-procs",
+                        "uid %s: %d process(es) still running" % (uid, procs))
+    if not ok:
+        for cmd in owner_cleanup_commands(c.user):
+            c.emit("    owner cleanup: %s" % cmd)
+        c.failed.append("cleanup")
+    elif user_gone:
+        c.step_line("PASS", "cleanup", "verify-user-gone",
+                    "id %s fails: user is gone" % c.user)
+    return ok
+
+
 def cleanup(c):
     """Always runs. Removes only what this run created: the test user (and its home) and its own temp dir."""
     c.emit("--- cleanup")
@@ -570,14 +633,8 @@ def cleanup(c):
             if c.plan or c.host.run(["id", c.user])[0] != 0:
                 break
         if c.plan:
-            c.note("verify: `id %s` must fail" % c.user)
             c.note("remove the tool's own temp dir (<tmpdir>) only")
-        else:
-            rc, _ = c.host.run(["id", c.user])
-            c.step_line("PASS" if rc != 0 else "FAIL", "cleanup", "verify-user-gone",
-                        "id %s %s" % (c.user, "fails: user is gone" if rc != 0 else "still succeeds: REMOVE IT BY HAND (userdel -r %s)" % c.user))
-            if rc == 0:
-                c.failed.append("cleanup")
+        cleanup_verify(c)
     if c.tmp and not c.plan:
         try:
             c.host.rmtree(c.tmp)
@@ -598,6 +655,9 @@ def parse(argv, host, env):
     ap.add_argument("--max-total-claude", type=int, help="factory gate cap (default: claude processes running when `factory up` starts + %d)" % CLAUDE_HEADROOM)
     ap.add_argument("--gh-token-file", metavar="PATH", help="file with a short-lived fine-grained GitHub token for the test user (`-` reads stdin, which must still be your terminal: paste the token, then Enter; input is hidden); "
                     "fed to `gh auth login --with-token` on stdin, so no interactive gh login (default: interactive)")
+    ap.add_argument("--login-timeout", type=int, default=900, metavar="SEC",
+                    help="max seconds per interactive login step (claude, gh); default %(default)s (15 min); prints "
+                    "'waiting for owner input: …' then times out and cleans up")
     ap.add_argument("--dry-run", action="store_true", help="print the plan and the exact argv; no root, no TTY, nothing run")
     a = ap.parse_args(argv)
     if not USER_RE.match(a.user) or a.user == "root":
@@ -608,6 +668,8 @@ def parse(argv, host, env):
             ap.error("--%s must not start with '-'" % name)
     if not 1 <= a.port <= 65535:
         ap.error("--port out of range")
+    if a.login_timeout < 1:
+        ap.error("--login-timeout must be at least 1 second")
     return a
 
 
@@ -717,6 +779,8 @@ def main(argv=None, host=None, env=None, now=None, out=None):
                 c.results.close()
             for s, h in old.items():
                 signal.signal(s, h)
+    if "cleanup" in c.failed:
+        return 1
     return 1 if c.failed and rc in (0, 3) else rc  # a cleanup failure after a clean or inconclusive run still fails
 
 
