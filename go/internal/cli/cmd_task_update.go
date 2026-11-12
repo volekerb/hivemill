@@ -229,7 +229,7 @@ func runTaskUpdate(c *ctx, p any) (int, error) {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return 0, err
 		}
-		if taskUpdStr(a.sandbox) == "1" && a.sandbox != nil || (a.sandbox == nil && tSandbox != 0) {
+		if (a.sandbox != nil && *a.sandbox == "1") || (a.sandbox == nil && tSandbox != 0) {
 			if err := checkSandbox(*a.role); err != nil {
 				return 0, err
 			}
@@ -397,6 +397,13 @@ func runTaskUpdate(c *ctx, p any) (int, error) {
 				"then factory task update %s --spec/--acceptance, then factory spawn %s --task %s", a.id, live, live, a.id, tRole, a.id))
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
+			return 0, err
+		}
+	}
+	if a.after != nil && (a.spec != nil && *a.spec == "-" || a.acceptance != nil && *a.acceptance == "-") {
+		// checkAfter may delegate (malformed depends_on); Python cannot get stdin back once it is read here, so find
+		// out first. Its refusals wait for their place in Python's order.
+		if err := checkAfter(c, a.id, tGoal, splitAfter(*a.after)); errors.Is(err, errDelegate) {
 			return 0, err
 		}
 	}
