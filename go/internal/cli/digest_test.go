@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -58,4 +59,68 @@ func TestDigestHoursBound(t *testing.T) {
 	if _, err := runDigest(nil, digestCmd{goal: "G-1", hours: "x"}); !errors.Is(err, errDelegate) {
 		t.Fatalf("a non-integer must delegate, got %v", err)
 	}
+}
+
+func FuzzDgParseDeps(f *testing.F) {
+	for _, s := range []string{"", "[]", `["T-1","T-2"]`, `["T-1",3]`, `[[1]]`, `{"a":1}`, "NaN", "["} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, raw string) {
+		d, err := dgParseDeps(raw)
+		if err != nil {
+			return
+		}
+		if raw == "" {
+			if len(d.ids) != 0 || d.extra {
+				t.Fatalf("empty input must give an empty set, got %+v", d)
+			}
+			return
+		}
+		// documented rule: ids are exactly the string members of the JSON list
+		var list []any
+		if jerr := json.Unmarshal([]byte(raw), &list); jerr != nil {
+			t.Fatalf("%q accepted but is not a JSON list: %v", raw, jerr)
+		}
+		want := map[string]bool{}
+		extra := false
+		for _, x := range list {
+			if s, ok := x.(string); ok {
+				want[s] = true
+			} else {
+				extra = true
+			}
+		}
+		if !reflect.DeepEqual(d.ids, want) || d.extra != extra {
+			t.Fatalf("%q: got %+v, want ids=%v extra=%v", raw, d, want, extra)
+		}
+	})
+}
+
+func FuzzParseDigest(f *testing.F) {
+	for _, s := range []string{"--goal,G-1", "--goal,G-1,--hours,6,--date,2026-11-12", "--send", "--goal", "--goal,G-1,--goal,G-2", ""} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, joined string) {
+		args := strings.Split(joined, ",")
+		p, ok := parseDigest(args)
+		if !ok {
+			return
+		}
+		c := p.(digestCmd)
+		// S2s forms: only --goal/--date/--hours, each at most once with a non-empty value not starting with "-"; --goal required.
+		seen := map[string]bool{}
+		for i := 0; i < len(args); i += 2 {
+			a := args[i]
+			if a != "--goal" && a != "--date" && a != "--hours" {
+				t.Fatalf("%q accepted with unlisted flag %q", args, a)
+			}
+			if seen[a] || i+1 >= len(args) || args[i+1] == "" || args[i+1][0] == '-' {
+				t.Fatalf("%q accepted with a repeated flag or bad value", args)
+			}
+			seen[a] = true
+		}
+		if c.goal == "" || !seen["--goal"] {
+			t.Fatalf("%q accepted without --goal", args)
+		}
+	})
 }

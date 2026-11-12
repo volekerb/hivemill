@@ -71,6 +71,9 @@ func sbParseTS(s string, loc *time.Location) (t time.Time, ok bool, err error) {
 		}
 		l = time.FixedZone("", off)
 	}
+	if atoi(m[1]) == 0 {
+		return t, false, nil // Python: year 0 is out of range
+	}
 	t = time.Date(atoi(m[1]), time.Month(atoi(m[2])), atoi(m[3]), hh, mm, ss, frac*1000, l)
 	if t.Year() != atoi(m[1]) || int(t.Month()) != atoi(m[2]) || t.Day() != atoi(m[3]) {
 		return t, false, nil // an impossible date such as 2026-02-30

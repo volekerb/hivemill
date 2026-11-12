@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -117,6 +118,8 @@ func TestParseTS(t *testing.T) {
 		{"2026-02-30T00:00:00", false, ""},
 		{"garbage", false, ""},
 		{"", false, ""},
+		{"0000-01-01T00:00:00+00:00", false, ""}, // Python: year 0 is out of range
+		{"0000-01-01", false, ""},
 	} {
 		got, ok, err := sbParseTS(c.in, berlin)
 		if err != nil || ok != c.ok {
@@ -147,4 +150,42 @@ func TestPyIntStr(t *testing.T) {
 			t.Fatalf("%q: got (%d,%v,%v), want (%d,%v,fail=%v)", c.in, n, ok, err, c.n, c.ok, c.fail)
 		}
 	}
+}
+
+func FuzzSbParseTS(f *testing.F) {
+	for _, s := range []string{"2026-10-10T09:00:00+02:00", "0000-01-01", "9999-12-31T23:59:59Z", "2026-02-30", "x", ""} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		got, ok, err := sbParseTS(s, time.UTC)
+		if err != nil || !ok {
+			return
+		}
+		if y := got.Year(); y < 1 || y > 9999 {
+			t.Fatalf("%q: year %d outside 1..9999", s, y)
+		}
+		iso := sbISO(got)
+		back, ok2, err2 := sbParseTS(iso, time.UTC)
+		if err2 != nil || !ok2 || !back.Equal(got) {
+			t.Fatalf("%q: sbISO %q does not round-trip (ok=%v err=%v)", s, iso, ok2, err2)
+		}
+	})
+}
+
+func FuzzPyIntStr(f *testing.F) {
+	for _, s := range []string{"0", "-5", " +1_000 ", "9223372036854775807", "9223372036854775808", "1__0", "_1", "é"} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		n, ok, err := pyIntStr(s)
+		if err != nil || !ok {
+			return
+		}
+		if want, perr := strconv.ParseInt(strconv.FormatInt(n, 10), 10, 64); perr != nil || want != n {
+			t.Fatalf("%q: %d does not round-trip", s, n)
+		}
+		if v, perr := strconv.ParseInt(strings.TrimSpace(s), 10, 64); perr == nil && v != n {
+			t.Fatalf("%q: pyIntStr=%d, ParseInt=%d", s, n, v)
+		}
+	})
 }
