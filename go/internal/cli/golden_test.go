@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -106,9 +107,12 @@ func loadCase(group, dir string) (goldenCase, error) {
 	return c, nil
 }
 
-func goldenCases(t *testing.T) []goldenCase {
+func goldenCases(t *testing.T) []goldenCase { return goldenCasesIn(t, goldenDir) }
+
+// goldenCasesIn loads the cases under root (goldenDir, or a temp copy of it).
+func goldenCasesIn(t *testing.T, root string) []goldenCase {
 	t.Helper()
-	groups, err := os.ReadDir(goldenDir)
+	groups, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +121,7 @@ func goldenCases(t *testing.T) []goldenCase {
 		if !g.IsDir() {
 			continue
 		}
-		cases, err := os.ReadDir(filepath.Join(goldenDir, g.Name()))
+		cases, err := os.ReadDir(filepath.Join(root, g.Name()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +129,7 @@ func goldenCases(t *testing.T) []goldenCase {
 			if !c.IsDir() {
 				continue
 			}
-			gc, err := loadCase(g.Name(), filepath.Join(goldenDir, g.Name(), c.Name()))
+			gc, err := loadCase(g.Name(), filepath.Join(root, g.Name(), c.Name()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -200,12 +204,17 @@ func baseSQLPath() string { return filepath.Join(goldenDir, "base.sql") }
 
 // buildGoldenDB creates <home>/db/factory.db from base.sql plus the group's seed.sql.
 func buildGoldenDB(t sink, home, group string) (string, error) {
+	return buildGoldenDBIn(t, goldenDir, home, group)
+}
+
+// buildGoldenDBIn is buildGoldenDB reading base.sql and seed.sql from root.
+func buildGoldenDBIn(t sink, root, home, group string) (string, error) {
 	t.Helper()
-	base, err := os.ReadFile(baseSQLPath())
+	base, err := os.ReadFile(filepath.Join(root, "base.sql"))
 	if err != nil {
 		return "", fmt.Errorf("%w; create it with: cd go && go test -count=1 -run TestGolden ./internal/cli/ -args -update-golden", err)
 	}
-	seed, err := os.ReadFile(filepath.Join(goldenDir, group, "seed.sql"))
+	seed, err := os.ReadFile(filepath.Join(root, group, "seed.sql"))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", err
 	}
@@ -600,13 +609,18 @@ func generatedBase(t *testing.T, checkout, procDir string) string {
 	return s
 }
 
-func updateCase(t *testing.T, checkout, procDir string, c goldenCase) {
+// regenPyClock matches the wall-clock timestamps Python stamps into rows (its now() ignores FACTORY_TEST_NOW);
+// update mode rewrites them to goldenNow so regeneration is reproducible. TZ=UTC makes the offset +00:00.
+var regenPyClock = regexp.MustCompile(`"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+00:00"`)
+
+// updateCase regenerates the expectations of c in place (c.dir); base.sql and seeds are read from root.
+func updateCase(t *testing.T, root, checkout, procDir string, c goldenCase) {
 	t.Helper()
 	if c.gonly || (c.delegate && !c.writes) {
 		return
 	}
 	home := t.TempDir()
-	path, err := buildGoldenDB(t, home, c.group)
+	path, err := buildGoldenDBIn(t, root, home, c.group)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -628,7 +642,7 @@ func updateCase(t *testing.T, checkout, procDir string, c goldenCase) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out["db.diff"] = diffDump(before, after)
+		out["db.diff"] = regenPyClock.ReplaceAllString(diffDump(before, after), `"`+goldenNow+`"`)
 	}
 	for f, s := range out {
 		if err := os.WriteFile(filepath.Join(c.dir, f), []byte(s), 0o644); err != nil {
@@ -648,15 +662,21 @@ func updateCase(t *testing.T, checkout, procDir string, c goldenCase) {
 	}
 }
 
+// regenGolden is update mode against root: python3 on a copy of bin/ rewrites root/base.sql and every case.
+func regenGolden(t *testing.T, root string) {
+	t.Helper()
+	checkout, procDir := pythonCheckout(t)
+	if err := os.WriteFile(filepath.Join(root, "base.sql"), []byte(generatedBase(t, checkout, procDir)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range goldenCasesIn(t, root) {
+		updateCase(t, root, checkout, procDir, c)
+	}
+}
+
 func TestGolden(t *testing.T) {
 	if *updateGolden {
-		checkout, procDir := pythonCheckout(t)
-		if err := os.WriteFile(baseSQLPath(), []byte(generatedBase(t, checkout, procDir)), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		for _, c := range goldenCases(t) {
-			updateCase(t, checkout, procDir, c)
-		}
+		regenGolden(t, goldenDir)
 	}
 	cases := goldenCases(t)
 	if len(cases) == 0 {
