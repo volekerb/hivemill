@@ -83,6 +83,7 @@ func TestCallerIsWorker(t *testing.T) {
 			f.add(t, own, parent, "factory")
 			f.add(t, parent, 300, "claude", "--settings", "/settings/é/settings/coder.json")
 		}, "coder"},
+		// Go \w is ASCII, Python \w is Unicode: both give "" only because every worker role is ASCII.
 		{"non-ASCII role name is not a worker", func(t *testing.T, f fakeProc) {
 			f.add(t, own, parent, "factory")
 			f.add(t, parent, 300, "claude", "--settings", "/settings/cödér.json")
