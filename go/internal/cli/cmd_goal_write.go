@@ -169,7 +169,10 @@ func gwNew(c *ctx, a gwArgs) error {
 		return dieErr(3, "only the boss creates goals; ask the boss (factory msg boss ...) or add a task to an open goal")
 	}
 	project := a.s("--project")
-	if project != nil && *project != "" {
+	if project != nil && *project == "" {
+		return errDelegate // Python skips the check, then the project_id foreign key crashes it before any write
+	}
+	if project != nil {
 		var one int
 		err := c.db.QueryRow("SELECT 1 FROM projects WHERE id=?", *project).Scan(&one)
 		if errors.Is(err, sql.ErrNoRows) {
