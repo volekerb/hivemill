@@ -39,7 +39,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 
 func cmdParse(stdin io.Reader, stdout io.Writer) int {
 	sc := bufio.NewScanner(stdin)
-	var out []blockcond.Cond
+	out := make([]blockcond.Cond, 0)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" {

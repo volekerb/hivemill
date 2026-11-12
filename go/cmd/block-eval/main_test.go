@@ -295,6 +295,18 @@ func TestEvalCommand(t *testing.T) {
 
 func TestParseCommand(t *testing.T) {
 	bin := buildBin(t)
+	for _, in := range []string{"", "\n\n", "  \n"} {
+		cmd := exec.Command(bin, "parse")
+		cmd.Stdin = strings.NewReader(in)
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("parse empty %q: %v", in, err)
+		}
+		trim := strings.TrimSpace(string(out))
+		if trim != "[]" {
+			t.Fatalf("parse empty %q: got %q want []", in, trim)
+		}
+	}
 	cmd := exec.Command(bin, "parse")
 	cmd.Stdin = strings.NewReader("task:T-1\ncheck:" + ghWorkerROProbe() + "\n")
 	out, err := cmd.Output()
