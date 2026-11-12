@@ -35,6 +35,13 @@ class WorkerGuardHcParityTests(unittest.TestCase):
             "! declare -x $(echo HC_SOCKET=/tmp/x)",
             "if true; then declare -x $(echo HC_SOCKET=/tmp/x); fi",
             "! readonly $(echo HC_SOCKET=/tmp/x)",
+            "time -p export $(echo HC_SOCKET=/tmp/x)",
+            "time -p declare -x $(echo HC_SOCKET=/tmp/x)",
+            "time -p typeset -x $(echo HC_SOCKET=/tmp/x)",
+            "! time -p export $(echo HC_SOCKET=/tmp/x)",
+            "if true; then time -p export $(echo HC_SOCKET=/tmp/x); fi",
+            "while true; do time -p export $(echo HC_SOCKET=/tmp/x); break; done",
+            "time -p readonly $(echo HC_SOCKET=/tmp/x)",
             "readonly x=$(echo HERDR_SOCKET_PATH=/tmp/x)",
             "unset HC_SOCKET; hc ls",
             "HERDR_SOCKET_PATH=/tmp/core.sock hc ls",
@@ -51,6 +58,8 @@ class WorkerGuardHcParityTests(unittest.TestCase):
             "cat tests/stubs/hc",
             "echo HC_SOCKET=/tmp/x",
             "git status",
+            "time -p git status",
+            "time git status",
         ):
             with self.subTest(cmd=cmd):
                 p = self._rc(cmd)

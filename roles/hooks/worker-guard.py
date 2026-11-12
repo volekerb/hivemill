@@ -5213,7 +5213,10 @@ def r2_assign_builtin_words(cmd):
     for _, _, words in segments(cmd):
         rest = list(words)
         while rest and (rest[0] in RESERVED or ASSIGN.match(rest[0])):
-            rest = rest[1:]
+            kw = rest.pop(0)
+            if kw == "time":
+                while rest and rest[0].startswith("-"):
+                    rest.pop(0)
         if rest and rest[0] in R2_ASSIGN_WORDS:
             return True
     return False
