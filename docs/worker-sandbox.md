@@ -2,7 +2,7 @@
 
 Goal G-010. Workers of the listed roles run `claude` inside an unprivileged user and mount namespace with an allow-list view of the owner's home. They log in with a worker-only token and a per-role GitHub token, so a worker cannot reach the owner's Claude login, ssh keys, gh login, systemd user bus or multiplexer socket. It is behind one config flag and is **not a full security boundary** (section 6).
 
-Code: `scout/nsbox.py` (allow mode, see [scout-nsbox.md](scout-nsbox.md)), `scout/workerbox.py` (the worker profile and shim), `bin/factory` (`sandbox_roles`, preflight, spawn wiring). Tests: `tests/test_nsbox_allow.py`, `tests/test_workerbox.py`, `tests/test_sandbox_spawn.py`, `tests/test_workerbox_go.py` (Go toolchain, T-1395).
+Code: `scout/nsbox.py` (allow mode, see [scout-nsbox.md](scout-nsbox.md)), `scout/workerbox.py` (the worker profile and shim), `bin/factory` (`sandbox_roles`, preflight, spawn wiring). Tests: `tests/test_nsbox_allow.py`, `tests/test_workerbox.py` (its `Go*` classes cover the Go toolchain, T-1395), `tests/test_sandbox_spawn.py`.
 
 Status at the time of writing (checked against the code on main): present are T-0159 (DB in its own dir), T-0160 (nsbox allow mode), T-0161 (worker profile), T-0162 (flag, preflight, golden test), T-0225 (workerbox nits), T-0209 (tmpfs sizes) and T-0174 (sandbox escape detection). Per-task `git clone --shared` (config `task_clones`, off by default; see [git-hardening.md](git-hardening.md)) and qa and coder rw on those clones are also in place. The sandbox itself stays opt-in: `sandbox_roles` is empty by default.
 
@@ -51,7 +51,7 @@ v0.5.0 is the Go port, so sandboxed coder, qa and reviewer run `go`, `gofmt`, `g
 
 - **GOPROXY=off consequence.** Nothing is downloaded inside. A PR that adds a new Go module cannot fetch it there: the lead gets the check run unsandboxed, or asks HQ to populate the host module cache.
 - **Cache.** The GOCACHE is cold and per agent (never shared between agents: cache poisoning). The first `-race` build of `go/` (modernc sqlite) takes minutes and about 1 GB of disk under the agent dir until the agent dir is cleaned (T-0166).
-- **Tests.** `tests/test_workerbox_go.py`: unit (binds, env, PATH, symlinked root, no-Go fallback, symlinked `go/` refused), real namespace (toolchain EROFS, cache writable, home hidden), real toolchain, and an opt-in heavy run (`FACTORY_GO_SANDBOX_HEAVY=1`) of `go vet` and `go test -race` on `go/` for coder, qa and reviewer.
+- **Tests.** `tests/test_workerbox.py` (`Go*` classes): unit (binds, env, PATH, symlinked root, no-Go fallback, symlinked `go/` refused), real namespace (toolchain EROFS, cache writable, home hidden), real toolchain, and an opt-in heavy run (`FACTORY_GO_SANDBOX_HEAVY=1`) of `go vet` and `go test -race` on `go/` for coder, qa and reviewer.
 - **Rollback.** Revert the PR (no DB, config or migration). Running agents keep the Go binds until relaunch. Turning the sandbox off (`factory config sandbox_roles ''`, or spawn without `--sandbox`) also bypasses it.
 
 ### researcher profile (G-029, T-0847)
