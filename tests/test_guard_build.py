@@ -3,6 +3,7 @@ import contextlib
 import io
 import os
 import shutil
+import stat
 import tempfile
 import time
 import unittest
@@ -19,6 +20,29 @@ GO_MOD = "module guardtest\n\ngo 1.20\n"
 BIN_DIR = Path(__file__).resolve().parent.parent / "bin"
 
 
+def rmtree_rw(path):
+    """Remove a temp dir that may hold a Go module cache (go writes dirs 0555 and files 0444, so a plain rmtree fails).
+    A leftover is an error, never silent (T-1413)."""
+    path = Path(path)
+    if not path.exists():
+        return
+    os.chmod(path, stat.S_IRWXU)
+    for root, dirs, _files in os.walk(path):
+        for d in dirs:
+            if not os.path.islink(os.path.join(root, d)):
+                os.chmod(os.path.join(root, d), stat.S_IRWXU)
+    shutil.rmtree(path)
+    if path.exists():
+        raise AssertionError(f"temp dir {path} survived cleanup: remove it and fix the cleanup")
+
+
+def mktmp(case, prefix):
+    """A temp dir removed (read-only Go module cache included) when the test or class ends."""
+    d = Path(tempfile.mkdtemp(prefix=prefix))
+    (case.addClassCleanup if isinstance(case, type) else case.addCleanup)(rmtree_rw, d)
+    return d
+
+
 def write_go(repo, main=MAIN_OK):
     d = Path(repo) / "go" / "cmd" / "worker-guard"
     d.mkdir(parents=True, exist_ok=True)
@@ -32,8 +56,7 @@ def write_go(repo, main=MAIN_OK):
 class GuardBuildTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
-        self.tmp = Path(tempfile.mkdtemp(prefix="zz-guard-build-"))
-        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.tmp = mktmp(self, "zz-guard-build-")
         self.repo, self.lib = self.tmp / "repo", self.tmp / "lib"
         self.repo.mkdir()
         git("init", "-q", "-b", "main", cwd=self.repo)
@@ -201,8 +224,7 @@ class GuardBuildHardeningTests(FactoryTestCase):
 
     def setUp(self):
         super().setUp()
-        self.tmp = Path(tempfile.mkdtemp(prefix="zz-guard-hard-"))
-        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.tmp = mktmp(self, "zz-guard-hard-")
         self.repo, self.lib = self.tmp / "repo", self.tmp / "lib"
         self.repo.mkdir()
         git("init", "-q", "-b", "main", cwd=self.repo)
@@ -463,8 +485,7 @@ class CliImplTests(FactoryTestCase):
         cls.bin = None
         cls.seed = os.environ.get("GOMODCACHE_SEED")  # a module cache holding go/go.mod's deps (CI: setup-go + go mod download)
         if REAL_GO and cls.seed:
-            cls.tmpdir = Path(tempfile.mkdtemp(prefix="zz-cli-impl-"))
-            cls.addClassCleanup(shutil.rmtree, cls.tmpdir, True)
+            cls.tmpdir = mktmp(cls, "zz-cli-impl-")
             out = cls.tmpdir / "factory-go"
             env = {**os.environ, "CGO_ENABLED": "0", "GOTOOLCHAIN": "local", "GOFLAGS": "", "GOPROXY": "off",
                    "GOMODCACHE": cls.seed}
@@ -636,8 +657,7 @@ class CliGoDepsTests(FactoryTestCase):
 
     def setUp(self):
         super().setUp()
-        self.tmp = Path(tempfile.mkdtemp(prefix="zz-cli-deps-"))
-        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.tmp = mktmp(self, "zz-cli-deps-")
         self.repo, self.lib = self.tmp / "repo", self.tmp / "lib"
         (self.repo / "go" / "cmd" / "factory").mkdir(parents=True)
         (self.repo / "go" / "cmd" / "factory" / "main.go").write_text(MAIN_OK)
@@ -662,6 +682,20 @@ class CliGoDepsTests(FactoryTestCase):
         for want in ("GOFLAGS=-mod=readonly", "GOSUMDB=sum.golang.org", "GOPROXY=https://proxy.golang.org",
                      f"GOMODCACHE={self.lib}/go/mod"):
             self.assertIn(want, text)
+
+    @unittest.skipIf(os.geteuid() == 0, "root ignores file modes, so the read-only premise cannot hold")
+    def test_cleanup_removes_a_read_only_go_module_cache(self):
+        """T-1413: go writes its module cache dirs 0555 and files 0444; a plain rmtree leaves it in /tmp."""
+        cache = self.tmp / "lib" / "go" / "mod" / "example.com" / "m-v1.0.0"
+        cache.mkdir(parents=True)
+        (cache / "m.go").write_text("package m\n")
+        (cache / "m.go").chmod(0o444)
+        for d in (cache, cache.parent, cache.parent.parent, cache.parent.parent.parent):
+            d.chmod(0o555)
+        shutil.rmtree(self.tmp / "lib", ignore_errors=True)
+        self.assertTrue(cache.exists(), "premise: a plain rmtree cannot remove a read-only module cache")
+        rmtree_rw(self.tmp / "lib")
+        self.assertFalse((self.tmp / "lib").exists())
 
     def test_fetch_failure_is_reported_not_raised(self):
         Path(self.go).write_text("#!/bin/sh\necho 'no network' >&2\nexit 1\n")
