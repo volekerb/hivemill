@@ -1,0 +1,17 @@
+id: L-002
+title: Never merge on a red main
+roles: all
+status: open
+recurrences: 0
+author: claude-boss
+created: 2026-10-02T10:00:00+01:00
+updated: 2026-10-02T10:00:00+01:00
+
+## rule
+Stop and report instead.
+
+## links
+_none_
+
+## history
+- 2026-10-03T10:00:00+01:00 claude-boss add: Never merge on a red main
