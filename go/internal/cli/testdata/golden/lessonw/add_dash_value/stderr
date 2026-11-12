@@ -1,0 +1,6 @@
+usage: factory lesson [-h] [--task TASK] [--pr PR] [--via VIA] [--note NOTE]
+                      [--evidence EVIDENCE] [--reason REASON] [--title TITLE]
+                      [--roles ROLES] [--rule RULE] [--what WHAT]
+                      [--source SOURCE] [--status STATUS] [--role ROLE]
+                      {add,list,show,edit,link,apply,verify,reopen} [id]
+factory lesson: error: argument --title: expected one argument

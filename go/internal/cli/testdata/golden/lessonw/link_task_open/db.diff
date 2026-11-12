@@ -1,0 +1,5 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="owner" entity="lesson" entity_id="L-001" action="link" detail="T-0002 (unmerged)"
++ lesson_links 6 id=6 lesson_id="L-001" task_id="T-0002" pr_url=NULL via=NULL merged_at=NULL author="owner" created="2026-11-12T01:02:03+00:00"
+- sqlite_sequence 2 name="lesson_links" seq=5
++ sqlite_sequence 2 name="lesson_links" seq=6
++ sqlite_sequence 3 name="events" seq=1

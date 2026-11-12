@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -20,6 +22,14 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Setenv("FACTORY_HOME", dir)
+	// expandUser reads $HOME while the host (live homes) is built from the passwd entry; the tests assume they are
+	// equal. The worker sandbox sets a fake HOME, so align it here. Outside the sandbox this is a no-op.
+	u, err := user.LookupId(strconv.Itoa(os.Getuid()))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	os.Setenv("HOME", u.HomeDir)
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)

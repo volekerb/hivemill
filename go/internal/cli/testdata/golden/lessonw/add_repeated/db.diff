@@ -1,0 +1,3 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="owner" entity="lesson" entity_id="L-008" action="add" detail="U"
++ lessons 8 id="L-008" title="U" roles="all" what=NULL rule="r" sources="" status="open" recurrences=0 author="owner" created="2026-11-12T01:02:03+00:00" updated="2026-11-12T01:02:03+00:00" applied_at=NULL verified_at=NULL verified_by=NULL evidence=NULL
++ sqlite_sequence 3 name="events" seq=1

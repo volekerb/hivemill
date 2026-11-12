@@ -1,0 +1,5 @@
++ audits 4 id=4 goal_id="G-4" version=3 verdict="ready" body="report line" author="claude-director" task_id=NULL created="2026-11-12T01:02:03+00:00"
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="goal" entity_id="G-4" action="audit v3" detail="ready"
+- sqlite_sequence 1 name="audits" seq=3
++ sqlite_sequence 1 name="audits" seq=4
++ sqlite_sequence 2 name="events" seq=1

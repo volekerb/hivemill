@@ -1,0 +1,9 @@
+project
+update
+P-1
+--gate-cmd
+make test
+--gate-count-cmd
+make count
+--gate-timeout-s
+90
