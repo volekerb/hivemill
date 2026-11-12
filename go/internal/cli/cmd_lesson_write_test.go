@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"factory/go/internal/identity"
 )
@@ -191,4 +192,62 @@ func TestLessonViasMatchPython(t *testing.T) {
 	if !strings.Contains(string(src), `LESSON_SOURCE_RE = re.compile(r"^(M\d+|T-\d{4}|G-\d{3}|#\d+|https://github\.com/[^/\s]+/[^/\s]+/pull/\d+)$")`) {
 		t.Fatal("LESSON_SOURCE_RE changed in bin/factory_cli.py; update lessonSourceRE")
 	}
+}
+
+// TestLessonSourceUnicode: Python's re \d / \s are Unicode; Go must accept and reject the same strings.
+func TestLessonSourceUnicode(t *testing.T) {
+	for s, ok := range map[string]bool{
+		"M١٢":                                  true, // Arabic-Indic digits
+		"T-１２３４":                               true, // fullwidth digits
+		"G-١٢٣":                                true,
+		"#१":                                   true, // Devanagari
+		"https://github.com/o/r/pull/١":        true,
+		"https://github.com/o x/r/pull/1":      false, // NBSP is \s
+		"https://github.com/o x/r/pull/1":      false, // LINE SEPARATOR is \s
+		"https://github.com/o/r　x/pull/1":      false, // ideographic space
+		"https://github.com/o\u0085x/r/pull/1": false, // NEL
+		"M²":                                   false, // superscript two is not Nd
+		"https://github.com/oé/r/pull/1":       true,  // non-space letters are fine
+	} {
+		if lessonSourceRE.MatchString(s) != ok {
+			t.Errorf("source %q: want %v", s, ok)
+		}
+	}
+}
+
+// FuzzLessonWriteParser: no panic, and an accepted parse only ever holds argv forms Go handles (no --pr for link,
+// no empty positional id, every flag a declared one, no flag value that looks like a flag).
+func FuzzLessonWriteParser(f *testing.F) {
+	f.Add("add", "--title\x00T\x00--roles\x00all")
+	f.Add("link", "L-001\x00--pr\x00u")
+	f.Add("edit", "L-001\x00--title=\xff")
+	f.Add("apply", "\x00--note\x00-x")
+	f.Add("verify", "L-1\x00--evidence\x00-")
+	f.Fuzz(func(t *testing.T, action, joined string) {
+		rest := strings.Split(joined, "\x00")
+		v, ok := lessonWriteParser(action)(rest)
+		if !ok {
+			return
+		}
+		c := v.(lessonWriteCmd)
+		for _, x := range rest {
+			if !utf8.ValidString(x) {
+				t.Fatalf("accepted invalid UTF-8 %q", x)
+			}
+		}
+		if c.id != nil && *c.id == "" {
+			t.Fatal("accepted an empty id")
+		}
+		if action == "link" && c.flags["--pr"] != nil {
+			t.Fatal("accepted link --pr (gh)")
+		}
+		for n, p := range c.flags {
+			if !lessonFlagNames[n] || p == nil {
+				t.Fatalf("bad flag %q", n)
+			}
+			if *p != "-" && strings.HasPrefix(*p, "-") {
+				t.Fatalf("accepted flag-like value %q for %s", *p, n)
+			}
+		}
+	})
 }

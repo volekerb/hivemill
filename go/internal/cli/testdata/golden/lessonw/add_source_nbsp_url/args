@@ -1,0 +1,10 @@
+lesson
+add
+--title
+T
+--roles
+all
+--rule
+r
+--source
+https://github.com/o x/r/pull/1

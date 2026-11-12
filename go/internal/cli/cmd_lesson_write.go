@@ -411,8 +411,8 @@ func lessonLink(c *ctx, a lessonWriteCmd) (int, error) {
 	switch err := c.db.QueryRow("SELECT created FROM verdicts WHERE task_id=? AND role='judge' AND verdict='merge' ORDER BY id DESC LIMIT 1", *task).Scan(&vCreated); err {
 	case nil:
 		if tStatus == "done" {
-			merged = nullAny(vCreated)
-			prURL = nullAny(tPR)
+			merged = lwNullAny(vCreated)
+			prURL = lwNullAny(tPR)
 		}
 	case sql.ErrNoRows:
 	default:
@@ -438,7 +438,7 @@ func lessonLink(c *ctx, a lessonWriteCmd) (int, error) {
 	return 0, nil
 }
 
-func nullAny(s sql.NullString) any {
+func lwNullAny(s sql.NullString) any {
 	if s.Valid {
 		return s.String
 	}
@@ -502,9 +502,9 @@ func lessonApply(c *ctx, a lessonWriteCmd) (int, error) {
 			left = append(left, l.task.String)
 			continue
 		}
-		prURL := nullAny(l.pr)
+		prURL := lwNullAny(l.pr)
 		if !l.pr.Valid || l.pr.String == "" {
-			prURL = nullAny(vpr)
+			prURL = lwNullAny(vpr)
 		}
 		if _, err := c.exec("UPDATE lesson_links SET merged_at=?, pr_url=? WHERE id=?", created.String, prURL, l.id); err != nil {
 			return 0, err
