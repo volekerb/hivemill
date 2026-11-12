@@ -1,0 +1,1 @@
+factory: task note text is empty; pass the note as an argument or on stdin with '-'. Nothing was written.

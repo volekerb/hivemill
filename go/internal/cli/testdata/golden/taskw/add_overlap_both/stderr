@@ -1,0 +1,2 @@
+warning: T-0003 (todo) also names go/internal/cli/a.go; chain with --after T-0003 or split the files (P3/P7)
+note: T-0004 (goal G-3, in_progress) also names go/internal/cli/b.go; name it in the spec and tell your lead (P3, L-020)

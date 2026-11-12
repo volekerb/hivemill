@@ -1,0 +1,6 @@
+task
+add
+--goal
+G-2
+--title
+tagged [SC1, SC2]
