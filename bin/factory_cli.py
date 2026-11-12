@@ -2524,7 +2524,7 @@ def check_gh_roles(key, value):
 GUARD_IMPLS = ("python", "go", "shadow")
 CLI_IMPLS = ("python", "go", "shadow")
 CLI_GO_CMDS_KNOWN = ("whoami", "flags", "agents", "config")  # the S1 set the Go binary answers (go/internal/cli)
-GUARD_BUILD_TIMEOUT_S = 300 # `factory up` (factory-up.service allows 600 s)
+GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 GUARD_TICK_BUILD_TIMEOUT_S = 120  # the tick (factory-tick.service TimeoutStartSec=240): a build must not kill the tick
 GUARD_FAILED_BACKOFF_S = 30 * 60  # the tick skips a build that failed for this srchash for this long
 
