@@ -44,7 +44,7 @@ func main() {
 
 // testClock is the clock of this run: FACTORY_TEST_NOW (an ISO timestamp with its offset) when it is set and
 // FACTORY_HOME is not a live home, else the real clock. A live home always gets the real clock, so a stray variable
-// can never stamp real rows; if liveness cannot be decided the real clock is used. Python's now() follows the same rule.
+// can never stamp real rows; a value without an offset is refused (Python S2h does the same); if liveness cannot be decided the real clock is used. Python's now() follows the same rule.
 func testClock(env identity.Env) (func() time.Time, error) {
 	raw := env.Getenv("FACTORY_TEST_NOW")
 	if raw == "" {
@@ -53,7 +53,7 @@ func testClock(env identity.Env) (func() time.Time, error) {
 	if live, err := env.HomeIsLive(); err != nil || live {
 		return time.Now, nil
 	}
-	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04:05.999999999", "2006-01-02T15:04", "2006-01-02"} {
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04Z07:00"} {
 		if t, err := time.Parse(layout, raw); err == nil {
 			return func() time.Time { return t }, nil
 		}
