@@ -1199,8 +1199,9 @@ GO_TEST_PKGS = "go test -race $(go list ./... | grep -v /internal/guard$)"
 class GoHeavyTests(GoBoxCase):
     def clone_go(self):
         dest = self.box.cwd
-        shutil.copytree(REPO / "go", dest / "go")  # a plain copy of the checkout's go/ module
-        return dest / "go"
+        # plain local clone (HEAD only, not --shared): the Go tests also read ci/ and roles/ files outside go/
+        harness.git("clone", "--quiet", str(REPO), str(dest / "repo"), cwd=dest, local_clone_of=REPO)
+        return dest / "repo" / "go"
 
     def heavy(self, role, rw_cwd):
         gd = self.clone_go()
