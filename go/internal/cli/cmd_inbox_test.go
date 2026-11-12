@@ -1,9 +1,13 @@
 package cli
 
 import (
+	"bytes"
+	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+	"time"
+
+	"factory/go/internal/identity"
 )
 
 // TestInboxDelegates: every inbox form that marks messages read (or that argparse might read differently) is
@@ -41,20 +45,20 @@ func TestInboxDelegates(t *testing.T) {
 	}
 }
 
-// TestInboxNoReadAt: no inbox golden case changes read_at (the fingerprint covers every row; this names the
-// column the spec cares about).
+// TestInboxNoReadAt: no inbox golden case changes read_at. Run() is pointed at the very database the
+// count is taken on (same Deps shape as runGo).
 func TestInboxNoReadAt(t *testing.T) {
 	for _, c := range goldenCases(t) {
 		if c.group != "inbox" {
 			continue
 		}
 		t.Run(c.name, func(t *testing.T) {
-			home := t.TempDir()
+			home, procDir := t.TempDir(), t.TempDir()
 			path, err := buildGoldenDB(t, home, "inbox")
 			if err != nil {
 				t.Fatal(err)
 			}
-			count := func() string {
+			count := func() int {
 				db, err := openRaw(path)
 				if err != nil {
 					t.Fatal(err)
@@ -64,14 +68,32 @@ func TestInboxNoReadAt(t *testing.T) {
 				if err := db.QueryRow("SELECT count(*) FROM messages WHERE read_at IS NOT NULL").Scan(&n); err != nil {
 					t.Fatal(err)
 				}
-				return strings.Repeat("x", n)
+				return n
 			}
 			before := count()
-			if _, err := runGo(t, c); err != nil { // runGo builds its own DB; same seed, so same count
+			env := goldenEnv(home, procDir, c.env)
+			m := envMap(env)
+			argv0, err := filepath.Abs(filepath.Join("..", "..", "..", "bin", "factory"))
+			if err != nil {
 				t.Fatal(err)
 			}
-			if before != count() {
-				t.Fatalf("read_at count changed")
+			var out, errb bytes.Buffer
+			Run(Deps{
+				Args: c.args, Argv0: argv0, Environ: append(append([]string{}, env...), "FACTORY_CLI_IMPL=go"),
+				Env: identity.Env{
+					Getenv:    func(k string) string { return m[k] },
+					LookupEnv: func(k string) (string, bool) { v, ok := m[k]; return v, ok },
+					Uid:       os.Getuid(),
+					PwDir:     func(int) (string, error) { return home, nil },
+					Now:       func() time.Time { return time.Date(2026, 11, 12, 1, 2, 3, 0, time.UTC) },
+				},
+				Stdout: &out, Stderr: &errb,
+				Getpid: func() int { return 4242 }, Getppid: func() int { return 4241 },
+				LookPath: func(f string) (string, error) { return "/usr/bin/" + f, nil },
+				Exec:     func(string, []string, []string) error { return nil },
+			})
+			if after := count(); before != after {
+				t.Fatalf("read_at count changed %d -> %d", before, after)
 			}
 		})
 	}
