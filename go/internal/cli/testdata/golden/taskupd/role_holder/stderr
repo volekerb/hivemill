@@ -1,0 +1,1 @@
+factory: T-0010 is held by agent claude-coder-t-0010; change the role with: factory stop claude-coder-t-0010 --reason ..., then factory task update T-0010 --role pm, then factory spawn pm --task T-0010

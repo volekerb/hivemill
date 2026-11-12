@@ -1,0 +1,2 @@
+note: T-0030 (goal G-3, todo) also names go/internal/cli/a.go; name it in the spec and tell your lead (P3, L-020)
+warning: T-0031 (todo) also names go/internal/cli/b.go; chain with --after T-0031 or split the files (P3/P7)
