@@ -1,0 +1,2 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="owner" entity="w0" entity_id="W-1" action="test-write" detail="meta"
++ sqlite_sequence 1 name="events" seq=1
