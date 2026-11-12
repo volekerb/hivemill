@@ -4,12 +4,14 @@ Safety: the temp home is its own git repo outside ~/factory and the checkout, HO
 dir, and `herdr` / `gh` on PATH are the stubs from tests/stubs. The live DB is never touched.
 """
 import ast
+import atexit
 import contextlib
 import io
 import importlib.machinery
 import importlib.util
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -264,6 +266,76 @@ class LiveHomeGuard:
                       "home): " + ", ".join(new))
 
 
+# -- FACTORY_IMPL (G-041 S1-d): which implementation of bin/factory FactoryEnv.run drives -----------------------------
+# unset or "python": bin/factory, exactly as before. "go": the Go binary (FACTORY_GO_BIN, else built once per process from
+# go/cmd/factory); a build failure raises. "diff": Python runs on the real temp home A, Go on a copy B with the same
+# argv/stdin/env; exit code, stdout, stderr, every DB table and the stub call log must match, else AssertionError. The
+# Python result is returned. Under go/diff inproc is forced off. Mirror of tests/guard_impl.py (GUARD_IMPL).
+_cli_go = []
+# host readings and elapsed seconds that two runs of the same command never share (memory, "force-stopped after 3601s")
+_HOST = re.compile(r"(?m)^ +\d+ MB .*$|(MemAvailable |mem available |after )\d+|\d+(\.\d+)?G free|\d+ MB")
+_UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
+_EPOCH = re.compile(r"\b1[5-9]\d{8}(?:\.\d+)?\b")
+_TS = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)")
+
+
+def factory_impl():
+    mode = os.environ.get("FACTORY_IMPL", "") or "python"
+    if mode not in ("python", "go", "diff"):
+        raise ValueError(f"FACTORY_IMPL={mode!r} is not python, go or diff; fix the environment")
+    return mode
+
+
+def cli_go_bin():
+    """A staged Go CLI: <tmp>/factory-go (FACTORY_GO_BIN copied, else built once per process) next to a `factory`
+    symlink to bin/factory, because the Go side hands unported commands to <its own dir>/factory. Raises, never skips."""
+    if _cli_go:
+        return _cli_go[0]
+    src = os.environ.get("FACTORY_GO_BIN")
+    tmp = tempfile.mkdtemp(prefix="factory-impl-go-")
+    atexit.register(shutil.rmtree, tmp, True)
+    out = os.path.join(tmp, "factory-go")
+    if src:
+        if not (os.path.isfile(src) and os.access(src, os.X_OK)):
+            raise RuntimeError(f"FACTORY_GO_BIN={src} is not an executable file; point it at a built go/cmd/factory")
+        shutil.copy2(src, out)
+    else:
+        go = shutil.which("go") or os.path.expanduser("~/.local/go/bin/go")
+        if not os.access(go, os.X_OK):
+            raise RuntimeError("go not found on PATH; install Go or set FACTORY_GO_BIN (a Go run never skips)")
+        env = dict(os.environ, GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off")
+        p = subprocess.run([go, "build", "-o", out, "./cmd/factory"], cwd=str(REPO / "go"), capture_output=True,
+                           text=True, timeout=600, env=env)
+        if p.returncode != 0:
+            raise RuntimeError(f"go build ./go/cmd/factory failed: {p.stderr.strip()}; fix the Go build first")
+    os.symlink(FACTORY, os.path.join(tmp, "factory"))
+    _cli_go.append(out)
+    return out
+
+
+def _normalize_ts(value):
+    """now() and random values differ run to run until S2 gives both impls FACTORY_TEST_NOW: ISO timestamps, epoch seconds, uuids."""
+    if isinstance(value, str):
+        return _HOST.sub("<host>", _UUID.sub("<uuid>", _EPOCH.sub("<ts>", _TS.sub("<ts>", value))))
+    return "<ts>" if isinstance(value, float) and value > 1e9 else value
+
+
+def dump_db(path):
+    """{table: rows ordered by primary key (rowid when none)} of a sqlite file, timestamps normalised."""
+    if not os.path.exists(path):
+        return None
+    con = sqlite3.connect(path)
+    try:
+        out = {}
+        for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"):
+            pk = [r[1] for r in sorted(con.execute(f'PRAGMA table_info("{name}")'), key=lambda r: r[5]) if r[5] > 0]
+            order = ", ".join(f'"{c}"' for c in pk) or "rowid"
+            out[name] = [tuple(_normalize_ts(v) for v in row) for row in con.execute(f'SELECT * FROM "{name}" ORDER BY {order}')]
+        return out
+    finally:
+        con.close()
+
+
 _FACTORY_CODE = None  # bin/factory_cli.py compiled once per process, for FactoryEnv.run_inproc
 
 
@@ -373,10 +445,77 @@ class FactoryEnv:
     def run(self, *args, agent=None, stdin=None, extra_env=None, inproc=None):
         if self.auto_sha and args[:1] == ("verdict",) and "--pass" in args and "--sha" not in args:
             args += self.pr_head_args(agent, extra_env)
-        if self.inproc if inproc is None else inproc:
+        mode = factory_impl()
+        if mode == "python" and (self.inproc if inproc is None else inproc):
             return self.run_inproc(*args, agent=agent, stdin=stdin, extra_env=extra_env)
+        if mode == "go":
+            return self._run_go(self.home, args, stdin, self.env(agent, extra_env))
+        if mode == "diff":
+            return self._run_diff(args, stdin, agent, extra_env)
         return subprocess.run([sys.executable, str(FACTORY), *args], input=stdin, capture_output=True,
                               text=True, env=self.env(agent, extra_env), cwd=self.home, timeout=60)
+
+    @staticmethod
+    def _run_go(cwd, args, stdin, env):
+        return subprocess.run([cli_go_bin(), *args], input=stdin, capture_output=True, text=True, env=env, cwd=cwd,
+                              timeout=60)
+
+    @staticmethod
+    def _copy_tree(src, dst):
+        """cp -a in a child process: closing a file this process reads would drop its sqlite locks on the same inode
+        (tests/test_db_layout.py keeps a late writer connection open across the call)."""
+        p = subprocess.run(["cp", "-a", "--", str(src), str(dst)], capture_output=True, text=True, timeout=60)
+        if p.returncode != 0:
+            raise RuntimeError(f"cp -a {src} {dst} failed: {p.stderr.strip()}; fix the temp dir before using FACTORY_IMPL=diff")
+
+    def _state(self):
+        return dump_db(str(self.db_path)), [_normalize_ts(l) for l in self.calls_file.read_text().splitlines()]
+
+    def _run_diff(self, args, stdin, agent, extra_env):
+        """FACTORY_IMPL=diff: snapshot the temp root, run Python on it, set its result aside, run Go on the snapshot (same paths,
+        so path-dependent behaviour matches), compare both end states, and leave Python's end state in place."""
+        env = self.env(agent, extra_env)
+        snaps = Path(tempfile.mkdtemp(prefix="zz-test-factory-snap-")).resolve()
+        try:
+            self._copy_tree(self.home, snaps / "pre")
+            py = subprocess.run([sys.executable, str(FACTORY), *args], input=stdin, capture_output=True, text=True,
+                                env=env, cwd=self.home, timeout=60)
+            db_py, calls_py = self._state()
+            # Python's end state is moved aside (renamed, so open files and inodes survive) while Go runs on a fresh
+            # copy of the pre-state at the same path; then Python's state moves back.
+            aside = self.home.with_name(self.home.name + "-py")
+            os.rename(self.home, aside)
+            try:
+                self._copy_tree(snaps / "pre", self.home)
+                go = self._run_go(self.home, args, stdin, env)
+                db_go, calls_go = self._state()
+            finally:
+                shutil.rmtree(self.home, ignore_errors=True)
+                os.rename(aside, self.home)
+            go_err = re.sub(r"(?m)^factory\(go\):", "factory:", go.stderr)
+            problems = []
+            if py.returncode != go.returncode:
+                problems.append(f"exit code: python {py.returncode}, go {go.returncode}")
+            out_py, out_go = py.stdout, go.stdout
+            out_py, out_go = (_HOST.sub("<host>", o) for o in (out_py, out_go))
+            if out_py != out_go:
+                problems.append(f"stdout: python {py.stdout!r}, go {go.stdout!r}")
+            if py.stderr != go_err:
+                problems.append(f"stderr: python {py.stderr!r}, go {go_err!r}")
+            if (db_py is None) != (db_go is None):
+                problems.append("DB: exists on one side only")
+            elif db_py is not None:
+                for t in sorted(set(db_py) | set(db_go)):
+                    if db_py.get(t) != db_go.get(t):
+                        problems.append(f"DB table {t}: python {db_py.get(t)!r}, go {db_go.get(t)!r}")
+            if calls_py != calls_go:
+                problems.append(f"stub calls: python {calls_py!r}, go {calls_go!r}")
+            if problems:
+                raise AssertionError(f"FACTORY_IMPL=diff: `factory {' '.join(args)}` differs between python and go:\n  "
+                                     + "\n  ".join(problems))
+            return py
+        finally:
+            shutil.rmtree(snaps, ignore_errors=True)
 
     def run_inproc(self, *args, agent=None, stdin=None, extra_env=None):
         """`run` without the interpreter start-up: bin/factory main() runs in this process, in a fresh module namespace

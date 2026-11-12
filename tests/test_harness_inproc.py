@@ -2,7 +2,7 @@
 import os
 import sys
 
-from harness import FactoryTestCase
+from harness import FACTORY, FactoryTestCase
 
 
 class RunInprocTests(FactoryTestCase):
@@ -43,3 +43,80 @@ class InprocClassDefaultTests(FactoryTestCase):
 
     def test_class_attribute_routes_run_in_process(self):
         self.assertTrue(self.env.inproc)
+
+
+class FactoryImplTests(FactoryTestCase):
+    """FACTORY_IMPL=python|go|diff (G-041 S1-d): the parity runner must compare something, and must say what differed."""
+
+    def stub_go(self, tail="", head=""):
+        """A fake Go binary: runs the real Python CLI, with `head` run before and `tail` after it (shell)."""
+        path = self.env.home / "stub-go"
+        path.write_text(f'#!/bin/sh\n{head}\n{sys.executable} "{FACTORY}" "$@"\nrc=$?\n{tail}\nexit $rc\n')
+        path.chmod(0o755)
+        return str(path)
+
+    def with_impl(self, mode, go_bin=None):
+        from unittest import mock
+        import harness
+        env = {"FACTORY_IMPL": mode}
+        if go_bin:
+            env["FACTORY_GO_BIN"] = go_bin
+        p = mock.patch.dict(os.environ, env)
+        p.start()
+        self.addCleanup(p.stop)
+        self.addCleanup(harness._cli_go.clear)  # each test stages its own stub
+        harness._cli_go.clear()
+
+    def test_diff_passes_when_both_sides_agree_and_returns_python_result(self):
+        self.with_impl("diff", self.stub_go())
+        p = self.env.run("whoami", agent="zz-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("zz-x", p.stdout)
+
+    def test_diff_catches_an_extra_space_and_names_the_argv(self):
+        self.with_impl("diff", self.stub_go(tail="printf ' '"))
+        with self.assertRaises(AssertionError) as cm:
+            self.env.run("whoami", agent="zz-x")
+        self.assertIn("factory whoami", str(cm.exception))
+        self.assertIn("stdout", str(cm.exception))
+
+    def test_diff_catches_an_extra_db_row_and_names_the_table(self):
+        sql = f"INSERT INTO config(key,value) VALUES('zz_extra','1')"
+        tail = f'{sys.executable} -c "import sqlite3,os;c=sqlite3.connect(os.environ[\'FACTORY_HOME\']+\'/db/factory.db\');c.execute(\\"{sql}\\");c.commit()"'
+        self.with_impl("diff", self.stub_go(tail=tail))
+        with self.assertRaises(AssertionError) as cm:
+            self.env.run("whoami", agent="zz-x")
+        self.assertIn("DB table config", str(cm.exception))
+
+    def test_diff_catches_a_different_exit_code(self):
+        self.with_impl("diff", self.stub_go(tail="rc=3"))
+        with self.assertRaises(AssertionError) as cm:
+            self.env.run("whoami", agent="zz-x")
+        self.assertIn("exit code", str(cm.exception))
+
+    def test_go_mode_returns_the_go_result_and_forces_inproc_off(self):
+        self.with_impl("go", self.stub_go(tail="echo GO-SIDE"))
+        p = self.env.run("whoami", agent="zz-x", inproc=True)
+        self.assertIn("GO-SIDE", p.stdout)
+
+    def test_unknown_impl_raises_naming_the_variable(self):
+        self.with_impl("bogus")
+        with self.assertRaises(ValueError) as cm:
+            self.env.run("whoami")
+        self.assertIn("FACTORY_IMPL", str(cm.exception))
+
+    def test_unset_impl_is_python(self):
+        from unittest import mock
+        with mock.patch.dict(os.environ):
+            os.environ.pop("FACTORY_IMPL", None)
+            p = self.env.run("whoami", agent="zz-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_oracles_file_lists_ten_existing_modules(self):
+        from harness import REPO
+        lines = (REPO / "go" / "cmd" / "factory" / "testdata" / "oracles.txt").read_text().splitlines()
+        mods = [l.strip() for l in lines if l.strip() and not l.lstrip().startswith("#")]
+        self.assertEqual(len(mods), 10)
+        for m in mods:
+            self.assertTrue(m.startswith("tests.test_"), m)
+            self.assertTrue((REPO / (m.replace(".", "/") + ".py")).is_file(), m)
