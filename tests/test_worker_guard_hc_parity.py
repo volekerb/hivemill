@@ -4,6 +4,8 @@ import os
 import sys
 import unittest
 
+GUARD_IMPL_PYTHON_ONLY = "G-031 SC5 hc/herdr-core worker rules are Python-only until the Go mirror (T-0990)"
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard_impl import hook_run  # noqa: E402
 
