@@ -1,0 +1,1 @@
+factory: identity unknown: this looks like an agent pane but FACTORY_AGENT is unset and the pane matches no single live agent. export FACTORY_AGENT=<your agent name>, or FACTORY_AGENT=owner if you are the owner

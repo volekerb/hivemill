@@ -1,0 +1,2 @@
++ messages 1 id=1 sender="director" recipient="cursor-director" kind="request" subject="hi" body=NULL goal_id=NULL task_id=NULL created="2026-11-12T01:02:03+00:00" read_at=NULL
++ sqlite_sequence 1 name="messages" seq=1

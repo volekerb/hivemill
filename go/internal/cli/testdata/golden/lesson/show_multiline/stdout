@@ -1,0 +1,19 @@
+id: L-004
+title: Ünïcode title with a long tail that gets cut at sixty characters when the table is printed
+roles: qa,reviewer
+status: open
+recurrences: 2
+created: 2026-10-04T10:00:00+01:00
+updated: 2026-10-04T10:00:00+01:00
+
+## what
+Line one.
+Line two.
+
+## rule
+Check both.
+
+## links
+_none_
+
+## history

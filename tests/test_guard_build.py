@@ -453,5 +453,260 @@ class GuardBuildHardeningTests(FactoryTestCase):
         self.assertFalse(self.decoy.exists(), "a PATH go or nice ran")
 
 
+class CliImplTests(FactoryTestCase):
+    """T-1336 (G-041 S1-c): cli_impl / cli_go_cmds, run/cli_impl, the factory-go build and the bin/factory dispatch.
+    The real go/cmd/factory is built once; the env's own go/ tree only gives the srchash the stamp must equal."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.bin = None
+        cls.seed = os.environ.get("GOMODCACHE_SEED")  # a module cache holding go/go.mod's deps (CI: setup-go + go mod download)
+        if REAL_GO and cls.seed:
+            cls.tmpdir = Path(tempfile.mkdtemp(prefix="zz-cli-impl-"))
+            cls.addClassCleanup(shutil.rmtree, cls.tmpdir, True)
+            out = cls.tmpdir / "factory-go"
+            env = {**os.environ, "CGO_ENABLED": "0", "GOTOOLCHAIN": "local", "GOFLAGS": "", "GOPROXY": "off",
+                   "GOMODCACHE": cls.seed}
+            p = subprocess_run([REAL_GO, "build", "-buildvcs=false", "-trimpath", "-o", str(out), "./cmd/factory"],
+                               BIN_DIR.parent / "go", env)
+            if p.returncode:
+                raise AssertionError(f"go build ./cmd/factory failed: {p.stderr}")
+            cls.bin = out
+
+    def setUp(self):
+        super().setUp()
+        self.h = write_go(self.env.home_dir)
+        self.lib = self.env.user_home / ".local" / "lib" / "factory"
+        self.lib.mkdir(parents=True)
+        if self.bin is None:  # no real factory-go (needs go + GOMODCACHE_SEED): a fake one is enough for dispatch/flag tests
+            (self.lib / "factory-go").write_text("#!/bin/sh\necho FAKE-GO\n")
+            (self.lib / "factory-go").chmod(0o755)
+        else:
+            shutil.copy(self.bin, self.lib / "factory-go")
+        self.stamp = self.lib / "factory-go.stamp"
+        self.stamp.write_text(self.h + "\n")
+        self.flag = self.env.home_dir / "run" / "cli_impl"
+        self.env.seed_agent("dir-1", "director")
+        self.env.seed_agent("lead-1", "lead")
+        self.cfg("cli_impl", "go")
+        self.cfg("cli_go_cmds", "whoami")
+
+    def need_real(self):
+        if self.bin is None:
+            self.skipTest("needs the real factory-go: a go toolchain and GOMODCACHE_SEED (CI wires it after setup-go)")
+
+    def cfg(self, key, value, agent="dir-1"):
+        p = self.env.run("config", key, value, agent=agent, inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def call(self, *args, agent="dir-1", **extra):
+        return self.env.run(*args, agent=agent, inproc=False, extra_env={"FACTORY_CLI_TRACE": "1", **extra})
+
+    def impl(self, p):
+        lines = [x for x in p.stderr.splitlines() if x.startswith("impl=")]
+        self.assertTrue(lines, p.stderr)  # a delegated Go call adds the Python child's own line after the first
+        return lines[0]
+
+    def python_answer(self, *args):
+        return self.env.run(*args, agent="dir-1", inproc=False, extra_env={"FACTORY_CLI_IMPL": "python"})
+
+    def test_flag_file_follows_config(self):  # run/cli_impl is "<mode> <srchash> <csv>"
+        self.assertEqual(self.flag.read_text(), f"go {self.h} whoami\n")
+        self.cfg("cli_impl", "python")
+        self.assertEqual(self.flag.read_text(), "python -\n")
+
+    def test_go_answers_when_flagged_and_listed(self):  # acceptance 2
+        self.need_real()
+        p = self.call("whoami")
+        self.assertEqual(self.impl(p), "impl=go")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout, self.python_answer("whoami").stdout)
+
+    def test_stale_or_missing_binary_means_python(self):  # acceptance 3
+        want = self.python_answer("whoami").stdout
+        self.stamp.write_text("x\n")
+        p = self.call("whoami")
+        self.assertEqual((self.impl(p), p.stdout), ("impl=python", want))
+        self.stamp.unlink()
+        self.assertEqual(self.impl(self.call("whoami")), "impl=python")
+        self.stamp.write_text(self.h + "\n")
+        (self.lib / "factory-go").unlink()
+        self.assertEqual(self.impl(self.call("whoami")), "impl=python")
+
+    def test_malformed_flag_means_python(self):
+        for text in ("go\n", "go " + self.h + "\n", "banana " + self.h + " whoami\n", "go  whoami\n", ""):
+            self.flag.write_text(text)
+            self.assertEqual(self.impl(self.call("whoami")), "impl=python", repr(text))
+        self.flag.unlink()
+        self.assertEqual(self.impl(self.call("whoami")), "impl=python")
+
+    def test_env_can_only_force_python(self):  # acceptance 4
+        self.assertEqual(self.impl(self.call("whoami", FACTORY_CLI_IMPL="python")), "impl=python")
+        self.cfg("cli_impl", "python")
+        self.assertEqual(self.impl(self.call("whoami", FACTORY_CLI_IMPL="go")), "impl=python")
+
+    def test_unlisted_command_stays_python(self):  # acceptance 5
+        self.assertEqual(self.impl(self.call("agents")), "impl=python")
+
+    def test_user_version_equals_schema_version_after_init(self):
+        import sqlite3
+        with self.env.load_factory() as f:
+            want = f.SCHEMA_VERSION
+        con = sqlite3.connect(self.env.home_dir / "db" / "factory.db")
+        self.addCleanup(con.close)
+        self.assertEqual(con.execute("PRAGMA user_version").fetchone()[0], want)
+
+    def test_go_gets_argv0_of_bin_factory(self):  # S1-b handoff: Go derives its Python entry from argv[0]
+        self.need_real()
+        self.cfg("cli_go_cmds", "agents")
+        p = self.call("agents", "--bogus")  # Go delegates this shape to <dir of argv[0]>/factory under python3
+        self.assertEqual(self.impl(p), "impl=go")
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("unrecognized arguments: --bogus", p.stderr)
+
+    def test_shadow_python_answers_and_a_diff_is_logged_as_hashes_only(self):
+        self.need_real()
+        self.cfg("cli_impl", "shadow")
+        want = self.python_answer("whoami")
+        log = self.env.home_dir / "logs" / "cli-shadow.log"
+        p = self.call("whoami")
+        self.assertEqual((self.impl(p), p.stdout), ("impl=shadow", want.stdout))
+        self.assertFalse(log.exists(), "Go agreed with Python: nothing to log")
+        (self.lib / "factory-go").write_text("#!/bin/sh\necho SECRET-GO-TEXT\n")
+        (self.lib / "factory-go").chmod(0o755)
+        p = self.call("whoami")
+        self.assertEqual((p.returncode, p.stdout), (0, want.stdout))
+        text = log.read_text()
+        self.assertNotIn("SECRET-GO-TEXT", text)
+        self.assertNotIn(want.stdout.strip(), text)
+        self.assertRegex(text, r"[0-9a-f]{64} py=0 go=0 [0-9a-f]{64} [0-9a-f]{64}\n")
+
+    def test_shadow_never_runs_a_write_twice(self):
+        self.cfg("cli_impl", "shadow")  # first: with "config" listed and mode go, the fake factory-go would swallow this write
+        self.cfg("cli_go_cmds", "config")
+        self.assertEqual(self.impl(self.call("config", "cli_go_cmds", "config")), "impl=python")  # write: Python only
+        self.assertEqual(self.impl(self.call("config", "cli_go_cmds")), "impl=shadow")  # read
+
+    def test_director_only_and_same_refusal_as_guard_impl(self):  # acceptance 9
+        a = self.env.run("config", "cli_impl", "go", agent="lead-1", inproc=False)
+        b = self.env.run("config", "guard_impl", "go", agent="lead-1", inproc=False)
+        self.assertEqual((a.returncode, a.stderr), (b.returncode, b.stderr))
+        self.assertNotEqual(a.returncode, 0)
+
+    def test_bad_values_are_exit_2(self):
+        p = self.env.run("config", "cli_impl", "rust", agent="dir-1", inproc=False)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("python, go, shadow", p.stderr)
+        p = self.env.run("config", "cli_go_cmds", "whoami,task", agent="dir-1", inproc=False)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("'task'", p.stderr)
+        self.assertEqual(self.env.run("config", "cli_go_cmds", agent="dir-1", inproc=False).stdout.strip(), "whoami")
+
+    def test_tick_rewrites_the_flag_from_the_db(self):
+        self.flag.write_text("go x whoami\n")
+        p = self.env.run("tick", extra_env={"FACTORY_LOADAVG": "999"})  # a loaded box skips the build
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.flag.read_text(), f"go {self.h} whoami\n")
+
+    @unittest.skipUnless(REAL_GO, "no ~/.local/go/bin/go toolchain")
+    def test_build_cli_go_writes_binary_then_stamp(self):
+        repo, lib = self.lib.parent / "repo", self.lib.parent / "lib2"
+        repo.mkdir()
+        git("init", "-q", "-b", "main", cwd=repo)
+        d = repo / "go" / "cmd" / "factory"
+        d.mkdir(parents=True)
+        (d / "main.go").write_text(MAIN_OK)
+        (repo / "go" / "go.mod").write_text(GO_MOD)
+        git("add", "-A", cwd=repo)
+        git("commit", "-q", "-m", "go", cwd=repo)
+        srchash = git("rev-parse", "HEAD:go", cwd=repo)
+        with self.env.load_factory() as f:
+            self.assertEqual(f.build_cli_go(repo, lib, go=REAL_GO), "built")
+            self.assertEqual((lib / "factory-go.stamp").read_text().strip(), srchash)
+            self.assertTrue(os.access(lib / "factory-go", os.X_OK))
+            self.assertEqual(f.cli_binary_state(repo, lib), "ok")
+            self.assertEqual(f.build_cli_go(repo, lib, go=REAL_GO), "current")
+            self.assertFalse((lib / "worker-guard").exists(), "the guard build was not asked for")
+
+
+class CliGoDepsTests(FactoryTestCase):
+    """T-1336 item 3: the factory-go build is offline (GOPROXY=off); only fetch_cli_go_deps, called from `factory up`,
+    reaches a proxy, with -mod=readonly and the checksum database on. A fake go records each call and its environment."""
+
+    def setUp(self):
+        super().setUp()
+        self.tmp = Path(tempfile.mkdtemp(prefix="zz-cli-deps-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.repo, self.lib = self.tmp / "repo", self.tmp / "lib"
+        (self.repo / "go" / "cmd" / "factory").mkdir(parents=True)
+        (self.repo / "go" / "cmd" / "factory" / "main.go").write_text(MAIN_OK)
+        (self.repo / "go" / "go.mod").write_text(GO_MOD)
+        git("init", "-q", "-b", "main", cwd=self.repo)
+        git("add", "-A", cwd=self.repo)
+        git("commit", "-q", "-m", "go", cwd=self.repo)
+        self.log = self.tmp / "calls"
+        self.go = str(self.tmp / "go")
+
+    def fake_go(self, build_body="exit 0"):
+        Path(self.go).write_text(f'#!/bin/sh\necho "$1 $2" >> "{self.log}"\nenv | sort >> "{self.log}"\n'
+                                 f'if [ "$1" = build ]; then\n{build_body}\nfi\n')
+        Path(self.go).chmod(0o755)
+
+    def test_fetch_runs_download_then_verify_with_readonly_and_sumdb_on(self):
+        self.fake_go()
+        with self.env.load_factory() as f:
+            self.assertEqual(f.fetch_cli_go_deps(self.lib, self.repo, go=self.go), "fetched")
+        text = self.log.read_text()
+        self.assertLess(text.index("mod download"), text.index("mod verify"))
+        for want in ("GOFLAGS=-mod=readonly", "GOSUMDB=sum.golang.org", "GOPROXY=https://proxy.golang.org",
+                     f"GOMODCACHE={self.lib}/go/mod"):
+            self.assertIn(want, text)
+
+    def test_fetch_failure_is_reported_not_raised(self):
+        Path(self.go).write_text("#!/bin/sh\necho 'no network' >&2\nexit 1\n")
+        Path(self.go).chmod(0o755)
+        with self.env.load_factory() as f:
+            self.assertEqual(f.fetch_cli_go_deps(self.lib, self.repo, go=self.go), "failed")
+
+    def test_the_tick_build_never_downloads_and_stays_offline(self):
+        self.fake_go('while [ $# -gt 0 ]; do [ "$1" = -o ] && echo x > "$2"; shift; done')
+        with self.env.load_factory() as f:
+            self.assertEqual(f.build_cli_go(self.repo, self.lib, tick=True, go=self.go), "built")
+        text = self.log.read_text()
+        self.assertNotIn("mod download", text)
+        self.assertIn("GOPROXY=off", text)
+        self.assertNotIn("GOPROXY=https", text)
+
+    def test_missing_deps_fail_with_the_run_factory_up_hint_and_python_stays(self):
+        self.fake_go('echo "go: downloading modernc.org/sqlite v1.62.0: module lookup disabled by GOPROXY=off" >&2\nexit 1')
+        with self.env.load_factory() as f:
+            self.assertEqual(f.build_cli_go(self.repo, self.lib, tick=True, go=self.go), "failed")
+            self.assertEqual(f.cli_binary_state(self.repo, self.lib), "missing")
+        self.assertFalse((self.lib / "factory-go.stamp").exists())
+
+    @unittest.skipUnless(REAL_GO, "no ~/.local/go/bin/go toolchain")
+    def test_worker_guard_has_no_dependency_outside_this_module(self):
+        p = subprocess_run([REAL_GO, "list", "-deps", "-f", "{{if not .Standard}}{{.ImportPath}}{{end}}", "./cmd/worker-guard"],
+                           BIN_DIR.parent / "go", {**os.environ, "GOFLAGS": "-mod=readonly", "GOPROXY": "off",
+                                                    "GOTOOLCHAIN": "local"})
+        self.assertEqual(p.returncode, 0, p.stderr)
+        bad = [x for x in p.stdout.split() if not x.startswith("factory/go")]
+        self.assertEqual(bad, [], "the guard stays dependency-free (ADR 0001)")
+
+    @unittest.skipUnless(REAL_GO and os.environ.get("GOMODCACHE_SEED"),
+                         "needs a real go and GOMODCACHE_SEED (CI wires it after setup-go; not applied yet means skipped)")
+    def test_real_fetch_from_a_file_proxy_then_an_offline_build(self):
+        seed = os.environ["GOMODCACHE_SEED"]
+        with self.env.load_factory() as f:
+            src = Path(f.__file__).resolve().parent.parent
+            self.assertEqual(f.fetch_cli_go_deps(self.lib, src, proxy=f"file://{seed}/cache/download", go=REAL_GO), "fetched")
+
+
+def subprocess_run(cmd, cwd, env):
+    import subprocess
+    return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=600)
+
+
 if __name__ == "__main__":
     unittest.main()

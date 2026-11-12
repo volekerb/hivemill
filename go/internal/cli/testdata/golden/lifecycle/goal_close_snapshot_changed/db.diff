@@ -1,0 +1,2 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="goal" entity_id="G-7" action="close-refused" detail="T-7 changed after sign-off of audit v1 (done -> cancelled); T-8 is new: re-audit and get a new sign-off"
++ sqlite_sequence 3 name="events" seq=1

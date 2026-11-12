@@ -1,0 +1,6 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="project" entity_id="P-1" action="update" detail="gate_cmd='make test'"
++ events 2 id=2 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="project" entity_id="P-1" action="update" detail="gate_count_cmd='make count'"
++ events 3 id=3 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="project" entity_id="P-1" action="update" detail="gate_timeout_s=90"
+- projects 1 id="P-1" name="Project one" repo_path=NULL gh_repo="old/name" base_branch="main" auto_merge=1 notes=NULL created="2026-11-01T00:00:00+01:00" required_checks="" gate_cmd="" gate_count_cmd="" gate_timeout_s=3600
++ projects 1 id="P-1" name="Project one" repo_path=NULL gh_repo="old/name" base_branch="main" auto_merge=1 notes=NULL created="2026-11-01T00:00:00+01:00" required_checks="" gate_cmd="make test" gate_count_cmd="make count" gate_timeout_s=90
++ sqlite_sequence 3 name="events" seq=3

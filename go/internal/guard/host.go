@@ -98,6 +98,7 @@ func buildHost(pwDir string, uid int, pyHook string) *hostInfo {
 	for _, h2 := range homes {
 		h.runSettings = append(h.runSettings, pyRealpath(pyJoin(pyJoin(h2, "run"), "settings")))
 		h.runGuardImpl = append(h.runGuardImpl, pyRealpath(pyJoin(pyJoin(h2, "run"), "guard_impl")))
+		h.runGuardImpl = append(h.runGuardImpl, pyRealpath(pyJoin(pyJoin(h2, "run"), "cli_impl"))) // T-1336: held like guard_impl
 		h.runExport = append(h.runExport, pyRealpath(pyJoin(pyJoin(h2, "run"), "guard-export.json")))
 	}
 	for _, n := range PersistNames {

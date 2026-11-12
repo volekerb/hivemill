@@ -102,11 +102,42 @@ def _refuse_cwd(cwd, home, factory_home, agent_dir, hide, research_root=None):
     return want
 
 
+GO_ROOT_REL = ".local/go"
+GO_MODCACHE_REL = (".cache/go/path/pkg/mod", ".local/lib/factory/go/mod")  # first real dir wins; the second is T-1336's private cache
+GO_DIR = "go"  # per-agent dir name under <agent dir>: cache, tmp, path
+
+
+def go_paths(home, agent_dir, go_root=None, go_modcache=None):
+    """The Go toolchain facts for one worker, or None when there is no usable Go (then the sandbox is as before).
+
+    Paths are realpath'd: CI makes ~/.local/go a symlink and nsbox refuses a symlink in ro."""
+    root = os.path.realpath(go_root or f"{home}/{GO_ROOT_REL}")
+    exe = os.path.join(root, "bin", "go")
+    if not (os.path.isfile(exe) and os.access(exe, os.X_OK)):
+        return None
+    mod = None
+    for cand in ([go_modcache] if go_modcache else [f"{home}/{rel}" for rel in GO_MODCACHE_REL]):
+        if os.path.isdir(cand):
+            mod = os.path.realpath(cand)
+            break
+    return {"root": root, "modcache": mod, "dir": f"{agent_dir}/{GO_DIR}"}
+
+
+def go_env_for(go):
+    """The env HQ sets for Go inside: offline, local toolchain, per-agent cache and tmp on disk."""
+    env = {"GOROOT": go["root"], "GOCACHE": f"{go['dir']}/cache", "GOTMPDIR": f"{go['dir']}/tmp",
+           "GOPATH": f"{go['dir']}/path", "GOTOOLCHAIN": "local", "GOPROXY": "off", "GOSUMDB": "off",
+           "GOFLAGS": "-mod=readonly", "GOENV": "off", "GOWORK": "off"}
+    if go["modcache"]:
+        env["GOMODCACHE"] = go["modcache"]
+    return env
+
+
 def _hide_trees(home, runtime, hide_extra=()):
     return [os.path.realpath(d) for d in (home, runtime, "/tmp", "/dev/shm", *hide_extra) if os.path.isdir(d)]
 
 
-def make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home, runtime, hide_extra=(), research_root=None):
+def make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home, runtime, hide_extra=(), research_root=None, go=None):
     """The nsbox allow-list cfg for one worker. All paths are resolved here, in HQ, never inside."""
     home = os.path.realpath(home)
     factory_home = os.path.realpath(factory_home)
@@ -121,6 +152,11 @@ def make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home,
     if _under(install, share) and os.path.isdir(os.path.dirname(install)):
         ro.append(os.path.dirname(install))
     rw = [db_dir, f"{agent_dir}/claude"]
+    if go:  # toolchain and module cache read-only (outside home they are already visible); one rw dir per agent
+        for d in (go["root"], go["modcache"]):
+            if d and _under(d, home):
+                ro.append(d)
+        rw.append(go["dir"])
     (rw if rw_cwd else ro).append(want)
     masks = [f"{factory_home}/worktrees"] if os.path.isdir(f"{factory_home}/worktrees") else []
     cfg = nsbox.make_cfg(f"{agent_dir}/claude", claude, home, mode="allow", net=True, pid=False, keep_env=KEEP_ENV,
@@ -143,11 +179,15 @@ def make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home,
     return cfg
 
 
-def build_env(caller_env, cfg_home, config_dir, gitconfig, oauth, gh):
+def build_env(caller_env, cfg_home, config_dir, gitconfig, oauth, gh, go_env=None):
     """The allow-list env for stage 1: WORKER_ENV_PASS and LC_* from the caller, plus the values set here."""
     env = {k: v for k, v in caller_env.items() if k in WORKER_ENV_PASS or k.startswith("LC_")}
     env.update({"HOME": cfg_home, "CLAUDE_CONFIG_DIR": config_dir, "GIT_CONFIG_GLOBAL": gitconfig,
                 "DISABLE_AUTOUPDATER": "1", "CLAUDE_CODE_OAUTH_TOKEN": oauth, "GH_TOKEN": gh})
+    if go_env:  # set by HQ, never passed through from the caller; goroot/bin goes last so the claude shim stays first
+        env.update(go_env)
+        path = env.get("PATH")
+        env["PATH"] = f"{path}:{go_env['GOROOT']}/bin" if path else f"{go_env['GOROOT']}/bin:/usr/bin:/bin"
     return env
 
 
@@ -158,7 +198,8 @@ def shim_main(shim_cfg, args):
     for tok, path in ((oauth, shim_cfg["oauth_token"]), (gh, shim_cfg["gh_token"])):
         if not tok:
             nsbox._fail3(path)
-    env = build_env(os.environ, shim_cfg["home"], shim_cfg["config_dir"], shim_cfg["gitconfig"], oauth, gh)
+    env = build_env(os.environ, shim_cfg["home"], shim_cfg["config_dir"], shim_cfg["gitconfig"], oauth, gh,
+                    shim_cfg.get("go_env"))
     argv = nsbox.compose_stage1(shim_cfg["ns"], args)
     os.execve(argv[0], argv, env)
 
@@ -379,7 +420,7 @@ def check_cwd(agent, cwd, factory_home, *, home=None, token_dir=None, workers_ro
 
 def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home=None, token_dir=None,
                   workers_root=None, runtime=None, hide_extra=(), identity=None, repo=None, gh_token_path=None, gh_slugs=None,
-                  research_root=None):
+                  research_root=None, go_root=None, go_modcache=None):
     """Create/refresh <workers_root>/<agent> and return it. See the module doc.
 
     The keyword-only args are test seams; HQ passes none of them: home defaults to the passwd home, token_dir to
@@ -389,7 +430,9 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
     `gh_token_path` is the role's token file from config gh_token_ro / gh_token_rw (default: the fixed file of the role
     in token_dir); `gh_slugs` is the OWNER/NAME list the credential helper answers for (config worker_gh_repos): without
     it there is no helper and the call is refused. `research_root` (researcher only) is the one tree under the hidden
-    home a cwd may sit in; it is ignored for every other role."""
+    home a cwd may sit in; it is ignored for every other role.
+    `go_root` / `go_modcache` are test seams for the Go toolchain (default ~/.local/go and the first existing module
+    cache); with no usable go the sandbox is exactly as without Go."""
     if role != "researcher":
         research_root = None
     check_agent_name(agent)
@@ -416,8 +459,17 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
     helper = gh_helper(repo, gh_slugs)
     name, email = identity if identity is not None else owner_identity(home, cwd)
     _atomic_write(str(agent_dir), "gitconfig", render_gitconfig(helper, name, email).encode(), 0o644)  # before make_cfg: it refuses a symlink there
+    go = go_paths(home, agent_dir, go_root, go_modcache)
+    if go:  # worker-writable: refuse a symlink or foreign owner before anything is created below it
+        for rel in (GO_DIR, f"{GO_DIR}/cache", f"{GO_DIR}/tmp"):
+            d = agent_dir / rel
+            try:
+                d.mkdir(mode=0o700, exist_ok=True)  # a dangling symlink raises FileExistsError
+                os.close(_open_dir(str(d)))
+            except OSError as e:
+                raise ValueError(f"{d} must be a real directory owned by uid {os.getuid()} ({e.strerror}); remove it") from e
     cfg = make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, home=home, runtime=runtime,
-                   hide_extra=hide_extra, research_root=research_root)
+                   hide_extra=hide_extra, research_root=research_root, go=go)
     config_dir = agent_dir / "claude"
     config_dir.mkdir(mode=0o700, exist_ok=True)
     cfd = _open_dir(str(config_dir))  # symlink / foreign owner => refuse, before anything is written below it
@@ -425,6 +477,8 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
     shim_cfg = {"ns": cfg, "home": home, "config_dir": str(config_dir), "gitconfig": f"{agent_dir}/gitconfig",
                 "oauth_token": p["oauth"], "gh_token": gh_token_path or p[_GH_KEY[role]],
                 "role": role}
+    if go:
+        shim_cfg["go_env"] = go_env_for(go)
     shim = SHIM.format(python=sys.executable, repo=str(repo), cfg=json.dumps(shim_cfg))
     _atomic_write(str(agent_dir / "bin"), "claude", shim.encode(), 0o755)
     _seed_claude_json(str(config_dir), cfg["cwd"])

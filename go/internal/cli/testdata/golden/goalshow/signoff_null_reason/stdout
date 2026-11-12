@@ -1,0 +1,23 @@
+# G-4 — Null reason
+status=active priority=3 project=None org=claude
+
+## intent
+x
+
+## success_criteria
+y
+
+## plan v1 (claude-director, 2026-11-01T01:00:00+01:00)
+p
+
+## audit v1 ready (claude-auditor, 2026-11-01T03:00:00+01:00)
+fine
+
+## sign-off of audit v1 (owner, 2026-11-01T06:00:00+01:00)
+
+
+## teams
+(none)
+
+## tasks
+(none)

@@ -1,0 +1,30 @@
+id: L-001
+title: Run prcheck before in_review
+roles: coder
+sources: M605,T-1000
+status: verified
+recurrences: 1
+author: claude-director
+created: 2026-10-01T10:00:00+01:00
+updated: 2026-10-05T10:00:00+01:00
+applied_at: 2026-10-02T10:00:00+01:00
+verified_at: 2026-10-05T10:00:00+01:00
+verified_by: claude-boss
+
+## what
+PRs went to review with FAIL lines.
+
+## rule
+Run factory prcheck and fix each FAIL.
+
+## evidence
+no recurrence in 14 days
+
+## links
+- 2026-10-02T09:30:00+01:00 task_id=T-1000 pr_url=https://github.com/o/r/pull/5 via=prompt merged_at=2026-10-02T09:00:00+01:00 author=claude-director
+- 2026-10-03T09:30:00+01:00 pr_url=https://github.com/o/r/pull/6
+
+## history
+- 2026-10-01T10:00:00+01:00 claude-director add: Run prcheck before in_review
+- 2026-10-02T10:00:00+01:00 claude-director applied
+- 2026-10-05T10:00:00+01:00 claude-boss verified: no recurrence in 14 days

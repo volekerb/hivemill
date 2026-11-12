@@ -15,7 +15,7 @@ import (
 var protLiveSubdirs = [][]string{{"go"}, {"roles", "hooks"}, {"roles", "settings"}, {"bin"}}
 
 var protMarkers = []string{".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
-	"run/settings", "run/guard_impl"}
+	"run/settings", "run/guard_impl", "run/cli_impl"}
 
 const protWhy = "it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; ~/.local/bin: first on the tick's PATH; " +
 	"~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, " +
@@ -35,7 +35,7 @@ func protTrees() []string {
 		pyJoin(pyJoin(h.pwDir, ".config"), "go")}
 	base = append(base, h.binDirs...) // T-0957 family
 	for _, home := range homes {
-		base = append(base, pyJoin(pyJoin(home, "run"), "settings"), pyJoin(pyJoin(home, "run"), "guard_impl"))
+		base = append(base, pyJoin(pyJoin(home, "run"), "settings"), pyJoin(pyJoin(home, "run"), "guard_impl"), pyJoin(pyJoin(home, "run"), "cli_impl"))
 		for _, sub := range protLiveSubdirs {
 			p := home
 			for _, c := range sub {

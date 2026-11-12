@@ -58,6 +58,22 @@
    "doc": ""
   },
   {
+   "key": "cli_go_cmds",
+   "kind": "setting",
+   "default": "",
+   "summary": "comma list of subcommands bin/factory may hand to factory-go (S1 set: whoami, flags, agents, config); empty = none",
+   "goal": "G-041",
+   "doc": "docs/cli-go.md"
+  },
+  {
+   "key": "cli_impl",
+   "kind": "setting",
+   "default": "python",
+   "summary": "CLI implementation: python, go or shadow; mirrored to run/cli_impl (director only); stale or missing binary means python",
+   "goal": "G-041",
+   "doc": "docs/cli-go.md"
+  },
+  {
    "key": "coder_ci_handoff",
    "kind": "flag",
    "default": "off",

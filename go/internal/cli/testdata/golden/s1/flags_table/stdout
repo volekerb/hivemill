@@ -1,0 +1,35 @@
+KEY                   STATE   DEFAULT    CURRENT    GOAL   DOC                       
+agent_runtimes        off                                  docs/runtimes.md          
+coder_ci_handoff      off     off        off        G-018  docs/prcheck.md           
+cursor_pilot_roles    off                                  docs/runtimes.md          
+gate_fast_projects    on      factory    factory                                     
+gate_post_status      off     0          0                                           
+gate_sandbox          off     0          0                                           
+git_push              on      1          1                                           
+idle_coder_reap       off     off        off        G-018  docs/lead-wake.md         
+issue_intake_repos    off                           G-026  docs/ISSUES.md            
+judge_wait_main_run   off     0          0          G-022  docs/stale-policy.md      
+lead_less_dispatch    off     0          0          G-018                            
+lead_parking          off     0          0          G-014                            
+lead_wake_debounce_s  off     0          0                                           
+mech_merge            off     off        off        G-022                            
+orphan_reap_mode      shadow  dry-run    dry-run                                     
+owner_alert_feed      off     0          0          G-015  docs/boss-mail.md         
+owner_alert_send      off     0          0          G-015  docs/boss-mail.md         
+prcheck_required      off     0          0          G-022                            
+red_main_freeze       off     0          0          G-022                            
+red_pr_owner_alert    off     0          0          G-022  docs/red-pr-owner-alert.md
+refresh_lane          off     off        off        G-022  docs/refresh-lane.md      
+review_autospawn      off     off        off        G-022  docs/review-autospawn.md  
+risk_tiers            off     off        off        G-022                            
+sandbox_roles         off                           G-010                            
+scout_enabled         on      1          1                                           
+stale_policy          on      behind_ok  behind_ok  G-022  docs/stale-policy.md      
+state_push            off     0          0                                           
+task_clones           off     0          0                 docs/git-hardening.md     
+test_cgroup           off     0          0                 docs/test-cgroups.md      
+test_sandbox          off     0          0                                           
+test_sandbox_subuid   off     0          0                                           
+tick_async_start      off     0          0                                           
+tick_phase_timers     off     0          0                                           
+worker_gh_roles       off                           G-010                            

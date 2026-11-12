@@ -1,0 +1,9 @@
+G-4 tally: 12 tokens (input + output + cache_write_5m + cache_write_1h)
+  input: 1
+  output: 2
+  cache_write_5m: 4
+  cache_write_1h: 5
+cache_read: 3 (printed apart, not in the tally)
+cost estimate: $2.67
+computed at: 2026-11-01T00:00:00+00:00
+unattributed: 36 tokens (cache_read 9) not counted in any goal

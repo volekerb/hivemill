@@ -1,0 +1,16 @@
+goal
+new
+--title
+New goal
+--project
+P-1
+--intent
+do it
+--success
+done
+--priority
+1
+--requested-by
+someone
+--org
+cursor

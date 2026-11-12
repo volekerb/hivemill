@@ -1,0 +1,3 @@
+ID  NAME         REPO_PATH  GH_REPO  BASE_BRANCH  AUTO_MERGE  REQUIRED_CHECKS  GATE_CMD   GATE_COUNT_CMD  GATE_TIMEOUT_S
+p1  Project One  /srv/p1    o/p1     main         1           ci,lint          make test  make count      600           
+p2  Project Two                      dev          0                                                       3600          

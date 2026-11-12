@@ -1,0 +1,9 @@
+gate run #4  pr  project=p1  task=T-2  status=pass
+  head   ccc333
+  main   ddd444
+  exit   0
+  tests  50 on head
+  cmd    make test
+  log    /l/4.log
+  note   -
+  actor  tick  created 2026-11-01T03:00:00+00:00  started -  finished -
