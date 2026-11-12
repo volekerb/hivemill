@@ -49,3 +49,13 @@ func TestDigestParseArgv(t *testing.T) {
 		}
 	}
 }
+
+func TestDigestHoursBound(t *testing.T) {
+	// The bound is checked before the database is touched, so a nil ctx is enough for the refusal.
+	if _, err := runDigest(nil, digestCmd{goal: "G-1", hours: "100001"}); !errors.Is(err, errDelegate) {
+		t.Fatalf("hours above the bound must delegate, got %v", err)
+	}
+	if _, err := runDigest(nil, digestCmd{goal: "G-1", hours: "x"}); !errors.Is(err, errDelegate) {
+		t.Fatalf("a non-integer must delegate, got %v", err)
+	}
+}
