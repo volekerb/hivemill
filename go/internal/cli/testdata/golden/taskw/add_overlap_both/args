@@ -1,0 +1,8 @@
+task
+add
+--goal
+G-1
+--title
+ov
+--spec
+go/internal/cli/a.go and go/internal/cli/b.go

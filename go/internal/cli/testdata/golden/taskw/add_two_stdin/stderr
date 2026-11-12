@@ -1,0 +1,1 @@
+factory: only one argument per call can be '-' (stdin). Set the other field with a second call (e.g. `factory goal edit`/`factory task update`), or pass it inline.
