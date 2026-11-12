@@ -47,7 +47,7 @@ class Base(unittest.TestCase):
         self.addCleanup(self.w.close)
         self.proc = Path(self.tmp.name) / "proc"
         self.proc.mkdir()
-        p = mock.patch.dict(os.environ, {"FACTORY_PROC_DIR": str(self.proc)})
+        p = mock.patch.dict(os.environ, {"FACTORY_PROC_DIR": str(self.proc), "FACTORY_HOME": self.tmp.name})  # T-1329: a temp home honours the fake proc dir
         p.start()
         self.addCleanup(p.stop)
         agents._cache.update(at=None, value=None)
@@ -163,6 +163,14 @@ class TestAgents(Base):
                 clock[0] += 2
                 self.page(agents)
                 self.assertEqual(len(calls), 2)
+
+    def test_proc_dir_honoured_off_live_home_ignored_on_it(self):
+        """T-1329: same rule as proc_root() in the CLI."""
+        with mock.patch.dict(os.environ, {"FACTORY_HOME": str(self.proc.parent)}):
+            self.assertEqual(agents._proc_dir(), self.proc)
+        live = next(iter(agents._live_homes()))
+        with mock.patch.dict(os.environ, {"FACTORY_HOME": live}):
+            self.assertEqual(agents._proc_dir(), Path("/proc"))
 
     def test_unreadable_proc_dir_renders(self):
         with mock.patch.dict(os.environ, {"FACTORY_PROC_DIR": str(self.proc / "nope")}):
