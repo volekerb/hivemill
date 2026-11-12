@@ -1,0 +1,1 @@
+factory: role 'coder' (claude-coder-1) may not do this; allowed: pm, lead, director

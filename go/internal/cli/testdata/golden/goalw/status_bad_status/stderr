@@ -1,0 +1,1 @@
+factory: status must be one of ['proposed', 'planning', 'active', 'blocked', 'done', 'cancelled']

@@ -1,0 +1,7 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="plan" entity_id="G-2" action="v2" detail=NULL
+- goals 2 id="G-2" project_id=NULL title="Active goal" intent=NULL success_criteria=NULL status="active" priority=2 requested_by=NULL workspace_id=NULL created="2026-11-01T00:00:00+01:00" updated="2026-11-01T00:00:00+01:00" org="claude" token_limit=NULL
++ goals 2 id="G-2" project_id=NULL title="Active goal" intent=NULL success_criteria=NULL status="active" priority=2 requested_by=NULL workspace_id=NULL created="2026-11-01T00:00:00+01:00" updated="2026-11-12T01:02:03+00:00" org="claude" token_limit=NULL
++ plans 2 id=2 goal_id="G-2" version=2 body="  " author="claude-director" created="2026-11-12T01:02:03+00:00"
+- sqlite_sequence 1 name="plans" seq=1
++ sqlite_sequence 1 name="plans" seq=2
++ sqlite_sequence 2 name="events" seq=1

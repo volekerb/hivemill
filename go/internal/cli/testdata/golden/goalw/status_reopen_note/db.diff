@@ -1,0 +1,4 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="goal" entity_id="G-2" action="status" detail="active: regression found"
+- goals 2 id="G-2" project_id="P-1" title="Done goal" intent="intent" success_criteria="sc" status="done" priority=2 requested_by="owner" workspace_id=NULL created="2026-11-01T00:00:00+01:00" updated="2026-11-01T00:00:00+01:00" org="claude" token_limit=NULL
++ goals 2 id="G-2" project_id="P-1" title="Done goal" intent="intent" success_criteria="sc" status="active" priority=2 requested_by="owner" workspace_id=NULL created="2026-11-01T00:00:00+01:00" updated="2026-11-12T01:02:03+00:00" org="claude" token_limit=NULL
++ sqlite_sequence 2 name="events" seq=1
