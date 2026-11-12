@@ -72,6 +72,12 @@ class PromptRulesCoder(unittest.TestCase):
         for cmd in KEPT_COMMANDS:
             self.assertIn(cmd, text, "coder.md lost command: %s" % cmd)
 
+    def test_coder_push_form_is_exact_and_alone(self):
+        text = read("coder.md")
+        self.assertIn("Push exactly `git push origin HEAD:factory/<task-id>` from the worktree cwd, alone in its own Bash call", text)
+        self.assertIn("no git -C, no -u", text)
+        self.assertIn("never in parallel with a commit call", text)
+
     def test_self_review_skill(self):
         path = os.path.join(
             ROOT, "roles", "plugins", "coder", "coder-skills", "skills", "self-review", "SKILL.md"

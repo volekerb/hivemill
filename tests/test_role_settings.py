@@ -84,6 +84,14 @@ class AllowListTests(unittest.TestCase):
         self.assertEqual([r for r in allow("coder") if r.startswith("Bash(gh pr") and not re.match(r"Bash\(gh pr (view|diff|checks):", r)], [])
         self.assertEqual([r for r in allow("coder") if r.startswith("Bash(git push")], ["Bash(git push origin HEAD:factory/*)"])
 
+    def test_coder_push_allow_once_and_every_push_deny_kept(self):
+        self.assertEqual(allow("coder").count("Bash(git push origin HEAD:factory/*)"), 1)
+        deny = load("coder")["permissions"]["deny"]
+        for d in ("Bash(git push origin main:*)", "Bash(git push origin HEAD:main:*)", "Bash(git push --force:*)",
+                  "Bash(git push -f:*)", "Bash(git push origin HEAD:factory/* *)"):
+            self.assertEqual(deny.count(d), 1, d)
+        self.assertEqual([r for r in allow("coder") if "git -C" in r], [])
+
     def test_coder_push_denies_extra_args_after_the_factory_refspec(self):
         # allow globs span spaces: the deny must catch a second refspec or flag after HEAD:factory/<x>
         self.assertIn("Bash(git push origin HEAD:factory/* *)", load("coder")["permissions"]["deny"])
