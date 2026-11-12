@@ -24,6 +24,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harness  # noqa: E402
 from harness import REPO, _literal  # noqa: E402
 
 sys.path.insert(0, str(REPO))
