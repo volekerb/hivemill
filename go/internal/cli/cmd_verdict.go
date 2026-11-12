@@ -284,7 +284,13 @@ var verdictShaRE = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 // caller hand over: Python's fromisoformat accepts more shapes, and a naive/aware mix is a crash there.
 func verdictParseTime(s string) (time.Time, bool) {
 	t, err := time.Parse("2006-01-02T15:04:05Z07:00", s)
-	return t, err == nil
+	if err != nil {
+		return t, false
+	}
+	if _, off := t.Zone(); off <= -24*3600 || off >= 24*3600 {
+		return t, false // fromisoformat rejects offsets of a day or more
+	}
+	return t, true
 }
 
 // verdictStartHead is verdict_start_head: the full PR head the tick started agent on, "" for none.
@@ -367,6 +373,9 @@ func verdictPRHead(c *ctx, url string) (string, error) {
 		return "", errDelegate
 	}
 	if code != 0 {
+		if !utf8.ValidString(errText) {
+			return "", errDelegate // Python's text=True crashes on it
+		}
 		first := ""
 		if lines := pySplitlines(pyStrip(errText)); len(lines) > 0 {
 			first = lines[0]
@@ -382,7 +391,7 @@ func verdictPRHead(c *ctx, url string) (string, error) {
 		return "", errDelegate
 	}
 	var head string
-	if raw, ok := pr["headRefOid"]; !ok || json.Unmarshal(raw, &head) != nil {
+	if raw, ok := pr["headRefOid"]; !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) || json.Unmarshal(raw, &head) != nil {
 		return "", errDelegate
 	}
 	return head, nil
