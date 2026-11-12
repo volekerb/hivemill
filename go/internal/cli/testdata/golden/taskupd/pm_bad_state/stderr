@@ -1,0 +1,1 @@
+factory: pm changes task status only with factory task reopen or --status done on a task without a PR

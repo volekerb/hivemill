@@ -1,0 +1,1 @@
+factory: T-0010 has a live worker claude-coder-t-0010; it will not re-read its task. Spec change = factory stop claude-coder-t-0010 --reason ..., then factory task update T-0010 --spec/--acceptance, then factory spawn coder --task T-0010

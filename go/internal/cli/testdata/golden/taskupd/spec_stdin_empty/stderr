@@ -1,0 +1,1 @@
+factory: --spec - read empty stdin: refusing to blank the field, nothing was changed on T-0001. Pipe the text in (heredoc) or pass it inline; to clear it on purpose use --spec ""

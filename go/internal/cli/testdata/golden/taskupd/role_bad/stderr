@@ -1,0 +1,1 @@
+factory: role must be one of ['boss', 'director', 'lead', 'pm', 'coder', 'qa', 'reviewer', 'judge', 'cleaner', 'staff-engineer', 'researcher', 'scout', 'retro', 'evaluator']
