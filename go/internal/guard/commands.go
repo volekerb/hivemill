@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"factory/go/internal/shlex"
 )
 
 // Section 2 of the port: the command analyser (cmd and everything it calls). The decisions that read the factory DB
@@ -1362,6 +1364,76 @@ func (a *Analyzer) systemctl(rest []string) error {
 }
 
 // ───────────────────────────── check ─────────────────────────────
+
+var (
+	r2AssignWords    = set("export", "readonly", "declare", "typeset")
+	r2AssignWrappers = set("eval", "command", "builtin")
+)
+
+func r2SegmentWords(seg string) []string {
+	seg = strings.TrimSpace(seg)
+	if seg == "" {
+		return nil
+	}
+	words, err := shlex.Split(seg)
+	if err != nil {
+		return pyFields(seg)
+	}
+	return words
+}
+
+// r2AssignBuiltinWords is worker-guard.py:r2_assign_builtin_words.
+func r2AssignBuiltinWords(cmd string) bool {
+	runes := []rune(cmd)
+	for _, s := range Segments(cmd) {
+		rest := r2SegmentWords(string(runes[s.Start:s.End]))
+		for len(rest) > 0 && (in(Reserved, rest[0]) || IsAssign(rest[0])) {
+			kw := rest[0]
+			rest = rest[1:]
+			if kw == "time" {
+				for len(rest) > 0 && strings.HasPrefix(rest[0], "-") {
+					rest = rest[1:]
+				}
+			}
+		}
+		if len(rest) == 0 {
+			continue
+		}
+		head := rest[0]
+		if in(r2AssignWords, head) {
+			return true
+		}
+		if len(rest) > 1 && in(r2AssignWrappers, head) && in(r2AssignWords, rest[1]) {
+			return true
+		}
+	}
+	return false
+}
+
+// R2SetHit is a port of worker-guard.py:r2_set_hit.
+func R2SetHit(cmd string) bool {
+	runes := []rune(cmd)
+	for _, s := range Segments(cmd) {
+		seg := string(runes[s.Start:s.End])
+		if len(s.Words) == 0 || !in(DataCmds, pyBasename(s.Words[0])) {
+			if matchR2Set(seg) {
+				return true
+			}
+		} else {
+			if matchR2SetShell(seg) {
+				return true
+			}
+			rest := append([]string(nil), s.Words...)
+			for len(rest) > 0 && IsAssign(rest[0]) {
+				if matchR2SetVar(rest[0]) {
+					return true
+				}
+				rest = rest[1:]
+			}
+		}
+	}
+	return r2AssignBuiltinWords(cmd) && matchR2SetVar(cmd)
+}
 
 // R2PathHit is a port of worker-guard.py:r2_path_hit.
 func R2PathHit(cmd string) bool {

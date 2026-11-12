@@ -114,6 +114,9 @@ func TestDelegate(t *testing.T) {
 		{"flags abbreviation", []string{"flags", "--js"}, nil},
 		{"user_version mismatch", []string{"whoami"}, func(r *rig) { r.sql("PRAGMA user_version = 99") }},
 		{"user_version zero (Python never stamped it)", []string{"agents"}, func(r *rig) { r.sql("PRAGMA user_version = 0") }},
+		{"agents --all on a DB missing agents.stop_requested_at", []string{"agents", "--all"}, func(r *rig) {
+			r.sql("ALTER TABLE agents DROP COLUMN stop_requested_at")
+		}},
 		{"no database", []string{"whoami"}, func(r *rig) { os.Remove(r.dbPath) }},
 		{"flags.json missing", []string{"flags"}, func(r *rig) { os.Remove(filepath.Join(r.repo, "bin", "flags.json")) }},
 		{"config --check of a validated key", []string{"config", "--check"}, func(r *rig) {
