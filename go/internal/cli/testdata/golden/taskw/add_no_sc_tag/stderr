@@ -1,0 +1,1 @@
+warning: T-0008 title has no [SCn] tag but G-2 has success criteria; the goal page shows them untracked. Retitle: factory task update T-0008 --title '<title> [SCn]'

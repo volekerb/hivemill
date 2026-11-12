@@ -1,0 +1,8 @@
+task
+add
+--goal
+G-1
+--title
+new
+--spec
+create go/internal/cli/c.go and docs/y.md

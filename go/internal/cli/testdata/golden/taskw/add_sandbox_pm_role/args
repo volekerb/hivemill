@@ -1,0 +1,10 @@
+task
+add
+--goal
+G-1
+--title
+sb
+--role
+pm
+--sandbox-required
+1
