@@ -882,27 +882,32 @@ _WORKER = {}
 _PROC_IGNORED = []
 
 
-def proc_root():
-    """Where the role/identity checks read processes: /proc, or $FACTORY_PROC_DIR (a fake /proc for tests) ONLY when
-    FACTORY_HOME is not a live home. On a live home a set $FACTORY_PROC_DIR is ignored (a worker could forge an HQ
-    ancestry with it) and one proc-dir-ignored event is recorded per process so the attempt is visible."""
-    fake = os.environ.get("FACTORY_PROC_DIR")
+def _proc_dir_from_env(var):
+    """/proc, or $<var> (a fake /proc for tests) ONLY when FACTORY_HOME is not a live home. On a live home a set var is
+    ignored (a process could forge what the checks see) and one proc-dir-ignored event per var is recorded per process
+    so the attempt is visible; the var name is in the event detail."""
+    fake = os.environ.get(var)
     if not fake:
         return Path("/proc")
     if not home_is_live():
         return Path(fake)
-    if not _PROC_IGNORED:
-        _PROC_IGNORED.append(fake)
+    if var not in _PROC_IGNORED:
+        _PROC_IGNORED.append(var)
         who = os.environ.get("FACTORY_AGENT") or "unknown"
         try:
             con = db()
             try:
-                event_as(con, who, "agent", who, "proc-dir-ignored", {"FACTORY_PROC_DIR": fake})
+                event_as(con, who, "agent", who, "proc-dir-ignored", {var: fake})
             finally:
                 con.close()
         except (sqlite3.Error, OSError) as e:
-            print(f"factory: ignoring FACTORY_PROC_DIR on the live home; event not recorded: {e}", file=sys.stderr)
+            print(f"factory: ignoring {var} on the live home; event not recorded: {e}", file=sys.stderr)
     return Path("/proc")
+
+
+def proc_root():
+    """Where the role/identity checks read processes: /proc, or $FACTORY_PROC_DIR off the live home only (T-1322)."""
+    return _proc_dir_from_env("FACTORY_PROC_DIR")
 
 
 def _ancestry_worker():
@@ -7631,8 +7636,9 @@ _serve_kill = os.kill          # seam: the one place a signal is sent
 
 
 def _serve_proc_root():
-    """Where the serve scan reads processes: the real /proc ($FACTORY_SERVE_PROC_DIR in tests; $FACTORY_PROC_DIR is the claude fake)."""
-    return Path(os.environ.get("FACTORY_SERVE_PROC_DIR") or "/proc")
+    """Where the serve scan reads processes: the real /proc, or $FACTORY_SERVE_PROC_DIR (tests) off the live home only,
+    same rule as proc_root() (T-1329): on the live home a forged dir must not steer which pids the reaper kills."""
+    return _proc_dir_from_env("FACTORY_SERVE_PROC_DIR")
 
 
 def _serve_argv(pid):
