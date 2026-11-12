@@ -1,0 +1,56 @@
+# Factory digest 2026-11-12
+
+Leads: 1 live, 1 parked, 0 queued; workers live 3
+
+## Director
+
+director (24h, daytime 08-20): no utilization samples · cap breaches 0 · boss scores -
+
+Orgs: claude 1 active · cursor 0 active
+
+## Org claude
+
+## G-1 — Active goal (active)
+
+### Done
+- T-11 merged in window — https://github.com/o/r/pull/11 @abc1234
+- T-12 merge verdict in window @deadbeef
+- T-13 closed by factory done
+- T-14 building
+- T-21 blocked then merged @feedface
+
+### In progress
+- T-14 building (in_progress, claude-coder-14, attempts 2)
+- T-15 in review (in_review, unassigned, attempts 1)
+- T-20 judge blocked (in_review, claude-judge, attempts 1)
+- T-21 blocked then merged (in_review, unassigned, attempts 1)
+
+### Blocked
+Blocked tasks: 2 owner-blocked, 2 internal-blocked
+- T-16 blocked on owner — blocked (owner): needs owner answer
+- T-17 blocked internal — blocked: waiting on X
+- T-20 judge blocked — judge-blocked: CI red on the PR
+- T-22 merge failed — merge-failed: conflict
+- T-23 blocked without a reason (blocked)
+- agent claude-lost-1 lost at 2026-11-12T08:50:00+00:00
+- agent claude-lost-3 lost at 2026-11-12T08:52:00+00:00
+- agent claude-flagless running without role flags since 2026-11-12T09:00:00+00:00
+
+### Up next
+1 ready todo task(s)
+
+Drift: D3 T-18 todo with no live or queued agent and no activity for over 2 h
+
+Freshness: claude-boss (roles); claude-coder-14 (bin, roles)
+
+- TB parked since 2026-11-10T08:30 (2 wakes in window)
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| TA | 13 | 3 | 3 | 0 | 1 | 3.5 |
+| TB | 0 | 0 | 0 | 0 | 0 | 5.0 |
+
+## Org cursor
+
+_no active goals_
