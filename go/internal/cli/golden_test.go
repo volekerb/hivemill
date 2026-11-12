@@ -578,7 +578,7 @@ func pythonBaseSQL(checkout, home, procDir string) (string, error) {
 
 // pythonTree is what the Python CLI needs next to bin/. roles/ is deliberately absent: without it `init` cannot
 // render settings into the checkout.
-var pythonTree = []string{"bin", "web", "scout"}
+var pythonTree = []string{"bin", "web", "scout", "retro"}
 
 // pythonCheckout copies pythonTree into a temp checkout.
 func pythonCheckout(t *testing.T) (checkout, procDir string) {
@@ -591,7 +591,7 @@ func pythonCheckout(t *testing.T) (checkout, procDir string) {
 	if err := os.MkdirAll(procDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, d := range pythonTree { // the Python CLI imports web/ and scout/ from the repo root
+	for _, d := range pythonTree { // the Python CLI imports web/, scout/ and retro/ from the repo root
 		if err := copyTree(repoFile(t, d), filepath.Join(checkout, d)); err != nil {
 			t.Fatal(err)
 		}

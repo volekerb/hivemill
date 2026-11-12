@@ -1,13 +1,10 @@
 package cli
 
-import "factory/go/internal/identity"
-
-// digest --goal G [--date YYYY-MM-DD] [--hours N] (Python cmd_digest, line 6779, no --send). The factory-wide digest and
-// --send are other tasks' and run in Python; so does any argv that argparse would treat differently.
+// digest registration. The goal form without --send (S2s) lives here; the factory-wide digest and --send are cmd_digest_all.go (S2t),
+// and any argv that argparse would treat differently runs in Python.
 
 func init() {
-	register("digest", "", handler{parse: parseDigest, run: runDigest,
-		ident: func(any) identity.Cmd { return identity.Cmd{Name: "digest"} }})
+	register("digest", "", handler{parse: parseDigestAll, run: runDigestAll, ident: identDigestAll})
 }
 
 type digestCmd struct{ goal, date, hours string }
