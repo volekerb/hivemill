@@ -1,0 +1,18 @@
+[
+ {
+  "id": 2,
+  "org": "cursor",
+  "kind": "blocked",
+  "ref": "T-2",
+  "since": "2026-11-01T02:00:00+00:00",
+  "link": "https://x/2 \u2014 \u00fcn\u00ef \"q\""
+ },
+ {
+  "id": 1,
+  "org": "claude",
+  "kind": "pr-stuck",
+  "ref": "T-1",
+  "since": "2026-11-01T01:00:00+00:00",
+  "link": "https://x/1"
+ }
+]

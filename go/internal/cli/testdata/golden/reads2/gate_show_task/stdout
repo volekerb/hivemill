@@ -1,0 +1,9 @@
+gate run #2  pr  project=p1  task=T-1  status=fail
+  head   aaa112
+  main   bbb222
+  exit   1
+  tests  not counted (project has no gate_count_cmd)
+  cmd    make test
+  log    /l/2.log
+  note   -
+  actor  tick  created 2026-11-01T01:00:00+00:00  started 2026-11-01T01:00:01+00:00  finished 2026-11-01T01:05:00+00:00
