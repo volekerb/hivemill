@@ -1,0 +1,15 @@
+# G-3 — Audit only
+status=planning priority=2 project=None org=claude
+token limit: 7000 tokens (no tally yet; `factory goal tokens G-3`)
+
+## intent
+only intent
+
+## audit v1 gaps (claude-auditor, 2026-11-01T03:00:00+01:00)
+gaps found
+
+## teams
+(none)
+
+## tasks
+(none)
