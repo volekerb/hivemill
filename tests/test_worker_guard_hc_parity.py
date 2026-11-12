@@ -26,6 +26,9 @@ class WorkerGuardHcParityTests(unittest.TestCase):
             "hc kill other-agent",
             "HC_SOCKET=/tmp/x hc ls",
             "export HC_SOCKET=/tmp/x",
+            "export $(echo HC_SOCKET=/tmp/x)",
+            "export `echo HC_SOCKET=/tmp/x`",
+            "readonly x=$(echo HERDR_SOCKET_PATH=/tmp/x)",
             "unset HC_SOCKET; hc ls",
             "HERDR_SOCKET_PATH=/tmp/core.sock hc ls",
         ):

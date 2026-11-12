@@ -5205,6 +5205,20 @@ def r2_path_hit(cmd):
     return False
 
 
+R2_ASSIGN_WORDS = frozenset({"export", "readonly", "declare", "typeset"})
+
+
+def r2_assign_builtin_words(cmd):
+    """True when a simple-command starts with export/readonly/declare/typeset (not mere mention in data args)."""
+    for _, _, words in segments(cmd):
+        rest = list(words)
+        while rest and ASSIGN.match(rest[0]):
+            rest = rest[1:]
+        if rest and rest[0] in R2_ASSIGN_WORDS:
+            return True
+    return False
+
+
 def r2_set_hit(cmd):
     """R2 socket/session assignment: in data-only commands, VAR=value in arguments is text, not a retarget."""
     for start, end, words in segments(cmd):
@@ -5220,6 +5234,8 @@ def r2_set_hit(cmd):
                 if R2_SET_VAR.search(rest[0]):
                     return True
                 rest = rest[1:]
+    if r2_assign_builtin_words(cmd) and R2_SET_VAR.search(cmd):
+        return True
     return False
 
 
