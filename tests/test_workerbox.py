@@ -1194,7 +1194,7 @@ class GoRealToolchainTests(GoBoxCase):
         self.assertEqual(vals[4][0], 0, vals[4])
 
 
-GO_TEST_PKGS = "go test -race $(go list ./... | grep -v /internal/guard$)"
+GO_TEST_PKGS = "go test -race ./..."
 
 
 class GoHeavyTests(GoBoxCase):
@@ -1206,8 +1206,8 @@ class GoHeavyTests(GoBoxCase):
 
     def heavy(self, role, rw_cwd):
         gd = self.clone_go()
-        # internal/guard's tests resolve ~/factory against the passwd home, which this box's fake home is not: they
-        # fail here for that reason alone (follow-up: run them in a sandbox on the real home), so that package is skipped
+        # internal/guard runs too: its tests resolve ~/factory against the passwd home, which this box's fake home is
+        # not, so go/internal/guard/main_test.go aligns HOME with the passwd home for that package's test process
         live = {"WORKER_GUARD_LIVE_HOME": str(self.box.fh)}
         res = run_in(self, [{"op": "run", "argv": ["go", "vet", "./..."], "cwd": str(gd), "env": live},
                             {"op": "run", "argv": ["sh", "-c", GO_TEST_PKGS], "cwd": str(gd), "env": live}],
