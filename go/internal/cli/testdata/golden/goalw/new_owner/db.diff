@@ -1,0 +1,3 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="owner" entity="goal" entity_id="G-007" action="new" detail="[cursor] Owner goal"
++ goals 7 id="G-007" project_id=NULL title="Owner goal" intent=NULL success_criteria=NULL status="proposed" priority=2 requested_by="owner" workspace_id=NULL created="2026-11-12T01:02:03+00:00" updated="2026-11-12T01:02:03+00:00" org="cursor" token_limit=NULL
++ sqlite_sequence 2 name="events" seq=1
