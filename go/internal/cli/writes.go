@@ -83,6 +83,25 @@ func pyNewlines(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
 }
 
+// pyPathNorm is how pathlib spells a path before Path.exists: "." components, empty components and a trailing "/" are
+// dropped ("" is "."); ".." stays.
+func pyPathNorm(p string) string {
+	var keep []string
+	for _, part := range strings.Split(p, "/") {
+		if part != "" && part != "." {
+			keep = append(keep, part)
+		}
+	}
+	out := strings.Join(keep, "/")
+	if strings.HasPrefix(p, "/") {
+		out = "/" + out
+	}
+	if out == "" {
+		return "."
+	}
+	return out
+}
+
 // readText is read_text: "-" reads stdin once (second "-": exit 2), "@path" of an existing file reads it, anything
 // else is literal. nil in, nil out. Result is stripped. withinCwd: an @path must resolve inside the cwd (exit 2).
 // Cases Python would crash on (a directory, invalid UTF-8, an unreadable file) delegate.
@@ -103,10 +122,7 @@ func readText(c *ctx, val *string, withinCwd bool) (*string, error) {
 		return strp(pyStrip(pyNewlines(string(b)))), nil
 	}
 	if strings.HasPrefix(v, "@") {
-		p := v[1:]
-		if p == "" {
-			p = "." // Path("") is the cwd, which exists
-		}
+		p := pyPathNorm(v[1:])
 		if _, err := os.Stat(p); err == nil {
 			f := identity.Realpath(p)
 			if withinCwd {

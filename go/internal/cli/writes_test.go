@@ -145,6 +145,11 @@ func TestReadTextAtPath(t *testing.T) {
 	if got, err := readText(c, &at, true); err != nil || *got != "file text" {
 		t.Fatalf("@file: %v %v", got, err)
 	}
+	for _, spelling := range []string{"@" + f + "/", "@" + f + "/.", "@" + dir + "//./spec.txt"} { // pathlib normalises these
+		if got, err := readText(c, &spelling, false); err != nil || *got != "file text" {
+			t.Fatalf("%q: %v %v", spelling, got, err)
+		}
+	}
 	missing := "@missing"
 	if got, err := readText(c, &missing, false); err != nil || *got != "@missing" {
 		t.Fatalf("@missing must stay literal: %v %v", got, err)
