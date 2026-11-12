@@ -1,0 +1,4 @@
+ID   ORG     STATUS    PRIORITY  PROJECT_ID  DONE  TOTAL  TITLE                                                       
+G-2  cursor  active    1                     0     4      Beta goal with a title that is far longer than sixty charact
+G-1  claude  active    2                     1     4      Alpha goal                                                  
+G-5  claude  proposed  2                     0     0      Proposed goal                                               
