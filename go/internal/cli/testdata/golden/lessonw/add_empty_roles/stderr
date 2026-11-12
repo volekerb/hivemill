@@ -1,0 +1,1 @@
+factory: --roles is empty; give a comma list of: boss, director, lead, pm, coder, qa, reviewer, judge, cleaner, staff-engineer, researcher, scout, retro, evaluator, all

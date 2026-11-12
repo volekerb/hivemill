@@ -1,0 +1,6 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="team" entity_id="g-6-a" action="new" detail="x"
++ events 2 id=2 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="goal" entity_id="G-6" action="goal-auto-active" detail="team g-6-a staffed"
+- goals 6 id="G-6" project_id="P-1" title="Proposed goal" intent="i" success_criteria="sc" status="proposed" priority=2 requested_by="owner" workspace_id=NULL created="2026-11-01T00:00:00+01:00" updated="2026-11-01T00:00:00+01:00" org="claude" token_limit=NULL
++ goals 6 id="G-6" project_id="P-1" title="Proposed goal" intent="i" success_criteria="sc" status="active" priority=2 requested_by="owner" workspace_id=NULL created="2026-11-01T00:00:00+01:00" updated="2026-11-12T01:02:03+00:00" org="claude" token_limit=NULL
++ sqlite_sequence 3 name="events" seq=2
++ teams 5 id="g-6-a" goal_id="G-6" scope="x" lead_agent=NULL tab_id=NULL status="active" created="2026-11-12T01:02:03+00:00" parked_at=NULL resume_note=NULL

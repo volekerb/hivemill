@@ -1,0 +1,24 @@
+id: T-8
+goal_id: G-9
+title: Long history
+role: coder
+status: in_progress
+attempts: 1
+created: 2026-11-01T10:00:00+01:00
+updated: 2026-11-02T10:00:00+01:00
+
+## spec
+s
+
+## history
+- 2026-11-01T10:00:00+01:00 claude-director add: T-8 added
+- 2026-11-02T10:01:00+01:00 claude-coder-t-9 note: first note
+- 2026-11-03T10:02:00+01:00 claude-director update
+- 2026-11-04T10:03:00+01:00 claude-director file-overlap: T-1,T-2
+- 2026-11-05T10:04:00+01:00 claude-coder-t-9 note: second note
+with two lines
+- 2026-11-06T10:05:00+01:00 claude-director tier: - -> low: ok
+- 2026-11-07T10:06:00+01:00 claude-director task-auto-start: spawn x
+- 2026-11-08T10:07:00+01:00 claude-coder-t-9 update: status in_progress
+- 2026-11-09T10:08:00+01:00 claude-director update: attempts 1
+- 2026-11-01T10:09:00+01:00 claude-coder-t-9 note: last note

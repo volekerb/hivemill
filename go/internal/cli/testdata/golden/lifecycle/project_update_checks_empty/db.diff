@@ -1,0 +1,2 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-boss" entity="project" entity_id="P-1" action="update" detail="required_checks=''"
++ sqlite_sequence 3 name="events" seq=1

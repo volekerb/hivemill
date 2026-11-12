@@ -1,0 +1,4 @@
+ID     GOAL_ID  STATUS  LEAD_AGENT         SCORE               SCOPE        
+g-1-a  G-1      active  claude-lead-g-1-a  4.0                 scope a      
+g-1-b  G-1      active  claude-lead-g-1-b  3.3333333333333335  scope b — ünï
+g-1-c  G-1      closed                                                      

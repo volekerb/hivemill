@@ -104,7 +104,7 @@ func TestDelegate(t *testing.T) {
 		{"--help", []string{"--help"}, nil},
 		{"whoami -h", []string{"whoami", "-h"}, nil},
 		{"config write", []string{"config", "k", "v"}, nil},
-		{"task show", []string{"task", "show", "T-1"}, nil},
+		{"task update", []string{"task", "update", "T-1", "--status", "todo"}, nil},
 		{"agents --bogus", []string{"agents", "--bogus"}, nil},
 		{"no args", nil, nil},
 		{"FACTORY_CLI_IMPL=python forces python", []string{"whoami"}, func(r *rig) { r.env["FACTORY_CLI_IMPL"] = "python" }},

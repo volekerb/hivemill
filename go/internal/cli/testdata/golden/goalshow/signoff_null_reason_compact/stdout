@@ -1,0 +1,13 @@
+# G-4 — Null reason
+status=active priority=3 project=None org=claude
+
+## intent
+x
+
+## success_criteria
+y
+
+plan v1 by claude-director 2026-11-01T01:00:00+01:00, 1 lines: factory goal show G-4 --full
+audit v1 ready (claude-auditor, 2026-11-01T03:00:00+01:00)
+sign-off of audit v1 (owner, 2026-11-01T06:00:00+01:00)
+tasks: 0 (todo 0, in_progress 0, in_review 0, done 0, cancelled 0)

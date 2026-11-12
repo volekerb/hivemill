@@ -1,0 +1,4 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="goal" entity_id="G-4" action="signoff v2" detail="looks complete"
++ signoffs 1 id=1 goal_id="G-4" audit_id=2 snapshot="{\"T-14\": \"cancelled\", \"T-4\": \"done\"}" reason="looks complete" author="claude-director" created="2026-11-12T01:02:03+00:00"
++ sqlite_sequence 2 name="signoffs" seq=1
++ sqlite_sequence 3 name="events" seq=1

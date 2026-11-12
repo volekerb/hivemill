@@ -1,0 +1,4 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="lead-a" entity="task" entity_id="T-9" action="spec-by-msg" detail="M1 lead-a->coder-a"
++ messages 1 id=1 sender="lead-a" recipient="coder-a" kind="msg" subject="spécial scope" body="b" goal_id=NULL task_id=NULL created="2026-11-12T01:02:03+00:00" read_at=NULL
++ sqlite_sequence 1 name="messages" seq=1
++ sqlite_sequence 2 name="events" seq=1

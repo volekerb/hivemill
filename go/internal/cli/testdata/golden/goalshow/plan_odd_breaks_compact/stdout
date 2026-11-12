@@ -1,0 +1,11 @@
+# G-5 — Odd line breaks
+status=active priority=2 project=None org=claude
+
+## intent
+i
+
+## success_criteria
+s
+
+plan v1 by claude-director 2026-11-01T01:00:00+01:00, 8 lines: factory goal show G-5 --full
+tasks: 0 (todo 0, in_progress 0, in_review 0, done 0, cancelled 0)
