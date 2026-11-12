@@ -1,0 +1,5 @@
+ID     STATUS    ROLES          LINKS  RECURRENCES  TITLE                                                       
+L-001  verified  coder          2      1            Run prcheck before in_review                                
+L-002  open      all            0      0            Never merge on a red main                                   
+L-003  applied   lead,director  1      0            Leads route, they do not code                               
+L-004  open      qa,reviewer    0      2            Ünïcode title with a long tail that gets cut at sixty charac
