@@ -5212,7 +5212,7 @@ def r2_assign_builtin_words(cmd):
     """True when a simple-command starts with export/readonly/declare/typeset (not mere mention in data args)."""
     for _, _, words in segments(cmd):
         rest = list(words)
-        while rest and ASSIGN.match(rest[0]):
+        while rest and (rest[0] in RESERVED or ASSIGN.match(rest[0])):
             rest = rest[1:]
         if rest and rest[0] in R2_ASSIGN_WORDS:
             return True
