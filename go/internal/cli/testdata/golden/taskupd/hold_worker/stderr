@@ -1,0 +1,1 @@
+factory: only a lead, director or the owner may set a task's judge hold (coder may not use --judge-hold)

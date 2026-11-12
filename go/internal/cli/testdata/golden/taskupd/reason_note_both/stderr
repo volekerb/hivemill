@@ -1,0 +1,1 @@
+factory: give --reason or --note, not both (--reason is the blocked reason)

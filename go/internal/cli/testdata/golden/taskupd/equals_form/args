@@ -1,0 +1,6 @@
+task
+update
+T-0001
+--status=blocked
+--waits=owner
+--note=hold

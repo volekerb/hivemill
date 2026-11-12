@@ -1,0 +1,11 @@
+task
+update
+T-0001
+--pr
+https://github.com/x/y/pull/9
+--branch
+factory/t-1
+--assignee
+claude-coder
+--title
+new title
