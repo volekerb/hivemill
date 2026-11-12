@@ -1199,15 +1199,7 @@ GO_TEST_PKGS = "go test -race $(go list ./... | grep -v /internal/guard$)"
 class GoHeavyTests(GoBoxCase):
     def clone_go(self):
         dest = self.box.cwd
-        shutil.rmtree(dest)
-        subprocess.run(["git", "-c", "protocol.file.allow=always", "clone", "-q", "--shared", str(REPO), str(dest)],
-                       check=True, env={**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null"})
-        subprocess.run(["git", "checkout", "-q", "--detach", subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True).stdout.strip()],
-            cwd=dest, check=True)
-        # the working tree of the checkout may hold uncommitted changes: copy go/ over the clone
-        shutil.rmtree(dest / "go", ignore_errors=True)
-        shutil.copytree(REPO / "go", dest / "go")
+        shutil.copytree(REPO / "go", dest / "go")  # a plain copy of the checkout's go/ module
         return dest / "go"
 
     def heavy(self, role, rw_cwd):
