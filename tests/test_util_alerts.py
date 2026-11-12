@@ -145,6 +145,39 @@ class StarvedGoals(AlertCase):
         self.assertEqual((len(self.msgs("director")), self.msgs("boss")), (1, []))
 
 
+class WaitingGoals(AlertCase):
+    """T-1401 (owner M33717): real utilization() samples; a P1 goal waiting on owner/CI never alerts, a starved one does."""
+    def goal(self, status):
+        self.env.seed_goal("G-W")
+        self.env.sql("UPDATE goals SET priority=1 WHERE id='G-W'")
+        self.env.seed_task("T-0001", goal="G-W", role="coder", status=status)
+        self.con = self.mod.db()
+        self.addCleanup(self.con.close)
+
+    def sample_and_alert(self):
+        for m in range(0, 21):
+            with mock.patch.dict(os.environ, {"FACTORY_NOW": at(m)}):
+                self.mod.util_sample(self.con)
+        self.run_at(20)
+
+    def test_ready_task_no_worker_alerts_after_15_min(self):
+        self.goal("todo")
+        self.sample_and_alert()
+        self.assertEqual(len(self.msgs("director", "starved P1 goal G-W:%")), 1)
+
+    def test_in_review_task_never_alerts(self):
+        self.goal("in_review")
+        self.sample_and_alert()
+        self.assertEqual(self.msgs("director", "starved P1 goal%"), [])
+        self.assertEqual(self.msgs("boss", "escalation: P1 goal%"), [])
+
+    def test_owner_blocked_task_never_alerts(self):
+        self.goal("blocked")
+        self.env.sql("UPDATE tasks SET waits='owner' WHERE id='T-0001'")
+        self.sample_and_alert()
+        self.assertEqual(self.msgs("director", "starved P1 goal%"), [])
+
+
 class CapBreach(AlertCase):
     def breach(self, actor, key="max_live_agents", value="30"):
         self.con.execute("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
