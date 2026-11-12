@@ -102,6 +102,49 @@ func declareTail(s string, i int) bool {
 	return ok && boundary(s, e)
 }
 
+// matchR2SetShell is R2_SET_SHELL.search(s): export/declare/typeset forms only (worker-guard.py:R2_SET_SHELL).
+func matchR2SetShell(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if !boundary(s, i) || wordBefore(s, i) {
+			continue
+		}
+		if hasAt(s, i, "export") {
+			j := skipSpace(s, i+6)
+			if j > i+6 && exportTail(s, j) {
+				return true
+			}
+		}
+		for _, kw := range []string{"declare", "typeset"} {
+			if hasAt(s, i, kw) {
+				j := skipSpace(s, i+len(kw))
+				if j > i+len(kw) && declareTail(s, j) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// matchR2SetVar is R2_SET_VAR.search(s) (worker-guard.py:R2_SET_VAR).
+func matchR2SetVar(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if !boundary(s, i) || wordBefore(s, i) {
+			continue
+		}
+		if j, ok := herdrVarEnd(s, i); ok {
+			k := skipSpace(s, j)
+			if hasAt(s, k, "+") {
+				k++
+			}
+			if hasAt(s, k, "=") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // matchR2Unset is a port of R2_UNSET.search(s) (worker-guard.py:266):
 //
 //	\bunset\b[^\n]*\bHERDR_SOCKET_PATH\b
@@ -242,7 +285,7 @@ func Check(cmd, cwd, role string, hq bool) error {
 		}
 	}
 	// layer 2: raw text, independent of the parser
-	if matchR2Set(cmd) || R2PathHit(cmd) {
+	if R2SetHit(cmd) || R2PathHit(cmd) {
 		return blockf("R2: re-targeting the herdr socket/session or naming herdr's socket/config path")
 	}
 	if matchR2Unset(cmd) && HasHerdrWord(cmd) {

@@ -316,7 +316,7 @@ var ruleKeys = map[string]bool{
 	"opus_effort": true, "scout_triage_per_run": true, "model_cleaner": true, "guard_impl": true,
 	"sandbox_roles": true, "worker_gh_roles": true, "gh_rw_roles": true, "cursor_pilot_roles": true,
 	"agent_runtimes": true, "worker_gh_repos": true, "factory_remote_url": true, "task_clones": true,
-	"terminal_backend": true, "skilleval_root": true,
+	"terminal_backend": true, "skilleval_root": true, "cli_impl": true, "cli_go_cmds": true,
 }
 
 func (d *Deps) cmdConfig(db *sql.DB, c configCmd, out io.Writer) (int, error) {

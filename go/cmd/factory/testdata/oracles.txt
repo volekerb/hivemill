@@ -1,0 +1,12 @@
+# Stage-1 parity oracles (G-041 plan 4.2): unittest modules run under FACTORY_IMPL=diff by the cli-equiv CI job.
+# One dotted module name per line; blank lines and # comments are ignored. Later stages append their modules.
+tests.test_identity
+tests.test_flags
+tests.test_smoke
+tests.test_db_layout
+tests.test_config_check
+tests.test_dequeue
+tests.test_relaunch_idle
+tests.test_stop
+tests.test_worker_gate
+tests.test_resume

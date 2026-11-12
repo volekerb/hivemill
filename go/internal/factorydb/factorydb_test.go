@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"factory/go/internal/factorydb"
@@ -54,5 +55,48 @@ func TestOpenPragmasAndVersion(t *testing.T) {
 	p2 := dbtest.New(t, t.TempDir(), factorydb.SchemaVersion+1)
 	if _, err := factorydb.Open(p2); !errors.Is(err, factorydb.ErrSchemaMismatch) {
 		t.Fatalf("want ErrSchemaMismatch, got %v", err)
+	}
+}
+
+func TestOpenSchemaColumns(t *testing.T) {
+	open := func(t *testing.T, ddl string) error {
+		p := dbtest.New(t, t.TempDir(), factorydb.SchemaVersion)
+		if ddl != "" {
+			raw := dbtest.Raw(t, p)
+			if _, err := raw.Exec(ddl); err != nil {
+				t.Fatal(err)
+			}
+			raw.Close()
+		}
+		d, err := factorydb.Open(p)
+		if err == nil {
+			d.Close()
+		}
+		return err
+	}
+	if err := open(t, ""); err != nil {
+		t.Fatalf("full database: %v", err)
+	}
+	if err := open(t, "ALTER TABLE agents ADD COLUMN future_col TEXT"); err != nil {
+		t.Fatalf("extra column must be fine: %v", err)
+	}
+	err := open(t, "ALTER TABLE agents DROP COLUMN stop_requested_at")
+	if !errors.Is(err, factorydb.ErrSchemaMismatch) || !strings.Contains(err.Error(), "agents.stop_requested_at") {
+		t.Fatalf("dropped column: %v", err)
+	}
+	err = open(t, "DROP TABLE events")
+	if !errors.Is(err, factorydb.ErrSchemaMismatch) || !strings.Contains(err.Error(), "events") {
+		t.Fatalf("dropped table: %v", err)
+	}
+}
+
+func BenchmarkOpen(b *testing.B) {
+	p := dbtest.New(b, b.TempDir(), factorydb.SchemaVersion)
+	for i := 0; i < b.N; i++ {
+		d, err := factorydb.Open(p)
+		if err != nil {
+			b.Fatal(err)
+		}
+		d.Close()
 	}
 }

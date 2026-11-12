@@ -84,6 +84,49 @@ class LegacyCase(FactoryTestCase):
         return sorted(glob.glob(str(self.legacy) + ".migrated-*"))
 
 
+# T-1336 (G-041 S1-c): SCHEMA_VERSION -> sha256(SCHEMA + migrate() source). Changing the schema or migrate() without
+# bumping SCHEMA_VERSION (and the Go SchemaVersion in go/internal/factorydb) fails the pin test: add the new version here.
+SCHEMA_PINS = {1: "4036fa8c89b1d08474cad7826bac84a173503c552557e05e768144aef9a4c82d"}
+
+
+class SchemaVersionTests(FactoryTestCase):
+    def test_init_stamps_user_version(self):
+        with self.env.load_factory() as f:
+            want = f.SCHEMA_VERSION
+        con = sqlite3.connect(self.env.home_dir / "db" / "factory.db")
+        self.addCleanup(con.close)
+        self.assertEqual(con.execute("PRAGMA user_version").fetchone()[0], want)
+
+    def test_migrate_stamps_an_old_db_and_a_later_open_does_not_rewrite_it(self):
+        db = self.env.home_dir / "db" / "factory.db"
+        con = sqlite3.connect(db, isolation_level=None)
+        self.addCleanup(con.close)
+        con.execute("PRAGMA user_version = 0")
+        self.assertEqual(self.env.run("whoami").returncode, 0)  # any command opens the DB through migrate()
+        with self.env.load_factory() as f:
+            want = f.SCHEMA_VERSION
+        self.assertEqual(con.execute("PRAGMA user_version").fetchone()[0], want)
+
+    def test_schema_hash_requires_a_version_bump(self):
+        import hashlib
+        import inspect
+        with self.env.load_factory() as f:
+            version, text = f.SCHEMA_VERSION, f.SCHEMA + inspect.getsource(f.migrate)
+        got = hashlib.sha256(text.encode()).hexdigest()
+        self.assertEqual(SCHEMA_PINS.get(version), got,
+                         f"SCHEMA or migrate() changed (sha256 {got}) but SCHEMA_VERSION is still {version}: bump SCHEMA_VERSION "
+                         "in bin/factory_cli.py and SchemaVersion in go/internal/factorydb, then add the new pair to SCHEMA_PINS")
+
+    def test_go_schema_version_matches(self):
+        import re
+        with self.env.load_factory() as f:
+            want = f.SCHEMA_VERSION
+        src = (REPO / "go" / "internal" / "factorydb" / "factorydb.go").read_text()
+        m = re.search(r"SchemaVersion\s*(?:int\s*)?=\s*(\d+)", src)
+        self.assertTrue(m, "no SchemaVersion constant found in go/internal/factorydb/factorydb.go")
+        self.assertEqual(int(m.group(1)), want)
+
+
 class LayoutTests(FactoryTestCase):
     def test_init_creates_db_dir_only(self):
         ls = os.listdir(self.env.home_dir)
