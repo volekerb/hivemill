@@ -67,10 +67,13 @@ func baseRig(t *testing.T) *rig {
 func TestTaskReadyBadDependsOnDelegates(t *testing.T) {
 	r := baseRig(t)
 	r.sql("INSERT INTO goals(id,title,created,updated) VALUES('G-1','g','x','x')")
-	r.sql("INSERT INTO tasks(id,goal_id,title,depends_on,created,updated) VALUES('T-1','G-1','t','not json','x','x')")
-	r.run("task", "ready")
-	if len(r.execs) != 1 || r.out.Len() != 0 {
-		t.Fatalf("want a clean delegation, got %d execs, stdout %q", len(r.execs), r.out.String())
+	for _, bad := range []string{"not json", "null", "{}", "[1]"} {
+		r.sql("DELETE FROM tasks")
+		r.sql("INSERT INTO tasks(id,goal_id,title,depends_on,created,updated) VALUES('T-1','G-1','t',?,'x','x')", bad)
+		r.run("task", "ready")
+		if len(r.execs) != 1 || r.out.Len() != 0 {
+			t.Fatalf("depends_on %q: want a clean delegation, got %d execs, stdout %q", bad, len(r.execs), r.out.String())
+		}
 	}
 }
 

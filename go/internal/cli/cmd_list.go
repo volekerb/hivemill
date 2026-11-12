@@ -169,12 +169,12 @@ func runTaskReady(c *ctx, p any) (int, error) {
 	}
 	var ready [][]string
 	for _, r := range rows {
-		var deps []string
-		if json.Unmarshal([]byte(r[4]), &deps) != nil {
+		var deps *[]string // a pointer so the JSON text null (Python: set(None) crashes) is told from []
+		if json.Unmarshal([]byte(r[4]), &deps) != nil || deps == nil {
 			return 0, errDelegate // not a JSON array of strings: Python decides (and may crash) itself
 		}
 		ok := true
-		for _, d := range deps {
+		for _, d := range *deps {
 			if !done[d] {
 				ok = false
 				break
