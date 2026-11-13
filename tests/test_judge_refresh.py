@@ -756,6 +756,14 @@ class JudgeRefreshTests(FactoryTestCase):
         git(self.wt, "fetch", "-q", "origin", "main")
         git(self.wt, "merge", "-q", "--no-edit", "origin/main")
 
+    def test_merged_go_proof_env_uses_toolchain_cache_paths(self):
+        """GOCACHE and GOMODCACHE match docs/go-toolchain.md (same roots as the HQ Go install)."""
+        home = self.env.user_home
+        with self.env.load_factory() as f:
+            env = f.merged_go_proof_env()
+        self.assertEqual(env["GOCACHE"], str(home / ".cache" / "go" / "build"))
+        self.assertEqual(env["GOMODCACHE"], str(home / ".cache" / "go" / "path" / "pkg" / "mod"))
+
     def test_merged_go_testdata_only_clash_vets_internal_cli(self):
         git(self.wt, "checkout", "-q", BRANCH)
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_strict:zz-test/repo',?)",

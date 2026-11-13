@@ -5157,10 +5157,10 @@ MERGED_GO_UNMERGEABLE = object()  # merge-tree conflict: not proof success; call
 def merged_go_proof_env():
     """Clean environment for the merge-tree go proof: no inherited toolchain knobs, warm caches under ~/.cache/go."""
     home = Path.home()
-    cache = home / ".cache" / "go"
+    go_cache = home / ".cache" / "go"
     return {"PATH": "/usr/bin:/bin", "HOME": str(home), "GOTOOLCHAIN": "local", "GOFLAGS": "-mod=readonly",
             "GOPROXY": "off", "GOSUMDB": "off", "GOENV": "off", "GOWORK": "off",
-            "GOCACHE": str(cache / "cache"), "GOMODCACHE": str(cache / "mod")}
+            "GOCACHE": str(go_cache / "build"), "GOMODCACHE": str(go_cache / "path" / "pkg" / "mod")}
 
 
 def _merged_go_names(repo, base, tip):
