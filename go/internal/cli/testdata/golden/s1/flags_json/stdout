@@ -502,6 +502,15 @@
   "current": "600"
  },
  {
+  "key": "merged_go_proof",
+  "kind": "setting",
+  "default": "1",
+  "summary": "1 = when behind_ok would merge a go/-touching PR, prove the merge-tree with go vet+test first; 0 = off",
+  "goal": "G-022",
+  "doc": "docs/stale-policy.md",
+  "current": "1"
+ },
+ {
   "key": "min_mem_available_mb",
   "kind": "setting",
   "default": "1024",

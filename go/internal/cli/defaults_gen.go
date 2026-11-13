@@ -58,6 +58,7 @@ var DefaultConfig = []ConfigDefault{
 	{"noreply_email", ""},
 	{"red_main_freeze", "0"},
 	{"judge_wait_main_run", "0"},
+	{"merged_go_proof", "1"},
 	{"red_main_interval_s", "120"},
 	{"issue_intake_repos", ""},
 	{"frozen_repos", ""},
