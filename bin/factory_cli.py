@@ -5151,6 +5151,7 @@ def behind_ok_blocker(repo, sha, main_sha):
 
 
 MERGED_GO_PROOF_TIMEOUT_S = 180
+MERGED_GO_UNMERGEABLE = object()  # merge-tree conflict: not proof success; caller must drop behind_clean
 
 
 def merged_go_proof_env():
@@ -5172,21 +5173,35 @@ def _merged_go_names(repo, base, tip):
     return [f for f in out.split("\0") if f]
 
 
-def _merged_go_packages(files):
+def _merged_go_packages(files, go_dir):
+    """Map changed go/ paths to vet/test package args using the merge-tree archive (T-1386)."""
     if any(f in ("go/go.mod", "go/go.sum") for f in files):
         return ["./..."]
+    go_dir = Path(go_dir)
     pkgs = set()
+
+    def pkg_for(rel):
+        parts = rel.split("/")
+        end = len(parts) - 1 if parts[-1] != "" else len(parts) - 1
+        for i in range(end, -1, -1):
+            sub = "/".join(parts[:i]) if i else ""
+            d = go_dir / sub if sub else go_dir
+            if d.is_dir() and any(d.glob("*.go")):
+                return "." if d == go_dir else f"./{d.relative_to(go_dir).as_posix()}"
+        return None
+
     for f in files:
-        if not f.startswith("go/") or not f.endswith(".go"):
+        if not f.startswith("go/"):
             continue
-        rel = f[3:]
-        d = rel.rpartition("/")[0]
-        pkgs.add("./..." if not d else f"./{d}")
+        p = pkg_for(f[3:])
+        if p:
+            pkgs.add(p)
     return sorted(pkgs)
 
 
 def merged_go_refusal(con, repo, sha, main_sha, *, timeout=MERGED_GO_PROOF_TIMEOUT_S):
-    """Before a behind_ok merge of a go/** PR, prove the merge-tree with go vet and go test. None = no refusal."""
+    """Before a behind_ok merge of a go/** PR, prove the merge-tree with go vet and go test.
+    None = no refusal, MERGED_GO_UNMERGEABLE = merge-tree conflict (caller drops behind_clean), else MERGED-TREE refusal."""
     if (cfg(con, "merged_go_proof") or "1").strip() != "1":
         return None
     if not main_sha:
@@ -5206,13 +5221,10 @@ def merged_go_refusal(con, repo, sha, main_sha, *, timeout=MERGED_GO_PROOF_TIMEO
         return None
     rc, out, err = git("merge-tree", "--write-tree", sha, main_sha)
     if rc == 1:
-        return None
+        return MERGED_GO_UNMERGEABLE
     if rc != 0 or not out:
         return f"MERGED-TREE: git merge-tree failed ({err or rc}); nothing merged"
     tree = out.splitlines()[0].strip()
-    pkgs = _merged_go_packages(pr_files + main_files)
-    if not pkgs:
-        return None
     go = guard_go_path()
     if not os.access(go, os.X_OK):
         return "MERGED-TREE: go proof could not run (~/.local/go/bin/go missing); nothing merged"
@@ -5230,6 +5242,9 @@ def merged_go_refusal(con, repo, sha, main_sha, *, timeout=MERGED_GO_PROOF_TIMEO
             return f"MERGED-TREE: could not extract the merge-tree go/ tree ({extr.stderr.decode(errors='replace').strip()}); nothing merged"
         go_dir = Path(tmp) / "go"
         if not go_dir.is_dir():
+            return None
+        pkgs = _merged_go_packages(pr_files + main_files, go_dir)
+        if not pkgs:
             return None
         deadline = time.monotonic() + timeout
 
@@ -6263,19 +6278,25 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 return
         if behind_clean:
             proof = merged_go_refusal(con, git_repo, sha, stale[2])
-            if proof:
+            if proof is MERGED_GO_UNMERGEABLE:
+                behind_clean = False
+                reason = reason.replace("; " + BEHIND_OK_NOTE, "").replace(BEHIND_OK_NOTE, "")
+                if not stale[0]:
+                    problems.insert(0, "STALE-ONLY: head does not contain origin/main")
+            elif proof:
                 problems.append(proof)
-            pass  # TODO(T-0623): refuse here while the red-main freeze is active
-        elif stale[1] == "STALE" and not others and mech:
+            else:
+                pass  # TODO(T-0623): refuse here while the red-main freeze is active
+        if not behind_clean and stale[1] == "STALE" and not others and mech:
             problems.append("STALE-ONLY: the mechanical merger does not refresh; refresh by hand (`factory refresh`) or the judge does")
-        elif stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
+        elif not behind_clean and stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
             if pr.get("baseRefName") != "main":
                 problems.append(f"PR base is {pr.get('baseRefName')}, not main")
             if not t["branch"] or pr.get("headRefName") != t["branch"]:
                 problems.append(f"PR head branch {pr.get('headRefName')} is not the task branch {t['branch']}")
-        elif stale[1] == "STALE" and not others:
+        elif not behind_clean and stale[1] == "STALE" and not others:
             def block(why):
                 rejection_gate_refusal(con, a.task, "judge-blocked", why)
                 die("merge refused: " + why, 4)

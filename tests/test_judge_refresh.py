@@ -749,6 +749,71 @@ class JudgeRefreshTests(FactoryTestCase):
         self.assertNoMerge()
 
 
+    def _merge_main_go_mod(self, extra_go=()):
+        self.main_commit("go/go.mod", GOMOD)
+        for name, text in extra_go:
+            self.main_commit(name, text)
+        git(self.wt, "fetch", "-q", "origin", "main")
+        git(self.wt, "merge", "-q", "--no-edit", "origin/main")
+
+    def test_merged_go_testdata_only_clash_vets_internal_cli(self):
+        git(self.wt, "checkout", "-q", BRANCH)
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_strict:zz-test/repo',?)",
+                     (json.dumps({"at": 1, "strict": False}),))
+        self._merge_main_go_mod((("go/internal/cli/proof.go", "package cli\nfunc ProofPkg() {}\n"),))
+        self.commit(self.wt, "go/internal/cli/testdata/a.txt", "a\n", "pr testdata")
+        git(self.wt, "push", "-q", "origin", f"HEAD:refs/heads/{BRANCH}", "HEAD:refs/pull/1/head")
+        self.head = git(self.wt, "rev-parse", "HEAD")
+        (self.zz / "pushes.log").write_text("")
+        self.main_commit("go/internal/cli/testdata/b.txt", "b\n")
+        self.write_state(strict=False)
+        self.plant_go_stub()
+        git(self.wt, "fetch", "-q", "origin", "main")
+        sha, main = self.head, self.remote_ref("refs/heads/main")
+        with self.env.load_factory() as f:
+            msg = f.merged_go_refusal(f.db(), str(self.wt), sha, main)
+        self.assertIsNone(msg)
+        log = self.go_log()
+        self.assertIn("vet", log)
+        self.assertIn("./internal/cli", log)
+
+    def test_merged_go_root_go_file_vets_dot_package(self):
+        git(self.wt, "checkout", "-q", BRANCH)
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_strict:zz-test/repo',?)",
+                     (json.dumps({"at": 1, "strict": False}),))
+        self._merge_main_go_mod()
+        self.commit(self.wt, "go/rootpkg.go", "package rootpkg\nfunc Root() {}\n", "root go file")
+        git(self.wt, "push", "-q", "origin", f"HEAD:refs/heads/{BRANCH}", "HEAD:refs/pull/1/head")
+        self.head = git(self.wt, "rev-parse", "HEAD")
+        (self.zz / "pushes.log").write_text("")
+        self.main_commit("go/sibling.go", "package sibling\nfunc Sibling() {}\n")
+        self.write_state(strict=False)
+        self.plant_go_stub()
+        git(self.wt, "fetch", "-q", "origin", "main")
+        sha, main = self.head, self.remote_ref("refs/heads/main")
+        with self.env.load_factory() as f:
+            msg = f.merged_go_refusal(f.db(), str(self.wt), sha, main)
+        self.assertIsNone(msg)
+        log = self.go_log()
+        self.assertIn(" vet .", log)
+        self.assertNotIn("./...", log)
+
+    def test_merged_go_merge_tree_conflict_not_behind_ok(self):
+        git(self.wt, "checkout", "-q", BRANCH)
+        self._merge_main_go_mod()
+        body = "package mergedproof\nfunc Same() int { return 1 }\n"
+        self.commit(self.wt, "go/internal/mergedproof/same.go", body, "pr")
+        git(self.wt, "push", "-q", "origin", f"HEAD:refs/heads/{BRANCH}", "HEAD:refs/pull/1/head")
+        self.head = git(self.wt, "rev-parse", "HEAD")
+        (self.zz / "pushes.log").write_text("")
+        self.main_commit("go/internal/mergedproof/same.go",
+                         "package mergedproof\nfunc Same() int { return 2 }\n")
+        git(self.wt, "fetch", "-q", "origin", "main")
+        sha, main = self.head, self.remote_ref("refs/heads/main")
+        with self.env.load_factory() as f:
+            msg = f.merged_go_refusal(f.db(), str(self.wt), sha, main)
+        self.assertIs(msg, f.MERGED_GO_UNMERGEABLE)
+
     def test_merged_go_clash_refuses(self):
         self._init_go_pr("pr_clash.go", "package mergedproof\nfunc Clash() {}\n")
         self._behind_go_main("main_clash.go", "package mergedproof\nfunc Clash() {}\n")
