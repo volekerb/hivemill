@@ -1359,6 +1359,15 @@ def _hc_status_word(terminal):
     return "unknown"
 
 
+_HC_AGENT_KIND = {"claude-code": "claude"}  # hc names Claude Code `claude-code`; the TUI and factory say `claude`
+
+
+def _hc_remote_terminal(t):
+    """True for an `hc ls` row from another machine (`address` is `<machine>/t7`). Factory never runs with `--on`, and a
+    bare name does not reach such a terminal (`hc get <name>` is not_found), so it must not stand in for a local agent."""
+    return isinstance(t, dict) and "/" in str(t.get("address") or "")
+
+
 def _hc_terminal_to_agent_row(t):
     """Map one hc ls terminal object into the row shape the tick already normalizes (no invented fields)."""
     if not isinstance(t, dict):
@@ -1367,7 +1376,7 @@ def _hc_terminal_to_agent_row(t):
     if t.get("name") is not None:
         row["name"] = t["name"]
     if t.get("agent") is not None:
-        row["agent"] = t["agent"]
+        row["agent"] = _HC_AGENT_KIND.get(t["agent"], t["agent"])
     word = _hc_status_word(t)
     if "status" in t or word != "unknown":
         row["agent_status"] = word
@@ -1383,7 +1392,7 @@ def _hc_unwrap_result(ipc_argv, payload):
         terminals = payload.get("terminals")
         if not isinstance(terminals, list):
             return None
-        return {"agents": [_hc_terminal_to_agent_row(t) for t in terminals]}
+        return {"agents": [_hc_terminal_to_agent_row(t) for t in terminals if not _hc_remote_terminal(t)]}
     if cmd == "read":
         if "text" in payload:
             return {"text": payload["text"]}

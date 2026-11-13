@@ -54,9 +54,15 @@ def new_tab(ws, label):
 
 
 def hc_ls_envelope():
+    """Row shape of real `hc ls --json` (0.1.21): address, agent (`claude-code` for Claude), cwd, name, state,
+    status (a plain string, absent before the agent reports), turn, where. A row from another machine has
+    address `<machine>/t7` (set "address" on the fake agent to get one)."""
     terminals = []
-    for a in st["agents"]:
-        t = {"name": a.get("name"), "agent": a.get("agent", "claude"), "state": "live"}
+    for i, a in enumerate(st["agents"], 1):
+        kind = a.get("agent", "claude")
+        t = {"address": a.get("address") or f"t{i}", "agent": "claude-code" if kind == "claude" else kind,
+             "cwd": a.get("cwd", "/tmp"), "name": a.get("name"), "state": "live", "turn": 0,
+             "where": a.get("where", "factory / " + str(a.get("name")))}
         if "osc_status" in a:
             t["status"] = a["osc_status"]
         elif a.get("agent_status"):

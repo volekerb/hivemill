@@ -44,6 +44,18 @@ class HcStatusMapperTests(FactoryTestCase):
     self.assertEqual(self._row_from_ls("idle"), "idle")
     self.assertEqual(self._row_from_ls("bogus"), "unknown")
 
+  def test_real_ls_rows_kind_and_remote(self):
+    """hc 0.1.21 rows: agent `claude-code` maps to `claude`; a row from another machine (`m/t19`) is dropped."""
+    env = {"hidden_finished": 0, "machines": [{"name": "m", "state": "connected"}], "terminals": [
+      {"address": "t2", "agent": "claude-code", "cwd": "/tmp", "name": NAME, "state": "live",
+       "status": "idle", "turn": 0, "where": "space / tab"},
+      {"address": "m/t19", "agent": "claude-code", "cwd": "/tmp", "name": DIR, "state": "live",
+       "status": "idle", "turn": 0},
+      {"address": "t3", "agent": "claude-code", "cwd": "/tmp", "state": "live", "turn": 0},
+    ]}
+    rows = self.f._hc_unwrap_result(["ls"], env)["agents"]
+    self.assertEqual(rows, [{"name": NAME, "agent": "claude", "agent_status": "idle"}, {"agent": "claude"}])
+
 
 class HcStatusTickTests(FactoryTestCase):
   def setUp(self):
@@ -77,6 +89,17 @@ class HcStatusTickTests(FactoryTestCase):
     self.env.set_herdr(agents=[self._hc_agent({"state": "idle"})])
     self.ok("tick", agent="owner")
     self.assertEqual(len(self._hc_sends()), 1)
+
+  def test_remote_row_with_same_name_is_not_this_agent(self):
+    """An idle terminal of the same name on another machine (address `m/t19`) must not trigger a nudge."""
+    self.env.sql(
+      "INSERT INTO messages(sender,recipient,kind,subject,body,created) VALUES('x',?,'msg','s','b','2026-01-01')",
+      (NAME,),
+    )
+    self.ok("config", "nudge_cooldown_s", "-60", agent="owner")
+    self.env.set_herdr(agents=[{**self._hc_agent({"state": "idle"}), "address": "m/t19"}])
+    self.ok("tick", agent="owner")
+    self.assertEqual(self._hc_sends(), [])
 
 
 class HcStatusUnblockTests(FactoryTestCase):
