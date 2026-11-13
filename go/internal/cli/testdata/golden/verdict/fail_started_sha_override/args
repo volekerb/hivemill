@@ -1,0 +1,9 @@
+verdict
+T-0002
+--fail
+--summary
+broken
+--cause
+other
+--sha
+01234567

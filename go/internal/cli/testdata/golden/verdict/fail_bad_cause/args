@@ -1,0 +1,7 @@
+verdict
+T-0001
+--fail
+--summary
+broken
+--cause
+it's bad

@@ -1,0 +1,6 @@
+factory: qa PASS refused, nothing recorded: '## Gates' section has no gate lines
+Gate line format: `- <name> exit=<code> cmd=<command>`, one per line under a line `## Gates`, e.g.
+## Gates
+- unittest exit=0 cmd=python3 -m unittest discover -s tests -v
+- compile exit=0 cmd=python3 -m py_compile bin/factory
+Gates are commands that must succeed (suite, build, lint); a check whose correct result is a non-zero exit belongs in the per-criterion list instead.

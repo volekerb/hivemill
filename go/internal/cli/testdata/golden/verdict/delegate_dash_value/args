@@ -1,0 +1,7 @@
+verdict
+T-0001
+--fail
+--summary
+-x
+--cause
+bug

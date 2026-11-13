@@ -1,0 +1,1 @@
+factory: reviewer PASS refused, nothing recorded: pass --sha <the commit you checked> (current PR head is 0123456789abcdef0123456789abcdef01234567; run `git -C <worktree> rev-parse HEAD` on what you tested)
