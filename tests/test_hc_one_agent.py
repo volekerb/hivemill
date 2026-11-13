@@ -471,6 +471,91 @@ class HcConfigHerdrRowTests(FactoryTestCase):
         self.assertEqual(len(closes), 1)
         self.assertEqual(closes[0]["argv"][2], "p-stop")
 
+    def test_stop_hc_row_on_herdr_config_hc_kills(self):
+        name = "zz-hc-stop-now"
+        self.ok("config", "terminal_backend", "herdr", agent="owner")
+        self.env.seed_agent(name, "coder", goal="G-001", team="g-001-a", pane_id=name, status="live")
+        self.env.sql(
+            "UPDATE agents SET spawn_args=?, session_id=?, stop_requested_at=? WHERE name=?",
+            (json.dumps({"host_backend": "hc"}), "sess-hc-stop", time.time(), name),
+        )
+        self.env.set_herdr(agents=[])
+        self.hc_state.write_text(
+            json.dumps(
+                {
+                    "agents": [
+                        {
+                            "name": name,
+                            "agent": "claude",
+                            "osc_status": {"state": "idle"},
+                            "agent_session": {"value": "sess-hc-stop"},
+                        }
+                    ]
+                }
+            )
+        )
+        with mock.patch.object(f, "_scan_claude", return_value={}), mock.patch.object(f, "claude_procs", return_value=[]):
+            self.ok("stop", name, "--now", agent="owner", extra_env={**self.hc_extra, "FACTORY_STOP_CONFIRM_S": "0.1"})
+        kills = [c["argv"] for c in self.env.calls("hc") if c["argv"][:1] == ["kill"]]
+        self.assertEqual(kills, [["kill", name]])
+        status = self.env.sql("SELECT status FROM agents WHERE name=?", (name,))[0][0]
+        self.assertEqual(status, "stopped")
+
+    def test_herdr_director_unread_nudge_on_hc_config(self):
+        lead = "zz-tui-director-nudge"
+        self.ok("config", "nudge_cooldown_s", "-60", agent="owner")
+        self.env.seed_agent(lead, "director", goal="G-001", pane_id="p-dir", status="live")
+        self.env.sql(
+            "UPDATE agents SET spawn_args=? WHERE name=?",
+            (json.dumps({"host_backend": "herdr"}), lead),
+        )
+        self.env.sql(
+            "INSERT INTO messages(sender,recipient,kind,subject,body,created) VALUES('x',?,'msg','s','b','2026-01-01')",
+            (lead,),
+        )
+        self.env.set_herdr(
+            agents=[{"name": lead, "agent": "claude", "pane_id": "p-dir", "agent_status": "idle"}]
+        )
+        self.ok("tick", agent="owner", extra_env=self.hc_extra)
+        prompts = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "prompt"] and lead in c["argv"]]
+        self.assertEqual(len(prompts), 1)
+
+    def test_herdr_director_recycle_on_hc_config(self):
+        lead = "zz-tui-director-recycle"
+        self.ok("config", "recycle_context_tokens", "100000", agent="owner")
+        self.env.seed_agent(lead, "director", goal="G-001", pane_id="p-rc", status="live")
+        self.env.sql(
+            "UPDATE agents SET spawn_args=?, session_id=? WHERE name=?",
+            (json.dumps({"host_backend": "herdr"}), "sess-rc", lead),
+        )
+        d = self.env.user_home / ".claude" / "projects" / "-zz-proj"
+        d.mkdir(parents=True, exist_ok=True)
+        lines = [
+            {"type": "assistant", "message": {"id": "m0", "usage": {"input_tokens": 5, "cache_read_input_tokens": 1}}},
+            {
+                "type": "assistant",
+                "message": {
+                    "id": "m1",
+                    "usage": {"input_tokens": 10, "cache_read_input_tokens": 150000 - 30, "cache_creation_input_tokens": 20},
+                },
+            },
+        ]
+        (d / "sess-rc.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+        self.env.set_herdr(
+            agents=[
+                {
+                    "name": lead,
+                    "agent": "claude",
+                    "pane_id": "p-rc",
+                    "agent_status": "idle",
+                    "agent_session": {"value": "sess-rc"},
+                }
+            ]
+        )
+        self.ok("tick", agent="owner", extra_env={**self.hc_extra, "FACTORY_NOW": "2026-06-01T12:00:00+00:00"})
+        queued = self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action='recycle-queued'", (lead,))
+        self.assertEqual(len(queued), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

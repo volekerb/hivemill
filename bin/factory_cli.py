@@ -11754,13 +11754,20 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
         kind = "process-unknown"  # fail closed: without the session or a readable /proc nothing proves it exited
         note = _UNKNOWN_BEFORE
     else:
-        gone = pane_gone(pane, tui=tui_ipc) if pane else True
-        if gone is True and pane:  # the row's id is not listed, but the host may carry the agent under its name on another id
+        if row_exe == "hc":
             listed = _listed_agents_for_exe(con, row_exe, r)
             if listed is None:
                 gone = None
-            elif any(x.get("name") == name and x.get("pane_id") for x in listed):
-                gone = False
+            else:
+                gone = not any(x.get("name") == name for x in listed)
+        else:
+            gone = pane_gone(pane, tui=tui_ipc) if pane else True
+            if gone is True and pane:  # the row's id is not listed, but the host may carry the agent under its name on another id
+                listed = _listed_agents_for_exe(con, row_exe, r)
+                if listed is None:
+                    gone = None
+                elif any(x.get("name") == name and x.get("pane_id") for x in listed):
+                    gone = False
         if gone is False:
             # the worker may have run `factory done` in the window: re-read right before the pane close
             cur = con.execute("SELECT status, stop_requested_at FROM agents WHERE name=?", (name,)).fetchone()
@@ -11774,7 +11781,11 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
                 close_leftover_shell(con, name, pane)  # T-1118: the id may still list a bare shell; close it or say why not
             end = time.time() + wait
             while st == "closed":  # confirm: the host must stop listing the pane it closed
-                gone = pane_gone(hp, tui=tui_ipc)
+                if row_exe == "hc":
+                    listed = _listed_agents_for_exe(con, row_exe, r)
+                    gone = listed is not None and not any(x.get("name") == name for x in listed)
+                else:
+                    gone = pane_gone(hp, tui=tui_ipc)
                 if gone or time.time() >= end:
                     break
                 time.sleep(min(1.0, max(0.05, end - time.time())))
@@ -15740,9 +15751,17 @@ def cmd_tick(a, locked=False):
     # 3. nudge idle agents that have unread mail; give the director its cycle
     cooldown = int(cfg(con, "nudge_cooldown_s"))
     nudge_eff = terminal_backend_effective(con)[1]
+    nudge_hc_by = {}
+    tui_by_name, tui_by_pane, tui_list_ok = {}, {}, True
     if nudge_eff == "hc":
         nudge_agents = herdr_agents() or []
-        nudge_hc_by = {}
+        if con.execute(
+            "SELECT 1 FROM agents WHERE status='live' "
+            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+        ).fetchone():
+            tui_agents = _host_agents_list("herdr")
+            tui_list_ok = tui_agents is not None
+            tui_by_name, tui_by_pane = _agents_index(tui_agents or [])
     else:
         nudge_agents = _host_agents_list("herdr") or []
         nudge_hc_list = _host_agents_list("hc") or []
@@ -15750,8 +15769,14 @@ def cmd_tick(a, locked=False):
     nudge_by_name, nudge_by_pane = _agents_index(nudge_agents)
     for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
         if r["role"] == "boss":
-            h = _agent_host_status(con, r, nudge_by_name, nudge_by_pane, nudge_hc_by,
-                                   hc_overlay=(nudge_eff != "hc"))
+            if nudge_eff == "hc" and _agent_host_exe(con, r) == "herdr":
+                if not tui_list_ok:
+                    continue
+                h = tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+            elif nudge_eff != "hc" and _agent_host_exe(con, r) == "hc":
+                h = nudge_hc_by.get(r["name"])
+            else:
+                h = nudge_by_name.get(r["name"]) or nudge_by_pane.get(r["pane_id"])
             if h and h.get("agent_status") in ("idle", "done"):
                 boss_cd = int(cfg(con, "boss_wake_cooldown_s"))
                 if not (r["last_nudge"] and t - r["last_nudge"] < boss_cd):
@@ -15782,8 +15807,14 @@ def cmd_tick(a, locked=False):
             continue
         if r["name"] in starting:
             continue  # start pending or just kicked off: no second prompt
-        h = _agent_host_status(con, r, nudge_by_name, nudge_by_pane, nudge_hc_by,
-                               hc_overlay=(nudge_eff != "hc"))
+        if nudge_eff == "hc" and _agent_host_exe(con, r) == "herdr":
+            if not tui_list_ok:
+                continue
+            h = tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+        elif nudge_eff != "hc" and _agent_host_exe(con, r) == "hc":
+            h = nudge_hc_by.get(r["name"])
+        else:
+            h = nudge_by_name.get(r["name"]) or nudge_by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue
         if r["last_nudge"] and t - r["last_nudge"] < cooldown:
@@ -16828,10 +16859,18 @@ def tick_recycle(con):
     if not rows:
         return
     eff = terminal_backend_effective(con)[1]
+    hc_by_name = {}
+    hc_list_ok = True
+    tui_by_name, tui_by_pane, tui_list_ok = {}, {}, True
     if eff == "hc":
         agents = herdr_agents()
-        hc_by_name = {}
-        hc_list_ok = True
+        if con.execute(
+            "SELECT 1 FROM agents WHERE status IN ('live') AND role IN ('director','lead') "
+            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+        ).fetchone():
+            tui_agents = _host_agents_list("herdr")
+            tui_list_ok = tui_agents is not None
+            tui_by_name, tui_by_pane = _agents_index(tui_agents or [])
     else:
         agents = _host_agents_list("herdr")
         hc_list = _host_agents_list("hc")
@@ -16845,7 +16884,11 @@ def tick_recycle(con):
     except FactoryNowError:
         clock = time.time()
     for r in rows:
-        if eff != "hc" and _agent_host_exe(con, r) == "hc":
+        if eff == "hc" and _agent_host_exe(con, r) == "herdr":
+            if not tui_list_ok:
+                continue
+            h = tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+        elif eff != "hc" and _agent_host_exe(con, r) == "hc":
             if not hc_list_ok:
                 continue
             h = hc_by_name.get(r["name"])
