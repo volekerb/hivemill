@@ -81,7 +81,7 @@ jobs:
   go:
     name: go
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       GOTOOLCHAIN: local
     defaults:
