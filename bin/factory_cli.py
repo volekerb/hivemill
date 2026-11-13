@@ -1569,12 +1569,8 @@ def _agent_host_status(con, r, tui_by_name, tui_by_pane, hc_by_name, hc_overlay=
 def _host_list_row(con, name):
     """One agent's row from its own host list (per-spawn host_backend), or None if unlisted/unreachable."""
     row = con.execute("SELECT name, spawn_args, pane_id FROM agents WHERE name=?", (name,)).fetchone()
-    if row and _agent_host_exe(con, row) == "hc":
-        listed = _host_agents_list("hc")
-        if listed is None:
-            return None
-        return next((x for x in listed if x.get("name") == name), None)
-    listed = herdr_agents()
+    exe = _agent_host_exe(con, row) if row else terminal_backend_effective(con)[1]
+    listed = _host_agents_list(exe)
     if listed is None:
         return None
     return next((x for x in listed if x.get("name") == name), None)
@@ -1647,6 +1643,34 @@ def _host_ipc_argv(exe, args):
     if exe != "hc":
         return list(args)
     return _hc_translate_args(args)
+
+
+def _host_ipc_result(exe, *args, check=False, timeout=HERDR_TIMEOUT_S):
+    """One herdr TUI or hc IPC call on a named binary, ignoring config terminal_backend."""
+    herdr_gate(args)
+    ipc_argv = _host_ipc_argv(exe, args)
+    if ipc_argv is None:
+        if check:
+            die(f"hc has no equivalent for herdr {' '.join(str(x) for x in args[:3])}")
+        return None
+    env = _host_ipc_env(exe)
+    try:
+        p = subprocess.run([exe, *ipc_argv], capture_output=True, text=True, timeout=timeout, env=env)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        if check:
+            die(f"{exe} {' '.join(str(x) for x in args[:2])} failed: {e}")
+        return None
+    if p.returncode != 0:
+        if check:
+            die(f"{exe} {' '.join(str(x) for x in args[:3])} failed: {p.stderr.strip() or p.stdout.strip()}")
+        return None
+    out = p.stdout.strip()
+    try:
+        if exe == "hc":
+            return _hc_parse_host_stdout(ipc_argv, out)
+        return json.loads(out.splitlines()[-1])["result"] if out else {}
+    except (json.JSONDecodeError, KeyError, IndexError):
+        return {"raw": out}
 
 
 def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
@@ -1756,12 +1780,11 @@ def close_named_pane(con, name, pane):
     so nothing of ours is closed; one "pane-close-skipped" event says whether the row's id is held by another name),
     "unknown" (the host cannot be asked: nothing closed, the caller retries on its next run, no event)."""
     row = con.execute("SELECT name, spawn_args, pane_id FROM agents WHERE name=?", (name,)).fetchone()
-    hc_row = row and _agent_host_exe(con, row) == "hc"
-    listed = _host_agents_list("hc") if hc_row else herdr_agents()
+    row_exe = _agent_host_exe(con, row) if row else terminal_backend_effective(con)[1]
+    listed = _host_agents_list(row_exe)
     if listed is None:
         return "unknown", None
-    hc = hc_row or terminal_backend_effective(con)[1] == "hc"
-    if hc:
+    if row_exe == "hc":
         h = next((x for x in listed if x.get("name") == name), None)
         if h is None:
             other = next((x.get("name") for x in listed if pane and x.get("pane_id") == pane), None)
@@ -1780,7 +1803,7 @@ def close_named_pane(con, name, pane):
         event(con, "agent", name, "pane-close-skipped",
               {"agent": name, "pane": pane, "reason": f"pane held by {other}" if other else "no host pane under this name"})
         return "not-found", None
-    herdr("pane", "close", h["pane_id"], check=False)
+    _host_ipc_result("herdr", "pane", "close", h["pane_id"], check=False)
     return "closed", h["pane_id"]
 
 
@@ -1832,8 +1855,21 @@ def herdr_panes(ws):
     return (r or {}).get("panes", [])
 
 
-def find_pane(pane_id):
-    """(workspace, tab, pane dict) of a pane herdr lists, else None."""
+def find_pane(pane_id, tui=False):
+    """(workspace, tab, pane dict) of a pane herdr lists, else None. tui=True lists via the TUI binary even when config is hc."""
+    if tui:
+        ws_map = {}
+        r = _host_ipc_result("herdr", "workspace", "list", check=False)
+        if r and "workspaces" in r:
+            ws_map = {w["workspace_id"]: w for w in r["workspaces"]}
+        for ws in ws_map:
+            pr = _host_ipc_result("herdr", "pane", "list", "--workspace", ws, check=False)
+            if not pr or "panes" not in pr:
+                continue
+            for p in pr["panes"]:
+                if p.get("pane_id") == pane_id:
+                    return ws, p.get("tab_id"), p
+        return None
     for ws in herdr_workspaces():
         for p in herdr_panes(ws):
             if p.get("pane_id") == pane_id:
@@ -4203,9 +4239,9 @@ def release_stale_pane(con, name):
     if not r or not r["pane_id"] or r["status"] not in ("done", "exited"):
         return True
     row_exe = _agent_host_exe(con, r)
-    if terminal_backend_effective(con)[1] == "hc" and not _row_hosted_on_hc(r):
-        return True
     if row_exe == "hc":
+        if not _row_hosted_on_hc(r):
+            return True  # a legacy TUI pane id on an hc-config factory: nothing to release here
         listed = _host_agents_list("hc") if terminal_backend_effective(con)[1] == "herdr" else herdr_agents()
         if listed is not None and not any(h.get("name") == name for h in listed):
             con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?",
@@ -4214,15 +4250,16 @@ def release_stale_pane(con, name):
             return True
         if terminal_backend_effective(con)[1] == "herdr":
             return False
-    if terminal_backend_effective(con)[1] == "hc":
-        listed = herdr_agents()
-        if listed is not None and not any(h.get("name") == name for h in listed):
-            con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?",
-                        (now(), name))
-            event(con, "agent", name, "reaped", r["pane_id"])
-            return True
-        return False
+        if terminal_backend_effective(con)[1] == "hc":
+            listed = herdr_agents()
+            if listed is not None and not any(h.get("name") == name for h in listed):
+                con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?",
+                            (now(), name))
+                event(con, "agent", name, "reaped", r["pane_id"])
+                return True
+            return False
     pane = r["pane_id"]
+    tui_list = terminal_backend_effective(con)[1] == "hc"
     gone = False
     if r["status"] == "done":
         st, hp = close_named_pane(con, name, pane)
@@ -4230,14 +4267,14 @@ def release_stale_pane(con, name):
             con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
             event(con, "agent", name, "reaped", pane)
             return True
-        gone = st == "closed" and pane_gone(hp) is True
+        gone = st == "closed" and pane_gone(hp, tui=tui_list) is True
     else:
-        listed = herdr_agents()
+        listed = _host_agents_list("herdr") if tui_list else herdr_agents()
         if listed is not None and not any(h.get("name") == name and h.get("pane_id") == pane for h in listed):
             return True  # the host does not list that pane under this name: nothing of ours to close (as before)
         if listed is not None:  # never close a pane we cannot attribute to this name
             st, hp = close_named_pane(con, name, pane)
-            gone = st == "closed" and pane_gone(hp) is True
+            gone = st == "closed" and pane_gone(hp, tui=tui_list) is True
     if gone:
         con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
         event(con, "agent", name, "reaped", pane)
@@ -10446,8 +10483,6 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     spawn_host = "hc" if use_hc else "herdr"
     args = {**args, "runtime": runtime, "launch": plan.launch, "notes": plan.notes,
             "herdr_kind": plan.herdr_kind}
-    if use_hc:
-        args["host_backend"] = "hc"
     if plan.workspace:
         args["cursor_workspace"] = str(plan.workspace)
     sid = plan.session_id
@@ -10672,8 +10707,6 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     # before this agent's own (re)launch (old pane closed first) and never delete it
     sysprompt.write_text(prompt_text)
     args.setdefault("runtime", "claude")
-    if use_hc:
-        args["host_backend"] = "hc"
     claude_args = ["--model", model, "--permission-mode", "auto", "--settings", str(settings),
                    "--append-system-prompt-file", str(sysprompt), *([] if evaluator else ["--add-dir", str(HOME)]),
                    "-n", name, *effort]
@@ -11596,8 +11629,24 @@ def stop_confirm_s():
         return 10.0
 
 
-def pane_gone(pane):
-    """True when herdr no longer lists the pane, False when it does, None when herdr cannot be asked."""
+def pane_gone(pane, tui=False):
+    """True when herdr no longer lists the pane, False when it does, None when herdr cannot be asked.
+    tui=True asks the TUI binary (needed for TUI pane ids while config terminal_backend is hc)."""
+    if tui:
+        r = _host_ipc_result("herdr", "pane", "list", check=False)
+        if r is None or "panes" not in r:
+            ws = _host_ipc_result("herdr", "workspace", "list", check=False)
+            if ws is None or "workspaces" not in ws:
+                return None
+            panes = []
+            for w in ws["workspaces"]:
+                r = _host_ipc_result("herdr", "pane", "list", "--workspace", w["workspace_id"], check=False)
+                if r is None or "panes" not in r:
+                    return None
+                panes += r["panes"]
+        else:
+            panes = r["panes"]
+        return not any(p.get("pane_id") == pane for p in panes)
     r = herdr("pane", "list", check=False)
     if r is None or "panes" not in r:
         ws = herdr("workspace", "list", check=False)
@@ -11667,17 +11716,20 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
     pane, wait = r["pane_id"], stop_confirm_s()
     kind, pids = None, []
     sid = r["session_id"]
+    row_exe = _agent_host_exe(con, r)
+    tui_ipc = row_exe == "herdr" and terminal_backend_effective(con)[1] == "hc"
     if not sid:  # a row that never got its session id: ask the host (a read) before deciding anything
-        h = next((x for x in (herdr_agents() or []) if x.get("name") == name or (pane and x.get("pane_id") == pane)), None)
+        listed = _host_agents_list(row_exe) or []
+        h = next((x for x in listed if x.get("name") == name or (pane and x.get("pane_id") == pane)), None)
         sid = ((h or {}).get("agent_session") or {}).get("value")
     note = None
     if not sid or _scan_claude() is None:
         kind = "process-unknown"  # fail closed: without the session or a readable /proc nothing proves it exited
         note = _UNKNOWN_BEFORE
     else:
-        gone = pane_gone(pane) if pane else True
+        gone = pane_gone(pane, tui=tui_ipc) if pane else True
         if gone is True and pane:  # the row's id is not listed, but the host may carry the agent under its name on another id
-            listed = herdr_agents()
+            listed = _host_agents_list(row_exe)
             if listed is None:
                 gone = None
             elif any(x.get("name") == name and x.get("pane_id") for x in listed):
@@ -11695,7 +11747,7 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
                 close_leftover_shell(con, name, pane)  # T-1118: the id may still list a bare shell; close it or say why not
             end = time.time() + wait
             while st == "closed":  # confirm: the host must stop listing the pane it closed
-                gone = pane_gone(hp)
+                gone = pane_gone(hp, tui=tui_ipc)
                 if gone or time.time() >= end:
                     break
                 time.sleep(min(1.0, max(0.05, end - time.time())))
@@ -15281,8 +15333,18 @@ def cmd_tick(a, locked=False):
     hc_back = eff_exe == "hc"
     hc_by_name = {}
     hc_list_ok = True
+    tui_by_name, tui_by_pane, tui_list_ok = {}, {}, True
+    need_tui_tick = False
     if hc_back:
         agents = herdr_agents()
+        need_tui_tick = bool(con.execute(
+            "SELECT 1 FROM agents WHERE status IN ('live','done') "
+            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+        ).fetchone())
+        if need_tui_tick:
+            tui_agents = _host_agents_list("herdr")
+            tui_list_ok = tui_agents is not None
+            tui_by_name, tui_by_pane = _agents_index(tui_agents or [])
     else:
         agents = _host_agents_list("herdr")
         hc_list = _host_agents_list("hc")
@@ -15339,10 +15401,15 @@ def cmd_tick(a, locked=False):
     # 1. reap finished workers; detect lost agents; record session ids for resume
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
         row_exe = _agent_host_exe(con, r)
-        if hc_back and not _row_hosted_on_hc(r):
-            continue
         if hc_back:
-            h = _pane_host(con, by_name, by_pane, r)
+            if row_exe == "herdr":
+                if not tui_list_ok:
+                    continue
+                h = _pane_host(con, tui_by_name, tui_by_pane, r)
+            elif _row_hosted_on_hc(r):
+                h = _pane_host(con, by_name, by_pane, r)
+            else:
+                continue  # a legacy TUI pane id without host_backend=herdr: tick does not reconcile on hc
         elif row_exe == "hc":
             if not hc_list_ok:
                 continue
@@ -16530,7 +16597,7 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         if agents is None:
             die("hc is unreachable")
     else:
-        agents = herdr_agents()
+        agents = _host_agents_list("herdr")
         if agents is None:
             die("herdr is unreachable")
     pane, close, by_pane, by_pane_cursor = r["pane_id"], False, False, False
@@ -16581,7 +16648,7 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         if host.get("agent_status") == "working" and not force:
             die(f"{r['name']} is mid-turn (a relaunch would lose the turn); use --when-idle, or --force", 2)
         close = True
-    elif pane and row_exe != "hc" and find_pane(pane):
+    elif pane and row_exe != "hc" and find_pane(pane, tui=terminal_backend_effective(con)[1] == "hc"):
         if not pane_at_shell(pane):
             die(f"pane {pane} runs a process that is not a registered agent; refusing to touch it", 3)
     else:
@@ -16644,9 +16711,13 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             else:
                 die(f"hc still lists {r['name']} after kill; not restarting", 3)
         else:
-            herdr("pane", "close", pane)
+            tui_ipc = terminal_backend_effective(con)[1] == "hc"
+            if tui_ipc:
+                _host_ipc_result("herdr", "pane", "close", pane, check=False)
+            else:
+                herdr("pane", "close", pane)
             for _ in range(20):
-                if not find_pane(pane):
+                if not find_pane(pane, tui=tui_ipc):
                     break
                 time.sleep(_relaunch_poll_s())
             pane = None
@@ -18053,8 +18124,16 @@ def tick_relaunches(con):
     eff = terminal_backend_effective(con)[1]
     hc_list_ok = True
     hc_by_name = {}
+    tui_by_name, tui_by_pane, tui_list_ok = {}, {}, True
     if eff == "hc":
         agents = herdr_agents()
+        if con.execute(
+            "SELECT 1 FROM agents WHERE status='live' AND relaunch_requested_at IS NOT NULL "
+            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+        ).fetchone():
+            tui_agents = _host_agents_list("herdr")
+            tui_list_ok = tui_agents is not None
+            tui_by_name, tui_by_pane = _agents_index(tui_agents or [])
     else:
         agents = _host_agents_list("herdr")
         hc_list = _host_agents_list("hc")
@@ -18064,7 +18143,11 @@ def tick_relaunches(con):
         return
     by_name, by_pane = _agents_index(agents)
     for r in rows:
-        if eff != "hc" and _agent_host_exe(con, r) == "hc":
+        if eff == "hc" and _agent_host_exe(con, r) == "herdr":
+            if not tui_list_ok:
+                continue
+            h = tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+        elif eff != "hc" and _agent_host_exe(con, r) == "hc":
             if not hc_list_ok:
                 continue
             h = hc_by_name.get(r["name"])

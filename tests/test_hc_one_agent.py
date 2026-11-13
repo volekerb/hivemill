@@ -1,9 +1,15 @@
 """T-1217 (G-031 SC6): one hc-hosted agent while terminal_backend stays herdr."""
 import json
+import sys
 import time
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from harness import FactoryTestCase
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+import factory_cli as f  # noqa: E402
 
 TUI = "zz-tui-pm"
 HC = "zz-hc-coder"
@@ -321,6 +327,149 @@ class HcOneAgentNudgeTests(FactoryTestCase):
         self.ok("tick", agent="owner", extra_env=self.hc_extra)
         prompts = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "prompt"] and tui in c["argv"]]
         self.assertEqual(len(prompts), 1)
+
+
+class HcConfigHerdrRowTests(FactoryTestCase):
+    """terminal_backend hc with spawn_args.host_backend herdr (TUI pilot on hc factory)."""
+
+    INPROC = True
+    TUI = "zz-pilot-tui"
+
+    def setUp(self):
+        super().setUp()
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+        self.ok("config", "blocked_alert_s", "0", agent="owner")
+        self.env.seed_goal()
+        self.env.seed_team()
+        self.hc_state = self.env.home / "hc.json"
+        self.hc_state.write_text(json.dumps({"agents": [{"name": "zz-hc-other", "agent": "claude", "osc_status": {"state": "idle"}}]}))
+        self.hc_extra = {"FAKE_HC_STATE": str(self.hc_state)}
+
+    def _herdr_row(self, name, pane, status="live", session="sess-tui"):
+        self.env.seed_agent(name, "coder", goal="G-001", team="g-001-a", pane_id=pane, status=status)
+        self.env.sql(
+            "UPDATE agents SET spawn_args=?, session_id=? WHERE name=?",
+            (json.dumps({"host_backend": "herdr"}), session, name),
+        )
+
+    def test_spawn_omitted_host_backend_no_spawn_args_key(self):
+        self.ok("config", "max_live_agents", "99", agent="owner")
+        self.env.seed_task("T-omit", goal="G-001", team="g-001-a", role="coder", status="todo", pr_url=None)
+        self.env.set_herdr(
+            workspaces=[{"workspace_id": "w1", "label": "w"}],
+            tabs=[{"tab_id": "t1", "workspace_id": "w1", "label": "x", "pane_count": 1}],
+            panes=[{"pane_id": "p1", "tab_id": "t1", "workspace_id": "w1"}],
+            agents=[],
+        )
+        name = "zz-coder-t-omit"
+        p = self.ok(
+            "spawn",
+            "coder",
+            "--goal",
+            "G-001",
+            "--team",
+            "g-001-a",
+            "--task",
+            "T-omit",
+            "--name",
+            name,
+            agent="owner",
+            extra_env=self.hc_extra,
+        )
+        self.assertIn("SPAWNED", p.stdout)
+        sa = json.loads(self.env.sql("SELECT spawn_args FROM agents WHERE name=?", (name,))[0][0])
+        self.assertNotIn("host_backend", sa)
+
+    def test_tick_reaps_done_herdr_row_on_hc_config(self):
+        self._herdr_row(self.TUI, "p-pilot", status="done")
+        self.env.set_herdr(
+            agents=[{"name": self.TUI, "agent": "claude", "pane_id": "p-pilot", "agent_status": "idle"}]
+        )
+        self.ok("tick", agent="owner", extra_env=self.hc_extra)
+        row = self.env.sql("SELECT status, pane_id FROM agents WHERE name=?", (self.TUI,))[0]
+        self.assertEqual(row["status"], "exited")
+        closes = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
+        self.assertEqual(len(closes), 1)
+        self.assertEqual(closes[0]["argv"][2], "p-pilot")
+
+    def test_tui_dialog_esc_when_hc_config(self):
+        self._herdr_row(self.TUI, "p-dialog")
+        self.env.sql("UPDATE agents SET blocked_since=? WHERE name=?", (time.time() - 1000, self.TUI))
+        self.env.set_herdr(
+            agents=[{"name": self.TUI, "agent": "claude", "pane_id": "p-dialog", "agent_status": "blocked"}],
+            read_text={self.TUI: PERM},
+        )
+        self.ok("tick", agent="owner", extra_env=self.hc_extra)
+        keys = [c["argv"] for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "send-keys"]]
+        self.assertEqual(keys, [["agent", "send-keys", self.TUI, "esc"]])
+
+    def test_release_stale_closes_herdr_pane_on_hc_config(self):
+        self.env.seed_task("T-re", goal="G-001", team="g-001-a", role="coder", status="todo", pr_url=None)
+        self.ok("config", "max_live_agents", "99", agent="owner")
+        self._herdr_row(self.TUI, "p-old", status="done")
+        self.env.set_herdr(
+            workspaces=[{"workspace_id": "w1", "label": "w"}],
+            tabs=[{"tab_id": "t1", "workspace_id": "w1", "label": "x", "pane_count": 1}],
+            panes=[{"pane_id": "p-old", "tab_id": "t1", "workspace_id": "w1"}, {"pane_id": "p-new", "tab_id": "t1", "workspace_id": "w1"}],
+            agents=[{"name": self.TUI, "agent": "claude", "pane_id": "p-old", "agent_status": "idle"}],
+        )
+        p = self.ok(
+            "spawn",
+            "coder",
+            "--goal",
+            "G-001",
+            "--team",
+            "g-001-a",
+            "--task",
+            "T-re",
+            "--name",
+            self.TUI,
+            agent="owner",
+            extra_env=self.hc_extra,
+        )
+        self.assertIn("SPAWNED", p.stdout)
+        closes = [c["argv"][2] for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
+        self.assertIn("p-old", closes)
+
+    def test_herdr_relaunch_when_idle_on_hc_config(self):
+        self._herdr_row(self.TUI, "p-re", session="sess-re")
+        self.env.set_herdr(
+            agents=[
+                {
+                    "name": self.TUI,
+                    "agent": "claude",
+                    "pane_id": "p-re",
+                    "agent_status": "idle",
+                    "agent_session": {"value": "sess-re"},
+                }
+            ]
+        )
+        self.ok("relaunch", self.TUI, "--when-idle", agent="owner", extra_env=self.hc_extra)
+        self.ok("tick", agent="owner", extra_env=self.hc_extra)
+        cleared = self.env.sql("SELECT relaunch_requested_at FROM agents WHERE name=?", (self.TUI,))[0][0]
+        self.assertIsNone(cleared)
+        closes = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
+        self.assertGreaterEqual(len(closes), 1)
+
+    def test_stop_closes_herdr_pane_on_hc_config(self):
+        self._herdr_row(self.TUI, "p-stop", session="sess-stop")
+        self.env.set_herdr(
+            agents=[
+                {
+                    "name": self.TUI,
+                    "agent": "claude",
+                    "pane_id": "p-stop",
+                    "agent_status": "idle",
+                    "agent_session": {"value": "sess-stop"},
+                }
+            ]
+        )
+        self.env.sql("UPDATE agents SET stop_requested_at=? WHERE name=?", (time.time(), self.TUI))
+        with mock.patch.object(f, "_scan_claude", return_value={}), mock.patch.object(f, "claude_procs", return_value=[]):
+            self.ok("stop", self.TUI, "--now", agent="owner", extra_env={**self.hc_extra, "FACTORY_STOP_CONFIRM_S": "0.1"})
+        closes = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
+        self.assertEqual(len(closes), 1)
+        self.assertEqual(closes[0]["argv"][2], "p-stop")
 
 
 if __name__ == "__main__":
