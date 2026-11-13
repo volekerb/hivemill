@@ -126,7 +126,7 @@ func pyNull(s sql.NullString) string {
 }
 
 var agentCols = []string{"name", "org", "role", "status", "runtime", "flagless", "relaunch", "goal_id", "team_id", "task_id",
-	"pane_id", "model", "started"}
+	"pane_id", "model", "started", "backend"}
 
 const agentsQuery = "SELECT name,role,status," +
 	"COALESCE(org, json_extract(spawn_args,'$.org'), CASE json_extract(spawn_args,'$.runtime') WHEN 'cursor' " +
@@ -134,7 +134,8 @@ const agentsQuery = "SELECT name,role,status," +
 	"COALESCE(json_extract(spawn_args,'$.runtime'),'claude') AS runtime," +
 	"CASE WHEN flagless THEN 'FLAGLESS' ELSE '' END flagless," +
 	"CASE WHEN relaunch_requested_at IS NOT NULL THEN 'RELAUNCH-PENDING' ELSE '' END relaunch," +
-	"goal_id,team_id,task_id,pane_id,model,started FROM agents"
+	"goal_id,team_id,task_id,pane_id,model,started," +
+	"CASE WHEN json_extract(spawn_args,'$.host_backend') = 'hc' THEN 'hc' ELSE 'herdr' END AS backend FROM agents"
 
 func cmdAgents(db *sql.DB, all bool, out io.Writer) error {
 	q := agentsQuery

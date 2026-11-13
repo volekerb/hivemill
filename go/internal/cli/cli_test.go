@@ -222,9 +222,9 @@ func TestAgents(t *testing.T) {
 	r.sql("INSERT INTO agents(name,role,status,org,relaunch_requested_at,started) VALUES('queued-1','pm','queued','claude','2026-11-12T00:00:00+01:00','2026-11-12T00:00:02+01:00')")
 	r.sql("INSERT INTO agents(name,role,status) VALUES('gone','qa','exited')")
 	r.run("agents")
-	want := "NAME      ORG     ROLE   STATUS  RUNTIME  FLAGLESS  RELAUNCH          GOAL_ID  TEAM_ID  TASK_ID  PANE_ID  MODEL  STARTED                  \n" +
-		"é-live    cursor  coder  live    cursor   FLAGLESS                                               p-1      日本     2026-11-12T00:00:01+01:00\n" +
-		"queued-1  claude  pm     queued  claude             RELAUNCH-PENDING                                             2026-11-12T00:00:02+01:00\n"
+	want := "NAME      ORG     ROLE   STATUS  RUNTIME  FLAGLESS  RELAUNCH          GOAL_ID  TEAM_ID  TASK_ID  PANE_ID  MODEL  STARTED                    BACKEND\n" +
+		"é-live    cursor  coder  live    cursor   FLAGLESS                                               p-1      日本     2026-11-12T00:00:01+01:00  herdr  \n" +
+		"queued-1  claude  pm     queued  claude             RELAUNCH-PENDING                                             2026-11-12T00:00:02+01:00  herdr  \n"
 	if r.out.String() != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", r.out.String(), want)
 	}
