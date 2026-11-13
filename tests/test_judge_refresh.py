@@ -112,6 +112,42 @@ while read old new ref; do
 done
 '''
 
+GOMOD = "module factory/go\n\ngo 1.27\n"
+GO_STUB = r'''#!/usr/bin/env python3
+import glob, os, re, sys, time
+from pathlib import Path
+log = Path(os.environ["HOME"]) / ".local" / "go" / "merged_go_stub.log"
+log.parent.mkdir(parents=True, exist_ok=True)
+with open(log, "a") as f:
+    f.write(" ".join(sys.argv) + "\n")
+sleep = Path(os.environ["HOME"]) / ".local" / "go" / "merged_go_test_sleep"
+if sleep.is_file():
+    (log.parent / "merged_go_sleep.pid").write_text(str(os.getpid()))
+    time.sleep(30)
+    sys.exit(0)
+files = sorted(glob.glob("**/*.go", recursive=True))
+seen = {}
+for p in files:
+    for m in re.finditer(r"^func (\w+)\(", open(p).read(), re.M):
+        seen.setdefault(m.group(1), []).append(p)
+if "vet" in sys.argv:
+    for p in files:
+        with open(log, "a") as f:
+            f.write(p + "\n")
+    for name, where in seen.items():
+        if len(where) > 1:
+            print(f"mergedproof.{name} redeclared", file=sys.stderr)
+            sys.exit(1)
+if "test" in sys.argv and "-count=1" in sys.argv:
+    with open(log, "a") as f:
+        f.write("test -count=1\n")
+    for name, where in seen.items():
+        if len(where) > 1:
+            print(f"mergedproof.{name} redeclared", file=sys.stderr)
+            sys.exit(1)
+sys.exit(0)
+'''
+
 
 def git(cwd, *args, check=True):
     return harness_git(*args, cwd=cwd, check=check)
@@ -176,13 +212,43 @@ class JudgeRefreshTests(FactoryTestCase):
             p = self.run_cli("verdict", "T-0001", "--pass", "--summary", summary, agent=who)
             self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
-    def run_cli(self, *args, agent="zz-test-lead", poll="0"):
+    def run_cli(self, *args, agent="zz-test-lead", poll="0", extra_env=None):
         path = f"{self.zz / 'bin'}{os.pathsep}{self.env.env()['PATH']}"
-        return self.env.run(*args, agent=agent, extra_env={"PATH": path, "ZZ_GH_STATE": str(self.state),
-                                                           "FACTORY_JUDGE_POLL_S": poll})
+        env = {"PATH": path, "ZZ_GH_STATE": str(self.state), "FACTORY_JUDGE_POLL_S": poll}
+        if extra_env:
+            env.update(extra_env)
+        return self.env.run(*args, agent=agent, extra_env=env)
 
     def judge(self):
         return self.run_cli("judge", "T-0001", "--merge", "--reason", "zz-test", agent="zz-test-judge")
+
+    def plant_go_stub(self):
+        go = self.env.user_home / ".local" / "go" / "bin" / "go"
+        go.parent.mkdir(parents=True, exist_ok=True)
+        go.write_text(GO_STUB)
+        go.chmod(go.stat().st_mode | stat.S_IXUSR)
+        log = self.env.user_home / ".local" / "go" / "merged_go_stub.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("")
+
+    def go_log(self):
+        p = self.env.user_home / ".local" / "go" / "merged_go_stub.log"
+        return p.read_text() if p.is_file() else ""
+
+    def _init_go_pr(self, pr_name, pr_body):
+        git(self.wt, "checkout", "-q", BRANCH)
+        self.commit(self.wt, "go/go.mod", GOMOD, "go mod")
+        self.commit(self.wt, f"go/internal/mergedproof/{pr_name}", pr_body, "pr go")
+        git(self.wt, "push", "-q", "origin", f"HEAD:refs/heads/{BRANCH}", "HEAD:refs/pull/1/head")
+        self.head = git(self.wt, "rev-parse", "HEAD")
+        (self.zz / "pushes.log").write_text("")
+        self.ok_verdicts()
+
+    def _behind_go_main(self, main_name, main_body):
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_strict:zz-test/repo',?)",
+                     (json.dumps({"at": 1, "strict": False}),))
+        self.main_commit(f"go/internal/mergedproof/{main_name}", main_body)
+        self.write_state(strict=False)
 
     def main_commit(self, name="main.txt", text="m\n"):
         other = self.env.home / "other"
@@ -681,6 +747,86 @@ class JudgeRefreshTests(FactoryTestCase):
         self.assertIn("cannot verify, refresh failed: push rejected", p.stderr)
         self.assertEqual(self.pushes(), [])
         self.assertNoMerge()
+
+
+    def test_merged_go_clash_refuses(self):
+        self._init_go_pr("pr_clash.go", "package mergedproof\nfunc Clash() {}\n")
+        self._behind_go_main("main_clash.go", "package mergedproof\nfunc Clash() {}\n")
+        self.plant_go_stub()
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("MERGED-TREE:", p.stderr)
+        self.assertIn("Clash redeclared", p.stderr)
+        self.assertNotIn("STALE-ONLY", p.stderr)
+        self.assertNoMerge()
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.events("refreshed"), [])
+        log = self.go_log()
+        self.assertIn("vet", log)
+        self.assertIn("pr_clash.go", log)
+        self.assertIn("main_clash.go", log)
+
+    def test_merged_go_clean_merges_behind(self):
+        self._init_go_pr("pr_clean.go", "package mergedproof\nfunc TaskPyStr() {}\n")
+        self._behind_go_main("main_clean.go", "package mergedproof\nfunc FromMain() {}\n")
+        self.plant_go_stub()
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.events("refreshed"), [])
+        m = self.merges()
+        self.assertEqual(len(m), 1)
+        self.assertEqual(m[0]["argv"][m[0]["argv"].index("--match-head-commit") + 1], self.head)
+        reasons = [r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE role='judge'")]
+        self.assertTrue(any("merged behind main by stale_policy=behind_ok" in d for d in reasons), reasons)
+        log = self.go_log()
+        self.assertIn("vet", log)
+        self.assertIn("test -count=1", log)
+        self.assertIn("pr_clean.go", log)
+        self.assertIn("main_clean.go", log)
+
+    def test_merged_go_proof_off_merges_clash(self):
+        self._init_go_pr("pr_clash.go", "package mergedproof\nfunc Clash() {}\n")
+        self._behind_go_main("main_clash.go", "package mergedproof\nfunc Clash() {}\n")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('merged_go_proof','0')")
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.pushes(), [])
+
+    def test_merged_go_missing_toolchain_refuses(self):
+        self._init_go_pr("pr_clash.go", "package mergedproof\nfunc Clash() {}\n")
+        self._behind_go_main("main_clash.go", "package mergedproof\nfunc Clash() {}\n")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("MERGED-TREE: go proof could not run (~/.local/go/bin/go missing); nothing merged", p.stderr)
+        self.assertNoMerge()
+
+    def test_merged_go_timeout_kills_the_group(self):
+        self._init_go_pr("pr_clean.go", "package mergedproof\nfunc TaskPyStr() {}\n")
+        self._behind_go_main("main_clean.go", "package mergedproof\nfunc FromMain() {}\n")
+        self.plant_go_stub()
+        flag = self.env.user_home / ".local" / "go" / "merged_go_test_sleep"
+        pid_file = self.env.user_home / ".local" / "go" / "merged_go_sleep.pid"
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.touch()
+        pid_file.write_text("")
+        git(self.wt, "fetch", "-q", "origin", "main")
+        sha, main = self.head, self.remote_ref("refs/heads/main")
+        with self.env.load_factory() as f:
+            msg = f.merged_go_refusal(f.db(), str(self.wt), sha, main, timeout=1)
+        self.assertIsNotNone(msg)
+        self.assertIn("MERGED-TREE:", msg)
+        self.assertIn("timed out", msg)
+        pid = int(pid_file.read_text().strip())
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+
+    def test_merged_go_proof_config_rejects_other_values(self):
+        self.env.seed_agent("zz-test-director", "director")
+        p = self.env.run("config", "merged_go_proof", "2", agent="zz-test-director")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("merged_go_proof must be 0 or 1", p.stderr)
 
 
 class StaleBehindOkRulesetTests(FactoryTestCase):
