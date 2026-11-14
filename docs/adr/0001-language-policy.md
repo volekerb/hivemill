@@ -198,6 +198,31 @@ Worker-guard phase 1, per plan v1 and v2 (the tasks that remain after the verdic
 - Rollback: `factory config guard_impl python`. The shim reads the flag file on every call, so no relaunch is
   needed. A missing or stale binary also means Python.
 
+## v0.6.0: Hivemill fully in Go (G-048)
+
+On 2026-11-14 the owner approved goal G-048 ("A yes") and repeated the standing wish: "all the code I want to write in go not python".
+The rules below apply to every PR of G-048 (stages P0-P7), so a reviewer can check each PR against them.
+
+- At the v0.6.0 tag no Python file is under bin/, roles/hooks/, web/, scout/, retro/ or plugins/hivemill/scripts/.
+- Tests for code ported to Go are Go tests. A Python test module stays as the parity oracle while the Python code it tests exists, and is deleted in the same PR that deletes that code (G-048 SC4).
+- POSIX sh is allowed only for thin entry shims (roles/hooks/worker-guard and its sibling hook shims, plugins/hivemill/scripts/install, bin/factory at cut-over): no logic beyond locating, verifying and exec-ing a Go binary; at most 80 lines each.
+- Each Python removal ships after a parity-test stage that passes; the Python path stays the fallback until then.
+
+Stages (from G-048 plan v1, section 3; T = 2026-11-16):
+
+| stage | tasks | Go lines est. | build done | Go default / flip | Python removed |
+|---|---|---|---|---|---|
+| P0 | 2 | 0.4k | 2026-11-17 | - | - |
+| P1 | 20 (17 Go + 3 lane) | 14-16k | 2026-12-08 | 2026-12-10 (v0.5.0, G-041 SC3) | in P7 |
+| P2 | 3 + director D-P2 | 1k | 2026-11-20 | shadow 11-24, go 11-27 | 2026-12-11 (go + 14 d) |
+| P3 | 6 | 10-11k | 2026-12-04 | serve_impl go 2026-12-07 | 2026-12-14 |
+| P4 | 6 | 8-9k | 2026-12-16 | 2026-12-18 | 2026-12-28 |
+| P5 | 5 | 6-7k | 2026-12-09 | switch after 20 PRs ~2026-12-16 | 2026-12-23 |
+| P6 | 9 (port batches, may split) | 12-15k (tests) | 2027-01-08 | - | with each batch |
+| P7 | 3 | 0.5k | 2027-01-08 | - | tag v0.6.0 2027-01-15 |
+
+Target tag v0.6.0, 2027-01-15.
+
 ## Not doing
 
 - The CLI, tick and `serve` ports are tracked in goal G-041, not decided here; see the amendment above.
