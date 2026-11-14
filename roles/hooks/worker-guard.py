@@ -3829,12 +3829,13 @@ class Analyzer:
             return True
         if target in ("{}", "{:}"):  # find -exec placeholder, not a shell brace expansion
             return False
-        if not target or self.dynamic_dir(target) or target.startswith("~"):
-            return True  # quoted '~' is a literal name to git: not decidable here
-        path = os.path.realpath(target if os.path.isabs(target) else os.path.join(cwd, target))
+        if not target or self.dynamic_dir(target) or tilde_unres(target, cwd):
+            return True
+        resolved = tilde_expand(target, cwd)
+        path = os.path.realpath(resolved if os.path.isabs(resolved) else os.path.join(cwd, resolved))
         if in_scratchpad(path):
             return False
-        return any(under(path, h) for h in self.git_homes())
+        return self.git_top_shared(path)
 
     def git_any_cwd_shared_targets(self, sub, args, cwd, dyn):
         """T-0330: refuse archive -o/--output and git init that write into the shared checkout from any cwd."""

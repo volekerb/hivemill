@@ -376,28 +376,20 @@ func gitPathWritesShared(target, cwd string, dyn bool) (bool, error) {
 	if target == "{}" || target == "{:}" { // find -exec placeholder, not a shell brace expansion
 		return false, nil
 	}
-	if target == "" || dynamicDir(target) || strings.HasPrefix(target, "~") {
-		return true, nil // quoted '~' is a literal name to git: not decidable here
+	if target == "" || dynamicDir(target) || tildeUnres(target, true) {
+		return true, nil
 	}
-	path := target
+	resolved := tildeExpand(target, cwd, true)
+	path := resolved
 	if !strings.HasPrefix(path, "/") {
-		path = pyRealpath(pyJoin(cwd, target))
+		path = pyRealpath(pyJoin(cwd, resolved))
 	} else {
 		path = pyRealpath(path)
 	}
 	if inScratchpad(path) {
 		return false, nil
 	}
-	homes, err := gitHomes()
-	if err != nil {
-		return false, err
-	}
-	for _, h := range homes {
-		if Under(path, h) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return gitTopShared(path)
 }
 
 // gitAnyCwdSharedTargets is a port of Analyzer.git_any_cwd_shared_targets (T-0330).
