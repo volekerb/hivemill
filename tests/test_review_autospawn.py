@@ -620,7 +620,7 @@ class ThrottleTests(SkipTests):
         self.assertEqual(len(self.gh_views()), 2)
         st.pop("api", None)
         self.env.gh_state.write_text(json.dumps(st))
-        self.assertEqual(len(self.tick_step(stub_pr=False, heads=self.heads, now=self.T0 + 120)), 2)
+        self.assertEqual(len(self.tick_at(120)), 2)
         self.assertEqual(self.skip_events(), [])
 
     def test_skip_event_still_fires_after_a_probe_error(self):
