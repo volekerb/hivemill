@@ -205,7 +205,7 @@ The rules below apply to every PR of G-048 (stages P0-P7), so a reviewer can che
 
 - At the v0.6.0 tag no Python file is under bin/, roles/hooks/, web/, scout/, retro/ or plugins/hivemill/scripts/.
 - Tests for code ported to Go are Go tests. A Python test module stays as the parity oracle while the Python code it tests exists, and is deleted in the same PR that deletes that code (G-048 SC4).
-- POSIX sh is allowed only for thin entry shims (roles/hooks/worker-guard, plugins/hivemill/scripts/install, bin/factory at cut-over): no logic beyond locating, verifying and exec-ing a Go binary; at most 80 lines each.
+- POSIX sh is allowed only for thin entry shims (roles/hooks/worker-guard and its sibling hook shims, plugins/hivemill/scripts/install, bin/factory at cut-over): no logic beyond locating, verifying and exec-ing a Go binary; at most 80 lines each.
 - Each Python removal ships after a parity-test stage that passes; the Python path stays the fallback until then.
 
 Stages (from G-048 plan v1, section 3; T = 2026-11-16):
@@ -219,7 +219,7 @@ Stages (from G-048 plan v1, section 3; T = 2026-11-16):
 | P4 | 6 | 8-9k | 2026-12-16 | 2026-12-18 | 2026-12-28 |
 | P5 | 5 | 6-7k | 2026-12-09 | switch after 20 PRs ~2026-12-16 | 2026-12-23 |
 | P6 | 9 (port batches, may split) | 12-15k (tests) | 2027-01-08 | - | with each batch |
-| P7 | 3 | 0.5k | 2027-01-08 | - | 2027-01-08; tag v0.6.0 after P7 |
+| P7 | 3 | 0.5k | 2027-01-08 | - | tag v0.6.0 2027-01-15 |
 
 Target tag v0.6.0, 2027-01-15.
 
