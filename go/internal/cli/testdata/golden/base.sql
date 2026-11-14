@@ -163,6 +163,7 @@ CREATE TABLE skill_trials (
 INSERT INTO "config"("key","value") VALUES('guard_impl','python');
 INSERT INTO "config"("key","value") VALUES('model_cleaner','');
 INSERT INTO "config"("key","value") VALUES('cli_impl','python');
+INSERT INTO "config"("key","value") VALUES('tick_impl','python');
 INSERT INTO "config"("key","value") VALUES('cli_go_cmds','');
 INSERT INTO "config"("key","value") VALUES('max_live_agents','6');
 INSERT INTO "config"("key","value") VALUES('max_total_claude','10');

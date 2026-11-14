@@ -7,9 +7,10 @@
 | key | values | meaning |
 |---|---|---|
 | `cli_impl` | `python` (default), `go`, `shadow` | `go`: listed commands run in Go. `shadow`: Python answers, then Go runs the same argv (2 s timeout) and a difference is logged. |
-| `cli_go_cmds` | comma list, default empty | commands that may go to Go. S1 accepts `whoami`, `flags`, `agents`, `config`; anything else is refused with exit 2. |
+| `cli_go_cmds` | comma list, default empty | commands that may go to Go. S1 accepts `whoami`, `flags`, `agents`, `config`; anything else is refused with exit 2. `tick` is refused here; use `tick_impl`. |
+| `tick_impl` | `python` (default), `go` | When `go`, `factory tick` (systemd heartbeat) may run in Go. `factory up` always runs the Python tick in-process. With `cli_impl=shadow`, `tick_impl=go` does not add `tick` to the dispatch list; setting `tick_impl go` prints a warning that the tick stays Python. |
 
-`factory config cli_impl python` is the rollback and takes effect on the next call.
+`factory config cli_impl python` and `factory config tick_impl python` are the rollback and take effect on the next call.
 
 ## How a call is routed
 
@@ -30,7 +31,9 @@ Only read-only calls are shadowed (`whoami`, `agents`, `flags`, `config` with at
 
 ## Build
 
-The tick and `factory up` build `go/cmd/factory` into `~/.local/lib/factory/factory-go` (CGO off, same allowlisted environment as the guard build), rename it into place and write `factory-go.stamp` last. Builds happen only when `cli_impl` is not `python`. `factory up` also fetches the modules (two steps, 120 s each); with the guard build (300 s) and this build (300 s) the worst case exceeds the 600 s of factory-up.service. That is safe: the flags are written before each build, so a killed `up` leaves a stale or missing stamp and every command stays on Python.
+The tick and `factory up` build `go/cmd/factory` into `~/.local/lib/factory/factory-go` (CGO off, same allowlisted environment as the guard build), rename it into place and write `factory-go.stamp` last. Builds happen when `cli_impl` is not `python` **or** `tick_impl` is `go`. `factory up` also fetches the modules (two steps, 120 s each); with the guard build (300 s) and this build (300 s) the worst case exceeds the 600 s of factory-up.service. That is safe: the flags are written before each build, so a killed `up` leaves a stale or missing stamp and every command stays on Python.
+
+Go tick children (S3) call `python3 bin/factory tick --phases <units>` with `FACTORY_TICK_HANDOFF` set; that option is hidden from help and is not available to workers.
 
 ## Protected from workers
 

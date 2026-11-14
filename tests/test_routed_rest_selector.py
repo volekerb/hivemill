@@ -106,7 +106,8 @@ class RoutedRestSelectorTest(unittest.TestCase):
         self.assertIn("    name: guard-equiv\n", job)
         self.assertIn("    name: guard-equiv-rest\n", job)
         self.assertEqual(job.count("    timeout-minutes: 30\n"), 2)  # T-1009: split the job, never a raise
-        self.assertIn("--roles all --mode both --strict", job)
+        self.assertIn("--roles all --role-shard ${{ matrix.shard }} --role-shards 4", job)
+        self.assertIn("--mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict", job)
         self.assertIn("run --routed-rest", job)
 
     def test_unknown_selector_flag_is_refused(self):
@@ -269,7 +270,7 @@ class PathListTest(unittest.TestCase):
         body = step.split("run: |\n", 1)[1]
         return "\n".join(l[10:] for l in body.splitlines())
 
-    def decide(self, changed, tool_src=None, edit=None, broken_tar=False, stdout=None):
+    def decide(self, changed, tool_src=None, edit=None, broken_tar=False, stdout=None, event="pull_request", before=None):
         """Execute the real "Guard paths changed?" script in a temp repo; return the run= output."""
         with tempfile.TemporaryDirectory() as d:
             def git(*a):
@@ -306,7 +307,10 @@ class PathListTest(unittest.TestCase):
             git("add", "-A")
             git("commit", "-q", "-m", "pr", "--allow-empty")
             out = os.path.join(d, "gh_output")
-            env = dict(os.environ, EVENT="pull_request", BASE_SHA=base, GITHUB_OUTPUT=out, RUNNER_TEMP=d)
+            env = dict(os.environ, EVENT=event, BASE_SHA=base, GITHUB_OUTPUT=out, RUNNER_TEMP=d)
+            if event == "push":
+                env["BASE_SHA"] = "deadbeef"  # a push must diff BEFORE, not the empty pull_request base
+                env["BEFORE"] = base if before is None else before
             if broken_tar:
                 # only the BASE export fails: the HEAD lists are read by python, never through tar
                 shim = tempfile.mkdtemp(dir=d)
@@ -369,6 +373,14 @@ class PathListTest(unittest.TestCase):
 
     def test_step_skips_for_readme_only_with_a_readable_base(self):
         self.assertEqual(self.decide(["README.md"]), "run=false")
+
+    def test_push_skips_a_readme_and_runs_a_guard_path(self):
+        self.assertEqual(self.decide(["README.md"], event="push"), "run=false")
+        self.assertEqual(self.decide(["ci/guard_diff.py"], event="push"), "run=true")
+
+    def test_push_with_no_parent_runs(self):
+        self.assertEqual(self.decide(["README.md"], event="push", before=""), "run=true")
+        self.assertEqual(self.decide(["README.md"], event="push", before="0" * 40), "run=true")
 
 
 class PathListRestJobTest(PathListTest):
