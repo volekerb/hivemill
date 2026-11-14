@@ -253,16 +253,27 @@ var (
 // hasWordAt reports whether re matches s at a Python \b before it (the previous rune is not a word character) and,
 // when endB is set, a \b after it. Go's RE2 \b is ASCII-only, so the boundary is checked by hand.
 func hasWordAt(re *regexp.Regexp, s string, endB bool) bool {
-	for _, loc := range re.FindAllStringIndex(s, -1) {
-		if r, _ := utf8.DecodeLastRuneInString(s[:loc[0]]); loc[0] > 0 && isWord(r) {
-			continue
+	for from := 0; from <= len(s); {
+		loc := re.FindStringIndex(s[from:])
+		if loc == nil {
+			return false
 		}
-		if endB {
-			if r, sz := utf8.DecodeRuneInString(s[loc[1]:]); sz > 0 && isWord(r) {
-				continue
+		start, end := from+loc[0], from+loc[1]
+		ok := true
+		if r, _ := utf8.DecodeLastRuneInString(s[:start]); start > 0 && isWord(r) {
+			ok = false
+		}
+		if ok && endB {
+			if r, sz := utf8.DecodeRuneInString(s[end:]); sz > 0 && isWord(r) {
+				ok = false
 			}
 		}
-		return true
+		if ok {
+			return true
+		}
+		// Python's re.search retries at the next position, so a failed match may not swallow a later start.
+		_, sz := utf8.DecodeRuneInString(s[start:])
+		from = start + sz
 	}
 	return false
 }

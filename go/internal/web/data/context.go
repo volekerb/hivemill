@@ -28,7 +28,7 @@ const (
 		"per-pr input/output/cost; baseline only counts them (sidechain_requests)."
 )
 
-var taskRe = regexp.MustCompile(`worktrees[-/](G-\d+)-(T-\d+)`)
+var taskRe = regexp.MustCompile(`worktrees[-/](G-` + reD + `+)-(T-` + reD + `+)`)
 
 // ProjectsDir is context.projects_dir: $FACTORY_CLAUDE_PROJECTS, else ~/.claude/projects.
 func ProjectsDir() string {

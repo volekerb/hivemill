@@ -46,7 +46,7 @@ func TestUnicodeRegexParity(t *testing.T) {
 			t.Errorf("blocked %q = %v, want %v", c.s, got, c.want)
 		}
 	}
-	if hasWordAt(anyStatus, "xstatus=a", false) || !hasWordAt(anyStatus, "status=é", false) || hasWordAt(anyStatus, "status=", false) {
+	if hasWordAt(anyStatus, "xstatus=a", false) || !hasWordAt(anyStatus, "xstatus=status=a", false) || !hasWordAt(anyStatus, "status=é", false) || hasWordAt(anyStatus, "status=", false) {
 		t.Error("anyStatus boundary/word class differs from Python")
 	}
 	if got := wholeWordTaskIDs("T-١٢ ÉT-3 T-4é T-5"); !reflect.DeepEqual(got, []string{"T-١٢", "T-5"}) {
@@ -82,7 +82,7 @@ func FuzzParseTS(f *testing.F) {
 		if y := tm.Year(); y < 0 || y > 9999 {
 			t.Fatalf("year %d out of range for %q", y, s)
 		}
-		again, ok2 := ParseTS(tm.Format("2006-01-02T15:04:05.000000Z07:00"))
+		again, ok2 := ParseTS(tm.Format("2006-01-02T15:04:05.000000Z07:00:00"))
 		if !ok2 || again.Unix() != tm.Unix() {
 			t.Fatalf("round trip of %q: %v vs %v (%v)", s, tm, again, ok2)
 		}
