@@ -1393,6 +1393,40 @@
       ],
       "note": "T-0303 nit: -o naming the shared checkout directory itself"
     },
+    {
+      "cmd": "cd @SCRATCH@ && git archive -o @SHARED@/x.tar HEAD",
+      "modes": [
+        "worker"
+      ],
+      "note": "T-0330: archive into shared from scratch cwd"
+    },
+    {
+      "cmd": "cd @SCRATCH@ && git init @SHARED@/r",
+      "modes": [
+        "worker"
+      ],
+      "note": "T-0330: git init into shared from scratch cwd"
+    },
+    {
+      "cmd": "git archive -o @SHARED@/x.tar HEAD",
+      "env": {
+        "FACTORY_AGENT": "cursor-coder-t-0330"
+      },
+      "modes": [
+        "worker"
+      ],
+      "note": "T-0330: archive into shared from worktree cwd"
+    },
+    {
+      "cmd": "git init @SHARED@/r",
+      "env": {
+        "FACTORY_AGENT": "cursor-coder-t-0330"
+      },
+      "modes": [
+        "worker"
+      ],
+      "note": "T-0330: git init into shared from worktree cwd"
+    },
     "git config --global user.name x",
     "git config --global --add core.fsmonitor /tmp/x",
     "git config --global --unset user.name",
