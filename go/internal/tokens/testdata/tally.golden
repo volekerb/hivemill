@@ -1,0 +1,1484 @@
+{
+ "attribution": {
+  "sess-aaa": {
+   "agent": "claude-coder-t-0001",
+   "goal": "G-001",
+   "model_main": "claude-haiku-5-5",
+   "role": "coder",
+   "task": "T-0001",
+   "via": "session"
+  },
+  "sess-bbb": {
+   "agent": null,
+   "goal": "G-001",
+   "model_main": "claude-sonnet-5-5",
+   "role": null,
+   "task": "T-0002",
+   "via": "worktree"
+  },
+  "sess-ccc": {
+   "agent": "claude-pm-g-001",
+   "goal": "G-001",
+   "model_main": "claude-opus-5-5",
+   "role": "pm",
+   "task": null,
+   "via": "name"
+  },
+  "sess-ddd": {
+   "agent": "claude-lead-g-001",
+   "goal": "G-001",
+   "model_main": "claude-opus-5-5",
+   "role": "lead",
+   "task": null,
+   "via": "event"
+  },
+  "sess-eee": {
+   "agent": null,
+   "goal": null,
+   "model_main": "claude-haiku-5-5",
+   "role": null,
+   "task": null,
+   "via": "unattributed"
+  },
+  "sess-www": {
+   "agent": null,
+   "goal": "G-001",
+   "model_main": "claude-sonnet-5-5",
+   "role": null,
+   "task": "T-0009",
+   "via": "worktree"
+  }
+ },
+ "cost": [
+  [
+   "claude-opus-5-5",
+   {
+    "cache_read": 1000,
+    "cache_write_1h": 100,
+    "cache_write_5m": 200,
+    "input": 100,
+    "output": 50
+   },
+   null,
+   0.0034
+  ],
+  [
+   "claude-opus-5-5",
+   {
+    "input": 7,
+    "output": 3
+   },
+   "fast",
+   0.000176
+  ],
+  [
+   "claude-sonnet-5-5",
+   {
+    "input": 123456789,
+    "output": 987654321
+   },
+   null,
+   10123.456788
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 3,
+    "cache_write_5m": 7,
+    "input": 1
+   },
+   "fast",
+   1.005e-06
+  ],
+  [
+   "gpt-x",
+   {
+    "input": 5
+   },
+   null,
+   null
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12346,
+    "cache_write_1h": 6,
+    "cache_write_5m": 77,
+    "input": 1007,
+    "output": 334
+   },
+   null,
+   0.000401985
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12347,
+    "cache_write_1h": 7,
+    "cache_write_5m": 154,
+    "input": 1014,
+    "output": 335
+   },
+   null,
+   0.00041302
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12348,
+    "cache_write_1h": 8,
+    "cache_write_5m": 231,
+    "input": 1021,
+    "output": 336
+   },
+   null,
+   0.000424055
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12349,
+    "cache_write_1h": 9,
+    "cache_write_5m": 308,
+    "input": 1028,
+    "output": 337
+   },
+   null,
+   0.00043509
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12350,
+    "cache_write_1h": 10,
+    "cache_write_5m": 385,
+    "input": 1035,
+    "output": 338
+   },
+   null,
+   0.000446125
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12351,
+    "cache_write_1h": 11,
+    "cache_write_5m": 462,
+    "input": 1042,
+    "output": 339
+   },
+   null,
+   0.00045716
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12352,
+    "cache_write_1h": 12,
+    "cache_write_5m": 539,
+    "input": 1049,
+    "output": 340
+   },
+   null,
+   0.00046819499999999997
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12353,
+    "cache_write_1h": 13,
+    "cache_write_5m": 616,
+    "input": 1056,
+    "output": 341
+   },
+   null,
+   0.00047923000000000003
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12354,
+    "cache_write_1h": 14,
+    "cache_write_5m": 693,
+    "input": 1063,
+    "output": 342
+   },
+   null,
+   0.000490265
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12355,
+    "cache_write_1h": 15,
+    "cache_write_5m": 770,
+    "input": 1070,
+    "output": 343
+   },
+   null,
+   0.0005013
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12356,
+    "cache_write_1h": 16,
+    "cache_write_5m": 847,
+    "input": 1077,
+    "output": 344
+   },
+   null,
+   0.000512335
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12357,
+    "cache_write_1h": 17,
+    "cache_write_5m": 924,
+    "input": 1084,
+    "output": 345
+   },
+   null,
+   0.00052337
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12358,
+    "cache_write_1h": 18,
+    "cache_write_5m": 1001,
+    "input": 1091,
+    "output": 346
+   },
+   null,
+   0.000534405
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12359,
+    "cache_write_1h": 19,
+    "cache_write_5m": 1078,
+    "input": 1098,
+    "output": 347
+   },
+   null,
+   0.00054544
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12360,
+    "cache_write_1h": 20,
+    "cache_write_5m": 1155,
+    "input": 1105,
+    "output": 348
+   },
+   null,
+   0.0005564750000000001
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12361,
+    "cache_write_1h": 21,
+    "cache_write_5m": 1232,
+    "input": 1112,
+    "output": 349
+   },
+   null,
+   0.00056751
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12362,
+    "cache_write_1h": 22,
+    "cache_write_5m": 1309,
+    "input": 1119,
+    "output": 350
+   },
+   null,
+   0.000578545
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12363,
+    "cache_write_1h": 23,
+    "cache_write_5m": 1386,
+    "input": 1126,
+    "output": 351
+   },
+   null,
+   0.00058958
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12364,
+    "cache_write_1h": 24,
+    "cache_write_5m": 1463,
+    "input": 1133,
+    "output": 352
+   },
+   null,
+   0.000600615
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12365,
+    "cache_write_1h": 25,
+    "cache_write_5m": 1540,
+    "input": 1140,
+    "output": 353
+   },
+   null,
+   0.0006116499999999999
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12366,
+    "cache_write_1h": 26,
+    "cache_write_5m": 1617,
+    "input": 1147,
+    "output": 354
+   },
+   null,
+   0.000622685
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12367,
+    "cache_write_1h": 27,
+    "cache_write_5m": 1694,
+    "input": 1154,
+    "output": 355
+   },
+   null,
+   0.00063372
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12368,
+    "cache_write_1h": 28,
+    "cache_write_5m": 1771,
+    "input": 1161,
+    "output": 356
+   },
+   null,
+   0.000644755
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12369,
+    "cache_write_1h": 29,
+    "cache_write_5m": 1848,
+    "input": 1168,
+    "output": 357
+   },
+   null,
+   0.00065579
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12370,
+    "cache_write_1h": 30,
+    "cache_write_5m": 1925,
+    "input": 1175,
+    "output": 358
+   },
+   null,
+   0.000666825
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12371,
+    "cache_write_1h": 31,
+    "cache_write_5m": 2002,
+    "input": 1182,
+    "output": 359
+   },
+   null,
+   0.00067786
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12372,
+    "cache_write_1h": 32,
+    "cache_write_5m": 2079,
+    "input": 1189,
+    "output": 360
+   },
+   null,
+   0.000688895
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12373,
+    "cache_write_1h": 33,
+    "cache_write_5m": 2156,
+    "input": 1196,
+    "output": 361
+   },
+   null,
+   0.0006999300000000001
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12374,
+    "cache_write_1h": 34,
+    "cache_write_5m": 2233,
+    "input": 1203,
+    "output": 362
+   },
+   null,
+   0.000710965
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12375,
+    "cache_write_1h": 35,
+    "cache_write_5m": 2310,
+    "input": 1210,
+    "output": 363
+   },
+   null,
+   0.000722
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12376,
+    "cache_write_1h": 36,
+    "cache_write_5m": 2387,
+    "input": 1217,
+    "output": 364
+   },
+   null,
+   0.0007330349999999999
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12377,
+    "cache_write_1h": 37,
+    "cache_write_5m": 2464,
+    "input": 1224,
+    "output": 365
+   },
+   null,
+   0.00074407
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12378,
+    "cache_write_1h": 38,
+    "cache_write_5m": 2541,
+    "input": 1231,
+    "output": 366
+   },
+   null,
+   0.0007551050000000001
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12379,
+    "cache_write_1h": 39,
+    "cache_write_5m": 2618,
+    "input": 1238,
+    "output": 367
+   },
+   null,
+   0.00076614
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12380,
+    "cache_write_1h": 40,
+    "cache_write_5m": 2695,
+    "input": 1245,
+    "output": 368
+   },
+   null,
+   0.000777175
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12381,
+    "cache_write_1h": 41,
+    "cache_write_5m": 2772,
+    "input": 1252,
+    "output": 369
+   },
+   null,
+   0.00078821
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12382,
+    "cache_write_1h": 42,
+    "cache_write_5m": 2849,
+    "input": 1259,
+    "output": 370
+   },
+   null,
+   0.000799245
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12383,
+    "cache_write_1h": 43,
+    "cache_write_5m": 2926,
+    "input": 1266,
+    "output": 371
+   },
+   null,
+   0.0008102799999999999
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12384,
+    "cache_write_1h": 44,
+    "cache_write_5m": 3003,
+    "input": 1273,
+    "output": 372
+   },
+   null,
+   0.0008213150000000001
+  ]
+ ],
+ "goal_usage": {
+  "G-001": {
+   "goal": "G-001",
+   "overhead": {
+    "rows": [
+     {
+      "agent": "claude-pm-g-001",
+      "cache_read": 500,
+      "cache_write": 0,
+      "cost": 0.0008,
+      "input": 50,
+      "output": 25,
+      "rework": false,
+      "role": "pm",
+      "runtime": "claude",
+      "sessions": 1,
+      "state": "ok",
+      "wall_s": null
+     },
+     {
+      "agent": "claude-lead-g-001",
+      "cache_read": 0,
+      "cache_write": 0,
+      "cost": 0.00028,
+      "input": 20,
+      "output": 10,
+      "rework": false,
+      "role": "lead",
+      "runtime": "claude",
+      "sessions": 1,
+      "state": "ok",
+      "wall_s": null
+     },
+     {
+      "agent": "cursor-lead-g-001",
+      "cache_read": null,
+      "cache_write": null,
+      "cost": null,
+      "input": null,
+      "output": null,
+      "rework": false,
+      "role": "lead",
+      "runtime": "cursor",
+      "sessions": 1,
+      "state": "not_available",
+      "wall_s": 1760400.0
+     }
+    ],
+    "totals": {
+     "cache_read": 500,
+     "cache_write": 0,
+     "cost": 0.00108,
+     "cursor_rows": 1,
+     "input": 70,
+     "output": 35,
+     "rework_cost": 0,
+     "rework_share": 0.0,
+     "sessions": 3,
+     "state": "partial",
+     "tokens": 605,
+     "wall_s": 1760400.0
+    }
+   },
+   "state": "ok",
+   "tasks": {
+    "T-0001": {
+     "first_rejection": "2026-11-10T12:45:00+00:00",
+     "rows": [
+      {
+       "agent": "claude-coder-t-0001",
+       "cache_read": 11029,
+       "cache_write": 408,
+       "cost": null,
+       "input": 1526,
+       "output": 699,
+       "rework": false,
+       "role": "coder",
+       "runtime": "claude",
+       "sessions": 1,
+       "state": "ok",
+       "wall_s": null
+      },
+      {
+       "agent": "cursor-coder-t-0001",
+       "cache_read": null,
+       "cache_write": null,
+       "cost": null,
+       "input": null,
+       "output": null,
+       "rework": false,
+       "role": "coder",
+       "runtime": "cursor",
+       "sessions": 1,
+       "state": "not_available",
+       "wall_s": 5400.0
+      }
+     ],
+     "state": "ok",
+     "task": "T-0001",
+     "totals": {
+      "cache_read": 11029,
+      "cache_write": 408,
+      "cost": null,
+      "cursor_rows": 1,
+      "input": 1526,
+      "output": 699,
+      "rework_cost": null,
+      "rework_share": null,
+      "sessions": 2,
+      "state": "partial",
+      "tokens": 13662,
+      "wall_s": 5400.0
+     }
+    },
+    "T-0002": {
+     "first_rejection": null,
+     "rows": [
+      {
+       "agent": "unattributed",
+       "cache_read": 4000,
+       "cache_write": 500,
+       "cost": 0.0042,
+       "input": 300,
+       "output": 120,
+       "rework": false,
+       "role": null,
+       "runtime": "claude",
+       "sessions": 1,
+       "state": "ok",
+       "wall_s": null
+      }
+     ],
+     "state": "ok",
+     "task": "T-0002",
+     "totals": {
+      "cache_read": 4000,
+      "cache_write": 500,
+      "cost": 0.0042,
+      "cursor_rows": 0,
+      "input": 300,
+      "output": 120,
+      "rework_cost": 0,
+      "rework_share": 0.0,
+      "sessions": 1,
+      "state": "ok",
+      "tokens": 4920,
+      "wall_s": null
+     }
+    },
+    "T-0009": {
+     "first_rejection": null,
+     "rows": [
+      {
+       "agent": "unattributed",
+       "cache_read": 33,
+       "cache_write": 0,
+       "cost": 0.0002453,
+       "input": 11,
+       "output": 22,
+       "rework": false,
+       "role": null,
+       "runtime": "claude",
+       "sessions": 1,
+       "state": "ok",
+       "wall_s": null
+      }
+     ],
+     "state": "ok",
+     "task": "T-0009",
+     "totals": {
+      "cache_read": 33,
+      "cache_write": 0,
+      "cost": 0.0002453,
+      "cursor_rows": 0,
+      "input": 11,
+      "output": 22,
+      "rework_cost": 0,
+      "rework_share": 0.0,
+      "sessions": 1,
+      "state": "ok",
+      "tokens": 66,
+      "wall_s": null
+     }
+    }
+   },
+   "totals": {
+    "cache_read": 15562,
+    "cache_write": 908,
+    "cost": null,
+    "cursor_rows": 2,
+    "input": 1907,
+    "output": 876,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 7,
+    "state": "partial",
+    "tokens": 19253,
+    "wall_s": 1765800.0
+   }
+  },
+  "G-002": {
+   "goal": "G-002",
+   "overhead": {
+    "rows": [],
+    "totals": {
+     "cache_read": null,
+     "cache_write": null,
+     "cost": 0,
+     "cursor_rows": 0,
+     "input": null,
+     "output": null,
+     "rework_cost": null,
+     "rework_share": null,
+     "sessions": 0,
+     "state": "ok",
+     "tokens": null,
+     "wall_s": null
+    }
+   },
+   "state": "ok",
+   "tasks": {
+    "T-0003": {
+     "first_rejection": null,
+     "rows": [],
+     "state": "ok",
+     "task": "T-0003",
+     "totals": {
+      "cache_read": null,
+      "cache_write": null,
+      "cost": 0,
+      "cursor_rows": 0,
+      "input": null,
+      "output": null,
+      "rework_cost": null,
+      "rework_share": null,
+      "sessions": 0,
+      "state": "ok",
+      "tokens": null,
+      "wall_s": null
+     }
+    }
+   },
+   "totals": {
+    "cache_read": null,
+    "cache_write": null,
+    "cost": 0,
+    "cursor_rows": 0,
+    "input": null,
+    "output": null,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 0,
+    "state": "ok",
+    "tokens": null,
+    "wall_s": null
+   }
+  },
+  "G-404": {
+   "goal": "G-404",
+   "overhead": {
+    "rows": [],
+    "totals": {
+     "cache_read": null,
+     "cache_write": null,
+     "cost": 0,
+     "cursor_rows": 0,
+     "input": null,
+     "output": null,
+     "rework_cost": null,
+     "rework_share": null,
+     "sessions": 0,
+     "state": "ok",
+     "tokens": null,
+     "wall_s": null
+    }
+   },
+   "state": "ok",
+   "tasks": {},
+   "totals": {
+    "cache_read": null,
+    "cache_write": null,
+    "cost": 0,
+    "cursor_rows": 0,
+    "input": null,
+    "output": null,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 0,
+    "state": "ok",
+    "tokens": null,
+    "wall_s": null
+   }
+  }
+ },
+ "latest_context": {
+  "": null,
+  "bad/id": null,
+  "sess-aaa": 1,
+  "sess-bbb": 4800,
+  "sess-nosuch": null
+ },
+ "rollup": {
+  "by_agent": {
+   "claude-coder-t-0001": {
+    "cache_read": 11029,
+    "cache_write_1h": 104,
+    "cache_write_5m": 304,
+    "cost": 0.007855899999999999,
+    "cost_unknown": true,
+    "input": 1526,
+    "output": 699,
+    "priced": 6,
+    "requests": 13
+   },
+   "claude-lead-g-001": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.00028,
+    "cost_unknown": false,
+    "input": 20,
+    "output": 10,
+    "priced": 1,
+    "requests": 1
+   },
+   "claude-pm-g-001": {
+    "cache_read": 500,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.0008,
+    "cost_unknown": false,
+    "input": 50,
+    "output": 25,
+    "priced": 1,
+    "requests": 1
+   },
+   "unattributed": {
+    "cache_read": 4033,
+    "cache_write_1h": 500,
+    "cache_write_5m": 0,
+    "cost": 0.0044467000000000005,
+    "cost_unknown": false,
+    "input": 320,
+    "output": 143,
+    "priced": 3,
+    "requests": 3
+   }
+  },
+  "by_day": {
+   "2026-11-10": {
+    "cache_read": 5553,
+    "cache_write_1h": 604,
+    "cache_write_5m": 296,
+    "cost": 0.012683700000000001,
+    "cost_unknown": false,
+    "input": 777,
+    "output": 366,
+    "priced": 8,
+    "requests": 10
+   },
+   "2026-11-11": {
+    "cache_read": 10009,
+    "cache_write_1h": 0,
+    "cache_write_5m": 8,
+    "cost": 0.0006749,
+    "cost_unknown": true,
+    "input": 1137,
+    "output": 509,
+    "priced": 2,
+    "requests": 7
+   },
+   "unknown": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 2.4e-05,
+    "cost_unknown": false,
+    "input": 2,
+    "output": 2,
+    "priced": 1,
+    "requests": 1
+   }
+  },
+  "by_goal": {
+   "G-001": {
+    "cache_read": 15562,
+    "cache_write_1h": 604,
+    "cache_write_5m": 304,
+    "cost": 0.0133812,
+    "cost_unknown": true,
+    "input": 1907,
+    "output": 876,
+    "priced": 10,
+    "requests": 17
+   },
+   "unattributed": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 1.4e-06,
+    "cost_unknown": false,
+    "input": 9,
+    "output": 1,
+    "priced": 1,
+    "requests": 1
+   }
+  },
+  "by_model": {
+   "<synthetic>": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.0,
+    "cost_unknown": false,
+    "input": 0,
+    "output": 0,
+    "priced": 0,
+    "requests": 1
+   },
+   "claude-haiku-5-5": {
+    "cache_read": 10000,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.00045139999999999997,
+    "cost_unknown": false,
+    "input": 1009,
+    "output": 501,
+    "priced": 2,
+    "requests": 2
+   },
+   "claude-opus-5-5": {
+    "cache_read": 1500,
+    "cache_write_1h": 104,
+    "cache_write_5m": 206,
+    "cost": 0.00654,
+    "cost_unknown": false,
+    "input": 247,
+    "output": 118,
+    "priced": 4,
+    "requests": 5
+   },
+   "claude-sonnet-5-5": {
+    "cache_read": 4062,
+    "cache_write_1h": 500,
+    "cache_write_5m": 98,
+    "cost": 0.0063912,
+    "cost_unknown": false,
+    "input": 605,
+    "output": 253,
+    "priced": 5,
+    "requests": 9
+   },
+   "gpt-x": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": null,
+    "cost_unknown": true,
+    "input": 55,
+    "output": 5,
+    "priced": 0,
+    "requests": 1
+   }
+  },
+  "by_org": {
+   "claude": {
+    "cache_read": 15562,
+    "cache_write_1h": 604,
+    "cache_write_5m": 304,
+    "cost": 0.0133812,
+    "cost_unknown": true,
+    "input": 1907,
+    "output": 876,
+    "priced": 10,
+    "requests": 17
+   },
+   "cursor": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 1.4e-06,
+    "cost_unknown": false,
+    "input": 9,
+    "output": 1,
+    "priced": 1,
+    "requests": 1
+   }
+  },
+  "by_task": {
+   "T-0001": {
+    "cache_read": 11029,
+    "cache_write_1h": 104,
+    "cache_write_5m": 304,
+    "cost": 0.007855899999999999,
+    "cost_unknown": true,
+    "input": 1526,
+    "output": 699,
+    "priced": 6,
+    "requests": 13
+   },
+   "T-0002": {
+    "cache_read": 4000,
+    "cache_write_1h": 500,
+    "cache_write_5m": 0,
+    "cost": 0.0042,
+    "cost_unknown": false,
+    "input": 300,
+    "output": 120,
+    "priced": 1,
+    "requests": 1
+   },
+   "T-0009": {
+    "cache_read": 33,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.0002453,
+    "cost_unknown": false,
+    "input": 11,
+    "output": 22,
+    "priced": 1,
+    "requests": 1
+   },
+   "unattributed": {
+    "cache_read": 500,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.0010814,
+    "cost_unknown": false,
+    "input": 79,
+    "output": 36,
+    "priced": 3,
+    "requests": 3
+   }
+  },
+  "total": {
+   "cache_read": 15562,
+   "cache_write_1h": 604,
+   "cache_write_5m": 304,
+   "cost": 0.0133826,
+   "cost_unknown": true,
+   "input": 1916,
+   "output": 877,
+   "priced": 11,
+   "requests": 18
+  }
+ },
+ "session_tokens": {
+  "": 0,
+  "bad/id": 0,
+  "sess-aaa": 2633,
+  "sess-bbb": 920,
+  "sess-nosuch": 0
+ },
+ "session_tokens_known": {
+  "": null,
+  "bad/id": null,
+  "sess-aaa": 2633,
+  "sess-bbb": 920,
+  "sess-nosuch": null
+ },
+ "snapshot": {
+  "bytes_read": 4682,
+  "bytes_total": 4682,
+  "errors": 1,
+  "files": 7,
+  "ready": true,
+  "rows": [
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-11",
+    "fast": false,
+    "input": 0,
+    "model": "<synthetic>",
+    "output": 0,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 10000,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-11",
+    "fast": false,
+    "input": 1000,
+    "model": "claude-haiku-5-5",
+    "output": 500,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 1000,
+    "cache_write_1h": 100,
+    "cache_write_5m": 200,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 100,
+    "model": "claude-opus-5-5",
+    "output": 50,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 4,
+    "cache_write_5m": 6,
+    "day": "2026-11-10",
+    "fast": true,
+    "input": 77,
+    "model": "claude-opus-5-5",
+    "output": 33,
+    "requests": 2,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 20,
+    "cache_write_1h": 0,
+    "cache_write_5m": 90,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 210,
+    "model": "claude-sonnet-5-5",
+    "output": 105,
+    "requests": 2,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 9,
+    "cache_write_1h": 0,
+    "cache_write_5m": 8,
+    "day": "2026-11-11",
+    "fast": false,
+    "input": 82,
+    "model": "claude-sonnet-5-5",
+    "output": 4,
+    "requests": 4,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "unknown",
+    "fast": false,
+    "input": 2,
+    "model": "claude-sonnet-5-5",
+    "output": 2,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-11",
+    "fast": false,
+    "input": 55,
+    "model": "gpt-x",
+    "output": 5,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 4000,
+    "cache_write_1h": 500,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 300,
+    "model": "claude-sonnet-5-5",
+    "output": 120,
+    "requests": 1,
+    "session": "sess-bbb"
+   },
+   {
+    "cache_read": 500,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 50,
+    "model": "claude-opus-5-5",
+    "output": 25,
+    "requests": 1,
+    "session": "sess-ccc"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 20,
+    "model": "claude-opus-5-5",
+    "output": 10,
+    "requests": 1,
+    "session": "sess-ddd"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 9,
+    "model": "claude-haiku-5-5",
+    "output": 1,
+    "requests": 1,
+    "session": "sess-eee"
+   },
+   {
+    "cache_read": 33,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 11,
+    "model": "claude-sonnet-5-5",
+    "output": 22,
+    "requests": 1,
+    "session": "sess-www"
+   }
+  ],
+  "sessions": {
+   "sess-aaa": {
+    "agent_name": "claude-coder-t-0001",
+    "cost_state": 1.25,
+    "cwd": "/w/repo-a",
+    "first_ts": "2026-11-10T09:00:00+00:00",
+    "last_ts": "2026-11-11T13:00:00+00:00",
+    "project": "-w-proj-a"
+   },
+   "sess-bbb": {
+    "agent_name": null,
+    "cost_state": null,
+    "cwd": "/w/other",
+    "first_ts": "2026-11-10T14:00:00+00:00",
+    "last_ts": "2026-11-10T14:00:00+00:00",
+    "project": "-w-worktrees-G-001-T-0002"
+   },
+   "sess-ccc": {
+    "agent_name": "claude-pm-g-001",
+    "cost_state": null,
+    "cwd": "/w/pm",
+    "first_ts": "2026-11-10T15:00:00+00:00",
+    "last_ts": "2026-11-10T15:00:00+00:00",
+    "project": "-w-proj-c"
+   },
+   "sess-ddd": {
+    "agent_name": null,
+    "cost_state": null,
+    "cwd": "/w/lead",
+    "first_ts": "2026-11-10T16:00:00+00:00",
+    "last_ts": "2026-11-10T16:00:00+00:00",
+    "project": "-w-proj-c"
+   },
+   "sess-eee": {
+    "agent_name": null,
+    "cost_state": null,
+    "cwd": "/w/nothing",
+    "first_ts": "2026-11-10T17:00:00+00:00",
+    "last_ts": "2026-11-10T17:00:00+00:00",
+    "project": "-w-proj-c"
+   },
+   "sess-www": {
+    "agent_name": null,
+    "cost_state": null,
+    "cwd": "/w/worker",
+    "first_ts": "2026-11-10T18:00:00+00:00",
+    "last_ts": "2026-11-10T18:00:00+00:00",
+    "project": "-w-worktrees-G-001-T-0009"
+   }
+  }
+ },
+ "task_usage": {
+  "T-0001": {
+   "first_rejection": "2026-11-10T12:45:00+00:00",
+   "rows": [
+    {
+     "agent": "claude-coder-t-0001",
+     "cache_read": 11029,
+     "cache_write": 408,
+     "cost": null,
+     "input": 1526,
+     "output": 699,
+     "rework": false,
+     "role": "coder",
+     "runtime": "claude",
+     "sessions": 1,
+     "state": "ok",
+     "wall_s": null
+    },
+    {
+     "agent": "cursor-coder-t-0001",
+     "cache_read": null,
+     "cache_write": null,
+     "cost": null,
+     "input": null,
+     "output": null,
+     "rework": false,
+     "role": "coder",
+     "runtime": "cursor",
+     "sessions": 1,
+     "state": "not_available",
+     "wall_s": 5400.0
+    }
+   ],
+   "state": "ok",
+   "task": "T-0001",
+   "totals": {
+    "cache_read": 11029,
+    "cache_write": 408,
+    "cost": null,
+    "cursor_rows": 1,
+    "input": 1526,
+    "output": 699,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 2,
+    "state": "partial",
+    "tokens": 13662,
+    "wall_s": 5400.0
+   }
+  },
+  "T-0002": {
+   "first_rejection": null,
+   "rows": [
+    {
+     "agent": "unattributed",
+     "cache_read": 4000,
+     "cache_write": 500,
+     "cost": 0.0042,
+     "input": 300,
+     "output": 120,
+     "rework": false,
+     "role": null,
+     "runtime": "claude",
+     "sessions": 1,
+     "state": "ok",
+     "wall_s": null
+    }
+   ],
+   "state": "ok",
+   "task": "T-0002",
+   "totals": {
+    "cache_read": 4000,
+    "cache_write": 500,
+    "cost": 0.0042,
+    "cursor_rows": 0,
+    "input": 300,
+    "output": 120,
+    "rework_cost": 0,
+    "rework_share": 0.0,
+    "sessions": 1,
+    "state": "ok",
+    "tokens": 4920,
+    "wall_s": null
+   }
+  },
+  "T-0003": {
+   "first_rejection": null,
+   "rows": [],
+   "state": "ok",
+   "task": "T-0003",
+   "totals": {
+    "cache_read": null,
+    "cache_write": null,
+    "cost": 0,
+    "cursor_rows": 0,
+    "input": null,
+    "output": null,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 0,
+    "state": "ok",
+    "tokens": null,
+    "wall_s": null
+   }
+  },
+  "T-9999": {
+   "first_rejection": null,
+   "rows": [],
+   "state": "ok",
+   "task": "T-9999",
+   "totals": {
+    "cache_read": null,
+    "cache_write": null,
+    "cost": 0,
+    "cursor_rows": 0,
+    "input": null,
+    "output": null,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 0,
+    "state": "ok",
+    "tokens": null,
+    "wall_s": null
+   }
+  }
+ },
+ "task_usage_not_ready": {
+  "first_rejection": null,
+  "rows": [],
+  "state": "not_ready",
+  "task": "T-0001",
+  "totals": null
+ },
+ "usage_totals": {
+  "cache_read": 15529,
+  "cache_write": 908,
+  "input": 1905,
+  "output": 855
+ }
+}
