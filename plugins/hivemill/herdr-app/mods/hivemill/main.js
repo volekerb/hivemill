@@ -8,7 +8,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, theme, run, exec, spaces, panes, window, keys, notify, nextCommand } from "herdr";
-import { data, config, tick, ago, money, dur, pipeline, alerts, usage, orgsShown, webUrl, levelColor, warn, good, demo, hidden, clean } from "./data.js";
+import { data, config, tick, ago, money, dur, pipeline, alerts, usage, orgsShown, webUrl, levelColor, warn, good, demo, hidden, clean, machineRows } from "./data.js";
 
 const MOD = "hivemill";
 const alpha = (c, a) => (typeof c === "string" && c.length === 7 ? c + a : c);
@@ -317,20 +317,44 @@ export default class Dashboard extends View {
     return this.card(t, "Budget & cost", this.btn(t, "tok-open", "Tokens ↗", () => openUrl("/tokens")), body);
   }
 
+  machinesSection(t, d, body) {
+    const rows = machineRows(d);
+    if (!rows.length) return;
+    const gb = (mb) => (mb / 1024).toFixed(mb >= 10240 ? 0 : 1);
+    body.child(this.sub(t, "Machines", rows.length));
+    body.children(rows.map((m) => {
+      const memUsed = m.mem_total_mb && m.mem_available_mb != null ? 1 - m.mem_available_mb / m.mem_total_mb : null;
+      const load = m.load?.[0];
+      const loadFrac = load != null && m.cpus ? load / m.cpus : null;
+      const tone = (f) => (f == null ? t.dim : f >= 0.95 ? t.blocked : f >= 0.8 ? warn(t) : good(t));
+      const facts = [m.os && [m.os, m.arch].filter(Boolean).join(" "), m.cpus ? `${m.cpus} CPUs` : null, m.uptime_s ? `up ${dur(m.uptime_s)}` : null,
+        m.agents ? `${m.agents} agent${m.agents === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ");
+      const bar = (f) => div().h(4).w_full().rounded(2).bg(t.border).child(div().h_full().w(`${(Math.max(0, Math.min(1, f ?? 0)) * 100).toFixed(1)}%`).rounded(2).bg(tone(f)));
+      const cell = (label, value, f) => v_flex().flex_1().min_w(0).gap(3)
+        .child(h_flex().gap(4).child(div().text_size(10.5).text_color(t.dim).child(label)).child(div().flex_1()).child(div().text_size(11).text_color(f == null ? t.dim : tone(f)).child(value)))
+        .child(bar(f));
+      return v_flex().id(`mach-${m.key}`).mx(6).px(6).py(6).gap(5).rounded(6).hover((s) => s.bg(t.hover))
+        .child(h_flex().gap(8).items_center()
+          .child(div().size(8).rounded(4).flex_none().bg(m.ok ? good(t) : t.blocked))
+          .child(div().flex_none().text_size(12.5).font_semibold().text_color(t.foreground).child(m.label))
+          .when(Boolean(m.role), (el) => el.child(div().flex_none().px(6).rounded(4).bg(t.raised).text_size(10).text_color(t.muted).child(m.role)))
+          .child(div().flex_1().min_w(0).truncate().text_size(10.5).text_color(t.dim).child(m.ok ? facts : `unreachable${m.at ? ` · last seen ${ago(m.at)} ago` : ""}`)))
+        .child(h_flex().gap(10)
+          .child(cell("memory", m.mem_total_mb ? `${gb(m.mem_total_mb - (m.mem_available_mb ?? 0))}/${gb(m.mem_total_mb)} GB` : "–", memUsed))
+          .child(cell("load", load != null ? load.toFixed(1) : "–", loadFrac))
+          .when(m.disk_total_gb != null, (el) => el.child(cell("disk", `${m.disk_free_gb} GB free`, m.disk_total_gb ? 1 - m.disk_free_gb / m.disk_total_gb : null)))
+          .when(m.swap_total_mb > 0 && !hidden("swap"), (el) => el.child(cell("swap", `${gb(m.swap_used_mb)}/${gb(m.swap_total_mb)} GB`, m.swap_used_mb / m.swap_total_mb))));
+    }));
+  }
+
   resourcesCard(t, d) {
     const r = d.res;
     const body = v_flex().pb(10);
+    this.machinesSection(t, d, body);
     if (!r) {
       body.child(div().px(12).py(8).text_size(12).text_color(t.dim).child(d.factoryError ? "Factory unreachable" : "Loading…"));
       return this.card(t, "Resources", null, body);
     }
-    const m = r.machine ?? {};
-    const gb = (mb) => (mb / 1024).toFixed(1);
-    body.child(this.sub(t, "Factory machine", m.serve_uptime_s ? `up ${dur(m.serve_uptime_s)}` : null));
-    body.child(this.meter(t, "r-mem", "Memory", m.mem_total_mb ? `${gb(m.mem_total_mb - m.mem_available_mb)} / ${gb(m.mem_total_mb)} GB` : "–", m.mem_total_mb ? 1 - m.mem_available_mb / m.mem_total_mb : null, m.mem_available_mb != null ? `${gb(m.mem_available_mb)} GB free` : null));
-    if (m.swap_total_mb && !hidden("swap")) body.child(this.meter(t, "r-swap", "Swap", `${gb(m.swap_used_mb)} / ${gb(m.swap_total_mb)} GB`, m.swap_used_mb / m.swap_total_mb));
-    const load = Array.isArray(m.load) ? m.load : [];
-    body.child(this.meter(t, "r-load", `Load (${m.cpus ?? "?"} CPUs)`, load.length ? load.map((x) => x.toFixed(1)).join(" · ") : "–", load.length && m.cpus ? load[0] / m.cpus : null, "1 · 5 · 15 min"));
     body.child(this.sub(t, "Spawn gate", null));
     body.children((r.rows ?? []).map((row, i) =>
       h_flex().id(`gate-${i}`).px(12).py(3).gap(8).items_center()

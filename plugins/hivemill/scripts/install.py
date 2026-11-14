@@ -5,7 +5,7 @@
              [--project-name NAME] [--project-gh OWNER/NAME] [--max-agents N] [--port N] [--no-systemd]
              [--linger] [--no-scout] [--resume]
   install.py --herdr-app --dry-run | --yes  [--factory-url URL] [--factory-machine NAME] [--factory-web-url URL]
-             [--orgs auto|claude|cursor|claude,cursor] [--no-switch]
+             [--orgs auto|claude|cursor|claude,cursor] [--no-switch] [--no-sidebar]
              (the dashboard for the Herdr app, on the machine you work from: docs/herdr-app-dashboard.md)
 
 It never prompts, never reads stdin and never reads, prints or stores a token. It installs into ~/factory and
@@ -736,7 +736,7 @@ def herdr_app_source():
     return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "herdr-app", "mods", HERDR_APP_MOD)
 
 
-def bar_layout(main):
+def bar_layout(main, hide_sidebar=False):
     """The app's main layout with its status bar block showing the Hivemill bar. -> (layout, replaced?).
     The block is the node whose content is the shipped `workspace-status` mod (id "status" in Herdr's main)."""
     lay = json.loads(json.dumps(main))
@@ -753,6 +753,9 @@ def bar_layout(main):
             walk(ch)
 
     walk(lay)
+    for ch in lay.get("children") or []:
+        if isinstance(ch, dict) and ch.get("id") == "sidebar" and hide_sidebar:
+            ch["hidden"] = True  # a picture station: no space or agent names in shots
     if not found:
         work = next((ch for ch in lay.get("children") or [] if isinstance(ch, dict) and ch.get("id") == "work"), lay)
         work.setdefault("children", []).append({"id": "hivemill-bar", "type": "block", "size": {"px": 28}, "content": dict(BAR)})
@@ -802,7 +805,7 @@ def run_herdr_app(host, args, out):
             with open(cfg_path) as f:
                 existing = json.load(f)
         cfg = dashboard_config(existing, args)
-        lay, replaced = bar_layout(main)
+        lay, replaced = bar_layout(main, hide_sidebar=args.no_sidebar)
 
         name = "mod"
         c.emit("[%s] 1 mod: copy %s into %s" % ("plan" if c.plan else "run", ", ".join(HERDR_APP_FILES), mod_dir))
@@ -821,7 +824,8 @@ def run_herdr_app(host, args, out):
         name = "layout"
         c.emit("[%s] 3 layout: write %s from main.json, %s" % (
             "plan" if c.plan else "run", layout_path,
-            "the status bar becomes the Hivemill bar" if replaced else "with the Hivemill bar added under the work area"))
+            ("the status bar becomes the Hivemill bar" if replaced else "with the Hivemill bar added under the work area")
+            + (", the sidebar hidden" if args.no_sidebar else "")))
         if not c.plan:
             write_text(layout_path, json.dumps(lay, indent=2) + "\n")
         name = "switch"
@@ -903,12 +907,13 @@ def parse(argv):
     dash.add_argument("--factory-web-url", help="the factory web UI as your browser reaches it, for the Open links")
     dash.add_argument("--orgs", help="auto (default), claude, cursor, or claude,cursor")
     dash.add_argument("--no-switch", action="store_true", help="do not switch the app to the Hivemill layout")
+    dash.add_argument("--no-sidebar", action="store_true", help="hide the sidebar in the Hivemill layout (a machine kept for screenshots)")
     a = p.parse_args(argv)
     if sum((a.check, a.dry_run, a.yes)) != 1:
         raise Stop(2, "usage error: pass exactly one of --check, --dry-run, --yes\n" + p.format_usage().strip())
-    dash_flags = (a.factory_url, a.factory_machine, a.factory_web_url, a.orgs, a.no_switch)
+    dash_flags = (a.factory_url, a.factory_machine, a.factory_web_url, a.orgs, a.no_switch, a.no_sidebar)
     if not a.herdr_app and any(x is not None and x is not False for x in dash_flags):
-        raise Stop(2, "usage error: --factory-url, --factory-machine, --factory-web-url, --orgs and --no-switch need --herdr-app")
+        raise Stop(2, "usage error: --factory-url, --factory-machine, --factory-web-url, --orgs, --no-switch and --no-sidebar need --herdr-app")
     if a.herdr_app:
         if a.check:
             raise Stop(2, "usage error: --herdr-app goes with --dry-run or --yes")

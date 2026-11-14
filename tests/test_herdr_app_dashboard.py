@@ -126,6 +126,16 @@ class HerdrAppDashboardTest(unittest.TestCase):
         self.assertEqual(work[-1]["content"], {"mod": "hivemill", "props": {"mode": "bar"}})
         self.assertEqual(work[-1]["size"], {"px": 28})
 
+    def test_no_sidebar_hides_it_and_survives_a_rerun(self):
+        for _ in range(2):
+            rc, out = self.run_installer("--herdr-app", "--yes", "--no-switch", "--no-sidebar")
+            self.assertEqual(rc, 0, out)
+            self.assertIn("the sidebar hidden", out)
+            lay = self.load(self.layout)
+            self.assertTrue(lay["children"][0]["hidden"])
+        rc, out = self.run_installer("--herdr-app", "--yes", "--no-switch")
+        self.assertNotIn("hidden", self.load(self.layout)["children"][0])
+
     def test_no_herdr_app_is_a_hand_off_not_a_failure(self):
         os.remove(os.path.join(self.app, "layouts", "main.json"))
         rc, out = self.run_installer("--herdr-app", "--yes")
@@ -147,6 +157,7 @@ class HerdrAppDashboardTest(unittest.TestCase):
         for argv in (["--herdr-app", "--check"],
                      ["--dry-run", "--orgs", "claude"],
                      ["--yes", "--factory-url", "http://x"],
+                     ["--dry-run", "--no-sidebar"],
                      ["--herdr-app", "--yes", "--orgs", "openai"],
                      ["--herdr-app", "--yes", "--factory-url", "ftp://x"],
                      ["--herdr-app", "--yes", "--factory-machine", "-oProxy=x"]):

@@ -2,11 +2,11 @@
 // One copy at a time collects (a lease in shared state); every copy reads shared("hivemill.data").
 // Settings: ~/.config/hivemill/dashboard.json (see config.example.json and docs/herdr-app-dashboard.md).
 
-import { exec, hc, agents, terminals, spaces, readTextFile, home, shared, setShared } from "herdr";
+import { exec, hc, agents, terminals, spaces, machines, readTextFile, home, shared, setShared } from "herdr";
 
 const DATA = "hivemill.data";
 const LEASE = "hivemill.lease";
-const EVERY = { config: 60_000, factory: 45_000, usage: 60_000, prs: 120_000, scan: 120_000, res: 60_000, cost: 300_000 };
+const EVERY = { config: 60_000, factory: 45_000, usage: 60_000, prs: 120_000, scan: 120_000, res: 60_000, cost: 300_000, machines: 60_000 };
 const LEASE_MS = 40_000;
 
 export const DEFAULTS = {
@@ -26,6 +26,10 @@ export const DEFAULTS = {
   alerts: { context_below_pct: 10, stall_minutes: 60, usage_warn_pct: 80, usage_danger_pct: 90, factory_down_minutes: 5 },
   // A regex with one group: the percent of context left, as the agents' status line prints it.
   context_pattern: "ctx (\\d+)% left",
+  // Machines in the Resources card: "auto" (this computer and every `hc machine ls` machine) or a list of names,
+  // "local" for this computer. machine_labels: display names, e.g. {"local": "Laptop", "box": "Factory server"}.
+  machines: "auto",
+  machine_labels: {},
   // Screens for docs and films: see demo() below.
   demo: { enabled: false, hide: [], alerts: true },
 };
@@ -68,6 +72,7 @@ function collect(cx, due) {
   if (due("usage")) loadUsage(cx);
   if (due("prs")) loadPrs(cx);
   if (due("scan")) scanAgents(cx);
+  if (due("machines")) loadMachines(cx);
   if (due("res"))
     loadJson(cx, "res", "resources", (r) => ({
       res: { rows: r.gate?.rows ?? [], machine: r.machine ?? {}, cursor: r.system?.cursor ?? null, usage: r.system?.usage ?? null },
@@ -86,6 +91,64 @@ function collect(cx, due) {
       };
     });
   }
+}
+
+// One machine's facts as key=value lines, on Linux or macOS, with nothing but sh and the base system.
+const PROBE = `
+os=$(uname -s); echo os=$os; echo arch=$(uname -m)
+if [ "$os" = Darwin ]; then
+  echo cpus=$(sysctl -n hw.ncpu); echo mem_total_mb=$(( $(sysctl -n hw.memsize) / 1048576 ))
+  ps_=$(sysctl -n hw.pagesize); vm_stat | awk -v p=$ps_ '/Pages free|Pages inactive|Pages speculative/ {gsub(/\\./,"",$NF); s+=$NF} END {print "mem_avail_mb=" int(s*p/1048576)}'
+  sysctl -n vm.loadavg | awk '{print "load=" $2 "," $3 "," $4}'
+  sysctl -n vm.swapusage | awk '{gsub(/M/,""); print "swap_total_mb=" int($3); print "swap_used_mb=" int($6)}'
+  b=$(sysctl -n kern.boottime | sed 's/^{ sec = \\([0-9]*\\).*/\\1/'); echo uptime_s=$(( $(date +%s) - b ))
+  echo model=$(sysctl -n hw.model 2>/dev/null)
+else
+  echo cpus=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN)
+  awk '/MemTotal/ {print "mem_total_mb=" int($2/1024)} /MemAvailable/ {print "mem_avail_mb=" int($2/1024)} /SwapTotal/ {t=$2} /SwapFree/ {f=$2} END {print "swap_total_mb=" int(t/1024); print "swap_used_mb=" int((t-f)/1024)}' /proc/meminfo
+  awk '{print "load=" $1 "," $2 "," $3}' /proc/loadavg; awk '{print "uptime_s=" int($1)}' /proc/uptime
+fi
+df -Pk / | awk 'NR==2 {print "disk_total_gb=" int($2/1048576); print "disk_free_gb=" int($4/1048576)}'
+`;
+
+function parseProbe(text) {
+  const m = {};
+  for (const line of (text ?? "").split("\n")) {
+    const i = line.indexOf("=");
+    if (i > 0) m[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  const n = (k) => (m[k] == null || m[k] === "" || Number.isNaN(Number(m[k])) ? null : Number(m[k]));
+  return {
+    os: m.os === "Darwin" ? "macOS" : m.os || null, arch: m.arch || null, model: m.model || null, cpus: n("cpus"),
+    mem_total_mb: n("mem_total_mb"), mem_available_mb: n("mem_avail_mb"), swap_total_mb: n("swap_total_mb"), swap_used_mb: n("swap_used_mb"),
+    load: (m.load ?? "").split(",").map(Number).filter((x) => !Number.isNaN(x)), uptime_s: n("uptime_s"),
+    disk_total_gb: n("disk_total_gb"), disk_free_gb: n("disk_free_gb"),
+  };
+}
+
+// Every machine of this setup: this computer and the app's hc machines (config "machines": "auto", or a list of
+// names; "local" is this computer). Each is probed where it runs; one that cannot be reached keeps its last facts.
+function loadMachines(cx) {
+  put({ at: stamp("machines") });
+  cx.spawn(async (cx) => {
+    const want = config().machines ?? "auto";
+    const known = machines().map((m) => m.name).filter((x) => x != null);
+    const names = Array.isArray(want) ? want.map((x) => (x === "local" ? null : x)) : [null, ...known];
+    const prev = data().machines ?? {};
+    const out = {};
+    for (const name of names) {
+      const key = name ?? "local";
+      try {
+        const r = await exec("sh", ["-c", PROBE], { timeout: 15000, on: name ?? undefined });
+        if (r.code !== 0 && !r.stdout) throw new Error(r.stderr.trim() || `exit ${r.code}`);
+        out[key] = { name, ...parseProbe(r.stdout), ok: true, at: Date.now() };
+      } catch (e) {
+        out[key] = { ...(prev[key] ?? { name }), ok: false, error: String(e?.message ?? e) };
+      }
+    }
+    put({ machines: out });
+    cx.notify();
+  });
 }
 
 function stamp(k) {
@@ -315,6 +378,11 @@ export function alerts(d = data()) {
   }
   for (const s of scan)
     if (s.ctx != null && s.ctx < A.context_below_pct) out.push({ key: `ctx:${s.name}`, level: "warning", text: `${s.name} context ${s.ctx}% left`, agent: s });
+  for (const r of machineRows(d)) {
+    if (!r.ok && !r.fromApi) out.push({ key: `machine-down:${r.key}`, level: "warning", text: `${r.label} unreachable` });
+    if (r.disk_free_gb != null && r.disk_total_gb && (r.disk_free_gb < 20 || r.disk_free_gb / r.disk_total_gb < 0.05))
+      out.push({ key: `disk:${r.key}:${new Date().toDateString()}`, level: r.disk_free_gb < 5 ? "danger" : "warning", text: `${r.label}: ${r.disk_free_gb} GB disk free` });
+  }
   const m = d.res?.machine;
   if (m?.swap_total_mb && m.swap_used_mb / m.swap_total_mb >= 0.95)
     out.push({
@@ -347,6 +415,38 @@ export function clean(text) {
     .replace(/\s*\((?:[a-z]+-)?\)/gi, "") // "(post-G-001)" emptied above
     .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+// The machines to show, in order: this computer, then hc machines; the factory machine is marked, and comes from
+// the factory's own API when no hc machine is the factory. -> [{key, label, role, ...facts}]
+export function machineRows(d = data()) {
+  const cfg = config();
+  const labels = cfg.machine_labels ?? {};
+  const factoryMachine = cfg.factory?.machine ?? null;
+  const rows = Object.entries(d.machines ?? {}).map(([key, m]) => ({ key, ...m }));
+  const isFactory = (r) => (factoryMachine ? r.name === factoryMachine : false);
+  for (const r of rows) r.role = isFactory(r) ? "factory" : null;
+  const fm = d.res?.machine;
+  if (!rows.some((r) => r.role === "factory") && fm && Object.keys(fm).length)
+    rows.push({
+      key: "factory", name: "factory", role: "factory", ok: !d.factoryError, os: null, cpus: fm.cpus ?? null,
+      mem_total_mb: fm.mem_total_mb, mem_available_mb: fm.mem_available_mb, swap_total_mb: fm.swap_total_mb,
+      swap_used_mb: fm.swap_used_mb, load: fm.load ?? [], uptime_s: null, fromApi: true,
+    });
+  const agentsOn = (name) => terminalsOn(name);
+  let n = 0;
+  return rows.map((r) => {
+    const own = labels[r.key] ?? labels[r.name ?? "local"];
+    const plain = r.name == null ? "This computer" : r.role === "factory" && r.fromApi ? "Factory server" : r.name;
+    let label = own ?? plain;
+    if (demo() && !own && (hidden(label) || (r.name != null && r.role !== "factory" && !r.fromApi))) label = r.role === "factory" ? "Factory server" : r.name == null ? "This computer" : `Machine ${++n}`;
+    if (demo() && !own && r.role === "factory") label = "Factory server";
+    return { ...r, label, agents: r.fromApi ? null : agentsOn(r.name) };
+  });
+}
+
+function terminalsOn(name) {
+  return terminals().filter((t) => t.state === "live" && t.status && (name == null ? !String(t.address).includes("/") : String(t.address).startsWith(`${name}/`))).length;
 }
 
 export const warn = (t) => t.ansi3 ?? t.done;

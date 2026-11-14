@@ -6,7 +6,7 @@ If you use the [Herdr app](https://herdr.dev) (the desktop client of herdr-core)
 - **A dashboard tab** with these cards:
   - **Alerts:** only what needs a person.
   - **Budget & cost:** the Claude 7-day and 5-hour usage against the factory's caps, and the Cursor plan state. It also shows spend per day and per org, cost per merged PR (median, p90 and average, with time to merge), and the most expensive tasks.
-  - **Resources:** the factory machine's memory, swap and load, the spawn gate, and merges per day.
+  - **Resources:** every machine of your setup. That is this computer and each `hc machine ls` machine, with the factory marked; if no `hc` link reaches the factory, its row comes from the factory's API. For each machine: reachable or not, OS and CPUs, uptime, agents running there, and memory, load, disk and swap. Below that: the spawn gate and merges per day. A machine that cannot be reached, or one low on disk (under 20 GB or 5% free), raises an alert.
   - **One card per project:** its open PRs, oldest first, and its recent merges.
   - **The factory:** lanes, what needs you, active goals, the factory's agents, and shipped work.
 
@@ -33,7 +33,7 @@ It changes three things and nothing else:
 | `~/.config/herdr-app/layouts/hivemill.json` | a copy of the app's `main` layout, with its status bar replaced by the Hivemill bar |
 | `~/.config/hivemill/dashboard.json` | the settings below. A re-run changes only the fields you pass and keeps your projects. |
 
-When the app is running, the installer then switches it to the Hivemill layout. `ctrl-shift-l` switches layouts, so you can go back to Herdr's own at any time. To uninstall, delete the first two paths.
+When the app is running, the installer then switches it to the Hivemill layout. `--no-sidebar` hides the sidebar in that layout, for a machine kept for screenshots; a re-run keeps whichever you pass. `ctrl-shift-l` switches layouts, so you can go back to Herdr's own at any time. To uninstall, delete the first two paths.
 
 A re-run updates the mod and regenerates `hivemill.json` from the app's current `main` layout. Make your own layout changes in a separate copy.
 
@@ -82,6 +82,8 @@ The dashboard rereads this file every minute. A file it cannot parse shows up as
 | `alerts.stall_minutes` | `60` | alert when a project has ready PRs and has not merged for this long |
 | `alerts.usage_warn_pct` / `usage_danger_pct` | `80` / `90` | Claude weekly usage alerts |
 | `alerts.factory_down_minutes` | `5` | alert when the factory has been unreachable this long |
+| `machines` | `"auto"` | the machines in Resources: `"auto"` (this computer and every `hc machine ls` machine), or a list of names with `"local"` for this computer |
+| `machine_labels` | `{}` | display names, e.g. `{"local": "Laptop", "box": "Factory server"}` |
 | `context_pattern` | `ctx (\d+)% left` | a regex with one group: the context percent, as your agents' status line prints it |
 
 ### Projects
