@@ -5324,7 +5324,7 @@ def merged_go_refusal(con, repo, sha, main_sha, *, timeout=MERGED_GO_PROOF_TIMEO
     try:
         env = merged_go_proof_env()
         gcmd = git_argv(repo, *HARDENED_GIT_FLAGS)
-        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree, "go"], capture_output=True, env=_carry_env(),
+        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree], capture_output=True, env=_carry_env(),
                               timeout=60)
         if arch.returncode:
             return f"MERGED-TREE: git archive of the merge-tree failed ({arch.stderr.decode(errors='replace').strip() or arch.returncode}); nothing merged"
