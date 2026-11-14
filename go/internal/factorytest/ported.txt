@@ -1,0 +1,3 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# Python counts: python3 -m unittest -v <module>, measured when the line was added.
+tests/test_identity.py 22 -> internal/factorytest:TestIdentity 22
