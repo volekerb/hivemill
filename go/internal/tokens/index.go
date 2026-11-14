@@ -263,7 +263,7 @@ func inside(path, confine string) bool {
 // openConfined is _open_confined: open without following a symlink at the last component, then re-check on the open
 // fd that it is a regular, single-link file whose real location is inside confine. nil when any check fails.
 func openConfined(path, confine string) *os.File {
-	fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
 	if err != nil {
 		return nil
 	}

@@ -94,11 +94,7 @@ func pyString(b *strings.Builder, s string) {
 		case r == '\f':
 			b.WriteString(`\f`)
 		case r < 0x20 || (r >= 0x7f && r < 0x10000):
-			if r == 0x7f {
-				b.WriteRune(r) // DEL is printable ASCII to Python
-			} else {
-				fmt.Fprintf(b, `\u%04x`, r)
-			}
+			fmt.Fprintf(b, `\u%04x`, r)
 		case r >= 0x10000:
 			r -= 0x10000
 			fmt.Fprintf(b, `\u%04x\u%04x`, 0xd800+(r>>10), 0xdc00+(r&0x3ff))

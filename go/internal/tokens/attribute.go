@@ -565,19 +565,21 @@ func totals(rows []UsageRow) RowTotals {
 	}
 	var total, rework *float64
 	if !(unknown || (len(real) == 0 && len(cursor) > 0)) {
-		s := 0.0
+		cs := make([]float64, 0, len(real))
 		for _, r := range real {
-			s += *r.Cost
+			cs = append(cs, *r.Cost)
 		}
+		s := pySum(cs...)
 		total = &s
 	}
 	if !(unknown || len(real) == 0) {
-		s := 0.0
+		var cs []float64
 		for _, r := range real {
 			if r.Rework {
-				s += *r.Cost
+				cs = append(cs, *r.Cost)
 			}
 		}
+		s := pySum(cs...)
 		rework = &s
 	}
 	t.Cost, t.ReworkCost = total, rework

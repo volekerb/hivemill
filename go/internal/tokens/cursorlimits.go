@@ -61,7 +61,7 @@ func ParseLimitError(text string) (LimitError, bool) {
 	if m == nil {
 		return LimitError{}, false
 	}
-	out := LimitError{Model: strings.Trim(strings.TrimSpace(m[1]), `"'`)}
+	out := LimitError{Model: strings.Trim(strings.Trim(strings.TrimSpace(m[1]), `"`), `'`)}
 	if rm := resetRE.FindStringSubmatch(text); rm != nil {
 		if rm[1] != "" {
 			out.Reset = rm[1]
@@ -77,7 +77,7 @@ func ParseLimitError(text string) (LimitError, bool) {
 		}
 	}
 	if sw := switchRE.FindStringSubmatch(text); sw != nil {
-		out.SwitchTarget = strings.Trim(strings.TrimSpace(sw[1]), `"'`)
+		out.SwitchTarget = strings.Trim(strings.Trim(strings.TrimSpace(sw[1]), `"`), `'`)
 	}
 	return out, true
 }

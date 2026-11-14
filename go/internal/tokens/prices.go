@@ -6,6 +6,8 @@
 // operations in the same order as Python, so they agree to the last bit.
 package tokens
 
+import "math"
+
 // PriceRow is USD per million tokens for one model.
 type PriceRow struct{ Input, Output, CacheRead, CacheWrite5m, CacheWrite1h float64 }
 
@@ -41,11 +43,26 @@ func Cost(model string, u Usage, speed string) (float64, bool) {
 			mult = m
 		}
 	}
-	s := 0.0
-	s += p.Input * float64(u.Input)
-	s += p.Output * float64(u.Output)
-	s += p.CacheRead * float64(u.CacheRead)
-	s += p.CacheWrite5m * float64(u.CacheWrite5m)
-	s += p.CacheWrite1h * float64(u.CacheWrite1h)
+	s := pySum(p.Input*float64(u.Input), p.Output*float64(u.Output), p.CacheRead*float64(u.CacheRead),
+		p.CacheWrite5m*float64(u.CacheWrite5m), p.CacheWrite1h*float64(u.CacheWrite1h))
 	return mult * s / 1_000_000, true
+}
+
+// pySum is Python's sum() over floats: CPython 3.12+ uses Neumaier compensated summation, so a naive left-to-right
+// sum can differ in the last bit.
+func pySum(xs ...float64) float64 {
+	f, c := 0.0, 0.0
+	for _, x := range xs {
+		t := f + x
+		if math.Abs(f) >= math.Abs(x) {
+			c += (f - t) + x
+		} else {
+			c += (x - t) + f
+		}
+		f = t
+	}
+	if c != 0 && !math.IsInf(c, 0) && !math.IsNaN(c) {
+		f += c
+	}
+	return f
 }

@@ -97,6 +97,474 @@
    },
    null,
    null
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12346,
+    "cache_write_1h": 6,
+    "cache_write_5m": 77,
+    "input": 1007,
+    "output": 334
+   },
+   null,
+   0.000401985
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12347,
+    "cache_write_1h": 7,
+    "cache_write_5m": 154,
+    "input": 1014,
+    "output": 335
+   },
+   null,
+   0.00041302
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12348,
+    "cache_write_1h": 8,
+    "cache_write_5m": 231,
+    "input": 1021,
+    "output": 336
+   },
+   null,
+   0.000424055
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12349,
+    "cache_write_1h": 9,
+    "cache_write_5m": 308,
+    "input": 1028,
+    "output": 337
+   },
+   null,
+   0.00043509
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12350,
+    "cache_write_1h": 10,
+    "cache_write_5m": 385,
+    "input": 1035,
+    "output": 338
+   },
+   null,
+   0.000446125
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12351,
+    "cache_write_1h": 11,
+    "cache_write_5m": 462,
+    "input": 1042,
+    "output": 339
+   },
+   null,
+   0.00045716
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12352,
+    "cache_write_1h": 12,
+    "cache_write_5m": 539,
+    "input": 1049,
+    "output": 340
+   },
+   null,
+   0.00046819499999999997
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12353,
+    "cache_write_1h": 13,
+    "cache_write_5m": 616,
+    "input": 1056,
+    "output": 341
+   },
+   null,
+   0.00047923000000000003
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12354,
+    "cache_write_1h": 14,
+    "cache_write_5m": 693,
+    "input": 1063,
+    "output": 342
+   },
+   null,
+   0.000490265
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12355,
+    "cache_write_1h": 15,
+    "cache_write_5m": 770,
+    "input": 1070,
+    "output": 343
+   },
+   null,
+   0.0005013
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12356,
+    "cache_write_1h": 16,
+    "cache_write_5m": 847,
+    "input": 1077,
+    "output": 344
+   },
+   null,
+   0.000512335
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12357,
+    "cache_write_1h": 17,
+    "cache_write_5m": 924,
+    "input": 1084,
+    "output": 345
+   },
+   null,
+   0.00052337
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12358,
+    "cache_write_1h": 18,
+    "cache_write_5m": 1001,
+    "input": 1091,
+    "output": 346
+   },
+   null,
+   0.000534405
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12359,
+    "cache_write_1h": 19,
+    "cache_write_5m": 1078,
+    "input": 1098,
+    "output": 347
+   },
+   null,
+   0.00054544
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12360,
+    "cache_write_1h": 20,
+    "cache_write_5m": 1155,
+    "input": 1105,
+    "output": 348
+   },
+   null,
+   0.0005564750000000001
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12361,
+    "cache_write_1h": 21,
+    "cache_write_5m": 1232,
+    "input": 1112,
+    "output": 349
+   },
+   null,
+   0.00056751
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12362,
+    "cache_write_1h": 22,
+    "cache_write_5m": 1309,
+    "input": 1119,
+    "output": 350
+   },
+   null,
+   0.000578545
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12363,
+    "cache_write_1h": 23,
+    "cache_write_5m": 1386,
+    "input": 1126,
+    "output": 351
+   },
+   null,
+   0.00058958
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12364,
+    "cache_write_1h": 24,
+    "cache_write_5m": 1463,
+    "input": 1133,
+    "output": 352
+   },
+   null,
+   0.000600615
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12365,
+    "cache_write_1h": 25,
+    "cache_write_5m": 1540,
+    "input": 1140,
+    "output": 353
+   },
+   null,
+   0.0006116499999999999
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12366,
+    "cache_write_1h": 26,
+    "cache_write_5m": 1617,
+    "input": 1147,
+    "output": 354
+   },
+   null,
+   0.000622685
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12367,
+    "cache_write_1h": 27,
+    "cache_write_5m": 1694,
+    "input": 1154,
+    "output": 355
+   },
+   null,
+   0.00063372
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12368,
+    "cache_write_1h": 28,
+    "cache_write_5m": 1771,
+    "input": 1161,
+    "output": 356
+   },
+   null,
+   0.000644755
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12369,
+    "cache_write_1h": 29,
+    "cache_write_5m": 1848,
+    "input": 1168,
+    "output": 357
+   },
+   null,
+   0.00065579
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12370,
+    "cache_write_1h": 30,
+    "cache_write_5m": 1925,
+    "input": 1175,
+    "output": 358
+   },
+   null,
+   0.000666825
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12371,
+    "cache_write_1h": 31,
+    "cache_write_5m": 2002,
+    "input": 1182,
+    "output": 359
+   },
+   null,
+   0.00067786
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12372,
+    "cache_write_1h": 32,
+    "cache_write_5m": 2079,
+    "input": 1189,
+    "output": 360
+   },
+   null,
+   0.000688895
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12373,
+    "cache_write_1h": 33,
+    "cache_write_5m": 2156,
+    "input": 1196,
+    "output": 361
+   },
+   null,
+   0.0006999300000000001
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12374,
+    "cache_write_1h": 34,
+    "cache_write_5m": 2233,
+    "input": 1203,
+    "output": 362
+   },
+   null,
+   0.000710965
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12375,
+    "cache_write_1h": 35,
+    "cache_write_5m": 2310,
+    "input": 1210,
+    "output": 363
+   },
+   null,
+   0.000722
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12376,
+    "cache_write_1h": 36,
+    "cache_write_5m": 2387,
+    "input": 1217,
+    "output": 364
+   },
+   null,
+   0.0007330349999999999
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12377,
+    "cache_write_1h": 37,
+    "cache_write_5m": 2464,
+    "input": 1224,
+    "output": 365
+   },
+   null,
+   0.00074407
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12378,
+    "cache_write_1h": 38,
+    "cache_write_5m": 2541,
+    "input": 1231,
+    "output": 366
+   },
+   null,
+   0.0007551050000000001
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12379,
+    "cache_write_1h": 39,
+    "cache_write_5m": 2618,
+    "input": 1238,
+    "output": 367
+   },
+   null,
+   0.00076614
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12380,
+    "cache_write_1h": 40,
+    "cache_write_5m": 2695,
+    "input": 1245,
+    "output": 368
+   },
+   null,
+   0.000777175
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12381,
+    "cache_write_1h": 41,
+    "cache_write_5m": 2772,
+    "input": 1252,
+    "output": 369
+   },
+   null,
+   0.00078821
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12382,
+    "cache_write_1h": 42,
+    "cache_write_5m": 2849,
+    "input": 1259,
+    "output": 370
+   },
+   null,
+   0.000799245
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12383,
+    "cache_write_1h": 43,
+    "cache_write_5m": 2926,
+    "input": 1266,
+    "output": 371
+   },
+   null,
+   0.0008102799999999999
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 12384,
+    "cache_write_1h": 44,
+    "cache_write_5m": 3003,
+    "input": 1273,
+    "output": 372
+   },
+   null,
+   0.0008213150000000001
   ]
  ],
  "goal_usage": {

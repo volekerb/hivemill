@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -236,5 +237,35 @@ print(json.dumps(cursor_limits.cursor_model_slugs()))
 	}
 	if got := CursorModelSlugs(); !reflect.DeepEqual(got, want) {
 		t.Errorf("Go %v, Python %v", got, want)
+	}
+}
+
+// TestPySumAndDumpsMatchPython: float sums use CPython's compensated sum, and the JSON writer escapes like
+// json.dumps (DEL included).
+func TestPySumAndDumpsMatchPython(t *testing.T) {
+	xs := []float64{0.1, 0.2, 0.3, 1e-9, 0.7, 0.000123, 5.5, 0.125, 0.01, 0.0123}
+	var lits []string
+	for _, x := range xs {
+		lits = append(lits, strconv.FormatFloat(x, 'g', -1, 64))
+	}
+	out := python(t, `
+import json, sys
+sys.path.insert(0, sys.argv[1])
+xs = [float(a) for a in sys.argv[2:]]
+print(json.dumps([sum(xs[:n]) for n in range(1, len(xs) + 1)]))
+print(json.dumps({"b": "a\x7fbé\U0001f600\x01\"", "a": None}, sort_keys=True))
+`, lits...)
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	var want []float64
+	if err := json.Unmarshal([]byte(lines[0]), &want); err != nil {
+		t.Fatal(err)
+	}
+	for n := range xs {
+		if got := pySum(xs[:n+1]...); got != want[n] {
+			t.Errorf("pySum(%v) = %v, Python %v", xs[:n+1], got, want[n])
+		}
+	}
+	if got := pyDumps(map[string]any{"b": "a\x7fbé\U0001f600\x01\"", "a": nil}, true); got != lines[1] {
+		t.Errorf("pyDumps %s, Python %s", got, lines[1])
 	}
 }
