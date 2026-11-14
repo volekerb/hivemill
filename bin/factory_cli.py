@@ -19253,6 +19253,29 @@ def _digest_argv_sets_send(rest):
     return False
 
 
+_INBOX_LONG_OPTS = ("--all", "--peek", "--agent", "--limit", "--full", "--show")
+
+
+def _inbox_argv_show_token(a):
+    """Argparse allow_abbrev: --s/--sh/--show= map to --show; returns (is_show, inline_value or None)."""
+    if not a.startswith("--") or a == "--":
+        return False, None
+    key, eq, val = a.partition("=")
+    if eq:
+        if key == "--show":
+            return True, val
+        matches = [o for o in _INBOX_LONG_OPTS if o.startswith(key)]
+        if len(matches) == 1 and matches[0] == "--show":
+            return True, val
+        return False, None
+    if a == "--show":
+        return True, None
+    matches = [o for o in _INBOX_LONG_OPTS if o.startswith(a)]
+    if len(matches) == 1 and matches[0] == "--show":
+        return True, None
+    return False, None
+
+
 def _inbox_argv_show_is_readonly(rest):
     """--show with a non-empty id is read-only; '' or a missing value is the list path and writes read_at (last wins)."""
     show = None
@@ -19260,12 +19283,16 @@ def _inbox_argv_show_is_readonly(rest):
     i = 0
     while i < len(rest):
         a = rest[i]
-        if a == "--show":
+        is_show, inline = _inbox_argv_show_token(a)
+        if is_show:
             seen = True
-            show = ""
-            if i + 1 < len(rest) and not rest[i + 1].startswith("-"):
-                show = rest[i + 1]
-                i += 1
+            if inline is not None:
+                show = inline
+            else:
+                show = ""
+                if i + 1 < len(rest) and not rest[i + 1].startswith("-"):
+                    show = rest[i + 1]
+                    i += 1
         i += 1
     if not seen:
         return False
