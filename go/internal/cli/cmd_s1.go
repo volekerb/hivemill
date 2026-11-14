@@ -316,7 +316,8 @@ var ruleKeys = map[string]bool{
 	"public_text_repos": true, "frozen_repos": true, "issue_intake_repos": true, "noreply_email": true,
 	"opus_effort": true, "scout_triage_per_run": true, "model_cleaner": true, "guard_impl": true,
 	"sandbox_roles": true, "worker_gh_roles": true, "gh_rw_roles": true, "cursor_pilot_roles": true,
-	"agent_runtimes": true, "worker_gh_repos": true, "factory_remote_url": true, "task_clones": true,
+	"agent_runtimes": true, "worker_gh_repos": true, "factory_remote_url": true,
+	"block_conditions": true, "task_clones": true,
 	"terminal_backend": true, "skilleval_root": true, "cli_impl": true, "cli_go_cmds": true,
 	"merged_go_proof": true,
 }

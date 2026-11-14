@@ -26,7 +26,7 @@
   "goal": "G-040",
   "doc": "docs/block-conditions.md",
   "state": "off",
-  "current": "-"
+  "current": "0"
  },
  {
   "key": "blocked_alert_s",
