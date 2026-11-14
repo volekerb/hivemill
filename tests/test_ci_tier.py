@@ -259,7 +259,7 @@ class WorkflowTest(unittest.TestCase):
                          ["ci-tier", "docs-check", "unittest-shard (${{ matrix.shard }})", "go", "guard-unittest-shard (${{ matrix.shard }})", "guard-unittest", "guard-diff", "guard-self-compare", "guard-evaluator-home-loosen", "guard-equiv-shard (${{ matrix.shard }})", "guard-equiv", "guard-equiv-rest", "unittest"])
 
     def test_classifier_runs_from_the_base_commit(self):
-        self.assertEqual(self.wf.count('git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py'), 3)
+        self.assertEqual(self.wf.count('git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py'), 4)
         self.assertNotIn("python ci/ci_tier.py", self.wf)
         self.assertEqual(self.wf.count('python "$RUNNER_TEMP/base/ci/ci_tier.py" classify'), 3)
         self.assertIn("  ci-tier:\n", self.wf)
@@ -288,6 +288,7 @@ class WorkflowTest(unittest.TestCase):
             self.assertIn(skip, job_block(job), job)
         docs = self.wf.split("  docs-check:\n", 1)[1].split("\n  unittest-shard:\n", 1)[0]
         self.assertIn("needs.ci-tier.outputs.mode == 'docs'", docs)
+        self.assertIn('git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py', docs)
         gate = self.wf.split('      - name: Docs lane or every shard and guard job succeeded', 1)[1].split("      - uses:", 1)[0]
         self.assertIn('if [ "$MODE" = "docs" ]; then', gate)
         self.assertIn("DOCS_CHECK_RESULT", gate)
