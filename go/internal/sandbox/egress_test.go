@@ -2,11 +2,13 @@ package sandbox
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -252,7 +254,12 @@ func TestServeLifecycle(t *testing.T) {
 		}
 		z := exec.Command("true")
 		must(t, z.Start())
-		time.Sleep(200 * time.Millisecond) // exited but not yet waited: a zombie
+		for i := 0; i < 100; i++ { // exited but not yet waited: wait until it is a zombie
+			if b, err := os.ReadFile("/proc/" + strconv.Itoa(z.Process.Pid) + "/stat"); err == nil && bytes.Contains(b, []byte(") Z")) {
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
 		if PidAlive(z.Process.Pid) {
 			t.Error("a zombie counts as alive")
 		}
