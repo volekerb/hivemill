@@ -148,8 +148,11 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		g + "go test ./... -args -test.coverprofile=~/.local/go/c.out", g + "go test -test.memprofile ~/.local/go/m ./...",
 		"cd ~/.local/go/src/cmd/gofmt && " + g + "go build", "cd ~/.local/go/src/cmd/gofmt && " + g + "go test -c",
 		"cd ~/.local/lib/factory && " + g + "go build ./...", g + "go -C ~/.local/go/src/cmd/gofmt build"}
+	for _, c := range []string{"~/.local/go/bin/gofmt -cpuprofile ~/.local/go/x .", "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build -o out", "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt test -c -o t.test", "~/.local/go/bin/go test -test.blockprofile ~/.local/go/b ./...", "~/.local/go/bin/go test -test.mutexprofile=~/.local/go/m ./...", "~/.local/go/bin/go test -test.gocoverdir=~/.local/go ./...", "~/.local/go/bin/go test -test.fuzzcachedir=~/.local/go ./...", "~/.local/go/bin/go test -test.testlogfile=~/.local/go/l ./...", "~/.local/go/bin/go build -modfile ~/.local/go/m.mod ./..."} {
+		block = append(block, strings.ReplaceAll(c, "~/.local/go/bin/", g))
+	}
 	allow = append(allow, g+"go fmt ./...", g+"go fmt", g+"go build", g+"go test -c", g+"go build -o bin/x ./cmd/x",
-		g+"go test -test.coverprofile=c.out ./...", g+"go test -c -o /tmp/x.test", g+"go build -pkgdir /tmp/pk ./...")
+		g+"go test -test.coverprofile=c.out ./...", g+"go test -c -o /tmp/x.test", g+"go build -pkgdir /tmp/pk ./...", g+"gofmt -cpuprofile /tmp/p .")
 	for _, role := range []string{"coder", "qa", "reviewer"} {
 		for _, c := range allow {
 			if err := Check(c, wt, role, false); err != nil {

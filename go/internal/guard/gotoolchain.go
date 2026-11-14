@@ -66,6 +66,17 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 		return block("the path is not in its normal form (`..`, `//` or `/./`)")
 	}
 	args := dropDashDash(rest)
+	base, baseKnown := a.ccwd, a.ccwdKnown
+	if cds := optValues(args, "", "-C", "--C"); len(cds) > 0 {
+		cdir := a.cfgExpand(cds[len(cds)-1])
+		if strings.HasPrefix(cdir, "/") {
+			base, baseKnown = cdir, true
+		} else if a.ccwdKnown {
+			base = pyJoin(a.ccwd, cdir)
+		} else {
+			baseKnown = false
+		}
+	}
 	flagHits := func(words []string) error {
 		for k := 0; k < len(words); {
 			m := reTcFlag.FindStringSubmatch(words[k])
@@ -82,10 +93,10 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 				if !has && k < len(words) {
 					v, has = words[k], true
 				}
-				if has && v != "" && a.protHit(v, false, a.ccwd, a.ccwdKnown) {
+				if has && v != "" && a.protHit(v, false, base, baseKnown) {
 					return block("-" + m[1] + " names a protected tree")
 				}
-			} else if m[2] != "" && m[3] != "" && a.protHit(m[3], false, a.ccwd, a.ccwdKnown) {
+			} else if m[2] != "" && m[3] != "" && a.protHit(m[3], false, base, baseKnown) {
 				return block("a flag value names a protected tree")
 			}
 		}
@@ -119,6 +130,9 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 		env[name] = val
 	}
 	if tool == "gofmt" {
+		if err := flagHits(args); err != nil { // gofmt -cpuprofile FILE creates a file too
+			return err
+		}
 		write := false
 		for _, x := range args {
 			if reTcW.MatchString(x) {
@@ -187,17 +201,6 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 	}
 	if err := flagHits(args); err != nil {
 		return err
-	}
-	base, baseKnown := a.ccwd, a.ccwdKnown
-	if cds := optValues(args, "", "-C", "--C"); len(cds) > 0 {
-		cdir := a.cfgExpand(cds[len(cds)-1])
-		if strings.HasPrefix(cdir, "/") {
-			base, baseKnown = cdir, true
-		} else if a.ccwdKnown {
-			base = pyJoin(a.ccwd, cdir)
-		} else {
-			baseKnown = false
-		}
 	}
 	restArgs := args[k+1:]
 	if sub == "fmt" { // `go fmt` rewrites files in place, like `gofmt -w`: the same worktree-or-scratchpad rule

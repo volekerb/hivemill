@@ -19632,6 +19632,51 @@
       "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
       "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build",
       "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/gofmt -cpuprofile ~/.local/go/x .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build -o out",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt test -c -o t.test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.blockprofile ~/.local/go/b ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.mutexprofile=~/.local/go/m ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.gocoverdir=~/.local/go ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.fuzzcachedir=~/.local/go ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.testlogfile=~/.local/go/l ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go build -modfile ~/.local/go/m.mod ./...",
+      "role": "coder"
     }
   ],
   "must_allow": [

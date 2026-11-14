@@ -2643,8 +2643,17 @@ class Analyzer:
         if lookalike:
             block("the path is not in its normal form (`..`, `//` or `/./`)")
         args = [a for a in rest if a != "--"]
+        cdir = (opt_values(args, "", {"-C", "--C"}) or [None])[-1]  # relative flag values resolve against the -C directory
+        cdir = None if cdir is None else self.cfg_expand(cdir)
+        if cdir is None:
+            base = self.ccwd
+        elif os.path.isabs(cdir):
+            base = cdir
+        else:
+            base = None if self.ccwd is None else os.path.join(self.ccwd, cdir)
 
-        def flag_hits(words):
+        def flag_hits(words, fbase=None):
+            fbase = base if fbase is None else fbase
             k = 0
             while k < len(words):
                 m = re.match(r"^--?([A-Za-z.-]+)(=(.*))?$", words[k])
@@ -2654,9 +2663,9 @@ class Analyzer:
                     block(f"-{m.group(1)} runs a program the guard does not inspect")
                 if m and fname in TC_WRITE_FLAGS:
                     v = m.group(3) if m.group(2) else (words[k] if k < len(words) else None)
-                    if v and self.prot_hit(v):
+                    if v and self.prot_hit(v, base=fbase):
                         block(f"-{m.group(1)} names a protected tree")
-                elif m and m.group(2) and m.group(3) and self.prot_hit(m.group(3)):
+                elif m and m.group(2) and m.group(3) and self.prot_hit(m.group(3), base=fbase):
                     block("a flag value names a protected tree")
 
         env = {}
@@ -2675,6 +2684,7 @@ class Analyzer:
                 flag_hits(val.split())
             env[name] = val
         if tool == "gofmt":
+            flag_hits(args)  # gofmt -cpuprofile FILE creates a file too
             if any(re.match(r"^--?w(=true)?$", a) for a in args):
                 targets = [a for a in args if not a.startswith("-")]
                 base = self.ccwd
@@ -2705,14 +2715,6 @@ class Analyzer:
         if "-mod=mod" in args + env.get("GOFLAGS", "").split() and env.get("GOPROXY") != "off":
             block("-mod=mod needs the GOPROXY=off prefix")
         flag_hits(args)
-        cdir = (opt_values(args, "", {"-C", "--C"}) or [None])[-1]
-        cdir = None if cdir is None else self.cfg_expand(cdir)
-        if cdir is None:
-            base = self.ccwd
-        elif os.path.isabs(cdir):
-            base = cdir
-        else:
-            base = None if self.ccwd is None else os.path.join(self.ccwd, cdir)
         rest_args = args[k + 1:]
         if sub == "fmt":  # `go fmt` rewrites files in place, like `gofmt -w`: the same worktree-or-scratchpad rule
             targets = [a for a in rest_args if not a.startswith("-")]

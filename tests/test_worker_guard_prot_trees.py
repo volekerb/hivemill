@@ -635,16 +635,19 @@ class GoToolchainForWorkers(ProtTreesCase):
                 self.G + "go test -test.outputdir=~/.local/go ./...", self.G + "go test -test.trace=~/.local/lib/factory/t ./...",
                 self.G + "go test ./... -args -test.coverprofile=~/.local/go/c.out", self.G + "go test -test.memprofile ~/.local/go/m ./...",
                 "cd ~/.local/go/src/cmd/gofmt && " + self.G + "go build", "cd ~/.local/go/src/cmd/gofmt && " + self.G + "go test -c",
-                "cd ~/.local/lib/factory && " + self.G + "go build ./...", self.G + "go -C ~/.local/go/src/cmd/gofmt build"]
+                "cd ~/.local/lib/factory && " + self.G + "go build ./...", self.G + "go -C ~/.local/go/src/cmd/gofmt build"] + [
+            c.replace("~/.local/go/bin/", self.G) for c in ['~/.local/go/bin/gofmt -cpuprofile ~/.local/go/x .', '~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build -o out', '~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt test -c -o t.test', '~/.local/go/bin/go test -test.blockprofile ~/.local/go/b ./...', '~/.local/go/bin/go test -test.mutexprofile=~/.local/go/m ./...', '~/.local/go/bin/go test -test.gocoverdir=~/.local/go ./...', '~/.local/go/bin/go test -test.fuzzcachedir=~/.local/go ./...', '~/.local/go/bin/go test -test.testlogfile=~/.local/go/l ./...', '~/.local/go/bin/go build -modfile ~/.local/go/m.mod ./...']]
         for role in ("coder", "qa", "reviewer"):
             for cmd in cmds:
                 r = run(cmd, "wt", role=role)
                 self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
 
     def test_review_gaps_still_allowed_in_the_tree(self):
-        for cmd in (self.G + "go fmt ./...", self.G + "go fmt", self.G + "go build", self.G + "go test -c", self.G + "go build -o bin/x ./cmd/x",
-                    self.G + "go test -test.coverprofile=c.out ./...", self.G + "go test -c -o /tmp/x.test", self.G + "go build -pkgdir /tmp/pk ./..."):
-            self.assertEqual(run(cmd, "wt").returncode, 0, cmd)
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in (self.G + "go fmt ./...", self.G + "go fmt", self.G + "go build", self.G + "go test -c", self.G + "go build -o bin/x ./cmd/x",
+                        self.G + "go test -test.coverprofile=c.out ./...", self.G + "go test -c -o /tmp/x.test", self.G + "go build -pkgdir /tmp/pk ./...",
+                        self.G + "gofmt -cpuprofile /tmp/p ."):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
 
     def test_gofmt_write_inside_the_tree_allowed(self):
         self.assertEqual(run(self.G + "gofmt -w x.go", "wt").returncode, 0)
