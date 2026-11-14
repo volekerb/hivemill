@@ -3,11 +3,13 @@
 Runs the real installer entry point against a throwaway home with a minimal Herdr app folder; never touches
 the real ~/.config.
 """
+import glob
 import importlib.util
 import io
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -170,11 +172,22 @@ class HerdrAppDashboardTest(unittest.TestCase):
             self.assertEqual(json.load(f)["place"], "none")
         with open(os.path.join(ROOT, "plugins", "hivemill", "herdr-app", "dashboard.example.json")) as f:
             example = json.load(f)
-        self.assertEqual(set(example), {"factory", "orgs", "projects", "usage_file", "alerts", "context_pattern"})
+        self.assertEqual(set(example), {"factory", "teams", "orgs", "projects", "usage_file", "alerts", "context_pattern", "machines", "machine_labels", "demo"})
         with open(os.path.join(MOD, "data.js")) as f:
             src = f.read()
         for key in example:
             self.assertIn("%s:" % key, src, "data.js DEFAULTS must know every example key: %s" % key)
+
+    def test_node_suite_for_the_mod_passes(self):
+        """The mod's data layer has its own node tests (plugins/hivemill/herdr-app/tests); run them here."""
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not on PATH: the mod's tests need node 22 or newer")
+        files = sorted(glob.glob(os.path.join(ROOT, "plugins", "hivemill", "herdr-app", "tests", "*.test.mjs")))
+        self.assertTrue(files, "no node test files found")
+        r = subprocess.run([node, "--test"] + files, cwd=ROOT, capture_output=True, text=True, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stdout[-3000:] + r.stderr[-1000:])
+        self.assertIn("fail 0", r.stdout)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,9 @@
+{
+  "live_agents": 3,
+  "system": { "agents": { "live": 3, "cap": 8, "queued": 1 } },
+  "needs_you": [{ "org": "claude", "subject": "Review the plan", "kind": "review", "ref": "G-1", "tone": "warning", "href": "/goal/G-1", "age": "2h" }],
+  "lanes": [{ "org": "claude", "label": "Claude", "boss": { "status": "live" }, "director": { "status": "live" }, "workers_live": 2, "leads_awake": 1, "goals_active": 1, "health": { "tone": "success", "text": "ok" } }],
+  "goals": [{ "id": "G-1", "title": "Ship the dashboard", "status": "active", "org": "claude", "priority": 1, "tasks_done": 1, "tasks_total": 3 }],
+  "agents": { "rows": [{ "name": "claude-coder-t-9", "role": "coder", "status": "live", "org": "claude", "task_id": "T-9", "task_title": "A task", "last_event": "2026-11-14T10:00:00Z" }], "queued": 1 },
+  "shipped": { "recent": [{ "task_id": "T-8", "title": "Shipped thing", "merged": "2026-11-14T09:00:00Z" }] }
+}

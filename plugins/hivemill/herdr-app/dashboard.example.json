@@ -1,17 +1,21 @@
 {
   "factory": {
     "url": "http://127.0.0.1:8765",
-    "machine": "factory-box",
-    "web_url": "http://FACTORY-HOST:8765"
+    "machine": null,
+    "web_url": null
   },
+  "teams": [
+    { "machine": "buildbox", "url": "http://127.0.0.1:8765", "web_url": "http://BUILDBOX-HOST:8765" }
+  ],
   "orgs": "auto",
   "projects": [
     {
-      "name": "My app",
+      "name": "Team B",
       "github": "OWNER/NAME",
-      "space": "my-app",
+      "space": "macmini/teamb",
+      "boss": "teamb-boss",
       "wait_patterns": [
-        { "match": "NEEDS REVIEW", "clear": "REVIEWED", "label": "waits for a review", "after_min": 15 }
+        { "match": "SIM GO", "clear": "GO GIVEN", "label": "waits for SIM GO", "after_min": 15 }
       ]
     }
   ],
@@ -23,5 +27,8 @@
     "usage_danger_pct": 90,
     "factory_down_minutes": 5
   },
-  "context_pattern": "ctx (\\d+)% left"
+  "context_pattern": "ctx (\\d+)% left",
+  "machines": "auto",
+  "machine_labels": { "local": "MacBook", "buildbox": "Lenovo", "macmini": "Mac mini" },
+  "demo": { "enabled": false, "hide": [], "alerts": true }
 }
