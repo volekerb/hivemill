@@ -68,7 +68,8 @@ func Run(env []string, input string, timeout time.Duration, args ...string) (Res
 }
 
 // JSON is gh_json: runs gh with a 120 s default timeout (0 = that default) and decodes stdout. A non-zero exit returns
-// the Python message "gh <first 3 args>: <first stderr line>".
+// the Python message "gh <first 3 args>: <first stderr line>". Unlike Python it does not print "factory: <msg>" to
+// stderr or exit; the caller does that.
 func JSON(timeout time.Duration, args ...string) (any, error) {
 	if timeout == 0 {
 		timeout = 120 * time.Second
