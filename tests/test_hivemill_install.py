@@ -739,7 +739,7 @@ class TestSourceRules(unittest.TestCase):
         ast.parse(self.src, feature_version=(3, 8))
 
     def test_stdlib_only_and_self_contained(self):
-        allowed = {"argparse", "hashlib", "os", "re", "shutil", "subprocess", "sys", "tarfile", "tempfile", "time", "urllib"}
+        allowed = {"argparse", "hashlib", "json", "os", "re", "shutil", "subprocess", "sys", "tarfile", "tempfile", "time", "urllib"}
         mods = set()
         for node in ast.walk(ast.parse(self.src)):
             if isinstance(node, ast.Import):

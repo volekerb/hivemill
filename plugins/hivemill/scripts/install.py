@@ -4,6 +4,9 @@
   install.py --check | --dry-run | --yes  [--ref REF|latest] [--repo-url URL] [--project-id ID --project-repo PATH]
              [--project-name NAME] [--project-gh OWNER/NAME] [--max-agents N] [--port N] [--no-systemd]
              [--linger] [--no-scout] [--resume]
+  install.py --herdr-app --dry-run | --yes  [--factory-url URL] [--factory-machine NAME] [--factory-web-url URL]
+             [--orgs auto|claude|cursor|claude,cursor] [--no-switch]
+             (the dashboard for the Herdr app, on the machine you work from: docs/herdr-app-dashboard.md)
 
 It never prompts, never reads stdin and never reads, prints or stores a token. It installs into ~/factory and
 ~/.local/bin of the invoking user and refuses to run as root.
@@ -13,6 +16,7 @@ The syntax stays valid on Python 3.8 so an old Python gets a clear message; the 
 """
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -713,6 +717,143 @@ def run_steps(c):
     return 0
 
 
+# --------------------------------------------------------------------------------------------- Herdr app dashboard
+# --herdr-app installs the Hivemill dashboard into the Herdr app on the machine you work from (macOS or Linux; it
+# may not be the factory's box). It touches only ~/.config/herdr-app/mods/hivemill, ~/.config/herdr-app/layouts/
+# hivemill.json and ~/.config/hivemill/dashboard.json. See docs/herdr-app-dashboard.md.
+HERDR_APP_MOD = "hivemill"
+HERDR_APP_LAYOUT = "hivemill"
+HERDR_APP_FILES = ("main.js", "data.js", "mod.json")
+HERDR_APP_ORGS = ("claude", "cursor")
+BAR = {"mod": HERDR_APP_MOD, "props": {"mode": "bar"}}
+
+
+def herdr_app_home(host):
+    return host.environ.get("HERDR_APP_HOME") or os.path.join(host.home, ".config", "herdr-app")
+
+
+def herdr_app_source():
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "herdr-app", "mods", HERDR_APP_MOD)
+
+
+def bar_layout(main):
+    """The app's main layout with its status bar block showing the Hivemill bar. -> (layout, replaced?).
+    The block is the node whose content is the shipped `workspace-status` mod (id "status" in Herdr's main)."""
+    lay = json.loads(json.dumps(main))
+    found = []
+
+    def walk(n):
+        if not isinstance(n, dict):
+            return
+        content = n.get("content")
+        if isinstance(content, dict) and (content.get("mod") == "workspace-status" or content.get("mod") == HERDR_APP_MOD):
+            n["content"] = dict(BAR)
+            found.append(n.get("id"))
+        for ch in n.get("children") or []:
+            walk(ch)
+
+    walk(lay)
+    if not found:
+        work = next((ch for ch in lay.get("children") or [] if isinstance(ch, dict) and ch.get("id") == "work"), lay)
+        work.setdefault("children", []).append({"id": "hivemill-bar", "type": "block", "size": {"px": 28}, "content": dict(BAR)})
+    return lay, bool(found)
+
+
+def dashboard_config(existing, args):
+    """~/.config/hivemill/dashboard.json: the existing one with only the flags given changed; projects are kept."""
+    cfg = dict(existing or {})
+    factory = dict(cfg.get("factory") or {})
+    factory.setdefault("url", "http://%s:%d" % (LOOPBACK, DEFAULT_PORT))
+    if args.factory_url:
+        factory["url"] = args.factory_url
+    if args.factory_machine is not None:
+        factory["machine"] = args.factory_machine or None
+    if args.factory_web_url:
+        factory["web_url"] = args.factory_web_url
+    cfg["factory"] = factory
+    if args.orgs:
+        cfg["orgs"] = "auto" if args.orgs == "auto" else args.orgs.split(",")
+    cfg.setdefault("orgs", "auto")
+    cfg.setdefault("projects", [])
+    return cfg
+
+
+def run_herdr_app(host, args, out):
+    c = Ctx(host, args, out, plan=args.dry_run)
+    app = herdr_app_home(host)
+    src = herdr_app_source()
+    mod_dir = os.path.join(app, "mods", HERDR_APP_MOD)
+    layout_path = os.path.join(app, "layouts", HERDR_APP_LAYOUT + ".json")
+    main_path = os.path.join(app, "layouts", "main.json")
+    cfg_path = os.path.join(host.home, ".config", "hivemill", "dashboard.json")
+    name = "preflight"
+    try:
+        if host.euid() == 0:
+            raise Stop(1, "refusing to run as root: run it as the user who uses the Herdr app")
+        if not all(host.exists(os.path.join(src, f)) for f in HERDR_APP_FILES):
+            raise Stop(1, "the dashboard files are missing next to install.py (%s); use a full hivemill checkout" % src)
+        if not host.exists(main_path):
+            raise Stop(3, "the Herdr app is not set up here (no %s). Install the Herdr app, open it once, then re-run "
+                          "this command" % main_path)
+        with open(main_path) as f:
+            main = json.load(f)
+        existing = None
+        if host.exists(cfg_path):
+            with open(cfg_path) as f:
+                existing = json.load(f)
+        cfg = dashboard_config(existing, args)
+        lay, replaced = bar_layout(main)
+
+        name = "mod"
+        c.emit("[%s] 1 mod: copy %s into %s" % ("plan" if c.plan else "run", ", ".join(HERDR_APP_FILES), mod_dir))
+        if not c.plan:
+            host.mkdirs(mod_dir)
+            for f in HERDR_APP_FILES:
+                host.install_file(os.path.join(src, f), os.path.join(mod_dir, f), mode=0o644)
+        name = "config"
+        c.emit("[%s] 2 config: %s %s (factory %s%s, orgs %s, %d project(s))" % (
+            "plan" if c.plan else "run", "update" if existing is not None else "write", cfg_path, cfg["factory"]["url"],
+            " via machine " + cfg["factory"]["machine"] if cfg["factory"].get("machine") else "",
+            cfg["orgs"] if isinstance(cfg["orgs"], str) else ",".join(cfg["orgs"]), len(cfg["projects"])))
+        if not c.plan:
+            host.mkdirs(os.path.dirname(cfg_path))
+            write_text(cfg_path, json.dumps(cfg, indent=2) + "\n")
+        name = "layout"
+        c.emit("[%s] 3 layout: write %s from main.json, %s" % (
+            "plan" if c.plan else "run", layout_path,
+            "the status bar becomes the Hivemill bar" if replaced else "with the Hivemill bar added under the work area"))
+        if not c.plan:
+            write_text(layout_path, json.dumps(lay, indent=2) + "\n")
+        name = "switch"
+        if args.no_switch:
+            c.emit("[%s] 4 switch: skipped (--no-switch); pick the Hivemill layout with ctrl-shift-l" % ("plan" if c.plan else "run"))
+        else:
+            c.emit("[%s] 4 switch: show the %s layout if the app is running" % ("plan" if c.plan else "run", HERDR_APP_LAYOUT))
+            if not c.plan:
+                rc, _ = host.run(["herdr-app", "do", "layout.switch", json.dumps({"name": HERDR_APP_LAYOUT})], timeout=20, mutate=True)
+                if rc != 0:
+                    c.note("the app is not running or herdr-app is not on PATH; pick the Hivemill layout with ctrl-shift-l")
+    except Stop as s:
+        c.emit(s.msg)
+        return s.code
+    except (StepFail, OSError, ValueError) as e:  # ValueError: a main.json or dashboard.json that is not JSON
+        c.emit("[FAIL] %s: %s" % (name, e))
+        c.emit("RESULT FAIL step=herdr-app-%s" % name)
+        return 1
+    if c.plan:
+        c.emit("plan only: nothing was changed")
+        return 0
+    c.emit("RESULT PASS herdr-app layout=%s config=%s" % (HERDR_APP_LAYOUT, cfg_path))
+    return 0
+
+
+def write_text(path, text):
+    tmp = path + ".part"
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
 # --------------------------------------------------------------------------------------------- CLI
 class Parser(argparse.ArgumentParser):
     def error(self, message):
@@ -755,9 +896,29 @@ def parse(argv):
     p.add_argument("--linger", action="store_true")
     p.add_argument("--no-scout", action="store_true")
     p.add_argument("--resume", action="store_true")
+    dash = p.add_argument_group("Herdr app dashboard (--herdr-app with --dry-run or --yes)")
+    dash.add_argument("--herdr-app", action="store_true", help="install the Hivemill dashboard into the Herdr app here")
+    dash.add_argument("--factory-url", help="the factory web UI as seen from --factory-machine (default http://127.0.0.1:%d)" % DEFAULT_PORT)
+    dash.add_argument("--factory-machine", help="an `hc machine ls` name to reach the factory from ('' clears it)")
+    dash.add_argument("--factory-web-url", help="the factory web UI as your browser reaches it, for the Open links")
+    dash.add_argument("--orgs", help="auto (default), claude, cursor, or claude,cursor")
+    dash.add_argument("--no-switch", action="store_true", help="do not switch the app to the Hivemill layout")
     a = p.parse_args(argv)
     if sum((a.check, a.dry_run, a.yes)) != 1:
         raise Stop(2, "usage error: pass exactly one of --check, --dry-run, --yes\n" + p.format_usage().strip())
+    dash_flags = (a.factory_url, a.factory_machine, a.factory_web_url, a.orgs, a.no_switch)
+    if not a.herdr_app and any(x is not None and x is not False for x in dash_flags):
+        raise Stop(2, "usage error: --factory-url, --factory-machine, --factory-web-url, --orgs and --no-switch need --herdr-app")
+    if a.herdr_app:
+        if a.check:
+            raise Stop(2, "usage error: --herdr-app goes with --dry-run or --yes")
+        if a.orgs and a.orgs != "auto" and not set(a.orgs.split(",")) <= set(HERDR_APP_ORGS):
+            raise Stop(2, "usage error: --orgs takes auto, claude, cursor or claude,cursor")
+        for v in (a.factory_url, a.factory_web_url):
+            if v and not re.match(r"^https?://[^\s]+$", v):
+                raise Stop(2, "usage error: --factory-url and --factory-web-url must be http(s) URLs")
+        if a.factory_machine and not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*$", a.factory_machine):
+            raise Stop(2, "usage error: --factory-machine must be a machine name from `hc machine ls`")
     if bool(a.project_id) != bool(a.project_repo):
         raise Stop(2, "usage error: --project-id and --project-repo go together")
     if (a.project_name or a.project_gh) and not a.project_id:
@@ -778,6 +939,8 @@ def main(argv=None, host=None, out=None):
     except SystemExit as e:  # --help
         return e.code if isinstance(e.code, int) else 0
     host = host or Host()
+    if a.herdr_app:
+        return run_herdr_app(host, a, out)
     if a.check:
         return run_check(host, a, out)
     c = Ctx(host, a, out, plan=a.dry_run)
