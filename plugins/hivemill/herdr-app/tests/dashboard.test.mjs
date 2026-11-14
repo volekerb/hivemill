@@ -369,6 +369,13 @@ test("a team reached by a network URL, with no hc machine, needs a label; withou
   assert.deepEqual(rows.map((r) => [r.label, r.role, r.fromApi ?? false]), [["This computer", null, false], ["Studio", "factory", true]]);
 });
 
+test("demo mode ignores a team's own label: a network-URL team is a generic Machine N", async () => {
+  const url = "http://lan-host:8765";
+  S.http[`local ${url}/api/home.json`] = fx("home-lenovo.json");
+  await collect({ teams: [{ url, label: "Studio" }], projects: [], demo: { enabled: true, hide: [], alerts: true } });
+  assert.equal(D.barSegments(D.data())[0].text, "Machine 1 factory 3 live");
+});
+
 test("teams config wins over factory; the web url comes from the team", async () => {
   await collect({ factory: { url: "http://old:1" }, teams: [{ machine: "buildbox", web_url: "http://web:9/" }] });
   assert.deepEqual(D.teamsOf().map((t) => t.machine), ["buildbox"]);

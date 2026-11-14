@@ -418,7 +418,7 @@ export default class Dashboard extends View {
     if (!f) {
       body.child(v_flex().m(10).p(12).gap(4).rounded(8).border(1).border_color(v.error ? alpha(t.blocked, "66") : t.border)
         .child(div().text_size(12.5).text_color(v.error ? t.blocked : t.muted).child(v.error ? `${v.label} unreachable` : `Reaching ${v.label}…`))
-        .when(Boolean(v.error), (el) => el.child(div().text_size(11).text_color(t.dim).child(`${v.error}. Check the team's url / machine (teams[] or factory) in ~/.config/hivemill/dashboard.json.`))));
+        .when(Boolean(v.error), (el) => el.child(div().text_size(11).text_color(t.dim).child(`${demo() ? "Not reachable" : v.error}. Check the team's url / machine (teams[] or factory) in ~/.config/hivemill/dashboard.json.`))));
       return this.card(t, v.label, right, body, ROLE);
     }
     const sa = f.system?.agents ?? {};

@@ -153,9 +153,10 @@ export function labelFor(machine, d = data()) {
 // What a team is called: its own "label", else its machine's name. A Hivemill team reached by a network URL (no hc
 // machine, not this computer) has no machine name to show, so it needs a "label".
 export function teamLabel(team, d = data()) {
-  if (team.label && !hidden(team.label)) return String(team.label);
+  // Demo mode shows only machine_labels values or generic names, so a team's own "label" is not used there.
+  if (team.label && !demo()) return String(team.label);
   if (team.machine || isLoopback(team.url)) return labelFor(team.machine, d);
-  return "Server";
+  return demo() ? `Machine ${teamsOf().findIndex((t) => t.key === team.key) + 1}` : "Server";
 }
 
 // Where this machine's screen text comes from: an agents() row names its machine, else the address prefix
