@@ -23,6 +23,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"factory/go/internal/citools/affected"
 )
 
 // LoadError means test discovery hit import errors (each would count as one test) or a tool could not run.
@@ -116,7 +118,7 @@ func tail(s string) string {
 	return s
 }
 
-var bypass = regexp.MustCompile(`(?im)^[ \t]*tests-removed:[ \t]*(\S.*)$`)
+var bypass = regexp.MustCompile(`(?im)^[ \t]*tests-removed:[ \t]*([^` + affected.PySpaceClassBody + `].*)$`)
 
 // Decide returns (ok, message) for a base/PR test count and the PR body.
 func Decide(base, pr int, body string) (bool, string) { return decide("", "test", base, pr, body) }
@@ -134,7 +136,7 @@ func decide(key, what string, base, pr int, body string) (bool, string) {
 	m := bypass.FindStringSubmatch(body)
 	drop := fmt.Sprintf("%s count dropped from %d to %d", what, base, pr)
 	if m != nil {
-		return true, fmt.Sprintf("%s\n%s; allowed by tests-removed: %s", head, drop, strings.TrimSpace(m[1]))
+		return true, fmt.Sprintf("%s\n%s; allowed by tests-removed: %s", head, drop, affected.PyStrip(m[1]))
 	}
 	return false, fmt.Sprintf("%s\n%s; add 'tests-removed: <reason>' to the PR body if intended", head, drop)
 }

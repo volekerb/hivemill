@@ -142,6 +142,33 @@ func TestTierParityDocsCheckProblems(t *testing.T) {
 	}
 }
 
+// Python's lstrip() and \s are Unicode: a fence indented with NBSP still counts, and a link target ends at NBSP.
+func TestTierParityDocsCheckUnicodeWhitespace(t *testing.T) {
+	script := needPython(t, "ci/ci_tier.py")
+	f := baseFixture(t)
+	base := f.git("rev-parse", "HEAD")
+	f.write("docs/nbsp-fence.md", "# a\n\u00a0```\n[x](gone.md)\n")
+	f.write("docs/ideographic-fence.md", "# a\n\u3000~~~\ntext\n\u3000~~~\n[y](gone2.md)\n")
+	f.write("docs/fs-fence.md", "# a\n\x1c```\nopen\n")
+	f.write("docs/nbsp-link.md", "# a\n[z](nope.md\u00a0tail)\n[w](b.md\u2003x)\n")
+	f.write("docs/dotless.md", "# a\n[v](\u0131tem.md)\n[u](\u0130tem:x)\n")
+	head := f.commit("head")
+	full := []string{"docs-check", "--root", f.dir, "--base", base, "--head", head}
+	pso, pse, pcode := pyRun(t, f.dir, append([]string{script}, full...)...)
+	gso, gse, gcode := runGo(Main, full...)
+	if pso != gso || pse != gse || pcode != gcode {
+		t.Errorf("differs\npython: exit %d %q %q\ngo:     exit %d %q %q", pcode, pso, pse, gcode, gso, gse)
+	}
+	for _, want := range []string{"nbsp-fence.md: unbalanced code fence", "fs-fence.md: unbalanced code fence", "nope.md does not exist", "gone2.md does not exist"} {
+		if !strings.Contains(gse, want) {
+			t.Errorf("stderr lacks %q: %q", want, gse)
+		}
+	}
+	if strings.Contains(gse, "ideographic-fence.md: unbalanced") {
+		t.Errorf("a balanced fence indented with U+3000 was reported: %q", gse)
+	}
+}
+
 func TestTierParityOutputFiles(t *testing.T) {
 	script := needPython(t, "ci/ci_tier.py")
 	f := baseFixture(t)

@@ -22,6 +22,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"factory/go/internal/citools/affected"
 )
 
 // SplitTestIDsModules are modules whose test ids are split across all shards when their timing alone exceeds the
@@ -225,8 +227,9 @@ func ReadOnly(path string) (map[string]bool, error) {
 		return nil, errf("cannot read the --only file %s: %v; pass the affected selection file", path, err)
 	}
 	out := map[string]bool{}
-	for _, l := range strings.Split(string(raw), "\n") {
-		if t := strings.TrimSpace(l); t != "" {
+	text := strings.ReplaceAll(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\r", "\n") // universal newlines
+	for _, l := range strings.Split(text, "\n") {
+		if t := affected.PyStrip(l); t != "" {
 			out[t] = true
 		}
 	}

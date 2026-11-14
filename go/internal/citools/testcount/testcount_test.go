@@ -140,6 +140,15 @@ func TestCheckParity(t *testing.T) {
 		"indented":    "  TESTS-REMOVED:   spaced reason  \n",
 		"empty":       "tests-removed:\n",
 		"inline only": "see tests-removed: not at line start\n",
+		// Python's \s and strip() are Unicode: whitespace-only reasons must not pass (G8)
+		"nbsp only":      "tests-removed:\u00a0\u00a0\n",
+		"space nbsp":     "tests-removed:  \u00a0\n",
+		"ideographic":    "tests-removed:\u3000reason\n",
+		"em space only":  "tests-removed: \u2003 \n",
+		"fs only":        "tests-removed:\x1c\n",
+		"vt only":        "tests-removed:\x0b\n",
+		"nel only":       "tests-removed: \u0085\n",
+		"unicode reason": "tests-removed: \u00e9t\u00e9 \u2003\n",
 	}
 	for name, body := range bodies {
 		for _, nums := range [][2]string{{"10", "10"}, {"10", "12"}, {"10", "9"}, {"0", "0"}} {
@@ -159,6 +168,23 @@ func TestCheckParity(t *testing.T) {
 	gso, _, gcode := runGo(Main, "check", "--base", "5", "--pr", "4", "--body-file", filepath.Join(dir, "absent"))
 	if pso != gso || pcode != gcode || gcode != 1 {
 		t.Errorf("absent body: python exit %d %q; go exit %d %q", pcode, pso, gcode, gso)
+	}
+}
+
+// A reason made only of non-ASCII whitespace is no reason: the gate must still fail (Python's \S is Unicode).
+func TestBypassRejectsUnicodeWhitespaceReason(t *testing.T) {
+	isolate(t)
+	dir := t.TempDir()
+	bf := filepath.Join(dir, "body.txt")
+	for _, empty := range []string{"tests-removed:\u00a0\u00a0\n", "tests-removed:  \u00a0\n", "tests-removed: \u2003\n", "tests-removed:\x1c\n", "tests-removed:\x0b\n"} {
+		os.WriteFile(bf, []byte(empty), 0o644)
+		if _, _, code := runGo(Main, "check", "--base", "10", "--pr", "9", "--body-file", bf); code != 1 {
+			t.Errorf("body %q: exit %d, want 1 (no reason given)", empty, code)
+		}
+	}
+	os.WriteFile(bf, []byte("tests-removed:\u00e9\n"), 0o644)
+	if _, _, code := runGo(Main, "check", "--base", "10", "--pr", "9", "--body-file", bf); code != 0 {
+		t.Errorf("a real non-ASCII reason must pass: exit %d", code)
 	}
 }
 

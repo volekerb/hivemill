@@ -154,7 +154,7 @@ else:
 // SmokeSet is config affected_smoke (else the default); unknown modules are dropped.
 func SmokeSet(modules []string) map[string]bool {
 	val := DefaultSmoke
-	if v, ok := SmokeReader(); ok && strings.TrimSpace(v) != "" {
+	if v, ok := SmokeReader(); ok && PyStrip(v) != "" {
 		val = v
 	}
 	known := map[string]bool{}

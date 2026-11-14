@@ -28,12 +28,32 @@ func baseFixture(t *testing.T) *fixture {
 	return f
 }
 
-func readRules(t *testing.T) string {
-	b, err := os.ReadFile(filepath.Join(repoRoot(t), "ci", "tier_rules.json"))
+// rulesPath is the testdata copy of ci/tier_rules.json: tests must not read outside go/ (the merge gate extracts only
+// go/). TestRulesCopyMatchesRepo keeps the copy honest whenever the real file is present.
+func rulesPath() string {
+	p, err := filepath.Abs(filepath.Join("testdata", "tier_rules.json"))
 	if err != nil {
-		t.Skipf("ci/tier_rules.json not found: %v", err)
+		panic(err)
+	}
+	return p
+}
+
+func readRules(t *testing.T) string {
+	b, err := os.ReadFile(rulesPath())
+	if err != nil {
+		t.Fatalf("testdata rules missing: %v", err)
 	}
 	return string(b)
+}
+
+func TestRulesCopyMatchesRepo(t *testing.T) {
+	real, err := os.ReadFile(filepath.Join(repoRoot(t), "ci", "tier_rules.json"))
+	if err != nil {
+		t.Skipf("ci/tier_rules.json not present (go/ extracted alone): %v", err)
+	}
+	if string(real) != readRules(t) {
+		t.Errorf("testdata/tier_rules.json differs from ci/tier_rules.json: copy it again (cp ci/tier_rules.json go/internal/citools/risktier/testdata/)")
+	}
 }
 
 func lines(n int) string { return strings.Repeat("y = 1\n", n) }
@@ -137,7 +157,7 @@ func TestRiskParity(t *testing.T) {
 // Parity of the pure classifier on rule shapes the fixtures do not reach.
 func TestRiskParityTierFunction(t *testing.T) {
 	script := needPython(t, "ci/risk_tier.py")
-	rules, err := LoadRules(filepath.Join(repoRoot(t), "ci", "tier_rules.json"))
+	rules, err := LoadRules(rulesPath())
 	if err != nil {
 		t.Skip(err)
 	}
@@ -166,7 +186,7 @@ func TestRiskParityTierFunction(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			arg, _ := json.Marshal(map[string]any{"paths": c.paths, "lines": c.lines})
 			snippet := "import importlib.util, json, sys\nspec = importlib.util.spec_from_file_location('r', sys.argv[1])\nmod = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(mod)\na = json.loads(sys.argv[3])\nr = mod.load_rules(sys.argv[2])\nsys.stdout.write(mod.tier({}, a['paths'], a['lines'], r) + '|' + ';'.join(mod.reasons({}, a['paths'], a['lines'], r)))\n"
-			so, se, code := pyRun(t, t.TempDir(), "-c", snippet, script, filepath.Join(repoRoot(t), "ci", "tier_rules.json"), string(arg))
+			so, se, code := pyRun(t, t.TempDir(), "-c", snippet, script, rulesPath(), string(arg))
 			if code != 0 {
 				t.Fatalf("python reference failed: %s", se)
 			}

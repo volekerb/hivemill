@@ -328,8 +328,8 @@ func Plan(root, base, head string) (Result, error) {
 }
 
 var (
-	linkRe     = regexp.MustCompile(`\]\(([^)\s]+)`)
-	schemeRe   = regexp.MustCompile(`(?i)^([a-z][a-z0-9+.-]*:|#|/)`)
+	linkRe     = regexp.MustCompile(`\]\(([^)` + affected.PySpaceClassBody + `]+)`)
+	schemeRe   = regexp.MustCompile(`(?i)^([a-z\x{130}\x{131}][a-z0-9+.\x{130}\x{131}-]*:|#|/)`)
 	fenceStart = []string{"```", "~~~"}
 )
 
@@ -379,7 +379,7 @@ func DocsProblems(root, base, head string) ([]string, error) {
 		text := string(raw)
 		fences := 0
 		for _, l := range affected.PySplitLines(text) {
-			t := strings.TrimLeft(l, " \t\v\f")
+			t := affected.PyLStrip(l)
 			if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
 				fences++
 			}

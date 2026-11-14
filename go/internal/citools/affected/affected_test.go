@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -245,6 +246,63 @@ func TestAffectedParityRunQuick(t *testing.T) {
 		if !strings.Contains(gso, "Ran 4 tests in 3 modules: OK") {
 			t.Errorf("%v: unexpected run output %q", extra, gso)
 		}
+	}
+}
+
+// Under load --run is refused before the selection is made (ci/affected.py main): same exit code 5, stdout and
+// stderr as Python, for a FULL selection in --quick mode and for a normal selection (no module list printed).
+func TestAffectedParityLoadGate(t *testing.T) {
+	script := needPython(t, "ci/affected.py")
+	root := repoRoot(t)
+	f := newFixture(t)
+	for _, rel := range []string{"ci/affected.py", "tests/_slot.py"} {
+		b, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Skipf("reference file %s missing: %v", rel, err)
+		}
+		f.write(rel, string(b))
+	}
+	f.write("tests/test_judge.py", "")
+	f.write("tests/harness.py", "x = 1\n")
+	base := f.commit("base")
+	f.write("tests/test_judge.py", "import unittest\n")
+	normal := f.commit("normal")
+	f.write("tests/harness.py", "x = 2\n")
+	full := f.commit("full")
+	t.Setenv("CI", "")
+	t.Setenv("FACTORY_TEST_SLOT_HELD", "")
+	os.Unsetenv("FACTORY_TEST_SLOT_HELD")
+	t.Setenv("FACTORY_LOADAVG", "9999")
+	t.Setenv("FACTORY_TEST_SLOTS", "1")
+	slots := filepath.Join(os.Getenv("HOME"), ".cache", "factory-test-slots")
+	if err := os.MkdirAll(slots, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	held, err := os.OpenFile(filepath.Join(slots, "slot-0.lock"), os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	if err := syscall.Flock(int(held.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name  string
+		head  string
+		extra []string
+	}{{"full quick", full, []string{"--run", "--quick"}}, {"full", full, []string{"--run"}}, {"normal", normal, []string{"--run"}}, {"normal quick", normal, []string{"--run", "--quick"}}} {
+		args := []string{"--root", f.dir, "--base", base, "--head", c.head}
+		pso, pse, pcode := pyRun(t, f.dir, append(append([]string{script}, args...), c.extra...)...)
+		gso, gse, gcode := runGo(Main, append(args, c.extra...)...)
+		if pcode != 5 || pcode != gcode || pso != gso || pse != gse || gso != "" {
+			t.Errorf("%s: python exit %d %q %q; go exit %d %q %q", c.name, pcode, pso, pse, gcode, gso, gse)
+		}
+	}
+	// selection only is never gated
+	pso, _, pcode := pyRun(t, f.dir, script, "--root", f.dir, "--base", base, "--head", normal)
+	gso, _, gcode := runGo(Main, "--root", f.dir, "--base", base, "--head", normal)
+	if pcode != 0 || gcode != 0 || pso != gso || gso == "" {
+		t.Errorf("list mode gated: python %d %q, go %d %q", pcode, pso, gcode, gso)
 	}
 }
 

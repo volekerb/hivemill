@@ -20,18 +20,39 @@ func DefaultRoot() string {
 	return strings.TrimSpace(string(out))
 }
 
-// runSnippet runs the selection through ci/affected.py of the same checkout: the slot gate (tests/_slot.py) first,
-// then affected.run (in process, no cap) or run_quick (child process groups, hard budget). The argument is JSON.
-const runSnippet = `import json, os, sys
-a = json.loads(sys.argv[1])
-sys.path.insert(0, a["ci"])
-sys.path.insert(0, a["tests"])
+// gateSnippet is the load gate of ci/affected.py main(): tests/_slot.py local_run_gate, which prints its refusal.
+const gateSnippet = `import sys
+sys.path.insert(0, sys.argv[1])
 import _slot
-import affected
 refused = _slot.local_run_gate()
 if refused:
     print("affected: %s" % refused, file=sys.stderr)
     sys.exit(EXIT_LOAD)
+`
+
+// loadGate applies the slot gate before anything else when --run is set (as ci/affected.py does, so exit code and
+// stdout match under load). It returns the exit code to stop with, or -1 to go on.
+func loadGate(root string, stderr io.Writer) int {
+	cmd := exec.Command("python3", "-c", strings.Replace(gateSnippet, "EXIT_LOAD", fmt.Sprint(ExitLoad), 1), filepath.Join(root, "tests"))
+	cmd.Dir = root
+	cmd.Stderr = stderr
+	err := cmd.Run()
+	if err == nil {
+		return -1
+	}
+	if ee, ok := err.(*exec.ExitError); ok {
+		return ee.ExitCode()
+	}
+	fmt.Fprintf(stderr, "affected: cannot run python3 for the load gate: %v; install python3 or rely on CI\n", err)
+	return 2
+}
+
+// runSnippet runs the selection through ci/affected.py of the same checkout: affected.run (in process, no cap) or run_quick (child process groups, hard budget). The argument is JSON.
+const runSnippet = `import json, os, sys
+a = json.loads(sys.argv[1])
+sys.path.insert(0, a["ci"])
+sys.path.insert(0, a["tests"])
+import affected
 sys.exit(affected.run(a["mods"], a["tests"], a["budget"]))
 `
 
@@ -86,6 +107,11 @@ func Main(args []string, stdout, stderr io.Writer) int {
 	}
 	if *root == "" {
 		*root = DefaultRoot()
+	}
+	if *run {
+		if code := loadGate(*root, stderr); code != -1 {
+			return code
+		}
 	}
 	isQuick := *quick || budgetSet
 	var b *int

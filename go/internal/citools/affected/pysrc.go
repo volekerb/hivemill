@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // This file is a small Python source reader, enough for what ci/affected.py gets from ast: the top-level statements of
@@ -631,3 +632,18 @@ func CallSites(src string) (map[string]int, error) {
 	}
 	return counts, nil
 }
+
+// PyIsSpace reports whether r is whitespace as Python's str.isspace, str.strip and the re \s class of a str pattern
+// see it. That is wider than strings.TrimSpace (it adds U+001C..U+001F) and than RE2's ASCII-only \s.
+func PyIsSpace(r rune) bool {
+	return unicode.IsSpace(r) || (r >= 0x1c && r <= 0x1f)
+}
+
+// PyStrip is Python's str.strip().
+func PyStrip(s string) string { return strings.TrimFunc(s, PyIsSpace) }
+
+// PyLStrip is Python's str.lstrip().
+func PyLStrip(s string) string { return strings.TrimLeftFunc(s, PyIsSpace) }
+
+// PySpaceClassBody is the body of a regexp character class equal to Python's Unicode \s (for [^...] use).
+const PySpaceClassBody = `\t-\r\x1c-\x20\x85\xa0\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}`
