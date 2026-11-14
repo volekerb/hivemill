@@ -7,6 +7,8 @@ read and write goes through this CLI, which enforces role permissions, the
 resource gate on spawning, and the head-SHA-bound merge gate.
 
 Markdown under exports/ is generated FROM the DB. Editing it changes nothing.
+
+bin/factory stub: cli_impl=shadow runs Go only on read-only argv shapes cli_shadow_readonly() allows (write forms never shadow).
 """
 import argparse
 import concurrent.futures
