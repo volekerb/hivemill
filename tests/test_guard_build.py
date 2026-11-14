@@ -635,11 +635,14 @@ class CliImplTests(FactoryTestCase):
 
     def test_shadow_only_read_only_s2_argv_shapes(self):
         self.cfg("cli_impl", "shadow")
-        self.cfg("cli_go_cmds", "task,msg,digest")
+        self.cfg("cli_go_cmds", "task,msg,digest,inbox")
         self.assertEqual(self.impl(self.call("task", "show", "T-1")), "impl=shadow")
         self.assertEqual(self.impl(self.call("msg", "boss", "s", "b")), "impl=python")
         self.assertEqual(self.impl(self.call("task", "update", "T-1", "--status", "todo")), "impl=python")
         self.assertEqual(self.impl(self.call("digest", "--send")), "impl=python")
+        for abbrev in ("--s", "--se", "--sen"):
+            self.assertEqual(self.impl(self.call("digest", abbrev)), "impl=python", abbrev)
+        self.assertEqual(self.impl(self.call("inbox", "--show", "")), "impl=python")
 
     def test_cli_go_cmds_known_matches_go_registry(self):
         import re

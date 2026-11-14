@@ -19237,6 +19237,30 @@ def cli_dispatch_mode(argv, environ=None):
     return "python", None
 
 
+_DIGEST_LONG_OPTS = ("--goal", "--date", "--hours", "--send")
+
+
+def _digest_argv_sets_send(rest):
+    """Argparse allow_abbrev: unique prefixes of --send (--s, --se, …) flip send like --send."""
+    for a in rest:
+        if not a.startswith("--") or a == "--":
+            continue
+        if a == "--send":
+            return True
+        matches = [o for o in _DIGEST_LONG_OPTS if o.startswith(a)]
+        if len(matches) == 1 and matches[0] == "--send":
+            return True
+    return False
+
+
+def _inbox_argv_show_is_readonly(rest):
+    """--show with a non-empty id is read-only; '' or a missing value is the list path and writes read_at."""
+    if "--show" not in rest:
+        return False
+    i = rest.index("--show")
+    return i + 1 < len(rest) and bool(rest[i + 1]) and not rest[i + 1].startswith("-")
+
+
 def cli_shadow_readonly(argv):
     """Shapes safe under cli_impl=shadow (plan 4.4): read-only answers only; writes stay Python-only."""
     if len(argv) < 2:
@@ -19247,9 +19271,9 @@ def cli_shadow_readonly(argv):
     if cmd == "config" and len(argv) <= 3:
         return True
     if cmd == "inbox":
-        return "--show" in rest or "--peek" in rest
+        return _inbox_argv_show_is_readonly(rest) or "--peek" in rest
     if cmd == "digest":
-        return "--send" not in rest
+        return not _digest_argv_sets_send(rest)
     if not rest or rest[0].startswith("-"):
         return False
     sub = rest[0]
