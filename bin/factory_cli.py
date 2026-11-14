@@ -2711,7 +2711,11 @@ def check_gh_roles(key, value):
 
 GUARD_IMPLS = ("python", "go", "shadow")
 CLI_IMPLS = ("python", "go", "shadow")
-CLI_GO_CMDS_KNOWN = ("whoami", "flags", "agents", "config")  # the S1 set the Go binary answers (go/internal/cli)
+CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 + S2)
+    "whoami", "flags", "agents", "config",
+    "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
+    "verdict", "scorecard", "digest", "alerts", "gate",
+)
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
 GUARD_TICK_BUILD_TIMEOUT_S = 120  # the tick (factory-tick.service TimeoutStartSec=240): a build must not kill the tick
@@ -19231,6 +19235,27 @@ def cli_dispatch_mode(argv, environ=None):
     return "python", None
 
 
+def cli_shadow_readonly(argv):
+    """Shapes safe under cli_impl=shadow (plan 4.4): read-only answers only; writes stay Python-only."""
+    if len(argv) < 2:
+        return False
+    cmd, rest = argv[1], argv[2:]
+    if cmd in ("whoami", "agents", "flags", "alerts", "scorecard"):
+        return True
+    if cmd == "config" and len(argv) <= 3:
+        return True
+    if cmd == "inbox":
+        return "--show" in rest or "--peek" in rest
+    if cmd == "digest":
+        return "--send" not in rest
+    if not rest or rest[0].startswith("-"):
+        return False
+    sub = rest[0]
+    return (cmd == "task" and sub in ("show", "list", "ready")) or (cmd == "goal" and sub in ("show", "list", "tokens")) \
+        or (cmd == "lesson" and sub in ("list", "show")) or (cmd == "team" and sub == "list") \
+        or (cmd == "project" and sub == "list") or (cmd == "gate" and sub in ("show", "list"))
+
+
 def cli_shadow(binary, argv, environ):
     """Python answers (its output and exit code are passed through), then Go runs the same argv under a 2 s timeout;
     a difference is logged to logs/cli-shadow.log as hashes only, never text. Returns the exit code."""
@@ -19265,7 +19290,7 @@ def cli_shadow(binary, argv, environ):
 
 def main():
     mode, binary = cli_dispatch_mode(sys.argv)
-    if mode == "shadow" and not (sys.argv[1] in ("whoami", "agents", "flags") or (sys.argv[1] == "config" and len(sys.argv) <= 3)):
+    if mode == "shadow" and not cli_shadow_readonly(sys.argv):
         mode = "python"  # only read-only commands are shadowed: a write would run twice
     if os.environ.get("FACTORY_CLI_TRACE") == "1":
         print(f"impl={'python' if mode == 'go' else mode}", file=sys.stderr, flush=True)  # go here: the stub could not exec it

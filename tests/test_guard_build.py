@@ -620,9 +620,44 @@ class CliImplTests(FactoryTestCase):
         self.assertEqual(p.returncode, 2, p.stderr)
         self.assertIn("python, go, shadow", p.stderr)
         p = self.env.run("config", "cli_go_cmds", "whoami,task", agent="dir-1", inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        p = self.env.run("config", "cli_go_cmds", "whoami,bogus", agent="dir-1", inproc=False)
         self.assertEqual(p.returncode, 2, p.stderr)
-        self.assertIn("'task'", p.stderr)
+        self.assertIn("'bogus'", p.stderr)
+        self.assertIn("is not one", p.stderr)
+        self.cfg("cli_go_cmds", "whoami")
         self.assertEqual(self.env.run("config", "cli_go_cmds", agent="dir-1", inproc=False).stdout.strip(), "whoami")
+
+    def test_cli_go_cmds_accepts_s2_command_words(self):
+        p = self.env.run("config", "cli_go_cmds", "task,msg", agent="dir-1", inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.env.run("config", "cli_go_cmds", agent="dir-1", inproc=False).stdout.strip(), "task,msg")
+
+    def test_shadow_only_read_only_s2_argv_shapes(self):
+        self.cfg("cli_impl", "shadow")
+        self.cfg("cli_go_cmds", "task,msg,digest")
+        self.assertEqual(self.impl(self.call("task", "show", "T-1")), "impl=shadow")
+        self.assertEqual(self.impl(self.call("msg", "boss", "s", "b")), "impl=python")
+        self.assertEqual(self.impl(self.call("task", "update", "T-1", "--status", "todo")), "impl=python")
+        self.assertEqual(self.impl(self.call("digest", "--send")), "impl=python")
+
+    def test_cli_go_cmds_known_matches_go_registry(self):
+        import re
+        import sys
+
+        sys.path.insert(0, str(BIN_DIR))
+        import factory_cli  # noqa: E402
+
+        repo = Path(__file__).resolve().parent.parent
+        words = set()
+        pat = re.compile(r'register\("([^"]+)"')
+        for p in (repo / "go" / "internal" / "cli").glob("*.go"):
+            if p.name.endswith("_test.go"):
+                continue
+            for m in pat.finditer(p.read_text()):
+                if not m.group(1).startswith("zz-"):
+                    words.add(m.group(1))
+        self.assertEqual(set(factory_cli.CLI_GO_CMDS_KNOWN), words)
 
     def test_tick_rewrites_the_flag_from_the_db(self):
         self.flag.write_text("go x whoami\n")
