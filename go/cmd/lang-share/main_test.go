@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestRunExitCodes(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "x")
 	cases := []struct {
 		args []string
 		code int
@@ -15,7 +19,7 @@ func TestRunExitCodes(t *testing.T) {
 		{[]string{"--repo", "/nonexistent-dir-xyz"}, 2, "git"},
 		{[]string{"--bogus"}, 2, ""},
 		{[]string{"extra"}, 2, "unexpected"},
-		{[]string{"--repo", "../..", "--ref", "$(touch /tmp/lang-share-x)"}, 2, "git"},
+		{[]string{"--repo", "../..", "--ref", "$(touch " + marker + ")"}, 2, "git"},
 	}
 	for _, c := range cases {
 		var out, errb bytes.Buffer
@@ -29,14 +33,28 @@ func TestRunExitCodes(t *testing.T) {
 			t.Errorf("%v: stdout not empty", c.args)
 		}
 	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Errorf("injection created %s", marker)
+	}
 }
 
 func TestRunOK(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range [][]string{{"init", "-q"}, {"add", "-A"},
+		{"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"}} {
+		cmd := exec.Command("git", append([]string{"-C", dir}, a...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", a, err, out)
+		}
+	}
 	var out, errb bytes.Buffer
-	if got := run([]string{"--repo", "../..", "--json"}, &out, &errb); got != 0 {
+	if got := run([]string{"--repo", dir, "--json"}, &out, &errb); got != 0 {
 		t.Fatalf("exit %d: %s", got, errb.String())
 	}
-	if !strings.HasPrefix(out.String(), `{"go":`) {
+	if !strings.HasPrefix(out.String(), `{"go":1,`) {
 		t.Fatalf("bad json %q", out.String())
 	}
 }

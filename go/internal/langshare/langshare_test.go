@@ -1,11 +1,13 @@
 package langshare
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func mkrepo(t *testing.T, files map[string]string) string {
@@ -23,6 +25,7 @@ func mkrepo(t *testing.T, files map[string]string) string {
 	for _, a := range [][]string{{"init", "-q"}, {"add", "-A"},
 		{"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"}} {
 		cmd := exec.Command("git", append([]string{"-C", dir}, a...)...)
+		cmd.Env = cleanEnv()
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v %s", a, err, out)
 		}
@@ -99,4 +102,72 @@ func TestBadRefAndRepo(t *testing.T) {
 	if _, err := Count("/nonexistent-dir-xyz", ""); err == nil || !strings.Contains(err.Error(), "git") {
 		t.Fatalf("want git error, got %v", err)
 	}
+}
+
+func FuzzNonBlank(f *testing.F) {
+	for _, s := range []string{"", "\n", "a\n\nb", " \t\n x ", "\r\n\r\n"} {
+		f.Add([]byte(s))
+	}
+	f.Fuzz(func(t *testing.T, data []byte) {
+		n := nonBlank(data)
+		if n < 0 || n > bytes.Count(data, []byte("\n"))+1 {
+			t.Fatalf("nonBlank=%d out of range for %q", n, data)
+		}
+		_ = isPythonShebang(data)
+	})
+}
+
+func FuzzParseTreeEntry(f *testing.F) {
+	f.Add([]byte("100644 blob abc123\ta.go"))
+	f.Add([]byte("garbage"))
+	f.Fuzz(func(t *testing.T, ent []byte) {
+		mode, typ, sha, p, ok := parseTreeEntry(ent)
+		if ok && (mode == "" || typ == "" || sha == "") {
+			t.Fatalf("ok with empty field: %q", ent)
+		}
+		_ = IsExcluded(p)
+		_ = classify(p)
+	})
+}
+
+func FuzzParseBatchHeader(f *testing.F) {
+	f.Add("abc blob 12\n")
+	f.Add("abc blob -1\n")
+	f.Add("abc blob 99999999999999999999\n")
+	f.Fuzz(func(t *testing.T, hdr string) {
+		size, err := parseBatchHeader(hdr)
+		if err == nil && (size < 0 || size > maxBlob) {
+			t.Fatalf("accepted size %d for %q", size, hdr)
+		}
+	})
+}
+
+func TestParseBatchHeaderRejects(t *testing.T) {
+	for _, h := range []string{"a blob -1\n", "a blob x\n", "a blob\n", "a blob 99999999999\n", ""} {
+		if _, err := parseBatchHeader(h); err == nil {
+			t.Errorf("%q accepted", h)
+		}
+	}
+	if n, err := parseBatchHeader("a blob 7\n"); err != nil || n != 7 {
+		t.Errorf("good header: %d %v", n, err)
+	}
+}
+
+func TestGitTimeout(t *testing.T) {
+	old := gitTimeout
+	gitTimeout = time.Nanosecond
+	defer func() { gitTimeout = old }()
+	if _, err := Count(mkrepo(t, base), ""); err == nil {
+		t.Fatal("expected timeout error")
+	}
+}
+
+func cleanEnv() []string {
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "GIT_") {
+			env = append(env, e)
+		}
+	}
+	return env
 }

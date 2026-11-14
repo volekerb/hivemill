@@ -5,12 +5,14 @@ package langshare
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
 	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // excluded lists path fragments of data, not code (fixtures, eval tasks,
@@ -107,22 +109,59 @@ func nonBlank(data []byte) int {
 	return n
 }
 
+// gitTimeout bounds every git subprocess so a hung repo cannot hang the tool.
+var gitTimeout = 2 * time.Minute
+
+// maxBlob caps a single blob read into memory; a larger blob is an error.
+const maxBlob = 64 << 20
+
 func git(repo string, args ...string) ([]byte, error) {
-	cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("git %s: %v: %s", args[0], err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("git %s: %w: %s", args[0], err, strings.TrimSpace(stderr.String()))
 	}
 	return out, nil
+}
+
+// parseTreeEntry splits one `ls-tree -z` record "<mode> <type> <sha>\t<path>".
+func parseTreeEntry(ent []byte) (mode, typ, sha, p string, ok bool) {
+	meta, p, found := strings.Cut(string(ent), "\t")
+	if !found {
+		return "", "", "", "", false
+	}
+	f := strings.Fields(meta)
+	if len(f) != 3 {
+		return "", "", "", "", false
+	}
+	return f[0], f[1], f[2], p, true
+}
+
+// parseBatchHeader reads the size from a `cat-file --batch` header
+// "<sha> <type> <size>". A malformed, negative or over-cap size is an error.
+func parseBatchHeader(hdr string) (int, error) {
+	fs := strings.Fields(hdr)
+	if len(fs) != 3 {
+		return 0, fmt.Errorf("unexpected header %q", strings.TrimSpace(hdr))
+	}
+	size, err := strconv.Atoi(fs[2])
+	if err != nil {
+		return 0, fmt.Errorf("bad blob size in header %q: %w", strings.TrimSpace(hdr), err)
+	}
+	if size < 0 || size > maxBlob {
+		return 0, fmt.Errorf("blob size %d outside 0..%d", size, maxBlob)
+	}
+	return size, nil
 }
 
 // Count measures the tree at ref (default HEAD) of the repo in dir.
 // The ref is resolved to a commit id with --end-of-options and never reaches
 // a shell.
-func Count(repo, ref string) (Counts, error) {
-	var c Counts
+func Count(repo, ref string) (c Counts, err error) {
 	if ref == "" {
 		ref = "HEAD"
 	}
@@ -134,40 +173,46 @@ func Count(repo, ref string) (Counts, error) {
 	if err != nil {
 		return c, err
 	}
-	batch := exec.Command("git", "-C", repo, "cat-file", "--batch")
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+	batch := exec.CommandContext(ctx, "git", "-C", repo, "cat-file", "--batch")
 	var stderr bytes.Buffer
 	batch.Stderr = &stderr
 	in, err := batch.StdinPipe()
 	if err != nil {
-		return c, fmt.Errorf("git cat-file: %v", err)
+		return c, fmt.Errorf("git cat-file: %w", err)
 	}
 	outPipe, err := batch.StdoutPipe()
 	if err != nil {
-		return c, fmt.Errorf("git cat-file: %v", err)
+		return c, fmt.Errorf("git cat-file: %w", err)
 	}
 	if err := batch.Start(); err != nil {
-		return c, fmt.Errorf("git cat-file: %v", err)
+		return c, fmt.Errorf("git cat-file: %w", err)
 	}
-	// Kill before Wait so an early error return cannot block on a full pipe.
-	defer func() { in.Close(); _ = batch.Process.Kill(); _ = batch.Wait() }()
+	done := false
+	defer func() {
+		if done {
+			return
+		}
+		// Error path: kill first so Wait cannot block on a full pipe.
+		_ = in.Close()
+		_ = batch.Process.Kill()
+		_ = batch.Wait() // exit status is the kill we caused; err already set
+	}()
 	rd := bufio.NewReader(outPipe)
 
 	for _, ent := range bytes.Split(tree, []byte{0}) {
-		meta, p, ok := strings.Cut(string(ent), "\t")
-		if !ok {
-			continue
-		}
-		f := strings.Fields(meta) // mode type sha
-		if len(f) != 3 || f[1] != "blob" || f[0] == "120000" || IsExcluded(p) {
+		mode, typ, blob, p, ok := parseTreeEntry(ent)
+		if !ok || typ != "blob" || mode == "120000" || IsExcluded(p) {
 			continue
 		}
 		k := classify(p)
 		if k == kNone {
 			continue
 		}
-		data, err := readBlob(in, rd, f[2])
+		data, err := readBlob(in, rd, blob)
 		if err != nil {
-			return c, fmt.Errorf("git cat-file %s: %v: %s", p, err, strings.TrimSpace(stderr.String()))
+			return c, fmt.Errorf("git cat-file %s: %w: %s", p, err, strings.TrimSpace(stderr.String()))
 		}
 		if k == kMaybePython {
 			if !isPythonShebang(data) {
@@ -188,28 +233,32 @@ func Count(repo, ref string) (Counts, error) {
 			}
 		}
 	}
+	// Success path: EOF on stdin ends cat-file; its exit status must be clean.
+	done = true
+	if err := in.Close(); err != nil {
+		return Counts{}, fmt.Errorf("git cat-file: close stdin: %w", err)
+	}
+	if err := batch.Wait(); err != nil {
+		return Counts{}, fmt.Errorf("git cat-file: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
 	return c, nil
 }
 
 func readBlob(in io.Writer, rd *bufio.Reader, sha string) ([]byte, error) {
 	if _, err := io.WriteString(in, sha+"\n"); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("write request: %w", err)
 	}
 	hdr, err := rd.ReadString('\n')
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read header: %w", err)
 	}
-	fs := strings.Fields(hdr) // sha type size
-	if len(fs) != 3 {
-		return nil, fmt.Errorf("unexpected header %q", strings.TrimSpace(hdr))
-	}
-	size, err := strconv.Atoi(fs[2])
+	size, err := parseBatchHeader(hdr)
 	if err != nil {
 		return nil, err
 	}
 	buf := make([]byte, size+1) // trailing LF
 	if _, err := io.ReadFull(rd, buf); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read blob: %w", err)
 	}
 	return buf[:size], nil
 }
