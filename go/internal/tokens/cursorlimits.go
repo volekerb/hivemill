@@ -83,9 +83,9 @@ func ParseLimitError(text string) (LimitError, bool) {
 			out.Reset = rm[1]
 		} else {
 			raw := strings.Join(strings.FieldsFunc(strings.ReplaceAll(rm[2], ",", ""), isPySpace), " ")
-			if t, err := time.Parse("January 2 2006", raw); err == nil {
+			if t, err := time.Parse("January 2 2006", raw); err == nil && t.Year() > 0 {
 				out.Reset = t.Format("2006-01-02")
-			} else if t, err := time.Parse("Jan 2 2006", raw); err == nil {
+			} else if t, err := time.Parse("Jan 2 2006", raw); err == nil && t.Year() > 0 {
 				out.Reset = t.Format("2006-01-02")
 			} else {
 				out.Reset = pyStrip(rm[2])
