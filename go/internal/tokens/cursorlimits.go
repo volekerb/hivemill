@@ -83,6 +83,7 @@ func ParseLimitError(text string) (LimitError, bool) {
 			out.Reset = rm[1]
 		} else {
 			raw := strings.Join(strings.FieldsFunc(strings.ReplaceAll(rm[2], ",", ""), isPySpace), " ")
+			raw = strptimeDigits(raw)
 			if t, err := time.Parse("January 2 2006", raw); err == nil && t.Year() > 0 {
 				out.Reset = t.Format("2006-01-02")
 			} else if t, err := time.Parse("Jan 2 2006", raw); err == nil && t.Year() > 0 {
@@ -96,6 +97,40 @@ func ParseLimitError(text string) (LimitError, bool) {
 		out.SwitchTarget = strings.Trim(strings.Trim(pyStrip(sw[1]), `"`), `'`)
 	}
 	return out, true
+}
+
+// strptimeDigits maps the Unicode decimal digits Python's strptime accepts in "<month> %d %Y" to ASCII so the
+// ASCII-only time.Parse sees them. %Y is \d{4}, so every year digit may be non-ASCII; %d is
+// (3[0-1]|[1-2]\d|0[1-9]|[1-9]), so only the second digit after an ASCII 1 or 2 may be. Anything else is left
+// alone and fails to parse, as it does in Python.
+func strptimeDigits(raw string) string {
+	f := strings.Split(raw, " ")
+	if len(f) != 3 {
+		return raw
+	}
+	if d := []rune(f[1]); len(d) == 2 && (d[0] == '1' || d[0] == '2') && unicode.IsDigit(d[1]) {
+		f[1] = string(d[0]) + string(rune('0'+digitValue(d[1])))
+	}
+	if y := []rune(f[2]); len(y) == 4 {
+		out := make([]rune, 4)
+		for i, r := range y {
+			if !unicode.IsDigit(r) {
+				return strings.Join(f, " ")
+			}
+			out[i] = rune('0' + digitValue(r))
+		}
+		f[2] = string(out)
+	}
+	return strings.Join(f, " ")
+}
+
+// digitValue is the value of a Unicode decimal digit: Nd characters come in contiguous runs of whole 0-9 sets.
+func digitValue(r rune) int {
+	start := r
+	for unicode.IsDigit(start - 1) {
+		start--
+	}
+	return int(r-start) % 10
 }
 
 // LimitState is the config value: model slug -> entry (status, reset, switch_target, agent, ...). Entries are kept as

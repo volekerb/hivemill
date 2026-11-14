@@ -304,3 +304,31 @@ func FuzzParseLimitError(f *testing.F) {
 		}
 	})
 }
+
+// TestParseLimitErrorMonthNameUnicodeDigits: expected values come from
+// web.cursor_limits.parse_limit_error (python3 -c, strptime): \d in %Y and the second %d digit match any Unicode
+// decimal digit, the first %d digit and single-digit days stay ASCII-only.
+func TestParseLimitErrorMonthNameUnicodeDigits(t *testing.T) {
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 is not installed: strptime parity is not checked here")
+	}
+	for _, reset := range []string{
+		"Jan 2 ٢٠٢٧", "January 1٢ ２０２６", "Jan 2٠, 2027",
+		"Jan ２ 2027", "Jan ١٢ 2027", "Jan 2 2027٠", "Jan 2 20٢", "Feb 1٩ \U0001d7d02027",
+		"Mar 30 2027", "Mar 3١ 2027",
+	} {
+		text := "usage limit for x. resets " + reset
+		got, _ := ParseLimitError(text)
+		script := "import sys; sys.path.insert(0, 'web'); import cursor_limits as c; print(c.parse_limit_error(sys.argv[1])['reset'] or '', end='')"
+		cmd := exec.Command(py, "-c", script, text)
+		cmd.Dir = "../../.."
+		want, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("python3: %v", err)
+		}
+		if got.Reset != string(want) {
+			t.Errorf("reset %q: Go %q, Python %q", reset, got.Reset, want)
+		}
+	}
+}
