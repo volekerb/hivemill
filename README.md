@@ -224,7 +224,7 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
     <td align="center" width="33%">
       <a href="docs/images/agents-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/agents-dark.png">
-        <img src="docs/images/agents-light.png" width="280" alt="The agents page: live agents by role and team with model and uptime">
+        <img src="docs/images/agents-light.png" width="280" alt="The agents page: live Claude and Cursor agents by role and team with model and uptime">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Agents</a>: live agents by role and team</sub>
     </td>
