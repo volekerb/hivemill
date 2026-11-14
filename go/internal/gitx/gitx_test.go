@@ -174,3 +174,29 @@ func TestResetKeepOnMain(t *testing.T) {
 		t.Fatalf("reset --keep off main allowed: %+v", r)
 	}
 }
+
+// TestResetKeepProbeScrubsGitDir: the main-branch probe must look at the same repo the reset does, so GIT_DIR from the
+// parent env must not redirect it (the stub reports main only when GIT_DIR is set, as a foreign repo on main would).
+func TestResetKeepProbeScrubsGitDir(t *testing.T) {
+	live := t.TempDir()
+	o := Options{Home: live, LiveHomes: []string{live}}
+	stubGit(t, "case \"$*\" in *symbolic-ref*) if [ -n \"${GIT_DIR-}\" ]; then echo refs/heads/main; else echo refs/heads/x; fi;; esac\nexit 0\n")
+	t.Setenv("GIT_DIR", "/other/.git")
+	if r, _ := Run(live, o, "reset", "--keep", "origin/main"); r.ExitCode != 1 {
+		t.Fatalf("probe followed GIT_DIR: %+v", r)
+	}
+}
+
+// TestRCDefaultTimeout: a zero Options.Timeout is _git_rc's 60 s default, not no limit.
+func TestRCDefaultTimeout(t *testing.T) {
+	stubGit(t, "exec sleep 30\n")
+	old := rcTimeout
+	rcTimeout = 100 * time.Millisecond
+	defer func() { rcTimeout = old }()
+	if rc, _, msg := RC("/repo", Options{}, "fetch"); rc != 124 || msg != "git fetch timed out" {
+		t.Fatalf("RC = %d %q", rc, msg)
+	}
+	if rc, _, _ := RC("/repo", Options{}); rc != 127 {
+		t.Fatalf("RC without args = %d", rc)
+	}
+}

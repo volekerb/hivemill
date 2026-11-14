@@ -200,7 +200,7 @@ func Run(repo string, o Options, args ...string) (Result, error) {
 	why, keep := o.liveHeadRefusal(repo, args)
 	if keep {
 		sym, err := exec1(o.Argv(repo, "symbolic-ref", "-q", "HEAD"),
-			append(append([]string{}, osEnv(o.Env)...), "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1"), "", 0)
+			scrubEnv(o.Env), "", 0)
 		if err == nil && sym.ExitCode == 0 && strings.TrimSpace(sym.Stdout) == "refs/heads/main" {
 			why = ""
 		} else {
@@ -213,15 +213,17 @@ func Run(repo string, o Options, args ...string) (Result, error) {
 	return exec1(o.Argv(repo, args...), scrubEnv(o.Env), o.Input, o.Timeout)
 }
 
-func osEnv(e []string) []string {
-	if e == nil {
-		return os.Environ()
-	}
-	return e
-}
+// rcTimeout is _git_rc's default timeout=60, applied when Options.Timeout is zero (a var so tests can shorten it).
+var rcTimeout = 60 * time.Second
 
-// RC is _git_rc: (rc, trimmed stdout, trimmed stderr); a timeout is rc 124.
+// RC is _git_rc: (rc, trimmed stdout, trimmed stderr); a timeout is rc 124. A zero Options.Timeout means 60 s.
 func RC(repo string, o Options, args ...string) (int, string, string) {
+	if len(args) == 0 {
+		return 127, "", "git: no arguments"
+	}
+	if o.Timeout == 0 {
+		o.Timeout = rcTimeout
+	}
 	r, err := Run(repo, o, args...)
 	var te *TimeoutError
 	if errors.As(err, &te) {

@@ -149,7 +149,10 @@ type JudgeCI struct {
 // StoreJudgeCI is judge_ci_store: now is epoch seconds. The JSON is Python json.dumps shaped
 // ({"at": 1.5, "ready": true, "why": "..."}); non-ASCII is escaped as Python does.
 func StoreJudgeCI(db *sql.DB, prURL string, ready bool, why string, now float64) error {
-	w, _ := json.Marshal(why)
+	w, err := json.Marshal(why)
+	if err != nil {
+		return err
+	}
 	return upsert(db, JudgeCIPrefix+prURL, fmt.Sprintf(`{"at": %s, "ready": %t, "why": %s}`, pyFloat(now), ready, asciiEscape(w)))
 }
 
@@ -171,8 +174,8 @@ func asciiEscape(b []byte) string {
 }
 
 // LoadJudgeCI is the cache read of judge_pr_ready: the row when it is younger than JudgeCITTL (0 <= now-at < ttl),
-// else ok=false. An unreadable row is a miss. `ready` may be any JSON truthy value in Python; only bool and 0/1 numbers
-// are accepted here, anything else is a miss (one extra gh call, never a wrong merge).
+// else ok=false. An unreadable row is a miss. `ready` may be any JSON truthy value in Python; only a JSON bool
+// is accepted here, anything else is a miss (one extra gh call, never a wrong merge).
 func LoadJudgeCI(db *sql.DB, prURL string, now float64) (JudgeCI, bool) {
 	v, ok := get(db, JudgeCIPrefix+prURL)
 	if !ok {

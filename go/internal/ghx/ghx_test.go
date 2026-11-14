@@ -2,6 +2,7 @@ package ghx
 
 import (
 	"database/sql"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,7 +27,7 @@ func stubGh(t *testing.T, body string) (log string) {
 	return log
 }
 
-func newDB(t *testing.T) *sql.DB {
+func newDB(t testing.TB) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "f.db"))
 	if err != nil {
@@ -216,4 +217,39 @@ func TestUnreadableRowIsAMiss(t *testing.T) {
 	if _, ok := LoadJudgeCI(db, "absent", 2); ok {
 		t.Error("absent row read as a hit")
 	}
+}
+
+func FuzzLoadJudgeCI(f *testing.F) {
+	for _, v := range []string{"not json", `{"at": NaN, "ready": true, "why": "x"}`, `{"at": Infinity, "ready": true, "why": "x"}`,
+		`{"at": 1e999, "ready": true, "why": "x"}`, `{"ready": true, "why": "x"}`, `{"at": 1, "ready": "yes", "why": "x"}`, `[]`,
+		`{"at": 1.5, "ready": true, "why": "ok"}`} {
+		f.Add(v)
+	}
+	db := newDB(f)
+	f.Fuzz(func(t *testing.T, v string) {
+		if _, err := db.Exec("INSERT INTO config(key,value) VALUES('judge_ci:u',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", v); err != nil {
+			t.Skip()
+		}
+		row, ok := LoadJudgeCI(db, "u", 2)
+		if ok && (math.IsNaN(row.At) || math.IsInf(row.At, 0) || 2-row.At < 0 || 2-row.At >= JudgeCITTL.Seconds()) {
+			t.Fatalf("hit outside TTL: %+v for %q", row, v)
+		}
+	})
+}
+
+func FuzzLoadPRView(f *testing.F) {
+	for _, v := range []string{"not json", `{"at": NaN, "head": "h", "pr": {}}`, `{"at": 1e999, "head": "h", "pr": {}}`, `{"head": "h", "pr": {}}`,
+		`{"at": 1, "head": null, "pr": {}}`, `{"at": 1, "head": "h", "pr": null}`, `[]`, `{"at": 1.5, "head": "h", "pr": {"a": 1}}`} {
+		f.Add(v)
+	}
+	db := newDB(f)
+	head := "h"
+	f.Fuzz(func(t *testing.T, v string) {
+		if _, err := db.Exec("INSERT INTO config(key,value) VALUES('prview:u',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", v); err != nil {
+			t.Skip()
+		}
+		if pr, ok := LoadPRView(db, "u", 2, &head, time.Hour); ok && pr == nil {
+			t.Fatalf("hit with nil pr for %q", v)
+		}
+	})
 }
