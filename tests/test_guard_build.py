@@ -645,6 +645,7 @@ class CliImplTests(FactoryTestCase):
         self.assertEqual(self.impl(self.call("inbox", "--show", "")), "impl=python")
         self.assertEqual(self.impl(self.call("inbox", "--show", "M1", "--show", "")), "impl=python")
         self.assertEqual(self.impl(self.call("inbox", "--show", "M1", "--sh", "")), "impl=python")
+        self.assertEqual(self.impl(self.call("inbox", "--show", "M1", "--s", "")), "impl=python")
         self.assertEqual(self.impl(self.call("inbox", "--show", "M1", "--show=")), "impl=python")
         self.assertEqual(self.impl(self.call("inbox", "--show", "M1", "--limit", "1", "--sh", "")), "impl=python")
         self.assertEqual(self.impl(self.call("inbox", "--show", "M1")), "impl=shadow")
