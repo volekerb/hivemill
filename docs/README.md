@@ -11,10 +11,12 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [examples/02-handling-a-rejection.md](examples/02-handling-a-rejection.md): what happens when review fails and the judge rejects.
 - [examples/03-digest-and-scorecard.md](examples/03-digest-and-scorecard.md): the morning digest and the per-team scorecard.
 - [web-ui.md](web-ui.md): the dashboard started by `factory serve` and what each panel shows.
+- [herdr-app-dashboard.md](herdr-app-dashboard.md): the Hivemill status bar and dashboard tab for the Herdr app; install, settings, Claude/Cursor choice.
 - [releases/v0.4.0-announcement.md](releases/v0.4.0-announcement.md): what's new in v0.4.0, in plain English, with two screenshots.
 - [images/README.md](images/README.md): light and dark screenshots of the dashboard, built from fictional data.
 - [demo-data.md](demo-data.md): how the fictional demo home used for screenshots and examples is generated.
 - [film/README.md](film/README.md): storyboard for the customer film, with each claim, its source line and a re-check command.
+- [film/herdr/CAPTURE.md](film/herdr/CAPTURE.md): provenance of the Herdr app panel stills used in film scene 7.
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.

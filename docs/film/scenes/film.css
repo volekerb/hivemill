@@ -1,0 +1,118 @@
+/* Shared look for the Hivemill commercial scenes (1920x1080, rendered by go/cmd/film-render).
+   Colour tokens are the dark theme of web/static/app.css. The renderer draws the caption band over the
+   bottom 140 px, so key content stays above y = 940. */
+@font-face { font-family: "Inter"; font-weight: 400; src: url("../../../web/static/fonts/Inter-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; src: url("../../../web/static/fonts/Inter-Medium.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("../../../web/static/fonts/Inter-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; src: url("../../../web/static/fonts/Inter-Bold.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url("../../demo/fonts/JetBrainsMono-Regular.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 700; src: url("../../demo/fonts/JetBrainsMono-Bold.woff2") format("woff2"); }
+
+:root {
+  --surface-0: rgb(0,0,0);
+  --surface-1: rgb(28,28,30);
+  --surface-2: rgb(44,44,46);
+  --fill: rgb(44,44,46);
+  --ink-1: #F5F5F7;
+  --ink-2: #C7C7CC;
+  --ink-3: #A1A1A6;
+  --hairline: rgb(56,56,58);
+  --border: rgb(124,124,128);
+  --accent: rgb(77,163,255);
+  --accent-solid: rgb(10,132,255);
+  --track: rgb(51,51,54);
+  --success-fg: rgb(95,211,138);
+  --success-bg: rgb(15,46,27);
+  --success-solid: rgb(48,179,90);
+  --warning-fg: #FFC65C;
+  --warning-bg: rgb(58,39,0);
+  --warning-solid: #E0A100;
+  --danger-fg: #FF8A80;
+  --review-fg: #C4A7FF;
+  --review-bg: rgb(42,31,69);
+  --review-solid: #A57DFF;
+  --info-fg: rgb(108,180,255);
+  --info-bg: rgb(10,37,64);
+  --org-claude-fg: #FFA27D;
+  --org-claude-bg: rgb(58,28,16);
+  --org-claude-solid: #E0784D;
+  --org-cursor-fg: rgb(92,208,219);
+  --org-cursor-bg: rgb(10,45,49);
+  --org-cursor-solid: rgb(43,179,192);
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+body {
+  position: relative;
+  background: var(--surface-0);
+  color: var(--ink-1);
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11" 1;
+}
+
+/* Backdrop: deep black with a soft glow and a faint grid, the same in every scene. */
+.backdrop { position: absolute; inset: 0; overflow: hidden; }
+.backdrop::before {
+  content: ""; position: absolute; inset: -10%;
+  background:
+    radial-gradient(48% 42% at 22% 18%, rgba(10, 132, 255, 0.16), transparent 70%),
+    radial-gradient(40% 40% at 86% 78%, rgba(224, 120, 77, 0.10), transparent 70%),
+    radial-gradient(40% 36% at 78% 10%, rgba(43, 179, 192, 0.09), transparent 70%);
+}
+.backdrop::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(70% 70% at 50% 40%, rgb(0,0,0) 30%, transparent 85%);
+}
+
+.stage { position: absolute; left: 0; top: 0; width: 1920px; height: 940px; }
+
+.brand { position: absolute; right: 72px; top: 56px; width: 162px; height: 36px; opacity: 0.6; }
+
+.kicker {
+  font-size: 22px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent);
+}
+.title { font-size: 68px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.08; margin: 0; }
+.sub { font-size: 32px; font-weight: 500; color: var(--ink-2); letter-spacing: -0.005em; }
+.mono { font-family: var(--mono); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 10px;
+  height: 44px; padding: 0 18px; border-radius: 22px;
+  font-size: 22px; font-weight: 600; white-space: nowrap;
+  background: var(--surface-2); color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.chip .dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+.chip.claude { background: var(--org-claude-bg); color: var(--org-claude-fg); box-shadow: inset 0 0 0 1px rgba(224,120,77,0.55); }
+.chip.cursor { background: var(--org-cursor-bg); color: var(--org-cursor-fg); box-shadow: inset 0 0 0 1px rgba(43,179,192,0.55); }
+.chip.ok { background: var(--success-bg); color: var(--success-fg); box-shadow: inset 0 0 0 1px rgba(48,179,90,0.5); }
+.chip.warn { background: var(--warning-bg); color: var(--warning-fg); box-shadow: inset 0 0 0 1px rgba(224,161,0,0.5); }
+.chip.info { background: var(--info-bg); color: var(--info-fg); box-shadow: inset 0 0 0 1px rgba(10,132,255,0.5); }
+
+.card {
+  background: linear-gradient(180deg, rgba(44,44,46,0.94), rgba(28,28,30,0.94));
+  border-radius: 20px;
+  box-shadow: 0 0 0 1px var(--hairline), 0 30px 80px rgba(0,0,0,0.55);
+}
+
+/* A window frame for product stills. */
+.window {
+  position: absolute; overflow: hidden; border-radius: 18px; background: rgb(0,0,0);
+  box-shadow: 0 0 0 1px rgb(58,58,60), 0 40px 120px rgba(0,0,0,0.7);
+}
+
+/* Highlight ring around a region; opacity comes from seek(t). */
+.ring {
+  position: absolute; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--accent-solid), 0 0 28px 6px rgba(10,132,255,0.45);
+}
+.ring.claude { box-shadow: 0 0 0 3px var(--org-claude-solid), 0 0 28px 6px rgba(224,120,77,0.55); }
+.ring.cursor { box-shadow: 0 0 0 3px var(--org-cursor-solid), 0 0 28px 6px rgba(43,179,192,0.55); }
