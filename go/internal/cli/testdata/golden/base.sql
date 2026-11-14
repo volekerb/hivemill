@@ -77,6 +77,19 @@ CREATE TABLE gate_runs (
   status TEXT NOT NULL,  -- queued | running | pass | fail | error
   exit_code INTEGER, test_count INTEGER, main_count INTEGER, cmd TEXT, log_path TEXT, pid INTEGER, actor TEXT,
   note TEXT, created TEXT NOT NULL, started TEXT, finished TEXT);
+CREATE TABLE schedules (
+  id TEXT PRIMARY KEY,
+  hour INTEGER NOT NULL CHECK(hour BETWEEN 0 AND 23),
+  days TEXT NOT NULL DEFAULT 'mon,tue,wed,thu,fri,sat,sun',
+  job TEXT NOT NULL,
+  goal_id TEXT NOT NULL REFERENCES goals(id),
+  token_cap INTEGER NOT NULL CHECK(token_cap > 0),
+  created_by TEXT NOT NULL,
+  created TEXT NOT NULL,
+  removed_at TEXT,
+  last_fired_date TEXT,
+  last_outcome TEXT,
+  last_outcome_at TEXT);
 CREATE TABLE lessons (
   id TEXT PRIMARY KEY, title TEXT NOT NULL, roles TEXT NOT NULL,   -- comma list, each in ROLES or "all"
   what TEXT, rule TEXT NOT NULL, sources TEXT NOT NULL DEFAULT '',   -- comma list
