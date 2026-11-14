@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // HQRoles, BigContext and SidechainNote are the constants of web/context.py.
@@ -195,7 +196,7 @@ func forLines(path string, fn func(raw []byte)) error {
 	for {
 		line, err := br.ReadBytes('\n')
 		if len(line) > 0 {
-			fn(bytes.TrimSpace(line))
+			fn(pyStrip(line))
 		}
 		if err == io.EOF {
 			return nil
@@ -206,7 +207,61 @@ func forLines(path string, fn func(raw []byte)) error {
 	}
 }
 
+// pyStrip is Python's bytes.strip(): only ASCII whitespace (space, \t \n \v \f \r), never Unicode spaces.
+func pyStrip(b []byte) []byte {
+	ws := func(c byte) bool { return c == ' ' || (c >= '\t' && c <= '\r') }
+	for len(b) > 0 && ws(b[0]) {
+		b = b[1:]
+	}
+	for len(b) > 0 && ws(b[len(b)-1]) {
+		b = b[:len(b)-1]
+	}
+	return b
+}
+
+// pyConstants rewrites the bare NaN, Infinity and -Infinity tokens that Python's json.loads accepts (outside
+// strings) into a valid JSON number, so the Go decoder agrees on which lines are well formed.
+func pyConstants(raw []byte) []byte {
+	if !bytes.Contains(raw, []byte("NaN")) && !bytes.Contains(raw, []byte("Infinity")) {
+		return raw
+	}
+	var out []byte
+	inStr := false
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		if inStr {
+			out = append(out, c)
+			if c == '\\' && i+1 < len(raw) {
+				i++
+				out = append(out, raw[i])
+			} else if c == '"' {
+				inStr = false
+			}
+			continue
+		}
+		switch {
+		case c == '"':
+			inStr = true
+			out = append(out, c)
+		case bytes.HasPrefix(raw[i:], []byte("NaN")):
+			out = append(out, "1e999"...)
+			i += 2
+		case bytes.HasPrefix(raw[i:], []byte("Infinity")):
+			out = append(out, "1e999"...)
+			i += 7
+		default:
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// decodeObj is json.loads(raw) restricted to objects: invalid UTF-8 is an error (Python decodes bytes strictly).
 func decodeObj(raw []byte) (map[string]any, bool) {
+	if !utf8.Valid(raw) {
+		return nil, false
+	}
+	raw = pyConstants(raw)
 	var d map[string]any
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()

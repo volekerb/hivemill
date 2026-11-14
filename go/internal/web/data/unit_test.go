@@ -245,7 +245,7 @@ func TestCICacheGetStep(t *testing.T) {
 	c.Clock = func() float64 { mu.Lock(); defer mu.Unlock(); return now }
 	c.Run = func(ctx context.Context, gh string, args ...string) ([]byte, error) {
 		calls++
-		if args[3] == "bad" {
+		if args[2] == "bad" {
 			return nil, errors.New("boom")
 		}
 		return []byte(`{"state":"MERGED","statusCheckRollup":[]}`), nil

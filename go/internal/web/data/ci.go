@@ -172,7 +172,7 @@ func (c *CICache) Fetch(prURL string) CIEntry {
 	entry := CIEntry{State: "unknown", Checks: []Check{}, Fetched: c.Clock()}
 	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
 	defer cancel()
-	out, err := c.Run(ctx, c.Gh, "pr", "view", "--", prURL, "--json", "state,statusCheckRollup")
+	out, err := c.Run(ctx, c.Gh, "pr", "view", prURL, "--json", "state,statusCheckRollup")
 	if err != nil {
 		return entry
 	}
