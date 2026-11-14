@@ -112611,6 +112611,902 @@
 "src": "corpus"
 },
 {
+"input": "~/.local/go/bin/go mod download",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"mod",
+"download"
+]
+},
+{
+"input": "~/.local/go/bin/go mod download",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"mod",
+"download"
+]
+},
+{
+"input": "~/.local/go/bin/go mod download",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"mod",
+"download"
+]
+},
+{
+"input": "~/.local/go/bin/go mod download",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go mod download'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go get x@v1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"get",
+"x@v1"
+]
+},
+{
+"input": "~/.local/go/bin/go get x@v1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"get",
+"x",
+"@",
+"v1"
+]
+},
+{
+"input": "~/.local/go/bin/go get x@v1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"get",
+"x@v1"
+]
+},
+{
+"input": "~/.local/go/bin/go get x@v1",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go get x@v1'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go install ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"install",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go install ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"install",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go install ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"install",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go install ./...",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go install ./...'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go mod tidy",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"mod",
+"tidy"
+]
+},
+{
+"input": "~/.local/go/bin/go mod tidy",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"mod",
+"tidy"
+]
+},
+{
+"input": "~/.local/go/bin/go mod tidy",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"mod",
+"tidy"
+]
+},
+{
+"input": "~/.local/go/bin/go mod tidy",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go mod tidy'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go clean -modcache",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"clean",
+"-modcache"
+]
+},
+{
+"input": "~/.local/go/bin/go clean -modcache",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"clean",
+"-modcache"
+]
+},
+{
+"input": "~/.local/go/bin/go clean -modcache",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"clean",
+"-modcache"
+]
+},
+{
+"input": "~/.local/go/bin/go clean -modcache",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go clean -modcache'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go env -w GOFLAGS=x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"env",
+"-w",
+"GOFLAGS=x"
+]
+},
+{
+"input": "~/.local/go/bin/go env -w GOFLAGS=x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"env",
+"-w",
+"GOFLAGS=x"
+]
+},
+{
+"input": "~/.local/go/bin/go env -w GOFLAGS=x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"env",
+"-w",
+"GOFLAGS=x"
+]
+},
+{
+"input": "~/.local/go/bin/go env -w GOFLAGS=x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go env -w GOFLAGS=x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go work sync",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"work",
+"sync"
+]
+},
+{
+"input": "~/.local/go/bin/go work sync",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"work",
+"sync"
+]
+},
+{
+"input": "~/.local/go/bin/go work sync",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"work",
+"sync"
+]
+},
+{
+"input": "~/.local/go/bin/go work sync",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go work sync'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go"
+]
+},
+{
+"input": "~/.local/go/bin/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go"
+]
+},
+{
+"input": "~/.local/go/bin/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go"
+]
+},
+{
+"input": "~/.local/go/bin/go",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"-o",
+"~/.local/lib/factory/factory-go",
+"./cmd/factory"
+]
+},
+{
+"input": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"-o",
+"~/.local/lib/factory/factory-go",
+"./cmd/factory"
+]
+},
+{
+"input": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"-o",
+"~/.local/lib/factory/factory-go",
+"./cmd/factory"
+]
+},
+{
+"input": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-coverprofile=~/.local/go/c.out",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-coverprofile=~/.local/go/c.out",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-coverprofile=~/.local/go/c.out",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...'",
+"src": "corpus"
+},
+{
+"input": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOBIN=~/.local/go/bin",
+"~/.local/go/bin/go",
+"install",
+"./..."
+]
+},
+{
+"input": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOBIN=~/.local/go/bin",
+"~/.local/go/bin/go",
+"install",
+"./..."
+]
+},
+{
+"input": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOBIN=~/.local/go/bin",
+"~/.local/go/bin/go",
+"install",
+"./..."
+]
+},
+{
+"input": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+"mode": "quote",
+"quoted": "'GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...'",
+"src": "corpus"
+},
+{
+"input": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOROOT=/tmp/x",
+"~/.local/go/bin/go",
+"test"
+]
+},
+{
+"input": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOROOT=/tmp/x",
+"~/.local/go/bin/go",
+"test"
+]
+},
+{
+"input": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOROOT=/tmp/x",
+"~/.local/go/bin/go",
+"test"
+]
+},
+{
+"input": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+"mode": "quote",
+"quoted": "'GOROOT=/tmp/x ~/.local/go/bin/go test'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-mod=mod",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-mod=mod",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-mod=mod",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+"mode": "quote",
+"quoted": "'GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...'",
+"src": "corpus"
+},
+{
+"input": "GOPROXY=on ~/.local/go/bin/go test ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOPROXY=on",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOPROXY=on ~/.local/go/bin/go test ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOPROXY=on",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOPROXY=on ~/.local/go/bin/go test ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOPROXY=on",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOPROXY=on ~/.local/go/bin/go test ./...",
+"mode": "quote",
+"quoted": "'GOPROXY=on ~/.local/go/bin/go test ./...'",
+"src": "corpus"
+},
+{
+"input": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOCACHE=~/.local/lib/factory/x",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOCACHE=~/.local/lib/factory/x",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOCACHE=~/.local/lib/factory/x",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+"mode": "quote",
+"quoted": "'GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/../../go/bin/go test",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/../../go/bin/go",
+"test"
+]
+},
+{
+"input": "~/.local/go/bin/../../go/bin/go test",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/../../go/bin/go",
+"test"
+]
+},
+{
+"input": "~/.local/go/bin/../../go/bin/go test",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/../../go/bin/go",
+"test"
+]
+},
+{
+"input": "~/.local/go/bin/../../go/bin/go test",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/../../go/bin/go test'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -w ../x.go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w",
+"../x.go"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w ../x.go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w",
+"../x.go"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w ../x.go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w",
+"../x.go"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w ../x.go",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -w ../x.go'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -w",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -w'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.local/go/bin/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/go/bin/go"
+]
+},
+{
+"input": "echo x > ~/.local/go/bin/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/go/bin/go"
+]
+},
+{
+"input": "echo x > ~/.local/go/bin/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/go/bin/go"
+]
+},
+{
+"input": "echo x > ~/.local/go/bin/go",
+"mode": "quote",
+"quoted": "'echo x > ~/.local/go/bin/go'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/go/bin/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/go/bin/go"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/go/bin/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/go/bin/go"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/go/bin/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/go/bin/go"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/go/bin/go",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/go/bin/go'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -exec \"git push\" ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-exec",
+"git push",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go test -exec \"git push\" ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-exec",
+"git push",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go test -exec \"git push\" ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-exec",
+"git push",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go test -exec \"git push\" ./...",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -exec \"git push\" ./...'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"-toolexec=/tmp/x",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"-toolexec=/tmp/x",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"-toolexec=/tmp/x",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go build -toolexec=/tmp/x ./...'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"-vettool=/tmp/x",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"-vettool=/tmp/x",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"-vettool=/tmp/x",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -vettool=/tmp/x ./...'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-exec=/tmp/x",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-exec=/tmp/x",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-exec=/tmp/x",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+"mode": "quote",
+"quoted": "'GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -140539,6 +141435,394 @@
 "src": "corpus"
 },
 {
+"input": "~/.local/go/bin/go test ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go test ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go test ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "~/.local/go/bin/go test ./...",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./...'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go build ./cmd/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"./cmd/x"
+]
+},
+{
+"input": "~/.local/go/bin/go build ./cmd/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"./cmd/x"
+]
+},
+{
+"input": "~/.local/go/bin/go build ./cmd/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"./cmd/x"
+]
+},
+{
+"input": "~/.local/go/bin/go build ./cmd/x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go build ./cmd/x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go mod verify",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"mod",
+"verify"
+]
+},
+{
+"input": "~/.local/go/bin/go mod verify",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"mod",
+"verify"
+]
+},
+{
+"input": "~/.local/go/bin/go mod verify",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"mod",
+"verify"
+]
+},
+{
+"input": "~/.local/go/bin/go mod verify",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go mod verify'",
+"src": "corpus"
+},
+{
+"input": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOTOOLCHAIN=local",
+"GOFLAGS=-mod=mod",
+"GOPROXY=off",
+"GOMODCACHE=~/.local/lib/factory/go/mod",
+"~/.local/go/bin/go",
+"vet",
+"./..."
+]
+},
+{
+"input": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOTOOLCHAIN=local",
+"GOFLAGS=-mod=mod",
+"GOPROXY=off",
+"GOMODCACHE=~/.local/lib/factory/go/mod",
+"~/.local/go/bin/go",
+"vet",
+"./..."
+]
+},
+{
+"input": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOTOOLCHAIN=local",
+"GOFLAGS=-mod=mod",
+"GOPROXY=off",
+"GOMODCACHE=~/.local/lib/factory/go/mod",
+"~/.local/go/bin/go",
+"vet",
+"./..."
+]
+},
+{
+"input": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+"mode": "quote",
+"quoted": "'GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...'",
+"src": "corpus"
+},
+{
+"input": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"CGO_ENABLED=0",
+"GOCACHE=/tmp/x",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"CGO_ENABLED=0",
+"GOCACHE=/tmp/x",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"CGO_ENABLED=0",
+"GOCACHE=/tmp/x",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+"mode": "quote",
+"quoted": "'CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...'",
+"src": "corpus"
+},
+{
+"input": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"PATH=~/.local/go/bin:$PATH",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"PATH=~/.local/go/bin",
+":",
+"$",
+"PATH",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"PATH=~/.local/go/bin:$PATH",
+"~/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+"mode": "quote",
+"quoted": "'PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...'",
+"src": "corpus"
+},
+{
+"input": "$HOME/.local/go/bin/go test ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"$HOME/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "$HOME/.local/go/bin/go test ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"$",
+"HOME/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "$HOME/.local/go/bin/go test ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"$HOME/.local/go/bin/go",
+"test",
+"./..."
+]
+},
+{
+"input": "$HOME/.local/go/bin/go test ./...",
+"mode": "quote",
+"quoted": "'$HOME/.local/go/bin/go test ./...'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -l .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -l .'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -d -s .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-d",
+"-s",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -d -s .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-d",
+"-s",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -d -s .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-d",
+"-s",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -d -s .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -d -s .'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -w x.go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w",
+"x.go"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w x.go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w",
+"x.go"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w x.go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w",
+"x.go"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w x.go",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -w x.go'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -144570,7 +145854,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3311,
+"corpus_commands": 3345,
 "edge_inputs": 123,
 "python": "3.13"
 }
