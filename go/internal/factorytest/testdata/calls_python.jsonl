@@ -1,0 +1,6 @@
+{"tool": "gh", "argv": ["pr", "create", "--title", "caf \u00e9 \u2713 \ud83d\ude00", "--body", "-"], "env": {"GH_REPO": "o/r", "GH_HOST": null}, "stdin": "body \"q\" \\ \u00e9\n"}
+{"tool": "gh", "argv": ["pr", "ready", "7"], "env": {"GH_REPO": null, "GH_HOST": null}, "stdin": null}
+{"tool": "herdr", "argv": ["pane", "list", "--json", "caf \u00e9 \u2713 \ud83d\ude00"], "sock": "/tmp/s.sock"}
+{"tool": "herdr", "argv": ["tab", "create"], "sock": null}
+{"tool": "hc", "argv": ["pane", "list", "--json", "caf \u00e9 \u2713 \ud83d\ude00"], "sock": "/tmp/s.sock"}
+{"tool": "hc", "argv": ["tab", "create"], "sock": null}

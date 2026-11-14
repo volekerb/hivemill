@@ -1,0 +1,291 @@
+CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE projects (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, repo_path TEXT, gh_repo TEXT,
+  base_branch TEXT NOT NULL DEFAULT 'main', auto_merge INTEGER NOT NULL DEFAULT 1,
+  notes TEXT, created TEXT NOT NULL, required_checks TEXT NOT NULL DEFAULT '',
+  gate_cmd TEXT NOT NULL DEFAULT '', gate_count_cmd TEXT NOT NULL DEFAULT '', gate_timeout_s INTEGER NOT NULL DEFAULT 3600);
+CREATE TABLE goals (
+  id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), title TEXT NOT NULL,
+  intent TEXT, success_criteria TEXT, status TEXT NOT NULL DEFAULT 'proposed',
+  priority INTEGER NOT NULL DEFAULT 2, requested_by TEXT, workspace_id TEXT,
+  created TEXT NOT NULL, updated TEXT NOT NULL,
+  org TEXT NOT NULL DEFAULT 'claude', token_limit INTEGER);
+CREATE TABLE plans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL REFERENCES goals(id),
+  version INTEGER NOT NULL, body TEXT NOT NULL, author TEXT, created TEXT NOT NULL);
+CREATE TABLE teams (
+  id TEXT PRIMARY KEY, goal_id TEXT NOT NULL REFERENCES goals(id), scope TEXT,
+  lead_agent TEXT, tab_id TEXT, status TEXT NOT NULL DEFAULT 'active', created TEXT NOT NULL,
+  parked_at TEXT, resume_note TEXT);
+CREATE TABLE tasks (
+  id TEXT PRIMARY KEY, goal_id TEXT NOT NULL REFERENCES goals(id), team_id TEXT,
+  title TEXT NOT NULL, spec TEXT, acceptance TEXT, role TEXT NOT NULL DEFAULT 'coder',
+  status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
+  branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+  created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
+  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT, judge_hold_reason TEXT);
+CREATE TABLE agents (
+  name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
+  status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
+  pane_id TEXT, workspace_id TEXT, tab_id TEXT, model TEXT, session_id TEXT, cwd TEXT,
+  spawn_args TEXT, summary TEXT, last_nudge REAL, blocked_since REAL, blocked_alerted INTEGER DEFAULT 0,
+  queued_at TEXT, started TEXT, ended TEXT,
+  flagless INTEGER NOT NULL DEFAULT 0, flagless_since TEXT,
+  stop_requested_at TEXT, stop_attempt_at TEXT, stop_failed_kind TEXT,
+  relaunch_requested_at TEXT, relaunch_requested_by TEXT, relaunch_fresh INTEGER NOT NULL DEFAULT 0,
+  start_pending REAL, start_pending_info TEXT, org TEXT);
+CREATE TABLE throttle (key TEXT PRIMARY KEY, ts TEXT NOT NULL);
+CREATE TABLE util_samples (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, live INTEGER NOT NULL, workers INTEGER NOT NULL,
+  leads INTEGER NOT NULL, judges INTEGER NOT NULL, hq INTEGER NOT NULL, other INTEGER NOT NULL, queued INTEGER NOT NULL,
+  queued_workers INTEGER NOT NULL, cap INTEGER NOT NULL, target INTEGER NOT NULL, demand INTEGER NOT NULL,
+  p1_starved TEXT NOT NULL, p2_starved TEXT NOT NULL);
+CREATE INDEX idx_util_samples_ts ON util_samples(ts);
+CREATE TABLE owner_alert_feed (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, since TEXT NOT NULL,
+  link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT, sent TEXT);
+CREATE UNIQUE INDEX idx_owner_alert_open ON owner_alert_feed(kind, ref) WHERE closed IS NULL;
+CREATE TABLE goal_token_tally (
+  goal_id TEXT PRIMARY KEY, input INTEGER NOT NULL, output INTEGER NOT NULL, cache_read INTEGER NOT NULL,
+  cache_write_5m INTEGER NOT NULL, cache_write_1h INTEGER NOT NULL, cost REAL, computed_at TEXT NOT NULL);
+CREATE TABLE messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT NOT NULL, recipient TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'msg', subject TEXT NOT NULL, body TEXT, goal_id TEXT, task_id TEXT,
+  created TEXT NOT NULL, read_at TEXT);
+CREATE TABLE verdicts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, pr_url TEXT, head_sha TEXT,
+  role TEXT NOT NULL, verdict TEXT NOT NULL, summary TEXT, author TEXT, created TEXT NOT NULL);
+CREATE TABLE evaluations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, team_id TEXT NOT NULL, score INTEGER NOT NULL,
+  notes TEXT, author TEXT, created TEXT NOT NULL);
+CREATE TABLE audits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL REFERENCES goals(id),
+  version INTEGER NOT NULL, verdict TEXT NOT NULL,      -- ready | gaps
+  body TEXT NOT NULL, author TEXT, task_id TEXT, created TEXT NOT NULL);
+CREATE TABLE signoffs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL REFERENCES goals(id),
+  audit_id INTEGER NOT NULL REFERENCES audits(id), snapshot TEXT NOT NULL,   -- JSON {task_id: status}
+  reason TEXT, author TEXT, created TEXT NOT NULL);
+CREATE TABLE events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, actor TEXT, entity TEXT,
+  entity_id TEXT, action TEXT NOT NULL, detail TEXT);
+CREATE INDEX idx_msg_rcpt ON messages(recipient, read_at);
+CREATE INDEX idx_tasks_goal ON tasks(goal_id, status);
+CREATE TABLE gate_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, task_id TEXT, pr_url TEXT,
+  kind TEXT NOT NULL,  -- pr | main | train
+  head_sha TEXT, main_sha TEXT,
+  task_ids TEXT, tip_sha TEXT, tree TEXT,  -- kind=train (T-0522): the prefix's tasks, its tip commit and tree id
+  status TEXT NOT NULL,  -- queued | running | pass | fail | error
+  exit_code INTEGER, test_count INTEGER, main_count INTEGER, cmd TEXT, log_path TEXT, pid INTEGER, actor TEXT,
+  note TEXT, created TEXT NOT NULL, started TEXT, finished TEXT);
+CREATE INDEX idx_gate_runs_head ON gate_runs(project_id, head_sha);
+CREATE TABLE schedules (
+  id TEXT PRIMARY KEY,
+  hour INTEGER NOT NULL CHECK(hour BETWEEN 0 AND 23),
+  days TEXT NOT NULL DEFAULT 'mon,tue,wed,thu,fri,sat,sun',
+  job TEXT NOT NULL,
+  goal_id TEXT NOT NULL REFERENCES goals(id),
+  token_cap INTEGER NOT NULL CHECK(token_cap > 0),
+  created_by TEXT NOT NULL,
+  created TEXT NOT NULL,
+  removed_at TEXT,
+  last_fired_date TEXT,
+  last_outcome TEXT,
+  last_outcome_at TEXT);
+CREATE TABLE lessons (
+  id TEXT PRIMARY KEY, title TEXT NOT NULL, roles TEXT NOT NULL,   -- comma list, each in ROLES or "all"
+  what TEXT, rule TEXT NOT NULL, sources TEXT NOT NULL DEFAULT '',   -- comma list
+  status TEXT NOT NULL DEFAULT 'open',                 -- open | applied | verified
+  recurrences INTEGER NOT NULL DEFAULT 0,
+  author TEXT, created TEXT NOT NULL, updated TEXT NOT NULL,
+  applied_at TEXT, verified_at TEXT, verified_by TEXT, evidence TEXT);
+CREATE TABLE lesson_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, lesson_id TEXT NOT NULL REFERENCES lessons(id),
+  task_id TEXT, pr_url TEXT, via TEXT, merged_at TEXT, author TEXT, created TEXT NOT NULL);
+CREATE INDEX idx_lesson_links ON lesson_links(lesson_id);
+CREATE TABLE rejection_incidents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cause TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  verdict_id INTEGER,
+  event_id INTEGER,
+  created TEXT NOT NULL);
+CREATE INDEX idx_rejection_incidents_cause ON rejection_incidents(cause);
+CREATE INDEX idx_rejection_incidents_task ON rejection_incidents(task_id);
+CREATE TABLE retro_runs (
+  id INTEGER PRIMARY KEY,
+  day TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL,
+  agent TEXT,
+  stop_reason TEXT,
+  started TEXT,
+  ended TEXT);
+CREATE TABLE retro_reports (
+  id INTEGER PRIMARY KEY,
+  day TEXT NOT NULL UNIQUE,
+  causes TEXT NOT NULL,
+  evidence TEXT NOT NULL,
+  fixes TEXT NOT NULL,
+  author TEXT NOT NULL,
+  created TEXT NOT NULL);
+CREATE TABLE scout_candidates (
+  id TEXT PRIMARY KEY,            -- C-0001
+  key TEXT NOT NULL UNIQUE,       -- 'gh:<owner>/<repo>[/<path>]' or 'mkt:<marketplace>/<plugin>'
+  kind TEXT,                      -- skill | plugin | agent | hook | mcp | collection | unknown
+  repo TEXT, path TEXT, url TEXT,
+  licence TEXT, last_commit TEXT, default_branch TEXT, head_sha TEXT,
+  stars INTEGER, stars_per_day REAL,
+  install_risk TEXT,              -- prompt-only | scripts | hooks | mcp | network | shell-in-markdown | symlinks | unknown
+  risk_detail TEXT,               -- JSON: offending paths (max 20)
+  sources TEXT NOT NULL DEFAULT '[]',
+  first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, seen_count INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'new');
+CREATE TABLE scout_triage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id TEXT NOT NULL REFERENCES scout_candidates(id),
+  purpose TEXT NOT NULL, target_roles TEXT NOT NULL, overlap TEXT NOT NULL,
+  recommendation TEXT NOT NULL,   -- adopt | watch | skip
+  rationale TEXT NOT NULL, eval_suggested INTEGER NOT NULL DEFAULT 0,
+  run_id INTEGER, author TEXT, created TEXT NOT NULL);
+CREATE TABLE scout_stars (
+  candidate_id TEXT NOT NULL, ts TEXT NOT NULL, stars INTEGER NOT NULL, PRIMARY KEY(candidate_id, ts));
+CREATE TABLE scout_cursors (
+  source TEXT PRIMARY KEY, cursor TEXT, updated TEXT NOT NULL);
+CREATE TABLE scout_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, slot TEXT NOT NULL UNIQUE,   -- '2026-10-25T09'; UNIQUE = no double run per slot
+  agent TEXT, status TEXT NOT NULL,      -- claimed | queued | running | done | stopped | failed | skipped
+  started TEXT, ended TEXT, tokens INTEGER, new_candidates INTEGER, triaged INTEGER,
+  stop_reason TEXT, reported_msg INTEGER);
+CREATE TABLE skill_trials (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id TEXT NOT NULL REFERENCES scout_candidates(id),
+  vendor_sha TEXT NOT NULL, task TEXT NOT NULL, condition TEXT NOT NULL,   -- with | without
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | running | passed | failed | timeout | over-budget | error | cancelled | voided
+  agent TEXT, sandbox TEXT, queued TEXT NOT NULL, started TEXT, ended TEXT,
+  passed INTEGER, wall_s INTEGER, tokens_in INTEGER, tokens_out INTEGER, cache_read INTEGER, cache_write INTEGER,
+  skill_invoked INTEGER, check_output TEXT, author TEXT,
+  void_reason TEXT, void_why TEXT,   -- set by `skilleval void`; the row keeps every other field
+  UNIQUE(candidate_id, vendor_sha, task, condition));
+PRAGMA user_version = 2;
+INSERT INTO config(key,value) VALUES('affected_smoke','test_db_layout.py test_inbox.py test_judge.py');
+INSERT INTO config(key,value) VALUES('agent_runtimes','');
+INSERT INTO config(key,value) VALUES('block_conditions','0');
+INSERT INTO config(key,value) VALUES('blocked_alert_s','600');
+INSERT INTO config(key,value) VALUES('boss_wake_after_s','900');
+INSERT INTO config(key,value) VALUES('boss_wake_cooldown_s','1800');
+INSERT INTO config(key,value) VALUES('cap_fallback_offer','0');
+INSERT INTO config(key,value) VALUES('ci_wake_workers','4');
+INSERT INTO config(key,value) VALUES('cli_go_cmds','');
+INSERT INTO config(key,value) VALUES('cli_impl','python');
+INSERT INTO config(key,value) VALUES('coder_ci_handoff','off');
+INSERT INTO config(key,value) VALUES('coder_ci_resume_max','2');
+INSERT INTO config(key,value) VALUES('cursor_pilot_roles','');
+INSERT INTO config(key,value) VALUES('day_end_hour','20');
+INSERT INTO config(key,value) VALUES('day_start_hour','8');
+INSERT INTO config(key,value) VALUES('digest_hour','24');
+INSERT INTO config(key,value) VALUES('director_cycle_s','900');
+INSERT INTO config(key,value) VALUES('dispatch_max_per_tick','2');
+INSERT INTO config(key,value) VALUES('dispatch_max_team_workers','2');
+INSERT INTO config(key,value) VALUES('exited_pane_reap_mode','dry-run');
+INSERT INTO config(key,value) VALUES('factory_remote_url','');
+INSERT INTO config(key,value) VALUES('frozen_repos','');
+INSERT INTO config(key,value) VALUES('gate_fast_projects','factory');
+INSERT INTO config(key,value) VALUES('gate_max_load_ratio','1.25');
+INSERT INTO config(key,value) VALUES('gate_max_parallel','1');
+INSERT INTO config(key,value) VALUES('gate_post_status','0');
+INSERT INTO config(key,value) VALUES('gate_retry_error','1');
+INSERT INTO config(key,value) VALUES('gate_sandbox','0');
+INSERT INTO config(key,value) VALUES('gate_shards','4');
+INSERT INTO config(key,value) VALUES('gh_quota_min','0');
+INSERT INTO config(key,value) VALUES('gh_rw_roles','coder,judge,cleaner');
+INSERT INTO config(key,value) VALUES('gh_token_ro','');
+INSERT INTO config(key,value) VALUES('gh_token_rw','');
+INSERT INTO config(key,value) VALUES('git_push','0');
+INSERT INTO config(key,value) VALUES('goal_token_tally_s','0');
+INSERT INTO config(key,value) VALUES('guard_impl','python');
+INSERT INTO config(key,value) VALUES('herdr_socket','~/.config/herdr/herdr.sock');
+INSERT INTO config(key,value) VALUES('hq_unblock_s','900');
+INSERT INTO config(key,value) VALUES('idle_coder_reap','off');
+INSERT INTO config(key,value) VALUES('idle_coder_reap_s','900');
+INSERT INTO config(key,value) VALUES('issue_intake_repos','');
+INSERT INTO config(key,value) VALUES('judge_ci_wait_s','2400');
+INSERT INTO config(key,value) VALUES('judge_max_refreshes','4');
+INSERT INTO config(key,value) VALUES('judge_wait_main_run','0');
+INSERT INTO config(key,value) VALUES('lead_less_dispatch','0');
+INSERT INTO config(key,value) VALUES('lead_parking','0');
+INSERT INTO config(key,value) VALUES('lead_wake_debounce_s','0');
+INSERT INTO config(key,value) VALUES('max_five_hour_pct','92');
+INSERT INTO config(key,value) VALUES('max_live_agents','6');
+INSERT INTO config(key,value) VALUES('max_live_judges','3');
+INSERT INTO config(key,value) VALUES('max_live_leads','4');
+INSERT INTO config(key,value) VALUES('max_seven_day_pct','92');
+INSERT INTO config(key,value) VALUES('max_total_claude','10');
+INSERT INTO config(key,value) VALUES('mech_merge','off');
+INSERT INTO config(key,value) VALUES('mech_merge_retry_s','600');
+INSERT INTO config(key,value) VALUES('merged_go_proof','1');
+INSERT INTO config(key,value) VALUES('min_mem_available_mb','1');
+INSERT INTO config(key,value) VALUES('model_cleaner','');
+INSERT INTO config(key,value) VALUES('noreply_email','');
+INSERT INTO config(key,value) VALUES('nudge_cooldown_s','120');
+INSERT INTO config(key,value) VALUES('opus_effort','medium');
+INSERT INTO config(key,value) VALUES('org_prefix_default','0');
+INSERT INTO config(key,value) VALUES('orgs_enabled','claude');
+INSERT INTO config(key,value) VALUES('orphan_reap_mode','dry-run');
+INSERT INTO config(key,value) VALUES('owner_alert_feed','0');
+INSERT INTO config(key,value) VALUES('owner_alert_send','0');
+INSERT INTO config(key,value) VALUES('pr_view_ttl_s','0');
+INSERT INTO config(key,value) VALUES('prcheck_required','0');
+INSERT INTO config(key,value) VALUES('public_text_repos','');
+INSERT INTO config(key,value) VALUES('push_interval_s','600');
+INSERT INTO config(key,value) VALUES('recycle_context_tokens','250000');
+INSERT INTO config(key,value) VALUES('red_main_freeze','0');
+INSERT INTO config(key,value) VALUES('red_main_interval_s','120');
+INSERT INTO config(key,value) VALUES('red_pr_owner_alert','0');
+INSERT INTO config(key,value) VALUES('refresh_lane','off');
+INSERT INTO config(key,value) VALUES('required_checks','');
+INSERT INTO config(key,value) VALUES('reserved_worker_slots','10');
+INSERT INTO config(key,value) VALUES('retro_enabled','0');
+INSERT INTO config(key,value) VALUES('retro_hour','6');
+INSERT INTO config(key,value) VALUES('retro_max_minutes','20');
+INSERT INTO config(key,value) VALUES('review_autospawn','off');
+INSERT INTO config(key,value) VALUES('review_reserved_slots','2');
+INSERT INTO config(key,value) VALUES('risk_tiers','off');
+INSERT INTO config(key,value) VALUES('sandbox_roles','');
+INSERT INTO config(key,value) VALUES('scout_enabled','0');
+INSERT INTO config(key,value) VALUES('scout_max_minutes','20');
+INSERT INTO config(key,value) VALUES('scout_max_tokens','300000');
+INSERT INTO config(key,value) VALUES('scout_queue_max_h','6');
+INSERT INTO config(key,value) VALUES('scout_slots','09,18');
+INSERT INTO config(key,value) VALUES('scout_triage_per_run','8');
+INSERT INTO config(key,value) VALUES('scrub_terms_file','');
+INSERT INTO config(key,value) VALUES('serve_bind','');
+INSERT INTO config(key,value) VALUES('serve_hostnames','');
+INSERT INTO config(key,value) VALUES('serve_port','8765');
+INSERT INTO config(key,value) VALUES('skilleval_keep_failed_h','48');
+INSERT INTO config(key,value) VALUES('skilleval_max_concurrent','1');
+INSERT INTO config(key,value) VALUES('skilleval_max_trials_per_day','6');
+INSERT INTO config(key,value) VALUES('skilleval_root','~/.cache/factory-skilleval');
+INSERT INTO config(key,value) VALUES('skilleval_trial_max_tokens','300000');
+INSERT INTO config(key,value) VALUES('skilleval_trial_minutes','15');
+INSERT INTO config(key,value) VALUES('stale_policy','behind_ok');
+INSERT INTO config(key,value) VALUES('state_dump_interval_s','3600');
+INSERT INTO config(key,value) VALUES('state_push','1');
+INSERT INTO config(key,value) VALUES('stop_timeout_s','300');
+INSERT INTO config(key,value) VALUES('task_clones','0');
+INSERT INTO config(key,value) VALUES('terminal_backend','auto');
+INSERT INTO config(key,value) VALUES('test_cgroup','0');
+INSERT INTO config(key,value) VALUES('test_cgroup_parent','');
+INSERT INTO config(key,value) VALUES('test_cpu_quota','400');
+INSERT INTO config(key,value) VALUES('test_mem_max','3G');
+INSERT INTO config(key,value) VALUES('test_orphan_alert_s','1800');
+INSERT INTO config(key,value) VALUES('test_sandbox','0');
+INSERT INTO config(key,value) VALUES('test_sandbox_subuid','0');
+INSERT INTO config(key,value) VALUES('test_slots','2');
+INSERT INTO config(key,value) VALUES('test_tasks_max','512');
+INSERT INTO config(key,value) VALUES('tick_async_start','0');
+INSERT INTO config(key,value) VALUES('tick_impl','python');
+INSERT INTO config(key,value) VALUES('tick_phase_timers','0');
+INSERT INTO config(key,value) VALUES('tmp_max_pct','90');
+INSERT INTO config(key,value) VALUES('tmp_sweep_pct','80');
+INSERT INTO config(key,value) VALUES('worker_gh_repos','');
+INSERT INTO config(key,value) VALUES('worker_gh_roles','');
