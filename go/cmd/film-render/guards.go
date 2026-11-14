@@ -153,9 +153,8 @@ func scanTag(s string, i int) (name string, closing bool, styles []string, end i
 // cssContentStrings returns the string literals of every content: declaration in css.
 func cssContentStrings(css string) []string {
 	var out []string
-	low := strings.ToLower(css)
 	for from := 0; ; {
-		i := strings.Index(low[from:], "content")
+		i := indexFold(css[from:], "content")
 		if i < 0 {
 			return out
 		}

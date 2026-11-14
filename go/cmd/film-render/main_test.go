@@ -136,6 +136,10 @@ func TestGuardBannedWords(t *testing.T) {
 		{"css colour still passes", sc("a", 0, 5), "<style>a{color:#123456}</style><p>ok</p>", passed, "ffmpeg"},
 		{"id split by abbr refused", sc("a", 0, 5), "<p>T-<abbr>1434</abbr></p>", refused, "page text"},
 		{"css escaped quote does not end the literal", sc("a", 0, 5), `<style>h1::after{content:"x\" Ticket"}</style><h1>ok</h1>`, refused, "page css content"},
+		{"css content after non-ascii in comment", sc("a", 0, 5), "<style>/*\u023a*/h1::after{content:\"Ticket\"}</style><h1>ok</h1>", refused, "page css content"},
+		{"css content after many non-ascii no panic", sc("a", 0, 5), "<style>\u023a\u023a\u023a\u023a\u023a\u023a\u023a\u023a content</style><h1>ok</h1>", passed, "ffmpeg"},
+		{"css content after invalid utf8", sc("a", 0, 5), "<style>\xff\xff\xffh1::after{content:\"Ticket\"}</style><h1>ok</h1>", refused, "page css content"},
+		{"css content upper case", sc("a", 0, 5), `<style>h1::after{CONTENT:"Ticket"}</style><h1>ok</h1>`, refused, "page css content"},
 		{"css adjacent literals joined", sc("a", 0, 5), `<style>h1::after{content:"T-" "1434"}</style><h1>ok</h1>`, refused, "page css content"},
 		{"empty comment form does not hide text", sc("a", 0, 5), "<!--> Open ticket", refused, "page text"},
 		{"bang comment close ends the comment", sc("a", 0, 5), "<!-- x --!> Open ticket", refused, "page text"},
@@ -362,6 +366,7 @@ func FuzzGuardText(f *testing.F) {
 	f.Add("<p>Plain copy v0.4.0 and 8.5–9×</p>")
 	f.Add("<!-- T-0001 --><script>x</script>ticket PR 12")
 	f.Add("<<<&amp;#35;123 M123 SC4")
+	f.Add("<style>\u023a\u023a\u023a\u023a\u023a\u023a\u023a\u023a content\xff\u212a:</style>")
 	f.Fuzz(func(t *testing.T, s string) {
 		text := htmlText(s)
 		_ = scanBanned("fuzz", "page text", text)
