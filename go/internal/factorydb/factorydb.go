@@ -19,7 +19,7 @@ import (
 
 // SchemaVersion is the PRAGMA user_version this binary understands. It must equal SCHEMA_VERSION in
 // bin/factory_cli.py (added by S1-c); until Python stamps it every database reports 0 and Go defers to Python.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // ErrSchemaMismatch means the database user_version differs from SchemaVersion, or a table or column of Schema is missing.
 var ErrSchemaMismatch = errors.New("factorydb: user_version does not match SchemaVersion")
