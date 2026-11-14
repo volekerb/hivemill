@@ -13,6 +13,15 @@ type Lap struct {
 	Sec  float64
 }
 
+// LapsTotal sums lap seconds (the tick-phases total on non-live homes matches this plus float counters).
+func LapsTotal(laps []Lap) float64 {
+	var s float64
+	for _, l := range laps {
+		s += l.Sec
+	}
+	return s
+}
+
 // Counters is an insertion-ordered counter map; values are JSON numbers kept as text so ints stay ints.
 type Counters struct {
 	keys []string

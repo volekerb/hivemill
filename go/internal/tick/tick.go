@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // Config is everything Run touches; tests replace the process-level parts.
@@ -22,7 +21,7 @@ type Config struct {
 	Clock    func() float64
 	Getpid   func() int
 	TimersOn func() bool // tick_phase_timers, read after the lock is taken
-	Go       map[string]GoFunc
+	Go map[string]GoFunc
 }
 
 type segment struct {
@@ -39,7 +38,13 @@ func segments(goFns map[string]GoFunc) []segment {
 			continue
 		}
 		if n := len(segs); n > 0 && segs[n-1].goFn == nil {
-			segs[n-1].units = append(segs[n-1].units, u.Name)
+			last := segs[n-1].units[len(segs[n-1].units)-1]
+			if unitTableIndex(u.Name) != unitTableIndex(last)+1 {
+				// walkUnits skips offline, but TICK_UNITS does not; never span that row in one --phases list.
+				segs = append(segs, segment{units: []string{u.Name}})
+			} else {
+				segs[n-1].units = append(segs[n-1].units, u.Name)
+			}
 		} else {
 			segs = append(segs, segment{units: []string{u.Name}})
 		}
@@ -88,7 +93,27 @@ func Run(cfg Config) int {
 	d.timer.Last = d.t0Lock
 	d.t0 = d.t0Lock
 	d.timers = cfg.TimersOn != nil && cfg.TimersOn()
+	if len(cfg.Go) == 0 {
+		return d.walkMonolithicChild()
+	}
 	return d.walk()
+}
+
+func (d *driver) walkMonolithicChild() int {
+	h := Handoff{Pid: d.cfg.Getpid(), Timers: d.timers, State: d.state, Laps: d.timer.Laps,
+		Counters: d.timer.Ctr, Total: 0, Elapsed: 0}
+	if _, err := WriteHandoff(d.cfg.Home, h); err != nil {
+		return d.fail(1, "%v", err)
+	}
+	res := runMonolithicChild(d.cfg.Python, d.cfg.Entry, d.cfg.Environ, d.handoff, d.cfg.Stdout, d.cfg.Stderr)
+	switch {
+	case res.err != nil:
+		return d.fail(1, "cannot run the tick child: %v; check that python3 and bin/factory exist", res.err)
+	case res.signal != "":
+		return d.fail(1, "tick child killed by %s", res.signal)
+	default:
+		return res.code
+	}
 }
 
 func (d *driver) walk() int {
@@ -112,15 +137,14 @@ func (d *driver) walk() int {
 		}
 		if !stop && sg.units[len(sg.units)-1] == pruneUnit && d.state.AgentsNull() {
 			// herdr was unreachable: the tick ends with the offline branch (drift, "exporting only", export)
-			list := []string{OfflineUnit}
-			if d.timers && !d.emitted {
-				list = append(list, EmitUnit)
-				d.emitted = true
-			}
-			if _, code = d.runPython(list); code >= 0 {
+			stop, code = d.runPython([]string{OfflineUnit})
+			if code >= 0 {
 				return code
 			}
 			stop = true
+			if d.timers {
+				d.emitted = true // offline ends with _pt_emit, same as monolithic Python
+			}
 		}
 		if stop {
 			break
@@ -168,15 +192,19 @@ func unitByName(n string) Unit {
 // runPython starts one child for units. Returns (stop, -1) to go on, or (_, exit code) to end the tick.
 func (d *driver) runPython(units []string) (stop bool, code int) {
 	now := d.cfg.Clock()
-	h := Handoff{Pid: d.cfg.Getpid(), Elapsed: now - d.t0Lock, Timers: d.timers, State: d.state,
-		Laps: d.timer.Laps, Counters: d.timer.Ctr, Total: now - d.t0}
+	elapsed, total := now-d.t0Lock, LapsTotal(d.timer.Laps)
+	if len(d.timer.Laps) == 0 && len(d.timer.Ctr.Keys()) == 0 {
+		elapsed, total = 0, 0 // first child: match monolithic Python _PT bootstrap (no driver time in handoff)
+	}
+	h := Handoff{Pid: d.cfg.Getpid(), Elapsed: elapsed, Timers: d.timers, State: d.state,
+		Laps: d.timer.Laps, Counters: d.timer.Ctr, Total: total}
 	if _, err := WriteHandoff(d.cfg.Home, h); err != nil {
 		return false, d.fail(1, "%v", err)
 	}
 	s := d.cfg.Clock()
 	res := runChild(d.cfg.Python, d.cfg.Entry, d.cfg.Environ, d.handoff, units, d.cfg.Stdout, d.cfg.Stderr)
 	e := d.cfg.Clock()
-	list := strings.Join(units, ",")
+	list := phaseSpec(units)
 	switch {
 	case res.err != nil:
 		return false, d.fail(1, "cannot run the tick child (%s): %v; check that python3 and bin/factory exist", list, res.err)
@@ -192,6 +220,13 @@ func (d *driver) runPython(units []string) (stop bool, code int) {
 	d.state = out.State
 	if out.PreReset != nil && !d.t0Set {
 		d.t0, d.t0Set = s+*out.PreReset, true
+	}
+	if len(d.timer.Laps) == 0 {
+		if out.PreReset != nil {
+			d.timer.Last = s - *out.PreReset
+		} else {
+			d.timer.Last = s // driver setup before the first child is not migrate_db time
+		}
 	}
 	d.timer.Child(s, e, out.Laps, out.Tail)
 	d.timer.Ctr.Merge(out.Counters)

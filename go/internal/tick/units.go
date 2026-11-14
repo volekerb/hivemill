@@ -119,3 +119,77 @@ func sortedKeys(m map[string]GoFunc) []string {
 	sort.Strings(k)
 	return k
 }
+
+// unitTableIndex is the row in Units and TICK_UNITS; Python --phases requires consecutive indices.
+func unitTableIndex(name string) int {
+	for i, u := range Units {
+		if u.Name == name {
+			return i
+		}
+	}
+	return -1
+}
+
+// blockRuns lists each block name with its units in table order (Python TICK_BLOCKS).
+func blockRuns() []struct {
+	name  string
+	units []string
+} {
+	seen := map[string]bool{}
+	var out []struct {
+		name  string
+		units []string
+	}
+	for _, u := range Units {
+		if seen[u.Block] {
+			continue
+		}
+		seen[u.Block] = true
+		var mem []string
+		for _, v := range Units {
+			if v.Block == u.Block {
+				mem = append(mem, v.Name)
+			}
+		}
+		out = append(out, struct {
+			name  string
+			units []string
+		}{u.Block, mem})
+	}
+	return out
+}
+
+// phaseSpec is the tick --phases argument. Full contiguous block runs use the block name because Python resolves
+// block names before unit names (a unit named "nudge" would otherwise expand the whole nudge block).
+func phaseSpec(units []string) string {
+	blocks := blockRuns()
+	var tokens []string
+	for i := 0; i < len(units); {
+		best := -1
+		bestLen := 0
+		for bi, b := range blocks {
+			n := len(b.units)
+			if i+n > len(units) || n <= bestLen {
+				continue
+			}
+			ok := true
+			for j := 0; j < n; j++ {
+				if units[i+j] != b.units[j] {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				best, bestLen = bi, n
+			}
+		}
+		if best >= 0 {
+			tokens = append(tokens, blocks[best].name)
+			i += bestLen
+			continue
+		}
+		tokens = append(tokens, units[i])
+		i++
+	}
+	return strings.Join(tokens, ",")
+}

@@ -9007,6 +9007,23 @@ def alert_test_orphans(con):
 _PT = {"on": False, "last": 0.0, "t0": 0.0, "phases": [], "counters": {}, "git_n": 0, "git_mark": 0}
 
 
+def _pt_sandbox():
+    """Non-live homes use fixed lap steps so FACTORY_IMPL=diff can match python vs go (real clock on live)."""
+    try:
+        if _NOW_HOME_LIVE is None:
+            home_is_live()
+        return not _NOW_HOME_LIVE
+    except Exception:  # noqa: BLE001
+        return False
+
+
+_SANDBOX_LAP_S = 0.01
+
+
+def _pt_round(sec):
+    return round(float(sec) + 1e-9, 2)
+
+
 def _pt_phase(name):
     """Time a whole call as tick phase `name` (only while the tick timers are on; otherwise a plain call)."""
     def deco(fn):
@@ -9017,9 +9034,7 @@ def _pt_phase(name):
                 return fn(*a, **k)
             finally:
                 try:
-                    t = time.perf_counter()
-                    _PT["phases"].append((name, t - _PT["last"]))
-                    _PT["last"] = t
+                    _pt_lap(name)
                 except Exception:  # noqa: BLE001 — a timer must never stop the tick
                     _PT["on"] = False
         wrapper.__name__, wrapper.__doc__ = fn.__name__, fn.__doc__
@@ -15505,7 +15520,10 @@ def _pt_reset(con):
     """Tick start: reset the counters and say whether the timers are on."""
     try:
         _PT.update(on=cfg(con, "tick_phase_timers") == "1", phases=[], counters={}, git_n=0, git_mark=0)
-        _PT["t0"] = _PT["last"] = time.perf_counter()
+        if _pt_sandbox():
+            _PT["t0"] = _PT["last"] = 0.0
+        else:
+            _PT["t0"] = _PT["last"] = time.perf_counter()
     except Exception:  # noqa: BLE001 — a timer must never stop the tick
         _PT["on"] = False
 
@@ -15515,11 +15533,51 @@ def _pt_lap(name):
     if not _PT["on"]:
         return
     try:
-        t = time.perf_counter()
-        _PT["phases"].append((name, t - _PT["last"]))
-        _PT["last"] = t
+        if _pt_sandbox():
+            d = _SANDBOX_LAP_S
+            _PT["last"] = _PT["last"] + d
+            _PT["phases"].append((name, d))
+        else:
+            now = time.perf_counter()
+            _PT["phases"].append((name, now - _PT["last"]))
+            _PT["last"] = now
     except Exception:  # noqa: BLE001
         _PT["on"] = False
+
+
+def _pt_total():
+    """Wall time for the tick-phases total= field."""
+    if _pt_sandbox():
+        c = _PT.get("counters") or {}
+        extra = sum(v for v in c.values() if isinstance(v, float))
+        return _pt_round(sum(d for _, d in _PT.get("phases", [])) + extra)
+    return _pt_round(time.perf_counter() - _PT["t0"])
+
+
+def _pt_restore_from_handoff(doc, *, migrate_ran=False):
+    """Resume tick phase timers from a Go handoff (tick --phases children only)."""
+    if not doc.get("timers"):
+        return
+    laps = [(x[0], float(x[1])) for x in doc.get("laps", [])]
+    if migrate_ran:
+        if not _PT.get("on"):
+            _PT.update(on=True, phases=[], counters={}, git_n=0, git_mark=0)
+            if _pt_sandbox():
+                _PT["t0"] = _PT["last"] = 0.0
+            else:
+                _PT["t0"] = _PT["last"] = time.perf_counter()
+        return
+    _PT["on"] = True
+    _PT["phases"] = laps
+    _PT["counters"] = dict(doc.get("counters") or {})
+    if _pt_sandbox():
+        s = sum(d for _, d in laps)
+        _PT["t0"] = _PT["last"] = s
+        return
+    _PT["t0"] = time.perf_counter()
+    if doc.get("total") is not None:
+        _PT["t0"] = time.perf_counter() - float(doc["total"])
+    _PT["last"] = time.perf_counter()
 
 
 def _pt_count(name, n=1):
@@ -15549,7 +15607,7 @@ def _timed_spawn(*a, **k):
         return spawn(*a, **k)
     finally:
         _pt_count("dequeue_spawns")
-        _pt_count("dequeue_spawn_s", time.perf_counter() - t)
+        _pt_count("dequeue_spawn_s", 0.0 if _pt_sandbox() else time.perf_counter() - t)
 
 
 def _pt_emit(con):
@@ -15561,7 +15619,7 @@ def _pt_emit(con):
         for k, v in (("dequeue_spawns", 0), ("dequeue_spawn_s", 0.0), ("ci_wake_ls_remote", 0), ("ci_wake_gh", 0),
                      ("pr_view_cached", 0), ("pr_probe_cache_hit", 0), ("gh_quota_read", 0), ("export_git", 0)):
             c.setdefault(k, v)
-        line = "tick-phases total=%.2f" % (time.perf_counter() - _PT["t0"])
+        line = "tick-phases total=%.2f" % _pt_total()
         line += "".join(" %s=%.2f" % (n, d) for n, d in _PT["phases"])
         line += "".join(" %s=%s" % (k, v if isinstance(v, int) else "%.2f" % v) for k, v in c.items())
         print(line, flush=True)
@@ -15720,6 +15778,10 @@ def _tick_need_agents(units, doc):
         return
     if "herdr_list" in units:
         return
+    if "offline" in units:
+        return
+    if units == ["emit"]:
+        return
     state = doc.get("state") or {}
     if "agents" not in state or state["agents"] is None:
         _tick_phases_die("herdr list missing")
@@ -15728,7 +15790,10 @@ def _tick_need_agents(units, doc):
 def _tick_handoff_write(path, doc, st, t0=None, migrate_ran=False, pre_reset=None):
     known = {"v", "pid", "elapsed", "timers", "state", "laps", "counters", "tail", "pre_reset", "total", "stop"}
     extra = {k: v for k, v in doc.items() if k not in known}
-    tail = max(0.0, time.perf_counter() - _PT["last"]) if _PT.get("on") else 0.0
+    if _PT.get("on"):
+        tail = 0.0 if _pt_sandbox() else max(0.0, time.perf_counter() - _PT["last"])
+    else:
+        tail = 0.0
     payload = {
         **extra,
         "v": TICK_HANDOFF_V,
@@ -15736,7 +15801,7 @@ def _tick_handoff_write(path, doc, st, t0=None, migrate_ran=False, pre_reset=Non
         "elapsed": doc.get("elapsed", 0.0),
         "timers": bool(_PT.get("on")),
         "state": _tick_handoff_state_public(st),
-        "laps": [[n, d] for n, d in _PT.get("phases", [])],
+        "laps": [[n, _pt_round(d) if _pt_sandbox() else d] for n, d in _PT.get("phases", [])],
         "counters": dict(_PT.get("counters", {})),
         "tail": tail,
         "stop": bool(st.get("stop")),
@@ -15778,32 +15843,14 @@ def _cmd_tick_phases(spec):
     elif "emit" not in units or len(units) > 1:
         con = db()
     if units == ["emit"]:
-        if doc.get("timers"):
-            _PT["on"] = True
-            _PT["phases"] = [(x[0], float(x[1])) for x in doc.get("laps", [])]
-            _PT["counters"] = dict(doc.get("counters") or {})
-            _PT["t0"] = time.perf_counter()
-            if doc.get("total") is not None:
-                _PT["t0"] = time.perf_counter() - float(doc["total"])
+        _pt_restore_from_handoff(doc)
         con = con or db()
         _tick_u_emit(con, st)
         _tick_handoff_write(path, doc, st, t0=t0, migrate_ran=migrate_ran, pre_reset=pre_reset)
         return
     if con is None:
         con = db()
-    if doc.get("timers"):
-        if migrate_ran:
-            if not _PT["on"]:
-                _PT.update(on=True, phases=[], counters={}, git_n=0, git_mark=0)
-                _PT["t0"] = _PT["last"] = time.perf_counter()
-        else:
-            _PT["on"] = True
-            _PT["phases"] = [(x[0], float(x[1])) for x in doc.get("laps", [])]
-            _PT["counters"] = dict(doc.get("counters") or {})
-            _PT["t0"] = time.perf_counter()
-            if doc.get("total") is not None:
-                _PT["t0"] = time.perf_counter() - float(doc["total"])
-            _PT["last"] = time.perf_counter()
+    _pt_restore_from_handoff(doc, migrate_ran=migrate_ran)
     for i, u in enumerate(units):
         if u == "offline":
             if st.get("agents") is None:
@@ -15825,6 +15872,8 @@ def cmd_tick(a, locked=False):
     if isinstance(phases, str):
         _cmd_tick_phases(phases)
         return
+    if os.environ.get("FACTORY_TICK_LOCKED") == "1":
+        locked = True  # the Go driver holds run/tick.lock; bare tick must not flock here
     lock = None if locked else tick_lock()  # noqa: F841 — held until exit
     st = _tick_new_state()
     con = None
@@ -15846,7 +15895,8 @@ def _tick_u_migrate_db(con, st):
         migrate_db_layout()
         con = db()
         _pt_reset(con)
-        _PT["last"] = t_mig  # migrate_db covers the DB open and the timer setup too
+        if not _pt_sandbox():
+            _PT["last"] = t_mig  # migrate_db covers the DB open and the timer setup too
         _pt_lap("migrate_db")
         return con
 

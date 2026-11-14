@@ -10,3 +10,6 @@ tests.test_relaunch_idle
 tests.test_stop
 tests.test_worker_gate
 tests.test_resume
+tests.test_tick_phase_timers
+tests.test_judge_ci_prune
+tests.test_lead_wake

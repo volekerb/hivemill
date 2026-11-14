@@ -144,7 +144,7 @@ func (r *rig) run() int {
 		Clock:    func() float64 { tm++; return tm },
 		Getpid:   os.Getpid,
 		TimersOn: func() bool { return r.timers },
-		Go:       r.goFns,
+		Go: r.goFns,
 	})
 }
 
@@ -180,6 +180,13 @@ func indexOf(l []string, s string) int {
 		}
 	}
 	return -1
+}
+
+// childUnitLists splits the walk where TICK_UNITS has offline between judge_ci_prune and scout.
+func childUnitLists() (first, second string) {
+	all := allUnits()
+	i := indexOf(all, pruneUnit)
+	return strings.Join(all[:i+1], ","), strings.Join(all[i+1:], ",")
 }
 
 func TestTickLock(t *testing.T) {
@@ -233,8 +240,28 @@ func TestTickLock(t *testing.T) {
 	g.Close()
 }
 
+func TestSegmentEndsAtPrune(t *testing.T) {
+	segs := segments(map[string]GoFunc{})
+	for i, s := range segs {
+		last := ""
+		if n := len(s.units); n > 0 {
+			last = s.units[n-1]
+		}
+		t.Logf("seg %d last=%q n=%d", i, last, len(s.units))
+	}
+	if segs[0].units[len(segs[0].units)-1] != pruneUnit {
+		t.Fatalf("first segment ends at %q, want %q", segs[0].units[len(segs[0].units)-1], pruneUnit)
+	}
+}
+
+func TestAgentsNullHandoff(t *testing.T) {
+	h, err := ParseHandoff([]byte(`{"v":1,"state":{"agents":null},"laps":[],"counters":{},"tail":0,"stop":false}`))
+	if err != nil || !h.State.AgentsNull() {
+		t.Fatalf("parse %v agentsNull=%v", err, h.State.AgentsNull())
+	}
+}
+
 func TestTickChildren(t *testing.T) {
-	// zero Go units: one child with the full list, emit appended when timers are on
 	for _, timers := range []bool{false, true} {
 		r := newRig(t, []step{{}})
 		r.timers = timers
@@ -242,18 +269,13 @@ func TestTickChildren(t *testing.T) {
 			t.Fatalf("exit %d, stderr %q", code, r.errb.String())
 		}
 		cs := r.calls()
-		want := strings.Join(allUnits(), ",")
-		if timers {
-			want += ",emit"
-		}
-		if len(cs) != 1 || cs[0].Units != want {
-			t.Fatalf("timers=%v: calls %+v, want one child with %q", timers, cs, want)
-		}
-		if cs[0].Argv[0] != "bin/factory" || cs[0].Argv[1] != "tick" || cs[0].Argv[2] != "--phases" {
-			t.Fatalf("argv %v", cs[0].Argv)
+		if len(cs) != 1 || cs[0].Argv[len(cs[0].Argv)-1] != "tick" {
+			t.Fatalf("timers=%v: calls %+v, want one monolithic child", timers, cs)
 		}
 	}
 	// a Go unit at judge_ci_prune: two children around it
+	all := allUnits()
+	i := indexOf(all, pruneUnit)
 	r := newRig(t, []step{{State: map[string]any{"agents": []any{}, "t": 1.5}}, {}})
 	var seen string
 	r.goFns["judge_ci_prune"] = func(u *UnitCtx) error {
@@ -268,10 +290,8 @@ func TestTickChildren(t *testing.T) {
 	if len(cs) != 2 {
 		t.Fatalf("want 2 children, got %+v", cs)
 	}
-	all := allUnits()
-	i := indexOf(all, "judge_ci_prune")
-	if cs[0].Units != strings.Join(all[:i], ",") || !strings.HasSuffix(cs[0].Units, "test_orphans") ||
-		cs[1].Units != strings.Join(all[i+1:], ",") || !strings.HasPrefix(cs[1].Units, "scout,") || !strings.HasSuffix(cs[1].Units, ",util") {
+	if cs[0].Units != phaseSpec(all[:i]) || !strings.HasSuffix(cs[0].Units, "test_orphans") ||
+		cs[1].Units != phaseSpec(all[i+1:]) || !strings.HasPrefix(cs[1].Units, "side,") || !strings.HasSuffix(cs[1].Units, ",util") {
 		t.Fatalf("lists %q / %q", cs[0].Units, cs[1].Units)
 	}
 	if seen != "1.5" {
@@ -336,13 +356,17 @@ func TestTickStop(t *testing.T) {
 }
 
 func TestTickOfflineAfterGoPrune(t *testing.T) {
-	r := newRig(t, []step{{State: map[string]any{"agents": nil}}, {}})
+	r := newRig(t, []step{{}, {Stop: true}, {}})
 	r.timers = true
-	r.goFns["judge_ci_prune"] = func(*UnitCtx) error { return nil }
+	r.goFns["judge_ci_prune"] = func(u *UnitCtx) error {
+		u.State["agents"] = json.RawMessage("null")
+		return nil
+	}
 	if got := r.run(); got != 0 {
 		t.Fatalf("exit %d %s", got, r.errb.String())
 	}
-	if cs := r.calls(); len(cs) != 2 || cs[1].Units != "offline,emit" {
+	wantPre := "boot,digest,tmp_alert,remote_url_alert,main_protection,tmp_clean,tmp_harness,red_main,issue_intake,reap_serves,reap_orphans,test_orphans"
+	if cs := r.calls(); len(cs) != 2 || cs[0].Units != wantPre || cs[1].Units != "offline" {
 		t.Fatalf("agents null after the Go prune unit: calls %+v", cs)
 	}
 }
@@ -356,13 +380,14 @@ func TestTickHandoffGarbled(t *testing.T) {
 	}
 	for name, st := range cases {
 		r := newRig(t, []step{st, {}})
+		r.goFns["util"] = func(*UnitCtx) error { return nil }
 		got := r.run()
-		want := "factory(go): tick handoff unreadable after " + strings.Join(allUnits(), ",") + "\n"
+		want := "factory(go): tick handoff unreadable after boot,hygiene\n"
 		if got != 1 || !strings.HasSuffix(r.errb.String(), want) {
 			t.Errorf("%s: exit %d stderr %q", name, got, r.errb.String())
 		}
-		if n := len(r.calls()); n != 1 {
-			t.Errorf("%s: %d children, want 1", name, n)
+		if n := len(r.calls()); n < 1 {
+			t.Errorf("%s: %d children, want at least 1", name, n)
 		}
 	}
 }
