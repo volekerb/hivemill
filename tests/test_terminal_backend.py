@@ -21,16 +21,34 @@ def _load_factory_cli():
 
 
 class TerminalBackendTests(FactoryTestCase):
-    def test_auto_prefers_herdr_when_both_stubs_on_path(self):
+    def _summary(self):
         with self.env.load_factory() as f:
             con = f.db()
             try:
-                raw, eff, exe = f.terminal_backend_summary(con)
+                return f.terminal_backend_summary(con)
             finally:
                 con.close()
-            self.assertEqual(raw, "auto")
-            self.assertEqual(exe, "herdr")
-            self.assertEqual(eff, "auto→herdr")
+
+    def test_auto_prefers_hc_when_both_on_path(self):
+        self.ok("config", "terminal_backend", "auto", agent="owner")
+        self.assertEqual(self._summary(), ("auto", "auto→hc", "hc"))
+
+    def test_auto_uses_herdr_when_hc_missing(self):
+        self.ok("config", "terminal_backend", "auto", agent="owner")
+        with self.env.load_factory() as f:
+            real = f.shutil.which
+            f.shutil.which = lambda exe, *a, **k: None if exe == "hc" else real(exe, *a, **k)
+            con = f.db()
+            try:
+                got = f.terminal_backend_summary(con)
+            finally:
+                f.shutil.which = real
+                con.close()
+        self.assertEqual(got, ("auto", "auto→herdr", "herdr"))
+
+    def test_explicit_herdr_wins_over_hc(self):
+        self.ok("config", "terminal_backend", "herdr", agent="owner")
+        self.assertEqual(self._summary(), ("herdr", "herdr", "herdr"))
 
     def test_hc_config_routes_herdr_calls_through_hc_stub(self):
         self.ok("config", "terminal_backend", "hc", agent="owner")
@@ -269,13 +287,20 @@ class TerminalBackendTests(FactoryTestCase):
         self.assertFalse(hc_calls, hc_calls)
 
     def test_res_names_active_backend(self):
+        self.ok("config", "terminal_backend", "auto", agent="owner")
         out = self.ok("res", agent="owner").stdout
-        self.assertRegex(out, r"terminal backend: herdr \(config=auto; effective=auto→herdr\)")
+        self.assertRegex(out, r"terminal backend: hc \(config=auto; effective=auto→hc\)")
 
     def test_doctor_names_active_backend_and_socket_pin(self):
+        self.ok("config", "terminal_backend", "auto", agent="owner")
         out = self.ok("doctor", agent="owner").stdout
-        self.assertIn("terminal backend: herdr (config=auto; effective=auto→herdr)", out)
+        self.assertIn("terminal backend: hc (config=auto; effective=auto→hc)", out)
         self.assertIn("herdr_socket (HERDR_SOCKET_PATH pin):", out)
+
+    def test_doctor_names_herdr_under_explicit_herdr_config(self):
+        self.ok("config", "terminal_backend", "herdr", agent="owner")
+        out = self.ok("doctor", agent="owner").stdout
+        self.assertIn("terminal backend: herdr (config=herdr; effective=herdr)", out)
 
     def test_hc_tick_survives_ls_row_without_pane_id(self):
         """hc ls terminals may omit pane_id; the tick must not KeyError and must exit 0."""

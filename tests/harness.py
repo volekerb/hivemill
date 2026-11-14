@@ -396,6 +396,8 @@ class FactoryEnv:
         (self.home_dir / "run").mkdir()
         self.run("init")
         self.run("config", "git_push", "0")
+        # both stubs are on PATH and auto prefers hc: pin the TUI so existing tests keep their path; tests of auto or hc set it
+        self.run("config", "terminal_backend", "herdr")
         # existing push tests exercise the state-branch push; tests/test_state_push.py drops this row to test the default
         self.run("config", "state_push", "1")
         # the box's real free memory must not decide whether a spawn test passes
