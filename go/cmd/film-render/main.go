@@ -72,10 +72,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 0
 		}
 		fmt.Fprintf(stderr, "film-render: %v\nusage: film-render [--repo DIR] [--storyboard FILE] [--scenes DIR] --out PATH.mp4 [--draft] [--browser PATH] [--work DIR]\n", err)
+		fmt.Fprintln(stdout, cleanupLine)
 		return 2
 	}
 	if o.out == "" || fs.NArg() > 0 {
 		fmt.Fprintln(stderr, "film-render: usage: --out PATH.mp4 is required and no positional arguments are accepted (see --help)")
+		fmt.Fprintln(stdout, cleanupLine)
 		return 2
 	}
 
@@ -208,6 +210,7 @@ func execute(ctx context.Context, o *options, k *kids, stdout, stderr io.Writer)
 	}
 	d, err := probeDuration(ffprobe, o.out)
 	if err != nil {
+		k.dropOut = o.out
 		return err
 	}
 	if d > maxFilmSeconds {

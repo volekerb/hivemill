@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -96,4 +97,20 @@ func TestCDPConcurrentCallsGetTheirOwnReply(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func FuzzCDPReadLoop(f *testing.F) {
+	f.Add([]byte("{\"id\":1,\"result\":{}}\x00"))
+	f.Add([]byte("{\"id\":2,\"error\":{\"code\":1,\"message\":\"x\"}}\x00{\"id\":"))
+	f.Add([]byte("\x00\x00not json\x00"))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		c := &cdpClient{pending: map[int]chan cdpReply{}}
+		done := make(chan struct{})
+		go func() { c.readLoop(bytes.NewReader(data)); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("readLoop did not return at EOF")
+		}
+	})
 }

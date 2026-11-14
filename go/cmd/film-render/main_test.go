@@ -183,6 +183,23 @@ func TestGuardOutPath(t *testing.T) {
 		e.out = link
 		expect(t, e, refused, "inside the repo")
 	})
+	t.Run("out via a link in a symlinked parent with a ../ target refused", func(t *testing.T) {
+		e := setup(t)
+		e.board(t, 60, sc("a", 0, 5))
+		sub := filepath.Join(e.repo, "sub")
+		if err := os.Mkdir(sub, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink("../x", filepath.Join(sub, "dang")); err != nil {
+			t.Fatal(err)
+		}
+		o := t.TempDir()
+		if err := os.Symlink(sub, filepath.Join(o, "link")); err != nil {
+			t.Fatal(err)
+		}
+		e.out = filepath.Join(o, "link", "dang")
+		expect(t, e, refused, "inside the repo")
+	})
 	t.Run("out in a temp dir passes", func(t *testing.T) {
 		e := setup(t)
 		e.board(t, 60, sc("a", 0, 5))
@@ -259,4 +276,18 @@ func TestWorkDirNotEmptyRefused(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(work, "keep")); err != nil {
 		t.Fatalf("a non-empty --work must never be deleted: %v", err)
 	}
+}
+
+func FuzzGuardText(f *testing.F) {
+	f.Add("<p>Plain copy v0.4.0 and 8.5–9×</p>")
+	f.Add("<!-- T-0001 --><script>x</script>ticket PR 12")
+	f.Add("<<<&amp;#35;123 M123 SC4")
+	f.Fuzz(func(t *testing.T, s string) {
+		text := htmlText(s)
+		_ = scanBanned("fuzz", "page text", text)
+		// the scan is a pure function of the text: same input, same verdict
+		if (scanBanned("fuzz", "x", text) == nil) != (scanBanned("fuzz", "x", text) == nil) {
+			t.Fatal("scanBanned is not deterministic")
+		}
+	})
 }

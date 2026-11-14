@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -219,5 +219,5 @@ func launchBrowser(bin, profile string, w, h int) (*proc, io.WriteCloser, io.Rea
 }
 
 func fileURL(path string) string {
-	return "file://" + strings.ReplaceAll(filepath.ToSlash(path), " ", "%20")
+	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
 }

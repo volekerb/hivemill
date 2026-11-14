@@ -102,6 +102,9 @@ func checkTiming(sb *storyboard) error {
 		return refusef("guard format: width %d, height %d, fps %g must be positive and width and height even (yuv420p).",
 			sb.Width, sb.Height, sb.FPS)
 	}
+	if sb.FPS > 120 || sb.Width > 7680 || sb.Height > 4320 {
+		return refusef("guard format: width %d, height %d, fps %g exceed the limits 7680x4320 at 120 fps.", sb.Width, sb.Height, sb.FPS)
+	}
 	var sum float64
 	prevEnd := 0.0
 	for i, sc := range sb.Scenes {
@@ -177,32 +180,41 @@ func checkPlaceholders(sb *storyboard, draft bool) error {
 }
 
 // resolvePath is Abs plus EvalSymlinks of the deepest existing ancestor, so a path that does not exist yet still
-// resolves through symlinked parents.
+// resolves through symlinked parents. The parent is always resolved for real before a final symlink's relative
+// target is joined to it, so "../" in a link target is applied to the real directory, not the link's name.
 func resolvePath(p string) (string, error) {
 	abs, err := filepath.Abs(p)
 	if err != nil {
 		return "", err
 	}
-	// A final component that is a symlink (even a dangling one) is followed by hand: EvalSymlinks cannot.
 	for i := 0; ; i++ {
-		st, lerr := os.Lstat(abs)
-		if lerr != nil || st.Mode()&os.ModeSymlink == 0 {
-			break
-		}
 		if i >= 40 {
 			return "", errors.New("too many symlink levels in " + p)
+		}
+		dir, err := resolveDir(filepath.Dir(abs))
+		if err != nil {
+			return "", err
+		}
+		abs = filepath.Join(dir, filepath.Base(abs))
+		st, lerr := os.Lstat(abs)
+		if lerr != nil || st.Mode()&os.ModeSymlink == 0 {
+			return abs, nil
 		}
 		target, rerr := os.Readlink(abs)
 		if rerr != nil {
 			return "", rerr
 		}
 		if !filepath.IsAbs(target) {
-			target = filepath.Join(filepath.Dir(abs), target)
+			target = filepath.Join(dir, target)
 		}
 		abs = filepath.Clean(target)
 	}
+}
+
+// resolveDir EvalSymlinks the deepest existing ancestor of dir and appends the missing tail.
+func resolveDir(dir string) (string, error) {
 	rest := ""
-	cur := abs
+	cur := dir
 	for {
 		real, err := filepath.EvalSymlinks(cur)
 		if err == nil {
@@ -213,7 +225,7 @@ func resolvePath(p string) (string, error) {
 		}
 		parent := filepath.Dir(cur)
 		if parent == cur {
-			return abs, nil
+			return dir, nil
 		}
 		rest = filepath.Join(filepath.Base(cur), rest)
 		cur = parent
