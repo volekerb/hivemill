@@ -143,7 +143,7 @@ DEFAULT_CONFIG = {
     "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
     "cli_impl": "python",        # G-041: python | go | shadow; run/cli_impl is rewritten from this (docs/cli-go.md); director-only
-    "cli_go_cmds": "",           # G-041: comma list of subcommands bin/factory may hand to factory-go (S1 set only)
+    "cli_go_cmds": "",           # G-041: comma list of subcommands bin/factory may hand to factory-go (Go registry words; empty = none)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
     "max_live_agents": "6",
