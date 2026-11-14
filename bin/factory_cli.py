@@ -4048,7 +4048,7 @@ def cmd_task(a):
                   f"status=done merged-externally by={actor()} pr={t['pr_url']} merge_sha={sha} — {a.note}")
             con.commit()
             run_after_merge(con, t)
-            print(f"{a.id} closed: {t['pr_url']} is MERGED on GitHub as {sha[:8]} (merged externally)")
+            print(f"{a.id} closed: {t['pr_url']} merge on main at {sha[:8]} (merged externally)")
             return
         if role == "coder" and a.status == "in_review":
             require_acceptance_walk(a.pr or t["pr_url"])
@@ -4651,25 +4651,43 @@ def _tick_gh_detail(e):
 
 
 def verify_merged_externally(pr_url):
-    """(merge sha, error) for a PR merged outside the judge: GitHub must say MERGED and the merge commit must be on the
-    base branch. Anything unverifiable is an error, never a pass."""
-    m = re.match(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/\d+$", pr_url or "")
+    """(merge sha, error) for a PR merged outside the judge: GitHub says MERGED with the merge commit on the base branch,
+    or the PR is still OPEN but a GitHub squash of its head is already on origin/main (T-1399). Unverifiable -> error."""
+    m = re.match(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)$", pr_url or "")
     if not m:
         return None, f"PR url {pr_url!r} is not a https://github.com/OWNER/REPO/pull/N url"
+    owner_repo, pr_number = m.group(1), int(m.group(2))
     try:
-        pr = gh_json("pr", "view", pr_url, "--json", "state,mergeCommit,baseRefName")
+        pr = gh_json("pr", "view", pr_url, "--json", "state,mergeCommit,baseRefName,headRefOid,number")
     except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
         return None, f"gh pr view {pr_url} failed: cannot verify the merge, so nothing is closed; retry when gh works"
     sha = (pr.get("mergeCommit") or {}).get("oid") or ""
-    if pr.get("state") != "MERGED" or not sha:
+    if pr.get("state") == "MERGED" and sha:
+        try:
+            cmp = gh_json("api", f"repos/{owner_repo}/compare/{pr.get('baseRefName')}...{sha}")
+        except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
+            return None, f"cannot check that merge commit {sha[:8]} is on {pr.get('baseRefName')}; nothing is closed"
+        if cmp.get("status") not in ("identical", "behind"):
+            return None, f"merge commit {sha[:8]} is not on {pr.get('baseRefName')} (compare says {cmp.get('status')}); nothing is closed"
+        return sha, None
+    if pr.get("state") != "OPEN":
         return None, f"{pr_url} is {pr.get('state')}, not MERGED on GitHub; merge it through `factory judge` instead"
+    head = pr.get("headRefOid") or ""
+    if not head:
+        return None, f"{pr_url} is OPEN with no head; cannot verify a squash on main"
     try:
-        cmp = gh_json("api", f"repos/{m.group(1)}/compare/{pr.get('baseRefName')}...{sha}")
-    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
-        return None, f"cannot check that merge commit {sha[:8]} is on {pr.get('baseRefName')}; nothing is closed"
-    if cmp.get("status") not in ("identical", "behind"):
-        return None, f"merge commit {sha[:8]} is not on {pr.get('baseRefName')} (compare says {cmp.get('status')}); nothing is closed"
-    return sha, None
+        repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError):
+        return None, f"cannot read {owner_repo} for squash verification; nothing is closed"
+    git, main_sha, why = verified_main(HOME, pr_number, repo_url, owner_repo, head)
+    open_refuse = f"{pr_url} is OPEN, not MERGED on GitHub; merge it through `factory judge` instead"
+    if not main_sha:
+        return None, open_refuse
+    landed = squash_match_on_main(git, main_sha, pr_number, head, max_commits=MERGED_EXTERNALLY_MAIN_SCAN,
+                                  first_parent=True)
+    if not landed:
+        return None, open_refuse
+    return landed, None
 
 
 ACCEPTANCE_WALK = "## Acceptance walk"
@@ -5455,7 +5473,9 @@ def _refresh_locked(repo, branch, old, pr_number, repo_url, owner_repo, task, dr
 JUDGE_MERGE_POLLS = 6  # pr_state/main polls after a `gh pr merge` that failed with a 5xx or a timeout (outcome unknown)
 JUDGE_MERGE_POLL_S = 5  # seconds between those polls; $FACTORY_JUDGE_MERGE_POLLS / $FACTORY_JUDGE_MERGE_POLL_S override (tests)
 LANDING_MAX_COMMITS = 300  # how far back on origin/main the "(#N)" squash commit is looked for
+MERGED_EXTERNALLY_MAIN_SCAN = 20  # first-parent commits on main for --merged-externally squash match (T-1399)
 UNKNOWN_MERGE_ERROR = re.compile(r"\bHTTP 5\d\d\b|gateway|timed? ?out|service unavailable", re.I)
+_GITHUB_SQUASH_COMMITTER = "noreply@github.com"
 
 
 def verified_main(repo, pr_number, repo_url, owner_repo, head=None):
@@ -5492,23 +5512,47 @@ def verified_main(repo, pr_number, repo_url, owner_repo, head=None):
     return git, main_sha, ""
 
 
+def _github_squash_committer(ce):
+    return (ce or "").strip().lower() == _GITHUB_SQUASH_COMMITTER
+
+
+def squash_match_on_main(git, main_sha, pr_number, head, *, max_commits, first_parent=False):
+    """A GitHub squash of `head` onto main: single parent P, GitHub committer, subject (#N), tree ==
+    merge-tree --write-tree P head. `git` is the verified_main git runner."""
+    fmt = "%H %P %T %ce %s"
+    args = ["log", f"-n{max_commits}", "--format=" + fmt, main_sha]
+    if first_parent:
+        args.insert(2, "--first-parent")
+    rc, out, _ = git(*args)
+    if rc != 0 or not out.strip():
+        return None
+    suffix = f"(#{pr_number})"
+    for line in out.splitlines():
+        sha, parents, tree, ce, subject = (line.split(" ", 4) + ["", "", "", "", ""])[:5]
+        ps = parents.split()
+        if len(ps) != 1:
+            continue
+        if not _github_squash_committer(ce):
+            continue
+        if not (subject or "").strip().endswith(suffix):
+            continue
+        rc, mt, _ = git("merge-tree", "--write-tree", ps[0], head)
+        if rc != 0 or (mt or "").strip() != (tree or "").strip():
+            continue
+        return sha.strip()
+    return None
+
+
 def main_landing(repo, pr_number, repo_url, owner_repo, head):
     """Is the change of PR head `head` already on origin/main? Returns the main commit whose subject ends with
-    "(#<pr_number>)" and whose tree equals the head's tree (a squash of exactly this head), else the head itself when
-    it is an ancestor of main, else None (also None when nothing could be verified: never a guess)."""
+    "(#<pr_number>)" whose tree is the merge-tree of its parent and the PR head, else the head itself when it is an
+    ancestor of main, else None (also None when nothing could be verified: never a guess)."""
     git, main_sha, why = verified_main(repo, pr_number, repo_url, owner_repo, head)
     if not main_sha:
         return None
-    rc, tree, _ = git("rev-parse", f"{head}^{{tree}}")
-    if rc != 0 or not tree:
-        return None
-    rc, out, _ = git("log", f"-n{LANDING_MAX_COMMITS}", "--format=%H %T %s", main_sha)
-    if rc != 0:
-        return None
-    for line in out.splitlines():
-        sha, t, subject = (line.split(" ", 2) + ["", ""])[:3]
-        if t == tree and subject.endswith(f"(#{pr_number})"):
-            return sha
+    landed = squash_match_on_main(git, main_sha, pr_number, head, max_commits=LANDING_MAX_COMMITS)
+    if landed:
+        return landed
     if git("merge-base", "--is-ancestor", head, main_sha)[0] == 0:
         return head
     return None
@@ -16311,28 +16355,57 @@ def _sync_target(con):
 
 
 def _is_pr_squash(slug, sha, committer, subject):
-    """(True, "") when `sha` is the GitHub squash of a merged PR: committer noreply@github.com, subject ends (#N), and PR N
-    is merged with merge_commit_sha == sha. (False, why) when it is not; raises RuntimeError when gh cannot say."""
-    if committer.strip().lower() != "noreply@github.com":
+    """(True, detail) when `sha` is a GitHub squash of PR N on main: committer noreply@github.com, subject ends (#N), and
+    either PR N is merged with merge_commit_sha == sha, or PR N is still open and sha's tree is merge-tree(parent, head)
+  . (False, why) when it is not; raises RuntimeError when gh cannot say."""
+    if not _github_squash_committer(committer):
         return False, f"committer {committer.strip()[:3]}*** is not noreply@github.com"
     m = re.search(r"\(#(\d+)\)$", subject.strip())
     if not m:
         return False, "subject does not end with (#N)"
+    n = m.group(1)
     try:
-        p = subprocess.run(["gh", "api", f"repos/{slug}/pulls/{m.group(1)}"], capture_output=True, text=True, timeout=60)
+        p = subprocess.run(["gh", "api", f"repos/{slug}/pulls/{n}"], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as e:
-        raise RuntimeError(f"gh api pulls/{m.group(1)}: {e}")
+        raise RuntimeError(f"gh api pulls/{n}: {e}")
     if p.returncode != 0:
-        raise RuntimeError(f"gh api pulls/{m.group(1)}: {p.stderr.strip()[:200]}")
+        raise RuntimeError(f"gh api pulls/{n}: {p.stderr.strip()[:200]}")
     try:
         pr = json.loads(p.stdout)
     except ValueError as e:
-        raise RuntimeError(f"gh api pulls/{m.group(1)}: not JSON ({e})")
+        raise RuntimeError(f"gh api pulls/{n}: not JSON ({e})")
     if not isinstance(pr, dict):
-        raise RuntimeError(f"gh api pulls/{m.group(1)}: unexpected answer")
-    if not pr.get("merged") or pr.get("merge_commit_sha") != sha:
-        return False, f"PR #{m.group(1)} is not merged with merge_commit_sha {sha[:8]}"
-    return True, ""
+        raise RuntimeError(f"gh api pulls/{n}: unexpected answer")
+    if pr.get("merged") and pr.get("merge_commit_sha") == sha:
+        return True, ""
+    if pr.get("merged"):
+        return False, f"PR #{n} is not merged with merge_commit_sha {sha[:8]}"
+    head = ((pr.get("head") or {}).get("sha") or "").strip()
+    if not head:
+        return False, f"PR #{n} is open with no head"
+    if head == sha:
+        return False, f"PR #{n} is not merged with merge_commit_sha {sha[:8]}"
+    if _git_rc(["cat-file", "-e", f"{head}^{{commit}}"])[0] != 0:
+        for url in _origin_urls() or []:
+            if _git_rc(["fetch", "-q", "--no-write-fetch-head", url, f"+refs/pull/{n}/head:refs/factory-tick/pr-{n}"])[0] == 0:
+                break
+        if _git_rc(["cat-file", "-e", f"{head}^{{commit}}"])[0] != 0:
+            return False, f"PR #{n} head {head[:8]} is not available locally"
+    rc, parents, err = _git_rc(["log", "-1", "--format=%P", sha])
+    if rc != 0:
+        return False, f"cannot read parent of {sha[:8]}: {err or rc}"
+    ps = parents.strip().split()
+    if len(ps) != 1:
+        return False, "not a single-parent commit"
+    rc, mt, err = _git_rc(["merge-tree", "--write-tree", ps[0], head])
+    if rc != 0:
+        return False, f"merge-tree of parent and PR #{n} head failed: {err or rc}"
+    rc, ct, err = _git_rc(["rev-parse", "-q", f"{sha}^{{tree}}"])
+    if rc != 0:
+        return False, f"cannot read tree of {sha[:8]}: {err or rc}"
+    if ct.strip() != mt.strip():
+        return False, f"tree of {sha[:8]} does not match merge-tree of parent and open PR #{n} head"
+    return True, json.dumps({"pr": int(n), "open": True, "sha": sha, "head": head})
 
 
 def public_main_pr_check(con):
@@ -16385,6 +16458,8 @@ def public_main_pr_check(con):
                         send(con, to, f"MERGE FREEZE: non-PR push on {slug} main {sha[:8]}", body, "escalation",
                              sender="tick", org=o)
                 break
+            if why:
+                event(con, "system", slug, "open-pr-squash-on-main", why)
             good = sha
         else:
             good = tip

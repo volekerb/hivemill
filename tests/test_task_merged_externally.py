@@ -1,9 +1,11 @@
 import json
 import unittest
 
-from harness import FactoryTestCase, PR_URL
+from harness import FactoryTestCase, PR_URL, git
 
 SHA = "a" * 40
+NOREPLY = {"GIT_COMMITTER_EMAIL": "noreply@github.com", "GIT_COMMITTER_NAME": "GitHub",
+           "GIT_AUTHOR_EMAIL": "zz-test@example.invalid", "GIT_AUTHOR_NAME": "zz-test"}
 
 
 class MergedExternallyTests(FactoryTestCase):
@@ -133,6 +135,83 @@ class MergedExternallyTests(FactoryTestCase):
         p = self.env.run("task", "update", "T-0001", "--status", "done", "--merged-externally", agent="zz-test-director")
         self.assertEqual(p.returncode, 2, p.stderr)
         self.assertEqual(self.status(), "in_progress")
+
+
+class MergedExternallyOpenSquashTests(FactoryTestCase):
+    """OPEN PR + matching GitHub squash on origin/main (T-1399)."""
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_goal()
+        e.seed_task("T-0001", status="in_progress")
+        e.seed_agent("zz-test-director", "director")
+        e.seed_agent("zz-test-coder", "coder", goal="G-001", task="T-0001")
+        e.use_git_head()
+        self.wt = e.home / "head-wt"
+        self.remote = e.home / "head-origin.git"
+        if git("remote", cwd=e.home_dir, check=False) != "":
+            git("remote", "set-url", "origin", str(self.remote), cwd=e.home_dir)
+        else:
+            git("remote", "add", "origin", str(self.remote), cwd=e.home_dir)
+        e.seed_pr(state="OPEN")
+        st = json.loads(e.gh_state.read_text())
+        st["prs"][PR_URL]["mergeCommit"] = None
+        e.gh_state.write_text(json.dumps(st))
+
+    def squash_on_main(self, msg="feature (#1)", *, merge_tree=True, parent_tip=None):
+        git("fetch", "-q", "origin", "main", cwd=self.wt)
+        head = git("rev-parse", "HEAD", cwd=self.wt)
+        parent = parent_tip or git("rev-parse", "origin/main", cwd=self.wt)
+        if merge_tree:
+            tree = git("merge-tree", "--write-tree", parent, head, cwd=self.wt)
+            sha = git("commit-tree", tree, "-p", parent, "-m", msg, cwd=self.wt, env=NOREPLY)
+        else:
+            sha = git("commit-tree", f"{head}^{{tree}}", "-p", parent, "-m", msg, cwd=self.wt, env=NOREPLY)
+        git("push", "-q", "origin", f"{sha}:refs/heads/main", cwd=self.wt)
+        return sha
+
+    def test_open_pr_matching_merge_tree_squash_closes(self):
+        main = self.squash_on_main()
+        p = self.env.run("task", "update", "T-0001", "--status", "done", "--merged-externally",
+                         "--reason", "GitHub 502", agent="zz-test-director")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "done")
+        hist = self.ok("task", "show", "T-0001").stdout
+        self.assertIn(main, hist)
+        self.assertIn("merged-externally", hist)
+
+    def test_open_pr_wrong_tree_refused(self):
+        git("fetch", "-q", "origin", "main", cwd=self.wt)
+        git("checkout", "-q", "--detach", "origin/main", cwd=self.wt)
+        (self.wt / "wrong-tree.txt").write_text("x\n")
+        git("add", "wrong-tree.txt", cwd=self.wt)
+        git("commit", "-q", "-m", "feature (#1)", cwd=self.wt, env=NOREPLY)
+        sha = git("rev-parse", "HEAD", cwd=self.wt)
+        git("push", "-q", "origin", f"{sha}:refs/heads/main", cwd=self.wt)
+        p = self.env.run("task", "update", "T-0001", "--status", "done", "--merged-externally",
+                         "--reason", "x", agent="zz-test-director")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("not MERGED", p.stderr)
+
+    def test_open_pr_subject_without_pr_number_refused(self):
+        self.squash_on_main(msg="feature (no number)")
+        p = self.env.run("task", "update", "T-0001", "--status", "done", "--merged-externally",
+                         "--reason", "x", agent="zz-test-director")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("not MERGED", p.stderr)
+
+    def test_open_pr_squash_beyond_twenty_first_parent_commits_refused(self):
+        self.squash_on_main()
+        git("fetch", "-q", "origin", "main", cwd=self.wt)
+        git("checkout", "-q", "-B", "main", "origin/main", cwd=self.wt)
+        for i in range(21):
+            git("commit", "-q", "--allow-empty", "-m", f"pad {i}", cwd=self.wt, env=NOREPLY)
+            git("push", "-q", "origin", "HEAD:main", cwd=self.wt)
+        p = self.env.run("task", "update", "T-0001", "--status", "done", "--merged-externally",
+                         "--reason", "x", agent="zz-test-director")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("not MERGED", p.stderr)
 
 
 if __name__ == "__main__":

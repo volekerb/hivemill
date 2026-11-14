@@ -6,6 +6,8 @@ from harness import PR_URL, FactoryTestCase, gates_summary, git
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 SQUASH = "feature (#1)"
 POLL_ENV = {"FACTORY_JUDGE_MERGE_POLL_S": "0", "FACTORY_JUDGE_MERGE_POLLS": "3"}  # no real sleeps, bounded polling
+GH_SQUASH_ENV = {"GIT_COMMITTER_EMAIL": "noreply@github.com", "GIT_COMMITTER_NAME": "GitHub",
+                 "GIT_AUTHOR_EMAIL": "zz-test@example.invalid", "GIT_AUTHOR_NAME": "zz-test"}
 
 
 class LandedTests(FactoryTestCase):
@@ -33,11 +35,15 @@ class LandedTests(FactoryTestCase):
         return self.env.run("judge", "T-0001", *(extra or ("--merge",)), "--reason", "zz-test", agent=agent,
                             extra_env=POLL_ENV)
 
-    def land(self, msg=SQUASH, same_tree=True):
-        """A squash commit on the remote main: the PR head's tree (or a different one) on top of main."""
+    def land(self, msg=SQUASH, same_tree=True, merge_tree=False):
+        """A squash commit on the remote main: the PR head's tree (or merge-tree(parent, head)), or a different tree."""
         git("fetch", "-q", "origin", "main", cwd=self.wt)
-        if same_tree:
-            sha = git("commit-tree", "HEAD^{tree}", "-p", "origin/main", "-m", msg, cwd=self.wt)
+        parent = git("rev-parse", "origin/main", cwd=self.wt)
+        if merge_tree:
+            tree = git("merge-tree", "--write-tree", parent, "HEAD", cwd=self.wt)
+            sha = git("commit-tree", tree, "-p", parent, "-m", msg, cwd=self.wt, env=GH_SQUASH_ENV)
+        elif same_tree:
+            sha = git("commit-tree", "HEAD^{tree}", "-p", parent, "-m", msg, cwd=self.wt, env=GH_SQUASH_ENV)
         else:
             git("checkout", "-q", "--detach", "origin/main", cwd=self.wt)
             (self.wt / "other.txt").write_text("other\n")
@@ -90,6 +96,21 @@ class LandedTests(FactoryTestCase):
         self.assertEqual(len(closes), 1)
         self.assertIn(main, closes[0][closes[0].index("--comment") + 1])
         self.assertEqual(len(self.gh_calls("pr", "merge")), 1)
+
+    def test_502_squash_merge_tree_not_head_tree_still_lands(self):
+        """GitHub squash tree can be merge-tree(parent, head) while the PR head tree differs (T-1398/T-1399)."""
+        git("fetch", "-q", "origin", "main", cwd=self.wt)
+        git("push", "-q", "origin", "HEAD:main", cwd=self.wt)  # another commit lands on main under the PR
+        git("merge", "-q", "--no-edit", "origin/main", cwd=self.wt)
+        git("push", "-q", "-f", "origin", "HEAD:refs/pull/1/head", cwd=self.wt)
+        self.env.seed_pr(sha=git("rev-parse", "HEAD", cwd=self.wt), checks=GREEN)
+        self.verdicts()
+        main = self.land(merge_tree=True)
+        self.env.set_gh(merge_exit=1, merge_stderr="HTTP 502: Bad Gateway")
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assert_recorded(main)
+        self.assertEqual(len(self.gh_calls("pr", "merge")), 0)  # STALE-ONLY path: squash already on main
 
     def test_504_main_commit_for_another_pr_is_not_a_landing(self):
         self.verdicts()
