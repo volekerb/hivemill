@@ -39,7 +39,12 @@ func ExecInbox() ([]byte, int, error) {
 }
 
 // BossInbox is `worker-guard --boss-inbox`. The result is always exit 0.
-func BossInbox(stdin io.Reader, stdout io.Writer, run InboxRunner) int {
+func BossInbox(stdin io.Reader, stdout io.Writer, run InboxRunner) (code int) {
+	defer func() {
+		if recover() != nil { // the hook never blocks the owner's prompt
+			code = 0
+		}
+	}()
 	_, _ = io.Copy(io.Discard, stdin) // content ignored; bad or empty stdin must not matter
 	raw, code, err := run()
 	if err != nil || !utf8.Valid(raw) {
