@@ -63,7 +63,7 @@ class TerminalBackendTests(FactoryTestCase):
         try:
             self.assertEqual(
                 f._hc_translate_args(argv),
-                ["run", "--bg", "--name", "zz-coder", "--cwd", "/tmp/wt", "claude",
+                ["run", "--bg", "--no-parent", "--name", "zz-coder", "--cwd", "/tmp/wt", "claude",
                  "--model", "opus", "-n", "zz-coder"],
             )
         finally:
@@ -78,7 +78,7 @@ class TerminalBackendTests(FactoryTestCase):
         try:
             self.assertEqual(
                 f._hc_translate_args(argv),
-                ["run", "--bg", "--name", "zz-cur", "--cwd", "/tmp/wt",
+                ["run", "--bg", "--no-parent", "--name", "zz-cur", "--cwd", "/tmp/wt",
                  "/usr/bin/agent", "--workspace", "/tmp/wt", "--model", "opus", "--trust", "--force"],
             )
         finally:
@@ -104,8 +104,8 @@ class TerminalBackendTests(FactoryTestCase):
         os.environ["FACTORY_HC_SPAWN_SCRIPT_ROOT"] = str(root)
         try:
             run_argv = f._hc_translate_args(argv)
-            self.assertEqual(run_argv[:6], ["run", "--bg", "--name", "zz-coder", "--cwd", "/tmp/wt"])
-            self.assertEqual(run_argv[6:8], ["sh", str(root / "zz-coder.hc-spawn.sh")])
+            self.assertEqual(run_argv[:7], ["run", "--bg", "--no-parent", "--name", "zz-coder", "--cwd", "/tmp/wt"])
+            self.assertEqual(run_argv[7:9], ["sh", str(root / "zz-coder.hc-spawn.sh")])
             flat = " ".join(run_argv)
             self.assertNotIn("FACTORY_GH", flat)
             self.assertNotIn("fixture-not", flat)
@@ -168,8 +168,9 @@ class TerminalBackendTests(FactoryTestCase):
         self.assertIn("QUEUED", p.stdout)
         row = self.env.sql("SELECT status, pane_id FROM agents WHERE name='zz-done'")[0]
         self.assertEqual(row["status"], "queued")
+        # T-1447: a legacy TUI done row is released on the TUI list (absent there: reaped), still before the queue
         reaped = self.env.sql("SELECT action FROM events WHERE entity_id='zz-done' AND action='reaped'")
-        self.assertEqual(reaped, [])
+        self.assertEqual(len(reaped), 1)
         close_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["pane", "close"]]
         herdr_close = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
         self.assertEqual(close_calls + herdr_close, [])
@@ -204,7 +205,7 @@ class TerminalBackendTests(FactoryTestCase):
         queued = self.env.sql("SELECT action FROM events WHERE entity_id='zz-done-gate' AND action='queued'")
         self.assertEqual(len(queued), 1)
         reaped = self.env.sql("SELECT action FROM events WHERE entity_id='zz-done-gate' AND action='reaped'")
-        self.assertEqual(reaped, [])
+        self.assertEqual(len(reaped), 1)  # T-1447: legacy TUI row released on the TUI list
         close_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["pane", "close"]]
         herdr_close = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
         self.assertEqual(close_calls + herdr_close, [])
@@ -289,7 +290,7 @@ class TerminalBackendTests(FactoryTestCase):
         self.env.seed_goal()
         self.env.seed_team()
         self.env.seed_agent("zz-pm", "pm", goal="G-001", team="g-001-a", pane_id="p1", status="live")
-        self.env.set_herdr(agents=[])
+        self.env.set_herdr(agents=[{"name": "zz-pm", "agent": "claude", "pane_id": "p1", "agent_status": "working"}])
         p = self.ok("tick", agent="owner")
         self.assertEqual(p.returncode, 0, p.stderr)
         row = self.env.sql("SELECT status FROM agents WHERE name='zz-pm'")[0]
@@ -304,21 +305,13 @@ class TerminalBackendTests(FactoryTestCase):
         self.env.seed_team()
         self.env.seed_agent("zz-done", "coder", goal="G-001", team="g-001-a", pane_id="p-tui", status="done")
         self.env.seed_agent("zz-live", "coder", goal="G-001", team="g-001-a", pane_id="p2", status="live")
-        self.env.set_herdr(agents=[{"name": "zz-hc-term", "agent": "claude", "agent_status": "idle"}])
+        self.env.set_herdr(agents=[{"name": "zz-live", "agent": "claude", "pane_id": "p2", "agent_status": "working"}])
         p = self.ok("tick", agent="owner")
         self.assertEqual(p.returncode, 0, p.stderr)
         rows = {r["name"]: r["status"] for r in self.env.sql("SELECT name, status FROM agents")}
-        self.assertEqual(rows["zz-done"], "done")
+        # T-1447: a legacy TUI row is reconciled on the TUI list (not hc ls): the done row absent there is reaped
+        self.assertEqual(rows["zz-done"], "exited")
         self.assertEqual(rows["zz-live"], "live")
-        exited_ev = [
-            e for e in self.env.sql(
-                "SELECT action FROM events WHERE entity_id='zz-done' AND action IN ('reaped','pane-close-skipped')"
-            )
-        ]
-        self.assertEqual(exited_ev, [])
-        close_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["pane", "close"]]
-        herdr_close = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
-        self.assertEqual(close_calls + herdr_close, [])
 
     def test_hc_spawn_refused_while_done_hc_name_still_on_ls(self):
         """hc-hosted done row still on hc ls: spawn must not reuse the name (release_stale_pane fails closed)."""
