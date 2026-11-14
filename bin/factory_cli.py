@@ -2735,7 +2735,7 @@ CLI_IMPLS = ("python", "go", "shadow")
 CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 + S2)
     "whoami", "flags", "agents", "config",
     "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
-    "verdict", "scorecard", "digest", "alerts", "gate", "schedule",
+    "verdict", "scorecard", "digest", "alerts", "gate", "schedule", "tick",
 )
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
