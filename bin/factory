@@ -1,9 +1,50 @@
 #!/usr/bin/env python3
 """factory CLI entry point. The code lives in factory_cli.py: a script run as __main__ never gets a cached .pyc, an imported module does.
 G-041 fast path (docs/cli-go.md): run/cli_impl "<mode> <srchash> <csv>" may hand a listed command to ~/.local/lib/factory/factory-go.
-Missing, malformed, stale (stamp != srchash) or unlisted means Python; FACTORY_CLI_IMPL=python forces Python, nothing forces Go."""
+Missing, malformed, stale (stamp != srchash) or unlisted means Python; FACTORY_CLI_IMPL=python forces Python, nothing forces Go.
+`factory schedule` is Go-only (G-038 F-31): it always tries factory-go, never Python."""
 import os
 import sys
+
+_SCHEDULE_GO_MSG = "factory schedule needs the Go CLI binary (stale or missing); rebuild it"
+
+
+def _cli_go_srchash(home):
+    """Best-effort srchash for factory-go, like cli_impl (or guard_impl when cli_impl is python -)."""
+    try:
+        parts = open(os.path.join(home, "run", "cli_impl")).read(4096).strip().split()
+        if len(parts) >= 2 and parts[1] not in ("-",):
+            return parts[1]
+    except (OSError, ValueError):
+        pass
+    try:
+        parts = open(os.path.join(home, "run", "guard_impl")).read(4096).strip().split()
+        if len(parts) >= 2 and parts[1] not in ("-",):
+            return parts[1]
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _exec_schedule_go(argv):
+    lib = os.path.expanduser("~/.local/lib/factory/")
+    home = os.environ.get("FACTORY_HOME", os.path.expanduser("~/factory"))
+    go_bin, stamp_path = lib + "factory-go", lib + "factory-go.stamp"
+    try:
+        stamp = open(stamp_path).read(4096).strip()
+        if not (stamp and os.access(go_bin, os.X_OK)):
+            raise OSError("missing")
+        srchash = _cli_go_srchash(home)
+        if srchash and stamp != srchash:
+            raise OSError("stale")
+        os.execv(go_bin, [argv[0], *argv[1:]])
+    except OSError:
+        print(f"factory: {_SCHEDULE_GO_MSG}", file=sys.stderr)
+        sys.exit(2)
+
+
+if len(sys.argv) > 1 and sys.argv[1] == "schedule":
+    _exec_schedule_go(sys.argv)
 try:
     lib = os.path.expanduser("~/.local/lib/factory/")
     home = os.environ.get("FACTORY_HOME", os.path.expanduser("~/factory"))
