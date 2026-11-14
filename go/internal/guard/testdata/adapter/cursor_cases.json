@@ -1,0 +1,362 @@
+[
+ {
+  "name": "shell priv denied",
+  "role": "pm",
+  "hq": false,
+  "event": "beforeShellExecution",
+  "stdin": "{\"command\": \"sudo id\", \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 0
+ },
+ {
+  "name": "shell git status allowed",
+  "role": "coder",
+  "hq": false,
+  "event": "beforeShellExecution",
+  "stdin": "{\"command\": \"git status\", \"cwd\": \"/tmp\"}",
+  "permission": "allow",
+  "exit": 0
+ },
+ {
+  "name": "shell git push main coder denied",
+  "role": "coder",
+  "hq": false,
+  "event": "beforeShellExecution",
+  "stdin": "{\"command\": \"git push origin main\", \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 0
+ },
+ {
+  "name": "pre bash git push main coder denied",
+  "role": "coder",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Bash\", \"tool_input\": {\"command\": \"git push origin main\"}, \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "pre bash git status coder allowed",
+  "role": "coder",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Bash\", \"tool_input\": {\"command\": \"git status\"}, \"cwd\": \"/tmp\"}",
+  "permission": "allow",
+  "exit": 0
+ },
+ {
+  "name": "pre shell factory tick denied",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Shell\", \"tool_input\": {\"command\": \"factory tick\"}, \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "pre shell command at top level",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Shell\", \"command\": \"factory tick\", \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "pre shell no command fails closed",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Shell\", \"tool_input\": {}, \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "shell command not a string fails closed",
+  "role": "pm",
+  "hq": false,
+  "event": "beforeShellExecution",
+  "stdin": "{\"command\": 5, \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 0
+ },
+ {
+  "name": "write bashrc file_path denied",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Write\", \"tool_input\": {\"file_path\": \"__HOME__/.bashrc\"}, \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "write bashrc path key denied",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Write\", \"tool_input\": {\"path\": \"__HOME__/.bashrc\"}, \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "write bashrc second key denied",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"StrReplace\", \"tool_input\": {\"file_path\": \"/tmp/ok.txt\", \"target_notebook\": \"__HOME__/.bashrc\"}, \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "delete bashrc denied",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Delete\", \"tool_input\": {\"path\": \"__HOME__/.bashrc\"}, \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "write tmp allowed",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Write\", \"tool_input\": {\"file_path\": \"/tmp/x.txt\"}, \"cwd\": \"/tmp\"}",
+  "permission": "allow",
+  "exit": 0
+ },
+ {
+  "name": "write without path",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Write\", \"tool_input\": {}, \"cwd\": \"/tmp\"}",
+  "permission": null,
+  "exit": null
+ },
+ {
+  "name": "read tmp allowed",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Read\", \"tool_input\": {\"file_path\": \"/tmp/x.txt\"}, \"cwd\": \"/tmp\"}",
+  "permission": "allow",
+  "exit": 0
+ },
+ {
+  "name": "grep non-string path",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Grep\", \"tool_input\": {\"path\": 5}, \"cwd\": \"/tmp\"}",
+  "permission": null,
+  "exit": null
+ },
+ {
+  "name": "unknown tool allowed",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"WebSearch\", \"tool_input\": {\"q\": \"x\"}}",
+  "permission": "allow",
+  "exit": 0
+ },
+ {
+  "name": "no tool name allowed",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_input\": {}}",
+  "permission": "allow",
+  "exit": 0
+ },
+ {
+  "name": "session id and no cwd",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Bash\", \"tool_input\": {\"command\": \"sudo id\"}, \"session_id\": \"s1\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "unicode command reason",
+  "role": "pm",
+  "hq": false,
+  "event": "beforeShellExecution",
+  "stdin": "{\"command\": \"sudo id \\u00e9cho \\u2713 \\ud834\\udd1e\", \"cwd\": \"/tmp\"}",
+  "permission": "deny",
+  "exit": 0
+ },
+ {
+  "name": "mcp denied for pm",
+  "role": "pm",
+  "hq": false,
+  "event": "beforeMCPExecution",
+  "stdin": "{\"tool_name\": \"x\", \"tool_input\": \"{}\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "mcp denied without role",
+  "role": null,
+  "hq": false,
+  "event": "beforeMCPExecution",
+  "stdin": "{\"tool_name\": \"x\", \"tool_input\": {}}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "mcp boss allowed",
+  "role": "boss",
+  "hq": false,
+  "event": "beforeMCPExecution",
+  "stdin": "{\"tool_name\": \"mcp_tool\", \"tool_input\": \"{\\\"a\\\": 1}\"}",
+  "permission": "allow",
+  "exit": 0
+ },
+ {
+  "name": "mcp boss bad tool_input",
+  "role": "boss",
+  "hq": false,
+  "event": "beforeMCPExecution",
+  "stdin": "{\"tool_name\": \"mcp_tool\", \"tool_input\": \"not json\"}",
+  "permission": "allow",
+  "exit": 0
+ },
+ {
+  "name": "mcp boss Bash priv",
+  "role": "boss",
+  "hq": false,
+  "event": "beforeMCPExecution",
+  "stdin": "{\"tool_name\": \"Bash\", \"tool_input\": {\"command\": \"sudo id\"}}",
+  "permission": null,
+  "exit": null
+ },
+ {
+  "name": "event from stdin",
+  "role": "pm",
+  "hq": false,
+  "event": null,
+  "stdin": "{\"hook_event_name\": \"preToolUse\", \"tool_name\": \"Shell\", \"tool_input\": {\"command\": \"sudo id\"}}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "event key from stdin",
+  "role": "coder",
+  "hq": false,
+  "event": null,
+  "stdin": "{\"event\": \"beforeShellExecution\", \"command\": \"git status\"}",
+  "permission": "allow",
+  "exit": 0
+ },
+ {
+  "name": "hq flag",
+  "role": "boss",
+  "hq": true,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Bash\", \"tool_input\": {\"command\": \"git status\"}, \"cwd\": \"/tmp\"}",
+  "permission": null,
+  "exit": null
+ },
+ {
+  "name": "unsupported event",
+  "role": "pm",
+  "hq": false,
+  "event": "postToolUse",
+  "stdin": "{\"tool_name\": \"Bash\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "no event at all",
+  "role": "pm",
+  "hq": false,
+  "event": null,
+  "stdin": "{\"tool_name\": \"Bash\"}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "event not a string",
+  "role": "pm",
+  "hq": false,
+  "event": null,
+  "stdin": "{\"hook_event_name\": [\"a\"]}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "event is a number",
+  "role": "pm",
+  "hq": false,
+  "event": null,
+  "stdin": "{\"event\": 1.5}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "malformed json",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "not json",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "empty stdin",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "truncated json",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{\"tool_name\": \"Bash\"",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "json array",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "[1]",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "json null",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "null",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "trailing data",
+  "role": "pm",
+  "hq": false,
+  "event": "preToolUse",
+  "stdin": "{} {}",
+  "permission": "deny",
+  "exit": 2
+ },
+ {
+  "name": "bad json no event",
+  "role": "pm",
+  "hq": false,
+  "event": null,
+  "stdin": "{",
+  "permission": "deny",
+  "exit": 2
+ }
+]
