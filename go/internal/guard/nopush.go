@@ -305,6 +305,18 @@ func (a *Analyzer) gitConfigEnv(assigns, words []string) error {
 		return blockf(a.Role + " may not set GIT_CONFIG_COUNT/GIT_CONFIG_KEY_*/GIT_CONFIG_VALUE_*/GIT_CONFIG_PARAMETERS: " +
 			"env-injected git config can alias a push; ask your lead")
 	}
+	if len(words) > 0 && !a.HQ && in(tcRoles, a.Role) { // T-1498: the one PATH prefix the toolchain line may carry
+		if _, _, ok := tcKind(words[0]); ok {
+			var keep []string
+			for _, x := range names {
+				if v, isPath := strings.CutPrefix(x, "PATH="); isPath && tcPathValue(v) && containsStr(assigns, x) {
+					continue
+				}
+				keep = append(keep, x)
+			}
+			names = keep
+		}
+	}
 	if anyOf(names, reGitSens.MatchString) {
 		return blockf(a.Role + " may not set, export or unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_*: they select " +
 			"the git config, helpers and pager (an alias there hides a push); ask your lead")

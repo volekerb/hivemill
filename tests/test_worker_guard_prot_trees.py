@@ -588,5 +588,51 @@ class GitInitWorktreeAdd(ProtTreesCase):
         self.allowed(["git init", "git worktree add ../other-wt"], cwds=("wt",))
 
 
+class GoToolchainForWorkers(ProtTreesCase):
+    """T-1498: coder, qa and reviewer may EXECUTE ~/.local/go/bin/go and gofmt (a fixed subcommand and env-prefix list, no
+    network, no write into a protected tree); pm and judge are exactly as before. Both impls through the real hook."""
+
+    G = "~/.local/go/bin/"
+
+    def test_toolchain_runs_allowed(self):
+        cmds = [self.G + "go test ./...", self.G + "go build ./cmd/x", self.G + "go version", self.G + "go mod verify",
+                "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod " + self.G + "go vet ./...",
+                "CGO_ENABLED=0 GOCACHE=/tmp/x " + self.G + "go test ./...", self.G + "gofmt -l .", self.G + "gofmt -d -s .",
+                "$HOME/.local/go/bin/go test ./...", "PATH=~/.local/go/bin:$PATH " + self.G + "go test ./..."]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 0, f"{role}: {cmd!r}: expected allow, got {r.returncode}: {r.stderr}")
+
+    def test_network_and_unlisted_subcommands_blocked(self):
+        cmds = [self.G + "go mod download", self.G + "go get x@v1", self.G + "go install ./...", self.G + "go mod tidy",
+                self.G + "go clean -modcache", self.G + "go work sync", self.G + "go", "GOFLAGS=-mod=mod " + self.G + "go test ./...",
+                "GOPROXY=on " + self.G + "go test", "GOROOT=/tmp/x " + self.G + "go test"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+
+    def test_writes_blocked(self):
+        cmds = ["echo x > ~/.local/go/bin/go", "cp /tmp/x ~/.local/go/bin/go",
+                self.G + "go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+                "GOBIN=~/.local/go/bin " + self.G + "go install ./...", self.G + "go env -w GOFLAGS=x",
+                self.G + "go test -coverprofile=~/.local/go/c.out ./...", "GOCACHE=~/.local/lib/factory/x " + self.G + "go test",
+                self.G + "../../go/bin/go test", self.G + "gofmt -w ../x.go", self.G + "gofmt -w"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+
+    def test_gofmt_write_inside_the_tree_allowed(self):
+        self.assertEqual(run(self.G + "gofmt -w x.go", "wt").returncode, 0)
+
+    def test_other_roles_unchanged(self):
+        # on origin/main the full-path run is not refused for these roles either: same answer, network subcommands included
+        for role in ("pm", "judge"):
+            for cmd in (self.G + "go test ./...", self.G + "go mod download"):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd!r}")
+
+
 if __name__ == "__main__":
     unittest.main()

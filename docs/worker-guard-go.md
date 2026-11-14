@@ -87,6 +87,22 @@ missing from `agent_goals` until the next tick (up to a minute): `factory goal s
 A `git`/`gh` command reads the export for the public-text rule only when it can reach the rule (the write forms above); a
 shell payload in HQ mode is analysed only when it may hold a `git`/`gh` word once its quoting is resolved.
 
+## Go toolchain for workers (T-1498)
+
+The roles coder, qa and reviewer may run the toolchain by full path, `~/.local/go/bin/go` and `~/.local/go/bin/gofmt` (also
+written `$HOME/.local/go/bin/...` or with the passwd home spelled out). Both guards (worker-guard.py and this package) apply the
+same rules; every other role is unchanged. Allowed: `go build|test|vet|run|list|env|version|fmt` and `go mod verify|graph|why`;
+`gofmt` with any flag, and `gofmt -w` only on files inside the caller's working tree or scratchpad. Allowed env prefixes:
+`GOTOOLCHAIN=local`, `GOFLAGS=...`, `GOPROXY=off`, `GOCACHE=<path>`, `GOMODCACHE=<path>` (`~/.local/lib/factory/go/mod` for
+read use), `CGO_ENABLED=0`, `PATH=~/.local/go/bin:$PATH`; any other prefix is refused, and `-mod=mod` needs `GOPROXY=off`.
+Refused: the network and write subcommands (`go mod download`, `go get`, `go install`, `go clean`, `go mod tidy`, `go work`, ...),
+`go env -w`, a write flag (`-o`, `-coverprofile`, ...) or a cache path inside `~/.local/go` or `~/.local/lib/factory`, and a
+lookalike spelling (`~/.local/go/bin/../../go/bin/go`). Every write into those trees stays blocked as before. QA copy-paste line:
+
+    GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...
+
+Putting `~/.local/go/bin` on the pane PATH at spawn is not part of this change.
+
 ## Command analyser (T-0349)
 
 `analyzer.go` (`Analyzer`, `script`, `priv`), `commands.go` (`cmd`, `kill`, `shell`, `loose`, `xargs`, `systemctl`,

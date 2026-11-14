@@ -125,3 +125,37 @@ func TestOptValues(t *testing.T) {
 		}
 	}
 }
+
+// T-1498: the Go toolchain for workers (tests/test_worker_guard_prot_trees.py GoToolchainForWorkers is the contract).
+func TestGoToolchainForWorkers(t *testing.T) {
+	_, wt, _ := protFixture(t)
+	g := "~/.local/go/bin/"
+	allow := []string{g + "go test ./...", g + "go build ./cmd/x", g + "go version", g + "go mod verify",
+		"GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod " + g + "go vet ./...",
+		"CGO_ENABLED=0 GOCACHE=/tmp/x " + g + "go test ./...", g + "gofmt -l .", g + "gofmt -d -s .",
+		"$HOME/.local/go/bin/go test ./...", "PATH=~/.local/go/bin:$PATH " + g + "go test ./...", g + "gofmt -w x.go"}
+	block := []string{g + "go mod download", g + "go get x@v1", g + "go install ./...", g + "go mod tidy", g + "go clean -modcache",
+		g + "go work sync", g + "go", "GOFLAGS=-mod=mod " + g + "go test ./...", "GOPROXY=on " + g + "go test", "GOROOT=/tmp/x " + g + "go test",
+		"echo x > ~/.local/go/bin/go", "cp /tmp/x ~/.local/go/bin/go", g + "go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+		"GOBIN=~/.local/go/bin " + g + "go install ./...", g + "go env -w GOFLAGS=x", g + "go test -coverprofile=~/.local/go/c.out ./...",
+		"GOCACHE=~/.local/lib/factory/x " + g + "go test", g + "../../go/bin/go test", g + "gofmt -w ../x.go", g + "gofmt -w"}
+	for _, role := range []string{"coder", "qa", "reviewer"} {
+		for _, c := range allow {
+			if err := Check(c, wt, role, false); err != nil {
+				t.Errorf("%s: %q: expected allow, got %v", role, c, err)
+			}
+		}
+		for _, c := range block {
+			if err := Check(c, wt, role, false); err == nil {
+				t.Errorf("%s: %q: expected a block", role, c)
+			}
+		}
+	}
+	for _, role := range []string{"pm", "judge"} { // other roles: as on origin/main
+		for _, c := range []string{g + "go test ./...", g + "go mod download"} {
+			if err := Check(c, wt, role, false); err != nil {
+				t.Errorf("%s: %q: unchanged roles must still be allowed, got %v", role, c, err)
+			}
+		}
+	}
+}
