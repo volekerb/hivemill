@@ -23,7 +23,7 @@ The App Manager key from (a) is still required for the REST calls in both modes.
 
 ## Where the credentials go
 
-The project config names only a profile (`ascProfile`). The values live in your own setup. For each of the three values (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH`) the first source that has credentials wins:
+The project config names only a profile (`ascProfile`). The values live in your own setup. The three values are `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_PATH`. The first source that has credentials wins, as a whole (values are never mixed across sources):
 
 1. Environment variables `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH`, all three. Setting only one or two is an error (exit 4).
 2. The profile file `~/.config/hivemill/asc/<profile>.env`. Run `chmod 600` on it; a file readable by group or others is refused. It holds three lines:
@@ -52,7 +52,7 @@ The file lives at `<git top>/.hivemill/ios-release.json`; `--config PATH` overri
 | field | type | required | meaning |
 |---|---|---|---|
 | `schemaVersion` | integer, must be 1 | no, default 1 | any other value is exit 3 |
-| `ascProfile` | string, 1-64 of `A-Z a-z 0-9 . _ -`, not starting with `.` | no, default `default` | the NAME of the credential profile, never a value |
+| `ascProfile` | string, 1-64 of `A-Z a-z 0-9 . _ -`, not starting with `.`, no `..` | no, default `default` | the NAME of the credential profile, never a value |
 | `workspace` | path ending `.xcworkspace` | exactly one of `workspace` / `project` | |
 | `project` | path ending `.xcodeproj` | exactly one of `workspace` / `project` | both or neither is exit 3 |
 | `scheme` | string | yes | |
@@ -119,7 +119,7 @@ release.sh [--config PATH] [--profile NAME] [--signing xcodeAccount|apiKey] [--d
 | `--config PATH` | project config (default `<git top>/.hivemill/ios-release.json`) |
 | `--profile NAME` | credential profile (default: `ascProfile` from the config, else `default`) |
 | `--signing MODE` | `xcodeAccount` or `apiKey`; overrides `signing` in the config |
-| `--dry-run` | run the checks and print what would happen; builds, uploads and writes nothing |
+| `--dry-run` | run the checks and print what would happen; builds and uploads nothing (it does run `buildReadyCheck` and any `command` that reads the version or notes) |
 | `--allow-dirty` | build a dirty checkout (only when `worktreeBase` is not set) |
 | `--resume-build N` | skip the build: wait for build N, then set What to Test and add the tester groups |
 | `--help` | print the usage text and exit 0 |
@@ -156,7 +156,7 @@ release.sh [--config PATH] [--profile NAME] [--signing xcodeAccount|apiKey] [--d
 
 ## What `--dry-run` does
 
-It runs steps 1-3: it validates the config and credentials, creates and removes the worktree if there is one, runs `xcodebuild -version` (and `-showBuildSettings` for the `buildSetting` form), and prints the next build number, the signing mode, the notes length, the decision for each tester group, each gate, the archive and export command lines it would run (redacted) and the ExportOptions plist. It never runs gates, the archive or the export, and it never sends a POST, PATCH or DELETE to App Store Connect. A real run is the only thing that uploads.
+It runs steps 1-3: it validates the config and credentials, creates and removes the worktree if there is one, runs `xcodebuild -version` (and `-showBuildSettings` for the `buildSetting` form), and prints the next build number, the signing mode, the notes length, the decision for each tester group, each gate, the archive and export command lines it would run (redacted) and the ExportOptions plist. It runs `buildReadyCheck` and any marketing-version or notes `command` (project commands do execute), but never the gates, the archive or the export, and it never sends a POST, PATCH or DELETE to App Store Connect. A real run is the only thing that uploads.
 
 ## `--resume-build`
 

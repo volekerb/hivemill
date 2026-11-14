@@ -23,7 +23,7 @@ You are a thin guide over one script: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/ios-re
 
 1. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/ios-release/release.sh --dry-run`. Add `--signing`, `--profile` or `--config` only if the user asked for them.
 2. Explain the dry-run result in plain words: the signing mode, the next build number, the length of the What to Test notes, the decision for each tester group (would add or would skip), and the gates that would run.
-3. Ask for confirmation of the real upload. If any group says it would be added and is an external group, say plainly that this submits the build to beta app review, and that it only happens because the project config sets `submitExternal` to true.
+3. Ask for confirmation of the real upload. If the project config sets `submitExternal` to true, say plainly that an external group would be added and that this submits the build to beta app review. The dry run does not print a group's kind, so check the config's `submitExternal` when a group says it would be added.
 4. Only after an explicit yes, run the same command without `--dry-run`. Read only the last stdout line (JSON) and the exit code.
 5. Map the exit code to one action, and do not improvise:
    - 0: say the build is uploaded; give the build number and the group results.
@@ -32,5 +32,5 @@ You are a thin guide over one script: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/ios-re
    - 6: App Store Connect refused or did not find the app or group; check the key role and the names in the config.
    - 7: xcodebuild failed. With the signing hint: "sign in to Xcode or use an Admin key with --signing apiKey".
    - 8: processing failed or timed out; check App Store Connect.
-   - 9: the build is uploaded but notes or groups failed; run again with `--resume-build N` using the build number from the summary.
+   - 9: the build is uploaded but notes or groups failed; ask the user, then run again with `--resume-build N` using the build number from the summary. Repeat the beta app review warning if `submitExternal` is true.
    - 1: internal error; show the message and stop.
