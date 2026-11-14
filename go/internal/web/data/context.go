@@ -243,17 +243,43 @@ func pyConstants(raw []byte) []byte {
 		case c == '"':
 			inStr = true
 			out = append(out, c)
-		case bytes.HasPrefix(raw[i:], []byte("NaN")):
+		case c == '-' && constAt(raw, out, i+1, "Infinity"):
+			out = append(out, "-1e999"...)
+			i += len("Infinity")
+		case constAt(raw, out, i, "NaN"):
 			out = append(out, "1e999"...)
-			i += 2
-		case bytes.HasPrefix(raw[i:], []byte("Infinity")):
+			i += len("NaN") - 1
+		case constAt(raw, out, i, "Infinity"):
 			out = append(out, "1e999"...)
-			i += 7
+			i += len("Infinity") - 1
 		default:
 			out = append(out, c)
 		}
 	}
 	return out
+}
+
+// constAt reports whether raw[i:] starts a standalone JSON value token name: the previous significant byte already
+// emitted must open a value (":", "," or "[") and the next byte must end it, so NaN1, 1NaN and -NaN stay invalid.
+func constAt(raw, out []byte, i int, name string) bool {
+	if !bytes.HasPrefix(raw[i:], []byte(name)) {
+		return false
+	}
+	j := len(out) - 1
+	for j >= 0 && (out[j] == ' ' || out[j] == '\t' || out[j] == '\n' || out[j] == '\r') {
+		j--
+	}
+	if j < 0 || (out[j] != ':' && out[j] != ',' && out[j] != '[') {
+		return false
+	}
+	if end := i + len(name); end < len(raw) {
+		switch raw[end] {
+		case ',', ']', '}', ' ', '\t', '\n', '\r':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // decodeObj is json.loads(raw) restricted to objects: invalid UTF-8 is an error (Python decodes bytes strictly).

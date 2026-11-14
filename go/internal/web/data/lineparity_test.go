@@ -30,6 +30,21 @@ var parityLines = [][]byte{
 	[]byte("{\"a\":\"\x01\"}"),
 	[]byte(`{"a":"\ud800"}`),
 	[]byte(`{"a":01}`),
+	[]byte(`{"a":-NaN}`),
+	[]byte(`{"a":NaN1}`),
+	[]byte(`{"a":1NaN}`),
+	[]byte(`{"a":Infinity5}`),
+	[]byte(`{"a":NaN.5}`),
+	[]byte(`{"a":[NaN, -Infinity , Infinity]}`),
+	[]byte(`{NaN:1}`),
+	[]byte(`{"a":--Infinity}`),
+	[]byte(`{"a":- Infinity}`),
+	[]byte(`{"a":{"b":NaN}}`),
+	[]byte(`{"a":1,"a":2}`),
+	[]byte("\xc2\xa0{\"a\":1}"),
+	[]byte("{\"a\":1}\xc2\xa0"),
+	[]byte("\xe2\x80\x83{\"a\":1}"),
+	[]byte("\xc2\x85{\"a\":1}\xc2\x85"),
 }
 
 const pyClassify = `
