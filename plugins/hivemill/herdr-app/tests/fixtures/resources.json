@@ -1,0 +1,1 @@
+{ "gate": { "rows": [{ "label": "Load", "value": "1.0", "limit": "8", "state": "ok" }] }, "machine": { "cpus": 8, "mem_total_mb": 6000, "mem_available_mb": 1000, "swap_total_mb": 4096, "swap_used_mb": 1000, "load": [1, 1, 1] }, "system": { "usage": { "seven_day": 50, "five_hour": 20 } } }

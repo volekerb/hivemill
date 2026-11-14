@@ -1,0 +1,8 @@
+{
+  "teams": [{ "machine": "buildbox" }],
+  "machine_labels": { "local": "MacBook", "buildbox": "Lenovo", "macmini": "Mac mini" },
+  "projects": [
+    { "name": "Team B", "space": "macmini/teamb", "boss": "teamb-boss",
+      "wait_patterns": [{ "match": "SIM GO", "clear": "GO GIVEN", "label": "waits for SIM GO", "after_min": 15 }] }
+  ]
+}
