@@ -148,7 +148,8 @@ func Count(repo, ref string) (Counts, error) {
 	if err := batch.Start(); err != nil {
 		return c, fmt.Errorf("git cat-file: %v", err)
 	}
-	defer func() { in.Close(); _ = batch.Wait() }()
+	// Kill before Wait so an early error return cannot block on a full pipe.
+	defer func() { in.Close(); _ = batch.Process.Kill(); _ = batch.Wait() }()
 	rd := bufio.NewReader(outPipe)
 
 	for _, ent := range bytes.Split(tree, []byte{0}) {
