@@ -95,6 +95,30 @@ func TestPythonCountsFallBackToAWalkOutsideGit(t *testing.T) {
 	}
 }
 
+func TestPythonCountsNonASCIIPaths(t *testing.T) {
+	root := pyRepo(t, "bin/caf\u00e9.py", "bin/\u65e5\u672c.py", "bin/plain.py")
+	_, counts := PythonCounts(RunCmd, root, "")
+	if counts[0] != 3 {
+		t.Fatalf("bin/ count %d, want 3 (quoted non-ASCII paths must count)", counts[0])
+	}
+	sha := strings.TrimSpace(gitOut(t, root, "rev-parse", "HEAD"))
+	_, counts = PythonCounts(RunCmd, root, sha)
+	if counts[0] != 3 {
+		t.Fatalf("bin/ count at a commit %d, want 3", counts[0])
+	}
+}
+
+func gitOut(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+	cmd.Env = gitEnv()
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git %v: %v", args, err)
+	}
+	return string(out)
+}
+
 func TestUsageErrors(t *testing.T) {
 	for _, argv := range [][]string{nil, {"--bogus"}, {"a", "b"}, {"--repo"}, {"--repo", "o/n"}} {
 		if rc, _, _ := realExec(t, argv...); rc != 2 {

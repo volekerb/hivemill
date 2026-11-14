@@ -336,3 +336,38 @@ func FuzzSplitLines(f *testing.F) {
 		originRe.FindStringSubmatch(s)
 	})
 }
+
+// A chain whose every hop looks inside the root lexically but whose real target is outside is refused:
+// up -> d/b/.. is lexically the root, while d/b -> .. makes it the parent of the root.
+func TestSymlinkChainEscapeRefused(t *testing.T) {
+	e := newEnv(t, nil)
+	if err := os.MkdirAll(filepath.Join(e.src, "d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("..", filepath.Join(e.src, "d", "b")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("d/b/..", filepath.Join(e.src, "up")); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, e.src, "add", "-A")
+	gitIn(t, e.src, "commit", "-q", "-m", "chain")
+	out := filepath.Join(e.root, "chain-out")
+	got := e.goRun(t, common(e, out, "--public-repo", "example-org/hivemill")...)
+	if got.rc == 0 || !strings.Contains(got.err, "symlink member refused") {
+		t.Fatalf("a 2-hop escaping chain must be refused: %+v", got)
+	}
+}
+
+func TestSymlinkChainInsideRootAccepted(t *testing.T) {
+	e := newEnv(t, nil)
+	if err := os.Symlink("link", filepath.Join(e.src, "link2")); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, e.src, "add", "-A")
+	gitIn(t, e.src, "commit", "-q", "-m", "chain")
+	out := filepath.Join(e.root, "ok-out")
+	if got := e.goRun(t, common(e, out, "--public-repo", "example-org/hivemill")...); got.rc != 0 {
+		t.Fatalf("a chain staying inside the root is accepted: %+v", got)
+	}
+}

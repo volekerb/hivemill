@@ -520,13 +520,13 @@ func PythonCounts(run RunFunc, root, sha string) ([]string, []int) {
 	var rc int
 	var out string
 	if sha != "" {
-		rc, out, _ = run([]string{"git", "-C", root, "ls-tree", "-r", "--name-only", sha}, "", nil, 0)
+		rc, out, _ = run([]string{"git", "-C", root, "-c", "core.quotepath=false", "ls-tree", "-r", "-z", "--name-only", sha}, "", nil, 0)
 	} else {
-		rc, out, _ = run([]string{"git", "-C", root, "ls-files"}, "", nil, 0)
+		rc, out, _ = run([]string{"git", "-C", root, "-c", "core.quotepath=false", "ls-files", "-z"}, "", nil, 0)
 	}
 	var files []string
 	if rc == 0 {
-		files = strings.Split(out, "\n")
+		files = strings.Split(out, "\x00")
 	} else {
 		filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 			if err == nil && d.IsDir() && d.Name() == ".git" {

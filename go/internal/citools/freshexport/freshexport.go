@@ -328,7 +328,28 @@ func extract(repo, ref, target string) error {
 	if werr := cmd.Wait(); werr != nil && xerr == nil {
 		xerr = fmt.Errorf("git archive %s failed in %s: %s. Check --repo and --ref", ref, repo, tail(strings.TrimSpace(stderr.String()), 500))
 	}
+	if xerr == nil {
+		xerr = verifyLinks(root, ref)
+	}
 	return xerr
+}
+
+// verifyLinks re-resolves every extracted symlink once the tree is complete (a link created later in the archive
+// can redirect an earlier one) and refuses any whose real target is outside root.
+func verifyLinks(root, ref string) error {
+	return filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Type()&fs.ModeSymlink == 0 {
+			return nil
+		}
+		if r := realpath(p); !within(root, r) {
+			return fmt.Errorf("archive symlink member refused by the tar safety filter (link target, path or mode not allowed): "+
+				"remove or fix that entry in %s and rerun. Find it with: git ls-tree -r %s", ref, ref)
+		}
+		return nil
+	})
 }
 
 func extractMember(tr *tar.Reader, h *tar.Header, root, ref string) error {
@@ -379,7 +400,9 @@ func extractMember(tr *tar.Reader, h *tar.Header, root, ref string) error {
 		return os.Chmod(dest, mode)
 	case tar.TypeSymlink:
 		target := h.Linkname
-		if filepath.IsAbs(target) || !within(root, filepath.Join(filepath.Dir(dest), target)) {
+		// Follow the chain for real: the target is resolved from the (already resolved) parent through every
+		// symlink extracted so far, so a hop that only looks inside the root lexically is still refused.
+		if filepath.IsAbs(target) || !within(root, realpath(filepath.Join(parent, target))) {
 			return refuse("symlink")
 		}
 		return os.Symlink(target, dest)
