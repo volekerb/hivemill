@@ -3,6 +3,7 @@ package factorytest
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -237,4 +238,121 @@ func TestCacheDirChecks(t *testing.T) {
 	if err := checkOwned(link); err == nil {
 		t.Fatal("a symlink is accepted")
 	}
+}
+
+// TestStubLogFormatEscapes: U+FFFD is written as the ASCII escape � and an invalid byte as the surrogateescape
+// \udcXX, like Python json.dumps of an argv (testdata/calls_python_fffd.jsonl is a run of tests/stubs/gh).
+func TestStubLogFormatEscapes(t *testing.T) {
+	e := New(t)
+	e.RunStub("gh", "", nil, "api", "a�b", "x\xffy")
+	want, err := os.ReadFile(filepath.Join("testdata", "calls_python_fffd.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := e.CallLines()
+	if len(got) != 1 || got[0] != strings.TrimRight(string(want), "\n") {
+		t.Fatalf("log = %q\nwant %q", got, string(want))
+	}
+	if strings.ContainsRune(got[0], '�') {
+		t.Fatalf("raw U+FFFD in the log line %q", got[0])
+	}
+}
+
+// TestUseGitHead: the bare head remote has refs/pull/1/head at HeadSHA, containing main, and the gh stub answers
+// repo view and api commits/main from it.
+func TestUseGitHead(t *testing.T) {
+	e := New(t)
+	sha := e.UseGitHead()
+	if len(sha) != 40 || sha != e.HeadSHA {
+		t.Fatalf("sha = %q, HeadSHA = %q", sha, e.HeadSHA)
+	}
+	if got := e.gitIn(e.RepoURL, "rev-parse", "refs/pull/1/head"); got != sha {
+		t.Fatalf("refs/pull/1/head = %s, want %s", got, sha)
+	}
+	mainSHA := e.gitIn(e.RepoURL, "rev-parse", "refs/heads/main")
+	if mainSHA == sha {
+		t.Fatal("head must be ahead of main")
+	}
+	e.gitIn(e.RepoURL, "merge-base", "--is-ancestor", mainSHA, sha)
+	r := e.RunStub("gh", "", nil, "repo", "view", "--json", "url")
+	if r.Exit != 0 || !strings.Contains(r.Stdout, e.RepoURL) {
+		t.Fatalf("repo view = %+v", r)
+	}
+	r = e.RunStub("gh", "", nil, "api", "repos/o/r/commits/main")
+	if r.Exit != 0 || strings.TrimSpace(r.Stdout) != mainSHA {
+		t.Fatalf("commits/main = %+v, want %s", r, mainSHA)
+	}
+}
+
+// TestAssertLocalRemote: network URLs and paths outside root are refused, a path under root is accepted.
+func TestAssertLocalRemote(t *testing.T) {
+	root := t.TempDir()
+	for _, bad := range []string{"https://github.com/o/r.git", "ssh://git@host/r.git", "git@host:r.git", "relative/r.git", "/nonexistent/zz.git", "/etc"} {
+		if err := AssertLocalRemote(bad, root); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+	for _, ok := range []string{filepath.Join(root, "r.git"), "file://" + filepath.Join(root, "x", "r.git"), root} {
+		if err := AssertLocalRemote(ok, root); err != nil {
+			t.Errorf("%q refused: %v", ok, err)
+		}
+	}
+}
+
+// TestNoPython (AC6): with no python3 on PATH the package's own tests still pass. A child go test runs with a PATH of
+// symlinks to go and git only; it must exit 0 and run its tests (no python3 in the child's PATH, so a test that
+// needs it would skip or fail).
+func TestNoPython(t *testing.T) {
+	if os.Getenv("FACTORYTEST_NOPY_CHILD") != "" {
+		t.Skip("child run")
+	}
+	goBin, err := goTool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	for _, tool := range []string{"git", "sh"} {
+		p, err := exec.LookPath(tool)
+		if err != nil {
+			t.Fatalf("%s not on PATH: %v", tool, err)
+		}
+		if err := os.Symlink(p, filepath.Join(bin, tool)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(goBin, filepath.Join(bin, "go")); err != nil {
+		t.Fatal(err)
+	}
+	mod, err := ModuleRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"PATH=" + bin, "FACTORYTEST_NOPY_CHILD=1", "HOME=" + t.TempDir(), "GOTOOLCHAIN=local", "GOFLAGS=-mod=readonly", "GOPROXY=off", "GOCACHE=" + goEnv(t, goBin, mod, "GOCACHE"), "GOMODCACHE=" + goEnv(t, goBin, mod, "GOMODCACHE")}
+	cmd := exec.Command(goBin, "test", "-count=1", "-v", "-run", "TestIdentity|TestEnvLayout|TestUseGitHead|TestStubLogFormat", "./internal/factorytest")
+	cmd.Dir = mod
+	cmd.Env = env
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go test without python3 failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "--- PASS: TestEnvLayout") || !strings.Contains(string(out), "--- PASS: TestUseGitHead") {
+		t.Fatalf("child did not run the expected tests:\n%s", out)
+	}
+	if _, err := exec.LookPath("python3"); err == nil {
+		// the parent has python3; the child must not have seen it
+		if strings.Contains(string(out), "python3 on PATH") {
+			t.Fatalf("child saw python3:\n%s", out)
+		}
+	}
+}
+
+func goEnv(t *testing.T, goBin, dir, name string) string {
+	t.Helper()
+	cmd := exec.Command(goBin, "env", name)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go env %s: %v", name, err)
+	}
+	return strings.TrimSpace(string(out))
 }

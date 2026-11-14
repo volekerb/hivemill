@@ -85,7 +85,14 @@ func pyOpt(name string) string {
 func pyStr(s string) string {
 	var b strings.Builder
 	b.WriteByte('"')
-	for _, r := range s {
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError && size == 1 { // an invalid byte: Python's argv decoding (surrogateescape) maps it to U+DCxx
+			fmt.Fprintf(&b, `\u%04x`, 0xdc00+int(s[i]))
+			i++
+			continue
+		}
+		i += size
 		switch {
 		case r == '"':
 			b.WriteString(`\"`)
@@ -108,8 +115,6 @@ func pyStr(s string) string {
 		case r > 0xffff:
 			r -= 0x10000
 			fmt.Fprintf(&b, `\u%04x\u%04x`, 0xd800+(r>>10), 0xdc00+(r&0x3ff))
-		case r == utf8.RuneError:
-			b.WriteString(`�`)
 		default:
 			fmt.Fprintf(&b, `\u%04x`, r)
 		}

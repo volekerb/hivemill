@@ -60,6 +60,8 @@ type Env struct {
 	GoBin      string // the factory-go this Env runs
 	Now        string // FACTORY_TEST_NOW
 	Agent      string // default FACTORY_AGENT of Run and OK
+	HeadSHA    string // set by UseGitHead: the PR head commit on the local bare remote
+	RepoURL    string // set by UseGitHead: the local bare remote gh repo view answers with
 }
 
 // New builds a fresh Env. It builds factory-go and the stub on first use in this test binary.
@@ -617,4 +619,83 @@ func (e *Env) orderBy(d *sql.DB, tb string) string {
 		return "rowid"
 	}
 	return strings.Join(cols, ", ")
+}
+
+// AssertLocalRemote refuses a git remote that is not a local path under root (network URLs, the real repo,
+// anything else), like tests/_gitenv.py assert_local_remote.
+func AssertLocalRemote(url, root string) error {
+	if i := strings.Index(url, "://"); i > 0 && !strings.HasPrefix(url, "file://") {
+		return fmt.Errorf("test git remote %q is a network URL; use a bare repo under %s", url, root)
+	}
+	p := strings.TrimPrefix(url, "file://")
+	rootAbs, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return fmt.Errorf("test git remote root %q: %v; pass an existing directory", root, err)
+	}
+	if !filepath.IsAbs(p) {
+		return fmt.Errorf("test git remote %q is not a path under %s; create it in the test's temp dir", url, rootAbs)
+	}
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		p = r
+	} else {
+		p = filepath.Clean(p)
+	}
+	if p != rootAbs && !strings.HasPrefix(p, rootAbs+string(filepath.Separator)) {
+		return fmt.Errorf("test git remote %q is not a path under %s; create it in the test's temp dir", url, rootAbs)
+	}
+	return nil
+}
+
+func (e *Env) gitIn(dir string, args ...string) string {
+	e.T.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(e.baseEnv(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		e.T.Fatalf("factorytest: git %v in %s: %v\n%s", args, dir, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// UseGitHead backs the default PR head with a real commit on a bare remote whose main it contains
+// (refs/pull/1/head), and makes the gh stub answer `repo view` with that remote and `api .../commits/main` with its
+// main sha: the counterpart of tests/harness.py use_git_head. It returns the head sha (also e.HeadSHA).
+func (e *Env) UseGitHead() string {
+	e.T.Helper()
+	remote, wt := filepath.Join(e.Root, "head-origin.git"), filepath.Join(e.Root, "head-wt")
+	if err := AssertLocalRemote(remote, e.Root); err != nil {
+		e.T.Fatalf("factorytest: %v", err)
+	}
+	e.gitIn(e.Root, "init", "-q", "--bare", "-b", "main", remote)
+	e.gitIn(e.Root, "clone", "-q", remote, wt)
+	e.gitIn(wt, "config", "user.email", "zz-test@example.invalid")
+	e.gitIn(wt, "config", "user.name", "zz-test")
+	for _, c := range []struct{ name, branch string }{{"base.txt", ""}, {"feature.txt", "feature"}} {
+		if c.branch != "" {
+			e.gitIn(wt, "push", "-q", "origin", "HEAD:main")
+			e.gitIn(wt, "checkout", "-q", "-b", c.branch)
+		}
+		must(e.T, os.WriteFile(filepath.Join(wt, c.name), []byte(c.name+"\n"), 0o644))
+		e.gitIn(wt, "add", c.name)
+		e.gitIn(wt, "commit", "-q", "-m", c.name)
+	}
+	e.gitIn(wt, "push", "-q", "origin", "HEAD:refs/pull/1/head")
+	e.HeadSHA = e.gitIn(wt, "rev-parse", "HEAD")
+	e.RepoURL = remote
+	mainSHA := e.gitIn(remote, "rev-parse", "refs/heads/main")
+	e.addScript("gh",
+		StubRule{Match: []string{"repo", "view"}, Out: `{"url": "` + remote + `"}` + "\n"},
+		StubRule{Match: []string{"api", "/commits/main$"}, Out: mainSHA + "\n"})
+	return e.HeadSHA
+}
+
+// addScript appends rules to tool's script, keeping the rules already set.
+func (e *Env) addScript(tool string, rules ...StubRule) {
+	e.T.Helper()
+	all := map[string][]StubRule{}
+	if b, err := os.ReadFile(e.ScriptFile); err == nil {
+		must(e.T, json.Unmarshal(b, &all))
+	}
+	e.Script(tool, append(all[tool], rules...)...)
 }
