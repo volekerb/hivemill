@@ -7,9 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
-## [Unreleased]
+## [0.5.0] - Unreleased
 
-- **Scheduled owner jobs (G-038 F-31).** Before: no `factory schedule` command. After: the owner or boss can define up to five recurring jobs (`factory schedule add/list/remove`) on dedicated Claude-org goals with a per-run token cap; see [docs/schedule.md](docs/schedule.md).
+See [What's new in v0.5.0](https://github.com/volekerb/hivemill/blob/main/docs/releases/v0.5.0-announcement.md) for a short plain-English summary of this release.
+
+Hivemill v0.5.0 is a pre-release. It starts a Go rewrite of the factory's own tooling (the worker guard hook and a large part of the `factory` CLI), adds a first herdr-core pilot, an opt-in worker sandbox, a Cursor runtime beside Claude, recurring scheduled jobs and a few merge-queue changes. Python stays the default for everything that was Python in v0.4.0. Every Go path is opt-in and falls back to Python.
+
+### Highlights
+
+- **Go rewrite, opt-in.** The worker-guard hook has a Go build (opt-in through `guard_impl`; the Python guard stays the default). In the measured table (2026-11-04, run on the hook through its real entry point) the median call takes about 8 ms in Go against about 69 ms in Python, about 8.5x to 9x for every role in the table. The `factory` CLI also has a Go binary, `factory-go`: it is opt-in through `cli_impl` (default `python`) and `cli_go_cmds`, and the commands it can take are `whoami`, `flags`, `agents`, `config`, `task`, `goal`, `inbox`, `lesson`, `msg`, `report`, `plan`, `team`, `project`, `verdict`, `scorecard`, `digest`, `alerts`, `gate` and `schedule`. `factory schedule` runs only in Go. Still Python: the default guard, the default CLI, the tick (`tick_impl` exists and defaults to `python`; the Go tick is not part of this release) and the web UI. See [docs/worker-guard-go.md](https://github.com/volekerb/hivemill/blob/main/docs/worker-guard-go.md) and [docs/cli-go.md](https://github.com/volekerb/hivemill/blob/main/docs/cli-go.md) (#576, #579, #581, #583, #603, #609, #615, #623, #628).
+- **herdr-core pilot.** One worker runs on the herdr-core `hc` backend (`factory spawn --host-backend hc`); everything else stays on herdr, and `terminal_backend` keeps its default. The terminal-backends page was rewritten for this. See [docs/terminal-backends.md](https://github.com/volekerb/hivemill/blob/main/docs/terminal-backends.md) (#642).
+- **Worker sandbox (opt-in).** A listed role's worker runs `claude` in a user and mount namespace with a worker-only login and a per-role GitHub token, so it cannot reach the owner's credentials. It is off by default (`sandbox_roles` is empty), Linux only (it needs `unshare` user and mount namespaces), not a full security boundary and has no egress filter. The 24-hour verification of the coder step is still running. See [docs/worker-sandbox.md](https://github.com/volekerb/hivemill/blob/main/docs/worker-sandbox.md) (#562, #569, #570, #598).
+- **Cursor beside Claude.** Claude stays the default runtime. Cursor can be chosen per role through `agent_runtimes`. See [docs/runtimes.md](https://github.com/volekerb/hivemill/blob/main/docs/runtimes.md).
+- **Fast PR lane.** The mechanical merger skips the main run when the local gate already covers it (#573), and a push to main that does not touch the guard corpus no longer runs the guard corpus (#634). The `refresh_lane` key (default `off`) lets only the head of the merge queue refresh; see [docs/refresh-lane.md](https://github.com/volekerb/hivemill/blob/main/docs/refresh-lane.md).
+- **Scheduled jobs.** `factory schedule add/list/remove` defines up to five recurring jobs, each on its own Claude-org goal with a per-run token cap. See [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md) (#623, #628).
+
+### New and changed
+
+- **Go CLI.** `factory-go` answers these in Go: task list, ready, show, add, note, reopen and update forms without external side effects; goal list, show, new, edit, status, audit, signoff, close and org; inbox read forms; lesson commands; `msg` and `report` (store only); `plan`; team and project commands; `verdict`; `scorecard`; `digest` (including `--send`); `alerts`; `gate show/list`; `goal tokens`. A golden parity harness compares Go with Python, and `FACTORY_IMPL=python|go|diff` runs the test harness against either (#581, #582, #583, #584, #585, #586, #588, #592, #593, #594, #599, #600, #601, #602, #603, #606, #608, #610, #615). When the Go binary cannot answer a form, the call goes back to Python (#611).
+- **Go guard.** Mirrors the `hc` and herdr-core rules and the `R2SetHit` check, the Go toolchain is read-only inside the worker sandbox with a private build cache, and guard tests run under a fake home (#609, #598, #604).
+- **Tick units.** A hidden `tick --phases` option and a tick units table, plus the `tick_impl` key (#626).
+- **Schedules.** A `schedules` table and a schema version bump (#623); `schedule` runs only in Go (#628).
+- **Merge queue.** Mechanical merge no longer waits for a main run the local gate covers (#573), P1 goals waiting on the owner or on CI are not starved (#612), the `stale_behind_ok` rule set has a fallback (#565), and `merged_go_proof` (default `1`) proves a Go-touching merge-tree with `go vet` and `go test` before a `behind_ok` merge (#616).
+- **Coder push.** The coder's push is pinned to one exact form run from the worktree (#605).
+- **Agents and clones.** A done or stopped agent row with a dead pane no longer protects a clone (#578), `factory reap-agent` reaps a dead row pinned by a reused pane (#567), owner trust is registered for a task clone on an unsandboxed spawn (#570), and `sandbox_required` forces only the task's own role (#569).
+- **Block conditions.** A parser for typed block conditions, used by the tick only when `block_conditions` (default `0`) is `1` (#577).
+- **CI.** The Go jobs have longer timeouts (#617, #625), a check forbids new Python files (#560), a freshbox check fails when test processes survive cleanup (#571), test fixtures ignore fake proc directories on the live home (#568, #574), and a golden-regeneration check runs in CI (#588). Other test-only and CI-only changes are not listed.
+- **Docs.** New [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md), [docs/cli-go.md](https://github.com/volekerb/hivemill/blob/main/docs/cli-go.md) and [docs/refresh-lane.md](https://github.com/volekerb/hivemill/blob/main/docs/refresh-lane.md), a rewritten [docs/terminal-backends.md](https://github.com/volekerb/hivemill/blob/main/docs/terminal-backends.md), sandbox status lines in [docs/worker-sandbox.md](https://github.com/volekerb/hivemill/blob/main/docs/worker-sandbox.md) and an ADR amendment for the Go port (#562, #572, #642).
+
+### Security
+
+- **Go toolchain in the sandbox.** Inside the worker sandbox the Go toolchain is read-only and the build cache is private to the worker (#598).
+- **Sandbox and trust.** `sandbox_required` forces only the task's own role, and trust is registered for a task clone on an unsandboxed spawn (#569, #570).
+- **Guard.** The Go guard mirrors the `hc` and herdr-core rules, and the coder push is pinned to one allowed form run from the worktree (#609, #605).
+- **Tests.** Fake proc directories are ignored on the live home (#568, #574).
+
+### Known limits
+
+- **Pre-release.** Interfaces and behaviour may change before 1.0.
+- **Go is opt-in.** Python stays the default guard and the default CLI. The Go CLI answers only the commands listed above; `factory schedule` is Go only, so it needs a built `factory-go`. The Go tick is not part of this release.
+- **herdr-core.** A pilot with one worker. `terminal_backend` stays at its default and `hc` remains experimental.
+- **Sandbox.** Opt-in, Linux only, not a full security boundary and no egress filter. The 24-hour verification of the coder step is still running, so the rollout is not finished.
+- **Herdr app views, coming next.** A Hivemill dashboard inside the Herdr desktop app is not in this release; coming next. The setup skill does not yet install the Herdr app views.
+- **Single box.** It is built for one Linux machine (Debian or Ubuntu), and it needs herdr and either Claude Code or Cursor.
+
+### Upgrade
+
+- **Database.** New table `schedules` and a bumped schema version (`PRAGMA user_version`). The CLI migrates the schema on first run; no table or column is removed or renamed.
+- **Config.** New keys, none renamed or removed: `cli_impl` (default `python`), `cli_go_cmds` (default empty), `tick_impl` (default `python`), `block_conditions` (default `0`) and `merged_go_proof` (default `1`). The registry is `bin/flags.json`; run `factory flags` to see all keys.
+- **Flags.** No default of an existing key changed. Everything Go stays off until you set it: `guard_impl`, `cli_impl` and `tick_impl` default to Python. Active after the upgrade: `merged_go_proof` (`1`; `factory config merged_go_proof 0` turns it off).
+- **Steps.** A live factory needs no checkout: the tick fast-forwards `~/factory` main to the tag commit within a minute (after `git -C ~/factory fetch --tags`, check that main contains the tag: `git -C ~/factory merge-base --is-ancestor v0.5.0 main && echo ok` prints ok); `git checkout v0.5.0` is only for a fresh, non-live install. Then run any `factory` command once so the migration runs, and run `factory flags` to review the keys. `factory schedule` needs the built `factory-go` binary (see [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md)). See [docs/SETUP.md](https://github.com/volekerb/hivemill/blob/main/docs/SETUP.md).
 
 ## [0.4.0] - 2026-11-11
 
