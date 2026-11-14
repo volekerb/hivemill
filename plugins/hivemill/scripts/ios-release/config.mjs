@@ -146,7 +146,11 @@ export function validate(cfg, { home = process.env.HOME } = {}) {
   if (cfg.worktreeBase !== undefined) out.worktreeBase = expandTilde(str(cfg, "worktreeBase"), home, "worktreeBase");
   if (cfg.forbiddenWorktrees !== undefined) {
     if (!Array.isArray(cfg.forbiddenWorktrees) || !cfg.forbiddenWorktrees.every(isStr)) throw bad("forbiddenWorktrees", "must be an array of directory paths");
-    out.forbiddenWorktrees = cfg.forbiddenWorktrees.map((p) => expandTilde(p, home, "forbiddenWorktrees"));
+    out.forbiddenWorktrees = cfg.forbiddenWorktrees.map((p) => {
+      const e = expandTilde(p, home, "forbiddenWorktrees");
+      if (!path.isAbsolute(e)) throw bad("forbiddenWorktrees", "entries must be absolute paths or start with ~/");
+      return e;
+    });
   }
   if (cfg.defaultBranch !== undefined) {
     out.defaultBranch = str(cfg, "defaultBranch");

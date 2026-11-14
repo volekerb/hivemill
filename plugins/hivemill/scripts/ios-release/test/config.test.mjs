@@ -66,6 +66,9 @@ describe("config.mjs validation (every rejection is exit 3 and names the field)"
     ["testerGroup empty array", { testerGroup: [] }, "testerGroup"],
     ["testerGroup with duplicates", { testerGroup: ["A", "A"] }, "testerGroup"],
     ["testerGroup with a non-string", { testerGroup: ["A", 3] }, "testerGroup"],
+    ["forbiddenWorktrees with a relative entry", { forbiddenWorktrees: ["../x"] }, "forbiddenWorktrees"],
+    ["bundleId that is not reverse-DNS", { bundleId: "nodots" }, "bundleId"],
+    ["workspace without the .xcworkspace suffix", { project: undefined, workspace: "a.xcodeproj" }, "workspace"],
     ["buildReadyCheck as a string", { buildReadyCheck: "./check.sh" }, "buildReadyCheck"],
     ["ascProfile with a slash", { ascProfile: "a/b" }, "ascProfile"],
     ["defaultBranch starting with a dash", { defaultBranch: "--upload-pack=x" }, "defaultBranch"],
@@ -148,11 +151,13 @@ describe("config.mjs CLI", () => {
     const root = fs.realpathSync(tmp());
     fs.mkdirSync(path.join(root, "a", "b"), { recursive: true });
     fs.mkdirSync(path.join(root, "other"));
+    fs.mkdirSync(path.join(root, "a2"));
     const f = writeCfg({ ...base(), forbiddenWorktrees: [path.join(root, "a")] });
     const chk = (d) => cli(["check-forbidden", "--config", f, "--build-dir", d]).status;
     assert.equal(chk(path.join(root, "a")), 5);
     assert.equal(chk(path.join(root, "a", "b")), 5);
     assert.equal(chk(path.join(root, "other")), 0);
+    assert.equal(chk(path.join(root, "a2")), 0, "a sibling sharing a name prefix is not inside");
   });
 
   it("--help documents the helper commands", () => {
