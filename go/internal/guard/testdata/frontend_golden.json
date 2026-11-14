@@ -7,6 +7,234 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "hc server stop",
+"mask_quotes_pre": "hc server stop",
+"mask_quotes_raw": "hc server stop",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "hc server stop"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "hc server stop"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"hc",
+"server",
+"stop"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"hc",
+"server",
+"stop"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "hc send other-agent hi",
+"mask_quotes_pre": "hc send other-agent hi",
+"mask_quotes_raw": "hc send other-agent hi",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "hc send other-agent hi"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "hc send other-agent hi"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"hc",
+"send",
+"other-agent",
+"hi"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"hc",
+"send",
+"other-agent",
+"hi"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "herdr-core run --bg --name x claude",
+"mask_quotes_pre": "herdr-core run --bg --name x claude",
+"mask_quotes_raw": "herdr-core run --bg --name x claude",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "herdr-core run --bg --name x claude"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "herdr-core run --bg --name x claude"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"herdr-core",
+"run",
+"--bg",
+"--name",
+"x",
+"claude"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"herdr-core",
+"run",
+"--bg",
+"--name",
+"x",
+"claude"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "export HC_SOCKET=/tmp/x",
+"mask_quotes_pre": "export HC_SOCKET=/tmp/x",
+"mask_quotes_raw": "export HC_SOCKET=/tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "export HC_SOCKET=/tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "export HC_SOCKET=/tmp/x"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"export",
+"HC_SOCKET=/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"export",
+"HC_SOCKET=/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "sudo hc server stop",
+"mask_quotes_pre": "sudo hc server stop",
+"mask_quotes_raw": "sudo hc server stop",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "sudo hc server stop"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "sudo hc server stop"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"sudo",
+"hc",
+"server",
+"stop"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"sudo",
+"hc",
+"server",
+"stop"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "uvx --from x pytest",
 "mask_quotes_pre": "uvx --from x pytest",
 "mask_quotes_raw": "uvx --from x pytest",
@@ -137689,6 +137917,92 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "echo hc",
+"mask_quotes_pre": "echo hc",
+"mask_quotes_raw": "echo hc",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo hc"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo hc"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"hc"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"hc"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "grep hc README.md",
+"mask_quotes_pre": "grep hc README.md",
+"mask_quotes_raw": "grep hc README.md",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "grep hc README.md"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "grep hc README.md"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"grep",
+"hc",
+"README.md"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"grep",
+"hc",
+"README.md"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -179226,7 +179540,7 @@
 ]
 }
 },
-"corpus_commands": 3311,
+"corpus_commands": 3318,
 "edge_inputs": 97,
 "python": "3.13"
 }
