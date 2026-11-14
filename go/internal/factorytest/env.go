@@ -231,6 +231,7 @@ func (e *Env) RunWith(o Opts, args ...string) Result {
 	cmd.Stdin = strings.NewReader(o.Stdin)
 	var so, se bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &so, &se
+	cmd.WaitDelay = 5 * time.Second // a grandchild that keeps the pipes open must not block Wait after the kill
 	if err := cmd.Start(); err != nil {
 		e.T.Fatalf("factorytest: start %s: %v", e.GoBin, err)
 	}

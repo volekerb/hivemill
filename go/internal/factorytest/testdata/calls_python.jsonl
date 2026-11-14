@@ -4,3 +4,4 @@
 {"tool": "herdr", "argv": ["tab", "create"], "sock": null}
 {"tool": "hc", "argv": ["pane", "list", "--json", "caf \u00e9 \u2713 \ud83d\ude00"], "sock": "/tmp/s.sock"}
 {"tool": "hc", "argv": ["tab", "create"], "sock": null}
+{"tool": "gh", "argv": ["api", "a\u007fb"], "env": {"GH_REPO": null, "GH_HOST": null}, "stdin": null}

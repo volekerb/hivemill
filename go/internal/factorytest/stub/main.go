@@ -103,7 +103,7 @@ func pyStr(s string) string {
 			b.WriteString(`\f`)
 		case r < 0x20:
 			fmt.Fprintf(&b, `\u%04x`, r)
-		case r < 0x7f || r == 0x7f:
+		case r < 0x7f:
 			b.WriteRune(r)
 		case r > 0xffff:
 			r -= 0x10000

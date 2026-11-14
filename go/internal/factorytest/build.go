@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 // Binaries are built once per test binary (sync.Once) and cached across test binaries by a hash of the Go sources,
@@ -120,14 +121,17 @@ func doBuild() (builtTools, error) {
 	}
 	dir := filepath.Join(os.TempDir(), fmt.Sprintf("factorytest-cache-%d", os.Getuid()), hash)
 	t := builtTools{Dir: dir, Factory: filepath.Join(dir, "factory-go"), Stub: filepath.Join(dir, "stub")}
-	if exists(t.Factory) && exists(t.Stub) {
+	if err := checkOwned(filepath.Dir(dir)); err == nil && checkOwned(dir) == nil && exists(t.Factory) && exists(t.Stub) {
 		return t, nil
 	}
 	goBin, err := goTool()
 	if err != nil {
 		return builtTools{}, err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := secureDir(filepath.Dir(dir)); err != nil {
+		return builtTools{}, err
+	}
+	if err := secureDir(dir); err != nil {
 		return builtTools{}, err
 	}
 	for _, b := range []struct{ out, pkg string }{{t.Factory, "./cmd/factory"}, {t.Stub, "./internal/factorytest/stub"}} {
@@ -146,6 +150,28 @@ func doBuild() (builtTools, error) {
 		logBuild(dir, b.pkg)
 	}
 	return t, nil
+}
+
+// secureDir creates dir (0700) when missing and refuses one that is not a real directory owned by this user:
+// the cache lives under the shared, sticky /tmp and its binaries are executed, so a directory planted by another
+// user must never be used.
+func secureDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	return checkOwned(dir)
+}
+
+func checkOwned(dir string) error {
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !fi.IsDir() || !ok || int(st.Uid) != os.Getuid() || fi.Mode().Perm()&0o022 != 0 {
+		return fmt.Errorf("%s is not a private directory owned by uid %d; remove it and rerun", dir, os.Getuid())
+	}
+	return nil
 }
 
 // logBuild appends one line per build to <cache dir>/build.log so a test can prove the binary is built once.

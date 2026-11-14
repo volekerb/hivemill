@@ -21,7 +21,7 @@ import (
 // (`go test -list`) and fails when that number is below the Python count or below the Go count the line claims.
 // Blank lines and lines starting with # are ignored. Parallel port tasks each own one ported_<area>.txt.
 
-var portedLine = regexp.MustCompile(`^(\S+)\s+(\d+)\s+->\s+(\S+):(Test\w*)\s+(\d+)$`)
+var portedLine = regexp.MustCompile(`^(\S+)\s+(\d+)\s+->\s+(\S+):(Test\w+)\s+(\d+)$`)
 
 // PortedEntry is one parsed line.
 type PortedEntry struct {

@@ -21,6 +21,7 @@ func TestStubLogFormat(t *testing.T) {
 		e.RunStub(tool, "", map[string]string{"HERDR_SOCKET_PATH": "/tmp/s.sock"}, "pane", "list", "--json", title)
 		e.RunStub(tool, "", nil, "tab", "create")
 	}
+	e.RunStub("gh", "", nil, "api", "a\x7fb") // DEL is escaped by ensure_ascii
 	want, err := os.ReadFile(filepath.Join("testdata", "calls_python.jsonl"))
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +38,7 @@ func TestStubLogFormat(t *testing.T) {
 		}
 	}
 	calls := e.Calls("gh")
-	if len(calls) != 2 || calls[0].Stdin == nil || *calls[0].Stdin != "body \"q\" \\ é\n" || calls[1].Stdin != nil {
+	if len(calls) != 3 || calls[0].Stdin == nil || *calls[0].Stdin != "body \"q\" \\ é\n" || calls[1].Stdin != nil {
 		t.Fatalf("parsed gh calls = %+v", calls)
 	}
 	if h := e.Calls("herdr"); len(h) != 2 || h[0].Sock == nil || *h[0].Sock != "/tmp/s.sock" || h[1].Sock != nil {
@@ -135,8 +136,20 @@ func TestDumpDB(t *testing.T) {
 // this source hash has one line per binary built, never one per Env.
 func TestBuildOnce(t *testing.T) {
 	before := buildCount
+	tools, err := buildTools()
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.Stat(tools.Factory)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < 3; i++ {
-		New(t)
+		e := New(t)
+		got, err := os.Stat(e.GoBin) // every Env runs the one cached binary (hard link), not a rebuild
+		if err != nil || !os.SameFile(src, got) {
+			t.Fatalf("Env %d runs a different factory-go than the cached build (%v)", i, err)
+		}
 	}
 	if buildCount != before {
 		t.Fatalf("Env construction built binaries again (%d -> %d)", before, buildCount)
@@ -199,5 +212,29 @@ func TestPortedCountsBites(t *testing.T) {
 	entries, _ = ParsePorted("scratch.txt", "tests/test_identity.py 22 -> internal/factorytest:TestIdentity 22\n")
 	if got := CheckPorted(entries, GoTestList); len(got) != 0 {
 		t.Fatalf("the real line is refused: %v", got)
+	}
+}
+
+// TestCacheDirChecks: a cache directory that is not a private directory of this user is refused.
+func TestCacheDirChecks(t *testing.T) {
+	d := t.TempDir()
+	if err := os.Chmod(d, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkOwned(d); err != nil {
+		t.Fatalf("a private temp dir is refused: %v", err)
+	}
+	if err := os.Chmod(d, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkOwned(d); err == nil {
+		t.Fatal("a world-writable dir is accepted")
+	}
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(d, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkOwned(link); err == nil {
+		t.Fatal("a symlink is accepted")
 	}
 }
