@@ -15,7 +15,8 @@
   #p-resources { width: 617px; height: 489px; }
   #p-budget { width: 616px; height: 528px; }
   #p-factory { width: 617px; height: 194px; }
-  #p-goals { width: 617px; height: 409px; }
+  /* Clip to the first eight goal rows (crop y < 298): a later row's title contains a word the scene must not show. */
+  #p-goals { width: 617px; height: 409px; clip-path: inset(0 0 111px 0); }
   #p-status { width: 1920px; height: 28px; }
   .ring { border-radius: 8px; }
   #ring-status { border-radius: 4px; }
