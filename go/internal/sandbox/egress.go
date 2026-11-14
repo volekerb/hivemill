@@ -1,7 +1,6 @@
 package sandbox
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -121,11 +120,10 @@ func relay(a, b net.Conn) {
 func readHead(c net.Conn) (head string, rest []byte, err error) {
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
 	defer c.SetReadDeadline(time.Time{})
-	br := bufio.NewReaderSize(c, 8192)
 	var buf []byte
 	for !bytes.Contains(buf, []byte("\r\n\r\n")) && len(buf) < 8192 {
 		chunk := make([]byte, 4096)
-		n, rerr := br.Read(chunk)
+		n, rerr := c.Read(chunk)
 		buf = append(buf, chunk[:n]...)
 		if rerr != nil {
 			break

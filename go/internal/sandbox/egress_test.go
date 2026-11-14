@@ -208,6 +208,22 @@ func TestEgressProxy(t *testing.T) {
 			t.Errorf("echo = %q, %v", buf, err)
 		}
 	})
+	t.Run("a large payload pipelined right after the CONNECT head arrives intact", func(t *testing.T) {
+		c, err := net.Dial("unix", sock)
+		must(t, err)
+		defer c.Close()
+		payload := strings.Repeat("0123456789abcdef", 300) // 4800 bytes, more than one 4096 read chunk
+		_, err = io.WriteString(c, "CONNECT github.com:443 HTTP/1.1\r\n\r\n"+payload)
+		must(t, err)
+		br := bufio.NewReader(c)
+		_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
+		_, _ = br.ReadString('\n')
+		_, _ = br.ReadString('\n')
+		buf := make([]byte, len(payload))
+		if _, err := io.ReadFull(br, buf); err != nil || string(buf) != payload {
+			t.Errorf("echoed %d bytes intact=%v, err %v", len(buf), string(buf) == payload, err)
+		}
+	})
 }
 
 func TestServeLifecycle(t *testing.T) {
