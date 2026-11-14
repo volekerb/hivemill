@@ -1,0 +1,3 @@
+# written by `herdr-app check`; the installer copies only main.js, data.js and mod.json
+gpui-kit.d.ts
+jsconfig.json
