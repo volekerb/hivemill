@@ -1,0 +1,124 @@
+{
+ "send": {
+  "again": [],
+  "events": [
+   [
+    "scout",
+    "2026-11-10T09",
+    "scout-report",
+    "M101"
+   ],
+   [
+    "scout",
+    "2026-11-11T18",
+    "scout-report",
+    "M102"
+   ],
+   [
+    "scout",
+    "2026-11-12T09",
+    "scout-report",
+    "M103"
+   ],
+   [
+    "scout",
+    "2026-11-13T09",
+    "scout-report",
+    "M104"
+   ]
+  ],
+  "ids": [
+   101,
+   102,
+   103,
+   104
+  ],
+  "runs": [
+   {
+    "reported_msg": 101,
+    "slot": "2026-11-10T09"
+   },
+   {
+    "reported_msg": 1,
+    "slot": "2026-11-10T18"
+   },
+   {
+    "reported_msg": null,
+    "slot": "2026-11-11T09"
+   },
+   {
+    "reported_msg": 102,
+    "slot": "2026-11-11T18"
+   },
+   {
+    "reported_msg": 103,
+    "slot": "2026-11-12T09"
+   },
+   {
+    "reported_msg": null,
+    "slot": "2026-11-12T18"
+   },
+   {
+    "reported_msg": 104,
+    "slot": "2026-11-13T09"
+   }
+  ],
+  "sent": [
+   {
+    "body": "## Skill scout\n\n### Finds (5 of 10 triaged)\n\n- **C-0008** https://github.com/h/eight \u2014 REC **adopt**: shell\n  - \u2605 9 (+3.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-05\n  - purpose: eight\n  - target roles: none \u00b7 overlap: z\n  - install risk: shell-in-markdown\n- **C-0006** https://example.org/six \u2014 REC **adopt**: net\n  - \u2605 7 (+1.2/day) \u00b7 licence GPL \u00b7 last commit 2026-11-07\n  - purpose: six\n  - target roles: none \u00b7 overlap: z\n  - install risk: network\n- **C-0002** https://github.com/b/two \u2014 REC **adopt**: needs hooks\n  - \u2605 40 (-0.0/day) \u00b7 licence Apache-2.0 \u00b7 last commit 2026-11-08\n  - purpose: plugin\n  - target roles: none \u00b7 overlap: overlaps\n  - install risk: scripts,hooks\n- **C-0001** https://github.com/a/one \u2014 REC **watch**: second look\n  - \u2605 120 (+12.3/day) \u00b7 licence MIT \u00b7 last commit 2026-11-09\n  - purpose: newer triage wins\n  - target roles: coder \u00b7 overlap: low\n  - install risk: prompt-only\n- **C-0007** https://github.com/g/seven \u2014 REC **watch**: mcp\n  - \u2605 8 (+2.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-06\n  - purpose: seven\n  - target roles: none \u00b7 overlap: z\n  - install risk: mcp\n\n### Eval results (indicative, n=1 per cell)\n\n**C-0001** gh:a/one\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| fix bug | P/F/P | F | 36.5 / 18 | 120 / 90 | yes |\n| write docs | timeout | over-budget | - / 1 | - / 33 | no |\n\n**C-0002** gh:b/two\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| task with nl | error/P | - | 9.5 / - | 7.5 / - | yes |\n\n**C-0099** -\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| orphan | P | - | 15 / - | 5 / - | yes |\n\n### Needs owner decision: executable parts\n\n- C-0008 https://github.com/h/eight \u2014 adopt, risk flags: shell-in-markdown (a b)\n- C-0006 https://example.org/six \u2014 adopt, risk flags: network\n- C-0002 https://github.com/b/two \u2014 adopt, risk flags: scripts,hooks (scripts: run.sh, hooks: hooks/a, mcp: x)\n- C-0007 https://github.com/g/seven \u2014 watch, risk flags: mcp (a, b, c)\n- C-0004 mkt:official/four \u2014 watch, risk flags: unknown\n\nAdoption of any third-party skill needs owner approval through the boss.\n\nThis run: 3 new candidates, 2 triaged.\n",
+    "kind": "report",
+    "sender": "tick",
+    "subject": "skill scout 2026-11-10 09",
+    "to": "director"
+   },
+   {
+    "body": "## Skill scout\nNo new finds.\n\nThis run: 0 new candidates, 0 triaged.\n",
+    "kind": "report",
+    "sender": "tick",
+    "subject": "skill scout 2026-11-11 18",
+    "to": "director"
+   },
+   {
+    "body": "## Skill scout\nNo new finds.\n\nThis run: 1 new candidates, 0 triaged.\n",
+    "kind": "report",
+    "sender": "tick",
+    "subject": "skill scout 2026-11-12 09",
+    "to": "director"
+   },
+   {
+    "body": "## Skill scout\nNo new finds.\n\nThis run: 2 new candidates, 1 triaged.\n",
+    "kind": "report",
+    "sender": "tick",
+    "subject": "skill scout 2026-11-13 09",
+    "to": "director"
+   }
+  ]
+ },
+ "windows": [
+  {
+   "since": "2026-11-10T00:00:00+00:00",
+   "until": "2026-11-11T00:00:00+00:00",
+   "want": "## Skill scout\n\n### Finds (5 of 10 triaged)\n\n- **C-0008** https://github.com/h/eight \u2014 REC **adopt**: shell\n  - \u2605 9 (+3.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-05\n  - purpose: eight\n  - target roles: none \u00b7 overlap: z\n  - install risk: shell-in-markdown\n- **C-0006** https://example.org/six \u2014 REC **adopt**: net\n  - \u2605 7 (+1.2/day) \u00b7 licence GPL \u00b7 last commit 2026-11-07\n  - purpose: six\n  - target roles: none \u00b7 overlap: z\n  - install risk: network\n- **C-0002** https://github.com/b/two \u2014 REC **adopt**: needs hooks\n  - \u2605 40 (-0.0/day) \u00b7 licence Apache-2.0 \u00b7 last commit 2026-11-08\n  - purpose: plugin\n  - target roles: none \u00b7 overlap: overlaps\n  - install risk: scripts,hooks\n- **C-0001** https://github.com/a/one \u2014 REC **watch**: second look\n  - \u2605 120 (+12.3/day) \u00b7 licence MIT \u00b7 last commit 2026-11-09\n  - purpose: newer triage wins\n  - target roles: coder \u00b7 overlap: low\n  - install risk: prompt-only\n- **C-0007** https://github.com/g/seven \u2014 REC **watch**: mcp\n  - \u2605 8 (+2.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-06\n  - purpose: seven\n  - target roles: none \u00b7 overlap: z\n  - install risk: mcp\n\n### Eval results (indicative, n=1 per cell)\n\n**C-0001** gh:a/one\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| fix bug | P/F/P | F | 36.5 / 18 | 120 / 90 | yes |\n| write docs | timeout | over-budget | - / 1 | - / 33 | no |\n\n**C-0002** gh:b/two\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| task with nl | error/P | - | 9.5 / - | 7.5 / - | yes |\n\n**C-0099** -\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| orphan | P | - | 15 / - | 5 / - | yes |\n\n### Needs owner decision: executable parts\n\n- C-0008 https://github.com/h/eight \u2014 adopt, risk flags: shell-in-markdown (a b)\n- C-0006 https://example.org/six \u2014 adopt, risk flags: network\n- C-0002 https://github.com/b/two \u2014 adopt, risk flags: scripts,hooks (scripts: run.sh, hooks: hooks/a, mcp: x)\n- C-0007 https://github.com/g/seven \u2014 watch, risk flags: mcp (a, b, c)\n- C-0004 mkt:official/four \u2014 watch, risk flags: unknown\n\nAdoption of any third-party skill needs owner approval through the boss.\n"
+  },
+  {
+   "since": "2026-11-10T10:30:00+00:00",
+   "until": "2026-11-10T11:35:00+00:00",
+   "want": "## Skill scout\n\n### Finds (5 of 5 triaged)\n\n- **C-0006** https://example.org/six \u2014 REC **adopt**: net\n  - \u2605 7 (+1.2/day) \u00b7 licence GPL \u00b7 last commit 2026-11-07\n  - purpose: six\n  - target roles: none \u00b7 overlap: z\n  - install risk: network\n- **C-0007** https://github.com/g/seven \u2014 REC **watch**: mcp\n  - \u2605 8 (+2.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-06\n  - purpose: seven\n  - target roles: none \u00b7 overlap: z\n  - install risk: mcp\n- **C-0004** mkt:official/four \u2014 REC **watch**: maybe\n  - \u2605 5 (+0.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-01\n  - purpose: mkt\n  - target roles: lead \u00b7 overlap: y\n  - install risk: unknown\n- **C-0009** https://github.com/i/nine \u2014 REC **skip**: nine\n  - \u2605 10 (+4.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-05\n  - purpose: nine\n  - target roles: none \u00b7 overlap: z\n  - install risk: prompt-only\n- **C-0003** https://github.com/c/three \u2014 REC **skip**: meh\n  - \u2605 - (-) \u00b7 licence - \u00b7 last commit -\n  - purpose: coll\n  - target roles: pm \u00b7 overlap: x\n  - install risk: unknown\n\n### Eval results (indicative, n=1 per cell)\n\n**C-0002** gh:b/two\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| task with nl | error/P | - | 9.5 / - | 7.5 / - | yes |\n\n**C-0099** -\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| orphan | P | - | 15 / - | 5 / - | yes |\n\n### Needs owner decision: executable parts\n\n- C-0006 https://example.org/six \u2014 adopt, risk flags: network\n- C-0007 https://github.com/g/seven \u2014 watch, risk flags: mcp (a, b, c)\n- C-0004 mkt:official/four \u2014 watch, risk flags: unknown\n\nAdoption of any third-party skill needs owner approval through the boss.\n"
+  },
+  {
+   "since": "2026-11-12T00:00:00+00:00",
+   "until": "2026-11-13T00:00:00+00:00",
+   "want": "## Skill scout\nNo new finds.\n"
+  },
+  {
+   "since": "2026-10-01T00:00:00+00:00",
+   "until": "2026-11-30T00:00:00+00:00",
+   "want": "## Skill scout\n\n### Finds (5 of 10 triaged)\n\n- **C-0008** https://github.com/h/eight \u2014 REC **adopt**: shell\n  - \u2605 9 (+3.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-05\n  - purpose: eight\n  - target roles: none \u00b7 overlap: z\n  - install risk: shell-in-markdown\n- **C-0006** https://example.org/six \u2014 REC **adopt**: net\n  - \u2605 7 (+1.2/day) \u00b7 licence GPL \u00b7 last commit 2026-11-07\n  - purpose: six\n  - target roles: none \u00b7 overlap: z\n  - install risk: network\n- **C-0002** https://github.com/b/two \u2014 REC **adopt**: needs hooks\n  - \u2605 40 (-0.0/day) \u00b7 licence Apache-2.0 \u00b7 last commit 2026-11-08\n  - purpose: plugin\n  - target roles: none \u00b7 overlap: overlaps\n  - install risk: scripts,hooks\n- **C-0001** https://github.com/a/one \u2014 REC **watch**: second look\n  - \u2605 120 (+12.3/day) \u00b7 licence MIT \u00b7 last commit 2026-11-09\n  - purpose: newer triage wins\n  - target roles: coder \u00b7 overlap: low\n  - install risk: prompt-only\n- **C-0007** https://github.com/g/seven \u2014 REC **watch**: mcp\n  - \u2605 8 (+2.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-06\n  - purpose: seven\n  - target roles: none \u00b7 overlap: z\n  - install risk: mcp\n\n### Eval results (indicative, n=1 per cell)\n\n**C-0001** gh:a/one\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| fix bug | P/F/P | F | 36.5 / 18 | 120 / 90 | yes |\n| write docs | timeout | over-budget | - / 1 | - / 33 | no |\n\n**C-0002** gh:b/two\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| task with nl | error/P | - | 9.5 / - | 7.5 / - | yes |\n\n**C-0099** -\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| orphan | P | - | 15 / - | 5 / - | yes |\n\n### Needs owner decision: executable parts\n\n- C-0008 https://github.com/h/eight \u2014 adopt, risk flags: shell-in-markdown (a b)\n- C-0006 https://example.org/six \u2014 adopt, risk flags: network\n- C-0002 https://github.com/b/two \u2014 adopt, risk flags: scripts,hooks (scripts: run.sh, hooks: hooks/a, mcp: x)\n- C-0007 https://github.com/g/seven \u2014 watch, risk flags: mcp (a, b, c)\n- C-0004 mkt:official/four \u2014 watch, risk flags: unknown\n\nAdoption of any third-party skill needs owner approval through the boss.\n"
+  },
+  {
+   "since": "2026-11-10T11:00:00",
+   "until": "2026-11-10T11:40:00Z",
+   "want": "## Skill scout\n\n### Finds (5 of 6 triaged)\n\n- **C-0006** https://example.org/six \u2014 REC **adopt**: net\n  - \u2605 7 (+1.2/day) \u00b7 licence GPL \u00b7 last commit 2026-11-07\n  - purpose: six\n  - target roles: none \u00b7 overlap: z\n  - install risk: network\n- **C-0007** https://github.com/g/seven \u2014 REC **watch**: mcp\n  - \u2605 8 (+2.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-06\n  - purpose: seven\n  - target roles: none \u00b7 overlap: z\n  - install risk: mcp\n- **C-0004** mkt:official/four \u2014 REC **watch**: maybe\n  - \u2605 5 (+0.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-01\n  - purpose: mkt\n  - target roles: lead \u00b7 overlap: y\n  - install risk: unknown\n- **C-0010** https://github.com/j/ten \u2014 REC **skip**: ten\n  - \u2605 11 (+5.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-05\n  - purpose: ten\n  - target roles: none \u00b7 overlap: z\n  - install risk: prompt-only\n- **C-0011** https://github.com/k/eleven \u2014 REC **skip**: eleven\n  - \u2605 11 (+5.0/day) \u00b7 licence MIT \u00b7 last commit 2026-11-05\n  - purpose: eleven\n  - target roles: none \u00b7 overlap: z\n  - install risk: prompt-only\n\n### Eval results (indicative, n=1 per cell)\n\n**C-0002** gh:b/two\n\n| task | with | without | tokens with / without | wall s with / without | skill invoked |\n|---|---|---|---|---|---|\n| task with nl | P | - | 10 / - | 8 / - | yes |\n\n### Needs owner decision: executable parts\n\n- C-0006 https://example.org/six \u2014 adopt, risk flags: network\n- C-0007 https://github.com/g/seven \u2014 watch, risk flags: mcp (a, b, c)\n- C-0004 mkt:official/four \u2014 watch, risk flags: unknown\n\nAdoption of any third-party skill needs owner approval through the boss.\n"
+  }
+ ]
+}
