@@ -16,6 +16,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [images/README.md](images/README.md): light and dark screenshots of the dashboard, built from fictional data.
 - [demo-data.md](demo-data.md): how the fictional demo home used for screenshots and examples is generated.
 - [film/README.md](film/README.md): storyboard for the customer film, with each claim, its source line and a re-check command.
+- [film/herdr/CAPTURE.md](film/herdr/CAPTURE.md): provenance of the Herdr app panel stills used in film scene 7.
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
