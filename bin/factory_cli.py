@@ -387,10 +387,26 @@ CREATE TABLE IF NOT EXISTS gate_runs (
 CREATE INDEX IF NOT EXISTS idx_gate_runs_head ON gate_runs(project_id, head_sha);
 """
 
+SCHEDULES_DDL = """
+CREATE TABLE IF NOT EXISTS schedules (
+  id TEXT PRIMARY KEY,
+  hour INTEGER NOT NULL CHECK(hour BETWEEN 0 AND 23),
+  days TEXT NOT NULL DEFAULT 'mon,tue,wed,thu,fri,sat,sun',
+  job TEXT NOT NULL,
+  goal_id TEXT NOT NULL REFERENCES goals(id),
+  token_cap INTEGER NOT NULL CHECK(token_cap > 0),
+  created_by TEXT NOT NULL,
+  created TEXT NOT NULL,
+  removed_at TEXT,
+  last_fired_date TEXT,
+  last_outcome TEXT,
+  last_outcome_at TEXT);
+"""
+
 # T-1336 (G-041 S1-c): PRAGMA user_version of every DB this code has migrated. The Go CLI (go/internal/factorydb
 # SchemaVersion) answers only when it reads the same number; bump it, and the Go constant, with any SCHEMA or migrate()
 # change (tests/test_db_layout.py hashes both and fails until the pinned hash is renewed together with this number).
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -449,7 +465,7 @@ CREATE TABLE IF NOT EXISTS events (
   entity_id TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS idx_msg_rcpt ON messages(recipient, read_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
-""" + GATE_RUNS_DDL + LESSONS_DDL + REJECTION_INCIDENTS_DDL + RETRO_DDL
+""" + GATE_RUNS_DDL + SCHEDULES_DDL + LESSONS_DDL + REJECTION_INCIDENTS_DDL + RETRO_DDL
 
 
 # ───────────────────────────── basics ─────────────────────────────
@@ -583,6 +599,7 @@ def migrate(con):
                     raise
     con.execute("CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, ts TEXT NOT NULL)")
     con.executescript(GATE_RUNS_DDL)
+    con.executescript(SCHEDULES_DDL)
     for col in ("task_ids", "tip_sha", "tree"):  # train runs (T-0522) on a DB created before the columns existed
         if col not in {r["name"] for r in con.execute("PRAGMA table_info(gate_runs)")}:
             try:
