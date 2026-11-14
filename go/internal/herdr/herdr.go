@@ -126,10 +126,19 @@ func resolve(p string) string {
 	if err != nil {
 		return p
 	}
-	if r, err := filepath.EvalSymlinks(abs); err == nil {
-		return r
+	// Non-strict like Python Path.resolve(): resolve the longest existing prefix, keep the rest.
+	rest := ""
+	for cur := abs; ; {
+		if r, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(r, rest)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
 	}
-	return abs
 }
 
 // isLiveSocket: val names the live default by any spelling Socket would hand over.
@@ -645,8 +654,8 @@ func normalizeAgentRow(a any) Agent {
 	if !ok {
 		return nil
 	}
-	st, _ := m["agent_status"].(string)
-	if m["agent_status"] == nil || st == "" {
+	// Python replaces only None and "" (any other value is kept as is).
+	if st, isStr := m["agent_status"].(string); m["agent_status"] == nil || (isStr && st == "") {
 		cp := make(Agent, len(m)+1)
 		for k, v := range m {
 			cp[k] = v
@@ -919,8 +928,8 @@ func IsTestStub() bool {
 			if rfi, err := os.Stat(real); err == nil && os.SameFile(fi, rfi) {
 				return false
 			}
+			break // the first real herdr on PATH is a different file
 		}
-		break // the first real herdr on PATH is a different file
 	}
 	return true
 }

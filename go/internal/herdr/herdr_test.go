@@ -514,3 +514,43 @@ func TestGateRefuses(t *testing.T) {
 		t.Fatalf("gated call reached the stub: %v", s.calls())
 	}
 }
+
+// TestSelfReviewFixes covers: Path.resolve()-style non-strict resolution (a symlinked parent with a
+// missing leaf), IsTestStub on a plain tests/stubs file, and agent_status values Python keeps.
+func TestSelfReviewFixes(t *testing.T) {
+	d := t.TempDir()
+	real := filepath.Join(d, "real")
+	if err := os.Mkdir(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(d, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	want, _ := filepath.EvalSymlinks(real)
+	if got := resolve(filepath.Join(link, "missing", "x.sock")); got != filepath.Join(want, "missing", "x.sock") {
+		t.Fatalf("resolve: %s", got)
+	}
+	// IsTestStub: a herdr under tests/stubs with no real herdr behind it is a stub; elsewhere it is not.
+	stubDir := filepath.Join(d, "tests", "stubs")
+	if err := os.MkdirAll(stubDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stubDir, "herdr"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", stubDir)
+	if !IsTestStub() {
+		t.Fatal("tests/stubs herdr must count as a stub")
+	}
+	t.Setenv("PATH", real)
+	if err := os.WriteFile(filepath.Join(real, "herdr"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if IsTestStub() {
+		t.Fatal("a herdr outside tests/stubs is not a stub")
+	}
+	if a := normalizeAgentRow(map[string]any{"agent_status": float64(3)}); a["agent_status"] != float64(3) {
+		t.Fatalf("non-string status must be kept: %v", a)
+	}
+}
