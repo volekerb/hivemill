@@ -69,6 +69,16 @@ def hc_print(obj):
     print(json.dumps(obj))
 
 
+# FAKE_HC_NEEDS_TARGET=1 (or state needs_target): a target-taking verb with no target, or a name that is not a
+# listed terminal, answers hc's needs_target JSON on stdout and exits nonzero (placeholder machine names only).
+if (os.environ.get("FAKE_HC_NEEDS_TARGET") or st.get("needs_target")) and argv[:1] in (["read"], ["get"], ["kill"], ["keys"], ["send"]):
+    _tgt = argv[1] if len(argv) >= 2 and not argv[1].startswith("-") else None
+    if _tgt is None or _tgt not in [a.get("name") for a in st["agents"]]:
+        print(json.dumps({"ok": False, "error": {"kind": "needs_target", "hint": "pass an address like t7 or a name",
+                                                  "message": "no such terminal; others: m2/t1, m2/t2"}}))
+        sys.exit(1)
+
+
 # herdr-core native verbs (factory translates TUI calls when terminal_backend=hc)
 if argv[:1] == ["ls"]:
     hc_print(hc_ls_envelope())
