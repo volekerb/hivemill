@@ -14,6 +14,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [releases/v0.4.0-announcement.md](releases/v0.4.0-announcement.md): what's new in v0.4.0, in plain English, with two screenshots.
 - [images/README.md](images/README.md): light and dark screenshots of the dashboard, built from fictional data.
 - [demo-data.md](demo-data.md): how the fictional demo home used for screenshots and examples is generated.
+- [film/README.md](film/README.md): storyboard for the customer film, with each claim, its source line and a re-check command.
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
@@ -98,6 +99,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
 - [worker-guard-go.md](worker-guard-go.md): the Go port of the worker-guard hook (opt-in through `guard_impl`, Python stays the default; section status, golden data, lookaround map).
 - [cli-go.md](cli-go.md): the Go CLI behind `bin/factory` (opt-in through `cli_impl`, Python stays the default; fast path, shadow mode, build and dependency fetch).
+- [schedule.md](schedule.md): owner-defined recurring jobs (`factory schedule`), Go-only dispatch, per-run token caps and overlap with digest, retro and scout.
 - [profiling.md](profiling.md): the baseline script for per-call cost measurements.
 - [adr/README.md](adr/README.md): index of architecture decision records.
 - [adr/0001-language-policy.md](adr/0001-language-policy.md): the language policy (Go, Rust exceptions, Python).

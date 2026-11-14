@@ -143,7 +143,6 @@ class TickPhasesHandoff(FactoryTestCase):
         p = self.phases("side", h)
         self.assertEqual(p.returncode, 2)
         self.assertIn("herdr list missing", p.stderr)
-
     def test_refuse_handoff_outside_run(self):
         self.hold_lock()
         outside = self.env.home / "tick-handoff.json"
@@ -160,7 +159,6 @@ class TickPhasesHandoff(FactoryTestCase):
         p = self.phases("hygiene", h)
         self.assertEqual(p.returncode, 2)
         self.assertIn("factory: tick --phases", p.stderr)
-
     def test_refuse_lock_not_held(self):
         h = self.handoff({"agents": []})
         p = self.phases("hygiene", h)
