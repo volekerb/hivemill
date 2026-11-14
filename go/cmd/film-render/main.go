@@ -105,11 +105,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 type kids struct {
 	procs   []*proc
 	workDir string
+	dropOut string // partial output removed after the children stop
 }
 
 func (k *kids) cleanup() {
 	for i := len(k.procs) - 1; i >= 0; i-- {
 		k.procs[i].stop()
+	}
+	if k.dropOut != "" {
+		os.Remove(k.dropOut)
 	}
 	if k.workDir != "" {
 		os.RemoveAll(k.workDir)
@@ -169,6 +173,9 @@ func execute(ctx context.Context, o *options, k *kids, stdout, stderr io.Writer)
 			return err
 		}
 	}
+	if o.out, err = filepath.Abs(o.out); err != nil {
+		return failf("cannot resolve --out: %v", err)
+	}
 	if err := os.MkdirAll(filepath.Dir(o.out), 0o755); err != nil {
 		return failf("cannot create the output directory: %v", err)
 	}
@@ -192,11 +199,11 @@ func execute(ctx context.Context, o *options, k *kids, stdout, stderr io.Writer)
 	k.procs = append(k.procs, enc.p)
 
 	if err := renderFilm(ctx, sess, enc, sb, o, work, stdout, stderr); err != nil {
-		os.Remove(o.out)
+		k.dropOut = o.out
 		return err
 	}
 	if err := enc.finish(); err != nil {
-		os.Remove(o.out)
+		k.dropOut = o.out
 		return err
 	}
 	d, err := probeDuration(ffprobe, o.out)
@@ -204,7 +211,7 @@ func execute(ctx context.Context, o *options, k *kids, stdout, stderr io.Writer)
 		return err
 	}
 	if d > maxFilmSeconds {
-		os.Remove(o.out)
+		k.dropOut = o.out
 		return refusef("guard length: the rendered film is %.2f s, over %d s; %s removed.", d, maxFilmSeconds, o.out)
 	}
 	fmt.Fprintf(stdout, "wrote %s (%.2f s)\n", o.out, d)

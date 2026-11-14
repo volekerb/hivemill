@@ -61,6 +61,8 @@ var bannedPatterns = []struct {
 	{"word predicted", regexp.MustCompile(`(?i)predicted`)},
 }
 
+var pr633Re = regexp.MustCompile(`PR 633\b`)
+
 var sceneIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 var (
@@ -133,12 +135,12 @@ func checkWords(sb *storyboard, scenesDir string) error {
 		}
 		visual := sc.Visual
 		if sc.Placeholder {
-			visual = strings.ReplaceAll(visual, "PR 633", "")
+			visual = pr633Re.ReplaceAllString(visual, "")
 		}
 		if err := scanBanned(sc.ID, "caption", sc.Caption); err != nil {
 			return err
 		}
-		for _, o := range sb.sceneOnscreen(sc) {
+		for _, o := range sc.Onscreen {
 			if err := scanBanned(sc.ID, "onscreen", o); err != nil {
 				return err
 			}
@@ -161,8 +163,6 @@ func checkWords(sb *storyboard, scenesDir string) error {
 	return nil
 }
 
-func (sb *storyboard) sceneOnscreen(sc scene) []string { return sc.Onscreen }
-
 // checkPlaceholders is guard (c): final mode refuses placeholders.
 func checkPlaceholders(sb *storyboard, draft bool) error {
 	if draft {
@@ -182,6 +182,24 @@ func resolvePath(p string) (string, error) {
 	abs, err := filepath.Abs(p)
 	if err != nil {
 		return "", err
+	}
+	// A final component that is a symlink (even a dangling one) is followed by hand: EvalSymlinks cannot.
+	for i := 0; ; i++ {
+		st, lerr := os.Lstat(abs)
+		if lerr != nil || st.Mode()&os.ModeSymlink == 0 {
+			break
+		}
+		if i >= 40 {
+			return "", errors.New("too many symlink levels in " + p)
+		}
+		target, rerr := os.Readlink(abs)
+		if rerr != nil {
+			return "", rerr
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(abs), target)
+		}
+		abs = filepath.Clean(target)
 	}
 	rest := ""
 	cur := abs

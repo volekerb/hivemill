@@ -173,6 +173,16 @@ func TestGuardOutPath(t *testing.T) {
 		e.out = filepath.Join(link, "film.mp4")
 		expect(t, e, refused, "inside the repo")
 	})
+	t.Run("out as a dangling symlink into the repo refused", func(t *testing.T) {
+		e := setup(t)
+		e.board(t, 60, sc("a", 0, 5))
+		link := filepath.Join(t.TempDir(), "film.mp4")
+		if err := os.Symlink(filepath.Join(e.repo, "docs", "film.mp4"), link); err != nil {
+			t.Fatal(err)
+		}
+		e.out = link
+		expect(t, e, refused, "inside the repo")
+	})
 	t.Run("out in a temp dir passes", func(t *testing.T) {
 		e := setup(t)
 		e.board(t, 60, sc("a", 0, 5))

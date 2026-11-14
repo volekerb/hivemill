@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -157,8 +158,21 @@ func (s *session) frame(ctx context.Context, t float64) ([]byte, error) {
 type encoder struct {
 	p      *proc
 	stdin  io.WriteCloser
-	stderr *bytes.Buffer
+	stderr *lockedBuffer
 }
+
+// lockedBuffer is a bytes.Buffer safe for the ffmpeg stderr copier and the reader.
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+func (l *lockedBuffer) String() string { l.mu.Lock(); defer l.mu.Unlock(); return l.b.String() }
 
 func startEncoder(ffmpeg string, fps float64, out string) (*encoder, error) {
 	cmd := exec.Command(ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "image2pipe",
@@ -168,13 +182,13 @@ func startEncoder(ffmpeg string, fps float64, out string) (*encoder, error) {
 	if err != nil {
 		return nil, failf("ffmpeg stdin: %v", err)
 	}
-	var buf bytes.Buffer
-	cmd.Stderr = &buf
+	buf := &lockedBuffer{}
+	cmd.Stderr = buf
 	p, err := startProc("ffmpeg", cmd)
 	if err != nil {
 		return nil, err
 	}
-	return &encoder{p: p, stdin: stdin, stderr: &buf}, nil
+	return &encoder{p: p, stdin: stdin, stderr: buf}, nil
 }
 
 func (e *encoder) finish() error {
