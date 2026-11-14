@@ -46,6 +46,7 @@ func TestRunOK(t *testing.T) {
 	for _, a := range [][]string{{"init", "-q"}, {"add", "-A"},
 		{"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"}} {
 		cmd := exec.Command("git", append([]string{"-C", dir}, a...)...)
+		cmd.Env = append(os.Environ()[:0:0], cleanEnv()...)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v %s", a, err, out)
 		}
@@ -57,4 +58,14 @@ func TestRunOK(t *testing.T) {
 	if !strings.HasPrefix(out.String(), `{"go":1,`) {
 		t.Fatalf("bad json %q", out.String())
 	}
+}
+
+func cleanEnv() []string {
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "GIT_") {
+			env = append(env, e)
+		}
+	}
+	return env
 }

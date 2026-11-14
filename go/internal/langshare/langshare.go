@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -113,7 +114,11 @@ func nonBlank(data []byte) int {
 var gitTimeout = 2 * time.Minute
 
 // maxBlob caps a single blob read into memory; a larger blob is an error.
-const maxBlob = 64 << 20
+var maxBlob = 64 << 20
+
+// errTooLarge marks a blob over maxBlob. Its body is drained and, for
+// extension-less files (only a shebang look), the file is skipped.
+var errTooLarge = errors.New("blob too large")
 
 func git(repo string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
@@ -123,6 +128,9 @@ func git(repo string, args ...string) ([]byte, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
+		if ctx.Err() != nil {
+			err = fmt.Errorf("timed out after %s: %w", gitTimeout, err)
+		}
 		return nil, fmt.Errorf("git %s: %w: %s", args[0], err, strings.TrimSpace(stderr.String()))
 	}
 	return out, nil
@@ -152,8 +160,11 @@ func parseBatchHeader(hdr string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("bad blob size in header %q: %w", strings.TrimSpace(hdr), err)
 	}
-	if size < 0 || size > maxBlob {
-		return 0, fmt.Errorf("blob size %d outside 0..%d", size, maxBlob)
+	if size < 0 {
+		return 0, fmt.Errorf("negative blob size %d", size)
+	}
+	if size > maxBlob {
+		return size, fmt.Errorf("blob size %d over cap %d: %w", size, maxBlob, errTooLarge)
 	}
 	return size, nil
 }
@@ -211,8 +222,20 @@ func Count(repo, ref string) (c Counts, err error) {
 			continue
 		}
 		data, err := readBlob(in, rd, blob)
+		if errors.Is(err, errTooLarge) && k == kMaybePython {
+			continue // a big extension-less blob is a binary, not a script
+		}
 		if err != nil {
-			return c, fmt.Errorf("git cat-file %s: %w: %s", p, err, strings.TrimSpace(stderr.String()))
+			// Stop cat-file first so its stderr copier is finished before we read it.
+			_ = in.Close()
+			_ = batch.Process.Kill()
+			_ = batch.Wait()
+			done = true
+			msg := strings.TrimSpace(stderr.String())
+			if ctx.Err() != nil {
+				msg = "timed out after " + gitTimeout.String() + ": " + msg
+			}
+			return c, fmt.Errorf("git cat-file %s: %w: %s", p, err, msg)
 		}
 		if k == kMaybePython {
 			if !isPythonShebang(data) {
@@ -253,6 +276,12 @@ func readBlob(in io.Writer, rd *bufio.Reader, sha string) ([]byte, error) {
 		return nil, fmt.Errorf("read header: %w", err)
 	}
 	size, err := parseBatchHeader(hdr)
+	if errors.Is(err, errTooLarge) {
+		if _, derr := io.CopyN(io.Discard, rd, int64(size)+1); derr != nil {
+			return nil, fmt.Errorf("drain blob: %w", derr)
+		}
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}

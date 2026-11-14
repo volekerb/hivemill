@@ -171,3 +171,26 @@ func cleanEnv() []string {
 	}
 	return env
 }
+
+func TestOversizeExtensionlessSkipped(t *testing.T) {
+	old := maxBlob
+	maxBlob = 10
+	defer func() { maxBlob = old }()
+	files := map[string]string{
+		"blob": strings.Repeat("x", 100) + "\n",
+		"a.go": "package a\n",
+		"z.go": "package z\n",
+	}
+	c, err := Count(mkrepo(t, files), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Go != 2 {
+		t.Fatalf("got %+v want go 2 after skipping oversize blob", c)
+	}
+	// An oversize .go file is an error, not a silent skip.
+	files["big.go"] = "package big\n" + strings.Repeat("//x\n", 10)
+	if _, err := Count(mkrepo(t, files), ""); err == nil {
+		t.Fatal("oversize .go accepted")
+	}
+}
