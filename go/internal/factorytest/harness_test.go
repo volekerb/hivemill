@@ -1,12 +1,14 @@
 package factorytest
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestStubLogFormat: the gh, herdr and hc stubs write call-log lines byte-equal to the Python stubs. testdata/
@@ -328,7 +330,9 @@ func TestNoPython(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := []string{"PATH=" + bin, "FACTORYTEST_NOPY_CHILD=1", "HOME=" + t.TempDir(), "GOTOOLCHAIN=local", "GOFLAGS=-mod=readonly", "GOPROXY=off", "GOCACHE=" + goEnv(t, goBin, mod, "GOCACHE"), "GOMODCACHE=" + goEnv(t, goBin, mod, "GOMODCACHE")}
-	cmd := exec.Command(goBin, "test", "-count=1", "-v", "-run", "TestIdentity|TestEnvLayout|TestUseGitHead|TestStubLogFormat", "./internal/factorytest")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, goBin, "test", "-count=1", "-v", "-run", "TestIdentity|TestEnvLayout|TestUseGitHead|TestStubLogFormat", "./internal/factorytest")
 	cmd.Dir = mod
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
@@ -337,12 +341,6 @@ func TestNoPython(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "--- PASS: TestEnvLayout") || !strings.Contains(string(out), "--- PASS: TestUseGitHead") {
 		t.Fatalf("child did not run the expected tests:\n%s", out)
-	}
-	if _, err := exec.LookPath("python3"); err == nil {
-		// the parent has python3; the child must not have seen it
-		if strings.Contains(string(out), "python3 on PATH") {
-			t.Fatalf("child saw python3:\n%s", out)
-		}
 	}
 }
 

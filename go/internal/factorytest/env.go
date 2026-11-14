@@ -660,7 +660,7 @@ func (e *Env) gitIn(dir string, args ...string) string {
 
 // UseGitHead backs the default PR head with a real commit on a bare remote whose main it contains
 // (refs/pull/1/head), and makes the gh stub answer `repo view` with that remote and `api .../commits/main` with its
-// main sha: the counterpart of tests/harness.py use_git_head. It returns the head sha (also e.HeadSHA).
+// main sha as of this call (a later push to the remote is not seen): the counterpart of tests/harness.py use_git_head. It returns the head sha (also e.HeadSHA).
 func (e *Env) UseGitHead() string {
 	e.T.Helper()
 	remote, wt := filepath.Join(e.Root, "head-origin.git"), filepath.Join(e.Root, "head-wt")
@@ -690,12 +690,13 @@ func (e *Env) UseGitHead() string {
 	return e.HeadSHA
 }
 
-// addScript appends rules to tool's script, keeping the rules already set.
+// addScript puts rules before the rules already set for tool (first match wins, so an earlier catch-all cannot
+// shadow them). A later Script call for the same tool replaces them: call UseGitHead after Script.
 func (e *Env) addScript(tool string, rules ...StubRule) {
 	e.T.Helper()
 	all := map[string][]StubRule{}
 	if b, err := os.ReadFile(e.ScriptFile); err == nil {
 		must(e.T, json.Unmarshal(b, &all))
 	}
-	e.Script(tool, append(all[tool], rules...)...)
+	e.Script(tool, append(append([]StubRule{}, rules...), all[tool]...)...)
 }
