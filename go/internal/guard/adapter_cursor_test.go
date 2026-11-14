@@ -224,6 +224,41 @@ func TestCursorAdapterBadArgsExit2(t *testing.T) {
 	}
 }
 
+// A flag-looking token is never an option value (argparse): "--role --hq" is exit 2 like the Python adapter, while
+// a plain value, a negative number and "--role=--hq" still parse.
+func TestCursorAdapterFlagAsValueParity(t *testing.T) {
+	py := pythonAdapter(t)
+	bin := guardBinary(t)
+	in := `{"command":"git status","hook_event_name":"beforeShellExecution"}`
+	for _, args := range [][]string{
+		{"--role", "--hq"}, {"--event", "--hq"}, {"--py-hook", "--role"}, {"--role", "-x"},
+		{"--role", "coder"}, {"--role", "-1"}, {"--role=--hq"}, {"--role", "-"},
+	} {
+		env := adapterEnv(t)
+		want := runCmd(t, env, in, "python3", append([]string{py}, args...)...)
+		got := runCmd(t, env, in, bin, append([]string{"--cursor-adapter"}, args...)...)
+		if got.code != want.code || got.stdout != want.stdout {
+			t.Errorf("%v: go exit %d %q, python exit %d %q", args, got.code, got.stdout, want.code, want.stdout)
+		}
+	}
+	r := runCmd(t, adapterEnv(t), in, bin, "--cursor-adapter", "--role", "--hq")
+	if r.code != 2 {
+		t.Errorf("--role --hq: exit %d, want 2", r.code)
+	}
+}
+
+// Deliberate tightening: the Python adapter's json.loads accepts NaN and Infinity, Go's decoder does not, so the Go
+// mode denies such a payload (exit 2, fail closed). Cursor never sends these.
+func TestCursorAdapterNaNInfinityDeniedDeliberateTightening(t *testing.T) {
+	bin := guardBinary(t)
+	for _, in := range []string{`{"command":"git status","x":NaN}`, `{"command":"git status","x":-Infinity}`} {
+		r := runCmd(t, adapterEnv(t), in, bin, "--cursor-adapter", "--event", "beforeShellExecution")
+		if r.code != 2 || strings.Contains(r.stdout, `"allow"`) {
+			t.Errorf("%s: exit %d stdout %q", in, r.code, r.stdout)
+		}
+	}
+}
+
 // Boss inbox: a fake `factory` on PATH, the Python hook and the Go mode on the same inputs.
 func TestBossInboxParity(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {

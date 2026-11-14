@@ -35,6 +35,28 @@ type cursorAdapter struct {
 	stdout       io.Writer
 }
 
+// looksLikeFlag mirrors argparse's classification of an argument as an option string: it starts with '-', is not
+// a lone "-", is not a negative number and holds no space. The parser has no numeric-looking options.
+func looksLikeFlag(s string) bool {
+	if len(s) < 2 || s[0] != '-' || strings.Contains(s, " ") {
+		return false
+	}
+	num := strings.TrimPrefix(s, "-")
+	if intPart, frac, dot := strings.Cut(num, "."); allDigits(intPart) && (!dot || allDigits(frac)) && num != "." {
+		return false
+	}
+	return true
+}
+
+func allDigits(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // CursorAdapter is `worker-guard --cursor-adapter [--role R] [--hq] [--event E] [--py-hook P]`. It returns the exit
 // code of the Python adapter for the same input: deny by a bad payload, an unsupported event or a guard failure
 // is exit 2 with the deny body on stdout.
@@ -52,6 +74,9 @@ func CursorAdapter(args []string, stdin io.Reader, stdout, stderr io.Writer, run
 				return true
 			}
 			if i+1 >= len(args) {
+				return false
+			}
+			if looksLikeFlag(args[i+1]) { // argparse: a flag-looking token is never an option value
 				return false
 			}
 			i++
