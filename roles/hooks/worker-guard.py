@@ -1441,6 +1441,35 @@ def fold_mktemp(toks):
     return out
 
 
+
+# T-1498: the Go toolchain for workers. coder, qa and reviewer may EXECUTE ~/.local/go/bin/go and gofmt (the tree stays
+# protected: nothing here lets them write into it). A fixed subcommand list, a fixed env-prefix list, no network.
+TC_ROLES = ("coder", "qa", "reviewer")
+TC_SUBS = {"build", "test", "vet", "run", "list", "env", "version", "fmt"}
+TC_MOD_SUBS = {"verify", "graph", "why"}
+TC_WRITE_FLAGS = ("o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir", "modfile")
+TC_ENV_NAMES = {"GOTOOLCHAIN", "GOFLAGS", "GOPROXY", "GOCACHE", "GOMODCACHE", "CGO_ENABLED", "PATH"}
+TC_MODCACHE = os.path.join(PW_DIR, ".local", "lib", "factory", "go", "mod")
+TC_PATH_VALUE = re.compile(r"^(?:~|\$HOME|\$\{HOME\}|" + re.escape(PW_DIR) + r")/\.local/go/bin:\$(?:PATH|\{PATH\})$")
+
+
+def tc_kind(w):
+    """T-1498: ("go"|"gofmt", lookalike) when command word `w` names the toolchain binary (~, $HOME, ${HOME} or the passwd
+    home spelled out); lookalike is True when the spelling is not its own normal form (`..`, `//`, `/./`). Else None."""
+    e = w
+    for pre in ("~/", "$HOME/", "${HOME}/"):
+        if w.startswith(pre):
+            e = PW_DIR + "/" + w[len(pre):]
+            break
+    if not os.path.isabs(e) or any(c in e for c in "$`{*?["):
+        return None
+    n = os.path.normpath(e)
+    for tool in ("go", "gofmt"):
+        if n == os.path.join(PW_DIR, ".local", "go", "bin", tool):
+            return tool, e != n
+    return None
+
+
 def is_dynamic(word, strict):
     base = os.path.basename(word.rstrip("/"))
     if "`" in word:
@@ -2599,6 +2628,79 @@ class Analyzer:
     def prot_redirect(self, target):
         if self.prot_hit(target):
             raise Block(f"a redirect into a protected tree: {PROT_WHY}")
+
+    def go_toolchain(self, tc, rest, assigns):
+        """T-1498: a coder/qa/reviewer command whose word is the toolchain binary. Exec only: the subcommands that build,
+        test and inspect, an env-prefix allow-list, no network (`go mod download`, `go get`), no `go install|clean|work`,
+        no write flag into a protected tree, `gofmt -w` only on files in the caller's tree or scratchpad."""
+        tool, lookalike = tc
+
+        def block(what):
+            raise Block(f"~/.local/go/bin/{tool}: {what}; the toolchain may be run with build, test, vet, run, list, env, version, "
+                        "fmt and mod verify|graph|why only (docs/worker-guard-go.md, Go toolchain for workers)")
+
+        if lookalike:
+            block("the path is not in its normal form (`..`, `//` or `/./`)")
+        args = [a for a in rest if a != "--"]
+
+        def flag_hits(words):
+            k = 0
+            while k < len(words):
+                m = re.match(r"^--?([A-Za-z-]+)(=(.*))?$", words[k])
+                k += 1
+                if m and m.group(1) in TC_WRITE_FLAGS:
+                    v = m.group(3) if m.group(2) else (words[k] if k < len(words) else None)
+                    if v and self.prot_hit(v):
+                        block(f"-{m.group(1)} names a protected tree")
+                elif m and m.group(2) and m.group(3) and self.prot_hit(m.group(3)):
+                    block("a flag value names a protected tree")
+
+        env = {}
+        for x in assigns:
+            name, _, val = x.partition("=")
+            if name not in TC_ENV_NAMES:
+                block(f"the env prefix {name}= is not allowed (GOTOOLCHAIN, GOFLAGS, GOPROXY, GOCACHE, GOMODCACHE, CGO_ENABLED, PATH)")
+            if (name == "GOTOOLCHAIN" and val != "local") or (name == "GOPROXY" and val != "off") or (
+                    name == "CGO_ENABLED" and val != "0") or (name == "PATH" and not TC_PATH_VALUE.match(val)):
+                block(f"the env prefix {name}={val} is not an allowed value")
+            if name in ("GOCACHE", "GOMODCACHE") and self.prot_hit(val):
+                exp = PW_DIR + val[1:] if val.startswith("~/") else val
+                if not (name == "GOMODCACHE" and under(os.path.normpath(exp), TC_MODCACHE)):
+                    block(f"{name} names a protected tree")
+            if name == "GOFLAGS":
+                flag_hits(val.split())
+            env[name] = val
+        if tool == "gofmt":
+            if any(re.match(r"^--?w(=true)?$", a) for a in args):
+                targets = [a for a in args if not a.startswith("-")]
+                base = self.ccwd
+                if not targets or base is None:
+                    block("-w needs file arguments and a known working directory")
+                root = os.path.realpath(base)
+                for t in targets:
+                    if any(c in t for c in "$`*?[{~"):
+                        block("-w with a glob or an expansion")
+                    real = os.path.realpath(os.path.join(base, t))
+                    if self.prot_hit(t) or not (under(real, root) or in_scratchpad(real)):
+                        block("-w outside your worktree and scratchpad")
+            return
+        sub, k = None, 0
+        while k < len(args):
+            if args[k] in ("-C", "--C"):
+                k += 1
+            elif not args[k].startswith("-"):
+                sub = args[k]
+                break
+            k += 1
+        if sub is None or sub not in TC_SUBS | {"mod"}:
+            block(f"`go {sub or ''}` is not allowed")
+        if sub == "mod":
+            ms = next((a for a in args[k + 1:] if not a.startswith("-")), None)
+            if ms not in TC_MOD_SUBS:
+                block(f"`go mod {ms or ''}` is not allowed (network or a write)")
+        if "-mod=mod" in args + env.get("GOFLAGS", "").split() and env.get("GOPROXY") != "off":
+            block("-mod=mod needs the GOPROXY=off prefix")
+        flag_hits(args)
 
     def prot_write(self, name, rest, assigns=()):
         """T-0925 (gaps a, b, c, e, f, g): Bash writes into a protected tree. The writers cfg_write knows (now also with a
@@ -4288,6 +4390,8 @@ class Analyzer:
         if any(GIT_CONFIG_ENV.match(x) for x in names):
             raise Block(f"{self.role} may not set GIT_CONFIG_COUNT/GIT_CONFIG_KEY_*/GIT_CONFIG_VALUE_*/GIT_CONFIG_PARAMETERS: "
                         "env-injected git config can alias a push; ask your lead")
+        if words and self.role in TC_ROLES and not self.hq and tc_kind(words[0]):  # T-1498: the one PATH prefix the toolchain line may carry
+            names = [x for x in names if not (x.startswith("PATH=") and TC_PATH_VALUE.match(x[5:]) and x in assigns)]
         if any(GIT_SENSITIVE_ENV.match(x) for x in names):
             raise Block(f"{self.role} may not set, export or unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_*: they select "
                         "the git config, helpers and pager (an alias there hides a push); ask your lead")
@@ -4502,7 +4606,8 @@ class Analyzer:
         if name == "factory" or si is not None or (
                 name in SHELLS and next((os.path.basename(x) for x in rest if not x.startswith("-")), None) == "factory"):
             self.ran_factory = True
-        if is_dynamic(w, strict=not in_loose):
+        tc = tc_kind(w) if self.role in TC_ROLES and not self.hq else None
+        if is_dynamic(w, strict=not in_loose) and not (tc and re.match(r"^\$(?:HOME|\{HOME\})/\.local/go/bin/(?:go|gofmt)$", w)):
             raise DynamicBlock(f"dynamic command word {w!r} could expand to herdr, hc or claude")
         if is_herdr(w):
             raise Block("direct herdr invocation")
@@ -4514,6 +4619,8 @@ class Analyzer:
             self.cfg_cd(name, rest)
         self.claude_launchers(name, rest)
         self.sandbox_route(name, rest)
+        if tc:
+            self.go_toolchain(tc, rest, assigns)
         self.cfg_write(name, rest)
         self.prot_write(name, rest, assigns)
         self.persist_write(name, rest)

@@ -19202,6 +19202,306 @@
       "note": "T-1142: T-0908 coder git runners (mirror Go guard)",
       "cmd": "git bisect run pytest -q",
       "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go get x@v1",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go install ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod tidy",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go clean -modcache",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go env -w GOFLAGS=x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go work sync",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOPROXY=on ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/../../go/bin/go test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "echo x > ~/.local/go/bin/go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "cp /tmp/x ~/.local/go/bin/go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go get x@v1",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go install ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod tidy",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go clean -modcache",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go env -w GOFLAGS=x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go work sync",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOPROXY=on ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/../../go/bin/go test",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w ../x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "echo x > ~/.local/go/bin/go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "cp /tmp/x ~/.local/go/bin/go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go get x@v1",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go install ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod tidy",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go clean -modcache",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go env -w GOFLAGS=x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go work sync",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOPROXY=on ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/../../go/bin/go test",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w ../x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "echo x > ~/.local/go/bin/go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "cp /tmp/x ~/.local/go/bin/go",
+      "role": "reviewer"
     }
   ],
   "must_allow": [
@@ -23754,6 +24054,181 @@
       "note": "T-1142: T-0908 coder git runners (mirror Go guard)",
       "cmd": "echo x | xargs git status",
       "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build ./cmd/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go version",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod verify",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "$HOME/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -l .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -d -s .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build ./cmd/x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go version",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod verify",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "$HOME/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -l .",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -d -s .",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build ./cmd/x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go version",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod verify",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "$HOME/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -l .",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -d -s .",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only): other roles unchanged",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "pm"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only): other roles unchanged",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "judge"
     }
   ]
 }
