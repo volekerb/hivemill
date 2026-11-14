@@ -352,7 +352,7 @@ class HcConfigHerdrRowTests(FactoryTestCase):
             (json.dumps({"host_backend": "herdr"}), session, name),
         )
 
-    def test_spawn_omitted_host_backend_no_spawn_args_key(self):
+    def test_spawn_omitted_host_backend_records_effective_backend(self):
         self.ok("config", "max_live_agents", "99", agent="owner")
         self.env.seed_task("T-omit", goal="G-001", team="g-001-a", role="coder", status="todo", pr_url=None)
         self.env.set_herdr(
@@ -378,7 +378,7 @@ class HcConfigHerdrRowTests(FactoryTestCase):
         )
         self.assertIn("SPAWNED", p.stdout)
         sa = json.loads(self.env.sql("SELECT spawn_args FROM agents WHERE name=?", (name,))[0][0])
-        self.assertNotIn("host_backend", sa)
+        self.assertEqual(sa.get("host_backend"), "hc")  # T-1447: the backend actually used (this class's config is hc)
 
     def test_tick_reaps_done_herdr_row_on_hc_config(self):
         self._herdr_row(self.TUI, "p-pilot", status="done")
