@@ -41,8 +41,12 @@ class MainFreeze(FactoryTestCase):
         git("push", "-q", "origin", "main", cwd=other)
         return git("rev-parse", "HEAD", cwd=other)
 
-    def pr(self, n, merged, sha):
-        self.set_api(n, {"out": {"merged": merged, "merge_commit_sha": sha}})
+    def pr(self, n, merged, sha, head=None, open_squash=False):
+        out = {"merged": merged, "merge_commit_sha": sha if merged else None,
+               "head": {"sha": head or sha}, "number": n}
+        self.set_api(n, {"out": out})
+        if open_squash and head:
+            self._open_squash_head = head
 
     def set_api(self, n, rule):
         self.api = [r for r in self.api if r["match"] != [f"pulls/{n}$"]] + [{"match": [f"pulls/{n}$"], **rule}]
@@ -65,6 +69,30 @@ class MainFreeze(FactoryTestCase):
         self.tick()
         self.assertIsNone(self.freeze())
         self.assertTrue(self.live_has("a.txt"))
+
+    def test_open_pr_squash_on_main_passes_without_freeze_and_names_pr(self):
+        other = self.env.home / "pr-wt"
+        if not other.exists():
+            git("clone", "-q", "-b", "main", str(self.bare), str(other), cwd=self.env.home)
+        (other / "feat.txt").write_text("f\n")
+        git("add", "feat.txt", cwd=other)
+        git("commit", "-q", "-m", "feat", cwd=other)
+        head = git("rev-parse", "HEAD", cwd=other)
+        git("push", "-q", "origin", f"{head}:refs/pull/7/head", cwd=other)
+        git("fetch", "-q", "origin", "main", cwd=other)
+        parent = git("rev-parse", "origin/main", cwd=other)
+        tree = git("merge-tree", "--write-tree", parent, head, cwd=other)
+        env = {"GIT_COMMITTER_EMAIL": NOREPLY, "GIT_COMMITTER_NAME": "GitHub",
+               "GIT_AUTHOR_EMAIL": "zz-test@example.invalid", "GIT_AUTHOR_NAME": "zz-test"}
+        sha = git("commit-tree", tree, "-p", parent, "-m", "Squash (#7)", cwd=other, env=env)
+        git("push", "-q", "origin", f"{sha}:refs/heads/main", cwd=other)
+        self.pr(7, False, sha, head=head, open_squash=True)
+        self.tick()
+        self.assertIsNone(self.freeze())
+        ev = self.env.sql("SELECT detail FROM events WHERE action='open-pr-squash-on-main'")
+        self.assertEqual(len(ev), 1)
+        self.assertIn('"pr": 7', ev[0]["detail"])
+        self.assertTrue(self.live_has("feat.txt"))
 
     def test_direct_push_freezes_alerts_boss_and_director_at_night_and_is_not_synced(self):
         sha = self.push("leak.txt", "fixture commit", "x@example.com")
