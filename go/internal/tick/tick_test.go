@@ -144,7 +144,7 @@ func (r *rig) run() int {
 		Clock:    func() float64 { tm++; return tm },
 		Getpid:   os.Getpid,
 		TimersOn: func() bool { return r.timers },
-		Go: r.goFns,
+		Go:       r.goFns,
 	})
 }
 

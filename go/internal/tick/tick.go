@@ -21,7 +21,7 @@ type Config struct {
 	Clock    func() float64
 	Getpid   func() int
 	TimersOn func() bool // tick_phase_timers, read after the lock is taken
-	Go map[string]GoFunc
+	Go       map[string]GoFunc
 }
 
 type segment struct {
