@@ -18,6 +18,15 @@ MAIN_OK = "package main\n\nfunc main() {}\n"
 MAIN_BAD = "package main\n\nfunc main() { this does not compile }\n"
 GO_MOD = "module guardtest\n\ngo 1.20\n"
 BIN_DIR = Path(__file__).resolve().parent.parent / "bin"
+_FAKE_SCHEDULE_GO = (
+    '#!/bin/sh\n'
+    'if [ "$1" = schedule ] && [ "$2" = list ]; then\n'
+    '  echo "fixed schedules: digest_hour=7 retro_hour=22 scout_slots="\n'
+    '  exit 0\n'
+    'fi\n'
+    'echo FAKE-GO\n'
+    'exit 0\n'
+)
 
 
 def rmtree_rw(path):
@@ -484,24 +493,31 @@ class CliImplTests(FactoryTestCase):
         super().setUpClass()
         cls.bin = None
         cls.seed = os.environ.get("GOMODCACHE_SEED")  # a module cache holding go/go.mod's deps (CI: setup-go + go mod download)
-        if REAL_GO and cls.seed:
-            cls.tmpdir = mktmp(cls, "zz-cli-impl-")
-            out = cls.tmpdir / "factory-go"
-            env = {**os.environ, "CGO_ENABLED": "0", "GOTOOLCHAIN": "local", "GOFLAGS": "", "GOPROXY": "off",
-                   "GOMODCACHE": cls.seed}
-            p = subprocess_run([REAL_GO, "build", "-buildvcs=false", "-trimpath", "-o", str(out), "./cmd/factory"],
-                               BIN_DIR.parent / "go", env)
-            if p.returncode:
+        if not REAL_GO:
+            return
+        cls.tmpdir = mktmp(cls, "zz-cli-impl-")
+        out = cls.tmpdir / "factory-go"
+        env = {**os.environ, "CGO_ENABLED": "0", "GOTOOLCHAIN": "local", "GOPROXY": "off"}
+        if cls.seed:
+            env["GOFLAGS"] = ""
+            env["GOMODCACHE"] = cls.seed
+        else:
+            env["GOFLAGS"] = "-mod=readonly"
+        p = subprocess_run([REAL_GO, "build", "-buildvcs=false", "-trimpath", "-o", str(out), "./cmd/factory"],
+                           BIN_DIR.parent / "go", env)
+        if p.returncode:
+            if cls.seed:
                 raise AssertionError(f"go build ./cmd/factory failed: {p.stderr}")
-            cls.bin = out
+            return
+        cls.bin = out
 
     def setUp(self):
         super().setUp()
         self.h = write_go(self.env.home_dir)
         self.lib = self.env.user_home / ".local" / "lib" / "factory"
         self.lib.mkdir(parents=True)
-        if self.bin is None:  # no real factory-go (needs go + GOMODCACHE_SEED): a fake one is enough for dispatch/flag tests
-            (self.lib / "factory-go").write_text("#!/bin/sh\necho FAKE-GO\n")
+        if self.bin is None:  # no real factory-go: a fake answers dispatch/flag tests; schedule list prints the fixed-schedules line
+            (self.lib / "factory-go").write_text(_FAKE_SCHEDULE_GO)
             (self.lib / "factory-go").chmod(0o755)
         else:
             shutil.copy(self.bin, self.lib / "factory-go")
@@ -571,14 +587,12 @@ class CliImplTests(FactoryTestCase):
         self.assertEqual(self.impl(self.call("agents")), "impl=python")
 
     def test_schedule_runs_go_even_when_cli_impl_python(self):
-        self.need_real()
         self.cfg("cli_impl", "python")
         p = self.call("schedule", "list")
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("fixed schedules:", p.stdout)
 
     def test_schedule_stale_go_binary_exit_2_no_traceback(self):
-        self.need_real()
         self.cfg("cli_impl", "python")
         self.stamp.write_text("x\n")
         p = self.call("schedule", "list")
@@ -588,7 +602,6 @@ class CliImplTests(FactoryTestCase):
         self.stamp.write_text(self.h + "\n")
 
     def test_schedule_go_handback_exit_2_no_loop(self):
-        self.need_real()
         p = self.env.run("schedule", "list", agent="dir-1", inproc=False,
                          extra_env={"FACTORY_CLI_IMPL": "python", "FACTORY_CLI_TRACE": "1"})
         self.assertEqual(p.returncode, 2, p.stderr)
