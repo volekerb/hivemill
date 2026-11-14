@@ -292,11 +292,11 @@ test("group lookup: two exact matches -> 6 ambiguous, also across pages", async 
 
 test("groupInfo returns id, isInternal and allBuilds", async () => {
   mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: [grp("G1", "Internal Testers", true, true)] } }]);
-  assert.deepEqual(await client().groupInfo("A1", "Internal Testers"), { id: "G1", isInternal: true, allBuilds: true });
+  assert.deepEqual(await client().groupInfo("A1", "Internal Testers"), { id: "G1", name: "Internal Testers", isInternal: true, allBuilds: true });
 });
 
 test("CLI group-info prints one tab-separated line for internal/all, internal/selected and external", async () => {
-  const cases = [[grp("G1", "Internal Testers", true, true), "G1\tinternal\tall\n"], [grp("G1", "Internal Testers", true, false), "G1\tinternal\tselected\n"], [grp("G1", "Internal Testers", false, false), "G1\texternal\tselected\n"]];
+  const cases = [[grp("G1", "Internal Testers", true, true), "G1\tinternal\tall\tInternal Testers\n"], [grp("G1", "Internal Testers", true, false), "G1\tinternal\tselected\tInternal Testers\n"], [grp("G1", "Internal Testers", false, false), "G1\texternal\tselected\tInternal Testers\n"]];
   for (const [g, want] of cases) {
     mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: [g] } }]);
     const r = await cli(["group-info", "--app-id", "A1", "--name", "Internal Testers"]);
@@ -375,4 +375,67 @@ test("timeout: always hanging -> 6 after 5 retries", async () => {
   mock.on("GET", "/v1/apps", [{ status: 200, hang: true }]);
   await rejectsWith(client({ timeoutMs: 50 }).appId("com.example.a"), 6, /failed after 5 retries \(network error\)/);
   assert.deepEqual(clock.sleeps, [1, 2, 4, 8, 16]);
+});
+
+// ---- two beta groups with the same name: one internal, one external, plus an unrelated one ----
+const twins = () => [grp("g-int-1", "Beta Testers", true, true), grp("g-ext-1", "Beta Testers", false, false), grp("g-other", "Other Group", true, false)];
+const serveTwins = () =>
+  mock.on("GET", "/v1/betaGroups", [{
+    status: 200,
+    body: (u) => ({ data: twins().filter((g) => (u.searchParams.has("filter[id]") ? g.id === u.searchParams.get("filter[id]") : g.attributes.name === u.searchParams.get("filter[name]"))) }),
+  }]);
+
+test("twin groups: name only -> 6 ambiguous with both ids and both isInternalGroup values, in API order", async () => {
+  serveTwins();
+  await rejectsWith(client().groupInfo("A1", { name: "Beta Testers" }), 6, /beta group name is ambiguous: Beta Testers: g-int-1 \(isInternalGroup true\), g-ext-1 \(isInternalGroup false\); set testerGroup to an object with id, or with name and internal/);
+});
+
+test("twin groups: name + internal picks the matching group", async () => {
+  serveTwins();
+  assert.equal((await client().groupInfo("A1", { name: "Beta Testers", internal: true })).id, "g-int-1");
+  assert.equal((await client().groupInfo("A1", { name: "Beta Testers", internal: false })).id, "g-ext-1");
+});
+
+test("twin groups: id picks that group and sends no filter[name]", async () => {
+  serveTwins();
+  const g = await client().groupInfo("A1", { id: "g-ext-1" });
+  assert.deepEqual(g, { id: "g-ext-1", name: "Beta Testers", isInternal: false, allBuilds: false });
+  const gets = mock.requests.filter((r) => r.path === "/v1/betaGroups");
+  assert.equal(gets.length, 1);
+  assert.equal(gets[0].query["filter[id]"], "g-ext-1");
+  assert.equal(gets[0].query["filter[app]"], "A1");
+  assert.ok(!("filter[name]" in gets[0].query));
+});
+
+test("twin groups: an id the API echoes with other ids is matched exactly; an unknown id -> 6 not found", async () => {
+  mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: twins() } }]);
+  assert.equal((await client().groupInfo("A1", { id: "g-other" })).id, "g-other");
+  await rejectsWith(client().groupInfo("A1", { id: "g-missing" }), 6, /beta group not found: id g-missing/);
+});
+
+test("twin groups: name + internal with no match -> 6 not found naming the internal value", async () => {
+  mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: [grp("g-int-1", "Beta Testers", true, true)] } }]);
+  await rejectsWith(client().groupInfo("A1", { name: "Beta Testers", internal: false }), 6, /beta group not found: Beta Testers \(internal false\)/);
+});
+
+test("CLI group-info on the twins: 4 tab-separated fields, ambiguity exit 6, usage errors exit 2", async () => {
+  serveTwins();
+  const r = await cli(["group-info", "--app-id", "A1", "--name", "Beta Testers", "--internal", "false"]);
+  assert.deepEqual([r.code, r.stdout], [0, "g-ext-1\texternal\tselected\tBeta Testers\n"]);
+  assert.equal(r.stdout.trimEnd().split("\t").length, 4);
+  const byId = await cli(["group-info", "--app-id", "A1", "--id", "g-int-1"]);
+  assert.deepEqual([byId.code, byId.stdout], [0, "g-int-1\tinternal\tall\tBeta Testers\n"]);
+  const amb = await cli(["group-info", "--app-id", "A1", "--name", "Beta Testers"]);
+  assert.equal(amb.code, 6);
+  assert.match(amb.stderr, /g-int-1 \(isInternalGroup true\), g-ext-1 \(isInternalGroup false\)/);
+  const usage = [
+    ["--id", "g-1", "--name", "Beta Testers"],
+    [],
+    ["--id", "g-1", "--internal", "true"],
+    ["--name", "Beta Testers", "--internal", "maybe"],
+  ];
+  for (const extra of usage) assert.equal((await cli(["group-info", "--app-id", "A1", ...extra])).code, 2, extra.join(" "));
+  const help = await cli(["--help"]);
+  assert.equal(help.code, 0);
+  assert.match(help.stdout, /group-info --app-id A \(--id ID \| --name N \[--internal true\|false\]\)/);
 });

@@ -92,15 +92,17 @@ function routes(mock, groups, state) {
       ? { data: [{ id: "BLD1", attributes: { version: "5", processingState: state } }] }
       : { data: [{ id: "B4", attributes: { version: "4" } }] }),
   }]);
+  const asList = (g) => (Array.isArray(g) ? g : [g]);
+  const all = Object.entries(groups).flatMap(([name, g]) => asList(g).map((x) => ({ name, ...x })));
   mock.on("GET", "/v1/betaGroups", [{
     status: 200,
     body: (url) => ({
-      data: Object.entries(groups)
-        .filter(([name]) => name === url.searchParams.get("filter[name]"))
-        .map(([name, g]) => ({ id: g.id, attributes: { name, isInternalGroup: g.isInt, hasAccessToAllBuilds: g.all } })),
+      data: all
+        .filter((g) => (url.searchParams.has("filter[id]") ? g.id === url.searchParams.get("filter[id]") : g.name === url.searchParams.get("filter[name]")))
+        .map((g) => ({ id: g.id, attributes: { name: g.name, isInternalGroup: g.isInt, hasAccessToAllBuilds: g.all } })),
     }),
   }]);
-  for (const g of Object.values(groups)) {
+  for (const g of all) {
     mock.on("GET", `/v1/betaGroups/${g.id}`, [{ status: 200, body: { data: { id: g.id, type: "betaGroups", attributes: { isInternalGroup: g.isInt, hasAccessToAllBuilds: g.all } } } }]);
     mock.on("POST", `/v1/betaGroups/${g.id}/relationships/builds`, [{ status: 204 }]);
   }
@@ -166,6 +168,12 @@ const fourGroups = () => ({
   "Group C": { id: "GC", isInt: false, all: false },
   "Group D": { id: "GD", isInt: true, all: false },
 });
+// Two groups with the SAME placeholder name (one internal, one external) plus an unrelated one.
+const twinGroups = () => ({
+  "Beta Testers": [{ id: "g-int-1", isInt: true, all: true }, { id: "g-ext-1", isInt: false, all: false }],
+  "Other Group": { id: "g-other", isInt: true, all: false },
+});
+const withTesters = (testerGroup) => (c) => ({ ...c, testerGroup });
 const fourConfig = (extra = {}) => (c) => ({ ...c, testerGroup: ["Group A", "Group B", "Group C", "Group D"], ...extra });
 
 describe("release.sh", { concurrency: 4 }, () => {
@@ -261,6 +269,55 @@ describe("release.sh", { concurrency: 4 }, () => {
     assert.equal(postsTo(ctx, "GC").length, 1);
     assert.equal(postsTo(ctx, "GA").length, 0);
     assert.equal(summaryOf(r).groups[2].status, "added");
+  });
+
+  describe("tester group selectors on two groups with the same name", () => {
+    it("dry run with the plain name: exit 6, summary ok false, the error lists both ids", async (t) => {
+      const ctx = await setup(t, { config: withTesters("Beta Testers"), groups: twinGroups() });
+      const r = await run(ctx, ["--dry-run"]);
+      assert.equal(r.code, 6, r.out);
+      assert.match(r.stderr, /ambiguous/);
+      assert.match(r.stderr, /g-int-1 \(isInternalGroup true\)/);
+      assert.match(r.stderr, /g-ext-1 \(isInternalGroup false\)/);
+      const s = summaryOf(r);
+      assert.equal(s.ok, false);
+      assert.equal(s.exitCode, 6);
+      assert.match(s.error, /g-int-1/);
+      assert.match(s.error, /g-ext-1/);
+    });
+
+    it("dry run with name + internal true: exit 0 and that group's decision line", async (t) => {
+      const ctx = await setup(t, { config: withTesters([{ name: "Beta Testers", internal: true }]), groups: twinGroups() });
+      const r = await run(ctx, ["--dry-run"]);
+      assert.equal(r.code, 0, r.out);
+      assert.match(r.out, /Beta Testers: would skip \(gets all builds\)/);
+      assert.deepEqual(summaryOf(r).groups, [{ name: "Beta Testers", status: "would-skip" }]);
+    });
+
+    it("dry run with the id of the external group and submitExternal false: would skip (external)", async (t) => {
+      const ctx = await setup(t, { config: withTesters([{ id: "g-ext-1" }]), groups: twinGroups() });
+      const r = await run(ctx, ["--dry-run"]);
+      assert.equal(r.code, 0, r.out);
+      assert.match(r.out, /Beta Testers: would skip \(external; submitExternal false\)/);
+      assert.ok(!ctx.mock.requests.some((q) => q.query["filter[name]"] !== undefined), "an id entry must not send filter[name]");
+    });
+
+    it("real run with name + internal true on an internal all-builds group: skipped-all-builds, zero POSTs to it", async (t) => {
+      const ctx = await setup(t, { config: withTesters([{ name: "Beta Testers", internal: true }]), groups: twinGroups() });
+      const r = await run(ctx);
+      assert.equal(r.code, 0, r.out);
+      assert.deepEqual(summaryOf(r).groups, [{ name: "Beta Testers", status: "skipped-all-builds" }]);
+      assert.equal(postsTo(ctx, "g-int-1").length, 0);
+      assert.equal(postsTo(ctx, "g-ext-1").length, 0);
+    });
+
+    it("two entries that resolve to one group exit 6 naming both entry indexes and the id", async (t) => {
+      const ctx = await setup(t, { config: withTesters([{ id: "g-ext-1" }, { name: "Beta Testers", internal: false }]), groups: twinGroups() });
+      const r = await run(ctx, ["--dry-run"]);
+      assert.equal(r.code, 6, r.out);
+      assert.match(r.stderr, /testerGroup entries 0 and 1 are the same group g-ext-1/);
+      assert.equal(summaryOf(r).exitCode, 6);
+    });
   });
 
   it("unknown group name exits 6 before any build", async (t) => {

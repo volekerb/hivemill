@@ -151,18 +151,31 @@ export function createClient({ keyId, issuerId, keyPem, now = Date.now, sleep, f
       return max + 1;
     },
 
-    // The filter[name] match is fuzzy on the ASC side, so only an exact (case-sensitive) name counts.
-    async groupInfo(appId, name) {
-      const data = await getAll("/v1/betaGroups", { "filter[app]": appId, "filter[name]": name });
-      const hits = data.filter((g) => g.attributes?.name === name);
-      if (hits.length === 0) throw new AscError(6, `beta group not found: ${name}`);
-      if (hits.length > 1) throw new AscError(6, `beta group name is ambiguous: ${name}`);
-      const a = hits[0].attributes;
-      return { id: hits[0].id, isInternal: a.isInternalGroup === true, allBuilds: a.hasAccessToAllBuilds === true };
+    // sel: {id} | {name, internal?}. The filter[name] match is fuzzy on the ASC side, so only an exact
+    // (case-sensitive) name counts; filter[id] results are also checked for an exact id.
+    async groupInfo(appId, selector) {
+      const sel = typeof selector === "string" ? { name: selector } : selector;
+      let hits;
+      let label;
+      if (sel.id !== undefined) {
+        label = `id ${sel.id}`;
+        hits = (await getAll("/v1/betaGroups", { "filter[app]": appId, "filter[id]": sel.id })).filter((g) => g.id === sel.id);
+      } else {
+        label = sel["internal"] === undefined ? sel.name : `${sel.name} (internal ${sel["internal"]})`;
+        hits = (await getAll("/v1/betaGroups", { "filter[app]": appId, "filter[name]": sel.name })).filter((g) => g.attributes?.name === sel.name);
+        if (sel["internal"] !== undefined) hits = hits.filter((g) => (g.attributes?.isInternalGroup === true) === sel["internal"]);
+      }
+      if (hits.length === 0) throw new AscError(6, `beta group not found: ${label}`);
+      if (hits.length > 1) {
+        const ids = hits.map((g) => `${g.id} (isInternalGroup ${g.attributes?.isInternalGroup === true})`).join(", ");
+        throw new AscError(6, `beta group name is ambiguous: ${sel.name}: ${ids}; set testerGroup to an object with id, or with name and internal`);
+      }
+      const a = hits[0].attributes ?? {};
+      return { id: hits[0].id, name: a.name ?? "", isInternal: a.isInternalGroup === true, allBuilds: a.hasAccessToAllBuilds === true };
     },
 
     async groupId(appId, name) {
-      return (await this.groupInfo(appId, name)).id;
+      return (await this.groupInfo(appId, { name })).id;
     },
 
     async waitValid(appId, version, build, timeoutMin, intervalS) {
@@ -227,11 +240,24 @@ const COMMANDS = {
   "app-id": { flags: ["bundle-id"] },
   "next-build": { flags: ["app-id", "version"] },
   "group-id": { flags: ["app-id", "name"] },
-  "group-info": { flags: ["app-id", "name"] },
+  "group-info": { flags: ["app-id"], optional: ["id", "name", "internal"] },
   "wait-valid": { flags: ["app-id", "version", "build", "timeout-min", "interval-s"] },
   "set-whats-new": { flags: ["build-id", "locale", "notes-file"] },
   "add-to-group": { flags: ["build-id", "group-id"], bool: ["submit-external"] },
 };
+
+export const HELP = `usage: node asc.mjs <command> [flags]   (credentials: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH in the environment)
+Commands (each prints one value on stdout; exit 2 usage, 4 credentials, 6 ASC API error, 8 processing, 9 post-processing):
+  app-id --bundle-id ID
+  next-build --app-id A --version V
+  group-id --app-id A --name N
+  group-info --app-id A (--id ID | --name N [--internal true|false])
+        prints "<id> TAB internal|external TAB all|selected TAB <group name>". Exactly one of --id / --name;
+        --internal only with --name. Several matches exit 6 and list every id.
+  wait-valid --app-id A --version V --build N --timeout-min M --interval-s S
+  set-whats-new --build-id B --locale L --notes-file F
+  add-to-group --build-id B --group-id G [--submit-external]
+  --help`;
 
 export function parseArgs(argv) {
   const [cmd, ...rest] = argv;
@@ -245,12 +271,17 @@ export function parseArgs(argv) {
       i -= 1; // boolean flag: no value
       continue;
     }
-    if (!name || !spec.flags.includes(name)) throw new AscError(2, `unknown flag for ${cmd}: ${rest[i]}`);
+    if (!name || !(spec.flags.includes(name) || spec.optional?.includes(name))) throw new AscError(2, `unknown flag for ${cmd}: ${rest[i]}`);
     if (i + 1 >= rest.length) throw new AscError(2, `flag --${name} needs a value`);
     flags[name] = rest[i + 1];
   }
   const missing = spec.flags.filter((f) => !(f in flags));
   if (missing.length) throw new AscError(2, `${cmd} needs: ${missing.map((m) => "--" + m).join(" ")}`);
+  if (cmd === "group-info") {
+    if (("id" in flags) === ("name" in flags)) throw new AscError(2, "group-info needs exactly one of --id or --name");
+    if ("internal" in flags && !("name" in flags)) throw new AscError(2, "--internal can only be used with --name");
+    if ("internal" in flags && !["true", "false"].includes(flags["internal"])) throw new AscError(2, "--internal must be true or false");
+  }
   return { cmd, flags };
 }
 
@@ -261,6 +292,7 @@ const num = (name, v) => {
 };
 
 export async function runCli(argv, env, io = {}) {
+  if (["--help", "-h"].includes(argv[0])) return HELP;
   const { cmd, flags } = parseArgs(argv);
   const baseUrl = resolveBaseUrl(env.HIVEMILL_ASC_API_BASE);
   const missing = ["ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_KEY_PATH"].filter((k) => !env[k]);
@@ -283,8 +315,9 @@ export async function runCli(argv, env, io = {}) {
     case "group-id":
       return String(await client.groupId(flags["app-id"], flags.name));
     case "group-info": {
-      const g = await client.groupInfo(flags["app-id"], flags.name);
-      return `${g.id}\t${g.isInternal ? "internal" : "external"}\t${g.allBuilds ? "all" : "selected"}`;
+      const sel = flags.id !== undefined ? { id: flags.id } : { name: flags.name, ...(flags["internal"] !== undefined ? { internal: flags["internal"] === "true" } : {}) };
+      const g = await client.groupInfo(flags["app-id"], sel);
+      return `${g.id}\t${g.isInternal ? "internal" : "external"}\t${g.allBuilds ? "all" : "selected"}\t${g.name}`;
     }
     case "wait-valid":
       return String(await client.waitValid(flags["app-id"], flags.version, flags.build, num("timeout-min", flags["timeout-min"]), num("interval-s", flags["interval-s"])));

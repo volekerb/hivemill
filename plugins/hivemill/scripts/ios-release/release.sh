@@ -215,8 +215,8 @@ $CRED_PATH"
 unset ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_PATH
 
 SUBMIT_EXT="$(cfg submitExternal)"
-cfg_list testerGroup
-TG_NAME=("${LIST[@]}")
+cfg_list testerGroup.selectors
+SEL=("${LIST[@]}")
 cfg_list heavySlotCommand
 HEAVY=()
 if [ ${#LIST[@]} -gt 0 ]; then HEAVY=("${LIST[@]}"); fi
@@ -301,20 +301,45 @@ else
   BUILD="$(asc next-build --app-id "$APP_ID" --version "$VERSION")" || fail "$?" "could not compute the next build number"
 fi
 
+TG_NAME=()
 TG_ID=()
 TG_KIND=()
 TG_SCOPE=()
 i=0
-while [ "$i" -lt ${#TG_NAME[@]} ]; do
-  line="$(asc group-info --app-id "$APP_ID" --name "${TG_NAME[$i]}")" || fail "$?" "beta group lookup failed for ${TG_NAME[$i]}"
-  IFS=$'\t' read -r g_id g_kind g_scope <<EOF
+n=0
+while [ "$n" -lt ${#SEL[@]} ]; do
+  s_kind="${SEL[$n]}"
+  s_val="${SEL[$((n + 1))]}"
+  s_int="${SEL[$((n + 2))]}"
+  case "$s_kind" in
+    id) GI_ARGS=(--id "$s_val") ;;
+    name-internal) GI_ARGS=(--name "$s_val" --internal "$s_int") ;;
+    *) GI_ARGS=(--name "$s_val") ;;
+  esac
+  rc=0
+  line="$(asc group-info --app-id "$APP_ID" "${GI_ARGS[@]}")" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    # asc() already echoed its (redacted) stderr; keep its first line in the message and summary.
+    gi_err="$(head -n 1 "$TMP/asc.err")"
+    fail "$rc" "beta group lookup failed for testerGroup entry $i: ${gi_err#asc: }"
+  fi
+  g_name=""
+  IFS=$'\t' read -r g_id g_kind g_scope g_name <<EOF
 $line
 EOF
+  [ -n "$g_name" ] || g_name="$s_val"
+  j=0
+  while [ "$j" -lt "$i" ]; do
+    if [ "${TG_ID[$j]}" = "$g_id" ]; then fail 6 "testerGroup entries $j and $i are the same group $g_id"; fi
+    j=$((j + 1))
+  done
+  TG_NAME+=("$g_name")
   TG_ID+=("$g_id")
   TG_KIND+=("$g_kind")
   TG_SCOPE+=("$g_scope")
-  printf '%s\0%s\0' "${TG_NAME[$i]}" pending >> "$TMP/groups"
+  printf '%s\0%s\0' "$g_name" pending >> "$TMP/groups"
   i=$((i + 1))
+  n=$((n + 3))
 done
 
 NOTES_KIND="$(cfg notes.kind)"
