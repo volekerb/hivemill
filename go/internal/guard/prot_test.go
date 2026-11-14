@@ -140,7 +140,16 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		"GOBIN=~/.local/go/bin " + g + "go install ./...", g + "go env -w GOFLAGS=x", g + "go test -coverprofile=~/.local/go/c.out ./...",
 		"GOCACHE=~/.local/lib/factory/x " + g + "go test", g + "../../go/bin/go test", g + "gofmt -w ../x.go", g + "gofmt -w",
 		g + "go test -exec \"git push\" ./...", g + "go build -toolexec=/tmp/x ./...", g + "go vet -vettool=/tmp/x ./...",
-		"GOFLAGS=-exec=/tmp/x " + g + "go test ./..."}
+		"GOFLAGS=-exec=/tmp/x " + g + "go test ./...",
+		g + "go fmt ~/.local/go/src/cmd/gofmt", g + "go fmt ~/.local/lib/factory/x", "cd ~/.local/go/src/cmd/gofmt && " + g + "go fmt",
+		g + "go fmt ../x", g + "go fmt /etc", g + "go build -pkgdir ~/.local/go/pkg ./...", g + "go test -pkgdir=~/.local/go/pkg ./...",
+		g + "go test -test.coverprofile=~/.local/go/c.out ./...", g + "go test -test.cpuprofile ~/.local/go/c ./...",
+		g + "go test -test.outputdir=~/.local/go ./...", g + "go test -test.trace=~/.local/lib/factory/t ./...",
+		g + "go test ./... -args -test.coverprofile=~/.local/go/c.out", g + "go test -test.memprofile ~/.local/go/m ./...",
+		"cd ~/.local/go/src/cmd/gofmt && " + g + "go build", "cd ~/.local/go/src/cmd/gofmt && " + g + "go test -c",
+		"cd ~/.local/lib/factory && " + g + "go build ./...", g + "go -C ~/.local/go/src/cmd/gofmt build"}
+	allow = append(allow, g+"go fmt ./...", g+"go fmt", g+"go build", g+"go test -c", g+"go build -o bin/x ./cmd/x",
+		g+"go test -test.coverprofile=c.out ./...", g+"go test -c -o /tmp/x.test", g+"go build -pkgdir /tmp/pk ./...")
 	for _, role := range []string{"coder", "qa", "reviewer"} {
 		for _, c := range allow {
 			if err := Check(c, wt, role, false); err != nil {

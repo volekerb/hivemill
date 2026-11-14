@@ -12,11 +12,14 @@ import (
 var tcRoles = set("coder", "qa", "reviewer")
 var tcSubs = set("build", "test", "vet", "run", "list", "env", "version", "fmt", "mod")
 var tcModSubs = set("verify", "graph", "why")
-var tcWriteFlags = set("o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir", "modfile")
+var tcWriteFlags = set("o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir", "modfile",
+	"pkgdir", "gocoverdir", "fuzzcachedir", "testlogfile") // a -test.NAME spelling is the same flag
 var tcExecFlags = set("exec", "toolexec", "vettool")
 var tcEnvNames = set("GOTOOLCHAIN", "GOFLAGS", "GOPROXY", "GOCACHE", "GOMODCACHE", "CGO_ENABLED", "PATH")
 var reTcHomeWord = regexp.MustCompile(`^\$(?:HOME|\{HOME\})/\.local/go/bin/(?:go|gofmt)$`)
-var reTcFlag = regexp.MustCompile(`^--?([A-Za-z-]+)(=(.*))?$`)
+var reTcFlag = regexp.MustCompile(`^--?([A-Za-z.-]+)(=(.*))?$`)
+var reTcC = regexp.MustCompile(`^--?c(=true)?$`)
+var reTcO = regexp.MustCompile(`^--?o(=|$)`)
 var reTcW = regexp.MustCompile(`^--?w(=true)?$`)
 
 func tcPathValue(v string) bool {
@@ -70,10 +73,11 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 			if m == nil {
 				continue
 			}
-			if in(tcExecFlags, m[1]) {
+			fname := strings.TrimPrefix(m[1], "test.") // -test.coverprofile is -coverprofile
+			if in(tcExecFlags, fname) {
 				return block("-" + m[1] + " runs a program the guard does not inspect")
 			}
-			if in(tcWriteFlags, m[1]) {
+			if in(tcWriteFlags, fname) {
 				v, has := m[3], m[2] != ""
 				if !has && k < len(words) {
 					v, has = words[k], true
@@ -181,5 +185,62 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 	if modMod && env["GOPROXY"] != "off" {
 		return block("-mod=mod needs the GOPROXY=off prefix")
 	}
-	return flagHits(args)
+	if err := flagHits(args); err != nil {
+		return err
+	}
+	base, baseKnown := a.ccwd, a.ccwdKnown
+	if cds := optValues(args, "", "-C", "--C"); len(cds) > 0 {
+		cdir := a.cfgExpand(cds[len(cds)-1])
+		if strings.HasPrefix(cdir, "/") {
+			base, baseKnown = cdir, true
+		} else if a.ccwdKnown {
+			base = pyJoin(a.ccwd, cdir)
+		} else {
+			baseKnown = false
+		}
+	}
+	restArgs := args[k+1:]
+	if sub == "fmt" { // `go fmt` rewrites files in place, like `gofmt -w`: the same worktree-or-scratchpad rule
+		if !baseKnown {
+			return block("`go fmt` needs a known working directory")
+		}
+		if protPath(base, false) {
+			return block("`go fmt` in a protected tree")
+		}
+		root := ""
+		if a.ccwdKnown {
+			root = pyRealpath(a.ccwd)
+		}
+		for _, t := range restArgs {
+			if strings.HasPrefix(t, "-") {
+				continue
+			}
+			if strings.ContainsAny(t, "$`*?[{~") {
+				return block("`go fmt` with a glob or an expansion")
+			}
+			real := pyRealpath(pyJoin(base, t))
+			if a.protHit(t, false, base, baseKnown) || !((root != "" && Under(real, root)) || inScratchpad(real)) {
+				return block("`go fmt` outside your worktree and scratchpad")
+			}
+		}
+		return nil
+	}
+	hasC := false
+	for _, x := range args {
+		if reTcC.MatchString(x) {
+			hasC = true
+		}
+	}
+	if sub == "build" || (sub == "test" && hasC) {
+		hasO := false
+		for _, x := range append(append([]string(nil), restArgs...), strings.Fields(env["GOFLAGS"])...) {
+			if reTcO.MatchString(x) {
+				hasO = true
+			}
+		}
+		if !hasO && baseKnown && protPath(base, false) { // the binary lands in the working directory
+			return block("`go " + sub + "` without -o would write its output into a protected tree (use -o into your worktree)")
+		}
+	}
+	return nil
 }

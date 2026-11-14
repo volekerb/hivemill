@@ -626,6 +626,26 @@ class GoToolchainForWorkers(ProtTreesCase):
                 r = run(cmd, "wt", role=role)
                 self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
 
+    def test_review_gaps_b1_b2_b3_blocked(self):
+        # B1 go fmt, B2 space-form -pkgdir and every -test.* writer, B3 the implicit binary of build / test -c in a protected cwd
+        cmds = [self.G + "go fmt ~/.local/go/src/cmd/gofmt", self.G + "go fmt ~/.local/lib/factory/x",
+                "cd ~/.local/go/src/cmd/gofmt && " + self.G + "go fmt", self.G + "go fmt ../x", self.G + "go fmt /etc",
+                self.G + "go build -pkgdir ~/.local/go/pkg ./...", self.G + "go test -pkgdir=~/.local/go/pkg ./...",
+                self.G + "go test -test.coverprofile=~/.local/go/c.out ./...", self.G + "go test -test.cpuprofile ~/.local/go/c ./...",
+                self.G + "go test -test.outputdir=~/.local/go ./...", self.G + "go test -test.trace=~/.local/lib/factory/t ./...",
+                self.G + "go test ./... -args -test.coverprofile=~/.local/go/c.out", self.G + "go test -test.memprofile ~/.local/go/m ./...",
+                "cd ~/.local/go/src/cmd/gofmt && " + self.G + "go build", "cd ~/.local/go/src/cmd/gofmt && " + self.G + "go test -c",
+                "cd ~/.local/lib/factory && " + self.G + "go build ./...", self.G + "go -C ~/.local/go/src/cmd/gofmt build"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+
+    def test_review_gaps_still_allowed_in_the_tree(self):
+        for cmd in (self.G + "go fmt ./...", self.G + "go fmt", self.G + "go build", self.G + "go test -c", self.G + "go build -o bin/x ./cmd/x",
+                    self.G + "go test -test.coverprofile=c.out ./...", self.G + "go test -c -o /tmp/x.test", self.G + "go build -pkgdir /tmp/pk ./..."):
+            self.assertEqual(run(cmd, "wt").returncode, 0, cmd)
+
     def test_gofmt_write_inside_the_tree_allowed(self):
         self.assertEqual(run(self.G + "gofmt -w x.go", "wt").returncode, 0)
 

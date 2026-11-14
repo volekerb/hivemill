@@ -1446,7 +1446,8 @@ def fold_mktemp(toks):
 TC_ROLES = ("coder", "qa", "reviewer")
 TC_SUBS = {"build", "test", "vet", "run", "list", "env", "version", "fmt"}
 TC_MOD_SUBS = {"verify", "graph", "why"}
-TC_WRITE_FLAGS = ("o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir", "modfile")
+TC_WRITE_FLAGS = ("o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir", "modfile",
+                  "pkgdir", "gocoverdir", "fuzzcachedir", "testlogfile")  # a -test.NAME spelling is the same flag
 TC_EXEC_FLAGS = ("exec", "toolexec", "vettool")
 TC_ENV_NAMES = {"GOTOOLCHAIN", "GOFLAGS", "GOPROXY", "GOCACHE", "GOMODCACHE", "CGO_ENABLED", "PATH"}
 TC_MODCACHE = os.path.join(PW_DIR, ".local", "lib", "factory", "go", "mod")
@@ -2646,11 +2647,12 @@ class Analyzer:
         def flag_hits(words):
             k = 0
             while k < len(words):
-                m = re.match(r"^--?([A-Za-z-]+)(=(.*))?$", words[k])
+                m = re.match(r"^--?([A-Za-z.-]+)(=(.*))?$", words[k])
                 k += 1
-                if m and m.group(1) in TC_EXEC_FLAGS:
+                fname = re.sub(r"^test\.", "", m.group(1)) if m else None  # -test.coverprofile is -coverprofile
+                if m and fname in TC_EXEC_FLAGS:
                     block(f"-{m.group(1)} runs a program the guard does not inspect")
-                if m and m.group(1) in TC_WRITE_FLAGS:
+                if m and fname in TC_WRITE_FLAGS:
                     v = m.group(3) if m.group(2) else (words[k] if k < len(words) else None)
                     if v and self.prot_hit(v):
                         block(f"-{m.group(1)} names a protected tree")
@@ -2703,6 +2705,32 @@ class Analyzer:
         if "-mod=mod" in args + env.get("GOFLAGS", "").split() and env.get("GOPROXY") != "off":
             block("-mod=mod needs the GOPROXY=off prefix")
         flag_hits(args)
+        cdir = (opt_values(args, "", {"-C", "--C"}) or [None])[-1]
+        cdir = None if cdir is None else self.cfg_expand(cdir)
+        if cdir is None:
+            base = self.ccwd
+        elif os.path.isabs(cdir):
+            base = cdir
+        else:
+            base = None if self.ccwd is None else os.path.join(self.ccwd, cdir)
+        rest_args = args[k + 1:]
+        if sub == "fmt":  # `go fmt` rewrites files in place, like `gofmt -w`: the same worktree-or-scratchpad rule
+            targets = [a for a in rest_args if not a.startswith("-")]
+            if base is None:
+                block("`go fmt` needs a known working directory")
+            root = os.path.realpath(self.ccwd) if self.ccwd else None
+            if prot_path(base):
+                block("`go fmt` in a protected tree")
+            for t in targets:
+                if any(c in t for c in "$`*?[{~"):
+                    block("`go fmt` with a glob or an expansion")
+                real = os.path.realpath(os.path.join(base, t))
+                if self.prot_hit(t, base=base) or not (root and under(real, root) or in_scratchpad(real)):
+                    block("`go fmt` outside your worktree and scratchpad")
+        elif (sub == "build" or (sub == "test" and any(re.match(r"^--?c(=true)?$", a) for a in args))) and not any(
+                re.match(r"^--?o(=|$)", a) for a in rest_args + env.get("GOFLAGS", "").split()):
+            if base is not None and prot_path(base):  # the binary lands in the working directory
+                block(f"`go {sub}` without -o would write its output into a protected tree (use -o into your worktree)")
 
     def prot_write(self, name, rest, assigns=()):
         """T-0925 (gaps a, b, c, e, f, g): Bash writes into a protected tree. The writers cfg_write knows (now also with a

@@ -19562,6 +19562,76 @@
       "note": "T-1498: toolchain flags that run another program",
       "cmd": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
       "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go fmt ~/.local/go/src/cmd/gofmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go fmt ~/.local/lib/factory/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go fmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go fmt ../x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go build -pkgdir ~/.local/go/pkg ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -pkgdir=~/.local/go/pkg ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -test.coverprofile=~/.local/go/c.out ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -test.cpuprofile ~/.local/go/c ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -test.outputdir=~/.local/go ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -test.trace=~/.local/lib/factory/t ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test ./... -args -test.coverprofile=~/.local/go/c.out",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go build",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build",
+      "role": "coder"
     }
   ],
   "must_allow": [
@@ -24289,6 +24359,11 @@
       "note": "T-1498: Go toolchain for workers (exec only): other roles unchanged",
       "cmd": "~/.local/go/bin/go mod download",
       "role": "judge"
-    }
+    },
+    "~/.local/go/bin/go fmt ./...",
+    "~/.local/go/bin/go build",
+    "~/.local/go/bin/go build -o bin/x ./cmd/x",
+    "~/.local/go/bin/go test -test.coverprofile=c.out ./...",
+    "~/.local/go/bin/go test -c -o /tmp/x.test"
   ]
 }
