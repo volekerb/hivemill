@@ -256,20 +256,41 @@ class WorkflowTest(unittest.TestCase):
 
     def test_job_names_unchanged(self):
         self.assertEqual(re.findall(r"(?m)^    name: (.+)$", self.wf),
-                         ["unittest-shard (${{ matrix.shard }})", "go", "guard-unittest-shard (${{ matrix.shard }})", "guard-unittest", "guard-diff", "guard-self-compare", "guard-evaluator-home-loosen", "guard-equiv-shard (${{ matrix.shard }})", "guard-equiv", "guard-equiv-rest", "unittest"])
+                         ["ci-tier", "docs-check", "unittest-shard (${{ matrix.shard }})", "go", "guard-unittest-shard (${{ matrix.shard }})", "guard-unittest", "guard-diff", "guard-self-compare", "guard-evaluator-home-loosen", "guard-equiv-shard (${{ matrix.shard }})", "guard-equiv", "guard-equiv-rest", "unittest"])
 
     def test_classifier_runs_from_the_base_commit(self):
         self.assertEqual(self.wf.count('git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py'), 3)
         self.assertNotIn("python ci/ci_tier.py", self.wf)
         self.assertEqual(self.wf.count('python "$RUNNER_TEMP/base/ci/ci_tier.py" classify'), 3)
+        self.assertIn("  ci-tier:\n", self.wf)
 
     def test_push_and_dispatch_run_full(self):
         self.assertIn('if [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi', self.wf)
 
     def test_heavy_steps_are_gated_on_tier(self):
         self.assertIn("steps.tier.outputs.go == 'true'", self.wf)
-        self.assertEqual(self.wf.count("steps.tier.outputs.mode != 'docs'"), 7)
+        self.assertEqual(self.wf.count("steps.tier.outputs.mode != 'docs'"), 5)
         self.assertIn("--only", self.wf)
+
+    def test_docs_fast_lane_skips_heavy_jobs(self):
+        skip = "needs.ci-tier.outputs.mode != 'docs'"
+
+        def job_block(key):
+            lines = []
+            for line in self.wf.split("  %s:\n" % key, 1)[1].splitlines():
+                if re.match(r"^  [A-Za-z0-9_-]+:\s*$", line):
+                    break
+                lines.append(line)
+            return "\n".join(lines)
+
+        for job in ("unittest-shard", "go", "guard-unittest-shard", "guard-diff", "guard-self-compare",
+                    "guard-evaluator-home-loosen", "guard-equiv", "guard-equiv-rest"):
+            self.assertIn(skip, job_block(job), job)
+        docs = self.wf.split("  docs-check:\n", 1)[1].split("\n  unittest-shard:\n", 1)[0]
+        self.assertIn("needs.ci-tier.outputs.mode == 'docs'", docs)
+        gate = self.wf.split('      - name: Docs lane or every shard and guard job succeeded', 1)[1].split("      - uses:", 1)[0]
+        self.assertIn('if [ "$MODE" = "docs" ]; then', gate)
+        self.assertIn("DOCS_CHECK_RESULT", gate)
 
     def test_runners_are_free(self):
         self.assertEqual(set(re.findall(r"runs-on: (\S+)", self.wf)), {"ubuntu-latest"})
