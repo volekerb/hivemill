@@ -85,7 +85,9 @@ func parseScheduleRemove(rest []string) (any, bool) {
 
 func scheduleRequireBoss(c *ctx, entityID, detail string) error {
 	if _, err := requireRole(c, "boss"); err != nil {
-		_ = event(c, "schedule", entityID, "schedule-refused", &detail)
+		if e := event(c, "schedule", entityID, "schedule-refused", &detail); e != nil {
+			return e
+		}
 		return err
 	}
 	return nil

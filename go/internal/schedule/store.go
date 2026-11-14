@@ -27,12 +27,20 @@ type Row struct {
 
 const maxActive = 5
 
+func rollbackUnlessCommitted(db *sql.DB, committed bool) error {
+	if committed {
+		return nil
+	}
+	_, err := db.Exec("ROLLBACK")
+	return err
+}
+
 // Add inserts a schedule after validation; uses one BEGIN IMMEDIATE transaction.
-func Add(db *sql.DB, ts time.Time, who string, hour int, days, goalID, job string, tokenCap int) (string, error) {
+func Add(db *sql.DB, ts time.Time, who string, hour int, days, goalID, job string, tokenCap int) (id string, err error) {
 	if err := ValidateHour(hour); err != nil {
 		return "", err
 	}
-	days, err := ValidateDays(days)
+	days, err = ValidateDays(days)
 	if err != nil {
 		return "", err
 	}
@@ -42,7 +50,12 @@ func Add(db *sql.DB, ts time.Time, who string, hour int, days, goalID, job strin
 	if _, err := db.Exec("BEGIN IMMEDIATE"); err != nil {
 		return "", err
 	}
-	defer func() { _, _ = db.Exec("ROLLBACK") }()
+	committed := false
+	defer func() {
+		if rbErr := rollbackUnlessCommitted(db, committed); rbErr != nil && err == nil {
+			err = rbErr
+		}
+	}()
 	var status, org string
 	err = db.QueryRow("SELECT status, org FROM goals WHERE id=?", goalID).Scan(&status, &org)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -70,7 +83,7 @@ func Add(db *sql.DB, ts time.Time, who string, hour int, days, goalID, job strin
 	if n >= maxActive {
 		return "", &ValidationError{Msg: fmt.Sprintf("at most %d active schedules; remove one first", maxActive)}
 	}
-	id, err := nextScheduleID(db)
+	id, err = nextScheduleID(db)
 	if err != nil {
 		return "", err
 	}
@@ -87,6 +100,7 @@ func Add(db *sql.DB, ts time.Time, who string, hour int, days, goalID, job strin
 	if _, err := db.Exec("COMMIT"); err != nil {
 		return "", err
 	}
+	committed = true
 	return id, nil
 }
 
@@ -121,13 +135,18 @@ func nextScheduleID(db *sql.DB) (string, error) {
 }
 
 // Remove soft-removes a schedule.
-func Remove(db *sql.DB, ts time.Time, who, id string) error {
-	if _, err := db.Exec("BEGIN IMMEDIATE"); err != nil {
+func Remove(db *sql.DB, ts time.Time, who, id string) (err error) {
+	if _, err = db.Exec("BEGIN IMMEDIATE"); err != nil {
 		return err
 	}
-	defer func() { _, _ = db.Exec("ROLLBACK") }()
+	committed := false
+	defer func() {
+		if rbErr := rollbackUnlessCommitted(db, committed); rbErr != nil && err == nil {
+			err = rbErr
+		}
+	}()
 	var removed sql.NullString
-	err := db.QueryRow("SELECT removed_at FROM schedules WHERE id=?", id).Scan(&removed)
+	err = db.QueryRow("SELECT removed_at FROM schedules WHERE id=?", id).Scan(&removed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &ValidationError{Msg: "no schedule " + id}
 	}
@@ -145,8 +164,11 @@ func Remove(db *sql.DB, ts time.Time, who, id string) error {
 		now, who, "schedule", id, "schedule-remove", nil); err != nil {
 		return err
 	}
-	_, err = db.Exec("COMMIT")
-	return err
+	if _, err = db.Exec("COMMIT"); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 // List returns schedule rows; activeOnly hides removed rows.

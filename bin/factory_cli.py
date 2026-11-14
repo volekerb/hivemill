@@ -19784,7 +19784,7 @@ def exec_schedule_go(argv):
             raise OSError("missing")
         home = os.environ.get("FACTORY_HOME", str(HOME))
         srchash = cli_go_srchash(home)
-        if srchash and stamp != srchash:
+        if not srchash or stamp != srchash:
             raise OSError("stale")
         os.execv(go_bin, [argv[0], *argv[1:]])
     except OSError:

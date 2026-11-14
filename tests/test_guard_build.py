@@ -587,6 +587,14 @@ class CliImplTests(FactoryTestCase):
         self.assertNotIn("Traceback", p.stderr)
         self.stamp.write_text(self.h + "\n")
 
+    def test_schedule_go_handback_exit_2_no_loop(self):
+        self.need_real()
+        p = self.env.run("schedule", "list", agent="dir-1", inproc=False,
+                         extra_env={"FACTORY_CLI_IMPL": "python", "FACTORY_CLI_TRACE": "1"})
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("factory schedule needs the Go CLI binary", p.stderr)
+        self.assertNotIn("Traceback", p.stderr)
+
     def test_user_version_equals_schema_version_after_init(self):
         import sqlite3
         with self.env.load_factory() as f:
