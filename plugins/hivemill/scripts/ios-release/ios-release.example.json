@@ -1,0 +1,17 @@
+{
+  "ascProfile": "default",
+  "project": "ios/MyApp.xcodeproj",
+  "scheme": "MyApp",
+  "bundleId": "com.example.myapp",
+  "teamId": "ABCDE12345",
+  "signing": "xcodeAccount",
+  "marketingVersion": { "file": "ios/Config/Version.xcconfig", "regex": "^MARKETING_VERSION = (.+)$" },
+  "testerGroup": ["Internal Testers"],
+  "submitExternal": false,
+  "notes": { "path": "docs/testflight/build{build}.md" },
+  "buildReadyCheck": ["./scripts/check-build-ready.sh"],
+  "gates": [["make", "test"], { "cwd": "ios/MyKit", "argv": ["swift", "test"] }],
+  "worktreeBase": "~/worktrees/myapp",
+  "forbiddenWorktrees": ["~/src/myapp-release"],
+  "defaultBranch": "origin/main"
+}
