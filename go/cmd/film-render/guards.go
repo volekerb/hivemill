@@ -193,7 +193,7 @@ func cssContentStrings(css string) []string {
 		if n > 1 { // adjacent literals render as one string
 			out = append(out, decl.String())
 		}
-		from = max(from, j)
+		from = min(max(from, j), len(css))
 	}
 }
 
@@ -278,7 +278,7 @@ func scanPage(s string) pageScan {
 	return ps
 }
 
-// indexFold is strings.Index with an ASCII case-insensitive needle (lower-case ASCII).
+// indexFold is strings.Index with an ASCII case-insensitive needle (lower-case ASCII; EqualFold also folds Unicode, which cannot match this needle).
 func indexFold(s, needle string) int {
 	n := len(needle)
 	for i := 0; i+n <= len(s); i++ {
