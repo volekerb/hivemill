@@ -1,0 +1,27 @@
+{
+  "factory": {
+    "url": "http://127.0.0.1:8765",
+    "machine": "factory-box",
+    "web_url": "http://FACTORY-HOST:8765"
+  },
+  "orgs": "auto",
+  "projects": [
+    {
+      "name": "My app",
+      "github": "OWNER/NAME",
+      "space": "my-app",
+      "wait_patterns": [
+        { "match": "NEEDS REVIEW", "clear": "REVIEWED", "label": "waits for a review", "after_min": 15 }
+      ]
+    }
+  ],
+  "usage_file": null,
+  "alerts": {
+    "context_below_pct": 10,
+    "stall_minutes": 60,
+    "usage_warn_pct": 80,
+    "usage_danger_pct": 90,
+    "factory_down_minutes": 5
+  },
+  "context_pattern": "ctx (\\d+)% left"
+}
