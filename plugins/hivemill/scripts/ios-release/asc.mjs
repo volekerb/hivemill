@@ -11,6 +11,7 @@ const AUDIENCE = "appstoreconnect-v1";
 const TOKEN_LIFETIME_S = 1200;
 const REMINT_MARGIN_S = 60;
 const RETRY_SLEEPS_S = [1, 2, 4, 8, 16];
+export const DEFAULT_TIMEOUT_MS = 30000;
 
 export class AscError extends Error {
   constructor(code, message) {
@@ -53,7 +54,7 @@ export function loadKey(keyPath) {
   return pem;
 }
 
-export function createClient({ keyId, issuerId, keyPem, now = Date.now, sleep, fetch: fetchImpl = globalThis.fetch, baseUrl = DEFAULT_BASE_URL }) {
+export function createClient({ keyId, issuerId, keyPem, now = Date.now, sleep, fetch: fetchImpl = globalThis.fetch, baseUrl = DEFAULT_BASE_URL, timeoutMs = DEFAULT_TIMEOUT_MS }) {
   sleep ??= (ms) => new Promise((r) => setTimeout(r, ms));
   const origin = new URL(baseUrl).origin;
   let token = null;
@@ -85,9 +86,10 @@ export function createClient({ keyId, issuerId, keyPem, now = Date.now, sleep, f
           method,
           headers: { Authorization: `Bearer ${bearer()}`, ...(body ? { "Content-Type": "application/json" } : {}) },
           body: body ? JSON.stringify(body) : undefined,
+          signal: AbortSignal.timeout(timeoutMs),
         });
       } catch {
-        res = null; // network error: retry below
+        res = null; // network error or timeout: retry below
       }
       if (res && (res.status === 401 || res.status === 403)) throw new AscError(6, AUTH_MESSAGE);
       const retryable = res === null || res.status === 429 || res.status >= 500;
@@ -144,11 +146,18 @@ export function createClient({ keyId, issuerId, keyPem, now = Date.now, sleep, f
       return max + 1;
     },
 
-    async groupId(appId, name) {
+    // The filter[name] match is fuzzy on the ASC side, so only an exact (case-sensitive) name counts.
+    async groupInfo(appId, name) {
       const data = await getAll("/v1/betaGroups", { "filter[app]": appId, "filter[name]": name });
-      const hit = data.find((g) => g.attributes?.name === name) ?? data[0];
-      if (!hit) throw new AscError(6, `no beta group named "${name}" for this app`);
-      return hit.id;
+      const hits = data.filter((g) => g.attributes?.name === name);
+      if (hits.length === 0) throw new AscError(6, `beta group not found: ${name}`);
+      if (hits.length > 1) throw new AscError(6, `beta group name is ambiguous: ${name}`);
+      const a = hits[0].attributes;
+      return { id: hits[0].id, isInternal: a.isInternalGroup === true, allBuilds: a.hasAccessToAllBuilds === true };
+    },
+
+    async groupId(appId, name) {
+      return (await this.groupInfo(appId, name)).id;
     },
 
     async waitValid(appId, version, build, timeoutMin, intervalS) {
@@ -185,9 +194,21 @@ export function createClient({ keyId, issuerId, keyPem, now = Date.now, sleep, f
       }
     },
 
-    async addToGroup(buildId, groupId) {
+    // Returns "skipped-all-builds", "skipped-external" or "added".
+    async addToGroup(buildId, groupId, { submitExternal = false } = {}) {
       try {
+        const g = await request("GET", `/v1/betaGroups/${encodeURIComponent(groupId)}`);
+        const a = g?.data?.attributes ?? {};
+        if (a.isInternalGroup === true && a.hasAccessToAllBuilds === true) {
+          process.stderr.write(`group ${groupId}: skipped: gets all builds\n`);
+          return "skipped-all-builds";
+        }
+        if (a.isInternalGroup !== true && !submitExternal) {
+          process.stderr.write(`group ${groupId}: skipped: external group; set submitExternal to add it (this submits the build to beta app review)\n`);
+          return "skipped-external";
+        }
         await request("POST", `/v1/betaGroups/${encodeURIComponent(groupId)}/relationships/builds`, { body: { data: [{ type: "builds", id: buildId }] } });
+        return "added";
       } catch (err) {
         if (err instanceof AscError) throw new AscError(9, `adding the build to the beta group failed: ${err.message}`);
         throw err;
@@ -201,9 +222,10 @@ const COMMANDS = {
   "app-id": { flags: ["bundle-id"] },
   "next-build": { flags: ["app-id", "version"] },
   "group-id": { flags: ["app-id", "name"] },
+  "group-info": { flags: ["app-id", "name"] },
   "wait-valid": { flags: ["app-id", "version", "build", "timeout-min", "interval-s"] },
   "set-whats-new": { flags: ["build-id", "locale", "notes-file"] },
-  "add-to-group": { flags: ["build-id", "group-id"] },
+  "add-to-group": { flags: ["build-id", "group-id"], bool: ["submit-external"] },
 };
 
 export function parseArgs(argv) {
@@ -213,6 +235,11 @@ export function parseArgs(argv) {
   const flags = {};
   for (let i = 0; i < rest.length; i += 2) {
     const name = rest[i].startsWith("--") ? rest[i].slice(2) : null;
+    if (name && spec.bool?.includes(name)) {
+      flags[name] = true;
+      i -= 1; // boolean flag: no value
+      continue;
+    }
     if (!name || !spec.flags.includes(name)) throw new AscError(2, `unknown flag for ${cmd}: ${rest[i]}`);
     if (i + 1 >= rest.length) throw new AscError(2, `flag --${name} needs a value`);
     flags[name] = rest[i + 1];
@@ -242,7 +269,7 @@ export async function runCli(argv, env, io = {}) {
     }
   }
   const keyPem = loadKey(env.ASC_KEY_PATH);
-  const client = createClient({ keyId: env.ASC_KEY_ID, issuerId: env.ASC_ISSUER_ID, keyPem, baseUrl, now: io.now, sleep: io.sleep, fetch: io.fetch });
+  const client = createClient({ keyId: env.ASC_KEY_ID, issuerId: env.ASC_ISSUER_ID, keyPem, baseUrl, now: io.now, sleep: io.sleep, fetch: io.fetch, timeoutMs: io.timeoutMs });
   switch (cmd) {
     case "app-id":
       return String(await client.appId(flags["bundle-id"]));
@@ -250,14 +277,17 @@ export async function runCli(argv, env, io = {}) {
       return String(await client.nextBuildNumber(flags["app-id"], flags.version));
     case "group-id":
       return String(await client.groupId(flags["app-id"], flags.name));
+    case "group-info": {
+      const g = await client.groupInfo(flags["app-id"], flags.name);
+      return `${g.id}\t${g.isInternal ? "internal" : "external"}\t${g.allBuilds ? "all" : "selected"}`;
+    }
     case "wait-valid":
       return String(await client.waitValid(flags["app-id"], flags.version, flags.build, num("timeout-min", flags["timeout-min"]), num("interval-s", flags["interval-s"])));
     case "set-whats-new":
       await client.setWhatsNew(flags["build-id"], flags.locale, notes);
       return null;
     default:
-      await client.addToGroup(flags["build-id"], flags["group-id"]);
-      return null;
+      return await client.addToGroup(flags["build-id"], flags["group-id"], { submitExternal: flags["submit-external"] === true });
   }
 }
 

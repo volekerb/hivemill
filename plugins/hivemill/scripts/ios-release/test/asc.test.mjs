@@ -8,7 +8,7 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { AscError, AUTH_MESSAGE, createClient, resolveBaseUrl, signJwt } from "../asc.mjs";
 import { makeFakeKey } from "./helpers/fakekey.mjs";
-import { fakeClock, startMock } from "./helpers/mock-asc.mjs";
+import { fakeClock, groupBody, startMock } from "./helpers/mock-asc.mjs";
 
 const ASC = fileURLToPath(new URL("../asc.mjs", import.meta.url));
 const key = makeFakeKey();
@@ -182,7 +182,7 @@ test("groupId filters by app and name; missing group -> 6", async () => {
 test("addToGroup posts the build relationship body", async () => {
   mock.on("POST", "/v1/betaGroups/G1/relationships/builds", [{ status: 204, body: null }]);
   await client().addToGroup("B7", "G1");
-  assert.deepEqual(mock.requests[0].body, { data: [{ type: "builds", id: "B7" }] });
+  assert.deepEqual(mock.requests.find((r) => r.method === "POST").body, { data: [{ type: "builds", id: "B7" }] });
 });
 
 test("base URL: default, loopback and localhost allowed; anything else -> 2", () => {
@@ -227,7 +227,7 @@ test("CLI: next-build, group-id, wait-valid, set-whats-new, add-to-group", async
   assert.equal(mock.requests.find((r) => r.method === "POST").body.data.attributes.whatsNew, "hello\n");
   mock.on("POST", "/v1/betaGroups/G1/relationships/builds", [{ status: 204, body: null }]);
   const g = await cli(["add-to-group", "--build-id", "B7", "--group-id", "G1"]);
-  assert.deepEqual([g.code, g.stdout], [0, ""]);
+  assert.deepEqual([g.code, g.stdout], [0, "added\n"]);
 });
 
 test("CLI failures: exit codes and no secrets on stderr", async () => {
@@ -262,4 +262,117 @@ test("CLI failures: exit codes and no secrets on stderr", async () => {
 test("CLI: https://evil.example override with a missing key exits 2 before touching credentials", async () => {
   const r = await cli(["app-id", "--bundle-id", "com.example.a"], { PATH: process.env.PATH, HOME: home, HIVEMILL_ASC_API_BASE: "https://evil.example", ASC_KEY_ID: "x", ASC_ISSUER_ID: "y", ASC_KEY_PATH: "/nonexistent" });
   assert.equal(r.code, 2);
+});
+
+// ---- T-1425: group rules, exact name, timeout ----
+const grp = (id, name, internal = true, all = false) => ({ id, type: "betaGroups", attributes: { name, isInternalGroup: internal, hasAccessToAllBuilds: all } });
+const posts = () => mock.requests.filter((r) => r.method === "POST");
+const POST_PATH = "/v1/betaGroups/G1/relationships/builds";
+
+test("group lookup: 'Internal Testers 2' listed first, the exact 'Internal Testers' is picked", async () => {
+  mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: [grp("G2", "Internal Testers 2"), grp("G1", "Internal Testers")] } }]);
+  assert.equal(await client().groupId("A1", "Internal Testers"), "G1");
+  assert.equal(mock.requests[0].query["filter[name]"], "Internal Testers");
+});
+
+test("group lookup: a near match only -> 6 beta group not found; case differs -> 6", async () => {
+  mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: [grp("G2", "Internal Testers 2"), grp("G3", "internal testers")] } }]);
+  await rejectsWith(client().groupInfo("A1", "Internal Testers"), 6, /beta group not found: Internal Testers/);
+});
+
+test("group lookup: two exact matches -> 6 ambiguous, also across pages", async () => {
+  mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: [grp("G1", "Internal Testers"), grp("G9", "Internal Testers")] } }]);
+  await rejectsWith(client().groupInfo("A1", "Internal Testers"), 6, /beta group name is ambiguous: Internal Testers/);
+  mock.on("GET", "/v1/betaGroups", [
+    { status: 200, body: { data: [grp("G1", "Internal Testers")], links: { next: `${mock.baseUrl}/v1/betaGroups?cursor=2` } } },
+    { status: 200, body: { data: [grp("G9", "Internal Testers")] } },
+  ]);
+  await rejectsWith(client().groupInfo("A1", "Internal Testers"), 6, /ambiguous/);
+});
+
+test("groupInfo returns id, isInternal and allBuilds", async () => {
+  mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: [grp("G1", "Internal Testers", true, true)] } }]);
+  assert.deepEqual(await client().groupInfo("A1", "Internal Testers"), { id: "G1", isInternal: true, allBuilds: true });
+});
+
+test("CLI group-info prints one tab-separated line for internal/all, internal/selected and external", async () => {
+  const cases = [[grp("G1", "Internal Testers", true, true), "G1\tinternal\tall\n"], [grp("G1", "Internal Testers", true, false), "G1\tinternal\tselected\n"], [grp("G1", "Internal Testers", false, false), "G1\texternal\tselected\n"]];
+  for (const [g, want] of cases) {
+    mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: [g] } }]);
+    const r = await cli(["group-info", "--app-id", "A1", "--name", "Internal Testers"]);
+    assert.deepEqual([r.code, r.stdout], [0, want]);
+    assertNoSecrets(r.stderr);
+  }
+  mock.on("GET", "/v1/betaGroups", [{ status: 200, body: { data: [] } }]);
+  const miss = await cli(["group-info", "--app-id", "A1", "--name", "Internal Testers"]);
+  assert.deepEqual([miss.code, miss.stdout], [6, ""]);
+  assert.match(miss.stderr, /beta group not found: Internal Testers/);
+});
+
+test("addToGroup: internal with all builds -> skipped-all-builds, zero POSTs", async () => {
+  mock.on("GET", "/v1/betaGroups/G1", [{ status: 200, body: groupBody("G1", true, true) }]);
+  assert.equal(await client().addToGroup("B7", "G1"), "skipped-all-builds");
+  assert.equal(posts().length, 0);
+});
+
+test("addToGroup: internal with selected builds -> added, one POST", async () => {
+  mock.on("GET", "/v1/betaGroups/G1", [{ status: 200, body: groupBody("G1", true, false) }]);
+  mock.on("POST", POST_PATH, [{ status: 204, body: null }]);
+  assert.equal(await client().addToGroup("B7", "G1"), "added");
+  assert.equal(posts().length, 1);
+});
+
+test("addToGroup: external without submitExternal -> skipped-external, zero POSTs", async () => {
+  mock.on("GET", "/v1/betaGroups/G1", [{ status: 200, body: groupBody("G1", false, false) }]);
+  assert.equal(await client().addToGroup("B7", "G1"), "skipped-external");
+  assert.equal(await client().addToGroup("B7", "G1", { submitExternal: false }), "skipped-external");
+  assert.equal(posts().length, 0);
+});
+
+test("addToGroup: external with submitExternal -> added, one POST", async () => {
+  mock.on("GET", "/v1/betaGroups/G1", [{ status: 200, body: groupBody("G1", false, false) }]);
+  mock.on("POST", POST_PATH, [{ status: 204, body: null }]);
+  assert.equal(await client().addToGroup("B7", "G1", { submitExternal: true }), "added");
+  assert.equal(posts().length, 1);
+});
+
+test("addToGroup: a 422 on an internal group with selected builds -> 9, not skipped", async () => {
+  mock.on("GET", "/v1/betaGroups/G1", [{ status: 200, body: groupBody("G1", true, false) }]);
+  mock.on("POST", POST_PATH, [{ status: 422, body: {} }]);
+  await rejectsWith(client().addToGroup("B7", "G1"), 9, /422/);
+});
+
+test("CLI add-to-group: status line on stdout; --submit-external opts an external group in", async () => {
+  mock.on("GET", "/v1/betaGroups/G1", [{ status: 200, body: groupBody("G1", true, true) }]);
+  let r = await cli(["add-to-group", "--build-id", "B7", "--group-id", "G1"]);
+  assert.deepEqual([r.code, r.stdout], [0, "skipped-all-builds\n"]);
+  assert.match(r.stderr, /group G1: skipped: gets all builds/);
+  assertNoSecrets(r.stderr);
+  mock.on("GET", "/v1/betaGroups/G1", [{ status: 200, body: groupBody("G1", false, false) }]);
+  r = await cli(["add-to-group", "--build-id", "B7", "--group-id", "G1"]);
+  assert.deepEqual([r.code, r.stdout], [0, "skipped-external\n"]);
+  assert.match(r.stderr, /set submitExternal to add it/);
+  assert.equal(posts().length, 0);
+  mock.on("POST", POST_PATH, [{ status: 204, body: null }]);
+  r = await cli(["add-to-group", "--build-id", "B7", "--group-id", "G1", "--submit-external"]);
+  assert.deepEqual([r.code, r.stdout], [0, "added\n"]);
+  assert.equal(posts().length, 1);
+  mock.on("GET", "/v1/betaGroups/G1", [{ status: 200, body: groupBody("G1", true, false) }]);
+  mock.on("POST", POST_PATH, [{ status: 422, body: {} }]);
+  r = await cli(["add-to-group", "--build-id", "B7", "--group-id", "G1"]);
+  assert.equal(r.code, 9);
+  assert.equal(r.stdout, "");
+  assertNoSecrets(r.stderr);
+});
+
+test("timeout: one hanging response is retried (sleeps [1]) then succeeds", async () => {
+  mock.on("GET", "/v1/apps", [{ status: 200, hang: true }, { status: 200, body: { data: [{ id: "A1" }] } }]);
+  assert.equal(await client({ timeoutMs: 50 }).appId("com.example.a"), "A1");
+  assert.deepEqual(clock.sleeps, [1]);
+});
+
+test("timeout: always hanging -> 6 after 5 retries", async () => {
+  mock.on("GET", "/v1/apps", [{ status: 200, hang: true }]);
+  await rejectsWith(client({ timeoutMs: 50 }).appId("com.example.a"), 6, /failed after 5 retries \(network error\)/);
+  assert.deepEqual(clock.sleeps, [1, 2, 4, 8, 16]);
 });
