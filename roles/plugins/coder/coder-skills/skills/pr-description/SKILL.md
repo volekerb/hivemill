@@ -17,6 +17,6 @@ Follow these steps in order.
 8. No marketing tone ("robust", "seamless", "comprehensive"), no narration of your process, no restating the task spec.
 9. Add no "Generated with Claude Code" footer (owner M11175). The `Co-Authored-By` trailer belongs in the commit message, not the body.
 10. Do not add a `## Gates` block. Gates belong in QA and reviewer verdicts (`factory verdict`), not in PR bodies.
-11. Open a new PR with `factory pr create --title T --body -` and the full real body in a quoted heredoc, in one Bash call. Update an open PR with `gh pr edit <n> --body-file <file>`: write the file in one Bash call, then run `gh pr edit` alone in the next call (coder.md C9). Re-check the body after every push that changes the story.
+11. Open a new PR with `factory pr create --title 'T-1234: what the change does' --body -` and the full real body in a quoted heredoc, in one Bash call. The title is your task id, a colon, and a description of the change. `T-1: name` in coder.md step 5 is the shape, not a string to copy. Passing only the task id uses the database task title. Update an open PR with `gh pr edit <n> --body-file <file>`: write the file in one Bash call, then run `gh pr edit` alone in the next call (coder.md C9). Re-check the body after every push that changes the story.
 
 Examples: docs/pr-descriptions.md.

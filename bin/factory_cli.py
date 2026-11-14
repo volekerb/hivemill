@@ -4604,8 +4604,48 @@ def rejection_cause_counts(con):
         "SELECT cause, COUNT(*) n FROM rejection_incidents GROUP BY cause ORDER BY n DESC, cause")}
 
 
+_SC_TITLE_TAG = re.compile(r"^\[SC\d+(?:\s*,\s*SC\d+)*\]\s*")
+_PR_TITLE_SEP = re.compile(r"^[ :-]+")
+
+
+def _task_title_description(db_title):
+    s = (db_title or "").strip()
+    s = _SC_TITLE_TAG.sub("", s, count=1)
+    return s.strip()
+
+
+def _pr_create_gh_title(task_id, given_raw, db_title):
+    """Build the gh --title for `factory pr create`: task id, colon, description (T-1263)."""
+    given = (given_raw or "").strip()
+    tid = task_id
+    tl = len(tid)
+
+    def refuse():
+        die("title needs a description", 2)
+
+    def emit(desc):
+        d = desc.strip()
+        if not d or d.lower() == tid.lower():
+            refuse()
+        return f"{tid}: {d}"
+
+    db_desc = _task_title_description(db_title)
+    if len(given) >= tl and given[:tl].lower() == tid.lower():
+        after = given[tl:]
+        if not after:
+            return emit(db_desc)
+        sep = _PR_TITLE_SEP.match(after)
+        if sep:
+            rem = after[sep.end() :]
+            rem_strip = rem.strip()
+            if not rem_strip or rem_strip.lower() == tid.lower():
+                return emit(db_desc)
+            return emit(rem_strip)
+    return emit(given)
+
+
 def cmd_pr(a):
-    """coder: `pr create --title T --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
+    """coder: `pr create --title 'T-1234: what the change does' --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
     the PR from the own branch, never from args or env: gh's glob-matchable flags (--repo=X, -RX, GH_REPO, a PR URL) cannot
     redirect it. The child env drops GH_REPO and GH_HOST."""
     con = db()
@@ -4616,8 +4656,8 @@ def cmd_pr(a):
     tid = ag["task_id"] if ag else None
     if not tid:
         die(f"{actor()} has no task: `factory pr` opens the PR of your own task; ask your lead", 3)
-    row = con.execute("SELECT p.gh_repo, p.base_branch, t.branch AS task_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
-                      "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
+    row = con.execute("SELECT p.gh_repo, p.base_branch, t.branch AS task_branch, t.title AS task_title FROM tasks t "
+                      "JOIN goals g ON g.id=t.goal_id JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
     repo = ((row["gh_repo"] if row else "") or "").strip()
     if not ghcred.SLUG_RE.fullmatch(repo):
         die(f"{tid}: its project has no valid gh_repo ({repo!r}); ask your lead to set it with `factory project update`", 3)
@@ -4641,13 +4681,14 @@ def cmd_pr(a):
         body = read_text("-")
         if not (a.title or "").strip() or not body:
             die("`factory pr create` needs a non-empty --title and a body on stdin", 2)
+        gh_title = _pr_create_gh_title(tid, a.title, (row["task_title"] if row else "") or "")
         argv = ["gh", "pr", "create", "--repo", repo, "--base", row["base_branch"], "--head", branch,
-                "--title", a.title, "--body-file", "-"]
+                "--title", gh_title, "--body-file", "-"]
         if _repo_slug(repo) in _cfg_slugs(con, "public_text_repos"):  # G-021: raw `gh pr create` is denied, so this is the only text path
             try:
                 guard = _public_guard()
                 terms = guard.load_terms_or_fail(os.environ, cfg(con, "scrub_terms_file") or None)
-                hits = guard.check_text(a.title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
+                hits = guard.check_text(gh_title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
             except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses, never lets the text through
                 die(f"pr create refused (public text): cannot check the text: {type(e).__name__}: {str(e)[:200]}; "
                     f"fix the guard or SCRUB_TERMS_FILE, or ask your lead", 3)
@@ -11439,7 +11480,8 @@ def prcheck_evidence_problem(sec):
 def prcheck_body(wt, base, pr_url):
     """Check 3: the PR body follows the template, shows a test command, and says `Tests removed:` when the count drops."""
     if not pr_url:
-        return False, "no PR for this task yet: open it (factory pr create --title T --body -) or pass --pr <url>, then rerun"
+        return False, ("no PR for this task yet: open it (factory pr create --title 'T-1234: what the change does' "
+                       "--body -) or pass --pr <url>, then rerun")
     try:
         p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "body"], capture_output=True, text=True, timeout=120,
                            env=gh_git_env())

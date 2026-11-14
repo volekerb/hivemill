@@ -36,7 +36,7 @@ class PrWrapperTests(FactoryTestCase):
         self.assertIn("/pull/7", p.stdout)
         (c,) = self.gh_calls()
         self.assertEqual(c["argv"], ["pr", "create", "--repo", REPO_SLUG, "--base", "main", "--head", "factory/t-0001",
-                                     "--title", "T-0001 thing", "--body-file", "-"])
+                                     "--title", "T-0001: thing", "--body-file", "-"])
         self.assertEqual(c["stdin"], "the body")
 
     def test_ready_targets_own_branch_only(self):
@@ -165,6 +165,30 @@ class PrWrapperTests(FactoryTestCase):
         p = self.pr("ready")
         self.assertEqual(p.returncode, 3, p.stderr)
         self.assertIn("gh_repo", p.stderr)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_create_title_three_cases(self):
+        titles = (
+            ("T-0001", "[SC4] hc status from OSC 7501; a missing status is never idle",
+             "T-0001: hc status from OSC 7501; a missing status is never idle"),
+            ("missing status is never idle", "other", "T-0001: missing status is never idle"),
+            ("t-0001 - coder text", "other", "T-0001: coder text"),
+        )
+        for arg, db_title, want in titles:
+            with self.subTest(arg=arg, db_title=db_title):
+                self.env.sql("UPDATE tasks SET title=? WHERE id='T-0001'", (db_title,))
+                p = self.pr("create", "--title", arg, "--body", "-", stdin="b\n")
+                self.assertEqual(p.returncode, 0, p.stderr)
+                (c,) = self.gh_calls()
+                ti = c["argv"].index("--title")
+                self.assertEqual(c["argv"][ti + 1], want)
+                self.env.calls_file.write_text("")
+
+    def test_create_title_needs_a_description(self):
+        self.env.sql("UPDATE tasks SET title=? WHERE id='T-0001'", ("[SC4]",))
+        p = self.pr("create", "--title", "T-0001", "--body", "-", stdin="b\n")
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("title needs a description", p.stderr)
         self.assertEqual(self.gh_calls(), [])
 
 
