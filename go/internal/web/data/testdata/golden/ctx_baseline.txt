@@ -1,0 +1,20 @@
+window: start .. now
+  transcript files read: 7, requests counted: 8
+  unattributed sessions skipped: 1, empty sessions: 2
+  sidechain requests (excluded): 0, duplicate requests: 7, malformed lines: 2
+
+1. fixed_prefix (context of a session's first request), tokens per role
+  role          n    median       p90       min       max
+  boss          1     55010     55010     55010     55010
+  coder         3         6      2400         3      2400
+  lead          1      1010      1010      1010      1010
+
+2. input_per_task (sum of context over all requests of a task agent), per role
+  role          n      median         p90
+  coder         3           6        5410
+
+3. persistent (HQ sessions)
+  claude-boss session s-boss: requests=3 first=55010 last=100010 max=260010 over_250k=1
+    hourly max: 2026-11-14T08:00=260010, 2026-11-14T09:00=100010
+  claude-lead-g-001 session s-lead: requests=1 first=1010 last=1010 max=1010 over_250k=0
+    hourly max: 2026-11-12T09:00=1010
