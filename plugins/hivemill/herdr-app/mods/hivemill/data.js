@@ -26,6 +26,8 @@ export const DEFAULTS = {
   alerts: { context_below_pct: 10, stall_minutes: 60, usage_warn_pct: 80, usage_danger_pct: 90, factory_down_minutes: 5 },
   // A regex with one group: the percent of context left, as the agents' status line prints it.
   context_pattern: "ctx (\\d+)% left",
+  // Screens for docs and films: see demo() below.
+  demo: { enabled: false, hide: [], alerts: true },
 };
 
 export const data = () => shared(DATA) ?? {};
@@ -322,7 +324,29 @@ export function alerts(d = data()) {
   if (d.factoryDownSince && now - d.factoryDownSince >= A.factory_down_minutes * 60_000)
     out.push({ key: `factory-down`, level: "warning", text: `Factory unreachable · ${ago(d.factoryDownSince)}` });
   if (d.configError) out.push({ key: `config:${d.configError}`, level: "warning", text: d.configError });
+  if (demo()) return config().demo?.alerts === false ? [] : out.filter((a) => !hidden(a.text)).map((a) => ({ ...a, text: clean(a.text) }));
   return out;
+}
+
+// Demo mode ("demo": {"enabled": true, "hide": ["word", ...], "alerts": false}): screens for docs and films.
+// Task, goal and PR numbers go, agent names lose their task suffix, and any row naming a hidden word is left out.
+export const demo = () => Boolean(config().demo?.enabled);
+export function hidden(text) {
+  if (!demo() || !text) return false;
+  const s = String(text).toLowerCase();
+  return (config().demo?.hide ?? []).some((w) => w && s.includes(String(w).toLowerCase()));
+}
+export function clean(text) {
+  if (!demo() || text == null) return text;
+  return String(text)
+    .replace(/\b[TGM]-\d{2,6}[a-z]?\b:?\s*/gi, "")
+    .replace(/(^|\s)#\d+\b/g, "$1")
+    .replace(/-(t|g)-\d{2,6}[a-z]?\b/gi, "")
+    .replace(/\[[A-Z0-9-]+\]\s*/g, "")
+    .replace(/^[A-Z]\d+[a-z]?(-[a-z])?\s+(?=\S)/, "")
+    .replace(/\s*\((?:[a-z]+-)?\)/gi, "") // "(post-G-001)" emptied above
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 export const warn = (t) => t.ansi3 ?? t.done;

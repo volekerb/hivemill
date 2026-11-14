@@ -8,7 +8,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, theme, run, exec, spaces, panes, window, keys, notify, nextCommand } from "herdr";
-import { data, config, tick, ago, money, dur, pipeline, alerts, usage, orgsShown, webUrl, levelColor, warn, good } from "./data.js";
+import { data, config, tick, ago, money, dur, pipeline, alerts, usage, orgsShown, webUrl, levelColor, warn, good, demo, hidden, clean } from "./data.js";
 
 const MOD = "hivemill";
 const alpha = (c, a) => (typeof c === "string" && c.length === 7 ? c + a : c);
@@ -111,7 +111,7 @@ export default class Dashboard extends View {
     const f = d.factory;
     const orgs = orgsShown(d);
     const fLive = f ? f.system?.agents?.live ?? f.live_agents ?? 0 : null;
-    const fNeeds = f ? (f.needs_you ?? []).filter((n) => !n.org || orgs.has(n.org)).length : 0;
+    const fNeeds = f ? (f.needs_you ?? []).filter((n) => (!n.org || orgs.has(n.org)) && !hidden(n.subject)).length : 0;
     const u = usage(d);
     const seg = (id, onClick, ...kids) =>
       h_flex().id(id).gap(6).items_center().px(6).h_full().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(onClick).children(kids);
@@ -121,10 +121,10 @@ export default class Dashboard extends View {
     const stallMs = (cfg.alerts?.stall_minutes ?? 60) * 60_000;
 
     const bar = h_flex().id("root").size_full().px(8).gap(6).items_center().bg(t.chrome).border_t(1).border_color(t.border).text_size(11.8).text_color(t.muted)
-      .child(h_flex().px(6).gap(14).items_center().child(label(space?.machine ? "server" : "monitor", space?.machine ?? "This computer"))
-        .when(Boolean(space?.branch), (el) => el.child(label("branch", space.branch))));
+      .child(h_flex().px(6).gap(14).items_center().child(label(space?.machine && !demo() ? "server" : "monitor", demo() ? "This computer" : space?.machine ?? "This computer"))
+        .when(Boolean(space?.branch) && !demo(), (el) => el.child(label("branch", space.branch))));
 
-    for (const p of (cfg.projects ?? []).filter((x) => x.github)) {
+    for (const p of (cfg.projects ?? []).filter((x) => x.github && !hidden(x.name ?? x.github))) {
       const pl = pipeline(p.github, d);
       bar.child(sep()).child(
         seg(`b-${p.github}`, () => showDashboard(),
@@ -224,7 +224,7 @@ export default class Dashboard extends View {
         ]),
       ),
     );
-    return this.card(t, "Alerts", div().text_size(10.5).text_color(t.dim).child(d.scanAt ? `checked ${ago(d.scanAt)} ago` : "checking…"), body);
+    return this.card(t, "Alerts", div().text_size(10.5).text_color(t.dim).child(d.scanAt ? (ago(d.scanAt) === "now" ? "checked just now" : `checked ${ago(d.scanAt)} ago`) : "checking…"), body);
   }
 
   projectCard(t, d, p) {
@@ -240,8 +240,8 @@ export default class Dashboard extends View {
     body.child(this.sub(t, "Open PRs, longest waiting first", waiting.length));
     body.children(waiting.map((x) =>
       this.row(t, `pr-${p.github}-${x.number}`, () => openUrl(x.url), [
-        div().flex_none().w(44).text_size(11).text_color(t.dim).child(`#${x.number}`),
-        div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(x.title),
+        div().flex_none().w(demo() ? 0 : 44).text_size(11).text_color(t.dim).child(demo() ? "" : `#${x.number}`),
+        div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(x.title)),
         div().flex_none().text_size(10.5).text_color(Date.now() - x.updated > 3 * 3600_000 ? warn(t) : t.dim).child(ago(x.updated)),
       ])));
     const merged = pl.merged.slice(0, 4);
@@ -250,7 +250,7 @@ export default class Dashboard extends View {
       body.children(merged.map((m) =>
         this.row(t, `mg-${p.github}-${m.number}`, () => openUrl(m.url), [
           div().flex_none().text_size(11).text_color(good(t)).child("✓"),
-          div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(m.title),
+          div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(m.title)),
           div().flex_none().text_size(10.5).text_color(t.dim).child(ago(m.merged)),
         ])));
     }
@@ -303,13 +303,13 @@ export default class Dashboard extends View {
         body.child(this.sub(t, "Spend per day", null));
         body.child(this.bars(t, "spend-days", days, (x) => x.cost ?? 0, (x) => money(x.cost).replace(".00", ""), t.accent));
       }
-      const tasks = tk?.byTask ?? [];
+      const tasks = (tk?.byTask ?? []).filter((x) => !hidden(x.title));
       if (tasks.length) {
         body.child(this.sub(t, "Most expensive tasks", null));
         body.children(tasks.map((x) =>
           this.row(t, `cost-${x.key}`, () => openUrl(`/task/${x.key}`), [
-            div().flex_none().w(52).text_size(10.5).text_color(t.dim).child(x.key),
-            div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(x.title ?? ""),
+            div().flex_none().w(demo() ? 0 : 52).text_size(10.5).text_color(t.dim).child(demo() ? "" : x.key),
+            div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(x.title ?? "")),
             div().flex_none().text_size(11.5).font_semibold().text_color(x.cost > 10 ? warn(t) : t.muted).child(money(x.cost)),
           ])));
       }
@@ -328,7 +328,7 @@ export default class Dashboard extends View {
     const gb = (mb) => (mb / 1024).toFixed(1);
     body.child(this.sub(t, "Factory machine", m.serve_uptime_s ? `up ${dur(m.serve_uptime_s)}` : null));
     body.child(this.meter(t, "r-mem", "Memory", m.mem_total_mb ? `${gb(m.mem_total_mb - m.mem_available_mb)} / ${gb(m.mem_total_mb)} GB` : "–", m.mem_total_mb ? 1 - m.mem_available_mb / m.mem_total_mb : null, m.mem_available_mb != null ? `${gb(m.mem_available_mb)} GB free` : null));
-    if (m.swap_total_mb) body.child(this.meter(t, "r-swap", "Swap", `${gb(m.swap_used_mb)} / ${gb(m.swap_total_mb)} GB`, m.swap_used_mb / m.swap_total_mb));
+    if (m.swap_total_mb && !hidden("swap")) body.child(this.meter(t, "r-swap", "Swap", `${gb(m.swap_used_mb)} / ${gb(m.swap_total_mb)} GB`, m.swap_used_mb / m.swap_total_mb));
     const load = Array.isArray(m.load) ? m.load : [];
     body.child(this.meter(t, "r-load", `Load (${m.cpus ?? "?"} CPUs)`, load.length ? load.map((x) => x.toFixed(1)).join(" · ") : "–", load.length && m.cpus ? load[0] / m.cpus : null, "1 · 5 · 15 min"));
     body.child(this.sub(t, "Spawn gate", null));
@@ -361,7 +361,7 @@ export default class Dashboard extends View {
       return this.card(t, "Factory", right, body);
     }
     const sa = f.system?.agents ?? {};
-    const needs = (f.needs_you ?? []).filter(inOrg);
+    const needs = (f.needs_you ?? []).filter((n) => inOrg(n) && !hidden(n.subject));
     body.child(h_flex().px(10).pt(10).gap(6).children([
       this.stat(t, "live / cap", `${sa.live ?? f.live_agents ?? 0}/${sa.cap ?? "?"}`, good(t)),
       this.stat(t, "queued", sa.queued ?? f.queued_agents ?? 0),
@@ -376,7 +376,7 @@ export default class Dashboard extends View {
           div().size(7).rounded(4).flex_none().bg(toneColor(t, l.health?.tone)),
           div().flex_none().w(60).text_size(12).text_color(t.foreground).child(l.label ?? l.org),
           div().flex_1().min_w(0).truncate().text_size(11).text_color(t.muted).child(`${l.workers_live ?? 0} workers · ${l.leads_awake ?? 0} leads awake · ${l.goals_active ?? 0} goals`),
-          div().flex_none().text_size(10.5).text_color(toneColor(t, l.health?.tone)).child(l.health?.text ?? ""),
+          div().flex_none().text_size(10.5).text_color(toneColor(t, l.health?.tone)).child(demo() ? ((n) => (n ? `${n} need${n === 1 ? "s" : ""} you` : "ok"))(needs.filter((x) => x.org === l.org).length) : l.health?.text ?? ""),
         ])));
     }
     body.child(this.sub(t, "Needs you", needs.length));
@@ -385,12 +385,12 @@ export default class Dashboard extends View {
       this.row(t, `need-${i}`, () => openUrl(n.href), [
         div().size(7).rounded(4).flex_none().bg(toneColor(t, n.tone)),
         v_flex().flex_1().min_w(0)
-          .child(div().truncate().text_size(12).text_color(t.foreground).child(n.subject ?? n.ref ?? "?"))
-          .child(div().truncate().text_size(10.5).text_color(t.dim).child([orgs.size > 1 ? n.org : null, n.kind, n.ref, n.age].filter(Boolean).join(" · "))),
+          .child(div().truncate().text_size(12).text_color(t.foreground).child(clean(n.subject ?? n.ref ?? "?")))
+          .child(div().truncate().text_size(10.5).text_color(t.dim).child([orgs.size > 1 ? n.org : null, n.kind, demo() ? null : n.ref, n.age].filter(Boolean).join(" · "))),
       ])));
     if (needs.length > 8) body.child(this.row(t, "need-more", () => openUrl("/"), [div().text_size(11).text_color(t.accent).child(`+${needs.length - 8} more in the browser`)]));
 
-    const goals = (f.goals ?? []).filter((g) => g.status === "active" && inOrg(g))
+    const goals = (f.goals ?? []).filter((g) => g.status === "active" && inOrg(g) && !hidden(g.title))
       .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9) || (b.last_activity ?? "").localeCompare(a.last_activity ?? ""));
     if (goals.length) {
       body.child(this.sub(t, "Active goals", `${goals.length} · ${f.goals_by_status?.done ?? 0} done`));
@@ -398,32 +398,32 @@ export default class Dashboard extends View {
         const done = g.tasks_done ?? 0, total = g.tasks_total ?? 0, frac = total ? Math.min(1, done / total) : 0;
         return v_flex().id(`goal-${g.id}`).mx(6).px(6).py(4).gap(3).rounded(6).hover((s) => s.bg(t.hover)).on_click(() => openUrl(`/goal/${g.id}`))
           .child(h_flex().gap(6).items_center()
-            .child(div().flex_none().text_size(10.5).text_color(t.dim).child(g.id))
-            .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(g.title ?? ""))
+            .child(div().flex_none().text_size(10.5).text_color(t.dim).child(demo() ? "" : g.id))
+            .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(g.title ?? "")))
             .child(div().flex_none().text_size(10.5).text_color(t.muted).child(`${done}/${total}`)))
           .child(div().h(4).w_full().rounded(2).bg(t.border).child(div().h_full().w(`${(frac * 100).toFixed(1)}%`).rounded(2).bg(done >= total && total ? good(t) : t.accent)));
       }));
     }
     // Factory agents run on the factory's own terminals, so this app's agents list may not show them.
-    const rows = (f.agents?.rows ?? []).filter((a) => (a.status === "live" || a.status === "running") && inOrg(a));
+    const rows = (f.agents?.rows ?? []).filter((a) => (a.status === "live" || a.status === "running") && inOrg(a) && !hidden(a.task_title));
     if (rows.length) {
       body.child(this.sub(t, "Factory agents", `${rows.length} · ${f.agents?.queued ?? 0} queued`));
       body.children(rows.map((a, i) =>
         this.row(t, `fa-${i}`, () => openUrl("/agents"), [
           div().size(7).rounded(4).flex_none().bg(good(t)),
           v_flex().flex_1().min_w(0)
-            .child(h_flex().gap(6).child(div().truncate().text_size(12).text_color(t.foreground).child(a.name)).child(div().flex_none().text_size(10.5).text_color(t.dim).child(a.role ?? "")))
-            .when(Boolean(a.task_title || a.task_id), (el) => el.child(div().truncate().text_size(10.5).text_color(t.muted).child([a.task_id, a.task_title].filter(Boolean).join(" ")))),
+            .child(h_flex().gap(6).child(div().truncate().text_size(12).text_color(t.foreground).child(clean(a.name))).child(div().flex_none().text_size(10.5).text_color(t.dim).child(a.role ?? "")))
+            .when(Boolean(a.task_title || a.task_id), (el) => el.child(div().truncate().text_size(10.5).text_color(t.muted).child(demo() ? clean(a.task_title ?? "") : [a.task_id, a.task_title].filter(Boolean).join(" ")))),
           div().flex_none().text_size(10.5).text_color(t.dim).child(ago(Date.parse(a.last_event))),
         ])));
     }
-    const shipped = (f.shipped?.recent ?? []).slice(0, 5);
+    const shipped = (f.shipped?.recent ?? []).filter((s) => !hidden(s.title)).slice(0, 5);
     if (shipped.length) {
       body.child(this.sub(t, "Shipped", f.quality?.first_try_pct != null ? `${f.quality.first_try_pct}% first try` : null));
       body.children(shipped.map((s, i) =>
         this.row(t, `ship-${i}`, () => openUrl(s.pr_url || `/task/${s.task_id}`), [
           div().flex_none().text_size(11).text_color(good(t)).child("✓"),
-          div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(s.title ?? s.task_id),
+          div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(s.title ?? s.task_id)),
           div().flex_none().text_size(10.5).text_color(t.dim).child(ago(Date.parse(s.merged))),
         ])));
     }
@@ -435,10 +435,13 @@ export default class Dashboard extends View {
     const d = data();
     const cols = this.width >= 1300 ? 3 : this.width >= 860 ? 2 : 1;
     const col = (cards) => v_flex().flex_none().flex_1().min_w(0).gap(12).children(cards);
-    const projects = (config().projects ?? []).filter((p) => p.github).map((p) => this.projectCard(t, d, p));
+    const projects = (config().projects ?? []).filter((p) => p.github && !hidden(p.name ?? p.github)).map((p) => this.projectCard(t, d, p));
     const alertsC = this.alertsCard(t, d), budget = this.budgetCard(t, d), res = this.resourcesCard(t, d), factory = this.factoryCard(t, d);
     const grid =
-      cols === 3 ? h_flex().flex_none().gap(12).items_start().child(col([alertsC, ...projects])).child(col([budget, res])).child(col([factory]))
+      cols === 3
+        ? projects.length
+          ? h_flex().flex_none().gap(12).items_start().child(col([alertsC, ...projects])).child(col([budget, res])).child(col([factory]))
+          : h_flex().flex_none().gap(12).items_start().child(col([alertsC, res])).child(col([budget])).child(col([factory]))
       : cols === 2 ? h_flex().flex_none().gap(12).items_start().child(col([alertsC, budget, ...projects])).child(col([res, factory]))
       : v_flex().flex_none().gap(12).children([alertsC, budget, ...projects, res, factory]);
     const header = h_flex().gap(8).items_center().px(4)

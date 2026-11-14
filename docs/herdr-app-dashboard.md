@@ -97,6 +97,20 @@ A project is a repository whose agents run in this Herdr app (for example a team
 - `space`: the Herdr space (id or name) that holds the project's agents. Its tab is where the dashboard tab opens first.
 - `wait_patterns`: text on an agent's screen that means it is waiting on a person. An idle agent showing `match` (and not `clear`) for `after_min` minutes raises an alert, for example a team that asks for a shared resource and waits for a go.
 
+### Demo mode: screens for docs and films
+
+To take pictures you can publish, add this to the settings:
+
+```json
+"demo": { "enabled": true, "hide": ["a private word", "another"], "alerts": true }
+```
+
+- Task, goal and PR numbers are removed from every title. Agent names lose their task suffix, and the bar says "This computer" instead of a machine name.
+- Any row whose text contains a `hide` word is left out: needs, goals, tasks, agents, shipped work, alerts and projects. `"swap"` in `hide` also leaves out the swap meter.
+- `"alerts": false` shows no alerts at all.
+
+Turn it off again after the pictures. The Herdr app draws only while its window is on screen, so bring it forward before `herdr-app shot`.
+
 ## How it works
 
 - One copy of the mod at a time does the polling, using a short lease in the app's shared state. Every copy reads the same data. The bar and the tab never poll twice.
