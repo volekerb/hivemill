@@ -190,13 +190,53 @@ func liveHomesAt(base string, uid int) map[string]bool {
 	}
 	if st.Mode().IsRegular() && pst.IsDir() && ownerOf(st) == uid && st.Mode().Perm()&0o022 == 0 {
 		if data, err := os.ReadFile(path); err == nil {
-			lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
-			if len(lines) == 1 && filepath.IsAbs(lines[0]) && !strings.Contains(lines[0], "\x00") {
-				homes[realpath(lines[0])] = true
+			if live, ok := LiveHomeLine(data); ok {
+				homes[realpath(live)] = true
 			}
 		}
 	}
 	return homes
+}
+
+// SplitLines splits like Python str.splitlines: on \n, \r, \r\n, \v, \f, \x1c-\x1e, \x85, \u2028 and \u2029,
+// with no empty last element.
+func SplitLines(s string) []string {
+	var out []string
+	rs := []rune(s)
+	var cur []rune
+	for i := 0; i < len(rs); i++ {
+		switch r := rs[i]; r {
+		case '\r':
+			if i+1 < len(rs) && rs[i+1] == '\n' {
+				i++
+			}
+			out = append(out, string(cur))
+			cur = cur[:0]
+		case '\n', '\v', '\f', 0x1c, 0x1d, 0x1e, 0x85, 0x2028, 0x2029:
+			out = append(out, string(cur))
+			cur = cur[:0]
+		default:
+			cur = append(cur, r)
+		}
+	}
+	if len(cur) > 0 {
+		out = append(out, string(cur))
+	}
+	return out
+}
+
+// LiveHomeLine returns the live home recorded in the content of a live_home file as the Python tools read it
+// (text mode, so CRLF is normalised, then splitlines): the file must hold exactly one absolute line without NUL.
+// Invalid UTF-8 is unreadable text and yields no home.
+func LiveHomeLine(data []byte) (string, bool) {
+	if !utf8.Valid(data) {
+		return "", false
+	}
+	lines := SplitLines(string(data))
+	if len(lines) == 1 && filepath.IsAbs(lines[0]) && !strings.Contains(lines[0], "\x00") {
+		return lines[0], true
+	}
+	return "", false
 }
 
 // CheckOut resolves --out; it is refused inside the live home or when it exists and is not empty.

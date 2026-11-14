@@ -51,9 +51,8 @@ func LiveHomes(base string) map[string]bool {
 	if err != nil {
 		return homes
 	}
-	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
-	if len(lines) == 1 && filepath.IsAbs(lines[0]) && !strings.Contains(lines[0], "\x00") {
-		homes[realpath(lines[0])] = true
+	if live, ok := freshexport.LiveHomeLine(data); ok {
+		homes[realpath(live)] = true
 	}
 	return homes
 }
@@ -95,7 +94,7 @@ func Load(home, stateDir string) ([]Count, error) {
 		return nil, err
 	}
 	var events []map[string]any
-	for n, line := range strings.Split(string(jsonl), "\n") {
+	for n, line := range freshexport.SplitLines(string(jsonl)) {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -169,6 +168,10 @@ func build(tmp, schema string, events []map[string]any) ([]Count, error) {
 		return nil, err
 	}
 	for n, e := range events {
+		if len(e) == 0 {
+			tx.Rollback()
+			return nil, fmt.Errorf(`events.jsonl line %d: empty event {}; every event needs at least one column`, n+1)
+		}
 		cols := make([]string, 0, len(e))
 		for c := range e {
 			cols = append(cols, c)
@@ -187,10 +190,7 @@ func build(tmp, schema string, events []map[string]any) ([]Count, error) {
 			}
 			args = append(args, v)
 		}
-		q := "INSERT INTO events DEFAULT VALUES"
-		if len(cols) > 0 {
-			q = fmt.Sprintf("INSERT INTO events (%s) VALUES (%s)", strings.Join(cols, ","), strings.TrimSuffix(strings.Repeat("?,", len(cols)), ","))
-		}
+		q := fmt.Sprintf("INSERT INTO events (%s) VALUES (%s)", strings.Join(cols, ","), strings.TrimSuffix(strings.Repeat("?,", len(cols)), ","))
 		if _, err := tx.Exec(q, args...); err != nil {
 			tx.Rollback()
 			return nil, err

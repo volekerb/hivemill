@@ -288,3 +288,51 @@ func TestNamesPrivateSlug(t *testing.T) {
 		}
 	}
 }
+
+// SplitLines and LiveHomeLine read live_home like Python's text mode plus splitlines; a CRLF must never hide the live home.
+func TestLiveHomeLineLikePython(t *testing.T) {
+	for in, want := range map[string]string{
+		"/h\n": "/h", "/h\r\n": "/h", "/h\r": "/h", "/h": "/h", "/h ": "/h", "/h\x0b": "/h", "/h\u0085": "/h",
+		"": "", "\n": "", "/a\n/b\n": "", "/a\r\n/b": "", "rel\r\n": "", "/h\x00\r\n": "", "/h\n\n": "", "\xff/h\n": "",
+	} {
+		got, _ := LiveHomeLine([]byte(in))
+		if got != want {
+			t.Errorf("LiveHomeLine(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := SplitLines("a\r\nb\rc\n\nd "); len(got) != 5 || got[1] != "b" || got[3] != "" || got[4] != "d" {
+		t.Errorf("SplitLines = %q", got)
+	}
+}
+
+func TestLiveHomesAtCRLF(t *testing.T) {
+	base := t.TempDir()
+	cfg := filepath.Join(base, ".config", "factory")
+	live := filepath.Join(base, "elsewhere")
+	if err := os.MkdirAll(cfg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(live, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(cfg, "live_home"), live+"\r\n", 0o644)
+	if !liveHomesAt(base, os.Getuid())[realpath(live)] {
+		t.Fatal("a CRLF live_home line was not treated as the live home")
+	}
+}
+
+// FuzzSplitLines: no line holds a separator and the parsers never panic.
+func FuzzSplitLines(f *testing.F) {
+	for _, s := range []string{"", "a\r\nb", "\r", "/h\r\n", "a b\x85c", "\xff\r\n"} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		for _, l := range SplitLines(s) {
+			if strings.ContainsAny(l, "\r\n\v\f\x1c\x1d\x1e\u0085  ") {
+				t.Fatalf("line %q of %q holds a separator", l, s)
+			}
+		}
+		LiveHomeLine([]byte(s))
+		originRe.FindStringSubmatch(s)
+	})
+}

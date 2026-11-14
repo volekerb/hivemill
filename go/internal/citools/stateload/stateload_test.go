@@ -201,3 +201,86 @@ func fileExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && st.Mode().IsRegular()
 }
+
+// runPy runs ci/state_load.py with the faked passwd home and returns its exit code; it skips when python3 is absent.
+func runPy(t *testing.T, home, state string) int {
+	t.Helper()
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not found: parity with ci/state_load.py not checked")
+	}
+	script, err := filepath.Abs("../../../../ci/state_load.py")
+	if err != nil || !fileExists(script) {
+		t.Skip("ci/state_load.py not found: parity not checked")
+	}
+	cmd := exec.Command(py, "-I", "-c", pyWrap, freshexport.HomeOverride, script, state)
+	cmd.Env = append(os.Environ(), "FACTORY_HOME="+home)
+	if err := cmd.Run(); err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			return ee.ExitCode()
+		}
+		t.Fatalf("python: %v", err)
+	}
+	return 0
+}
+
+// An empty event cannot be inserted by the Python tool (INSERT INTO events () is a syntax error): exit 1, nothing written.
+func TestEmptyEventExitsLikePython(t *testing.T) {
+	f := newFixture(t)
+	write(t, filepath.Join(f.state, "events.jsonl"), events+"{}\n")
+	rc, _, e := runGo(t, f.home, f.state)
+	if rc != 1 || !strings.Contains(e, "empty event") {
+		t.Fatalf("rc %d stderr %q, want 1 and an empty-event message", rc, e)
+	}
+	if fileExists(filepath.Join(f.home, "db", "factory.db")) || fileExists(filepath.Join(f.home, "db", "factory.db.tmp")) {
+		t.Error("a db was written")
+	}
+	if prc := runPy(t, filepath.Join(filepath.Dir(f.home), "pyhome"), f.state); prc != rc {
+		t.Fatalf("python exit %d, go %d", prc, rc)
+	}
+}
+
+// The live_home guard must hold for every line ending Python's text mode and splitlines accept.
+func TestLiveHomeLineEndings(t *testing.T) {
+	for name, content := range map[string]string{
+		"lf": "%s\n", "crlf": "%s\r\n", "cr": "%s\r", "no newline": "%s", "vt": "%s\v", "ff": "%s\f", "nel": "%s\u0085",
+		"line separator": "%s ", "fs": "%s\x1c",
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			live := filepath.Join(filepath.Dir(f.home), "elsewhere")
+			cfg := filepath.Join(freshexport.HomeOverride, ".config", "factory")
+			if err := os.MkdirAll(cfg, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			write(t, filepath.Join(cfg, "live_home"), strings.Replace(content, "%s", live, 1))
+			rc, _, e := runGo(t, live, f.state)
+			if rc != 1 || !strings.Contains(e, "live factory home") {
+				t.Fatalf("go: rc %d %q, want the live-home refusal", rc, e)
+			}
+			if prc := runPy(t, live, f.state); prc != rc {
+				t.Fatalf("python exit %d, go %d", prc, rc)
+			}
+		})
+	}
+}
+
+// FuzzLoad: arbitrary events.jsonl and schema never panic; a failed load leaves no db behind.
+func FuzzLoad(f *testing.F) {
+	f.Add(events, schema)
+	f.Add("{}\n", schema)
+	f.Add("[1]\r\n{\"id\":1,\"ts\":\"t\",\"action\":\"x\"}\r", schema)
+	f.Add("{\"id\":1e999,\"ts\":\"t\",\"action\":\"x\"} x", "")
+	f.Fuzz(func(t *testing.T, jsonl, sql string) {
+		root := t.TempDir()
+		state, home := filepath.Join(root, "state"), filepath.Join(root, "home")
+		if err := os.MkdirAll(state, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		write(t, filepath.Join(state, "factory.sql"), sql)
+		write(t, filepath.Join(state, "events.jsonl"), jsonl)
+		if _, err := Load(home, state); err != nil && fileExists(filepath.Join(home, "db", "factory.db")) {
+			t.Fatalf("load failed (%v) but a db exists", err)
+		}
+	})
+}

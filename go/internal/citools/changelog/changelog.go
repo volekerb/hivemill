@@ -29,19 +29,16 @@ import (
 )
 
 var (
-	prSuffix       = regexp.MustCompile(`\s*\(#\d+\)$`)
-	datePat        = regexp.MustCompile(`\s*\(?\b\d{4}-\d{2}-\d{2}\b\)?`) // entries carry no dates
 	versionHeading = regexp.MustCompile(`(?m)^## \[([^\]]+)\]`)
-	upgradeLine    = regexp.MustCompile(`(?m)^### Upgrade[ \t\r\f\v]*$`)
 	sections       = []string{"Added", "Changed", "Fixed", "Security"}
 	// First match wins, in this order: fix/bug, then security words, then add/new, else Changed.
 	rules = []struct {
 		name string
 		re   *regexp.Regexp
 	}{
-		{"Fixed", regexp.MustCompile(`(?i)\b(fix|bug)`)},
-		{"Security", regexp.MustCompile(`(?i)\b(guard|deny|harden|secret|scrub)`)},
-		{"Added", regexp.MustCompile(`(?i)\b(add|new)\b`)},
+		{"Fixed", regexp.MustCompile(`(?i)(fix|bug)`)},
+		{"Security", regexp.MustCompile(`(?i)(guard|deny|harden|secret|scrub)`)},
+		{"Added", regexp.MustCompile(`(?i)(add|new)`)},
 	}
 )
 
@@ -103,7 +100,7 @@ func (t tool) releaseNotes(version string) (string, error) {
 	if err != nil {
 		return "", failf("cannot read ci/release-notes/%s.md: %s. Write the curated notes for %s first.", version, strerror(err), version)
 	}
-	return strings.TrimSpace(string(data)) + "\n", nil
+	return pyStrip(string(data)) + "\n", nil
 }
 
 // IsPrerelease: a "-" suffix or a 0.x version.
@@ -168,7 +165,7 @@ func (t tool) releaseSubjectPrefix() (string, error) {
 	if err != nil {
 		return "", failf("cannot read VERSION: %v. Restore the VERSION file.", err)
 	}
-	return "Release v" + strings.TrimSpace(string(data)), nil
+	return "Release v" + pyStrip(string(data)), nil
 }
 
 func (t tool) mergedSubjects(ref, since, repo string) ([]string, error) {
@@ -184,25 +181,30 @@ func (t tool) mergedSubjects(ref, since, repo string) ([]string, error) {
 		return nil, err
 	}
 	if rc != 0 {
-		return nil, failf("git log %s failed: %s. Fetch the ref or pass --ref/--since a valid one.", rng, strings.TrimSpace(stderr))
+		return nil, failf("git log %s failed: %s. Fetch the ref or pass --ref/--since a valid one.", rng, pyStrip(stderr))
 	}
 	release, err := t.releaseSubjectPrefix()
 	if err != nil {
 		return nil, err
 	}
 	var subjects []string
-	for _, line := range strings.Split(out, "\n") {
+	for _, line := range freshexport.SplitLines(out) {
 		parts := strings.SplitN(line, "\t", 3)
 		if len(parts) == 3 && prSuffix.MatchString(parts[2]) && !strings.HasPrefix(parts[2], release) {
-			subjects = append(subjects, strings.TrimSpace(datePat.ReplaceAllString(prSuffix.ReplaceAllString(parts[2], ""), "")))
+			subjects = append(subjects, cleanSubject(parts[2]))
 		}
 	}
 	return subjects, nil
 }
 
+// cleanSubject drops the PR number and any date from a commit subject, as ci/changelog.py does.
+func cleanSubject(s string) string {
+	return pyStrip(replaceDates(prSuffix.ReplaceAllString(s, "")))
+}
+
 func sectionOf(subject string) string {
 	for _, r := range rules {
-		if r.re.MatchString(subject) {
+		if matchWords(r.re, subject, r.name == "Added") {
 			return r.name
 		}
 	}
@@ -250,7 +252,7 @@ func VersionProblems(version, root string) []string {
 	data, err := os.ReadFile(filepath.Join(root, "VERSION"))
 	hasVersion := err == nil
 	if hasVersion {
-		have = strings.TrimSpace(string(data))
+		have = pyStrip(string(data))
 	}
 	if !hasVersion || have != version {
 		shown := "None"

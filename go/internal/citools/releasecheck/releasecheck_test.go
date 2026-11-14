@@ -279,3 +279,16 @@ func TestPatchReleaseHasNoFreshboxReminder(t *testing.T) {
 		t.Fatalf("the root must be shell-quoted: %s", got)
 	}
 }
+
+// FuzzParseArgs: no argv panics, and a parse that succeeds never leaves a flag-looking word as the SHA.
+func FuzzParseArgs(f *testing.F) {
+	f.Add("--version", "1.0.0", "abc")
+	f.Add("--repo=a/b", "--require-no-python", "")
+	f.Add("-x", "", "")
+	f.Fuzz(func(t *testing.T, a, b, c string) {
+		got, err := parseArgs([]string{a, b, c})
+		if err == nil && len(got.sha) > 0 && got.sha[0] == '-' {
+			t.Fatalf("parseArgs(%q, %q, %q) took a flag as the sha: %q", a, b, c, got.sha)
+		}
+	})
+}
