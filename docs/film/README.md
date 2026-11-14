@@ -2,9 +2,17 @@
 
 `storyboard.json` is the storyboard for a customer commercial of at most 60 seconds (1920x1080, 30 fps, 8 scenes). This film replaces the rejected launch film and shares nothing with it. Fable is used only for the scene design of this film; the storyboard itself is plain data.
 
-Scene 7 (`herdr-core`) is a placeholder. It stays empty until the owner chooses which view to show: status bar, dashboard tab, or org filter variant. Nothing is drawn for it.
+Scene 7: Herdr app panel. The stills in `docs/film/herdr/` are crops of the owner's demo-mode capture of the Hivemill dashboard tab in the Herdr desktop app (source file `hivemill-dashboard-clean.png`, 1920x960, Mac mini, taken 2026-11-14 about 20:33, sha256 `a3b86dc1733e3ac8fd52207011f4053962262051625c63efee9678b6488efb74`). The full frame is not committed because it holds a live request list and the most expensive tasks list. It is from an open pull request and is not part of v0.4.0. The scene composes the crops at 1920x1080 with no upscaling beyond native size.
 
-The film makes no predicted-performance claim, never mentions the worker sandbox, and never says a release newer than v0.4.0 is out.
+| File | Crop | Frame rectangle | Content |
+|---|---|---|---|
+| panel-resources.png | `crop=617:489:23:222` | 23..639, 222..710 | Whole Resources card: machines, spawn gate, merges per day |
+| panel-budget.png | `crop=616:528:652:131` | 652..1267, 131..658 | Budget & cost upper half: Claude budget bars, Cursor plan, spend tiles, cost per merged PR, spend per day |
+| panel-factory.png | `crop=617:194:1280:131` | 1280..1896, 131..324 | Factory header, four tiles, Claude and Cursor lanes |
+| panel-active-goals.png | `crop=617:409:1280:447` | 1280..1896, 447..855 | Active goals header and all 11 goal rows |
+| panel-status-bar.png | `crop=1920:28:0:932` | 0..1919, 932..959 | The status bar |
+
+The film makes no predicted-performance claim, never claims the worker sandbox is finished (scene 7's Active goals shows it in progress), and never says a release newer than v0.4.0 is out.
 
 ## Claims, sources and re-check commands
 
@@ -20,6 +28,7 @@ The film makes no predicted-performance claim, never mentions the worker sandbox
 | Researcher benchmark protocol skill | roles/plugins/researcher/research-skills/skills/benchmark-protocol/SKILL.md:2 | `sed -n 2p` of that file |
 | Setup command `/hivemill:setup` | plugins/hivemill/skills/setup/SKILL.md:2 | `sed -n 2p plugins/hivemill/skills/setup/SKILL.md` |
 | Up to five recurring jobs, token cap per run, `factory schedule add` | docs/schedule.md:3, docs/schedule.md:9 | `sed -n '3p;9p' docs/schedule.md` |
+| Herdr app panel (Hivemill dashboard tab and status bar in the Herdr desktop app; from an open pull request, not part of v0.4.0) | docs/film/herdr/CAPTURE.md:3, docs/film/herdr/CAPTURE.md:5 | `sha256sum docs/film/herdr/*.png` and `ffmpeg -loglevel error -i <source frame> -vf crop=W:H:X:Y -f md5 -` for each crop above, compared with `ffmpeg -loglevel error -i docs/film/herdr/<file> -f md5 -` |
 | Release v0.4.0 | README.md:274 | `git tag -l v0.4.0` |
 
-Scene text must contain no ids, PR numbers or other bookkeeping words; the only allowed exception is the "PR 633" mention in scene 7's visual note.
+Scene text must contain no ids, PR numbers or other bookkeeping words; there is no exception.
