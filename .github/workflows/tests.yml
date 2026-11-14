@@ -23,9 +23,78 @@ env:
   SHARDS: 10
 
 jobs:
+  # PRs: classify once; docs mode skips the heavy jobs and runs docs-check instead (T-1427).
+  ci-tier:
+    name: ci-tier
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.tier.outputs.mode }}
+      go: ${{ steps.tier.outputs.go }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Tier (rules from the base commit)
+        id: tier
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
+          # Push to main, workflow_dispatch, or a base without the script: the full suite.
+          full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
+          if [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/base"
+          if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
+            full "base commit has no ci/ci_tier.py"; exit 0
+          fi
+          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+            --only-file "$RUNNER_TEMP/only.txt" --github-output
+      - uses: actions/upload-artifact@v7
+        if: steps.tier.outputs.mode == 'affected'
+        with:
+          name: ci-tier-only
+          path: ${{ runner.temp }}/only.txt
+          if-no-files-found: error
+
+  # Docs fast lane: the only job besides unittest on a docs-tier pull request (T-1427).
+  docs-check:
+    name: docs-check
+    needs: ci-tier
+    if: ${{ github.event_name == 'pull_request' && needs.ci-tier.outputs.mode == 'docs' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Tier tool from the base commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/base"
+          git archive "$BASE_SHA" ci/ci_tier.py | tar -x -C "$RUNNER_TEMP/base"
+      - name: Docs check and docs index
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python "$RUNNER_TEMP/base/ci/ci_tier.py" docs-check --root . --base "$BASE_SHA" --head HEAD
+          python -m unittest discover -s tests -p test_docs_index.py
+          echo '### docs-only PR: docs fast lane (docs check + docs index passed)' >> "$GITHUB_STEP_SUMMARY"
+
   # Single-job equivalent for local runs: python -m unittest discover -s tests -v
   unittest-shard:
     name: unittest-shard (${{ matrix.shard }})
+    needs: ci-tier
+    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -56,7 +125,6 @@ jobs:
           fi
           python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
-      # docs mode: the aggregator runs the docs check; the shards report success without the suite.
       # zsh reads .zshenv: the sandbox PATH-order regression tests must run in CI, not skip.
       - name: Install zsh
         if: steps.tier.outputs.mode != 'docs'
@@ -80,6 +148,8 @@ jobs:
 
   go:
     name: go
+    needs: ci-tier
+    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -138,6 +208,8 @@ jobs:
   # 3 shards (ci/guard_impl_unittest.py run --shard I --shards N). Keep the matrix equal to --shards below.
   guard-unittest-shard:
     name: guard-unittest-shard (${{ matrix.shard }})
+    needs: ci-tier
+    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -172,8 +244,8 @@ jobs:
   # Fan-in: the required check name stays exactly "guard-unittest"; any shard result but success (failed, cancelled, skipped) fails it.
   guard-unittest:
     name: guard-unittest
-    needs: [guard-unittest-shard]
-    if: always()
+    needs: [ci-tier, guard-unittest-shard]
+    if: ${{ always() && (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -191,6 +263,8 @@ jobs:
   # tests/ changes use ci/ci_tier affected/full modes like other test files; this job is not docs-gated.
   guard-diff:
     name: guard-diff
+    needs: ci-tier
+    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -271,6 +345,8 @@ jobs:
 
   guard-self-compare:
     name: guard-self-compare
+    needs: ci-tier
+    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -308,6 +384,8 @@ jobs:
 
   guard-evaluator-home-loosen:
     name: guard-evaluator-home-loosen
+    needs: ci-tier
+    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -363,6 +441,8 @@ jobs:
   # The job succeeds as skipped otherwise. The check name guard-equiv is the fan-in below. Routed modules run in guard-equiv-rest.
   guard-equiv:
     name: guard-equiv-shard (${{ matrix.shard }})
+    needs: ci-tier
+    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -450,8 +530,8 @@ jobs:
   # Fan-in: the required check name stays exactly "guard-equiv". needs.guard-equiv.result is the matrix.
   guard-equiv-fanin:
     name: guard-equiv
-    needs: [guard-equiv]
-    if: always()
+    needs: [ci-tier, guard-equiv]
+    if: ${{ always() && (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -468,6 +548,8 @@ jobs:
   # modules under GUARD_IMPL=diff (listed at runtime, not named here) and the REAL_GO build tests. Same path gating as guard-equiv.
   guard-equiv-rest:
     name: guard-equiv-rest
+    needs: ci-tier
+    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -560,22 +642,32 @@ jobs:
   # Required check: the name must stay exactly "unittest".
   unittest:
     name: unittest
-    needs: [unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv, guard-equiv-rest]
+    needs: [ci-tier, docs-check, unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv-fanin, guard-equiv-rest]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Every shard and the go job succeeded
+      - name: Docs lane or every shard and guard job succeeded
         env:
+          MODE: ${{ needs.ci-tier.outputs.mode }}
+          DOCS_CHECK_RESULT: ${{ needs.docs-check.result }}
           SHARD_RESULT: ${{ needs.unittest-shard.result }}
           GO_RESULT: ${{ needs.go.result }}
           GUARD_UNITTEST_RESULT: ${{ needs.guard-unittest.result }}
           GUARD_DIFF_RESULT: ${{ needs.guard-diff.result }}
           GUARD_SELF_COMPARE_RESULT: ${{ needs.guard-self-compare.result }}
           GUARD_EVALUATOR_HOME_LOOSEN_RESULT: ${{ needs.guard-evaluator-home-loosen.result }}
-          GUARD_EQUIV_RESULT: ${{ needs.guard-equiv.result }}
+          GUARD_EQUIV_RESULT: ${{ needs.guard-equiv-fanin.result }}
           GUARD_EQUIV_REST_RESULT: ${{ needs.guard-equiv-rest.result }}
         run: |
+          if [ "$MODE" = "docs" ]; then
+            if [ "$DOCS_CHECK_RESULT" != "success" ]; then
+              echo "docs-check result: $DOCS_CHECK_RESULT (docs fast lane)" >&2
+              exit 1
+            fi
+            echo "docs fast lane: docs-check passed"
+            exit 0
+          fi
           fail=0
           if [ "$SHARD_RESULT" != "success" ]; then
             echo "unittest-shard result: $SHARD_RESULT (all shards must succeed)" >&2
@@ -616,42 +708,22 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - name: Tier (rules from the base commit)
-        id: tier
-        working-directory: .
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
-          # Push to main, workflow_dispatch, or a base without the script: the full suite.
-          full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
-          if [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
-          mkdir -p "$RUNNER_TEMP/base"
-          if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
-            full "base commit has no ci/ci_tier.py"; exit 0
-          fi
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
-            --only-file "$RUNNER_TEMP/only.txt" --github-output
-      - name: Docs check (docs-only PR)
-        if: steps.tier.outputs.mode == 'docs'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" docs-check --root . --base "$BASE_SHA" --head HEAD
-          python -m unittest discover -s tests -p test_docs_index.py
-          echo '### docs-only PR: suite skipped (docs check + docs index passed)' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/download-artifact@v8
-        if: steps.tier.outputs.mode != 'docs'
+        if: needs.ci-tier.outputs.mode == 'affected'
+        with:
+          name: ci-tier-only
+          path: ${{ runner.temp }}
+      - uses: actions/download-artifact@v8
+        if: needs.ci-tier.outputs.mode != 'docs'
         with:
           pattern: shard-*
           path: ${{ runner.temp }}/reports
           merge-multiple: true
       - name: Every module ran exactly once
-        if: steps.tier.outputs.mode != 'docs'
+        if: needs.ci-tier.outputs.mode != 'docs'
         run: |
           only=()
-          if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
+          if [ "${{ needs.ci-tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
           python ci/shard.py verify --total "$SHARDS" --dir "$RUNNER_TEMP/reports" "${only[@]}" | tee "$RUNNER_TEMP/summary.txt"
           { echo '### unittest shards'; cat "$RUNNER_TEMP/summary.txt"; } >> "$GITHUB_STEP_SUMMARY"
 

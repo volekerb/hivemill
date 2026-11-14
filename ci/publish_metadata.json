@@ -18,6 +18,8 @@
     "agentic-workflow"
   ],
   "required_checks": [
+    "ci-tier",
+    "docs-check",
     "unittest-shard (1)",
     "unittest-shard (2)",
     "unittest-shard (3)",
