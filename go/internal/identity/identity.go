@@ -254,6 +254,7 @@ func RequireKnown(who string, c Cmd) error {
 		(c.Name == "team" && c.Action == "list") ||
 		(c.Name == "lesson" && in(c.Action, "list", "show")) ||
 		(c.Name == "task" && in(c.Action, "list", "ready", "show")) ||
+		(c.Name == "schedule" && in(c.Action, "list")) ||
 		(c.Name == "digest" && !c.Send)
 	if !ro {
 		return &ExitError{3, "identity unknown: this looks like an agent pane but FACTORY_AGENT is unset and the pane matches " +

@@ -583,6 +583,7 @@ var pythonTree = []string{"bin", "web", "scout", "retro"}
 // pythonCheckout copies pythonTree into a temp checkout.
 func pythonCheckout(t *testing.T) (checkout, procDir string) {
 	t.Helper()
+	requireFullRepo(t)
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 is not on PATH: cannot regenerate or compare the Python goldens")
 	}
@@ -675,6 +676,7 @@ func regenGolden(t *testing.T, root string) {
 }
 
 func TestGolden(t *testing.T) {
+	requireFullRepo(t)
 	if *updateGolden {
 		regenGolden(t, goldenDir)
 	}
@@ -693,6 +695,7 @@ func TestGolden(t *testing.T) {
 }
 
 func TestGoldenBaseMatchesPython(t *testing.T) {
+	requireFullRepo(t)
 	checkout, procDir := pythonCheckout(t) // skips without python3
 	want, err := os.ReadFile(baseSQLPath())
 	if err != nil {

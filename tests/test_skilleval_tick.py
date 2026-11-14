@@ -673,10 +673,20 @@ class EntryPointTests(CliBase):
 
     def test_cmd_tick_calls_skilleval_tick_once_right_after_scout_tick(self):
         src = FACTORY_SRC.read_text()
-        body = src[src.index("def cmd_tick"):]
-        body = body[:body.index("\ndef ", 1)]
-        self.assertEqual(body.count("skilleval_tick(con)"), 1)
-        self.assertIn("    scout_tick(con)\n    retro_tick(con)\n    skilleval_tick(con)\n", body)
+        call_sites = [l for l in src.splitlines() if "skilleval_tick(con)" in l and not l.lstrip().startswith("def ")]
+        self.assertEqual(call_sites, ["        skilleval_tick(con)"])
+        i_scout = src.index("def _tick_u_scout(con, st):")
+        i_retro = src.index("def _tick_u_retro(con, st):")
+        i_skill = src.index("def _tick_u_skilleval(con, st):")
+        self.assertLess(i_scout, i_retro)
+        self.assertLess(i_retro, i_skill)
+        self.assertIn("scout_tick(con)", src[i_scout:i_retro])
+        self.assertIn("retro_tick(con)", src[i_retro:i_skill])
+        self.assertIn("skilleval_tick(con)", src[i_skill : i_skill + 120])
+        self.assertIn(
+            '("scout", "scout", "side"),\n    ("retro", "retro", "side"),\n    ("skilleval", "skilleval", "side")',
+            src,
+        )
 
     def test_an_exception_in_skilleval_tick_does_not_break_the_tick_and_is_reported_once_a_day(self):
         self.ok("config", "skilleval_trial_minutes", "abc", agent="owner")  # int() raises inside skilleval_tick

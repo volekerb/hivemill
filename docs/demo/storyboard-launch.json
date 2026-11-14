@@ -1,0 +1,70 @@
+{
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "scale": 1,
+  "scenes": [
+    {
+      "id": "open",
+      "beat": 1,
+      "source": "scenes/hook.html",
+      "duration": 6,
+      "captions": [{"at": 1.0, "until": 6.0, "text": "Talk to one agent. A whole team ships your PRs."}]
+    },
+    {
+      "id": "runtimes",
+      "beat": 2,
+      "source": "scenes/runtimes.html",
+      "duration": 12,
+      "captions": [
+        {"at": 0.0, "until": 4.0, "text": "Claude and Cursor"},
+        {"at": 4.0, "until": 8.0, "text": "The factory runs workers on Claude and on Cursor."},
+        {"at": 8.0, "until": 12.0, "text": "Same chain of command. Two runtimes."}
+      ]
+    },
+    {
+      "id": "herdr-core",
+      "beat": 3,
+      "source": "scenes/herdr-core.html",
+      "duration": 16,
+      "captions": [
+        {"at": 0.0, "until": 4.0, "text": "One coder, T-1218"},
+        {"at": 4.0, "until": 8.0, "text": "spawned with --host-backend hc"},
+        {"at": 8.0, "until": 12.0, "text": "terminal_backend stays herdr"},
+        {"at": 12.0, "until": 16.0, "text": "hc 0.1.21 has no view slot. There is no Hivemill UI plugin."}
+      ]
+    },
+    {
+      "id": "sandbox",
+      "beat": 4,
+      "source": "scenes/sandbox.html",
+      "duration": 16,
+      "captions": [
+        {"at": 0.0, "until": 5.0, "text": "The worker sandbox isolates a coder's credentials."},
+        {"at": 5.0, "until": 10.0, "text": "T-0171 is still open."},
+        {"at": 10.0, "until": 16.0, "text": "The 24-hour hold is not closed and is not shortened."}
+      ]
+    },
+    {
+      "id": "go-hook",
+      "beat": 5,
+      "source": "scenes/go-hook.html",
+      "duration": 16,
+      "captions": [
+        {"at": 0.0, "until": 3.0, "text": "Worker-guard hook"},
+        {"at": 3.0, "until": 6.0, "text": "about 8 ms"},
+        {"at": 6.0, "until": 9.0, "text": "about 69 ms"},
+        {"at": 9.0, "until": 12.0, "text": "about 8.5x to 9x"},
+        {"at": 12.0, "until": 14.0, "text": "Python stays the default."},
+        {"at": 14.0, "until": 16.0, "text": "Latency table, 2026-11-04."}
+      ]
+    },
+    {
+      "id": "close",
+      "beat": 6,
+      "source": "scenes/close.html",
+      "duration": 5,
+      "captions": [{"at": 0.5, "until": 5.0, "text": "Current release v0.4.0."}]
+    }
+  ]
+}

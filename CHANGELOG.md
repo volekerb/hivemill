@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
+## [Unreleased]
+
+- **Scheduled owner jobs (G-038 F-31).** Before: no `factory schedule` command. After: the owner or boss can define up to five recurring jobs (`factory schedule add/list/remove`) on dedicated Claude-org goals with a per-run token cap; see [docs/schedule.md](docs/schedule.md).
+
 ## [0.4.0] - 2026-11-11
 
 See [What's new in v0.4.0](https://github.com/volekerb/hivemill/blob/main/docs/releases/v0.4.0-announcement.md) for a short plain-English summary of this release.
