@@ -96,7 +96,12 @@ export function createClient({ keyId, issuerId, keyPem, now = Date.now, sleep, f
       if (!retryable) {
         if (res.status >= 400) throw new AscError(6, `ASC returned HTTP ${res.status} for ${method} ${url.pathname}`);
         if (res.status === 204) return null;
-        const text = await res.text();
+        let text;
+        try {
+          text = await res.text();
+        } catch {
+          throw new AscError(6, `ASC response body for ${method} ${url.pathname} timed out or was cut off`);
+        }
         if (!text) return null;
         try {
           return JSON.parse(text);
