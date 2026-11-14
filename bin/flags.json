@@ -966,6 +966,14 @@
    "state": "off"
   },
   {
+   "key": "tick_impl",
+   "kind": "setting",
+   "default": "python",
+   "summary": "tick implementation: python or go; with tick_impl=go the heartbeat may run in Go (docs/cli-go.md); factory up stays python",
+   "goal": "G-041",
+   "doc": "docs/cli-go.md"
+  },
+  {
    "key": "tick_phase_timers",
    "kind": "flag",
    "default": "0",
