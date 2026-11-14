@@ -9,7 +9,8 @@ import sys
 import time
 import unittest
 
-from harness import FACTORY, PR_URL, REPO, FactoryTestCase, gates_summary
+from harness import FACTORY, PR_URL, REPO, FactoryTestCase, gates_summary, git as harness_git
+from test_judge_landed import GH_SQUASH_ENV
 from test_gate_integration import seed_run
 from test_judge_refresh import GOMOD, GO_STUB
 from test_judge_wait import GH_STUB, GREEN, FAILED, git
@@ -590,7 +591,8 @@ class MechMergeTests(FactoryTestCase):
     def test_late_loser_on_the_landed_path_records_nothing(self):
         self.env.seed_agent("zz-test-judge", "judge")
         git(self.wt, "fetch", "-q", "origin", "main")  # the squash landed on main (this run's merge answer was lost)
-        sq = git(self.wt, "commit-tree", "HEAD^{tree}", "-p", "origin/main", "-m", "feature work (#1)")
+        sq = harness_git("commit-tree", "HEAD^{tree}", "-p", "origin/main", "-m", "feature work (#1)",
+                         cwd=self.wt, env=GH_SQUASH_ENV)
         git(self.wt, "push", "-q", "origin", f"{sq}:refs/heads/main")
         for effect, text in (({"pr_merged": True}, "no longer OPEN"), ({"task_done": True}, "no longer in_review")):
             with self.subTest(effect=effect):
