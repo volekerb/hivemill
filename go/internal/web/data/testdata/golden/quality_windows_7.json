@@ -1,0 +1,1 @@
+{"days": 7, "all": {"median_attempts": 2.0}, "current": {"merged": 1, "rejections": 3, "rejections_per_merged": 3.0, "first_try_pct": 0, "ci_blocked": 1, "median_attempts": 3}, "previous": {"merged": 1, "rejections": 4, "rejections_per_merged": 4.0, "first_try_pct": 100, "ci_blocked": 1, "median_attempts": 1}}

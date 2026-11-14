@@ -1,0 +1,2 @@
+{"type":"assistant","sessionId":"s-unknown","cwd":"/work/factory/worktrees/G-002-T-11","timestamp":"2026-11-09T10:00:00Z","requestId":"r1","message":{"id":"m1","model":"composer-2.5","usage":{"input_tokens":400,"cache_read_input_tokens":0,"output_tokens":40}}}
+{"type":"assistant","sessionId":"s-unknown2","cwd":"/elsewhere","timestamp":"2026-11-09T10:00:00Z","requestId":"r3","message":{"id":"m3","model":"claude-fable-5-2","content":[{"type":"server_tool_use","name":"advisor"}],"usage":{"input_tokens":4}}}
