@@ -605,6 +605,24 @@ class ThrottleTests(SkipTests):
         self.tick_at(3600)  # hourly again
         self.assertEqual(len(self.events("review-autospawn-probe-error")), 2)
 
+    def test_rest_pull_503_after_gate_ok_is_probe_error_then_review(self):
+        """gh pr view succeeds but `gh api .../pulls/N` returns HTTP 503: probe-error, no skip/dead key; next tick starts review."""
+        self.dead_task()
+        self.seed()
+        st = json.loads(self.env.gh_state.read_text())
+        st["api"] = [{"match": ["repos/volekerb/hivemill/pulls/9"], "exit": 1, "err": "gh: HTTP 503"}]
+        self.env.gh_state.write_text(json.dumps(st))
+        self.assertEqual(self.tick_at(0), [])
+        self.assertEqual(self.skip_events(), [])
+        self.assertEqual(len(self.events("review-autospawn-probe-error")), 1)
+        self.assertEqual(self.env.sql("SELECT 1 FROM throttle WHERE key LIKE 'review-dead:%'"), [])
+        self.tick_at(60)  # not dead-throttled: gh is called again despite the earlier probe error
+        self.assertEqual(len(self.gh_views()), 2)
+        st.pop("api", None)
+        self.env.gh_state.write_text(json.dumps(st))
+        self.assertEqual(len(self.tick_step(stub_pr=False, heads=self.heads, now=self.T0 + 120)), 2)
+        self.assertEqual(self.skip_events(), [])
+
     def test_skip_event_still_fires_after_a_probe_error(self):
         self.dead_task()  # gh has no such PR
         self.env.set_gh(pr_view_exit=1)

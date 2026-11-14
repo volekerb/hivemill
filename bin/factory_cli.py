@@ -17290,6 +17290,24 @@ COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tie
 REVIEW_SKIP_EVERY_S = 86400  # one review-autospawn-skip event per task per day
 REVIEW_PROBE_ERR_EVERY_S = 3600  # one review-autospawn-probe-error event per task per hour
 REVIEW_DEAD_RECHECK_MIN_S = 3600  # a dead task is not probed again for max(director_cycle_s, this)
+_REVIEW_GH_NO_PR = re.compile(r"no pull requests? found|could not resolve to a pullrequest", re.I)
+_REVIEW_GH_TRANSIENT = re.compile(r"HTTP 5\d\d|timed out|timeout|connection (refused|reset|error)", re.I)
+
+
+def _review_gh_no_pr_msg(msg):
+    return bool(msg and _REVIEW_GH_NO_PR.search(str(msg)))
+
+
+def _review_rest_probe_result(exc):
+    """After a successful `gh pr view` gate, REST probe failures: a missing PR stays SystemExit; gh outages become OSError."""
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return OSError(f"cannot verify PR head: REST probe timed out after {exc.timeout}s")
+    if isinstance(exc, SystemExit):
+        msg = exc.code if isinstance(exc.code, str) else str(exc.code)
+        if _review_gh_no_pr_msg(msg):
+            return exc
+        return OSError(msg or "REST PR probe failed")
+    return exc
 
 
 def _review_dead_key(t):
@@ -17336,13 +17354,15 @@ def _review_fetch(pr_url, timeout):
     with contextlib.redirect_stderr(err):
         gate = _tick_pr_view_gate(pr_url, timeout)
         pr = _ci_wake_probe(pr_url, timeout)
-    if isinstance(gate, SystemExit) and not re.search(r"no pull requests? found|could not resolve to a pullrequest", err.getvalue(), re.I):
+    if isinstance(gate, SystemExit) and not _REVIEW_GH_NO_PR.search(err.getvalue()):
         return OSError(f"gh pr view exit {gate.code}: {err.getvalue().strip()[:200]}")
     if isinstance(gate, subprocess.TimeoutExpired):
         return OSError(f"cannot verify PR head: gh pr view timed out after {gate.timeout}s")
     if isinstance(gate, SystemExit):
         return pr if isinstance(pr, dict) else gate
     if isinstance(pr, BaseException):
+        if isinstance(gate, dict):
+            pr = _review_rest_probe_result(pr)
         return gate if isinstance(gate, BaseException) else pr
     if isinstance(gate, BaseException):
         return pr
@@ -17408,7 +17428,14 @@ def _review_pr_problem(con, t, pr, batch, clock, head_known=False):
     """True when review must not start on t: logs the skip event (PR unresolvable by gh, closed or merged, head branch gone from origin)
     or the error event (the check itself could not decide: fail closed). pr is the _ci_wake_probe result."""
     tid = t["id"]
-    if isinstance(pr, SystemExit):  # gh exited non-zero: no such PR, or gh is broken; either way nothing is spawned
+    if isinstance(pr, SystemExit):  # gh exited non-zero: missing PR skips; transient gh errors are probe errors, not dead PRs
+        msg = pr.code if isinstance(pr.code, str) else str(pr.code)
+        if _review_gh_no_pr_msg(msg):
+            _review_skip(con, t, f"gh cannot resolve {t['pr_url']} (gh pr view exit {pr.code})", clock)
+            return True
+        if _REVIEW_GH_TRANSIENT.search(msg):
+            _review_probe_error(con, t, f"gh pr view {t['pr_url']}: {_tick_gh_detail(pr)}", clock)
+            return True
         _review_skip(con, t, f"gh cannot resolve {t['pr_url']} (gh pr view exit {pr.code})", clock)
         return True
     if isinstance(pr, BaseException):
