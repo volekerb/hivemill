@@ -77,9 +77,11 @@ jobs:
         with:
           python-version: "3.13"
       - name: Tier tool from the base commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           mkdir -p "$RUNNER_TEMP/base"
-          git archive "${{ github.event.pull_request.base.sha }}" ci/ci_tier.py | tar -x -C "$RUNNER_TEMP/base"
+          git archive "$BASE_SHA" ci/ci_tier.py | tar -x -C "$RUNNER_TEMP/base"
       - name: Docs check and docs index
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
