@@ -1,6 +1,198 @@
 {
 "cases": [
 {
+"input": "hc server stop",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"hc",
+"server",
+"stop"
+]
+},
+{
+"input": "hc server stop",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"hc",
+"server",
+"stop"
+]
+},
+{
+"input": "hc server stop",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"hc",
+"server",
+"stop"
+]
+},
+{
+"input": "hc server stop",
+"mode": "quote",
+"quoted": "'hc server stop'",
+"src": "corpus"
+},
+{
+"input": "hc send other-agent hi",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"hc",
+"send",
+"other-agent",
+"hi"
+]
+},
+{
+"input": "hc send other-agent hi",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"hc",
+"send",
+"other-agent",
+"hi"
+]
+},
+{
+"input": "hc send other-agent hi",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"hc",
+"send",
+"other-agent",
+"hi"
+]
+},
+{
+"input": "hc send other-agent hi",
+"mode": "quote",
+"quoted": "'hc send other-agent hi'",
+"src": "corpus"
+},
+{
+"input": "herdr-core run --bg --name x claude",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"herdr-core",
+"run",
+"--bg",
+"--name",
+"x",
+"claude"
+]
+},
+{
+"input": "herdr-core run --bg --name x claude",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"herdr-core",
+"run",
+"--bg",
+"--name",
+"x",
+"claude"
+]
+},
+{
+"input": "herdr-core run --bg --name x claude",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"herdr-core",
+"run",
+"--bg",
+"--name",
+"x",
+"claude"
+]
+},
+{
+"input": "herdr-core run --bg --name x claude",
+"mode": "quote",
+"quoted": "'herdr-core run --bg --name x claude'",
+"src": "corpus"
+},
+{
+"input": "export HC_SOCKET=/tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"HC_SOCKET=/tmp/x"
+]
+},
+{
+"input": "export HC_SOCKET=/tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"HC_SOCKET=/tmp/x"
+]
+},
+{
+"input": "export HC_SOCKET=/tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"HC_SOCKET=/tmp/x"
+]
+},
+{
+"input": "export HC_SOCKET=/tmp/x",
+"mode": "quote",
+"quoted": "'export HC_SOCKET=/tmp/x'",
+"src": "corpus"
+},
+{
+"input": "sudo hc server stop",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"sudo",
+"hc",
+"server",
+"stop"
+]
+},
+{
+"input": "sudo hc server stop",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"sudo",
+"hc",
+"server",
+"stop"
+]
+},
+{
+"input": "sudo hc server stop",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"sudo",
+"hc",
+"server",
+"stop"
+]
+},
+{
+"input": "sudo hc server stop",
+"mode": "quote",
+"quoted": "'sudo hc server stop'",
+"src": "corpus"
+},
+{
 "input": "uvx --from x pytest",
 "mode": "script",
 "src": "corpus",
@@ -112611,6 +112803,75 @@
 "src": "corpus"
 },
 {
+"input": "echo hc",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"hc"
+]
+},
+{
+"input": "echo hc",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"hc"
+]
+},
+{
+"input": "echo hc",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"hc"
+]
+},
+{
+"input": "echo hc",
+"mode": "quote",
+"quoted": "'echo hc'",
+"src": "corpus"
+},
+{
+"input": "grep hc README.md",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"grep",
+"hc",
+"README.md"
+]
+},
+{
+"input": "grep hc README.md",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"grep",
+"hc",
+"README.md"
+]
+},
+{
+"input": "grep hc README.md",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"grep",
+"hc",
+"README.md"
+]
+},
+{
+"input": "grep hc README.md",
+"mode": "quote",
+"quoted": "'grep hc README.md'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -144570,7 +144831,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3311,
+"corpus_commands": 3318,
 "edge_inputs": 123,
 "python": "3.13"
 }
