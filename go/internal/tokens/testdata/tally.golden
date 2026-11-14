@@ -1,0 +1,1016 @@
+{
+ "attribution": {
+  "sess-aaa": {
+   "agent": "claude-coder-t-0001",
+   "goal": "G-001",
+   "model_main": "claude-haiku-5-5",
+   "role": "coder",
+   "task": "T-0001",
+   "via": "session"
+  },
+  "sess-bbb": {
+   "agent": null,
+   "goal": "G-001",
+   "model_main": "claude-sonnet-5-5",
+   "role": null,
+   "task": "T-0002",
+   "via": "worktree"
+  },
+  "sess-ccc": {
+   "agent": "claude-pm-g-001",
+   "goal": "G-001",
+   "model_main": "claude-opus-5-5",
+   "role": "pm",
+   "task": null,
+   "via": "name"
+  },
+  "sess-ddd": {
+   "agent": "claude-lead-g-001",
+   "goal": "G-001",
+   "model_main": "claude-opus-5-5",
+   "role": "lead",
+   "task": null,
+   "via": "event"
+  },
+  "sess-eee": {
+   "agent": null,
+   "goal": null,
+   "model_main": "claude-haiku-5-5",
+   "role": null,
+   "task": null,
+   "via": "unattributed"
+  },
+  "sess-www": {
+   "agent": null,
+   "goal": "G-001",
+   "model_main": "claude-sonnet-5-5",
+   "role": null,
+   "task": "T-0009",
+   "via": "worktree"
+  }
+ },
+ "cost": [
+  [
+   "claude-opus-5-5",
+   {
+    "cache_read": 1000,
+    "cache_write_1h": 100,
+    "cache_write_5m": 200,
+    "input": 100,
+    "output": 50
+   },
+   null,
+   0.0034
+  ],
+  [
+   "claude-opus-5-5",
+   {
+    "input": 7,
+    "output": 3
+   },
+   "fast",
+   0.000176
+  ],
+  [
+   "claude-sonnet-5-5",
+   {
+    "input": 123456789,
+    "output": 987654321
+   },
+   null,
+   10123.456788
+  ],
+  [
+   "claude-haiku-5-5",
+   {
+    "cache_read": 3,
+    "cache_write_5m": 7,
+    "input": 1
+   },
+   "fast",
+   1.005e-06
+  ],
+  [
+   "gpt-x",
+   {
+    "input": 5
+   },
+   null,
+   null
+  ]
+ ],
+ "goal_usage": {
+  "G-001": {
+   "goal": "G-001",
+   "overhead": {
+    "rows": [
+     {
+      "agent": "claude-pm-g-001",
+      "cache_read": 500,
+      "cache_write": 0,
+      "cost": 0.0008,
+      "input": 50,
+      "output": 25,
+      "rework": false,
+      "role": "pm",
+      "runtime": "claude",
+      "sessions": 1,
+      "state": "ok",
+      "wall_s": null
+     },
+     {
+      "agent": "claude-lead-g-001",
+      "cache_read": 0,
+      "cache_write": 0,
+      "cost": 0.00028,
+      "input": 20,
+      "output": 10,
+      "rework": false,
+      "role": "lead",
+      "runtime": "claude",
+      "sessions": 1,
+      "state": "ok",
+      "wall_s": null
+     },
+     {
+      "agent": "cursor-lead-g-001",
+      "cache_read": null,
+      "cache_write": null,
+      "cost": null,
+      "input": null,
+      "output": null,
+      "rework": false,
+      "role": "lead",
+      "runtime": "cursor",
+      "sessions": 1,
+      "state": "not_available",
+      "wall_s": 1760400.0
+     }
+    ],
+    "totals": {
+     "cache_read": 500,
+     "cache_write": 0,
+     "cost": 0.00108,
+     "cursor_rows": 1,
+     "input": 70,
+     "output": 35,
+     "rework_cost": 0,
+     "rework_share": 0.0,
+     "sessions": 3,
+     "state": "partial",
+     "tokens": 605,
+     "wall_s": 1760400.0
+    }
+   },
+   "state": "ok",
+   "tasks": {
+    "T-0001": {
+     "first_rejection": "2026-11-10T12:45:00+00:00",
+     "rows": [
+      {
+       "agent": "claude-coder-t-0001",
+       "cache_read": 11029,
+       "cache_write": 408,
+       "cost": null,
+       "input": 1526,
+       "output": 699,
+       "rework": false,
+       "role": "coder",
+       "runtime": "claude",
+       "sessions": 1,
+       "state": "ok",
+       "wall_s": null
+      },
+      {
+       "agent": "cursor-coder-t-0001",
+       "cache_read": null,
+       "cache_write": null,
+       "cost": null,
+       "input": null,
+       "output": null,
+       "rework": false,
+       "role": "coder",
+       "runtime": "cursor",
+       "sessions": 1,
+       "state": "not_available",
+       "wall_s": 5400.0
+      }
+     ],
+     "state": "ok",
+     "task": "T-0001",
+     "totals": {
+      "cache_read": 11029,
+      "cache_write": 408,
+      "cost": null,
+      "cursor_rows": 1,
+      "input": 1526,
+      "output": 699,
+      "rework_cost": null,
+      "rework_share": null,
+      "sessions": 2,
+      "state": "partial",
+      "tokens": 13662,
+      "wall_s": 5400.0
+     }
+    },
+    "T-0002": {
+     "first_rejection": null,
+     "rows": [
+      {
+       "agent": "unattributed",
+       "cache_read": 4000,
+       "cache_write": 500,
+       "cost": 0.0042,
+       "input": 300,
+       "output": 120,
+       "rework": false,
+       "role": null,
+       "runtime": "claude",
+       "sessions": 1,
+       "state": "ok",
+       "wall_s": null
+      }
+     ],
+     "state": "ok",
+     "task": "T-0002",
+     "totals": {
+      "cache_read": 4000,
+      "cache_write": 500,
+      "cost": 0.0042,
+      "cursor_rows": 0,
+      "input": 300,
+      "output": 120,
+      "rework_cost": 0,
+      "rework_share": 0.0,
+      "sessions": 1,
+      "state": "ok",
+      "tokens": 4920,
+      "wall_s": null
+     }
+    },
+    "T-0009": {
+     "first_rejection": null,
+     "rows": [
+      {
+       "agent": "unattributed",
+       "cache_read": 33,
+       "cache_write": 0,
+       "cost": 0.0002453,
+       "input": 11,
+       "output": 22,
+       "rework": false,
+       "role": null,
+       "runtime": "claude",
+       "sessions": 1,
+       "state": "ok",
+       "wall_s": null
+      }
+     ],
+     "state": "ok",
+     "task": "T-0009",
+     "totals": {
+      "cache_read": 33,
+      "cache_write": 0,
+      "cost": 0.0002453,
+      "cursor_rows": 0,
+      "input": 11,
+      "output": 22,
+      "rework_cost": 0,
+      "rework_share": 0.0,
+      "sessions": 1,
+      "state": "ok",
+      "tokens": 66,
+      "wall_s": null
+     }
+    }
+   },
+   "totals": {
+    "cache_read": 15562,
+    "cache_write": 908,
+    "cost": null,
+    "cursor_rows": 2,
+    "input": 1907,
+    "output": 876,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 7,
+    "state": "partial",
+    "tokens": 19253,
+    "wall_s": 1765800.0
+   }
+  },
+  "G-002": {
+   "goal": "G-002",
+   "overhead": {
+    "rows": [],
+    "totals": {
+     "cache_read": null,
+     "cache_write": null,
+     "cost": 0,
+     "cursor_rows": 0,
+     "input": null,
+     "output": null,
+     "rework_cost": null,
+     "rework_share": null,
+     "sessions": 0,
+     "state": "ok",
+     "tokens": null,
+     "wall_s": null
+    }
+   },
+   "state": "ok",
+   "tasks": {
+    "T-0003": {
+     "first_rejection": null,
+     "rows": [],
+     "state": "ok",
+     "task": "T-0003",
+     "totals": {
+      "cache_read": null,
+      "cache_write": null,
+      "cost": 0,
+      "cursor_rows": 0,
+      "input": null,
+      "output": null,
+      "rework_cost": null,
+      "rework_share": null,
+      "sessions": 0,
+      "state": "ok",
+      "tokens": null,
+      "wall_s": null
+     }
+    }
+   },
+   "totals": {
+    "cache_read": null,
+    "cache_write": null,
+    "cost": 0,
+    "cursor_rows": 0,
+    "input": null,
+    "output": null,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 0,
+    "state": "ok",
+    "tokens": null,
+    "wall_s": null
+   }
+  },
+  "G-404": {
+   "goal": "G-404",
+   "overhead": {
+    "rows": [],
+    "totals": {
+     "cache_read": null,
+     "cache_write": null,
+     "cost": 0,
+     "cursor_rows": 0,
+     "input": null,
+     "output": null,
+     "rework_cost": null,
+     "rework_share": null,
+     "sessions": 0,
+     "state": "ok",
+     "tokens": null,
+     "wall_s": null
+    }
+   },
+   "state": "ok",
+   "tasks": {},
+   "totals": {
+    "cache_read": null,
+    "cache_write": null,
+    "cost": 0,
+    "cursor_rows": 0,
+    "input": null,
+    "output": null,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 0,
+    "state": "ok",
+    "tokens": null,
+    "wall_s": null
+   }
+  }
+ },
+ "latest_context": {
+  "": null,
+  "bad/id": null,
+  "sess-aaa": 1,
+  "sess-bbb": 4800,
+  "sess-nosuch": null
+ },
+ "rollup": {
+  "by_agent": {
+   "claude-coder-t-0001": {
+    "cache_read": 11029,
+    "cache_write_1h": 104,
+    "cache_write_5m": 304,
+    "cost": 0.007855899999999999,
+    "cost_unknown": true,
+    "input": 1526,
+    "output": 699,
+    "priced": 6,
+    "requests": 13
+   },
+   "claude-lead-g-001": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.00028,
+    "cost_unknown": false,
+    "input": 20,
+    "output": 10,
+    "priced": 1,
+    "requests": 1
+   },
+   "claude-pm-g-001": {
+    "cache_read": 500,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.0008,
+    "cost_unknown": false,
+    "input": 50,
+    "output": 25,
+    "priced": 1,
+    "requests": 1
+   },
+   "unattributed": {
+    "cache_read": 4033,
+    "cache_write_1h": 500,
+    "cache_write_5m": 0,
+    "cost": 0.0044467000000000005,
+    "cost_unknown": false,
+    "input": 320,
+    "output": 143,
+    "priced": 3,
+    "requests": 3
+   }
+  },
+  "by_day": {
+   "2026-11-10": {
+    "cache_read": 5553,
+    "cache_write_1h": 604,
+    "cache_write_5m": 296,
+    "cost": 0.012683700000000001,
+    "cost_unknown": false,
+    "input": 777,
+    "output": 366,
+    "priced": 8,
+    "requests": 10
+   },
+   "2026-11-11": {
+    "cache_read": 10009,
+    "cache_write_1h": 0,
+    "cache_write_5m": 8,
+    "cost": 0.0006749,
+    "cost_unknown": true,
+    "input": 1137,
+    "output": 509,
+    "priced": 2,
+    "requests": 7
+   },
+   "unknown": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 2.4e-05,
+    "cost_unknown": false,
+    "input": 2,
+    "output": 2,
+    "priced": 1,
+    "requests": 1
+   }
+  },
+  "by_goal": {
+   "G-001": {
+    "cache_read": 15562,
+    "cache_write_1h": 604,
+    "cache_write_5m": 304,
+    "cost": 0.0133812,
+    "cost_unknown": true,
+    "input": 1907,
+    "output": 876,
+    "priced": 10,
+    "requests": 17
+   },
+   "unattributed": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 1.4e-06,
+    "cost_unknown": false,
+    "input": 9,
+    "output": 1,
+    "priced": 1,
+    "requests": 1
+   }
+  },
+  "by_model": {
+   "<synthetic>": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.0,
+    "cost_unknown": false,
+    "input": 0,
+    "output": 0,
+    "priced": 0,
+    "requests": 1
+   },
+   "claude-haiku-5-5": {
+    "cache_read": 10000,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.00045139999999999997,
+    "cost_unknown": false,
+    "input": 1009,
+    "output": 501,
+    "priced": 2,
+    "requests": 2
+   },
+   "claude-opus-5-5": {
+    "cache_read": 1500,
+    "cache_write_1h": 104,
+    "cache_write_5m": 206,
+    "cost": 0.00654,
+    "cost_unknown": false,
+    "input": 247,
+    "output": 118,
+    "priced": 4,
+    "requests": 5
+   },
+   "claude-sonnet-5-5": {
+    "cache_read": 4062,
+    "cache_write_1h": 500,
+    "cache_write_5m": 98,
+    "cost": 0.0063912,
+    "cost_unknown": false,
+    "input": 605,
+    "output": 253,
+    "priced": 5,
+    "requests": 9
+   },
+   "gpt-x": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": null,
+    "cost_unknown": true,
+    "input": 55,
+    "output": 5,
+    "priced": 0,
+    "requests": 1
+   }
+  },
+  "by_org": {
+   "claude": {
+    "cache_read": 15562,
+    "cache_write_1h": 604,
+    "cache_write_5m": 304,
+    "cost": 0.0133812,
+    "cost_unknown": true,
+    "input": 1907,
+    "output": 876,
+    "priced": 10,
+    "requests": 17
+   },
+   "cursor": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 1.4e-06,
+    "cost_unknown": false,
+    "input": 9,
+    "output": 1,
+    "priced": 1,
+    "requests": 1
+   }
+  },
+  "by_task": {
+   "T-0001": {
+    "cache_read": 11029,
+    "cache_write_1h": 104,
+    "cache_write_5m": 304,
+    "cost": 0.007855899999999999,
+    "cost_unknown": true,
+    "input": 1526,
+    "output": 699,
+    "priced": 6,
+    "requests": 13
+   },
+   "T-0002": {
+    "cache_read": 4000,
+    "cache_write_1h": 500,
+    "cache_write_5m": 0,
+    "cost": 0.0042,
+    "cost_unknown": false,
+    "input": 300,
+    "output": 120,
+    "priced": 1,
+    "requests": 1
+   },
+   "T-0009": {
+    "cache_read": 33,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.0002453,
+    "cost_unknown": false,
+    "input": 11,
+    "output": 22,
+    "priced": 1,
+    "requests": 1
+   },
+   "unattributed": {
+    "cache_read": 500,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cost": 0.0010814,
+    "cost_unknown": false,
+    "input": 79,
+    "output": 36,
+    "priced": 3,
+    "requests": 3
+   }
+  },
+  "total": {
+   "cache_read": 15562,
+   "cache_write_1h": 604,
+   "cache_write_5m": 304,
+   "cost": 0.0133826,
+   "cost_unknown": true,
+   "input": 1916,
+   "output": 877,
+   "priced": 11,
+   "requests": 18
+  }
+ },
+ "session_tokens": {
+  "": 0,
+  "bad/id": 0,
+  "sess-aaa": 2633,
+  "sess-bbb": 920,
+  "sess-nosuch": 0
+ },
+ "session_tokens_known": {
+  "": null,
+  "bad/id": null,
+  "sess-aaa": 2633,
+  "sess-bbb": 920,
+  "sess-nosuch": null
+ },
+ "snapshot": {
+  "bytes_read": 4682,
+  "bytes_total": 4682,
+  "errors": 1,
+  "files": 7,
+  "ready": true,
+  "rows": [
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-11",
+    "fast": false,
+    "input": 0,
+    "model": "<synthetic>",
+    "output": 0,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 10000,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-11",
+    "fast": false,
+    "input": 1000,
+    "model": "claude-haiku-5-5",
+    "output": 500,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 1000,
+    "cache_write_1h": 100,
+    "cache_write_5m": 200,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 100,
+    "model": "claude-opus-5-5",
+    "output": 50,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 4,
+    "cache_write_5m": 6,
+    "day": "2026-11-10",
+    "fast": true,
+    "input": 77,
+    "model": "claude-opus-5-5",
+    "output": 33,
+    "requests": 2,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 20,
+    "cache_write_1h": 0,
+    "cache_write_5m": 90,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 210,
+    "model": "claude-sonnet-5-5",
+    "output": 105,
+    "requests": 2,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 9,
+    "cache_write_1h": 0,
+    "cache_write_5m": 8,
+    "day": "2026-11-11",
+    "fast": false,
+    "input": 82,
+    "model": "claude-sonnet-5-5",
+    "output": 4,
+    "requests": 4,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "unknown",
+    "fast": false,
+    "input": 2,
+    "model": "claude-sonnet-5-5",
+    "output": 2,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-11",
+    "fast": false,
+    "input": 55,
+    "model": "gpt-x",
+    "output": 5,
+    "requests": 1,
+    "session": "sess-aaa"
+   },
+   {
+    "cache_read": 4000,
+    "cache_write_1h": 500,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 300,
+    "model": "claude-sonnet-5-5",
+    "output": 120,
+    "requests": 1,
+    "session": "sess-bbb"
+   },
+   {
+    "cache_read": 500,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 50,
+    "model": "claude-opus-5-5",
+    "output": 25,
+    "requests": 1,
+    "session": "sess-ccc"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 20,
+    "model": "claude-opus-5-5",
+    "output": 10,
+    "requests": 1,
+    "session": "sess-ddd"
+   },
+   {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 9,
+    "model": "claude-haiku-5-5",
+    "output": 1,
+    "requests": 1,
+    "session": "sess-eee"
+   },
+   {
+    "cache_read": 33,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "day": "2026-11-10",
+    "fast": false,
+    "input": 11,
+    "model": "claude-sonnet-5-5",
+    "output": 22,
+    "requests": 1,
+    "session": "sess-www"
+   }
+  ],
+  "sessions": {
+   "sess-aaa": {
+    "agent_name": "claude-coder-t-0001",
+    "cost_state": 1.25,
+    "cwd": "/w/repo-a",
+    "first_ts": "2026-11-10T09:00:00+00:00",
+    "last_ts": "2026-11-11T13:00:00+00:00",
+    "project": "-w-proj-a"
+   },
+   "sess-bbb": {
+    "agent_name": null,
+    "cost_state": null,
+    "cwd": "/w/other",
+    "first_ts": "2026-11-10T14:00:00+00:00",
+    "last_ts": "2026-11-10T14:00:00+00:00",
+    "project": "-w-worktrees-G-001-T-0002"
+   },
+   "sess-ccc": {
+    "agent_name": "claude-pm-g-001",
+    "cost_state": null,
+    "cwd": "/w/pm",
+    "first_ts": "2026-11-10T15:00:00+00:00",
+    "last_ts": "2026-11-10T15:00:00+00:00",
+    "project": "-w-proj-c"
+   },
+   "sess-ddd": {
+    "agent_name": null,
+    "cost_state": null,
+    "cwd": "/w/lead",
+    "first_ts": "2026-11-10T16:00:00+00:00",
+    "last_ts": "2026-11-10T16:00:00+00:00",
+    "project": "-w-proj-c"
+   },
+   "sess-eee": {
+    "agent_name": null,
+    "cost_state": null,
+    "cwd": "/w/nothing",
+    "first_ts": "2026-11-10T17:00:00+00:00",
+    "last_ts": "2026-11-10T17:00:00+00:00",
+    "project": "-w-proj-c"
+   },
+   "sess-www": {
+    "agent_name": null,
+    "cost_state": null,
+    "cwd": "/w/worker",
+    "first_ts": "2026-11-10T18:00:00+00:00",
+    "last_ts": "2026-11-10T18:00:00+00:00",
+    "project": "-w-worktrees-G-001-T-0009"
+   }
+  }
+ },
+ "task_usage": {
+  "T-0001": {
+   "first_rejection": "2026-11-10T12:45:00+00:00",
+   "rows": [
+    {
+     "agent": "claude-coder-t-0001",
+     "cache_read": 11029,
+     "cache_write": 408,
+     "cost": null,
+     "input": 1526,
+     "output": 699,
+     "rework": false,
+     "role": "coder",
+     "runtime": "claude",
+     "sessions": 1,
+     "state": "ok",
+     "wall_s": null
+    },
+    {
+     "agent": "cursor-coder-t-0001",
+     "cache_read": null,
+     "cache_write": null,
+     "cost": null,
+     "input": null,
+     "output": null,
+     "rework": false,
+     "role": "coder",
+     "runtime": "cursor",
+     "sessions": 1,
+     "state": "not_available",
+     "wall_s": 5400.0
+    }
+   ],
+   "state": "ok",
+   "task": "T-0001",
+   "totals": {
+    "cache_read": 11029,
+    "cache_write": 408,
+    "cost": null,
+    "cursor_rows": 1,
+    "input": 1526,
+    "output": 699,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 2,
+    "state": "partial",
+    "tokens": 13662,
+    "wall_s": 5400.0
+   }
+  },
+  "T-0002": {
+   "first_rejection": null,
+   "rows": [
+    {
+     "agent": "unattributed",
+     "cache_read": 4000,
+     "cache_write": 500,
+     "cost": 0.0042,
+     "input": 300,
+     "output": 120,
+     "rework": false,
+     "role": null,
+     "runtime": "claude",
+     "sessions": 1,
+     "state": "ok",
+     "wall_s": null
+    }
+   ],
+   "state": "ok",
+   "task": "T-0002",
+   "totals": {
+    "cache_read": 4000,
+    "cache_write": 500,
+    "cost": 0.0042,
+    "cursor_rows": 0,
+    "input": 300,
+    "output": 120,
+    "rework_cost": 0,
+    "rework_share": 0.0,
+    "sessions": 1,
+    "state": "ok",
+    "tokens": 4920,
+    "wall_s": null
+   }
+  },
+  "T-0003": {
+   "first_rejection": null,
+   "rows": [],
+   "state": "ok",
+   "task": "T-0003",
+   "totals": {
+    "cache_read": null,
+    "cache_write": null,
+    "cost": 0,
+    "cursor_rows": 0,
+    "input": null,
+    "output": null,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 0,
+    "state": "ok",
+    "tokens": null,
+    "wall_s": null
+   }
+  },
+  "T-9999": {
+   "first_rejection": null,
+   "rows": [],
+   "state": "ok",
+   "task": "T-9999",
+   "totals": {
+    "cache_read": null,
+    "cache_write": null,
+    "cost": 0,
+    "cursor_rows": 0,
+    "input": null,
+    "output": null,
+    "rework_cost": null,
+    "rework_share": null,
+    "sessions": 0,
+    "state": "ok",
+    "tokens": null,
+    "wall_s": null
+   }
+  }
+ },
+ "task_usage_not_ready": {
+  "first_rejection": null,
+  "rows": [],
+  "state": "not_ready",
+  "task": "T-0001",
+  "totals": null
+ },
+ "usage_totals": {
+  "cache_read": 15529,
+  "cache_write": 908,
+  "input": 1905,
+  "output": 855
+ }
+}
