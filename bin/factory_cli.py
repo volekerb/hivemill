@@ -7,6 +7,8 @@ read and write goes through this CLI, which enforces role permissions, the
 resource gate on spawning, and the head-SHA-bound merge gate.
 
 Markdown under exports/ is generated FROM the DB. Editing it changes nothing.
+
+bin/factory stub: cli_impl=shadow runs Go only on read-only argv shapes cli_shadow_readonly() allows (write forms never shadow).
 """
 import argparse
 import concurrent.futures
@@ -141,7 +143,7 @@ DEFAULT_CONFIG = {
     "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
     "cli_impl": "python",        # G-041: python | go | shadow; run/cli_impl is rewritten from this (docs/cli-go.md); director-only
-    "cli_go_cmds": "",           # G-041: comma list of subcommands bin/factory may hand to factory-go (S1 set only)
+    "cli_go_cmds": "",           # G-041: comma list of subcommands bin/factory may hand to factory-go (Go registry words; empty = none)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
     "max_live_agents": "6",
@@ -2711,7 +2713,11 @@ def check_gh_roles(key, value):
 
 GUARD_IMPLS = ("python", "go", "shadow")
 CLI_IMPLS = ("python", "go", "shadow")
-CLI_GO_CMDS_KNOWN = ("whoami", "flags", "agents", "config")  # the S1 set the Go binary answers (go/internal/cli)
+CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 + S2)
+    "whoami", "flags", "agents", "config",
+    "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
+    "verdict", "scorecard", "digest", "alerts", "gate",
+)
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
 GUARD_TICK_BUILD_TIMEOUT_S = 120  # the tick (factory-tick.service TimeoutStartSec=240): a build must not kill the tick
@@ -19231,6 +19237,89 @@ def cli_dispatch_mode(argv, environ=None):
     return "python", None
 
 
+_DIGEST_LONG_OPTS = ("--goal", "--date", "--hours", "--send")
+
+
+def _digest_argv_sets_send(rest):
+    """Argparse allow_abbrev: unique prefixes of --send (--s, --se, …) flip send like --send."""
+    for a in rest:
+        if not a.startswith("--") or a == "--":
+            continue
+        if a == "--send":
+            return True
+        matches = [o for o in _DIGEST_LONG_OPTS if o.startswith(a)]
+        if len(matches) == 1 and matches[0] == "--send":
+            return True
+    return False
+
+
+_INBOX_LONG_OPTS = ("--all", "--peek", "--agent", "--limit", "--full", "--show")
+
+
+def _inbox_argv_show_token(a):
+    """Argparse allow_abbrev: --s/--sh/--show= map to --show; returns (is_show, inline_value or None)."""
+    if not a.startswith("--") or a == "--":
+        return False, None
+    key, eq, val = a.partition("=")
+    if eq:
+        if key == "--show":
+            return True, val
+        matches = [o for o in _INBOX_LONG_OPTS if o.startswith(key)]
+        if len(matches) == 1 and matches[0] == "--show":
+            return True, val
+        return False, None
+    if a == "--show":
+        return True, None
+    matches = [o for o in _INBOX_LONG_OPTS if o.startswith(a)]
+    if len(matches) == 1 and matches[0] == "--show":
+        return True, None
+    return False, None
+
+
+def _inbox_argv_show_is_readonly(rest):
+    """--show with a non-empty id is read-only; '' or a missing value is the list path and writes read_at (last wins)."""
+    show = None
+    seen = False
+    i = 0
+    while i < len(rest):
+        a = rest[i]
+        is_show, inline = _inbox_argv_show_token(a)
+        if is_show:
+            seen = True
+            if inline is not None:
+                show = inline
+            else:
+                show = ""
+                if i + 1 < len(rest) and not rest[i + 1].startswith("-"):
+                    show = rest[i + 1]
+                    i += 1
+        i += 1
+    if not seen:
+        return False
+    return bool(show) and not show.startswith("-")
+
+
+def cli_shadow_readonly(argv):
+    """Shapes safe under cli_impl=shadow (plan 4.4): read-only answers only; writes stay Python-only."""
+    if len(argv) < 2:
+        return False
+    cmd, rest = argv[1], argv[2:]
+    if cmd in ("whoami", "agents", "flags", "alerts", "scorecard"):
+        return True
+    if cmd == "config" and len(argv) <= 3:
+        return True
+    if cmd == "inbox":
+        return _inbox_argv_show_is_readonly(rest) or "--peek" in rest
+    if cmd == "digest":
+        return not _digest_argv_sets_send(rest)
+    if not rest or rest[0].startswith("-"):
+        return False
+    sub = rest[0]
+    return (cmd == "task" and sub in ("show", "list", "ready")) or (cmd == "goal" and sub in ("show", "list", "tokens")) \
+        or (cmd == "lesson" and sub in ("list", "show")) or (cmd == "team" and sub == "list") \
+        or (cmd == "project" and sub == "list") or (cmd == "gate" and sub in ("show", "list"))
+
+
 def cli_shadow(binary, argv, environ):
     """Python answers (its output and exit code are passed through), then Go runs the same argv under a 2 s timeout;
     a difference is logged to logs/cli-shadow.log as hashes only, never text. Returns the exit code."""
@@ -19265,7 +19354,7 @@ def cli_shadow(binary, argv, environ):
 
 def main():
     mode, binary = cli_dispatch_mode(sys.argv)
-    if mode == "shadow" and not (sys.argv[1] in ("whoami", "agents", "flags") or (sys.argv[1] == "config" and len(sys.argv) <= 3)):
+    if mode == "shadow" and not cli_shadow_readonly(sys.argv):
         mode = "python"  # only read-only commands are shadowed: a write would run twice
     if os.environ.get("FACTORY_CLI_TRACE") == "1":
         print(f"impl={'python' if mode == 'go' else mode}", file=sys.stderr, flush=True)  # go here: the stub could not exec it
