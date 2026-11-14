@@ -811,8 +811,8 @@ func (c *Client) skipped(name, pane string, listed []Agent) {
 }
 
 // ClosePane is close_named_pane: close the pane the host lists under this exact agent name.
-// state is "closed", "not-found" or "unknown"; hostPane is the id (or hc name) that was closed.
-func (c *Client) ClosePane(name, pane string) (state, hostPane string) {
+// err is a gate refusal (Python raises); state is "closed", "not-found" or "unknown"; hostPane is the id (or hc name) that was closed.
+func (c *Client) ClosePane(name, pane string) (state, hostPane string, err error) {
 	row := c.row(name)
 	var rowExe string
 	if row != nil {
@@ -822,7 +822,7 @@ func (c *Client) ClosePane(name, pane string) (state, hostPane string) {
 	}
 	listed, err := c.listedForExe(rowExe, row)
 	if err != nil {
-		return "unknown", ""
+		return "unknown", "", nil
 	}
 	if rowExe == "hc" {
 		found := false
@@ -834,24 +834,26 @@ func (c *Client) ClosePane(name, pane string) (state, hostPane string) {
 		}
 		if !found {
 			c.skipped(name, pane, listed)
-			return "not-found", ""
+			return "not-found", "", nil
 		}
 		switch c.KillTerminal(name, nil) {
 		case "killed":
-			return "closed", name
+			return "closed", name, nil
 		case "unknown":
-			return "unknown", ""
+			return "unknown", "", nil
 		}
-		return "not-found", ""
+		return "not-found", "", nil
 	}
 	for _, x := range listed {
 		if x.Name() == name && x.PaneID() != "" {
-			_ = c.ClosePaneByID(row, x.PaneID())
-			return "closed", x.PaneID()
+			if err := c.ClosePaneByID(row, x.PaneID()); err != nil {
+				return "unknown", "", err // gate refusal: Python raises, so nothing is closed
+			}
+			return "closed", x.PaneID(), nil
 		}
 	}
 	c.skipped(name, pane, listed)
-	return "not-found", ""
+	return "not-found", "", nil
 }
 
 // --- workspaces / tabs / panes --------------------------------------------------------------

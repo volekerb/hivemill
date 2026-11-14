@@ -389,7 +389,7 @@ func TestClosePane(t *testing.T) {
 	s := newStub(t)
 	c, st := newClient("herdr")
 	s.set("herdr.agent_list", "out", envelope(`{"agents":[{"name":"a","pane_id":"hostp1"},{"name":"other","pane_id":"stale"}]}`))
-	state, pane := c.ClosePane("a", "stale")
+	state, pane, _ := c.ClosePane("a", "stale")
 	if state != "closed" || pane != "hostp1" {
 		t.Fatalf("closed: %s %s", state, pane)
 	}
@@ -398,7 +398,7 @@ func TestClosePane(t *testing.T) {
 	}
 	// not found: names the holder of the row's id in one event, closes nothing.
 	n := len(s.calls())
-	state, pane = c.ClosePane("ghost", "stale")
+	state, pane, _ = c.ClosePane("ghost", "stale")
 	if state != "not-found" || pane != "" || len(s.calls()) != n+1 {
 		t.Fatalf("not-found: %s %s %v", state, pane, s.calls())
 	}
@@ -415,7 +415,7 @@ func TestClosePane(t *testing.T) {
 	s.set("herdr.agent_list", "rc", "1")
 	ne := len(st.events)
 	n = len(s.calls())
-	if state, _ = c.ClosePane("a", "x"); state != "unknown" || len(st.events) != ne || len(s.calls()) != n+1 {
+	if state, _, _ = c.ClosePane("a", "x"); state != "unknown" || len(st.events) != ne || len(s.calls()) != n+1 {
 		t.Fatalf("unknown: %s", state)
 	}
 }
@@ -425,7 +425,7 @@ func TestClosePaneHc(t *testing.T) {
 	c, st := newClient("hc")
 	s.set("hc.ls", "out", `{"terminals":[{"name":"a","agent":"claude"}]}`+"\n")
 	st.rows["a"] = &Row{Name: "a", PaneID: "a", SpawnArgs: `{"host_backend":"hc"}`}
-	if state, pane := c.ClosePane("a", "a"); state != "closed" || pane != "a" {
+	if state, pane, _ := c.ClosePane("a", "a"); state != "closed" || pane != "a" {
 		t.Fatalf("%s %s", state, pane)
 	}
 	if calls := s.calls(); calls[len(calls)-1] != "hc kill a" {
@@ -434,13 +434,13 @@ func TestClosePaneHc(t *testing.T) {
 	if len(st.events) != 1 || st.events[0] != "agent|a|hc-kill|a" {
 		t.Fatalf("events: %v", st.events)
 	}
-	if state, _ := c.ClosePane("gone", "gone"); state != "not-found" {
+	if state, _, _ := c.ClosePane("gone", "gone"); state != "not-found" {
 		t.Fatalf("not found: %s", state)
 	}
 	// a herdr-hosted row on an hc config is TUI-hosted: the pane close goes through herdr, not hc.
 	st.rows["t"] = &Row{Name: "t", PaneID: "tp", SpawnArgs: `{"host_backend":"herdr"}`}
 	s.set("herdr.agent_list", "out", envelope(`{"agents":[{"name":"t","pane_id":"tp"}]}`))
-	if state, pane := c.ClosePane("t", "tp"); state != "closed" || pane != "tp" {
+	if state, pane, _ := c.ClosePane("t", "tp"); state != "closed" || pane != "tp" {
 		t.Fatalf("tui row: %s %s", state, pane)
 	}
 	if calls := s.calls(); calls[len(calls)-1] != "herdr pane close tp" {
