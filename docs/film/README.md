@@ -1,6 +1,6 @@
 # Hivemill commercial film: storyboard and sources
 
-`storyboard.json` is the storyboard for a customer commercial of at most 60 seconds (1920x1080, 30 fps, 8 scenes). This film replaces the rejected launch film and shares nothing with it. Fable is used only for the scene design of this film; the storyboard itself is plain data.
+`storyboard.json` is the storyboard for a customer commercial of at most 60 seconds (1920x1080, 30 fps, 9 scenes). This film replaces the rejected launch film and shares nothing with it. Fable is used only for the scene design of this film; the storyboard itself is plain data.
 
 Scene 7: Herdr app panel. The stills in `docs/film/herdr/` are crops of the owner's demo-mode capture of the Hivemill dashboard tab in the Herdr desktop app (source file `hivemill-dashboard-clean.png`, 1920x960, Mac mini, taken 2026-11-14 about 20:33, sha256 `a3b86dc1733e3ac8fd52207011f4053962262051625c63efee9678b6488efb74`). The full frame is not committed because it holds a live request list and the most expensive tasks list. It is from an open pull request and is not part of v0.4.0. The scene composes the crops at 1920x1080 with no upscaling beyond native size.
 
@@ -12,7 +12,7 @@ Scene 7: Herdr app panel. The stills in `docs/film/herdr/` are crops of the owne
 | panel-active-goals.png | `crop=617:409:1280:447` | 1280..1896, 447..855 | Active goals header and all 11 goal rows |
 | panel-status-bar.png | `crop=1920:28:0:932` | 0..1919, 932..959 | The status bar |
 
-The film makes no predicted-performance claim, never claims the worker sandbox is finished (scene 7's Active goals shows it in progress), and never says a release newer than v0.4.0 is out.
+The film makes no predicted-performance claim, shows the worker sandbox as opt-in, Linux only and with its rollout still in verification (scene "sandbox", 29-34 s, and the Active goals row in scene herdr-core); it never claims the sandbox is finished, on by default or a full security boundary. The film carries no version number (the release notes and the LinkedIn post carry the version).
 
 ## Claims, sources and re-check commands
 
@@ -29,6 +29,8 @@ The film makes no predicted-performance claim, never claims the worker sandbox i
 | Setup command `/hivemill:setup` | plugins/hivemill/skills/setup/SKILL.md:2 | `sed -n 2p plugins/hivemill/skills/setup/SKILL.md` |
 | Up to five recurring jobs, token cap per run, `factory schedule add` | docs/schedule.md:3, docs/schedule.md:9 | `sed -n '3p;9p' docs/schedule.md` |
 | Herdr app panel (Hivemill dashboard tab and status bar in the Herdr desktop app; from an open pull request, not part of v0.4.0) | docs/film/herdr/CAPTURE.md:3, docs/film/herdr/CAPTURE.md:5 | `sha256sum docs/film/herdr/*.png` and `ffmpeg -loglevel error -i <source frame> -vf crop=W:H:X:Y -f md5 -` for each crop above, compared with `ffmpeg -loglevel error -i docs/film/herdr/<file> -f md5 -` |
-| Release v0.4.0 | README.md:274 | `git tag -l v0.4.0` |
+| Hivemill is open source (MIT) on GitHub at github.com/volekerb/hivemill | README.md:11, README.md:288 | `sed -n '11p;288p' README.md` |
+| Worker sandbox: opt-in (off by default), Linux user namespaces, own worker tokens, owner logins and keys hidden, rollout in progress | docs/worker-sandbox.md:3, docs/worker-sandbox.md:7, docs/worker-sandbox.md:155, README.md:263, docs/SETUP.md:19 | `sed -n '3p;7p;155p' docs/worker-sandbox.md; sed -n 263p README.md; sed -n 19p docs/SETUP.md` |
+| Terminal backends: Hivemill supports two terminal backends, the classic Herdr terminal UI and herdr-core; watch in the web view or the Herdr app panel | docs/terminal-backends.md:9, docs/terminal-backends.md:10, README.md:36, docs/film/herdr/CAPTURE.md:3 | `sed -n '9p;10p' docs/terminal-backends.md; sed -n 36p README.md` |
 
 Scene text must contain no ids, PR numbers or other bookkeeping words; there is no exception.
