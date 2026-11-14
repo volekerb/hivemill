@@ -15,7 +15,7 @@ func FuzzParseResult(f *testing.F) {
 	f.Fuzz(func(t *testing.T, s string) {
 		for _, exe := range []string{"herdr", "hc"} {
 			for _, argv := range [][]string{nil, {"read", "p"}, {"ls"}, {"agent", "list"}} {
-				if parseResult(exe, argv, s) == nil && exe == "hc" {
+				if m, ok := parseResult(exe, argv, s).(map[string]any); exe == "hc" && (!ok || m == nil) {
 					t.Fatalf("hc parse returned nil for %q", s)
 				}
 			}

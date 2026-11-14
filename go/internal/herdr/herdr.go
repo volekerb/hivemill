@@ -846,8 +846,8 @@ func (c *Client) ClosePane(name, pane string) (state, hostPane string, err error
 	}
 	for _, x := range listed {
 		if x.Name() == name && x.PaneID() != "" {
-			if err := c.ClosePaneByID(row, x.PaneID()); err != nil {
-				return "unknown", "", err // gate refusal: Python raises, so nothing is closed
+			if e := c.ClosePaneByID(row, x.PaneID()); e != nil {
+				return "unknown", "", e // gate refusal: Python raises, so nothing is closed
 			}
 			return "closed", x.PaneID(), nil
 		}

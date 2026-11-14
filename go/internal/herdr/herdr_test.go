@@ -389,8 +389,8 @@ func TestClosePane(t *testing.T) {
 	s := newStub(t)
 	c, st := newClient("herdr")
 	s.set("herdr.agent_list", "out", envelope(`{"agents":[{"name":"a","pane_id":"hostp1"},{"name":"other","pane_id":"stale"}]}`))
-	state, pane, _ := c.ClosePane("a", "stale")
-	if state != "closed" || pane != "hostp1" {
+	state, pane, cerr := c.ClosePane("a", "stale")
+	if cerr != nil || state != "closed" || pane != "hostp1" {
 		t.Fatalf("closed: %s %s", state, pane)
 	}
 	if calls := s.calls(); calls[len(calls)-1] != "herdr pane close hostp1" {
