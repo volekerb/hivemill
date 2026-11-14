@@ -1,0 +1,1 @@
+factory: T-0013 is held by agent claude-coder-t-0013; change the role with: factory stop claude-coder-t-0013 --reason ..., then factory task update T-0013 --role pm, then factory spawn pm --task T-0013

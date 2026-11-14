@@ -1,0 +1,1 @@
+warning: coder-a is running T-9; a running worker does not re-read its task. For spec changes: factory stop, task update, respawn

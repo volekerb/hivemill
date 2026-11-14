@@ -81,7 +81,7 @@ jobs:
   go:
     name: go
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 40
     env:
       GOTOOLCHAIN: local
     defaults:
@@ -128,7 +128,7 @@ jobs:
           fi
       - run: go vet ./...
         if: steps.tier.outputs.go == 'true'
-      - run: go test -race -count=1 ./...
+      - run: go test -race -count=1 -timeout 30m ./...
         if: steps.tier.outputs.go == 'true'
       - run: go build ./...
         if: steps.tier.outputs.go == 'true'

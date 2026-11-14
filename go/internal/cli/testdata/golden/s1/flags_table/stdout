@@ -1,5 +1,6 @@
 KEY                   STATE   DEFAULT    CURRENT    GOAL   DOC                       
 agent_runtimes        off                                  docs/runtimes.md          
+block_conditions      off     0          0          G-040  docs/block-conditions.md  
 coder_ci_handoff      off     off        off        G-018  docs/prcheck.md           
 cursor_pilot_roles    off                                  docs/runtimes.md          
 gate_fast_projects    on      factory    factory                                     

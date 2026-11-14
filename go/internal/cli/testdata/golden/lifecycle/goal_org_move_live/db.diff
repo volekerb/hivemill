@@ -1,0 +1,7 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-director" entity="goal" entity_id="G-8" action="org" detail="claude -> cursor"
+- goals 8 id="G-8" project_id="P-1" title="Org move goal" intent="i" success_criteria="sc" status="active" priority=2 requested_by="owner" workspace_id=NULL created="2026-11-01T00:00:00+01:00" updated="2026-11-01T00:00:00+01:00" org="claude" token_limit=NULL
++ goals 8 id="G-8" project_id="P-1" title="Org move goal" intent="i" success_criteria="sc" status="active" priority=2 requested_by="owner" workspace_id=NULL created="2026-11-01T00:00:00+01:00" updated="2026-11-12T01:02:03+00:00" org="cursor" token_limit=NULL
++ messages 1 id=1 sender="claude-director" recipient="claude-director" kind="decision" subject="G-8 moved claude -> cursor" body="G-8 now belongs to the cursor org. New spawns for it use the cursor runtime, models and name prefix. Still running under the old org: claude-coder-8 (finish or stop them)." goal_id="G-8" task_id=NULL created="2026-11-12T01:02:03+00:00" read_at=NULL
++ messages 2 id=2 sender="claude-director" recipient="cursor-director" kind="decision" subject="G-8 moved claude -> cursor" body="G-8 now belongs to the cursor org. New spawns for it use the cursor runtime, models and name prefix. Still running under the old org: claude-coder-8 (finish or stop them)." goal_id="G-8" task_id=NULL created="2026-11-12T01:02:03+00:00" read_at=NULL
++ sqlite_sequence 3 name="events" seq=1
++ sqlite_sequence 4 name="messages" seq=2

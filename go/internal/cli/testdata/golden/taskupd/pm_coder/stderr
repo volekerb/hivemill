@@ -1,0 +1,1 @@
+factory: pm may not close a coder task without a PR: reopen it (factory task reopen T --reason ...) or file a follow-up (factory task add --follow-up-of T ...); only a lead, director or the owner may close it

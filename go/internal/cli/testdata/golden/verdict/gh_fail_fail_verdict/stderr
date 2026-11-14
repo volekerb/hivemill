@@ -1,0 +1,2 @@
+factory: gh pr view https://github.com/x/y/pull/1: GraphQL: could not resolve (pull request)
+gh pr view https://github.com/x/y/pull/1: GraphQL: could not resolve (pull request)

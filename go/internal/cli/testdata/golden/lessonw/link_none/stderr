@@ -1,0 +1,1 @@
+factory: give exactly one of --task and --pr: factory lesson link L-xxx (--task T-xxxx | --pr URL) [--via prompt|settings|hook|skill|cli|other]

@@ -1,0 +1,1 @@
+factory: qa PASS refused, nothing recorded: the tick started you on head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, you named 0123456789abcdef0123456789abcdef01234567. The PR head moved after you started, so this worker's check is not of that head: record a FAIL/finding at the head you tested, or let the tick start a fresh round

@@ -1,0 +1,3 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-lead" entity="task" entity_id="T-0008" action="add" detail="untagged"
++ sqlite_sequence 1 name="events" seq=1
++ tasks 8 id="T-0008" goal_id="G-2" team_id=NULL title="untagged" spec=NULL acceptance=NULL role="coder" status="todo" assignee=NULL depends_on="[]" branch=NULL worktree=NULL pr_url=NULL attempts=0 created="2026-11-12T01:02:03+00:00" updated="2026-11-12T01:02:03+00:00" follow_up_of=NULL priority=NULL waits="internal" sandbox_required=0 tier=NULL judge_hold_reason=NULL

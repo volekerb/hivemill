@@ -1,0 +1,39 @@
+# G-1 — Full goal
+status=active priority=1 project=factory org=claude
+token limit: 5000 tokens (tally 334 tokens; `factory goal tokens G-1`)
+
+## intent
+Intent line one
+Intent line two
+
+## success_criteria
+SC1 first
+SC2 second
+
+## plan v2 (claude-director, 2026-11-01T02:00:00+01:00)
+plan v2 line 1
+plan v2 line 2
+
+line 4 after blank
+
+
+## audit v2 ready (claude-auditor, 2026-11-01T04:00:00+01:00)
+audit body
+second line
+
+## sign-off of audit v2 (owner, 2026-11-01T05:00:00+01:00)
+shipped it
+
+## teams
+ID    LEAD_AGENT     STATUS  SCOPE    
+TM-1  claude-lead-1  active  scope one
+TM-2                 parked           
+
+## tasks
+ID   STATUS     ROLE   ASSIGNEE          DEPENDS_ON  PR_URL                     TITLE                                                       
+T-1  done       coder  claude-coder-t-1  []          https://example.test/pr/1  Done one                                                    
+T-2  todo       pm                       ["T-1"]                                Todo one                                                    
+T-3  todo       coder                    []                                     Todo two                                                    
+T-4  blocked    coder                    []                                     Blocked one                                                 
+T-5  parked     coder                    []                                     Weird status                                                
+T-6  cancelled  coder                    []                                     A title that is much longer than sixty characters so the tab

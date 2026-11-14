@@ -1,0 +1,3 @@
+#!/bin/sh
+(for a in "$@"; do printf '%s\0' "$a"; done; printf '\n') >> "$HOME/stub-calls.log"
+printf 'go/internal/cli/a.go\ngo/internal/cli/b.go\nbin/factory_cli.py\ndocs/x.md\n'

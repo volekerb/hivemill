@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,6 +30,16 @@ import (
 //	stdout, stderr, code   what Python printed and returned
 //	delegate  optional empty file: Go must hand the command to Python (only the exec argv/env is checked)
 //
+// Write-mode extension (S2 rules W1-W3, W6), all optional:
+//
+//	stdin     bytes fed to stdin on both sides (absent: empty)
+//	cwd/      copied to a temp dir that is the process cwd on both sides (for @path args)
+//	bin/      shell stubs prepended to PATH on both sides; each appends its NUL-joined argv line to $HOME/stub-calls.log
+//	writes    empty marker: the case may write; db.diff is then the expected DB change (a delegate case never writes in Go)
+//	db.diff   the +/- line diff of the canonical DB dump before and after (see dbdump_test.go)
+//	calls     the expected stub-calls.log (absent: no stub may be called)
+//	gonly     empty marker: a test-only handler with no Python behind it; update mode leaves the expectations alone
+//
 // and a group has seed.sql, applied on top of testdata/golden/base.sql (the schema and rows `factory init` makes).
 // Normal mode runs Go on that database and compares byte for byte, then checks nothing was written. Update mode
 // regenerates base.sql and every expectation from the repo's bin/ running under python3:
@@ -41,6 +53,8 @@ type goldenCase struct {
 	group, name, dir string
 	args, env        []string
 	delegate         bool
+	writes, gonly    bool
+	stdin            []byte
 }
 
 // sink is the part of testing.T the case runner needs, so a meta-test can watch it fail.
@@ -83,14 +97,22 @@ func loadCase(group, dir string) (goldenCase, error) {
 	if c.env, err = readLines(filepath.Join(dir, "env")); err != nil {
 		return c, err
 	}
-	_, derr := os.Stat(filepath.Join(dir, "delegate"))
-	c.delegate = derr == nil
+	has := func(f string) bool { _, e := os.Stat(filepath.Join(dir, f)); return e == nil }
+	c.delegate, c.writes, c.gonly = has("delegate"), has("writes"), has("gonly")
+	if b, err := os.ReadFile(filepath.Join(dir, "stdin")); err == nil {
+		c.stdin = b
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return c, err
+	}
 	return c, nil
 }
 
-func goldenCases(t *testing.T) []goldenCase {
+func goldenCases(t *testing.T) []goldenCase { return goldenCasesIn(t, goldenDir) }
+
+// goldenCasesIn loads the cases under root (goldenDir, or a temp copy of it).
+func goldenCasesIn(t *testing.T, root string) []goldenCase {
 	t.Helper()
-	groups, err := os.ReadDir(goldenDir)
+	groups, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +121,7 @@ func goldenCases(t *testing.T) []goldenCase {
 		if !g.IsDir() {
 			continue
 		}
-		cases, err := os.ReadDir(filepath.Join(goldenDir, g.Name()))
+		cases, err := os.ReadDir(filepath.Join(root, g.Name()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -107,7 +129,7 @@ func goldenCases(t *testing.T) []goldenCase {
 			if !c.IsDir() {
 				continue
 			}
-			gc, err := loadCase(g.Name(), filepath.Join(goldenDir, g.Name(), c.Name()))
+			gc, err := loadCase(g.Name(), filepath.Join(root, g.Name(), c.Name()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -117,14 +139,56 @@ func goldenCases(t *testing.T) []goldenCase {
 	return out
 }
 
+// goldenNow is the fixed clock of both implementations (S2 rule W1); it equals the Go Now below, TZ=UTC.
+const goldenNow = "2026-11-12T01:02:03+00:00"
+
 // goldenEnv is the clean environment of both implementations: nothing leaks in from the coder's own shell, and
 // FACTORY_PROC_DIR points at an empty directory so the real process ancestry never looks like a worker.
-func goldenEnv(home, procDir string, extra []string) []string {
+// binDir (may be empty) is the case's stub directory, put first on PATH.
+func goldenEnv(home, procDir, binDir string, extra []string) []string {
+	path := os.Getenv("PATH")
+	if binDir != "" {
+		path = binDir + string(os.PathListSeparator) + path
+	}
 	env := []string{
-		"PATH=" + os.Getenv("PATH"), "HOME=" + home, "FACTORY_HOME=" + home, "FACTORY_PROC_DIR=" + procDir,
-		"LANG=C.UTF-8", "TZ=UTC",
+		"PATH=" + path, "HOME=" + home, "FACTORY_HOME=" + home, "FACTORY_PROC_DIR=" + procDir,
+		"LANG=C.UTF-8", "TZ=UTC", "FACTORY_TEST_NOW=" + goldenNow,
 	}
 	return append(env, extra...)
+}
+
+// sandbox is the per-run copy of a case's cwd/ and bin/ (either may be empty).
+type sandbox struct{ cwd, binDir string }
+
+func caseSandbox(t sink, c goldenCase) (sandbox, error) {
+	t.Helper()
+	var sb sandbox
+	for _, d := range []struct {
+		name string
+		dst  *string
+	}{{"cwd", &sb.cwd}, {"bin", &sb.binDir}} {
+		src := filepath.Join(c.dir, d.name)
+		if fi, err := os.Stat(src); err != nil || !fi.IsDir() {
+			continue
+		}
+		*d.dst = filepath.Join(t.TempDir(), d.name)
+		if err := os.MkdirAll(*d.dst, 0o755); err != nil {
+			return sb, err
+		}
+		if err := copyTree(src, *d.dst); err != nil {
+			return sb, err
+		}
+	}
+	return sb, nil
+}
+
+// stubCalls is $HOME/stub-calls.log ("" when no stub ran).
+func stubCalls(home string) (string, error) {
+	b, err := os.ReadFile(filepath.Join(home, "stub-calls.log"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	return string(b), err
 }
 
 func envMap(env []string) map[string]string {
@@ -140,12 +204,17 @@ func baseSQLPath() string { return filepath.Join(goldenDir, "base.sql") }
 
 // buildGoldenDB creates <home>/db/factory.db from base.sql plus the group's seed.sql.
 func buildGoldenDB(t sink, home, group string) (string, error) {
+	return buildGoldenDBIn(t, goldenDir, home, group)
+}
+
+// buildGoldenDBIn is buildGoldenDB reading base.sql and seed.sql from root.
+func buildGoldenDBIn(t sink, root, home, group string) (string, error) {
 	t.Helper()
-	base, err := os.ReadFile(baseSQLPath())
+	base, err := os.ReadFile(filepath.Join(root, "base.sql"))
 	if err != nil {
 		return "", fmt.Errorf("%w; create it with: cd go && go test -count=1 -run TestGolden ./internal/cli/ -args -update-golden", err)
 	}
-	seed, err := os.ReadFile(filepath.Join(goldenDir, group, "seed.sql"))
+	seed, err := os.ReadFile(filepath.Join(root, group, "seed.sql"))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", err
 	}
@@ -223,6 +292,8 @@ type goOutcome struct {
 	code           int
 	exec           *execCall
 	execs          int
+	dbDiff, calls  string
+	writes         bool
 }
 
 // runGo runs the case through cli.Run on a fresh database and reports whether the database changed.
@@ -238,7 +309,15 @@ func runGo(t sink, c goldenCase) (goOutcome, error) {
 	if err != nil {
 		return o, err
 	}
-	env := goldenEnv(home, procDir, c.env)
+	dumpBefore, err := dumpDB(path)
+	if err != nil {
+		return o, err
+	}
+	sb, err := caseSandbox(t, c)
+	if err != nil {
+		return o, err
+	}
+	env := goldenEnv(home, procDir, sb.binDir, c.env)
 	m := envMap(env)
 	var out, errb bytes.Buffer
 	argv0, err := filepath.Abs(filepath.Join("..", "..", "..", "bin", "factory"))
@@ -254,7 +333,13 @@ func runGo(t sink, c goldenCase) (goOutcome, error) {
 			PwDir:     func(int) (string, error) { return home, nil },
 			Now:       func() time.Time { return time.Date(2026, 11, 12, 1, 2, 3, 0, time.UTC) },
 		},
-		Stdout: &out, Stderr: &errb,
+		Stdout: &out, Stderr: &errb, Stdin: bytes.NewReader(c.stdin),
+		Getwd: func() (string, error) {
+			if sb.cwd != "" {
+				return sb.cwd, nil
+			}
+			return home, nil
+		},
 		Getpid: func() int { return 4242 }, Getppid: func() int { return 4241 },
 		LookPath: func(f string) (string, error) { return "/usr/bin/" + f, nil },
 		Exec: func(p string, a, e []string) error {
@@ -268,8 +353,20 @@ func runGo(t sink, c goldenCase) (goOutcome, error) {
 	if err != nil {
 		return o, err
 	}
-	if after != before {
-		return o, fmt.Errorf("%s %v changed the database: %s -> %s", c.name, c.args, before, after)
+	o.writes = c.writes && !c.delegate
+	if !o.writes {
+		if after != before {
+			return o, fmt.Errorf("%s %v changed the database: %s -> %s", c.name, c.args, before, after)
+		}
+	} else {
+		dumpAfter, err := dumpDB(path)
+		if err != nil {
+			return o, err
+		}
+		o.dbDiff = diffDump(dumpBefore, dumpAfter)
+	}
+	if o.calls, err = stubCalls(home); err != nil {
+		return o, err
 	}
 	return o, nil
 }
@@ -306,14 +403,29 @@ func checkGoldenCase(t sink, c goldenCase) error {
 	if o.execs != 0 {
 		return fmt.Errorf("%s: handed over to python (%q), want Go to answer; create a `delegate` file if that is intended", c.name, o.exec.argv)
 	}
-	for _, f := range []struct{ file, got string }{{"stdout", o.stdout}, {"stderr", o.stderr}, {"code", strconv.Itoa(o.code) + "\n"}} {
+	files := []struct{ file, got string }{{"stdout", o.stdout}, {"stderr", o.stderr}, {"code", strconv.Itoa(o.code) + "\n"}}
+	if o.writes {
+		files = append(files, struct{ file, got string }{"db.diff", o.dbDiff})
+	}
+	for _, f := range files {
 		want, err := os.ReadFile(filepath.Join(c.dir, f.file))
 		if err != nil {
 			return fmt.Errorf("%s: %w; regenerate with -update-golden", c.name, err)
 		}
 		if f.got != string(want) {
+			if f.file == "db.diff" {
+				return fmt.Errorf("%s %v: db.diff differs from the Python golden (tables: %s):\n got:\n%swant:\n%s",
+					c.name, c.args, strings.Join(diffTables(f.got, string(want)), ", "), f.got, string(want))
+			}
 			return fmt.Errorf("%s %v: %s differs from the Python golden:\n got %q\nwant %q", c.name, c.args, f.file, f.got, string(want))
 		}
+	}
+	wantCalls, err := os.ReadFile(filepath.Join(c.dir, "calls"))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if o.calls != string(wantCalls) {
+		return fmt.Errorf("%s %v: stub calls differ from the Python golden (calls):\n got %q\nwant %q", c.name, c.args, o.calls, string(wantCalls))
 	}
 	return nil
 }
@@ -358,10 +470,15 @@ type pyRun struct {
 	code           int
 }
 
-func runPython(checkout, home, procDir string, args, extra []string) (pyRun, error) {
+// runPython runs the checkout's CLI; sb and stdin are the case's (zero values for a bare command).
+func runPython(checkout, home, procDir string, args, extra []string, sb sandbox, stdin []byte) (pyRun, error) {
 	cmd := exec.Command("python3", append([]string{filepath.Join(checkout, "bin", "factory")}, args...)...)
 	cmd.Dir = home
-	cmd.Env = append(goldenEnv(home, procDir, extra), "FACTORY_CLI_IMPL=python")
+	if sb.cwd != "" {
+		cmd.Dir = sb.cwd
+	}
+	cmd.Stdin = bytes.NewReader(stdin)
+	cmd.Env = append(goldenEnv(home, procDir, sb.binDir, extra), "FACTORY_CLI_IMPL=python")
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()
@@ -381,7 +498,7 @@ func runPython(checkout, home, procDir string, args, extra []string) (pyRun, err
 // every table, then every row (INSERT per row, rowid order), then the other objects (indexes, triggers, views) so
 // loading the rows cannot fire a trigger.
 func pythonBaseSQL(checkout, home, procDir string) (string, error) {
-	r, err := runPython(checkout, home, procDir, []string{"init"}, nil)
+	r, err := runPython(checkout, home, procDir, []string{"init"}, nil, sandbox{}, nil)
 	if err != nil {
 		return "", err
 	}
@@ -461,7 +578,7 @@ func pythonBaseSQL(checkout, home, procDir string) (string, error) {
 
 // pythonTree is what the Python CLI needs next to bin/. roles/ is deliberately absent: without it `init` cannot
 // render settings into the checkout.
-var pythonTree = []string{"bin", "web", "scout"}
+var pythonTree = []string{"bin", "web", "scout", "retro"}
 
 // pythonCheckout copies pythonTree into a temp checkout.
 func pythonCheckout(t *testing.T) (checkout, procDir string) {
@@ -474,7 +591,7 @@ func pythonCheckout(t *testing.T) (checkout, procDir string) {
 	if err := os.MkdirAll(procDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, d := range pythonTree { // the Python CLI imports web/ and scout/ from the repo root
+	for _, d := range pythonTree { // the Python CLI imports web/, scout/ and retro/ from the repo root
 		if err := copyTree(repoFile(t, d), filepath.Join(checkout, d)); err != nil {
 			t.Fatal(err)
 		}
@@ -492,35 +609,74 @@ func generatedBase(t *testing.T, checkout, procDir string) string {
 	return s
 }
 
-func updateCase(t *testing.T, checkout, procDir string, c goldenCase) {
+// regenPyClock matches the wall-clock timestamps Python stamps into rows (its now() ignores FACTORY_TEST_NOW);
+// update mode rewrites them to goldenNow so regeneration is reproducible. TZ=UTC makes the offset +00:00.
+var regenPyClock = regexp.MustCompile(`"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+00:00"`)
+
+// updateCase regenerates the expectations of c in place (c.dir); base.sql and seeds are read from root.
+func updateCase(t *testing.T, root, checkout, procDir string, c goldenCase) {
 	t.Helper()
-	if c.delegate {
+	if c.gonly || (c.delegate && !c.writes) {
 		return
 	}
 	home := t.TempDir()
-	if _, err := buildGoldenDB(t, home, c.group); err != nil {
-		t.Fatal(err)
-	}
-	r, err := runPython(checkout, home, procDir, c.args, c.env)
+	path, err := buildGoldenDBIn(t, root, home, c.group)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for f, s := range map[string]string{"stdout": r.stdout, "stderr": r.stderr, "code": strconv.Itoa(r.code) + "\n"} {
+	before, err := dumpDB(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sb, err := caseSandbox(t, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := runPython(checkout, home, procDir, c.args, c.env, sb, c.stdin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]string{"stdout": r.stdout, "stderr": r.stderr, "code": strconv.Itoa(r.code) + "\n"}
+	if c.writes {
+		after, err := dumpDB(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out["db.diff"] = regenPyClock.ReplaceAllString(diffDump(before, after), `"`+goldenNow+`"`)
+	}
+	for f, s := range out {
 		if err := os.WriteFile(filepath.Join(c.dir, f), []byte(s), 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+	calls, err := stubCalls(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls == "" {
+		if err := os.Remove(filepath.Join(c.dir, "calls")); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			t.Fatal(err)
+		}
+	} else if err := os.WriteFile(filepath.Join(c.dir, "calls"), []byte(calls), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// regenGolden is update mode against root: python3 on a copy of bin/ rewrites root/base.sql and every case.
+func regenGolden(t *testing.T, root string) {
+	t.Helper()
+	checkout, procDir := pythonCheckout(t)
+	if err := os.WriteFile(filepath.Join(root, "base.sql"), []byte(generatedBase(t, checkout, procDir)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range goldenCasesIn(t, root) {
+		updateCase(t, root, checkout, procDir, c)
 	}
 }
 
 func TestGolden(t *testing.T) {
 	if *updateGolden {
-		checkout, procDir := pythonCheckout(t)
-		if err := os.WriteFile(baseSQLPath(), []byte(generatedBase(t, checkout, procDir)), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		for _, c := range goldenCases(t) {
-			updateCase(t, checkout, procDir, c)
-		}
+		regenGolden(t, goldenDir)
 	}
 	cases := goldenCases(t)
 	if len(cases) == 0 {
@@ -570,5 +726,214 @@ func TestGoldenDetectsWrites(t *testing.T) {
 	err = checkGoldenCase(t, c)
 	if err == nil || !strings.Contains(err.Error(), "changed the database") {
 		t.Fatalf("want a 'changed the database' failure, got %v", err)
+	}
+}
+
+// ---- test-only write handlers (never in the binary) and the meta tests of the write extension ----
+
+func init() {
+	// zz-w0-insert writes one events row stamped with the run's clock; $1 (optional) is the detail.
+	register("zz-w0-insert", "", handler{parse: okParse, run: func(c *ctx, p any) (int, error) {
+		detail := "w0"
+		if a := p.([]string); len(a) > 0 {
+			detail = a[0]
+		}
+		if _, err := c.exec("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
+			c.env.Now().Format("2006-01-02T15:04:05-07:00"), c.who, "w0", "W-1", "test-write", detail); err != nil {
+			return 0, err
+		}
+		c.out.WriteString("inserted\n")
+		return 0, nil
+	}})
+	// zz-w0-stdin stores the whole of stdin in an events row.
+	register("zz-w0-stdin", "", handler{parse: okParse, run: func(c *ctx, _ any) (int, error) {
+		b, err := io.ReadAll(c.deps.stdin())
+		if err != nil {
+			return 0, err
+		}
+		_, err = c.exec("INSERT INTO events(ts,action,detail) VALUES(?,?,?)", "2026-11-12T01:02:03+00:00", "stdin", string(b))
+		return 0, err
+	}})
+	// zz-w0-stub runs the gh stub once, in the process cwd, with the harness environment.
+	register("zz-w0-stub", "", handler{parse: okParse, run: func(c *ctx, p any) (int, error) {
+		wd, err := c.deps.getwd()
+		if err != nil {
+			return 0, err
+		}
+		out, _, code, err := c.deps.runCmd("gh", p.([]string), wd, c.deps.Environ, 10*time.Second)
+		if err != nil {
+			return 0, err
+		}
+		c.out.WriteString(out)
+		return code, nil
+	}})
+}
+
+// mkCase writes a throwaway golden case (group w0) from name -> content; "bin/gh" is made executable.
+func mkCase(t *testing.T, files map[string]string) goldenCase {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "case")
+	for name, content := range files {
+		p := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mode := os.FileMode(0o644)
+		if strings.HasPrefix(name, "bin/") {
+			mode = 0o755
+		}
+		if err := os.WriteFile(p, []byte(content), mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c, err := loadCase("w0", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+const ghStub = "#!/bin/sh\n{ printf '%s' \"${0##*/}\"; for a in \"$@\"; do printf '\\0%s' \"$a\"; done; printf '\\n'; } >> \"$HOME/stub-calls.log\"\necho stub-out\n"
+
+// insertDiff is what zz-w0-insert writes into a fresh w0 database.
+func insertDiff(t *testing.T, detail string) string {
+	t.Helper()
+	o, err := runGo(t, mkCase(t, map[string]string{"args": "zz-w0-insert\n" + detail + "\n", "env": "FACTORY_AGENT=owner\n", "writes": ""}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return o.dbDiff
+}
+
+func TestGoldenWriteDiff(t *testing.T) {
+	base := map[string]string{"args": "zz-w0-insert\nhello\n", "env": "FACTORY_AGENT=owner\n", "writes": "",
+		"stdout": "inserted\n", "stderr": "", "code": "0\n"}
+	with := func(extra map[string]string) map[string]string {
+		m := map[string]string{}
+		for k, v := range base {
+			m[k] = v
+		}
+		for k, v := range extra {
+			m[k] = v
+		}
+		return m
+	}
+	good := insertDiff(t, "hello")
+	if !strings.Contains(good, "+ events ") || !strings.Contains(good, `ts="2026-11-12T01:02:03+00:00"`) ||
+		!strings.Contains(good, `detail="hello"`) {
+		t.Fatalf("the insert diff lacks the fixed-clock events row:\n%s", good)
+	}
+	wantErr := func(t *testing.T, c goldenCase, parts ...string) {
+		t.Helper()
+		err := checkGoldenCase(t, c)
+		if err == nil {
+			t.Fatal("want a failure, got nil")
+		}
+		for _, p := range parts {
+			if !strings.Contains(err.Error(), p) {
+				t.Fatalf("error lacks %q: %v", p, err)
+			}
+		}
+	}
+	t.Run("matching insert passes", func(t *testing.T) {
+		if err := checkGoldenCase(t, mkCase(t, with(map[string]string{"db.diff": good}))); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("detail differs", func(t *testing.T) {
+		wantErr(t, mkCase(t, with(map[string]string{"db.diff": strings.Replace(good, `detail="hello"`, `detail="other"`, 1)})),
+			"db.diff differs")
+	})
+	t.Run("extra events row", func(t *testing.T) {
+		extra := good + "+ events 99 id=99 ts=\"x\" actor=NULL entity=NULL entity_id=NULL action=\"x\" detail=NULL\n"
+		wantErr(t, mkCase(t, with(map[string]string{"db.diff": extra})), "db.diff differs", "tables: events")
+	})
+	t.Run("writes case with empty db.diff and a write", func(t *testing.T) {
+		wantErr(t, mkCase(t, with(map[string]string{"db.diff": ""})), "db.diff differs")
+	})
+	t.Run("a case without writes keeps the no-write rule", func(t *testing.T) {
+		c := mkCase(t, with(nil))
+		c.writes = false
+		wantErr(t, c, "changed the database")
+	})
+	t.Run("a writes case that writes nothing matches an empty db.diff", func(t *testing.T) {
+		c := mkCase(t, map[string]string{"args": "whoami\n", "env": "FACTORY_AGENT=owner\n", "writes": "", "db.diff": "", "code": "0\n", "stderr": "",
+			"stdout": "owner (owner — not a factory agent)\n"})
+		if err := checkGoldenCase(t, c); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("stdin reaches the handler", func(t *testing.T) {
+		c := mkCase(t, map[string]string{"args": "zz-w0-stdin\n", "env": "FACTORY_AGENT=owner\n", "writes": "", "stdin": "piped text\n",
+			"stdout": "", "stderr": "", "code": "0\n"})
+		o, err := runGo(t, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(o.dbDiff, `detail="piped text\n"`) {
+			t.Fatalf("stdin not stored:\n%s", o.dbDiff)
+		}
+	})
+	t.Run("stub calls: matching", func(t *testing.T) {
+		c := mkCase(t, map[string]string{"args": "zz-w0-stub\npr\nview\n", "env": "FACTORY_AGENT=owner\n", "bin/gh": ghStub,
+			"stdout": "stub-out\n", "stderr": "", "code": "0\n", "calls": "gh\x00pr\x00view\n"})
+		if err := checkGoldenCase(t, c); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("stub calls: log differs", func(t *testing.T) {
+		c := mkCase(t, map[string]string{"args": "zz-w0-stub\npr\nview\n", "env": "FACTORY_AGENT=owner\n", "bin/gh": ghStub,
+			"stdout": "stub-out\n", "stderr": "", "code": "0\n", "calls": "gh\x00pr\x00list\n"})
+		wantErr(t, c, "calls")
+	})
+	t.Run("stub called but no calls file", func(t *testing.T) {
+		c := mkCase(t, map[string]string{"args": "zz-w0-stub\npr\nview\n", "env": "FACTORY_AGENT=owner\n", "bin/gh": ghStub,
+			"stdout": "stub-out\n", "stderr": "", "code": "0\n"})
+		wantErr(t, c, "calls")
+	})
+	t.Run("cwd is the process cwd", func(t *testing.T) {
+		c := mkCase(t, map[string]string{"args": "zz-w0-stub\n", "env": "FACTORY_AGENT=owner\n", "cwd/f.txt": "x", "bin/gh": "#!/bin/sh\nls\n",
+			"stdout": "f.txt\n", "stderr": "", "code": "0\n"})
+		if err := checkGoldenCase(t, c); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestTrace(t *testing.T) {
+	var trace []Stmt
+	h := handler{parse: okParse, run: func(c *ctx, _ any) (int, error) {
+		for _, q := range []string{
+			"INSERT INTO events(ts,action) VALUES('2026-11-12T01:02:03+00:00','a')",
+			"UPDATE tasks SET status='x' WHERE id='none'",
+			"  delete from events where id=-1",
+			"INSERT OR IGNORE INTO config(key,value) VALUES('k','v')",
+		} {
+			if _, err := c.exec(q); err != nil {
+				return 0, err
+			}
+		}
+		return 0, nil
+	}}
+	withHandler(t, "zz-trace", "", h)
+	c := mkCase(t, map[string]string{"args": "zz-trace\n", "env": "FACTORY_AGENT=owner\n", "writes": "", "stdout": "", "stderr": "", "code": "0\n"})
+	home := t.TempDir()
+	if _, err := buildGoldenDB(t, home, c.group); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{"FACTORY_HOME": home, "HOME": home, "FACTORY_AGENT": "owner", "FACTORY_PROC_DIR": t.TempDir()}
+	var out, errb bytes.Buffer
+	code := Run(Deps{Args: []string{"zz-trace"}, Environ: nil, Stdout: &out, Stderr: &errb, Trace: &trace, Getpid: func() int { return 1 }, Getppid: func() int { return 1 },
+		Env: identity.Env{Getenv: func(k string) string { return env[k] }, LookupEnv: func(k string) (string, bool) { v, ok := env[k]; return v, ok },
+			PwDir: func(int) (string, error) { return home, nil }, Now: time.Now}})
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb.String())
+	}
+	want := []Stmt{{"INSERT", "events"}, {"UPDATE", "tasks"}, {"DELETE", "events"}, {"INSERT", "config"}}
+	if !reflect.DeepEqual(trace, want) {
+		t.Fatalf("trace = %v, want %v", trace, want)
+	}
+	if got := parseStmt("BEGIN IMMEDIATE"); got != (Stmt{Verb: "BEGIN"}) {
+		t.Fatalf("BEGIN parsed as %v", got)
 	}
 }

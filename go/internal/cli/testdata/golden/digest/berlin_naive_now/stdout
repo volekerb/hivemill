@@ -1,0 +1,42 @@
+# Factory digest 2026-11-12
+
+Leads: 1 live, 1 parked, 0 queued; workers live 3
+
+## Director
+
+director (24h, daytime 08-20): no utilization samples · cap breaches 0 · boss scores -
+
+Orgs: claude 1 active · cursor 0 active
+
+## Org claude
+
+## G-3 — Drift goal (active)
+
+### Done
+_nothing_
+
+### In progress
+- T-43 idle building (in_progress, unassigned, attempts 1)
+- T-44 old with live agent (in_progress, claude-coder-44, attempts 1)
+
+### Blocked
+Blocked tasks: 0 owner-blocked, 2 internal-blocked
+- T-46 blocked long (blocked)
+- T-47 blocked recently (blocked)
+
+### Up next
+1 ready todo task(s)
+
+Drift: D3 T-42 todo but its dependency T-41 is cancelled; D3 T-43 in_progress with no live or queued agent and no activity for over 2 h; D4 T-46 blocked for over 24 h
+
+Freshness: claude-boss (roles); claude-coder-14 (bin, roles)
+
+
+### Team scores
+| team | tasks | done | merged | rejections | retries | score |
+|---|---|---|---|---|---|---|
+| TG3 | 8 | 0 | 0 | 0 | 0 |  |
+
+## Org cursor
+
+_no active goals_

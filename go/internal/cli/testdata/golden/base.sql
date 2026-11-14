@@ -77,6 +77,19 @@ CREATE TABLE gate_runs (
   status TEXT NOT NULL,  -- queued | running | pass | fail | error
   exit_code INTEGER, test_count INTEGER, main_count INTEGER, cmd TEXT, log_path TEXT, pid INTEGER, actor TEXT,
   note TEXT, created TEXT NOT NULL, started TEXT, finished TEXT);
+CREATE TABLE schedules (
+  id TEXT PRIMARY KEY,
+  hour INTEGER NOT NULL CHECK(hour BETWEEN 0 AND 23),
+  days TEXT NOT NULL DEFAULT 'mon,tue,wed,thu,fri,sat,sun',
+  job TEXT NOT NULL,
+  goal_id TEXT NOT NULL REFERENCES goals(id),
+  token_cap INTEGER NOT NULL CHECK(token_cap > 0),
+  created_by TEXT NOT NULL,
+  created TEXT NOT NULL,
+  removed_at TEXT,
+  last_fired_date TEXT,
+  last_outcome TEXT,
+  last_outcome_at TEXT);
 CREATE TABLE lessons (
   id TEXT PRIMARY KEY, title TEXT NOT NULL, roles TEXT NOT NULL,   -- comma list, each in ROLES or "all"
   what TEXT, rule TEXT NOT NULL, sources TEXT NOT NULL DEFAULT '',   -- comma list
@@ -149,6 +162,9 @@ CREATE TABLE skill_trials (
   UNIQUE(candidate_id, vendor_sha, task, condition));
 INSERT INTO "config"("key","value") VALUES('guard_impl','python');
 INSERT INTO "config"("key","value") VALUES('model_cleaner','');
+INSERT INTO "config"("key","value") VALUES('cli_impl','python');
+INSERT INTO "config"("key","value") VALUES('tick_impl','python');
+INSERT INTO "config"("key","value") VALUES('cli_go_cmds','');
 INSERT INTO "config"("key","value") VALUES('max_live_agents','6');
 INSERT INTO "config"("key","value") VALUES('max_total_claude','10');
 INSERT INTO "config"("key","value") VALUES('gate_max_load_ratio','1.25');
@@ -186,6 +202,7 @@ INSERT INTO "config"("key","value") VALUES('nudge_cooldown_s','120');
 INSERT INTO "config"("key","value") VALUES('boss_wake_after_s','900');
 INSERT INTO "config"("key","value") VALUES('boss_wake_cooldown_s','1800');
 INSERT INTO "config"("key","value") VALUES('director_cycle_s','900');
+INSERT INTO "config"("key","value") VALUES('block_conditions','0');
 INSERT INTO "config"("key","value") VALUES('blocked_alert_s','600');
 INSERT INTO "config"("key","value") VALUES('hq_unblock_s','900');
 INSERT INTO "config"("key","value") VALUES('prcheck_required','0');
@@ -199,6 +216,7 @@ INSERT INTO "config"("key","value") VALUES('public_text_repos','');
 INSERT INTO "config"("key","value") VALUES('noreply_email','');
 INSERT INTO "config"("key","value") VALUES('red_main_freeze','0');
 INSERT INTO "config"("key","value") VALUES('judge_wait_main_run','0');
+INSERT INTO "config"("key","value") VALUES('merged_go_proof','1');
 INSERT INTO "config"("key","value") VALUES('red_main_interval_s','120');
 INSERT INTO "config"("key","value") VALUES('issue_intake_repos','');
 INSERT INTO "config"("key","value") VALUES('frozen_repos','');

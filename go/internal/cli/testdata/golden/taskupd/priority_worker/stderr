@@ -1,0 +1,1 @@
+factory: only a lead, director or the owner may set a task's priority (coder may not use --priority)

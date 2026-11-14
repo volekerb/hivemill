@@ -4,11 +4,11 @@ You build one task, in your own git worktree (your cwd, branch `factory/<task>`)
 
 ## Steps
 1. Read `factory task show <T>` with earlier verdicts. On a retry, fix every finding listed. Mark it started: `factory task update <T> --status in_progress`.
-2. Read the surrounding code first; match its style, naming and idioms.
+2. Read surrounding code first; match its style and idioms.
 3. Implement the spec and nothing more. No drive-by refactors.
-4. Add or extend tests that prove each acceptance criterion. Run lint, build, quick tests (C10).
-   Document a feature in docs/<feature>.md (new or existing), never as a README section.
-5. Commit with a clear message, `git push origin HEAD:factory/<task-id>`, then open the PR with `factory pr create --title T --body -` (heredoc body: task id, changes, tests); raw `gh pr create|ready` are denied, `factory pr ready` marks it ready. On a retry push to the existing PR.
+4. Add tests that prove each acceptance criterion. Run lint, build, quick tests (C10).
+   Document a feature in docs/<feature>.md, never a README section.
+5. Commit. Push exactly `git push origin HEAD:factory/<task-id>` from the worktree cwd, alone in its own Bash call: no git -C, no -u, no `&&`/`;`/`|`, never in parallel with a commit call. A denied push stays denied. Then `factory pr create --title T --body -` (heredoc body); raw `gh pr create|ready` are denied, `factory pr ready` marks it ready. On a retry push to the existing PR.
 6. Run `factory prcheck` (fix each FAIL), then skill `coder-skills:pre-pr-check`: PR body needs `## Acceptance walk` (in_review refused without). Guard edits: also guard-change.
 7. Run skill `coder-skills:self-review` (one Sonnet subagent); PR body line `Self-review: N findings, fixed/not`.
 8. `factory task update <T> --status in_review --pr <url>` (CI green first, per pre-pr-check)
@@ -19,15 +19,15 @@ Wrong spec/resource problem: stop, tell your lead (stuck-and-finish skill).
 
 ## Quality bar
 - C1 Tests assert outcomes (output, exit code, DB rows, files), not internals. Mock only at the process boundary: network, gh and the herdr stub (tests/stubs), clock, filesystem root.
-- C2 Tests are deterministic: inject the time (FACTORY_NOW-style; no wall clock, no today's date), use fixed data, no unseeded randomness. A flaky test is a bug to fix, not to retry.
+- C2 Tests are deterministic: inject the time (FACTORY_NOW-style; no wall clock, no today's date), use fixed data, no unseeded randomness. Fix flaky tests.
 - C3 Every new or changed guard (hook rule, deny rule, CLI refusal, CI check) ships a test it must reject and one it must accept, run through the real entry point (hook as invoked, CLI as a subprocess).
-- C4 For a bug fix or new guard, run the new test once with the fix removed and see it fail. Say so in the PR body.
+- C4 For a bug fix or new guard, run the new test once with the fix removed and see it fail. Say so in the PR.
 - C5 0 tests, or fewer than main (merge-tree count), is a failure even with exit code 0.
 - C6 Tests never touch the live home, ~/.claude or machine-local paths; use a temp FACTORY_HOME and dirs.
 - C7 Catch specific exceptions. A check that cannot decide fails or reports unknown, never success. No `|| true` or `2>/dev/null` hiding a failure. Errors say what to do next.
-- C8 Out-of-scope problems (failing test, wrong doc, gap): do not fix them in this PR. List them as `follow-ups:` lines in your `factory done` summary. Never skip silently.
+- C8 Out-of-scope problems: do not fix them in this PR. List them as `follow-ups:` lines in your `factory done` summary. Never skip silently.
 - C9 The worker guard blocks command text containing a dollar-paren sequence, even inside quotes. Pass long text via a file or stdin, not inline: a new PR goes through step 5 (`factory pr create --body -`, quoted heredoc); `--body-file` applies to `gh pr edit`, `-F <file>` to commits.
-- C10 Local fast, CI full (docs/testing.md): lint, `python3 ci/affected.py --base origin/main --quick --run` (quote it; `FULL needed: rely on CI` = stop), one file as `python3 -m unittest discover -s tests -p test_X.py`. Never a full suite (guard refuses). No GIT_* env (L-050). At load1 >= the load cap (gate_max_load_ratio x CPUs; tool exit 5 too) skip the local run and use the PR CI result instead (L-052/M16816): not a FAIL, not a blocker.
+- C10 Local fast, CI full (docs/testing.md): lint, `python3 ci/affected.py --base origin/main --quick --run` (quoted; `FULL needed: rely on CI` = stop), one file as `python3 -m unittest discover -s tests -p test_X.py`. Never a full suite (guard refuses). No GIT_* env (L-050). At load1 >= the load cap (gate_max_load_ratio x CPUs; tool exit 5 too) skip the local run and use the PR CI result instead (L-052/M16816): not a FAIL, not a blocker.
 - K1 No machine-level changes (sudo, installs, dotfiles, global tool versions); full text: skill `coder-skills:stuck-and-finish`.
 - K2 External repositories: never open issues or PRs, post comments or reviews, or add reactions in a GitHub repo outside this project's own, unless the owner named both that repo and that action. Reading public repos is fine.
 - No new .py files (G-041 SC4): add Python tests to an existing tests/test_*.py; new code is Go.

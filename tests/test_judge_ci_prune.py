@@ -3,11 +3,21 @@ judge can still use. Every prune case runs the real `factory tick` against a tem
 FACTORY_NOW; gh is the stub in tests/stubs."""
 import argparse
 import datetime as dt
+import fcntl
 import json
+import os
+import re
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 from unittest import mock
 
-from harness import FactoryTestCase
+from harness import FactoryTestCase, REPO, dump_db
+
+
+def _norm_calls(calls):
+    return [(c["tool"], tuple(re.sub(r"/tmp/[^/]+/", "<tmp>/", a) for a in c.get("argv", []))) for c in calls]
 
 NOW_ISO = "2026-10-31T12:00:00+00:00"
 NOW = dt.datetime.fromisoformat(NOW_ISO).timestamp()
@@ -150,6 +160,69 @@ class JudgeCiPruneTests(FactoryTestCase):
         self.assertEqual(len(ev), 1)
         self.assertIn("boom", ev[0]["detail"])
         self.assertEqual((ev[0]["entity"], ev[0]["entity_id"]), ("tick", "judge-ci-prune"))
+
+
+class TickPhasesSplitWhole(FactoryTestCase):
+    """T-1383 AC8: phased ticks match one whole tick (DB except events.ts, stub call log)."""
+
+    def test_split_equals_whole_db_and_calls(self):
+        import shutil
+        import tempfile
+
+        self.env.seed_goal()
+        self.env.set_herdr(agents=[])
+        self.env.calls_file.write_text("")
+        extra = {"FACTORY_NOW": NOW_ISO}
+        snap_parent = Path(tempfile.mkdtemp(prefix="zz-split-tick-"))
+        snap = snap_parent / "snap"
+        self.addCleanup(shutil.rmtree, snap_parent, ignore_errors=True)
+        from harness import FactoryEnv  # noqa: E402
+
+        FactoryEnv._copy_tree(self.env.home, snap)
+        split_home = snap / "factory"
+
+        p = self.env.run("tick", extra_env=extra)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        db_whole = dump_db(str(self.env.db_path))
+        calls_whole = list(self.env.calls())
+
+        lockf = split_home / "run" / "tick.lock"
+        lockf.parent.mkdir(parents=True, exist_ok=True)
+        lf = open(lockf, "w")
+        self.addCleanup(lf.close)
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        hfile = split_home / "run" / "tick-handoff.json"
+        hfile.write_text(json.dumps({"v": 1, "pid": os.getpid(), "timers": False, "state": {"agents": []}}) + "\n")
+
+        def env_for(home):
+            base = self.env.env()
+            base["FACTORY_HOME"] = str(home)
+            base["FAKE_HERDR_STATE"] = str(snap / "herdr.json")
+            base["FAKE_GH_STATE"] = str(snap / "gh.json")
+            base["FAKE_CALLS"] = str(snap / "calls.jsonl")
+            base["HOME"] = str(snap / "userhome")
+            base["PATH"] = f"{snap / 'stubbin'}{os.pathsep}" + base["PATH"]
+            base["FACTORY_NOW"] = NOW_ISO
+            base["FACTORY_TICK_HANDOFF"] = str(hfile)
+            return base
+
+        fac = str(REPO / "bin" / "factory")
+        p1 = subprocess.run([sys.executable, fac, "tick", "--phases", "boot,hygiene"], env=env_for(split_home),
+                            cwd=snap, capture_output=True, text=True, timeout=120)
+        self.assertEqual(p1.returncode, 0, p1.stderr + p1.stdout)
+        doc1 = json.loads(hfile.read_text())
+        hfile.write_text(json.dumps({**doc1, "pid": os.getpid()}) + "\n")
+        p2 = subprocess.run([sys.executable, fac, "tick", "--phases", "side,reap,flow,start,nudge,publish,tail"],
+                            env=env_for(split_home), cwd=snap, capture_output=True, text=True, timeout=180)
+        self.assertEqual(p2.returncode, 0, p2.stderr + p2.stdout)
+
+        db_split = dump_db(str(split_home / "db" / "factory.db"))
+        self.assertEqual(db_split, db_whole)
+        calls_split = []
+        for line in (snap / "calls.jsonl").read_text().splitlines():
+            if line.strip():
+                calls_split.append(json.loads(line))
+        self.assertEqual(_norm_calls(calls_split), _norm_calls(calls_whole))
 
 
 if __name__ == "__main__":

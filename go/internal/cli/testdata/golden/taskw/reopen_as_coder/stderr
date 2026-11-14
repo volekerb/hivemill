@@ -1,0 +1,1 @@
+factory: role 'coder' may not reopen tasks; allowed: pm (own goal), lead, director, owner

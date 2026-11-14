@@ -18,6 +18,15 @@
    "state": "off"
   },
   {
+   "key": "block_conditions",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = the tick evaluates typed block conditions; 0 = the tick does not change blocked rows",
+   "goal": "G-040",
+   "doc": "docs/block-conditions.md",
+   "state": "off"
+  },
+  {
    "key": "blocked_alert_s",
    "kind": "setting",
    "default": "600",
@@ -56,6 +65,22 @@
    "summary": "tick_ci_wake runs its gh pr view probes in this many threads",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "cli_go_cmds",
+   "kind": "setting",
+   "default": "",
+   "summary": "comma list of subcommands bin/factory may hand to factory-go (Go registry command words; empty = none)",
+   "goal": "G-041",
+   "doc": "docs/cli-go.md"
+  },
+  {
+   "key": "cli_impl",
+   "kind": "setting",
+   "default": "python",
+   "summary": "CLI implementation: python, go or shadow; mirrored to run/cli_impl (director only); stale or missing binary means python",
+   "goal": "G-041",
+   "doc": "docs/cli-go.md"
   },
   {
    "key": "coder_ci_handoff",
@@ -431,6 +456,14 @@
    "summary": "the merger looks at a PR head it already blocked on",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "merged_go_proof",
+   "kind": "setting",
+   "default": "1",
+   "summary": "1 = when behind_ok would merge a go/-touching PR, prove the merge-tree with go vet+test first; 0 = off",
+   "goal": "G-022",
+   "doc": "docs/stale-policy.md"
   },
   {
    "key": "min_mem_available_mb",
@@ -931,6 +964,14 @@
    "goal": "",
    "doc": "",
    "state": "off"
+  },
+  {
+   "key": "tick_impl",
+   "kind": "setting",
+   "default": "python",
+   "summary": "tick implementation: python or go; with tick_impl=go the heartbeat may run in Go (docs/cli-go.md); factory up stays python",
+   "goal": "G-041",
+   "doc": "docs/cli-go.md"
   },
   {
    "key": "tick_phase_timers",

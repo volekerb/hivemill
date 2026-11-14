@@ -1,0 +1,2 @@
+ID  PROJECT_ID  TASK_ID  KIND  STATUS  EXIT_CODE  HEAD_SHA  TEST_COUNT  MAIN_COUNT  FINISHED
+4   p1          T-2      pr    pass    0          ccc333    50                              

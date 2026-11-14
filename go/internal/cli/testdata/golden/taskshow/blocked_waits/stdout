@@ -1,0 +1,14 @@
+id: T-2
+goal_id: G-9
+title: Blocked on owner
+role: coder
+status: blocked
+attempts: 0
+created: 2026-11-01T10:00:00+01:00
+updated: 2026-11-02T10:00:00+01:00
+waits: owner
+
+## spec
+spec two
+
+## history

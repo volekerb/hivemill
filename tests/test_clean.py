@@ -251,6 +251,55 @@ class CleanTests(FactoryTestCase):
         self.clean()
         self.assertFalse(wt.exists())
 
+    # -- T-1358: a done/stopped row protects only while its pane may still exist ------------------------------------
+    def gone_pane_row(self, status, pane="p1K7"):
+        wt, branch, _ = self.task()
+        self.set_cwd("zz-test-fin", wt, status=status, task="T-0001")
+        if pane:
+            self.env.sql("UPDATE agents SET pane_id=? WHERE name='zz-test-fin'", (pane,))
+        return wt
+
+    def other_pane_only(self):
+        self.list_agents(("zz-test-other", "p7"))
+        self.env.set_herdr(panes=[{"pane_id": "p7", "tab_id": "t9", "workspace_id": "w9", "cwd": str(self.env.home_dir)}])
+
+    def test_clean_stopped_row_with_dead_pane_does_not_protect(self):
+        wt = self.gone_pane_row("stopped")
+        self.other_pane_only()
+        self.clean()
+        self.assertFalse(wt.exists())
+
+    def test_clean_done_row_with_dead_pane_does_not_protect(self):
+        wt = self.gone_pane_row("done")
+        self.other_pane_only()
+        self.clean()
+        self.assertFalse(wt.exists())
+
+    def test_clean_stopped_row_protects_while_pane_still_listed(self):
+        wt = self.gone_pane_row("stopped")
+        self.list_agents(("zz-test-other", "p1K7"))  # any agent on the pane keeps it
+        self.assertIn("protected: cwd of agent zz-test-fin", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
+    def test_clean_stopped_row_protects_while_pane_in_live_pane_list(self):
+        wt = self.gone_pane_row("stopped")
+        self.list_agents(("zz-test-other", "p7"))
+        self.env.set_herdr(panes=[{"pane_id": "p1K7", "tab_id": "t9", "workspace_id": "w9", "cwd": str(self.env.home_dir)}])
+        self.assertIn("protected: cwd of agent zz-test-fin", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
+    def test_clean_stopped_row_protects_when_agent_list_unknown(self):
+        wt = self.gone_pane_row("stopped")
+        self.env.set_herdr(agents=None)
+        self.assertIn("protected: cwd of agent zz-test-fin", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
+    def test_clean_stopped_row_without_pane_id_protects(self):
+        wt = self.gone_pane_row("stopped", pane=None)
+        self.other_pane_only()
+        self.assertIn("protected: cwd of agent zz-test-fin", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
     def test_clean_protects_cwd_via_symlink_path(self):
         wt, branch, _ = self.task()
         link = self.env.home / "link"

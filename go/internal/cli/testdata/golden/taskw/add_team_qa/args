@@ -1,0 +1,10 @@
+task
+add
+--goal
+G-1
+--title
+qa
+--role
+qa
+--team
+team-x

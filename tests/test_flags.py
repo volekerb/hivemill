@@ -16,8 +16,9 @@ ENTRIES = json.loads(REGISTRY.read_text())["keys"]
 KINDS = {"flag", "setting"}
 STATES = {"off", "shadow", "on", "removed"}
 FLAGS = {
-    "lead_parking", "stale_policy", "refresh_lane", "lead_less_dispatch", "review_autospawn", "prcheck_required",
-    "git_push", "state_push", "mech_merge", "risk_tiers", "red_main_freeze", "gate_sandbox", "test_sandbox",
+    "block_conditions", "lead_parking", "stale_policy", "refresh_lane", "lead_less_dispatch", "review_autospawn",
+    "prcheck_required", "git_push", "state_push", "mech_merge", "risk_tiers", "red_main_freeze", "gate_sandbox",
+    "test_sandbox",
     "test_cgroup", "test_sandbox_subuid", "gate_post_status", "sandbox_roles", "worker_gh_roles", "task_clones",
     "tick_async_start", "lead_wake_debounce_s", "tick_phase_timers", "orphan_reap_mode", "scout_enabled",
     "gate_fast_projects", "issue_intake_repos", "cursor_pilot_roles", "agent_runtimes",
@@ -100,6 +101,10 @@ class FlagsCommand(FactoryTestCase):
             return {t: con.execute(f"SELECT * FROM {t}").fetchall() for t in ("config", "agents", "events", "messages")}
         finally:
             con.close()
+
+    def test_block_conditions_rejects_on(self):
+        self.env.seed_agent("zz-test-director", "director")
+        self.refused(2, "config", "block_conditions", "on", agent="zz-test-director")
 
     def test_default_lists_flags_only(self):
         before = self.snapshot()

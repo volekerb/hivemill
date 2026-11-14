@@ -12,15 +12,16 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver (G-041 D1, owner M32349); no cgo
 )
 
 // SchemaVersion is the PRAGMA user_version this binary understands. It must equal SCHEMA_VERSION in
 // bin/factory_cli.py (added by S1-c); until Python stamps it every database reports 0 and Go defers to Python.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
-// ErrSchemaMismatch means the database user_version differs from SchemaVersion.
+// ErrSchemaMismatch means the database user_version differs from SchemaVersion, or a table or column of Schema is missing.
 var ErrSchemaMismatch = errors.New("factorydb: user_version does not match SchemaVersion")
 
 // ResolvePath is web/dbpath.py resolve(): <home>/db/factory.db, else the pre-migration <home>/factory.db when only
@@ -72,7 +73,110 @@ func Open(path string) (*DB, error) {
 		sdb.Close()
 		return nil, fmt.Errorf("%w: database has %d, binary expects %d", ErrSchemaMismatch, v, SchemaVersion)
 	}
+	if err := checkColumns(sdb); err != nil {
+		sdb.Close()
+		return nil, fmt.Errorf("%w: %v", ErrSchemaMismatch, err)
+	}
 	return &DB{DB: sdb, Path: path}, nil
+}
+
+type tableCols struct {
+	table string
+	cols  []string
+}
+
+var (
+	wantOnce sync.Once
+	wantCols []tableCols
+	wantErr  error
+)
+
+// expectedColumns parses Schema once per process by running it on a throw-away in-memory database.
+func expectedColumns() ([]tableCols, error) {
+	wantOnce.Do(func() {
+		m, err := sql.Open("sqlite", ":memory:")
+		if err != nil {
+			wantErr = err
+			return
+		}
+		defer m.Close()
+		m.SetMaxOpenConns(1)
+		if _, err := m.Exec(Schema); err != nil {
+			wantErr = err
+			return
+		}
+		rows, err := m.Query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY rowid")
+		if err != nil {
+			wantErr = err
+			return
+		}
+		var tables []string
+		for rows.Next() {
+			var n string
+			if wantErr = rows.Scan(&n); wantErr != nil {
+				rows.Close()
+				return
+			}
+			tables = append(tables, n)
+		}
+		rows.Close()
+		for _, t := range tables {
+			cols, err := tableColumns(m, t)
+			if err != nil {
+				wantErr = err
+				return
+			}
+			wantCols = append(wantCols, tableCols{t, cols})
+		}
+	})
+	return wantCols, wantErr
+}
+
+func tableColumns(db *sql.DB, table string) ([]string, error) {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%q)", table)) // read-only
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var cols []string
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, typ string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			return nil, err
+		}
+		cols = append(cols, name)
+	}
+	return cols, rows.Err()
+}
+
+// checkColumns reports the first table.column of Schema the database lacks. Extra columns are fine: Python may be
+// newer in ways Go does not read. A check that cannot run is an error too, so Go never reads an unverified schema.
+func checkColumns(db *sql.DB) error {
+	want, err := expectedColumns()
+	if err != nil {
+		return fmt.Errorf("cannot derive expected schema: %w", err)
+	}
+	for _, tc := range want {
+		have, err := tableColumns(db, tc.table)
+		if err != nil {
+			return fmt.Errorf("cannot read columns of %s: %w", tc.table, err)
+		}
+		if len(have) == 0 {
+			return fmt.Errorf("missing table %s", tc.table)
+		}
+		set := make(map[string]bool, len(have))
+		for _, c := range have {
+			set[c] = true
+		}
+		for _, c := range tc.cols {
+			if !set[c] {
+				return fmt.Errorf("missing column %s.%s (Python migrate() adds it)", tc.table, c)
+			}
+		}
+	}
+	return nil
 }
 
 // DataVersion returns PRAGMA data_version (changes when another connection commits).

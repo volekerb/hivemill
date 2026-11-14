@@ -1,0 +1,1 @@
+factory: --sandbox-required: pm cannot be sandboxed; allowed: coder, qa, researcher, reviewer

@@ -104,7 +104,7 @@ func TestDelegate(t *testing.T) {
 		{"--help", []string{"--help"}, nil},
 		{"whoami -h", []string{"whoami", "-h"}, nil},
 		{"config write", []string{"config", "k", "v"}, nil},
-		{"task show", []string{"task", "show", "T-1"}, nil},
+		{"task tier", []string{"task", "tier", "T-1"}, nil},
 		{"agents --bogus", []string{"agents", "--bogus"}, nil},
 		{"no args", nil, nil},
 		{"FACTORY_CLI_IMPL=python forces python", []string{"whoami"}, func(r *rig) { r.env["FACTORY_CLI_IMPL"] = "python" }},
@@ -114,6 +114,9 @@ func TestDelegate(t *testing.T) {
 		{"flags abbreviation", []string{"flags", "--js"}, nil},
 		{"user_version mismatch", []string{"whoami"}, func(r *rig) { r.sql("PRAGMA user_version = 99") }},
 		{"user_version zero (Python never stamped it)", []string{"agents"}, func(r *rig) { r.sql("PRAGMA user_version = 0") }},
+		{"agents --all on a DB missing agents.stop_requested_at", []string{"agents", "--all"}, func(r *rig) {
+			r.sql("ALTER TABLE agents DROP COLUMN stop_requested_at")
+		}},
 		{"no database", []string{"whoami"}, func(r *rig) { os.Remove(r.dbPath) }},
 		{"flags.json missing", []string{"flags"}, func(r *rig) { os.Remove(filepath.Join(r.repo, "bin", "flags.json")) }},
 		{"config --check of a validated key", []string{"config", "--check"}, func(r *rig) {
@@ -219,9 +222,9 @@ func TestAgents(t *testing.T) {
 	r.sql("INSERT INTO agents(name,role,status,org,relaunch_requested_at,started) VALUES('queued-1','pm','queued','claude','2026-11-12T00:00:00+01:00','2026-11-12T00:00:02+01:00')")
 	r.sql("INSERT INTO agents(name,role,status) VALUES('gone','qa','exited')")
 	r.run("agents")
-	want := "NAME      ORG     ROLE   STATUS  RUNTIME  FLAGLESS  RELAUNCH          GOAL_ID  TEAM_ID  TASK_ID  PANE_ID  MODEL  STARTED                  \n" +
-		"é-live    cursor  coder  live    cursor   FLAGLESS                                               p-1      日本     2026-11-12T00:00:01+01:00\n" +
-		"queued-1  claude  pm     queued  claude             RELAUNCH-PENDING                                             2026-11-12T00:00:02+01:00\n"
+	want := "NAME      ORG     ROLE   STATUS  RUNTIME  FLAGLESS  RELAUNCH          GOAL_ID  TEAM_ID  TASK_ID  PANE_ID  MODEL  STARTED                    BACKEND\n" +
+		"é-live    cursor  coder  live    cursor   FLAGLESS                                               p-1      日本     2026-11-12T00:00:01+01:00  herdr  \n" +
+		"queued-1  claude  pm     queued  claude             RELAUNCH-PENDING                                             2026-11-12T00:00:02+01:00  herdr  \n"
 	if r.out.String() != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", r.out.String(), want)
 	}

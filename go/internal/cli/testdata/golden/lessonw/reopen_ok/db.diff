@@ -1,0 +1,4 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="owner" entity="lesson" entity_id="L-004" action="recurrence" detail="came back"
+- lessons 4 id="L-004" title="Applied" roles="qa" what="x" rule="Rule four." sources="M7" status="applied" recurrences=1 author="lw-lead" created="2026-10-04T10:00:00+01:00" updated="2026-10-04T10:00:00+01:00" applied_at="2026-10-04T10:00:00+01:00" verified_at=NULL verified_by=NULL evidence=NULL
++ lessons 4 id="L-004" title="Applied" roles="qa" what="x" rule="Rule four." sources="M7,M8" status="open" recurrences=2 author="lw-lead" created="2026-10-04T10:00:00+01:00" updated="2026-11-12T01:02:03+00:00" applied_at="2026-10-04T10:00:00+01:00" verified_at=NULL verified_by=NULL evidence=NULL
++ sqlite_sequence 3 name="events" seq=1

@@ -1,0 +1,1 @@
+factory: reviewer PASS refused, nothing recorded: you checked deadbeefdead but the PR head is now 0123456789abcdef0123456789abcdef01234567. The head moved after your check: re-check the new head and pass --sha 01234567 (or rely on carry-over at judge time if the move was a pure main merge)

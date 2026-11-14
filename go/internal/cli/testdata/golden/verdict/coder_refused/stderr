@@ -1,0 +1,1 @@
+factory: role 'coder' (claude-coder) may not do this; allowed: qa, reviewer

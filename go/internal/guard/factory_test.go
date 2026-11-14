@@ -427,6 +427,27 @@ func TestGuardImplFlagAndLibDirProtected(t *testing.T) {
 	}
 }
 
+// T-1336: <live>/run/cli_impl (the cli_impl flag bin/factory reads) and the factory-go binary under ~/.local/lib/factory
+// are protected like run/guard_impl; reads stay allowed.
+func TestCliImplFlagProtected(t *testing.T) {
+	factoryFix(t, "")
+	live := mustHost().liveHome
+	for _, cmd := range []string{"echo go > " + live + "/run/cli_impl", "rm " + live + "/run/cli_impl",
+		"sed -i s/a/b/ " + live + "/run/cli_impl", "cp /tmp/x ~/.local/lib/factory/factory-go",
+		"cp /tmp/x ~/.local/lib/factory/factory-go.stamp", "echo x > " + live + "/run/cli_im?l",
+		"python3 -c \"open('" + live + "/run/cli_impl','w')\""} {
+		if err := Check(cmd, "", "coder", false); err == nil {
+			t.Errorf("should block: %q", cmd)
+		}
+	}
+	for _, cmd := range []string{"cat " + live + "/run/cli_impl", "cat ~/.local/lib/factory/factory-go.stamp",
+		"cp ~/.local/lib/factory/factory-go /tmp/copy"} {
+		if err := Check(cmd, "", "coder", false); err != nil {
+			t.Errorf("should allow: %q: %v", cmd, err)
+		}
+	}
+}
+
 // T-0353 nit: the specific block message also covers a file under the lib dir that the word does not spell out.
 func TestGuardImplMessageUnderLibDir(t *testing.T) {
 	factoryFix(t, "")

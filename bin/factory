@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
-"""factory CLI entry point. The code lives in factory_cli.py: a script run as __main__ never gets a cached .pyc, an imported module does."""
+"""factory CLI entry point. The code lives in factory_cli.py: a script run as __main__ never gets a cached .pyc, an imported module does.
+G-041 fast path (docs/cli-go.md): run/cli_impl "<mode> <srchash> <csv>" may hand a listed command to ~/.local/lib/factory/factory-go.
+Missing, malformed, stale (stamp != srchash) or unlisted means Python; FACTORY_CLI_IMPL=python forces Python, nothing forces Go."""
 import os
 import sys
-
+try:
+    lib = os.path.expanduser("~/.local/lib/factory/")
+    home = os.environ.get("FACTORY_HOME", os.path.expanduser("~/factory"))
+    mode, srchash, cmds = open(os.path.join(home, "run", "cli_impl")).read(4096).split(" ", 2)
+    if mode == "go" and srchash and os.environ.get("FACTORY_CLI_IMPL") != "python" and sys.argv[1] in cmds.strip().split(",") \
+            and open(lib + "factory-go.stamp").read(4096).strip() == srchash and os.access(lib + "factory-go", os.X_OK):
+        print("impl=go", file=sys.stderr, flush=True) if os.environ.get("FACTORY_CLI_TRACE") == "1" else None
+        os.execv(lib + "factory-go", [sys.argv[0], *sys.argv[1:]])  # argv[0] stays this path: Go derives the Python entry from it
+except (OSError, ValueError, IndexError):
+    pass  # any doubt: Python answers
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import factory_cli
-
 factory_cli.main()

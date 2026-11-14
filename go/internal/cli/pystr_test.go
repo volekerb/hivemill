@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"math"
 	"reflect"
 	"testing"
 )
@@ -119,3 +120,22 @@ func TestPyCell(t *testing.T) {
 }
 
 // NEL is U+0085 (python x85); in Go source write it as \u0085, a raw x85 byte is invalid UTF-8.
+
+// Every expected value is repr(x) from python3.
+func TestPyFloatRepr(t *testing.T) {
+	cases := []struct {
+		in   float64
+		want string
+	}{
+		{4.0, "4.0"}, {0.1, "0.1"}, {1e-05, "1e-05"}, {0.0001, "0.0001"}, {1e16, "1e+16"},
+		{1e15, "1000000000000000.0"}, {123456789012345.6, "123456789012345.6"}, {math.Copysign(0, -1), "-0.0"},
+		{0, "0.0"}, {math.Inf(1), "inf"}, {math.Inf(-1), "-inf"}, {math.NaN(), "nan"}, {2.675, "2.675"},
+		{1.5e300, "1.5e+300"}, {5e-324, "5e-324"}, {9999999999999998.0, "9999999999999998.0"},
+		{123456789.123456789, "123456789.12345679"}, {-2.5e-7, "-2.5e-07"}, {100.0, "100.0"}, {1e22, "1e+22"},
+	}
+	for _, c := range cases {
+		if got := pyFloatRepr(c.in); got != c.want {
+			t.Errorf("pyFloatRepr(%v) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

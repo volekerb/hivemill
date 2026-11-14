@@ -1,0 +1,2 @@
++ messages 1 id=1 sender="coder-a" recipient="coder-a" kind="msg" subject="no such file" body="@nothere" goal_id=NULL task_id=NULL created="2026-11-12T01:02:03+00:00" read_at=NULL
++ sqlite_sequence 1 name="messages" seq=1

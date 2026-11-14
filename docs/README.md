@@ -34,6 +34,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [stopping-a-worker.md](stopping-a-worker.md): the `factory stop` command, who may use it and on whom.
 - [unblocking-a-worker.md](unblocking-a-worker.md): getting an agent out of a stuck permission dialog.
 - [auto-clear-dialogs.md](auto-clear-dialogs.md): the tick dismisses blocking dialogs so nobody has to click.
+- [block-conditions.md](block-conditions.md): `block_conditions` flag (G-040), default off; while off the tick does not change blocked rows.
 - [boss-mail.md](boss-mail.md): why the tick never prompts the boss pane directly.
 - [ci-cost.md](ci-cost.md): the $0 CI budget, owner billing and fork-approval steps, the kill switch.
 - [CUTOVER.md](CUTOVER.md): the runbook that moves factory development to the public repository.
@@ -96,6 +97,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [scrub-scan.md](scrub-scan.md): the scanner that catches owner-specific or sensitive data.
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
 - [worker-guard-go.md](worker-guard-go.md): the Go port of the worker-guard hook (opt-in through `guard_impl`, Python stays the default; section status, golden data, lookaround map).
+- [cli-go.md](cli-go.md): the Go CLI behind `bin/factory` (opt-in through `cli_impl`, Python stays the default; fast path, shadow mode, build and dependency fetch).
 - [profiling.md](profiling.md): the baseline script for per-call cost measurements.
 - [adr/README.md](adr/README.md): index of architecture decision records.
 - [adr/0001-language-policy.md](adr/0001-language-policy.md): the language policy (Go, Rust exceptions, Python).

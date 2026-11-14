@@ -1,0 +1,4 @@
++ events 1 id=1 ts="2026-11-12T01:02:03+00:00" actor="claude-lead" entity="task" entity_id="T-0003" action="update" detail="status=in_progress"
++ sqlite_sequence 1 name="events" seq=1
+- tasks 3 id="T-0003" goal_id="G-1" team_id=NULL title="in progress" spec=NULL acceptance=NULL role="coder" status="in_progress" assignee=NULL depends_on="[]" branch=NULL worktree=NULL pr_url=NULL attempts=0 created="2026-11-01T10:00:00+01:00" updated="2026-11-01T10:00:00+01:00" follow_up_of=NULL priority=NULL waits="internal" sandbox_required=0 tier=NULL judge_hold_reason=NULL
++ tasks 3 id="T-0003" goal_id="G-1" team_id=NULL title="in progress" spec=NULL acceptance=NULL role="coder" status="in_progress" assignee=NULL depends_on="[]" branch=NULL worktree=NULL pr_url=NULL attempts=0 created="2026-11-01T10:00:00+01:00" updated="2026-11-12T01:02:03+00:00" follow_up_of=NULL priority=NULL waits="internal" sandbox_required=0 tier=NULL judge_hold_reason=NULL

@@ -1,0 +1,1 @@
+factory: only a lead, director or the owner may close a coder task that has no PR; a task with a PR is closed by the judge via `factory judge`

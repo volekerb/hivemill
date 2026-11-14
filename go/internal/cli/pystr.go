@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"math"
 	"strconv"
 	"strings"
 )
@@ -104,4 +105,31 @@ func cell(v any) (string, error) {
 		return strconv.FormatInt(x, 10), nil
 	}
 	return "", errDelegate // a float or blob: Python's str() is not reproduced here
+}
+
+// pyFloatRepr is Python's repr(float): the shortest string that round-trips, fixed notation for 1e-4 <= |f| < 1e16,
+// otherwise the exponent form with a signed, at least two-digit exponent ("1e-05", "1e+16"); integral values keep
+// ".0" and the specials are inf, -inf, nan and -0.0.
+func pyFloatRepr(f float64) string {
+	switch {
+	case math.IsNaN(f):
+		return "nan"
+	case math.IsInf(f, 1):
+		return "inf"
+	case math.IsInf(f, -1):
+		return "-inf"
+	}
+	e := strconv.FormatFloat(f, 'e', -1, 64) // d[.ddd]e±XX, the exponent already has two digits
+	exp, err := strconv.Atoi(e[strings.IndexByte(e, 'e')+1:])
+	if err != nil {
+		return e // unreachable: 'e' format always carries an exponent
+	}
+	if f == 0 || (exp >= -4 && exp < 16) {
+		s := strconv.FormatFloat(f, 'f', -1, 64)
+		if !strings.Contains(s, ".") {
+			s += ".0"
+		}
+		return s
+	}
+	return e
 }

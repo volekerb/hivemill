@@ -7,6 +7,8 @@ read and write goes through this CLI, which enforces role permissions, the
 resource gate on spawning, and the head-SHA-bound merge gate.
 
 Markdown under exports/ is generated FROM the DB. Editing it changes nothing.
+
+bin/factory stub: cli_impl=shadow runs Go only on read-only argv shapes cli_shadow_readonly() allows (write forms never shadow).
 """
 import argparse
 import concurrent.futures
@@ -140,6 +142,9 @@ GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled
 DEFAULT_CONFIG = {
     "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
+    "cli_impl": "python",        # G-041: python | go | shadow; run/cli_impl is rewritten from this (docs/cli-go.md); director-only
+    "tick_impl": "python",       # G-041: python | go; routes factory tick (docs/cli-go.md); director-only; factory up stays Python
+    "cli_go_cmds": "",           # G-041: comma list of subcommands bin/factory may hand to factory-go (Go registry words; empty = none)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
     "max_live_agents": "6",
@@ -183,6 +188,7 @@ DEFAULT_CONFIG = {
     "boss_wake_after_s": "900",    # tick step 3: boss pane is prompted only when an unread escalation/request is at least this old (T-1199)
     "boss_wake_cooldown_s": "1800",  # at most one boss wake per this many seconds (agents.last_nudge)
     "director_cycle_s": "900",
+    "block_conditions": "0",     # 1 = the tick evaluates typed block conditions; 0 = off (docs/block-conditions.md)
     "blocked_alert_s": "600",
     "hq_unblock_s": "900",       # T-0268: the tick denies (Esc) a permission dialog on an HQ pane after this long
     "prcheck_required": "0",     # 1 = a coder's `factory done` (task with a PR) needs a passing `factory prcheck` on its HEAD (G-022)
@@ -196,6 +202,7 @@ DEFAULT_CONFIG = {
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
     "judge_wait_main_run": "0",  # 1 = judge merges wait while the tests.yml push run for the current main head is not completed+success (G-022 T-1029)
+    "merged_go_proof": "1",      # G-022: when behind_ok would merge a PR that touches go/, run go vet+test on the merge-tree first; 0 = off (rollback)
     "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick
     "issue_intake_repos": "",    # comma list OWNER/NAME: the tick messages the director once per new open public issue (G-026 SC5); empty = off
     "frozen_repos": "",        # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
@@ -381,6 +388,27 @@ CREATE TABLE IF NOT EXISTS gate_runs (
 CREATE INDEX IF NOT EXISTS idx_gate_runs_head ON gate_runs(project_id, head_sha);
 """
 
+SCHEDULES_DDL = """
+CREATE TABLE IF NOT EXISTS schedules (
+  id TEXT PRIMARY KEY,
+  hour INTEGER NOT NULL CHECK(hour BETWEEN 0 AND 23),
+  days TEXT NOT NULL DEFAULT 'mon,tue,wed,thu,fri,sat,sun',
+  job TEXT NOT NULL,
+  goal_id TEXT NOT NULL REFERENCES goals(id),
+  token_cap INTEGER NOT NULL CHECK(token_cap > 0),
+  created_by TEXT NOT NULL,
+  created TEXT NOT NULL,
+  removed_at TEXT,
+  last_fired_date TEXT,
+  last_outcome TEXT,
+  last_outcome_at TEXT);
+"""
+
+# T-1336 (G-041 S1-c): PRAGMA user_version of every DB this code has migrated. The Go CLI (go/internal/factorydb
+# SchemaVersion) answers only when it reads the same number; bump it, and the Go constant, with any SCHEMA or migrate()
+# change (tests/test_db_layout.py hashes both and fails until the pinned hash is renewed together with this number).
+SCHEMA_VERSION = 2
+
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS projects (
@@ -438,12 +466,30 @@ CREATE TABLE IF NOT EXISTS events (
   entity_id TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS idx_msg_rcpt ON messages(recipient, read_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
-""" + GATE_RUNS_DDL + LESSONS_DDL + REJECTION_INCIDENTS_DDL + RETRO_DDL
+""" + GATE_RUNS_DDL + SCHEDULES_DDL + LESSONS_DDL + REJECTION_INCIDENTS_DDL + RETRO_DDL
 
 
 # ───────────────────────────── basics ─────────────────────────────
 
+_NOW_HOME_LIVE = None  # home_is_live() answer for this process (now() runs per event; asked once)
+
+
 def now():
+    """Current time as ISO seconds. $FACTORY_TEST_NOW (ISO with an offset) fixes it, but ONLY on a non-live home: the live
+    factory never honours it, so an agent exporting it cannot fake event times on the live DB."""
+    global _NOW_HOME_LIVE
+    fixed = os.environ.get("FACTORY_TEST_NOW")
+    if fixed:
+        if _NOW_HOME_LIVE is None:
+            _NOW_HOME_LIVE = home_is_live()
+        if not _NOW_HOME_LIVE:
+            try:
+                t = dt.datetime.fromisoformat(fixed)
+            except ValueError:
+                t = None
+            if t is None or t.tzinfo is None:
+                die(f"FACTORY_TEST_NOW must be an ISO timestamp with an offset, got {fixed}")
+            return t.astimezone().isoformat(timespec="seconds")
     return dt.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
@@ -554,6 +600,7 @@ def migrate(con):
                     raise
     con.execute("CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, ts TEXT NOT NULL)")
     con.executescript(GATE_RUNS_DDL)
+    con.executescript(SCHEDULES_DDL)
     for col in ("task_ids", "tip_sha", "tree"):  # train runs (T-0522) on a DB created before the columns existed
         if col not in {r["name"] for r in con.execute("PRAGMA table_info(gate_runs)")}:
             try:
@@ -585,6 +632,8 @@ def migrate(con):
             except sqlite3.OperationalError:  # a concurrent process added it first
                 if col not in {r["name"] for r in con.execute("PRAGMA table_info(skill_trials)")}:
                     raise
+    if con.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:  # a write only when it differs
+        con.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
 
 
 def cfg(con, key):
@@ -1158,6 +1207,7 @@ _HC_RUN_CWD = None  # spawn worktree for the next hc `run` translation (TUI path
 _HC_RUN_ENV = None  # agent env written into the hc spawn script (never on the hc argv)
 _HC_RUN_PROGRAM = None  # resolved program for hc `run` (cursor: agent/cursor-agent, not the cursor shim)
 _HC_RUN_NAME = None  # agent name for the hc spawn script under run/
+_SPAWN_HOST_EXE = None  # override host CLI for the in-flight spawn/relaunch start (herdr|hc)
 # Parent hc `run` env must not reach the agent child (env -i + explicit exports only).
 HC_SPAWN_DROP = (
     "CLAUDE_CODE_MESSAGING_TOKEN", "HC_SOCKET", "HERDR_PANE_ID", "SSH_AUTH_SOCK", "HERDR_SESSION",
@@ -1447,6 +1497,134 @@ def _row_hosted_on_hc(row):
     return (pane or "") == name
 
 
+def _spawn_args_row(row):
+    try:
+        raw = row["spawn_args"] if row and "spawn_args" in row.keys() else None
+    except Exception:
+        raw = None
+    try:
+        return json.loads(raw or "{}")
+    except ValueError:
+        return {}
+
+
+def _agent_host_exe(con, row):
+    """herdr TUI vs hc for one agent row (per-spawn --host-backend overrides config terminal_backend)."""
+    if not row:
+        return terminal_backend_effective(con)[1]
+    sa = _spawn_args_row(row)
+    hb = sa.get("host_backend")
+    if hb in ("hc", "herdr"):
+        return hb
+    if _row_hosted_on_hc(row):
+        return "hc"
+    return terminal_backend_effective(con)[1]
+
+
+def _spawn_uses_hc(con, args):
+    hb = args.get("host_backend")
+    if hb == "hc":
+        return True
+    if hb == "herdr":
+        return False
+    return terminal_backend_effective(con)[1] == "hc"
+
+
+def _agents_table_backend(spawn_args_raw):
+    try:
+        sa = json.loads(spawn_args_raw or "{}")
+    except ValueError:
+        sa = {}
+    return "hc" if sa.get("host_backend") == "hc" else "herdr"
+
+
+def _host_agent_ipc_exe(con, args):
+    """Pick herdr vs hc for one IPC call; agent-scoped verbs follow the row's host_backend."""
+    global _SPAWN_HOST_EXE
+    if _SPAWN_HOST_EXE in ("hc", "herdr"):
+        return _SPAWN_HOST_EXE
+    eff = terminal_backend_effective(con)[1]
+    if len(args) >= 3 and args[0] == "agent" and args[1] in ("prompt", "read", "send-keys", "wait", "start"):
+        row = con.execute("SELECT name, spawn_args, pane_id FROM agents WHERE name=?", (args[2],)).fetchone()
+        if row:
+            return _agent_host_exe(con, row)
+    return eff
+
+
+def _host_agents_list(exe):
+    """List agents from a specific host binary (herdr TUI or hc), without using config terminal_backend."""
+    herdr_gate(("agent", "list"))
+    ipc_argv = _host_ipc_argv(exe, ("agent", "list"))
+    if ipc_argv is None:
+        return None
+    env = _host_ipc_env(exe)
+    try:
+        p = subprocess.run([exe, *ipc_argv], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    if p.returncode != 0:
+        return None
+    out = p.stdout.strip()
+    try:
+        if exe == "hc":
+            r = _hc_parse_host_stdout(ipc_argv, out)
+        else:
+            r = json.loads(out.splitlines()[-1])["result"] if out else {}
+    except (json.JSONDecodeError, KeyError, IndexError):
+        return None
+    if not isinstance(r, dict):
+        return None
+    agents = r.get("agents")
+    if not isinstance(agents, list):
+        return None
+    return [_normalize_agent_list_row(a) for a in agents]
+
+
+def _row_needs_tui_ipc(con, row):
+    """A herdr-hosted row while config terminal_backend is hc (TUI pane on an hc factory)."""
+    return bool(row) and _agent_host_exe(con, row) == "herdr" and terminal_backend_effective(con)[1] == "hc"
+
+
+def _listed_agents_for_exe(con, row_exe, row=None):
+    """Host agent list; default herdr uses herdr_agents() so harness tests can mock herdr."""
+    if row_exe == "hc":
+        return _host_agents_list("hc")
+    if row_exe == "herdr":
+        if _row_needs_tui_ipc(con, row) or terminal_backend_effective(con)[1] == "hc":
+            return _host_agents_list("herdr")
+        return herdr_agents()
+    return herdr_agents()
+
+
+def _herdr_pane_close(con, row, pane_id, *, check=None):
+    """check=None: relaunch-style call with no check kwarg; check=False: fail-soft close (close_named_pane)."""
+    chk = False if check is None else check
+    if _row_needs_tui_ipc(con, row):
+        _host_ipc_result("herdr", "pane", "close", pane_id, check=chk)
+    elif check is None:
+        herdr("pane", "close", pane_id)
+    else:
+        herdr("pane", "close", pane_id, check=check)
+
+
+def _agent_host_status(con, r, tui_by_name, tui_by_pane, hc_by_name, hc_overlay=False):
+    if _agent_host_exe(con, r) == "hc":
+        if hc_overlay:
+            return hc_by_name.get(r["name"])
+        return tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+    return tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+
+
+def _host_list_row(con, name):
+    """One agent's row from its own host list (per-spawn host_backend), or None if unlisted/unreachable."""
+    row = con.execute("SELECT name, spawn_args, pane_id FROM agents WHERE name=?", (name,)).fetchone()
+    exe = _agent_host_exe(con, row) if row else terminal_backend_effective(con)[1]
+    listed = _host_agents_list(exe)
+    if listed is None:
+        return None
+    return next((x for x in listed if x.get("name") == name), None)
+
+
 def _hc_translate_args(args):
     """Map TUI herdr IPC verbs to herdr-core `hc` CLI. None means no hc equivalent (fail this step only)."""
     a = list(args)
@@ -1516,11 +1694,39 @@ def _host_ipc_argv(exe, args):
     return _hc_translate_args(args)
 
 
+def _host_ipc_result(exe, *args, check=False, timeout=HERDR_TIMEOUT_S):
+    """One herdr TUI or hc IPC call on a named binary, ignoring config terminal_backend."""
+    herdr_gate(args)
+    ipc_argv = _host_ipc_argv(exe, args)
+    if ipc_argv is None:
+        if check:
+            die(f"hc has no equivalent for herdr {' '.join(str(x) for x in args[:3])}")
+        return None
+    env = _host_ipc_env(exe)
+    try:
+        p = subprocess.run([exe, *ipc_argv], capture_output=True, text=True, timeout=timeout, env=env)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        if check:
+            die(f"{exe} {' '.join(str(x) for x in args[:2])} failed: {e}")
+        return None
+    if p.returncode != 0:
+        if check:
+            die(f"{exe} {' '.join(str(x) for x in args[:3])} failed: {p.stderr.strip() or p.stdout.strip()}")
+        return None
+    out = p.stdout.strip()
+    try:
+        if exe == "hc":
+            return _hc_parse_host_stdout(ipc_argv, out)
+        return json.loads(out.splitlines()[-1])["result"] if out else {}
+    except (json.JSONDecodeError, KeyError, IndexError):
+        return {"raw": out}
+
+
 def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     herdr_gate(args)
     con = db()
     try:
-        _, exe = terminal_backend_effective(con)
+        exe = _host_agent_ipc_exe(con, args)
     finally:
         con.close()
     ipc_argv = _host_ipc_argv(exe, args)
@@ -1553,7 +1759,7 @@ def herdr_start_error(*args):
     herdr_gate(args)
     con = db()
     try:
-        _, exe = terminal_backend_effective(con)
+        exe = _host_agent_ipc_exe(con, args)
     finally:
         con.close()
     ipc_argv = _host_ipc_argv(exe, args)
@@ -1594,23 +1800,20 @@ def _agents_index(agents):
     return by_name, by_pane
 
 
-def _hc_kill_terminal(con, name):
+def _hc_kill_terminal(con, name, listed=None):
     """End an hc `run` terminal by name. Returns killed, not-found, or unknown (caller retries)."""
-    listed = herdr_agents()
+    row = con.execute("SELECT name, spawn_args, pane_id FROM agents WHERE name=?", (name,)).fetchone()
+    if row and _agent_host_exe(con, row) != "hc":
+        return "unknown"
+    if listed is None:
+        listed = _host_agents_list("hc")
     if listed is None:
         return "unknown"
     if not any(h.get("name") == name for h in listed):
         return "not-found"
-    con_db = db()
-    try:
-        _, exe = terminal_backend_effective(con_db)
-    finally:
-        con_db.close()
-    if exe != "hc":
-        return "unknown"
     env = _host_ipc_env("hc")
     try:
-        p = subprocess.run([exe, "kill", name], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
+        p = subprocess.run(["hc", "kill", name], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return "unknown"
     if p.returncode != 0:
@@ -1625,11 +1828,12 @@ def close_named_pane(con, name, pane):
     (state, host_pane): "closed" (close issued on the host's id), "not-found" (the host lists no pane under this name,
     so nothing of ours is closed; one "pane-close-skipped" event says whether the row's id is held by another name),
     "unknown" (the host cannot be asked: nothing closed, the caller retries on its next run, no event)."""
-    listed = herdr_agents()
+    row = con.execute("SELECT name, spawn_args, pane_id FROM agents WHERE name=?", (name,)).fetchone()
+    row_exe = _agent_host_exe(con, row) if row else terminal_backend_effective(con)[1]
+    listed = _listed_agents_for_exe(con, row_exe, row)
     if listed is None:
         return "unknown", None
-    hc = terminal_backend_effective(con)[1] == "hc"
-    if hc:
+    if row_exe == "hc":
         h = next((x for x in listed if x.get("name") == name), None)
         if h is None:
             other = next((x.get("name") for x in listed if pane and x.get("pane_id") == pane), None)
@@ -1648,7 +1852,7 @@ def close_named_pane(con, name, pane):
         event(con, "agent", name, "pane-close-skipped",
               {"agent": name, "pane": pane, "reason": f"pane held by {other}" if other else "no host pane under this name"})
         return "not-found", None
-    herdr("pane", "close", h["pane_id"], check=False)
+    _herdr_pane_close(con, row, h["pane_id"], check=False)
     return "closed", h["pane_id"]
 
 
@@ -1700,8 +1904,21 @@ def herdr_panes(ws):
     return (r or {}).get("panes", [])
 
 
-def find_pane(pane_id):
-    """(workspace, tab, pane dict) of a pane herdr lists, else None."""
+def find_pane(pane_id, tui=False):
+    """(workspace, tab, pane dict) of a pane herdr lists, else None. tui=True lists via the TUI binary even when config is hc."""
+    if tui:
+        ws_map = {}
+        r = _host_ipc_result("herdr", "workspace", "list", check=False)
+        if r and "workspaces" in r:
+            ws_map = {w["workspace_id"]: w for w in r["workspaces"]}
+        for ws in ws_map:
+            pr = _host_ipc_result("herdr", "pane", "list", "--workspace", ws, check=False)
+            if not pr or "panes" not in pr:
+                continue
+            for p in pr["panes"]:
+                if p.get("pane_id") == pane_id:
+                    return ws, p.get("tab_id"), p
+        return None
     for ws in herdr_workspaces():
         for p in herdr_panes(ws):
             if p.get("pane_id") == pane_id:
@@ -1744,15 +1961,16 @@ def export_cmd(env):
     return "export " + " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items()) + " && hash -r"
 
 
-def export_in_shell(pane, env, cwd):
+def export_in_shell(pane, env, cwd, host_exe=None):
     """An idle shell lacks the agent's env: export it before the agent launches. hash -r: a PATH set after the
     shell's startup files (~/.zshenv may prepend ~/.local/bin) must win over what the shell already resolved."""
-    con = db()
-    try:
-        _, exe = terminal_backend_effective(con)
-    finally:
-        con.close()
-    if exe == "hc":
+    if host_exe is None:
+        con = db()
+        try:
+            _, host_exe = terminal_backend_effective(con)
+        finally:
+            con.close()
+    if host_exe == "hc":
         return
     herdr("pane", "run", pane, export_cmd(env) + f" && cd {shlex.quote(cwd)} && clear")
     time.sleep(float(os.environ.get("FACTORY_SHELL_SETTLE_S") or 1))  # tests set a tiny value
@@ -2463,6 +2681,7 @@ def cmd_init(a):
         write_live_home(a.live_home)
     con = db(create=True)
     con.executescript(SCHEMA + scoutdb.SCOUT_DDL)
+    con.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
     for k, v in DEFAULT_CONFIG.items():
         con.execute("INSERT OR IGNORE INTO config(key,value) VALUES(?,?)", (k, v))
     if (ROLES_DIR / "settings").is_dir():  # a bare data dir without a checkout (tests, dry installs) has no templates to render
@@ -2512,7 +2731,14 @@ def check_gh_roles(key, value):
 
 
 GUARD_IMPLS = ("python", "go", "shadow")
+CLI_IMPLS = ("python", "go", "shadow")
+CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 + S2)
+    "whoami", "flags", "agents", "config",
+    "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
+    "verdict", "scorecard", "digest", "alerts", "gate",
+)
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
+CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
 GUARD_TICK_BUILD_TIMEOUT_S = 120  # the tick (factory-tick.service TimeoutStartSec=240): a build must not kill the tick
 GUARD_FAILED_BACKOFF_S = 30 * 60  # the tick skips a build that failed for this srchash for this long
 
@@ -2593,8 +2819,10 @@ def _run_build(cmd, cwd, timeout, env):
     return p.returncode, err
 
 
-def build_guard_go(src=None, lib=None, tick=False, go=None):
+def build_guard_go(src=None, lib=None, tick=False, go=None, name="worker-guard", pkg="./cmd/worker-guard"):
     """Build go/cmd/worker-guard into <lib>/worker-guard and stamp it with the srchash. Never raises.
+    name/pkg pick another binary of the same go/ tree (build_cli_go: factory-go from ./cmd/factory), with its own
+    <name>.stamp and <name>.failed.
 
     No-op when the stamp already equals HEAD:go and the binary exists. A failed build deletes the stamp (the shim then
     runs Python) and leaves an old binary alone. The stamp is written last, after the rename. Returns
@@ -2614,10 +2842,10 @@ def build_guard_go(src=None, lib=None, tick=False, go=None):
     srchash = guard_srchash(src)
     if not srchash:
         return "skipped"
-    stamp, binary = lib / "worker-guard.stamp", lib / "worker-guard"
+    stamp, binary = lib / f"{name}.stamp", lib / name
     if _read_line(stamp) == srchash and os.access(binary, os.X_OK):
         return "current"
-    failed = lib / "worker-guard.failed"
+    failed = lib / f"{name}.failed"
     if tick and _read_line(failed) == srchash:
         try:
             if time.time() - failed.stat().st_mtime < GUARD_FAILED_BACKOFF_S:
@@ -2635,16 +2863,18 @@ def build_guard_go(src=None, lib=None, tick=False, go=None):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             return "skipped"  # another build is running
-        new = lib / "worker-guard.new"
+        new = lib / f"{name}.new"
         try:
             env = guard_build_env(lib)
             Path(env["GOTMPDIR"]).mkdir(parents=True, exist_ok=True)  # go refuses a missing GOTMPDIR
             nice = ["/usr/bin/nice", "-n", "10"] if os.access("/usr/bin/nice", os.X_OK) else []
-            rc, stderr = _run_build([*nice, go, "build", "-buildvcs=false", "-trimpath", "-o", str(new), "./cmd/worker-guard"],
+            rc, stderr = _run_build([*nice, go, "build", "-buildvcs=false", "-trimpath", "-o", str(new), pkg],
                                     src / "go", GUARD_TICK_BUILD_TIMEOUT_S if tick else GUARD_BUILD_TIMEOUT_S, env)
             ok = rc == 0
             first = (stderr or "").strip().splitlines()[:1]
             err = first[0] if first else f"exit {rc}"
+            if not ok and name == CLI_GO_BIN and "module lookup disabled" in (stderr or ""):
+                err += "; deps not fetched: run factory up"  # the build is offline; only `factory up` fetches (fetch_cli_go_deps)
         except (OSError, subprocess.SubprocessError) as e:
             ok, err = False, str(e)[:200]
         if not ok:
@@ -2679,10 +2909,70 @@ def write_guard_impl(con, src=None):
     return line
 
 
+CLI_GO_BIN = "factory-go"
+
+
+def build_cli_go(src=None, lib=None, tick=False, go=None):
+    """Build go/cmd/factory into <lib>/factory-go (CGO_ENABLED=0 comes from guard_build_env), stamped last. Same
+    contract as build_guard_go: built | current | skipped | failed, never raises."""
+    return build_guard_go(src, lib, tick=tick, go=go, name=CLI_GO_BIN, pkg="./cmd/factory")
+
+
+def fetch_cli_go_deps(lib=None, src=None, proxy=None, go=None):
+    """Download and verify the modules go/cmd/factory needs into the private GOMODCACHE (<lib>/go/mod), go.sum-pinned.
+    The only network step of the Go CLI: called from `factory up` / install, never from the tick (the build stays
+    GOPROXY=off). proxy defaults to https://proxy.golang.org. Returns "fetched" | "skipped" | "failed", never raises."""
+    lib = Path(lib or guard_lib_dir())
+    src = Path(src or Path(__file__).resolve().parent.parent)
+    go = str(go) if go else str(guard_go_path())
+    if not os.access(go, os.X_OK) or not (src / "go" / "go.mod").is_file():
+        return "skipped"
+    env = {**guard_build_env(lib), "GOPROXY": proxy or "https://proxy.golang.org", "GOSUMDB": "sum.golang.org",
+           "GOFLAGS": "-mod=readonly"}
+    try:
+        Path(env["GOTMPDIR"]).mkdir(parents=True, exist_ok=True)
+        for sub in ("download", "verify"):
+            rc, err = _run_build([go, "mod", sub], src / "go", CLI_FETCH_TIMEOUT_S, env)
+            if rc != 0:
+                first = (err or "").strip().splitlines()[:1]
+                print(f"go mod {sub}: failed ({first[0] if first else f'exit {rc}'}); factory-go stays on Python", file=sys.stderr)
+                return "failed"
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"go mod download: failed ({e}); factory-go stays on Python", file=sys.stderr)
+        return "failed"
+    return "fetched"
+
+
+def cli_binary_state(src=None, lib=None):
+    """ok | missing | stale: factory-go against its stamp and the srchash of the checkout's go/."""
+    lib = Path(lib or guard_lib_dir())
+    stamp = _read_line(lib / f"{CLI_GO_BIN}.stamp")
+    if not os.access(lib / CLI_GO_BIN, os.X_OK) or not stamp:
+        return "missing"
+    return "ok" if stamp == guard_srchash(src) else "stale"
+
+
+def write_cli_impl(con, src=None):
+    """Rewrite $FACTORY_HOME/run/cli_impl from the DB: "<mode> <srchash> <csv>" (what bin/factory reads before it execs
+    factory-go), or "python -" when cli_impl is python or go/ has no tree."""
+    mode = cfg(con, "cli_impl")
+    srchash = guard_srchash(src)
+    names = [x.strip() for x in cfg(con, "cli_go_cmds").split(",") if x.strip()]
+    if cfg(con, "tick_impl") == "go" and mode != "shadow" and "tick" not in names:
+        names.append("tick")
+    csv = ",".join(names)
+    line = f"{mode} {srchash} {csv}" if srchash and mode in CLI_IMPLS and mode != "python" else (
+        f"go {srchash} tick" if srchash and mode == "python" and cfg(con, "tick_impl") == "go" else "python -")
+    RUN.mkdir(parents=True, exist_ok=True)
+    _write_atomic(RUN / "cli_impl", line + "\n")
+    return line
+
+
 def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
     """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (only when guard_impl != python: at the
     default no Go toolchain runs; cheap no-op when stamped; skipped under load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
     (the shim uses Python) before a slow or killed build. Never raises: the guard falls back to Python on its own."""
+    cap = None
     try:
         write_guard_impl(con, src)
         cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
@@ -2691,6 +2981,14 @@ def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
             write_guard_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
         print(f"guard go build: tick step failed ({e})", file=sys.stderr)
+    try:  # its own step: a failing guard build must not leave run/cli_impl stale
+        write_cli_impl(con, src)  # G-041: written first too, so a changed go/ makes srchash differ from the stamp
+        cli_build = cfg(con, "cli_impl") != "python" or cfg(con, "tick_impl") == "go"
+        if build and cap is not None and cli_build and load1() <= cap \
+                and build_cli_go(src, lib, tick=tick, go=go) in ("built", "failed"):
+            write_cli_impl(con, src)
+    except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
+        print(f"cli go build: tick step failed ({e})", file=sys.stderr)
 
 
 def _config_trap(fn, *args):
@@ -2723,6 +3021,25 @@ def _config_value_rules(key, value):
         if a.value not in GUARD_IMPLS:
             die(f"guard_impl must be one of {', '.join(GUARD_IMPLS)}, not {a.value!r}: "
                 f"fix it with `factory config guard_impl python`", 2)
+    if a.key == "cli_impl":
+        a.value = a.value.strip()
+        if a.value not in CLI_IMPLS:
+            die(f"cli_impl must be one of {', '.join(CLI_IMPLS)}, not {a.value!r}: "
+                f"fix it with `factory config cli_impl python`", 2)
+    if a.key == "cli_go_cmds":
+        names = [x.strip() for x in a.value.split(",") if x.strip()]
+        if "tick" in names:
+            die("cli_go_cmds cannot list tick; use `factory config tick_impl go`", 2)
+        bad = [n for n in names if n not in CLI_GO_CMDS_KNOWN]
+        if bad:
+            die(f"cli_go_cmds takes a comma list of {', '.join(CLI_GO_CMDS_KNOWN)}; "
+                f"{', '.join(repr(b) for b in bad)} is not one: fix it with `factory config cli_go_cmds whoami`", 2)
+        a.value = ",".join(dict.fromkeys(names))
+    if a.key == "tick_impl":
+        a.value = a.value.strip()
+        if a.value not in TICK_IMPLS:
+            die(f"tick_impl must be one of python, go, not {a.value!r}: "
+                f"fix it with `factory config tick_impl python`", 2)
     if a.key == "sandbox_roles":
         a.value = check_sandbox_roles(a.value)
     if a.key in ("worker_gh_roles", "gh_rw_roles"):
@@ -2744,10 +3061,18 @@ def _config_value_rules(key, value):
         a.value = a.value.strip()
         if a.value and not _FACTORY_URL_SHAPE.fullmatch(a.value):
             die(f"factory_remote_url must be https://github.com/<owner>/<repo>.git (no '.' or '..' segments); {a.value!r} is not", 2)
+    if a.key == "merged_go_proof":
+        a.value = a.value.strip()
+        if a.value not in ("0", "1"):
+            die(f"merged_go_proof must be 0 or 1, not {a.value!r}", 2)
     if a.key == "task_clones":
         a.value = a.value.strip()
         if a.value not in ("0", "1"):
             die(f"task_clones must be 0 or 1, not {a.value!r}", 2)
+    if a.key == "block_conditions":
+        a.value = a.value.strip()
+        if a.value not in ("0", "1"):
+            die(f"block_conditions must be 0 or 1, not {a.value!r}", 2)
     if a.key == "terminal_backend":
         v = a.value.strip().lower()
         if v not in ("auto", "herdr", "hc"):
@@ -2808,6 +3133,14 @@ def cmd_config(a):
             state = guard_binary_state()
             if a.value != "python" and state != "ok":
                 print(f"warning: guard binary is {state}; the shim uses python until `factory up` or the tick builds it",
+                      file=sys.stderr)
+        if a.key == "tick_impl" and a.value == "go" and cfg(con, "cli_impl") == "shadow":
+            print("warning: cli_impl is shadow; the tick stays python", file=sys.stderr)
+        if a.key in ("cli_impl", "cli_go_cmds", "tick_impl"):
+            write_cli_impl(con)
+            state = cli_binary_state()
+            if (cfg(con, "cli_impl") != "python" or cfg(con, "tick_impl") == "go") and state != "ok":
+                print(f"warning: factory-go is {state}; bin/factory uses python until `factory up` or the tick builds it",
                       file=sys.stderr)
     elif a.key:
         if a.key not in DEFAULT_CONFIG:
@@ -3752,7 +4085,7 @@ def cmd_task(a):
                   f"status=done merged-externally by={actor()} pr={t['pr_url']} merge_sha={sha} — {a.note}")
             con.commit()
             run_after_merge(con, t)
-            print(f"{a.id} closed: {t['pr_url']} is MERGED on GitHub as {sha[:8]} (merged externally)")
+            print(f"{a.id} closed: {t['pr_url']} merge on main at {sha[:8]} (merged externally)")
             return
         if role == "coder" and a.status == "in_review":
             require_acceptance_walk(a.pr or t["pr_url"])
@@ -3980,17 +4313,28 @@ def release_stale_pane(con, name):
     ).fetchone()
     if not r or not r["pane_id"] or r["status"] not in ("done", "exited"):
         return True
-    if terminal_backend_effective(con)[1] == "hc" and not _row_hosted_on_hc(r):
-        return True
-    if terminal_backend_effective(con)[1] == "hc":
-        listed = herdr_agents()
+    row_exe = _agent_host_exe(con, r)
+    if row_exe == "hc":
+        if not _row_hosted_on_hc(r):
+            return True  # a legacy TUI pane id on an hc-config factory: nothing to release here
+        listed = _host_agents_list("hc") if terminal_backend_effective(con)[1] == "herdr" else herdr_agents()
         if listed is not None and not any(h.get("name") == name for h in listed):
             con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?",
                         (now(), name))
             event(con, "agent", name, "reaped", r["pane_id"])
             return True
-        return False
+        if terminal_backend_effective(con)[1] == "herdr":
+            return False
+        if terminal_backend_effective(con)[1] == "hc":
+            listed = herdr_agents()
+            if listed is not None and not any(h.get("name") == name for h in listed):
+                con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?",
+                            (now(), name))
+                event(con, "agent", name, "reaped", r["pane_id"])
+                return True
+            return False
     pane = r["pane_id"]
+    tui_list = terminal_backend_effective(con)[1] == "hc"
     gone = False
     if r["status"] == "done":
         st, hp = close_named_pane(con, name, pane)
@@ -3998,14 +4342,14 @@ def release_stale_pane(con, name):
             con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
             event(con, "agent", name, "reaped", pane)
             return True
-        gone = st == "closed" and pane_gone(hp) is True
+        gone = st == "closed" and pane_gone(hp, tui=tui_list) is True
     else:
-        listed = herdr_agents()
+        listed = _host_agents_list("herdr") if tui_list else herdr_agents()
         if listed is not None and not any(h.get("name") == name and h.get("pane_id") == pane for h in listed):
             return True  # the host does not list that pane under this name: nothing of ours to close (as before)
         if listed is not None:  # never close a pane we cannot attribute to this name
             st, hp = close_named_pane(con, name, pane)
-            gone = st == "closed" and pane_gone(hp) is True
+            gone = st == "closed" and pane_gone(hp, tui=tui_list) is True
     if gone:
         con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
         event(con, "agent", name, "reaped", pane)
@@ -4344,25 +4688,43 @@ def _tick_gh_detail(e):
 
 
 def verify_merged_externally(pr_url):
-    """(merge sha, error) for a PR merged outside the judge: GitHub must say MERGED and the merge commit must be on the
-    base branch. Anything unverifiable is an error, never a pass."""
-    m = re.match(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/\d+$", pr_url or "")
+    """(merge sha, error) for a PR merged outside the judge: GitHub says MERGED with the merge commit on the base branch,
+    or the PR is still OPEN but a GitHub squash of its head is already on origin/main (T-1399). Unverifiable -> error."""
+    m = re.match(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)$", pr_url or "")
     if not m:
         return None, f"PR url {pr_url!r} is not a https://github.com/OWNER/REPO/pull/N url"
+    owner_repo, pr_number = m.group(1), int(m.group(2))
     try:
-        pr = gh_json("pr", "view", pr_url, "--json", "state,mergeCommit,baseRefName")
+        pr = gh_json("pr", "view", pr_url, "--json", "state,mergeCommit,baseRefName,headRefOid,number")
     except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
         return None, f"gh pr view {pr_url} failed: cannot verify the merge, so nothing is closed; retry when gh works"
     sha = (pr.get("mergeCommit") or {}).get("oid") or ""
-    if pr.get("state") != "MERGED" or not sha:
+    if pr.get("state") == "MERGED" and sha:
+        try:
+            cmp = gh_json("api", f"repos/{owner_repo}/compare/{pr.get('baseRefName')}...{sha}")
+        except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
+            return None, f"cannot check that merge commit {sha[:8]} is on {pr.get('baseRefName')}; nothing is closed"
+        if cmp.get("status") not in ("identical", "behind"):
+            return None, f"merge commit {sha[:8]} is not on {pr.get('baseRefName')} (compare says {cmp.get('status')}); nothing is closed"
+        return sha, None
+    if pr.get("state") != "OPEN":
         return None, f"{pr_url} is {pr.get('state')}, not MERGED on GitHub; merge it through `factory judge` instead"
+    head = pr.get("headRefOid") or ""
+    if not head:
+        return None, f"{pr_url} is OPEN with no head; cannot verify a squash on main"
     try:
-        cmp = gh_json("api", f"repos/{m.group(1)}/compare/{pr.get('baseRefName')}...{sha}")
-    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
-        return None, f"cannot check that merge commit {sha[:8]} is on {pr.get('baseRefName')}; nothing is closed"
-    if cmp.get("status") not in ("identical", "behind"):
-        return None, f"merge commit {sha[:8]} is not on {pr.get('baseRefName')} (compare says {cmp.get('status')}); nothing is closed"
-    return sha, None
+        repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError):
+        return None, f"cannot read {owner_repo} for squash verification; nothing is closed"
+    git, main_sha, why = verified_main(HOME, pr_number, repo_url, owner_repo, head)
+    open_refuse = f"{pr_url} is OPEN, not MERGED on GitHub; merge it through `factory judge` instead"
+    if not main_sha:
+        return None, open_refuse
+    landed = squash_match_on_main(git, main_sha, pr_number, head, max_commits=MERGED_EXTERNALLY_MAIN_SCAN,
+                                  first_parent=True)
+    if not landed:
+        return None, open_refuse
+    return landed, None
 
 
 ACCEPTANCE_WALK = "## Acceptance walk"
@@ -4849,6 +5211,122 @@ def behind_ok_blocker(repo, sha, main_sha):
     return None
 
 
+MERGED_GO_PROOF_TIMEOUT_S = 180
+MERGED_GO_UNMERGEABLE = object()  # merge-tree conflict: not proof success; caller must drop behind_clean
+
+
+def merged_go_proof_env():
+    """Clean environment for the merge-tree go proof: no inherited toolchain knobs, warm caches under ~/.cache/go."""
+    home = Path.home()
+    go_cache = home / ".cache" / "go"
+    return {"PATH": "/usr/bin:/bin", "HOME": str(home), "GOTOOLCHAIN": "local", "GOFLAGS": "-mod=readonly",
+            "GOPROXY": "off", "GOSUMDB": "off", "GOENV": "off", "GOWORK": "off",
+            "GOCACHE": str(go_cache / "build"), "GOMODCACHE": str(go_cache / "path" / "pkg" / "mod")}
+
+
+def _merged_go_names(repo, base, tip):
+    def git(*a):
+        return _git_rc([*HARDENED_GIT_FLAGS, *a], repo=repo, env=_carry_env())
+
+    rc, out, _ = git("diff", "--name-only", "-z", "--no-renames", base, tip)
+    if rc != 0:
+        return None
+    return [f for f in out.split("\0") if f]
+
+
+def _merged_go_packages(files, go_dir):
+    """Map changed go/ paths to vet/test package args using the merge-tree archive (T-1386)."""
+    if any(f in ("go/go.mod", "go/go.sum") for f in files):
+        return ["./..."]
+    go_dir = Path(go_dir)
+    pkgs = set()
+
+    def pkg_for(rel):
+        parts = rel.split("/")
+        end = len(parts) - 1 if parts[-1] != "" else len(parts) - 1
+        for i in range(end, -1, -1):
+            sub = "/".join(parts[:i]) if i else ""
+            d = go_dir / sub if sub else go_dir
+            if d.is_dir() and any(d.glob("*.go")):
+                return "." if d == go_dir else f"./{d.relative_to(go_dir).as_posix()}"
+        return None
+
+    for f in files:
+        if not f.startswith("go/"):
+            continue
+        p = pkg_for(f[3:])
+        if p:
+            pkgs.add(p)
+    return sorted(pkgs)
+
+
+def merged_go_refusal(con, repo, sha, main_sha, *, timeout=MERGED_GO_PROOF_TIMEOUT_S):
+    """Before a behind_ok merge of a go/** PR, prove the merge-tree with go vet and go test.
+    None = no refusal, MERGED_GO_UNMERGEABLE = merge-tree conflict (caller drops behind_clean), else MERGED-TREE refusal."""
+    if (cfg(con, "merged_go_proof") or "1").strip() != "1":
+        return None
+    if not main_sha:
+        return None
+
+    def git(*a):
+        return _git_rc([*HARDENED_GIT_FLAGS, *a], repo=repo, env=_carry_env())
+
+    rc, base, _ = git("merge-base", main_sha, sha)
+    if rc != 0 or not base:
+        return ("MERGED-TREE: go proof could not list changes since the merge-base with main; nothing merged")
+    pr_files = _merged_go_names(repo, base, sha)
+    main_files = _merged_go_names(repo, base, main_sha)
+    if pr_files is None or main_files is None:
+        return "MERGED-TREE: go proof could not list changed files since the merge-base; nothing merged"
+    if not any(f.startswith("go/") for f in pr_files):
+        return None
+    rc, out, err = git("merge-tree", "--write-tree", sha, main_sha)
+    if rc == 1:
+        return MERGED_GO_UNMERGEABLE
+    if rc != 0 or not out:
+        return f"MERGED-TREE: git merge-tree failed ({err or rc}); nothing merged"
+    tree = out.splitlines()[0].strip()
+    go = guard_go_path()
+    if not os.access(go, os.X_OK):
+        return "MERGED-TREE: go proof could not run (~/.local/go/bin/go missing); nothing merged"
+    tmp = tempfile.mkdtemp(prefix="factory-merged-go-")
+    try:
+        env = merged_go_proof_env()
+        gcmd = git_argv(repo, *HARDENED_GIT_FLAGS)
+        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree, "go"], capture_output=True, env=_carry_env(),
+                              timeout=60)
+        if arch.returncode:
+            return f"MERGED-TREE: git archive of the merge-tree failed ({arch.stderr.decode(errors='replace').strip() or arch.returncode}); nothing merged"
+        extr = subprocess.run(["tar", "-x", "-C", tmp, "--no-same-owner"], input=arch.stdout, capture_output=True,
+                              timeout=120)
+        if extr.returncode:
+            return f"MERGED-TREE: could not extract the merge-tree go/ tree ({extr.stderr.decode(errors='replace').strip()}); nothing merged"
+        go_dir = Path(tmp) / "go"
+        if not go_dir.is_dir():
+            return None
+        pkgs = _merged_go_packages(pr_files + main_files, go_dir)
+        if not pkgs:
+            return None
+        deadline = time.monotonic() + timeout
+
+        def left():
+            return max(0.05, deadline - time.monotonic())
+
+        for sub, args in (("vet", ("vet", *pkgs)), ("test", ("test", "-count=1", *pkgs))):
+            try:
+                rc, err = _run_build([str(go), *args], go_dir, left(), env)
+            except subprocess.TimeoutExpired:
+                return (f"MERGED-TREE: go proof failed on the merge of {sha[:8]} with main {main_sha[:8]}: timed out; "
+                        "nothing merged")
+            if rc != 0:
+                line = (err or "").strip().splitlines()[0][:200] if err else f"go {sub} failed (exit {rc})"
+                return (f"MERGED-TREE: go proof failed on the merge of {sha[:8]} with main {main_sha[:8]}: {line}; "
+                        "nothing merged")
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
     """Is origin/main an ancestor of the PR head `sha`? Same verified fetch as verdict_carries (private refs, replace
     refs ignored, main compared with GitHub's own answer). Returns (ok, why, main_sha): main_sha is the VERIFIED main
@@ -5032,7 +5510,9 @@ def _refresh_locked(repo, branch, old, pr_number, repo_url, owner_repo, task, dr
 JUDGE_MERGE_POLLS = 6  # pr_state/main polls after a `gh pr merge` that failed with a 5xx or a timeout (outcome unknown)
 JUDGE_MERGE_POLL_S = 5  # seconds between those polls; $FACTORY_JUDGE_MERGE_POLLS / $FACTORY_JUDGE_MERGE_POLL_S override (tests)
 LANDING_MAX_COMMITS = 300  # how far back on origin/main the "(#N)" squash commit is looked for
+MERGED_EXTERNALLY_MAIN_SCAN = 20  # first-parent commits on main for --merged-externally squash match (T-1399)
 UNKNOWN_MERGE_ERROR = re.compile(r"\bHTTP 5\d\d\b|gateway|timed? ?out|service unavailable", re.I)
+_GITHUB_SQUASH_COMMITTER = "noreply@github.com"
 
 
 def verified_main(repo, pr_number, repo_url, owner_repo, head=None):
@@ -5069,23 +5549,47 @@ def verified_main(repo, pr_number, repo_url, owner_repo, head=None):
     return git, main_sha, ""
 
 
+def _github_squash_committer(ce):
+    return (ce or "").strip().lower() == _GITHUB_SQUASH_COMMITTER
+
+
+def squash_match_on_main(git, main_sha, pr_number, head, *, max_commits, first_parent=False):
+    """A GitHub squash of `head` onto main: single parent P, GitHub committer, subject (#N), tree ==
+    merge-tree --write-tree P head. `git` is the verified_main git runner."""
+    fmt = "%H %P %T %ce %s"
+    args = ["log", f"-n{max_commits}", "--format=" + fmt, main_sha]
+    if first_parent:
+        args.insert(2, "--first-parent")
+    rc, out, _ = git(*args)
+    if rc != 0 or not out.strip():
+        return None
+    suffix = f"(#{pr_number})"
+    for line in out.splitlines():
+        sha, parents, tree, ce, subject = (line.split(" ", 4) + ["", "", "", "", ""])[:5]
+        ps = parents.split()
+        if len(ps) != 1:
+            continue
+        if not _github_squash_committer(ce):
+            continue
+        if not (subject or "").strip().endswith(suffix):
+            continue
+        rc, mt, _ = git("merge-tree", "--write-tree", ps[0], head)
+        if rc != 0 or (mt or "").strip() != (tree or "").strip():
+            continue
+        return sha.strip()
+    return None
+
+
 def main_landing(repo, pr_number, repo_url, owner_repo, head):
     """Is the change of PR head `head` already on origin/main? Returns the main commit whose subject ends with
-    "(#<pr_number>)" and whose tree equals the head's tree (a squash of exactly this head), else the head itself when
-    it is an ancestor of main, else None (also None when nothing could be verified: never a guess)."""
+    "(#<pr_number>)" whose tree is the merge-tree of its parent and the PR head, else the head itself when it is an
+    ancestor of main, else None (also None when nothing could be verified: never a guess)."""
     git, main_sha, why = verified_main(repo, pr_number, repo_url, owner_repo, head)
     if not main_sha:
         return None
-    rc, tree, _ = git("rev-parse", f"{head}^{{tree}}")
-    if rc != 0 or not tree:
-        return None
-    rc, out, _ = git("log", f"-n{LANDING_MAX_COMMITS}", "--format=%H %T %s", main_sha)
-    if rc != 0:
-        return None
-    for line in out.splitlines():
-        sha, t, subject = (line.split(" ", 2) + ["", ""])[:3]
-        if t == tree and subject.endswith(f"(#{pr_number})"):
-            return sha
+    landed = squash_match_on_main(git, main_sha, pr_number, head, max_commits=LANDING_MAX_COMMITS)
+    if landed:
+        return landed
     if git("merge-base", "--is-ancestor", head, main_sha)[0] == 0:
         return head
     return None
@@ -5860,17 +6364,26 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "")
                 return
         if behind_clean:
-            pass  # TODO(T-0623): refuse here while the red-main freeze is active
-        elif stale[1] == "STALE" and not others and mech:
+            proof = merged_go_refusal(con, git_repo, sha, stale[2])
+            if proof is MERGED_GO_UNMERGEABLE:
+                behind_clean = False
+                reason = reason.replace("; " + BEHIND_OK_NOTE, "").replace(BEHIND_OK_NOTE, "")
+                if not stale[0]:
+                    problems.insert(0, "STALE-ONLY: head does not contain origin/main")
+            elif proof:
+                problems.append(proof)
+            else:
+                pass  # TODO(T-0623): refuse here while the red-main freeze is active
+        if not behind_clean and stale[1] == "STALE" and not others and mech:
             problems.append("STALE-ONLY: the mechanical merger does not refresh; refresh by hand (`factory refresh`) or the judge does")
-        elif stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
+        elif not behind_clean and stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
             if pr.get("baseRefName") != "main":
                 problems.append(f"PR base is {pr.get('baseRefName')}, not main")
             if not t["branch"] or pr.get("headRefName") != t["branch"]:
                 problems.append(f"PR head branch {pr.get('headRefName')} is not the task branch {t['branch']}")
-        elif stale[1] == "STALE" and not others:
+        elif not behind_clean and stale[1] == "STALE" and not others:
             def block(why):
                 rejection_gate_refusal(con, a.task, "judge-blocked", why)
                 die("merge refused: " + why, 4)
@@ -8785,10 +9298,11 @@ def free_shell_pane(ws_id, tab_id):
     return None
 
 
-def place(con, role, goal, team, name, cwd, env):
+def place(con, role, goal, team, name, cwd, env, host_exe=None):
     """Find or create the pane an agent will live in. Returns (workspace, tab, pane)."""
-    _, exe = terminal_backend_effective(con)
-    if exe == "hc":
+    if host_exe is None:
+        _, host_exe = terminal_backend_effective(con)
+    if host_exe == "hc":
         return None, None, name
     envs = [x for k, v in env.items() for x in ("--env", f"{k}={v}")]
     if role in ("boss", "director") or not goal:
@@ -8803,7 +9317,7 @@ def place(con, role, goal, team, name, cwd, env):
             pane = free_shell_pane(ws, t["tab_id"])
             if pane:
                 # reuse an idle shell, but it lacks our env: export it before the agent launches
-                export_in_shell(pane, env, cwd)
+                export_in_shell(pane, env, cwd, host_exe)
                 return ws, t["tab_id"], pane
         if t.get("pane_count", 1) < 3 and role not in ("boss", "director"):
             anchor = next((p["pane_id"] for p in herdr_panes(ws) if p.get("tab_id") == t["tab_id"]), None)
@@ -9390,7 +9904,8 @@ def _resume_runtime_change(con, prior, role, org):
 
 def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, prompt=None, model=None,
           resume=None, from_queue=False, pane=None, relaunch=False, env_extra=None, plugin_dirs=None,
-          add_home_dir=True, fresh=False, sandbox_optin=False, hold=None, org=None, strict_name=False):
+          add_home_dir=True, fresh=False, sandbox_optin=False, hold=None, org=None, strict_name=False,
+          host_backend=None):
     """strict_name: `factory spawn --name X`: refuse when the org naming rule would change X (never rename silently).
     org: the org this agent belongs to (G-028); default: the goal's org (see org_for).
     env_extra, plugin_dirs, add_home_dir: evaluator only (see check_evaluator_spawn); stored in spawn_args and
@@ -9457,6 +9972,15 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         sandbox_optin = True  # a sandbox_required task never starts unsandboxed, whoever spawns it (queue and relaunch keep it)
     args = {"role": role, "goal": goal, "team": team, "task": task, "name": name, "cwd": cwd,
             "prompt": prompt, "model": model, "resume": resume, "fresh": fresh, "org": org}
+    if host_backend is not None:
+        args["host_backend"] = host_backend
+    elif from_queue and existing:
+        try:
+            prev = json.loads(existing["spawn_args"] or "{}")
+        except ValueError:
+            prev = {}
+        if prev.get("host_backend") in ("hc", "herdr"):
+            args["host_backend"] = prev["host_backend"]
     if sandbox_optin:
         args["sandbox_optin"] = True
     if role == "evaluator":
@@ -9486,7 +10010,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
                 old = {}
             if not isinstance(old, dict):
                 old = {}
-            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at") if k in old})
+            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend") if k in old})
         # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
         # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
         # and leaves a cancelled row alone
@@ -10031,12 +10555,25 @@ def start_confirm(con, agents):
     rows = con.execute("SELECT * FROM agents WHERE status='live' AND start_pending IS NOT NULL").fetchall()
     if not rows:
         return set()
-    agents = herdr_agents() if agents is None else agents
+    eff = terminal_backend_effective(con)[1]
+    if agents is None:
+        if eff == "hc":
+            agents = herdr_agents()
+            hc_by_name = {}
+        else:
+            agents = _host_agents_list("herdr")
+            hc_list = _host_agents_list("hc")
+            hc_by_name = {x["name"]: x for x in (hc_list or []) if x.get("name")}
+    else:
+        hc_by_name = {}
     by_name, by_pane = _agents_index(agents or [])
     skip = set()
     for r in rows:
         skip.add(r["name"])
-        h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
+        if eff != "hc" and _agent_host_exe(con, r) == "hc":
+            h = hc_by_name.get(r["name"])
+        else:
+            h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         try:
             info = json.loads(r["start_pending_info"] or "{}")
         except json.JSONDecodeError:
@@ -10186,11 +10723,10 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             die(str(e), 3)
         if plan.workspace:  # the adapter appends one decision line per hook call (no command text)
             env["FACTORY_CURSOR_HOOK_LOG"] = str(Path(plan.workspace) / "hook-events.jsonl")
-    hc_back = terminal_backend_effective(con)[1] == "hc"
+    use_hc = _spawn_uses_hc(con, args)
+    spawn_host = "hc" if use_hc else "herdr"
     args = {**args, "runtime": runtime, "launch": plan.launch, "notes": plan.notes,
             "herdr_kind": plan.herdr_kind}
-    if hc_back:
-        args["host_backend"] = "hc"
     if plan.workspace:
         args["cursor_workspace"] = str(plan.workspace)
     sid = plan.session_id
@@ -10226,12 +10762,17 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     if plan.launch != "herdr-kind" or not plan.herdr_kind:
         die(f"runtime {runtime}: launch={plan.launch!r} herdr_kind={plan.herdr_kind!r} not wired", 3)
 
-    found = find_pane(pane) if pane else None
-    if found:
-        ws, tab = found[0], found[1]
-        export_in_shell(pane, env, cwd)
-    else:
-        ws, tab, pane = place(con, role, goal, team, name, cwd, env)
+    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE
+    _SPAWN_HOST_EXE = spawn_host
+    try:
+        found = find_pane(pane) if pane and spawn_host == "herdr" else None
+        if found:
+            ws, tab = found[0], found[1]
+            export_in_shell(pane, env, cwd, spawn_host)
+        else:
+            ws, tab, pane = place(con, role, goal, team, name, cwd, env, spawn_host)
+    finally:
+        _SPAWN_HOST_EXE = None
     con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
@@ -10241,13 +10782,14 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
                 (name, role, goal, team, task, "live", pane, ws, tab, model, sid, cwd, json.dumps(args), now()))
     start_args = ("agent", "start", name, "--kind", plan.herdr_kind, "--pane", pane, "--timeout", "90000",
                   "--", *plan.argv)
-    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
     _HC_RUN_PROGRAM, _HC_RUN_NAME = plan.binary, name
+    _SPAWN_HOST_EXE = spawn_host
     try:
         r, start_err = herdr_start_error(*start_args)
     finally:
         _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
+        _SPAWN_HOST_EXE = None
     if r is None:
         event(con, "agent", name, "start-uncertain", {"pane": pane, "runtime": runtime, "kind": plan.herdr_kind})
         _write_cursor_start_log(name, pane, start_err, env)
@@ -10259,7 +10801,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     if task and role == "coder":
         con.execute("UPDATE tasks SET assignee=?, updated=? WHERE id=?", (name, now(), task))
     task_auto_start(con, task, f"spawn {name}", role)
-    if not hc_back:
+    if not use_hc:
         herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
               f"{role}·{task or team or goal or 'hq'}"[:28], check=False)
         if role in ("boss", "director", "lead"):
@@ -10332,7 +10874,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     # every launch re-renders (a tampered rendered file never survives a relaunch); first, so a bad template
     # leaves no worktree, agent dir, pane or row behind
     settings = render_settings_early(role)
-    hc_back = terminal_backend_effective(con)[1] == "hc"
+    use_hc = _spawn_uses_hc(con, args)
+    spawn_host = "hc" if use_hc else "herdr"
     ghcred_on = gh_cred_wanted(con, role, sandbox_wanted(con, role, optin))
     if ghcred_on:  # before any worktree, pane or row: a refused spawn leaves nothing behind
         gh_cred_preflight(con, role, name)
@@ -10384,14 +10927,19 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         args["sandbox"] = True
     if ghcred_on:
         env.update(gh_cred_env(con, role, name, cwd))
-    found = find_pane(pane) if pane else None
-    if found:
-        ws, tab = found[0], found[1]
-        export_in_shell(pane, env, cwd)
-    else:
-        ws, tab, pane = place(con, role, goal, team, name, cwd, env)
-        if sandboxed or ghcred_on:  # pane --env lands before the shell's startup files, which may reorder PATH
-            export_in_shell(pane, {"PATH": env["PATH"]}, cwd)
+    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE
+    _SPAWN_HOST_EXE = spawn_host
+    try:
+        found = find_pane(pane) if pane and spawn_host == "herdr" else None
+        if found:
+            ws, tab = found[0], found[1]
+            export_in_shell(pane, env, cwd, spawn_host)
+        else:
+            ws, tab, pane = place(con, role, goal, team, name, cwd, env, spawn_host)
+            if sandboxed or ghcred_on:  # pane --env lands before the shell's startup files, which may reorder PATH
+                export_in_shell(pane, {"PATH": env["PATH"]}, cwd, spawn_host)
+    finally:
+        _SPAWN_HOST_EXE = None
     sysprompt = RUN / f"{name}.prompt.md"
     prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1)
     if evaluator:  # the live home is hidden inside the sandbox: claude reads read-only copies kept in the trial
@@ -10403,8 +10951,6 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     # before this agent's own (re)launch (old pane closed first) and never delete it
     sysprompt.write_text(prompt_text)
     args.setdefault("runtime", "claude")
-    if hc_back:
-        args["host_backend"] = "hc"
     claude_args = ["--model", model, "--permission-mode", "auto", "--settings", str(settings),
                    "--append-system-prompt-file", str(sysprompt), *([] if evaluator else ["--add-dir", str(HOME)]),
                    "-n", name, *effort]
@@ -10448,9 +10994,9 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             env.setdefault(k, v)
     except (OSError, json.JSONDecodeError, ValueError):
         pass
-    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
     _HC_RUN_PROGRAM, _HC_RUN_NAME = None, name
+    _SPAWN_HOST_EXE = spawn_host
     start_err = None
     try:
         if async_start:
@@ -10459,6 +11005,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             r = herdr(*start_args, check=False)
     finally:
         _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
+        _SPAWN_HOST_EXE = None
     if async_start and start_err and not any(m in start_err.lower() for m in START_PENDING_ERRORS):
         # a real failure (bad args, no such pane): do not wait START_CONFIRM_S for an agent that will never be ready
         event(con, "agent", name, "start-failed", {"pane": pane, "error": start_err[:300]})
@@ -10483,7 +11030,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         for pid, argv in claude_procs(sid or resume):
             if _is_claude_cmd(argv) and sandbox_escape_close(con, name, pane, pid):
                 break
-    if not hc_back:
+    if not use_hc:
         herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
               f"{role}·{task or team or goal or 'hq'}"[:28], check=False)
         if role in ("boss", "director", "lead"):
@@ -10692,7 +11239,7 @@ def cmd_spawn(a):
         if a.goal and goal_org(con, a.goal) not in (None, a.org):
             die(f"{a.goal} belongs to the {goal_org(con, a.goal)} org; move it first: factory goal org {a.goal} {a.org}", 2)
     spawn(con, a.role, a.goal, a.team, a.task, a.name, a.cwd, read_text(a.prompt), a.model, sandbox_optin=a.sandbox,
-          org=a.org, strict_name=bool(a.name))
+          org=a.org, strict_name=bool(a.name), host_backend=a.host_backend)
 
 
 def mark_read(con, msgs):
@@ -11326,8 +11873,24 @@ def stop_confirm_s():
         return 10.0
 
 
-def pane_gone(pane):
-    """True when herdr no longer lists the pane, False when it does, None when herdr cannot be asked."""
+def pane_gone(pane, tui=False):
+    """True when herdr no longer lists the pane, False when it does, None when herdr cannot be asked.
+    tui=True asks the TUI binary (needed for TUI pane ids while config terminal_backend is hc)."""
+    if tui:
+        r = _host_ipc_result("herdr", "pane", "list", check=False)
+        if r is None or "panes" not in r:
+            ws = _host_ipc_result("herdr", "workspace", "list", check=False)
+            if ws is None or "workspaces" not in ws:
+                return None
+            panes = []
+            for w in ws["workspaces"]:
+                r = _host_ipc_result("herdr", "pane", "list", "--workspace", w["workspace_id"], check=False)
+                if r is None or "panes" not in r:
+                    return None
+                panes += r["panes"]
+        else:
+            panes = r["panes"]
+        return not any(p.get("pane_id") == pane for p in panes)
     r = herdr("pane", "list", check=False)
     if r is None or "panes" not in r:
         ws = herdr("workspace", "list", check=False)
@@ -11397,21 +11960,31 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
     pane, wait = r["pane_id"], stop_confirm_s()
     kind, pids = None, []
     sid = r["session_id"]
+    row_exe = _agent_host_exe(con, r)
+    tui_ipc = _row_needs_tui_ipc(con, r)
     if not sid:  # a row that never got its session id: ask the host (a read) before deciding anything
-        h = next((x for x in (herdr_agents() or []) if x.get("name") == name or (pane and x.get("pane_id") == pane)), None)
+        listed = _listed_agents_for_exe(con, row_exe, r) or []
+        h = next((x for x in listed if x.get("name") == name or (pane and x.get("pane_id") == pane)), None)
         sid = ((h or {}).get("agent_session") or {}).get("value")
     note = None
     if not sid or _scan_claude() is None:
         kind = "process-unknown"  # fail closed: without the session or a readable /proc nothing proves it exited
         note = _UNKNOWN_BEFORE
     else:
-        gone = pane_gone(pane) if pane else True
-        if gone is True and pane:  # the row's id is not listed, but the host may carry the agent under its name on another id
-            listed = herdr_agents()
+        if row_exe == "hc":
+            listed = _listed_agents_for_exe(con, row_exe, r)
             if listed is None:
                 gone = None
-            elif any(x.get("name") == name and x.get("pane_id") for x in listed):
-                gone = False
+            else:
+                gone = not any(x.get("name") == name for x in listed)
+        else:
+            gone = pane_gone(pane, tui=tui_ipc) if pane else True
+            if gone is True and pane:  # the row's id is not listed, but the host may carry the agent under its name on another id
+                listed = _listed_agents_for_exe(con, row_exe, r)
+                if listed is None:
+                    gone = None
+                elif any(x.get("name") == name and x.get("pane_id") for x in listed):
+                    gone = False
         if gone is False:
             # the worker may have run `factory done` in the window: re-read right before the pane close
             cur = con.execute("SELECT status, stop_requested_at FROM agents WHERE name=?", (name,)).fetchone()
@@ -11425,7 +11998,11 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
                 close_leftover_shell(con, name, pane)  # T-1118: the id may still list a bare shell; close it or say why not
             end = time.time() + wait
             while st == "closed":  # confirm: the host must stop listing the pane it closed
-                gone = pane_gone(hp)
+                if row_exe == "hc":
+                    listed = _listed_agents_for_exe(con, row_exe, r)
+                    gone = listed is not None and not any(x.get("name") == name for x in listed)
+                else:
+                    gone = pane_gone(hp, tui=tui_ipc)
                 if gone or time.time() >= end:
                     break
                 time.sleep(min(1.0, max(0.05, end - time.time())))
@@ -11516,10 +12093,10 @@ def esc_wait_nudge(con, name, nudge, what, defer=False):
             event_as(con, "tick", "agent", name, "nudge-pending", {"nudge": nudge, "what": what,
                                                                    "pane_id": r["pane_id"], "started": r["started"]})
         return
-    hc_back = terminal_backend_effective(con)[1] == "hc"
-    if hc_back:
+    row = con.execute("SELECT name, spawn_args, pane_id FROM agents WHERE name=?", (name,)).fetchone()
+    if row and _agent_host_exe(con, row) == "hc":
         st = None
-        h = next((x for x in (herdr_agents() or []) if x.get("name") == name), None)
+        h = next((x for x in (_host_agents_list("hc") or []) if x.get("name") == name), None)
         if h:
             st = h.get("agent_status")
         if live() and st in ("idle", "done"):
@@ -11984,7 +12561,7 @@ def cmd_dequeue(a):
 
 def cmd_agents(a):
     con = db()
-    q = ("SELECT name,role,status,"
+    q = ("SELECT name,role,status,spawn_args,"
          "COALESCE(org, json_extract(spawn_args,'$.org'), CASE json_extract(spawn_args,'$.runtime') WHEN 'cursor' "
          "THEN 'cursor' ELSE 'claude' END) AS org,"
          "COALESCE(json_extract(spawn_args,'$.runtime'),'claude') AS runtime,"
@@ -11992,9 +12569,14 @@ def cmd_agents(a):
          "CASE WHEN relaunch_requested_at IS NOT NULL THEN 'RELAUNCH-PENDING' ELSE '' END relaunch,"
          "goal_id,team_id,task_id,pane_id,model,started FROM agents")
     q += "" if a.all else " WHERE status IN ('live','starting','queued')"
-    table(con.execute(q + " ORDER BY status, started").fetchall(),
-          ["name", "org", "role", "status", "runtime", "flagless", "relaunch", "goal_id", "team_id", "task_id", "pane_id",
-           "model", "started"])
+    rows = con.execute(q + " ORDER BY status, started").fetchall()
+    out = []
+    for r in rows:
+        d = {k: r[k] for k in r.keys()}
+        d["backend"] = _agents_table_backend(r["spawn_args"])
+        out.append(d)
+    table(out, ["name", "org", "role", "status", "runtime", "flagless", "relaunch", "goal_id", "team_id", "task_id",
+                "pane_id", "model", "started", "backend"])
 
 
 def cmd_flags(a):
@@ -12089,12 +12671,21 @@ def pane_holds(con, pane_id, listed):
     return any(r["status"] in ("live", "starting", "queued") for r in rows)
 
 
+def row_pane_gone(r, panes, listed):
+    """True only with proof a done/stopped row's pane is gone: the agent list is known, the row has a pane id, the
+    pane server lists no agent on that pane id or under that name, and the pane id is not in the live pane list.
+    Anything else (live rows, no list, no pane id, no pane list) is not proof: the cwd still holds the worktree."""
+    return (r["status"] in ("done", "stopped") and listed is not None and panes is not None and bool(r["pane_id"])
+            and not any(x.get("pane_id") == r["pane_id"] or x.get("name") == r["name"] for x in listed)
+            and not any(pid == r["pane_id"] for pid, _ in panes))
+
+
 def protected_by(con, wt, panes, listed=None):
     """Reason if an agent's recorded cwd or a live pane sits in the worktree, else None. A stale live row (its pane now
     used by another agent) and a pane whose owner ended no longer hold it; unknown owners and running agents do."""
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','starting','queued','done','stopped') AND cwd IS NOT NULL AND cwd!=''"):
         if _within(_real(r["cwd"]), wt):
-            if pane_reused(r, listed):
+            if pane_reused(r, listed) or row_pane_gone(r, panes, listed):
                 continue
             return f"protected: cwd of agent {r['name']}"
     for pane_id, c in panes:
@@ -12618,15 +13209,49 @@ def utilization(con):
         f"SELECT goal_id FROM agents WHERE goal_id IS NOT NULL AND role IN ({gmarks}) AND status IN ('live','starting','queued')",
         UTIL_GOAL_ROLES)}
 
-    def starved(prio):
+    def unstaffed(prio):
         return sorted(r["id"] for r in con.execute(
             "SELECT id FROM goals WHERE status IN ('planning','active') AND priority=?", (prio,)) if r["id"] not in staffed)
-    p1, p2 = starved(1), starved(2)
+
+    def waiting_on_owner_ci(gid):
+        """T-1401 (owner M33717): the goal has open tasks, none ready, and each one waits on the owner, on CI/review
+        (in_review) or on another task. DB state only; anything else (in_progress without a worker, no tasks) stays starved."""
+        open_t = con.execute("SELECT status,depends_on FROM tasks WHERE goal_id=? AND status NOT IN ('done','cancelled')",
+                             (gid,)).fetchall()
+        if not open_t:
+            return False
+        for t in open_t:
+            if t["status"] in ("in_review", "blocked"):
+                continue  # blocked: waits=owner, or waits=internal on another task
+            if t["status"] != "todo":
+                return False
+            try:
+                deps = json.loads(t["depends_on"] or "[]")
+            except ValueError:
+                deps = []
+            if all(d in done for d in deps):
+                return False  # a ready task: the goal is starved
+        return True
+    p2 = unstaffed(2)
+    p1, p1_waiting = [], []
+    for gid in unstaffed(1):
+        (p1_waiting if waiting_on_owner_ci(gid) else p1).append(gid)
+    now = digest_clock().timestamp()
+    wait_txt = []
+    for gid in p1_waiting:
+        last = con.execute(f"SELECT max(julianday(ended)) FROM agents WHERE goal_id=? AND role IN ({marks}) AND ended IS NOT NULL",
+                           (gid, *UTIL_WORKER_ROLES)).fetchone()[0]
+        if last is None:
+            last = con.execute("SELECT julianday(created) FROM goals WHERE id=?", (gid,)).fetchone()[0]
+        mins = max(0, int((now - (last - 2440587.5) * 86400) // 60)) if last else 0
+        wait_txt.append(f"{gid} ({mins} min)")
     line = (f"live {n}: workers {live['workers']} / leads {live['leads']} / judges {live['judges']} / HQ {live['hq']} / queued {queued}; "
             f"P1 goals without workers: {', '.join(p1) or 'none'}")
+    waiting_line = f"P1 waiting on owner/CI: {', '.join(wait_txt)}" if wait_txt else ""
     return {**live, "live": n, "queued": queued, "queued_workers": queued_workers, "cap": cap, "target": target,
             "under": live["workers"] < target, "ready": ready, "demand": queued_workers > 0 or ready > 0,
-            "hq_heavy": (live["leads"] + live["judges"]) * 3 > n, "p1_starved": p1, "p2_starved": p2, "line": line}
+            "hq_heavy": (live["leads"] + live["judges"]) * 3 > n, "p1_starved": p1, "p1_waiting": p1_waiting,
+            "p2_starved": p2, "line": line, "waiting_line": waiting_line}
 
 
 def cap_breaches(con, start_iso, end_iso):
@@ -13922,6 +14547,8 @@ def cmd_res(a):
           + ("" if cfg(con, "lead_parking") == "1" else " · lead parking off"))
     u2 = utilization(con)
     print(u2["line"])
+    if u2["waiting_line"]:
+        print(u2["waiting_line"])
     print(f"utilization: workers {u2['workers']}/{u2['target']} target · leads+judges {u2['leads'] + u2['judges']}/{u2['live']} (max 1/3)"
           + (" · UNDER TARGET" if u2["under"] and u2["demand"] else "") + (" · HQ-HEAVY" if u2["hq_heavy"] else ""))
     om = res_org_mix(con)
@@ -14241,10 +14868,10 @@ def classify_dialog(text):
     return ("permission",) if b[0] == "permission" else ("settings-warning", b[3], b[4], b[5])
 
 
-def dialog_now(name, role, want):
+def dialog_now(con, name, role, want):
     """Right before a key send: herdr reports `name` blocked on THIS tick AND its bottom region still classifies as
     `want`; for the boss pane also no unsent input (L-019). Returns the classification or None (then: no keys)."""
-    h = next((x for x in (herdr_agents() or []) if x.get("name") == name), None)
+    h = _host_list_row(con, name)
     if not h or h.get("agent_status") != "blocked":
         return None
     tail = herdr("agent", "read", name, "--source", "recent", "--lines", "60", check=False) or {}
@@ -14301,7 +14928,7 @@ def auto_clear_dialog(con, r, t):
                          f"The tick sent Esc {len(prior)} times today and the dialog is still there; it sends no more. "
                          f"Clear it by hand: {sfile}\n{warning}", "alert", r["goal_id"], r["task_id"], sender="tick")
                 return False
-            if not dialog_now(name, r["role"], "settings-warning"):
+            if not dialog_now(con, name, r["role"], "settings-warning"):
                 return False
             herdr("agent", "send-keys", name, "esc", check=False)
             event_as(con, "tick", "agent", name, "settings-warning-dismissed", {"file": sfile, "warning": warning},
@@ -14318,7 +14945,7 @@ def auto_clear_dialog(con, r, t):
         limit = int(cfg(con, "hq_unblock_s" if hq else "blocked_alert_s"))
         if not r["blocked_since"] or t - r["blocked_since"] <= limit:
             return False
-        if not dialog_now(name, r["role"], "permission"):
+        if not dialog_now(con, name, r["role"], "permission"):
             return False
         con.execute("UPDATE agents SET blocked_since=? WHERE name=?", (t, name))  # re-arm: one Esc per timeout
         event_as(con, "tick", "agent", name, "unblock", {"by": "tick", "reason": "auto-deny after timeout"})
@@ -14943,501 +15570,965 @@ def _pt_emit(con):
         pass
 
 
+
+# G-041 S3a: tick units (must match go/internal/tick/units.go testdata/units.txt)
+TICK_UNITS = (
+    ("migrate_db", "migrate_db", "boot"),
+    ("render_settings", "render_settings", "boot"),
+    ("guard_build", "guard_build", "boot"),
+    ("herdr_list", "herdr_list", "boot"),
+    ("digest", "digest", "hygiene"),
+    ("tmp_alert", "tmp_alert", "hygiene"),
+    ("remote_url_alert", "remote_url_alert", "hygiene"),
+    ("main_protection", "main_protection", "hygiene"),
+    ("tmp_clean", "tmp_clean", "hygiene"),
+    ("tmp_harness", "tmp_harness", "hygiene"),
+    ("red_main", "red_main", "hygiene"),
+    ("issue_intake", "issue_intake", "hygiene"),
+    ("reap_serves", "reap_serves", "hygiene"),
+    ("reap_orphans", "reap_orphans", "hygiene"),
+    ("test_orphans", None, "hygiene"),
+    ("judge_ci_prune", "judge_ci_prune", "hygiene"),
+    ("offline", None, "offline"),
+    ("scout", "scout", "side"),
+    ("retro", "retro", "side"),
+    ("skilleval", "skilleval", "side"),
+    ("pending_nudges", "pending_nudges", "reap"),
+    ("reap_loop", "reap_loop", "reap"),
+    ("exited_panes", "exited_panes", "reap"),
+    ("idle_coders", "idle_coders", "reap"),
+    ("drift", "drift", "reap"),
+    ("flagless", "flagless", "reap"),
+    ("claude_audit", "claude_audit", "reap"),
+    ("stop_fallback", "stop_fallback", "flow"),
+    ("gate", "gate", "flow"),
+    ("mech_merge", "mech_merge", "flow"),
+    ("ci_wake", "ci_wake", "flow"),
+    ("wake_leads", "wake_leads", "flow"),
+    ("dequeue", "dequeue", "start"),
+    ("dispatch", "dispatch", "start"),
+    ("start_confirm", "start_confirm", "start"),
+    ("nudge", "nudge", "nudge"),
+    ("sidebar", "sidebar", "nudge"),
+    ("cursor_limits", "cursor_limits", "nudge"),
+    ("export", "export", "publish"),
+    ("freshness", "freshness", "publish"),
+    ("recycle", "recycle", "tail"),
+    ("relaunches", "relaunches", "tail"),
+    ("util", "util", "tail"),
+    ("emit", None, "tail"),
+)
+TICK_WALK_UNITS = [u[0] for u in TICK_UNITS if u[0] not in ("offline", "emit")]
+TICK_UNIT_INDEX = {u[0]: i for i, u in enumerate(TICK_UNITS)}
+TICK_BLOCKS = {}
+for _u, _lap, _blk in TICK_UNITS:
+    TICK_BLOCKS.setdefault(_blk, []).append(_u)
+TICK_IMPLS = ("python", "go")
+TICK_HANDOFF_V = 1
+
+
+def _tick_new_state():
+    return {"agents": None, "t": None, "hc_back": None, "starting": None, "by_name": None, "by_pane": None,
+            "hc_by_name": None, "hc_list_ok": None, "tui_by_name": None, "tui_by_pane": None, "tui_list_ok": None,
+            "stop": False}
+
+
+def _tick_phases_die(msg):
+    die(f"factory: tick --phases {msg}", 2)
+
+
+def _tick_phases_refuse():
+    raw = os.environ.get("FACTORY_TICK_HANDOFF", "")
+    if not raw:
+        _tick_phases_die("is for the Go tick only")
+    try:
+        path = Path(raw).resolve()
+    except (OSError, RuntimeError):
+        _tick_phases_die("is for the Go tick only")
+    run = RUN.resolve()
+    if not str(path).startswith(str(run) + os.sep):
+        _tick_phases_die(f"handoff must live under {run}")
+    try:
+        doc = json.loads(path.read_text())
+    except (OSError, ValueError, json.JSONDecodeError):
+        _tick_phases_die("is for the Go tick only")
+    if doc.get("v") != TICK_HANDOFF_V or doc.get("pid") != os.getppid():
+        _tick_phases_die("is for the Go tick only")
+    import fcntl
+    lf = open(RUN / "tick.lock", "a")
+    try:
+        try:
+            fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            pass
+        else:
+            fcntl.flock(lf, fcntl.LOCK_UN)
+            _tick_phases_die("is for the Go tick only")
+    finally:
+        lf.close()
+    return path, doc
+
+
+def _tick_expand_phases(spec):
+    toks = [x.strip() for x in spec.split(",") if x.strip()]
+    if not toks:
+        _tick_phases_die("unit list is empty")
+    out = []
+    for tok in toks:
+        if tok in TICK_BLOCKS:
+            out.extend(TICK_BLOCKS[tok])
+        elif tok in TICK_UNIT_INDEX:
+            out.append(tok)
+        else:
+            _tick_phases_die(f"unknown unit {tok!r}")
+    idxs = [TICK_UNIT_INDEX[u] for u in out]
+    for i in range(1, len(idxs)):
+        if idxs[i] != idxs[i - 1] + 1:
+            if idxs[i] < idxs[i - 1]:
+                _tick_phases_die(f"out of order: {spec}")
+            _tick_phases_die(f"gap between {out[i - 1]!r} and {out[i]!r}")
+    if "emit" in out and out[-1] != "emit":
+        _tick_phases_die("emit is only allowed last")
+    return out
+
+
+def _tick_handoff_state_public(st):
+    pub = {}
+    for key in ("agents", "t", "hc_back", "starting",
+                "hc_by_name", "hc_list_ok", "tui_by_name", "tui_by_pane", "tui_list_ok"):
+        if key in st:
+            val = st[key]
+            if key == "starting" and isinstance(val, set):
+                val = sorted(val)
+            pub[key] = val
+    return pub
+
+
+def _tick_state_from_handoff(doc):
+    st = _tick_new_state()
+    for key, val in (doc.get("state") or {}).items():
+        if key in st:
+            if key == "starting" and isinstance(val, list):
+                val = set(val)
+            st[key] = val
+    return st
+
+
+def _tick_need_agents(units, doc):
+    j = TICK_UNIT_INDEX["judge_ci_prune"]
+    if not any(TICK_UNIT_INDEX[u] > j for u in units):
+        return
+    if "herdr_list" in units:
+        return
+    state = doc.get("state") or {}
+    if "agents" not in state or state["agents"] is None:
+        _tick_phases_die("herdr list missing")
+
+
+def _tick_handoff_write(path, doc, st, t0=None, migrate_ran=False, pre_reset=None):
+    known = {"v", "pid", "elapsed", "timers", "state", "laps", "counters", "tail", "pre_reset", "total", "stop"}
+    extra = {k: v for k, v in doc.items() if k not in known}
+    tail = max(0.0, time.perf_counter() - _PT["last"]) if _PT.get("on") else 0.0
+    payload = {
+        **extra,
+        "v": TICK_HANDOFF_V,
+        "pid": doc.get("pid", os.getppid()),
+        "elapsed": doc.get("elapsed", 0.0),
+        "timers": bool(_PT.get("on")),
+        "state": _tick_handoff_state_public(st),
+        "laps": [[n, d] for n, d in _PT.get("phases", [])],
+        "counters": dict(_PT.get("counters", {})),
+        "tail": tail,
+        "stop": bool(st.get("stop")),
+    }
+    if pre_reset is not None:
+        payload["pre_reset"] = pre_reset
+    elif doc.get("pre_reset") is not None:
+        payload["pre_reset"] = doc["pre_reset"]
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, separators=(",", ":")) + "\n")
+    os.chmod(tmp, 0o600)
+    tmp.replace(path)
+
+
+def _tick_after_prune_offline(con, st, units, idx):
+    if st.get("agents") is not None:
+        return False
+    if idx + 1 < len(units) and TICK_UNIT_INDEX[units[idx + 1]] > TICK_UNIT_INDEX["judge_ci_prune"]:
+        _tick_u_offline(con, st)
+        return True
+    return False
+
+
+def _cmd_tick_phases(spec):
+    path, doc = _tick_phases_refuse()
+    units = _tick_expand_phases(spec)
+    _tick_need_agents(units, doc)
+    st = _tick_state_from_handoff(doc)
+    t0 = time.perf_counter()
+    con = None
+    migrate_ran = False
+    pre_reset = None
+    if "migrate_db" in units:
+        migrate_ran = True
+        con = _tick_u_migrate_db(con, st)
+        if doc.get("timers") and _PT.get("on"):
+            pre_reset = time.perf_counter() - t0
+        units = [u for u in units if u != "migrate_db"]
+    elif "emit" not in units or len(units) > 1:
+        con = db()
+    if units == ["emit"]:
+        if doc.get("timers"):
+            _PT["on"] = True
+            _PT["phases"] = [(x[0], float(x[1])) for x in doc.get("laps", [])]
+            _PT["counters"] = dict(doc.get("counters") or {})
+            _PT["t0"] = time.perf_counter()
+            if doc.get("total") is not None:
+                _PT["t0"] = time.perf_counter() - float(doc["total"])
+        con = con or db()
+        _tick_u_emit(con, st)
+        _tick_handoff_write(path, doc, st, t0=t0, migrate_ran=migrate_ran, pre_reset=pre_reset)
+        return
+    if con is None:
+        con = db()
+    if doc.get("timers"):
+        if migrate_ran:
+            if not _PT["on"]:
+                _PT.update(on=True, phases=[], counters={}, git_n=0, git_mark=0)
+                _PT["t0"] = _PT["last"] = time.perf_counter()
+        else:
+            _PT["on"] = True
+            _PT["phases"] = [(x[0], float(x[1])) for x in doc.get("laps", [])]
+            _PT["counters"] = dict(doc.get("counters") or {})
+            _PT["t0"] = time.perf_counter()
+            if doc.get("total") is not None:
+                _PT["t0"] = time.perf_counter() - float(doc["total"])
+            _PT["last"] = time.perf_counter()
+    for i, u in enumerate(units):
+        if u == "offline":
+            if st.get("agents") is None:
+                _tick_u_offline(con, st)
+                break
+            continue
+        globals()[f"_tick_u_{u}"](con, st)
+        if u == "judge_ci_prune" and _tick_after_prune_offline(con, st, units, i):
+            break
+        if st.get("stop"):
+            break
+    _tick_handoff_write(path, doc, st, t0=t0, migrate_ran=migrate_ran, pre_reset=pre_reset)
+
+
 def cmd_tick(a, locked=False):
     """Runs every minute from systemd. No LLM tokens: reap, dequeue, nudge, publish."""
     refuse_worker("tick")
-    lock = None if locked else tick_lock()  # noqa: F841 — held until exit
-    t_mig = time.perf_counter()
-    migrate_db_layout()
-    con = db()
-    _pt_reset(con)
-    _PT["last"] = t_mig  # migrate_db covers the DB open and the timer setup too
-    _pt_lap("migrate_db")
-    render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2)
-    _pt_lap("render_settings")
-    guard_tick(con)
-    _pt_lap("guard_build")
-    agents = herdr_agents()
-    _pt_lap("herdr_list")
-    morning_digest(con)
-    _pt_lap("digest")
-    tmp_alert(con)
-    _pt_lap("tmp_alert")
-    tmp_sweep(con)
-    remote_url_alert(con)
-    _pt_lap("remote_url_alert")
-    main_protection_alert(con)
-    _pt_lap("main_protection")
-    tmp_clean(con)
-    _pt_lap("tmp_clean")
-    tmp_sweep_harness(con)
-    _pt_lap("tmp_harness")
-    red_main_check(con)
-    _pt_lap("red_main")
-    issue_intake_check(con)
-    _pt_lap("issue_intake")
-    reap_stray_serves(con)
-    _pt_lap("reap_serves")
-    reap_orphans(con)
-    _pt_lap("reap_orphans")
-    alert_test_orphans(con)
-    try:  # the judge_pr_ready cache rows of closed or old PRs
-        tick_judge_ci_prune(con)
-    except Exception as e:  # noqa: BLE001 — a bad cache row must never stop the tick
-        event(con, "tick", "judge-ci-prune", "judge-ci-prune-error", str(e)[:300])
-    _pt_lap("judge_ci_prune")
-    if agents is None:
-        tick_drift(con)  # nothing to reconcile without the pane server
-        _pt_lap("drift")
-        print("herdr unreachable; exporting only")
-        _pt_git(True)
-        export(con)
-        _pt_git(False)
-        _pt_lap("export")
-        _pt_emit(con)
+    phases = getattr(a, "phases", None)
+    if isinstance(phases, str):
+        _cmd_tick_phases(phases)
         return
-    scout_tick(con)
-    retro_tick(con)
-    skilleval_tick(con)
-    hc_back = terminal_backend_effective(con)[1] == "hc"
-    by_name, by_pane = _agents_index(agents)
-    t = time.time()
-    finish_pending_nudges(con, by_name, t)
-    _pt_lap("pending_nudges")
+    lock = None if locked else tick_lock()  # noqa: F841 — held until exit
+    st = _tick_new_state()
+    con = None
+    for u in TICK_WALK_UNITS:
+        if u == "migrate_db":
+            con = _tick_u_migrate_db(con, st)
+            continue
+        if con is None:
+            con = db()
+        globals()[f"_tick_u_{u}"](con, st)
+        if u == "judge_ci_prune" and st.get("agents") is None:
+            _tick_u_offline(con, st)
+            return
+    _tick_u_emit(con, st)
 
-    # 1. reap finished workers; detect lost agents; record session ids for resume
-    for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
-        if hc_back and not _row_hosted_on_hc(r):
-            continue
-        h = _pane_host(con, by_name, by_pane, r)
-        if h is _PANE_FOREIGN and r["status"] == "done":
-            h = None  # the done path closes by host NAME only, so another row's pane is never touched
-        if h is _PANE_FOREIGN:
-            if not con.execute("SELECT 1 FROM events WHERE action='pane-foreign-skip' AND entity_id=? AND detail=?",
-                               (r["name"], str(r["pane_id"]))).fetchone():
-                event(con, "agent", r["name"], "pane-foreign-skip", str(r["pane_id"]))
-            continue
-        if r["status"] == "done":
+
+def _tick_u_migrate_db(con, st):
+        t_mig = time.perf_counter()
+        migrate_db_layout()
+        con = db()
+        _pt_reset(con)
+        _PT["last"] = t_mig  # migrate_db covers the DB open and the timer setup too
+        _pt_lap("migrate_db")
+        return con
+
+
+def _tick_u_render_settings(con, st):
+        render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2)
+        _pt_lap("render_settings")
+
+
+def _tick_u_guard_build(con, st):
+        guard_tick(con)
+        _pt_lap("guard_build")
+
+
+def _tick_u_herdr_list(con, st):
+        eff_exe = terminal_backend_effective(con)[1]
+        st["hc_back"] = hc_back = eff_exe == "hc"
+        hc_by_name = {}
+        hc_list_ok = True
+        tui_by_name, tui_by_pane, tui_list_ok = {}, {}, True
+        need_tui_tick = False
+        if hc_back:
+            st["agents"] = agents = herdr_agents()
+            need_tui_tick = bool(con.execute(
+                "SELECT 1 FROM agents WHERE status IN ('live','done') "
+                "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+            ).fetchone())
+            if need_tui_tick:
+                tui_agents = _host_agents_list("herdr")
+                tui_list_ok = tui_agents is not None
+                tui_by_name, tui_by_pane = _agents_index(tui_agents or [])
+        else:
+            st["agents"] = agents = _host_agents_list("herdr")
+            hc_list = _host_agents_list("hc")
+            hc_list_ok = hc_list is not None
+            hc_by_name = {x["name"]: x for x in (hc_list or []) if x.get("name")}
+        st["hc_by_name"] = hc_by_name
+        st["hc_list_ok"] = hc_list_ok
+        st["tui_by_name"] = tui_by_name
+        st["tui_by_pane"] = tui_by_pane
+        st["tui_list_ok"] = tui_list_ok
+        _pt_lap("herdr_list")
+
+
+def _tick_u_digest(con, st):
+        morning_digest(con)
+        _pt_lap("digest")
+
+
+def _tick_u_tmp_alert(con, st):
+        tmp_alert(con)
+        _pt_lap("tmp_alert")
+
+
+def _tick_u_remote_url_alert(con, st):
+        tmp_sweep(con)
+        remote_url_alert(con)
+        _pt_lap("remote_url_alert")
+
+
+def _tick_u_main_protection(con, st):
+        main_protection_alert(con)
+        _pt_lap("main_protection")
+
+
+def _tick_u_tmp_clean(con, st):
+        tmp_clean(con)
+        _pt_lap("tmp_clean")
+
+
+def _tick_u_tmp_harness(con, st):
+        tmp_sweep_harness(con)
+        _pt_lap("tmp_harness")
+
+
+def _tick_u_red_main(con, st):
+        red_main_check(con)
+        _pt_lap("red_main")
+
+
+def _tick_u_issue_intake(con, st):
+        issue_intake_check(con)
+        _pt_lap("issue_intake")
+
+
+def _tick_u_reap_serves(con, st):
+        reap_stray_serves(con)
+        _pt_lap("reap_serves")
+
+
+def _tick_u_reap_orphans(con, st):
+        reap_orphans(con)
+        _pt_lap("reap_orphans")
+
+
+def _tick_u_test_orphans(con, st):
+        alert_test_orphans(con)
+
+
+def _tick_u_judge_ci_prune(con, st):
+        try:  # the judge_pr_ready cache rows of closed or old PRs
+            tick_judge_ci_prune(con)
+        except Exception as e:  # noqa: BLE001 — a bad cache row must never stop the tick
+            event(con, "tick", "judge-ci-prune", "judge-ci-prune-error", str(e)[:300])
+        _pt_lap("judge_ci_prune")
+
+
+def _tick_u_offline(con, st):
+        if st["agents"] is None:
+            tick_drift(con)  # nothing to reconcile without the pane server
+            _pt_lap("drift")
+            print("herdr unreachable; exporting only")
+            _pt_git(True)
+            export(con)
+            _pt_git(False)
+            _pt_lap("export")
+            _pt_emit(con)
+            st["stop"] = True
+            return
+
+
+def _tick_u_scout(con, st):
+        scout_tick(con)
+
+
+def _tick_u_retro(con, st):
+        retro_tick(con)
+
+
+def _tick_u_skilleval(con, st):
+        skilleval_tick(con)
+
+
+def _tick_u_pending_nudges(con, st):
+        agents = st["agents"]
+        hc_back = st["hc_back"]
+        by_name, by_pane = _agents_index(agents or [])
+        if not hc_back:
+            by_name = {**by_name, **st.get("hc_by_name", {})}
+        st["t"] = t = time.time()
+        st["by_name"], st["by_pane"] = by_name, by_pane
+        finish_pending_nudges(con, by_name, t)
+        _pt_lap("pending_nudges")
+
+
+def _tick_u_reap_loop(con, st):
+        agents = st["agents"]
+        hc_back = st["hc_back"]
+        by_name, by_pane = st["by_name"], st["by_pane"]
+        t = st["t"]
+        hc_by_name = st.get("hc_by_name") or {}
+        hc_list_ok = st.get("hc_list_ok", True)
+        tui_by_name, tui_by_pane = st.get("tui_by_name") or {}, st.get("tui_by_pane") or {}
+        tui_list_ok = st.get("tui_list_ok", True)
+        # 1. reap finished workers; detect lost agents; record session ids for resume
+        for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
+            row_exe = _agent_host_exe(con, r)
             if hc_back:
-                if r["name"] in by_name:
-                    if _hc_kill_terminal(con, r["name"]) == "unknown":
+                if row_exe == "herdr":
+                    if not tui_list_ok:
                         continue
-                con.execute(
-                    "UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?",
-                    (now(), r["name"]),
-                )
+                    h = _pane_host(con, tui_by_name, tui_by_pane, r)
+                elif _row_hosted_on_hc(r):
+                    h = _pane_host(con, by_name, by_pane, r)
+                else:
+                    continue  # a legacy TUI pane id without host_backend=herdr: tick does not reconcile on hc
+            elif row_exe == "hc":
+                if not hc_list_ok:
+                    continue
+                h = hc_by_name.get(r["name"])
+            else:
+                tui_by_name, tui_by_pane = _agents_index(agents or [])
+                h = _pane_host(con, tui_by_name, tui_by_pane, r)
+            if h is _PANE_FOREIGN and r["status"] == "done":
+                h = None  # the done path closes by host NAME only, so another row's pane is never touched
+            if h is _PANE_FOREIGN:
+                if not con.execute("SELECT 1 FROM events WHERE action='pane-foreign-skip' AND entity_id=? AND detail=?",
+                                   (r["name"], str(r["pane_id"]))).fetchone():
+                    event(con, "agent", r["name"], "pane-foreign-skip", str(r["pane_id"]))
+                continue
+            if r["status"] == "done":
+                if row_exe == "hc":
+                    listed_src = by_name if hc_back else hc_by_name
+                    if r["name"] in listed_src:
+                        if _hc_kill_terminal(con, r["name"], list(listed_src.values())) == "unknown":
+                            continue
+                    con.execute(
+                        "UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?",
+                        (now(), r["name"]),
+                    )
+                    try:
+                        reap_agent_tests(con, r["name"], "done")
+                    except Exception as e:  # noqa: BLE001 — the tick must go on
+                        _agent_tests_failed(con, r["name"], e)
+                    event(con, "agent", r["name"], "reaped", r["pane_id"])
+                    continue
+                if r["pane_id"] and close_named_pane(con, r["name"], r["pane_id"])[0] == "unknown":
+                    continue  # the host cannot be asked: nothing closed, the row stays 'done' and is retried next tick
+                con.execute("UPDATE agents SET status='exited', ended=coalesce(ended,?) WHERE name=?", (now(), r["name"]))
                 try:
                     reap_agent_tests(con, r["name"], "done")
                 except Exception as e:  # noqa: BLE001 — the tick must go on
                     _agent_tests_failed(con, r["name"], e)
                 event(con, "agent", r["name"], "reaped", r["pane_id"])
                 continue
-            if r["pane_id"] and close_named_pane(con, r["name"], r["pane_id"])[0] == "unknown":
-                continue  # the host cannot be asked: nothing closed, the row stays 'done' and is retried next tick
-            con.execute("UPDATE agents SET status='exited', ended=coalesce(ended,?) WHERE name=?", (now(), r["name"]))
             try:
-                reap_agent_tests(con, r["name"], "done")
-            except Exception as e:  # noqa: BLE001 — the tick must go on
-                _agent_tests_failed(con, r["name"], e)
-            event(con, "agent", r["name"], "reaped", r["pane_id"])
-            continue
-        try:
-            _sa = json.loads(r["spawn_args"] or "{}")
-        except ValueError:
-            _sa = {}
-        if agent_runtime_of(r) != "claude" and _sa.get("launch") == "subprocess":
-            # Headless subprocess fallback (no herdr pane): reap when the recorded pid exits.
-            pid = _sa.get("pid")
-            alive = False
-            if isinstance(pid, int) and pid > 0:
-                try:
-                    os.kill(pid, 0)
-                    alive = True
-                except OSError:
-                    alive = False
-            if alive:
-                continue
-            summary = f"runtime={agent_runtime_of(r)} pid={pid} exited"
-            con.execute("UPDATE agents SET status='done', summary=?, ended=? WHERE name=? AND status='live'",
-                        (summary, now(), r["name"]))
-            event(con, "agent", r["name"], "runtime-exit", {"pid": pid, "runtime": agent_runtime_of(r),
-                                                            "log": _sa.get("log")})
-            continue
-        # herdr-kind runtimes (cursor, …) share Claude's pane lost/session path below.
-        if not h and r["started"] and still_starting(r):
-            continue  # still starting: herdr hasn't registered it yet
-        if not h and r["stop_requested_at"]:
-            continue  # being stopped: step 1c decides (counted while its process lives), never 'lost'
-        if not h:
-            con.execute("UPDATE agents SET status='lost', ended=? WHERE name=?", (now(), r["name"]))
-            event(con, "agent", r["name"], "lost", r["pane_id"])
-            if r["role"] != "director":
-                body = (f"pane {r['pane_id']} no longer hosts it. "
-                        f"Task {r['task_id']}. Decide: respawn or reassign.{_cursor_lost_log_hint(r, _sa)}")
-                send(con, "director", f"agent {r['name']} vanished", body, "alert", r["goal_id"], r["task_id"],
-                     sender="tick")
-            continue
-        sess = (h.get("agent_session") or {}).get("value")
-        if sess and sess != r["session_id"]:
-            if r["session_id"]:
-                event(con, "agent", r["name"], "session-mismatch",
-                      {"name": r["name"], "stored": r["session_id"], "herdr": sess})
-            con.execute("UPDATE agents SET session_id=? WHERE name=?", (sess, r["name"]))
-        st = h.get("agent_status")
-        cleared = False
-        if st == "blocked":  # T-0268 acc 7: only a pane herdr reports blocked on this tick is ever considered
-            cleared = auto_clear_dialog(con, con.execute("SELECT * FROM agents WHERE name=?", (r["name"],)).fetchone(), t)
-        if st == "blocked":
-            if cleared:
-                pass  # the tick just denied it and told the lead: no second ">10 min" alert from the stale row
-            elif not r["blocked_since"]:
-                con.execute("UPDATE agents SET blocked_since=? WHERE name=?", (t, r["name"]))
-            elif t - r["blocked_since"] > int(cfg(con, "blocked_alert_s")) and not r["blocked_alerted"]:
-                tail = herdr("agent", "read", r["name"], "--source", "recent-unwrapped", "--lines", "25", check=False) or {}
-                to, hint = blocked_alert_target(con, r)
-                send(con, to, f"{r['name']} blocked >10 min",
-                     hint + (tail.get("text") or tail.get("raw") or json.dumps(tail))[-2500:], "alert",
-                     r["goal_id"], r["task_id"], sender="tick")
-                con.execute("UPDATE agents SET blocked_alerted=1 WHERE name=?", (r["name"],))
-        elif r["blocked_since"]:
-            con.execute("UPDATE agents SET blocked_since=NULL, blocked_alerted=0 WHERE name=?", (r["name"],))
-
-    _pt_lap("reap_loop")
-    reap_exited_panes(con, agents)
-    _pt_lap("exited_panes")
-    reap_idle_coders(con, agents)
-    _pt_lap("idle_coders")
-    tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
-    _pt_lap("drift")
-    
-    # 1b. flagless panes (resumed by herdr without role flags) surface even without `factory up`
-    notify_flagless(con, [f for f in flagless_scan(
-        con, con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL").fetchall(),
-        throttle=True) if f["new"]])
-    _pt_lap("flagless")
-    
-    try:  # 1b'. a Claude process under an agent that factory spawn did not start
-        claude_outside_spawn(con)
-    except Exception as e:  # noqa: BLE001 — the audit must never stop the tick
-        event(con, "tick", "claude-audit", "claude-audit-failed", str(e))
-    _pt_lap("claude_audit")
-    
-    # 1c. stop fallback BEFORE the dequeue, so a freed slot is seen by it
-    stop_timeout = int(cfg(con, "stop_timeout_s"))
-    nowdt = dt.datetime.now().astimezone()
-    for r in con.execute("SELECT * FROM agents WHERE status='live' AND stop_requested_at IS NOT NULL").fetchall():
-        req, att = _ts(r["stop_requested_at"]), _ts(r["stop_attempt_at"])
-        if req is None or (nowdt - req).total_seconds() < stop_timeout:
-            continue
-        if att is not None and (nowdt - att).total_seconds() < stop_timeout:
-            continue  # retry at most once per stop_timeout_s
-        _res, _note = force_stop(con, r["name"], "timeout", attempt_seen=r["stop_attempt_at"])  # the tick needs neither
-    _pt_lap("stop_fallback")
-    
-    # 1c''. local merge gate (T-0516): launch the queued gate runs within gate_max_parallel
-    try:
-        tick_gate(con)
-    except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
-        event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
-    _pt_lap("gate")
-    
-    # 1c'''. mechanical merger (G-022 #4, config mech_merge off|shadow|on): one detached unit, never blocks the tick
-    try:
-        tick_mech_merge(con)
-    except Exception as e:  # noqa: BLE001 — a bad candidate must never stop the tick
-        event(con, "tick", "mech-merge", "mech-merge-tick-error", str(e)[:300])
-    _pt_lap("mech_merge")
-    
-    # 1c'. CI result of a parked team's in_review PR -> mail to its lead, so 1d wakes it in this tick
-    try:
-        tick_ci_wake(con)
-    except Exception as e:  # noqa: BLE001 — a bad PR or team row must never stop the tick
-        event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
-    _pt_lap("ci_wake")
-    
-    # 1c''. red/conflicted PR with no coder -> mail the lead (config red_pr_owner_alert), also before 1d
-    try:
-        tick_red_pr_owner(con)
-    except Exception as e:  # noqa: BLE001 — a bad PR or task row must never stop the tick
-        event(con, "tick", "red-pr-owner", "red-pr-error", str(e)[:300])
-    
-    # 1d. wake parked leads (unread mail), BEFORE the dequeue so a queued wake can start in this tick
-    try:
-        tick_wake_leads(con)
-    except Exception as e:  # noqa: BLE001 — a bad team row must never stop the tick
-        event(con, "tick", "wake-leads", "wake-error", str(e)[:300])
-    _pt_lap("wake_leads")
-    
-    # 2. dequeue spawns while the gate is open. Drain before build: role class first (director, lead, judge, reviewer, qa,
-    # then coder/pm/cleaner/staff-engineer). Inside the coder/pm/... class a merge-only refresh coder (its spawn prompt
-    # contains 'merge-only refresh', any case) goes first: it unblocks an open PR. (A judge is class 2, so it already
-    # runs ahead of every normal coder or pm; PASS verdicts do not change that.) Then queue_order_key's aged priority.
-    # a crash mid-spawn leaves 'starting': after CLAIM_TTL_S it is queued again (the msg-path claim uses the same TTL)
-    con.execute("UPDATE agents SET status='queued', spawn_args=json_remove(spawn_args,'$.claimed_at') WHERE status='starting' "
-                "AND COALESCE(CAST(json_extract(spawn_args,'$.claimed_at') AS REAL), 0) < ?", (time.time() - CLAIM_TTL_S,))
-    queued = sorted(con.execute("SELECT a.*, COALESCE(g.priority, 2) AS prio, t.priority AS task_prio FROM agents a "
-                                "LEFT JOIN goals g ON g.id=a.goal_id LEFT JOIN tasks t ON t.id=a.task_id "
-                                "WHERE a.status='queued'").fetchall(), key=queue_order_key)
-    held = False
-    for q in queued:
-        if not held and not gate(con)[0]:
-            held = True  # a closed gate stops the queue, except for a judge or a lead (exempt from the load cap only) or a cleaner (tmp gate only)
-        if held:
-            try:
-                qorg = json.loads(q["spawn_args"] or "{}").get("org")
+                _sa = json.loads(r["spawn_args"] or "{}")
             except ValueError:
-                qorg = None
-            qrt = org_runtime(con, q["role"], qorg)
-            if q["role"] == "judge":
-                ok = gate(con, load_exempt=True, role="judge", runtime=qrt)[0]  # judges ignore the load cap, as in spawn()
-            elif q["role"] == "lead":
-                ok = gate(con, load_exempt=True, role="lead", runtime=qrt)[0]  # leads skip only the load cap (T-0867); lead caps still apply
-            elif q["role"] == "cleaner" and gate(con, role="cleaner")[0]:
-                ok = True
-            elif qrt == "cursor" and gate(con, role=q["role"], runtime="cursor")[0]:
-                ok = True
-            else:
-                ok = False
-            if not ok:
+                _sa = {}
+            if agent_runtime_of(r) != "claude" and _sa.get("launch") == "subprocess":
+                # Headless subprocess fallback (no herdr pane): reap when the recorded pid exits.
+                pid = _sa.get("pid")
+                alive = False
+                if isinstance(pid, int) and pid > 0:
+                    try:
+                        os.kill(pid, 0)
+                        alive = True
+                    except OSError:
+                        alive = False
+                if alive:
+                    continue
+                summary = f"runtime={agent_runtime_of(r)} pid={pid} exited"
+                con.execute("UPDATE agents SET status='done', summary=?, ended=? WHERE name=? AND status='live'",
+                            (summary, now(), r["name"]))
+                event(con, "agent", r["name"], "runtime-exit", {"pid": pid, "runtime": agent_runtime_of(r),
+                                                                "log": _sa.get("log")})
                 continue
-        # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
-        cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
-        if not cur:
-            continue
+            # herdr-kind runtimes (cursor, …) share Claude's pane lost/session path below.
+            if not h and r["started"] and still_starting(r):
+                continue  # still starting: herdr hasn't registered it yet
+            if not h and r["stop_requested_at"]:
+                continue  # being stopped: step 1c decides (counted while its process lives), never 'lost'
+            if not h:
+                con.execute("UPDATE agents SET status='lost', ended=? WHERE name=?", (now(), r["name"]))
+                event(con, "agent", r["name"], "lost", r["pane_id"])
+                if r["role"] != "director":
+                    body = (f"pane {r['pane_id']} no longer hosts it. "
+                            f"Task {r['task_id']}. Decide: respawn or reassign.{_cursor_lost_log_hint(r, _sa)}")
+                    send(con, "director", f"agent {r['name']} vanished", body, "alert", r["goal_id"], r["task_id"],
+                         sender="tick")
+                continue
+            sess = (h.get("agent_session") or {}).get("value")
+            if sess and sess != r["session_id"]:
+                if r["session_id"]:
+                    event(con, "agent", r["name"], "session-mismatch",
+                          {"name": r["name"], "stored": r["session_id"], "herdr": sess})
+                con.execute("UPDATE agents SET session_id=? WHERE name=?", (sess, r["name"]))
+            st = h.get("agent_status")
+            cleared = False
+            if st == "blocked":  # T-0268 acc 7: only a pane herdr reports blocked on this tick is ever considered
+                cleared = auto_clear_dialog(con, con.execute("SELECT * FROM agents WHERE name=?", (r["name"],)).fetchone(), t)
+            if st == "blocked":
+                if cleared:
+                    pass  # the tick just denied it and told the lead: no second ">10 min" alert from the stale row
+                elif not r["blocked_since"]:
+                    con.execute("UPDATE agents SET blocked_since=? WHERE name=?", (t, r["name"]))
+                elif t - r["blocked_since"] > int(cfg(con, "blocked_alert_s")) and not r["blocked_alerted"]:
+                    tail = herdr("agent", "read", r["name"], "--source", "recent-unwrapped", "--lines", "25", check=False) or {}
+                    to, hint = blocked_alert_target(con, r)
+                    send(con, to, f"{r['name']} blocked >10 min",
+                         hint + (tail.get("text") or tail.get("raw") or json.dumps(tail))[-2500:], "alert",
+                         r["goal_id"], r["task_id"], sender="tick")
+                    con.execute("UPDATE agents SET blocked_alerted=1 WHERE name=?", (r["name"],))
+            elif r["blocked_since"]:
+                con.execute("UPDATE agents SET blocked_since=NULL, blocked_alerted=0 WHERE name=?", (r["name"],))
+
+        _pt_lap("reap_loop")
+
+
+def _tick_u_exited_panes(con, st):
+        reap_exited_panes(con, st["agents"])
+        _pt_lap("exited_panes")
+
+
+def _tick_u_idle_coders(con, st):
+        reap_idle_coders(con, st["agents"])
+        _pt_lap("idle_coders")
+
+
+def _tick_u_drift(con, st):
+        tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
+        _pt_lap("drift")
+
+
+def _tick_u_flagless(con, st):
+        # 1b. flagless panes (resumed by herdr without role flags) surface even without `factory up`
+        notify_flagless(con, [f for f in flagless_scan(
+            con, con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL").fetchall(),
+            throttle=True) if f["new"]])
+        _pt_lap("flagless")
+
+
+def _tick_u_claude_audit(con, st):
+        try:  # 1b'. a Claude process under an agent that factory spawn did not start
+            claude_outside_spawn(con)
+        except Exception as e:  # noqa: BLE001 — the audit must never stop the tick
+            event(con, "tick", "claude-audit", "claude-audit-failed", str(e))
+        _pt_lap("claude_audit")
+
+
+def _tick_u_stop_fallback(con, st):
+        # 1c. stop fallback BEFORE the dequeue, so a freed slot is seen by it
+        stop_timeout = int(cfg(con, "stop_timeout_s"))
+        nowdt = dt.datetime.now().astimezone()
+        for r in con.execute("SELECT * FROM agents WHERE status='live' AND stop_requested_at IS NOT NULL").fetchall():
+            req, att = _ts(r["stop_requested_at"]), _ts(r["stop_attempt_at"])
+            if req is None or (nowdt - req).total_seconds() < stop_timeout:
+                continue
+            if att is not None and (nowdt - att).total_seconds() < stop_timeout:
+                continue  # retry at most once per stop_timeout_s
+            _res, _note = force_stop(con, r["name"], "timeout", attempt_seen=r["stop_attempt_at"])  # the tick needs neither
+        _pt_lap("stop_fallback")
+
+
+def _tick_u_gate(con, st):
+        # 1c''. local merge gate (T-0516): launch the queued gate runs within gate_max_parallel
         try:
-            s = json.loads(cur["spawn_args"] or "{}")
-        except ValueError:
-            s = {}
-        if time.time() - s.get("claimed_at", 0) < CLAIM_TTL_S:
-            continue  # a msg is spawning this one right now
-        if "role" not in s:
-            continue  # spawn() has not finished writing the queue snapshot
-        if s["role"] != "evaluator" and start_failed_wait(s):
-            continue  # T-1135: at the failure cap the start is retried every START_FAILED_RETRY_S, not every tick
-        if recently_stopped_in(con, s.get("cwd") or queued_worktree(con, s.get("task"))):
-            continue  # the stopped agent may still be writing in that worktree: start on a later tick
-        if s["role"] == "judge":
-            jhr = task_judge_hold_reason(con, s.get("task"))
-            if jhr:
-                log_task_judge_hold(con, s.get("task"), jhr)
-                continue
-        if s["role"] == "judge" and judge_hold(con, s.get("task"), behind_ok=True):
-            continue  # judge cap reached or PR CI not green: the rows behind it may start
-        if s["role"] == "judge" and refresh_lane_hold(con, s.get("task"), queued):
-            continue  # refresh_lane=on: a BEHIND PR that is not the queue head waits without a refresh
+            tick_gate(con)
+        except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
+            event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
+        _pt_lap("gate")
+
+
+def _tick_u_mech_merge(con, st):
+        # 1c'''. mechanical merger (G-022 #4, config mech_merge off|shadow|on): one detached unit, never blocks the tick
         try:
-            _timed_spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
-                  s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
-                  add_home_dir=s.get("add_home_dir", True), fresh=s.get("fresh", False),
-                  sandbox_optin=s.get("sandbox_optin") is True)
-        except SandboxRefused as e:
-            sandbox_drop_queued(con, q, s, e)  # spawn() left the row queued; every refusal needs a human fix
-            con.commit()
-        except EvaluatorInvalid:
-            # a trial sandbox that no longer validates (cleaned up, tampered) must not wedge the tick every minute
-            con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
-            con.execute("UPDATE skill_trials SET status='cancelled', passed=0, ended=?, check_output=? "
-                        "WHERE agent=? AND status='running'", (now(), "queued evaluator no longer validates", q["name"]))
-            event(con, "agent", q["name"], "evaluator-spawn-refused", "queued evaluator no longer validates")
-        except SystemExit as e:
-            if s["role"] != "evaluator":
-                start_failed_queued(con, q, s, e)  # T-1135: one dying start must not end the tick; later rows and phases run
+            tick_mech_merge(con)
+        except Exception as e:  # noqa: BLE001 — a bad candidate must never stop the tick
+            event(con, "tick", "mech-merge", "mech-merge-tick-error", str(e)[:300])
+        _pt_lap("mech_merge")
+
+
+def _tick_u_ci_wake(con, st):
+        # 1c'. CI result of a parked team's in_review PR -> mail to its lead, so 1d wakes it in this tick
+        try:
+            tick_ci_wake(con)
+        except Exception as e:  # noqa: BLE001 — a bad PR or team row must never stop the tick
+            event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
+        _pt_lap("ci_wake")
+
+
+def _tick_u_wake_leads(con, st):
+        # 1c''. red/conflicted PR with no coder -> mail the lead (config red_pr_owner_alert), also before 1d
+        try:
+            tick_red_pr_owner(con)
+        except Exception as e:  # noqa: BLE001 — a bad PR or task row must never stop the tick
+            event(con, "tick", "red-pr-owner", "red-pr-error", str(e)[:300])
+    
+        # 1d. wake parked leads (unread mail), BEFORE the dequeue so a queued wake can start in this tick
+        try:
+            tick_wake_leads(con)
+        except Exception as e:  # noqa: BLE001 — a bad team row must never stop the tick
+            event(con, "tick", "wake-leads", "wake-error", str(e)[:300])
+        _pt_lap("wake_leads")
+
+
+def _tick_u_dequeue(con, st):
+        # 2. dequeue spawns while the gate is open. Drain before build: role class first (director, lead, judge, reviewer, qa,
+        # then coder/pm/cleaner/staff-engineer). Inside the coder/pm/... class a merge-only refresh coder (its spawn prompt
+        # contains 'merge-only refresh', any case) goes first: it unblocks an open PR. (A judge is class 2, so it already
+        # runs ahead of every normal coder or pm; PASS verdicts do not change that.) Then queue_order_key's aged priority.
+        # a crash mid-spawn leaves 'starting': after CLAIM_TTL_S it is queued again (the msg-path claim uses the same TTL)
+        con.execute("UPDATE agents SET status='queued', spawn_args=json_remove(spawn_args,'$.claimed_at') WHERE status='starting' "
+                    "AND COALESCE(CAST(json_extract(spawn_args,'$.claimed_at') AS REAL), 0) < ?", (time.time() - CLAIM_TTL_S,))
+        queued = sorted(con.execute("SELECT a.*, COALESCE(g.priority, 2) AS prio, t.priority AS task_prio FROM agents a "
+                                    "LEFT JOIN goals g ON g.id=a.goal_id LEFT JOIN tasks t ON t.id=a.task_id "
+                                    "WHERE a.status='queued'").fetchall(), key=queue_order_key)
+        held = False
+        for q in queued:
+            if not held and not gate(con)[0]:
+                held = True  # a closed gate stops the queue, except for a judge or a lead (exempt from the load cap only) or a cleaner (tmp gate only)
+            if held:
+                try:
+                    qorg = json.loads(q["spawn_args"] or "{}").get("org")
+                except ValueError:
+                    qorg = None
+                qrt = org_runtime(con, q["role"], qorg)
+                if q["role"] == "judge":
+                    ok = gate(con, load_exempt=True, role="judge", runtime=qrt)[0]  # judges ignore the load cap, as in spawn()
+                elif q["role"] == "lead":
+                    ok = gate(con, load_exempt=True, role="lead", runtime=qrt)[0]  # leads skip only the load cap (T-0867); lead caps still apply
+                elif q["role"] == "cleaner" and gate(con, role="cleaner")[0]:
+                    ok = True
+                elif qrt == "cursor" and gate(con, role=q["role"], runtime="cursor")[0]:
+                    ok = True
+                else:
+                    ok = False
+                if not ok:
+                    continue
+            # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
+            cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
+            if not cur:
                 continue
-            # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
-            # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
-            fails = int(s.get("spawn_failures", 0)) + 1
-            if fails >= EVALUATOR_SPAWN_RETRY_MAX:
-                why = f"evaluator spawn failed {fails} times; giving up"
-                con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
-                con.execute("UPDATE skill_trials SET status='error', passed=0, ended=?, check_output=? "
-                            "WHERE agent=? AND status='running'", (now(), why, q["name"]))
-                event(con, "agent", q["name"], "evaluator-spawn-failed", why)
-            else:
-                con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) "
-                            "WHERE name=? AND status='queued'", (fails, q["name"]))
-                event(con, "agent", q["name"], "evaluator-spawn-retry",
-                      f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
-        except Exception as e:  # noqa: BLE001 — one start that dies outside SystemExit must not end the tick (T-1184)
             try:
-                clock = digest_clock().timestamp()
-            except FactoryNowError:
-                clock = time.time()
-            label = s.get("task") or q["name"]
-            entity = "task" if s.get("task") else "agent"
-            key = f"dequeue-spawn-error:{label}"
-            if not _throttled(con, key, clock, 3600):
-                _throttle_set(con, key, clock)
-                event(con, entity, label, "dequeue-spawn-error", type(e).__name__)
-            continue
-    _pt_lap("dequeue")
-    
-    # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
-    try:
-        dispatch_tick(con)
-    except Exception as e:  # noqa: BLE001 — dispatch must never stop the tick
-        event(con, "tick", "dispatch", "dispatch-error", str(e)[:300])
-    _pt_lap("dispatch")
-    
-    # 2c. tick_async_start: confirm the spawns whose agent start did not wait for the TUI (no-op when nothing is pending)
-    try:
-        starting = start_confirm(con, None)
-    except Exception as e:  # noqa: BLE001 — confirming must never stop the tick
-        starting = set()
-        event(con, "tick", "start_confirm", "start-confirm-error", str(e)[:300])
-    _pt_lap("start_confirm")
-    
-    # 2c. review autospawn: start reviewer + QA when a PR opens (config review_autospawn; default off)
-    try:
-        review_autospawn_tick(con)
-    except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
-        event(con, "tick", "review-autospawn", "review-autospawn-error", str(e)[:300])
-    
-    try:
-        coder_ci_resume_tick(con)
-    except Exception as e:  # noqa: BLE001 — a bad PR or task row must never stop the tick
-        event(con, "tick", "coder-ci-resume", "coder-ci-resume-error", str(e)[:300])
-    
-    try:
-        judge_autospawn_tick(con)
-    except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
-        event(con, "tick", "judge-autospawn", "judge-autospawn-error", str(e)[:300])
-    
-    # 3. nudge idle agents that have unread mail; give the director its cycle
-    cooldown = int(cfg(con, "nudge_cooldown_s"))
-    agents = herdr_agents() or []
-    by_name, by_pane = _agents_index(agents)
-    for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
-        if r["role"] == "boss":
-            h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
-            if h and h.get("agent_status") in ("idle", "done"):
-                boss_cd = int(cfg(con, "boss_wake_cooldown_s"))
-                if not (r["last_nudge"] and t - r["last_nudge"] < boss_cd):
-                    wake_after = int(cfg(con, "boss_wake_after_s"))
+                s = json.loads(cur["spawn_args"] or "{}")
+            except ValueError:
+                s = {}
+            if time.time() - s.get("claimed_at", 0) < CLAIM_TTL_S:
+                continue  # a msg is spawning this one right now
+            if "role" not in s:
+                continue  # spawn() has not finished writing the queue snapshot
+            if s["role"] != "evaluator" and start_failed_wait(s):
+                continue  # T-1135: at the failure cap the start is retried every START_FAILED_RETRY_S, not every tick
+            if recently_stopped_in(con, s.get("cwd") or queued_worktree(con, s.get("task"))):
+                continue  # the stopped agent may still be writing in that worktree: start on a later tick
+            if s["role"] == "judge":
+                jhr = task_judge_hold_reason(con, s.get("task"))
+                if jhr:
+                    log_task_judge_hold(con, s.get("task"), jhr)
+                    continue
+            if s["role"] == "judge" and judge_hold(con, s.get("task"), behind_ok=True):
+                continue  # judge cap reached or PR CI not green: the rows behind it may start
+            if s["role"] == "judge" and refresh_lane_hold(con, s.get("task"), queued):
+                continue  # refresh_lane=on: a BEHIND PR that is not the queue head waits without a refresh
+            try:
+                _timed_spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
+                      s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
+                      add_home_dir=s.get("add_home_dir", True), fresh=s.get("fresh", False),
+                      sandbox_optin=s.get("sandbox_optin") is True, host_backend=s.get("host_backend"))
+            except SandboxRefused as e:
+                sandbox_drop_queued(con, q, s, e)  # spawn() left the row queued; every refusal needs a human fix
+                con.commit()
+            except EvaluatorInvalid:
+                # a trial sandbox that no longer validates (cleaned up, tampered) must not wedge the tick every minute
+                con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
+                con.execute("UPDATE skill_trials SET status='cancelled', passed=0, ended=?, check_output=? "
+                            "WHERE agent=? AND status='running'", (now(), "queued evaluator no longer validates", q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-refused", "queued evaluator no longer validates")
+            except SystemExit as e:
+                if s["role"] != "evaluator":
+                    start_failed_queued(con, q, s, e)  # T-1135: one dying start must not end the tick; later rows and phases run
+                    continue
+                # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
+                # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
+                fails = int(s.get("spawn_failures", 0)) + 1
+                if fails >= EVALUATOR_SPAWN_RETRY_MAX:
+                    why = f"evaluator spawn failed {fails} times; giving up"
+                    con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
+                    con.execute("UPDATE skill_trials SET status='error', passed=0, ended=?, check_output=? "
+                                "WHERE agent=? AND status='running'", (now(), why, q["name"]))
+                    event(con, "agent", q["name"], "evaluator-spawn-failed", why)
+                else:
+                    con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) "
+                                "WHERE name=? AND status='queued'", (fails, q["name"]))
+                    event(con, "agent", q["name"], "evaluator-spawn-retry",
+                          f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
+            except Exception as e:  # noqa: BLE001 — one start that dies outside SystemExit must not end the tick (T-1184)
+                try:
                     clock = digest_clock().timestamp()
-                    qualifying = _boss_wake_qualifying(con, r["name"], wake_after, clock)
-                    if qualifying:
-                        an = h.get("name") or r["name"]
-                        tail = herdr("agent", "read", an, "--source", "recent", "--lines", "60", check=False)
-                        pane_text = None
-                        if isinstance(tail, dict):
-                            pane_text = tail.get("text")
-                            if pane_text is None:
-                                pane_text = tail.get("raw")
-                        if (tail is not None and pane_text is not None and not has_unsent_input(pane_text)
-                                and classify_dialog(pane_text)[0] == "unknown"):
-                            kinds = ",".join(sorted({m["kind"] for m in qualifying}))
-                            oldest = qualifying[0]
-                            age_min = int((clock - _ts(oldest["created"]).timestamp()) // 60)
-                            n = len(qualifying)
-                            msg = (f"📬 {n} unread factory message(s) [{kinds}], oldest {age_min} min. "
-                                   "Run `factory inbox` and act on them.")
-                            if herdr("agent", "prompt", an, msg, check=False) is not None:
-                                _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
-                                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (t, r["name"]))
-                                event_as(con, "tick", "agent", r["name"], "boss-wake",
-                                         {"count": n, "oldest": f"M{oldest['id']}", "kinds": kinds})
-            continue
-        if r["name"] in starting:
-            continue  # start pending or just kicked off: no second prompt
-        h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])  # herdr may have resumed it under another name
-        if not h or h.get("agent_status") not in ("idle", "done"):
-            continue
-        if r["last_nudge"] and t - r["last_nudge"] < cooldown:
-            continue
-        unread = con.execute("SELECT count(*) c, group_concat(DISTINCT kind) k FROM messages WHERE recipient=? AND read_at IS NULL",
-                             (r["name"],)).fetchone()
-        text = None
-        if unread["c"]:
-            text = f"📬 {unread['c']} unread factory message(s) [{unread['k']}]. Run `factory inbox` and act on them."
-        elif r["role"] == "director" and (not r["last_nudge"] or t - r["last_nudge"] > int(cfg(con, "director_cycle_s"))):
-            text = "⏱ Director cycle: run your cycle checklist (survey, resources, unblock, report)."
-        if text:
-            an = h.get("name") or r["name"]
-            if herdr("agent", "prompt", an, text, check=False) is not None:
-                _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
-            con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (t, r["name"]))
-    _pt_lap("nudge")
+                except FactoryNowError:
+                    clock = time.time()
+                label = s.get("task") or q["name"]
+                entity = "task" if s.get("task") else "agent"
+                key = f"dequeue-spawn-error:{label}"
+                if not _throttled(con, key, clock, 3600):
+                    _throttle_set(con, key, clock)
+                    event(con, entity, label, "dequeue-spawn-error", type(e).__name__)
+                continue
+        _pt_lap("dequeue")
+
+
+def _tick_u_dispatch(con, st):
+        # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
+        try:
+            dispatch_tick(con)
+        except Exception as e:  # noqa: BLE001 — dispatch must never stop the tick
+            event(con, "tick", "dispatch", "dispatch-error", str(e)[:300])
+        _pt_lap("dispatch")
+
+
+def _tick_u_start_confirm(con, st):
+        # 2c. tick_async_start: confirm the spawns whose agent start did not wait for the TUI (no-op when nothing is pending)
+        try:
+            st["starting"] = starting = start_confirm(con, None)
+        except Exception as e:  # noqa: BLE001 — confirming must never stop the tick
+            starting = set()
+            event(con, "tick", "start_confirm", "start-confirm-error", str(e)[:300])
+        _pt_lap("start_confirm")
+
+
+def _tick_u_nudge(con, st):
+        # 2c. review autospawn: start reviewer + QA when a PR opens (config review_autospawn; default off)
+        try:
+            review_autospawn_tick(con)
+        except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
+            event(con, "tick", "review-autospawn", "review-autospawn-error", str(e)[:300])
     
-    # 4. sidebar: goal progress on each goal workspace, capacity on HQ
-    _, why, s = gate(con)
-    hq = con.execute("SELECT value FROM config WHERE key='hq_workspace'").fetchone()
-    if hq:
-        herdr("workspace", "report-metadata", hq["value"], "--source", "factory", "--token",
-              f"factory={s['live']}/{s['cap']} agents · {s['mem_mb'] // 100 / 10}G free", check=False)
-    for g in con.execute("SELECT g.id,g.status,g.workspace_id,(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status='done') d,"
-                         "(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status!='cancelled') n FROM goals g "
-                         "WHERE workspace_id IS NOT NULL").fetchall():
-        herdr("workspace", "report-metadata", g["workspace_id"], "--source", "factory", "--token",
-              f"factory={g['status']} · {g['d']}/{g['n']} tasks", check=False)
-    for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
-        label = f"{r['role']}·{r['task_id'] or r['team_id'] or r['goal_id'] or 'hq'}"[:28]
-        if r["role"] == "boss":  # badge instead of a nudge: never types into the owner's input
-            n = con.execute("SELECT count(*) FROM messages WHERE recipient=? AND read_at IS NULL", (r["name"],)).fetchone()[0]
-            if n:
-                label = label[:28 - len(f" 📬{n}")] + f" 📬{n}"
-        herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
-              label, "--ttl-ms", "180000", check=False)
-    _pt_lap("sidebar")
-    try:
-        from web import cursor_limits
+        try:
+            coder_ci_resume_tick(con)
+        except Exception as e:  # noqa: BLE001 — a bad PR or task row must never stop the tick
+            event(con, "tick", "coder-ci-resume", "coder-ci-resume-error", str(e)[:300])
     
-        cursor_limits.tick_record(
-            con,
-            herdr_fn=herdr,
-            agent_runtime_of=agent_runtime_of,
-            agent_org_fn=agent_org,
-            send_fn=send,
-            event_fn=event,
-            now_fn=now,
-        )
-    except Exception as e:  # noqa: BLE001 — limit recording must never stop the tick
-        event(con, "tick", "cursor-limits", "cursor-limits-error", str(e)[:300])
-    _pt_lap("cursor_limits")
-    _pt_git(True)
-    export(con)  # the main checkout now holds the merged role files
-    _pt_git(False)
-    _pt_lap("export")
+        try:
+            judge_autospawn_tick(con)
+        except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
+            event(con, "tick", "judge-autospawn", "judge-autospawn-error", str(e)[:300])
+    
+        # 3. nudge idle agents that have unread mail; give the director its cycle
+        cooldown = int(cfg(con, "nudge_cooldown_s"))
+        nudge_eff = terminal_backend_effective(con)[1]
+        nudge_hc_by = {}
+        tui_by_name, tui_by_pane, tui_list_ok = {}, {}, True
+        if nudge_eff == "hc":
+            nudge_agents = herdr_agents() or []
+            if con.execute(
+                "SELECT 1 FROM agents WHERE status='live' "
+                "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+            ).fetchone():
+                tui_agents = _host_agents_list("herdr")
+                tui_list_ok = tui_agents is not None
+                tui_by_name, tui_by_pane = _agents_index(tui_agents or [])
+        else:
+            nudge_agents = _host_agents_list("herdr") or []
+            nudge_hc_list = _host_agents_list("hc") or []
+            nudge_hc_by = {x["name"]: x for x in nudge_hc_list if x.get("name")}
+        nudge_by_name, nudge_by_pane = _agents_index(nudge_agents)
+        for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
+            if r["role"] == "boss":
+                if nudge_eff == "hc" and _agent_host_exe(con, r) == "herdr":
+                    if not tui_list_ok:
+                        continue
+                    h = tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+                elif nudge_eff != "hc" and _agent_host_exe(con, r) == "hc":
+                    h = nudge_hc_by.get(r["name"])
+                else:
+                    h = nudge_by_name.get(r["name"]) or nudge_by_pane.get(r["pane_id"])
+                if h and h.get("agent_status") in ("idle", "done"):
+                    boss_cd = int(cfg(con, "boss_wake_cooldown_s"))
+                    if not (r["last_nudge"] and st["t"] - r["last_nudge"] < boss_cd):
+                        wake_after = int(cfg(con, "boss_wake_after_s"))
+                        clock = digest_clock().timestamp()
+                        qualifying = _boss_wake_qualifying(con, r["name"], wake_after, clock)
+                        if qualifying:
+                            an = h.get("name") or r["name"]
+                            tail = herdr("agent", "read", an, "--source", "recent", "--lines", "60", check=False)
+                            pane_text = None
+                            if isinstance(tail, dict):
+                                pane_text = tail.get("text")
+                                if pane_text is None:
+                                    pane_text = tail.get("raw")
+                            if (tail is not None and pane_text is not None and not has_unsent_input(pane_text)
+                                    and classify_dialog(pane_text)[0] == "unknown"):
+                                kinds = ",".join(sorted({m["kind"] for m in qualifying}))
+                                oldest = qualifying[0]
+                                age_min = int((clock - _ts(oldest["created"]).timestamp()) // 60)
+                                n = len(qualifying)
+                                msg = (f"📬 {n} unread factory message(s) [{kinds}], oldest {age_min} min. "
+                                       "Run `factory inbox` and act on them.")
+                                if herdr("agent", "prompt", an, msg, check=False) is not None:
+                                    _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
+                                    con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (st["t"], r["name"]))
+                                    event_as(con, "tick", "agent", r["name"], "boss-wake",
+                                             {"count": n, "oldest": f"M{oldest['id']}", "kinds": kinds})
+                continue
+            if r["name"] in (st.get("starting") or set()):
+                continue  # start pending or just kicked off: no second prompt
+            if nudge_eff == "hc" and _agent_host_exe(con, r) == "herdr":
+                if not tui_list_ok:
+                    continue
+                h = tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+            elif nudge_eff != "hc" and _agent_host_exe(con, r) == "hc":
+                h = nudge_hc_by.get(r["name"])
+            else:
+                h = nudge_by_name.get(r["name"]) or nudge_by_pane.get(r["pane_id"])
+            if not h or h.get("agent_status") not in ("idle", "done"):
+                continue
+            if r["last_nudge"] and st["t"] - r["last_nudge"] < cooldown:
+                continue
+            unread = con.execute("SELECT count(*) c, group_concat(DISTINCT kind) k FROM messages WHERE recipient=? AND read_at IS NULL",
+                                 (r["name"],)).fetchone()
+            text = None
+            if unread["c"]:
+                text = f"📬 {unread['c']} unread factory message(s) [{unread['k']}]. Run `factory inbox` and act on them."
+            elif r["role"] == "director" and (not r["last_nudge"] or st["t"] - r["last_nudge"] > int(cfg(con, "director_cycle_s"))):
+                text = "⏱ Director cycle: run your cycle checklist (survey, resources, unblock, report)."
+            if text:
+                an = h.get("name") or r["name"]
+                if herdr("agent", "prompt", an, text, check=False) is not None:
+                    _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
+                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (st["t"], r["name"]))
+        _pt_lap("nudge")
 
-    try:  # 4a. a modified or deleted tracked file in the live checkout (alert only, no repair)
-        live_tree_dirty_alert(con)
-    except Exception as e:  # noqa: BLE001 — the alert must never stop the tick
-        event(con, "tick", "live-tree", "live-tree-alert-failed", str(e)[:300])
 
-    try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
-        tick_freshness(con)
-        if con.execute("DELETE FROM throttle WHERE key='fresh-failed'").rowcount:
-            event(con, "tick", "freshness", "freshness-recovered", "freshness check ran again")
-    except Exception as e:  # noqa: BLE001 — the check must never stop the tick
-        err = str(e)[:300]
-        old = con.execute("SELECT ts FROM throttle WHERE key='fresh-failed'").fetchone()
-        if not old or old["ts"] != err:  # one event per new error text, not one per tick
-            con.execute("INSERT INTO throttle(key,ts) VALUES('fresh-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
-            event(con, "tick", "freshness", "freshness-failed", err)
-    _pt_lap("freshness")
+def _tick_u_sidebar(con, st):
+        # 4. sidebar: goal progress on each goal workspace, capacity on HQ
+        _, why, s = gate(con)
+        hq = con.execute("SELECT value FROM config WHERE key='hq_workspace'").fetchone()
+        if hq:
+            herdr("workspace", "report-metadata", hq["value"], "--source", "factory", "--token",
+                  f"factory={s['live']}/{s['cap']} agents · {s['mem_mb'] // 100 / 10}G free", check=False)
+        for g in con.execute("SELECT g.id,g.status,g.workspace_id,(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status='done') d,"
+                             "(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status!='cancelled') n FROM goals g "
+                             "WHERE workspace_id IS NOT NULL").fetchall():
+            herdr("workspace", "report-metadata", g["workspace_id"], "--source", "factory", "--token",
+                  f"factory={g['status']} · {g['d']}/{g['n']} tasks", check=False)
+        for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
+            label = f"{r['role']}·{r['task_id'] or r['team_id'] or r['goal_id'] or 'hq'}"[:28]
+            if r["role"] == "boss":  # badge instead of a nudge: never types into the owner's input
+                n = con.execute("SELECT count(*) FROM messages WHERE recipient=? AND read_at IS NULL", (r["name"],)).fetchone()[0]
+                if n:
+                    label = label[:28 - len(f" 📬{n}")] + f" 📬{n}"
+            herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
+                  label, "--ttl-ms", "180000", check=False)
+        _pt_lap("sidebar")
 
-    try:  # 4c. installed factory-serve unit vs main (read-only; the owner runs the commands)
-        tick_serve_unit_drift(con)
-    except (OSError, sqlite3.Error) as e:
-        event(con, "tick", "serve-unit", "serve-unit-check-failed", str(e)[:300])
 
-    # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
-    try:
-        tick_recycle(con)
-    except Exception as e:  # noqa: BLE001 — one bad agent row or log must not stop the relaunches
-        event(con, "agent", "tick", "recycle-error", str(e)[:300])
-    _pt_lap("recycle")
-    tick_relaunches(con)
-    util_sample(con)
-    util_alerts(con)
-    owner_blocker_alerts(con)
-    owner_alert_feed_tick(con)
-    owner_alert_send_tick(con)
-    goal_token_tally_tick(con)
-    goal_token_warn_tick(con)
-    cap_fallback_offer_tick(con)
-    _pt_lap("util")
-    _pt_emit(con)
+def _tick_u_cursor_limits(con, st):
+        try:
+            from web import cursor_limits
+    
+            cursor_limits.tick_record(
+                con,
+                herdr_fn=herdr,
+                agent_runtime_of=agent_runtime_of,
+                agent_org_fn=agent_org,
+                send_fn=send,
+                event_fn=event,
+                now_fn=now,
+            )
+        except Exception as e:  # noqa: BLE001 — limit recording must never stop the tick
+            event(con, "tick", "cursor-limits", "cursor-limits-error", str(e)[:300])
+        _pt_lap("cursor_limits")
 
+
+def _tick_u_export(con, st):
+        _pt_git(True)
+        export(con)  # the main checkout now holds the merged role files
+        _pt_git(False)
+        _pt_lap("export")
+
+
+def _tick_u_freshness(con, st):
+        try:  # 4a. a modified or deleted tracked file in the live checkout (alert only, no repair)
+            live_tree_dirty_alert(con)
+        except Exception as e:  # noqa: BLE001 — the alert must never stop the tick
+            event(con, "tick", "live-tree", "live-tree-alert-failed", str(e)[:300])
+
+        try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
+            tick_freshness(con)
+            if con.execute("DELETE FROM throttle WHERE key='fresh-failed'").rowcount:
+                event(con, "tick", "freshness", "freshness-recovered", "freshness check ran again")
+        except Exception as e:  # noqa: BLE001 — the check must never stop the tick
+            err = str(e)[:300]
+            old = con.execute("SELECT ts FROM throttle WHERE key='fresh-failed'").fetchone()
+            if not old or old["ts"] != err:  # one event per new error text, not one per tick
+                con.execute("INSERT INTO throttle(key,ts) VALUES('fresh-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
+                event(con, "tick", "freshness", "freshness-failed", err)
+        _pt_lap("freshness")
+
+
+def _tick_u_recycle(con, st):
+        try:  # 4c. installed factory-serve unit vs main (read-only; the owner runs the commands)
+            tick_serve_unit_drift(con)
+        except (OSError, sqlite3.Error) as e:
+            event(con, "tick", "serve-unit", "serve-unit-check-failed", str(e)[:300])
+
+        # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
+        try:
+            tick_recycle(con)
+        except Exception as e:  # noqa: BLE001 — one bad agent row or log must not stop the relaunches
+            event(con, "agent", "tick", "recycle-error", str(e)[:300])
+        _pt_lap("recycle")
+
+
+def _tick_u_relaunches(con, st):
+        tick_relaunches(con)
+
+
+def _tick_u_util(con, st):
+        util_sample(con)
+        util_alerts(con)
+        owner_blocker_alerts(con)
+        owner_alert_feed_tick(con)
+        owner_alert_send_tick(con)
+        goal_token_tally_tick(con)
+        goal_token_warn_tick(con)
+        cap_fallback_offer_tick(con)
+        _pt_lap("util")
+
+
+def _tick_u_emit(con, st):
+        _pt_emit(con)
 
 # ───────────────────────────── export & backup ─────────────────────────────
 
@@ -15700,28 +16791,57 @@ def _sync_target(con):
 
 
 def _is_pr_squash(slug, sha, committer, subject):
-    """(True, "") when `sha` is the GitHub squash of a merged PR: committer noreply@github.com, subject ends (#N), and PR N
-    is merged with merge_commit_sha == sha. (False, why) when it is not; raises RuntimeError when gh cannot say."""
-    if committer.strip().lower() != "noreply@github.com":
+    """(True, detail) when `sha` is a GitHub squash of PR N on main: committer noreply@github.com, subject ends (#N), and
+    either PR N is merged with merge_commit_sha == sha, or PR N is still open and sha's tree is merge-tree(parent, head)
+  . (False, why) when it is not; raises RuntimeError when gh cannot say."""
+    if not _github_squash_committer(committer):
         return False, f"committer {committer.strip()[:3]}*** is not noreply@github.com"
     m = re.search(r"\(#(\d+)\)$", subject.strip())
     if not m:
         return False, "subject does not end with (#N)"
+    n = m.group(1)
     try:
-        p = subprocess.run(["gh", "api", f"repos/{slug}/pulls/{m.group(1)}"], capture_output=True, text=True, timeout=60)
+        p = subprocess.run(["gh", "api", f"repos/{slug}/pulls/{n}"], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as e:
-        raise RuntimeError(f"gh api pulls/{m.group(1)}: {e}")
+        raise RuntimeError(f"gh api pulls/{n}: {e}")
     if p.returncode != 0:
-        raise RuntimeError(f"gh api pulls/{m.group(1)}: {p.stderr.strip()[:200]}")
+        raise RuntimeError(f"gh api pulls/{n}: {p.stderr.strip()[:200]}")
     try:
         pr = json.loads(p.stdout)
     except ValueError as e:
-        raise RuntimeError(f"gh api pulls/{m.group(1)}: not JSON ({e})")
+        raise RuntimeError(f"gh api pulls/{n}: not JSON ({e})")
     if not isinstance(pr, dict):
-        raise RuntimeError(f"gh api pulls/{m.group(1)}: unexpected answer")
-    if not pr.get("merged") or pr.get("merge_commit_sha") != sha:
-        return False, f"PR #{m.group(1)} is not merged with merge_commit_sha {sha[:8]}"
-    return True, ""
+        raise RuntimeError(f"gh api pulls/{n}: unexpected answer")
+    if pr.get("merged") and pr.get("merge_commit_sha") == sha:
+        return True, ""
+    if pr.get("merged"):
+        return False, f"PR #{n} is not merged with merge_commit_sha {sha[:8]}"
+    head = ((pr.get("head") or {}).get("sha") or "").strip()
+    if not head:
+        return False, f"PR #{n} is open with no head"
+    if head == sha:
+        return False, f"PR #{n} is not merged with merge_commit_sha {sha[:8]}"
+    if _git_rc(["cat-file", "-e", f"{head}^{{commit}}"])[0] != 0:
+        for url in _origin_urls() or []:
+            if _git_rc(["fetch", "-q", "--no-write-fetch-head", url, f"+refs/pull/{n}/head:refs/factory-tick/pr-{n}"])[0] == 0:
+                break
+        if _git_rc(["cat-file", "-e", f"{head}^{{commit}}"])[0] != 0:
+            return False, f"PR #{n} head {head[:8]} is not available locally"
+    rc, parents, err = _git_rc(["log", "-1", "--format=%P", sha])
+    if rc != 0:
+        return False, f"cannot read parent of {sha[:8]}: {err or rc}"
+    ps = parents.strip().split()
+    if len(ps) != 1:
+        return False, "not a single-parent commit"
+    rc, mt, err = _git_rc(["merge-tree", "--write-tree", ps[0], head])
+    if rc != 0:
+        return False, f"merge-tree of parent and PR #{n} head failed: {err or rc}"
+    rc, ct, err = _git_rc(["rev-parse", "-q", f"{sha}^{{tree}}"])
+    if rc != 0:
+        return False, f"cannot read tree of {sha[:8]}: {err or rc}"
+    if ct.strip() != mt.strip():
+        return False, f"tree of {sha[:8]} does not match merge-tree of parent and open PR #{n} head"
+    return True, json.dumps({"pr": int(n), "open": True, "sha": sha, "head": head})
 
 
 def public_main_pr_check(con):
@@ -15774,6 +16894,8 @@ def public_main_pr_check(con):
                         send(con, to, f"MERGE FREEZE: non-PR push on {slug} main {sha[:8]}", body, "escalation",
                              sender="tick", org=o)
                 break
+            if why:
+                event(con, "system", slug, "open-pr-squash-on-main", why)
             good = sha
         else:
             good = tip
@@ -16049,6 +17171,8 @@ def cmd_up(a):
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started
+    if cfg(con, "cli_impl") != "python":
+        fetch_cli_go_deps()  # the one network step of the Go CLI; the build below is offline
     guard_tick(con, tick=False)
     agents = herdr_agents()
     if agents is None:  # let systemd show the failure instead of queueing everything against a dead server
@@ -16172,23 +17296,35 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     if not r["session_id"]:
         die(f"{r['name']} has no recorded session id; nothing to resume", 3)
     cursor_ws = agent_cursor_workspace(r) if _agent_runtime(r) == "cursor" else None
-    agents = herdr_agents()
-    if agents is None:
-        die("herdr is unreachable")
+    row_exe = _agent_host_exe(con, r)
+    if row_exe == "hc":
+        agents = _host_agents_list("hc")
+        if agents is None:
+            die("hc is unreachable")
+    else:
+        agents = _listed_agents_for_exe(con, "herdr", r)
+        if agents is None:
+            die("herdr is unreachable")
     pane, close, by_pane, by_pane_cursor = r["pane_id"], False, False, False
     # the session decides which pane hosts the agent; the row's pane id may be stale
     host = next((x for x in agents if (x.get("agent_session") or {}).get("value") == r["session_id"]), None)
+    if not host and row_exe == "hc":
+        host = next((x for x in agents if x.get("name") == r["name"]), None)
     if host:
-        pane = host.get("pane_id")
+        pane = host.get("pane_id") or r["pane_id"]
     elif procs := claude_procs(r["session_id"]):
         # herdr omits agent_session for most workers (sandboxed or not): fall back to the row's own pane, but only when
         # exactly one process runs the session and the entry there is this agent and names no session of its own
         host = next((x for x in agents if pane and x.get("pane_id") == pane and x.get("name") == r["name"]
                      and not (x.get("agent_session") or {}).get("value")), None) if len(procs) == 1 else None
         if not host:
-            die(f"a live claude process runs session {r['session_id']} but herdr lists no pane for it; "
-                "refusing to start a second copy", 3)
-        by_pane = True
+            if row_exe == "hc" and len(procs) == 1:
+                close = True
+            else:
+                die(f"a live claude process runs session {r['session_id']} but herdr lists no pane for it; "
+                    "refusing to start a second copy", 3)
+        else:
+            by_pane = True
     elif _agent_runtime(r) == "cursor":
         ws = agent_cursor_workspace(r)
         if not ws:
@@ -16200,19 +17336,24 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         host = next((x for x in agents if pane and x.get("pane_id") == pane and x.get("name") == r["name"]
                      and not (x.get("agent_session") or {}).get("value")), None)
         if not host:
-            die(f"a live cursor-agent process runs workspace {ws} but herdr lists no pane for it; "
-                "refusing to start a second copy", 3)
-        by_pane, by_pane_cursor = True, True
+            if row_exe == "hc" and len(procs) == 1:
+                close = True
+            else:
+                die(f"a live cursor-agent process runs workspace {ws} but herdr lists no pane for it; "
+                    "refusing to start a second copy", 3)
+        else:
+            by_pane, by_pane_cursor = True, True
     else:
         host = next((x for x in agents if pane and x.get("pane_id") == pane), None)
     if host:
         sess = (host.get("agent_session") or {}).get("value")
-        if sess != r["session_id"] and not by_pane:
+        same_hc = row_exe == "hc" and host.get("name") == r["name"]
+        if sess != r["session_id"] and not by_pane and not same_hc:
             die(f"pane {pane} hosts another agent ({host.get('name')}, session {sess}); refusing to touch it", 3)
         if host.get("agent_status") == "working" and not force:
             die(f"{r['name']} is mid-turn (a relaunch would lose the turn); use --when-idle, or --force", 2)
         close = True
-    elif pane and find_pane(pane):
+    elif pane and row_exe != "hc" and find_pane(pane, tui=_row_needs_tui_ipc(con, r)):
         if not pane_at_shell(pane):
             die(f"pane {pane} runs a process that is not a registered agent; refusing to touch it", 3)
     else:
@@ -16262,12 +17403,26 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         print("(dry run: nothing changed)")
         return
     if close:
-        herdr("pane", "close", pane)
-        for _ in range(20):
-            if not find_pane(pane):
-                break
-            time.sleep(_relaunch_poll_s())
-        pane = None
+        if row_exe == "hc":
+            st = _hc_kill_terminal(con, r["name"])
+            if st != "killed":
+                die(f"hc could not end terminal {r['name']} (state={st}); not restarting", 3)
+            pane = None
+            for _ in range(20):
+                listed = _host_agents_list("hc")
+                if listed is not None and not any(x.get("name") == r["name"] for x in listed):
+                    break
+                time.sleep(_relaunch_poll_s())
+            else:
+                die(f"hc still lists {r['name']} after kill; not restarting", 3)
+        else:
+            tui_ipc = _row_needs_tui_ipc(con, r)
+            _herdr_pane_close(con, r, pane)
+            for _ in range(20):
+                if not find_pane(pane, tui=tui_ipc):
+                    break
+                time.sleep(_relaunch_poll_s())
+            pane = None
         for _ in range(10):  # the prompt file is rewritten next: the old process must be gone first
             if by_pane_cursor and cursor_ws:
                 gone = not claude_procs(r["session_id"]) and not cursor_procs(cursor_ws)
@@ -16350,16 +17505,42 @@ def tick_recycle(con):
                        "AND role IN ('director','lead')").fetchall()
     if not rows:
         return
-    agents = herdr_agents()
+    eff = terminal_backend_effective(con)[1]
+    hc_by_name = {}
+    hc_list_ok = True
+    tui_by_name, tui_by_pane, tui_list_ok = {}, {}, True
+    if eff == "hc":
+        agents = herdr_agents()
+        if con.execute(
+            "SELECT 1 FROM agents WHERE status IN ('live') AND role IN ('director','lead') "
+            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+        ).fetchone():
+            tui_agents = _host_agents_list("herdr")
+            tui_list_ok = tui_agents is not None
+            tui_by_name, tui_by_pane = _agents_index(tui_agents or [])
+    else:
+        agents = _host_agents_list("herdr")
+        hc_list = _host_agents_list("hc")
+        hc_by_name = {x["name"]: x for x in (hc_list or []) if x.get("name")}
+        hc_list_ok = hc_list is not None
     if agents is None:
         return
-    by_name, by_pane = _agents_index(agents)
+    by_name, by_pane = _agents_index(agents or [])
     try:
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
     for r in rows:
-        h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
+        if eff == "hc" and _agent_host_exe(con, r) == "herdr":
+            if not tui_list_ok:
+                continue
+            h = tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+        elif eff != "hc" and _agent_host_exe(con, r) == "hc":
+            if not hc_list_ok:
+                continue
+            h = hc_by_name.get(r["name"])
+        else:
+            h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue  # never mid-turn
         if con.execute("SELECT 1 FROM messages WHERE recipient=? AND read_at IS NULL", (r["name"],)).fetchone():
@@ -16620,6 +17801,24 @@ COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tie
 REVIEW_SKIP_EVERY_S = 86400  # one review-autospawn-skip event per task per day
 REVIEW_PROBE_ERR_EVERY_S = 3600  # one review-autospawn-probe-error event per task per hour
 REVIEW_DEAD_RECHECK_MIN_S = 3600  # a dead task is not probed again for max(director_cycle_s, this)
+_REVIEW_GH_NO_PR = re.compile(r"no pull requests? found|could not resolve to a pullrequest", re.I)
+_REVIEW_GH_TRANSIENT = re.compile(r"HTTP 5\d\d|timed out|timeout|connection (refused|reset|error)", re.I)
+
+
+def _review_gh_no_pr_msg(msg):
+    return bool(msg and _REVIEW_GH_NO_PR.search(str(msg)))
+
+
+def _review_rest_probe_result(exc):
+    """After a successful `gh pr view` gate, REST probe failures: a missing PR stays SystemExit; gh outages become OSError."""
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return OSError(f"cannot verify PR head: REST probe timed out after {exc.timeout}s")
+    if isinstance(exc, SystemExit):
+        msg = exc.code if isinstance(exc.code, str) else str(exc.code)
+        if _review_gh_no_pr_msg(msg):
+            return exc
+        return OSError(msg or "REST PR probe failed")
+    return exc
 
 
 def _review_dead_key(t):
@@ -16666,13 +17865,15 @@ def _review_fetch(pr_url, timeout):
     with contextlib.redirect_stderr(err):
         gate = _tick_pr_view_gate(pr_url, timeout)
         pr = _ci_wake_probe(pr_url, timeout)
-    if isinstance(gate, SystemExit) and not re.search(r"no pull requests? found|could not resolve to a pullrequest", err.getvalue(), re.I):
+    if isinstance(gate, SystemExit) and not _REVIEW_GH_NO_PR.search(err.getvalue()):
         return OSError(f"gh pr view exit {gate.code}: {err.getvalue().strip()[:200]}")
     if isinstance(gate, subprocess.TimeoutExpired):
         return OSError(f"cannot verify PR head: gh pr view timed out after {gate.timeout}s")
     if isinstance(gate, SystemExit):
         return pr if isinstance(pr, dict) else gate
     if isinstance(pr, BaseException):
+        if isinstance(gate, dict):
+            pr = _review_rest_probe_result(pr)
         return gate if isinstance(gate, BaseException) else pr
     if isinstance(gate, BaseException):
         return pr
@@ -16738,7 +17939,14 @@ def _review_pr_problem(con, t, pr, batch, clock, head_known=False):
     """True when review must not start on t: logs the skip event (PR unresolvable by gh, closed or merged, head branch gone from origin)
     or the error event (the check itself could not decide: fail closed). pr is the _ci_wake_probe result."""
     tid = t["id"]
-    if isinstance(pr, SystemExit):  # gh exited non-zero: no such PR, or gh is broken; either way nothing is spawned
+    if isinstance(pr, SystemExit):  # gh exited non-zero: missing PR skips; transient gh errors are probe errors, not dead PRs
+        msg = pr.code if isinstance(pr.code, str) else str(pr.code)
+        if _review_gh_no_pr_msg(msg):
+            _review_skip(con, t, f"gh cannot resolve {t['pr_url']} (gh pr view exit {pr.code})", clock)
+            return True
+        if _REVIEW_GH_TRANSIENT.search(msg):
+            _review_probe_error(con, t, f"gh pr view {t['pr_url']}: {_tick_gh_detail(pr)}", clock)
+            return True
         _review_skip(con, t, f"gh cannot resolve {t['pr_url']} (gh pr view exit {pr.code})", clock)
         return True
     if isinstance(pr, BaseException):
@@ -17654,12 +18862,38 @@ def tick_relaunches(con):
     rows = con.execute("SELECT * FROM agents WHERE status='live' AND relaunch_requested_at IS NOT NULL").fetchall()
     if not rows:
         return
-    agents = herdr_agents()
+    eff = terminal_backend_effective(con)[1]
+    hc_list_ok = True
+    hc_by_name = {}
+    tui_by_name, tui_by_pane, tui_list_ok = {}, {}, True
+    if eff == "hc":
+        agents = herdr_agents()
+        if con.execute(
+            "SELECT 1 FROM agents WHERE status='live' AND relaunch_requested_at IS NOT NULL "
+            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+        ).fetchone():
+            tui_agents = _host_agents_list("herdr")
+            tui_list_ok = tui_agents is not None
+            tui_by_name, tui_by_pane = _agents_index(tui_agents or [])
+    else:
+        agents = _host_agents_list("herdr")
+        hc_list = _host_agents_list("hc")
+        hc_list_ok = hc_list is not None
+        hc_by_name = {x["name"]: x for x in (hc_list or []) if x.get("name")}
     if agents is None:
         return
     by_name, by_pane = _agents_index(agents)
     for r in rows:
-        h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
+        if eff == "hc" and _agent_host_exe(con, r) == "herdr":
+            if not tui_list_ok:
+                continue
+            h = tui_by_name.get(r["name"]) or tui_by_pane.get(r["pane_id"])
+        elif eff != "hc" and _agent_host_exe(con, r) == "hc":
+            if not hc_list_ok:
+                continue
+            h = hc_by_name.get(r["name"])
+        else:
+            h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue  # mid-turn, blocked or not listed: a later tick
         ok, why, _ = gate(con, own_slot=True)  # the agent already holds its slot; never close a pane the gate would queue
@@ -18524,7 +19758,146 @@ def evaluator_home_guard():
             "(FACTORY_HOME=<temp dir> factory <cmd>)", 3)
 
 
+def cli_dispatch_mode(argv, environ=None):
+    """(mode, go binary) from run/cli_impl and the factory-go stamp, as bin/factory reads them; ("python", None) on any
+    doubt. Only the stub execs Go (mode go); here a shadow call is told apart so main() can compare both answers."""
+    environ = os.environ if environ is None else environ
+    if len(argv) < 2 or environ.get("FACTORY_CLI_IMPL") == "python":
+        return "python", None
+    try:
+        mode, srchash, cmds = (RUN / "cli_impl").read_text().strip().split(" ", 2)
+        lib = Path(guard_lib_dir())
+        if mode in ("go", "shadow") and srchash and argv[1] in cmds.split(",") \
+                and _read_line(lib / f"{CLI_GO_BIN}.stamp") == srchash and os.access(lib / CLI_GO_BIN, os.X_OK):
+            return mode, str(lib / CLI_GO_BIN)
+    except (OSError, ValueError):
+        pass
+    return "python", None
+
+
+_DIGEST_LONG_OPTS = ("--goal", "--date", "--hours", "--send")
+
+
+def _digest_argv_sets_send(rest):
+    """Argparse allow_abbrev: unique prefixes of --send (--s, --se, …) flip send like --send."""
+    for a in rest:
+        if not a.startswith("--") or a == "--":
+            continue
+        if a == "--send":
+            return True
+        matches = [o for o in _DIGEST_LONG_OPTS if o.startswith(a)]
+        if len(matches) == 1 and matches[0] == "--send":
+            return True
+    return False
+
+
+_INBOX_LONG_OPTS = ("--all", "--peek", "--agent", "--limit", "--full", "--show")
+
+
+def _inbox_argv_show_token(a):
+    """Argparse allow_abbrev: --s/--sh/--show= map to --show; returns (is_show, inline_value or None)."""
+    if not a.startswith("--") or a == "--":
+        return False, None
+    key, eq, val = a.partition("=")
+    if eq:
+        if key == "--show":
+            return True, val
+        matches = [o for o in _INBOX_LONG_OPTS if o.startswith(key)]
+        if len(matches) == 1 and matches[0] == "--show":
+            return True, val
+        return False, None
+    if a == "--show":
+        return True, None
+    matches = [o for o in _INBOX_LONG_OPTS if o.startswith(a)]
+    if len(matches) == 1 and matches[0] == "--show":
+        return True, None
+    return False, None
+
+
+def _inbox_argv_show_is_readonly(rest):
+    """--show with a non-empty id is read-only; '' or a missing value is the list path and writes read_at (last wins)."""
+    show = None
+    seen = False
+    i = 0
+    while i < len(rest):
+        a = rest[i]
+        is_show, inline = _inbox_argv_show_token(a)
+        if is_show:
+            seen = True
+            if inline is not None:
+                show = inline
+            else:
+                show = ""
+                if i + 1 < len(rest) and not rest[i + 1].startswith("-"):
+                    show = rest[i + 1]
+                    i += 1
+        i += 1
+    if not seen:
+        return False
+    return bool(show) and not show.startswith("-")
+
+
+def cli_shadow_readonly(argv):
+    """Shapes safe under cli_impl=shadow (plan 4.4): read-only answers only; writes stay Python-only."""
+    if len(argv) < 2:
+        return False
+    cmd, rest = argv[1], argv[2:]
+    if cmd in ("whoami", "agents", "flags", "alerts", "scorecard"):
+        return True
+    if cmd == "config" and len(argv) <= 3:
+        return True
+    if cmd == "inbox":
+        return _inbox_argv_show_is_readonly(rest) or "--peek" in rest
+    if cmd == "digest":
+        return not _digest_argv_sets_send(rest)
+    if not rest or rest[0].startswith("-"):
+        return False
+    sub = rest[0]
+    return (cmd == "task" and sub in ("show", "list", "ready")) or (cmd == "goal" and sub in ("show", "list", "tokens")) \
+        or (cmd == "lesson" and sub in ("list", "show")) or (cmd == "team" and sub == "list") \
+        or (cmd == "project" and sub == "list") or (cmd == "gate" and sub in ("show", "list"))
+
+
+def cli_shadow(binary, argv, environ):
+    """Python answers (its output and exit code are passed through), then Go runs the same argv under a 2 s timeout;
+    a difference is logged to logs/cli-shadow.log as hashes only, never text. Returns the exit code."""
+    import hashlib
+    py_env = {k: v for k, v in environ.items() if k != "FACTORY_CLI_TRACE"}  # the parent already traced
+    py_env["FACTORY_CLI_IMPL"] = "python"
+    py = subprocess.run([sys.executable, os.path.realpath(argv[0]), *argv[1:]], env=py_env, capture_output=True)
+    sys.stdout.buffer.write(py.stdout)
+    sys.stdout.buffer.flush()
+    sys.stderr.buffer.write(py.stderr)
+    sys.stderr.buffer.flush()
+    try:
+        go = subprocess.run([argv[0], *argv[1:]], executable=binary, env=environ, capture_output=True,
+                            stdin=subprocess.DEVNULL, timeout=2)
+        go_rc, go_out, go_err = go.returncode, go.stdout, go.stderr
+    except subprocess.TimeoutExpired:
+        go_rc, go_out, go_err = "timeout", b"", b""
+    except OSError:
+        go_rc, go_out, go_err = "oserror", b"", b""
+    if (go_rc, go_out, go_err) != (py.returncode, py.stdout, py.stderr):
+        sha = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
+        line = " ".join([time.strftime("%Y-%m-%dT%H:%M:%S"), sha("\0".join(argv[1:]).encode()), f"py={py.returncode}",
+                         f"go={go_rc}", sha(py.stdout + b"\0" + py.stderr), sha(go_out + b"\0" + go_err)])
+        try:
+            (RUN.parent / "logs").mkdir(parents=True, exist_ok=True)
+            with open(RUN.parent / "logs" / "cli-shadow.log", "a") as f:
+                f.write(line + "\n")
+        except OSError:
+            pass  # the log is best effort; the answer already went out
+    return py.returncode
+
+
 def main():
+    mode, binary = cli_dispatch_mode(sys.argv)
+    if mode == "shadow" and not cli_shadow_readonly(sys.argv):
+        mode = "python"  # only read-only commands are shadowed: a write would run twice
+    if os.environ.get("FACTORY_CLI_TRACE") == "1":
+        print(f"impl={'python' if mode == 'go' else mode}", file=sys.stderr, flush=True)  # go here: the stub could not exec it
+    if mode == "shadow":
+        sys.exit(cli_shadow(binary, sys.argv, os.environ))
     evaluator_home_guard()
     p = argparse.ArgumentParser(prog="factory", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 
@@ -18699,6 +20072,8 @@ def main():
     x.add_argument("--model")
     x.add_argument("--org", help="the org this agent belongs to (default: the goal's org, else yours); e.g. cursor")
     x.add_argument("--sandbox", action="store_true", help="run this one agent in the worker sandbox (reviewer, qa, coder)")
+    x.add_argument("--host-backend", choices=["herdr", "hc"], default=None,
+                   help="spawn on herdr TUI or hc for this agent only; config terminal_backend is unchanged")
     x.set_defaults(fn=cmd_spawn)
     x = sp.add_parser("done", help="worker: finish, send summary to lead, get reaped")
     x.add_argument("--force", action="store_true", help="close even with unread decision/request messages")
@@ -18748,7 +20123,9 @@ def main():
     x.add_argument("--bind"); x.add_argument("--port", type=int)
     x.add_argument("--ttl", type=int, metavar="MIN", help="exit after MIN minutes (0 = never; default 60 on a non-live home, none on the live one)")
     x.set_defaults(fn=cmd_serve)
-    sp.add_parser("tick", help="heartbeat (systemd runs it every minute)").set_defaults(fn=cmd_tick)
+    x = sp.add_parser("tick", help="heartbeat (systemd runs it every minute)")
+    x.add_argument("--phases", metavar="LIST", help=argparse.SUPPRESS)
+    x.set_defaults(fn=cmd_tick)
     x = sp.add_parser("clean", help="remove worktrees and branches of merged/cancelled tasks (cleaner, director); "
                                      "--dry-run still runs git fetch origin")
     x.add_argument("--dry-run", action="store_true")

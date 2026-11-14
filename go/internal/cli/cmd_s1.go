@@ -126,7 +126,7 @@ func pyNull(s sql.NullString) string {
 }
 
 var agentCols = []string{"name", "org", "role", "status", "runtime", "flagless", "relaunch", "goal_id", "team_id", "task_id",
-	"pane_id", "model", "started"}
+	"pane_id", "model", "started", "backend"}
 
 const agentsQuery = "SELECT name,role,status," +
 	"COALESCE(org, json_extract(spawn_args,'$.org'), CASE json_extract(spawn_args,'$.runtime') WHEN 'cursor' " +
@@ -134,7 +134,8 @@ const agentsQuery = "SELECT name,role,status," +
 	"COALESCE(json_extract(spawn_args,'$.runtime'),'claude') AS runtime," +
 	"CASE WHEN flagless THEN 'FLAGLESS' ELSE '' END flagless," +
 	"CASE WHEN relaunch_requested_at IS NOT NULL THEN 'RELAUNCH-PENDING' ELSE '' END relaunch," +
-	"goal_id,team_id,task_id,pane_id,model,started FROM agents"
+	"goal_id,team_id,task_id,pane_id,model,started," +
+	"CASE WHEN json_extract(spawn_args,'$.host_backend') = 'hc' THEN 'hc' ELSE 'herdr' END AS backend FROM agents"
 
 func cmdAgents(db *sql.DB, all bool, out io.Writer) error {
 	q := agentsQuery
@@ -315,8 +316,10 @@ var ruleKeys = map[string]bool{
 	"public_text_repos": true, "frozen_repos": true, "issue_intake_repos": true, "noreply_email": true,
 	"opus_effort": true, "scout_triage_per_run": true, "model_cleaner": true, "guard_impl": true,
 	"sandbox_roles": true, "worker_gh_roles": true, "gh_rw_roles": true, "cursor_pilot_roles": true,
-	"agent_runtimes": true, "worker_gh_repos": true, "factory_remote_url": true, "task_clones": true,
-	"terminal_backend": true, "skilleval_root": true,
+	"agent_runtimes": true, "worker_gh_repos": true, "factory_remote_url": true,
+	"block_conditions": true, "task_clones": true,
+	"terminal_backend": true, "skilleval_root": true, "cli_impl": true, "cli_go_cmds": true, "tick_impl": true,
+	"merged_go_proof": true,
 }
 
 func (d *Deps) cmdConfig(db *sql.DB, c configCmd, out io.Writer) (int, error) {

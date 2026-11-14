@@ -1,0 +1,8 @@
+task
+add
+--goal
+G-1
+--title
+dups
+--after
+T-0001, T-0001 ,

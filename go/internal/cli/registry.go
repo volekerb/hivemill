@@ -16,6 +16,8 @@ type ctx struct {
 	deps *Deps
 	out  *bytes.Buffer
 	errb *bytes.Buffer
+	// trace, when non-nil, records the (verb, table) of every statement run through ctx.exec (see trace.go).
+	trace *[]Stmt
 }
 
 // handler answers one argv shape. parse sees the arguments after the command (and action) words; ok=false means

@@ -9,8 +9,10 @@ import sys
 import time
 import unittest
 
-from harness import FACTORY, PR_URL, REPO, FactoryTestCase, gates_summary
+from harness import FACTORY, PR_URL, REPO, FactoryTestCase, gates_summary, git as harness_git
+from test_judge_landed import GH_SQUASH_ENV
 from test_gate_integration import seed_run
+from test_judge_refresh import GOMOD, GO_STUB
 from test_judge_wait import GH_STUB, GREEN, FAILED, git
 
 # st["run_list"] answers `gh run list` (the main push run check): {"exit": n} fails, {"raw": text} prints text, {"runs": [...]}
@@ -110,9 +112,11 @@ class MechMergeTests(FactoryTestCase):
         self.assertEqual(self.merges(), [])
         self.assertEqual(self.status(), "in_review")
 
-    def cli(self, *args, agent="zz-test-director"):
+    def cli(self, *args, agent="zz-test-director", extra_env=None):
         env = {"PATH": f"{self.gh_dir}{os.pathsep}{self.env.env()['PATH']}", "JW_STATE": str(self.jw_state),
                "JW_CALLS": str(self.jw_calls), "FACTORY_JUDGE_POLL_S": "0.05"}
+        if extra_env:
+            env.update(extra_env)
         return self.env.run(*args, agent=agent, extra_env=env)
 
     def mech(self, mode="on", *extra):
@@ -212,16 +216,31 @@ class MechMergeTests(FactoryTestCase):
         self.assertIn("STALE-ONLY", self.events("mech-blocked")[0])
         self.assertEqual(self.events("refreshed"), [])
 
-    def _behind_ok_main_moves(self, name):
+    def _behind_ok_main_moves(self, name, text="m\n"):
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_strict:zz-test/repo',?)",
                      (json.dumps({"at": time.time(), "strict": False}),))
         other = self.env.home / "other"
         git(self.env.home, "clone", "-q", str(self.remote), str(other))
         (other / name).parent.mkdir(parents=True, exist_ok=True)
-        (other / name).write_text("m\n")
+        (other / name).write_text(text)
         git(other, "add", name)
         git(other, "commit", "-q", "-m", "main moves")
         git(other, "push", "-q", "origin", "HEAD:main")
+
+    def plant_go_stub(self, mode="clash"):
+        go = self.env.user_home / ".local" / "go" / "bin" / "go"
+        go.parent.mkdir(parents=True, exist_ok=True)
+        go.write_text(GO_STUB)
+        go.chmod(go.stat().st_mode | stat.S_IXUSR)
+
+    def _setup_go_behind_clash(self):
+        self.commit("go/go.mod", GOMOD, "go mod")
+        self.commit("go/internal/mergedproof/pr_clash.go", "package mergedproof\nfunc Clash() {}\n", "pr go")
+        self.x = self.publish()
+        self.stub(views=[self.pr(self.x, GREEN)])
+        for agent, summary in (("zz-test-reviewer", "ok"), ("zz-test-qa", gates_summary())):
+            self.assertEqual(self.cli("verdict", "T-0001", "--pass", "--summary", summary, agent=agent).returncode, 0)
+        self._behind_ok_main_moves("go/internal/mergedproof/main_clash.go", "package mergedproof\nfunc Clash() {}\n")
 
     def test_behind_ok_with_tests_yml_changed_on_main_is_refused_for_refresh(self):
         # T-1000: behind_ok must not let a head that predates a CI change merge; the mech merger refuses, never refreshes
@@ -572,7 +591,8 @@ class MechMergeTests(FactoryTestCase):
     def test_late_loser_on_the_landed_path_records_nothing(self):
         self.env.seed_agent("zz-test-judge", "judge")
         git(self.wt, "fetch", "-q", "origin", "main")  # the squash landed on main (this run's merge answer was lost)
-        sq = git(self.wt, "commit-tree", "HEAD^{tree}", "-p", "origin/main", "-m", "feature work (#1)")
+        sq = harness_git("commit-tree", "HEAD^{tree}", "-p", "origin/main", "-m", "feature work (#1)",
+                         cwd=self.wt, env=GH_SQUASH_ENV)
         git(self.wt, "push", "-q", "origin", f"{sq}:refs/heads/main")
         for effect, text in (({"pr_merged": True}, "no longer OPEN"), ({"task_done": True}, "no longer in_review")):
             with self.subTest(effect=effect):
@@ -708,6 +728,19 @@ class MechMergeTests(FactoryTestCase):
         self.assert_held(self.mech("on"), "cannot read main push run")
         blocked = "; ".join(self.events("mech-blocked"))
         self.assertNotIn("main-run check skipped", blocked)
+
+    def test_behind_ok_go_clash_is_blocked(self):
+        self._setup_go_behind_clash()
+        self.plant_go_stub()
+        self.ok("config", "mech_merge", "on")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        blocked = self.events("mech-blocked")
+        self.assertEqual(len(blocked), 1)
+        self.assertIn("MERGED-TREE:", blocked[0])
+        self.assertEqual(self.env.sql("SELECT action FROM events WHERE action='refreshed'"), [])
 
 
 if __name__ == "__main__":
