@@ -167,6 +167,36 @@ func TestGitArchiveRefused(t *testing.T) {
 	}
 }
 
+func TestGitArchiveInitSharedFromAnyCwd(t *testing.T) {
+	// T-0330: archive -o and git init into the shared checkout are refused from any cwd.
+	f := newGitFix(t)
+	h, s := f.home, f.scratch
+	rel, err := filepath.Rel(s, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relOut := filepath.Join(rel, "x.tar")
+	for _, cmd := range []string{
+		"git archive -o " + h + "/x.tar HEAD",
+		"git init " + h + "/r",
+		"git archive --output=" + h + "/x HEAD",
+	} {
+		f.blocked(t, cmd, f.wt, "coder")
+	}
+	for _, cmd := range []string{
+		"git archive -o " + h + "/x.tar HEAD",
+		"git archive -o $HOME/factory/x HEAD",
+		"git archive -o " + f.link + "/x.tar HEAD",
+		"git archive -o " + relOut + " HEAD",
+		"git init " + h + "/r",
+	} {
+		f.blocked(t, cmd, s, "coder")
+	}
+	f.allowed(t, "git archive -o "+s+"/x.tar HEAD", f.wt, "coder")
+	f.allowed(t, "git init "+s+"/r", f.wt, "coder")
+	f.allowed(t, "git archive HEAD | tar -x -C "+s, f.wt, "coder")
+}
+
 func TestGitInitScratchAllowedSharedRefused(t *testing.T) {
 	f := newGitFix(t)
 	s, h := f.scratch, f.home

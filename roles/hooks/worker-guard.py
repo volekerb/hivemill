@@ -3782,6 +3782,9 @@ class Analyzer:
         if i >= len(rest):
             return
         sub, args = rest[i], rest[i + 1:]
+        if not self.hq and sub in ("archive", "init") and self.git_any_cwd_shared_targets(sub, args, cwd, dyn):
+            shown = " ".join(["git", sub, *args])
+            raise GitBlock(f"`{shown[:80]}`: {SHARED_ADVICE}")
         if not self.git_mutates(sub, args) or not self.git_is_shared(cwd, dyn, git_dir, work_tree):
             return
         if sub == "init" and not (cfg or git_dir or work_tree) and self.git_outside_shared(args, cwd, dyn):
@@ -3791,11 +3794,10 @@ class Analyzer:
         shown = " ".join(["git", sub, *args])
         raise GitBlock(f"`{shown[:80]}`: {SHARED_ADVICE}")
 
-    def git_outside_shared(self, args, cwd, dyn):
-        """T-0303: `git init` is allowed in a shared checkout's cwd only for exactly one literal directory inside
-        the worker's own scratchpad. An option or path not understood is unsafe."""
+    def git_init_paths(self, args, cwd, dyn):
+        """Directory argument(s) for `git init`, or ['.'] when none. None when not decidable (T-0330)."""
         if dyn:
-            return False
+            return None
         out, k = [], 0
         while k < len(args):
             a = args[k]
@@ -3809,17 +3811,50 @@ class Analyzer:
             if name in ("-b", "--initial-branch"):
                 if not eq:
                     if k >= len(args):
-                        return False
+                        return None
                     k += 1
             elif a.startswith("-") and a != "-":
-                return False  # --separate-git-dir, --template, an unknown option
+                return None  # --separate-git-dir, --template, an unknown option
             else:
                 out.append(a)
-        if len(out) != 1:
+        while out and out[-1] in ("+", ";", "\\;"):
+            out.pop()
+        if len(out) > 1:
+            return None
+        return [out[0] if out else "."]
+
+    def git_path_writes_shared(self, target, cwd, dyn):
+        """True when a git archive/init write target must be refused: inside the shared checkout or not decidable."""
+        if dyn and not os.path.isabs(target):
+            return True
+        if target in ("{}", "{:}"):  # find -exec placeholder, not a shell brace expansion
             return False
-        target = out[0]
         if not target or self.dynamic_dir(target) or target.startswith("~"):
-            return False  # quoted '~' is a literal name to git: not decidable here
+            return True  # quoted '~' is a literal name to git: not decidable here
+        path = os.path.realpath(target if os.path.isabs(target) else os.path.join(cwd, target))
+        if in_scratchpad(path):
+            return False
+        return any(under(path, h) for h in self.git_homes())
+
+    def git_any_cwd_shared_targets(self, sub, args, cwd, dyn):
+        """T-0330: refuse archive -o/--output and git init that write into the shared checkout from any cwd."""
+        if sub == "archive":
+            outs = opt_values(args, "o", {"--output"})
+            return bool(outs) and any(self.git_path_writes_shared(t, cwd, dyn) for t in outs)
+        if sub == "init":
+            paths = self.git_init_paths(args, cwd, dyn)
+            if paths is None:
+                return True
+            return any(self.git_path_writes_shared(p, cwd, dyn) for p in paths)
+        return False
+
+    def git_outside_shared(self, args, cwd, dyn):
+        """T-0303: `git init` is allowed in a shared checkout's cwd only for exactly one literal directory inside
+        the worker's own scratchpad. An option or path not understood is unsafe."""
+        paths = self.git_init_paths(args, cwd, dyn)
+        if paths is None or len(paths) != 1 or paths[0] == ".":
+            return False
+        target = paths[0]
         path = os.path.realpath(target if os.path.isabs(target) else os.path.join(cwd, target))
         return in_scratchpad(path)  # M5368: only the worker's own scratchpad, never a shared home, ancestor or worktree
 

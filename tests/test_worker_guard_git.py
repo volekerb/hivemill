@@ -203,6 +203,32 @@ class ArchiveInitTests(GitGuardBase):
                 p = hook_run(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.home}), ["--hq"], env={**os.environ, "HOME": self.tmp, "WORKER_GUARD_LIVE_HOME": self.home})
                 self.assertEqual(p.returncode, 0, p.stderr)
 
+    def test_archive_init_shared_refused_from_worktree_cwd(self):
+        """T-0330: archive -o and git init into the shared checkout are refused from the task worktree cwd."""
+        h, s = self.home, self.scratch
+        for cmd in ("git archive -o %s/x.tar HEAD" % h, "git init %s/r" % h, "git archive --output=%s/x HEAD" % h):
+            with self.subTest(cmd=cmd):
+                self.blocked(cmd, cwd=self.wt)
+
+    def test_archive_init_shared_refused_from_scratch_cwd(self):
+        """T-0330: same rule from a scratchpad cwd (not the shared checkout)."""
+        h, s = self.home, self.scratch
+        rel_out = os.path.join(os.path.relpath(h, s), "x.tar")
+        for cmd in ("git archive -o %s/x.tar HEAD" % h,
+                    "git archive -o $HOME/factory/x HEAD",
+                    "git archive -o %s/x.tar HEAD" % self.link,
+                    "git archive -o %s HEAD" % rel_out,
+                    "git init %s/r" % h):
+            with self.subTest(cmd=cmd):
+                self.blocked(cmd, cwd=s)
+
+    def test_archive_init_scratch_still_allowed_from_worktree(self):
+        """T-0330: scratchpad targets stay allowed from the worktree cwd."""
+        s = self.scratch
+        self.allowed("git archive -o %s/x.tar HEAD" % s, cwd=self.wt)
+        self.allowed("git init %s/r" % s, cwd=self.wt)
+        self.allowed("git archive HEAD | tar -x -C %s" % s, cwd=self.wt)
+
 
 class WorktreeTests(GitGuardBase):
     def test_linked_worktree_allowed(self):

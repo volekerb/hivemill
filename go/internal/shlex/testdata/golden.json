@@ -19712,6 +19712,196 @@
 "src": "corpus"
 },
 {
+"input": "cd @SCRATCH@ && git archive -o @SHARED@/x.tar HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SCRATCH@",
+"&&",
+"git",
+"archive",
+"-o",
+"@SHARED@/x.tar",
+"HEAD"
+]
+},
+{
+"input": "cd @SCRATCH@ && git archive -o @SHARED@/x.tar HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"SCRATCH",
+"@",
+"&&",
+"git",
+"archive",
+"-o",
+"@",
+"SHARED",
+"@",
+"/x.tar",
+"HEAD"
+]
+},
+{
+"input": "cd @SCRATCH@ && git archive -o @SHARED@/x.tar HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SCRATCH@",
+"&&",
+"git",
+"archive",
+"-o",
+"@SHARED@/x.tar",
+"HEAD"
+]
+},
+{
+"input": "cd @SCRATCH@ && git archive -o @SHARED@/x.tar HEAD",
+"mode": "quote",
+"quoted": "'cd @SCRATCH@ && git archive -o @SHARED@/x.tar HEAD'",
+"src": "corpus"
+},
+{
+"input": "cd @SCRATCH@ && git init @SHARED@/r",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SCRATCH@",
+"&&",
+"git",
+"init",
+"@SHARED@/r"
+]
+},
+{
+"input": "cd @SCRATCH@ && git init @SHARED@/r",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"SCRATCH",
+"@",
+"&&",
+"git",
+"init",
+"@",
+"SHARED",
+"@",
+"/r"
+]
+},
+{
+"input": "cd @SCRATCH@ && git init @SHARED@/r",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SCRATCH@",
+"&&",
+"git",
+"init",
+"@SHARED@/r"
+]
+},
+{
+"input": "cd @SCRATCH@ && git init @SHARED@/r",
+"mode": "quote",
+"quoted": "'cd @SCRATCH@ && git init @SHARED@/r'",
+"src": "corpus"
+},
+{
+"input": "git archive -o @SHARED@/x.tar HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"archive",
+"-o",
+"@SHARED@/x.tar",
+"HEAD"
+]
+},
+{
+"input": "git archive -o @SHARED@/x.tar HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"archive",
+"-o",
+"@",
+"SHARED",
+"@",
+"/x.tar",
+"HEAD"
+]
+},
+{
+"input": "git archive -o @SHARED@/x.tar HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"archive",
+"-o",
+"@SHARED@/x.tar",
+"HEAD"
+]
+},
+{
+"input": "git archive -o @SHARED@/x.tar HEAD",
+"mode": "quote",
+"quoted": "'git archive -o @SHARED@/x.tar HEAD'",
+"src": "corpus"
+},
+{
+"input": "git init @SHARED@/r",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@SHARED@/r"
+]
+},
+{
+"input": "git init @SHARED@/r",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@",
+"SHARED",
+"@",
+"/r"
+]
+},
+{
+"input": "git init @SHARED@/r",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@SHARED@/r"
+]
+},
+{
+"input": "git init @SHARED@/r",
+"mode": "quote",
+"quoted": "'git init @SHARED@/r'",
+"src": "corpus"
+},
+{
 "input": "git config --global user.name x",
 "mode": "script",
 "src": "corpus",
@@ -144570,7 +144760,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3311,
+"corpus_commands": 3315,
 "edge_inputs": 123,
 "python": "3.13"
 }
