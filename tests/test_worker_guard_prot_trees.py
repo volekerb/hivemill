@@ -618,7 +618,9 @@ class GoToolchainForWorkers(ProtTreesCase):
                 self.G + "go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
                 "GOBIN=~/.local/go/bin " + self.G + "go install ./...", self.G + "go env -w GOFLAGS=x",
                 self.G + "go test -coverprofile=~/.local/go/c.out ./...", "GOCACHE=~/.local/lib/factory/x " + self.G + "go test",
-                self.G + "../../go/bin/go test", self.G + "gofmt -w ../x.go", self.G + "gofmt -w"]
+                self.G + "../../go/bin/go test", self.G + "gofmt -w ../x.go", self.G + "gofmt -w",
+                self.G + "go test -exec \"git push\" ./...", self.G + "go build -toolexec=/tmp/x ./...",
+                self.G + "go vet -vettool=/tmp/x ./...", "GOFLAGS=-exec=/tmp/x " + self.G + "go test ./..."]
         for role in ("coder", "qa", "reviewer"):
             for cmd in cmds:
                 r = run(cmd, "wt", role=role)

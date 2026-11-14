@@ -13,6 +13,7 @@ var tcRoles = set("coder", "qa", "reviewer")
 var tcSubs = set("build", "test", "vet", "run", "list", "env", "version", "fmt", "mod")
 var tcModSubs = set("verify", "graph", "why")
 var tcWriteFlags = set("o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir", "modfile")
+var tcExecFlags = set("exec", "toolexec", "vettool")
 var tcEnvNames = set("GOTOOLCHAIN", "GOFLAGS", "GOPROXY", "GOCACHE", "GOMODCACHE", "CGO_ENABLED", "PATH")
 var reTcHomeWord = regexp.MustCompile(`^\$(?:HOME|\{HOME\})/\.local/go/bin/(?:go|gofmt)$`)
 var reTcFlag = regexp.MustCompile(`^--?([A-Za-z-]+)(=(.*))?$`)
@@ -68,6 +69,9 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 			k++
 			if m == nil {
 				continue
+			}
+			if in(tcExecFlags, m[1]) {
+				return block("-" + m[1] + " runs a program the guard does not inspect")
 			}
 			if in(tcWriteFlags, m[1]) {
 				v, has := m[3], m[2] != ""

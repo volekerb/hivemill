@@ -138,7 +138,9 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		g + "go work sync", g + "go", "GOFLAGS=-mod=mod " + g + "go test ./...", "GOPROXY=on " + g + "go test", "GOROOT=/tmp/x " + g + "go test",
 		"echo x > ~/.local/go/bin/go", "cp /tmp/x ~/.local/go/bin/go", g + "go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
 		"GOBIN=~/.local/go/bin " + g + "go install ./...", g + "go env -w GOFLAGS=x", g + "go test -coverprofile=~/.local/go/c.out ./...",
-		"GOCACHE=~/.local/lib/factory/x " + g + "go test", g + "../../go/bin/go test", g + "gofmt -w ../x.go", g + "gofmt -w"}
+		"GOCACHE=~/.local/lib/factory/x " + g + "go test", g + "../../go/bin/go test", g + "gofmt -w ../x.go", g + "gofmt -w",
+		g + "go test -exec \"git push\" ./...", g + "go build -toolexec=/tmp/x ./...", g + "go vet -vettool=/tmp/x ./...",
+		"GOFLAGS=-exec=/tmp/x " + g + "go test ./..."}
 	for _, role := range []string{"coder", "qa", "reviewer"} {
 		for _, c := range allow {
 			if err := Check(c, wt, role, false); err != nil {

@@ -1441,13 +1441,13 @@ def fold_mktemp(toks):
     return out
 
 
-
 # T-1498: the Go toolchain for workers. coder, qa and reviewer may EXECUTE ~/.local/go/bin/go and gofmt (the tree stays
 # protected: nothing here lets them write into it). A fixed subcommand list, a fixed env-prefix list, no network.
 TC_ROLES = ("coder", "qa", "reviewer")
 TC_SUBS = {"build", "test", "vet", "run", "list", "env", "version", "fmt"}
 TC_MOD_SUBS = {"verify", "graph", "why"}
 TC_WRITE_FLAGS = ("o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir", "modfile")
+TC_EXEC_FLAGS = ("exec", "toolexec", "vettool")
 TC_ENV_NAMES = {"GOTOOLCHAIN", "GOFLAGS", "GOPROXY", "GOCACHE", "GOMODCACHE", "CGO_ENABLED", "PATH"}
 TC_MODCACHE = os.path.join(PW_DIR, ".local", "lib", "factory", "go", "mod")
 TC_PATH_VALUE = re.compile(r"^(?:~|\$HOME|\$\{HOME\}|" + re.escape(PW_DIR) + r")/\.local/go/bin:\$(?:PATH|\{PATH\})$")
@@ -2648,6 +2648,8 @@ class Analyzer:
             while k < len(words):
                 m = re.match(r"^--?([A-Za-z-]+)(=(.*))?$", words[k])
                 k += 1
+                if m and m.group(1) in TC_EXEC_FLAGS:
+                    block(f"-{m.group(1)} runs a program the guard does not inspect")
                 if m and m.group(1) in TC_WRITE_FLAGS:
                     v = m.group(3) if m.group(2) else (words[k] if k < len(words) else None)
                     if v and self.prot_hit(v):

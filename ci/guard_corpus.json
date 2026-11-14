@@ -19502,6 +19502,66 @@
       "note": "T-1498: Go toolchain for workers (exec only)",
       "cmd": "cp /tmp/x ~/.local/go/bin/go",
       "role": "reviewer"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go test -exec \"git push\" ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go test -exec \"git push\" ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go test -exec \"git push\" ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
     }
   ],
   "must_allow": [
