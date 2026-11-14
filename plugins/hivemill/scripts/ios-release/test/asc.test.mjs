@@ -237,6 +237,7 @@ test("CLI failures: exit codes and no secrets on stderr", async () => {
   mock.on("GET", "/v1/apps", [{ status: 200, body: { data: [] } }]);
   cases.push([await cli(["app-id", "--bundle-id", "com.example.a"]), 6, /no App Store Connect app/]);
   cases.push([await cli(["bogus"]), 2, /unknown/]);
+  cases.push([await cli(["constructor"]), 2, /unknown/]);
   cases.push([await cli(["app-id", "--bundle-id", "x", "--extra", "y"]), 2, /unknown flag/]);
   cases.push([await cli(["app-id"]), 2, /needs/]);
   cases.push([await cli(["app-id", "--bundle-id", "x"], { ...baseEnv(), ASC_KEY_ID: "" }), 4, /ASC_KEY_ID/]);

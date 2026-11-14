@@ -35,7 +35,7 @@ test("CLI exits 5 when over 4000 characters", () => {
   assert.match(r.stderr, /4000/);
 });
 
-test("CLI accepts exactly 4000 characters", () => {
-  const r = run("x".repeat(3999));
+test("CLI accepts exactly 4000 characters (content plus the final newline)", () => {
+  const r = run("x".repeat(4000));
   assert.equal(r.status, 0);
 });

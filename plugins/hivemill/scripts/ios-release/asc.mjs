@@ -34,7 +34,7 @@ export function signJwt(keyId, issuerId, privateKeyPem, nowSeconds) {
 export function resolveBaseUrl(override) {
   if (override === undefined || override === "") return DEFAULT_BASE_URL;
   if (override === DEFAULT_BASE_URL || /^http:\/\/(127\.0\.0\.1|localhost):\d{1,5}$/.test(override)) return override;
-  throw new AscError(2, "HIVEMILL_ASC_API_BASE is not allowed: use the default or http://127.0.0.1:<port>");
+  throw new AscError(2, "HIVEMILL_ASC_API_BASE is not allowed: use the default, http://127.0.0.1:<port> or http://localhost:<port>");
 }
 
 export function loadKey(keyPath) {
@@ -208,7 +208,7 @@ const COMMANDS = {
 
 export function parseArgs(argv) {
   const [cmd, ...rest] = argv;
-  const spec = COMMANDS[cmd];
+  const spec = Object.hasOwn(COMMANDS, cmd) ? COMMANDS[cmd] : null;
   if (!spec) throw new AscError(2, `unknown or missing command; expected one of: ${Object.keys(COMMANDS).join(", ")}`);
   const flags = {};
   for (let i = 0; i < rest.length; i += 2) {
