@@ -137,11 +137,27 @@ class TickPhasesHandoff(FactoryTestCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn("herdr list missing", p.stderr)
 
+    def test_refuse_herdr_null_past_prune(self):
+        self.hold_lock()
+        h = self.handoff({"agents": None})
+        p = self.phases("side", h)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("herdr list missing", p.stderr)
+
     def test_refuse_handoff_outside_run(self):
         self.hold_lock()
         outside = self.env.home / "tick-handoff.json"
         outside.write_text(json.dumps({"v": 1, "pid": os.getppid(), "state": {}}))
         p = self.phases("hygiene", outside)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("factory: tick --phases", p.stderr)
+
+    def test_refuse_handoff_pid_not_ppid(self):
+        self.hold_lock()
+        h = self.handoff({"agents": [{"name": "x", "pane_id": "p1"}]})
+        wrong = 1 if os.getppid() != 1 else 2
+        h.write_text(json.dumps({"v": 1, "pid": wrong, "timers": True, "state": {"agents": []}}) + "\n")
+        p = self.phases("hygiene", h)
         self.assertEqual(p.returncode, 2)
         self.assertIn("factory: tick --phases", p.stderr)
 

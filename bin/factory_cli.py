@@ -15629,6 +15629,7 @@ TICK_HANDOFF_V = 1
 
 def _tick_new_state():
     return {"agents": None, "t": None, "hc_back": None, "starting": None, "by_name": None, "by_pane": None,
+            "hc_by_name": None, "hc_list_ok": None, "tui_by_name": None, "tui_by_pane": None, "tui_list_ok": None,
             "stop": False}
 
 
@@ -15693,7 +15694,8 @@ def _tick_expand_phases(spec):
 
 def _tick_handoff_state_public(st):
     pub = {}
-    for key in ("agents", "t", "hc_back", "starting"):
+    for key in ("agents", "t", "hc_back", "starting",
+                "hc_by_name", "hc_list_ok", "tui_by_name", "tui_by_pane", "tui_list_ok"):
         if key in st:
             val = st[key]
             if key == "starting" and isinstance(val, set):
@@ -15718,11 +15720,12 @@ def _tick_need_agents(units, doc):
         return
     if "herdr_list" in units:
         return
-    if "agents" not in (doc.get("state") or {}):
+    state = doc.get("state") or {}
+    if "agents" not in state or state["agents"] is None:
         _tick_phases_die("herdr list missing")
 
 
-def _tick_handoff_write(path, doc, st, t0=None):
+def _tick_handoff_write(path, doc, st, t0=None, migrate_ran=False, pre_reset=None):
     known = {"v", "pid", "elapsed", "timers", "state", "laps", "counters", "tail", "pre_reset", "total", "stop"}
     extra = {k: v for k, v in doc.items() if k not in known}
     tail = max(0.0, time.perf_counter() - _PT["last"]) if _PT.get("on") else 0.0
@@ -15738,10 +15741,10 @@ def _tick_handoff_write(path, doc, st, t0=None):
         "tail": tail,
         "stop": bool(st.get("stop")),
     }
-    if doc.get("pre_reset") is not None:
+    if pre_reset is not None:
+        payload["pre_reset"] = pre_reset
+    elif doc.get("pre_reset") is not None:
         payload["pre_reset"] = doc["pre_reset"]
-    elif t0 is not None and _PT.get("on"):
-        payload["pre_reset"] = time.perf_counter() - t0
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(payload, separators=(",", ":")) + "\n")
     os.chmod(tmp, 0o600)
@@ -15764,8 +15767,13 @@ def _cmd_tick_phases(spec):
     st = _tick_state_from_handoff(doc)
     t0 = time.perf_counter()
     con = None
+    migrate_ran = False
+    pre_reset = None
     if "migrate_db" in units:
+        migrate_ran = True
         con = _tick_u_migrate_db(con, st)
+        if doc.get("timers") and _PT.get("on"):
+            pre_reset = time.perf_counter() - t0
         units = [u for u in units if u != "migrate_db"]
     elif "emit" not in units or len(units) > 1:
         con = db()
@@ -15779,26 +15787,35 @@ def _cmd_tick_phases(spec):
                 _PT["t0"] = time.perf_counter() - float(doc["total"])
         con = con or db()
         _tick_u_emit(con, st)
-        _tick_handoff_write(path, doc, st, t0=t0)
+        _tick_handoff_write(path, doc, st, t0=t0, migrate_ran=migrate_ran, pre_reset=pre_reset)
         return
     if con is None:
         con = db()
     if doc.get("timers"):
-        _pt_reset(con)
-        if not _PT["on"]:
-            _PT.update(on=True, phases=[], counters={}, git_n=0, git_mark=0)
-            _PT["t0"] = _PT["last"] = time.perf_counter()
+        if migrate_ran:
+            if not _PT["on"]:
+                _PT.update(on=True, phases=[], counters={}, git_n=0, git_mark=0)
+                _PT["t0"] = _PT["last"] = time.perf_counter()
+        else:
+            _PT["on"] = True
+            _PT["phases"] = [(x[0], float(x[1])) for x in doc.get("laps", [])]
+            _PT["counters"] = dict(doc.get("counters") or {})
+            _PT["t0"] = time.perf_counter()
+            if doc.get("total") is not None:
+                _PT["t0"] = time.perf_counter() - float(doc["total"])
+            _PT["last"] = time.perf_counter()
     for i, u in enumerate(units):
         if u == "offline":
             if st.get("agents") is None:
                 _tick_u_offline(con, st)
-            break
+                break
+            continue
         globals()[f"_tick_u_{u}"](con, st)
         if u == "judge_ci_prune" and _tick_after_prune_offline(con, st, units, i):
             break
         if st.get("stop"):
             break
-    _tick_handoff_write(path, doc, st, t0=t0)
+    _tick_handoff_write(path, doc, st, t0=t0, migrate_ran=migrate_ran, pre_reset=pre_reset)
 
 
 def cmd_tick(a, locked=False):
