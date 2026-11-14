@@ -674,6 +674,37 @@ class CliImplTests(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.flag.read_text(), f"go {self.h} whoami\n")
 
+    def test_tick_impl_go_adds_tick_with_cli_impl_python(self):
+        self.cfg("cli_impl", "python")
+        self.cfg("tick_impl", "go")
+        self.assertEqual(self.flag.read_text().strip(), f"go {self.h} tick")
+
+    def test_tick_impl_go_with_cli_go_cmds_includes_tick(self):
+        self.cfg("cli_impl", "go")
+        self.cfg("cli_go_cmds", "whoami")
+        self.cfg("tick_impl", "go")
+        self.assertEqual(self.flag.read_text().strip(), f"go {self.h} whoami,tick")
+
+    def test_tick_impl_go_shadow_warns_and_no_tick_in_csv(self):
+        self.cfg("cli_impl", "shadow")
+        p = self.env.run("config", "tick_impl", "go", agent="dir-1", inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("cli_impl is shadow; the tick stays python", p.stderr)
+        self.assertNotIn("tick", self.flag.read_text())
+
+    def test_tick_impl_bogus_exit_2(self):
+        p = self.env.run("config", "tick_impl", "bogus", agent="dir-1", inproc=False)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("tick_impl must be one of python, go", p.stderr)
+
+    def test_cli_go_cmds_tick_refused(self):
+        p = self.env.run("config", "cli_go_cmds", "tick", agent="dir-1", inproc=False)
+        self.assertEqual(p.returncode, 2, p.stderr)
+
+    def test_tick_impl_director_only(self):
+        p = self.env.run("config", "tick_impl", "go", agent="lead-1", inproc=False)
+        self.assertEqual(p.returncode, 3, p.stderr)
+
     @unittest.skipUnless(REAL_GO, "no ~/.local/go/bin/go toolchain")
     def test_build_cli_go_writes_binary_then_stamp(self):
         repo, lib = self.lib.parent / "repo", self.lib.parent / "lib2"
