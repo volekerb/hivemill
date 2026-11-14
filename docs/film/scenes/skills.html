@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Role skills</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .head { position: absolute; left: 0; right: 0; top: 60px; text-align: center; }
+  .head .title { font-size: 68px; }
+  .rc { position: absolute; left: 0; top: 0; width: 236px; height: 350px; padding: 26px 22px; transform-origin: 50% 100%; }
+  .rc .role { white-space: nowrap; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+  .rc .n { margin-top: 4px; font-size: 18px; font-weight: 500; color: var(--ink-3); }
+  .rc .bar { height: 4px; border-radius: 2px; margin: 18px 0 16px; }
+  .rc .sk { font-family: var(--mono); font-size: 17px; color: var(--ink-2); padding: 8px 10px; margin: 0 -10px 4px;
+    border-radius: 8px; white-space: nowrap; }
+  .rc .sk.hl { color: var(--ink-1); }
+  #cmd { position: absolute; left: 670px; top: 0; width: 580px; height: 96px; border-radius: 48px; display: flex;
+    align-items: center; padding: 0 40px; gap: 22px; background: rgb(17,17,19); box-shadow: 0 0 0 1px rgb(58,58,60), 0 30px 80px rgba(0,0,0,0.6);
+    font-family: var(--mono); font-size: 40px; font-weight: 700; }
+  #cmd .p { color: var(--accent); }
+  #cmd .cur { display: inline-block; width: 20px; height: 44px; background: var(--ink-1); vertical-align: -8px; margin-left: 4px; }
+</style>
+</head><body>
+<div class="backdrop"></div>
+<div class="stage">
+  <img class="brand" id="brand" src="../../images/wordmark-dark.svg" alt="Hivemill">
+  <div class="head" id="head"><h1 class="title">41 role skills · 7 roles</h1></div>
+  <div id="cards"></div>
+  <div id="cmd"><span class="p">›</span><span id="typed"></span><span class="cur" id="cur"></span></div>
+</div>
+<script src="film.js"></script>
+<script>
+(function () {
+  'use strict';
+  const { prog, fade, tr, $, lerp, easeBack, easeInOut } = Film;
+  // Real skill names from roles/plugins/<role>/*/skills/; the three the caption names are highlighted.
+  const ROLES = [
+    { role: 'coder', n: 7, c: 'rgb(77,163,255)', sk: ['self-review', 'pre-pr-check', 'go-change'], hl: 0 },
+    { role: 'reviewer', n: 2, c: '#C4A7FF', sk: ['multi-angle-review', 'go-review'], hl: 0 },
+    { role: 'researcher', n: 7, c: 'rgb(95,211,138)', sk: ['benchmark-protocol', 'source-evaluation', 'report-writing'], hl: 0 },
+    { role: 'pm', n: 6, c: '#FFC65C', sk: ['plan-quality', 'research-plan', 'language-choice'], hl: -1 },
+    { role: 'lead', n: 8, c: 'rgb(92,208,219)', sk: ['fix-loop', 'worker-brief', 'spec-change'], hl: -1 },
+    { role: 'director', n: 6, c: '#FFA27D', sk: ['delivery', 'utilization', 'owner-decisions'], hl: -1 },
+    { role: 'staff-engineer', n: 5, c: '#FF8A80', sk: ['systematic-debugging', 'codebase-design', 'domain-modeling'], hl: -1 },
+  ];
+  // ROLES index -> slot 0..6, left to right; the three named roles sit in the middle.
+  const SLOT = [3, 2, 4, 1, 5, 0, 6];
+  const host = $('#cards');
+  const cards = ROLES.map((r, i) => {
+    const d = document.createElement('div');
+    d.className = 'rc card';
+    d.innerHTML = '<div class="role">' + r.role + '</div><div class="n">' + r.n + ' skills</div>' +
+      '<div class="bar" style="background:' + r.c + '"></div>' +
+      r.sk.map((s, k) => '<div class="sk' + (k === r.hl ? ' hl' : '') + '">' + s + '</div>').join('');
+    host.appendChild(d);
+    return d;
+  });
+  const CMD = '/hivemill:setup';
+
+  function seek(t) {
+    const h = prog(t, 0, 0.6);
+    $('#head').style.opacity = h; $('#head').style.transform = tr(0, 18 * (1 - h));
+    $('#brand').style.opacity = 0.6 * h;
+
+    cards.forEach((el, i) => {
+      const slot = SLOT[i];
+      const a = prog(t, 0.3 + slot * 0.06, 0.6 + slot * 0.06);
+      const f = prog(t, 0.7, 2.2, easeInOut);            // fan out from a stack
+      const off = slot - 3;
+      const x = lerp(960 - 118, 88 + slot * 254, f);
+      const y = lerp(300, 250 + Math.abs(off) * Math.abs(off) * 6, f);
+      const rot = lerp(off * 1.2, off * 1.7, f);
+      el.style.opacity = a;
+      el.style.zIndex = 10 - Math.abs(off);
+      el.style.transform = tr(x, y + 40 * (1 - a)) + ' rotate(' + rot.toFixed(3) + 'deg)';
+      // Highlight the skill the caption names.
+      const r = ROLES[i];
+      el.querySelectorAll('.sk').forEach((s, k) => {
+        const on = k === r.hl ? fade(t, 2.6 + i * 0.5, 0.35) : 0;
+        s.style.background = 'rgba(255,255,255,' + (0.1 * on).toFixed(3) + ')';
+        s.style.boxShadow = on ? 'inset 0 0 0 1.5px ' + r.c : 'none';
+      });
+    });
+
+    // Setup command types in, one character per frame step of 0.06 s.
+    const c = prog(t, 5.0, 5.4);
+    $('#cmd').style.opacity = c;
+    $('#cmd').style.transform = tr(0, 790 + 24 * (1 - c));
+    const n = Math.max(0, Math.min(CMD.length, Math.floor((t - 5.3) / 0.06)));
+    $('#typed').textContent = CMD.slice(0, n);
+    $('#cur').style.opacity = (n < CMD.length || Math.floor(t * 2.5) % 2 === 0) ? 1 : 0;
+  }
+  Film.boot(seek);
+})();
+</script>
+</body></html>
