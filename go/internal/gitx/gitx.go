@@ -15,8 +15,8 @@ import (
 	"time"
 )
 
-// scrubbed is the list of parent-env variables that would redirect git to another repo. Python git_run's
-// config-refusal path drops exactly these (factory_cli.py "base_env", GIT_DIR / GIT_WORK_TREE / GIT_COMMON_DIR).
+// scrubbed is the list of parent-env variables that would redirect git to another repo. Python git_run
+// itself passes them through; only its config-refusal caller drops exactly these (factory_cli.py "base_env", GIT_DIR / GIT_WORK_TREE / GIT_COMMON_DIR).
 var scrubbed = []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"}
 
 // Result mirrors subprocess.CompletedProcess: stdout, stderr and the exit code.
