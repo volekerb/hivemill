@@ -19254,11 +19254,22 @@ def _digest_argv_sets_send(rest):
 
 
 def _inbox_argv_show_is_readonly(rest):
-    """--show with a non-empty id is read-only; '' or a missing value is the list path and writes read_at."""
-    if "--show" not in rest:
+    """--show with a non-empty id is read-only; '' or a missing value is the list path and writes read_at (last wins)."""
+    show = None
+    seen = False
+    i = 0
+    while i < len(rest):
+        a = rest[i]
+        if a == "--show":
+            seen = True
+            show = ""
+            if i + 1 < len(rest) and not rest[i + 1].startswith("-"):
+                show = rest[i + 1]
+                i += 1
+        i += 1
+    if not seen:
         return False
-    i = rest.index("--show")
-    return i + 1 < len(rest) and bool(rest[i + 1]) and not rest[i + 1].startswith("-")
+    return bool(show) and not show.startswith("-")
 
 
 def cli_shadow_readonly(argv):

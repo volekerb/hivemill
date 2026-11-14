@@ -643,6 +643,8 @@ class CliImplTests(FactoryTestCase):
         for abbrev in ("--s", "--se", "--sen"):
             self.assertEqual(self.impl(self.call("digest", abbrev)), "impl=python", abbrev)
         self.assertEqual(self.impl(self.call("inbox", "--show", "")), "impl=python")
+        self.assertEqual(self.impl(self.call("inbox", "--show", "M1", "--show", "")), "impl=python")
+        self.assertEqual(self.impl(self.call("inbox", "--show", "M1")), "impl=shadow")
 
     def test_cli_go_cmds_known_matches_go_registry(self):
         import re
