@@ -293,6 +293,13 @@ func (a *Analyzer) gitShared(words, assigns []string) error {
 		return nil
 	}
 	sub, args := rest[i], rest[i+1:]
+	if !a.HQ && (sub == "archive" || sub == "init") && gitAnyCwdSharedTargets(sub, args, cwd, dyn) {
+		shown := strings.Join(append([]string{"git", sub}, args...), " ")
+		if r := []rune(shown); len(r) > 80 {
+			shown = string(r[:80])
+		}
+		return gitBlockf("`" + shown + "`: " + sharedAdvice)
+	}
 	if !gitMutates(sub, args) {
 		return nil
 	}
@@ -316,12 +323,10 @@ func (a *Analyzer) gitShared(words, assigns []string) error {
 	return gitBlockf("`" + shown + "`: " + sharedAdvice)
 }
 
-// gitOutsideShared is a port of Analyzer.git_outside_shared: `git init` is allowed in a shared checkout's cwd
-// only for exactly one literal directory inside the worker's own scratchpad. An option or path not understood is
-// unsafe.
-func gitOutsideShared(args []string, cwd string, dyn bool) bool {
+// gitInitPaths is a port of Analyzer.git_init_paths.
+func gitInitPaths(args []string, dyn bool) []string {
 	if dyn {
-		return false
+		return nil
 	}
 	var out []string
 	k := 0
@@ -341,24 +346,106 @@ func gitOutsideShared(args []string, cwd string, dyn bool) bool {
 		case name == "-b" || name == "--initial-branch":
 			if !eq {
 				if k >= len(args) {
-					return false
+					return nil
 				}
 				k++
 			}
 		case strings.HasPrefix(x, "-") && x != "-":
-			return false // --separate-git-dir, --template, an unknown option
+			return nil // --separate-git-dir, --template, an unknown option
 		default:
 			out = append(out, x)
 		}
 	}
-	if len(out) != 1 {
+	for len(out) > 0 && (out[len(out)-1] == "+" || out[len(out)-1] == ";" || out[len(out)-1] == `\;`) {
+		out = out[:len(out)-1]
+	}
+	if len(out) > 1 {
+		return nil
+	}
+	if len(out) == 0 {
+		return []string{"."}
+	}
+	return out
+}
+
+// gitPathWritesShared is a port of Analyzer.git_path_writes_shared.
+func gitPathWritesShared(target, cwd string, dyn bool) (bool, error) {
+	if dyn && !strings.HasPrefix(target, "/") {
+		return true, nil
+	}
+	if target == "{}" || target == "{:}" { // find -exec placeholder, not a shell brace expansion
+		return false, nil
+	}
+	if target == "" || dynamicDir(target) || strings.HasPrefix(target, "~") {
+		return true, nil // quoted '~' is a literal name to git: not decidable here
+	}
+	path := target
+	if !strings.HasPrefix(path, "/") {
+		path = pyRealpath(pyJoin(cwd, target))
+	} else {
+		path = pyRealpath(path)
+	}
+	if inScratchpad(path) {
+		return false, nil
+	}
+	homes, err := gitHomes()
+	if err != nil {
+		return false, err
+	}
+	for _, h := range homes {
+		if Under(path, h) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// gitAnyCwdSharedTargets is a port of Analyzer.git_any_cwd_shared_targets (T-0330).
+func gitAnyCwdSharedTargets(sub string, args []string, cwd string, dyn bool) bool {
+	switch sub {
+	case "archive":
+		outs := optValues(args, "o", "--output")
+		if len(outs) == 0 {
+			return false
+		}
+		for _, t := range outs {
+			hit, err := gitPathWritesShared(t, cwd, dyn)
+			if err != nil || hit {
+				return true
+			}
+		}
+		return false
+	case "init":
+		paths := gitInitPaths(args, dyn)
+		if paths == nil {
+			return true
+		}
+		for _, p := range paths {
+			hit, err := gitPathWritesShared(p, cwd, dyn)
+			if err != nil || hit {
+				return true
+			}
+		}
+		return false
+	default:
 		return false
 	}
-	target := out[0]
-	if target == "" || dynamicDir(target) || strings.HasPrefix(target, "~") {
-		return false // quoted '~' is a literal name to git: not decidable here
+}
+
+// gitOutsideShared is a port of Analyzer.git_outside_shared: `git init` is allowed in a shared checkout's cwd
+// only for exactly one literal directory inside the worker's own scratchpad. An option or path not understood is
+// unsafe.
+func gitOutsideShared(args []string, cwd string, dyn bool) bool {
+	paths := gitInitPaths(args, dyn)
+	if paths == nil || len(paths) != 1 || paths[0] == "." {
+		return false
 	}
-	return inScratchpad(pyRealpath(pyJoin(cwd, target))) // M5368: only the worker's own scratchpad
+	target := paths[0]
+	path := target
+	if !strings.HasPrefix(path, "/") {
+		path = pyJoin(cwd, target)
+	}
+	return inScratchpad(pyRealpath(path)) // M5368: only the worker's own scratchpad
 }
 
 // branchMutates is a port of Analyzer.branch_mutates.
