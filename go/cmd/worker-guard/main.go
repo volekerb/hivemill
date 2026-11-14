@@ -11,6 +11,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,6 +40,14 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			code = 2
 		}
 	}()
+	if len(args) > 0 {
+		switch args[0] {
+		case "--cursor-adapter":
+			return guard.CursorAdapter(args[1:], stdin, stdout, stderr, inProcessGuard)
+		case "--boss-inbox":
+			return guard.BossInbox(stdin, stdout, guard.ExecInbox)
+		}
+	}
 	role, hq := parseArgs(args)
 	pyHook, passArgs := splitPyHook(args)
 	guard.SetPyHook(pyHook)
@@ -226,4 +235,11 @@ func pyTruthy(v any) bool {
 		return len(x) > 0
 	}
 	return true
+}
+
+// inProcessGuard runs the guard (run above) over one payload for the Cursor adapter, without a subprocess.
+func inProcessGuard(args []string, payload []byte) (int, string, string) {
+	var so, se bytes.Buffer
+	code := run(args, bytes.NewReader(payload), &so, &se)
+	return code, so.String(), se.String()
 }
