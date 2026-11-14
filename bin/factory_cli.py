@@ -187,6 +187,7 @@ DEFAULT_CONFIG = {
     "boss_wake_after_s": "900",    # tick step 3: boss pane is prompted only when an unread escalation/request is at least this old (T-1199)
     "boss_wake_cooldown_s": "1800",  # at most one boss wake per this many seconds (agents.last_nudge)
     "director_cycle_s": "900",
+    "block_conditions": "0",     # 1 = the tick evaluates typed block conditions; 0 = off (docs/block-conditions.md)
     "blocked_alert_s": "600",
     "hq_unblock_s": "900",       # T-0268: the tick denies (Esc) a permission dialog on an HQ pane after this long
     "prcheck_required": "0",     # 1 = a coder's `factory done` (task with a PR) needs a passing `factory prcheck` on its HEAD (G-022)
@@ -3038,6 +3039,10 @@ def _config_value_rules(key, value):
         a.value = a.value.strip()
         if a.value not in ("0", "1"):
             die(f"task_clones must be 0 or 1, not {a.value!r}", 2)
+    if a.key == "block_conditions":
+        a.value = a.value.strip()
+        if a.value not in ("0", "1"):
+            die(f"block_conditions must be 0 or 1, not {a.value!r}", 2)
     if a.key == "terminal_backend":
         v = a.value.strip().lower()
         if v not in ("auto", "herdr", "hc"):

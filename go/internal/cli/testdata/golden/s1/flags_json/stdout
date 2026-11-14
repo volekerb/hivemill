@@ -19,6 +19,16 @@
   "current": ""
  },
  {
+  "key": "block_conditions",
+  "kind": "flag",
+  "default": "0",
+  "summary": "1 = the tick evaluates typed block conditions; 0 = the tick does not change blocked rows",
+  "goal": "G-040",
+  "doc": "docs/block-conditions.md",
+  "state": "off",
+  "current": "0"
+ },
+ {
   "key": "blocked_alert_s",
   "kind": "setting",
   "default": "600",

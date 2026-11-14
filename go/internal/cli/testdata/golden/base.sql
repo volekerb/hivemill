@@ -188,6 +188,7 @@ INSERT INTO "config"("key","value") VALUES('nudge_cooldown_s','120');
 INSERT INTO "config"("key","value") VALUES('boss_wake_after_s','900');
 INSERT INTO "config"("key","value") VALUES('boss_wake_cooldown_s','1800');
 INSERT INTO "config"("key","value") VALUES('director_cycle_s','900');
+INSERT INTO "config"("key","value") VALUES('block_conditions','0');
 INSERT INTO "config"("key","value") VALUES('blocked_alert_s','600');
 INSERT INTO "config"("key","value") VALUES('hq_unblock_s','900');
 INSERT INTO "config"("key","value") VALUES('prcheck_required','0');

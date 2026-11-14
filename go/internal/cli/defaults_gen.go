@@ -45,6 +45,7 @@ var DefaultConfig = []ConfigDefault{
 	{"boss_wake_after_s", "900"},
 	{"boss_wake_cooldown_s", "1800"},
 	{"director_cycle_s", "900"},
+	{"block_conditions", "0"},
 	{"blocked_alert_s", "600"},
 	{"hq_unblock_s", "900"},
 	{"prcheck_required", "0"},
