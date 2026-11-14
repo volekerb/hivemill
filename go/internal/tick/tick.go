@@ -39,11 +39,15 @@ func segments(goFns map[string]GoFunc) []segment {
 		}
 		if n := len(segs); n > 0 && segs[n-1].goFn == nil {
 			last := segs[n-1].units[len(segs[n-1].units)-1]
-			if unitTableIndex(u.Name) != unitTableIndex(last)+1 {
-				// walkUnits skips offline, but TICK_UNITS does not; never span that row in one --phases list.
-				segs = append(segs, segment{units: []string{u.Name}})
-			} else {
+			gap := unitTableIndex(u.Name) - unitTableIndex(last)
+			switch {
+			case gap == 1:
 				segs[n-1].units = append(segs[n-1].units, u.Name)
+			case gap == 2 && Units[unitTableIndex(last)+1].Name == OfflineUnit:
+				// Python --phases forbids gaps: the offline row rides along (a no-op unless herdr_list gave None).
+				segs[n-1].units = append(segs[n-1].units, OfflineUnit, u.Name)
+			default:
+				segs = append(segs, segment{units: []string{u.Name}})
 			}
 		} else {
 			segs = append(segs, segment{units: []string{u.Name}})
@@ -93,27 +97,7 @@ func Run(cfg Config) int {
 	d.timer.Last = d.t0Lock
 	d.t0 = d.t0Lock
 	d.timers = cfg.TimersOn != nil && cfg.TimersOn()
-	if len(cfg.Go) == 0 {
-		return d.walkMonolithicChild()
-	}
 	return d.walk()
-}
-
-func (d *driver) walkMonolithicChild() int {
-	h := Handoff{Pid: d.cfg.Getpid(), Timers: d.timers, State: d.state, Laps: d.timer.Laps,
-		Counters: d.timer.Ctr, Total: 0, Elapsed: 0}
-	if _, err := WriteHandoff(d.cfg.Home, h); err != nil {
-		return d.fail(1, "%v", err)
-	}
-	res := runMonolithicChild(d.cfg.Python, d.cfg.Entry, d.cfg.Environ, d.handoff, d.cfg.Stdout, d.cfg.Stderr)
-	switch {
-	case res.err != nil:
-		return d.fail(1, "cannot run the tick child: %v; check that python3 and bin/factory exist", res.err)
-	case res.signal != "":
-		return d.fail(1, "tick child killed by %s", res.signal)
-	default:
-		return res.code
-	}
 }
 
 func (d *driver) walk() int {
@@ -143,7 +127,7 @@ func (d *driver) walk() int {
 			}
 			stop = true
 			if d.timers {
-				d.emitted = true // offline ends with _pt_emit, same as monolithic Python
+				d.emitted = true // offline ends with _pt_emit, same as the all-Python tick
 			}
 		}
 		if stop {
@@ -194,7 +178,7 @@ func (d *driver) runPython(units []string) (stop bool, code int) {
 	now := d.cfg.Clock()
 	elapsed, total := now-d.t0Lock, LapsTotal(d.timer.Laps)
 	if len(d.timer.Laps) == 0 && len(d.timer.Ctr.Keys()) == 0 {
-		elapsed, total = 0, 0 // first child: match monolithic Python _PT bootstrap (no driver time in handoff)
+		elapsed, total = 0, 0 // first child: match the all-Python tick _PT bootstrap (no driver time in handoff)
 	}
 	h := Handoff{Pid: d.cfg.Getpid(), Elapsed: elapsed, Timers: d.timers, State: d.state,
 		Laps: d.timer.Laps, Counters: d.timer.Ctr, Total: total}

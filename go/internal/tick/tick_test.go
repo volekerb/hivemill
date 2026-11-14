@@ -240,17 +240,10 @@ func TestTickLock(t *testing.T) {
 	g.Close()
 }
 
-func TestSegmentEndsAtPrune(t *testing.T) {
+func TestSegmentsOneChildWithoutGoUnits(t *testing.T) {
 	segs := segments(map[string]GoFunc{})
-	for i, s := range segs {
-		last := ""
-		if n := len(s.units); n > 0 {
-			last = s.units[n-1]
-		}
-		t.Logf("seg %d last=%q n=%d", i, last, len(s.units))
-	}
-	if segs[0].units[len(segs[0].units)-1] != pruneUnit {
-		t.Fatalf("first segment ends at %q, want %q", segs[0].units[len(segs[0].units)-1], pruneUnit)
+	if len(segs) != 1 || segs[0].units[len(segs[0].units)-1] != "util" || indexOf(segs[0].units, OfflineUnit) < 0 {
+		t.Fatalf("want one all-Python segment ending at util with the offline row inside, got %+v", segs)
 	}
 }
 
@@ -269,8 +262,16 @@ func TestTickChildren(t *testing.T) {
 			t.Fatalf("exit %d, stderr %q", code, r.errb.String())
 		}
 		cs := r.calls()
-		if len(cs) != 1 || cs[0].Argv[len(cs[0].Argv)-1] != "tick" {
-			t.Fatalf("timers=%v: calls %+v, want one monolithic child", timers, cs)
+		all := allUnits()
+		i := indexOf(all, pruneUnit)
+		// Python --phases forbids gaps, so the offline row rides along between judge_ci_prune and side
+		full := append(append(append([]string(nil), all[:i+1]...), OfflineUnit), all[i+1:]...)
+		if timers {
+			full = append(full, EmitUnit)
+		}
+		want := phaseSpec(full)
+		if len(cs) != 1 || cs[0].Units != want {
+			t.Fatalf("timers=%v: calls %+v, want one child with --phases %s", timers, cs, want)
 		}
 	}
 	// a Go unit at judge_ci_prune: two children around it
@@ -382,7 +383,7 @@ func TestTickHandoffGarbled(t *testing.T) {
 		r := newRig(t, []step{st, {}})
 		r.goFns["util"] = func(*UnitCtx) error { return nil }
 		got := r.run()
-		want := "factory(go): tick handoff unreadable after boot,hygiene\n"
+		want := "factory(go): tick handoff unreadable after boot,hygiene,offline,side,reap,flow,start,nudge,publish,recycle,relaunches\n"
 		if got != 1 || !strings.HasSuffix(r.errb.String(), want) {
 			t.Errorf("%s: exit %d stderr %q", name, got, r.errb.String())
 		}

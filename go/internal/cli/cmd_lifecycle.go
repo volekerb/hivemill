@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
-
-	"factory/go/internal/tick"
 )
 
 // `factory goal close|org`, `factory team new --no-lead|close|reopen`, `factory project add|update`: the Go ports of
@@ -25,7 +23,6 @@ func init() {
 	register("team", "new", handler{parse: lcParseTeam("new"), run: lcTeamRun})
 	register("team", "close", handler{parse: lcParseTeam("close"), run: lcTeamRun})
 	register("team", "reopen", handler{parse: lcParseTeam("reopen"), run: lcTeamRun})
-	register("team", "wake", handler{parse: lcParseTeamWake, run: lcTeamWake})
 	register("project", "add", handler{parse: lcParseProject("add"), run: lcProjectRun})
 	register("project", "update", handler{parse: lcParseProject("update"), run: lcProjectRun})
 }
@@ -360,30 +357,6 @@ func lcASCII(s string) bool {
 		}
 	}
 	return true
-}
-
-func lcParseTeamWake(rest []string) (any, bool) {
-	a, ok := lcSplit(rest, 1, map[string]byte{})
-	if !ok || len(a.pos) != 1 || a.pos[0] == "" {
-		return nil, false
-	}
-	return a.pos[0], true
-}
-
-// lcTeamWake takes the tick lock the same way Python team wake does, then hands the rest to Python (spawn path).
-func lcTeamWake(c *ctx, _ any) (int, error) {
-	if tick.AsidePyLockBusy(c.env.Home()) {
-		return 0, dieErr(2, "tick running, retry in a minute")
-	}
-	lock, busy, err := tick.TakeLock(c.env.Home())
-	if err != nil {
-		return 0, err
-	}
-	if busy {
-		return 0, dieErr(2, "tick running, retry in a minute")
-	}
-	lock.Close()
-	return 0, errDelegate
 }
 
 func lcTeamRun(c *ctx, p any) (int, error) {
