@@ -970,3 +970,17 @@ func export(o options, repo, target, name, email string, stdout io.Writer) (int,
 	fmt.Fprintln(stdout, "fresh_export: OK - 0 hits. Nothing was pushed and no remote was added.")
 	return 0, nil
 }
+
+// ReadText reads a file like Python's Path.read_text(encoding="utf-8"): invalid UTF-8 is an error and \r\n and
+// a lone \r become \n.
+func ReadText(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if !utf8.Valid(data) {
+		return "", fmt.Errorf("%s is not valid UTF-8: fix the file encoding", path)
+	}
+	s := strings.ReplaceAll(string(data), "\r\n", "\n")
+	return strings.ReplaceAll(s, "\r", "\n"), nil
+}

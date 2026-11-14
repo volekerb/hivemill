@@ -96,11 +96,11 @@ func (t tool) notesPath(version string) string {
 }
 
 func (t tool) releaseNotes(version string) (string, error) {
-	data, err := os.ReadFile(t.notesPath(version))
+	data, err := freshexport.ReadText(t.notesPath(version))
 	if err != nil {
 		return "", failf("cannot read ci/release-notes/%s.md: %s. Write the curated notes for %s first.", version, strerror(err), version)
 	}
-	return pyStrip(string(data)) + "\n", nil
+	return pyStrip(data) + "\n", nil
 }
 
 // IsPrerelease: a "-" suffix or a 0.x version.
@@ -161,11 +161,11 @@ func knownCommit(sha, repo string) bool {
 
 // releaseSubjectPrefix is the release PR's own squash subject ("Release v<VERSION> (#N)"): it never lists itself.
 func (t tool) releaseSubjectPrefix() (string, error) {
-	data, err := os.ReadFile(filepath.Join(t.root, "VERSION"))
+	data, err := freshexport.ReadText(filepath.Join(t.root, "VERSION"))
 	if err != nil {
 		return "", failf("cannot read VERSION: %v. Restore the VERSION file.", err)
 	}
-	return "Release v" + pyStrip(string(data)), nil
+	return "Release v" + pyStrip(data), nil
 }
 
 func (t tool) mergedSubjects(ref, since, repo string) ([]string, error) {
@@ -249,10 +249,10 @@ func (t tool) render(subjects []string) (string, int, error) {
 func VersionProblems(version, root string) []string {
 	var problems []string
 	have := ""
-	data, err := os.ReadFile(filepath.Join(root, "VERSION"))
+	data, err := freshexport.ReadText(filepath.Join(root, "VERSION"))
 	hasVersion := err == nil
 	if hasVersion {
-		have = pyStrip(string(data))
+		have = pyStrip(data)
 	}
 	if !hasVersion || have != version {
 		shown := "None"
@@ -262,13 +262,13 @@ func VersionProblems(version, root string) []string {
 		problems = append(problems, fmt.Sprintf("VERSION file is %s, not %s. Set it to %s in VERSION.", shown, pyRepr(version), version))
 	}
 	notes := filepath.Join(root, "ci", "release-notes", version+".md")
-	if text, err := os.ReadFile(notes); err != nil {
+	if text, err := freshexport.ReadText(notes); err != nil {
 		problems = append(problems, fmt.Sprintf("ci/release-notes/%s.md is missing. Write the curated notes.", version))
-	} else if !upgradeLine.Match(text) {
+	} else if !upgradeLine.MatchString(text) {
 		problems = append(problems, fmt.Sprintf("ci/release-notes/%s.md has no \"### Upgrade\" line. Add the upgrade steps.", version))
 	}
-	log, _ := os.ReadFile(filepath.Join(root, "CHANGELOG.md"))
-	if !regexp.MustCompile(`(?m)^## \[` + regexp.QuoteMeta(version) + `\]`).Match(log) {
+	log, _ := freshexport.ReadText(filepath.Join(root, "CHANGELOG.md"))
+	if !regexp.MustCompile(`(?m)^## \[` + regexp.QuoteMeta(version) + `\]`).MatchString(log) {
 		problems = append(problems, fmt.Sprintf("CHANGELOG.md has no \"## [%s]\" heading. Run: python3 ci/changelog.py --write", version))
 	}
 	return problems
@@ -386,11 +386,11 @@ func run(args []string, stdout, stderr io.Writer) (int, error) {
 	fmt.Fprintf(stderr, "changelog: %d subject(s) dropped by scrub patterns\n", dropped)
 	switch {
 	case *check:
-		current, err := os.ReadFile(*file)
+		current, err := freshexport.ReadText(*file)
 		if err != nil {
 			return 0, failf("cannot read %s: %s. Run changelog.py --write first.", *file, strerror(err))
 		}
-		if string(current) != text {
+		if current != text {
 			fmt.Fprintf(stderr, "changelog: %s is out of date. Run: python3 ci/changelog.py --write\n", *file)
 			return 1, nil
 		}

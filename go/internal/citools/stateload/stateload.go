@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"factory/go/internal/citools/freshexport"
 	_ "modernc.org/sqlite"
@@ -89,13 +90,13 @@ func Load(home, stateDir string) ([]Count, error) {
 			return nil, fmt.Errorf("%s not found: pass the state/ directory holding factory.sql and events.jsonl", p)
 		}
 	}
-	jsonl, err := os.ReadFile(jsonlPath)
+	jsonl, err := freshexport.ReadText(jsonlPath)
 	if err != nil {
 		return nil, err
 	}
 	var events []map[string]any
-	for n, line := range freshexport.SplitLines(string(jsonl)) {
-		if strings.TrimSpace(line) == "" {
+	for n, line := range freshexport.SplitLines(jsonl) {
+		if strings.TrimFunc(line, func(r rune) bool { return unicode.IsSpace(r) || (r >= 0x1c && r <= 0x1f) }) == "" {
 			continue
 		}
 		dec := json.NewDecoder(strings.NewReader(line))
@@ -109,7 +110,7 @@ func Load(home, stateDir string) ([]Count, error) {
 		}
 		events = append(events, e)
 	}
-	schema, err := os.ReadFile(sqlPath)
+	schema, err := freshexport.ReadText(sqlPath)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +122,7 @@ func Load(home, stateDir string) ([]Count, error) {
 	if err := os.Remove(tmp); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
-	counts, err := build(tmp, string(schema), events)
+	counts, err := build(tmp, schema, events)
 	if err != nil {
 		os.Remove(tmp)
 		return nil, fmt.Errorf("load failed (%v); nothing was written", err)

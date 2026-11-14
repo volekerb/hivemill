@@ -284,3 +284,28 @@ func FuzzLoad(f *testing.F) {
 		}
 	})
 }
+
+// Python decodes events.jsonl strictly (exit 1 on invalid UTF-8), reads CRLF as LF and skips lines of control whitespace.
+func TestEventsTextLikePython(t *testing.T) {
+	good := `{"id": 1, "ts": "t", "action": "x"}`
+	for name, tc := range map[string]struct {
+		content string
+		rc      int
+	}{
+		"invalid utf8": {good + "\n{\"id\": 2, \"ts\": \"\xff\", \"action\": \"x\"}\n", 1},
+		"crlf":         {good + "\r\n" + good[:6] + "2" + good[7:] + "\r\n", 0},
+		"fs only line": {good + "\n\x1f\n", 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			write(t, filepath.Join(f.state, "events.jsonl"), tc.content)
+			rc, _, e := runGo(t, f.home, f.state)
+			if rc != tc.rc {
+				t.Fatalf("rc %d (%s), want %d", rc, e, tc.rc)
+			}
+			if prc := runPy(t, filepath.Join(filepath.Dir(f.home), "pyhome"), f.state); prc != rc {
+				t.Fatalf("python exit %d, go %d", prc, rc)
+			}
+		})
+	}
+}
