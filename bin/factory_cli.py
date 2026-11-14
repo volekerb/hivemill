@@ -2735,7 +2735,7 @@ CLI_IMPLS = ("python", "go", "shadow")
 CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 + S2)
     "whoami", "flags", "agents", "config",
     "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
-    "verdict", "scorecard", "digest", "alerts", "gate",
+    "verdict", "scorecard", "digest", "alerts", "gate", "schedule",
 )
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
@@ -19773,6 +19773,44 @@ def cli_dispatch_mode(argv, environ=None):
     except (OSError, ValueError):
         pass
     return "python", None
+
+
+_SCHEDULE_GO_MSG = "factory schedule needs the Go CLI binary (stale or missing); rebuild it"
+
+
+def cli_go_srchash(home):
+    """Best-effort srchash for the factory-go stamp (cli_impl, else guard_impl, else HEAD:go)."""
+    root = Path(home)
+    for rel in ("run/cli_impl", "run/guard_impl"):
+        try:
+            parts = (root / rel).read_text()[:4096].strip().split()
+            if len(parts) >= 2 and parts[1] not in ("-",):
+                return parts[1]
+        except (OSError, ValueError):
+            pass
+    h = guard_srchash(root)
+    return h if h else None
+
+
+def exec_schedule_go(argv):
+    """G-038 F-31: bin/factory calls this before main(); always exec factory-go or exit 2."""
+    if os.environ.get("FACTORY_CLI_IMPL") == "python":
+        print(f"factory: {_SCHEDULE_GO_MSG}", file=sys.stderr)
+        sys.exit(2)
+    lib = guard_lib_dir()
+    go_bin = lib / CLI_GO_BIN
+    try:
+        stamp = _read_line(lib / f"{CLI_GO_BIN}.stamp")
+        if not (stamp and os.access(go_bin, os.X_OK)):
+            raise OSError("missing")
+        home = os.environ.get("FACTORY_HOME", str(HOME))
+        srchash = cli_go_srchash(home)
+        if not srchash or stamp != srchash:
+            raise OSError("stale")
+        os.execv(go_bin, [argv[0], *argv[1:]])
+    except OSError:
+        print(f"factory: {_SCHEDULE_GO_MSG}", file=sys.stderr)
+        sys.exit(2)
 
 
 _DIGEST_LONG_OPTS = ("--goal", "--date", "--hours", "--send")

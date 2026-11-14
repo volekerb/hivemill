@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -13,7 +12,7 @@ import (
 
 func pySource(t *testing.T) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "bin", "factory_cli.py"))
+	b, err := os.ReadFile(repoFile(t, "bin/factory_cli.py"))
 	if err != nil {
 		t.Fatal(err)
 	}
