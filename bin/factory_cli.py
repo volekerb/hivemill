@@ -19776,6 +19776,9 @@ def cli_go_srchash(home):
 
 def exec_schedule_go(argv):
     """G-038 F-31: bin/factory calls this before main(); always exec factory-go or exit 2."""
+    if os.environ.get("FACTORY_CLI_IMPL") == "python":
+        print(f"factory: {_SCHEDULE_GO_MSG}", file=sys.stderr)
+        sys.exit(2)
     lib = guard_lib_dir()
     go_bin = lib / CLI_GO_BIN
     try:

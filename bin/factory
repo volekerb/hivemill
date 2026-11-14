@@ -4,10 +4,6 @@ import os, sys
 _BIN = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, _BIN)
 if len(sys.argv) > 1 and sys.argv[1] == "schedule":
-    if os.environ.get("FACTORY_CLI_IMPL") == "python":
-        from factory_cli import _SCHEDULE_GO_MSG
-        print(f"factory: {_SCHEDULE_GO_MSG}", file=sys.stderr)
-        sys.exit(2)
     from factory_cli import exec_schedule_go; exec_schedule_go(sys.argv)
 try:
     lib, home = os.path.expanduser("~/.local/lib/factory/"), os.environ.get("FACTORY_HOME", os.path.expanduser("~/factory"))
