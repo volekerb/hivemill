@@ -65,20 +65,211 @@ var pr633Re = regexp.MustCompile(`PR 633\b`)
 
 var sceneIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
-var (
-	scriptStyleRe = regexp.MustCompile(`(?is)<(script|style)\b.*?</(script|style)\s*>`)
-	commentRe     = regexp.MustCompile(`(?s)<!--.*?-->`)
-	tagRe         = regexp.MustCompile(`(?s)<[^>]*>`)
-)
-
-// htmlText is the visible text of an HTML page: script, style and comments dropped, tags stripped, entities decoded.
-// (CSS colours such as #123456 and script source are not copy.)
-func htmlText(s string) string {
-	s = commentRe.ReplaceAllString(s, " ")
-	s = scriptStyleRe.ReplaceAllString(s, " ")
-	s = tagRe.ReplaceAllString(s, " ")
-	return html.UnescapeString(s)
+// inlineTags join their neighbours without a visual break, so text split by them reads as one word.
+var inlineTags = map[string]bool{
+	"b": true, "i": true, "em": true, "strong": true, "span": true, "a": true, "code": true,
+	"small": true, "sup": true, "sub": true, "mark": true, "u": true, "s": true,
 }
+
+// pageScan is what a scene page shows: text with every tag a space, text joined across inline tags, and the
+// string literals of CSS content: declarations (style blocks and style attributes).
+type pageScan struct {
+	text, joined string
+	css          []string
+}
+
+func isLetter(c byte) bool { return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' }
+
+// scanTag parses the tag starting at s[i] == '<' (s[i+1] is a letter or '/'). It returns the lower-case name, whether
+// it is a closing tag, the style attribute values, and the index after the tag. Quoted attribute values may hold '>'.
+// An unterminated tag runs to the end of the input.
+func scanTag(s string, i int) (name string, closing bool, styles []string, end int) {
+	j := i + 1
+	if s[j] == '/' {
+		closing = true
+		j++
+	}
+	k := j
+	for k < len(s) && !strings.ContainsRune(" \t\r\n\f/>", rune(s[k])) {
+		k++
+	}
+	name = strings.ToLower(s[j:k])
+	j = k
+	for j < len(s) {
+		for j < len(s) && strings.ContainsRune(" \t\r\n\f/", rune(s[j])) {
+			j++
+		}
+		if j >= len(s) {
+			break
+		}
+		if s[j] == '>' {
+			return name, closing, styles, j + 1
+		}
+		k = j
+		for k < len(s) && !strings.ContainsRune(" \t\r\n\f/=>", rune(s[k])) {
+			k++
+		}
+		if k == j { // a stray '=' starts a name
+			k++
+		}
+		attr := strings.ToLower(s[j:k])
+		j = k
+		for j < len(s) && strings.ContainsRune(" \t\r\n\f", rune(s[j])) {
+			j++
+		}
+		if j >= len(s) || s[j] != '=' {
+			continue
+		}
+		j++
+		for j < len(s) && strings.ContainsRune(" \t\r\n\f", rune(s[j])) {
+			j++
+		}
+		var val string
+		switch {
+		case j < len(s) && (s[j] == '"' || s[j] == '\''):
+			q := strings.IndexByte(s[j+1:], s[j])
+			if q < 0 {
+				val, j = s[j+1:], len(s)
+			} else {
+				val, j = s[j+1:j+1+q], j+q+2
+			}
+		default:
+			k = j
+			for k < len(s) && !strings.ContainsRune(" \t\r\n\f>", rune(s[k])) {
+				k++
+			}
+			val, j = s[j:k], k
+		}
+		if attr == "style" {
+			styles = append(styles, html.UnescapeString(val))
+		}
+	}
+	return name, closing, styles, len(s)
+}
+
+// cssContentStrings returns the string literals of every content: declaration in css.
+func cssContentStrings(css string) []string {
+	var out []string
+	low := strings.ToLower(css)
+	for from := 0; ; {
+		i := strings.Index(low[from:], "content")
+		if i < 0 {
+			return out
+		}
+		i += from
+		from = i + len("content")
+		if i > 0 && (isLetter(css[i-1]) || css[i-1] == '-' || css[i-1] == '_') {
+			continue
+		}
+		j := from
+		for j < len(css) && strings.ContainsRune(" \t\r\n\f", rune(css[j])) {
+			j++
+		}
+		if j >= len(css) || css[j] != ':' {
+			continue
+		}
+		for j++; j < len(css) && css[j] != ';' && css[j] != '}'; {
+			if css[j] != '"' && css[j] != '\'' {
+				j++
+				continue
+			}
+			q := strings.IndexByte(css[j+1:], css[j])
+			if q < 0 {
+				out = append(out, css[j+1:])
+				j = len(css)
+				break
+			}
+			out = append(out, css[j+1:j+1+q])
+			j += q + 2
+		}
+		from = max(from, j)
+	}
+}
+
+// scanPage walks the page left to right: tags (quoted attribute values may hold '>' or "<!--"), real comments (only in
+// text position, to the first "-->", or to the end of the input) and script/style raw text (to the matching close tag)
+// are not copy. CSS colours such as #123456 and script source are not copy either.
+func scanPage(s string) pageScan {
+	var text, joined strings.Builder
+	var ps pageScan
+	for i := 0; i < len(s); {
+		if s[i] != '<' {
+			j := strings.IndexByte(s[i:], '<')
+			if j < 0 {
+				j = len(s) - i
+			}
+			text.WriteString(s[i : i+j])
+			joined.WriteString(s[i : i+j])
+			i += j
+			continue
+		}
+		switch {
+		case strings.HasPrefix(s[i:], "<!--"):
+			text.WriteByte(' ')
+			e := strings.Index(s[i+4:], "-->")
+			if e < 0 {
+				i = len(s)
+			} else {
+				i += 4 + e + 3
+			}
+		case i+1 < len(s) && (isLetter(s[i+1]) || s[i+1] == '/' && i+2 < len(s) && isLetter(s[i+2])):
+			name, closing, styles, end := scanTag(s, i)
+			for _, st := range styles {
+				ps.css = append(ps.css, cssContentStrings(st)...)
+			}
+			text.WriteByte(' ')
+			if !inlineTags[name] {
+				joined.WriteByte(' ')
+			}
+			i = end
+			if !closing && (name == "script" || name == "style") {
+				e := indexFold(s[i:], "</"+name)
+				body := s[i:]
+				if e >= 0 {
+					body = s[i : i+e]
+				}
+				if name == "style" {
+					ps.css = append(ps.css, cssContentStrings(body)...)
+				}
+				if e < 0 {
+					i = len(s)
+				} else {
+					_, _, _, i = scanTag(s, i+e)
+				}
+			}
+		case i+1 < len(s) && (s[i+1] == '!' || s[i+1] == '?'):
+			text.WriteByte(' ')
+			joined.WriteByte(' ')
+			e := strings.IndexByte(s[i:], '>')
+			if e < 0 {
+				i = len(s)
+			} else {
+				i += e + 1
+			}
+		default: // a lone '<' is text
+			text.WriteByte('<')
+			joined.WriteByte('<')
+			i++
+		}
+	}
+	ps.text = html.UnescapeString(text.String())
+	ps.joined = html.UnescapeString(joined.String())
+	return ps
+}
+
+// indexFold is strings.Index with an ASCII case-insensitive needle (lower-case ASCII).
+func indexFold(s, needle string) int {
+	n := len(needle)
+	for i := 0; i+n <= len(s); i++ {
+		if strings.EqualFold(s[i:i+n], needle) {
+			return i
+		}
+	}
+	return -1
+}
+
+// htmlText is the visible text of an HTML page: script, style and comments dropped, tags a space, entities decoded.
+func htmlText(s string) string { return scanPage(s).text }
 
 func scanBanned(sceneID, field, text string) error {
 	for _, p := range bannedPatterns {
@@ -159,8 +350,17 @@ func checkWords(sb *storyboard, scenesDir string) error {
 		if err != nil {
 			return refusef("guard scene-file: scene %q has no readable page %s: %v.", sc.ID, page, err)
 		}
-		if err := scanBanned(sc.ID, "page text", htmlText(string(data))); err != nil {
+		ps := scanPage(string(data))
+		if err := scanBanned(sc.ID, "page text", ps.text); err != nil {
 			return err
+		}
+		if err := scanBanned(sc.ID, "page text", ps.joined); err != nil {
+			return err
+		}
+		for _, c := range ps.css {
+			if err := scanBanned(sc.ID, "page css content", c); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -252,6 +452,22 @@ func checkOut(out, repo string) error {
 	}
 	if within(realRepo, realOut) {
 		return refusef("guard out-path: --out %s resolves to %s, inside the repo %s. Write the film outside the repo.", out, realOut, realRepo)
+	}
+	return nil
+}
+
+// checkOutWork is guard (e): the work dir is deleted at the end, so the film must not be written inside it.
+func checkOutWork(out, work string) error {
+	realOut, err := resolvePath(out)
+	if err != nil {
+		return failf("cannot resolve --out %s: %v", out, err)
+	}
+	realWork, err := resolvePath(work)
+	if err != nil {
+		return failf("cannot resolve --work %s: %v", work, err)
+	}
+	if within(realWork, realOut) {
+		return refusef("guard out-work: --out %s resolves to %s, inside the work dir %s, which is deleted at the end. Write the film outside the work dir.", out, realOut, realWork)
 	}
 	return nil
 }
