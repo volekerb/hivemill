@@ -3,7 +3,6 @@ package data
 import (
 	"database/sql"
 	"regexp"
-	"strings"
 )
 
 // Orgs is scout/orgs.py NAMES (in order), DefaultOrg its DEFAULT_ORG. orgRuntime maps an org to its agent runtime.
@@ -107,5 +106,3 @@ func bossNames(withOwner bool) []string {
 	}
 	return out
 }
-
-var _ = strings.TrimSpace

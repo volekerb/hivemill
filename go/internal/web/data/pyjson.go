@@ -16,7 +16,7 @@ type Num struct {
 	IsFloat bool
 }
 
-// Int is an integer Num; Float a float Num.
+// Int is an integer Num (exact up to 2^53; larger values lose precision, which no current id or epoch reaches); Float a float Num.
 func Int(n int64) Num       { return Num{V: float64(n)} }
 func Float(f float64) Num   { return Num{V: f, IsFloat: true} }
 func NumP(n Num) *Num       { return &n }

@@ -2,12 +2,12 @@ package data
 
 import (
 	"database/sql"
-	"fmt"
 	"math"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // opt is an optional float (a Python float or None).
@@ -245,10 +245,27 @@ type Lifecycle struct {
 }
 
 var (
-	blockedRe = regexp.MustCompile(`\bstatus=blocked\b`)
-	waitsRe   = regexp.MustCompile(`waits=(\w+)`)
-	anyStatus = regexp.MustCompile(`\bstatus=\w+`)
+	blockedRe = regexp.MustCompile(`status=blocked`)
+	waitsRe   = regexp.MustCompile(`waits=(` + reW + `+)`)
+	anyStatus = regexp.MustCompile(`status=` + reW)
 )
+
+// hasWordAt reports whether re matches s at a Python \b before it (the previous rune is not a word character) and,
+// when endB is set, a \b after it. Go's RE2 \b is ASCII-only, so the boundary is checked by hand.
+func hasWordAt(re *regexp.Regexp, s string, endB bool) bool {
+	for _, loc := range re.FindAllStringIndex(s, -1) {
+		if r, _ := utf8.DecodeLastRuneInString(s[:loc[0]]); loc[0] > 0 && isWord(r) {
+			continue
+		}
+		if endB {
+			if r, sz := utf8.DecodeRuneInString(s[loc[1]:]); sz > 0 && isWord(r) {
+				continue
+			}
+		}
+		return true
+	}
+	return false
+}
 
 type tsEv struct{ ts, actor, action, detail string }
 
@@ -443,7 +460,7 @@ func (c *Conn) TaskLifecycle(tid string, now time.Time) (*Lifecycle, error) {
 		waits = append(waits, Wait{Kind: "ci", Span: mkSpan(sp(e.ts), nxt)})
 	}
 	for i, u := range ups {
-		if !blockedRe.MatchString(u.detail) {
+		if !hasWordAt(blockedRe, u.detail, true) {
 			continue
 		}
 		who := "internal"
@@ -452,7 +469,7 @@ func (c *Conn) TaskLifecycle(tid string, now time.Time) (*Lifecycle, error) {
 		}
 		var nxt *string
 		for _, u2 := range ups[i+1:] {
-			if anyStatus.MatchString(u2.detail) {
+			if hasWordAt(anyStatus, u2.detail, false) {
 				nxt = sp(u2.ts)
 				break
 			}
@@ -728,7 +745,7 @@ func (c *Conn) MergesPerDay(days int, now time.Time, goals GoalSet) ([]DayCount,
 	return out, nil
 }
 
-var taskIDRe = regexp.MustCompile(`T-\d+`)
+var taskIDRe = regexp.MustCompile(`T-` + reD + `+`)
 
 // AttendedTasks is queries.attended_tasks: the subset of ids that had the owner involved (an update event with
 // waits=owner, a judge-blocked event with auto_merge=0, or a boss decision message naming the task).
@@ -799,5 +816,3 @@ func wholeWordTaskIDs(s string) []string {
 	}
 	return out
 }
-
-var _ = fmt.Sprint

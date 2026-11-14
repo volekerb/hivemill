@@ -19,7 +19,7 @@ var AllowedAdvisorModels = []string{"claude-opus-5-5", "claude-sonnet-5-5"}
 // MaxTS is how many timestamps are listed per session; the count is always exact.
 const MaxTS = 20
 
-var agentTaskRe = regexp.MustCompile(`(G-\d+-T-\d+)$`)
+var agentTaskRe = regexp.MustCompile(`(G-` + reD + `+-T-` + reD + `+)$`)
 
 // AuditProjectsDir is advisor_audit.projects_dir: $FACTORY_CLAUDE_PROJECTS, else ~/.claude/projects.
 func AuditProjectsDir() string { return ProjectsDir() }

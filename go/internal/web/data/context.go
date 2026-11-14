@@ -316,7 +316,7 @@ func scan(root string, attr map[string]Attr, since, until string) (map[string]*s
 				return
 			}
 			sid := sessionID(d, path)
-			a, attributed := attr[sid]
+			_, attributed := attr[sid]
 			local := t.In(Loc)
 			day := local.Format("2006-01-02")
 			ctx := ContextOf(u)
@@ -326,7 +326,6 @@ func scan(root string, attr map[string]Attr, since, until string) (map[string]*s
 				}
 				return
 			}
-			_ = a
 			s := sess[sid]
 			if s == nil {
 				s = &session{hours: map[string]int64{}}

@@ -5,23 +5,55 @@ import (
 	"encoding/json"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
+	"unicode"
 )
 
 var (
-	tagRe = regexp.MustCompile(`\[(SC\d+(?:\s*,\s*SC\d+)*)\]`)
-	numRe = regexp.MustCompile(`^\s*(\d+)[.)]\s*(.*)$`)
-	digRe = regexp.MustCompile(`\d+`)
-	wsRe  = regexp.MustCompile(`\s+`)
+	// Python str regexes are Unicode: \s, \d and \w are spelled out so RE2 matches the same code points.
+	tagRe = regexp.MustCompile(`\[(SC` + reD + `+(?:` + reS + `*,` + reS + `*SC` + reD + `+)*)\]`)
+	numRe = regexp.MustCompile(`^` + reS + `*(` + reD + `+)[.)]` + reS + `*(.*)$`)
+	digRe = regexp.MustCompile(reD + `+`)
+	wsRe  = regexp.MustCompile(reS + `+`)
 )
+
+const (
+	// reS is Python's \s (str.isspace): ASCII whitespace, the FS-US separators, NEL, NBSP and the Unicode Z* spaces.
+	reS = `[\t-\r\x1c-\x1f \x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}]`
+	// reD is Python's \d (Unicode category Nd); reW is Python's \w (alphanumeric or underscore).
+	reD = `\p{Nd}`
+	reW = `[\p{L}\p{N}_]`
+)
+
+// pyDigits is int(s) for a string of Unicode decimal digits (Python's int() accepts every Nd digit): each Nd
+// run is a block of ten starting at zero, so the digit is its offset in the run modulo ten. Overflow gives ok=false.
+func pyDigits(s string) (int64, bool) {
+	var n int64
+	for _, r := range s {
+		d := int64(0)
+		if r >= '0' && r <= '9' {
+			d = int64(r - '0')
+		} else {
+			k := 0
+			for q := r - 1; unicode.Is(unicode.Nd, q); q-- {
+				k++
+			}
+			d = int64(k % 10)
+		}
+		if n > (1<<63-1-d)/10 {
+			return 0, false
+		}
+		n = n*10 + d
+	}
+	return n, true
+}
 
 // tags is queries._tags: criterion numbers from [SCn] / [SC1,SC3] tags in a task title.
 func tags(title string) map[int64]bool {
 	out := map[int64]bool{}
 	for _, m := range tagRe.FindAllStringSubmatch(title, -1) {
 		for _, d := range digRe.FindAllString(m[1], -1) {
-			n, _ := strconv.ParseInt(d, 10, 64)
+			n, _ := pyDigits(d)
 			out[n] = true
 		}
 	}
@@ -30,7 +62,7 @@ func tags(title string) map[int64]bool {
 
 // stripTags is queries._strip_tags.
 func stripTags(title string) string {
-	return strings.TrimSpace(wsRe.ReplaceAllString(tagRe.ReplaceAllString(title, " "), " "))
+	return pyTrim(wsRe.ReplaceAllString(tagRe.ReplaceAllString(title, " "), " "))
 }
 
 // Criterion is one parsed success criterion.
@@ -48,11 +80,11 @@ func ParseCriteria(text string) []CriterionText {
 	var items []CriterionText
 	for _, l := range lines {
 		if m := numRe.FindStringSubmatch(l); m != nil {
-			n, _ := strconv.ParseInt(m[1], 10, 64)
-			items = append(items, CriterionText{n, strings.TrimSpace(m[2])})
-		} else if len(items) > 0 && strings.TrimSpace(l) != "" {
+			n, _ := pyDigits(m[1])
+			items = append(items, CriterionText{n, pyTrim(m[2])})
+		} else if len(items) > 0 && pyTrim(l) != "" {
 			last := &items[len(items)-1]
-			last.Text = strings.TrimSpace(last.Text + " " + strings.TrimSpace(l))
+			last.Text = pyTrim(last.Text + " " + pyTrim(l))
 		}
 	}
 	if len(items) > 0 {
@@ -61,17 +93,21 @@ func ParseCriteria(text string) []CriterionText {
 	i := int64(0)
 	var out []CriterionText
 	for _, l := range lines {
-		if strings.TrimSpace(l) != "" {
+		if pyTrim(l) != "" {
 			i++
-			out = append(out, CriterionText{i, strings.TrimSpace(l)})
+			out = append(out, CriterionText{i, pyTrim(l)})
 		}
 	}
 	return out
 }
 
 func pyIsSpace(r rune) bool {
-	return r == ' ' || (r >= '\t' && r <= '\r') || r == 0x1c || r == 0x1d || r == 0x1e || r == 0x1f || r == 0x85 || r == 0xa0 || r == 0x2028 || r == 0x2029
+	return r == ' ' || (r >= '\t' && r <= '\r') || (r >= 0x1c && r <= 0x1f) || r == 0x85 || r == 0xa0 || r == 0x1680 ||
+		(r >= 0x2000 && r <= 0x200a) || r == 0x2028 || r == 0x2029 || r == 0x202f || r == 0x205f || r == 0x3000
 }
+
+// pyTrim is str.strip(): Go's strings.TrimSpace differs on U+001C..U+001F.
+func pyTrim(s string) string { return strings.TrimFunc(s, pyIsSpace) }
 
 // pySplitLines is str.splitlines for the common separators.
 func pySplitLines(s string) []string {

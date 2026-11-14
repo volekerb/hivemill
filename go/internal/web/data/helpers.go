@@ -27,7 +27,7 @@ var isoRe = regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2})(?::(\d{2}
 // ParseTS is web/queries.py parse_ts: an ISO string to an instant (naive means local time); false for empty or
 // unparseable input.
 func ParseTS(s string) (time.Time, bool) {
-	s = strings.TrimSpace(s)
+	s = pyTrim(s)
 	m := isoRe.FindStringSubmatch(s)
 	if m == nil {
 		return time.Time{}, false
@@ -251,7 +251,7 @@ func pyInt(v any) int64 {
 	return 0
 }
 
-func isWord(r rune) bool { return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) }
+func isWord(r rune) bool { return r == '_' || unicode.IsLetter(r) || unicode.IsNumber(r) }
 
 // median is statistics.median of integers: an int for an odd count, a float for an even count; false when empty.
 func median(vals []int64) (Num, bool) {
