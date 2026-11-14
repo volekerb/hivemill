@@ -112,11 +112,11 @@ class FactoryImplTests(FactoryTestCase):
             p = self.env.run("whoami", agent="zz-x")
         self.assertEqual(p.returncode, 0, p.stderr)
 
-    def test_oracles_file_lists_ten_existing_modules(self):
+    def test_oracles_file_lists_thirteen_existing_modules(self):
         from harness import REPO
         lines = (REPO / "go" / "cmd" / "factory" / "testdata" / "oracles.txt").read_text().splitlines()
         mods = [l.strip() for l in lines if l.strip() and not l.lstrip().startswith("#")]
-        self.assertEqual(len(mods), 10)
+        self.assertEqual(len(mods), 13)
         for m in mods:
             self.assertTrue(m.startswith("tests.test_"), m)
             self.assertTrue((REPO / (m.replace(".", "/") + ".py")).is_file(), m)
