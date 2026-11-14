@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // Cursor plan limits recorded by the tick from in-pane usage-limit errors (port of web/cursor_limits.py).
@@ -24,14 +25,29 @@ const PlanTier = "Pro"
 // with the Python source.
 var cursorOrgModels = []string{"grok-4.7-high", "composer-2.5", "claude-sonnet-5-5"}
 
-var (
-	limitRE = regexp.MustCompile(`(?i)usage limit for\s+(.+?)(?:\.|\n|\z)`)
-	resetRE = regexp.MustCompile(`(?i)(?:resets?(?:\s+on)?\s+)(?:(\d{4}-\d{2}-\d{2})|` +
-		`((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|` +
-		`Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+\d{4}))`)
-	switchRE = regexp.MustCompile(`(?i)otherModelsLimitSwitchTarget["'\s:=]+([^\s"'\n,]+)`)
-	isoDay   = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+// Python's str-pattern \s and \d are Unicode-aware, Go's are ASCII-only, so the patterns spell the classes out:
+// pySpace is str.isspace (incl. \v, \x1c-\x1f, NBSP, U+2028) and pyDigit is Unicode Nd.
+const (
+	pySpace    = `\t-\r\x1c-\x20\x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}`
+	pyDigit    = `\p{Nd}`
+	pyMonthDay = `[` + pySpace + `]+` + pyDigit + `{1,2},?[` + pySpace + `]+` + pyDigit + `{4}`
 )
+
+var (
+	limitRE = regexp.MustCompile(`(?i)usage limit for[` + pySpace + `]+(.+?)(?:\.|\n|\z)`)
+	resetRE = regexp.MustCompile(`(?i)(?:resets?(?:[` + pySpace + `]+on)?[` + pySpace + `]+)(?:(` + pyDigit + `{4}-` +
+		pyDigit + `{2}-` + pyDigit + `{2})|` +
+		`((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|` +
+		`Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)` + pyMonthDay + `))`)
+	switchRE = regexp.MustCompile(`(?i)otherModelsLimitSwitchTarget["'` + pySpace + `:=]+([^` + pySpace + `"'\n,]+)`)
+	isoDay   = regexp.MustCompile(`^` + pyDigit + `{4}-` + pyDigit + `{2}-` + pyDigit + `{2}$`)
+)
+
+// isPySpace is str.isspace for one rune: unicode.IsSpace plus the \x1c-\x1f separators Python also counts.
+func isPySpace(r rune) bool { return unicode.IsSpace(r) || (r >= 0x1c && r <= 0x1f) }
+
+// pyStrip is str.strip().
+func pyStrip(s string) string { return strings.TrimFunc(s, isPySpace) }
 
 // CursorModelSlugs is cursor_model_slugs: per-model slugs of the Cursor org (not the Claude evaluator model), sorted.
 func CursorModelSlugs() []string {
@@ -61,23 +77,23 @@ func ParseLimitError(text string) (LimitError, bool) {
 	if m == nil {
 		return LimitError{}, false
 	}
-	out := LimitError{Model: strings.Trim(strings.Trim(strings.TrimSpace(m[1]), `"`), `'`)}
+	out := LimitError{Model: strings.Trim(strings.Trim(pyStrip(m[1]), `"`), `'`)}
 	if rm := resetRE.FindStringSubmatch(text); rm != nil {
 		if rm[1] != "" {
 			out.Reset = rm[1]
 		} else {
-			raw := strings.Join(strings.Fields(strings.ReplaceAll(rm[2], ",", "")), " ")
+			raw := strings.Join(strings.FieldsFunc(strings.ReplaceAll(rm[2], ",", ""), isPySpace), " ")
 			if t, err := time.Parse("January 2 2006", raw); err == nil {
 				out.Reset = t.Format("2006-01-02")
 			} else if t, err := time.Parse("Jan 2 2006", raw); err == nil {
 				out.Reset = t.Format("2006-01-02")
 			} else {
-				out.Reset = strings.TrimSpace(rm[2])
+				out.Reset = pyStrip(rm[2])
 			}
 		}
 	}
 	if sw := switchRE.FindStringSubmatch(text); sw != nil {
-		out.SwitchTarget = strings.Trim(strings.Trim(strings.TrimSpace(sw[1]), `"`), `'`)
+		out.SwitchTarget = strings.Trim(strings.Trim(pyStrip(sw[1]), `"`), `'`)
 	}
 	return out, true
 }

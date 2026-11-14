@@ -269,3 +269,38 @@ print(json.dumps({"b": "a\x7fbé\U0001f600\x01\"", "a": None}, sort_keys=True))
 		t.Errorf("pyDumps %s, Python %s", got, lines[1])
 	}
 }
+
+// TestParseLimitErrorUnicodeSpace: Python's \s and \d are Unicode-aware; expected values are what
+// web.cursor_limits.parse_limit_error returns for the same text.
+func TestParseLimitErrorUnicodeSpace(t *testing.T) {
+	cases := []struct {
+		text string
+		want LimitError
+	}{
+		{"usage limit for\u00a0grok-4.7-high. resets\u00a0on\u00a02026-12-01", LimitError{Model: "grok-4", Reset: "2026-12-01"}},
+		{"usage limit for\vcomposer-2.5.\nresets Jan\u30002,\u00a02027", LimitError{Model: "composer-2", Reset: "2027-01-02"}},
+		{"usage limit for x. resets 2026-\u0661\u0662-01 otherModelsLimitSwitchTarget\v:\u00a0composer-2.5\u00a0,",
+			LimitError{Model: "x", Reset: "2026-\u0661\u0662-01", SwitchTarget: "composer-2.5"}},
+	}
+	for _, c := range cases {
+		got, ok := ParseLimitError(c.text)
+		if !ok || got != c.want {
+			t.Errorf("ParseLimitError(%q) = %+v, %v; want %+v", c.text, got, ok, c.want)
+		}
+	}
+	if got := pyStrip("\x1c\u00a0x\v\u2028"); got != "x" {
+		t.Errorf("pyStrip = %q", got)
+	}
+}
+
+// FuzzParseLimitError checks only that no input panics or hangs and that a hit needs the "usage limit" text.
+func FuzzParseLimitError(f *testing.F) {
+	for _, s := range []string{"", limitText, "usage limit for\u00a0x. resets\u00a0on\u00a02026-12-01", "usage limit for\v"} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		if _, ok := ParseLimitError(s); ok && !strings.Contains(strings.ToLower(s), "usage limit") {
+			t.Fatalf("hit without usage limit text: %q", s)
+		}
+	})
+}

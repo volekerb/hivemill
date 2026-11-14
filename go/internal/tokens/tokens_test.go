@@ -334,3 +334,17 @@ json.dump(idx.snapshot(), open(sys.argv[4], "w"))
 		t.Errorf("rollup of the Python snapshot differs from the Go one")
 	}
 }
+
+// FuzzDecodeLine checks only that no input panics or hangs and that ok implies a re-encodable value.
+func FuzzDecodeLine(f *testing.F) {
+	for _, s := range []string{"", "{}", `{"a":1.5,"b":[1,2]}`, "nul", `{"a":`, "1e999", "\xff"} {
+		f.Add([]byte(s))
+	}
+	f.Fuzz(func(t *testing.T, b []byte) {
+		if v, ok := decodeLine(b); ok {
+			if _, err := json.Marshal(v); err != nil {
+				t.Fatalf("decoded %q but cannot re-encode: %v", b, err)
+			}
+		}
+	})
+}
