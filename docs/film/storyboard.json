@@ -22,7 +22,7 @@
     {
       "id": "two-runtimes",
       "start": 5.0,
-      "end": 13.0,
+      "end": 12.0,
       "visual": "Split screen: a Claude org chart on the left, a Cursor org chart on the right, one shared box below.",
       "caption": "Run your agents on Claude Code, on Cursor, or both: two full teams, one box.",
       "onscreen": [
@@ -39,11 +39,12 @@
     },
     {
       "id": "web-ui",
-      "start": 13.0,
-      "end": 22.0,
+      "start": 12.0,
+      "end": 20.0,
       "visual": "Push-ins on the overview page, the agents page (Claude and Cursor chips highlighted) and the throughput page, taken from the current README screenshots.",
-      "caption": "One web UI shows every goal, every agent, what it costs and how fast work ships.",
+      "caption": "Watch it all in the web view: every goal, every agent, what it costs and how fast work ships.",
       "onscreen": [
+        "Web view",
         "Overview",
         "Goals",
         "Agents",
@@ -57,8 +58,8 @@
     },
     {
       "id": "go-guard",
-      "start": 22.0,
-      "end": 32.0,
+      "start": 20.0,
+      "end": 29.0,
       "visual": "Two animated bars: Python about 69 ms against Go about 8 ms.",
       "caption": "Every tool call passes a safety guard. The new Go guard answers in about 8 milliseconds, against 69 in Python. Python is still the default.",
       "onscreen": [
@@ -72,9 +73,29 @@
       "placeholder": false
     },
     {
+      "id": "sandbox",
+      "start": 29.0,
+      "end": 34.0,
+      "visual": "A worker pane inside a dashed boundary; the owner's logins and keys outside it fade to locked, the worker's own token stays inside. A small chip reads opt-in.",
+      "caption": "Opt-in on Linux: a sandbox gives each worker its own tokens and hides your logins and keys.",
+      "onscreen": [
+        "Worker sandbox · opt-in · Linux",
+        "own worker tokens · your logins hidden",
+        "rollout in verification"
+      ],
+      "sources": [
+        "docs/worker-sandbox.md:3",
+        "docs/worker-sandbox.md:7",
+        "docs/worker-sandbox.md:155",
+        "README.md:263",
+        "docs/SETUP.md:19"
+      ],
+      "placeholder": false
+    },
+    {
       "id": "skills",
-      "start": 32.0,
-      "end": 41.0,
+      "start": 34.0,
+      "end": 42.0,
       "visual": "Cards fan out per role, then the setup command.",
       "caption": "Every role ships with its own skills: coders self-review, reviewers look from several angles, researchers follow a benchmark protocol. Setup is one command.",
       "onscreen": [
@@ -91,7 +112,7 @@
     },
     {
       "id": "schedules",
-      "start": 41.0,
+      "start": 42.0,
       "end": 48.0,
       "visual": "A weekly calendar fills with jobs.",
       "caption": "Put recurring work on a schedule, with a token cap on every run.",
@@ -110,14 +131,17 @@
       "start": 48.0,
       "end": 54.0,
       "visual": "Herdr app panel, composed at 1920x1080 from the native 1x crops in docs/film/herdr/ (no upscaling beyond native size): the Factory card (live/cap tiles, Claude and Cursor lanes) and Budget & cost (cost per merged PR, spend per day) slide in side by side, Resources and Active goals follow, then the status bar rises along the bottom and is highlighted. Use only the five panel-*.png crops. Never show the Needs you list, the Most expensive tasks list or the Factory agents list. No version number in this scene.",
-      "caption": "Prefer the desktop? A Hivemill panel in the Herdr app shows live agents, usage and cost per merged PR.",
+      "caption": "Or watch in the Herdr app panel. Agents run on the classic Herdr terminal or on herdr-core.",
       "onscreen": [
         "Herdr app panel",
+        "classic Herdr terminal · herdr-core",
         "live agents · weekly usage · cost per merged PR"
       ],
       "sources": [
         "docs/film/herdr/CAPTURE.md:3",
-        "docs/film/herdr/CAPTURE.md:5"
+        "docs/film/herdr/CAPTURE.md:5",
+        "docs/terminal-backends.md:9",
+        "docs/terminal-backends.md:10"
       ],
       "placeholder": false
     },
@@ -125,15 +149,17 @@
       "id": "close",
       "start": 54.0,
       "end": 60.0,
-      "visual": "Merge gate: review, QA, judge, merged.",
-      "caption": "Separate review, QA and a judge decide every merge. Hivemill v0.4.0.",
+      "visual": "Merge gate: review, QA, judge, merged. End card: the Hivemill wordmark, open source on GitHub, github.com/volekerb/hivemill.",
+      "caption": "Separate review, QA and a judge decide every merge. Hivemill is open source on GitHub.",
       "onscreen": [
         "review · QA · judge",
-        "v0.4.0"
+        "Hivemill · open source on GitHub",
+        "github.com/volekerb/hivemill"
       ],
       "sources": [
         "README.md:8",
-        "README.md:274"
+        "README.md:11",
+        "README.md:288"
       ],
       "placeholder": false
     }
