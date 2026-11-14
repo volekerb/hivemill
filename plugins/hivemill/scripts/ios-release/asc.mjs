@@ -168,7 +168,7 @@ export function createClient({ keyId, issuerId, keyPem, now = Date.now, sleep, f
       if (hits.length === 0) throw new AscError(6, `beta group not found: ${label}`);
       if (hits.length > 1) {
         const ids = hits.map((g) => `${g.id} (isInternalGroup ${g.attributes?.isInternalGroup === true})`).join(", ");
-        throw new AscError(6, `beta group name is ambiguous: ${sel.name}: ${ids}; set testerGroup to an object with id, or with name and internal`);
+        throw new AscError(6, `beta group name is ambiguous: ${sel.name ?? label}: ${ids}; set testerGroup to an object with id, or with name and internal`);
       }
       const a = hits[0].attributes ?? {};
       return { id: hits[0].id, name: a.name ?? "", isInternal: a.isInternalGroup === true, allBuilds: a.hasAccessToAllBuilds === true };
