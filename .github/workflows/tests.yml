@@ -358,12 +358,17 @@ jobs:
           fi
           echo "guard_diff evaluator home-check loosen probe: rc=$rc (expected non-zero)"
 
-  # G-016 T-0355: the Go/Python equivalence gate, strict part: the strict Go-vs-Python guard_diff gate (corpus x every role x both modes).
-  # Real steps run on guard-path PRs and pushes to main; otherwise the job succeeds as skipped. The routed unittest modules run in guard-equiv-rest.
+  # G-016 T-0355: the Go/Python equivalence gate, strict part. Four role shards, so one runner is not the whole corpus.
+  # A pull request and a push to main both run only when a guard path changed. A push with no parent still runs.
+  # The job succeeds as skipped otherwise. The check name guard-equiv is the fan-in below. Routed modules run in guard-equiv-rest.
   guard-equiv:
-    name: guard-equiv
+    name: guard-equiv-shard (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
@@ -377,9 +382,15 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [ "$EVENT" = push ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "push: running"; exit 0; fi
-          if [ "$EVENT" != pull_request ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request or push: skipped"; exit 0; fi
+          if [ "$EVENT" = push ]; then
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              echo "run=true" >> "$GITHUB_OUTPUT"; echo "push: no parent: running"; exit 0
+            fi
+            BASE_SHA="$BEFORE"
+          fi
+          if [ "$EVENT" != pull_request ] && [ "$EVENT" != push ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request or push: skipped"; exit 0; fi
           changed=$(git diff --name-only --no-renames "$BASE_SHA" HEAD)
           # Test sources the real steps run (T-0989): the diff set + routed-rest modules, listed at runtime (no module named here).
           # A failing or empty list must not narrow the path set: fail open (run), never skip.
@@ -432,9 +443,26 @@ jobs:
           mkdir -p "$HOME/.local"
           ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
           ls -l "$HOME/.local/go/bin/go"
-      - name: guard_diff strict Go gate (corpus, all roles, both modes)
+      - name: guard_diff strict Go gate (corpus, one role shard; shard 1 also runs hq)
         if: steps.paths.outputs.run == 'true'
-        run: python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --mode both --strict
+        run: python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --role-shard ${{ matrix.shard }} --role-shards 4 --mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict
+
+  # Fan-in: the required check name stays exactly "guard-equiv". needs.guard-equiv.result is the matrix.
+  guard-equiv-fanin:
+    name: guard-equiv
+    needs: [guard-equiv]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every guard-equiv shard succeeded
+        env:
+          SHARD_RESULT: ${{ needs.guard-equiv.result }}
+        run: |
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "guard-equiv result: $SHARD_RESULT (all 4 shards must succeed)" >&2
+            exit 1
+          fi
 
   # G-016 T-1009: the other half of the equivalence gate, split out so each job stays under 15 min: the other hook_run-routed unittest
   # modules under GUARD_IMPL=diff (listed at runtime, not named here) and the REAL_GO build tests. Same path gating as guard-equiv.
@@ -455,9 +483,15 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [ "$EVENT" = push ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "push: running"; exit 0; fi
-          if [ "$EVENT" != pull_request ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request or push: skipped"; exit 0; fi
+          if [ "$EVENT" = push ]; then
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              echo "run=true" >> "$GITHUB_OUTPUT"; echo "push: no parent: running"; exit 0
+            fi
+            BASE_SHA="$BEFORE"
+          fi
+          if [ "$EVENT" != pull_request ] && [ "$EVENT" != push ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request or push: skipped"; exit 0; fi
           changed=$(git diff --name-only --no-renames "$BASE_SHA" HEAD)
           # Test sources the real steps run (T-0989): the diff set + routed-rest modules, listed at runtime (no module named here).
           # A failing or empty list must not narrow the path set: fail open (run), never skip.
