@@ -69,6 +69,9 @@ var sceneIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 var inlineTags = map[string]bool{
 	"b": true, "i": true, "em": true, "strong": true, "span": true, "a": true, "code": true,
 	"small": true, "sup": true, "sub": true, "mark": true, "u": true, "s": true,
+	"abbr": true, "font": true, "kbd": true, "q": true, "cite": true, "time": true, "label": true, "var": true,
+	"samp": true, "del": true, "ins": true, "bdi": true, "bdo": true, "data": true, "big": true, "tt": true,
+	"wbr": true, "dfn": true, "strike": true, "nobr": true,
 }
 
 // pageScan is what a scene page shows: text with every tag a space, text joined across inline tags, and the
@@ -168,19 +171,28 @@ func cssContentStrings(css string) []string {
 		if j >= len(css) || css[j] != ':' {
 			continue
 		}
+		var decl strings.Builder
+		n := 0
 		for j++; j < len(css) && css[j] != ';' && css[j] != '}'; {
 			if css[j] != '"' && css[j] != '\'' {
 				j++
 				continue
 			}
-			q := strings.IndexByte(css[j+1:], css[j])
-			if q < 0 {
-				out = append(out, css[j+1:])
-				j = len(css)
-				break
+			q, k := css[j], j+1
+			for k < len(css) && css[k] != q {
+				if css[k] == '\\' {
+					k++
+				}
+				k++
 			}
-			out = append(out, css[j+1:j+1+q])
-			j += q + 2
+			k = min(k, len(css))
+			out = append(out, css[j+1:k])
+			decl.WriteString(css[j+1 : k])
+			n++
+			j = k + 1
+		}
+		if n > 1 { // adjacent literals render as one string
+			out = append(out, decl.String())
 		}
 		from = max(from, j)
 	}
@@ -206,11 +218,21 @@ func scanPage(s string) pageScan {
 		switch {
 		case strings.HasPrefix(s[i:], "<!--"):
 			text.WriteByte(' ')
-			e := strings.Index(s[i+4:], "-->")
-			if e < 0 {
-				i = len(s)
-			} else {
-				i += 4 + e + 3
+			switch {
+			case strings.HasPrefix(s[i+4:], ">"): // "<!-->" is an empty comment
+				i += 5
+			case strings.HasPrefix(s[i+4:], "->"): // so is "<!--->"
+				i += 6
+			default:
+				e, w := strings.Index(s[i+4:], "-->"), 3
+				if e2 := strings.Index(s[i+4:], "--!>"); e2 >= 0 && (e < 0 || e2 < e) {
+					e, w = e2, 4
+				}
+				if e < 0 {
+					i = len(s)
+				} else {
+					i += 4 + e + w
+				}
 			}
 		case i+1 < len(s) && (isLetter(s[i+1]) || s[i+1] == '/' && i+2 < len(s) && isLetter(s[i+2])):
 			name, closing, styles, end := scanTag(s, i)
