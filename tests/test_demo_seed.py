@@ -559,13 +559,13 @@ class Pages(unittest.TestCase):
 
     def test_agents_page_shows_both_runtimes_and_the_cursor_filter(self):
         _, html = self.get("/agents")
-        self.assertIn("Cursor", html)
-        self.assertIn("cursor-coder-t-0205", html)
+        self.assertRegex(html, r'cursor-coder-t-0205 <span class="agent-role">coder</span> <span class="org org-cursor" title="Cursor org">Cursor</span>')
         self.assertIn("composer-2.5", html)
         _, cur = self.get("/agents?org=cursor")
         self.assertGreaterEqual(len(set(re.findall(r"cursor-[a-z]+(?:-[a-z0-9]+)*", cur)) & {"cursor-boss", "cursor-director", "cursor-lead-g-013-a",
                                                                                            "cursor-coder-t-0205", "cursor-qa-t-0206", "cursor-reviewer-t-0208"}), 3)
-        self.assertNotIn("coder-t-0012", cur.replace("cursor-coder", ""))
+        names = set(re.findall(r'agent-who">([a-z0-9-]+) ', cur))
+        self.assertTrue(names and all(n.startswith("cursor-") for n in names), names)
         _, claude = self.get("/agents?org=claude")
         self.assertIn("coder-t-0012", claude)
         self.assertNotIn("cursor-coder-t-0205", claude)
