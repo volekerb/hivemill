@@ -109,11 +109,17 @@
       "id": "herdr-core",
       "start": 48.0,
       "end": 54.0,
-      "visual": "owner to choose: status bar | dashboard tab | org filter variant (from PR 633)",
-      "caption": "",
-      "onscreen": [],
-      "sources": [],
-      "placeholder": true
+      "visual": "Herdr app panel, composed at 1920x1080 from the native 1x crops in docs/film/herdr/ (no upscaling beyond native size): the Factory card (live/cap tiles, Claude and Cursor lanes) and Budget & cost (cost per merged PR, spend per day) slide in side by side, Resources and Active goals follow, then the status bar rises along the bottom and is highlighted. Use only the five panel-*.png crops. Never show the Needs you list, the Most expensive tasks list or the Factory agents list. No version number in this scene.",
+      "caption": "Prefer the desktop? A Hivemill panel in the Herdr app shows live agents, usage and cost per merged PR.",
+      "onscreen": [
+        "Herdr app panel",
+        "live agents · weekly usage · cost per merged PR"
+      ],
+      "sources": [
+        "docs/film/herdr/CAPTURE.md:3",
+        "docs/film/herdr/CAPTURE.md:5"
+      ],
+      "placeholder": false
     },
     {
       "id": "close",
