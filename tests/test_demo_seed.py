@@ -377,6 +377,54 @@ class Seeded(unittest.TestCase):
         half = len(full) // 2                               # mild upward trend: the newer half merges more than the older
         self.assertGreater(sum(n for _, n in full[half:]), sum(n for _, n in full[:half]), days)
 
+    def test_cursor_org_has_live_agents_goal_team_and_tasks(self):
+        db = self.a / "db" / "factory.db"
+        live = {n: m for n, m in rows(db, "SELECT name, model FROM agents WHERE status='live' AND name LIKE 'cursor-%'")}
+        self.assertGreaterEqual(len(live), 5, live)
+        self.assertTrue({"cursor-boss", "cursor-director", "cursor-lead-g-013-a"} <= set(live), live)
+        self.assertEqual({m for n, m in live.items() if "coder" in n or "qa" in n}, {"composer-2.5"})
+        self.assertEqual({m for n, m in live.items() if "boss" in n or "director" in n or "lead" in n}, {"grok-4.7-high"})
+        self.assertGreaterEqual(rows(db, "SELECT COUNT(*) FROM agents WHERE status='live' AND name NOT LIKE 'cursor-%'")[0][0], 12)
+        self.assertEqual(rows(db, "SELECT org, status FROM goals WHERE id='G-013'"), [("cursor", "active")])
+        self.assertEqual(rows(db, "SELECT COUNT(*) FROM goals WHERE org='cursor'"), [(1,)])
+        self.assertEqual(rows(db, "SELECT lead_agent FROM teams WHERE goal_id='G-013'"), [("cursor-lead-g-013-a",)])
+        statuses = {s for (s,) in rows(db, "SELECT status FROM tasks WHERE goal_id='G-013'")}
+        self.assertTrue({"done", "in_progress", "in_review", "todo"} <= statuses, statuses)
+        self.assertGreaterEqual(rows(db, "SELECT COUNT(DISTINCT entity_id) FROM events WHERE action='merged' AND entity_id IN "
+                                         "(SELECT id FROM tasks WHERE goal_id='G-013')")[0][0], 3)
+        # the cap still leaves headroom over every live agent, Cursor ones included
+        live_all = rows(db, "SELECT COUNT(*) FROM agents WHERE status='live'")[0][0]
+        cap = int(rows(db, "SELECT value FROM config WHERE key='max_live_agents'")[0][0])
+        self.assertEqual(cap - live_all, 5)
+
+    def test_cursor_org_leaves_no_trace_in_the_claude_usage_logs(self):
+        for f in (self.a / "home" / ".claude" / "projects").rglob("*.jsonl"):
+            self.assertNotIn("cursor-", f.read_text())
+
+    def test_cursor_seed_is_deterministic_under_now(self):
+        """Same --now twice: the Cursor rows are identical (the dump covers every table)."""
+        keep = lambda d: [l for l in dump(d / "db" / "factory.db").splitlines() if "cursor" in l.lower() or "G-013" in l]  # noqa: E731
+        self.assertTrue(keep(self.a))
+        self.assertEqual(keep(self.a), keep(self.b))
+
+    def test_cursor_org_adds_no_new_goal_or_task_id_to_the_claude_core(self):
+        db = self.a / "db" / "factory.db"
+        self.assertEqual({i for (i,) in rows(db, "SELECT id FROM tasks WHERE goal_id='G-013'")},
+                         {f"T-02{n:02d}" for n in range(1, 11)})
+        self.assertEqual(rows(db, "SELECT COUNT(*) FROM tasks WHERE id >= 'T-0201' AND goal_id<>'G-013'"), [(0,)])
+
+    def test_cursor_merges_keep_the_throughput_rule_for_other_nows(self):
+        mod = load_seed_module()
+        for now in ("2026-10-25T12:00:00+00:00", "2026-11-14T19:00:00+00:00", "2026-11-17T03:00:00+00:00", "2026-12-02T23:00:00+00:00"):
+            n = mod.parse_now(now)
+            w = mod.world(n)
+            c = list(w.per_day)
+            picks = mod.cursor_merge_days(c, w.dip, n)
+            self.assertEqual(len(picks), 3, (now, picks))
+            for k in picks:
+                c[k] += 1
+            self.assertTrue(all(x != y for x, y in zip(c, c[1:])), (now, c))
+
     def test_core_ids_and_titles_unchanged(self):
         mod = load_seed_module()
         db = self.a / "db" / "factory.db"
@@ -391,7 +439,7 @@ class Seeded(unittest.TestCase):
     def test_every_session_agent_has_a_usage_log(self):
         db = self.a / "db" / "factory.db"
         want = {n for (n,) in rows(db, "SELECT name FROM agents WHERE started IS NOT NULL AND role NOT IN "
-                                       "('reviewer','judge','staff-engineer','cleaner')")}
+                                       "('reviewer','judge','staff-engineer','cleaner') AND name NOT LIKE 'cursor-%'")}
         logs = set()
         for f in (self.a / "home" / ".claude" / "projects").rglob("*.jsonl"):
             logs.add(json.loads(f.read_text().splitlines()[0])["agentName"])
@@ -508,6 +556,19 @@ class Pages(unittest.TestCase):
             self.assertEqual(status, 200, path)
             self.assertNotIn('class="empty"', html, f"{path} shows an empty-state placeholder")
             self.assertNotIn("indexing", html, path)
+
+    def test_agents_page_shows_both_runtimes_and_the_cursor_filter(self):
+        _, html = self.get("/agents")
+        self.assertRegex(html, r'cursor-coder-t-0205 <span class="agent-role">coder</span> <span class="org org-cursor" title="Cursor org">Cursor</span>')
+        self.assertIn("composer-2.5", html)
+        _, cur = self.get("/agents?org=cursor")
+        self.assertGreaterEqual(len(set(re.findall(r"cursor-[a-z]+(?:-[a-z0-9]+)*", cur)) & {"cursor-boss", "cursor-director", "cursor-lead-g-013-a",
+                                                                                           "cursor-coder-t-0205", "cursor-qa-t-0206", "cursor-reviewer-t-0208"}), 3)
+        names = set(re.findall(r'agent-who">([a-z0-9-]+) ', cur))
+        self.assertTrue(names and all(n.startswith("cursor-") for n in names), names)
+        _, claude = self.get("/agents?org=claude")
+        self.assertIn("coder-t-0012", claude)
+        self.assertNotIn("cursor-coder-t-0205", claude)
 
     def test_tokens_page_shows_only_demo_usage(self):
         _, html = self.get("/tokens")

@@ -36,6 +36,10 @@
     "guard-diff",
     "guard-self-compare",
     "guard-evaluator-home-loosen",
+    "guard-equiv-shard (1)",
+    "guard-equiv-shard (2)",
+    "guard-equiv-shard (3)",
+    "guard-equiv-shard (4)",
     "guard-equiv",
     "guard-equiv-rest",
     "unittest"

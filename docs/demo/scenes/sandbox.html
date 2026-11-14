@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Scene: sandbox</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+.panel { position:absolute; left:140px; top:200px; width:1640px; background:var(--panel); border:3px solid var(--line); border-radius:22px; padding:56px 72px; }
+.h { font-size:var(--fs-title); font-weight:bold; margin-bottom:36px; }
+.line { font-size:46px; line-height:1.35; margin:24px 0; padding:28px 36px; background:#05080f; border-radius:14px; border-left:6px solid var(--qa); opacity:0; }
+.note { color:var(--muted); font-size:var(--fs-small); margin-top:32px; opacity:0; }
+</style></head>
+<body data-scene="sandbox">
+<div class="stage">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="panel card">
+<div class="h">Worker sandbox</div>
+<div class="line" id="l0">The worker sandbox isolates a coder's credentials.</div>
+<div class="line" id="l1">T-0171 is still open.</div>
+<div class="line" id="l2">The 24-hour hold is not closed and is not shortened.</div>
+<p class="note" id="n0">Opt-in. Not a full security boundary. No egress filter.</p>
+</div>
+<div class="caption-bar"><span></span></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "sandbox", "duration": 16, "captions": [{"at": 0.0, "until": 5.0, "text": "The worker sandbox isolates a coder's credentials."}, {"at": 5.0, "until": 10.0, "text": "T-0171 is still open."}, {"at": 10.0, "until": 16.0, "text": "The 24-hour hold is not closed and is not shortened."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="demo.js"></script>
+<script>
+(function () {
+  function clamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function ramp(t, a, b) { return clamp((t - a) / (b - a)); }
+  function $(id) { return document.getElementById(id); }
+  demo.on(function (t) {
+    $("l0").style.opacity = ramp(t, 0.0, 1.0);
+    $("l1").style.opacity = ramp(t, 5.0, 6.0);
+    $("l2").style.opacity = ramp(t, 10.0, 11.0);
+    $("n0").style.opacity = ramp(t, 12.0, 13.0);
+  });
+  demo.seek(0);
+})();
+</script>
+</body></html>

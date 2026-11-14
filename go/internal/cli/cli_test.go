@@ -53,12 +53,6 @@ func newRig(t *testing.T, env map[string]string) *rig {
 	return r
 }
 
-func repoFile(t *testing.T, rel string) string {
-	t.Helper()
-	wd, _ := os.Getwd() // go/internal/cli
-	return filepath.Join(wd, "..", "..", "..", filepath.FromSlash(rel))
-}
-
 func (r *rig) sql(q string, args ...any) {
 	r.t.Helper()
 	d := dbtest.Raw(r.t, r.dbPath)
