@@ -39,6 +39,7 @@ The review autospawn probes use the cache but are not skipped (a review that can
 
 | consumer | change | merge gate affected? |
 |---|---|---|
+| merged go proof | local go vet and go test on the merge-tree; no gh call | no |
 | review autospawn | cache per head (first review reads origin's head with ls-remote for it); never skipped for quota; a gh error is still a `review-autospawn-probe-error` | no: reviewers/qa start later at worst by one TTL; the spawn pre-check reads the PR fresh |
 | judge autospawn (`judge_pr_ready`, `judge_hold`) | none | no |
 | red PR alert | cache + skipped while quota is low | no: it only mails |

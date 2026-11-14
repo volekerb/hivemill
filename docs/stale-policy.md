@@ -65,3 +65,10 @@ BEHIND head spawns on its current head, a conflict is still refused (`CONFLICT-O
 Cost: only a PR that shares a file with a newer main commit refreshes; it pays one extra CI run, the same as under `strict`. One CI run is about 30 runner minutes (`guard-unittest` alone ran 20-27 min in runs 41801135322, 41805677536, 41805809739).
 
 STALE-LOOP risk: `bin/factory_cli.py` is edited by most PRs. A refresh triggers CI (about 30 runner min); if another PR touching the same file merges meanwhile, the refreshed head overlaps again and needs another refresh. It converges only while main moves slower than one CI cycle; merging factory_cli.py PRs serially is the mitigation. Follow-up if it shows.
+
+## Merged Go proof (`merged_go_proof`, default `1`)
+
+When `stale_policy=behind_ok` would merge a PR whose diff since the merge-base touches `go/`, the judge and mechanical
+merger run `go vet` then `go test -count=1` on the `git merge-tree` result (materialised with `git archive`, no checkout
+or worktree). A failure refuses with prefix `MERGED-TREE` and does **not** refresh and does **not** merge. PRs that do
+not touch `go/`, and non-go stale merges, are unchanged. Rollback: `factory config merged_go_proof 0`.

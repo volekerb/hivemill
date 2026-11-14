@@ -198,6 +198,7 @@ DEFAULT_CONFIG = {
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
     "judge_wait_main_run": "0",  # 1 = judge merges wait while the tests.yml push run for the current main head is not completed+success (G-022 T-1029)
+    "merged_go_proof": "1",      # G-022: when behind_ok would merge a PR that touches go/, run go vet+test on the merge-tree first; 0 = off (rollback)
     "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick
     "issue_intake_repos": "",    # comma list OWNER/NAME: the tick messages the director once per new open public issue (G-026 SC5); empty = off
     "frozen_repos": "",        # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
@@ -3023,6 +3024,10 @@ def _config_value_rules(key, value):
         a.value = a.value.strip()
         if a.value and not _FACTORY_URL_SHAPE.fullmatch(a.value):
             die(f"factory_remote_url must be https://github.com/<owner>/<repo>.git (no '.' or '..' segments); {a.value!r} is not", 2)
+    if a.key == "merged_go_proof":
+        a.value = a.value.strip()
+        if a.value not in ("0", "1"):
+            die(f"merged_go_proof must be 0 or 1, not {a.value!r}", 2)
     if a.key == "task_clones":
         a.value = a.value.strip()
         if a.value not in ("0", "1"):
@@ -5145,6 +5150,122 @@ def behind_ok_blocker(repo, sha, main_sha):
     return None
 
 
+MERGED_GO_PROOF_TIMEOUT_S = 180
+MERGED_GO_UNMERGEABLE = object()  # merge-tree conflict: not proof success; caller must drop behind_clean
+
+
+def merged_go_proof_env():
+    """Clean environment for the merge-tree go proof: no inherited toolchain knobs, warm caches under ~/.cache/go."""
+    home = Path.home()
+    go_cache = home / ".cache" / "go"
+    return {"PATH": "/usr/bin:/bin", "HOME": str(home), "GOTOOLCHAIN": "local", "GOFLAGS": "-mod=readonly",
+            "GOPROXY": "off", "GOSUMDB": "off", "GOENV": "off", "GOWORK": "off",
+            "GOCACHE": str(go_cache / "build"), "GOMODCACHE": str(go_cache / "path" / "pkg" / "mod")}
+
+
+def _merged_go_names(repo, base, tip):
+    def git(*a):
+        return _git_rc([*HARDENED_GIT_FLAGS, *a], repo=repo, env=_carry_env())
+
+    rc, out, _ = git("diff", "--name-only", "-z", "--no-renames", base, tip)
+    if rc != 0:
+        return None
+    return [f for f in out.split("\0") if f]
+
+
+def _merged_go_packages(files, go_dir):
+    """Map changed go/ paths to vet/test package args using the merge-tree archive (T-1386)."""
+    if any(f in ("go/go.mod", "go/go.sum") for f in files):
+        return ["./..."]
+    go_dir = Path(go_dir)
+    pkgs = set()
+
+    def pkg_for(rel):
+        parts = rel.split("/")
+        end = len(parts) - 1 if parts[-1] != "" else len(parts) - 1
+        for i in range(end, -1, -1):
+            sub = "/".join(parts[:i]) if i else ""
+            d = go_dir / sub if sub else go_dir
+            if d.is_dir() and any(d.glob("*.go")):
+                return "." if d == go_dir else f"./{d.relative_to(go_dir).as_posix()}"
+        return None
+
+    for f in files:
+        if not f.startswith("go/"):
+            continue
+        p = pkg_for(f[3:])
+        if p:
+            pkgs.add(p)
+    return sorted(pkgs)
+
+
+def merged_go_refusal(con, repo, sha, main_sha, *, timeout=MERGED_GO_PROOF_TIMEOUT_S):
+    """Before a behind_ok merge of a go/** PR, prove the merge-tree with go vet and go test.
+    None = no refusal, MERGED_GO_UNMERGEABLE = merge-tree conflict (caller drops behind_clean), else MERGED-TREE refusal."""
+    if (cfg(con, "merged_go_proof") or "1").strip() != "1":
+        return None
+    if not main_sha:
+        return None
+
+    def git(*a):
+        return _git_rc([*HARDENED_GIT_FLAGS, *a], repo=repo, env=_carry_env())
+
+    rc, base, _ = git("merge-base", main_sha, sha)
+    if rc != 0 or not base:
+        return ("MERGED-TREE: go proof could not list changes since the merge-base with main; nothing merged")
+    pr_files = _merged_go_names(repo, base, sha)
+    main_files = _merged_go_names(repo, base, main_sha)
+    if pr_files is None or main_files is None:
+        return "MERGED-TREE: go proof could not list changed files since the merge-base; nothing merged"
+    if not any(f.startswith("go/") for f in pr_files):
+        return None
+    rc, out, err = git("merge-tree", "--write-tree", sha, main_sha)
+    if rc == 1:
+        return MERGED_GO_UNMERGEABLE
+    if rc != 0 or not out:
+        return f"MERGED-TREE: git merge-tree failed ({err or rc}); nothing merged"
+    tree = out.splitlines()[0].strip()
+    go = guard_go_path()
+    if not os.access(go, os.X_OK):
+        return "MERGED-TREE: go proof could not run (~/.local/go/bin/go missing); nothing merged"
+    tmp = tempfile.mkdtemp(prefix="factory-merged-go-")
+    try:
+        env = merged_go_proof_env()
+        gcmd = git_argv(repo, *HARDENED_GIT_FLAGS)
+        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree, "go"], capture_output=True, env=_carry_env(),
+                              timeout=60)
+        if arch.returncode:
+            return f"MERGED-TREE: git archive of the merge-tree failed ({arch.stderr.decode(errors='replace').strip() or arch.returncode}); nothing merged"
+        extr = subprocess.run(["tar", "-x", "-C", tmp, "--no-same-owner"], input=arch.stdout, capture_output=True,
+                              timeout=120)
+        if extr.returncode:
+            return f"MERGED-TREE: could not extract the merge-tree go/ tree ({extr.stderr.decode(errors='replace').strip()}); nothing merged"
+        go_dir = Path(tmp) / "go"
+        if not go_dir.is_dir():
+            return None
+        pkgs = _merged_go_packages(pr_files + main_files, go_dir)
+        if not pkgs:
+            return None
+        deadline = time.monotonic() + timeout
+
+        def left():
+            return max(0.05, deadline - time.monotonic())
+
+        for sub, args in (("vet", ("vet", *pkgs)), ("test", ("test", "-count=1", *pkgs))):
+            try:
+                rc, err = _run_build([str(go), *args], go_dir, left(), env)
+            except subprocess.TimeoutExpired:
+                return (f"MERGED-TREE: go proof failed on the merge of {sha[:8]} with main {main_sha[:8]}: timed out; "
+                        "nothing merged")
+            if rc != 0:
+                line = (err or "").strip().splitlines()[0][:200] if err else f"go {sub} failed (exit {rc})"
+                return (f"MERGED-TREE: go proof failed on the merge of {sha[:8]} with main {main_sha[:8]}: {line}; "
+                        "nothing merged")
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
     """Is origin/main an ancestor of the PR head `sha`? Same verified fetch as verdict_carries (private refs, replace
     refs ignored, main compared with GitHub's own answer). Returns (ok, why, main_sha): main_sha is the VERIFIED main
@@ -6156,17 +6277,26 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "")
                 return
         if behind_clean:
-            pass  # TODO(T-0623): refuse here while the red-main freeze is active
-        elif stale[1] == "STALE" and not others and mech:
+            proof = merged_go_refusal(con, git_repo, sha, stale[2])
+            if proof is MERGED_GO_UNMERGEABLE:
+                behind_clean = False
+                reason = reason.replace("; " + BEHIND_OK_NOTE, "").replace(BEHIND_OK_NOTE, "")
+                if not stale[0]:
+                    problems.insert(0, "STALE-ONLY: head does not contain origin/main")
+            elif proof:
+                problems.append(proof)
+            else:
+                pass  # TODO(T-0623): refuse here while the red-main freeze is active
+        if not behind_clean and stale[1] == "STALE" and not others and mech:
             problems.append("STALE-ONLY: the mechanical merger does not refresh; refresh by hand (`factory refresh`) or the judge does")
-        elif stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
+        elif not behind_clean and stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
             if pr.get("baseRefName") != "main":
                 problems.append(f"PR base is {pr.get('baseRefName')}, not main")
             if not t["branch"] or pr.get("headRefName") != t["branch"]:
                 problems.append(f"PR head branch {pr.get('headRefName')} is not the task branch {t['branch']}")
-        elif stale[1] == "STALE" and not others:
+        elif not behind_clean and stale[1] == "STALE" and not others:
             def block(why):
                 rejection_gate_refusal(con, a.task, "judge-blocked", why)
                 die("merge refused: " + why, 4)

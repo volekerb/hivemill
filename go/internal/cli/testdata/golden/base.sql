@@ -201,6 +201,7 @@ INSERT INTO "config"("key","value") VALUES('public_text_repos','');
 INSERT INTO "config"("key","value") VALUES('noreply_email','');
 INSERT INTO "config"("key","value") VALUES('red_main_freeze','0');
 INSERT INTO "config"("key","value") VALUES('judge_wait_main_run','0');
+INSERT INTO "config"("key","value") VALUES('merged_go_proof','1');
 INSERT INTO "config"("key","value") VALUES('red_main_interval_s','120');
 INSERT INTO "config"("key","value") VALUES('issue_intake_repos','');
 INSERT INTO "config"("key","value") VALUES('frozen_repos','');
