@@ -1,0 +1,135 @@
+{
+  "title": "Hivemill commercial",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "max_seconds": 60,
+  "scenes": [
+    {
+      "id": "hook",
+      "start": 0.0,
+      "end": 5.0,
+      "visual": "Wordmark over a dark field, then the agent panes fade in.",
+      "caption": "Your own software factory of AI coding agents. Self-hosted.",
+      "onscreen": [
+        "Hivemill"
+      ],
+      "sources": [
+        "README.md:8"
+      ],
+      "placeholder": false
+    },
+    {
+      "id": "two-runtimes",
+      "start": 5.0,
+      "end": 13.0,
+      "visual": "Split screen: a Claude org chart on the left, a Cursor org chart on the right, one shared box below.",
+      "caption": "Run your agents on Claude Code, on Cursor, or both: two full teams, one box.",
+      "onscreen": [
+        "Claude Code · Cursor",
+        "2 runtimes · 1 box"
+      ],
+      "sources": [
+        "README.md:55",
+        "README.md:106",
+        "README.md:259",
+        "web/views/agents.py:36"
+      ],
+      "placeholder": false
+    },
+    {
+      "id": "web-ui",
+      "start": 13.0,
+      "end": 22.0,
+      "visual": "Push-ins on the overview page, the agents page (Claude and Cursor chips highlighted) and the throughput page, taken from the current README screenshots.",
+      "caption": "One web UI shows every goal, every agent, what it costs and how fast work ships.",
+      "onscreen": [
+        "Overview",
+        "Goals",
+        "Agents",
+        "Throughput"
+      ],
+      "sources": [
+        "README.md:36",
+        "web/views/agents.py:36"
+      ],
+      "placeholder": false
+    },
+    {
+      "id": "go-guard",
+      "start": 22.0,
+      "end": 32.0,
+      "visual": "Two animated bars: Python about 69 ms against Go about 8 ms.",
+      "caption": "Every tool call passes a safety guard. The new Go guard answers in about 8 milliseconds, against 69 in Python. Python is still the default.",
+      "onscreen": [
+        "≈69 ms → ≈8 ms median per guard call",
+        "8.5–9× faster, measured",
+        "Python remains default"
+      ],
+      "sources": [
+        "docs/worker-guard-go.md:421"
+      ],
+      "placeholder": false
+    },
+    {
+      "id": "skills",
+      "start": 32.0,
+      "end": 41.0,
+      "visual": "Cards fan out per role, then the setup command.",
+      "caption": "Every role ships with its own skills: coders self-review, reviewers look from several angles, researchers follow a benchmark protocol. Setup is one command.",
+      "onscreen": [
+        "41 role skills · 7 roles",
+        "/hivemill:setup"
+      ],
+      "sources": [
+        "roles/plugins/coder/coder-skills/skills/self-review/SKILL.md:2",
+        "roles/plugins/reviewer/reviewer-skills/skills/multi-angle-review/SKILL.md:2",
+        "roles/plugins/researcher/research-skills/skills/benchmark-protocol/SKILL.md:2",
+        "plugins/hivemill/skills/setup/SKILL.md:2"
+      ],
+      "placeholder": false
+    },
+    {
+      "id": "schedules",
+      "start": 41.0,
+      "end": 48.0,
+      "visual": "A weekly calendar fills with jobs.",
+      "caption": "Put recurring work on a schedule, with a token cap on every run.",
+      "onscreen": [
+        "up to 5 recurring jobs · token cap per run",
+        "factory schedule add --hour H --days mon,wed …"
+      ],
+      "sources": [
+        "docs/schedule.md:3",
+        "docs/schedule.md:9"
+      ],
+      "placeholder": false
+    },
+    {
+      "id": "herdr-core",
+      "start": 48.0,
+      "end": 54.0,
+      "visual": "owner to choose: status bar | dashboard tab | org filter variant (from PR 633)",
+      "caption": "",
+      "onscreen": [],
+      "sources": [],
+      "placeholder": true
+    },
+    {
+      "id": "close",
+      "start": 54.0,
+      "end": 60.0,
+      "visual": "Merge gate: review, QA, judge, merged.",
+      "caption": "Separate review, QA and a judge decide every merge. Hivemill v0.4.0.",
+      "onscreen": [
+        "review · QA · judge",
+        "v0.4.0"
+      ],
+      "sources": [
+        "README.md:8",
+        "README.md:274"
+      ],
+      "placeholder": false
+    }
+  ]
+}
