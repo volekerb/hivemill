@@ -69,7 +69,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [lifecycle.md](lifecycle.md): the mechanical status transitions of goals and tasks.
 - [lessons.md](lessons.md): where corrections and incidents are recorded and applied.
 - [utilization.md](utilization.md): the live-agent count shown by `factory res`, the tick sample and the web home.
-- [terminal-backends.md](terminal-backends.md): Herdr TUI vs herdr-core (`hc`), how to switch `terminal_backend`, caveats.
+- [terminal-backends.md](terminal-backends.md): Herdr TUI vs herdr-core (`hc`), how to switch `terminal_backend`, caveats, real `hc` output, moving a live TUI team to herdr-core and the Herdr app.
 - [utilization-alerts.md](utilization-alerts.md): tick alerts to the director and boss for low worker count, starved goals and owner-cap breaches.
 - [PUBLISHING.md](PUBLISHING.md): the one approved route to a public copy of the repository.
 - [RELEASING.md](RELEASING.md): how a release is made, who does each step, and the feature-flag lifecycle.
