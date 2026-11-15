@@ -375,21 +375,6 @@ def build_cursor_argv(
     return argv
 
 
-# Cursor appends "Co-authored-by: Cursor trailer" to every commit made in a shell that has this set;
-# the push public-text guard refuses that line (T-1624). Factory cursor workers must never carry it.
-TRAILER_ENV_VARS = ("CURSOR_AGENT",)
-
-
-def scrub_worker_env(env: dict) -> dict:
-    """Copy of env without the variables that make Cursor add its commit trailer."""
-    return {k: v for k, v in env.items() if k not in TRAILER_ENV_VARS}
-
-
-def unset_trailer_env_argv(argv: list[str]) -> list[str]:
-    """argv run under `env -u VAR ...`: a pane shell may inherit the variable, so unset it for the agent process."""
-    return ["env", *[x for v in TRAILER_ENV_VARS for x in ("-u", v)], *argv]
-
-
 def works_needs_work() -> list[dict]:
     """Static matrix for `factory cursor-pilot status`."""
     agent = find_agent_binary()

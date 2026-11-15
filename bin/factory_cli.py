@@ -9703,6 +9703,34 @@ def install_pre_push_hook(repo):
         die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
 
 
+COMMIT_MSG_MARK = "# factory commit-msg Cursor trailer strip (T-1624)"
+
+
+def commit_msg_hook_body():
+    """The one commit-msg hook a cursor clone may hold: a one-line exec of bin/cursor-commit-msg-strip.sh in the factory
+    checkout, so the PR branch inside the clone cannot change what runs."""
+    script = Path(__file__).resolve().parent / "cursor-commit-msg-strip.sh"
+    return f"#!/bin/sh\n{COMMIT_MSG_MARK}\nexec sh {shlex.quote(str(script))} \"$@\"\n"
+
+
+def install_commit_msg_hook(repo):
+    """T-1624: <git-dir>/hooks/commit-msg for a runtime=cursor task clone only. The Cursor agent adds a
+    Co-authored-by: Cursor trailer in its own shells (env is not the cause); the push guard refuses that line."""
+    p = git_run(repo, "rev-parse", "--git-common-dir", env={**os.environ, "LC_ALL": "C"})
+    if p.returncode != 0 or not p.stdout.strip():
+        die(f"spawn refused: cannot find the git dir of {repo} to install the commit-msg hook: {p.stderr.strip()}", 4)
+    dst = Path(repo, p.stdout.strip()).resolve() / "hooks" / "commit-msg"
+    body = commit_msg_hook_body()
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if not dst.is_file() or dst.is_symlink() or dst.read_text() != body:
+            dst.unlink(missing_ok=True)
+            dst.write_text(body)
+        dst.chmod(0o755)
+    except OSError as e:
+        die(f"spawn refused: cannot install the commit-msg hook at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
+
+
 def trust_task_clone(con, task, wt, add=True):
     """T-1220: pre-register (add) or drop the Claude workspace-trust entry of a per-task clone in the owner's
     ~/.claude.json, only under worktrees/. A refusal records one clone-trust-refused event and goes on (the dialog shows)."""
@@ -9734,6 +9762,8 @@ def git_hooks_refusal(clone):
             elif f.name.endswith(".sample"):
                 continue
             elif f.name == "pre-push" and f.read_text() == body:
+                continue
+            elif f.name == "commit-msg" and f.read_text() == commit_msg_hook_body():  # T-1624
                 continue
             else:
                 bad.append(f.name)
@@ -9792,7 +9822,7 @@ def prepare_qa_clone(con, t, task):
     return str(qa)
 
 
-def prepare_worktree(con, task, role):
+def prepare_worktree(con, task, role, runtime=None):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
         return None
@@ -9809,13 +9839,15 @@ def prepare_worktree(con, task, role):
         if role == "coder" and coder_git.is_dir() and not git_hooks_guard(con, t["worktree"]):
             con.commit()
             die(f"spawn refused: {t['worktree']}/.git holds {', '.join(git_hooks_refusal(t['worktree']))} "
-                "(only *.sample and the factory pre-push are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
+                "(only *.sample, the factory pre-push and the cursor commit-msg strip are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
         if role == "coder" and t["branch"]:
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
         install_pre_push_hook(t["worktree"])
+        if role == "coder" and runtime == "cursor":
+            install_commit_msg_hook(t["worktree"])
         return t["worktree"]
     if role != "coder":
         return None  # verifiers never create branches; they work from the coder's worktree or the PR
@@ -9832,6 +9864,8 @@ def prepare_worktree(con, task, role):
         make_task_clone(con, repo, wt, branch, base)
         trust_task_clone(con, task, wt)
         install_pre_push_hook(wt)
+        if runtime == "cursor":
+            install_commit_msg_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
     branch_existed = git_run(repo, "rev-parse", "--verify", "-q", f"refs/heads/{branch}", text=False).returncode == 0
@@ -9855,6 +9889,8 @@ def prepare_worktree(con, task, role):
         drop_half_made()
         die(f"worktree checkout failed: {p.stderr.strip()}")
     install_pre_push_hook(wt)
+    if runtime == "cursor":
+        install_commit_msg_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
     return str(wt)
 
@@ -10926,8 +10962,6 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     if plan.launch == "subprocess":
         run_env = {**os.environ, **env, **(settings_obj.get("env") or {})}
         run_env.update(env)
-        if runtime == "cursor":  # T-1624: no Cursor co-author trailer on factory worker commits
-            run_env = cursor_harness.scrub_worker_env(run_env)
         log_path = RUN / f"{name}.{runtime}.log"
         try:
             proc = agent_runtime.launch_subprocess(plan, cwd=Path(cwd), env=run_env, log_path=log_path)
@@ -10975,11 +11009,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
                 "spawn_args=excluded.spawn_args, started=excluded.started, ended=NULL, summary=NULL, blocked_since=NULL, blocked_alerted=0, "
                 "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL, start_pending=NULL, start_pending_info=NULL",
                 (name, role, goal, team, task, "live", pane, ws, tab, model, sid, cwd, json.dumps(args), now()))
-    start_argv = plan.argv
-    if runtime == "cursor" and spawn_host == "herdr":  # T-1624: hc starts under env -i; a herdr pane shell may inherit it
-        start_argv = cursor_harness.unset_trailer_env_argv(start_argv)
     start_args = ("agent", "start", name, "--kind", plan.herdr_kind, "--pane", pane, "--timeout", "90000",
-                  "--", *start_argv)
+                  "--", *plan.argv)
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
     _HC_RUN_PROGRAM, _HC_RUN_NAME = plan.binary, name
     _SPAWN_HOST_EXE = spawn_host
@@ -11090,7 +11121,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         if cwd and cwd != want:
             die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
         cwd = want
-    cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
+    cwd = cwd or (prepare_worktree(con, task, role, runtime) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
     if terms and role in SCRUB_TERMS_ROLES:  # a path only: worker-guard still refuses to read the file itself
