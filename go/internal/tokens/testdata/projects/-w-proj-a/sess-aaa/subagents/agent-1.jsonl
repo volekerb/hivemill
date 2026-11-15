@@ -1,0 +1,4 @@
+{"type":"agent-name","agentName":"sub-agent"}
+{"type":"assistant","timestamp":"2026-11-10T09:30:00Z","cwd":"/w/repo-a/sub","requestId":"s1","message":{"id":"sm1","model":"claude-sonnet-5-5","usage":{"input_tokens":200,"output_tokens":100,"cache_creation_input_tokens":50}}}
+{"type":"assistant","timestamp":"2026-11-10T10:00:00Z","requestId":"r2","message":{"id":"m2","model":"claude-sonnet-5-5","usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":20,"cache_creation_input_tokens":40}}}
+{"type":"cost-state","totalCostUSD":0.5}
