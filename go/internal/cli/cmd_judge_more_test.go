@@ -346,3 +346,17 @@ func TestJudgeGHTimeout(t *testing.T) {
 		t.Fatalf("events written before the hand-over: %s", got)
 	}
 }
+
+// TestJudgeSQLiteText: the driver's error text is reduced to Python's sqlite3 str(e).
+func TestJudgeSQLiteText(t *testing.T) {
+	for in, want := range map[string]string{
+		"constraint failed: zz-fail (1811)":                       "zz-fail",
+		"constraint failed: UNIQUE constraint failed: t.c (2067)": "UNIQUE constraint failed: t.c",
+		"SQL logic error: no such table: x (1)":                   "no such table: x",
+		"plain error (5)":                                         "plain error (5)",
+	} {
+		if got := judgeSQLiteText(in); got != want {
+			t.Errorf("judgeSQLiteText(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

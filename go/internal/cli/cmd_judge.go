@@ -452,7 +452,7 @@ func judgeRecordMerged(c *ctx, j *judgeEnv, t judgeTask, sha, shown, reason stri
 	}
 	// run_after_merge: a failed hook never changes the merge result
 	if err := judgeAfterMerge(c, j, t); err != nil {
-		if e2 := event(c, "task", t.id, "post-merge-hook-failed", strp(err.Error())); e2 != nil {
+		if e2 := event(c, "task", t.id, "post-merge-hook-failed", strp(judgeSQLiteText(err.Error()))); e2 != nil {
 			fmt.Fprintf(c.errb, "factory: post-merge-hook-failed event not recorded: %v\n", e2)
 		}
 	}
@@ -804,4 +804,18 @@ func judgeClosePR(j *judgeEnv, prURL, mainSHA, reason string) string {
 		return e
 	}
 	return fmt.Sprintf("gh pr close exit %d", res.ExitCode)
+}
+
+var judgeSQLiteTail = regexp.MustCompile(` \(\d+\)$`)
+
+// judgeSQLiteText turns the SQLite driver's error text into what Python's sqlite3 str(e) says: the driver prefixes the
+// result class ("constraint failed: ", "SQL logic error: ") and appends the result code " (1811)".
+func judgeSQLiteText(s string) string {
+	for _, pre := range []string{"constraint failed: ", "SQL logic error: "} {
+		if strings.HasPrefix(s, pre) {
+			s = judgeSQLiteTail.ReplaceAllString(strings.TrimPrefix(s, pre), "")
+			break
+		}
+	}
+	return s
 }
