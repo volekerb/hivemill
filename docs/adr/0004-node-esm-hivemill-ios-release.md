@@ -1,4 +1,4 @@
-# ADR 0003: Node ESM and bash for the hivemill iOS release script
+# ADR 0004: Node ESM and bash for the hivemill iOS release script
 
 ## Status
 

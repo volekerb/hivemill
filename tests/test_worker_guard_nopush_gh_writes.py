@@ -92,7 +92,8 @@ class NoPushGhWriteTests(unittest.TestCase):
         for c in W + COMMENT:
             for role in ("coder", "judge", "cleaner", "researcher"):
                 self.assertEqual(self.code(c, role), ORIGIN_WRITE[role], f"{role}: {c}")
-            self.assertEqual(self.code(c, "coder", hq=True), ORIGIN_WRITE["hq"], f"hq: {c}")
+            want = 2 if c == "gh pr merge 1" else ORIGIN_WRITE["hq"]  # T-1500: the HQ deny rule blocks gh pr merge
+            self.assertEqual(self.code(c, "coder", hq=True), want, f"hq: {c}")
         for c in READS:
             for role in ("coder", "judge", "cleaner"):
                 self.assertEqual(self.code(c, role), ORIGIN_READ[role], f"{role}: {c}")
