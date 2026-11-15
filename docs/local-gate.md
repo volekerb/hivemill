@@ -133,7 +133,8 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   Not covered: ci-tier (nothing to classify) and the test-count gate (the runner does it with `--count`).
   `--plan` prints the steps.
 - **What is shipped**: `git archive HEAD` of the gate tree, `git archive` of the base (merge base of HEAD with
-  `refs/factory-judge/main`, else `origin/main`, else `HEAD^`; `GATE_BASE` overrides) for the jobs that compare with the
+  `refs/factory-judge/main`, else `origin/main`; its parent when that is HEAD itself; no merge base is refused;
+  `GATE_BASE` overrides) for the jobs that compare with the
   base, and three files of the main checkout (`ci/remote_gate_driver.sh`, `tests/gate_shards.py`, `ci/test_count_gate.py`).
   Nothing else: no `.git`, gh token, `~/.ssh`, `~/.claude` or factory DB. ssh runs with `BatchMode=yes`, `SendEnv=-*`,
   no agent or port forwarding, and the remote side starts under `env -i` with an explicit allow-list (`HOME`, `TMPDIR`,

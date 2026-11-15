@@ -45,7 +45,7 @@
 #   upload/download-artifact, GITHUB_STEP_SUMMARY: GitHub plumbing, no test.
 #
 # Env: GATE_REMOTE_HOST (ssh host, required), GATE_SHARDS (runner; capped at 8), GATE_BASE (base rev; default the
-# merge base of HEAD with refs/factory-judge/main, else origin/main, else HEAD^, else HEAD).
+# merge base of HEAD with refs/factory-judge/main, else origin/main; HEAD^ when that is HEAD; none: refused).
 set -euo pipefail
 
 MAX_CORES=8
@@ -99,8 +99,12 @@ else
       if mb=$(git merge-base HEAD "$ref"); then base=$mb; break; fi
     fi
   done
-  if [ -z "$base" ] || [ "$base" = "$head" ]; then
-    base=$(git rev-parse --verify -q "HEAD^" || echo "$head")
+  if [ -z "$base" ]; then
+    # fail closed: a made-up base would let guard-diff / docs-check compare against the wrong tree
+    echo "remote-gate: no merge base of HEAD with refs/factory-judge/main or origin/main; set GATE_BASE" >&2; exit 2
+  fi
+  if [ "$base" = "$head" ]; then  # gating main itself: compare with its parent, as CI's push run does with "before"
+    base=$(git rev-parse --verify -q "HEAD^") || { echo "remote-gate: HEAD is main and has no parent; set GATE_BASE" >&2; exit 2; }
   fi
 fi
 case "$host" in ''|-*|*[!A-Za-z0-9._@-]*) echo "remote-gate: GATE_REMOTE_HOST='$host' is not set or not a plain ssh host name" >&2; exit 2 ;; esac

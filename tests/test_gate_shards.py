@@ -115,6 +115,7 @@ class RemoteGate(unittest.TestCase):
             "import unittest\nclass T(unittest.TestCase):\n    def test_one(self): pass\n    def test_two(self): pass\n")
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "base")
+        git(self.tree, "update-ref", "refs/remotes/origin/main", "HEAD")
         self.commit_head(sleep=0)
 
     def commit_head(self, sleep):
@@ -155,6 +156,25 @@ class RemoteGate(unittest.TestCase):
         self.assertEqual(self.gate().returncode, 2)
         self.assertEqual(self.gate("--count").returncode, 0)  # the count needs no host
         self.assertEqual(self.ssh_calls(), [])
+
+    def test_bad_shard_count_is_refused_before_any_ssh(self):
+        for v in ("abc", "0", "-1"):
+            self.env["GATE_SHARDS"] = v
+            p = self.gate()
+            self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+            self.assertIn("GATE_SHARDS", p.stderr)
+        self.assertEqual(self.ssh_calls(), [])
+
+    def test_no_merge_base_with_main_is_refused_not_guessed(self):
+        git(self.tree, "update-ref", "-d", "refs/remotes/origin/main")
+        p = self.gate()
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("no merge base", p.stderr)
+        self.assertEqual(self.ssh_calls(), [])
+        base = subprocess.run(["git", "rev-parse", "HEAD^"], cwd=self.tree, capture_output=True, text=True).stdout.strip()
+        self.env["GATE_BASE"] = base  # an explicit base is used as given
+        p = self.gate()
+        self.assertIn(f"base {base}", p.stdout)
 
     def test_dirty_tree_is_refused_before_any_ssh(self):
         (self.tree / "untracked.txt").write_text("x")
