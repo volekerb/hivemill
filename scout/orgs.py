@@ -38,7 +38,7 @@ ORGS = {
             "boss": "grok-4.7-high", "director": "grok-4.7-high", "lead": "grok-4.7-high",
             "pm": "grok-4.7-high", "reviewer": "grok-4.7-high", "judge": "grok-4.7-high",
             "staff-engineer": "grok-4.7-high", "researcher": "grok-4.7-high",
-            "coder": "composer-2.5", "qa": "composer-2.5", "cleaner": "composer-2.5",
+            "coder": "composer-2.5", "qa": "grok-4.7-high", "cleaner": "composer-2.5",
             "scout": "composer-2.5",
             "retro": "composer-2.5",
             # skilleval evaluator always runs on Claude (agent_runtime: cursor refuses it)
