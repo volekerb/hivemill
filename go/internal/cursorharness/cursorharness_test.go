@@ -187,6 +187,7 @@ func TestResolveRealpathParity(t *testing.T) {
 		"dang/x":        "missing/x",      // python: D/missing/x
 		"l":             "l",              // python: D/l
 		"l/x":           "l/x",            // python: D/l/x
+		"lnk/../x":      "x",              // python: D/x (the ".." is applied after the link is followed)
 	}
 	for in, want := range cases {
 		if got := resolve(filepath.Join(d, in)); got != filepath.Join(d, want) {

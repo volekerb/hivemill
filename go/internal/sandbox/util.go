@@ -16,10 +16,10 @@ import (
 // Realpath is Python's os.path.realpath (non-strict): every symlink on the path is followed, including a dangling
 // one (its target is appended) and a symlinked parent of a missing path; a symlink loop is left as is.
 func Realpath(p string) string {
-	p = filepath.Clean(p)
+	// No lexical Clean: ".." after a symlink must be resolved physically, as Python does.
 	if !filepath.IsAbs(p) {
 		if wd, err := os.Getwd(); err == nil {
-			p = filepath.Join(wd, p)
+			p = wd + "/" + p
 		}
 	}
 	seen := map[string]bool{}
