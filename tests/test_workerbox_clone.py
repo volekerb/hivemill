@@ -161,6 +161,7 @@ class CloneProfileTests(unittest.TestCase):
         git("push", "-q", "-u", "origin", "main", cwd=self.fh)
         self.own = self.make_clone(TASK, BRANCH)
         self.other = self.make_clone("G-001-T-0002", "factory/T-0002")
+        self.qa = self.make_clone(f"{TASK}-qa", f"{BRANCH}-qa")  # T-1544: qa's own clone, sibling of the coder clone
         # an object only the shared <factory>/.git has: the clones reach it through alternates alone
         put(self.fh / "only-in-factory", "alternates\n")
         git("add", "only-in-factory", cwd=self.fh)
@@ -187,8 +188,8 @@ class CloneProfileTests(unittest.TestCase):
         git("push", "-q", "origin", f"HEAD:{ref}", cwd=seed)
         return git("rev-parse", "HEAD", cwd=seed)
 
-    def probe(self, ops, d=None, agent="coder-t-1", role="coder"):
-        p, res = self.box.run(d or self.d, ops, agent, role, self.own)
+    def probe(self, ops, d=None, agent="coder-t-1", role="coder", cwd=None):
+        p, res = self.box.run(d or self.d, ops, agent, role, cwd or self.own)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIsNotNone(res, p.stdout + p.stderr)
         return res
@@ -261,16 +262,46 @@ class CloneProfileTests(unittest.TestCase):
         self.assertEqual(self.sh("git", "cat-file", "-p", f"{sha}:only-in-factory")[1], "alternates\n")
 
     @NEEDS_USERNS
-    def test_qa_fetches_a_pr_ref_checks_it_out_detached_and_runs_a_command(self):
+    def test_qa_fetches_a_pr_ref_checks_it_out_detached_and_runs_a_command_in_its_own_clone(self):
         pr = self.push_to_origin("pr-change", "from the PR\n", ref="refs/pull/1/head")
-        d = self.box.prepare("qa-t-1", "qa", self.own)
+        d = self.box.prepare("qa-t-1", "qa", self.qa)
         res = self.probe([{"op": "run", "argv": ["git", "fetch", "origin", "refs/pull/1/head"]},
                           {"op": "run", "argv": ["git", "checkout", "-q", "--detach", "FETCH_HEAD"]},
-                          {"op": "run", "argv": ["python3", "-c", "print(1)"]}], d=d, agent="qa-t-1", role="qa")
+                          {"op": "run", "argv": ["python3", "-c", "print(1)"]}], d=d, agent="qa-t-1", role="qa", cwd=self.qa)
         self.assertEqual([r["val"][0] for r in res], [0, 0, 0], res)
         self.assertEqual(res[2]["val"][1], "1\n")
-        self.assertEqual(self.outside("rev-parse", "HEAD"), pr)
-        self.assertEqual(subprocess.run(["git", "symbolic-ref", "-q", "HEAD"], cwd=self.own).returncode, 1)  # detached
+        self.assertEqual(git("rev-parse", "HEAD", cwd=self.qa), pr)
+        self.assertEqual(subprocess.run(["git", "symbolic-ref", "-q", "HEAD"], cwd=self.qa).returncode, 1)  # detached
+        self.assertNotEqual(self.outside("rev-parse", "HEAD"), pr)  # the coder clone was not touched
+
+    @NEEDS_USERNS
+    def test_qa_cannot_write_the_coder_clone_but_writes_its_own(self):
+        """T-1544: the read-only-token class has no access to the clone a read-write role works in."""
+        d = self.box.prepare("qa-t-2", "qa", self.qa)
+        (self.own / ".git/hooks").mkdir(exist_ok=True)
+        cfg_before = (self.own / ".git/config").read_text()
+        res = self.probe([{"op": "write", "path": str(self.own / ".git/hooks/pre-commit")},
+                          {"op": "write", "path": str(self.own / ".git/config")},
+                          {"op": "write", "path": str(self.own / "newfile")},
+                          {"op": "listdir", "path": str(self.own)},
+                          {"op": "write", "path": str(self.qa / ".git/hooks/x")},
+                          {"op": "write", "path": str(self.qa / "newfile")}], d=d, agent="qa-t-2", role="qa", cwd=self.qa)
+        self.assertEqual([r.get("err") for r in res[:4]], ["ENOENT"] * 4, res)  # worktrees/ is masked: the coder clone is not there
+        self.assertTrue(res[4]["ok"] and res[5]["ok"], res)
+        self.assertFalse((self.own / ".git/hooks/pre-commit").exists())
+        self.assertFalse((self.own / "newfile").exists())
+        self.assertEqual((self.own / ".git/config").read_text(), cfg_before)
+        self.assertTrue((self.qa / ".git/hooks/x").exists() and (self.qa / "newfile").exists())
+
+    @NEEDS_USERNS
+    def test_reviewer_reads_the_coder_clone_and_cannot_write_it(self):
+        d = self.box.prepare("reviewer-t-2", "reviewer", self.own, False)
+        res = self.probe([{"op": "listdir", "path": str(self.own)},
+                          {"op": "write", "path": str(self.own / ".git/hooks/x")},
+                          {"op": "write", "path": str(self.own / "newfile")}], d=d, agent="reviewer-t-2", role="reviewer")
+        self.assertTrue(res[0]["ok"] and "README" in res[0]["val"], res)
+        self.assertEqual([r.get("err") for r in res[1:]], ["EROFS"] * 2, res)
+        self.assertFalse((self.own / ".git/hooks/x").exists())
 
     @NEEDS_USERNS
     def test_gh_stub_inside_reports_gh_token_set(self):

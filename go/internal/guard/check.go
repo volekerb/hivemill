@@ -233,6 +233,7 @@ func Check(cmd, cwd, role string, hq bool) error {
 		return err
 	}
 	an.unitRule = hq
+	an.hqDeny = hq
 	if hq {
 		an.pt = pt
 	}

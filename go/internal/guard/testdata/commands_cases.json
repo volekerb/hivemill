@@ -3144,13 +3144,6 @@
 },
 {
 "module": "test_priv_guard",
-"cmd": "herdr server stop",
-"role": "",
-"hq": true,
-"exit": 0
-},
-{
-"module": "test_priv_guard",
 "cmd": "factory spawn coder --task T-1",
 "role": "",
 "hq": true,

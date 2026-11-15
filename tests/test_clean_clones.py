@@ -62,6 +62,86 @@ class CloneCleanBase(FactoryTestCase):
         return self.env.sql("SELECT detail FROM events WHERE action='git-config-refused'")
 
 
+class QaCloneCleanTests(CloneCleanBase):
+    """T-1544: <goal>-<task>-qa goes with the coder clone of a finished task, never before."""
+
+    def qa_clone(self):
+        qa = self.wts / "G-001-T-0001-qa"
+        git("-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", str(self.repo), str(qa), cwd=self.env.home)
+        git("remote", "set-url", "origin", str(self.origin), cwd=qa)
+        git("fetch", "-q", "origin", cwd=qa)
+        git("checkout", "-q", "-b", "factory/t-0001-qa", "origin/main", cwd=qa)
+        (qa / "scratch").write_text("qa test output\n")  # untracked and a local commit: disposable
+        git("add", "scratch", cwd=qa)
+        git("-c", "user.name=zz", "-c", "user.email=zz@example.invalid", "commit", "-q", "-m", "qa scratch", cwd=qa)
+        return qa
+
+    def test_merged_task_loses_both_clones(self):
+        wt, _ = self.clone_task()
+        qa = self.qa_clone()
+        p = self.clean()
+        self.assertFalse(wt.exists())
+        self.assertFalse(qa.exists())
+        self.assertIn("1 removed", p.stdout)
+
+    def test_dry_run_keeps_both(self):
+        wt, _ = self.clone_task()
+        qa = self.qa_clone()
+        self.clean("--dry-run")
+        self.assertTrue(wt.exists() and qa.exists())
+
+    def test_unfinished_task_keeps_both(self):
+        wt, _ = self.clone_task(status="in_review", pr_state="OPEN")
+        qa = self.qa_clone()
+        p = self.clean()
+        self.assertTrue(wt.exists() and qa.exists())
+        self.assertIn("task in_review", p.stdout)
+
+    def test_live_qa_agent_keeps_both(self):
+        wt, _ = self.clone_task()
+        qa = self.qa_clone()
+        self.env.seed_agent("zz-test-qa", "qa", goal="G-001", task="T-0001", status="queued", pane_id="p1")
+        self.env.sql("UPDATE agents SET cwd=? WHERE name='zz-test-qa'", (str(qa),))
+        p = self.clean()
+        self.assertTrue(wt.exists() and qa.exists())
+        self.assertIn("agent live", p.stdout)
+
+    def test_qa_clone_with_live_pane_is_kept_with_a_reason_coder_clone_goes(self):
+        wt, _ = self.clone_task()
+        qa = self.qa_clone()
+        pane = {"pane_id": "p9", "tab_id": "t9", "workspace_id": "w9"}
+        self.env.set_herdr(panes=[{**pane, "cwd": "/", "foreground_cwd": str(qa)}])
+        p = self.clean()
+        self.assertFalse(wt.exists())
+        self.assertTrue(qa.exists())
+        self.assertIn("qa kept: cwd of a live pane", p.stdout)
+
+    def test_kept_qa_clone_is_removed_by_a_later_pass(self):
+        wt, _ = self.clone_task()
+        qa = self.qa_clone()
+        pane = {"pane_id": "p9", "tab_id": "t9", "workspace_id": "w9"}
+        self.env.set_herdr(panes=[{**pane, "cwd": "/", "foreground_cwd": str(qa)}])
+        self.clean()
+        self.assertFalse(wt.exists())
+        self.assertTrue(qa.exists())
+        self.assertIn("qa kept: cwd of a live pane", self.clean().stdout)  # still in use: kept again
+        self.env.set_herdr(panes=[])
+        p = self.clean()
+        self.assertFalse(qa.exists())
+        self.assertIn("qa clone of a finished task", p.stdout)
+
+    def test_qa_clone_symlink_is_never_followed(self):
+        wt, _ = self.clone_task()
+        target = self.env.home / "precious"
+        target.mkdir()
+        (target / "f").write_text("keep\n")
+        os.symlink(target, self.wts / "G-001-T-0001-qa")
+        p = self.clean()
+        self.assertFalse(wt.exists())
+        self.assertTrue((target / "f").exists())
+        self.assertIn("qa kept", p.stdout)
+
+
 class CloneCleanTests(CloneCleanBase):
     def test_clone_merged_done_removed(self):
         wt, _ = self.clone_task()

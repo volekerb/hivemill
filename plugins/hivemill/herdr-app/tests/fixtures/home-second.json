@@ -1,0 +1,7 @@
+{
+  "live_agents": 5,
+  "system": { "agents": { "live": 5, "cap": 6, "queued": 0 } },
+  "needs_you": [],
+  "lanes": [{ "org": "cursor", "label": "Cursor", "boss": { "status": "idle" }, "director": { "status": "live" }, "workers_live": 4, "leads_awake": 2, "goals_active": 2, "health": { "tone": "success", "text": "ok" } }],
+  "goals": [], "agents": { "rows": [], "queued": 0 }, "shipped": { "recent": [] }
+}

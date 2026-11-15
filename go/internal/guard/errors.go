@@ -36,7 +36,8 @@ func IsPrivBlock(err error) bool {
 	var p *PrivBlock
 	var u *UnitBlock
 	var r *RepoProtBlock
-	return errors.As(err, &p) || errors.As(err, &u) || errors.As(err, &r)
+	var h *HqDenyBlock
+	return errors.As(err, &p) || errors.As(err, &u) || errors.As(err, &r) || errors.As(err, &h)
 }
 
 // IsClaudeBlock reports whether err is a ClaudeBlock or a DynamicBlock.
@@ -60,6 +61,7 @@ func Explain(err error) string {
 	var p *PrivBlock
 	var b *Block
 	var rp *RepoProtBlock
+	var hd *HqDenyBlock
 	var pb *PublicBlock
 	var gb *GitBlock
 	switch {
@@ -68,6 +70,9 @@ func Explain(err error) string {
 	case errors.As(err, &u):
 		return fmt.Sprintf("worker-guard: blocked (`%s`): mutating systemctl/systemd-run is not allowed for "+
 			"factory agents; the owner manages units (M2108)\n", u.Msg)
+	case errors.As(err, &hd):
+		return fmt.Sprintf("worker-guard: blocked: HQ deny rule: %s is denied for boss, director and lead in every "+
+			"spelling (see roles/settings; use the factory CLI)\n", hd.Msg)
 	case errors.As(err, &p):
 		return fmt.Sprintf("worker-guard: blocked: privilege escalation (`%s`) is not allowed for factory agents "+
 			"(owner M803)\n", p.Word)

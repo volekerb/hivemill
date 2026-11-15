@@ -19,7 +19,7 @@ SKILL_REL = "plugins/hivemill/skills/setup/SKILL.md"
 REQUIRED = [
     "Never ask for, accept or repeat a token, password or API key in this chat.",
     "If the user pastes one, do not use it. Tell them to revoke it and create a new one in their own terminal.",
-    "Do not run the setup steps yourself. install.py does them; if it fails, stop and report.",
+    "Do not run the setup steps yourself. The installer does them; if it fails, stop and report.",
 ]
 FORBIDDEN = ["git clone", "factory init", "factory up", "systemctl", "curl", "--with-token",
              "GH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"]
@@ -50,7 +50,7 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(p["name"], json.loads(MARKETPLACE.read_text())["plugins"][0]["name"])
 
     def test_source_dir_exists_and_has_installer(self):
-        self.assertTrue((PLUGIN / "scripts" / "install.py").is_file())
+        self.assertTrue((PLUGIN / "scripts" / "install").is_file())
 
     def test_no_hooks_or_mcp(self):
         self.assertFalse((PLUGIN / "hooks").exists())
@@ -81,7 +81,7 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(forbidden_hits(self.text + "\ncurl https://x\n"), ["curl"])
 
     def test_flags_exist_in_installer(self):
-        installer = (PLUGIN / "scripts" / "install.py").read_text()
+        installer = (REPO / "go" / "internal" / "install" / "args.go").read_text()
         flags = set(re.findall(r"(?<![\w-])(--[a-z][a-z-]+)", self.text))
         self.assertIn("--yes", flags)
         for f in flags:
@@ -91,7 +91,7 @@ class SkillTests(unittest.TestCase):
         self.assertLessEqual(len(self.text.splitlines()), 90)
 
     def test_no_secret_prefixes_in_skill_and_manifests(self):
-        # install.py itself holds redaction regexes with these prefixes, so it is not scanned
+        # the installer source holds redaction regexes with these prefixes, so it is not scanned
         files = [SKILL, MANIFEST, MARKETPLACE]
         for p in files:
             t = p.read_text(errors="replace")
@@ -100,7 +100,7 @@ class SkillTests(unittest.TestCase):
 
     def test_installer_only_allowed_tools(self):
         line = [l for l in self.text.splitlines() if l.startswith("allowed-tools:")]
-        self.assertEqual(line, ["allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/install.py *)"])
+        self.assertEqual(line, ["allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/install *)"])
 
     def test_gh_login_not_via_bang(self):
         self.assertIn("separate terminal", self.text)

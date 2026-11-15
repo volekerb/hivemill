@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Worker sandbox</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .head { position: absolute; left: 120px; top: 56px; }
+  .head .title { font-size: 60px; }
+  .head .sub { margin-top: 14px; }
+  #status { position: absolute; left: 120px; top: 222px; }
+  #bound { position: absolute; left: 600px; top: 330px; width: 720px; height: 450px; border-radius: 28px;
+    border: 3px dashed rgba(77,163,255,0.75); background: rgba(10,132,255,0.05); }
+  #optin { position: absolute; left: 0; top: 0; }
+  .pane { position: absolute; left: 70px; top: 64px; width: 580px; height: 206px; border-radius: 14px; overflow: hidden;
+    background: rgba(18,18,20,0.95); box-shadow: 0 0 0 1px rgb(47,47,50), 0 24px 60px rgba(0,0,0,0.6);
+    font-family: var(--mono); font-size: 19px; color: var(--ink-3); }
+  .pane .hd { height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 18px; background: rgb(26,26,29);
+    border-bottom: 1px solid rgb(42,42,45); font-family: "Inter"; font-weight: 600; font-size: 19px; color: var(--ink-1); }
+  .pane .hd .st { margin-left: auto; width: 10px; height: 10px; border-radius: 50%; background: var(--success-solid); }
+  .pane .ln { padding: 0 20px; height: 34px; line-height: 34px; white-space: nowrap; }
+  .pane .ln em { color: var(--accent); font-style: normal; }
+  .pane .ln b { color: var(--success-fg); font-weight: 400; }
+  .tok { position: absolute; display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 22px; border-radius: 28px;
+    background: var(--success-bg); color: var(--success-fg); font-size: 24px; font-weight: 600;
+    box-shadow: inset 0 0 0 1px rgba(48,179,90,0.6), 0 0 30px rgba(48,179,90,0.25); white-space: nowrap; }
+  .tok svg, .own svg { width: 26px; height: 26px; flex: none; }
+  .own { position: absolute; width: 350px; height: 76px; border-radius: 16px; display: flex; align-items: center; gap: 16px;
+    padding: 0 22px; background: var(--surface-1); box-shadow: 0 0 0 1px var(--hairline); font-size: 25px; font-weight: 600; white-space: nowrap; }
+  .own .ic { position: relative; width: 26px; height: 26px; flex: none; }
+  .own .ic svg { position: absolute; left: 0; top: 0; }
+  .own .tag { margin-left: auto; font-size: 18px; font-weight: 600; color: var(--ink-3); }
+</style>
+</head><body>
+<div class="backdrop"></div>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12.5 12H21M18 12v3.5M15.5 12v2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5" fill="currentColor"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+  </defs>
+</svg>
+<div class="stage">
+  <img class="brand" id="brand" src="../../images/wordmark-dark.svg" alt="Hivemill">
+  <div class="head" id="head">
+    <h1 class="title">Worker sandbox · opt-in · Linux</h1>
+    <div class="sub">own worker tokens · your logins hidden</div>
+  </div>
+  <div class="chip warn" id="status"><span class="dot"></span>rollout in verification</div>
+
+  <div id="bound">
+    <div class="pane" id="pane">
+      <div class="hd">coder <span class="st"></span></div>
+      <div class="ln"><em>$</em> git push</div>
+      <div class="ln"><b>ok</b> pushed with its own token</div>
+      <div class="ln"><em>$</em> ls ~/.ssh</div>
+      <div class="ln">not visible in the sandbox</div>
+    </div>
+    <div class="tok" id="tok1" style="left: 70px; top: 306px"><svg><use href="#key"/></svg>worker token</div>
+    <div class="tok" id="tok2" style="left: 330px; top: 306px"><svg><use href="#key"/></svg>role GitHub token</div>
+  </div>
+  <div class="chip info" id="optin">opt-in</div>
+
+  <div class="own" id="o1"><span class="ic"><svg class="k"><use href="#key"/></svg><svg class="l"><use href="#lock"/></svg></span>Claude login<span class="tag">yours</span></div>
+  <div class="own" id="o2"><span class="ic"><svg class="k"><use href="#key"/></svg><svg class="l"><use href="#lock"/></svg></span>ssh keys<span class="tag">yours</span></div>
+  <div class="own" id="o3"><span class="ic"><svg class="k"><use href="#key"/></svg><svg class="l"><use href="#lock"/></svg></span>gh login<span class="tag">yours</span></div>
+  <div class="own" id="o4"><span class="ic"><svg class="k"><use href="#key"/></svg><svg class="l"><use href="#lock"/></svg></span>terminal socket<span class="tag">yours</span></div>
+</div>
+<script src="film.js"></script>
+<script>
+(function () {
+  'use strict';
+  const { prog, fade, tr, $, lerp } = Film;
+  // The owner's logins and keys sit outside the dashed boundary.
+  const OWN = { o1: [200, 380], o2: [200, 640], o3: [1370, 380], o4: [1370, 640] };
+
+  function seek(t) {
+    const h = prog(t, 0, 0.5);
+    $('#head').style.opacity = h; $('#head').style.transform = tr(0, 16 * (1 - h));
+    $('#brand').style.opacity = 0.6 * h;
+    $('#status').style.opacity = prog(t, 0.35, 0.8);
+
+    const b = prog(t, 0.2, 0.9);
+    const bound = $('#bound');
+    bound.style.opacity = b; bound.style.transform = tr(0, 20 * (1 - b));
+    bound.style.borderColor = 'rgba(77,163,255,' + (0.35 + 0.4 * b).toFixed(3) + ')';
+    bound.style.boxShadow = '0 0 ' + Math.round(40 + 20 * Math.sin(t * 2.4)) + 'px rgba(10,132,255,' + (0.18 * b).toFixed(3) + ')';
+    const oi = prog(t, 0.7, 1.1);
+    $('#optin').style.opacity = oi;
+    $('#optin').style.transform = tr(600 + 720 - 160, 330 - 22 + 10 * (1 - oi));
+
+    const pa = prog(t, 0.6, 1.1);
+    $('#pane').style.opacity = pa;
+    $('#pane').querySelectorAll('.ln').forEach((ln, k) => { ln.style.opacity = prog(t, 0.9 + k * 0.32, 1.1 + k * 0.32); });
+
+    // The worker's own tokens appear inside and stay lit.
+    ['tok1', 'tok2'].forEach((id, k) => {
+      const a = prog(t, 1.4 + k * 0.25, 1.8 + k * 0.25);
+      const el = $('#' + id);
+      el.style.opacity = a; el.style.transform = 'translateY(' + Math.round(16 * (1 - a)) + 'px)';
+    });
+
+    // Owner items appear, then fade to locked.
+    Object.keys(OWN).forEach((id, k) => {
+      const [x, y] = OWN[id];
+      const el = $('#' + id);
+      const a = prog(t, 0.5 + k * 0.12, 0.9 + k * 0.12);
+      const lock = prog(t, 2.0 + k * 0.15, 2.5 + k * 0.15);
+      el.style.opacity = (a * lerp(1, 0.55, lock)).toFixed(3);
+      el.style.transform = tr(x + (x < 960 ? -30 : 30) * (1 - a), y);
+      el.style.color = lock > 0.5 ? 'var(--ink-3)' : 'var(--ink-1)';
+      el.querySelector('.k').style.opacity = 1 - lock;
+      el.querySelector('.l').style.opacity = lock;
+      el.querySelector('.l').style.color = 'var(--danger-fg)';
+      const tag = el.querySelector('.tag');
+      tag.textContent = lock > 0.5 ? 'hidden' : 'yours';
+      tag.style.color = lock > 0.5 ? 'var(--danger-fg)' : 'var(--ink-3)';
+    });
+  }
+  Film.boot(seek);
+})();
+</script>
+</body></html>

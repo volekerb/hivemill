@@ -52,7 +52,7 @@ ALLOWED = [
 ]
 # worker mode blocks these (herdr / factory units / broad reads / identity); HQ mode runs only PRIV
 HQ_ONLY_ALLOWED = [
-    "herdr pane list", "herdr server stop", "factory spawn coder --task T-1", "factory res", "factory task list",
+    "herdr pane list", "factory spawn coder --task T-1", "factory res", "factory task list",
     "systemctl --user status factory-tick.timer", "$EDITOR file",
     "$X y", "setsid -f sleep 1", "FACTORY_AGENT=director factory agents", "unset FACTORY_ROLE",
     "python3 -W ignore bin/factory tick", "bash -c 'echo `date`'", "echo `git log -1`",

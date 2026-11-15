@@ -223,7 +223,7 @@ DEFAULT_CONFIG = {
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
-    "terminal_backend": "auto",  # auto | herdr | hc — which CLI talks to the agent host (herdr TUI vs herdr-core `hc`); auto prefers herdr when both are on PATH
+    "terminal_backend": "auto",  # auto | herdr | hc — which CLI talks to the agent host (herdr TUI vs herdr-core `hc`); auto prefers hc when it is on PATH (herdr only when hc is missing)
     "stop_timeout_s": "300",     # `factory stop`: the tick force-closes the pane of a stopped agent still live after this long
     # worker sandbox (G-010): comma list of roles whose claude runs in the namespace sandbox, each one of
     # workerbox.SANDBOXABLE (reviewer, qa, coder, researcher). Empty = off = today's behaviour. Read fresh at every spawn.
@@ -1262,19 +1262,15 @@ def terminal_backend_config(con):
 def terminal_backend_effective(con):
     """(effective_label, host_cli) — which binary factory uses for agent host IPC (herdr TUI vs herdr-core `hc`).
 
-    auto: prefer the TUI (`herdr`) when it is on PATH; otherwise use `hc` if present; if neither is on PATH,
-    keep `herdr` so errors match today's herdr-not-found behaviour.
+    auto: prefer `hc` whenever it is on PATH, even when `herdr` is too; use `herdr` when only it is present; if
+    neither is on PATH, keep `herdr` so errors match today's herdr-not-found behaviour.
     """
     raw = terminal_backend_config(con)
     if raw == "herdr":
         return "herdr", "herdr"
     if raw == "hc":
         return "hc", "hc"
-    h_ok = shutil.which("herdr") is not None
-    hc_ok = shutil.which("hc") is not None
-    if h_ok:
-        return "auto→herdr", "herdr"
-    if hc_ok:
+    if shutil.which("hc") is not None:
         return "auto→hc", "hc"
     return "auto→herdr", "herdr"
 
@@ -1389,11 +1385,16 @@ def _hc_terminal_to_agent_row(t):
     if t.get("name") is not None:
         row["name"] = t["name"]
     if t.get("agent") is not None:
-        row["agent"] = t["agent"]
+        row["agent"] = "claude" if t["agent"] == "claude-code" else t["agent"]  # hc 0.1.21 names the kind claude-code
     word = _hc_status_word(t)
     if "status" in t or word != "unknown":
         row["agent_status"] = word
     return row
+
+
+def _hc_remote_terminal(t):
+    """True for an hc ls terminal whose address contains "/" (machine/tN)."""
+    return isinstance(t, dict) and any(isinstance(t.get(k), str) and "/" in t[k] for k in ("address", "id", "terminal", "name"))
 
 
 def _hc_unwrap_result(ipc_argv, payload):
@@ -1405,7 +1406,8 @@ def _hc_unwrap_result(ipc_argv, payload):
         terminals = payload.get("terminals")
         if not isinstance(terminals, list):
             return None
-        return {"agents": [_hc_terminal_to_agent_row(t) for t in terminals]}
+        # a machine/tN address is another machine's terminal: never stands in for a local agent of the same name
+        return {"agents": [_hc_terminal_to_agent_row(t) for t in terminals if not _hc_remote_terminal(t)]}
     if cmd == "read":
         if "text" in payload:
             return {"text": payload["text"]}
@@ -1497,6 +1499,21 @@ def _row_hosted_on_hc(row):
     return (pane or "") == name
 
 
+LEGACY_TUI_SQL = ("(json_extract(spawn_args,'$.host_backend')='herdr' OR "
+                  "(json_extract(spawn_args,'$.host_backend') IS NULL AND pane_id != name))")
+
+
+def _row_is_legacy_tui(row):
+    """A row with no host_backend whose pane_id is not its name is a TUI pane, whatever the config says."""
+    try:
+        sa = _spawn_args_row(row)
+        name = row["name"] if "name" in row.keys() else ""
+        pane = row["pane_id"] if "pane_id" in row.keys() else ""
+    except (KeyError, TypeError, IndexError):
+        return False
+    return sa.get("host_backend") not in ("hc", "herdr") and bool(pane) and pane != name
+
+
 def _spawn_args_row(row):
     try:
         raw = row["spawn_args"] if row and "spawn_args" in row.keys() else None
@@ -1518,6 +1535,8 @@ def _agent_host_exe(con, row):
         return hb
     if _row_hosted_on_hc(row):
         return "hc"
+    if _row_is_legacy_tui(row):
+        return "herdr"
     return terminal_backend_effective(con)[1]
 
 
@@ -1547,7 +1566,12 @@ def _host_agent_ipc_exe(con, args):
     if len(args) >= 3 and args[0] == "agent" and args[1] in ("prompt", "read", "send-keys", "wait", "start"):
         row = con.execute("SELECT name, spawn_args, pane_id FROM agents WHERE name=?", (args[2],)).fetchone()
         if row:
-            return _agent_host_exe(con, row)
+            exe = _agent_host_exe(con, row)
+            if exe == "hc" and eff == "herdr" and _spawn_args_row(row).get("host_backend") != "hc":
+                # (e) a target-taking hc verb (read/send/keys) only for a row that says host_backend=hc: a name hc
+                # cannot resolve answers needs_target; inferred hc (pane_id == name) on a herdr config stays on the TUI
+                return "herdr"
+            return exe
     return eff
 
 
@@ -1625,6 +1649,9 @@ def _host_list_row(con, name):
     return next((x for x in listed if x.get("name") == name), None)
 
 
+_HC_KEY_NAMES = {"Enter": "enter", "esc": "esc", "Esc": "esc", "Escape": "esc", "Tab": "tab"}  # TUI key word -> hc 0.1.21 key name
+
+
 def _hc_translate_args(args):
     """Map TUI herdr IPC verbs to herdr-core `hc` CLI. None means no hc equivalent (fail this step only)."""
     a = list(args)
@@ -1652,7 +1679,7 @@ def _hc_translate_args(args):
                     break
                 else:
                     i += 1
-            out = ["run", "--bg", "--name", name]
+            out = ["run", "--bg", "--no-parent", "--name", name]  # never the caller terminal's child (hc 0.1.21)
             cwd = _HC_RUN_CWD
             if not cwd:
                 for j, tok in enumerate(post):
@@ -1677,7 +1704,7 @@ def _hc_translate_args(args):
                     i += 1
             return out
         if verb == "send-keys" and len(a) >= 3:
-            return ["keys", a[2], *a[3:]]
+            return ["keys", a[2], *[_HC_KEY_NAMES.get(k, k) for k in a[3:]]]
         if verb == "wait":
             return None
     if a[0] in ("pane", "workspace", "tab", "worktree"):
@@ -2735,7 +2762,8 @@ CLI_IMPLS = ("python", "go", "shadow")
 CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 + S2)
     "whoami", "flags", "agents", "config",
     "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
-    "verdict", "scorecard", "digest", "alerts", "gate", "schedule",
+    "verdict", "scorecard", "digest", "alerts", "gate", "schedule", "done", "prcheck", "pr", "src", "res", "tick",
+    "scout", "skilleval", "retro", "cursor-pilot",
 )
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
@@ -5293,7 +5321,7 @@ def merged_go_refusal(con, repo, sha, main_sha, *, timeout=MERGED_GO_PROOF_TIMEO
     try:
         env = merged_go_proof_env()
         gcmd = git_argv(repo, *HARDENED_GIT_FLAGS)
-        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree, "go"], capture_output=True, env=_carry_env(),
+        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree], capture_output=True, env=_carry_env(),
                               timeout=60)
         if arch.returncode:
             return f"MERGED-TREE: git archive of the merge-tree failed ({arch.stderr.decode(errors='replace').strip() or arch.returncode}); nothing merged"
@@ -7792,7 +7820,7 @@ def _sweep_candidates(con, t):
     root = root.resolve()
     found = []
     base = root / f"claude-{os.getuid()}"
-    slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"G-\d+-(T-\d+)$")
+    slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"G-\d+-(T-\d+)(?:-qa)?$")
     if base.is_dir() and not base.is_symlink():
         for d in sorted(base.iterdir()):
             m = slug.match(d.name)
@@ -8187,7 +8215,7 @@ def _serve_pad(path):
     if not parts:
         return None
     if parts[0] == f"claude-{os.getuid()}":
-        slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"(G-\d+)-(T-\d+)$")
+        slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"(G-\d+)-(T-\d+)(?:-qa)?$")
         m = slug.match(parts[1]) if len(parts) > 1 else None
         return (tmp / parts[0] / parts[1], m.group(2)) if m else None
     m = re.search(r"(?<![A-Za-z0-9])[Tt]-(\d+)(?![0-9])", parts[0])
@@ -9675,6 +9703,85 @@ def trust_task_clone(con, task, wt, add=True):
     return res
 
 
+def git_hooks_refusal(clone):
+    """Names in <clone>/.git/hooks that a coder spawn must not run under: anything but *.sample files and a regular
+    pre-push whose text is the one install_pre_push_hook writes. A symlink or a directory counts. [] = clean."""
+    hooks = Path(clone) / ".git" / "hooks"
+    if os.path.lexists(Path(clone) / ".git" / "commondir"):  # git would take hooks/ from another directory
+        return ["commondir"]
+    if hooks.is_symlink():
+        return ["hooks (symlink)"]
+    if not hooks.exists():
+        return []
+    try:
+        script = Path(__file__).resolve().parent.parent / "ci" / "pre_push_public_text.py"
+        body = (f"#!/bin/sh\n{PRE_PUSH_MARK}\n"
+                f"exec python3 {shlex.quote(str(script))} --home {shlex.quote(str(HOME))} \"$@\"\n")
+        bad = []
+        for f in sorted(hooks.iterdir()):
+            if f.is_symlink() or not f.is_file():
+                bad.append(f.name)
+            elif f.name.endswith(".sample"):
+                continue
+            elif f.name == "pre-push" and f.read_text() == body:
+                continue
+            else:
+                bad.append(f.name)
+        return bad
+    except (OSError, UnicodeDecodeError) as e:
+        return [f"hooks unreadable: {e}"]
+
+
+def git_hooks_guard(con, clone):
+    """False (after recording git-hooks-refused) when git_hooks_refusal(clone) finds anything. Event on every refusal,
+    director message at most once an hour. Deletes nothing: the operator inspects and removes the files."""
+    names = git_hooks_refusal(clone)
+    if not names:
+        return True
+    # worker-chosen file names reach the director's inbox: printable characters only, capped
+    names = ["".join(c if c.isprintable() else "?" for c in n)[:60] for n in names[:10]]
+    try:
+        event(con, "export", "-", "git-hooks-refused", json.dumps({"clone": str(clone), "files": names}))
+        last = con.execute("SELECT value FROM config WHERE key='last_git_hooks_refused_ts'").fetchone()
+        if not last or time.time() - float(last["value"]) >= 3600:
+            send(con, "director", "git hooks refused: " + ", ".join(names)[:80],
+                 f"{clone}/.git/hooks holds {', '.join(names)}: a coder session there would run it with the read-write token. "
+                 "Spawn refused, nothing deleted. Inspect the files, find who planted them, remove them, then spawn again.",
+                 "report", sender="factory")
+            con.execute("INSERT INTO config(key,value) VALUES('last_git_hooks_refused_ts',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (str(time.time()),))
+    except Exception:  # noqa: BLE001 — the spawn is refused either way
+        pass
+    return False
+
+
+def qa_clone_path(goal_id, task):
+    return WORKTREES / f"{goal_id}-{task}-qa"
+
+
+def prepare_qa_clone(con, t, task):
+    """T-1544: qa (read-only token) works in its own clone <goal>-<task>-qa, made from the PROJECT repo, never from the
+    coder clone (its config, hooks and alternates are worker-writable). tasks.worktree stays the coder clone."""
+    repo, base = t["repo_path"], t["base_branch"] or "main"
+    qa = qa_clone_path(t["goal_id"], task)
+    if qa.is_symlink() or (qa.exists() and (qa / ".git").is_symlink()):
+        die(f"spawn refused: {qa} is a symlink; remove it after finding who made it", 4)
+    if qa.exists():
+        if not (qa / ".git").is_dir():
+            die(f"spawn refused: {qa} exists but is not a clone; remove it, then spawn again", 4)
+        if not git_config_guard(con, qa):
+            con.commit()
+            die(f"spawn refused: git config in {qa} would run code: {', '.join(git_config_refusal(qa))}", 4)
+    else:
+        if not git_config_guard(con, repo):
+            con.commit()
+            die(f"spawn refused: git config in {repo} would run code: {', '.join(git_config_refusal(repo))}", 4)
+        make_task_clone(con, repo, qa, f"{t['branch'] or 'factory/' + task.lower()}-qa", base)
+    trust_task_clone(con, task, qa)
+    install_pre_push_hook(qa)
+    return str(qa)
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -9684,6 +9791,15 @@ def prepare_worktree(con, task, role):
     if not t or not t["repo_path"]:
         return None
     if t["worktree"] and Path(t["worktree"]).exists():
+        coder_git = Path(t["worktree"]) / ".git"
+        if coder_git.is_symlink() and role in ("coder", "qa"):  # git would read config and hooks from wherever it points
+            die(f"spawn refused: {coder_git} is a symlink; inspect it, remove it, then spawn again", 4)
+        if role == "qa" and coder_git.is_dir():
+            return prepare_qa_clone(con, t, task)  # a legacy worktree (.git is a file) keeps today's reuse
+        if role == "coder" and coder_git.is_dir() and not git_hooks_guard(con, t["worktree"]):
+            con.commit()
+            die(f"spawn refused: {t['worktree']}/.git holds {', '.join(git_hooks_refusal(t['worktree']))} "
+                "(only *.sample and the factory pre-push are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
         if role == "coder" and t["branch"]:
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
@@ -9889,6 +10005,20 @@ def _prior_spawn_arg(prior, key):
         return None
 
 
+def task_pinned_host_backend(con, task):
+    """'hc' or 'herdr' of the newest agent row of task started with an explicit --host-backend, else None."""
+    if not task:
+        return None
+    for r in con.execute("SELECT spawn_args FROM agents WHERE task_id=? ORDER BY started IS NULL, started DESC, rowid DESC", (task,)):
+        try:
+            a = json.loads(r["spawn_args"] or "{}")
+        except ValueError:
+            continue
+        if isinstance(a, dict) and a.get("host_backend_pinned") is True and a.get("host_backend") in ("hc", "herdr"):
+            return a["host_backend"]
+    return None
+
+
 def spawn_org(con, prior, name, goal, task, org=None):
     """The org spawn() puts an agent in: the caller's org, else the one stored in the prior row, else the name prefix, else the goal's."""
     return org_for(con, goal, task, org=org or _prior_spawn_arg(prior, "org") or orgs.prefix_of(name)
@@ -9972,15 +10102,24 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         sandbox_optin = True  # a sandbox_required task never starts unsandboxed, whoever spawns it (queue and relaunch keep it)
     args = {"role": role, "goal": goal, "team": team, "task": task, "name": name, "cwd": cwd,
             "prompt": prompt, "model": model, "resume": resume, "fresh": fresh, "org": org}
-    if host_backend is not None:
-        args["host_backend"] = host_backend
-    elif from_queue and existing:
+    prev = {}
+    if from_queue and existing:
         try:
             prev = json.loads(existing["spawn_args"] or "{}")
         except ValueError:
             prev = {}
-        if prev.get("host_backend") in ("hc", "herdr"):
-            args["host_backend"] = prev["host_backend"]
+        if not isinstance(prev, dict):
+            prev = {}
+    if host_backend is not None:
+        args["host_backend"] = host_backend
+        # explicit backend: the tick keeps it when it restarts the task's agents. The tick's queue drain passes the queued
+        # row's host_backend back in, so a from_queue call keeps the marker of the queued row instead of setting its own
+        if not from_queue or prev.get("host_backend_pinned") is True:
+            args["host_backend_pinned"] = True
+    elif prev.get("host_backend") in ("hc", "herdr"):
+        args["host_backend"] = prev["host_backend"]
+        if prev.get("host_backend_pinned") is True:
+            args["host_backend_pinned"] = True
     if sandbox_optin:
         args["sandbox_optin"] = True
     if role == "evaluator":
@@ -10010,7 +10149,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
                 old = {}
             if not isinstance(old, dict):
                 old = {}
-            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend") if k in old})
+            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend", "host_backend_pinned") if k in old})
         # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
         # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
         # and leaves a cancelled row alone
@@ -10762,6 +10901,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     if plan.launch != "herdr-kind" or not plan.herdr_kind:
         die(f"runtime {runtime}: launch={plan.launch!r} herdr_kind={plan.herdr_kind!r} not wired", 3)
 
+    args["host_backend"] = spawn_host  # explicit: a later config flip never re-reads this row's host
     global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE
     _SPAWN_HOST_EXE = spawn_host
     try:
@@ -10927,6 +11067,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         args["sandbox"] = True
     if ghcred_on:
         env.update(gh_cred_env(con, role, name, cwd))
+    args["host_backend"] = spawn_host  # explicit: a later config flip never re-reads this row's host
     global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE
     _SPAWN_HOST_EXE = spawn_host
     try:
@@ -12899,6 +13040,29 @@ def clean_sandbox_dirs(con, pane_cwds, dry_run, root=None):
     return [r for r in rows if r not in kept], len(kept)  # kept dirs are counted, not listed, so a quiet run stays quiet
 
 
+def clean_qa_clone(con, t, panes, listed):
+    """T-1544: remove <goal>-<task>-qa after its coder clone went (the task is already merged/cancelled and has no live
+    agent). Same rules as a clone: direct non-symlink child of worktrees/, guard first, no live pane or agent cwd there.
+    Its refs are disposable (qa never pushes). None = nothing there, 'removed', else the reason it was kept."""
+    qa = qa_clone_path(t["goal_id"], t["id"])
+    if not (qa.exists() or qa.is_symlink()):
+        return None
+    root = WORKTREES.resolve()
+    if qa.is_symlink() or qa.parent.resolve() != root or os.path.realpath(qa) != str(qa) or not (qa / ".git").is_dir() or (qa / ".git").is_symlink():
+        return "qa kept: not a plain direct child"
+    if not git_config_guard(con, qa, always_event=True):
+        return "qa kept: git config refused"
+    why = protected_by(con, qa.resolve(), panes, listed)
+    if why:
+        return "qa kept: " + why.removeprefix("protected: ")
+    try:
+        shutil.rmtree(qa)
+    except OSError as e:
+        return "qa clone remove failed: " + str(e)[:80]
+    trust_task_clone(con, t["id"], qa, add=False)
+    return "removed"
+
+
 def cmd_clean(a):
     """Remove worktrees and branches of finished tasks, after safety checks that a squash merge defeats for git itself."""
     w = caller_is_worker()
@@ -12923,6 +13087,7 @@ def cmd_clean(a):
                          "LEFT JOIN projects p ON p.id=g.project_id ORDER BY t.id").fetchall():
         if t["worktree"]:
             known.add(Path(t["worktree"]).resolve())
+            known.add(qa_clone_path(t["goal_id"], t["id"]).resolve())  # a kept qa clone is not an orphan
         if not (t["worktree"] or t["branch"]):
             continue
         row = {"task": t["id"], "worktree": t["worktree"] or "", "branch": t["branch"] or "", "action": "skip", "reason": ""}
@@ -12961,6 +13126,11 @@ def cmd_clean(a):
                 gone.append("worktree")
             else:
                 err = "worktree remove failed: " + r.stderr.strip()[:80]
+        qa_note = clean_qa_clone(con, t, panes, listed) if "clone" in gone else None
+        if qa_note == "removed":
+            gone.append("qa clone")
+        elif qa_note and not qa_note.startswith("qa kept"):
+            err = err or qa_note
         if has_branch and err is None:
             r = _git(repo, "branch", "-D", t["branch"])
             if r.returncode == 0:
@@ -12972,8 +13142,28 @@ def cmd_clean(a):
             continue
         row["action"] = "removed"
         row["reason"] = f"removed {' + '.join(gone)}; {err}" if err else "merged and clean"
+        if qa_note and qa_note.startswith("qa kept"):
+            row["reason"] += "; " + qa_note
         event(con, "task", t["id"], "cleaned", {"worktree": str(wt) if ("worktree" in gone or "clone" in gone) else None,
                                                 "branch": t["branch"] if "branch" in gone else None})
+    # a qa clone left behind by an earlier pass (kept while a pane sat in it) or whose coder clone is already gone
+    for t in con.execute("SELECT * FROM tasks WHERE status IN ('done','cancelled') ORDER BY id").fetchall():
+        qa = qa_clone_path(t["goal_id"], t["id"])
+        if not (qa.exists() or qa.is_symlink()) or (t["worktree"] and Path(t["worktree"]).exists()):
+            continue  # nothing there, or the coder clone is still there (its own row above decides)
+        row = {"task": t["id"], "worktree": str(qa), "branch": "", "action": "skip", "reason": ""}
+        rows.append(row)
+        if task_agent_live(con, t["id"], listed, panes):
+            row["reason"] = "agent live"
+        elif a.dry_run:
+            row["action"], row["reason"] = "would remove", "qa clone of a finished task"
+        else:
+            note = clean_qa_clone(con, t, panes, listed)
+            if note == "removed":
+                row["action"], row["reason"] = "removed", "qa clone of a finished task"
+                event(con, "task", t["id"], "cleaned", {"worktree": str(qa), "branch": None})
+            else:
+                row["reason"] = note
     if not a.dry_run:
         for repo in repos:
             _git(repo, "worktree", "prune")
@@ -15233,7 +15423,7 @@ def judge_autospawn_tick(con):
         if not gate(con, load_exempt=True, role="judge", runtime=org_runtime(con, "judge", _o))[0]:
             break
         try:
-            spawn(con, "judge", t["goal_id"], t["team_id"], tid, name)
+            spawn(con, "judge", t["goal_id"], t["team_id"], tid, name, host_backend=task_pinned_host_backend(con, tid))
         except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
             event(con, "task", tid, "judge-autospawn-error",
                   (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
@@ -15872,7 +16062,7 @@ def _tick_u_herdr_list(con, st):
             st["agents"] = agents = herdr_agents()
             need_tui_tick = bool(con.execute(
                 "SELECT 1 FROM agents WHERE status IN ('live','done') "
-                "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+                "AND " + LEGACY_TUI_SQL + " LIMIT 1"
             ).fetchone())
             if need_tui_tick:
                 tui_agents = _host_agents_list("herdr")
@@ -16009,10 +16199,8 @@ def _tick_u_reap_loop(con, st):
                     if not tui_list_ok:
                         continue
                     h = _pane_host(con, tui_by_name, tui_by_pane, r)
-                elif _row_hosted_on_hc(r):
-                    h = _pane_host(con, by_name, by_pane, r)
                 else:
-                    continue  # a legacy TUI pane id without host_backend=herdr: tick does not reconcile on hc
+                    h = _pane_host(con, by_name, by_pane, r)
             elif row_exe == "hc":
                 if not hc_list_ok:
                     continue
@@ -16353,7 +16541,7 @@ def _tick_u_nudge(con, st):
             nudge_agents = herdr_agents() or []
             if con.execute(
                 "SELECT 1 FROM agents WHERE status='live' "
-                "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+                "AND " + LEGACY_TUI_SQL + " LIMIT 1"
             ).fetchone():
                 tui_agents = _host_agents_list("herdr")
                 tui_list_ok = tui_agents is not None
@@ -17513,7 +17701,7 @@ def tick_recycle(con):
         agents = herdr_agents()
         if con.execute(
             "SELECT 1 FROM agents WHERE status IN ('live') AND role IN ('director','lead') "
-            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+            "AND " + LEGACY_TUI_SQL + " LIMIT 1"
         ).fetchone():
             tui_agents = _host_agents_list("herdr")
             tui_list_ok = tui_agents is not None
@@ -18109,7 +18297,7 @@ def review_rerun_tick(con):
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
                 break
             try:
-                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief)
+                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief, host_backend=task_pinned_host_backend(con, tid))
             except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the others or the tick
                 event(con, "task", tid, "review-autospawn-error", f"{name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
                 break
@@ -18185,7 +18373,7 @@ def review_autospawn_tick(con):
             if low:
                 brief = COMBINED_BRIEF.format(tier=t["tier"], task=tid) + brief
             try:
-                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief)
+                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief, host_backend=task_pinned_host_backend(con, tid))
             except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the others or the tick
                 event(con, "task", tid, "review-autospawn-error", f"{name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
                 break
@@ -18325,7 +18513,8 @@ def coder_ci_resume_tick(con):
         if not gate(con, role="coder")[0]:
             return
         try:
-            spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume)
+            spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume,
+                  host_backend=task_pinned_host_backend(con, tid))
         except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
             event(con, "task", tid, "coder-ci-resume-error", f"@{sha[:8]} {name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
             refused = con.execute("SELECT count(*) c FROM events WHERE entity='task' AND entity_id=? AND action='coder-ci-resume-error' "
@@ -18870,7 +19059,7 @@ def tick_relaunches(con):
         agents = herdr_agents()
         if con.execute(
             "SELECT 1 FROM agents WHERE status='live' AND relaunch_requested_at IS NOT NULL "
-            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+            "AND " + LEGACY_TUI_SQL + " LIMIT 1"
         ).fetchone():
             tui_agents = _host_agents_list("herdr")
             tui_list_ok = tui_agents is not None
