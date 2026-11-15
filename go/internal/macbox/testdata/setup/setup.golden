@@ -18,6 +18,40 @@ if [ -z "$LAUNCHER_SRC" ] || [ ! -f "$LAUNCHER_SRC" ]; then
   echo "usage: sudo sh setup.sh <path of the macbox-launch binary>" >&2
   exit 1
 fi
+LAUNCHER='/usr/local/libexec/hivemill/macbox-launch'
+OWNER_HOME='/Users/a'
+FACTORY_HOME='/Users/a/factory'
+
+echo "precheck: paths (nothing is changed before every check passes)"
+for d in "$OWNER_HOME" "$FACTORY_HOME"; do
+  if [ ! -d "$d" ]; then echo "$d is not a directory; create it first" >&2; exit 1; fi
+done
+
+HOME_REAL=$(cd "$OWNER_HOME" && pwd -P)
+FACTORY_REAL=$(cd "$FACTORY_HOME" && pwd -P)
+if [ "$HOME_REAL" = / ]; then
+  echo "owner home resolves to /; refusing" >&2
+  exit 1
+fi
+case "$FACTORY_REAL" in
+  "$HOME_REAL"/?*) ;;
+  *)
+    echo "factory home resolves to $FACTORY_REAL, not strictly inside owner home $HOME_REAL; refusing" >&2
+    exit 1
+    ;;
+esac
+
+root_dir_ok() { # $1 = dir: a real directory owned by root, not group or world writable
+  [ -d "$1" ] && [ ! -L "$1" ] && [ -n "$(find "$1" -maxdepth 0 -user root ! -perm -0020 ! -perm -0002)" ]
+}
+for d in '/usr' '/usr/local' '/usr/local/libexec' '/usr/local/libexec/hivemill'; do
+  if [ -e "$d" ] || [ -L "$d" ]; then
+    if ! root_dir_ok "$d"; then
+      echo "$d is not a root-owned directory closed to group and world writes; fix it or remove it, then rerun" >&2
+      exit 1
+    fi
+  fi
+done
 
 free_id() { # $1 = dscl list path, $2 = key: print the highest unused id below 500
   used=$(dscl . -list "$1" "$2" | awk '{print $2}')
@@ -30,11 +64,14 @@ free_id() { # $1 = dscl list path, $2 = key: print the highest unused id below 5
   exit 1
 }
 
-mkuser() { # $1 = account name
-  if dscl . -read "/Users/$1" >/dev/null 2>&1; then echo "  $1 exists, keeping"; return 0; fi
-  uid=$(free_id /Users UniqueID)
-  dscl . -create "/Users/$1"
-  dscl . -create "/Users/$1" UniqueID "$uid"
+mkuser() { # $1 = account name; completes a record a stopped run left half-built
+  if dscl . -read "/Users/$1" UniqueID >/dev/null 2>&1; then
+    echo "  $1 exists, keeping its UniqueID"
+  else
+    if ! dscl . -read "/Users/$1" >/dev/null 2>&1; then dscl . -create "/Users/$1"; fi
+    uid=$(free_id /Users UniqueID)
+    dscl . -create "/Users/$1" UniqueID "$uid"
+  fi
   dscl . -create "/Users/$1" PrimaryGroupID "$GID"
   dscl . -create "/Users/$1" UserShell /usr/bin/false
   dscl . -create "/Users/$1" NFSHomeDirectory /var/empty
@@ -44,22 +81,30 @@ mkuser() { # $1 = account name
 }
 
 echo "step accounts: create group _hivemill and accounts _hivemill_ro, _hivemill_rw (dscl)"
-if dscl . -read /Groups/_hivemill >/dev/null 2>&1; then
+if dscl . -read /Groups/_hivemill PrimaryGroupID >/dev/null 2>&1; then
   echo "  group _hivemill exists, keeping"
 else
+  if ! dscl . -read /Groups/_hivemill >/dev/null 2>&1; then dscl . -create /Groups/_hivemill; fi
   GID=$(free_id /Groups PrimaryGroupID)
-  dscl . -create /Groups/_hivemill
   dscl . -create /Groups/_hivemill PrimaryGroupID "$GID"
-  dscl . -create /Groups/_hivemill RealName "Hivemill workers"
 fi
+dscl . -create /Groups/_hivemill RealName "Hivemill workers"
 GID=$(dscl . -read /Groups/_hivemill PrimaryGroupID | awk '{print $2}')
 mkuser _hivemill_ro
 mkuser _hivemill_rw
-dscl . -append /Groups/_hivemill GroupMembership _hivemill_ro _hivemill_rw
+for u in _hivemill_ro _hivemill_rw; do
+  dseditgroup -o edit -a "$u" -t user _hivemill
+done
 
-LAUNCHER='/usr/local/libexec/hivemill/macbox-launch'
 echo "step launcher: install the launcher as root:wheel 0755 at $LAUNCHER"
-install -d -o root -g wheel -m 0755 "$(dirname "$(dirname "$LAUNCHER")")" "$(dirname "$LAUNCHER")"
+for d in '/usr' '/usr/local' '/usr/local/libexec' '/usr/local/libexec/hivemill'; do
+  if [ ! -e "$d" ]; then
+    mkdir "$d"
+    chown root:wheel "$d"
+    chmod 0755 "$d"
+    echo "  created $d"
+  fi
+done
 install -o root -g wheel -m 0755 "$LAUNCHER_SRC" "$LAUNCHER"
 
 echo "step sudoers: write /etc/sudoers.d/hivemill (owner to worker only)"
@@ -76,12 +121,15 @@ if ! visudo -cf "$TMP"; then
 fi
 mv "$TMP" /etc/sudoers.d/hivemill
 
-OWNER_HOME='/Users/a'
-FACTORY_HOME='/Users/a/factory'
-echo "step acl: ACLs for group _hivemill (home: traverse only; factory: read; factory/db: write)"
-chmod +a "group:_hivemill allow search" "$OWNER_HOME"
-chmod -R +a "group:_hivemill allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit" "$FACTORY_HOME"
-mkdir -p "$FACTORY_HOME/db"
-chmod -R +a "group:_hivemill allow add_file,add_subdirectory,delete_child,write,append,writeattr,writeextattr,file_inherit,directory_inherit" "$FACTORY_HOME/db"
+echo "step acl: ACLs for group _hivemill (home and dirs down to the factory: traverse only; factory: read; factory/db: write)"
+chmod +a "group:_hivemill allow search" "$HOME_REAL"
+d=$(dirname "$FACTORY_REAL")
+while [ "$d" != "$HOME_REAL" ] && [ "$d" != / ]; do
+  chmod +a "group:_hivemill allow search" "$d"
+  d=$(dirname "$d")
+done
+chmod -R +a "group:_hivemill allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit" "$FACTORY_REAL"
+mkdir -p "$FACTORY_REAL/db"
+chmod -R +a "group:_hivemill allow add_file,add_subdirectory,delete_child,write,append,writeattr,writeextattr,file_inherit,directory_inherit" "$FACTORY_REAL/db"
 
 echo "done. Verify with: sudo -u _hivemill_ro -n '/usr/local/libexec/hivemill/macbox-launch' --help"
