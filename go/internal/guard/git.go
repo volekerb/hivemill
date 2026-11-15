@@ -579,6 +579,10 @@ func (a *Analyzer) gitRefMove(rest []string) error {
 	if a.Role == "judge" && sub == "commit" {
 		return nil
 	}
+	// T-0908: judge/cleaner kept plain rebase (and -x runners) before T-0336; still refuse merge/commit/pull/…
+	if sub == "rebase" && (a.Role == "judge" || a.Role == "cleaner") {
+		return nil
+	}
 	if in(gitRefMoveDeny, sub) {
 		shown := strings.Join(append([]string{"git", sub}, args...), " ")
 		if len(shown) > 72 {

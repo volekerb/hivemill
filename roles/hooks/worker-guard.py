@@ -4023,6 +4023,9 @@ class Analyzer:
             return
         if self.role == "judge" and sub == "commit":
             return
+        # T-0908: judge/cleaner kept plain rebase (and -x runners) before T-0336; still refuse merge/commit/pull/…
+        if sub == "rebase" and self.role in ("judge", "cleaner"):
+            return
         if sub in GIT_REF_MOVE_DENY:
             shown = " ".join(["git", sub, *args])
             raise Block(f"`{shown[:72]}`: {REF_MOVE_WHY}")
