@@ -468,6 +468,15 @@ class PrcheckTests(FactoryTestCase):
         self.refuse_at("10:01:00")
         self.assertEqual(self.agent_status(), "live")
 
+    def test_unpushed_escalation_does_not_skip_prcheck_once_pushed(self):
+        self.ok("config", "prcheck_required", "1")
+        self.refuse_at("10:00:00")  # unpushed gate
+        self.env.sql("UPDATE tasks SET status='in_review' WHERE id='T-0001'")
+        self.escalate_at("10:05:00")
+        self.pushed()
+        p = self.refuse_at("10:10:00")
+        self.assertIn("no passing `factory prcheck`", p.stderr)
+
     def test_escalation_does_not_cover_a_moved_head(self):
         self.ok("config", "prcheck_required", "1")
         self.pushed()

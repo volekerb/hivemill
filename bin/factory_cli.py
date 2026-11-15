@@ -11900,7 +11900,7 @@ def ci_green_on_head(con, head, pr_url):
 
 DONE_EXIT_STEPS = ("the way out: (1) `factory task update {t} --status in_review` (or `--status blocked` with a reason when the head is "
                    "unpushed and held, e.g. 'no merge until PR x' / owner push needed); (2) `factory msg lead:{team} '<why>' "
-                   "--kind escalation --task {t}` (the director when there is no lead); (3) run `factory done` again: it is "
+                   "--kind escalation --task {t}` (the director when there is no lead), sent AFTER the status change and after this refusal; (3) run `factory done` again: it is "
                    "accepted once both exist and the message is newer than this refusal")
 
 
@@ -11915,15 +11915,15 @@ def done_head(con, r):
     return head if rc == 0 and head else None
 
 
-def done_record_refusal(con, r, why):
+def done_record_refusal(con, r, why, gate):
     """Log the refusal (task, head, why): a later escalation must be newer than it, for the same head."""
     head = done_head(con, r)
     if head:
-        event(con, "task", r["task_id"], "done-refused", {"head": head, "why": why[:200]})
+        event(con, "task", r["task_id"], "done-refused", {"head": head, "gate": gate, "why": why[:200]})
         con.commit()
 
 
-def done_escalation_exit(con, r):
+def done_escalation_exit(con, r, gate):
     """True when this coder already took the exit for the CURRENT head: the task is in_review or blocked and an
     escalation from it to its lead (or a director) for this task is newer than the latest done-refused on that head."""
     head = done_head(con, r)
@@ -11934,7 +11934,8 @@ def done_escalation_exit(con, r):
     for e in con.execute("SELECT detail, ts FROM events WHERE entity='task' AND entity_id=? AND action='done-refused' ORDER BY id DESC",
                          (r["task_id"],)):
         try:
-            if json.loads(e["detail"]).get("head") != head:
+            d = json.loads(e["detail"])
+            if d.get("head") != head or d.get("gate") != gate:
                 continue
         except (TypeError, ValueError, AttributeError):
             continue
@@ -11949,7 +11950,7 @@ def done_escalation_exit(con, r):
     for m in con.execute("SELECT recipient, created FROM messages WHERE sender=? AND task_id=? AND kind='escalation'",
                          (r["name"], r["task_id"])):
         ts = _ts(m["created"])
-        if m["recipient"] in ups and ts and ts >= refused:
+        if m["recipient"] in ups and ts and ts > refused:
             return True
     return False
 
@@ -11994,7 +11995,7 @@ def prcheck_done_refusal(con, r, t):
         return
     msg = (f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
            "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)")
-    done_record_refusal(con, r, msg)
+    done_record_refusal(con, r, msg, "prcheck")
     die(f"{msg}. If it cannot pass, {done_exit_hint(r)}", 3)
 
 
@@ -12054,7 +12055,7 @@ def cmd_done(a):
         dirty, untracked, unpushed, ci = coder_done_findings(con, r, a.force)
         found = []
         escalated = False
-        if unpushed and not dirty and done_escalation_exit(con, r):
+        if unpushed and not dirty and done_escalation_exit(con, r, "unpushed"):
             unpushed, escalated = None, True  # exit taken: the unpushed head is now the lead's call
         if dirty:
             found.append("uncommitted tracked changes: " + ", ".join(dirty[:10]))
@@ -12062,7 +12063,7 @@ def cmd_done(a):
             found.append(unpushed)
         if found and not a.force:
             if unpushed and not dirty:
-                done_record_refusal(con, r, unpushed)
+                done_record_refusal(con, r, unpushed, "unpushed")
             for f in found:
                 print(f"factory: {f}", file=sys.stderr)
             if dirty:
@@ -12077,7 +12078,7 @@ def cmd_done(a):
         t = con.execute("SELECT status, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
         if t and t["status"] == "in_review" and t["pr_url"]:
             require_acceptance_walk(t["pr_url"])
-        if not escalated and done_escalation_exit(con, r):
+        if not escalated and done_escalation_exit(con, r, "prcheck"):
             escalated = True  # a prcheck refusal on this head was logged, then the exit was taken
         if not escalated:
             prcheck_done_refusal(con, r, t)
