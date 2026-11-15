@@ -371,6 +371,10 @@ func TestOversizeTotalRefused(t *testing.T) {
 	}
 	_, _, err := run(t, Options{Entries: es, LocalHome: lh, DryRun: true})
 	wantRefusal(t, err, "total size")
+	// exactly at the total cap is accepted
+	if _, e, err := run(t, Options{Entries: es[:MaxTotalBytes/MaxFileBytes], LocalHome: lh, DryRun: true}); err != nil {
+		t.Fatalf("list at the total cap refused: %v %s", err, e)
+	}
 }
 
 func TestOversizeListRefused(t *testing.T) {
@@ -381,6 +385,43 @@ func TestOversizeListRefused(t *testing.T) {
 	}
 	_, err := LoadList(p)
 	wantRefusal(t, err, p)
+	if err := os.WriteFile(p, body[:MaxListBytes], 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadList(p); err != nil {
+		t.Fatalf("list at the cap refused: %v", err)
+	}
+}
+
+func TestSrcGrownAfterCheckRefused(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	src := writeSrc(t, lh, ".env")
+	swapAfterCheck(t, func() {
+		if err := os.Truncate(src, MaxFileBytes+1); err != nil {
+			t.Fatal(err)
+		}
+	})
+	dst := filepath.Join(rh, ".env")
+	_, _, err := run(t, Options{Entries: []Entry{{src, dst}}, LocalHome: lh})
+	wantRefusal(t, err, "larger than")
+	if _, err := os.Stat(dst); err == nil {
+		t.Fatal("grown file was copied")
+	}
+}
+
+func TestWholeRunDeadline(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	src := writeSrc(t, lh, ".env")
+	t.Setenv("FAKE_SSH_HANG", "1")
+	start := time.Now()
+	_, e, err := run(t, Options{Entries: []Entry{{src, filepath.Join(rh, ".env")}}, LocalHome: lh,
+		Timeout: time.Minute, RunTimeout: 300 * time.Millisecond})
+	if !errors.Is(err, ErrFailed) || !strings.Contains(e, "whole-run deadline") {
+		t.Fatalf("err=%v stderr=%q", err, e)
+	}
+	if d := time.Since(start); d > 10*time.Second {
+		t.Fatalf("hung for %s", d)
+	}
 }
 
 func TestSSHTimeoutFailsAndPassesConnectTimeout(t *testing.T) {

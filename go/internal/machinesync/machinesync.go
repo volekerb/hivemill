@@ -19,13 +19,15 @@ import (
 )
 
 // Size and time bounds. A secret file larger than MaxFileBytes, a run larger than MaxTotalBytes or a list file larger
-// than MaxListBytes is refused (exit 2). Every ssh call is killed after DefaultTimeout unless Options.Timeout is set.
+// than MaxListBytes is refused (exit 2). Every ssh call is killed after DefaultTimeout (Options.Timeout), and the whole
+// run after DefaultRunTimeout (Options.RunTimeout); each call's deadline is the earlier of the two.
 const (
-	MaxFileBytes   = 1 << 20
-	MaxTotalBytes  = 16 << 20
-	MaxListBytes   = 1 << 20
-	DefaultTimeout = 60 * time.Second
-	connectTimeout = "10"
+	MaxFileBytes      = 1 << 20
+	MaxTotalBytes     = 16 << 20
+	MaxListBytes      = 1 << 20
+	DefaultTimeout    = 60 * time.Second
+	DefaultRunTimeout = 10 * time.Minute
+	connectTimeout    = "10"
 )
 
 // Entry is one allow-list item: absolute local src and absolute remote dst.
@@ -134,13 +136,14 @@ func CheckDst(dst, remoteHome string) error {
 
 // Options configures Run.
 type Options struct {
-	Machine   string
-	Entries   []Entry
-	DryRun    bool
-	LocalHome string
-	Timeout   time.Duration // per ssh call; 0 means DefaultTimeout
-	Stdout    io.Writer
-	Stderr    io.Writer
+	Machine    string
+	Entries    []Entry
+	DryRun     bool
+	LocalHome  string
+	Timeout    time.Duration // per ssh call; 0 means DefaultTimeout
+	RunTimeout time.Duration // whole run; 0 means DefaultRunTimeout
+	Stdout     io.Writer
+	Stderr     io.Writer
 }
 
 // afterCheck runs between validation and the first read; tests use it to swap a src after it was checked.
@@ -153,12 +156,12 @@ func shq(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'
 
 // ssh runs `ssh -o BatchMode=yes -o ConnectTimeout=.. <machine> -- <remote command>` with exec argv (no local shell),
 // killed after o.Timeout. A timeout is reported as an error naming the limit.
-func ssh(o Options, remote string, stdin io.Reader) (stdout, stderr []byte, err error) {
+func ssh(runCtx context.Context, o Options, remote string, stdin io.Reader) (stdout, stderr []byte, err error) {
 	timeout := o.Timeout
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(runCtx, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout="+connectTimeout,
 		"-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3", o.Machine, "--", remote)
@@ -167,7 +170,9 @@ func ssh(o Options, remote string, stdin io.Reader) (stdout, stderr []byte, err 
 	var ob, eb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &ob, &eb
 	err = cmd.Run()
-	if ctx.Err() == context.DeadlineExceeded {
+	if runCtx.Err() == context.DeadlineExceeded {
+		err = errors.New("timed out: whole-run deadline reached")
+	} else if ctx.Err() == context.DeadlineExceeded {
 		err = fmt.Errorf("timed out after %s", timeout)
 	}
 	return ob.Bytes(), eb.Bytes(), err
@@ -219,7 +224,13 @@ func Run(o Options) error {
 			return refuse("refused: total size of the list exceeds %d bytes (at src %s)", MaxTotalBytes, e.Src)
 		}
 	}
-	out, errb, err := ssh(o, `printf %s "$HOME"`, nil)
+	runTimeout := o.RunTimeout
+	if runTimeout <= 0 {
+		runTimeout = DefaultRunTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	defer cancel()
+	out, errb, err := ssh(ctx, o, `printf %s "$HOME"`, nil)
 	remoteHome := strings.TrimSpace(string(out))
 	if err != nil || !filepath.IsAbs(remoteHome) {
 		fmt.Fprintf(o.Stderr, "ssh %s: cannot read remote home: %v\n%s\n", o.Machine, err, bytes.TrimSpace(errb))
@@ -236,7 +247,7 @@ func Run(o Options) error {
 			fmt.Fprintf(o.Stdout, "would copy %s -> %s\n", e.Src, e.Dst)
 			continue
 		}
-		if err := copyOne(o, e, infos[i]); err != nil {
+		if err := copyOne(ctx, o, e, infos[i]); err != nil {
 			return err
 		}
 	}
@@ -271,7 +282,7 @@ func readChecked(src string, checked os.FileInfo) ([]byte, error) {
 	return b, nil
 }
 
-func copyOne(o Options, e Entry, checked os.FileInfo) error {
+func copyOne(ctx context.Context, o Options, e Entry, checked os.FileInfo) error {
 	content, err := readChecked(e.Src, checked)
 	if err != nil {
 		return err
@@ -285,12 +296,12 @@ func copyOne(o Options, e Entry, checked os.FileInfo) error {
 		`case "$r/" in "$h"/*) ;; *) echo "dst resolves outside the remote home" >&2; exit 3;; esac; `+
 		`mkdir -p -m 700 %s; t=%s; rm -f "$t"; trap 'rm -f "$t"' EXIT; (set -C; cat > "$t"); mv -f "$t" %s`,
 		shq(e.Dst), shq(filepath.Dir(e.Dst)), shq(filepath.Dir(e.Dst)), shq(tmp), shq(e.Dst))
-	_, errb, err := ssh(o, remote, bytes.NewReader(content))
+	_, errb, err := ssh(ctx, o, remote, bytes.NewReader(content))
 	if err != nil {
 		fmt.Fprintf(o.Stderr, "copy to %s failed: %v\n%s\n", e.Dst, err, bytes.TrimSpace(Redact(errb, content)))
 		return ErrFailed
 	}
-	sout, serr, err := ssh(o, "stat -c %a "+shq(e.Dst), nil)
+	sout, serr, err := ssh(ctx, o, "stat -c %a "+shq(e.Dst), nil)
 	if err != nil {
 		fmt.Fprintf(o.Stderr, "mode check failed for %s: stat failed: %v\n%s\n", e.Dst, err, bytes.TrimSpace(Redact(serr, content)))
 		return ErrFailed

@@ -43,8 +43,8 @@ worker-machine-sync --machine wbox2 --list ~/machine-sync-list.json
 Prints `copied <dst> mode 600` per file. Any ssh error text is passed through, but every line that contains bytes of the
 file being copied is replaced by `[redacted: line contained file content]`.
 
-Every ssh call uses `BatchMode=yes`, `ConnectTimeout=10` and `ServerAliveInterval=5`, and is killed after 60 seconds,
-so an unreachable machine fails with `timed out` (exit 1) instead of hanging. A `dst` that is an existing directory fails
+Every ssh call uses `BatchMode=yes`, `ConnectTimeout=10` and `ServerAliveInterval=5`, and is killed after 60 seconds; the
+whole run is killed after 10 minutes. So an unreachable machine fails with `timed out` (exit 1) instead of hanging. A `dst` that is an existing directory fails
 with `dst is a directory`.
 
 Exit codes: 0 ok, 1 ssh/copy/mode failure, 2 refused or bad usage.
