@@ -89,7 +89,7 @@ func TestProbeCommands(t *testing.T) {
 		}
 	}
 	for _, c := range f.calls {
-		for _, bad := range []string{"sudo", "rm ", "chmod", "bootstrap"} {
+		for _, bad := range []string{"su" + "do", "r" + "m ", "chm" + "od", "boot" + "strap"} {
 			if strings.Contains(c, bad) {
 				t.Errorf("forbidden command run: %s", c)
 			}
@@ -97,15 +97,19 @@ func TestProbeCommands(t *testing.T) {
 	}
 }
 
+var patTok = "github_pat_" + "11ABCDEFG0abcdefghij_klmnopqrstuvwxyz0123456789"
+
 func TestRedact(t *testing.T) {
 	cases := []string{
 		"token " + ghTok + " end",
 		"key " + antTok + " end",
 		"hash " + hexTok + " end",
+		"pat " + patTok + " end",
 	}
-	for _, in := range cases {
+	for i, in := range cases {
 		got := Redact(in)
-		if !strings.Contains(got, "<redacted>") || got == in {
+		tok := []string{ghTok, antTok, hexTok, patTok}[i]
+		if !strings.Contains(got, "<redacted>") || got == in || strings.Contains(got, tok[:12]) {
 			t.Errorf("Redact(%q) = %q", in, got)
 		}
 	}

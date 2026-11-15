@@ -45,3 +45,27 @@ func TestBadFlag(t *testing.T) {
 		t.Fatalf("exit %d", code)
 	}
 }
+
+func TestRelativeHerdrResolved(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	t.Chdir(t.TempDir())
+	want, err := filepath.Abs("bin/herdr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var so, se bytes.Buffer
+	if code := run([]string{"--herdr", "bin/herdr"}, &so, &se); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if !strings.Contains(so.String(), "codesign -dv "+want) {
+		t.Errorf("report lacks absolute herdr path %q", want)
+	}
+}
+
+func TestOptionLikeHerdrRefused(t *testing.T) {
+	var so, se bytes.Buffer
+	if code := run([]string{"--herdr", "-x"}, &so, &se); code != 2 || so.Len() != 0 {
+		t.Fatalf("exit %d, out %q", code, so.String())
+	}
+}

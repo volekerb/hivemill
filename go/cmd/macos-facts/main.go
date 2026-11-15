@@ -10,6 +10,8 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"factory/go/internal/macfacts"
@@ -25,6 +27,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if err := fs_.Parse(args); err != nil {
 		return 2
 	}
+	herdrPath := *herdr
+	if strings.HasPrefix(herdrPath, "-") {
+		fmt.Fprintln(stderr, "macos-facts: --herdr value looks like an option:", herdrPath, "- pass a path, e.g. ./-name")
+		return 2
+	}
+	if herdrPath != "" {
+		// Children run in the temp dir, so resolve against the caller's cwd now.
+		abs, err := filepath.Abs(herdrPath)
+		if err != nil {
+			fmt.Fprintln(stderr, "macos-facts: cannot resolve --herdr:", err)
+			return 2
+		}
+		herdrPath = abs
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintln(stderr, "macos-facts: cannot find the home directory:", err)
@@ -38,7 +54,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	defer os.RemoveAll(tmp)
 
 	env := &macfacts.Env{
-		Runner: macfacts.ExecRunner{Dir: tmp}, Home: home, TempDir: tmp, HerdrPath: *herdr,
+		Runner: macfacts.ExecRunner{Dir: tmp}, Home: home, TempDir: tmp, HerdrPath: herdrPath,
 		Uid: os.Getuid(), Now: time.Now, LookPath: exec.LookPath,
 		Stat: statOnly, Fstype: macfacts.StatfsType,
 	}
