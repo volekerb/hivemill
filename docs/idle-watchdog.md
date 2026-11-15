@@ -41,7 +41,7 @@ A kickoff message that is still unread belongs to T-1599's `tick_cursor_kickoff`
 
 ## Refused `factory done` (W5)
 
-When one of the finish checks refuses `factory done` (judge, unpushed-work, acceptance-walk, prcheck), the refusal is recorded as a `done-refused` event with `{"gate", "code"}`. The watchdog then alerts the org director once per task attempt. The unread-orders refusal is not recorded, because it delivers the orders itself.
+When a finish check refuses `factory done`, the refusal is recorded as an agent `done-refused` event with `{"gate", "code", "why"}`. `gate` is `judge` (the judge's outcome check) or `coder-checks` (unpushed work, acceptance walk or prcheck). `why` is the refusal's last stderr line, which names the check. The watchdog then alerts the org director once per task attempt, quoting `why`. The unread-orders refusal is not recorded, because it delivers the orders itself.
 
 ## Never acted on
 

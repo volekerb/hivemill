@@ -9057,16 +9057,17 @@ def _idle_watchdog_refused(con, r, mode, key, st, org):
     if when is None or (started is not None and when < started):
         return
     try:
-        gname = json.loads(e["detail"]).get("gate") or "?"
+        d = json.loads(e["detail"])
+        gname, why = d.get("gate") or "?", d.get("why") or ""
     except (TypeError, ValueError, AttributeError):
-        gname = "?"
-    _idle_watchdog_record(con, r, "idle-watchdog-refused-alert", mode, {"key": key, "gate": gname},
-                          f"factory done refused by the {gname} gate; director alerted")
+        gname, why = "?", ""
+    _idle_watchdog_record(con, r, "idle-watchdog-refused-alert", mode, {"key": key, "gate": gname, "why": why},
+                          f"factory done refused ({gname}); director alerted")
     if mode == "on":
         send(con, "director", f"{r['name']}: factory done refused ({gname})",
              f"{r['name']} ({r['role']}, runtime {_agent_runtime(r)}) ran factory done on {r['task_id']} and the {gname} "
-             f"check refused it. It may not get past it alone: look at pane {r['pane_id']} and the task.",
-             "alert", r["goal_id"], r["task_id"], sender="tick", org=org)
+             f"check refused it: {why or '(no message)'}\nIt may not get past it alone: look at pane {r['pane_id']} "
+             "and the task.", "alert", r["goal_id"], r["task_id"], sender="tick", org=org)
 
 
 def idle_watchdog(con, agents):
@@ -12319,14 +12320,36 @@ def judge_done_refusal(con, r):
 
 def cmd_done(a):
     """A worker finishes: summary goes to its lead, its pane is reaped by the next tick. A refusal by one of the finish
-    checks is recorded as a done-refused event naming the check (T-1622 W5: the idle watchdog alerts on it)."""
+    checks is recorded as an agent done-refused event: the check, the exit code and the refusal's last stderr line
+    (T-1622 W5: the idle watchdog alerts on it). The unread-orders refusal delivers the orders itself and is not one."""
     stage = {"gate": None, "agent": None}
+    err = _StderrTail(sys.stderr)
     try:
-        _cmd_done(a, stage)
+        with contextlib.redirect_stderr(err):
+            _cmd_done(a, stage)
     except SystemExit as e:
         if stage["gate"] and e.code not in (0, None):
-            event(db(), "agent", stage["agent"], "done-refused", {"gate": stage["gate"], "code": e.code})
+            event(db(), "agent", stage["agent"], "done-refused", {"gate": stage["gate"], "code": e.code, "why": err.last()})
         raise
+
+
+class _StderrTail(io.TextIOBase):
+    """A stderr that writes through and keeps the tail, so a refusal's own message can be recorded."""
+
+    def __init__(self, out):
+        super().__init__()
+        self.out, self.buf = out, ""
+
+    def write(self, s):
+        self.buf = (self.buf + s)[-4000:]
+        return self.out.write(s)
+
+    def flush(self):
+        self.out.flush()
+
+    def last(self):
+        lines = [x for x in self.buf.splitlines() if x.strip()]
+        return lines[-1][:300] if lines else ""
 
 
 def _cmd_done(a, stage):
@@ -12363,13 +12386,13 @@ def _cmd_done(a, stage):
                         "so it is back to todo. Fix the blocker (worktree or cwd) and respawn, or cancel it.")
     unclean = ""
     if r["role"] == "coder" and r["task_id"]:
+        stage["gate"] = "coder-checks"  # unpushed work, acceptance walk, prcheck: the stderr line in "why" names which
         dirty, untracked, unpushed, ci = coder_done_findings(con, r, a.force)
         found = []
         if dirty:
             found.append("uncommitted tracked changes: " + ", ".join(dirty[:10]))
         if unpushed:
             found.append(unpushed)
-        stage["gate"] = "unpushed-work"
         if found and not a.force:
             for f in found:
                 print(f"factory: {f}", file=sys.stderr)
@@ -12381,11 +12404,8 @@ def _cmd_done(a, stage):
         # a fix-round coder is already in_review and never sets it again: same body gate as the in_review transition
         t = con.execute("SELECT status, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
         if t and t["status"] == "in_review" and t["pr_url"]:
-            stage["gate"] = "acceptance-walk"
             require_acceptance_walk(t["pr_url"])
-        stage["gate"] = "prcheck"
         prcheck_done_refusal(con, r, t)
-        stage["gate"] = None
         unclean = "; ".join(found)
         if untracked:
             print("WARNING: untracked files left in the worktree: " + ", ".join(untracked[:10]), file=sys.stderr)
@@ -12399,6 +12419,7 @@ def _cmd_done(a, stage):
             summary += f"\n\nCI at done: {ci}"
         if ci_handoff_active(con) and t and t["status"] == "in_review" and t["pr_url"] and ci_not_green(t["pr_url"]):
             summary += f"\n\n{CI_HANDOFF_LINE}"  # also for an empty rollup, which checks_ok reads as green
+    stage["gate"] = None  # every finish check passed: a later exit is not a refusal
     cur = con.execute("UPDATE agents SET status=?, summary=?, ended=?, stop_requested_at=NULL, stop_attempt_at=NULL, "
                       "stop_failed_kind=NULL WHERE name=? AND status='live'",
                       ("live" if r["role"] in PERSISTENT_ROLES else "done", summary, now(), me))

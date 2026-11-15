@@ -577,12 +577,20 @@ class WatchdogDoneRefused(WatchdogBase):
         p = e.run("done", "finished", agent="zz-test-coder", extra_env=self.at(5))
         self.assertEqual(p.returncode, 3, p.stderr)
         ref = self.steps("done-refused", "zz-test-coder")
-        self.assertEqual([(r["gate"], r["code"]) for r in ref], [("unpushed-work", 3)])
+        self.assertEqual([(r["gate"], r["code"]) for r in ref], [("coder-checks", 3)])
+        self.assertEqual(ref[0]["why"], "commit (a WIP commit is fine) and push, then run factory done again")
         self.tick(6)
         self.tick(7)
         al = self.alerts("zz-test-coder")
         self.assertEqual(len(al), 1)
-        self.assertIn("unpushed-work", al[0]["subject"])
+        self.assertIn("coder-checks", al[0]["subject"])
+        self.assertIn("commit (a WIP commit is fine) and push", al[0]["body"])
+
+    def test_unread_orders_refusal_is_not_recorded(self):
+        self.env.seed_agent("zz-test-qa", "qa", "G-001", None, "T-0001", pane_id="p-8", started=WD_T0.isoformat())
+        self.env.sql("INSERT INTO messages(sender,recipient,kind,subject,created) VALUES('lead','zz-test-qa','request','do x','t')")
+        self.refused(3, "done", "PASS", agent="zz-test-qa", extra_env=self.at(1))
+        self.assertEqual(self.steps("done-refused", "zz-test-qa"), [])
 
     def test_done_that_passes_records_no_refusal(self):
         self.env.seed_agent("zz-test-qa", "qa", "G-001", None, "T-0001", pane_id="p-8", started=WD_T0.isoformat())
