@@ -343,6 +343,12 @@ class PrTitleTickTests(FactoryTestCase):
         self.tick()  # same head: handled once
         self.assertEqual(len(self.edits()), 1)
 
+    def test_mid_title_tag_is_kept(self):
+        self.env.sql("UPDATE tasks SET title='Add foo [SC2] bar' WHERE id='T-0001'")
+        self.prs((1, "factory/t-0001", "T-0001 "))
+        self.tick()
+        self.assertEqual(self.edits()[0][-1], "T-0001: Add foo [SC2] bar")
+
     def test_described_title_is_untouched(self):
         self.prs((1, "factory/t-0001", "T-0001: already fine"))
         self.tick()

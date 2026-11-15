@@ -6353,7 +6353,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append("PR is a draft")
         if bare_id_title(pr.get("title")):
             problems.append(f"PR title {pr['title']!r} is only the task id: retitle it \"{t['id']}: <what changed>\" "
-                            f"(the tick renames factory/t-* PRs within a minute)")
+                            f"(the tick renames factory/t-* PRs itself; any other head must be retitled by hand)")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
         bad = checks_ok(pr)
@@ -6826,7 +6826,7 @@ def cmd_mech_merge(a):
 
 
 BARE_ID_TITLE = re.compile(r"T-\d+\s*")
-TITLE_TAGS = re.compile(r"(?:\s*\[[A-Za-z]+\d+\])+\s*")
+TITLE_TAGS = re.compile(r"^\s*(?:\[[A-Za-z]+\d+\]\s*)+")
 PR_TITLE_MAX = 72
 
 
@@ -6852,8 +6852,12 @@ def tick_pr_titles(con):
         if len(parts) >= 5:
             repos["/".join(parts[3:5])] = 1
     for repo in repos:
-        prs = gh_json("pr", "list", "-R", repo, "--state", "open", "--limit", "200",
-                      "--json", "number,title,headRefName,headRefOid,url")
+        try:
+            prs = gh_json("pr", "list", "-R", repo, "--state", "open", "--limit", "200",
+                          "--json", "number,title,headRefName,headRefOid,url")
+        except (SystemExit, subprocess.SubprocessError, OSError, ValueError) as e:  # one repo failing must not skip the others
+            event(con, "tick", "pr-titles", "pr-titles-error", f"{repo}: {_tick_gh_detail(e)}")
+            continue
         for pr in prs:
             m = re.fullmatch(r"factory/(t-\d+)", pr.get("headRefName") or "")
             if not m:
@@ -6862,18 +6866,26 @@ def tick_pr_titles(con):
             old = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
             if old and old["ts"] == head:
                 continue
-            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (key, head))
+            done = lambda: con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                                       (key, head))  # a failed rename is not recorded: the next tick retries it
             if not bare_id_title(pr.get("title")):
+                done()
                 continue
             tid = m.group(1).upper()
             t = con.execute("SELECT title FROM tasks WHERE id=?", (tid,)).fetchone()
             if not t:
+                done()
                 continue
             new = pr_title_for(tid, t["title"])
-            p = subprocess.run(["gh", "pr", "edit", pr["url"], "--title", new], capture_output=True, text=True, timeout=60)
+            try:
+                p = subprocess.run(["gh", "pr", "edit", pr["url"], "--title", new], capture_output=True, text=True, timeout=60)
+            except (subprocess.SubprocessError, OSError) as e:
+                event(con, "task", tid, "pr-title-rename-failed", {"pr": pr["url"], "err": str(e)[:200]})
+                continue
             if p.returncode != 0:
                 event(con, "task", tid, "pr-title-rename-failed", {"pr": pr["url"], "err": p.stderr.strip()[:200]})
                 continue
+            done()
             event(con, "task", tid, "pr-title-renamed", {"pr": pr["url"], "old": pr["title"], "new": new})
 
 
@@ -16430,7 +16442,7 @@ def _tick_u_ci_wake(con, st):
             event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
         try:  # T-1590: a bare-id PR title on a factory/t-* head becomes "T-xxxx: <task title>"
             tick_pr_titles(con)
-        except (SystemExit, subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError) as e:  # a gh hiccup must never stop the tick
+        except Exception as e:  # noqa: BLE001 — a gh hiccup or odd row must never stop the tick
             event(con, "tick", "pr-titles", "pr-titles-error", str(e)[:300])
         _pt_lap("ci_wake")
 
