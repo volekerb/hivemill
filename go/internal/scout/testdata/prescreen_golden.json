@@ -1,0 +1,14422 @@
+[
+{
+"name": "SKILL.md",
+"text": "evil.example-x/y\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "evil.example-x/y\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "docs.example.test-evil.io\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "docs.example.test-evil.io\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "foo.example_bar\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "foo.example_bar\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "a-b.example.com-\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "a-b.example.com-\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "-evil.example\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "-evil.example\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "x_y.example\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "x_y.example\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "host.example:80/a-b\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "host.example:80/a-b\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "[::1]:80\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "[::1]:80\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "1:2:3\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "1:2:3\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "12:34:56\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "12:34:56\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "abcd::\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "abcd::\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "::\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "::\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "a::b::c\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "a::b::c\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "key=0x1234567\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "key=0x1234567\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "//203.0.113.4.5/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "//203.0.113.4.5/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "https://docs.anthropic.com/en/docs\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "https://docs.anthropic.com/en/docs\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "https://example.com/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "https://example.com/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "http://evil.example/steal?x=1\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "http://evil.example/steal?x=1\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "ftp://evil.example/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "ftp://evil.example/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "github.com/anthropics/skills\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "github.com/anthropics/skills\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "https://github.com/anthropics/../evil/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "https://github.com/anthropics/../evil/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "https://github.com/own/repo/blob/main/a.md\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "https://github.com/own/repo/blob/main/a.md\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "https://github.com/OWN/Repo\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "https://github.com/OWN/Repo\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "https://github.com/other/repo\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "https://github.com/other/repo\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "//evil.example/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "//evil.example/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "evil.example/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "evil.example/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "see evil.example, ok\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "see evil.example, ok\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "run.py\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "run.py\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "SKILL.md\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "SKILL.md\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "images/logo.png\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "images/logo.png\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "a.b\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "a.b\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "e.com.\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "e.com.\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "x.y.zz\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "x.y.zz\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "v1.2.3\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "v1.2.3\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "203.0.113.4\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "203.0.113.4\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "192.0.2.1\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "192.0.2.1\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "http://198.51.100.7/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "http://198.51.100.7/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "[::1]\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "[::1]\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "::1\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "::1\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "::ffff:192.0.2.33\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "::ffff:192.0.2.33\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "2001:db8::2\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "2001:db8::2\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "2001:db8::ff00:42:8329\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "2001:db8::ff00:42:8329\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "http://[2001:db8::1]:80/\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "http://[2001:db8::1]:80/\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "0xc0000201\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "0xc0000201\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "https://3221225985/\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "https://3221225985/\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "//3221225985\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "//3221225985\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "user@example.com\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "user@example.com\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "mail me: bob@example.com\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "mail me: bob@example.com\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "@mention\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "@mention\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "curl -s http://x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"curl"
+],
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "curl -s http://x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"curl"
+],
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "Curl\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"curl"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "Curl\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"curl"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "wget\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"wget"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "wget\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"wget"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "urllib.request\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+1,
+"urllib"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "urllib.request\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+1,
+"urllib"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "requests.get(x)\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "requests.get(x)\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"requests"
+],
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "import requests\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "import requests\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "nc -l 80\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"nc"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "nc -l 80\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"nc"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "ncurses\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "ncurses\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "netcat\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"netcat"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "netcat\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"netcat"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "printenv\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"printenv"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "printenv\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"printenv"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "os.environ\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"environ"
+],
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "os.environ\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"environ"
+],
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "env | sort\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"env-cmd"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "env | sort\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"env-cmd"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "  env\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"env-cmd"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "  env\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"env-cmd"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "env>out\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"env-cmd"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "env>out\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"env-cmd"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "environment\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "environment\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "environ\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"environ"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "environ\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"environ"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": ".credentials.json\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"credentials"
+],
+[
+1,
+"credentials-file"
+]
+]
+},
+{
+"name": "run.csv",
+"text": ".credentials.json\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"credentials"
+],
+[
+1,
+"credentials-file"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "credentials\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"credentials"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "credentials\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"credentials"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "api key\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"api-key"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "api key\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"api-key"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "ANTHROPIC_API_KEY\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"api-key"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "ANTHROPIC_API_KEY\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"api-key"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "sk-ant-abc\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"sk-ant"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "sk-ant-abc\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"sk-ant"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "the quick brown fox\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "the quick brown fox\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "Hello World\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "Hello World\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "TODO: fix\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "TODO: fix\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "# heading\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "# heading\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "- list item\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "- list item\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "`code`\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "`code`\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "\"quoted\"\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "\"quoted\"\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "version 1.2.3-beta\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "version 1.2.3-beta\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "2026-11-14\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "2026-11-14\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "#fff\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "#fff\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "#abc123\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "#abc123\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "#abcdefgh1\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "#abcdefgh1\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "#zzz\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "#zzz\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "data: <<B40>>\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "data: <<B40>>\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "<<B250>>\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"base64-run"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "<<B250>>\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "<<B80>>\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "<<B80>>\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "<<B10>>\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "<<B10>>\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "================================================================================\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "================================================================================\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "ｃｕｒｌ\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"curl"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "ｃｕｒｌ\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"curl"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "e​vil.example\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "e​vil.example\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "evil。example/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "evil。example/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "http://evil.example​/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "http://evil.example​/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "x­curl\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "x­curl\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "https://www.apache.org/licenses/LICENSE-2.0\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "https://www.apache.org/licenses/LICENSE-2.0\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "http://www.apache.org/licenses/\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "http://www.apache.org/licenses/\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "see [link](https://evil.example/a)\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "see [link](https://evil.example/a)\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "(http://evil.example/a)\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "(http://evil.example/a)\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "<https://evil.example>\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "<https://evil.example>\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "bit.ly/abc\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "bit.ly/abc\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "foo:8080\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "foo:8080\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "host.example:8080/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "host.example:8080/x\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "host.example:80abc\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "host.example:80abc\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "a.b.c.d.example.com/path?q=1\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "a.b.c.d.example.com/path?q=1\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "ünï.example\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "ünï.example\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "xn--bcher-kva.example\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "xn--bcher-kva.example\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "1e3.5\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "1e3.5\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "3.14159\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "3.14159\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "10.0.0\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "10.0.0\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "999.999.999.999\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "999.999.999.999\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "203.0.113.4.5\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "203.0.113.4.5\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "x 203.0.113.4y\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "x 203.0.113.4y\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "0XC0000201\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "0XC0000201\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "//0x00000001f\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "//0x00000001f\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "@0xc0000201.\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "@0xc0000201.\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "//12345678\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "//12345678\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "//123456789012\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "//123456789012\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"base64-run"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nnext\n",
+"own": null,
+"want": [
+[
+1,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "> <<B60>>\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "> <<B60>>\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "+ <<B8>> + <<B8>>\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "+ <<B8>> + <<B8>>\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "abc def ghi\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "abc def ghi\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "Ab1 Cd2 Ef3 Gh4\n",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "run.csv",
+"text": "Ab1 Cd2 Ef3 Gh4\nnext\n",
+"own": null,
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "v1.2.3\n  -evil.example\nimport requests, 999.999.999.999, https://github.com/OWN/Repo\n//203.0.113.4.5/x\nenv>out | os.environ | <<B250>>\nünï.example | //3221225985 | Ab1 Cd2 Ef3 Gh4\n-evil.example\nabc def ghi\nthe quick brown fox 2001:db8::2\n//12345678\nhost.example:80/a-b\n//203.0.113.4.5/x\nrun.py\na.b.c.d.example.com/path?q=1, #abcdefgh1, x.y.zz\nuser@example.com bit.ly/abc\n2026-11-14\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nxn--bcher-kva.example 192.0.2.1\nSKILL.md\nfoo.example_bar\nncurses\n2001:db8::2\nurllib.request\ngithub.com/anthropics/skills | + <<B8>> + <<B8>> | 2001:db8::ff00:42:8329\nurllib.request\nhttps://github.com/own/repo/blob/main/a.md\n",
+"own": "Other/X",
+"want": [
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"base64-run"
+],
+[
+5,
+"env-cmd"
+],
+[
+5,
+"environ"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"base64-run"
+],
+[
+18,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+23,
+"urllib"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+25,
+"urllib"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "user@example.com\n//12345678\ne​vil.example ｃｕｒｌ - list item\nSKILL.md\n#abc123\nfoo:8080\n(http://evil.example/a), 203.0.113.4\nx­curl\t  env\nxn--bcher-kva.example\nevil.example/x //203.0.113.4.5/x\n\"quoted\"\n.credentials.json\ne.com., https://github.com/anthropics/../evil/x, 999.999.999.999\n- list item, [::1]\nv1.2.3\n<<B10>> http://[2001:db8::1]:80/\n//3221225985\nnc -l 80 | #abcdefgh1\n3.14159\ncredentials\nrequests.get(x)\t::1\nuser@example.com printenv\n#zzz, run.py\ne.com.\nnc -l 80\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"curl"
+],
+[
+3,
+"url"
+],
+[
+7,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+12,
+"credentials"
+],
+[
+12,
+"credentials-file"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"nc"
+],
+[
+20,
+"credentials"
+],
+[
+21,
+"requests"
+],
+[
+21,
+"url"
+],
+[
+22,
+"printenv"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"nc"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "x­curl\t2001:db8::2\nthe quick brown fox\n#abcdefgh1\n  #abcdefgh1\nhttps://www.apache.org/licenses/LICENSE-2.0\ta.b.c.d.example.com/path?q=1\n203.0.113.4\nftp://evil.example/x\n//0x00000001f\nimages/logo.png | evil.example-x/y | a::b::c\na::b::c credentials Curl\n\"quoted\"\thttp://evil.example​/x\tSKILL.md\nhost.example:80abc\n  github.com/anthropics/skills\n  ANTHROPIC_API_KEY\n<https://evil.example>\n  <<B10>>\n::ffff:192.0.2.33\t----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\t::ffff:192.0.2.33\nabcd::\n  TODO: fix\n  1e3.5\nSKILL.md os.environ\nx 203.0.113.4y\nx.y.zz\t10.0.0\tcredentials\nsk-ant-abc\n//12345678, -evil.example, see [link](https://evil.example/a)\n::1\n3.14159 nc -l 80 ::1\nkey=0x1234567 | https://github.com/own/repo/blob/main/a.md\n2001:db8::ff00:42:8329\n================================================================================\n  data: <<B40>>\n  # heading\nprintenv github.com/anthropics/skills ｃｕｒｌ\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+10,
+"credentials"
+],
+[
+10,
+"curl"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"api-key"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+21,
+"environ"
+],
+[
+21,
+"url"
+],
+[
+23,
+"credentials"
+],
+[
+23,
+"url"
+],
+[
+24,
+"sk-ant"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"nc"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"url"
+],
+[
+33,
+"curl"
+],
+[
+33,
+"printenv"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "evil。example/x\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nimport requests\n  [::1]:80\n  host.example:8080/x\n//123456789012 see evil.example, ok\n.credentials.json\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nsk-ant-abc\n  TODO: fix\n//123456789012\n#zzz\n@mention\nhttps://3221225985/ | 0XC0000201 | v1.2.3\nhttps://example.com/x\n  env\nHello World | netcat | Hello World\n#abcdefgh1, nc -l 80, 3.14159\n#abcdefgh1\n<<B80>>\n@mention\nhttps://github.com/anthropics/../evil/x\n  Ab1 Cd2 Ef3 Gh4\n  docs.example.test-evil.io\n<<B250>>\n\"quoted\" evil.example-x/y\ngithub.com/anthropics/skills\n<<B10>> env | sort > <<B60>>\na::b::c 2001:db8::2\n\"quoted\"\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"credentials"
+],
+[
+7,
+"credentials-file"
+],
+[
+8,
+"url"
+],
+[
+9,
+"sk-ant"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"env-cmd"
+],
+[
+17,
+"netcat"
+],
+[
+18,
+"nc"
+],
+[
+22,
+"url"
+],
+[
+23,
+"base64-run"
+],
+[
+24,
+"url"
+],
+[
+25,
+"base64-run"
+],
+[
+28,
+"env-cmd"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "os.environ\nxn--bcher-kva.example\n//203.0.113.4.5/x | http://evil.example/steal?x=1 | evil.example-x/y\nHello World\n================================================================================ > <<B60>> https://github.com/other/repo\nrequests.get(x) <<B10>>\na-b.example.com-\nhttps://3221225985/\thttp://198.51.100.7/x\te​vil.example\n#abcdefgh1 version 1.2.3-beta\n3.14159 3.14159 ::ffff:192.0.2.33\nmail me: bob@example.com\nhttps://www.apache.org/licenses/LICENSE-2.0\nbit.ly/abc, abcd::, 10.0.0\ncurl -s http://x\tfoo.example_bar\n@0xc0000201. | ::1\ncredentials\nrequests.get(x) e​vil.example https://github.com/other/repo\nsee [link](https://evil.example/a) printenv @mention\nx­curl\n  (http://evil.example/a)\n  env\n192.0.2.1 1e3.5\n@0xc0000201.\nimages/logo.png requests.get(x)\nsk-ant-abc\nversion 1.2.3-beta\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"environ"
+],
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"curl"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"credentials"
+],
+[
+17,
+"url"
+],
+[
+18,
+"printenv"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"env-cmd"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"sk-ant"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "v1.2.3\na.b\na-b.example.com-\nx_y.example\nhttps://3221225985/\nHello World\thost.example:80/a-b\n@0xc0000201. the quick brown fox 1:2:3\nhttp://evil.example​/x\n10.0.0\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------, 192.0.2.1\n0xc0000201\thttp://198.51.100.7/x\nversion 1.2.3-beta\nhttps://example.com/x - list item http://www.apache.org/licenses/\nos.environ env>out\ncurl -s http://x | //203.0.113.4.5/x\nxn--bcher-kva.example\nprintenv ::ffff:192.0.2.33 -evil.example\n0xc0000201\nprintenv\nANTHROPIC_API_KEY\n2001:db8::2\n+ <<B8>> + <<B8>> https://docs.anthropic.com/en/docs\nx 203.0.113.4y\nenv>out | http://www.apache.org/licenses/ | foo:8080\n//12345678\tabcd::\n",
+"own": "own/repo",
+"want": [
+[
+3,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"env-cmd"
+],
+[
+14,
+"environ"
+],
+[
+14,
+"url"
+],
+[
+15,
+"curl"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"printenv"
+],
+[
+17,
+"url"
+],
+[
+19,
+"printenv"
+],
+[
+20,
+"api-key"
+],
+[
+21,
+"url"
+],
+[
+24,
+"env-cmd"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "3.14159\t(http://evil.example/a)\nevil。example/x env>out\n999.999.999.999\nnc -l 80\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nhost.example:8080/x\nftp://evil.example/x, [::1]\nTODO: fix evil。example/x\ndocs.example.test-evil.io\n#fff, ncurses\n1e3.5\nos.environ\n::\n<https://evil.example>\n2001:db8::ff00:42:8329 | netcat\n<<B250>> user@example.com data: <<B40>>\nsee [link](https://evil.example/a) | > <<B60>>\na.b.c.d.example.com/path?q=1\n  urllib.request\n  `code`\nTODO: fix\n================================================================================, data: <<B40>>\n//0x00000001f\nnetcat\nevil。example/x\n  printenv\n  https://www.apache.org/licenses/LICENSE-2.0\n203.0.113.4.5\nhost.example:80/a-b\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"env-cmd"
+],
+[
+2,
+"url"
+],
+[
+4,
+"nc"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+12,
+"environ"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"netcat"
+],
+[
+15,
+"url"
+],
+[
+16,
+"base64-run"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+19,
+"urllib"
+],
+[
+23,
+"url"
+],
+[
+24,
+"netcat"
+],
+[
+25,
+"url"
+],
+[
+26,
+"printenv"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "http://evil.example​/x | 999.999.999.999 | <<B80>>\nx.y.zz\thost.example:8080/x\tｃｕｒｌ\nevil。example/x\nnetcat\n1e3.5\n2001:db8::2\nrun.py\nevil。example/x\nthe quick brown fox, ::ffff:192.0.2.33\n1:2:3\n  https://github.com/OWN/Repo\nhttp://evil.example/steal?x=1\n10.0.0\nSKILL.md mail me: bob@example.com\nnc -l 80\napi key\n.credentials.json http://198.51.100.7/x a.b\nenv>out\na.b\nAb1 Cd2 Ef3 Gh4, .credentials.json, //123456789012\nhttps://docs.anthropic.com/en/docs\n#abcdefgh1\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ, //3221225985, http://[2001:db8::1]:80/\n-evil.example\nftp://evil.example/x\nenv | sort //203.0.113.4.5/x Ab1 Cd2 Ef3 Gh4\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"curl"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"netcat"
+],
+[
+6,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"nc"
+],
+[
+16,
+"api-key"
+],
+[
+17,
+"credentials"
+],
+[
+17,
+"credentials-file"
+],
+[
+17,
+"url"
+],
+[
+18,
+"env-cmd"
+],
+[
+20,
+"credentials"
+],
+[
+20,
+"credentials-file"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"env-cmd"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "#abcdefgh1\n::ffff:192.0.2.33\n//evil.example/x\n::1 | api key | credentials\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ | > <<B60>>\nncurses, wget\nx­curl\nimages/logo.png | env>out | [::1]\n2001:db8::ff00:42:8329\tversion 1.2.3-beta\n10.0.0\n192.0.2.1\n  2001:db8::2\nncurses 2001:db8::2\n::ffff:192.0.2.33\n1:2:3\n@mention\n<<B10>>\t----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n#fff | ANTHROPIC_API_KEY\nuser@example.com\tx 203.0.113.4y\thttp://198.51.100.7/x\nsee evil.example, ok http://[2001:db8::1]:80/\n@0xc0000201. | a.b | urllib.request\nhttps://example.com/x\tCurl\nabc def ghi\nversion 1.2.3-beta | version 1.2.3-beta | https://3221225985/\n  env\nhttps://github.com/own/repo/blob/main/a.md | host.example:8080/x\n",
+"own": "Other/X",
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"api-key"
+],
+[
+4,
+"credentials"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"wget"
+],
+[
+8,
+"env-cmd"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+17,
+"base64-run"
+],
+[
+18,
+"api-key"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+21,
+"urllib"
+],
+[
+22,
+"curl"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"env-cmd"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "#abcdefgh1\t192.0.2.1\tenviron\nTODO: fix\na-b.example.com-\te​vil.example\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n  (http://evil.example/a)\n//3221225985\nabc def ghi\nprintenv\n  @0xc0000201.\n  wget\nhttps://github.com/OWN/Repo\nhttps://github.com/OWN/Repo\napi key\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n203.0.113.4.5 | foo.example_bar\n(http://evil.example/a)\na-b.example.com-\n> <<B60>> images/logo.png Curl\nhttps://example.com/x\n::1\nhttp://www.apache.org/licenses/\napi key\n0XC0000201\n0xc0000201\nx_y.example\n2026-11-14\nhttps://www.apache.org/licenses/LICENSE-2.0\na.b.c.d.example.com/path?q=1 | abc def ghi\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"environ"
+],
+[
+1,
+"url"
+],
+[
+3,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+8,
+"printenv"
+],
+[
+9,
+"url"
+],
+[
+10,
+"wget"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"api-key"
+],
+[
+14,
+"base64-run"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"curl"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"api-key"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "`code`\n#abc123\napi key\nevil。example/x //3221225985\n<<B80>>\t1e3.5\tevil。example/x\nbit.ly/abc\n  foo:8080\n  https://www.apache.org/licenses/LICENSE-2.0\n192.0.2.1\nhost.example:80/a-b\tTODO: fix\n(http://evil.example/a) printenv env | sort\nxn--bcher-kva.example\twrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\te​vil.example\ndata: <<B40>>\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nfoo:8080, .credentials.json\n2001:db8::2\t[::1]:80\tnetcat\nhost.example:80abc\timport requests\n//0x00000001f\n-evil.example\n1e3.5\tx 203.0.113.4y\tenv>out\nhttps://github.com/own/repo/blob/main/a.md\n  `code`\ncredentials\t[::1]:80\nsk-ant-abc ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ x.y.zz\nSKILL.md | ::ffff:192.0.2.33 | <https://evil.example>\n//12345678\nxn--bcher-kva.example\n  AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n<<B250>> .credentials.json\n",
+"own": "Other/X",
+"want": [
+[
+3,
+"api-key"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"env-cmd"
+],
+[
+11,
+"printenv"
+],
+[
+11,
+"url"
+],
+[
+12,
+"base64-run"
+],
+[
+12,
+"url"
+],
+[
+13,
+"base64-run"
+],
+[
+15,
+"credentials"
+],
+[
+15,
+"credentials-file"
+],
+[
+16,
+"netcat"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+20,
+"env-cmd"
+],
+[
+21,
+"url"
+],
+[
+23,
+"credentials"
+],
+[
+23,
+"url"
+],
+[
+24,
+"sk-ant"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"base64-run"
+],
+[
+29,
+"base64-run"
+],
+[
+29,
+"credentials"
+],
+[
+29,
+"credentials-file"
+]
+]
+},
+{
+"name": "README",
+"text": "nc -l 80 http://[2001:db8::1]:80/ https://github.com/other/repo\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nhost.example:80abc\ndata: <<B40>>\n::1\nx 203.0.113.4y, abc def ghi\nünï.example\nfoo:8080\n`code` 10.0.0 //evil.example/x\n+ <<B8>> + <<B8>>\nhttps://www.apache.org/licenses/LICENSE-2.0, env | sort,   env\nhttps://github.com/other/repo\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n  wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nevil.example-x/y\n::ffff:192.0.2.33\tenvironment\nhttp://198.51.100.7/x\nncurses\n  Hello World\nthe quick brown fox\nncurses\nrun.py\n@0xc0000201. :: 0XC0000201\nhttp://198.51.100.7/x\n  host.example:80abc\n  <https://evil.example>\nhttp://evil.example/steal?x=1\tos.environ\t192.0.2.1\n//3221225985\n  https://github.com/anthropics/../evil/x\n  the quick brown fox\ne​vil.example\n",
+"own": null,
+"want": [
+[
+1,
+"nc"
+],
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+5,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"base64-run"
+],
+[
+11,
+"env-cmd"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"base64-run"
+],
+[
+14,
+"base64-run"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"environ"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"url"
+],
+[
+31,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "//203.0.113.4.5/x\nhttp://evil.example​/x\nftp://evil.example/x\nhttps://github.com/anthropics/../evil/x\nhttp://evil.example​/x\nx­curl, http://www.apache.org/licenses/\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, host.example:80/a-b\nrequests.get(x)\nkey=0x1234567\n[::1]\n2001:db8::2\n@mention\t`code`\nprintenv //123456789012\n(http://evil.example/a)\n  0xc0000201\nabcd::\tenv>out\t----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n[::1] 1e3.5\n(http://evil.example/a) | data: <<B40>>\n1:2:3, 3.14159\n0XC0000201\n  999.999.999.999\n  @mention\n2026-11-14\n  https://github.com/other/repo\nhost.example:80/a-b\t10.0.0\te​vil.example\nhttps://example.com/x\n::, version 1.2.3-beta, AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nthe quick brown fox\t//123456789012\t::ffff:192.0.2.33\nx 203.0.113.4y\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"base64-run"
+],
+[
+7,
+"url"
+],
+[
+8,
+"requests"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+13,
+"printenv"
+],
+[
+14,
+"url"
+],
+[
+16,
+"env-cmd"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "https://www.apache.org/licenses/LICENSE-2.0, github.com/anthropics/skills, https://www.apache.org/licenses/LICENSE-2.0\nimport requests\t203.0.113.4\n::ffff:192.0.2.33\nxn--bcher-kva.example\n> <<B60>>\n  2001:db8::ff00:42:8329\n@0xc0000201. | foo:8080\nünï.example http://198.51.100.7/x https://www.apache.org/licenses/LICENSE-2.0\nimport requests a.b\nfoo:8080\n  <<B10>>\n[::1]\nwget\n//203.0.113.4.5/x\n`code` printenv\n#abcdefgh1 //203.0.113.4.5/x\n203.0.113.4.5\n999.999.999.999\nwget\nnetcat\n.credentials.json\n1:2:3\nv1.2.3\na::b::c\nenviron\nwget\nimport requests\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"wget"
+],
+[
+14,
+"url"
+],
+[
+15,
+"printenv"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+19,
+"wget"
+],
+[
+20,
+"netcat"
+],
+[
+21,
+"credentials"
+],
+[
+21,
+"credentials-file"
+],
+[
+25,
+"environ"
+],
+[
+26,
+"wget"
+]
+]
+},
+{
+"name": "README",
+"text": "printenv, <<B250>>, 3.14159\nnetcat\n<<B80>> | a::b::c\nwget, x 203.0.113.4y\nkey=0x1234567 <https://evil.example>\nenv>out\n#fff\n//123456789012 bit.ly/abc\n//123456789012\n//12345678 | SKILL.md\n================================================================================ x_y.example\nünï.example\n203.0.113.4\n#abcdefgh1\n//3221225985\nx 203.0.113.4y\nx­curl | e​vil.example | bit.ly/abc\n# heading | Hello World | version 1.2.3-beta\n(http://evil.example/a)\n    env\n  e​vil.example\n0xc0000201\n`code` x_y.example netcat\nabc def ghi\tapi key\nurllib.request\nünï.example\nurllib.request .credentials.json version 1.2.3-beta\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"base64-run"
+],
+[
+1,
+"printenv"
+],
+[
+2,
+"netcat"
+],
+[
+4,
+"wget"
+],
+[
+5,
+"url"
+],
+[
+6,
+"env-cmd"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+13,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"env-cmd"
+],
+[
+21,
+"url"
+],
+[
+23,
+"netcat"
+],
+[
+24,
+"api-key"
+],
+[
+25,
+"url"
+],
+[
+25,
+"urllib"
+],
+[
+27,
+"credentials"
+],
+[
+27,
+"credentials-file"
+],
+[
+27,
+"url"
+],
+[
+27,
+"urllib"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "evil。example/x\nbit.ly/abc, env>out, https://github.com/anthropics/../evil/x\ne.com., a.b.c.d.example.com/path?q=1, 2026-11-14\nmail me: bob@example.com\t[::1]\n0xc0000201\na.b\n2026-11-14\n  https://www.apache.org/licenses/LICENSE-2.0\n  see evil.example, ok\nx 203.0.113.4y\nevil.example-x/y (http://evil.example/a)\n::\n203.0.113.4.5 | 0XC0000201 | //0x00000001f\nxn--bcher-kva.example\nv1.2.3\n  urllib.request\n  http://evil.example/steal?x=1\nftp://evil.example/x version 1.2.3-beta\nversion 1.2.3-beta a.b\n  env | ünï.example | https://github.com/OWN/Repo\nenvironment\nevil。example/x\tabc def ghi\tenv | sort\n+ <<B8>> + <<B8>>\nhttp://evil.example/steal?x=1\turllib.request\nfoo.example_bar\nhttps://github.com/OWN/Repo github.com/anthropics/skills 999.999.999.999\n[::1]:80 | //203.0.113.4.5/x | SKILL.md\n203.0.113.4\n203.0.113.4\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"env-cmd"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+16,
+"urllib"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+20,
+"env-cmd"
+],
+[
+20,
+"url"
+],
+[
+22,
+"env-cmd"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+],
+[
+24,
+"urllib"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "e​vil.example\n2001:db8::ff00:42:8329\n`code`\nuser@example.com, http://evil.example​/x\nversion 1.2.3-beta\nCurl | nc -l 80\n192.0.2.1\nwget\n<<B250>>\nhost.example:80abc, + <<B8>> + <<B8>>\nxn--bcher-kva.example, see [link](https://evil.example/a)\n12:34:56\te.com.\n`code`\nSKILL.md | .credentials.json | nc -l 80\nrun.py\nprintenv | host.example:8080/x\nx­curl\n- list item\n  <https://evil.example>\nv1.2.3\t  env\t//evil.example/x\n12:34:56\n203.0.113.4\n@0xc0000201. a.b\nevil.example-x/y\nevil。example/x\nx­curl docs.example.test-evil.io\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+6,
+"curl"
+],
+[
+6,
+"nc"
+],
+[
+7,
+"url"
+],
+[
+8,
+"wget"
+],
+[
+9,
+"base64-run"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"credentials"
+],
+[
+14,
+"credentials-file"
+],
+[
+14,
+"nc"
+],
+[
+16,
+"printenv"
+],
+[
+16,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "203.0.113.4 see [link](https://evil.example/a)\n2026-11-14\na-b.example.com-\n//evil.example/x 1:2:3\n//12345678 wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n#fff\ndocs.example.test-evil.io <<B250>>\nx 203.0.113.4y\n#abc123\nHello World\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nversion 1.2.3-beta\t<<B250>>\tprintenv\nrequests.get(x)\n> <<B60>>\n  env\nv1.2.3\n//12345678 http://[2001:db8::1]:80/ 3.14159\n@mention\n//123456789012\n  ünï.example\n  AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n2026-11-14\n::1, xn--bcher-kva.example, see evil.example, ok\nversion 1.2.3-beta\n#fff\nncurses e.com.\nAb1 Cd2 Ef3 Gh4 | https://example.com/x | https://docs.anthropic.com/en/docs\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"base64-run"
+],
+[
+5,
+"url"
+],
+[
+7,
+"base64-run"
+],
+[
+7,
+"url"
+],
+[
+11,
+"base64-run"
+],
+[
+12,
+"base64-run"
+],
+[
+12,
+"printenv"
+],
+[
+13,
+"url"
+],
+[
+15,
+"env-cmd"
+],
+[
+17,
+"url"
+],
+[
+23,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "data: <<B40>>\n//12345678\thttps://docs.anthropic.com/en/docs\nftp://evil.example/x | https://www.apache.org/licenses/LICENSE-2.0 | 3.14159\nx_y.example https://3221225985/ #fff\nhttp://evil.example​/x\t@mention\t0XC0000201\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n//3221225985\nhttps://github.com/OWN/Repo\n.credentials.json evil。example/x @0xc0000201.\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n(http://evil.example/a) | environment | e​vil.example\nsee [link](https://evil.example/a), v1.2.3, http://evil.example/steal?x=1\nx.y.zz\n@mention\nsee evil.example, ok, //203.0.113.4.5/x\nx­curl\t\"quoted\"\t- list item\nwget e.com.\nversion 1.2.3-beta 0XC0000201 Ab1 Cd2 Ef3 Gh4\n2001:db8::ff00:42:8329, nc -l 80, https://github.com/own/repo/blob/main/a.md\n999.999.999.999\n1e3.5\nhttps://github.com/OWN/Repo\nhost.example:8080/x env>out\n203.0.113.4\na::b::c\n",
+"own": null,
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"credentials"
+],
+[
+9,
+"credentials-file"
+],
+[
+9,
+"url"
+],
+[
+10,
+"base64-run"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+17,
+"wget"
+],
+[
+19,
+"nc"
+],
+[
+19,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"env-cmd"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "mail me: bob@example.com //123456789012\ncredentials //3221225985\nevil.example/x\n  abc def ghi\n  SKILL.md\n[::1]\n0xc0000201, e​vil.example, https://github.com/own/repo/blob/main/a.md\n999.999.999.999\n  Hello World\nhttp://evil.example​/x, urllib.request\nprintenv\n//203.0.113.4.5/x\n  abcd::\n  requests.get(x)\n+ <<B8>> + <<B8>>\n`code`\n0XC0000201 [::1]:80\nｃｕｒｌ\tSKILL.md\n2001:db8::ff00:42:8329\n::1 docs.example.test-evil.io\na-b.example.com-\nabcd:: | ｃｕｒｌ\nhttps://docs.anthropic.com/en/docs\ne​vil.example, <https://evil.example>, ANTHROPIC_API_KEY\ne.com.\n  Ab1 Cd2 Ef3 Gh4\n//12345678\nx 203.0.113.4y\n================================================================================\n  curl -s http://x\n  credentials\nv1.2.3 | https://github.com/own/repo/blob/main/a.md\nkey=0x1234567 | v1.2.3\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"credentials"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+10,
+"url"
+],
+[
+10,
+"urllib"
+],
+[
+11,
+"printenv"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"requests"
+],
+[
+14,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"curl"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"curl"
+],
+[
+22,
+"url"
+],
+[
+24,
+"api-key"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+27,
+"url"
+],
+[
+30,
+"curl"
+],
+[
+30,
+"url"
+],
+[
+31,
+"credentials"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "//0x00000001f # heading\nhttps://github.com/anthropics/../evil/x\n  #abcdefgh1\n  #zzz\nx­curl\tx.y.zz\txn--bcher-kva.example\nnetcat\nhttps://www.apache.org/licenses/LICENSE-2.0 environment <<B10>>\nenv>out\nenv | sort\nabcd::\n  images/logo.png\nftp://evil.example/x # heading\nevil.example/x a::b::c AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nabc def ghi | api key | sk-ant-abc\nhttps://github.com/own/repo/blob/main/a.md\n  2001:db8::ff00:42:8329\n  foo:8080\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n- list item, a.b, 0xc0000201\n//203.0.113.4.5/x github.com/anthropics/skills\nfoo:8080, 203.0.113.4.5\n//3221225985\nthe quick brown fox\n(http://evil.example/a)\n[::1], [::1]\nncurses\n0xc0000201\nhttps://github.com/OWN/Repo x­curl\n2026-11-14 | \"quoted\" | 2001:db8::ff00:42:8329\ncredentials\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"netcat"
+],
+[
+7,
+"url"
+],
+[
+8,
+"env-cmd"
+],
+[
+9,
+"env-cmd"
+],
+[
+10,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"api-key"
+],
+[
+14,
+"sk-ant"
+],
+[
+16,
+"url"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+29,
+"url"
+],
+[
+30,
+"credentials"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "https://github.com/anthropics/../evil/x\nCurl\nevil.example/x\tnc -l 80\nhttps://github.com/other/repo | requests.get(x) | http://evil.example​/x\n192.0.2.1\n\"quoted\"\nｃｕｒｌ, # heading\n2026-11-14\thost.example:8080/x\ncredentials\nhost.example:80abc wget evil.example-x/y\n::ffff:192.0.2.33 data: <<B40>> host.example:80/a-b\ndocs.example.test-evil.io\nevil。example/x | printenv | host.example:8080/x\n0XC0000201\napi key\n0xc0000201\n(http://evil.example/a)\nhttps://example.com/x\n203.0.113.4.5 @mention - list item\n#abc123\trequests.get(x)\n//12345678 the quick brown fox\nftp://evil.example/x\nbit.ly/abc\n- list item | github.com/anthropics/skills\n`code`\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"curl"
+],
+[
+3,
+"nc"
+],
+[
+3,
+"url"
+],
+[
+4,
+"requests"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"curl"
+],
+[
+8,
+"url"
+],
+[
+9,
+"credentials"
+],
+[
+10,
+"url"
+],
+[
+10,
+"wget"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"printenv"
+],
+[
+13,
+"url"
+],
+[
+15,
+"api-key"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"requests"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "evil。example/x mail me: bob@example.com\n<<B250>>, host.example:80/a-b\nhttp://198.51.100.7/x\n//evil.example/x\n-evil.example # heading images/logo.png\nHello World //12345678\nhttp://evil.example​/x AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA https://3221225985/\n0xc0000201\n2001:db8::2\n203.0.113.4\nnc -l 80\n  https://example.com/x\n- list item\nncurses\ndocs.example.test-evil.io\n  ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n  @mention\n192.0.2.1\na.b.c.d.example.com/path?q=1\nｃｕｒｌ\t::1\n3.14159\na-b.example.com-\nhttps://github.com/other/repo | 999.999.999.999\nünï.example\n================================================================================ | > <<B60>>\nfoo.example_bar\nhttp://[2001:db8::1]:80/\n  `code`\n  https://github.com/OWN/Repo\nx­curl | 3.14159 | evil.example-x/y\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"base64-run"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"nc"
+],
+[
+12,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"curl"
+],
+[
+20,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "printenv, foo.example_bar, evil.example-x/y\n(http://evil.example/a)\thttp://evil.example/steal?x=1\tANTHROPIC_API_KEY\nTODO: fix\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nevil.example/x\tsee evil.example, ok\t+ <<B8>> + <<B8>>\nevil.example/x TODO: fix ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nwget\tkey=0x1234567\ta.b.c.d.example.com/path?q=1\nevil.example-x/y, x­curl, foo.example_bar\nhttps://3221225985/\n<https://evil.example>\n  //3221225985\n<<B10>> wget curl -s http://x\n::ffff:192.0.2.33 a-b.example.com-\n2001:db8::ff00:42:8329, api key, host.example:80/a-b\n2001:db8::ff00:42:8329\t//0x00000001f\t12:34:56\nenv>out\nAb1 Cd2 Ef3 Gh4\n<https://evil.example>\nsee [link](https://evil.example/a)\ndocs.example.test-evil.io\tversion 1.2.3-beta\t> <<B60>>\nos.environ\tv1.2.3\ta.b.c.d.example.com/path?q=1\n<<B250>>\t(http://evil.example/a)\na.b.c.d.example.com/path?q=1\n  <<B250>>\nenv>out\nhttps://github.com/own/repo/blob/main/a.md\nx­curl | ünï.example | nc -l 80\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"printenv"
+],
+[
+2,
+"api-key"
+],
+[
+2,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+7,
+"wget"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"curl"
+],
+[
+12,
+"url"
+],
+[
+12,
+"wget"
+],
+[
+13,
+"url"
+],
+[
+14,
+"api-key"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"env-cmd"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"environ"
+],
+[
+21,
+"url"
+],
+[
+22,
+"base64-run"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"base64-run"
+],
+[
+25,
+"env-cmd"
+],
+[
+27,
+"nc"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "a.b.c.d.example.com/path?q=1\n//0x00000001f\tevil。example/x\n# heading | a.b.c.d.example.com/path?q=1 | host.example:8080/x\n#abc123, + <<B8>> + <<B8>>, abcd::\n3.14159\nbit.ly/abc\nTODO: fix\nhttps://docs.anthropic.com/en/docs\n-evil.example | (http://evil.example/a)\nnc -l 80 12:34:56\n@0xc0000201. github.com/anthropics/skills > <<B60>>\nhttps://docs.anthropic.com/en/docs\nsee [link](https://evil.example/a)\n:: @0xc0000201. foo:8080\n//0x00000001f key=0x1234567\n- list item [::1] import requests\nthe quick brown fox\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> | ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ | import requests\nhttps://github.com/anthropics/../evil/x\nftp://evil.example/x\n#abc123\tsk-ant-abc\tevil.example/x\n//evil.example/x\nhttp://www.apache.org/licenses/\nkey=0x1234567 <https://evil.example> x­curl\nenv | sort\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"nc"
+],
+[
+11,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"base64-run"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"sk-ant"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"env-cmd"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nsee evil.example, ok\n================================================================================ run.py evil。example/x\nimport requests\nhttps://github.com/OWN/Repo\n  # heading\n@0xc0000201.\nsee [link](https://evil.example/a), 0XC0000201, @mention\n<<B80>>, https://example.com/x, v1.2.3\nhttp://evil.example/steal?x=1, ::, https://www.apache.org/licenses/LICENSE-2.0\n1e3.5\nversion 1.2.3-beta\n10.0.0 | - list item | x­curl\nrun.py\n  12:34:56\nTODO: fix <<B80>> see evil.example, ok\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nthe quick brown fox | (http://evil.example/a)\nx_y.example | x_y.example\ne​vil.example\n//203.0.113.4.5/x env | sort\nx 203.0.113.4y\n12:34:56\n//12345678\n> <<B60>>\n- list item\n//203.0.113.4.5/x\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"base64-run"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"env-cmd"
+],
+[
+21,
+"url"
+],
+[
+24,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "SKILL.md\n2001:db8::2 abc def ghi\nhttps://docs.anthropic.com/en/docs\nAb1 Cd2 Ef3 Gh4\tabcd::\nHello World\n  ncurses\nhttp://www.apache.org/licenses/\nAb1 Cd2 Ef3 Gh4\ndata: <<B40>>\nos.environ\nversion 1.2.3-beta | https://example.com/x | <<B250>>\nhost.example:80/a-b\n0xc0000201\na.b.c.d.example.com/path?q=1 -evil.example #fff\na-b.example.com-\nimages/logo.png\nabc def ghi, printenv\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA | @mention\n  env\nevil.example-x/y\n  //3221225985\nhttp://[2001:db8::1]:80/\nv1.2.3\n#zzz\tANTHROPIC_API_KEY\n`code` https://github.com/other/repo\n2026-11-14\nhttp://[2001:db8::1]:80/\n  xn--bcher-kva.example\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+7,
+"url"
+],
+[
+10,
+"environ"
+],
+[
+10,
+"url"
+],
+[
+11,
+"base64-run"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"printenv"
+],
+[
+19,
+"env-cmd"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"api-key"
+],
+[
+25,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "evil。example/x evil.example/x\nsee [link](https://evil.example/a) github.com/anthropics/skills host.example:80abc\nx_y.example 1:2:3\n<<B10>> TODO: fix\nhttps://github.com/own/repo/blob/main/a.md\nhttp://www.apache.org/licenses/, + <<B8>> + <<B8>>, <https://evil.example>\nenv | sort\ncredentials | \"quoted\"\nünï.example the quick brown fox //203.0.113.4.5/x\nevil.example/x\nkey=0x1234567\n- list item\ndata: <<B40>> curl -s http://x\nrequests.get(x) | [::1]:80 | ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n<<B250>>,   env, foo.example_bar\nTODO: fix\n  env>out\nx 203.0.113.4y\n  mail me: bob@example.com\nx_y.example | docs.example.test-evil.io | AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nncurses\n<<B250>>\nmail me: bob@example.com\n  3.14159\nimages/logo.png\nversion 1.2.3-beta\nv1.2.3\n-evil.example\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"env-cmd"
+],
+[
+8,
+"credentials"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+13,
+"curl"
+],
+[
+13,
+"url"
+],
+[
+14,
+"base64-run"
+],
+[
+14,
+"requests"
+],
+[
+14,
+"url"
+],
+[
+15,
+"base64-run"
+],
+[
+17,
+"env-cmd"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"base64-run"
+],
+[
+23,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "  env\n2026-11-14\nhttp://www.apache.org/licenses/\nevil。example/x\ncurl -s http://x\ndata: <<B40>>\n0xc0000201 203.0.113.4 e​vil.example\nv1.2.3 | #zzz | bit.ly/abc\n//0x00000001f, 2001:db8::ff00:42:8329, #abcdefgh1\napi key #fff\n//3221225985\nbit.ly/abc\t@0xc0000201.\nhttp://www.apache.org/licenses/\n[::1]\nhttps://docs.anthropic.com/en/docs\nx­curl <https://evil.example>\nhost.example:80abc\nabcd::\t//203.0.113.4.5/x\nmail me: bob@example.com\t[::1]\t0xc0000201\nhttps://example.com/x\n  printenv\n999.999.999.999\na.b |   env\nncurses mail me: bob@example.com evil.example/x\n2001:db8::2 @mention\nnetcat\n",
+"own": null,
+"want": [
+[
+1,
+"env-cmd"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"curl"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"api-key"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"printenv"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"netcat"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "2001:db8::2\nHello World\nftp://evil.example/x 0xc0000201\nevil.example/x\nrequests.get(x)\nevil.example-x/y | ünï.example\ndata: <<B40>>\tTODO: fix\n<<B10>>\n`code`\nhttps://www.apache.org/licenses/LICENSE-2.0\nANTHROPIC_API_KEY, ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ, http://evil.example​/x\nANTHROPIC_API_KEY\n  https://github.com/OWN/Repo\nsk-ant-abc\nwget\n  bit.ly/abc\n  docs.example.test-evil.io\nfoo.example_bar\ncurl -s http://x, ｃｕｒｌ\n//3221225985\ndata: <<B40>>, #zzz, host.example:80/a-b\nsk-ant-abc\nHello World\n  http://[2001:db8::1]:80/\n  0xc0000201\n:: | \"quoted\"\nenvironment ANTHROPIC_API_KEY\n.credentials.json + <<B8>> + <<B8>>\nhttps://github.com/other/repo\n<https://evil.example>, Ab1 Cd2 Ef3 Gh4, env | sort\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"requests"
+],
+[
+5,
+"url"
+],
+[
+11,
+"api-key"
+],
+[
+11,
+"url"
+],
+[
+12,
+"api-key"
+],
+[
+13,
+"url"
+],
+[
+14,
+"sk-ant"
+],
+[
+15,
+"wget"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+19,
+"curl"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"sk-ant"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"api-key"
+],
+[
+28,
+"credentials"
+],
+[
+28,
+"credentials-file"
+],
+[
+29,
+"url"
+],
+[
+30,
+"env-cmd"
+],
+[
+30,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "ANTHROPIC_API_KEY see evil.example, ok\n[::1]\nurllib.request\nevil.example-x/y, ::\nx_y.example | \"quoted\" | docs.example.test-evil.io\na-b.example.com-\n  Hello World\n1e3.5\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\tenv | sort\nｃｕｒｌ\n#zzz x.y.zz - list item\nhttps://github.com/OWN/Repo | <<B10>>\n::1\tversion 1.2.3-beta\t::1\nhost.example:80/a-b curl -s http://x https://3221225985/\nenv>out\n  + <<B8>> + <<B8>>\nhttp://evil.example/steal?x=1 wget\nenv | sort\nünï.example | TODO: fix\nhttps://3221225985/\nevil.example/x, evil.example/x\n# heading\n  evil。example/x\n  http://evil.example​/x\nnc -l 80\nncurses, 203.0.113.4.5\n-evil.example\nenv>out @mention <<B10>>\n================================================================================\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"api-key"
+],
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+3,
+"urllib"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+9,
+"env-cmd"
+],
+[
+10,
+"curl"
+],
+[
+11,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"curl"
+],
+[
+14,
+"url"
+],
+[
+15,
+"env-cmd"
+],
+[
+17,
+"url"
+],
+[
+17,
+"wget"
+],
+[
+18,
+"env-cmd"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"nc"
+],
+[
+26,
+"url"
+],
+[
+28,
+"env-cmd"
+]
+]
+},
+{
+"name": "README",
+"text": "<<B250>> ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ os.environ\nhost.example:8080/x sk-ant-abc > <<B60>>\nhttp://[2001:db8::1]:80/\nuser@example.com\nhttp://evil.example/steal?x=1, env | sort, environment\n#zzz\n1:2:3\nhttps://docs.anthropic.com/en/docs\n//123456789012\n203.0.113.4\nfoo.example_bar\t<https://evil.example>\tfoo.example_bar\n1e3.5\na-b.example.com-\n999.999.999.999\nhttps://github.com/anthropics/../evil/x | 0xc0000201\na::b::c | abc def ghi | 2026-11-14\n1e3.5\napi key, ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ, x.y.zz\n#fff\n[::1] environment (http://evil.example/a)\nhttps://github.com/own/repo/blob/main/a.md\ne.com.\ne.com.\t2026-11-14\nurllib.request\n> <<B60>>\tenvironment\n",
+"own": null,
+"want": [
+[
+1,
+"base64-run"
+],
+[
+1,
+"environ"
+],
+[
+1,
+"url"
+],
+[
+2,
+"sk-ant"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"env-cmd"
+],
+[
+5,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+13,
+"url"
+],
+[
+15,
+"url"
+],
+[
+18,
+"api-key"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+24,
+"urllib"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "x.y.zz\n10.0.0 [::1]:80\nimages/logo.png\nncurses\nrun.py\nenv | sort\tenv>out\ndocs.example.test-evil.io\n12:34:56, see evil.example, ok, the quick brown fox\nkey=0x1234567\t203.0.113.4\nsee evil.example, ok\n  https://example.com/x\nenvironment\t0XC0000201\nnc -l 80\n- list item\nx 203.0.113.4y\n#abcdefgh1, https://3221225985/\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n12:34:56\n  10.0.0\n  evil。example/x\nevil.example/x\nevil.example-x/y\n#fff\n  //12345678\nhttps://docs.anthropic.com/en/docs\n::\nabc def ghi | 192.0.2.1 | foo.example_bar\nkey=0x1234567 http://www.apache.org/licenses/\n-evil.example data: <<B40>> <<B250>>\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+6,
+"env-cmd"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+13,
+"nc"
+],
+[
+16,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"base64-run"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "0xc0000201\t//evil.example/x\n#abcdefgh1\n<<B80>>\t  env\tthe quick brown fox\nevil。example/x | printenv\nftp://evil.example/x\n#abc123\n1e3.5 | printenv\n::\nAb1 Cd2 Ef3 Gh4\nncurses 12:34:56\n//3221225985\nuser@example.com | 12:34:56\nｃｕｒｌ xn--bcher-kva.example\nnetcat | a-b.example.com- | http://evil.example/steal?x=1\ngithub.com/anthropics/skills\nsee [link](https://evil.example/a)\n<<B250>>\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n::ffff:192.0.2.33\na.b.c.d.example.com/path?q=1\t::ffff:192.0.2.33\t@mention\nhost.example:80abc, key=0x1234567, //3221225985\n<https://evil.example> | https://github.com/OWN/Repo | images/logo.png\nimages/logo.png\n:: | #zzz\nTODO: fix\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+4,
+"printenv"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"printenv"
+],
+[
+8,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"curl"
+],
+[
+13,
+"url"
+],
+[
+14,
+"netcat"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"base64-run"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "v1.2.3\n  evil。example/x\n@mention, 0XC0000201\nos.environ\nprintenv\n  x_y.example\n  ::1\nhttp://[2001:db8::1]:80/ #abcdefgh1\n#fff\n  bit.ly/abc\n1e3.5\t<<B250>>\n10.0.0\nhttps://github.com/OWN/Repo\nenvironment | env | sort | evil.example/x\nsee [link](https://evil.example/a) 2001:db8::2\ngithub.com/anthropics/skills\t10.0.0\n================================================================================\n::ffff:192.0.2.33 abcd:: .credentials.json\n2026-11-14 images/logo.png\n//3221225985\t  env\t\"quoted\"\n::\n  TODO: fix\n  http://evil.example​/x\n@mention 2026-11-14\nuser@example.com //123456789012 203.0.113.4\nhttp://evil.example​/x\nx.y.zz, foo.example_bar, images/logo.png\nenviron\nkey=0x1234567   env credentials\n(http://evil.example/a), http://[2001:db8::1]:80/\na.b.c.d.example.com/path?q=1 ünï.example\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+4,
+"environ"
+],
+[
+4,
+"url"
+],
+[
+5,
+"printenv"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"base64-run"
+],
+[
+14,
+"env-cmd"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+18,
+"credentials"
+],
+[
+18,
+"credentials-file"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"environ"
+],
+[
+29,
+"credentials"
+],
+[
+30,
+"url"
+],
+[
+31,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "#abcdefgh1\nkey=0x1234567 12:34:56 abcd::\nncurses\n<<B10>>, http://www.apache.org/licenses/\n`code`, abcd::\nevil。example/x\nhost.example:80abc, https://example.com/x, curl -s http://x\nhttp://www.apache.org/licenses/\napi key\n  a.b\nTODO: fix\na::b::c\nthe quick brown fox\nurllib.request\na-b.example.com- 1:2:3 v1.2.3\napi key\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\thttps://docs.anthropic.com/en/docs\n203.0.113.4.5\n(http://evil.example/a), - list item, env | sort\n2026-11-14\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA x­curl\n<https://evil.example> ｃｕｒｌ //evil.example/x\nhttps://3221225985/\n12:34:56\n  env>out\n//0x00000001f\thttps://github.com/OWN/Repo\tsee evil.example, ok\nwget\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"curl"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"api-key"
+],
+[
+14,
+"url"
+],
+[
+14,
+"urllib"
+],
+[
+15,
+"url"
+],
+[
+16,
+"api-key"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"env-cmd"
+],
+[
+19,
+"url"
+],
+[
+22,
+"curl"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"env-cmd"
+],
+[
+26,
+"url"
+],
+[
+27,
+"wget"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "abcd:: 0XC0000201 ünï.example\nnc -l 80, urllib.request\nprintenv | 0xc0000201 | foo:8080\napi key\n[::1]:80\ta.b.c.d.example.com/path?q=1\tx_y.example\nfoo:8080 | evil.example-x/y | https://github.com/anthropics/../evil/x\nuser@example.com <https://evil.example>\nsk-ant-abc\nhost.example:8080/x\n  env | sort\n    env\nx.y.zz\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n<<B80>>\n  https://github.com/anthropics/../evil/x\n  environ\n#zzz   env\nünï.example\n2001:db8::2 10.0.0 //12345678\n[::1]:80\n1:2:3\nhttps://docs.anthropic.com/en/docs\tversion 1.2.3-beta\t<<B250>>\ncurl -s http://x | urllib.request | curl -s http://x\nurllib.request\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n.credentials.json //3221225985 v1.2.3\nenvironment TODO: fix wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\na.b.c.d.example.com/path?q=1\n<<B80>>\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"nc"
+],
+[
+2,
+"url"
+],
+[
+2,
+"urllib"
+],
+[
+3,
+"printenv"
+],
+[
+4,
+"api-key"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"sk-ant"
+],
+[
+9,
+"url"
+],
+[
+10,
+"env-cmd"
+],
+[
+11,
+"env-cmd"
+],
+[
+12,
+"url"
+],
+[
+13,
+"base64-run"
+],
+[
+15,
+"url"
+],
+[
+16,
+"environ"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"base64-run"
+],
+[
+23,
+"curl"
+],
+[
+23,
+"url"
+],
+[
+23,
+"urllib"
+],
+[
+24,
+"url"
+],
+[
+24,
+"urllib"
+],
+[
+25,
+"base64-run"
+],
+[
+26,
+"credentials"
+],
+[
+26,
+"credentials-file"
+],
+[
+26,
+"url"
+],
+[
+27,
+"base64-run"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "host.example:8080/x | wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n  env\napi key 203.0.113.4\n//203.0.113.4.5/x\n<<B10>>, 0XC0000201, 10.0.0\n203.0.113.4\n::\ndata: <<B40>>\nｃｕｒｌ, //123456789012\nx­curl\n  -evil.example\n  data: <<B40>>\n.credentials.json | 10.0.0\nevil.example-x/y #abcdefgh1 #zzz\n2001:db8::ff00:42:8329 999.999.999.999\nnetcat\n  env\t203.0.113.4\t-evil.example\nx­curl\nANTHROPIC_API_KEY\nxn--bcher-kva.example, urllib.request\nsee [link](https://evil.example/a)\n  foo.example_bar\nabc def ghi\nthe quick brown fox\na.b\n3.14159 mail me: bob@example.com curl -s http://x\nTODO: fix\nnc -l 80\t\"quoted\"\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"base64-run"
+],
+[
+1,
+"url"
+],
+[
+2,
+"env-cmd"
+],
+[
+3,
+"api-key"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+9,
+"curl"
+],
+[
+13,
+"credentials"
+],
+[
+13,
+"credentials-file"
+],
+[
+15,
+"url"
+],
+[
+16,
+"netcat"
+],
+[
+17,
+"env-cmd"
+],
+[
+17,
+"url"
+],
+[
+19,
+"api-key"
+],
+[
+20,
+"url"
+],
+[
+20,
+"urllib"
+],
+[
+21,
+"url"
+],
+[
+26,
+"curl"
+],
+[
+26,
+"url"
+],
+[
+28,
+"nc"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "environ\n0xc0000201 v1.2.3 #abcdefgh1\nx­curl e.com. the quick brown fox\n//12345678\t//203.0.113.4.5/x\nnetcat\n  1:2:3\n  //evil.example/x\nabcd::\ta-b.example.com-\tevil.example/x\ndocs.example.test-evil.io\t//evil.example/x\nünï.example\n`code`, [::1]:80, data: <<B40>>\nhttps://example.com/x key=0x1234567 a.b.c.d.example.com/path?q=1\n::ffff:192.0.2.33\nhttps://github.com/OWN/Repo\n+ <<B8>> + <<B8>>\na.b, 2001:db8::2\nwget evil。example/x\n-evil.example | sk-ant-abc\nHello World, bit.ly/abc, bit.ly/abc\nenv | sort\n(http://evil.example/a)\n> <<B60>>\nsk-ant-abc\nurllib.request\n  abcd::\n//203.0.113.4.5/x\nAb1 Cd2 Ef3 Gh4\t- list item\t12:34:56\nHello World\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"environ"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"netcat"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+17,
+"wget"
+],
+[
+18,
+"sk-ant"
+],
+[
+19,
+"url"
+],
+[
+20,
+"env-cmd"
+],
+[
+21,
+"url"
+],
+[
+23,
+"sk-ant"
+],
+[
+24,
+"url"
+],
+[
+24,
+"urllib"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "//12345678   env\nftp://evil.example/x\na::b::c, data: <<B40>>\nCurl | https://github.com/anthropics/../evil/x | https://www.apache.org/licenses/LICENSE-2.0\nhttps://github.com/anthropics/../evil/x, abcd::, ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nevil.example-x/y\nevil.example/x\n  env\nhttp://[2001:db8::1]:80/, printenv\nos.environ\na::b::c, https://www.apache.org/licenses/LICENSE-2.0\na::b::c //12345678\nimport requests\nv1.2.3\tapi key\nkey=0x1234567\nos.environ docs.example.test-evil.io\n- list item\n  foo:8080\n  sk-ant-abc\nprintenv see [link](https://evil.example/a)\n1:2:3\n//0x00000001f\n<https://evil.example>\nTODO: fix version 1.2.3-beta\nsee evil.example, ok\timages/logo.png\thost.example:80abc\nrun.py\ncredentials\thttp://evil.example/steal?x=1\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+4,
+"curl"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"env-cmd"
+],
+[
+9,
+"printenv"
+],
+[
+9,
+"url"
+],
+[
+10,
+"environ"
+],
+[
+10,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"api-key"
+],
+[
+16,
+"environ"
+],
+[
+16,
+"url"
+],
+[
+19,
+"sk-ant"
+],
+[
+20,
+"printenv"
+],
+[
+20,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+27,
+"credentials"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "e​vil.example http://evil.example/steal?x=1\nenviron\nhost.example:8080/x evil。example/x <<B250>>\nrun.py | `code` | https://github.com/anthropics/../evil/x\n//3221225985\nhost.example:80/a-b\nmail me: bob@example.com\nhttp://198.51.100.7/x\n  credentials\n  Ab1 Cd2 Ef3 Gh4\na.b\nsee [link](https://evil.example/a) version 1.2.3-beta # heading\n#abc123\n3.14159\nenvironment 203.0.113.4.5 https://github.com/other/repo\nx_y.example\nabc def ghi | ================================================================================ | printenv\n//evil.example/x ncurses //3221225985\n(http://evil.example/a)\nwget\tｃｕｒｌ\thttps://docs.anthropic.com/en/docs\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> 2001:db8::ff00:42:8329\nTODO: fix, env>out\n#fff\nｃｕｒｌ\n<<B250>> | docs.example.test-evil.io\n- list item\t(http://evil.example/a)\n2001:db8::2\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"environ"
+],
+[
+3,
+"base64-run"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"credentials"
+],
+[
+12,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"printenv"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"curl"
+],
+[
+20,
+"wget"
+],
+[
+21,
+"base64-run"
+],
+[
+21,
+"url"
+],
+[
+22,
+"env-cmd"
+],
+[
+24,
+"curl"
+],
+[
+25,
+"base64-run"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "curl -s http://x\nhttp://evil.example​/x\n-evil.example\nhttp://198.51.100.7/x\nrequests.get(x), //0x00000001f\nhttp://www.apache.org/licenses/, urllib.request\na::b::c\nevil.example/x\nSKILL.md\napi key, ================================================================================, abc def ghi\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA | environment | mail me: bob@example.com\nuser@example.com\n  netcat\n  -evil.example\ncurl -s http://x nc -l 80 os.environ\nbit.ly/abc\nhost.example:80abc\n@mention ================================================================================ foo.example_bar\n+ <<B8>> + <<B8>>\n  xn--bcher-kva.example\n  http://198.51.100.7/x\n12:34:56 see [link](https://evil.example/a) images/logo.png\nenvironment\nrun.py\n  abcd::\n  https://github.com/anthropics/../evil/x\n999.999.999.999\n//0x00000001f, urllib.request\n192.0.2.1\nthe quick brown fox\n1e3.5\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"curl"
+],
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"requests"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+6,
+"urllib"
+],
+[
+8,
+"url"
+],
+[
+10,
+"api-key"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"netcat"
+],
+[
+15,
+"curl"
+],
+[
+15,
+"environ"
+],
+[
+15,
+"nc"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"url"
+],
+[
+28,
+"urllib"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "2001:db8::ff00:42:8329\n//3221225985\t-evil.example\nsee [link](https://evil.example/a)\n@mention\n3.14159 https://example.com/x\nhttp://198.51.100.7/x | #fff\napi key\n> <<B60>>\nenviron | `code`\n#abc123, //123456789012, ================================================================================\nhttps://github.com/OWN/Repo, SKILL.md, a.b\n0XC0000201\n0xc0000201 | sk-ant-abc |   env\n[::1]\nabc def ghi\na.b //12345678\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> data: <<B40>> github.com/anthropics/skills\nhttps://3221225985/\n  see [link](https://evil.example/a)\n  AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n192.0.2.1\n# heading\n    env\n  https://example.com/x\n999.999.999.999 requests.get(x)\nhttps://github.com/other/repo, see [link](https://evil.example/a)\n//3221225985\thost.example:80/a-b\t#abcdefgh1\n:: xn--bcher-kva.example https://github.com/other/repo\nthe quick brown fox\n  x 203.0.113.4y\n  ================================================================================\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"api-key"
+],
+[
+9,
+"environ"
+],
+[
+13,
+"sk-ant"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"base64-run"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+21,
+"url"
+],
+[
+23,
+"env-cmd"
+],
+[
+24,
+"url"
+],
+[
+25,
+"requests"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "https://www.apache.org/licenses/LICENSE-2.0\nhttps://github.com/anthropics/../evil/x\n2001:db8::2\trequests.get(x)\timages/logo.png\nhttps://github.com/own/repo/blob/main/a.md   env\ndocs.example.test-evil.io, //12345678, ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nhttps://example.com/x wget curl -s http://x\nenv | sort | evil.example/x\ne.com.\n<<B10>>\nenviron\nsee evil.example, ok\nSKILL.md\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n  host.example:80/a-b\nevil.example/x | 0xc0000201\nhttps://github.com/own/repo/blob/main/a.md\thttps://example.com/x\t#abcdefgh1\n2026-11-14\t1:2:3\nwget\n  wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nuser@example.com\tｃｕｒｌ\tapi key\nnetcat\tcredentials\t1e3.5\n::1\nos.environ ================================================================================ ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nsee evil.example, ok, #abcdefgh1, wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n#abcdefgh1\n//3221225985\nhttps://docs.anthropic.com/en/docs\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"requests"
+],
+[
+3,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"curl"
+],
+[
+6,
+"url"
+],
+[
+6,
+"wget"
+],
+[
+7,
+"env-cmd"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+10,
+"environ"
+],
+[
+11,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"wget"
+],
+[
+19,
+"base64-run"
+],
+[
+20,
+"api-key"
+],
+[
+20,
+"curl"
+],
+[
+20,
+"url"
+],
+[
+21,
+"credentials"
+],
+[
+21,
+"netcat"
+],
+[
+22,
+"url"
+],
+[
+23,
+"environ"
+],
+[
+23,
+"url"
+],
+[
+24,
+"base64-run"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "env | sort @0xc0000201. 0xc0000201\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\na-b.example.com-\n  ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n  sk-ant-abc\nrun.py\nos.environ https://github.com/anthropics/../evil/x\nenvironment\n203.0.113.4.5 | a.b | .credentials.json\nhttp://evil.example/steal?x=1, user@example.com, .credentials.json\nevil。example/x\na.b.c.d.example.com/path?q=1\nabcd:: - list item\nabc def ghi\n-evil.example\tncurses\trun.py\nhttps://github.com/other/repo\n//123456789012, env>out\ndata: <<B40>>, see [link](https://evil.example/a), 203.0.113.4\n//12345678\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------, 0XC0000201\n(http://evil.example/a)\n  printenv\n  requests.get(x)\nnetcat\t#abc123\t//123456789012\nenvironment\tTODO: fix\nhttp://evil.example/steal?x=1, # heading\n//12345678\t2026-11-14\tx­curl\nabc def ghi\n================================================================================\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"env-cmd"
+],
+[
+1,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"sk-ant"
+],
+[
+7,
+"environ"
+],
+[
+7,
+"url"
+],
+[
+9,
+"credentials"
+],
+[
+9,
+"credentials-file"
+],
+[
+9,
+"url"
+],
+[
+10,
+"credentials"
+],
+[
+10,
+"credentials-file"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"env-cmd"
+],
+[
+18,
+"url"
+],
+[
+19,
+"base64-run"
+],
+[
+19,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"printenv"
+],
+[
+23,
+"requests"
+],
+[
+23,
+"url"
+],
+[
+24,
+"netcat"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "env | sort\na.b\tenv>out\thost.example:80abc\nx_y.example\tv1.2.3\n+ <<B8>> + <<B8>>\t#abc123\tv1.2.3\nurllib.request\n- list item\tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\thost.example:80/a-b\nx.y.zz\tx.y.zz\nos.environ\t0xc0000201\nos.environ\n#fff\n1:2:3 | AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n@mention | e.com. | 10.0.0\n(http://evil.example/a)\nabc def ghi, #zzz\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n<<B250>>\n//203.0.113.4.5/x 0XC0000201\n<<B80>>\nevil。example/x\n3.14159\nhttp://www.apache.org/licenses/\nhttps://3221225985/, the quick brown fox\nevil.example-x/y, see evil.example, ok, # heading\n# heading\n203.0.113.4.5 | 203.0.113.4 | evil.example/x\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"env-cmd"
+],
+[
+2,
+"env-cmd"
+],
+[
+2,
+"url"
+],
+[
+5,
+"url"
+],
+[
+5,
+"urllib"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"environ"
+],
+[
+8,
+"url"
+],
+[
+9,
+"environ"
+],
+[
+9,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+15,
+"base64-run"
+],
+[
+15,
+"url"
+],
+[
+16,
+"base64-run"
+],
+[
+17,
+"url"
+],
+[
+19,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "key=0x1234567 | e​vil.example | ünï.example\ncurl -s http://x\nabc def ghi\n  printenv\nxn--bcher-kva.example | SKILL.md | 1:2:3\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n  printenv\n  [::1]\nhttp://www.apache.org/licenses/ //123456789012\nhost.example:80/a-b, #zzz\n203.0.113.4\nbit.ly/abc, a.b.c.d.example.com/path?q=1, Curl\na::b::c, <https://evil.example>\n.credentials.json\tbit.ly/abc\n//12345678\n  v1.2.3\n-evil.example | urllib.request\nfoo:8080 //123456789012\nmail me: bob@example.com, evil.example/x\nAb1 Cd2 Ef3 Gh4 | user@example.com | images/logo.png\n  env\n#fff\nhttps://github.com/anthropics/../evil/x\nnc -l 80 x.y.zz x.y.zz\n::1\nünï.example\n0xc0000201 images/logo.png\n(http://evil.example/a)\nimages/logo.png 12:34:56 Hello World\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"curl"
+],
+[
+2,
+"url"
+],
+[
+4,
+"printenv"
+],
+[
+5,
+"url"
+],
+[
+7,
+"printenv"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"curl"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"credentials"
+],
+[
+14,
+"credentials-file"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+17,
+"urllib"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"env-cmd"
+],
+[
+23,
+"url"
+],
+[
+24,
+"nc"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "//203.0.113.4.5/x\t0xc0000201\t@mention\nncurses\nx.y.zz, ::1, printenv\n3.14159 | 2001:db8::2 | 10.0.0\ngithub.com/anthropics/skills, a::b::c, [::1]\ncurl -s http://x\n  //123456789012\n  a.b\n//3221225985\n0XC0000201 //203.0.113.4.5/x\n1:2:3\tsee evil.example, ok\nhttps://example.com/x | abcd:: | 2001:db8::ff00:42:8329\nrun.py sk-ant-abc ünï.example\nhttps://github.com/other/repo\nSKILL.md https://github.com/anthropics/../evil/x abc def ghi\nbit.ly/abc\n@mention\nANTHROPIC_API_KEY\t<<B80>>\tünï.example\nnetcat\nmail me: bob@example.com ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n> <<B60>>\n//3221225985 | https://3221225985/\nurllib.request, 192.0.2.1, requests.get(x)\n//123456789012\n<<B80>>\ncredentials\t> <<B60>>\t//3221225985\nabcd::\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"printenv"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"curl"
+],
+[
+6,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"sk-ant"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"api-key"
+],
+[
+19,
+"netcat"
+],
+[
+20,
+"url"
+],
+[
+21,
+"base64-run"
+],
+[
+22,
+"url"
+],
+[
+23,
+"requests"
+],
+[
+23,
+"url"
+],
+[
+23,
+"urllib"
+],
+[
+26,
+"credentials"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "README",
+"text": "host.example:8080/x\n//0x00000001f\tHello World\tx_y.example\n\"quoted\"\n1:2:3 203.0.113.4.5\nevil。example/x foo:8080\nkey=0x1234567\nkey=0x1234567\nbit.ly/abc | 2001:db8::2\n1:2:3 netcat\ncurl -s http://x\n12:34:56\tthe quick brown fox\nTODO: fix\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\t192.0.2.1\nos.environ\tmail me: bob@example.com\tx­curl\n3.14159   env import requests\nhttps://docs.anthropic.com/en/docs\thttps://www.apache.org/licenses/LICENSE-2.0\tTODO: fix\ncredentials\t203.0.113.4.5\n#abc123 + <<B8>> + <<B8>> <<B10>>\nhttps://www.apache.org/licenses/LICENSE-2.0 | data: <<B40>> | credentials\nimport requests\nv1.2.3 //203.0.113.4.5/x -evil.example\ncredentials\n.credentials.json\nx.y.zz\n  mail me: bob@example.com\n  \"quoted\"\n- list item\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"netcat"
+],
+[
+10,
+"curl"
+],
+[
+10,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"environ"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"credentials"
+],
+[
+17,
+"url"
+],
+[
+19,
+"credentials"
+],
+[
+19,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"credentials"
+],
+[
+23,
+"credentials"
+],
+[
+23,
+"credentials-file"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "requests.get(x) //12345678\nCurl\ne​vil.example | foo:8080 | 10.0.0\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nhttps://docs.anthropic.com/en/docs\n::ffff:192.0.2.33 v1.2.3\nenviron\n  env\na-b.example.com-\n+ <<B8>> + <<B8>> http://[2001:db8::1]:80/ @0xc0000201.\n0xc0000201, 12:34:56\n::ffff:192.0.2.33\n  [::1]\nhttps://docs.anthropic.com/en/docs\n2001:db8::2\nevil。example/x\n//12345678 see evil.example, ok api key\nx­curl | TODO: fix | <<B250>>\n  env | Hello World | 2001:db8::ff00:42:8329\ncredentials\n  environ\nTODO: fix a-b.example.com- 999.999.999.999\n//0x00000001f\n  <<B250>>\n  ::ffff:192.0.2.33\n================================================================================\n  https://www.apache.org/licenses/LICENSE-2.0\n  ================================================================================\nsee evil.example, ok, - list item, ünï.example\nhost.example:80/a-b\n::ffff:192.0.2.33\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"requests"
+],
+[
+1,
+"url"
+],
+[
+2,
+"base64-run"
+],
+[
+2,
+"curl"
+],
+[
+3,
+"url"
+],
+[
+4,
+"base64-run"
+],
+[
+6,
+"url"
+],
+[
+7,
+"environ"
+],
+[
+8,
+"env-cmd"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"api-key"
+],
+[
+17,
+"url"
+],
+[
+18,
+"base64-run"
+],
+[
+19,
+"env-cmd"
+],
+[
+19,
+"url"
+],
+[
+20,
+"credentials"
+],
+[
+21,
+"environ"
+],
+[
+22,
+"url"
+],
+[
+23,
+"base64-run"
+],
+[
+23,
+"url"
+],
+[
+24,
+"base64-run"
+],
+[
+25,
+"url"
+],
+[
+29,
+"url"
+],
+[
+30,
+"url"
+],
+[
+31,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "key=0x1234567\nhost.example:8080/x\napi key, http://evil.example​/x\nhttps://www.apache.org/licenses/LICENSE-2.0 2001:db8::ff00:42:8329\n//203.0.113.4.5/x | 1e3.5 | host.example:80abc\n#zzz\nos.environ <<B250>>\nenvironment\n  host.example:80abc\ne​vil.example\n<<B80>> | https://docs.anthropic.com/en/docs\n1:2:3\nmail me: bob@example.com\nhttps://www.apache.org/licenses/LICENSE-2.0\n203.0.113.4.5 | 10.0.0 | + <<B8>> + <<B8>>\nhost.example:80abc environ\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nenvironment environ [::1]\nhttps://example.com/x\t================================================================================\nrequests.get(x)\n::\t1e3.5\t2001:db8::ff00:42:8329\nhttps://github.com/own/repo/blob/main/a.md\t#abcdefgh1\nhttp://evil.example​/x //12345678 foo.example_bar\n#abc123\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nANTHROPIC_API_KEY\n",
+"own": null,
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"api-key"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"base64-run"
+],
+[
+7,
+"environ"
+],
+[
+7,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"environ"
+],
+[
+16,
+"url"
+],
+[
+18,
+"environ"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"requests"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+26,
+"api-key"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "@mention | > <<B60>> | e​vil.example\nversion 1.2.3-beta\nevil.example-x/y\nncurses\nimages/logo.png\thttps://3221225985/\nwget\na.b.c.d.example.com/path?q=1\nwget\nx 203.0.113.4y, //12345678\nhttp://www.apache.org/licenses/, //3221225985\n//123456789012 sk-ant-abc\nenv>out\t@0xc0000201.\tenviron\napi key\n#zzz\nbit.ly/abc\nhttps://github.com/OWN/Repo | xn--bcher-kva.example\nx.y.zz\nbit.ly/abc\nwget\t1e3.5\n//evil.example/x\n999.999.999.999\nimages/logo.png 192.0.2.1\n+ <<B8>> + <<B8>> a::b::c\nwget | abcd:: | import requests\n2001:db8::ff00:42:8329\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"wget"
+],
+[
+7,
+"url"
+],
+[
+8,
+"wget"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"sk-ant"
+],
+[
+12,
+"env-cmd"
+],
+[
+12,
+"environ"
+],
+[
+12,
+"url"
+],
+[
+13,
+"api-key"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"wget"
+],
+[
+20,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+],
+[
+24,
+"wget"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "https://github.com/other/repo | 203.0.113.4\nsee evil.example, ok\t<<B250>>\n203.0.113.4\n[::1]:80 wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> https://docs.anthropic.com/en/docs\n# heading\nhttps://github.com/other/repo\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nmail me: bob@example.com\thost.example:80abc\nhttps://github.com/own/repo/blob/main/a.md\nevil。example/x\nx­curl\nurllib.request\nimport requests\n0XC0000201\n  the quick brown fox\nｃｕｒｌ\nnc -l 80\tmail me: bob@example.com\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> host.example:8080/x\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n  [::1]:80\n@0xc0000201.\n2026-11-14 + <<B8>> + <<B8>> #abcdefgh1\n1:2:3 //evil.example/x\n//203.0.113.4.5/x, wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>, ftp://evil.example/x\nhttps://example.com/x\nhttps://github.com/OWN/Repo | foo:8080 | - list item\n::1\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"base64-run"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"base64-run"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+12,
+"url"
+],
+[
+12,
+"urllib"
+],
+[
+16,
+"curl"
+],
+[
+17,
+"nc"
+],
+[
+17,
+"url"
+],
+[
+18,
+"base64-run"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"base64-run"
+],
+[
+23,
+"url"
+],
+[
+24,
+"base64-run"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "ünï.example\n[::1]:80 | https://3221225985/\nhttps://3221225985/ import requests\nabc def ghi | host.example:8080/x\nimport requests http://[2001:db8::1]:80/\n12:34:56 see [link](https://evil.example/a) ================================================================================\n#abcdefgh1, + <<B8>> + <<B8>>\nhttp://evil.example/steal?x=1\n192.0.2.1\ne​vil.example http://evil.example/steal?x=1 environment\n<<B250>>\nnc -l 80, .credentials.json\n<https://evil.example>, mail me: bob@example.com\nmail me: bob@example.com, images/logo.png, ANTHROPIC_API_KEY\n[::1]\nwget\n203.0.113.4.5\n#abc123 > <<B60>>\n//evil.example/x https://example.com/x\nuser@example.com\t#abcdefgh1\nhost.example:8080/x\nftp://evil.example/x\thost.example:80/a-b\ndata: <<B40>>\nrequests.get(x)\n#abc123\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"base64-run"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"base64-run"
+],
+[
+10,
+"url"
+],
+[
+11,
+"base64-run"
+],
+[
+12,
+"credentials"
+],
+[
+12,
+"credentials-file"
+],
+[
+12,
+"nc"
+],
+[
+13,
+"url"
+],
+[
+14,
+"api-key"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"wget"
+],
+[
+17,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"requests"
+],
+[
+24,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "http://evil.example/steal?x=1\ta.b.c.d.example.com/path?q=1\t12:34:56\n0XC0000201 | [::1] | //0x00000001f\n12:34:56\n  abcd::\n    env\n\"quoted\" | a-b.example.com-\n\"quoted\", TODO: fix\n\"quoted\", [::1]:80, https://example.com/x\nmail me: bob@example.com\n  xn--bcher-kva.example\n  host.example:80/a-b\n#zzz\n//203.0.113.4.5/x\nuser@example.com\nncurses\n  evil.example-x/y\n  http://198.51.100.7/x\nmail me: bob@example.com, 1e3.5, http://198.51.100.7/x\n#fff\t::\nhttp://198.51.100.7/x\nprintenv, github.com/anthropics/skills\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\t<https://evil.example>\t203.0.113.4\nx_y.example | #abcdefgh1\nabc def ghi\n  e.com.\n  [::1]:80\ndata: <<B40>>\n//203.0.113.4.5/x\n#abcdefgh1 //0x00000001f\n`code`\n3.14159, 2001:db8::ff00:42:8329\nftp://evil.example/x\ne.com., a-b.example.com-, ｃｕｒｌ\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"env-cmd"
+],
+[
+6,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"base64-run"
+],
+[
+21,
+"printenv"
+],
+[
+22,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"url"
+],
+[
+31,
+"url"
+],
+[
+32,
+"url"
+],
+[
+33,
+"curl"
+],
+[
+33,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "curl -s http://x | #zzz | #abc123\n#abc123\nCurl\nhttps://example.com/x\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------, 1:2:3, host.example:80abc\nv1.2.3\n================================================================================ | v1.2.3\nSKILL.md | printenv | #zzz\nftp://evil.example/x\nfoo:8080\tTODO: fix\nSKILL.md\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nhttps://github.com/own/repo/blob/main/a.md\nrequests.get(x)\n  TODO: fix\n  //evil.example/x\nfoo:8080\nx_y.example - list item\nx.y.zz\tANTHROPIC_API_KEY\thttps://www.apache.org/licenses/LICENSE-2.0\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n  https://github.com/OWN/Repo\nfoo.example_bar - list item\nv1.2.3 | #zzz | 1e3.5\n#fff | x­curl | https://example.com/x\nhttp://evil.example/steal?x=1 | //3221225985 | wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nfoo.example_bar, https://github.com/anthropics/../evil/x\nhttps://example.com/x e​vil.example https://3221225985/\na.b\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"curl"
+],
+[
+1,
+"url"
+],
+[
+3,
+"curl"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+8,
+"printenv"
+],
+[
+9,
+"url"
+],
+[
+14,
+"requests"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+19,
+"api-key"
+],
+[
+19,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"base64-run"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "data: <<B40>>\tTODO: fix\tx­curl\n[::1]\te.com.\thttps://docs.anthropic.com/en/docs\n-evil.example\tabc def ghi\n1:2:3\nabc def ghi\n  - list item\nhttp://198.51.100.7/x\n  env | sort\n  0XC0000201\nenv | sort\n  mail me: bob@example.com\n  SKILL.md\n2001:db8::2 999.999.999.999\n`code`\tprintenv\tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nkey=0x1234567\n//3221225985\na.b.c.d.example.com/path?q=1\ndocs.example.test-evil.io\nrun.py\nhttp://evil.example​/x <<B10>>\n::ffff:192.0.2.33\tnetcat\nCurl\nversion 1.2.3-beta\n0xc0000201 user@example.com\nsee evil.example, ok, netcat\ne.com.\n//0x00000001f\n  203.0.113.4\napi key\n1e3.5 //evil.example/x\n10.0.0\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"env-cmd"
+],
+[
+10,
+"env-cmd"
+],
+[
+11,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"base64-run"
+],
+[
+14,
+"printenv"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"netcat"
+],
+[
+21,
+"url"
+],
+[
+22,
+"curl"
+],
+[
+24,
+"url"
+],
+[
+25,
+"netcat"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"api-key"
+],
+[
+30,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "::1\nurllib.request | http://198.51.100.7/x | 203.0.113.4\ncurl -s http://x images/logo.png\nCurl\nversion 1.2.3-beta sk-ant-abc evil.example-x/y\nenv>out see evil.example, ok version 1.2.3-beta\nfoo:8080\ncurl -s http://x\nurllib.request\t#abc123\n//3221225985\ncredentials\nhttps://github.com/OWN/Repo\nsk-ant-abc\nx­curl\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nevil.example-x/y\n//3221225985\tprintenv\na::b::c\nwget\nhttp://evil.example​/x\nevil。example/x\na.b.c.d.example.com/path?q=1\n#abc123\nhttp://evil.example​/x | Hello World | x 203.0.113.4y\n203.0.113.4.5\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+2,
+"urllib"
+],
+[
+3,
+"curl"
+],
+[
+3,
+"url"
+],
+[
+4,
+"curl"
+],
+[
+5,
+"sk-ant"
+],
+[
+6,
+"env-cmd"
+],
+[
+6,
+"url"
+],
+[
+8,
+"curl"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+9,
+"urllib"
+],
+[
+10,
+"url"
+],
+[
+11,
+"credentials"
+],
+[
+13,
+"sk-ant"
+],
+[
+17,
+"printenv"
+],
+[
+17,
+"url"
+],
+[
+19,
+"wget"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "Hello World https://example.com/x ncurses\ncurl -s http://x\nimport requests\n-evil.example\n::ffff:192.0.2.33\thttps://example.com/x\n#zzz, netcat, run.py\n@mention\n  host.example:8080/x\n  @0xc0000201.\ncurl -s http://x\n//evil.example/x\t@0xc0000201.\nSKILL.md\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nuser@example.com\tv1.2.3\t# heading\n//evil.example/x\nANTHROPIC_API_KEY\ndata: <<B40>> see [link](https://evil.example/a) //evil.example/x\nhost.example:80abc ================================================================================\n::1\n<https://evil.example>\t@0xc0000201.\thttp://[2001:db8::1]:80/\n//12345678\n  version 1.2.3-beta\n-evil.example\n  3.14159\nx­curl | @mention\n12:34:56\n//3221225985\n- list item\ne.com.\n  see evil.example, ok\n  the quick brown fox\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"curl"
+],
+[
+2,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"netcat"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"curl"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"api-key"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+27,
+"url"
+],
+[
+29,
+"url"
+],
+[
+30,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "http://198.51.100.7/x\nCurl, ftp://evil.example/x, x_y.example\n999.999.999.999\nx­curl\t0XC0000201\nenviron v1.2.3 12:34:56\na::b::c\n192.0.2.1 Hello World\nTODO: fix\tos.environ\n#fff, bit.ly/abc, data: <<B40>>\n<<B250>>\ndata: <<B40>> | version 1.2.3-beta\n203.0.113.4.5 | 2026-11-14\nabcd::\n.credentials.json Curl //203.0.113.4.5/x\nSKILL.md, host.example:8080/x\nhttps://www.apache.org/licenses/LICENSE-2.0 <https://evil.example> https://github.com/own/repo/blob/main/a.md\n1e3.5\n.credentials.json\nhost.example:8080/x\n<https://evil.example>\n#zzz a.b 0xc0000201\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nenv>out\n0XC0000201\nabcd::\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"curl"
+],
+[
+2,
+"url"
+],
+[
+5,
+"environ"
+],
+[
+7,
+"url"
+],
+[
+8,
+"environ"
+],
+[
+8,
+"url"
+],
+[
+9,
+"base64-run"
+],
+[
+9,
+"url"
+],
+[
+10,
+"base64-run"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"credentials"
+],
+[
+14,
+"credentials-file"
+],
+[
+14,
+"curl"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"credentials"
+],
+[
+18,
+"credentials-file"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+23,
+"env-cmd"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "requests.get(x)\nrequests.get(x)\n2026-11-14\n  <<B80>>\n+ <<B8>> + <<B8>> `code` docs.example.test-evil.io\nhttp://evil.example​/x\na.b.c.d.example.com/path?q=1 | .credentials.json | 0xc0000201\n`code`\n10.0.0\t//3221225985\tünï.example\nimport requests\n1:2:3, `code`\n203.0.113.4\n  ::\nxn--bcher-kva.example\nnc -l 80\nrun.py, 203.0.113.4, abc def ghi\n<https://evil.example>\n//3221225985\nhttps://github.com/other/repo\n<https://evil.example>\n2001:db8::ff00:42:8329\nhttp://evil.example/steal?x=1 | #zzz\na::b::c\tenv | sort\nmail me: bob@example.com | abcd::\nhttps://docs.anthropic.com/en/docs\tversion 1.2.3-beta\tapi key\na.b.c.d.example.com/path?q=1\nimport requests\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"credentials"
+],
+[
+7,
+"credentials-file"
+],
+[
+7,
+"url"
+],
+[
+9,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"nc"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"env-cmd"
+],
+[
+24,
+"url"
+],
+[
+25,
+"api-key"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n  #abc123\nevil。example/x\nevil.example/x ncurses 0xc0000201\n10.0.0\n  env\napi key #fff\nTODO: fix\n::1\tx_y.example\n#abc123\nrun.py, //0x00000001f, see [link](https://evil.example/a)\nhttp://evil.example​/x\ncredentials\nevil。example/x\na::b::c\n203.0.113.4.5, evil.example/x, ftp://evil.example/x\ngithub.com/anthropics/skills\ndocs.example.test-evil.io\t//evil.example/x\n#zzz\n3.14159\nhttp://evil.example/steal?x=1 foo.example_bar foo.example_bar\nhost.example:80abc the quick brown fox env>out\nprintenv\nx­curl\nhttp://evil.example/steal?x=1\nx_y.example\n",
+"own": "own/repo",
+"want": [
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+6,
+"env-cmd"
+],
+[
+7,
+"api-key"
+],
+[
+9,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"credentials"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"env-cmd"
+],
+[
+22,
+"url"
+],
+[
+23,
+"printenv"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "docs.example.test-evil.io | 192.0.2.1\n- list item\nwget\n  the quick brown fox\n  http://evil.example/steal?x=1\nevil.example/x\tANTHROPIC_API_KEY\nünï.example\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>, //203.0.113.4.5/x\n3.14159\n:: abcd::\n1e3.5, host.example:80/a-b, bit.ly/abc\n@mention\nevil.example-x/y //123456789012\n//0x00000001f\n//3221225985\nhttp://198.51.100.7/x\nünï.example, 192.0.2.1\n.credentials.json\nx­curl\nsk-ant-abc\na.b.c.d.example.com/path?q=1 | abc def ghi\nabc def ghi, version 1.2.3-beta\n203.0.113.4\n<https://evil.example>\nhost.example:8080/x |   env\nimages/logo.png\n2001:db8::2\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"wget"
+],
+[
+5,
+"url"
+],
+[
+6,
+"api-key"
+],
+[
+6,
+"url"
+],
+[
+8,
+"base64-run"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"credentials"
+],
+[
+18,
+"credentials-file"
+],
+[
+20,
+"sk-ant"
+],
+[
+21,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "Curl\nfoo:8080\na-b.example.com-\ndocs.example.test-evil.io\nfoo:8080\trun.py\thttp://evil.example​/x\nncurses\tos.environ\t0xc0000201\nenviron\nevil.example-x/y\te.com.\t192.0.2.1\n\"quoted\"\nsk-ant-abc\t192.0.2.1\nANTHROPIC_API_KEY environ TODO: fix\n@0xc0000201.\n  urllib.request\n  (http://evil.example/a)\n@0xc0000201.\nANTHROPIC_API_KEY\nhost.example:8080/x\thttps://www.apache.org/licenses/LICENSE-2.0\t10.0.0\nhttp://[2001:db8::1]:80/\t(http://evil.example/a)\tfoo.example_bar\nhttp://evil.example/steal?x=1\n  credentials\nfoo.example_bar\tdocs.example.test-evil.io\t2026-11-14\n<https://evil.example>\tsk-ant-abc\tevil。example/x\n0XC0000201\n  http://www.apache.org/licenses/\n  x.y.zz\nurllib.request\n  data: <<B40>>\n  nc -l 80\nhost.example:80abc\n1:2:3\te.com.\t//3221225985\nhttps://docs.anthropic.com/en/docs\ndocs.example.test-evil.io\n",
+"own": null,
+"want": [
+[
+1,
+"curl"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"environ"
+],
+[
+6,
+"url"
+],
+[
+7,
+"environ"
+],
+[
+8,
+"url"
+],
+[
+10,
+"sk-ant"
+],
+[
+10,
+"url"
+],
+[
+11,
+"api-key"
+],
+[
+11,
+"environ"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+13,
+"urllib"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"api-key"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"credentials"
+],
+[
+21,
+"url"
+],
+[
+22,
+"sk-ant"
+],
+[
+22,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+26,
+"urllib"
+],
+[
+28,
+"nc"
+],
+[
+29,
+"url"
+],
+[
+30,
+"url"
+],
+[
+32,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "ftp://evil.example/x -evil.example https://github.com/anthropics/../evil/x\n# heading, http://www.apache.org/licenses/\n================================================================================\nxn--bcher-kva.example, version 1.2.3-beta\nenv>out | https://github.com/anthropics/../evil/x | wget\nx­curl\tos.environ\t- list item\n192.0.2.1 | [::1]:80 | ANTHROPIC_API_KEY\n- list item\n<<B250>>\n[::1]:80\t12:34:56\tfoo.example_bar\n\"quoted\"\n//evil.example/x\n  env https://github.com/own/repo/blob/main/a.md ncurses\n0XC0000201\tSKILL.md\tabcd::\n#abcdefgh1\nenviron\nSKILL.md environ wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n.credentials.json\t<<B10>>\tnetcat\nabc def ghi\n  ｃｕｒｌ\n  host.example:8080/x\n<<B250>>\n1e3.5\n<https://evil.example>\n::1\nsk-ant-abc | ncurses\nhttps://github.com/own/repo/blob/main/a.md\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"env-cmd"
+],
+[
+5,
+"url"
+],
+[
+5,
+"wget"
+],
+[
+6,
+"environ"
+],
+[
+6,
+"url"
+],
+[
+7,
+"api-key"
+],
+[
+7,
+"url"
+],
+[
+9,
+"base64-run"
+],
+[
+10,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"env-cmd"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"environ"
+],
+[
+17,
+"base64-run"
+],
+[
+17,
+"environ"
+],
+[
+18,
+"credentials"
+],
+[
+18,
+"credentials-file"
+],
+[
+18,
+"netcat"
+],
+[
+20,
+"curl"
+],
+[
+21,
+"url"
+],
+[
+22,
+"base64-run"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"sk-ant"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "# heading\n@0xc0000201.\ngithub.com/anthropics/skills\nenv | sort\nünï.example # heading\nünï.example\n  //3221225985\ngithub.com/anthropics/skills, host.example:8080/x, > <<B60>>\nhost.example:80abc\nfoo.example_bar, api key, http://www.apache.org/licenses/\nhost.example:8080/x\n1e3.5\nimages/logo.png\nAb1 Cd2 Ef3 Gh4\tsee [link](https://evil.example/a)\t  env\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n2001:db8::ff00:42:8329\nCurl requests.get(x)\nrequests.get(x), evil.example-x/y, nc -l 80\nANTHROPIC_API_KEY\nenv>out\nevil。example/x\n  import requests\nsee [link](https://evil.example/a)\n192.0.2.1\nHello World, https://github.com/OWN/Repo\n#abcdefgh1\ndocs.example.test-evil.io\n",
+"own": null,
+"want": [
+[
+2,
+"url"
+],
+[
+4,
+"env-cmd"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"api-key"
+],
+[
+11,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"curl"
+],
+[
+17,
+"requests"
+],
+[
+17,
+"url"
+],
+[
+18,
+"nc"
+],
+[
+18,
+"requests"
+],
+[
+18,
+"url"
+],
+[
+19,
+"api-key"
+],
+[
+20,
+"env-cmd"
+],
+[
+21,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "mail me: bob@example.com\n1e3.5\nnetcat\nx 203.0.113.4y\nhost.example:8080/x | host.example:80abc\nfoo:8080\n0XC0000201 ｃｕｒｌ x 203.0.113.4y\n<https://evil.example> foo.example_bar\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ::1\na.b\n  images/logo.png\n  xn--bcher-kva.example\nevil.example/x\t+ <<B8>> + <<B8>>\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n203.0.113.4.5 data: <<B40>> <https://evil.example>\nx_y.example\nsk-ant-abc\nftp://evil.example/x, ::ffff:192.0.2.33, #zzz\napi key\n  <https://evil.example>\n  //12345678\n2001:db8::ff00:42:8329\n::1\n+ <<B8>> + <<B8>>\nprintenv key=0x1234567 #fff\nwget\nenviron\n192.0.2.1\nhttp://198.51.100.7/x | //evil.example/x\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"netcat"
+],
+[
+5,
+"url"
+],
+[
+7,
+"curl"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"base64-run"
+],
+[
+15,
+"url"
+],
+[
+17,
+"sk-ant"
+],
+[
+18,
+"url"
+],
+[
+19,
+"api-key"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"printenv"
+],
+[
+26,
+"wget"
+],
+[
+27,
+"environ"
+],
+[
+28,
+"url"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "api key\n#fff\nenviron\n  host.example:80/a-b\n  requests.get(x)\nenv>out\nfoo:8080 + <<B8>> + <<B8>>\n================================================================================\nhttps://github.com/OWN/Repo Curl\n192.0.2.1\nx.y.zz\n#abcdefgh1 wget .credentials.json\nhttp://evil.example​/x\nünï.example\n================================================================================ http://evil.example​/x ｃｕｒｌ\nTODO: fix\nhttps://example.com/x\nftp://evil.example/x\n  ünï.example\nmail me: bob@example.com\n\"quoted\"\nsk-ant-abc, <<B10>>, e​vil.example\n0xc0000201\n  0xc0000201\n  a-b.example.com-\nfoo:8080\te​vil.example\n1e3.5\tANTHROPIC_API_KEY\t----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nrequests.get(x)\n#abcdefgh1 #fff #abcdefgh1\ncredentials\n  netcat\n",
+"own": null,
+"want": [
+[
+1,
+"api-key"
+],
+[
+3,
+"environ"
+],
+[
+4,
+"url"
+],
+[
+5,
+"requests"
+],
+[
+5,
+"url"
+],
+[
+6,
+"env-cmd"
+],
+[
+9,
+"curl"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"credentials"
+],
+[
+12,
+"credentials-file"
+],
+[
+12,
+"wget"
+],
+[
+13,
+"url"
+],
+[
+15,
+"curl"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"sk-ant"
+],
+[
+22,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"api-key"
+],
+[
+28,
+"requests"
+],
+[
+28,
+"url"
+],
+[
+30,
+"credentials"
+],
+[
+31,
+"netcat"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "host.example:80/a-b\nrun.py\nANTHROPIC_API_KEY\n0xc0000201\nx 203.0.113.4y\n<<B10>> | evil.example-x/y\nhttps://github.com/OWN/Repo\n@0xc0000201., 203.0.113.4, docs.example.test-evil.io\nwget\n# heading\nx­curl\nünï.example | <<B10>> | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n2001:db8::ff00:42:8329\nhost.example:80abc host.example:80abc\n//12345678 | abc def ghi\nurllib.request\n`code` images/logo.png\na.b.c.d.example.com/path?q=1\nbit.ly/abc\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\ncredentials\n@0xc0000201. | > <<B60>> | ftp://evil.example/x\n0xc0000201\ndocs.example.test-evil.io\nHello World SKILL.md\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"api-key"
+],
+[
+8,
+"url"
+],
+[
+9,
+"wget"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+16,
+"urllib"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"base64-run"
+],
+[
+21,
+"credentials"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "<https://evil.example>\n//evil.example/x\n  ünï.example\n  AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n::ffff:192.0.2.33\n\"quoted\" a.b version 1.2.3-beta\na-b.example.com-\tevil.example-x/y\n203.0.113.4.5 //3221225985 <<B250>>\nx­curl\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\twget\n(http://evil.example/a) | http://www.apache.org/licenses/\nnetcat\n# heading environment\ne​vil.example //evil.example/x the quick brown fox\na-b.example.com-\nthe quick brown fox\nurllib.request \"quoted\"\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ | ftp://evil.example/x | data: <<B40>>\nv1.2.3\nfoo:8080\nimport requests, version 1.2.3-beta, requests.get(x)\n<<B10>> //3221225985 @0xc0000201.\n<<B250>>\thost.example:80abc\nevil.example/x [::1]:80\nkey=0x1234567\tftp://evil.example/x\t0xc0000201\na-b.example.com-, v1.2.3\n<https://evil.example>\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"base64-run"
+],
+[
+8,
+"url"
+],
+[
+10,
+"base64-run"
+],
+[
+10,
+"wget"
+],
+[
+11,
+"url"
+],
+[
+12,
+"netcat"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+17,
+"urllib"
+],
+[
+18,
+"url"
+],
+[
+21,
+"requests"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"base64-run"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "foo.example_bar, ünï.example\n203.0.113.4 //203.0.113.4.5/x import requests\n//0x00000001f | ｃｕｒｌ\nHello World\nANTHROPIC_API_KEY\n\"quoted\"\ngithub.com/anthropics/skills\nx.y.zz | ::ffff:192.0.2.33\n#abcdefgh1\tsee evil.example, ok\t  env\ncurl -s http://x, http://evil.example​/x\nthe quick brown fox\n  env\tncurses\turllib.request\nhttps://github.com/OWN/Repo\n  > <<B60>>\n//12345678\t//12345678\nnc -l 80 env>out\nhost.example:80abc\n  user@example.com\n  0XC0000201\ngithub.com/anthropics/skills, https://github.com/anthropics/../evil/x, a.b.c.d.example.com/path?q=1\nnetcat\n#abcdefgh1\ne.com. | ünï.example\nuser@example.com\n  Ab1 Cd2 Ef3 Gh4\n  http://evil.example​/x\n10.0.0\nuser@example.com environ\n-evil.example | 10.0.0 | nc -l 80\n- list item\n",
+"own": null,
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"curl"
+],
+[
+3,
+"url"
+],
+[
+5,
+"api-key"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"curl"
+],
+[
+10,
+"url"
+],
+[
+12,
+"env-cmd"
+],
+[
+12,
+"url"
+],
+[
+12,
+"urllib"
+],
+[
+13,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"env-cmd"
+],
+[
+16,
+"nc"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"netcat"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"environ"
+],
+[
+28,
+"url"
+],
+[
+29,
+"nc"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n#zzz\na.b\n  //0x00000001f\n  1e3.5\n  env\n//0x00000001f mail me: bob@example.com ::\nabcd:: key=0x1234567 2001:db8::2\nｃｕｒｌ\n  ünï.example\n10.0.0\tgithub.com/anthropics/skills\nimport requests Ab1 Cd2 Ef3 Gh4\n<<B10>>\n//3221225985\n  a.b.c.d.example.com/path?q=1\n2026-11-14\nｃｕｒｌ\nfoo.example_bar\nimages/logo.png\nsee evil.example, ok > <<B60>>\n1:2:3\ncredentials\n  ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nbit.ly/abc, evil.example-x/y\n2001:db8::2, sk-ant-abc\n#abc123\nhttp://evil.example/steal?x=1\nANTHROPIC_API_KEY\nｃｕｒｌ <https://evil.example>\n#zzz\n",
+"own": "own/repo",
+"want": [
+[
+4,
+"url"
+],
+[
+6,
+"env-cmd"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"curl"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"curl"
+],
+[
+20,
+"url"
+],
+[
+22,
+"credentials"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"sk-ant"
+],
+[
+25,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"api-key"
+],
+[
+29,
+"curl"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "evil.example/x\nbit.ly/abc e.com. requests.get(x)\n#zzz, 203.0.113.4.5, key=0x1234567\n3.14159\n0xc0000201 netcat\n#abcdefgh1\n#abc123\n[::1]\nenv | sort\tabc def ghi\nｃｕｒｌ\n#abcdefgh1 e.com. 1:2:3\nANTHROPIC_API_KEY\n[::1]:80\nhttps://github.com/other/repo\n0XC0000201 # heading\n\"quoted\"\nsk-ant-abc\n1:2:3 @0xc0000201. https://github.com/anthropics/../evil/x\n================================================================================\n//123456789012\n  abc def ghi\n<<B250>> | a::b::c\nkey=0x1234567\t[::1]:80\n.credentials.json\nurllib.request\nfoo:8080\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"requests"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+5,
+"netcat"
+],
+[
+8,
+"url"
+],
+[
+9,
+"env-cmd"
+],
+[
+10,
+"curl"
+],
+[
+11,
+"url"
+],
+[
+12,
+"api-key"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+17,
+"sk-ant"
+],
+[
+18,
+"url"
+],
+[
+22,
+"base64-run"
+],
+[
+23,
+"url"
+],
+[
+24,
+"credentials"
+],
+[
+24,
+"credentials-file"
+],
+[
+25,
+"url"
+],
+[
+25,
+"urllib"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "os.environ\trequests.get(x)\thttp://evil.example/steal?x=1\nnc -l 80\ncredentials, #abc123\ngithub.com/anthropics/skills\n[::1]:80\n//203.0.113.4.5/x\n  2001:db8::2\n192.0.2.1, <<B80>>\ne.com. | foo.example_bar\nnetcat https://example.com/x\nbit.ly/abc\n2001:db8::ff00:42:8329\t999.999.999.999\nfoo.example_bar\n1e3.5\n  abcd::\n  http://www.apache.org/licenses/\nv1.2.3 see evil.example, ok\n<<B10>> xn--bcher-kva.example wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\n2001:db8::2\n203.0.113.4.5 999.999.999.999 see evil.example, ok\n-evil.example | a.b\n999.999.999.999, http://www.apache.org/licenses/\nx 203.0.113.4y, urllib.request\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nünï.example\nhttp://[2001:db8::1]:80/\n  3.14159\n  github.com/anthropics/skills\ne​vil.example, Hello World\nmail me: bob@example.com\n",
+"own": null,
+"want": [
+[
+1,
+"environ"
+],
+[
+1,
+"requests"
+],
+[
+1,
+"url"
+],
+[
+2,
+"nc"
+],
+[
+3,
+"credentials"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"netcat"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"base64-run"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+23,
+"url"
+],
+[
+23,
+"urllib"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+],
+[
+29,
+"url"
+],
+[
+30,
+"url"
+]
+]
+},
+{
+"name": "README",
+"text": "x_y.example\n================================================================================ | 999.999.999.999\nsee [link](https://evil.example/a)\n  the quick brown fox\n  ünï.example\nos.environ (http://evil.example/a) <<B80>>\ncurl -s http://x\nANTHROPIC_API_KEY | x­curl | 203.0.113.4.5\nHello World 0XC0000201\nenv>out\n203.0.113.4.5\n[::1]\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\t# heading\n0XC0000201\t.credentials.json\nhttp://evil.example​/x\nnc -l 80\nhttps://3221225985/\nhttps://github.com/other/repo\ngithub.com/anthropics/skills, Ab1 Cd2 Ef3 Gh4, //123456789012\n\"quoted\" -evil.example\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, evil.example/x, wget\ndata: <<B40>> //evil.example/x environment\nhttps://github.com/own/repo/blob/main/a.md\n  ::1\n  evil.example-x/y\ndocs.example.test-evil.io Hello World\n\"quoted\"\nnc -l 80\nimages/logo.png\n",
+"own": null,
+"want": [
+[
+3,
+"url"
+],
+[
+6,
+"environ"
+],
+[
+6,
+"url"
+],
+[
+7,
+"curl"
+],
+[
+7,
+"url"
+],
+[
+8,
+"api-key"
+],
+[
+8,
+"url"
+],
+[
+10,
+"env-cmd"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"credentials"
+],
+[
+14,
+"credentials-file"
+],
+[
+15,
+"url"
+],
+[
+16,
+"nc"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+21,
+"url"
+],
+[
+21,
+"wget"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"nc"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "x­curl | evil.example-x/y | ::1\nx 203.0.113.4y\n  #abc123\n0xc0000201\n\"quoted\"\nrun.py\na.b.c.d.example.com/path?q=1 | //0x00000001f | https://github.com/anthropics/../evil/x\nfoo:8080 TODO: fix 2001:db8::ff00:42:8329\n1:2:3\nprintenv, host.example:80abc, printenv\nhttp://evil.example/steal?x=1, env | sort, 192.0.2.1\n::1\nncurses | `code`\nx_y.example\n1:2:3\n  curl -s http://x\nhttps://github.com/anthropics/../evil/x\nｃｕｒｌ\ta.b.c.d.example.com/path?q=1\thttps://3221225985/\n================================================================================ | 2001:db8::ff00:42:8329 | x­curl\n#abcdefgh1\na.b.c.d.example.com/path?q=1\nkey=0x1234567\n[::1]:80\n  sk-ant-abc\n<<B10>>, see [link](https://evil.example/a), 1:2:3\nx 203.0.113.4y > <<B60>>\n> <<B60>>\n//203.0.113.4.5/x env | sort @mention\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+10,
+"printenv"
+],
+[
+10,
+"url"
+],
+[
+11,
+"env-cmd"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+16,
+"curl"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"curl"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+21,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"sk-ant"
+],
+[
+25,
+"url"
+],
+[
+28,
+"env-cmd"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "3.14159 @mention environment\nxn--bcher-kva.example\nncurses https://example.com/x\nhttp://[2001:db8::1]:80/\n  bit.ly/abc\nx­curl | ünï.example\na.b #zzz\n#zzz, ================================================================================, 203.0.113.4\nbit.ly/abc\nevil。example/x\n3.14159, //203.0.113.4.5/x, bit.ly/abc\n2001:db8::2\nevil.example-x/y\nhttp://www.apache.org/licenses/\na::b::c | environment | nc -l 80\nmail me: bob@example.com\nTODO: fix\n-evil.example\t1e3.5\nhttp://www.apache.org/licenses/ 192.0.2.1\n192.0.2.1\n@0xc0000201.\n  ::\n  ::\nevil.example-x/y\n.credentials.json\t(http://evil.example/a)\tnetcat\n2001:db8::2, mail me: bob@example.com, 0xc0000201\na::b::c, evil。example/x, e​vil.example\nfoo.example_bar host.example:8080/x\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"nc"
+],
+[
+16,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"credentials"
+],
+[
+25,
+"credentials-file"
+],
+[
+25,
+"netcat"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "2001:db8::2\n  3.14159\n  Curl\n---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 203.0.113.4 | https://github.com/anthropics/../evil/x\ne​vil.example environment #abc123\nfoo:8080\n  env   env host.example:8080/x\n[::1]:80\n::ffff:192.0.2.33 | api key\n0xc0000201\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA | http://evil.example/steal?x=1\n.credentials.json\nprintenv\nos.environ @mention os.environ\nsee evil.example, ok\n10.0.0 | [::1] | a.b.c.d.example.com/path?q=1\n- list item\n  <<B80>>\nünï.example - list item 1:2:3\n//123456789012 | the quick brown fox | Curl\n//0x00000001f //evil.example/x\nhttps://docs.anthropic.com/en/docs, 999.999.999.999, host.example:8080/x\n+ <<B8>> + <<B8>> 203.0.113.4 2026-11-14\n#abcdefgh1\nCurl\thttps://github.com/own/repo/blob/main/a.md\tenviron\n`code`\ta.b.c.d.example.com/path?q=1\tenvironment\n-evil.example\n::ffff:192.0.2.33\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"curl"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"env-cmd"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"api-key"
+],
+[
+9,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"credentials"
+],
+[
+12,
+"credentials-file"
+],
+[
+13,
+"printenv"
+],
+[
+14,
+"environ"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+20,
+"curl"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"curl"
+],
+[
+25,
+"environ"
+],
+[
+26,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "key=0x1234567\n203.0.113.4 + <<B8>> + <<B8>> x 203.0.113.4y\n# heading\nnc -l 80 host.example:80/a-b\ncurl -s http://x\nx 203.0.113.4y\n  ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n2026-11-14\nenviron\n<https://evil.example>, wget, https://github.com/anthropics/../evil/x\nhttps://www.apache.org/licenses/LICENSE-2.0 | Curl\napi key\na.b, ::ffff:192.0.2.33, data: <<B40>>\nenv>out\n//0x00000001f\ne.com.\nsk-ant-abc, @mention, http://evil.example/steal?x=1\nhttp://198.51.100.7/x\ncurl -s http://x\nｃｕｒｌ\nnc -l 80\tevil.example/x\twget\nnc -l 80\n  <https://evil.example>\n  12:34:56\nv1.2.3\n#fff docs.example.test-evil.io\nfoo.example_bar\nhost.example:80abc\n",
+"own": null,
+"want": [
+[
+2,
+"url"
+],
+[
+4,
+"nc"
+],
+[
+4,
+"url"
+],
+[
+5,
+"curl"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+9,
+"environ"
+],
+[
+10,
+"url"
+],
+[
+10,
+"wget"
+],
+[
+11,
+"curl"
+],
+[
+11,
+"url"
+],
+[
+12,
+"api-key"
+],
+[
+13,
+"url"
+],
+[
+14,
+"env-cmd"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"sk-ant"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"curl"
+],
+[
+19,
+"url"
+],
+[
+20,
+"curl"
+],
+[
+21,
+"nc"
+],
+[
+21,
+"url"
+],
+[
+21,
+"wget"
+],
+[
+22,
+"nc"
+],
+[
+23,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "https://github.com/other/repo # heading\nevil.example-x/y see evil.example, ok\nhttps://3221225985/ Hello World -evil.example\n1e3.5\na.b\nrequests.get(x) env | sort 0XC0000201\n- list item\nsee evil.example, ok | run.py | #abcdefgh1\n:: e.com.\ndocs.example.test-evil.io | #abc123\nhttps://www.apache.org/licenses/LICENSE-2.0\n  #abc123\n  ftp://evil.example/x\nrun.py\nos.environ\nwget\n- list item (http://evil.example/a) netcat\nhttps://github.com/anthropics/../evil/x credentials //3221225985\nfoo.example_bar\nenvironment\n//12345678\napi key\n================================================================================\nenviron 12:34:56 12:34:56\nTODO: fix \"quoted\"\nx.y.zz https://www.apache.org/licenses/LICENSE-2.0\n//12345678\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+6,
+"env-cmd"
+],
+[
+6,
+"requests"
+],
+[
+6,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+13,
+"url"
+],
+[
+15,
+"environ"
+],
+[
+15,
+"url"
+],
+[
+16,
+"wget"
+],
+[
+17,
+"netcat"
+],
+[
+17,
+"url"
+],
+[
+18,
+"credentials"
+],
+[
+18,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"api-key"
+],
+[
+24,
+"environ"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "https://www.apache.org/licenses/LICENSE-2.0\n  import requests\nversion 1.2.3-beta\nuser@example.com | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | Ab1 Cd2 Ef3 Gh4\n0xc0000201\nhttps://github.com/OWN/Repo\thttps://example.com/x\t203.0.113.4.5\nAb1 Cd2 Ef3 Gh4\n  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n//evil.example/x\n  a.b\n  #fff\nnetcat\n//0x00000001f\n203.0.113.4.5 ANTHROPIC_API_KEY ::\nCurl\napi key\nprintenv\n//evil.example/x\nünï.example\nprintenv curl -s http://x\ngithub.com/anthropics/skills\nhttp://198.51.100.7/x\nhttp://evil.example/steal?x=1, https://example.com/x\na::b::c\nabcd::\n203.0.113.4\n#fff\nenv | sort\nrequests.get(x)\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+9,
+"url"
+],
+[
+12,
+"netcat"
+],
+[
+13,
+"url"
+],
+[
+14,
+"api-key"
+],
+[
+14,
+"url"
+],
+[
+15,
+"curl"
+],
+[
+16,
+"api-key"
+],
+[
+17,
+"printenv"
+],
+[
+18,
+"url"
+],
+[
+20,
+"curl"
+],
+[
+20,
+"printenv"
+],
+[
+20,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"env-cmd"
+],
+[
+29,
+"requests"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "#zzz\n  - list item\nuser@example.com\nversion 1.2.3-beta, -evil.example, env | sort\nurllib.request\n#zzz -evil.example host.example:8080/x\n`code`\nHello World\nbit.ly/abc version 1.2.3-beta\nnc -l 80\n  x_y.example\nhttp://evil.example/steal?x=1\nwget\n+ <<B8>> + <<B8>>\nprintenv\n================================================================================\n12:34:56\n2001:db8::2\nhost.example:8080/x\nx­curl evil.example-x/y \"quoted\"\n3.14159\ngithub.com/anthropics/skills\n2001:db8::2\t#abc123\t.credentials.json\nevil.example-x/y\nhttp://www.apache.org/licenses/\nnc -l 80 | os.environ | v1.2.3\nprintenv\n  //0x00000001f\n  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",
+"own": null,
+"want": [
+[
+3,
+"url"
+],
+[
+4,
+"env-cmd"
+],
+[
+5,
+"url"
+],
+[
+5,
+"urllib"
+],
+[
+6,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"nc"
+],
+[
+12,
+"url"
+],
+[
+13,
+"wget"
+],
+[
+15,
+"printenv"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+23,
+"credentials"
+],
+[
+23,
+"credentials-file"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"environ"
+],
+[
+26,
+"nc"
+],
+[
+26,
+"url"
+],
+[
+27,
+"base64-run"
+],
+[
+27,
+"printenv"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "//0x00000001f\t- list item\n================================================================================\nurllib.request | the quick brown fox\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nSKILL.md\t\"quoted\"\nenv | sort\tkey=0x1234567\nversion 1.2.3-beta\n1:2:3 | https://3221225985/\nthe quick brown fox\n  //0x00000001f\n#zzz\nTODO: fix\n@0xc0000201.\nversion 1.2.3-beta\n  3.14159\n  evil。example/x\nhttps://github.com/OWN/Repo\nuser@example.com\n@mention <<B80>>\n//3221225985\na.b.c.d.example.com/path?q=1 github.com/anthropics/skills netcat\nx­curl 203.0.113.4\n<<B10>> sk-ant-abc docs.example.test-evil.io\nx.y.zz | ANTHROPIC_API_KEY\nhttps://example.com/x\nx­curl run.py\nabc def ghi environment\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n  netcat\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"url"
+],
+[
+3,
+"urllib"
+],
+[
+6,
+"env-cmd"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+13,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"netcat"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"sk-ant"
+],
+[
+23,
+"url"
+],
+[
+24,
+"api-key"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"netcat"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "ncurses, e​vil.example\n(http://evil.example/a) //3221225985 //123456789012\nx 203.0.113.4y\n1e3.5\n::ffff:192.0.2.33\nhttps://github.com/other/repo\n[::1]:80\n//3221225985 evil.example-x/y <<B10>>\n[::1]:80\n  evil.example/x\n  foo.example_bar\n::ffff:192.0.2.33\n#abc123\nfoo:8080\n//0x00000001f\n@mention | bit.ly/abc | foo.example_bar\n999.999.999.999\nuser@example.com\n0XC0000201\nhttps://www.apache.org/licenses/LICENSE-2.0\n  a.b\nxn--bcher-kva.example, https://3221225985/, - list item\nnc -l 80\nhttps://example.com/x\n  nc -l 80\nkey=0x1234567\tnc -l 80\n# heading | key=0x1234567\n`code` | + <<B8>> + <<B8>> | ANTHROPIC_API_KEY\nrun.py\n  ncurses\n  environ\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+12,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"nc"
+],
+[
+24,
+"url"
+],
+[
+25,
+"nc"
+],
+[
+26,
+"nc"
+],
+[
+28,
+"api-key"
+],
+[
+31,
+"environ"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "#abcdefgh1\nTODO: fix\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, http://[2001:db8::1]:80/, version 1.2.3-beta\nos.environ, requests.get(x)\nrun.py\thttps://www.apache.org/licenses/LICENSE-2.0\t3.14159\nsk-ant-abc\napi key\t(http://evil.example/a)\nncurses (http://evil.example/a)\nhttps://3221225985/ <<B250>> a.b.c.d.example.com/path?q=1\nx.y.zz\n[::1]:80 | 12:34:56 | host.example:80abc\n[::1]:80\ndocs.example.test-evil.io\n  env, #abcdefgh1, #abcdefgh1\nhttp://evil.example/steal?x=1\nhttp://evil.example​/x, Curl, <https://evil.example>\n<<B10>>\ne.com.\n//123456789012 os.environ\nevil.example-x/y run.py -evil.example\nhttps://github.com/own/repo/blob/main/a.md\nncurses\n  https://github.com/anthropics/../evil/x\ndocs.example.test-evil.io evil。example/x\nenviron\n@0xc0000201.\n",
+"own": "own/repo",
+"want": [
+[
+3,
+"url"
+],
+[
+4,
+"environ"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"sk-ant"
+],
+[
+7,
+"api-key"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"base64-run"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"env-cmd"
+],
+[
+15,
+"url"
+],
+[
+16,
+"curl"
+],
+[
+16,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"environ"
+],
+[
+19,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"environ"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "1:2:3\n  #fff\n  api key\n+ <<B8>> + <<B8>> docs.example.test-evil.io <<B10>>\n999.999.999.999\n::, https://www.apache.org/licenses/LICENSE-2.0\nhttps://example.com/x //12345678 env | sort\nｃｕｒｌ\nhost.example:8080/x | 1e3.5 | 999.999.999.999\ncurl -s http://x\n2026-11-14\nｃｕｒｌ\n<<B10>> | https://github.com/OWN/Repo\nx­curl, x 203.0.113.4y, ünï.example\n-evil.example\nCurl\na.b @0xc0000201.\nANTHROPIC_API_KEY mail me: bob@example.com\n[::1]:80 key=0x1234567 images/logo.png\nhttps://3221225985/ | Hello World | 12:34:56\nkey=0x1234567\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> | see [link](https://evil.example/a)\nrequests.get(x) version 1.2.3-beta https://docs.anthropic.com/en/docs\n2026-11-14\nabcd:: a-b.example.com- 12:34:56\nurllib.request\n<<B10>>\n",
+"own": "Other/X",
+"want": [
+[
+3,
+"api-key"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"env-cmd"
+],
+[
+7,
+"url"
+],
+[
+8,
+"curl"
+],
+[
+9,
+"url"
+],
+[
+10,
+"curl"
+],
+[
+10,
+"url"
+],
+[
+12,
+"curl"
+],
+[
+13,
+"url"
+],
+[
+16,
+"curl"
+],
+[
+17,
+"url"
+],
+[
+18,
+"api-key"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"base64-run"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+26,
+"urllib"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "foo.example_bar\n  netcat\n.credentials.json wget\n//3221225985 | ünï.example | @mention\nhost.example:80abc\thttp://evil.example​/x\n#fff ünï.example\n//0x00000001f, //3221225985\nhttp://evil.example​/x\n\"quoted\"\n+ <<B8>> + <<B8>>, ftp://evil.example/x, a::b::c\nhost.example:8080/x\nCurl user@example.com\n//evil.example/x\napi key\t10.0.0\t//0x00000001f\n//3221225985\ndata: <<B40>>\nhttps://docs.anthropic.com/en/docs, a::b::c\nprintenv requests.get(x)\na::b::c ftp://evil.example/x\nrequests.get(x)\nhttps://github.com/own/repo/blob/main/a.md\nhttps://3221225985/\ta-b.example.com-\thttps://github.com/own/repo/blob/main/a.md\nversion 1.2.3-beta\t//evil.example/x\thost.example:80/a-b\n12:34:56\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n192.0.2.1\n",
+"own": "Other/X",
+"want": [
+[
+2,
+"netcat"
+],
+[
+3,
+"credentials"
+],
+[
+3,
+"credentials-file"
+],
+[
+3,
+"wget"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"curl"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"api-key"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+18,
+"printenv"
+],
+[
+18,
+"requests"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"requests"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "docs.example.test-evil.io @0xc0000201. https://github.com/anthropics/../evil/x\ndocs.example.test-evil.io [::1] printenv\nhttp://evil.example/steal?x=1 user@example.com\nünï.example, 2026-11-14, env>out\nhttps://3221225985/\thttp://evil.example​/x\nhost.example:80abc\n-evil.example | wget\n#fff foo:8080 https://www.apache.org/licenses/LICENSE-2.0\n<<B10>>\nnc -l 80 run.py 1e3.5\nhttp://evil.example​/x [::1]:80\n0XC0000201 | ncurses | http://198.51.100.7/x\n::\n  TODO: fix\n  evil.example-x/y\nwget # heading host.example:8080/x\n<https://evil.example> | ünï.example | (http://evil.example/a)\nｃｕｒｌ\trun.py\tnc -l 80\n192.0.2.1\n- list item\nhttp://www.apache.org/licenses/\nxn--bcher-kva.example\nfoo:8080, //evil.example/x\nevil.example-x/y\n#zzz, host.example:80/a-b\nhttps://github.com/own/repo/blob/main/a.md\n//123456789012\n  http://198.51.100.7/x\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"printenv"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"env-cmd"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"wget"
+],
+[
+8,
+"url"
+],
+[
+10,
+"nc"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+16,
+"url"
+],
+[
+16,
+"wget"
+],
+[
+17,
+"url"
+],
+[
+18,
+"curl"
+],
+[
+18,
+"nc"
+],
+[
+19,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "requests.get(x), 203.0.113.4.5, 1:2:3\nhttp://[2001:db8::1]:80/ http://198.51.100.7/x\nHello World\nx 203.0.113.4y\nAb1 Cd2 Ef3 Gh4 | see evil.example, ok | requests.get(x)\nHello World\n::1\nSKILL.md http://198.51.100.7/x SKILL.md\napi key\n//0x00000001f\nenviron\ta-b.example.com-\tdocs.example.test-evil.io\nenviron\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, TODO: fix, e​vil.example\n(http://evil.example/a) |   env\nncurses\nurllib.request `code` #abcdefgh1\nmail me: bob@example.com x­curl @mention\nbit.ly/abc\n0XC0000201\n@0xc0000201.\tenvironment\nnc -l 80, host.example:8080/x, - list item\n@0xc0000201.\n<<B10>>\n203.0.113.4.5, //3221225985, evil.example-x/y\nhttps://docs.anthropic.com/en/docs | + <<B8>> + <<B8>> | 10.0.0\n",
+"own": null,
+"want": [
+[
+1,
+"requests"
+],
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+5,
+"requests"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"api-key"
+],
+[
+10,
+"url"
+],
+[
+11,
+"environ"
+],
+[
+11,
+"url"
+],
+[
+12,
+"environ"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+16,
+"urllib"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"nc"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "https://github.com/OWN/Repo | environment\nbit.ly/abc, data: <<B40>>, wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nsee [link](https://evil.example/a)\nx.y.zz, - list item\nAb1 Cd2 Ef3 Gh4\n  1e3.5\n  0XC0000201\na.b.c.d.example.com/path?q=1\nbit.ly/abc import requests\ncurl -s http://x\nevil.example-x/y env | sort evil.example-x/y\n::ffff:192.0.2.33\t2001:db8::ff00:42:8329\t================================================================================\nünï.example | 2001:db8::2\nünï.example <<B80>> environ\nevil。example/x\nx­curl\n<<B80>> //0x00000001f\nuser@example.com //0x00000001f 203.0.113.4\n//3221225985\nnc -l 80 //evil.example/x\na-b.example.com-\na.b.c.d.example.com/path?q=1 | api key | xn--bcher-kva.example\nurllib.request\ncredentials, - list item\ne.com.\ngithub.com/anthropics/skills | env>out\nhttps://docs.anthropic.com/en/docs\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"base64-run"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"curl"
+],
+[
+10,
+"url"
+],
+[
+11,
+"env-cmd"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"environ"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"nc"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"api-key"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+23,
+"urllib"
+],
+[
+24,
+"credentials"
+],
+[
+25,
+"url"
+],
+[
+26,
+"env-cmd"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "x­curl\nünï.example\n  urllib.request\nhost.example:8080/x\nhttp://evil.example​/x\nhttps://github.com/anthropics/../evil/x\nｃｕｒｌ | data: <<B40>> | x­curl\n@0xc0000201. os.environ\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n<<B80>>, @0xc0000201.\nｃｕｒｌ\nrun.py\n2026-11-14, evil。example/x, nc -l 80\n::\n12:34:56\n  //3221225985\nx­curl\nos.environ\n3.14159\n2026-11-14\tgithub.com/anthropics/skills\nhttps://example.com/x\nwget | ================================================================================\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nhttp://198.51.100.7/x\t- list item\thttps://3221225985/\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n  (http://evil.example/a)\n  https://example.com/x\n::ffff:192.0.2.33\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 2001:db8::ff00:42:8329 see evil.example, ok\n",
+"own": "own/repo",
+"want": [
+[
+3,
+"url"
+],
+[
+3,
+"urllib"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"curl"
+],
+[
+8,
+"environ"
+],
+[
+8,
+"url"
+],
+[
+9,
+"base64-run"
+],
+[
+10,
+"url"
+],
+[
+11,
+"curl"
+],
+[
+13,
+"nc"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"environ"
+],
+[
+18,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"wget"
+],
+[
+23,
+"base64-run"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "//123456789012\nimport requests, Ab1 Cd2 Ef3 Gh4\n//203.0.113.4.5/x\n//0x00000001f, <<B80>>\n0xc0000201\t-evil.example\tprintenv\nenv>out\nhttps://github.com/own/repo/blob/main/a.md\na-b.example.com-\n  https://www.apache.org/licenses/LICENSE-2.0\n  0XC0000201\nxn--bcher-kva.example\n@mention a::b::c http://evil.example​/x\nevil。example/x\n12:34:56\nenvironment host.example:80abc\nsee [link](https://evil.example/a)\nHello World\thttp://[2001:db8::1]:80/\t# heading\n\"quoted\" printenv\nnetcat\nv1.2.3 10.0.0\nversion 1.2.3-beta\nthe quick brown fox\t//12345678\n[::1]\n  urllib.request\nHello World //123456789012 //12345678\na.b.c.d.example.com/path?q=1\n  mail me: bob@example.com\n<<B80>>, 1:2:3, run.py\nimages/logo.png\n",
+"own": "own/repo",
+"want": [
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"printenv"
+],
+[
+6,
+"env-cmd"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"printenv"
+],
+[
+19,
+"netcat"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+24,
+"urllib"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "README",
+"text": "sk-ant-abc\nos.environ\n//3221225985\nANTHROPIC_API_KEY\ne​vil.example\t<<B80>>\t#zzz\n<https://evil.example> | Hello World | e.com.\nx­curl\t@0xc0000201.\t203.0.113.4\n3.14159\nhttps://github.com/other/repo\n::ffff:192.0.2.33\n  evil。example/x\nHello World\n  #fff\n  abcd::\nTODO: fix\nos.environ\n    env\n  -evil.example\nrequests.get(x)\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\ndocs.example.test-evil.io\n  ::1\n  a.b.c.d.example.com/path?q=1\n1:2:3\nxn--bcher-kva.example https://www.apache.org/licenses/LICENSE-2.0\n::ffff:192.0.2.33 | data: <<B40>>\n//0x00000001f 203.0.113.4 see evil.example, ok\nversion 1.2.3-beta\nwget\n- list item\n# heading #fff\nenv>out e.com.\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"sk-ant"
+],
+[
+2,
+"environ"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"api-key"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"environ"
+],
+[
+16,
+"url"
+],
+[
+17,
+"env-cmd"
+],
+[
+19,
+"requests"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+29,
+"wget"
+],
+[
+32,
+"env-cmd"
+],
+[
+32,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "ANTHROPIC_API_KEY\n  -evil.example\n  wget\nsee evil.example, ok\t#fff\t203.0.113.4.5\n0xc0000201, https://github.com/OWN/Repo\nTODO: fix\timport requests\tsk-ant-abc\n0xc0000201 | abcd:: |   env\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> https://github.com/other/repo x.y.zz\n2001:db8::ff00:42:8329\n> <<B60>>\nenv>out\tenv | sort\t2001:db8::2\n<<B80>>\n<https://evil.example> wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> SKILL.md\n<https://evil.example> 12:34:56 key=0x1234567\ngithub.com/anthropics/skills 1:2:3\nuser@example.com\n2001:db8::2\nevil.example-x/y\nabcd::\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nfoo:8080\tSKILL.md\na::b::c\nhttps://example.com/x, wget, //12345678\nSKILL.md | https://github.com/OWN/Repo\n[::1]:80 ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ foo.example_bar\n<https://evil.example>\txn--bcher-kva.example\n(http://evil.example/a) | bit.ly/abc | #abcdefgh1\n",
+"own": null,
+"want": [
+[
+1,
+"api-key"
+],
+[
+3,
+"wget"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"sk-ant"
+],
+[
+7,
+"url"
+],
+[
+8,
+"base64-run"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+11,
+"env-cmd"
+],
+[
+11,
+"url"
+],
+[
+13,
+"base64-run"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+19,
+"url"
+],
+[
+23,
+"url"
+],
+[
+23,
+"wget"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "http://evil.example/steal?x=1\n- list item\nevil.example-x/y\ndata: <<B40>>\nx_y.example\t<https://evil.example>\t<https://evil.example>\nhttps://github.com/anthropics/../evil/x #zzz\nrequests.get(x)\nbit.ly/abc\nxn--bcher-kva.example\n//203.0.113.4.5/x\nevil。example/x | :: | see evil.example, ok\nCurl\n[::1]\n3.14159\nhttp://198.51.100.7/x\nos.environ\n================================================================================\nhttps://github.com/OWN/Repo x­curl\n0XC0000201\n//12345678\n+ <<B8>> + <<B8>>\n  1e3.5\ndata: <<B40>>\n[::1]:80 | docs.example.test-evil.io | import requests\n12:34:56\n2001:db8::2\n  @0xc0000201.\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"requests"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"curl"
+],
+[
+13,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"environ"
+],
+[
+16,
+"url"
+],
+[
+20,
+"url"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "README",
+"text": "foo:8080, Hello World\nCurl, x_y.example\n999.999.999.999\n192.0.2.1\n10.0.0\na::b::c | docs.example.test-evil.io | x_y.example\n::1 | ::1 | api key\nrequests.get(x), 2001:db8::ff00:42:8329, ünï.example\n> <<B60>> Ab1 Cd2 Ef3 Gh4\nevil.example/x\n\"quoted\"\tapi key\twget\nthe quick brown fox\ndocs.example.test-evil.io a::b::c\nhost.example:80abc\nftp://evil.example/x\nimages/logo.png\nthe quick brown fox //3221225985 [::1]\nuser@example.com\n  mail me: bob@example.com\n  203.0.113.4\n10.0.0\n[::1]\n1e3.5\ne​vil.example\tmail me: bob@example.com\trequests.get(x)\n#abc123\t::1\n//12345678\nsee evil.example, ok @0xc0000201.\n",
+"own": "Other/X",
+"want": [
+[
+2,
+"curl"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"api-key"
+],
+[
+7,
+"url"
+],
+[
+8,
+"requests"
+],
+[
+8,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"api-key"
+],
+[
+11,
+"wget"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"requests"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "urllib.request\n  \"quoted\"\nｃｕｒｌ\nhttps://example.com/x\n::\n  a-b.example.com-\n  x.y.zz\nSKILL.md\n# heading\n//123456789012\n  https://example.com/x\nhttp://[2001:db8::1]:80/ @mention\n.credentials.json\ncredentials, ================================================================================\nhttps://github.com/anthropics/../evil/x\n> <<B60>>\n# heading 3.14159\n> <<B60>>\nftp://evil.example/x\nfoo:8080\n//0x00000001f\nfoo:8080 192.0.2.1 foo:8080\nhttp://evil.example/steal?x=1\n  //123456789012\n  https://github.com/own/repo/blob/main/a.md\nxn--bcher-kva.example\ncredentials\n#abc123\n::1 1:2:3\n//3221225985\nthe quick brown fox\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+1,
+"urllib"
+],
+[
+3,
+"curl"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"credentials"
+],
+[
+13,
+"credentials-file"
+],
+[
+14,
+"credentials"
+],
+[
+15,
+"url"
+],
+[
+19,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"credentials"
+],
+[
+29,
+"url"
+],
+[
+30,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- host.example:80abc\nevil.example/x ::1 e.com.\nprintenv ::ffff:192.0.2.33\n2001:db8::2\n@0xc0000201.\n  env | //12345678\na.b.c.d.example.com/path?q=1\nimages/logo.png\n:: //0x00000001f\ndata: <<B40>>\n================================================================================ \"quoted\" import requests\n//12345678\n10.0.0 | //203.0.113.4.5/x\n.credentials.json\ndocs.example.test-evil.io | //123456789012\nfoo.example_bar | [::1]:80 | http://evil.example/steal?x=1\n================================================================================\nevil.example/x\nhost.example:8080/x | [::1]:80\nrequests.get(x)\t<<B10>>\tｃｕｒｌ\napi key\n+ <<B8>> + <<B8>>\nhttp://evil.example/steal?x=1, user@example.com, Curl\nurllib.request\nCurl\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"printenv"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"env-cmd"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+9,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"credentials"
+],
+[
+14,
+"credentials-file"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"curl"
+],
+[
+20,
+"requests"
+],
+[
+20,
+"url"
+],
+[
+21,
+"api-key"
+],
+[
+23,
+"curl"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+24,
+"urllib"
+],
+[
+25,
+"curl"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "see [link](https://evil.example/a) wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\nhttps://www.apache.org/licenses/LICENSE-2.0\n#fff\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> http://198.51.100.7/x .credentials.json\n::1\tgithub.com/anthropics/skills\t2001:db8::ff00:42:8329\n999.999.999.999\nenv>out | images/logo.png | 1e3.5\nSKILL.md #fff\n@mention\n================================================================================ | wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> | https://github.com/OWN/Repo\n<<B10>>\n+ <<B8>> + <<B8>>\n  ::\n  host.example:80abc\nhttps://example.com/x\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n10.0.0\n  # heading\ne​vil.example\ndata: <<B40>> ::1\nsee [link](https://evil.example/a)\n[::1]:80, + <<B8>> + <<B8>>, (http://evil.example/a)\nSKILL.md\nenv | sort\nabc def ghi 2026-11-14\n//3221225985 abc def ghi https://example.com/x\ncurl -s http://x, 999.999.999.999, ================================================================================\nenv | sort\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"base64-run"
+],
+[
+1,
+"url"
+],
+[
+4,
+"base64-run"
+],
+[
+4,
+"credentials"
+],
+[
+4,
+"credentials-file"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"env-cmd"
+],
+[
+10,
+"base64-run"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+24,
+"env-cmd"
+],
+[
+26,
+"url"
+],
+[
+27,
+"curl"
+],
+[
+27,
+"url"
+],
+[
+28,
+"env-cmd"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "203.0.113.4 @mention\n#abc123\nｃｕｒｌ https://github.com/OWN/Repo ::1\nevil。example/x\n  env\n1:2:3\n//evil.example/x\n<<B250>>\na.b\nftp://evil.example/x | <<B10>>\ngithub.com/anthropics/skills\nTODO: fix\nHello World\n@0xc0000201.\nenviron\nimages/logo.png\nrequests.get(x)\na-b.example.com-\nhttp://evil.example​/x\n- list item\nenv | sort\t::ffff:192.0.2.33\txn--bcher-kva.example\nANTHROPIC_API_KEY\tcurl -s http://x\tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nbit.ly/abc env>out wget\nrequests.get(x)\n  ｃｕｒｌ\nx_y.example\n  sk-ant-abc\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"curl"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"env-cmd"
+],
+[
+7,
+"base64-run"
+],
+[
+7,
+"url"
+],
+[
+8,
+"base64-run"
+],
+[
+10,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"environ"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+21,
+"env-cmd"
+],
+[
+21,
+"url"
+],
+[
+22,
+"api-key"
+],
+[
+22,
+"curl"
+],
+[
+22,
+"url"
+],
+[
+23,
+"env-cmd"
+],
+[
+23,
+"url"
+],
+[
+23,
+"wget"
+],
+[
+24,
+"url"
+],
+[
+25,
+"curl"
+],
+[
+27,
+"sk-ant"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "<<B10>>\n  e​vil.example\n  //12345678\n# heading\nrun.py\nv1.2.3 https://example.com/x\n2001:db8::2, abcd::\n(http://evil.example/a)\turllib.request\n[::1]\nenviron, version 1.2.3-beta\nxn--bcher-kva.example\ncurl -s http://x\nhttps://docs.anthropic.com/en/docs\n-evil.example\n@0xc0000201.\nthe quick brown fox\tbit.ly/abc\n//123456789012\nversion 1.2.3-beta, #fff,   env\nrequests.get(x)\n# heading, evil.example-x/y\n::1\nhttps://example.com/x + <<B8>> + <<B8>>\nos.environ\n//0x00000001f\n  <<B10>>\n# heading x.y.zz http://evil.example​/x\nkey=0x1234567\n  + <<B8>> + <<B8>>\n0xc0000201\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+8,
+"urllib"
+],
+[
+9,
+"url"
+],
+[
+10,
+"environ"
+],
+[
+11,
+"url"
+],
+[
+12,
+"curl"
+],
+[
+12,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+19,
+"requests"
+],
+[
+19,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"environ"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "https://3221225985/, #fff, 2026-11-14\nTODO: fix\n  2001:db8::2\n-evil.example | 10.0.0 | Hello World\nAb1 Cd2 Ef3 Gh4\nncurses\n  env\nenvironment, 12:34:56, import requests\n@mention, evil。example/x\nhttps://example.com/x\nfoo:8080, x_y.example\n<<B10>>\n1e3.5\n  1e3.5\n  0XC0000201\n0XC0000201\n  <https://evil.example>\nHello World a.b @mention\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\t::\ta.b.c.d.example.com/path?q=1\nhttps://www.apache.org/licenses/LICENSE-2.0, 203.0.113.4\n0XC0000201\n::1 - list item Curl\ncredentials Curl 2001:db8::2\nsee evil.example, ok\n  https://github.com/anthropics/../evil/x\n  https://github.com/anthropics/../evil/x\n================================================================================\tSKILL.md\nANTHROPIC_API_KEY api key\nenv | sort import requests x­curl\nsee [link](https://evil.example/a)\n//203.0.113.4.5/x <https://evil.example>\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+3,
+"url"
+],
+[
+7,
+"env-cmd"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+17,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"curl"
+],
+[
+22,
+"url"
+],
+[
+23,
+"credentials"
+],
+[
+23,
+"curl"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"api-key"
+],
+[
+29,
+"env-cmd"
+],
+[
+30,
+"url"
+],
+[
+31,
+"url"
+]
+]
+},
+{
+"name": "README",
+"text": "12:34:56\nhttps://github.com/anthropics/../evil/x\nrun.py\nxn--bcher-kva.example 999.999.999.999 <<B80>>\nxn--bcher-kva.example\nx­curl\n  http://www.apache.org/licenses/\n  1e3.5\nmail me: bob@example.com wget\n//123456789012\napi key x_y.example\n+ <<B8>> + <<B8>>\n  SKILL.md\n2001:db8::2, https://github.com/anthropics/../evil/x, x 203.0.113.4y\na.b.c.d.example.com/path?q=1\na.b.c.d.example.com/path?q=1 environment os.environ\nhttps://example.com/x | - list item\n`code`\n203.0.113.4.5 ｃｕｒｌ\nhttps://3221225985/ | //3221225985\nhttps://3221225985/\n  ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n//12345678 https://github.com/own/repo/blob/main/a.md\n//203.0.113.4.5/x\nhttp://[2001:db8::1]:80/ //12345678 ::\nhttp://198.51.100.7/x # heading\nevil.example/x\n  http://www.apache.org/licenses/\nevil。example/x\n@mention\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+9,
+"url"
+],
+[
+9,
+"wget"
+],
+[
+11,
+"api-key"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"environ"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+19,
+"curl"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "host.example:80/a-b + <<B8>> + <<B8>> host.example:80abc\nnetcat\na.b //203.0.113.4.5/x\nbit.ly/abc\n2026-11-14\nSKILL.md\nx_y.example, env>out, version 1.2.3-beta\nSKILL.md\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA @0xc0000201. #fff\ndocs.example.test-evil.io, the quick brown fox\nabcd::\n<https://evil.example>\nhttps://github.com/OWN/Repo\n  //0x00000001f\ne​vil.example\nncurses | #fff\n::1\n  ::1\nmail me: bob@example.com host.example:80abc @0xc0000201.\nx_y.example\n  https://github.com/anthropics/../evil/x\nhttps://www.apache.org/licenses/LICENSE-2.0 ANTHROPIC_API_KEY http://evil.example​/x\ne​vil.example http://www.apache.org/licenses/\ne.com., mail me: bob@example.com, host.example:80abc\na::b::c\nhttps://3221225985/\nkey=0x1234567\n  env, nc -l 80, https://github.com/OWN/Repo\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"netcat"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+7,
+"env-cmd"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"api-key"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"env-cmd"
+],
+[
+28,
+"nc"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "version 1.2.3-beta | 0xc0000201\n# heading, #abc123, 203.0.113.4\nhttps://github.com/other/repo `code` urllib.request\n3.14159 2026-11-14\n@mention, x.y.zz, requests.get(x)\nuser@example.com wrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> 1e3.5\n@mention api key 192.0.2.1\nimages/logo.png, os.environ, 2001:db8::ff00:42:8329\n> <<B60>> data: <<B40>> ftp://evil.example/x\n[::1]\n203.0.113.4.5, host.example:8080/x\na::b::c\n12:34:56\n-evil.example\t<https://evil.example>\t//evil.example/x\n1:2:3\n3.14159\t//3221225985\tgithub.com/anthropics/skills\n#abcdefgh1\n  curl -s http://x\n@0xc0000201. abc def ghi import requests\nbit.ly/abc\nabc def ghi 0XC0000201 x.y.zz\n//12345678 host.example:80abc sk-ant-abc\nos.environ\napi key, a.b.c.d.example.com/path?q=1\nhttp://[2001:db8::1]:80/\n  env>out\n203.0.113.4\n  urllib.request\n",
+"own": null,
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+3,
+"urllib"
+],
+[
+5,
+"requests"
+],
+[
+5,
+"url"
+],
+[
+6,
+"base64-run"
+],
+[
+6,
+"url"
+],
+[
+7,
+"api-key"
+],
+[
+7,
+"url"
+],
+[
+8,
+"environ"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+18,
+"curl"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"sk-ant"
+],
+[
+22,
+"url"
+],
+[
+23,
+"environ"
+],
+[
+23,
+"url"
+],
+[
+24,
+"api-key"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"env-cmd"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+],
+[
+28,
+"urllib"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "0XC0000201 urllib.request //3221225985\nv1.2.3\n@0xc0000201.\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nfoo:8080\nhttp://198.51.100.7/x\nHello World\nsee [link](https://evil.example/a)\n<<B80>>\n#abcdefgh1 | abc def ghi | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n<<B80>> key=0x1234567 ünï.example\nkey=0x1234567 https://docs.anthropic.com/en/docs\n999.999.999.999 | abc def ghi\ne​vil.example <https://evil.example> 0XC0000201\nhttp://198.51.100.7/x | run.py | x 203.0.113.4y\n192.0.2.1\n2001:db8::ff00:42:8329 wget 0xc0000201\nevil。example/x\nkey=0x1234567\nprintenv\nhost.example:80/a-b, x­curl\nos.environ\n1:2:3\n\"quoted\", x.y.zz, evil。example/x\n203.0.113.4 http://198.51.100.7/x > <<B60>>\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+1,
+"urllib"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+8,
+"url"
+],
+[
+10,
+"base64-run"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+17,
+"wget"
+],
+[
+18,
+"url"
+],
+[
+20,
+"printenv"
+],
+[
+21,
+"url"
+],
+[
+22,
+"environ"
+],
+[
+22,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "::\ndocs.example.test-evil.io, host.example:80/a-b, host.example:80/a-b\n#abc123\n::1\n12:34:56 | #abc123 | 203.0.113.4.5\ndata: <<B40>>\n  env>out\n  data: <<B40>>\n2001:db8::2, https://github.com/own/repo/blob/main/a.md, - list item\n192.0.2.1\n  a.b\n  ::\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\nhttp://198.51.100.7/x\n2001:db8::2 | http://evil.example​/x | xn--bcher-kva.example\n[::1]:80\n@0xc0000201.\n# heading\nhttp://www.apache.org/licenses/\nmail me: bob@example.com\n::\n  https://github.com/other/repo\n  //12345678\nenvironment\n  ANTHROPIC_API_KEY\n203.0.113.4, <<B250>>\n- list item env | sort + <<B8>> + <<B8>>\nos.environ | environment | TODO: fix\n#fff\n  ｃｕｒｌ\n  http://[2001:db8::1]:80/\nsk-ant-abc\n  #fff\n  #abcdefgh1\n//0x00000001f\t2001:db8::2\nv1.2.3\n  ================================================================================\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"env-cmd"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"api-key"
+],
+[
+26,
+"base64-run"
+],
+[
+26,
+"url"
+],
+[
+27,
+"env-cmd"
+],
+[
+28,
+"environ"
+],
+[
+28,
+"url"
+],
+[
+30,
+"curl"
+],
+[
+31,
+"url"
+],
+[
+32,
+"sk-ant"
+],
+[
+35,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "\"quoted\"\nfoo.example_bar\nx_y.example, evil.example/x\n//123456789012, x 203.0.113.4y\n//123456789012\nTODO: fix\ndocs.example.test-evil.io\n2001:db8::ff00:42:8329 10.0.0 foo.example_bar\napi key //evil.example/x\na::b::c\n<<B10>> | env>out\n::1\n  + <<B8>> + <<B8>>\nsee [link](https://evil.example/a)\nabc def ghi\n192.0.2.1 wget credentials\nversion 1.2.3-beta\nhttps://example.com/x\nfoo.example_bar\nversion 1.2.3-beta //3221225985\nxn--bcher-kva.example\n  + <<B8>> + <<B8>>\na.b.c.d.example.com/path?q=1\n3.14159\n12:34:56\n  10.0.0\nx.y.zz\nhost.example:8080/x\n",
+"own": "Other/X",
+"want": [
+[
+3,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"api-key"
+],
+[
+9,
+"url"
+],
+[
+11,
+"env-cmd"
+],
+[
+12,
+"url"
+],
+[
+14,
+"url"
+],
+[
+16,
+"credentials"
+],
+[
+16,
+"url"
+],
+[
+16,
+"wget"
+],
+[
+18,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+23,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "env>out\n  http://evil.example​/x\n  netcat\nfoo:8080\t[::1]\t@0xc0000201.\nAb1 Cd2 Ef3 Gh4\nnc -l 80\ndocs.example.test-evil.io\n  xn--bcher-kva.example\n  #abc123\n> <<B60>>\nenv | sort #abcdefgh1 Curl\nANTHROPIC_API_KEY\n#zzz\n1e3.5\n@0xc0000201.\n@mention 10.0.0\n(http://evil.example/a)\nhttp://www.apache.org/licenses/\n<<B10>> 203.0.113.4 ================================================================================\na.b.c.d.example.com/path?q=1, https://github.com/own/repo/blob/main/a.md, ncurses\n#abc123\nabcd:: | 2001:db8::2\n//203.0.113.4.5/x\nhttps://3221225985/\nCurl\t\"quoted\"\n//3221225985\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n//203.0.113.4.5/x @mention https://example.com/x\nTODO: fix\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"env-cmd"
+],
+[
+2,
+"url"
+],
+[
+3,
+"netcat"
+],
+[
+4,
+"url"
+],
+[
+6,
+"nc"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+11,
+"curl"
+],
+[
+11,
+"env-cmd"
+],
+[
+12,
+"api-key"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"curl"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "sk-ant-abc [::1]:80 https://3221225985/\napi key\te​vil.example\nevil。example/x\n  e.com.\n  ftp://evil.example/x\nhttps://www.apache.org/licenses/LICENSE-2.0\ncredentials | #fff\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n  ::ffff:192.0.2.33\na.b [::1] SKILL.md\na-b.example.com-\n  x.y.zz\nx_y.example wget\nbit.ly/abc\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nhttp://www.apache.org/licenses/, ｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ, a.b.c.d.example.com/path?q=1\na-b.example.com- | foo.example_bar\n#abcdefgh1\n1e3.5\nwget\n#abc123\nevil.example-x/y\n12:34:56 https://github.com/other/repo env>out\nevil.example-x/y foo:8080 2001:db8::ff00:42:8329\nhttps://3221225985/, ftp://evil.example/x\n//12345678\n//3221225985\nevil.example/x | sk-ant-abc\nnc -l 80 evil。example/x\n",
+"own": null,
+"want": [
+[
+1,
+"sk-ant"
+],
+[
+1,
+"url"
+],
+[
+2,
+"api-key"
+],
+[
+2,
+"url"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"credentials"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+13,
+"wget"
+],
+[
+14,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+20,
+"wget"
+],
+[
+23,
+"env-cmd"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+27,
+"url"
+],
+[
+28,
+"sk-ant"
+],
+[
+28,
+"url"
+],
+[
+29,
+"nc"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "plugin.json",
+"text": "x_y.example\n  ::ffff:192.0.2.33\nhttps://example.com/x ｃｕｒｌ\nCurl -evil.example\nos.environ, ::1\n//203.0.113.4.5/x\n  https://docs.anthropic.com/en/docs\nfoo:8080\ncurl -s http://x\n//evil.example/x\n  Ab1 Cd2 Ef3 Gh4\n  env\n0XC0000201\nos.environ, data: <<B40>>\nmail me: bob@example.com, xn--bcher-kva.example, @0xc0000201.\nrun.py\n`code` Hello World 0XC0000201\nnetcat\n\"quoted\" <<B10>>\nwget\t================================================================================\nCurl\n.credentials.json | https://docs.anthropic.com/en/docs | http://www.apache.org/licenses/\n//evil.example/x\n  https://github.com/own/repo/blob/main/a.md\nevil。example/x\n+ <<B8>> + <<B8>>\nTODO: fix, <<B250>>, #abcdefgh1\nhttp://[2001:db8::1]:80/\nx 203.0.113.4y | 2026-11-14\n",
+"own": null,
+"want": [
+[
+2,
+"url"
+],
+[
+3,
+"curl"
+],
+[
+3,
+"url"
+],
+[
+4,
+"curl"
+],
+[
+5,
+"environ"
+],
+[
+5,
+"url"
+],
+[
+6,
+"url"
+],
+[
+9,
+"curl"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+12,
+"env-cmd"
+],
+[
+14,
+"environ"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+18,
+"netcat"
+],
+[
+20,
+"wget"
+],
+[
+21,
+"curl"
+],
+[
+22,
+"credentials"
+],
+[
+22,
+"credentials-file"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"base64-run"
+],
+[
+27,
+"base64-run"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "203.0.113.4\n12:34:56 printenv\na::b::c\nncurses\nANTHROPIC_API_KEY\nhost.example:8080/x\n<<B10>>\n10.0.0\n12:34:56\nurllib.request\nevil.example/x\n================================================================================\nthe quick brown fox | #zzz | nc -l 80\n::\nhttp://198.51.100.7/x docs.example.test-evil.io <https://evil.example>\nCurl 0xc0000201\nprintenv\n//3221225985\n203.0.113.4.5\n  xn--bcher-kva.example\nevil。example/x\t<https://evil.example>\nenv>out\n  //12345678\n  x­curl\n10.0.0, 10.0.0, urllib.request\n# heading\na.b\nabc def ghi\n  //3221225985\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"printenv"
+],
+[
+5,
+"api-key"
+],
+[
+6,
+"url"
+],
+[
+10,
+"url"
+],
+[
+10,
+"urllib"
+],
+[
+11,
+"url"
+],
+[
+13,
+"nc"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"curl"
+],
+[
+17,
+"printenv"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"env-cmd"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+25,
+"urllib"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "LICENSE-APACHE",
+"text": "192.0.2.1\ncredentials\n- list item\n@0xc0000201.\nenvironment | abc def ghi\n//0x00000001f\nthe quick brown fox x.y.zz `code`\nthe quick brown fox\nSKILL.md\nenv>out\tos.environ\tx 203.0.113.4y\n.credentials.json\nprintenv | 1:2:3\ngithub.com/anthropics/skills\na::b::c\nxn--bcher-kva.example, https://github.com/OWN/Repo\nenvironment\nfoo.example_bar\n  //203.0.113.4.5/x\nos.environ ünï.example\nevil。example/x credentials http://198.51.100.7/x\n203.0.113.4.5\n  https://github.com/other/repo\n  http://evil.example/steal?x=1\n2001:db8::2\nAb1 Cd2 Ef3 Gh4\nhttps://github.com/OWN/Repo api key 2001:db8::2\n1e3.5\nhttps://github.com/OWN/Repo | x_y.example | 2001:db8::ff00:42:8329\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"credentials"
+],
+[
+4,
+"url"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+10,
+"env-cmd"
+],
+[
+10,
+"environ"
+],
+[
+10,
+"url"
+],
+[
+11,
+"credentials"
+],
+[
+11,
+"credentials-file"
+],
+[
+12,
+"printenv"
+],
+[
+15,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"environ"
+],
+[
+19,
+"url"
+],
+[
+20,
+"credentials"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+26,
+"api-key"
+],
+[
+26,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "a::b::c\t2026-11-14\tgithub.com/anthropics/skills\n.credentials.json\nftp://evil.example/x\n<https://evil.example>\n2001:db8::ff00:42:8329\n\"quoted\"\nevil。example/x\n[::1]\n//3221225985 #abcdefgh1 evil.example/x\nhttps://github.com/anthropics/../evil/x\n  xn--bcher-kva.example\n+ <<B8>> + <<B8>>, # heading\n[::1]\nhttp://evil.example/steal?x=1\n//evil.example/x, Curl, http://evil.example​/x\nSKILL.md\t<<B80>>\t`code`\nhttps://github.com/own/repo/blob/main/a.md key=0x1234567 a.b\n::ffff:192.0.2.33 | :: | [::1]:80\n\"quoted\", 1e3.5, evil.example/x\ne​vil.example bit.ly/abc user@example.com\nhttps://docs.anthropic.com/en/docs, http://198.51.100.7/x\n#zzz host.example:80abc host.example:8080/x\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n//0x00000001f\n(http://evil.example/a)\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n",
+"own": null,
+"want": [
+[
+2,
+"credentials"
+],
+[
+2,
+"credentials-file"
+],
+[
+3,
+"url"
+],
+[
+4,
+"url"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"curl"
+],
+[
+15,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "run.csv",
+"text": "sk-ant-abc https://github.com/other/repo\ndocs.example.test-evil.io\nv1.2.3, credentials\nx.y.zz\nevil.example/x, Curl\nünï.example\nsee evil.example, ok\n#fff | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\nevil。example/x | run.py\nenviron see evil.example, ok <<B80>>\nrun.py\nwget 3.14159 urllib.request\n<<B250>> | http://evil.example​/x | ANTHROPIC_API_KEY\n//12345678\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\n::ffff:192.0.2.33\tCurl\t//12345678\n3.14159\tevil。example/x\tabcd::\napi key https://example.com/x\nhttp://evil.example/steal?x=1 | 1:2:3\nmail me: bob@example.com\ndocs.example.test-evil.io\t//0x00000001f\tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n//0x00000001f 10.0.0 host.example:80/a-b\nｅｖｉｌ．ｅｘａｍｐｌｅ／ｘ\ndocs.example.test-evil.io\nx.y.zz\n",
+"own": null,
+"want": [
+[
+1,
+"sk-ant"
+],
+[
+1,
+"url"
+],
+[
+2,
+"url"
+],
+[
+3,
+"credentials"
+],
+[
+4,
+"url"
+],
+[
+5,
+"curl"
+],
+[
+5,
+"url"
+],
+[
+7,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"environ"
+],
+[
+10,
+"url"
+],
+[
+12,
+"url"
+],
+[
+12,
+"urllib"
+],
+[
+12,
+"wget"
+],
+[
+13,
+"api-key"
+],
+[
+13,
+"base64-run"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"curl"
+],
+[
+16,
+"url"
+],
+[
+17,
+"url"
+],
+[
+18,
+"api-key"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+24,
+"url"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "README",
+"text": "v1.2.3\nenvironment, 2001:db8::ff00:42:8329, mail me: bob@example.com\n2026-11-14\t3.14159\n3.14159\nhttp://www.apache.org/licenses/ requests.get(x) sk-ant-abc\nnetcat | http://evil.example/steal?x=1\nhttps://3221225985/\nftp://evil.example/x\nrun.py #fff urllib.request\nwrapped <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>> <<B30>>\t\"quoted\"\tevil.example/x\nnetcat | images/logo.png\nevil.example/x\nwget\tprintenv\n0XC0000201\nenviron\nbit.ly/abc, -evil.example, nc -l 80\n`code`\nrequests.get(x), http://www.apache.org/licenses/, https://example.com/x\nversion 1.2.3-beta a.b.c.d.example.com/path?q=1 see [link](https://evil.example/a)\nevil。example/x\nhttp://[2001:db8::1]:80/, a::b::c\nhttps://docs.anthropic.com/en/docs\nx 203.0.113.4y\n> <<B60>> run.py\ngithub.com/anthropics/skills netcat //3221225985\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"url"
+],
+[
+5,
+"requests"
+],
+[
+5,
+"sk-ant"
+],
+[
+5,
+"url"
+],
+[
+6,
+"netcat"
+],
+[
+6,
+"url"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+9,
+"urllib"
+],
+[
+10,
+"base64-run"
+],
+[
+10,
+"url"
+],
+[
+11,
+"netcat"
+],
+[
+12,
+"url"
+],
+[
+13,
+"printenv"
+],
+[
+13,
+"wget"
+],
+[
+15,
+"environ"
+],
+[
+16,
+"nc"
+],
+[
+16,
+"url"
+],
+[
+18,
+"requests"
+],
+[
+18,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+25,
+"netcat"
+],
+[
+25,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "@mention, x 203.0.113.4y\n999.999.999.999\n  requests.get(x)\n  ANTHROPIC_API_KEY\nhttps://github.com/own/repo/blob/main/a.md\ndocs.example.test-evil.io import requests https://3221225985/\n1e3.5\nhttp://198.51.100.7/x\nx.y.zz\n  1e3.5\nsk-ant-abc\n::ffff:192.0.2.33, v1.2.3\nｃｕｒｌ\nhttps://github.com/own/repo/blob/main/a.md\nhttp://evil.example/steal?x=1\nSKILL.md\n\"quoted\"\nrun.py\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, a.b.c.d.example.com/path?q=1, #abc123\n3.14159 ftp://evil.example/x\nhttps://github.com/anthropics/../evil/x\n#abc123 | 10.0.0\nhost.example:8080/x\ndata: <<B40>>\n#abc123\n  TODO: fix\nx­curl\na-b.example.com-\t192.0.2.1\nhttps://github.com/OWN/Repo\t203.0.113.4\tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n",
+"own": "own/repo",
+"want": [
+[
+3,
+"url"
+],
+[
+4,
+"api-key"
+],
+[
+6,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+11,
+"sk-ant"
+],
+[
+12,
+"url"
+],
+[
+13,
+"curl"
+],
+[
+15,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+23,
+"url"
+],
+[
+28,
+"url"
+],
+[
+29,
+"url"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "a.b.c.d.example.com/path?q=1 host.example:80/a-b 12:34:56\nenviron //0x00000001f foo.example_bar\nwget | https://www.apache.org/licenses/LICENSE-2.0 | a.b\na::b::c\nfoo.example_bar\nx_y.example\n  see evil.example, ok\n  ::\nhttp://198.51.100.7/x\n3.14159 | 203.0.113.4.5 | foo.example_bar\ngithub.com/anthropics/skills\n`code`\thost.example:80abc\nimport requests\nsk-ant-abc, https://3221225985/, #fff\nsee [link](https://evil.example/a)\t1e3.5\n1e3.5 urllib.request a::b::c\nhost.example:80abc\nx_y.example\nhttps://3221225985/\n  ANTHROPIC_API_KEY\nhost.example:8080/x\nhttps://docs.anthropic.com/en/docs .credentials.json\nx 203.0.113.4y\nevil.example-x/y\nhttps://example.com/x, 999.999.999.999, ::1\nhttps://github.com/other/repo\n1e3.5\n//12345678\n",
+"own": "Other/X",
+"want": [
+[
+1,
+"url"
+],
+[
+2,
+"environ"
+],
+[
+2,
+"url"
+],
+[
+3,
+"wget"
+],
+[
+7,
+"url"
+],
+[
+8,
+"url"
+],
+[
+9,
+"url"
+],
+[
+10,
+"url"
+],
+[
+12,
+"url"
+],
+[
+14,
+"sk-ant"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+16,
+"urllib"
+],
+[
+17,
+"url"
+],
+[
+19,
+"url"
+],
+[
+20,
+"api-key"
+],
+[
+21,
+"url"
+],
+[
+22,
+"credentials"
+],
+[
+22,
+"credentials-file"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "https://www.apache.org/licenses/LICENSE-2.0\t\"quoted\"\trequests.get(x)\n<<B80>>\n#abc123\n//12345678, requests.get(x), ｃｕｒｌ\ndata: <<B40>>\n  Hello World\nANTHROPIC_API_KEY, a::b::c, #fff\n2001:db8::2\ncredentials\n@0xc0000201., Hello World, 0xc0000201\n::ffff:192.0.2.33 https://github.com/other/repo <<B10>>\nevil.example/x urllib.request [::1]:80\nhttp://evil.example/steal?x=1\nhttp://198.51.100.7/x, ::ffff:192.0.2.33\nhttp://evil.example/steal?x=1\ta.b\t+ <<B8>> + <<B8>>\n2001:db8::ff00:42:8329\n    env\n  .credentials.json\n@mention\n2001:db8::2\nversion 1.2.3-beta | see [link](https://evil.example/a) | ncurses\n:: a::b::c\n@0xc0000201.\n0XC0000201\n  [::1]\n  credentials\n\"quoted\"\nhttps://github.com/OWN/Repo\tenv>out\tgithub.com/anthropics/skills\nx_y.example\nhttps://www.apache.org/licenses/LICENSE-2.0\tenv | sort\n",
+"own": null,
+"want": [
+[
+1,
+"url"
+],
+[
+4,
+"curl"
+],
+[
+4,
+"url"
+],
+[
+7,
+"api-key"
+],
+[
+8,
+"url"
+],
+[
+9,
+"credentials"
+],
+[
+10,
+"url"
+],
+[
+11,
+"url"
+],
+[
+12,
+"url"
+],
+[
+12,
+"urllib"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"url"
+],
+[
+17,
+"env-cmd"
+],
+[
+18,
+"credentials"
+],
+[
+18,
+"credentials-file"
+],
+[
+20,
+"url"
+],
+[
+21,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"url"
+],
+[
+26,
+"credentials"
+],
+[
+28,
+"env-cmd"
+],
+[
+28,
+"url"
+],
+[
+30,
+"env-cmd"
+],
+[
+30,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "the quick brown fox\nthe quick brown fox\n(http://evil.example/a)\na::b::c\n  # heading\nnc -l 80\n@0xc0000201.\nprintenv\n  sk-ant-abc\nfoo:8080\n[::1]\na::b::c\t> <<B60>>\n@0xc0000201., 999.999.999.999, ANTHROPIC_API_KEY\n3.14159 | a-b.example.com-\nfoo:8080, host.example:8080/x, @mention\n//12345678\tos.environ\twget\n\"quoted\"\nevil。example/x\napi key https://example.com/x //203.0.113.4.5/x\nhttp://[2001:db8::1]:80/\nx­curl\nuser@example.com\n::\t::1\t(http://evil.example/a)\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nevil.example-x/y, os.environ\n---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | [::1] | a.b.c.d.example.com/path?q=1\n> <<B60>>\n  @0xc0000201.\n",
+"own": "Other/X",
+"want": [
+[
+3,
+"url"
+],
+[
+6,
+"nc"
+],
+[
+7,
+"url"
+],
+[
+8,
+"printenv"
+],
+[
+9,
+"sk-ant"
+],
+[
+11,
+"url"
+],
+[
+13,
+"api-key"
+],
+[
+13,
+"url"
+],
+[
+14,
+"url"
+],
+[
+15,
+"url"
+],
+[
+16,
+"environ"
+],
+[
+16,
+"url"
+],
+[
+16,
+"wget"
+],
+[
+18,
+"url"
+],
+[
+19,
+"api-key"
+],
+[
+19,
+"url"
+],
+[
+20,
+"url"
+],
+[
+22,
+"url"
+],
+[
+23,
+"url"
+],
+[
+25,
+"environ"
+],
+[
+25,
+"url"
+],
+[
+26,
+"url"
+],
+[
+28,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "intro\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\n<<B8>>\noutro\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "intro\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\n> <<B8>>\noutro\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "intro\n<<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>> <<B8>>\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "intro\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\n<<B16>>\noutro\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"base64-run"
+],
+[
+3,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "intro\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\n> <<B16>>\noutro\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "intro\n<<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>> <<B16>>\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "intro\n<<B40>>\n<<B40>>\n<<B40>>\n<<B40>>\n<<B40>>\n<<B40>>\n<<B40>>\n<<B40>>\n<<B40>>\noutro\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "intro\n> <<B40>>\n> <<B40>>\n> <<B40>>\n> <<B40>>\n> <<B40>>\n> <<B40>>\n> <<B40>>\n> <<B40>>\n> <<B40>>\noutro\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "intro\n<<B40>> <<B40>> <<B40>> <<B40>> <<B40>> <<B40>> <<B40>> <<B40>> <<B40>>\n",
+"own": "own/repo",
+"want": [
+[
+2,
+"base64-run"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "line1\rline2\u000bline3\fline4line5 line6\r\nline7 curl\n",
+"own": "own/repo",
+"want": [
+[
+7,
+"curl"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "",
+"own": "own/repo",
+"want": []
+},
+{
+"name": "SKILL.md",
+"text": "no trailing newline curl",
+"own": "own/repo",
+"want": [
+[
+1,
+"curl"
+]
+]
+},
+{
+"name": "LICENSE",
+"text": "Licensed under http://www.apache.org/licenses/LICENSE-2.0 and https://evil.example\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "notes.txt",
+"text": "uses requests.get and requests.post\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+},
+{
+"name": "SKILL.md",
+"text": "uses requests.get\n",
+"own": "own/repo",
+"want": [
+[
+1,
+"url"
+]
+]
+}
+]

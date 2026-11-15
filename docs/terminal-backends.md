@@ -1,6 +1,6 @@
 # Terminal backends (TUI vs herdr-core)
 
-Hivemill talks to agent panes through one of two terminal backends. The TUI is the live default. Core (`hc`) is a second backend that is opt-in.
+Hivemill talks to agent panes through one of two terminal backends. Core (`hc`) is the default backend when it is on PATH (`terminal_backend=auto`). The classic herdr TUI is still supported and is opt-in with `factory config terminal_backend herdr`. `factory spawn --host-backend herdr|hc` overrides the backend per agent.
 
 ## TUI versus core
 
@@ -21,11 +21,17 @@ Config `terminal_backend` is one of `herdr`, `hc` or `auto`:
 
 - `herdr`: always use the TUI binary.
 - `hc`: always use herdr-core.
-- `auto` is the default. It prefers `herdr` when both binaries exist. With only one binary it uses that one. With neither, factory still invokes `herdr`, so errors match the historical "herdr missing" behaviour.
+- `auto` is the default. It prefers `hc` whenever it is on PATH, even when `herdr` is too. With only `herdr` it uses `herdr`. With neither, factory still invokes `herdr`, so errors match the historical "herdr missing" behaviour. `terminal_backend=herdr` keeps the TUI.
 
 `factory doctor` and `factory res` print the configured value and the effective backend after `auto` is resolved.
 
-To put one agent on core and leave everyone else on the TUI, spawn it with `factory spawn --host-backend hc`. The flag is stored as `spawn_args.host_backend`, and `factory agents` shows it in the backend column. Omit the flag to follow the config. Do not set the live config to hc to move one worker.
+To put one agent on core and leave everyone else on the TUI, spawn it with `factory spawn --host-backend hc`. The flag is stored as `spawn_args.host_backend`, and `factory agents` shows it in the backend column. `factory spawn --host-backend herdr|hc` still overrides the config per agent. Omit the flag to follow the config. To move one worker only, use factory spawn --host-backend; the config moves every new spawn.
+
+A task agent started with --host-backend keeps that backend when the tick starts the task's agents again (coder resume on red CI, review rerun, review and judge autospawn). Rows started before this change, and agents started without --host-backend, follow terminal_backend.
+
+## Upgrade
+
+Installs that have both herdr and hc on PATH and terminal_backend at its default (auto) move to herdr-core on upgrade: new spawns run on hc. Agents already running stay on the TUI until they exit. To stay on the TUI, run factory config terminal_backend herdr. Installs without hc keep the old behaviour.
 
 ## Caveats
 

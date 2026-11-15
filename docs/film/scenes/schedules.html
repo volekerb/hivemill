@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Schedules</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .head { position: absolute; left: 160px; top: 60px; }
+  .head .title { font-size: 58px; }
+  #cal { position: absolute; left: 160px; top: 190px; width: 1600px; height: 540px; overflow: hidden; }
+  .dayh { position: absolute; top: 0; height: 52px; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 600; color: var(--ink-2); letter-spacing: 0.04em; }
+  .col { position: absolute; top: 52px; bottom: 0; border-left: 1px solid var(--hairline); }
+  .hr { position: absolute; left: 70px; right: 0; height: 1px; background: rgba(255,255,255,0.06); }
+  .hl { position: absolute; left: 0; width: 60px; font-size: 16px; color: var(--ink-3); text-align: right; transform: translateY(-50%); }
+  .job { position: absolute; border-radius: 12px; padding: 10px 14px; overflow: hidden; }
+  .job .nm { font-size: 19px; font-weight: 700; color: var(--ink-1); white-space: nowrap; }
+  .job .cap { margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600;
+    padding: 3px 9px; border-radius: 10px; background: rgba(0,0,0,0.35); color: var(--ink-2); }
+  #cmd { position: absolute; left: 160px; top: 0; height: 84px; border-radius: 16px; display: flex; align-items: center;
+    padding: 0 32px; gap: 18px; background: rgb(17,17,19); box-shadow: 0 0 0 1px rgb(58,58,60), 0 30px 80px rgba(0,0,0,0.6);
+    font-family: var(--mono); font-size: 32px; white-space: nowrap; }
+  #cmd .p { color: var(--accent); font-weight: 700; }
+  #cmd .cur { display: inline-block; width: 16px; height: 36px; background: var(--ink-1); vertical-align: -7px; margin-left: 2px; }
+</style>
+</head><body>
+<div class="backdrop"></div>
+<div class="stage">
+  <img class="brand" id="brand" src="../../images/wordmark-dark.svg" alt="Hivemill">
+  <div class="head" id="head"><h1 class="title">up to 5 recurring jobs · token cap per run</h1></div>
+  <div id="cal" class="card"></div>
+  <div id="cmd"><span class="p">$</span><span id="typed"></span><span class="cur" id="cur"></span></div>
+</div>
+<script src="film.js"></script>
+<script>
+(function () {
+  'use strict';
+  const { prog, fade, tr, $, lerp, easeBack } = Film;
+  const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  const H0 = 6, H1 = 22;                       // visible hours
+  const LEFT = 70, TOP = 52, W = (1600 - LEFT) / 7, PXH = (540 - TOP) / (H1 - H0);
+  // Five example jobs; one runs on Monday and Wednesday like the command below.
+  const COLORS = ['10,132,255', '165,125,255', '48,179,90', '224,161,0', '43,179,192'];  // r,g,b
+  const JOBS = [
+    { name: 'dependency check', c: 0, at: [[0, 7], [2, 7]] },
+    { name: 'docs refresh', c: 1, at: [[1, 13]] },
+    { name: 'weekly report', c: 2, at: [[4, 16]] },
+    { name: 'flaky test sweep', c: 3, at: [[3, 9], [5, 10]] },
+    { name: 'security scan', c: 4, at: [[6, 19]] },
+  ];
+  const cal = $('#cal');
+  const add = (cls, css, html) => { const e = document.createElement('div'); e.className = cls; e.style.cssText = css; if (html) e.innerHTML = html; cal.appendChild(e); return e; };
+  DAYS.forEach((d, i) => {
+    add('dayh', `left:${LEFT + i * W}px;width:${W}px`, d);
+    add('col', `left:${LEFT + i * W}px`);
+  });
+  for (let h = H0; h <= H1; h += 2) {
+    const y = TOP + (h - H0) * PXH;
+    add('hr', `top:${y}px`);
+    if (h > H0 && h < H1) add('hl', `top:${y}px`, String(h).padStart(2, '0') + ':00');
+  }
+  const blocks = [];
+  JOBS.forEach((j, ji) => j.at.forEach(([d, h], k) => {
+    const el = add('job', `left:${LEFT + d * W + 8}px;top:${TOP + (h - H0) * PXH + 4}px;width:${W - 16}px;height:${Math.round(PXH * 2.4)}px;` +
+      `background:linear-gradient(180deg, rgba(${COLORS[j.c]},0.33), rgba(${COLORS[j.c]},0.19));box-shadow:inset 3px 0 0 rgb(${COLORS[j.c]}), 0 0 0 1px rgba(${COLORS[j.c]},0.4)`,
+      `<div class="nm">${j.name}</div><div class="cap">token cap</div>`);
+    blocks.push({ el, start: 1.0 + ji * 0.42 + k * 0.2 });
+  }));
+  const CMD = 'factory schedule add --hour H --days mon,wed …';
+
+  function seek(t) {
+    const h = prog(t, 0, 0.6);
+    $('#head').style.opacity = h; $('#head').style.transform = tr(0, 18 * (1 - h));
+    $('#brand').style.opacity = 0.6 * h;
+    const c = prog(t, 0.2, 0.8);
+    cal.style.opacity = c; cal.style.transform = tr(0, 24 * (1 - c));
+    blocks.forEach(b => {
+      const a = prog(t, b.start, b.start + 0.45, easeBack);
+      b.el.style.opacity = Math.min(1, prog(t, b.start, b.start + 0.2)).toFixed(3);
+      b.el.style.transform = 'scale(' + (0.6 + 0.4 * a).toFixed(4) + ')';
+    });
+    const m = prog(t, 3.0, 3.4);
+    $('#cmd').style.opacity = m;
+    $('#cmd').style.transform = tr(0, 790 + 20 * (1 - m));
+    const n = Math.max(0, Math.min(CMD.length, Math.floor((t - 3.2) / 0.035)));
+    $('#typed').textContent = CMD.slice(0, n);
+    $('#cur').style.opacity = (n < CMD.length || Math.floor(t * 2.5) % 2 === 0) ? 1 : 0;
+  }
+  Film.boot(seek);
+})();
+</script>
+</body></html>
