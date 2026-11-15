@@ -51,7 +51,7 @@ func ApplyHostFacts(s *Snapshot, h HostFacts, tmpDir string) []error {
 	s.NumCPU = h.NumCPU()
 	if m, err := h.MemAvailableMB(); err != nil {
 		errs = append(errs, fmt.Errorf("memory: %w", err))
-		s.MemMB = 0
+		s.MemMB = -1 // below any floor, even a configured floor of 0
 	} else {
 		s.MemMB = m
 	}

@@ -102,9 +102,7 @@ func TestDarwinFactsReaders(t *testing.T) {
 }
 
 func TestDarwinUnreadable(t *testing.T) {
-	bad := map[string]string{} // every command prints nothing
 	garbage := fakeDarwin(map[string]string{}, false)
-	_ = bad
 	t.Run("load", func(t *testing.T) {
 		for _, h := range []DarwinFacts{fakeDarwin(nil, true), garbage} {
 			if _, err := h.Load1(); err == nil {
@@ -144,7 +142,7 @@ func TestDarwinUnreadable(t *testing.T) {
 	t.Run("gate closed", func(t *testing.T) {
 		var s Snapshot
 		errs := ApplyHostFacts(&s, fakeDarwin(nil, true), "/tmp")
-		if len(errs) != 4 || s.MemMB != 0 || !math.IsInf(s.Load1, 1) || s.MemPressure != PressureUnknown || !s.StrictTmp {
+		if len(errs) != 4 || s.MemMB != -1 || !math.IsInf(s.Load1, 1) || s.MemPressure != PressureUnknown || !s.StrictTmp {
 			t.Fatalf("errs %v snapshot %+v", errs, s)
 		}
 		d := Decide(openSnap(s), openCfg(), Options{Role: "coder"})
@@ -200,4 +198,16 @@ func openSnap(s Snapshot) Snapshot {
 	b := baseSnap()
 	b.MemPressure, b.Tmp, b.TmpMinFreeMB, b.StrictTmp = s.MemPressure, s.Tmp, s.TmpMinFreeMB, s.StrictTmp
 	return b
+}
+
+func TestUnknownMemClosesWithZeroFloor(t *testing.T) {
+	c := openCfg()
+	c.MinMemAvailableMB = 0
+	var s Snapshot
+	ApplyHostFacts(&s, fakeDarwin(nil, true), "/tmp")
+	b := baseSnap()
+	b.MemMB = s.MemMB
+	if d := Decide(b, c, Options{Role: "coder"}); d.OK {
+		t.Fatal("unknown memory must close the gate even with a floor of 0")
+	}
 }

@@ -211,7 +211,7 @@ func resSnapshot(c *ctx, now time.Time) (gate.Snapshot, gate.Config, error) {
 		// unreadable values close the gate (ApplyHostFacts); `res` still prints them as unknown
 		gate.ApplyHostFacts(&snap, hf, tmpDir)
 		if pinned := c.env.Getenv("FACTORY_LOADAVG"); pinned != "" {
-			if f, perr := gate.PyFloat(pinned); perr == nil {
+			if f, perr := gate.PyFloat(pinned); perr == nil && !math.IsInf(snap.Load1, 1) {
 				snap.Load1 = f
 			}
 		}
