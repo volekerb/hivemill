@@ -1,0 +1,4 @@
+[
+ {"number": 8, "state": "MERGED", "createdAt": "2026-11-09T20:00:00Z", "mergedAt": "2026-11-10T02:00:00Z", "headRefName": "factory/t-0008", "mergeStateStatus": "UNKNOWN"},
+ {"number": 1, "state": "MERGED", "createdAt": "2026-11-10T10:00:00Z", "mergedAt": "2026-11-10T13:00:00Z", "headRefName": "factory/t-0001", "mergeStateStatus": "UNKNOWN"}
+]
