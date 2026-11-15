@@ -29,6 +29,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [design/g-023/readme-option-a.md](design/g-023/readme-option-a.md): README draft A, showcase.
 - [design/g-023/readme-option-b.md](design/g-023/readme-option-b.md): README draft B, docs-first.
 - [design/g-023/readme-option-c.md](design/g-023/readme-option-c.md): README draft C, the loop.
+- [design/macos-linux-deps.md](design/macos-linux-deps.md): Linux-only dependency inventory for the macOS port.
 
 ## Operate it
 
@@ -108,6 +109,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/README.md](adr/README.md): index of architecture decision records.
 - [adr/0001-language-policy.md](adr/0001-language-policy.md): the language policy (Go, Rust exceptions, Python).
 - [adr/0002-sandbox-runtime-v3.md](adr/0002-sandbox-runtime-v3.md): sandbox runtime v3 (hardened nsbox testbox, no microVMs for tests).
+- [adr/0003-macos-support.md](adr/0003-macos-support.md): macOS support (sandbox mechanism and port plan).
 
 ## Internals
 

@@ -1,0 +1,55 @@
+#!/bin/bash
+# Test stand-in for xcodebuild; runs under the reset PATH, so it uses bash builtins and /usr/bin tools only.
+# Appends one record per call to $STUB_LOG: argv, PATH and the NAMES (never the values) of ASC_* / HIVEMILL_REDACT* env vars.
+# Exit codes: STUB_XCODEBUILD_EXIT (archive, export), STUB_XCODEBUILD_EXPORT_EXIT (export only).
+# STUB_XCODEBUILD_EXPORT_STDERR is printed on export. Like the real tool, it echoes its argv on archive and export.
+log="${STUB_LOG:?STUB_LOG must be set}"
+{
+  echo "--- xcodebuild"
+  echo "ARGV: $*"
+  echo "PATH: $PATH"
+  echo "ENVNAMES: $(env | cut -d= -f1 | grep -E '^(ASC_|HIVEMILL_REDACT)' | tr '\n' ' ')"
+} >> "$log"
+
+kind=""
+archive_path=""
+export_path=""
+plist=""
+prev=""
+for a in "$@"; do
+  case "$a" in
+    archive) kind=archive ;;
+    -exportArchive) kind=export ;;
+    -version) kind=version ;;
+    -showBuildSettings) kind=settings ;;
+  esac
+  case "$prev" in
+    -archivePath) archive_path="$a" ;;
+    -exportPath) export_path="$a" ;;
+    -exportOptionsPlist) plist="$a" ;;
+  esac
+  prev="$a"
+done
+
+case "$kind" in
+  version)
+    echo "Xcode 99.0"
+    echo "Build version 99A1"
+    exit 0 ;;
+  settings)
+    echo "Build settings for action build and target App:"
+    echo "    MARKETING_VERSION = ${STUB_MARKETING_VERSION:-1.2.3}"
+    exit 0 ;;
+  archive)
+    echo "xcodebuild $*"
+    mkdir -p "$archive_path"
+    echo "** ARCHIVE SUCCEEDED **"
+    exit "${STUB_XCODEBUILD_EXIT:-0}" ;;
+  export)
+    echo "xcodebuild $*"
+    if [ -n "$plist" ]; then cp "$plist" "$(dirname "$log")/ExportOptions.plist"; fi
+    mkdir -p "$export_path"
+    if [ -n "${STUB_XCODEBUILD_EXPORT_STDERR:-}" ]; then echo "$STUB_XCODEBUILD_EXPORT_STDERR" >&2; fi
+    exit "${STUB_XCODEBUILD_EXPORT_EXIT:-${STUB_XCODEBUILD_EXIT:-0}}" ;;
+esac
+exit 0
