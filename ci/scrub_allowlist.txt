@@ -55,3 +55,4 @@ tests/test_worker_guard_public_text.py:email:alice@realmail\.test  # fake author
 tests/test_worker_guard_public_text.py:email:git@github\.com:acme/old\.git  # fake acme remote in public-text guard fixture
 tests/test_public_repo_safety.py:email:git@github\.com:acme/pub\.git  # fake acme remote URL form in public-repo safety fixture
 ci/scrub_history_allowlist.txt:generic-secret:^[\w./-]+:generic-secret:[0-9a-f]{64}  # history-allowlist entry lines naming the pattern id; the line is the allowlist syntax, not data
+go/internal/merge/carry.go:email:noreply@github\.com  # GitHub public squash-committer address compared with git log %ce (ported from _GITHUB_SQUASH_COMMITTER)
