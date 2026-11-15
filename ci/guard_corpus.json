@@ -24892,7 +24892,7 @@
     "~/.local/go/bin/go build",
     "~/.local/go/bin/go build -o bin/x ./cmd/x",
     "~/.local/go/bin/go test -test.coverprofile=c.out ./...",
-    "~/.local/go/bin/go test -c -o /tmp/x.test",
+    "~/.local/go/bin/go test -c -o bin/x.test",
     "~/.local/go/bin/gofmt -w=0 x.go",
     "GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
     {
