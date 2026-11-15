@@ -19713,6 +19713,16 @@
       "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
       "cmd": "GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
       "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1/N3: other true spellings",
+      "cmd": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1/N3: other true spellings",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+      "role": "coder"
     }
   ],
   "must_allow": [

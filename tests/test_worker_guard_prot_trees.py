@@ -652,7 +652,8 @@ class GoToolchainForWorkers(ProtTreesCase):
         for cmd in (self.G + "gofmt -w=0 x.go", self.G + "gofmt -w=true x.go", self.G + "gofmt -w=1 x.go",
                     "GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod " + self.G + "go test ./...", "GOFLAGS=-c " + self.G + "go test ./...",
                     self.G + "go -C . fmt"):
-            self.assertEqual(run(cmd, "wt").returncode, 0, cmd)
+            for role in ("coder", "qa", "reviewer"):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
 
     def test_review_gaps_still_allowed_in_the_tree(self):
         for role in ("coder", "qa", "reviewer"):

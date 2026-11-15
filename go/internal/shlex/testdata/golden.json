@@ -114824,6 +114824,87 @@
 "src": "corpus"
 },
 {
+"input": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w=TRUE",
+"../x.go"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w=TRUE",
+"../x.go"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-w=TRUE",
+"../x.go"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -w=TRUE ../x.go'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go/src/cmd/gofmt",
+"&&",
+"GOFLAGS=-c=true",
+"~/.local/go/bin/go",
+"test"
+]
+},
+{
+"input": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go/src/cmd/gofmt",
+"&&",
+"GOFLAGS=-c=true",
+"~/.local/go/bin/go",
+"test"
+]
+},
+{
+"input": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go/src/cmd/gofmt",
+"&&",
+"GOFLAGS=-c=true",
+"~/.local/go/bin/go",
+"test"
+]
+},
+{
+"input": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+"mode": "quote",
+"quoted": "'cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test'",
+"src": "corpus"
+},
+{
 "input": "echo hc",
 "mode": "script",
 "src": "corpus",
@@ -147510,7 +147591,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3387,
+"corpus_commands": 3389,
 "edge_inputs": 123,
 "python": "3.13"
 }

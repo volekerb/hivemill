@@ -140343,6 +140343,110 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -w=TRUE ../x.go"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -w=TRUE ../x.go"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"~/.local/go/bin/gofmt",
+"-w=TRUE",
+"../x.go"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"~/.local/go/bin/gofmt",
+"-w=TRUE",
+"../x.go"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+"mask_quotes_pre": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+"mask_quotes_raw": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"cd",
+"~/.local/go/src/cmd/gofmt"
+]
+],
+[
+31,
+71,
+[
+"GOFLAGS=-c=true",
+"~/.local/go/bin/go",
+"test"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"cd",
+"~/.local/go/src/cmd/gofmt"
+]
+],
+[
+31,
+71,
+[
+"GOFLAGS=-c=true",
+"~/.local/go/bin/go",
+"test"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "echo hc",
 "mask_quotes_pre": "echo hc",
 "mask_quotes_raw": "echo hc",
@@ -182742,7 +182846,7 @@
 ]
 }
 },
-"corpus_commands": 3387,
+"corpus_commands": 3389,
 "edge_inputs": 97,
 "python": "3.13"
 }
