@@ -303,6 +303,17 @@ func runRelayPush(c *ctx, parsed any) (int, error) {
 		}
 	}
 
+	// every later git read and the push run in an HQ-owned temporary bare repo that borrows the worktree's objects
+	// (alternates): git reads only that repo's config, refs and state, so worktree config planted after step 1
+	// (url.*.insteadOf, reviewer B2), a .git/shallow that hides commits from the checks, grafts or replace refs are never
+	// seen. The objects are content-addressed, so the borrowed store cannot change what a sha names.
+	relay, cleanup, err := relayPushRepo(g, opts)
+	if err != nil {
+		return 0, relayRefuse(a.task, err.Error())
+	}
+	defer cleanup()
+	g = relayGit{c: c, opts: opts, wt: relay, env: g.env}
+
 	// 2. the trusted main: from GitHub through the HQ gh, never the worktree's own refs/remotes/origin/*
 	ghEnv := relayGhEnv(c.deps.Environ)
 	out, errs, code, err := c.deps.runCmd("gh", []string{"api", "repos/" + repo + "/git/ref/heads/" + baseBr, "--jq", ".object.sha"},
@@ -367,7 +378,7 @@ func runRelayPush(c *ctx, parsed any) (int, error) {
 	}
 
 	// 5. the same public-text check the pre-push hook runs, over every commit message, identity, path and added line
-	if err := relayPublicText(c, wt.String, mainSHA, a.sha); err != nil {
+	if err := relayPublicText(c, relay, mainSHA, a.sha); err != nil {
 		return 0, relayRefuse(a.task, err.Error())
 	}
 
@@ -378,14 +389,6 @@ func runRelayPush(c *ctx, parsed any) (int, error) {
 		return 0, relayRefuse(a.task, fmt.Sprintf("the HQ gh has no github.com token (gh auth token: exit %d %s); run `gh auth login` as the owner",
 			code, relayRedact(firstLine(terr), token)))
 	}
-	// the push runs in an HQ-owned temporary bare repo that borrows the worktree's objects (alternates): git reads only
-	// that repo's config, so a url.*.insteadOf or credential config planted in the worktree after step 1 is never seen
-	// (reviewer B2, TOCTOU). The objects are content-addressed, so the borrowed store cannot change what sha names.
-	relay, cleanup, err := relayPushRepo(g, opts, a.sha)
-	if err != nil {
-		return 0, relayRefuse(a.task, err.Error())
-	}
-	defer cleanup()
 	push := relayGit{c: c, opts: opts, wt: relay, env: relayScrubEnv(c.deps.Environ, "FACTORY_RELAY_TOKEN="+token)}
 	helper := `!f() { test "$1" = get || exit 0; echo username=x-access-token; printf 'password=%s\n' "$FACTORY_RELAY_TOKEN"; }; f`
 	url := "https://github.com/" + repo + ".git"
@@ -414,8 +417,8 @@ func runRelayPush(c *ctx, parsed any) (int, error) {
 }
 
 // relayPushRepo creates the HQ-owned bare repo the push runs in: no templates (no hooks), objects/info/alternates
-// pointing at the worktree's object store, and sha must resolve to a commit there. cleanup removes it.
-func relayPushRepo(wt relayGit, opts gitx.Options, sha string) (string, func(), error) {
+// pointing at the worktree's object store. cleanup removes it.
+func relayPushRepo(wt relayGit, opts gitx.Options) (string, func(), error) {
 	objOut, err := wt.ok("rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find the worktree git dir: %v", err)
@@ -442,10 +445,6 @@ func relayPushRepo(wt relayGit, opts gitx.Options, sha string) (string, func(), 
 	if err := os.WriteFile(filepath.Join(info, "alternates"), []byte(objects+"\n"), 0o600); err != nil {
 		cleanup()
 		return "", nil, fmt.Errorf("cannot write the relay push repo alternates: %v", err)
-	}
-	if _, err := r.ok("cat-file", "-e", sha+"^{commit}"); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("commit %s is not readable from the relay push repo: %v", sha, err)
 	}
 	return dir, cleanup, nil
 }
@@ -757,6 +756,10 @@ func wfRunner(e wfEntry) bool {
 
 // workflowProblems compares one workflow file before and after (either may be "" for an added or deleted file).
 func workflowProblems(oldText, newText string) []string {
+	// a lone CR (YAML 1.2) or NEL/LS/PS (YAML 1.1) is a line break to a YAML parser but not to the line reader
+	if strings.ContainsAny(strings.ReplaceAll(newText, "\r\n", "\n"), "\r\u0085\u2028\u2029") {
+		return []string{"cannot read the lines: a CR, NEL, LS or PS line break other than CRLF (refused)"}
+	}
 	oldE, oldOdd := wfEntries(oldText)
 	newE, newOdd := wfEntries(newText)
 	var out []string

@@ -422,6 +422,38 @@ func TestRelayPushInsteadOfAfterCheck(t *testing.T) {
 	r.noToken(t, "toctou", out, errs, argv, r.e.str("SELECT group_concat(COALESCE(detail,''), '|') FROM events"))
 }
 
+// TestRelayPushShallowIgnored (self-review): a .git/shallow planted in the worktree cannot hide a foreign-author
+// commit from the checks, which read the relay repo (no shallow file) like the push does.
+func TestRelayPushShallowIgnored(t *testing.T) {
+	r := newRelayRepo(t)
+	gitIn(t, r.wt, "checkout", "-q", "-b", "side", "main")
+	r.write("y.txt", "y\n")
+	r.commit("foreign", "GIT_AUTHOR_EMAIL=someone@example.com")
+	r.write("x.txt", "x\n")
+	x := r.commit("hides the parent")
+	gitIn(t, r.wt, "checkout", "-q", "factory/t-0001")
+	r.write("z.txt", "z\n")
+	r.commit("work")
+	cmd := exec.Command("git", "merge", "-q", "--no-ff", "-m", "merge side", "side")
+	cmd.Dir = r.wt
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=a", "GIT_AUTHOR_EMAIL=1+a@users.noreply.github.com",
+		"GIT_COMMITTER_NAME=a", "GIT_COMMITTER_EMAIL=1+a@users.noreply.github.com")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("merge: %v\n%s", err, out)
+	}
+	sha := gitIn(t, r.wt, "rev-parse", "HEAD")
+	gd := gitIn(t, r.wt, "rev-parse", "--absolute-git-dir")
+	os.WriteFile(filepath.Join(gd, "shallow"), []byte(x+"\n"), 0o644)
+	if n := gitIn(t, r.wt, "log", "--format=%ae", r.main+".."+sha); strings.Contains(n, "someone@example.com") {
+		t.Fatalf("the planted shallow file does not hide the commit in the worktree: %q", n)
+	}
+	r.verify(sha)
+	if out, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, "author email 'someone@example.com'") || r.pushed() != "" {
+		t.Errorf("shallow: exit %d out %q err %q pushed %q", code, out, errs, r.pushed())
+	}
+}
+
 // relayWF swaps old for new in the good workflow.
 func relayWF(t *testing.T, old, new string) string {
 	t.Helper()
@@ -457,6 +489,7 @@ func TestRelayPushWorkflowRefusals(t *testing.T) {
 		{"flow mapping", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    defaults: {permissions: write-all}\n"), "cannot read the line"},
 		{"anchor", relayWF(t, "permissions:\n  contents: read\n", "permissions: &p\n  contents: read\n"), "YAML anchor, alias or tag"},
 		{"alias", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    permissions: *p\n"), "YAML anchor, alias or tag"},
+		{"lone CR", relayWF(t, "name: tests\n", "name: tests\rpermissions: write-all\n"), "a CR, NEL, LS or PS line break"},
 		{"matrix self-hosted", relayWF(t, "    runs-on: ubuntu-latest\n", "    strategy:\n      matrix:\n        os: [self-hosted]\n    runs-on: ${{ matrix.os }}\n"), "non-GitHub-hosted runner"},
 	} {
 		gitIn(t, r.wt, "reset", "-q", "--hard", base)
