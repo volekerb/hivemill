@@ -136,6 +136,11 @@ func resHome(t *testing.T, c resCase) (home, binDir string) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := os.Stat(filepath.Join(c.dir, "hc")); err == nil { // marker: an `hc` binary is on PATH
+		if err := os.WriteFile(filepath.Join(binDir, "hc"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return home, binDir
 }
 
