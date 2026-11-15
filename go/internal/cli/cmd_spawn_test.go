@@ -406,3 +406,25 @@ func TestSpawnHandsOverRuntimeShapes(t *testing.T) {
 		}
 	}
 }
+
+// TestSpawnSecondBossRefused: a live boss of the same org is found while another query runs (the LiveTwin scan used to
+// hold its cursor open across agentOrg and wait forever on the single connection); the refusal is Python's.
+func TestSpawnSecondBossRefused(t *testing.T) {
+	seed := append(append([]string{}, spawnSeed...),
+		"INSERT INTO agents(name,role,status) VALUES('claude-boss','boss','live')")
+	done := make(chan spawnRun, 1)
+	go func() {
+		done <- runSpawnGo(t, "owner", seed, "spawn", "boss", "--org", "claude", "--host-backend", "hc")
+	}()
+	select {
+	case r := <-done:
+		if r.execs == 1 {
+			return // handed to Python: it refuses itself
+		}
+		if r.code != 3 || !strings.Contains(r.errb, "factory relaunch claude-boss") || r.out != "" {
+			t.Errorf("code=%d err=%q out=%q", r.code, r.errb, r.out)
+		}
+	case <-time.After(60 * time.Second):
+		t.Fatal("spawn boss hung")
+	}
+}

@@ -363,13 +363,20 @@ func spawnFacts(c *ctx, req spawn.Request, home string) (spawn.Facts, spawnHost,
 		if err != nil {
 			return ""
 		}
-		defer rows.Close()
+		var names []string
 		for rows.Next() {
 			var n string
 			var sa sql.NullString
 			if rows.Scan(&n, &sa) != nil {
 				continue
 			}
+			names = append(names, n)
+		}
+		if rows.Close() != nil || rows.Err() != nil {
+			return ""
+		}
+		// agentOrg queries too: the cursor is closed first (one connection, a nested query would wait for it forever)
+		for _, n := range names {
 			if o, _ := agentOrg(c, n); o == org {
 				return n
 			}
