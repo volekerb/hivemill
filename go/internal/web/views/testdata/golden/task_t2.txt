@@ -1,0 +1,22 @@
+# /task/T-2
+TEXT
+[SC2] wire cli - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources [SC2] wire cli All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Tasks / T-2 In review · G-001 · tm-a · claude-coder-t-2 · PR · CI passed Cost: $0.02 · estimated at list prices as of 2026-10-25 (API-equivalent, not a bill) Verdicts Reviewer failed · QA passed · CI passed · Judge rejected Reviewer failed · <TS> Judge rejected · <TS> QA passed · <TS> Total time 12d 3h Rejections 2 Attempts 2 Lifecycle Stage Duration Share spec 1d 0h 8% queued 12d 2h 92% coding - unknown review 1h 20m 0% review 20m 00s 0% judge - unknown waiting: CI inside a stage 20m 00s 0% total (open) 13d 3h 100% Cost and tokens Estimated at list prices as of 2026-10-25 (API-equivalent, not a bill) Role Agent Sessions Input Output Cache read Cache write Cost reviewer claude-reviewer-t-2 1 500 800 9,000 1,000 $0.02 Total 1 500 800 9,000 1,000 $0.02 Rework: $0.00 (0% of cost) · causes: stale-verdict ×1, cause not recorded ×1 PR cycle Attempt 1 rejected · 10d 1h <TS> Task created claude-pm-g-001 <TS> Status -> in_progress claude-coder-t-2 +1h 00m <TS> PR opened claude-coder-t-2 +9d 23h <TS> Reviewer started claude-reviewer-t-2 +1h 00m <TS> Reviewer failed claude-reviewer-t-2 @22222222 +20m 00s <TS> Reviewer finished claude-reviewer-t-2 +10m 00s <TS> Judge rejected claude-judge +10m 00s Attempt 2 in progress · 2d 0h <TS> Reopen claude-boss <TS> Status -> in_review claude-coder-t-2 +22h 00m <TS> QA passed +20m 00s <TS> Judge blocked: auto_merge=0 owner wants to look claude-judge +10m 00s <TS> Judge blocked: auto_merge=0 again; checks not green claude-judge +10m 00s <TS> Coder started claude-coder-t-2 +1d 1h Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-001
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-2
+a:/task/T-2?org=claude
+a:/task/T-2?org=cursor
+a:/tasks
+a:/throughput
+a:/tokens
