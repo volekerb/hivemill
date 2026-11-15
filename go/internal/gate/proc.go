@@ -359,11 +359,14 @@ func ReadUsage(path string, now func() time.Time, sleep func(time.Duration)) (u 
 
 // ---- host process scan -----------------------------------------------------------------------------------
 
-// Proc is one scanned claude or cursor-agent process.
+// Proc is one host process as HostFacts.Processes reports it. Ppid is -1 when unknown (Linux: unreadable stat).
+// Start is the zero time where the host scan does not read it (Linux /proc reader); Uid is -1 when unknown.
 type Proc struct {
-	Argv    []string
-	PPid    int
-	HasPPid bool
+	Pid   int
+	Ppid  int
+	Uid   int
+	Start time.Time
+	Argv  []string
 }
 
 // ProcScan is total_claude_procs(): the top-level claude and cursor-agent processes. Known=false: /proc unreadable.
@@ -431,46 +434,64 @@ func isCursorAgentArgv(argv []string) bool {
 	return false
 }
 
-// ScanProcs is _scan_host_agent_procs + total_claude_procs over the proc directory root.
-func ScanProcs(root string) ProcScan {
+// ReadProcRoot lists the processes under a /proc-style directory root. An unreadable root is an error. A process
+// whose cmdline cannot be read is listed with no argv; one whose stat cannot be parsed gets Ppid -1.
+func ReadProcRoot(root string) ([]Proc, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return ProcScan{}
+		return nil, fmt.Errorf("read %s: %w", root, err)
 	}
-	found := map[int]Proc{}
+	var out []Proc
 	for _, e := range entries {
 		pid, err := strconv.Atoi(e.Name())
 		if err != nil || !isDigits(e.Name()) {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(root, e.Name(), "cmdline"))
-		if err != nil || len(raw) > MaxProcFile {
-			continue
-		}
-		var argv []string
-		for _, p := range bytes.Split(raw, []byte{0}) {
-			if len(p) > 0 {
-				argv = append(argv, strings.ToValidUTF8(string(p), "�"))
+		p := Proc{Pid: pid, Ppid: -1, Uid: -1}
+		if raw, err := os.ReadFile(filepath.Join(root, e.Name(), "cmdline")); err == nil && len(raw) <= MaxProcFile {
+			for _, part := range bytes.Split(raw, []byte{0}) {
+				if len(part) > 0 {
+					p.Argv = append(p.Argv, strings.ToValidUTF8(string(part), "�"))
+				}
 			}
 		}
+		if st, err := os.ReadFile(filepath.Join(root, e.Name(), "stat")); err == nil {
+			if pp, ok := statPPid(string(st)); ok {
+				p.Ppid = pp
+			}
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// ScanProcs is _scan_host_agent_procs + total_claude_procs over the proc directory root.
+func ScanProcs(root string) ProcScan {
+	procs, err := ReadProcRoot(root)
+	if err != nil {
+		return ProcScan{}
+	}
+	return ScanFrom(procs)
+}
+
+// ScanFrom counts the top-level claude and cursor-agent processes of a process list (any host).
+func ScanFrom(procs []Proc) ProcScan {
+	found := map[int]Proc{}
+	for _, p := range procs {
 		isClaude := false
-		for i, x := range argv {
+		for i, x := range p.Argv {
 			if i < 3 && pyBase(x) == "claude" {
 				isClaude = true
 			}
 		}
-		if !isClaude && !isCursorAgentArgv(argv) {
+		if !isClaude && !isCursorAgentArgv(p.Argv) {
 			continue
 		}
-		p := Proc{Argv: argv}
-		if st, err := os.ReadFile(filepath.Join(root, e.Name(), "stat")); err == nil {
-			p.PPid, p.HasPPid = statPPid(string(st))
-		}
-		found[pid] = p
+		found[p.Pid] = p
 	}
 	out := ProcScan{Known: true, Argv: map[int][]string{}}
 	for pid, p := range found {
-		if _, parentCounted := found[p.PPid]; p.HasPPid && parentCounted {
+		if _, parentCounted := found[p.Ppid]; p.Ppid >= 0 && parentCounted {
 			continue
 		}
 		out.PIDs = append(out.PIDs, pid)

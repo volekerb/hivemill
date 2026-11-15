@@ -143,6 +143,21 @@ class TickPhasesHandoff(FactoryTestCase):
         p = self.phases("side", h)
         self.assertEqual(p.returncode, 2)
         self.assertIn("herdr list missing", p.stderr)
+
+    def test_offline_only_ok_with_agents_null(self):
+        self.hold_lock()
+        h = self.handoff({"agents": None})
+        p = self.phases("offline", h)
+        self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
+        self.assertNotIn("herdr list missing", p.stderr)
+
+    def test_agent_unit_still_refused_with_agents_null(self):
+        self.hold_lock()
+        h = self.handoff({"agents": None})
+        p = self.phases("offline,scout", h)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("herdr list missing", p.stderr)
+
     def test_refuse_handoff_outside_run(self):
         self.hold_lock()
         outside = self.env.home / "tick-handoff.json"
