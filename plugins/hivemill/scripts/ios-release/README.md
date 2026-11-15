@@ -61,7 +61,7 @@ The file lives at `<git top>/.hivemill/ios-release.json`; `--config PATH` overri
 | `teamId` | 10 characters, `A-Z 0-9` | yes | `teamID` in ExportOptions |
 | `signing` | `xcodeAccount` or `apiKey` | no, default `xcodeAccount` | see "Two credentials" |
 | `marketingVersion` | object with exactly ONE form: `file` + `regex` together; or `buildSetting` (read with `xcodebuild -showBuildSettings`); or `command` (argv); or `value` (string) | yes | `file` is relative to the build dir; `regex` is a JavaScript RegExp source compiled with the `m` flag, must compile and have at least one capture group; the version is capture group 1 of the first match, trimmed. No match, or a result that is not 1-3 dot-separated integers, is exit 5 |
-| `testerGroup` | string, or non-empty array of distinct non-empty strings | yes | beta group NAME(s), exact case-sensitive match |
+| `testerGroup` | one entry, or a non-empty array of distinct entries; an entry is a group name string, `{"id"}`, or `{"name", "internal"}` | yes | which beta group(s) get the build; see "Tester groups" |
 | `submitExternal` | boolean | no, default `false` | `true`: external groups get the build, which submits it to beta app review. `false`: external groups are skipped with a notice |
 | `notes` | object with exactly ONE key: `path` (`~` allowed; every `{build}` is replaced by the build number) or `command` (argv) | yes | the What to Test text; 4000 characters at most; empty or missing is exit 5 |
 | `notesLocale` | string | no, default `en-US` | |
@@ -100,7 +100,25 @@ Example, placeholders only (the same content as `ios-release.example.json`):
 
 ## Tester groups
 
-Group names are matched exactly (case-sensitive). All groups are resolved before anything is built: an unknown or ambiguous name is exit 6 up front. After the build is VALID and What to Test is set, each group is handled in config order, with one of three outcomes:
+A `testerGroup` entry picks one beta group in one of three forms. Use a list to mix them:
+
+```json
+"testerGroup": [
+  "Beta Testers",
+  { "name": "Beta Testers", "internal": false },
+  { "id": "00000000-0000-0000-0000-000000000000" }
+]
+```
+
+| form | selects |
+|---|---|
+| `"Beta Testers"` | the group with exactly this name (case-sensitive). Fine while the app has one group of that name. |
+| `{ "name": "Beta Testers", "internal": false }` | the group with this exact name whose internal/external kind matches (`internal` maps to `isInternalGroup`). Both keys are required. |
+| `{ "id": "00000000-0000-0000-0000-000000000000" }` | the group with this App Store Connect id (1-64 characters of `A-Z a-z 0-9 -`). No other key is allowed. |
+
+Resolution order for each entry: by id first; else by name and `internal`; else by name alone. If the name (or name + `internal`) still matches more than one group, `release.sh` stops with exit 6 and one line that lists every matching id and its kind, for example `beta group name is ambiguous: Beta Testers: <id1> (isInternalGroup true), <id2> (isInternalGroup false); set testerGroup to an object with id, or with name and internal`. It never picks the first match. Fix it by setting `internal`, or by using the id. A group id is in the group's App Store Connect URL (TestFlight > the group), and in that exit-6 message. If two entries resolve to the same group, that is exit 6 too (`testerGroup entries 0 and 1 are the same group <id>`).
+
+All groups are resolved before anything is built: an unknown or ambiguous entry is exit 6 up front. The summary and `--dry-run` lines show the group's real App Store Connect name, also for an id entry. After the build is VALID and What to Test is set, each group is handled in config order, with one of three outcomes:
 
 1. An internal group with access to all builds (`hasAccessToAllBuilds`) is skipped. Its testers already get every build, and the API would answer 422 if you added the build.
 2. Any other internal group gets the build added.
@@ -185,7 +203,8 @@ After the upload, processing to VALID took about 3 minutes in a real run; 5-15 m
 ## Troubleshooting
 
 - **401 or 403 (exit 6):** the key's role is too low, or the key was revoked. Use a Team key with the App Manager role (or Admin).
-- **App or group not found or ambiguous (exit 6):** check `bundleId`, and that each `testerGroup` name matches exactly one group in the app's TestFlight tab, including case.
+- **App or group not found (exit 6):** check `bundleId`, and that each `testerGroup` name matches a group in the app's TestFlight tab, including case, or that the id is right.
+- **Two groups with the same name (exit 6, "beta group name is ambiguous"):** an app can have an internal and an external group with the same name. Set `testerGroup` to `{ "name": "...", "internal": true|false }`, or to `{ "id": "..." }` using an id from the message.
 - **Build number already used:** another upload took the number. Run again; the next build number is computed from App Store Connect each time.
 - **Processing stuck, or MISSING_EXPORT_COMPLIANCE:** the build stays in processing or waits for export compliance. Set `ITSAppUsesNonExemptEncryption` in the app's Info.plist (or answer the question once in App Store Connect), then `--resume-build N`.
 - **"Cloud signing permission error" or "No signing certificate iOS Distribution found":** an App Manager key was used in `apiKey` mode. Use `xcodeAccount` (the default), or an Admin key with `--signing apiKey`.
