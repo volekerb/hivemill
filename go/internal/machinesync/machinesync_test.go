@@ -3,10 +3,12 @@ package machinesync
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const marker = "FIXTURE-VALUE-9f2c" // made-up marker, not a secret
@@ -25,6 +27,8 @@ func fakeSSH(t *testing.T) (localHome, remoteHome string) {
 		}
 	}
 	script := `#!/bin/sh
+if [ -n "$FAKE_SSH_ARGS" ]; then echo "$@" >> "$FAKE_SSH_ARGS"; fi
+if [ -n "$FAKE_SSH_HANG" ]; then exec sleep 30; fi
 while [ "$1" != "--" ]; do shift; done
 shift
 cmd="$*"
@@ -266,5 +270,153 @@ func TestQuotedDstAndStaleWorldReadableTemp(t *testing.T) {
 	}
 	if fi, err := os.Stat(dst); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Fatalf("dst: %v %v", fi, err)
+	}
+}
+
+// swapAfterCheck replaces src with a symlink to (or a different file holding) outside content between check and read.
+func swapAfterCheck(t *testing.T, swap func()) {
+	t.Helper()
+	prev := afterCheck
+	afterCheck = swap
+	t.Cleanup(func() { afterCheck = prev })
+}
+
+func wantRefusal(t *testing.T, err error, path string) {
+	t.Helper()
+	var ref *RefusedError
+	if !errors.As(err, &ref) || !strings.Contains(ref.Msg, path) {
+		t.Fatalf("want refusal naming %s, got %v", path, err)
+	}
+}
+
+func TestSrcSwappedForSymlinkAfterCheckRefused(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	src := writeSrc(t, lh, ".env")
+	outside := filepath.Join(t.TempDir(), "outside")
+	if err := os.WriteFile(outside, []byte("OUTSIDE-ONLY-77aa\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	swapAfterCheck(t, func() {
+		if err := os.Remove(src); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, src); err != nil {
+			t.Fatal(err)
+		}
+	})
+	dst := filepath.Join(rh, ".env")
+	_, _, err := run(t, Options{Entries: []Entry{{src, dst}}, LocalHome: lh})
+	wantRefusal(t, err, src)
+	if _, err := os.Stat(dst); err == nil {
+		t.Fatal("swapped symlink target was copied")
+	}
+}
+
+func TestSrcReplacedByOtherFileAfterCheckRefused(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	src := writeSrc(t, lh, ".env")
+	other := filepath.Join(lh, "other")
+	if err := os.WriteFile(other, []byte("OTHER=x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	swapAfterCheck(t, func() {
+		if err := os.Rename(other, src); err != nil {
+			t.Fatal(err)
+		}
+	})
+	dst := filepath.Join(rh, ".env")
+	_, _, err := run(t, Options{Entries: []Entry{{src, dst}}, LocalHome: lh})
+	wantRefusal(t, err, src)
+	if _, err := os.Stat(dst); err == nil {
+		t.Fatal("replaced file was copied")
+	}
+}
+
+func TestOversizeFileRefused(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	big := filepath.Join(lh, "big")
+	if err := os.WriteFile(big, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(big, MaxFileBytes+1); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FAKE_SSH_ARGS", filepath.Join(t.TempDir(), "args"))
+	_, _, err := run(t, Options{Entries: []Entry{{big, filepath.Join(rh, "big")}}, LocalHome: lh})
+	wantRefusal(t, err, big)
+	if _, err := os.Stat(os.Getenv("FAKE_SSH_ARGS")); err == nil {
+		t.Fatal("ssh was called for an oversize file")
+	}
+	// exactly at the cap is accepted
+	if err := os.Truncate(big, MaxFileBytes); err != nil {
+		t.Fatal(err)
+	}
+	if _, e, err := run(t, Options{Entries: []Entry{{big, filepath.Join(rh, "big")}}, LocalHome: lh}); err != nil {
+		t.Fatalf("file at the cap refused: %v %s", err, e)
+	}
+}
+
+func TestOversizeTotalRefused(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	var es []Entry
+	for i := 0; i*MaxFileBytes <= MaxTotalBytes; i++ {
+		p := filepath.Join(lh, fmt.Sprintf("f%02d", i))
+		if err := os.WriteFile(p, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Truncate(p, MaxFileBytes); err != nil {
+			t.Fatal(err)
+		}
+		es = append(es, Entry{p, filepath.Join(rh, fmt.Sprintf("f%02d", i))})
+	}
+	_, _, err := run(t, Options{Entries: es, LocalHome: lh, DryRun: true})
+	wantRefusal(t, err, "total size")
+}
+
+func TestOversizeListRefused(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "l.json")
+	body := append([]byte(`[{"src":"/a","dst":"/b"}]`), bytes.Repeat([]byte(" "), MaxListBytes)...) // valid JSON
+	if err := os.WriteFile(p, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadList(p)
+	wantRefusal(t, err, p)
+}
+
+func TestSSHTimeoutFailsAndPassesConnectTimeout(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	src := writeSrc(t, lh, ".env")
+	args := filepath.Join(t.TempDir(), "args")
+	t.Setenv("FAKE_SSH_ARGS", args)
+	t.Setenv("FAKE_SSH_HANG", "1")
+	start := time.Now()
+	_, e, err := run(t, Options{Entries: []Entry{{src, filepath.Join(rh, ".env")}}, LocalHome: lh, Timeout: 300 * time.Millisecond})
+	if !errors.Is(err, ErrFailed) || !strings.Contains(e, "timed out") {
+		t.Fatalf("err=%v stderr=%q", err, e)
+	}
+	if d := time.Since(start); d > 10*time.Second {
+		t.Fatalf("hung for %s", d)
+	}
+	a, _ := os.ReadFile(args)
+	for _, want := range []string{"BatchMode=yes", "ConnectTimeout=10", "ServerAliveInterval=5"} {
+		if !strings.Contains(string(a), want) {
+			t.Fatalf("ssh args %q missing %s", a, want)
+		}
+	}
+}
+
+func TestDstExistingDirectoryFails(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	src := writeSrc(t, lh, ".env")
+	dst := filepath.Join(rh, "adir")
+	if err := os.Mkdir(dst, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_, e, err := run(t, Options{Entries: []Entry{{src, dst}}, LocalHome: lh})
+	if !errors.Is(err, ErrFailed) || !strings.Contains(e, "dst is a directory") {
+		t.Fatalf("err=%v stderr=%q", err, e)
+	}
+	if ents, _ := os.ReadDir(dst); len(ents) != 0 {
+		t.Fatalf("wrote into the directory: %v", ents)
 	}
 }

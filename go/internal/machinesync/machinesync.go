@@ -4,6 +4,7 @@ package machinesync
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,18 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
+	"time"
+)
+
+// Size and time bounds. A secret file larger than MaxFileBytes, a run larger than MaxTotalBytes or a list file larger
+// than MaxListBytes is refused (exit 2). Every ssh call is killed after DefaultTimeout unless Options.Timeout is set.
+const (
+	MaxFileBytes   = 1 << 20
+	MaxTotalBytes  = 16 << 20
+	MaxListBytes   = 1 << 20
+	DefaultTimeout = 60 * time.Second
+	connectTimeout = "10"
 )
 
 // Entry is one allow-list item: absolute local src and absolute remote dst.
@@ -43,9 +56,17 @@ func ValidateMachine(name string) error {
 
 // LoadList reads the JSON allow-list: an array of {src, dst}.
 func LoadList(path string) ([]Entry, error) {
-	b, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, refuse("refused: cannot read list file %s", path)
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, MaxListBytes+1))
+	if err != nil {
+		return nil, refuse("refused: cannot read list file %s", path)
+	}
+	if len(b) > MaxListBytes {
+		return nil, refuse("refused: list file %s is larger than %d bytes", path, MaxListBytes)
 	}
 	var es []Entry
 	if err := json.Unmarshal(b, &es); err != nil {
@@ -65,30 +86,39 @@ func plainAbs(p string) bool {
 	return filepath.IsAbs(p) && filepath.Clean(p) == p && !strings.ContainsAny(p, "\n\r\x00")
 }
 
-// CheckSrc refuses anything but a regular, non-symlink file whose real path is under localHome.
+// CheckSrc refuses anything but a regular, non-symlink file of at most MaxFileBytes whose real path is under localHome.
 func CheckSrc(src, localHome string) error {
+	_, err := checkSrc(src, localHome)
+	return err
+}
+
+// checkSrc is CheckSrc returning the Lstat info, so the later read can prove it opened the same file (dev/ino).
+func checkSrc(src, localHome string) (os.FileInfo, error) {
 	if !plainAbs(src) {
-		return refuse("refused: src %s is not a clean absolute path", src)
+		return nil, refuse("refused: src %s is not a clean absolute path", src)
 	}
 	realHome, err := filepath.EvalSymlinks(localHome)
 	if err != nil {
-		return refuse("refused: cannot resolve local home %s", localHome)
+		return nil, refuse("refused: cannot resolve local home %s", localHome)
 	}
 	fi, err := os.Lstat(src)
 	if err != nil {
-		return refuse("refused: src %s cannot be read (missing?)", src)
+		return nil, refuse("refused: src %s cannot be read (missing?)", src)
 	}
 	if fi.Mode()&os.ModeSymlink != 0 {
-		return refuse("refused: src %s is a symlink", src)
+		return nil, refuse("refused: src %s is a symlink", src)
 	}
 	if !fi.Mode().IsRegular() {
-		return refuse("refused: src %s is not a regular file", src)
+		return nil, refuse("refused: src %s is not a regular file", src)
 	}
 	real, err := filepath.EvalSymlinks(src)
 	if err != nil || !under(real, realHome) {
-		return refuse("refused: src %s is outside the local home", src)
+		return nil, refuse("refused: src %s is outside the local home", src)
 	}
-	return nil
+	if fi.Size() > MaxFileBytes {
+		return nil, refuse("refused: src %s is larger than %d bytes", src, MaxFileBytes)
+	}
+	return fi, nil
 }
 
 // CheckDst refuses a dst that is not a clean absolute path under the remote home.
@@ -108,23 +138,39 @@ type Options struct {
 	Entries   []Entry
 	DryRun    bool
 	LocalHome string
+	Timeout   time.Duration // per ssh call; 0 means DefaultTimeout
 	Stdout    io.Writer
 	Stderr    io.Writer
 }
+
+// afterCheck runs between validation and the first read; tests use it to swap a src after it was checked.
+var afterCheck = func() {}
 
 // ErrFailed marks a copy/verify failure (CLI exit 1). Details were already written to Stderr, redacted.
 var ErrFailed = errors.New("copy failed")
 
 func shq(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
-// ssh runs `ssh -o BatchMode=yes <machine> -- <remote command>` with exec argv (no local shell).
-func ssh(machine, remote string, stdin io.Reader) (stdout, stderr []byte, err error) {
-	cmd := exec.Command("ssh", "-o", "BatchMode=yes", machine, "--", remote)
+// ssh runs `ssh -o BatchMode=yes -o ConnectTimeout=.. <machine> -- <remote command>` with exec argv (no local shell),
+// killed after o.Timeout. A timeout is reported as an error naming the limit.
+func ssh(o Options, remote string, stdin io.Reader) (stdout, stderr []byte, err error) {
+	timeout := o.Timeout
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout="+connectTimeout,
+		"-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3", o.Machine, "--", remote)
+	cmd.WaitDelay = 2 * time.Second // do not hang on pipes held open by a killed ssh's children
 	cmd.Stdin = stdin
-	var o, e bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &o, &e
+	var ob, eb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &ob, &eb
 	err = cmd.Run()
-	return o.Bytes(), e.Bytes(), err
+	if ctx.Err() == context.DeadlineExceeded {
+		err = fmt.Errorf("timed out after %s", timeout)
+	}
+	return ob.Bytes(), eb.Bytes(), err
 }
 
 // Redact replaces every line of text that contains the whole content or any line (4+ bytes) of it.
@@ -161,12 +207,19 @@ func Run(o Options) error {
 	if err := ValidateMachine(o.Machine); err != nil {
 		return err
 	}
-	for _, e := range o.Entries {
-		if err := CheckSrc(e.Src, o.LocalHome); err != nil {
+	infos := make([]os.FileInfo, len(o.Entries))
+	var total int64
+	for i, e := range o.Entries {
+		fi, err := checkSrc(e.Src, o.LocalHome)
+		if err != nil {
 			return err
 		}
+		infos[i] = fi
+		if total += fi.Size(); total > MaxTotalBytes {
+			return refuse("refused: total size of the list exceeds %d bytes (at src %s)", MaxTotalBytes, e.Src)
+		}
 	}
-	out, errb, err := ssh(o.Machine, `printf %s "$HOME"`, nil)
+	out, errb, err := ssh(o, `printf %s "$HOME"`, nil)
 	remoteHome := strings.TrimSpace(string(out))
 	if err != nil || !filepath.IsAbs(remoteHome) {
 		fmt.Fprintf(o.Stderr, "ssh %s: cannot read remote home: %v\n%s\n", o.Machine, err, bytes.TrimSpace(errb))
@@ -177,39 +230,67 @@ func Run(o Options) error {
 			return err
 		}
 	}
-	for _, e := range o.Entries {
+	afterCheck()
+	for i, e := range o.Entries {
 		if o.DryRun {
 			fmt.Fprintf(o.Stdout, "would copy %s -> %s\n", e.Src, e.Dst)
 			continue
 		}
-		if err := copyOne(o, e); err != nil {
+		if err := copyOne(o, e, infos[i]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func copyOne(o Options, e Entry) error {
-	content, err := os.ReadFile(e.Src)
+// readChecked opens src without following a final symlink, proves via fstat that the fd is the same regular file
+// (dev/ino) that checkSrc approved, and reads at most MaxFileBytes from that fd. A swapped src is refused.
+func readChecked(src string, checked os.FileInfo) ([]byte, error) {
+	f, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
-		fmt.Fprintf(o.Stderr, "cannot read %s\n", e.Src)
-		return ErrFailed
+		if errors.Is(err, syscall.ELOOP) {
+			return nil, refuse("refused: src %s became a symlink after the check", src)
+		}
+		return nil, refuse("refused: src %s cannot be opened", src)
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, refuse("refused: src %s cannot be inspected", src)
+	}
+	if !fi.Mode().IsRegular() || !os.SameFile(fi, checked) {
+		return nil, refuse("refused: src %s changed after the check (not the same regular file)", src)
+	}
+	b, err := io.ReadAll(io.LimitReader(f, MaxFileBytes+1))
+	if err != nil {
+		return nil, refuse("refused: src %s cannot be read", src)
+	}
+	if len(b) > MaxFileBytes {
+		return nil, refuse("refused: src %s is larger than %d bytes", src, MaxFileBytes)
+	}
+	return b, nil
+}
+
+func copyOne(o Options, e Entry, checked os.FileInfo) error {
+	content, err := readChecked(e.Src, checked)
+	if err != nil {
+		return err
 	}
 	tmp := e.Dst + ".sync-tmp"
 	// The remote script (a) finds the deepest existing ancestor of the dst dir and refuses when its real path is
 	// not under the real remote home (symlinked parents), (b) creates missing dirs 0700, (c) removes any stale
 	// temp file, creates a fresh one with noclobber (O_EXCL, 0600 via umask) and removes it on any failure.
-	remote := fmt.Sprintf(`umask 077; set -e; a=%s; while [ ! -d "$a" ]; do a=$(dirname "$a"); done; `+
+	remote := fmt.Sprintf(`umask 077; set -e; if [ -d %s ]; then echo "dst is a directory" >&2; exit 3; fi; a=%s; while [ ! -d "$a" ]; do a=$(dirname "$a"); done; `+
 		`h=$(cd "$HOME" && pwd -P); r=$(cd "$a" && pwd -P); `+
 		`case "$r/" in "$h"/*) ;; *) echo "dst resolves outside the remote home" >&2; exit 3;; esac; `+
 		`mkdir -p -m 700 %s; t=%s; rm -f "$t"; trap 'rm -f "$t"' EXIT; (set -C; cat > "$t"); mv -f "$t" %s`,
-		shq(filepath.Dir(e.Dst)), shq(filepath.Dir(e.Dst)), shq(tmp), shq(e.Dst))
-	_, errb, err := ssh(o.Machine, remote, bytes.NewReader(content))
+		shq(e.Dst), shq(filepath.Dir(e.Dst)), shq(filepath.Dir(e.Dst)), shq(tmp), shq(e.Dst))
+	_, errb, err := ssh(o, remote, bytes.NewReader(content))
 	if err != nil {
 		fmt.Fprintf(o.Stderr, "copy to %s failed: %v\n%s\n", e.Dst, err, bytes.TrimSpace(Redact(errb, content)))
 		return ErrFailed
 	}
-	sout, serr, err := ssh(o.Machine, "stat -c %a "+shq(e.Dst), nil)
+	sout, serr, err := ssh(o, "stat -c %a "+shq(e.Dst), nil)
 	if err != nil {
 		fmt.Fprintf(o.Stderr, "mode check failed for %s: stat failed: %v\n%s\n", e.Dst, err, bytes.TrimSpace(Redact(serr, content)))
 		return ErrFailed
