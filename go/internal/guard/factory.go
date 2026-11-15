@@ -400,6 +400,24 @@ func (a *Analyzer) broadRead(sub string, rest []string, assigns []string) error 
 			}
 			shown += " show"
 		case in(seconds, action):
+			// T-1617: a pm may list the tasks of its own goal, in exactly this spelling (same check as goal show)
+			if a.Role == "pm" && sub == "task" && action == "list" && (len(after) == 2 || len(after) == 3) {
+				gid := ""
+				if len(after) == 3 && after[1] == "--goal" {
+					gid = after[2]
+				} else if len(after) == 2 && strings.HasPrefix(after[1], "--goal=") {
+					gid = after[1][len("--goal="):]
+				}
+				if gid != "" {
+					own, err := ownGoal()
+					if err != nil {
+						return err
+					}
+					if own != "" && gid == own {
+						return nil
+					}
+				}
+			}
 			shown += " " + action
 		default:
 			return nil

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func fixture(t *testing.T, name string) string {
@@ -209,5 +210,66 @@ func TestUnknownMemClosesWithZeroFloor(t *testing.T) {
 	b.MemMB = s.MemMB
 	if d := Decide(b, c, Options{Role: "coder"}); d.OK {
 		t.Fatal("unknown memory must close the gate even with a floor of 0")
+	}
+}
+
+const psRecorded = `    1     0     0 Mon Nov  3 08:01:02 2026 /sbin/launchd
+  512     1   501 Sat Nov 15 20:45:16 2026 /opt/bin/claude --resume s-a --settings /x/settings/coder.json
+  600   512   501 Sat Nov 15 20:46:00 2026 node /opt/app dir/claude --session-id s-b
+99999 98765  1234 Wed Dec  2 23:59:59 2026 -zsh
+`
+
+func TestPsParse(t *testing.T) {
+	procs, err := ParsePs(psRecorded, time.UTC)
+	if err != nil || len(procs) != 4 {
+		t.Fatalf("ParsePs = %+v, %v", procs, err)
+	}
+	if p := procs[1]; p.Pid != 512 || p.Ppid != 1 || p.Uid != 501 || !p.Start.Equal(time.Date(2026, 11, 15, 20, 45, 16, 0, time.UTC)) ||
+		len(p.Argv) != 5 || p.Argv[0] != "/opt/bin/claude" || p.Argv[4] != "/x/settings/coder.json" {
+		t.Fatalf("two-digit day line = %+v", p)
+	}
+	if p := procs[0]; !p.Start.Equal(time.Date(2026, 11, 3, 8, 1, 2, 0, time.UTC)) || p.Argv[0] != "/sbin/launchd" {
+		t.Fatalf("one-digit (space padded) day line = %+v", p)
+	}
+	if p := procs[2]; p.Argv[1] != "/opt/app" || p.Argv[2] != "dir/claude" { // ps joins argv with spaces: split on spaces
+		t.Fatalf("command with spaces = %+v", p)
+	}
+	scan := ScanFrom(procs)
+	if !scan.Known || scan.Total != 1 || scan.PIDs[0] != 512 { // 600 is a child of 512
+		t.Fatalf("ScanFrom = %+v", scan)
+	}
+}
+
+func TestPsParseBadFails(t *testing.T) {
+	for name, out := range map[string]string{
+		"garbled lstart":  "  512     1   501 Xyz Nov 15 20:45:16 2026 claude\n",
+		"short line":      "  512     1\n",
+		"non-numeric pid": "abc 1 501 Sat Nov 15 20:45:16 2026 claude\n",
+		"no command gap":  "  512     1   501 Sat Nov 15 20:45:16 2026",
+		"good then bad":   psRecorded + "garbage line here\n",
+	} {
+		if procs, err := ParsePs(out, time.UTC); err == nil || procs != nil || !errors.Is(err, ErrUnparsable) {
+			t.Errorf("%s: ParsePs = %+v, %v; want ErrUnparsable and no list", name, procs, err)
+		}
+	}
+}
+
+func TestPsParseFailClosesGate(t *testing.T) {
+	d := DarwinFacts{Procs: func() ([]Proc, error) { return ParsePs("garbage\n", time.UTC) }}
+	if _, err := d.Processes(); err == nil {
+		t.Fatal("unparsable scan must be an error")
+	}
+	s := baseSnap()
+	s.Procs = ProcScan{} // unknown
+	s.StrictProcs = true
+	if dec := Decide(s, baseConfig(), Options{}); dec.Reason != "host processes unknown — gate closed" {
+		t.Fatalf("strict host, unknown scan: reason %q", dec.Reason)
+	}
+	var snap Snapshot
+	d.Run = func(string, ...string) (string, error) { return "", errors.New("down") }
+	d.Statfs = func(string) (int64, int64, string, string, error) { return 0, 0, "", "", errors.New("down") }
+	ApplyHostFacts(&snap, d, t.TempDir())
+	if !snap.StrictProcs {
+		t.Fatal("ApplyHostFacts must mark a strict host")
 	}
 }
