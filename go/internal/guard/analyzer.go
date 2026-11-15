@@ -40,6 +40,7 @@ type Analyzer struct {
 	skipPriv         bool
 	shellAssigns     []string // env assignments of the shell command being analysed (T-0331)
 	unitRule         bool     // HQ mode: block mutating systemctl (workers keep the factory unit rule)
+	hqDeny           bool     // HQ mode: the HQ deny rule (hqDeny table, T-1500)
 	text             string
 	ranFactory       bool
 	scrubWithFactory string
@@ -593,6 +594,11 @@ func (a *Analyzer) priv(words []string, depth int, piped bool, hstrs []string) e
 			if !strings.HasPrefix(x, "-") && in(UnitMutating, x) {
 				return &UnitBlock{Msg: "systemctl " + x}
 			}
+		}
+	}
+	if a.hqDeny {
+		if what := hqDenyHit(w, name, rest); what != "" {
+			return &HqDenyBlock{Msg: what}
 		}
 	}
 	if name == "find" {

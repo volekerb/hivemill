@@ -29,7 +29,7 @@ type pyCase struct {
 // would otherwise pass).
 var casesPerModule = map[string]int{
 	"test_worker_guard":         330,
-	"test_priv_guard":           572,
+	"test_priv_guard":           571,
 	"test_worker_guard_heredoc": 101,
 	"test_worker_guard_units":   113,
 	"test_worker_guard_reads":   152,
@@ -392,11 +392,11 @@ func TestShellScriptFilesAreRead(t *testing.T) {
 			t.Errorf("%q: err = %q, want it to name %q", c.cmd, err, c.why)
 		}
 	}
-	// HQ mode runs only the PRIV rule, through the same files
+	// HQ mode runs only the PRIV pass (PRIV, unit and HQ deny rules), through the same files
 	if err := Check("bash bad.sh", dir, "", true); !IsPrivBlock(err) {
 		t.Errorf("hq bash bad.sh: %v", err)
 	}
-	if err := Check("bash herdr.sh", dir, "", true); err != nil {
+	if err := Check("bash herdr.sh", dir, "", true); !IsHqDenyBlock(err) {
 		t.Errorf("hq bash herdr.sh: %v", err)
 	}
 }
