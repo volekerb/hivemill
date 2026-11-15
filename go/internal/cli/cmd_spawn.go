@@ -81,7 +81,7 @@ var newSessionID = func() string {
 func runSpawn(c *ctx, parsed any) (int, error) {
 
 	p := parsed.(spawnCmd)
-	if p.prompt == "-" || strings.HasPrefix(p.prompt, "@") || p.role == "coder" || p.role == "researcher" || p.role == "evaluator" || p.sandbox {
+	if p.prompt == "-" || strings.HasPrefix(p.prompt, "@") || p.role == "coder" || ((p.role == "qa" || p.role == "reviewer") && p.task != "") || p.role == "researcher" || p.role == "evaluator" || p.sandbox {
 		return 0, errDelegate
 	}
 	worker, del := callerIsWorker(c)
@@ -146,6 +146,11 @@ func runSpawn(c *ctx, parsed any) (int, error) {
 		return err
 	}
 	var scriptErr error
+	d.TaskGoal = f.Task.Goal
+	if d.Existing, err = spawnExisting(c, plan.Name); err != nil {
+		return 0, err
+	}
+	d.CheckStart = func() error { return scriptErr }
 	if host.client != nil && host.exe == "hc" {
 		host.client.SpawnHostExe = "hc"
 		d.SetRun = hcSetRun(c, host.client, f.RunDir, &scriptErr)
@@ -163,9 +168,6 @@ func runSpawn(c *ctx, parsed any) (int, error) {
 		return 0, nil
 	}
 	_, err = spawn.Exec(plan, d)
-	if scriptErr != nil {
-		return 0, dieErr(1, scriptErr.Error())
-	}
 	if err != nil {
 		var ref *spawn.WorktreeRefusal
 		switch {
@@ -196,7 +198,7 @@ func kickoffDelay(c *ctx) (time.Duration, error) {
 // agent env goes into a wrapper script under run/, never onto the hc argv. A script that cannot be written is kept in
 // *scriptErr and the start is pointed at a path that cannot run, so no agent starts without its env.
 func hcSetRun(c *ctx, cl *herdr.Client, runDir string, scriptErr *error) spawn.RunSettings {
-	getenv := func(k string) string { return envOf(c, k) }
+	getenv := func(k string) (string, bool) { return lookupEnv(c, k) }
 	live := liveSocketFn(c)
 	return func(cwd string, env []spawn.KV, name string) {
 		cl.RunCwd = cwd
@@ -205,7 +207,7 @@ func hcSetRun(c *ctx, cl *herdr.Client, runDir string, scriptErr *error) spawn.R
 			return
 		}
 		cl.RunTail = func(program string, post []string) []string {
-			tail, err := spawn.HCRunArgvTail(getenv("FACTORY_HC_SPAWN_SCRIPT_ROOT"), runDir, name, env, program, post, getenv, live)
+			tail, err := spawn.HCRunArgvTail(envOf(c, "FACTORY_HC_SPAWN_SCRIPT_ROOT"), runDir, name, env, program, post, getenv, live)
 			if err != nil {
 				*scriptErr = fmt.Errorf("hc spawn script: %w", err)
 				return []string{"sh", "/nonexistent/factory-hc-spawn-script-failed"}
@@ -455,3 +457,26 @@ func runRootOf(c *ctx) string { return filepath.Dir(filepath.Dir(c.deps.pyEntry(
 
 // needPython is errDelegate with the reason, for a log line and the tests.
 func needPython(why string) error { return fmt.Errorf("%s: %w", why, errDelegate) }
+
+func lookupEnv(c *ctx, k string) (string, bool) {
+	for _, kv := range c.deps.Environ {
+		if strings.HasPrefix(kv, k+"=") {
+			return kv[len(k)+1:], true
+		}
+	}
+	return "", false
+}
+
+// spawnExisting is the agents row of the name before this spawn (flagless, session_id), nil = none.
+func spawnExisting(c *ctx, name string) (*spawn.ExistingRow, error) {
+	var sid sql.NullString
+	var flagless sql.NullInt64
+	err := c.db.QueryRow("SELECT session_id, flagless FROM agents WHERE name=?", name).Scan(&sid, &flagless)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &spawn.ExistingRow{SessionID: sid.String, Flagless: flagless.Int64 != 0}, nil
+}

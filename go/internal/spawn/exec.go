@@ -83,6 +83,12 @@ type ExecDeps struct {
 	Worktree func() (string, error)
 	// KickoffDelay is FACTORY_KICKOFF_DELAY_S (2 when unset); SettleDelay is FACTORY_SHELL_SETTLE_S (1).
 	KickoffDelay, SettleDelay time.Duration
+	// TaskGoal is tasks.goal_id of the plan task (task_auto_start moves THAT goal), "" = none.
+	TaskGoal string
+	// CheckStart runs right after the start call; an error aborts the spawn before any later row, event or output.
+	CheckStart func() error
+	// TrustClone is trust_task_clone for a coder, qa or reviewer started in its own task worktree; nil = not ported.
+	TrustClone func(cwd string) error
 	// ScriptRoot is FACTORY_HC_SPAWN_SCRIPT_ROOT ("" = RunDir).
 	ScriptRoot string
 	// Live is stats["live"] of the gate decision (the spawn event's live count is Live+1).
@@ -183,7 +189,7 @@ func shellQuote(s string) string {
 }
 
 // HCSpawnScriptBody is the text _hc_write_spawn_script writes: env -i, PATH LANG TERM first, the rest sorted.
-func HCSpawnScriptBody(env []KV, program string, post []string, osEnv func(string) string, liveSocket func(string) bool) string {
+func HCSpawnScriptBody(env []KV, program string, post []string, osEnv func(string) (string, bool), liveSocket func(string) bool) string {
 	ex := HCAgentChildEnv(env, liveSocket)
 	pop := func(k, def string) string {
 		for i, kv := range ex {
@@ -194,8 +200,8 @@ func HCSpawnScriptBody(env []KV, program string, post []string, osEnv func(strin
 		}
 		return def
 	}
-	pick := func(k, def string) string {
-		if v := osEnv(k); v != "" {
+	pick := func(k, def string) string { // os.environ.get(k, def): a set but empty value is kept
+		if v, ok := osEnv(k); ok {
 			return v
 		}
 		return def
@@ -218,7 +224,7 @@ func HCSpawnScriptBody(env []KV, program string, post []string, osEnv func(strin
 }
 
 // HCWriteSpawnScript is _hc_write_spawn_script: writes the wrapper (mode 0700) and returns its path.
-func HCWriteSpawnScript(root, runDir, name string, env []KV, program string, post []string, osEnv func(string) string, liveSocket func(string) bool) (string, error) {
+func HCWriteSpawnScript(root, runDir, name string, env []KV, program string, post []string, osEnv func(string) (string, bool), liveSocket func(string) bool) (string, error) {
 	p, err := HCSpawnScriptPath(root, runDir, name)
 	if err != nil {
 		return "", err
@@ -233,7 +239,7 @@ func HCWriteSpawnScript(root, runDir, name string, env []KV, program string, pos
 }
 
 // HCRunArgvTail is _hc_run_argv_tail: `sh <script>` when the spawn env is set, else [program, post...].
-func HCRunArgvTail(root, runDir, name string, env []KV, program string, post []string, osEnv func(string) string, liveSocket func(string) bool) ([]string, error) {
+func HCRunArgvTail(root, runDir, name string, env []KV, program string, post []string, osEnv func(string) (string, bool), liveSocket func(string) bool) ([]string, error) {
 	if len(env) == 0 {
 		return append([]string{program}, post...), nil
 	}
@@ -247,14 +253,23 @@ func HCRunArgvTail(root, runDir, name string, env []KV, program string, post []s
 	return []string{"sh", p}, nil
 }
 
-// writeAtomic is write_atomic: tmp + rename, mode 0644.
-func writeAtomic(path, text string) error {
+// writeAtomic is write_atomic: a per-process temp file next to the target, chmod 0644, rename; the temp file is
+// removed when anything fails.
+func writeAtomic(path, text string) (err error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o777); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
-	tmp := path + ".tmp"
+	tmp := filepath.Join(filepath.Dir(path), fmt.Sprintf(".%s.%d.tmp", filepath.Base(path), os.Getpid()))
+	defer func() {
+		if err != nil {
+			_ = os.Remove(tmp) // best-effort: the write error is the result
+		}
+	}()
 	if err := os.WriteFile(tmp, []byte(text), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", tmp, err)
+	}
+	if err := os.Chmod(tmp, 0o644); err != nil { // WriteFile keeps the mode of a stale file
+		return fmt.Errorf("chmod %s: %w", tmp, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		return fmt.Errorf("rename %s: %w", tmp, err)
@@ -287,7 +302,9 @@ func Exec(plan SpawnPlan, d ExecDeps) (string, error) {
 		return "", ErrNotPorted // place() of a new herdr pane
 	case st.NeedWorktree && d.Worktree == nil:
 		return "", ErrNotPorted
-	case d.DB == nil || d.Host == nil || d.Now == nil:
+	case inList([]string{"coder", "qa", "reviewer"}, plan.Role) && plan.Task != "" && d.TrustClone == nil:
+		return "", ErrNotPorted // trust_task_clone writes the owner's claude trust entry
+	case d.DB == nil || d.Host == nil || d.Now == nil || d.Sleep == nil || d.Epoch == nil || d.Stdout == nil || (plan.Resume == "" && d.Send == nil):
 		return "", fmt.Errorf("exec: missing DB, host or clock")
 	}
 	out, err := execStart(plan, d)
@@ -317,6 +334,11 @@ func execStart(plan SpawnPlan, d ExecDeps) (string, error) {
 		}
 		cwd = wt
 	}
+	if d.TrustClone != nil && inList([]string{"coder", "qa", "reviewer"}, role) && plan.Task != "" {
+		if err := d.TrustClone(cwd); err != nil {
+			return "", fmt.Errorf("trust task clone %s: %w", cwd, err)
+		}
+	}
 	env := st.Env
 	var ws, tab, pane string
 	hc := d.HostExe == "hc"
@@ -333,7 +355,7 @@ func execStart(plan SpawnPlan, d ExecDeps) (string, error) {
 		}
 		d.Sleep(d.SettleDelay)
 	}
-	if err := writeAtomic(st.PromptPath, st.PromptText); err != nil {
+	if err := os.WriteFile(st.PromptPath, []byte(st.PromptText), 0o666); err != nil { // Python write_text: plain
 		return "", fmt.Errorf("write prompt %s: %w", st.PromptPath, err)
 	}
 	sid := sessionID(st.ClaudeArgs)
@@ -368,7 +390,7 @@ func execStart(plan SpawnPlan, d ExecDeps) (string, error) {
 			return "", fmt.Errorf("update task %s: %w", plan.Task, err)
 		}
 	}
-	if err := d.taskAutoStart(plan.Task, "spawn "+name, role, plan.Goal); err != nil {
+	if err := d.taskAutoStart(plan.Task, "spawn "+name, role, d.TaskGoal); err != nil {
 		return "", err
 	}
 	startArgs := []string{"agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout", StartTimeoutMS, "--"}
@@ -393,6 +415,11 @@ func execStart(plan SpawnPlan, d ExecDeps) (string, error) {
 		}
 	}
 	clear()
+	if d.CheckStart != nil {
+		if err := d.CheckStart(); err != nil {
+			return "", err
+		}
+	}
 	switch {
 	case d.AsyncStart && startErr != "" && !pendingErr(startErr):
 		if err := d.event("agent", name, "start-failed", pyJSON("pane", pane, "error", truncRunes(startErr, 300))); err != nil {

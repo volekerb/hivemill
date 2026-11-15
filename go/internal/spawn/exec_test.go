@@ -76,7 +76,7 @@ func startPlan(t *testing.T, dir string) SpawnPlan {
 
 func deps(db *sql.DB, h Host, out *bytes.Buffer) ExecDeps {
 	return ExecDeps{DB: db, Host: h, Now: fixedNow, Epoch: func() float64 { return 5 }, Sleep: func(time.Duration) {},
-		HostExe: "hc", Stdout: out}
+		HostExe: "hc", Stdout: out, Send: func(to, subject, body, kind, goal, task string) error { return nil }}
 }
 
 func count(t *testing.T, db *sql.DB, q string, args ...any) int {
@@ -120,7 +120,9 @@ func TestExecHCStart(t *testing.T) {
 	db, h, out := newExecDB(t), &fakeHost{startRes: map[string]any{"ok": true}}, &bytes.Buffer{}
 	db.Exec("INSERT INTO tasks(id,goal_id,status,attempts) VALUES('T-1','G-1','todo',0)")
 	db.Exec("INSERT INTO goals(id,status) VALUES('G-1','planning')")
-	n, err := Exec(startPlan(t, dir), deps(db, h, out))
+	dd := deps(db, h, out)
+	dd.TaskGoal = "G-1"
+	n, err := Exec(startPlan(t, dir), dd)
 	if err != nil || n != "claude-pm-t-1" {
 		t.Fatalf("Exec = %q, %v", n, err)
 	}
@@ -279,9 +281,12 @@ func TestApplyQueue(t *testing.T) {
 
 func TestHCSpawnScript(t *testing.T) {
 	env := []KV{{"FACTORY_ROLE", "coder"}, {"GH_TOKEN", "x"}, {"HERDR_SOCKET_PATH", "/live"}, {"B", "it's"}, {"A", "1"}, {"PATH", "/p"}}
-	osEnv := func(k string) string { return map[string]string{"LANG": "en_US"}[k] }
+	osEnv := func(k string) (string, bool) {
+		v, ok := map[string]string{"LANG": "en_US", "TERM": ""}[k]
+		return v, ok
+	}
 	got := HCSpawnScriptBody(env, "claude", []string{"--model", "m", ""}, osEnv, func(s string) bool { return s == "/live" })
-	want := "#!/bin/sh\nexec env -i PATH=/p LANG=en_US TERM=dumb A=1 'B=it'\"'\"'s' FACTORY_ROLE=coder claude --model m ''\n"
+	want := "#!/bin/sh\nexec env -i PATH=/p LANG=en_US TERM= A=1 'B=it'\"'\"'s' FACTORY_ROLE=coder claude --model m ''\n"
 	if got != want {
 		t.Errorf("script:\n%q\nwant\n%q", got, want)
 	}
@@ -441,5 +446,69 @@ func TestWorktreeBranch(t *testing.T) {
 	s5.TaskClones, s5.Task = true, "T-14"
 	if _, err := PrepareWorktree(s5, d); !errors.Is(err, ErrNotPorted) {
 		t.Errorf("task clones: %v", err)
+	}
+}
+
+// TestExecReviewFindings: the flagless marker of the old row, an aborted start, the task's own goal and the
+// trust step of a task worktree.
+func TestExecReviewFindings(t *testing.T) {
+	dir := t.TempDir()
+	// flagless old row: cleared after a successful sync start, with the event
+	db, h := newExecDB(t), &fakeHost{startRes: map[string]any{}}
+	db.Exec("INSERT INTO agents(name,role,status,flagless) VALUES('claude-pm-t-1','pm','exited',1)")
+	d := deps(db, h, &bytes.Buffer{})
+	d.Existing = &ExistingRow{SessionID: "old", Flagless: true}
+	if _, err := Exec(startPlan(t, dir), d); err != nil {
+		t.Fatal(err)
+	}
+	var fl int
+	db.QueryRow("SELECT flagless FROM agents").Scan(&fl)
+	if fl != 0 || count(t, db, "SELECT count(*) FROM events WHERE action='flagless-cleared'") != 1 {
+		t.Errorf("flagless %d", fl)
+	}
+	// CheckStart error: nothing after the start call is written
+	db, h = newExecDB(t), &fakeHost{startRes: map[string]any{}}
+	d = deps(db, h, &bytes.Buffer{})
+	d.CheckStart = func() error { return errors.New("script boom") }
+	var out bytes.Buffer
+	d.Stdout = &out
+	if _, err := Exec(startPlan(t, dir), d); err == nil || !strings.Contains(err.Error(), "script boom") {
+		t.Fatalf("err = %v", err)
+	}
+	if out.Len() != 0 || count(t, db, "SELECT count(*) FROM events WHERE action IN ('spawn','start-uncertain')") != 0 {
+		t.Errorf("output or events after an aborted start: %q", out.String())
+	}
+	// goal auto-active follows the task's goal, not --goal
+	db, h = newExecDB(t), &fakeHost{startRes: map[string]any{}}
+	db.Exec("INSERT INTO tasks(id,goal_id,status) VALUES('T-1','G-1','todo')")
+	db.Exec("INSERT INTO goals(id,status) VALUES('G-1','planning'),('G-2','planning')")
+	d = deps(db, h, &bytes.Buffer{})
+	d.TaskGoal = "G-1"
+	p := startPlan(t, dir)
+	p.Goal = "G-2"
+	if _, err := Exec(p, d); err != nil {
+		t.Fatal(err)
+	}
+	var g1, g2 string
+	db.QueryRow("SELECT status FROM goals WHERE id='G-1'").Scan(&g1)
+	db.QueryRow("SELECT status FROM goals WHERE id='G-2'").Scan(&g2)
+	if g1 != "active" || g2 != "planning" {
+		t.Errorf("goals %s %s", g1, g2)
+	}
+	// a qa/coder/reviewer with a task needs the trust step: without it nothing runs
+	for _, role := range []string{"qa", "coder", "reviewer"} {
+		db, h = newExecDB(t), &fakeHost{}
+		p = startPlan(t, dir)
+		p.Role = role
+		if _, err := Exec(p, deps(db, h, &bytes.Buffer{})); !errors.Is(err, ErrNotPorted) || len(h.calls) != 0 || count(t, db, "SELECT count(*) FROM agents") != 0 {
+			t.Errorf("%s: err=%v calls=%v", role, err, h.calls)
+		}
+	}
+	// missing hooks are an error before any write
+	db = newExecDB(t)
+	d = deps(db, &fakeHost{}, &bytes.Buffer{})
+	d.Sleep = nil
+	if _, err := Exec(startPlan(t, dir), d); err == nil || errors.Is(err, ErrNotPorted) || count(t, db, "SELECT count(*) FROM agents") != 0 {
+		t.Errorf("nil Sleep: %v", err)
 	}
 }
