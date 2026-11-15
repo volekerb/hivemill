@@ -22,6 +22,50 @@ import ci_tier  # noqa: E402
 TIER = str(ROOT / "ci" / "ci_tier.py")
 BIN_SRC = "def cmd_other():\n    return 1\n\n\ndef cmd_judge():\n    return 1\n\n\ndef judge_pick():\n    return 1\n\n\ndef gate_x():\n    return 1\n"
 
+_GUARD_JOB_IF = "    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}"
+
+
+def docs_tier_job_skip_errors(text):
+    """Return errors when unittest-shard/go use job-level skip instead of step-level (T-1512)."""
+    errors = []
+    lines = text.splitlines(True)
+
+    def job_body(name):
+        start = next(i for i, line in enumerate(lines) if line in ("  %s:\n" % name, "  %s:" % name))
+        body = []
+        for line in lines[start + 1 :]:
+            if line.startswith("  ") and not line.startswith("   "):
+                break
+            body.append(line)
+        return "".join(body)
+
+    for job in ("unittest-shard", "go"):
+        body = job_body(job)
+        if "    steps:\n" not in body:
+            errors.append("%s: missing steps block" % job)
+            continue
+        header, steps = body.split("    steps:\n", 1)
+        if any(line.startswith("    if:") for line in header.splitlines()):
+            errors.append("%s has a job-level if" % job)
+        chunks = re.split(r"(?m)^      - ", steps)[1:]
+        if len(chunks) != 8:
+            errors.append("%s: expected 8 steps, got %d" % (job, len(chunks)))
+            continue
+        for i, chunk in enumerate(chunks, 1):
+            if "github.event_name != 'pull_request'" not in chunk:
+                errors.append("%s step %d missing pull_request gate" % (job, i))
+            if "needs.ci-tier.outputs.mode != 'docs'" not in chunk:
+                errors.append("%s step %d missing ci-tier docs gate" % (job, i))
+
+    for job in ("guard-unittest-shard", "guard-equiv"):
+        header = job_body(job).split("    steps:\n", 1)[0]
+        if _GUARD_JOB_IF not in header:
+            errors.append("%s missing guard job-level if" % job)
+        elif not any(line.startswith("    if:") for line in header.splitlines()):
+            errors.append("%s has no job-level if line" % job)
+
+    return errors
+
 
 def git(cwd, *args):
     harness.git("-c", "user.email=t@example.invalid", "-c", "user.name=t", *args, cwd=cwd)
@@ -295,6 +339,12 @@ class WorkflowTest(unittest.TestCase):
 
     def test_runners_are_free(self):
         self.assertEqual(set(re.findall(r"runs-on: (\S+)", self.wf)), {"ubuntu-latest"})
+
+    def test_docs_tier_required_jobs_skip_steps_not_the_job(self):
+        tests_yml = os.environ.get("TESTS_YML")
+        path = Path(tests_yml) if tests_yml else ROOT / ".github" / "workflows" / "tests.yml"
+        errors = docs_tier_job_skip_errors(path.read_text())
+        self.assertEqual(errors, [], errors)
 
 
 if __name__ == "__main__":
