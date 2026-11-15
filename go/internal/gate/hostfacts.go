@@ -42,6 +42,8 @@ type HostFacts interface {
 	TmpFloorMB() int64
 	// Strict hosts close the gate on an unreadable value; the Linux host keeps its historical delegate-to-Python path.
 	Strict() bool
+	// Processes lists the host's processes. An error means the scan failed or a line did not parse: never a partial list.
+	Processes() ([]Proc, error)
 }
 
 // ApplyHostFacts fills the host part of s. On a strict host a value that cannot be read closes the gate: no memory,
@@ -70,6 +72,7 @@ func ApplyHostFacts(s *Snapshot, h HostFacts, tmpDir string) []error {
 	s.Tmp = h.TmpUsage(tmpDir)
 	s.TmpMinFreeMB = h.TmpFloorMB()
 	s.StrictTmp = h.Strict()
+	s.StrictProcs = h.Strict()
 	if s.Tmp == nil && h.Strict() {
 		errs = append(errs, fmt.Errorf("tmp: unreadable"))
 	}
@@ -173,6 +176,14 @@ type DarwinFacts struct {
 	Run    Runner
 	CPUs   int
 	Statfs func(dir string) (total, free int64, fstype, mount string, err error)
+	Procs  func() ([]Proc, error) // the process scan; nil is an error
+}
+
+func (d DarwinFacts) Processes() ([]Proc, error) {
+	if d.Procs == nil {
+		return nil, fmt.Errorf("process scan: not configured")
+	}
+	return d.Procs()
 }
 
 func (d DarwinFacts) Strict() bool { return true }
