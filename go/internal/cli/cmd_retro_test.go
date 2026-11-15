@@ -59,7 +59,7 @@ const retroBody = `{"window_end": "2026-11-14T12:00:00+01:00", "causes": [{"caus
 
 func retroRig(t *testing.T, agent, role string) *p4cRig {
 	r := newP4cRig(t, agent, role)
-	r.env["FACTORY_NOW"] = "2026-11-14T12:00:00+01:00"
+	r.env["FACTORY_NOW"], r.env["TZ"] = "2026-11-14T12:00:00+01:00", "Europe/Berlin" // CI runs in UTC; the want text is +01:00
 	r.sql(retroFixtureSQL)
 	return r
 }
