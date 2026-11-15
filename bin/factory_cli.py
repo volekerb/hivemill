@@ -9703,6 +9703,81 @@ def trust_task_clone(con, task, wt, add=True):
     return res
 
 
+def git_hooks_refusal(clone):
+    """Names in <clone>/.git/hooks that a coder spawn must not run under: anything but *.sample files and a regular
+    pre-push whose text is the one install_pre_push_hook writes. A symlink or a directory counts. [] = clean."""
+    hooks = Path(clone) / ".git" / "hooks"
+    if hooks.is_symlink():
+        return ["hooks (symlink)"]
+    if not hooks.exists():
+        return []
+    try:
+        script = Path(__file__).resolve().parent.parent / "ci" / "pre_push_public_text.py"
+        body = (f"#!/bin/sh\n{PRE_PUSH_MARK}\n"
+                f"exec python3 {shlex.quote(str(script))} --home {shlex.quote(str(HOME))} \"$@\"\n")
+        bad = []
+        for f in sorted(hooks.iterdir()):
+            if f.is_symlink() or not f.is_file():
+                bad.append(f.name)
+            elif f.name.endswith(".sample"):
+                continue
+            elif f.name == "pre-push" and f.read_text() == body:
+                continue
+            else:
+                bad.append(f.name)
+        return bad
+    except (OSError, UnicodeDecodeError) as e:
+        return [f"hooks unreadable: {e}"]
+
+
+def git_hooks_guard(con, clone):
+    """False (after recording git-hooks-refused) when git_hooks_refusal(clone) finds anything. Event on every refusal,
+    director message at most once an hour. Deletes nothing: the operator inspects and removes the files."""
+    names = git_hooks_refusal(clone)
+    if not names:
+        return True
+    try:
+        event(con, "export", "-", "git-hooks-refused", json.dumps({"clone": str(clone), "files": names}))
+        last = con.execute("SELECT value FROM config WHERE key='last_git_hooks_refused_ts'").fetchone()
+        if not last or time.time() - float(last["value"]) >= 3600:
+            send(con, "director", "git hooks refused: " + ", ".join(names)[:80],
+                 f"{clone}/.git/hooks holds {', '.join(names)}: a coder session there would run it with the read-write token. "
+                 "Spawn refused, nothing deleted. Inspect the files, find who planted them, remove them, then spawn again.",
+                 "report", sender="factory")
+            con.execute("INSERT INTO config(key,value) VALUES('last_git_hooks_refused_ts',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (str(time.time()),))
+    except Exception:  # noqa: BLE001 — the spawn is refused either way
+        pass
+    return False
+
+
+def qa_clone_path(goal_id, task):
+    return WORKTREES / f"{goal_id}-{task}-qa"
+
+
+def prepare_qa_clone(con, t, task):
+    """T-1544: qa (read-only token) works in its own clone <goal>-<task>-qa, made from the PROJECT repo, never from the
+    coder clone (its config, hooks and alternates are worker-writable). tasks.worktree stays the coder clone."""
+    repo, base = t["repo_path"], t["base_branch"] or "main"
+    qa = qa_clone_path(t["goal_id"], task)
+    if qa.is_symlink() or (qa.exists() and (qa / ".git").is_symlink()):
+        die(f"spawn refused: {qa} is a symlink; remove it after finding who made it", 4)
+    if qa.exists():
+        if not (qa / ".git").is_dir():
+            die(f"spawn refused: {qa} exists but is not a clone; remove it, then spawn again", 4)
+        if not git_config_guard(con, qa):
+            con.commit()
+            die(f"spawn refused: git config in {qa} would run code: {', '.join(git_config_refusal(qa))}", 4)
+    else:
+        if not git_config_guard(con, repo):
+            con.commit()
+            die(f"spawn refused: git config in {repo} would run code: {', '.join(git_config_refusal(repo))}", 4)
+        make_task_clone(con, repo, qa, f"{t['branch'] or 'factory/' + task.lower()}-qa", base)
+    trust_task_clone(con, task, qa)
+    install_pre_push_hook(qa)
+    return str(qa)
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -9712,10 +9787,17 @@ def prepare_worktree(con, task, role):
     if not t or not t["repo_path"]:
         return None
     if t["worktree"] and Path(t["worktree"]).exists():
+        coder_git = Path(t["worktree"]) / ".git"
+        if role == "qa" and coder_git.is_dir() and not coder_git.is_symlink():
+            return prepare_qa_clone(con, t, task)  # a legacy worktree (.git is a file) keeps today's reuse
         if role == "coder" and t["branch"]:
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
+            if coder_git.is_dir() and not coder_git.is_symlink() and not git_hooks_guard(con, t["worktree"]):
+                con.commit()
+                die(f"spawn refused: {t['worktree']}/.git/hooks holds {', '.join(git_hooks_refusal(t['worktree']))} "
+                    "(only *.sample and the factory pre-push are allowed). Inspect and remove them, then spawn again.", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
         install_pre_push_hook(t["worktree"])
         return t["worktree"]
@@ -12952,6 +13034,29 @@ def clean_sandbox_dirs(con, pane_cwds, dry_run, root=None):
     return [r for r in rows if r not in kept], len(kept)  # kept dirs are counted, not listed, so a quiet run stays quiet
 
 
+def clean_qa_clone(con, t, panes, listed):
+    """T-1544: remove <goal>-<task>-qa after its coder clone went (the task is already merged/cancelled and has no live
+    agent). Same rules as a clone: direct non-symlink child of worktrees/, guard first, no live pane or agent cwd there.
+    Its refs are disposable (qa never pushes). None = nothing there, 'removed', else the reason it was kept."""
+    qa = qa_clone_path(t["goal_id"], t["id"])
+    if not (qa.exists() or qa.is_symlink()):
+        return None
+    root = WORKTREES.resolve()
+    if qa.is_symlink() or qa.parent.resolve() != root or os.path.realpath(qa) != str(qa) or not (qa / ".git").is_dir() or (qa / ".git").is_symlink():
+        return "qa kept: not a plain direct child"
+    if not git_config_guard(con, qa, always_event=True):
+        return "qa kept: git config refused"
+    why = protected_by(con, qa.resolve(), panes, listed)
+    if why:
+        return "qa kept: " + why.removeprefix("protected: ")
+    try:
+        shutil.rmtree(qa)
+    except OSError as e:
+        return "qa clone remove failed: " + str(e)[:80]
+    trust_task_clone(con, t["id"], qa, add=False)
+    return "removed"
+
+
 def cmd_clean(a):
     """Remove worktrees and branches of finished tasks, after safety checks that a squash merge defeats for git itself."""
     w = caller_is_worker()
@@ -12976,6 +13081,7 @@ def cmd_clean(a):
                          "LEFT JOIN projects p ON p.id=g.project_id ORDER BY t.id").fetchall():
         if t["worktree"]:
             known.add(Path(t["worktree"]).resolve())
+            known.add(qa_clone_path(t["goal_id"], t["id"]).resolve())  # a kept qa clone is not an orphan
         if not (t["worktree"] or t["branch"]):
             continue
         row = {"task": t["id"], "worktree": t["worktree"] or "", "branch": t["branch"] or "", "action": "skip", "reason": ""}
@@ -13014,6 +13120,11 @@ def cmd_clean(a):
                 gone.append("worktree")
             else:
                 err = "worktree remove failed: " + r.stderr.strip()[:80]
+        qa_note = clean_qa_clone(con, t, panes, listed) if "clone" in gone else None
+        if qa_note == "removed":
+            gone.append("qa clone")
+        elif qa_note and not qa_note.startswith("qa kept"):
+            err = err or qa_note
         if has_branch and err is None:
             r = _git(repo, "branch", "-D", t["branch"])
             if r.returncode == 0:
@@ -13025,6 +13136,8 @@ def cmd_clean(a):
             continue
         row["action"] = "removed"
         row["reason"] = f"removed {' + '.join(gone)}; {err}" if err else "merged and clean"
+        if qa_note and qa_note.startswith("qa kept"):
+            row["reason"] += "; " + qa_note
         event(con, "task", t["id"], "cleaned", {"worktree": str(wt) if ("worktree" in gone or "clone" in gone) else None,
                                                 "branch": t["branch"] if "branch" in gone else None})
     if not a.dry_run:
