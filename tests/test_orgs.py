@@ -295,6 +295,7 @@ class GoalAlertRoutingTests(FactoryTestCase):
         with e.load_factory() as f:
             con = f.db()
             e.seed_agent(f._rerun_name(con, "T-0001", "qa", self.SHA), "qa", goal="G-001", team=self.TEAM, task="T-0001", status="exited")
+            f._throttle_set(con, f._respawn_key("T-0001", self.SHA, "qa"), 1.0)  # T-1600: the alert is the second ending, after the one replacement
             f._review_alert_no_verdict(con, con.execute("SELECT * FROM tasks WHERE id='T-0001'").fetchone(), self.SHA, 1.0)
             con.commit()
         return {r["recipient"] for r in e.sql("SELECT recipient FROM messages WHERE subject LIKE 'review autospawn: qa ended%'")}
