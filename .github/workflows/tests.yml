@@ -266,7 +266,7 @@ jobs:
 
   # ci/guard_diff.py base-vs-PR on the real corpus for guard-path PRs (tool from the BASE commit), its own cap.
   # Steps skip when no guard path changed, so the job is green (not skipped) then.
-  # tests/ changes use ci/ci_tier affected/full modes like other test files; this job is not docs-gated.
+  # tests/ changes use ci/ci_tier affected/full modes like other test files. This job is docs-gated: the if below skips it when ci-tier mode is docs.
   guard-diff:
     name: guard-diff
     needs: ci-tier
