@@ -185,6 +185,7 @@ DEFAULT_CONFIG = {
     "max_five_hour_pct": "92",
     "max_seven_day_pct": "92",
     "nudge_cooldown_s": "120",
+    "cursor_kickoff_grace_s": "180",  # T-1599: a live cursor agent's kickoff message unread this long after the spawn is re-submitted once, that long again later the pane is relaunched fresh once, then one escalation; 0 = off
     "boss_wake_after_s": "900",    # tick step 3: boss pane is prompted only when an unread escalation/request is at least this old (T-1199)
     "boss_wake_cooldown_s": "1800",  # at most one boss wake per this many seconds (agents.last_nudge)
     "director_cycle_s": "900",
@@ -10789,6 +10790,25 @@ def _hc_cursor_submit(con, name, row_goal=None, row_task=None, prompt_ok=True):
     return False
 
 
+def kickoff_submit(con, name, kick, runtime, use_hc, goal=None, task=None, confirm=True):
+    """Type the kickoff into a pane-hosted agent and submit it. The spawn of a herdr-kind runtime and the tick's resend
+    (tick_cursor_kickoff) both call this one function. Cursor needs Enter after the prompt (C8). On hc, confirm=True
+    (the spawn) also waits for the turn to start and alerts the director when it does not (_hc_cursor_submit);
+    confirm=False (the tick) presses Enter once and never waits: the kickoff read mark is its confirmation.
+    Returns whether the prompt call succeeded."""
+    prompt_ok = herdr("agent", "prompt", name, kick, check=False) is not None
+    if prompt_ok:
+        con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
+    if use_hc and runtime == "cursor":
+        if confirm:
+            _hc_cursor_submit(con, name, goal, task, prompt_ok)  # a timed-out hc send may still have pasted the text
+        else:
+            herdr("agent", "send-keys", name, "Enter", check=False, timeout=HC_CURSOR_KEYS_TIMEOUT_S)
+    elif prompt_ok:
+        _cursor_enter_after_prompt(name, runtime, True)
+    return prompt_ok
+
+
 CURSOR_START_LOG_MAX_S = 600  # director lost alert names logs/<name>-cursor-start.log only within this after agents.started
 _CURSOR_START_LOG_ENV_KEYS = frozenset((*GH_SCRUB_ENV, *HC_SPAWN_DROP, "CURSOR_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"))
 
@@ -10993,13 +11013,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
              sender="factory")
         time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
-        prompt_ok = herdr("agent", "prompt", name, kick, check=False) is not None
-        if prompt_ok:
-            con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
-        if use_hc and runtime == "cursor":
-            _hc_cursor_submit(con, name, goal, task, prompt_ok)  # a timed-out hc send may still have pasted the text
-        elif prompt_ok:
-            _cursor_enter_after_prompt(name, runtime, True)
+        kickoff_submit(con, name, kick, runtime, use_hc, goal, task)
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
                                         "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
     print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}, kind={plan.herdr_kind}) in {pane} cwd={cwd}")
@@ -16748,6 +16762,10 @@ def _tick_u_recycle(con, st):
 
 def _tick_u_relaunches(con, st):
         tick_relaunches(con)
+        try:  # T-1599, after the stop fallback and the queued relaunches: those paths own their panes first
+            tick_cursor_kickoff(con)
+        except Exception as e:  # noqa: BLE001 — one bad agent row must not stop the tick
+            event(con, "tick", "cursor-kickoff", "cursor-kickoff-error", str(e)[:300])
 
 
 def _tick_u_util(con, st):
@@ -19160,6 +19178,138 @@ def tick_relaunches(con):
                      org=agent_org(con, r["name"]))
             except (Exception, SystemExit) as e2:  # noqa: BLE001
                 event(con, "agent", r["name"], "relaunch-alert-failed", {"to": to, "error": str(e2) or f"exit {getattr(e2, 'code', '?')}"})
+
+
+KICKOFF_WATCH_EVENTS = ("kickoff-resent", "kickoff-relaunch", "kickoff-escalated")
+KICKOFF_SQL = "recipient=? AND sender='factory' AND subject LIKE 'kickoff:%'"  # the message spawn sends with the kickoff
+
+
+def kickoff_unread(con, name):
+    """(latest kickoff message row, id of the one before it or None) when the agent's latest kickoff message is still
+    unread, else None. The read mark is the proof the agent accepted its kickoff: `factory inbox`, its first command,
+    sets it (runtime-neutral, no transcript or pane probing)."""
+    rows = con.execute(f"SELECT id, body, created, read_at FROM messages WHERE {KICKOFF_SQL} ORDER BY id DESC LIMIT 2",
+                       (name,)).fetchall()
+    if not rows or rows[0]["read_at"] or not rows[0]["body"]:
+        return None
+    return rows[0], (rows[1]["id"] if len(rows) > 1 else None)
+
+
+def _kickoff_watch_state(con, name):
+    """{action: {kickoff message id: event ts}} of the agent's kickoff-watch events (the check's only state)."""
+    out = {a: {} for a in KICKOFF_WATCH_EVENTS}
+    for e in con.execute("SELECT action, ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action IN (?,?,?) "
+                         "ORDER BY id", (name, *KICKOFF_WATCH_EVENTS)).fetchall():
+        try:
+            kick = json.loads(e["detail"])["kick"]
+        except (TypeError, ValueError, KeyError):
+            continue
+        out[e["action"]][kick] = e["ts"]
+    return out
+
+
+def kickoff_resend(con, r, kick):
+    """Re-submit kickoff text `kick` to live agent row `r` through the spawn's own submit function. Never waits."""
+    return kickoff_submit(con, r["name"], kick, _agent_runtime(r), _agent_host_exe(con, r) == "hc",
+                          r["goal_id"], r["task_id"], confirm=False)
+
+
+def relaunch_fresh_from_tick(con, r):
+    """Close live agent row `r`'s pane and start it fresh through relaunch_agent (the path `factory relaunch --fresh`
+    and the queued relaunches use): same slot, new session id, new kickoff message. The caller checked the gate.
+    Returns None on success, else the error text; never raises."""
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(err), contextlib.redirect_stderr(err):
+            relaunch_agent(con, r, force=True, fresh=True)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
+        return (err.getvalue().strip() or str(e) or f"exit {getattr(e, 'code', '?')}")[-500:]
+    return None
+
+
+def _kickoff_escalate(con, r, kick_id, host, idle_s, why):
+    """The one escalation per kickoff: to the agent's org director (the boss for a director)."""
+    to = "boss" if r["role"] == "director" else "director"
+    event(con, "agent", r["name"], "kickoff-escalated",
+          {"kick": kick_id, "to": to, "idle_s": idle_s, "host": host, "pane": r["pane_id"]})
+    send(con, to, f"{r['name']}: kickoff never accepted",
+         f"{r['name']} ({r['role']}, runtime cursor) has not read its kickoff message M{kick_id}: pane {r['pane_id']}, "
+         f"backend {host}, {idle_s} s idle since its first kickoff. {why} The tick does nothing more for this agent. "
+         f"Look at the pane, then stop it (factory stop {r['name']} --now) and respawn, or reassign task {r['task_id'] or '-'}.",
+         "escalation", r["goal_id"], r["task_id"], sender="tick", org=agent_org(con, r["name"]))
+
+
+def tick_cursor_kickoff(con):
+    """T-1599: catch a cursor pane whose kickoff prompt was never submitted (docs/runtimes.md). For every live cursor
+    agent whose latest kickoff message is unread more than cursor_kickoff_grace_s after the spawn:
+    1. re-submit the kickoff once per pane (event kickoff-resent);
+    2. still unread one grace after the resend: one fresh relaunch per agent, behind the spawn gate (kickoff-relaunch);
+    3. the relaunched pane unread after its own resend and grace, or the relaunch failed: one escalation
+       (kickoff-escalated), then nothing.
+    State is the events, keyed by the kickoff message id; a relaunch is recognised by an event on the kickoff before
+    the current one. Rows being stopped, queued for a relaunch or still starting belong to those paths and are skipped,
+    so a pane has one owner. Claude agents are never looked at."""
+    try:
+        grace = int(cfg(con, "cursor_kickoff_grace_s"))
+    except (TypeError, ValueError):
+        grace = int(DEFAULT_CONFIG["cursor_kickoff_grace_s"])
+    if grace <= 0:
+        return
+    clock = _ts(now())
+    relaunched = False
+    for r in con.execute("SELECT * FROM agents WHERE status='live' AND stop_requested_at IS NULL "
+                         "AND relaunch_requested_at IS NULL AND start_pending IS NULL").fetchall():
+        if _agent_runtime(r) != "cursor" or _spawn_args_row(r).get("launch") == "subprocess":
+            continue  # a headless subprocess has no pane to prompt or close
+        found = kickoff_unread(con, r["name"])
+        started = _ts(r["started"])
+        if not found or started is None or (clock - started).total_seconds() <= grace:
+            continue
+        k, prev = found
+        name, host = r["name"], _agent_host_exe(con, r)
+        seen = _kickoff_watch_state(con, name)
+        if k["id"] in seen["kickoff-escalated"]:
+            continue
+        after_relaunch = prev is not None and prev in seen["kickoff-relaunch"]
+        first = con.execute("SELECT created FROM messages WHERE id=?", (prev,)).fetchone() if after_relaunch else k
+        idle_s = int((clock - (_ts(first["created"]) or started)).total_seconds())
+        detail = {"kick": k["id"], "idle_s": idle_s, "host": host, "pane": r["pane_id"]}
+        if k["id"] in seen["kickoff-relaunch"]:  # a relaunch that left the row live without a new kickoff (e.g. a crash)
+            _kickoff_escalate(con, r, k["id"], host, idle_s, "A relaunch was started for it and did not finish.")
+            continue
+        resent = _ts(seen["kickoff-resent"].get(k["id"]))
+        if resent is None:
+            event(con, "agent", name, "kickoff-resent", {**detail, "prompt_ok": kickoff_resend(con, r, k["body"])})
+            continue
+        if (clock - resent).total_seconds() < grace:
+            continue
+        if after_relaunch:
+            _kickoff_escalate(con, r, k["id"], host, idle_s,
+                              "The kickoff was re-submitted, the pane relaunched fresh once and the kickoff re-submitted again.")
+            continue
+        if relaunched:
+            continue  # one relaunch per tick: each may wait for a TUI
+        ok, why, _ = gate(con, own_slot=True)  # the agent holds its slot; never close a pane the gate would queue
+        if not ok:
+            key = f"kickoff_relaunch_deferred:{name}"
+            last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+            if not last or time.time() - float(last["ts"]) >= 3600:
+                con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                            (key, str(time.time())))
+                event(con, "agent", name, "kickoff-relaunch-deferred", why)
+            continue
+        cur = con.execute("SELECT * FROM agents WHERE name=? AND status='live' AND stop_requested_at IS NULL "
+                          "AND relaunch_requested_at IS NULL", (name,)).fetchone()
+        if not cur:
+            continue  # a stop or a relaunch claimed the pane meanwhile
+        # the event first: a crash or failure must not loop the relaunch every minute
+        event(con, "agent", name, "kickoff-relaunch", {**detail, "old_sid": cur["session_id"]})
+        con.commit()
+        relaunched = True
+        msg = relaunch_fresh_from_tick(con, cur)
+        if msg:
+            event(con, "agent", name, "kickoff-relaunch-failed", msg)
+            _kickoff_escalate(con, cur, k["id"], host, idle_s, f"The fresh relaunch failed: {msg}")
 
 
 # ───────────────────────────── lessons ─────────────────────────────
