@@ -365,11 +365,6 @@ func spawnFacts(c *ctx, req spawn.Request, home string) (spawn.Facts, spawnHost,
 		return f, spawnHost{}, needPython("line 359")
 	}
 	f.WorkerStubExempt = herdr.IsTestStub() && !live
-	snap, gcfg, err := resSnapshot(c, c.env.Now())
-	if err != nil {
-		return f, spawnHost{}, err
-	}
-	f.Gate, f.GateConfig = snap, gcfg
 	f.RolesDir = filepath.Join(home, "roles") // ROLES_DIR = HOME / "roles"
 	if req.Role != "evaluator" {
 		if f.RoleSettingsTemplate, err = spawn.ReadText(filepath.Join(f.RolesDir, "settings", req.Role+".json.in")); err != nil {
@@ -403,7 +398,35 @@ func spawnFacts(c *ctx, req spawn.Request, home string) (spawn.Facts, spawnHost,
 	default:
 		_, exe = cl.TerminalBackendEffective()
 	}
+	if shapeDelegates(req, f, exe) {
+		return f, spawnHost{}, needPython("shape not ported")
+	}
+	// the gate snapshot reads the host (agent list): taken last, so a hand-over above has made no host call (M36655)
+	snap, gcfg, err := resSnapshot(c, c.env.Now())
+	if err != nil {
+		return f, spawnHost{}, err
+	}
+	f.Gate, f.GateConfig = snap, gcfg
 	return f, spawnHost{exe: exe, client: cl}, nil
+}
+
+// shapeDelegates is the plan.Start shape check of runSpawn (new worktree, sandbox, gh credential, evaluator, non-claude
+// runtime, non-hc host) decided from config alone, so it runs before the gate snapshot makes a host call. It is
+// conservative: any cursor runtime setting hands over. Python decides everything it hands over.
+func shapeDelegates(req spawn.Request, f spawn.Facts, exe string) bool {
+	switch {
+	case exe != "hc", req.Role == "evaluator":
+		return true
+	case spawn.SandboxWanted(req.Role, req.SandboxOptin, f.Config["sandbox_roles"]):
+		return true
+	case inList(strings.Split(f.Config["worker_gh_roles"], ","), req.Role):
+		return true
+	case strings.Contains(f.Config["agent_runtimes"], "cursor") || strings.TrimSpace(f.Config["cursor_pilot_roles"]) != "":
+		return true
+	case req.Cwd == "" && (req.Role == "coder" || req.Role == "qa" || req.Role == "reviewer"):
+		return true
+	}
+	return false
 }
 
 // spawnStaleCheck hands over a name whose previous row is done/exited with a pane (release_stale_pane).
