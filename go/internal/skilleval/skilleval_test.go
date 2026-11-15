@@ -1024,3 +1024,91 @@ func FuzzSplitLines(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, s string) { splitLines(s) })
 }
+
+func mkControl(t *testing.T, body string) string {
+	t.Helper()
+	d := filepath.Join(t.TempDir(), "marker")
+	if err := os.MkdirAll(filepath.Join(d, "skills", "marker"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d, "skills", "marker", "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func TestRegisterControlInsertsThenRefreshes(t *testing.T) {
+	db := newDB(t)
+	ctl := mkControl(t, "---\nname: marker\n---\nwrite the marker\n")
+	c1, err := RegisterControl(db, "2026-11-14T10:00:00+00:00", ctl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c1.ID != "C-0001" || c1.Key != scout.ControlKey || c1.Status != "triaged" || c1.InstallRisk.String != "prompt-only" ||
+		c1.Licence.String != "repo-owned" || c1.Sources != `["control"]` || len(c1.HeadSha.String) != 40 {
+		t.Fatalf("%+v", c1)
+	}
+	mustExec(t, db, "UPDATE scout_candidates SET status='dismissed' WHERE id='C-0001'")
+	if err := os.WriteFile(filepath.Join(ctl, "skills", "marker", "SKILL.md"), []byte("changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c2, err := RegisterControl(db, "2026-11-14T11:00:00+00:00", ctl)
+	if err != nil || c2.ID != "C-0001" || c2.Status != "triaged" || c2.HeadSha.String == c1.HeadSha.String || c2.LastSeen != "2026-11-14T11:00:00+00:00" {
+		t.Fatalf("%+v %v", c2, err)
+	}
+	if ok, _ := IsControl(db, "C-0001"); !ok {
+		t.Fatal("the reserved key marks the control")
+	}
+	var n int
+	if err := db.QueryRow("SELECT count(*) FROM scout_candidates").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("a refresh must not add a row: %d %v", n, err)
+	}
+}
+
+func TestControlQueuesBothConditions(t *testing.T) {
+	db := newDB(t)
+	api := newAPI(t)
+	tasks := mkTask(t, "print(1)\n")
+	out := &strings.Builder{}
+	env := &Env{Collector: Collector{TasksDir: tasks}, ControlDir: mkControl(t, "---\nname: marker\n---\nwrite the marker\n"),
+		Actor: "lead-1", Home: "/nonexistent-factory-home", Out: out, Api: api}
+	if err := env.Control(db, "t1"); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := QueryTrials(db, "ORDER BY id")
+	if err != nil || len(rows) != 2 || rows[0].Condition != "with" || rows[1].Condition != "without" || rows[0].Status != "pending" || rows[0].Author.String != "lead-1" {
+		t.Fatalf("%+v %v", rows, err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "C-0001: queued 2 trial(s); the tick starts them under the daily cap\n") || !strings.Contains(got, " vendored: ") ||
+		!strings.Contains(got, "C-0001 t1 with: trial 1 status=pending passed=- tokens=- wall_s=- skill_invoked=-\n") {
+		t.Fatalf("out %q", got)
+	}
+	if !strings.Contains(strings.Join(api.events, "|"), "queue:C-0001:2 trial(s) for 1 task(s)") {
+		t.Fatalf("events %q", api.events)
+	}
+	// a second control run reuses the vendored copy and queues nothing new
+	out.Reset()
+	if err := env.Control(db, "t1"); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); !strings.Contains(got, "already vendored: ") || !strings.Contains(got, "C-0001: already queued; nothing added\n") {
+		t.Fatalf("out %q", got)
+	}
+	// an unknown task and a missing one are refused with exit 2 and Python's text
+	var ee *ExitError
+	if err := env.QueueCandidate(db, "C-0001", "nope"); !errors.As(err, &ee) || ee.Code != 2 || ee.Msg != "unknown eval task nope; known: t1" {
+		t.Fatalf("%v", err)
+	}
+	if err := env.QueueCandidate(db, "x", ""); !errors.As(err, &ee) || ee.Msg != "usage: factory skilleval queue C-xxxx [--tasks all|task1,task2]" {
+		t.Fatalf("%v", err)
+	}
+	if err := env.QueueCandidate(db, "C-0042", "t1"); !errors.As(err, &ee) || ee.Msg != "no candidate C-0042" {
+		t.Fatalf("%v", err)
+	}
+	mustExec(t, db, "UPDATE scout_candidates SET status='needs-owner' WHERE id='C-0001'")
+	if err := env.QueueCandidate(db, "C-0001", "t1"); !errors.As(err, &ee) || ee.Code != 2 ||
+		ee.Msg != "C-0001 is not eligible for evaluation (install_risk 'prompt-only', status 'needs-owner'); only prompt-only candidates that are not needs-owner or dismissed are queued" {
+		t.Fatalf("%v", err)
+	}
+}

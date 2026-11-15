@@ -166,8 +166,11 @@ func RegisterControl(db *sql.DB, stamp, controlDir string) (scout.Candidate, err
 		return scout.Candidate{}, fmt.Errorf("register control candidate: %w", err)
 	}
 	c, ok, err := scout.GetCandidate(db, id)
-	if err != nil || !ok {
-		return scout.Candidate{}, fmt.Errorf("reload control candidate %s: %v", id, err)
+	if err != nil {
+		return scout.Candidate{}, fmt.Errorf("reload control candidate %s: %w", id, err)
+	}
+	if !ok {
+		return scout.Candidate{}, fmt.Errorf("reload control candidate %s: the row is gone", id)
 	}
 	return c, nil
 }
