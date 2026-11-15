@@ -1087,6 +1087,23 @@ class UnitBlock(PrivBlock):
     """Mutating systemctl (HQ mode) or systemd-run (every mode), T-0102 part D, director M2108."""
 
 
+class HqDenyBlock(PrivBlock):
+    """HQ mode only (T-1500): a command the boss/director/lead settings deny by prefix, in any spelling."""
+
+
+_HQ_HERDR_SUBS = [("server", "stop"), ("workspace", "close"), ("workspace", "create"), ("tab", "close"),
+                  ("tab", "create"), ("pane", "close"), ("pane", "split"), ("agent", "start")]
+_HQ_HC_SUBS = _HQ_HERDR_SUBS + [("kill",), ("rm",), ("run",)]
+# (command word basename, leading literal args): one row per roles/settings deny entry; the sync test in
+# tests/test_worker_guard_hq_deny.py checks the settings files against this table. herdr-core gets the hc rows.
+HQ_DENY = (
+    [("herdr", a) for a in _HQ_HERDR_SUBS]
+    + [("hc", a) for a in _HQ_HC_SUBS]
+    + [("herdr-core", a) for a in _HQ_HC_SUBS]
+    + [("claude", ()), ("gh", ("pr", "merge")), ("sqlite3", ())]
+)
+
+
 GH_VALUE_OPTS = {"-H", "--header", "-q", "--jq", "-t", "--template", "--hostname", "--cache", "-R", "--repo",
                  "-f", "--raw-field", "-F", "--field", "--input", "-X", "--method", "-p", "--preview"}
 GH_MUTATING = {"PUT", "PATCH", "POST", "DELETE"}
@@ -1382,6 +1399,35 @@ def is_herdr(word):
                 return True
         return False
     return False
+
+
+def hq_deny_hit(word, name, rest):
+    """What the HQ deny rule (T-1500) names for command word `word` (basename `name`) with args `rest`, else None.
+    The basename is compared exactly, no glob expansion (a dynamic command word is a declared HQ limit)."""
+    if name in ("herdr", "hc", "herdr-core"):
+        if is_stub(word):
+            return None
+        pos = [a for a in rest if not a.startswith("-")]
+        for w, args in HQ_DENY:
+            if w == name and tuple(pos[:len(args)]) == tuple(args):
+                return " ".join([name, *args])
+        return None
+    if name == "claude":
+        return "claude"
+    if name in ("npx", "bunx", "pnpx", "pnpm", "npm", "yarn", "node", "nodejs", "bun", "deno"):
+        try:
+            Analyzer.claude_launchers(None, name, rest)
+        except ClaudeBlock:
+            return "claude"
+        return None
+    if name == "gh":
+        pos, _method, _body = gh_parse(rest)
+        if pos[:2] == ["pr", "merge"]:
+            return "gh pr merge"
+        return None
+    if name == "sqlite3":
+        return "sqlite3"
+    return None
 
 
 def is_claude(word):
@@ -1682,6 +1728,7 @@ class Analyzer:
         self.skip_priv = False
         self.shell_assigns = []  # env assignments of the shell command being analysed (T-0331)
         self.unit_rule = False  # HQ mode: block mutating systemctl (workers keep the factory unit rule)
+        self.hq_deny = False  # HQ mode: the HQ deny rule (HQ_DENY table, T-1500)
         self.text = ""
         self.ran_factory = False
         self.may_create_before = False
@@ -2227,6 +2274,10 @@ class Analyzer:
             verb = next((a for a in rest if not a.startswith("-") and a in UNIT_MUTATING), None)
             if verb:
                 raise UnitBlock(f"systemctl {verb}")
+        if self.hq_deny:
+            what = hq_deny_hit(w, name, rest)
+            if what:
+                raise HqDenyBlock(what)
         if name == "find":
             for j, a in enumerate(rest):
                 if a in FIND_EXEC:
@@ -6002,6 +6053,7 @@ def check(cmd, cwd=None, role=None, hq=False):
     try:  # PRIV pass (the whole of HQ mode): parse trouble allows
         an = Analyzer(cwd, role, True)
         an.unit_rule = hq
+        an.hq_deny = hq
         an.pt = pt if hq else None
         an.script(cmd)
     except PrivBlock:
@@ -6535,6 +6587,10 @@ def main():
     except UnitBlock as e:
         sys.stderr.write(f"worker-guard: blocked (`{e}`): mutating systemctl/systemd-run is not allowed for "
                          "factory agents; the owner manages units (M2108)\n")
+        return 2
+    except HqDenyBlock as e:
+        sys.stderr.write(f"worker-guard: blocked: HQ deny rule: {e} is denied for boss, director and lead in every "
+                         "spelling (see roles/settings; use the factory CLI)\n")
         return 2
     except RepoProtBlock as e:
         sys.stderr.write(f"worker-guard: blocked (`{e}`): branch protection and repository settings are changed only by "
