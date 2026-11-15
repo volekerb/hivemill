@@ -249,6 +249,7 @@ INSERT INTO config(key,value) VALUES('retro_hour','6');
 INSERT INTO config(key,value) VALUES('retro_max_minutes','20');
 INSERT INTO config(key,value) VALUES('review_autospawn','off');
 INSERT INTO config(key,value) VALUES('review_reserved_slots','2');
+INSERT INTO config(key,value) VALUES('review_verdict_timeout_min','45');
 INSERT INTO config(key,value) VALUES('risk_tiers','off');
 INSERT INTO config(key,value) VALUES('sandbox_roles','');
 INSERT INTO config(key,value) VALUES('scout_enabled','0');

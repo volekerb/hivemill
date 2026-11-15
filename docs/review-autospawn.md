@@ -11,6 +11,9 @@ waiting for the lead's wake. Design: staff-engineer ADR M10886, "Parallel R+Q at
   eat into them. Slots already held by a live or starting reviewer/qa count toward the reserve, so the reserve never
   exceeds what review needs. It is carved from the existing cap: `max_live_agents` and every other `OWNER_CAP_KEYS` value are unchanged.
   Leads, judges and relaunches are not held back.
+- `review_verdict_timeout_min` (default `45`; `0` = off): with `review_autospawn=on`, a tick-started reviewer or QA that is live
+  this many minutes with no verdict gets a stop request (see [Ended without a verdict](#ended-without-a-verdict-one-replacement-then-the-alert-t-1600)).
+  Not an owner cap. Rollback: `factory config review_verdict_timeout_min 0`.
 
 ## What the tick does (step 2c)
 
@@ -50,11 +53,36 @@ verdicts and green CI). With the flag `off` the first-round pass starts review a
   (the stored, org-prefixed name, e.g. `claude-qa-t-0001-1234abcd`) nor a verdict of that role on the head, even when the other role already has a verdict. A head whose only verdict is under
   `REVIEW_VERDICT_GRACE_S` (300 s) and that has no tick-started agent waits, so a lead who is about to start the other half is not doubled.
 - **Ended without a verdict.** If a tick-started `<role>-<task>-<sha8>` row has ended with no verdict of its role on that head, the tick
-  sends one `request` to the lead (or director) and logs one `review-no-verdict` event, once per task, head and role. It starts no third agent.
+  first starts one replacement, and only when that one also ends with no verdict sends one `request` to the lead (or director) and logs
+  one `review-no-verdict` event, once per task, head and role. It starts no third agent. Details in the next section.
 - **Verdict bound to the started head.** The `review-autospawn` event stores the full head (`sha`). A `factory verdict --pass` whose `--sha`
   differs from the head that worker was started on is refused; a `--fail` without `--sha` is recorded on the started head. Verdicts of workers
   the lead spawned (no event) behave as before, as do those of a same-name worker the lead respawned after the tick's event (the event
   describes the earlier worker). No schema change; the merge gate is untouched.
+
+## Ended without a verdict: one replacement, then the alert (T-1600)
+
+A dead reviewer or QA used to park the PR until a human acted (the alert was the first and only step). Now, per task, head and role:
+
+1. **First ending** (the `<role>-<task>-<sha8>` row is not `queued`, `starting` or `live`, and no verdict of that role is on the head):
+   the re-run pass starts one replacement under the same name, through the same loop as any re-run role. The PR must still be open with
+   green CI, no coder live, and `gate()` open (agent cap, `review_reserved_slots`, memory, load and usage caps all apply). Events:
+   `review-autospawn` (as for every start; it binds the replacement's verdict to the head) and `review-respawn`
+   (`agent`, `role`, `head`). No mail. A closed gate or refused spawn logs the usual `review-autospawn-wait` / `review-autospawn-error`
+   and the replacement starts on a later tick. Throttle row `review-respawn:<task>:<head>:<role>` marks the replacement as used.
+2. **Second ending** (the replacement also ended with no verdict): the behaviour from before, one `review-no-verdict` event and one
+   `request` to the lead or director (throttle row `review-noverdict:<task>:<head>:<role>`); the tick starts no further agent of that
+   role on this head. A head that was already alerted before this rule existed gets no replacement.
+3. **Timeout** (`review_verdict_timeout_min`, default 45, `0` = off): a `live` reviewer or QA of an `in_review` task that the tick
+   started (it has a `review-autospawn` event on its head; first-round, combined and re-run agents alike) and that has been live longer
+   than the limit with no verdict of its role on that head (the combined agent: both verdicts) gets one stop request: a `STOP` decision
+   message, `stop_requested_at`, Esc and a nudge, events `stop-requested` (agent) and `review-verdict-timeout` (task). The tick's stop
+   fallback closes the pane after `stop_timeout_s` if it does not leave by itself. Once the row has ended, rule 1 or 2 applies on the
+   next tick. Agents a lead or director spawned are never stopped by this rule. The default is 15 times the median review + QA time.
+
+The merge gate is unchanged: a verdict of both roles on the merged head is still required, the replacement is a fresh, independent
+agent of the same role, and nothing is carried over or waived. Limit: while the other role's agent on the task is still queued,
+starting or live, the re-run pass does not look at the task, so the replacement starts when that agent ends.
 
 ## Judge autospawn needs both verdicts on the current head; wait events (T-1098)
 
