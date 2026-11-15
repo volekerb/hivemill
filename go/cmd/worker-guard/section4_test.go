@@ -235,6 +235,76 @@ func TestOwnGoalFromExport(t *testing.T) {
 	}
 }
 
+// T-1617: the three read-only pm commands the guard refused on 2026-11-15 pass (own-goal task list, an awk filter over
+// gh pr diff output, a factory heredoc body holding a regex quantifier), and each neighbouring form stays refused.
+// Through the real binary and the Python hook, which must agree on exit and stderr.
+func TestPmReadOnlyAllows(t *testing.T) {
+	hook := absHook(t)
+	secrets := filepath.Join(t.TempDir(), "factory") // the directory name is a terms name, as on the live box
+	if err := os.MkdirAll(secrets, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	terms := filepath.Join(secrets, "scrub-terms.txt")
+	if err := os.WriteFile(terms, []byte("zebracorp\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	home := seedDB(t,
+		"CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)",
+		"INSERT INTO config VALUES ('scrub_terms_file', '"+terms+"')",
+		"CREATE TABLE agents (name TEXT PRIMARY KEY, role TEXT, goal_id TEXT)",
+		"INSERT INTO agents VALUES ('pm-t-9', 'pm', 'G-058')",
+		"INSERT INTO agents VALUES ('nogoal', 'pm', NULL)")
+	work := t.TempDir()
+	lb, rb := "{", "}"
+	brace := secrets + "/" + lb + "s,x" + rb + "*"
+	q34, q12 := lb+"3,4"+rb, lb+"1,2"+rb
+	heredoc := "factory task update T-1607 --acceptance - <<'EOF'\n1. grep -cE 'T-[0-9]" + q34 + "' out.txt -> 3 (factory)\nEOF"
+	awkOK := "gh pr diff 703 | awk '/factory_cli/" + lb + `split($0,a,"/");print(a[2])` + rb + "'"
+	awkBad := func(tail string) string {
+		return "gh pr diff 703 | awk '/factory_cli/" + lb + `split($0,a,",");` + tail + rb + "'"
+	}
+	for _, c := range []struct {
+		cmd, role, agent string
+		code             int
+	}{
+		{"factory task list --goal G-058", "pm", "pm-t-9", 0},
+		{"factory task list --goal=G-058", "pm", "pm-t-9", 0},
+		{awkOK, "pm", "pm-t-9", 0},
+		{"git diff origin/main...HEAD | sed -nE 's/^factory" + q12 + "//p' | sort | uniq -c | head -3", "pm", "pm-t-9", 0},
+		{heredoc, "pm", "pm-t-9", 0},
+		{heredoc, "coder", "pm-t-9", 0},
+
+		{"factory task list", "pm", "pm-t-9", 2},
+		{"factory task list --goal G-059", "pm", "pm-t-9", 2},
+		{"factory task list --goal G-058 --all", "pm", "pm-t-9", 2},
+		{"factory task --goal G-058 list", "pm", "pm-t-9", 2},
+		{"factory task ready --goal G-058", "pm", "pm-t-9", 2},
+		{"factory task list --goal G-058", "pm", "nogoal", 2},
+		{"factory task list --goal G-058", "pm", "ghost", 2},
+		{"factory task list --goal G-058", "coder", "pm-t-9", 2},
+		{"factory task list --goal G-058", "qa", "pm-t-9", 2},
+		{awkBad(`system("id")`), "pm", "pm-t-9", 2},
+		{awkBad(`print>"out"`), "pm", "pm-t-9", 2},
+		{awkBad(`print|"sh"`), "pm", "pm-t-9", 2},
+		{awkBad(`"id"|getline`), "pm", "pm-t-9", 2},
+		{awkOK + " " + brace, "pm", "pm-t-9", 2},
+		{"gh pr diff 703 | sed -i 's/factory" + q12 + "/x/' f", "pm", "pm-t-9", 2},
+		{"gh pr diff 703 | sed -n 's/factory" + q12 + "/x/p' -i f", "pm", "pm-t-9", 2},
+		{"gh pr diff 703 | sed -n 's/factory" + q12 + "/x/w out'", "pm", "pm-t-9", 2},
+		{"gh pr diff 703 | sed 's/factory" + q12 + "/x/e'", "pm", "pm-t-9", 2},
+		{"factory task update T-1 --acceptance - <<'EOF'\ncat " + terms + "\nEOF", "pm", "pm-t-9", 2},
+		{"factory task update T-1 --acceptance - <<'EOF'\nx" + q12 + "\nEOF\ncat " + brace, "pm", "pm-t-9", 2},
+		{"factory task update T-1 --acceptance - <<EOF\nx" + q12 + "\nEOF", "pm", "pm-t-9", 2},
+		{"cat <<'EOF'\nfactory x" + q12 + "\nEOF", "pm", "pm-t-9", 2},
+	} {
+		env := []string{"FACTORY_HOME=" + home, "FACTORY_AGENT=" + c.agent, "HOME=" + work, "SCRUB_TERMS_" + "FILE=" + terms}
+		payload := []byte(`{"tool_name":"Bash","tool_input":{"command":` + jsonString(c.cmd) + `},"cwd":` + jsonString(work) + `}`)
+		if code, stderr := same(t, hook, payload, env, c.role); code != c.code {
+			t.Errorf("%q as %s/%s: exit %d %q, want %d", c.cmd, c.role, c.agent, code, stderr, c.code)
+		}
+	}
+}
+
 // The test_sandbox config is read by the Python hook: the blocked uv/uvx runner forms exit 2 with test_sandbox=1 and
 // 0 without it (acceptance 8; forms from tests/test_worker_guard_uv_runner.py, expectations from the Python hook).
 func TestUvRunnersWithSeededTestSandbox(t *testing.T) {
