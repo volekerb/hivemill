@@ -41,6 +41,8 @@ The main way to pick a runtime is the **org**, not `agent_runtimes`. An org is a
 | `claude` (default) | Claude Code | `claude-opus-5-5` | `claude-sonnet-5-5` (cleaner: Haiku) |
 | `cursor` | Cursor Agent | `grok-4.7-high` | `composer-2.5` |
 
+In the cursor org, qa runs on `grok-4.7-high` (owner decision 2026-11-15, G-058): QA is part of the review gate. The Cursor pane limit gate follows the role's model, so a `grok-4.7-high` usage limit also stops cursor qa spawns (they queue until the reset), not only the judgement roles. Running cursor qa agents keep the model they started with; new spawns get the new one.
+
 The skilleval `evaluator` always runs on Claude.
 
 - **Goals belong to one org** (`goals.org`). `factory goal new --org cursor ...` (default: the creating boss's org) · `factory goal list --org cursor` · `factory goal org G-031 claude` moves a goal: new spawns use the new org, and live agents finish under the old one.
