@@ -1,0 +1,1330 @@
+{
+ "gh": {
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:agent-skills created:>=2026-10-27 stars:>=25\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:agent-skills created:>=2026-10-27 stars:>=25",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:agent-skills pushed:>=2026-11-08 stars:>=200\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:agent-skills pushed:>=2026-11-08 stars:>=200",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-code created:>=2026-10-27 stars:>=25\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-code created:>=2026-10-27 stars:>=25",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-code pushed:>=2026-11-08 stars:>=200\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-code pushed:>=2026-11-08 stars:>=200",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-code-plugin created:>=2026-10-27 stars:>=25\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-code-plugin created:>=2026-10-27 stars:>=25",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-code-plugin pushed:>=2026-11-08 stars:>=200\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-code-plugin pushed:>=2026-11-08 stars:>=200",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-code-skills created:>=2026-10-27 stars:>=25\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-code-skills created:>=2026-10-27 stars:>=25",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-code-skills pushed:>=2026-11-08 stars:>=200\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-code-skills pushed:>=2026-11-08 stars:>=200",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-code-subagents created:>=2026-10-27 stars:>=25\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-code-subagents created:>=2026-10-27 stars:>=25",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-code-subagents pushed:>=2026-11-08 stars:>=200\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-code-subagents pushed:>=2026-11-08 stars:>=200",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-skills created:>=2026-10-27 stars:>=25\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-skills created:>=2026-10-27 stars:>=25",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "-X\u001fGET\u001fsearch/repositories\u001f-f\u001fq=topic:claude-skills pushed:>=2026-11-08 stars:>=200\u001f-f\u001fsort=stars\u001f-f\u001fper_page=30": {
+   "args": [
+    "-X",
+    "GET",
+    "search/repositories",
+    "-f",
+    "q=topic:claude-skills pushed:>=2026-11-08 stars:>=200",
+    "-f",
+    "sort=stars",
+    "-f",
+    "per_page=30"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"items\": [{\"full_name\": \"r1/skill-a\", \"stargazers_count\": 300, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"R1/Skill-A\", \"stargazers_count\": 301, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r2/no-manifest\", \"stargazers_count\": 100, \"pushed_at\": \"2026-11-01T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"r3/skill-b\", \"stargazers_count\": 30, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"license\": {\"spdx_id\": \"MIT\"}, \"default_branch\": \"main\"}, {\"full_name\": \"x/alpha\", \"stargazers_count\": 60, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"default_branch\": \"main\"}, {\"full_name\": \"not a repo\", \"stargazers_count\": 1}, \"junk\"]}"
+  },
+  "repos/ComposioHQ/awesome-claude-skills/commits/HEAD\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/ComposioHQ/awesome-claude-skills/commits/HEAD",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "9f91225bf85164ff2494802d6a6f7fbde5a93ef4\n"
+  },
+  "repos/ComposioHQ/awesome-claude-skills/readme?ref=9f91225bf85164ff2494802d6a6f7fbde5a93ef4\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/ComposioHQ/awesome-claude-skills/readme?ref=9f91225bf85164ff2494802d6a6f7fbde5a93ef4",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "- https://github.com/bulk/b00\n- https://github.com/bulk/b01\n- https://github.com/bulk/b02\n- https://github.com/bulk/b03\n- https://github.com/bulk/b04\n- https://github.com/bulk/b05\n- https://github.com/bulk/b06\n- https://github.com/bulk/b07\n- https://github.com/bulk/b08\n- https://github.com/bulk/b09\n- https://github.com/bulk/b10\n- https://github.com/bulk/b11\n- https://github.com/bulk/b12\n- https://github.com/bulk/b13\n- https://github.com/bulk/b14\n- https://github.com/bulk/b15\n- https://github.com/bulk/b16\n- https://github.com/bulk/b17\n"
+  },
+  "repos/VoltAgent/awesome-claude-code-subagents/commits/HEAD\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/VoltAgent/awesome-claude-code-subagents/commits/HEAD",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "eaedb422393e07bf942596babc826817b69bed95\n"
+  },
+  "repos/VoltAgent/awesome-claude-code-subagents/readme?ref=eaedb422393e07bf942596babc826817b69bed95\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/VoltAgent/awesome-claude-code-subagents/readme?ref=eaedb422393e07bf942596babc826817b69bed95",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "nothing here\n"
+  },
+  "repos/anthropics/claude-plugins-official": {
+   "args": [
+    "repos/anthropics/claude-plugins-official"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"anthropics/claude-plugins-official\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 900}"
+  },
+  "repos/anthropics/claude-plugins-official/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/anthropics/claude-plugins-official/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "15d0efacfdd828812d8bb782b7a044b879cbde0a\n"
+  },
+  "repos/anthropics/claude-plugins-official/contents/.claude-plugin/marketplace.json?ref=15d0efacfdd828812d8bb782b7a044b879cbde0a\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/anthropics/claude-plugins-official/contents/.claude-plugin/marketplace.json?ref=15d0efacfdd828812d8bb782b7a044b879cbde0a",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"plugins\": [{\"name\": \"alpha\", \"source\": {\"source\": \"github\", \"repo\": \"x/alpha\"}}, {\"name\": \"beta\", \"source\": \"./plugins/beta\"}, {\"name\": \"gamma\", \"source\": {\"source\": \"url\", \"url\": \"https://gitlab.com/g/g.git\"}}, {\"name\": \"delta\", \"source\": {\"source\": \"github\", \"url\": \"https://github.com/d/delta.git\", \"path\": \"sub/dir/\"}}, {\"name\": \"eps\", \"source\": \"../bad\"}, {\"name\": \"zeta\", \"source\": {\"repo\": \"missing/repo\"}}, {\"name\": \"eta\", \"source\": {\"v\": 1.0, \"n\": 2, \"t\": \"\\u00e9\"}}]}"
+  },
+  "repos/anthropics/claude-plugins-official/git/blobs/352704a3129cfd752fb842001ac48efa66b541b7\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/anthropics/claude-plugins-official/git/blobs/352704a3129cfd752fb842001ac48efa66b541b7",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/anthropics/claude-plugins-official/git/blobs/c2426577d880dd4ff8857da3bbf21ce5888623cb\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/anthropics/claude-plugins-official/git/blobs/c2426577d880dd4ff8857da3bbf21ce5888623cb",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "beta\n"
+  },
+  "repos/anthropics/claude-plugins-official/git/trees/15d0efacfdd828812d8bb782b7a044b879cbde0a?recursive=1": {
+   "args": [
+    "repos/anthropics/claude-plugins-official/git/trees/15d0efacfdd828812d8bb782b7a044b879cbde0a?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"15d0efacfdd828812d8bb782b7a044b879cbde0a\", \"tree\": [{\"path\": \"plugins/beta/SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"352704a3129cfd752fb842001ac48efa66b541b7\", \"size\": 43}, {\"path\": \"plugins/beta/README.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"c2426577d880dd4ff8857da3bbf21ce5888623cb\", \"size\": 5}, {\"path\": \"plugins/other/run.sh\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"276e6271207b2a18eae879680e7fdbe0e518b56f\", \"size\": 10}, {\"path\": \"plugins\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"f1fecb1905dba99ff9cd25260dc81c8daf1fe965\"}, {\"path\": \"plugins/beta\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"01f860a9157da60161c9f8615f158dc4ecb4454b\"}, {\"path\": \"plugins/other\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"431dea296e4163a86d67d81635819fd9f8f8f49a\"}], \"truncated\": false}"
+  },
+  "repos/anthropics/skills": {
+   "args": [
+    "repos/anthropics/skills"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"anthropics/skills\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 1000}"
+  },
+  "repos/anthropics/skills/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/anthropics/skills/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "8cec8d3e9cc76b745ff689d3d8cd2f5f36ffda90\n"
+  },
+  "repos/anthropics/skills/git/blobs/5a6d5839209d84e2b51230f694545813faa868e8\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/anthropics/skills/git/blobs/5a6d5839209d84e2b51230f694545813faa868e8",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/anthropics/skills/git/blobs/f461602902a591505eab74537b598fabbab36a51\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/anthropics/skills/git/blobs/f461602902a591505eab74537b598fabbab36a51",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/anthropics/skills/git/trees/8cec8d3e9cc76b745ff689d3d8cd2f5f36ffda90?recursive=1": {
+   "args": [
+    "repos/anthropics/skills/git/trees/8cec8d3e9cc76b745ff689d3d8cd2f5f36ffda90?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"8cec8d3e9cc76b745ff689d3d8cd2f5f36ffda90\", \"tree\": [{\"path\": \"skills/s1/SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"f461602902a591505eab74537b598fabbab36a51\", \"size\": 43}, {\"path\": \"skills/s2/SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"5a6d5839209d84e2b51230f694545813faa868e8\", \"size\": 43}, {\"path\": \"skills/s2/run.sh\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"1409f901b7ee69447680a507971c4f3a9b409bf8\", \"size\": 10}, {\"path\": \"skills/README.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"0cca8f154ebf7a2586071f38ae9260d62dcd5c9a\", \"size\": 1}, {\"path\": \"skills\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"adb864dcb1907914d083ecdfe21c280cfe84a9f0\"}, {\"path\": \"skills/s1\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"1fef93e1634cbfe28b816363ddc002c8a9f77d31\"}, {\"path\": \"skills/s2\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"e294d3a55f25afdc94f355a0b5938af7bd439055\"}], \"truncated\": false}"
+  },
+  "repos/bulk/b00": {
+   "args": [
+    "repos/bulk/b00"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b00\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 20}"
+  },
+  "repos/bulk/b00/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b00/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "1f52b1ffe8466e04b05f373a4dea2050b9ec34e9\n"
+  },
+  "repos/bulk/b00/git/blobs/4b9a8bff636e1226dc24753c3402fcb8a85dcb81\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b00/git/blobs/4b9a8bff636e1226dc24753c3402fcb8a85dcb81",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b00/git/trees/1f52b1ffe8466e04b05f373a4dea2050b9ec34e9?recursive=1": {
+   "args": [
+    "repos/bulk/b00/git/trees/1f52b1ffe8466e04b05f373a4dea2050b9ec34e9?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"1f52b1ffe8466e04b05f373a4dea2050b9ec34e9\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"4b9a8bff636e1226dc24753c3402fcb8a85dcb81\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b01": {
+   "args": [
+    "repos/bulk/b01"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b01\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 21}"
+  },
+  "repos/bulk/b01/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b01/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "da1a757a97da2368ecef13a88f460f4c03f27a2a\n"
+  },
+  "repos/bulk/b01/git/blobs/48926c608696cf8b72868381e0c2aeee5b2908a6\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b01/git/blobs/48926c608696cf8b72868381e0c2aeee5b2908a6",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b01/git/trees/da1a757a97da2368ecef13a88f460f4c03f27a2a?recursive=1": {
+   "args": [
+    "repos/bulk/b01/git/trees/da1a757a97da2368ecef13a88f460f4c03f27a2a?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"da1a757a97da2368ecef13a88f460f4c03f27a2a\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"48926c608696cf8b72868381e0c2aeee5b2908a6\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b02": {
+   "args": [
+    "repos/bulk/b02"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b02\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 22}"
+  },
+  "repos/bulk/b02/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b02/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "0fb627d0cf87362c2759e16a71d99eba2dc8314f\n"
+  },
+  "repos/bulk/b02/git/blobs/d1352653978e9c8cecab2b1fe2e9452b2cc60a61\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b02/git/blobs/d1352653978e9c8cecab2b1fe2e9452b2cc60a61",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b02/git/trees/0fb627d0cf87362c2759e16a71d99eba2dc8314f?recursive=1": {
+   "args": [
+    "repos/bulk/b02/git/trees/0fb627d0cf87362c2759e16a71d99eba2dc8314f?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"0fb627d0cf87362c2759e16a71d99eba2dc8314f\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"d1352653978e9c8cecab2b1fe2e9452b2cc60a61\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b03": {
+   "args": [
+    "repos/bulk/b03"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b03\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 23}"
+  },
+  "repos/bulk/b03/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b03/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "f1a867acc29011b05fce38a8167ae86214c71fea\n"
+  },
+  "repos/bulk/b03/git/blobs/9f85e9acfe4ddfecd4da6c0a9b8d3ade265fa6d3\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b03/git/blobs/9f85e9acfe4ddfecd4da6c0a9b8d3ade265fa6d3",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b03/git/trees/f1a867acc29011b05fce38a8167ae86214c71fea?recursive=1": {
+   "args": [
+    "repos/bulk/b03/git/trees/f1a867acc29011b05fce38a8167ae86214c71fea?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"f1a867acc29011b05fce38a8167ae86214c71fea\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"9f85e9acfe4ddfecd4da6c0a9b8d3ade265fa6d3\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b04": {
+   "args": [
+    "repos/bulk/b04"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b04\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 24}"
+  },
+  "repos/bulk/b04/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b04/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "682040130d51466050afc2238a95eac169728e6d\n"
+  },
+  "repos/bulk/b04/git/blobs/fd90db31ce28839fd25a75781eca6e8f4800e1e4\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b04/git/blobs/fd90db31ce28839fd25a75781eca6e8f4800e1e4",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b04/git/trees/682040130d51466050afc2238a95eac169728e6d?recursive=1": {
+   "args": [
+    "repos/bulk/b04/git/trees/682040130d51466050afc2238a95eac169728e6d?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"682040130d51466050afc2238a95eac169728e6d\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"fd90db31ce28839fd25a75781eca6e8f4800e1e4\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b05": {
+   "args": [
+    "repos/bulk/b05"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b05\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 25}"
+  },
+  "repos/bulk/b05/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b05/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "7c13c97422fec994763d17a1d7306cc6e4d289da\n"
+  },
+  "repos/bulk/b05/git/blobs/498214aef0219dc34c10267aee0ea7e05cb37d4e\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b05/git/blobs/498214aef0219dc34c10267aee0ea7e05cb37d4e",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b05/git/trees/7c13c97422fec994763d17a1d7306cc6e4d289da?recursive=1": {
+   "args": [
+    "repos/bulk/b05/git/trees/7c13c97422fec994763d17a1d7306cc6e4d289da?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"7c13c97422fec994763d17a1d7306cc6e4d289da\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"498214aef0219dc34c10267aee0ea7e05cb37d4e\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b06": {
+   "args": [
+    "repos/bulk/b06"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b06\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 26}"
+  },
+  "repos/bulk/b06/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b06/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "c5d0b4516dd9ce0cc0beb05b214b3a6c65e36ee1\n"
+  },
+  "repos/bulk/b06/git/blobs/e38d3578f2a82d1d1bb5fdfdcaa6a4bab82f76ba\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b06/git/blobs/e38d3578f2a82d1d1bb5fdfdcaa6a4bab82f76ba",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b06/git/trees/c5d0b4516dd9ce0cc0beb05b214b3a6c65e36ee1?recursive=1": {
+   "args": [
+    "repos/bulk/b06/git/trees/c5d0b4516dd9ce0cc0beb05b214b3a6c65e36ee1?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"c5d0b4516dd9ce0cc0beb05b214b3a6c65e36ee1\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"e38d3578f2a82d1d1bb5fdfdcaa6a4bab82f76ba\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b07": {
+   "args": [
+    "repos/bulk/b07"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b07\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 27}"
+  },
+  "repos/bulk/b07/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b07/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "6df27b84a1e13fc918eaeaf59d0819cad9f83308\n"
+  },
+  "repos/bulk/b07/git/blobs/68f93e6651abc990336fb91f015e2eacef2d26e5\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b07/git/blobs/68f93e6651abc990336fb91f015e2eacef2d26e5",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b07/git/trees/6df27b84a1e13fc918eaeaf59d0819cad9f83308?recursive=1": {
+   "args": [
+    "repos/bulk/b07/git/trees/6df27b84a1e13fc918eaeaf59d0819cad9f83308?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"6df27b84a1e13fc918eaeaf59d0819cad9f83308\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"68f93e6651abc990336fb91f015e2eacef2d26e5\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b08": {
+   "args": [
+    "repos/bulk/b08"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b08\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 28}"
+  },
+  "repos/bulk/b08/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b08/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "b50ea11eb075b88859fc50537578ff8527a3fb7b\n"
+  },
+  "repos/bulk/b08/git/blobs/5b377aff45a98c5afdf93b1f4c80ad0d42ba8192\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b08/git/blobs/5b377aff45a98c5afdf93b1f4c80ad0d42ba8192",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b08/git/trees/b50ea11eb075b88859fc50537578ff8527a3fb7b?recursive=1": {
+   "args": [
+    "repos/bulk/b08/git/trees/b50ea11eb075b88859fc50537578ff8527a3fb7b?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"b50ea11eb075b88859fc50537578ff8527a3fb7b\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"5b377aff45a98c5afdf93b1f4c80ad0d42ba8192\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b09": {
+   "args": [
+    "repos/bulk/b09"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b09\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 29}"
+  },
+  "repos/bulk/b09/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b09/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "4f287d78ce3804f3e5858f6a7bc1916dd6bf5573\n"
+  },
+  "repos/bulk/b09/git/blobs/d228e5ceb25dfdecababcf4089b03f9189268cc4\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b09/git/blobs/d228e5ceb25dfdecababcf4089b03f9189268cc4",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b09/git/trees/4f287d78ce3804f3e5858f6a7bc1916dd6bf5573?recursive=1": {
+   "args": [
+    "repos/bulk/b09/git/trees/4f287d78ce3804f3e5858f6a7bc1916dd6bf5573?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"4f287d78ce3804f3e5858f6a7bc1916dd6bf5573\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"d228e5ceb25dfdecababcf4089b03f9189268cc4\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b10": {
+   "args": [
+    "repos/bulk/b10"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b10\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 30}"
+  },
+  "repos/bulk/b10/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b10/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "93e24a03bd8cb8e23d811998baef03eb18a2609c\n"
+  },
+  "repos/bulk/b10/git/blobs/b9a7f1360de3eb483d5b8845a512549726800404\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b10/git/blobs/b9a7f1360de3eb483d5b8845a512549726800404",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b10/git/trees/93e24a03bd8cb8e23d811998baef03eb18a2609c?recursive=1": {
+   "args": [
+    "repos/bulk/b10/git/trees/93e24a03bd8cb8e23d811998baef03eb18a2609c?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"93e24a03bd8cb8e23d811998baef03eb18a2609c\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"b9a7f1360de3eb483d5b8845a512549726800404\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b11": {
+   "args": [
+    "repos/bulk/b11"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b11\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 31}"
+  },
+  "repos/bulk/b11/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b11/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "b1b6aa1d0adb28d9f26532b3b8f00965d3e5b457\n"
+  },
+  "repos/bulk/b11/git/blobs/4fb555684235af527e7bbc887462a1342f471288\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b11/git/blobs/4fb555684235af527e7bbc887462a1342f471288",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b11/git/trees/b1b6aa1d0adb28d9f26532b3b8f00965d3e5b457?recursive=1": {
+   "args": [
+    "repos/bulk/b11/git/trees/b1b6aa1d0adb28d9f26532b3b8f00965d3e5b457?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"b1b6aa1d0adb28d9f26532b3b8f00965d3e5b457\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"4fb555684235af527e7bbc887462a1342f471288\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b12": {
+   "args": [
+    "repos/bulk/b12"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b12\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 32}"
+  },
+  "repos/bulk/b12/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b12/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "66dbacdaf8fa14a61ce80484307f182e6dbb9990\n"
+  },
+  "repos/bulk/b12/git/blobs/3b53b0fd3352280ddda70e09533a69b93da44721\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b12/git/blobs/3b53b0fd3352280ddda70e09533a69b93da44721",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b12/git/trees/66dbacdaf8fa14a61ce80484307f182e6dbb9990?recursive=1": {
+   "args": [
+    "repos/bulk/b12/git/trees/66dbacdaf8fa14a61ce80484307f182e6dbb9990?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"66dbacdaf8fa14a61ce80484307f182e6dbb9990\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"3b53b0fd3352280ddda70e09533a69b93da44721\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b13": {
+   "args": [
+    "repos/bulk/b13"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b13\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 33}"
+  },
+  "repos/bulk/b13/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b13/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "a990f4aac97d028858a9b93b9b06ef5c90909c67\n"
+  },
+  "repos/bulk/b13/git/blobs/57d0970a622ce7f0c895bf975d606854d526ded1\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b13/git/blobs/57d0970a622ce7f0c895bf975d606854d526ded1",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b13/git/trees/a990f4aac97d028858a9b93b9b06ef5c90909c67?recursive=1": {
+   "args": [
+    "repos/bulk/b13/git/trees/a990f4aac97d028858a9b93b9b06ef5c90909c67?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"a990f4aac97d028858a9b93b9b06ef5c90909c67\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"57d0970a622ce7f0c895bf975d606854d526ded1\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b14": {
+   "args": [
+    "repos/bulk/b14"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b14\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 34}"
+  },
+  "repos/bulk/b14/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b14/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "1d7f8ead7ee4b3fa5684ee40a3be045a6dcf5a2e\n"
+  },
+  "repos/bulk/b14/git/blobs/ae6f180b1c372548a69755659c82d5586a810b50\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b14/git/blobs/ae6f180b1c372548a69755659c82d5586a810b50",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b14/git/trees/1d7f8ead7ee4b3fa5684ee40a3be045a6dcf5a2e?recursive=1": {
+   "args": [
+    "repos/bulk/b14/git/trees/1d7f8ead7ee4b3fa5684ee40a3be045a6dcf5a2e?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"1d7f8ead7ee4b3fa5684ee40a3be045a6dcf5a2e\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"ae6f180b1c372548a69755659c82d5586a810b50\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b15": {
+   "args": [
+    "repos/bulk/b15"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b15\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 35}"
+  },
+  "repos/bulk/b15/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b15/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "a1566b1aff445aaaed097ccd736e47812dc3f060\n"
+  },
+  "repos/bulk/b15/git/blobs/99603c159dfb8cccc103c2c8a34e995b78960c1f\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b15/git/blobs/99603c159dfb8cccc103c2c8a34e995b78960c1f",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b15/git/trees/a1566b1aff445aaaed097ccd736e47812dc3f060?recursive=1": {
+   "args": [
+    "repos/bulk/b15/git/trees/a1566b1aff445aaaed097ccd736e47812dc3f060?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"a1566b1aff445aaaed097ccd736e47812dc3f060\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"99603c159dfb8cccc103c2c8a34e995b78960c1f\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b16": {
+   "args": [
+    "repos/bulk/b16"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b16\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 36}"
+  },
+  "repos/bulk/b16/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b16/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "d667e60562db666d5d0fded96314bd102ee3e289\n"
+  },
+  "repos/bulk/b16/git/blobs/704976a314e7db045856dc49729a4dc70d8378b6\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b16/git/blobs/704976a314e7db045856dc49729a4dc70d8378b6",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b16/git/trees/d667e60562db666d5d0fded96314bd102ee3e289?recursive=1": {
+   "args": [
+    "repos/bulk/b16/git/trees/d667e60562db666d5d0fded96314bd102ee3e289?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"d667e60562db666d5d0fded96314bd102ee3e289\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"704976a314e7db045856dc49729a4dc70d8378b6\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/bulk/b17": {
+   "args": [
+    "repos/bulk/b17"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"bulk/b17\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 37}"
+  },
+  "repos/bulk/b17/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/bulk/b17/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "b26b361454754981cf01c31268171e6e8cc900f5\n"
+  },
+  "repos/bulk/b17/git/blobs/785ea8e4afd46d0fb084ba834037494f833a44e2\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/bulk/b17/git/blobs/785ea8e4afd46d0fb084ba834037494f833a44e2",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/bulk/b17/git/trees/b26b361454754981cf01c31268171e6e8cc900f5?recursive=1": {
+   "args": [
+    "repos/bulk/b17/git/trees/b26b361454754981cf01c31268171e6e8cc900f5?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"b26b361454754981cf01c31268171e6e8cc900f5\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"785ea8e4afd46d0fb084ba834037494f833a44e2\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/d/delta": {
+   "args": [
+    "repos/d/delta"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"d/delta\", \"default_branch\": \"main\", \"license\": null, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 5}"
+  },
+  "repos/d/delta/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/d/delta/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "5e3eae6c636ef1a04c71884d866a6a449c16cf7f\n"
+  },
+  "repos/d/delta/git/blobs/bb6f744d15b94195ef1700d40141f5ded8fa7209\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/d/delta/git/blobs/bb6f744d15b94195ef1700d40141f5ded8fa7209",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: d\nallowed-tools: Bash\n---\nbody\n"
+  },
+  "repos/d/delta/git/trees/5e3eae6c636ef1a04c71884d866a6a449c16cf7f?recursive=1": {
+   "args": [
+    "repos/d/delta/git/trees/5e3eae6c636ef1a04c71884d866a6a449c16cf7f?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"5e3eae6c636ef1a04c71884d866a6a449c16cf7f\", \"tree\": [{\"path\": \"sub/dir/SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"bb6f744d15b94195ef1700d40141f5ded8fa7209\", \"size\": 41}, {\"path\": \"sub/dir/notes.txt\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"5c109229a51477238ae30006a3a617d622e3a09e\", \"size\": 1}, {\"path\": \"sub\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"56a3e2eb4e4939ddb40a694af0d249ff7c6c3ed3\"}, {\"path\": \"sub/dir\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"8fc1f23bcfd260e9513f8501b029d89597a3fd8e\"}], \"truncated\": false}"
+  },
+  "repos/gone/missing": {
+   "args": [
+    "repos/gone/missing"
+   ],
+   "exit": 1,
+   "stderr": "gh: Not Found (HTTP 404)\nsecond line",
+   "stdout": null
+  },
+  "repos/h/hnrepo": {
+   "args": [
+    "repos/h/hnrepo"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"h/hnrepo\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 77}"
+  },
+  "repos/h/hnrepo/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/h/hnrepo/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "543f2eee05382d5694c57d72f6d6d4cc87761527\n"
+  },
+  "repos/h/hnrepo/git/blobs/ebc491a27054bc2494c225670fdf9d1c0409fba7\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/h/hnrepo/git/blobs/ebc491a27054bc2494c225670fdf9d1c0409fba7",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\nUse curl.\n"
+  },
+  "repos/h/hnrepo/git/trees/543f2eee05382d5694c57d72f6d6d4cc87761527?recursive=1": {
+   "args": [
+    "repos/h/hnrepo/git/trees/543f2eee05382d5694c57d72f6d6d4cc87761527?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"543f2eee05382d5694c57d72f6d6d4cc87761527\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"ebc491a27054bc2494c225670fdf9d1c0409fba7\", \"size\": 53}], \"truncated\": false}"
+  },
+  "repos/hesreallyhim/awesome-claude-code/commits/HEAD\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/hesreallyhim/awesome-claude-code/commits/HEAD",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "6e813cafb10d5053771d37871957fcef6e10f1c1\n"
+  },
+  "repos/hesreallyhim/awesome-claude-code/readme?ref=6e813cafb10d5053771d37871957fcef6e10f1c1\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/hesreallyhim/awesome-claude-code/readme?ref=6e813cafb10d5053771d37871957fcef6e10f1c1",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "See https://github.com/r1/skill-a and https://github.com/sponsors/foo and https://github.com/hesreallyhim/awesome-claude-code and https://github.com/l1/lib.git and https://github.com/r1/skill-a again.\n"
+  },
+  "repos/l1/lib": {
+   "args": [
+    "repos/l1/lib"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"l1/lib\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 12}"
+  },
+  "repos/l1/lib/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/l1/lib/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "ce62f08caefb252e7cfc208b74f020931b9cc89b\n"
+  },
+  "repos/l1/lib/git/blobs/1af44094502ac3d8988f3604791b36d88609187a\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/l1/lib/git/blobs/1af44094502ac3d8988f3604791b36d88609187a",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: a\n---\nhi\n"
+  },
+  "repos/l1/lib/git/trees/ce62f08caefb252e7cfc208b74f020931b9cc89b?recursive=1": {
+   "args": [
+    "repos/l1/lib/git/trees/ce62f08caefb252e7cfc208b74f020931b9cc89b?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"ce62f08caefb252e7cfc208b74f020931b9cc89b\", \"tree\": [{\"path\": \"agents/a.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"1af44094502ac3d8988f3604791b36d88609187a\", \"size\": 19}, {\"path\": \"agents\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"4958555bf74f361e0b478760f7c28ae2e4a37894\"}], \"truncated\": false}"
+  },
+  "repos/missing/repo": {
+   "args": [
+    "repos/missing/repo"
+   ],
+   "exit": 1,
+   "stderr": "gh: Not Found (HTTP 404)\nsecond line",
+   "stdout": null
+  },
+  "repos/r1/skill-a/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/r1/skill-a/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "b66314d5fe9cfd19c45e23a9cbad83a9978ec854\n"
+  },
+  "repos/r1/skill-a/git/blobs/173ead82b25dee34b7241a484351326bf0303930\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/r1/skill-a/git/blobs/173ead82b25dee34b7241a484351326bf0303930",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/r1/skill-a/git/trees/b66314d5fe9cfd19c45e23a9cbad83a9978ec854?recursive=1": {
+   "args": [
+    "repos/r1/skill-a/git/trees/b66314d5fe9cfd19c45e23a9cbad83a9978ec854?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"b66314d5fe9cfd19c45e23a9cbad83a9978ec854\", \"tree\": [{\"path\": \"SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"173ead82b25dee34b7241a484351326bf0303930\", \"size\": 43}], \"truncated\": false}"
+  },
+  "repos/r2/no-manifest/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/r2/no-manifest/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "a852fdf3a7ceb32549ab35e390468d15998e30ef\n"
+  },
+  "repos/r2/no-manifest/git/trees/a852fdf3a7ceb32549ab35e390468d15998e30ef?recursive=1": {
+   "args": [
+    "repos/r2/no-manifest/git/trees/a852fdf3a7ceb32549ab35e390468d15998e30ef?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"a852fdf3a7ceb32549ab35e390468d15998e30ef\", \"tree\": [{\"path\": \"README.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"44fef3c61276b919f6a4b2b397161922893dbbcb\", \"size\": 8}, {\"path\": \"main.go\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"54e0777156596bcd1e34272046ed89ba73bb5fc4\", \"size\": 12}], \"truncated\": false}"
+  },
+  "repos/r3/skill-b/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/r3/skill-b/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "7ccf6e3e49d00195173486731b0dc329a0162732\n"
+  },
+  "repos/r3/skill-b/git/blobs/926802306ca7fc2d52b7c0e509d67dc005a42d48\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/r3/skill-b/git/blobs/926802306ca7fc2d52b7c0e509d67dc005a42d48",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "hi"
+  },
+  "repos/r3/skill-b/git/blobs/e8e1caf14382fd1d5e236cd1d941445962157015\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/r3/skill-b/git/blobs/e8e1caf14382fd1d5e236cd1d941445962157015",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "# b\n"
+  },
+  "repos/r3/skill-b/git/trees/7ccf6e3e49d00195173486731b0dc329a0162732?recursive=1": {
+   "args": [
+    "repos/r3/skill-b/git/trees/7ccf6e3e49d00195173486731b0dc329a0162732?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"7ccf6e3e49d00195173486731b0dc329a0162732\", \"tree\": [{\"path\": \"commands/c.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"926802306ca7fc2d52b7c0e509d67dc005a42d48\", \"size\": 2}, {\"path\": \"README.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"e8e1caf14382fd1d5e236cd1d941445962157015\", \"size\": 4}, {\"path\": \"commands\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"a6d83d5053a65049bce0229e55647ca3d68e8346\"}], \"truncated\": false}"
+  },
+  "repos/travisvn/awesome-claude-skills/commits/HEAD\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/travisvn/awesome-claude-skills/commits/HEAD",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "734242c2bb7b8db599b4c7069c0db40838f788dd\n"
+  },
+  "repos/travisvn/awesome-claude-skills/readme?ref=734242c2bb7b8db599b4c7069c0db40838f788dd\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/travisvn/awesome-claude-skills/readme?ref=734242c2bb7b8db599b4c7069c0db40838f788dd",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "https://github.com/r2/no-manifest https://github.com/gone/missing\n"
+  },
+  "repos/x/alpha": {
+   "args": [
+    "repos/x/alpha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"full_name\": \"x/alpha\", \"default_branch\": \"main\", \"license\": {\"spdx_id\": \"MIT\"}, \"pushed_at\": \"2026-11-09T00:00:00Z\", \"stargazers_count\": 50}"
+  },
+  "repos/x/alpha/commits/main\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/x/alpha/commits/main",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "414f3cd24e42757153ce20a123c3f4f4dee33344\n"
+  },
+  "repos/x/alpha/git/blobs/77d1b769174644c6968d6328a163e890c192ba6a\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/x/alpha/git/blobs/77d1b769174644c6968d6328a163e890c192ba6a",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "# alpha\n"
+  },
+  "repos/x/alpha/git/blobs/9c0325845b2d384c9c50c2642cac9d8899e30cfc\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/x/alpha/git/blobs/9c0325845b2d384c9c50c2642cac9d8899e30cfc",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"name\": \"alpha-plugin\"}"
+  },
+  "repos/x/alpha/git/blobs/fb594b4626848e4a42f17506cbf2958d6b55db28\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/x/alpha/git/blobs/fb594b4626848e4a42f17506cbf2958d6b55db28",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "repos/x/alpha/git/trees/414f3cd24e42757153ce20a123c3f4f4dee33344?recursive=1": {
+   "args": [
+    "repos/x/alpha/git/trees/414f3cd24e42757153ce20a123c3f4f4dee33344?recursive=1"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "{\"sha\": \"414f3cd24e42757153ce20a123c3f4f4dee33344\", \"tree\": [{\"path\": \".claude-plugin/plugin.json\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"9c0325845b2d384c9c50c2642cac9d8899e30cfc\", \"size\": 24}, {\"path\": \"skills/a/SKILL.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"fb594b4626848e4a42f17506cbf2958d6b55db28\", \"size\": 43}, {\"path\": \"README.md\", \"mode\": \"100644\", \"type\": \"blob\", \"sha\": \"77d1b769174644c6968d6328a163e890c192ba6a\", \"size\": 8}, {\"path\": \".claude-plugin\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"7fa0328baa2d9bc39b1ab0049b3bb33c316060f7\"}, {\"path\": \"skills\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"1f575720ffc34d06cee23cf4da503e4d64d62d98\"}, {\"path\": \"skills/a\", \"mode\": \"040000\", \"type\": \"tree\", \"sha\": \"9a16ba4d9f056033ca02cbf1049ece4fefac7484\"}], \"truncated\": false}"
+  },
+  "repos/zhuyansen/awesome-claude-video-skills/commits/HEAD\u001f--jq\u001f.sha": {
+   "args": [
+    "repos/zhuyansen/awesome-claude-video-skills/commits/HEAD",
+    "--jq",
+    ".sha"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "b8f28b72409b2501072b301aa6828b1cc874dc3d\n"
+  },
+  "repos/zhuyansen/awesome-claude-video-skills/readme?ref=b8f28b72409b2501072b301aa6828b1cc874dc3d\u001f-H\u001fAccept: application/vnd.github.raw": {
+   "args": [
+    "repos/zhuyansen/awesome-claude-video-skills/readme?ref=b8f28b72409b2501072b301aa6828b1cc874dc3d",
+    "-H",
+    "Accept: application/vnd.github.raw"
+   ],
+   "exit": 0,
+   "stderr": "",
+   "stdout": "https://github.com/R3/Skill-B.\n"
+  }
+ },
+ "hn": {
+  "hits": [
+   {
+    "created_at_i": 1762700000,
+    "url": "https://github.com/h/hnrepo"
+   },
+   {
+    "created_at_i": 1762700100,
+    "url": "https://example.com/post"
+   },
+   {
+    "created_at_i": 1762700200,
+    "url": "https://github.com/L1/Lib"
+   },
+   {
+    "created_at_i": null,
+    "url": null
+   }
+  ]
+ }
+}
