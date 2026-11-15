@@ -530,14 +530,6 @@ func judgeMerge(c *ctx, j *judgeEnv, a judgeCmd, t judgeTask) error {
 	if len(merge.CfgSlugs(public)) > 0 {
 		return errDelegate
 	}
-	pr, err := j.prState(t.prURL)
-	if err != nil {
-		return judgeHard(err)
-	}
-	pr, waited, err := judgeWaitCI(c, j, t.prURL, pr)
-	if err != nil {
-		return err
-	}
 	gitRepo := j.home
 	if t.worktree.String != "" {
 		if st, err := os.Stat(t.worktree.String); err == nil && st.IsDir() {
@@ -556,6 +548,15 @@ func judgeMerge(c *ctx, j *judgeEnv, a judgeCmd, t judgeTask) error {
 		if !j.gitConfigClean(r, factoryURL) {
 			return errDelegate
 		}
+	}
+	// after the config check, which hands over without a single gh call
+	pr, err := j.prState(t.prURL)
+	if err != nil {
+		return judgeHard(err)
+	}
+	pr, waited, err := judgeWaitCI(c, j, t.prURL, pr)
+	if err != nil {
+		return err
 	}
 	parts := strings.Split(t.prURL, "/")
 	ownerRepo := ""
