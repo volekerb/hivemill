@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><title>Hivemill</title>
 <link rel="stylesheet" href="film.css">
 <style>
-  #gate { position: absolute; left: 0; top: 0; width: 1920px; height: 940px; }
+  #gate { position: absolute; left: 0; top: 0; width: 1920px; height: 940px; transform-origin: 960px 0; }
   #gate .title { position: absolute; left: 0; right: 0; top: 190px; text-align: center; font-size: 72px; }
   .stp { position: absolute; top: 420px; width: 300px; height: 150px; border-radius: 22px; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 14px; font-size: 34px; font-weight: 700; }
@@ -11,9 +11,9 @@
   .link { position: absolute; top: 494px; height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
   .link i { display: block; height: 100%; background: var(--success-solid); }
   #end { position: absolute; left: 0; top: 0; width: 1920px; height: 940px; }
-  #end img { position: absolute; left: 600px; top: 250px; width: 720px; height: 160px; }
-  #end .l1 { position: absolute; left: 0; right: 0; top: 470px; text-align: center; font-size: 44px; font-weight: 600; color: var(--ink-1); }
-  #end .l2 { position: absolute; left: 0; right: 0; top: 560px; text-align: center; }
+  #end img { position: absolute; left: 600px; top: 300px; width: 720px; height: 160px; }
+  #end .l1 { position: absolute; left: 0; right: 0; top: 520px; text-align: center; font-size: 44px; font-weight: 600; color: var(--ink-1); }
+  #end .l2 { position: absolute; left: 0; right: 0; top: 610px; text-align: center; }
   #end .l2 span { display: inline-block; font-family: var(--mono); font-size: 38px; color: var(--accent); padding: 18px 34px;
     border-radius: 16px; background: rgba(10,132,255,0.08); box-shadow: inset 0 0 0 1px rgba(10,132,255,0.45); }
 </style>
@@ -59,16 +59,17 @@
   });
 
   function seek(t) {
-    // Merge gate: each step lights in turn, the link to it fills first.
-    const g = prog(t, 0, 0.5);
-    const out = prog(t, 2.9, 3.4, easeInOut);
-    gate.style.opacity = (g * (1 - out)).toFixed(3);
-    gate.style.transform = tr(0, -40 * out);
+    // Merge gate: each step lights in turn, the link to it fills first. From local 0.45 s the gate
+    // shrinks to half size above the wordmark and stays there with the end card until the film ends.
+    const g = prog(t, 0, 0.3);
+    const sh = prog(t, 0.45, 0.95, easeInOut);
+    gate.style.opacity = g.toFixed(3);
+    gate.style.transform = tr(0, -50 * sh) + ' scale(' + lerp(1, 0.5, sh).toFixed(4) + ')';
     steps.forEach((s, i) => {
-      const at = 0.45 + i * 0.5;
-      const on = prog(t, at, at + 0.3, easeBack);
+      const at = 0.15 + i * 0.2;
+      const on = prog(t, at, at + 0.2, easeBack);
       const st = STEPS[i];
-      const a = prog(t, 0.1 + i * 0.08, 0.5 + i * 0.08);
+      const a = prog(t, i * 0.05, 0.3 + i * 0.05);
       s.d.style.opacity = a;
       s.d.style.transform = 'translateY(' + Math.round(20 * (1 - a)) + 'px)';
       s.d.style.background = on > 0.5 ? 'linear-gradient(180deg, rgb(' + st.bg + '), rgb(20,20,22))' : '';
@@ -78,11 +79,11 @@
       ck.style.background = on > 0.01 ? 'rgb(' + st.c + ')' : 'var(--track)';
       ck.style.transform = 'scale(' + (0.5 + 0.5 * Math.min(1.2, on)).toFixed(3) + ')';
       ck.querySelector('svg').style.opacity = Math.min(1, on);
-      if (s.link) s.link.querySelector('i').style.width = (100 * prog(t, at - 0.3, at)).toFixed(1) + '%';
+      if (s.link) s.link.querySelector('i').style.width = (100 * prog(t, at - 0.15, at)).toFixed(1) + '%';
     });
 
-    // End card.
-    const e1 = prog(t, 3.2, 4.0), e2 = prog(t, 3.6, 4.2), e3 = prog(t, 3.9, 4.5);
+    // End card: final from local 1.0 s (film 55 s) to the end; no fade-out.
+    const e1 = prog(t, 0.55, 0.9), e2 = prog(t, 0.65, 0.95), e3 = prog(t, 0.7, 1.0);
     const img = $('#end img');
     img.style.opacity = e1; img.style.transform = tr(0, 20 * (1 - e1));
     img.style.filter = 'blur(' + (8 * (1 - e1)).toFixed(2) + 'px)';
