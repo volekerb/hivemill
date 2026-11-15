@@ -41,9 +41,23 @@ qa and coder run with `rw_cwd=True` on a per-task clone (`git clone --shared`, o
 |---|---|
 | Read-write | the task's own clone (its `.git` included: commits, branches, `FETCH_HEAD`), `~/factory/db/`, the agent's `claude/` config dir, the private `$HOME` and `/tmp` tmpfs |
 | Read-only | `~/factory` including `~/factory/.git` (`config`, `hooks/`, `info/attributes`, `refs/`, `objects/`: every write fails with EROFS), the claude install, the agent's `bin/` and `gitconfig` |
-| Not visible | other tasks' clones (`~/factory/worktrees/` is masked; only the own clone is bound back), the owner's home, the user bus, the ssh-agent and multiplexer sockets (these are tested in `tests/test_workerbox.py`) |
+| Not visible | other tasks' clones, and for qa the coder's clone (`~/factory/worktrees/` is masked; only the own clone is bound back), the owner's home, the user bus, the ssh-agent and multiplexer sockets (these are tested in `tests/test_workerbox.py`) |
 
-The clone reads the shared objects through `<clone>/.git/objects/info/alternates`, so `git cat-file` of an object that exists only in `~/factory/.git/objects` works. New objects are written to the clone, never to `~/factory/.git`. `git push` and `git fetch` authenticate with the `credential.https://github.com.helper` of the agent's `gitconfig` (`username=x-access-token`, `password=$GH_TOKEN`: the rw token for coder, the read-only one for qa). The reviewer profile is unchanged: its cwd is read-only.
+The clone reads the shared objects through `<clone>/.git/objects/info/alternates`, so `git cat-file` of an object that exists only in `~/factory/.git/objects` works. New objects are written to the clone, never to `~/factory/.git`. `git push` and `git fetch` authenticate with the `credential.https://github.com.helper` of the agent's `gitconfig` (`username=x-access-token`, `password=$GH_TOKEN`: the rw token for coder, the read-only one for qa). The reviewer profile is unchanged: its cwd is the coder clone, read-only.
+
+**qa has its own clone (T-1544).** With `task_clones=1`, qa does not work in the coder's clone. `prepare_worktree` gives it `worktrees/<goal>-<task>-qa` (for example `G-010-T-1544-qa`), a sibling of the coder clone, made by the same `make_task_clone` from the project repo (never from the coder clone, whose config, hooks and alternates the coder can write), on branch `factory/<task>-qa` from `origin/<base>`. qa fetches `refs/pull/<n>/head` into it itself. It is reused on relaunch (the config guard runs first; a refusal exits 4) and never written to `tasks.worktree`, which stays the coder clone for judge, refresh, mech-merge, clean and `factory done`. A legacy worktree (`.git` is a file) keeps today's behaviour: qa reuses it. Why: qa holds only the read-only GitHub token but had write access to the clone the coder later runs `git commit`, `git push` and the tests in with the read-write token, so qa could plant `.git/hooks/*`, `core.hooksPath`, a credential helper or a Makefile and escalate to the rw token. In the qa sandbox `worktrees/` is masked, so the coder clone is not there at all (`tests/test_workerbox_clone.py` writes to its `.git/hooks`, `.git/config` and working tree: all fail with ENOENT; the qa clone's own writes work). A reviewer still sees the coder clone read-only (EROFS).
+
+| who writes the task clone | token | clone |
+|---|---|---|
+| coder (sandboxed or not) | read-write | `<goal>-<task>`, the only worker that writes it |
+| qa (sandboxed) | read-only | `<goal>-<task>-qa`, no access to the coder clone |
+| reviewer | read-only | `<goal>-<task>` read-only (`rw_cwd=False`) |
+| HQ (judge, refresh, mech-merge, spawn precheck) | owner or rw | `<goal>-<task>` through `git_run` after `git_config_guard` |
+| `factory clean` | owner | removes both clones after merge or cancel |
+
+**Coder spawn hook check.** `git_config_guard` reads config keys and `info/attributes`, not `hooks/`. Before a coder reuses an existing clone, `prepare_worktree` refuses the spawn (exit 4, event `git-hooks-refused` with the file names, director message at most once an hour) when `<clone>/.git/hooks/` holds anything other than `*.sample` files and a `pre-push` whose text is the one `install_pre_push_hook` writes. A symlink or a directory in `hooks/`, a `.git/commondir` file and a symlinked `.git` are refused too (the spawn exits 4). Nothing is deleted: inspect the files, find who planted them and remove them, then spawn again. Coders must not install git hooks. This also covers clones a qa worker wrote before qa got its own clone.
+
+**Unsandboxed qa is not fixed.** An unsandboxed qa runs as the owner uid: it can still write the coder clone and read the rw token file directly (residual risk 4 of the sandbox profile, R-c). The qa clone closes the hole for sandboxed qa only; keep `qa` in `sandbox_roles`.
 
 ### Go toolchain (T-1395)
 
@@ -199,7 +213,7 @@ The sandbox hides the owner's credentials and keeps code HQ runs read-only. It i
 4. see the pids and command lines of outside processes and kill same-uid processes (denial of service; no pid namespace, section 1);
 5. reach localhost and LAN TCP services (today DNS and `factory serve` on `203.0.113.5:8765`, which shows DB content the worker can read anyway) and the internet (network is on);
 6. read world-readable files outside `$HOME`;
-7. plant hooks or config in the git repository it works in. Unless per-task clones are used (`task_clones`), the worktree shares `~/factory/.git`, which is read-only inside the reviewer sandbox. A lead or the owner who runs plain `git` in a worker's clone would run what the worker planted there: see section 7.
+7. plant hooks or config in the git repository it works in. Unless per-task clones are used (`task_clones`), the worktree shares `~/factory/.git`, which is read-only inside the reviewer sandbox. With clones, qa plants only in its own `<goal>-<task>-qa` clone and the coder spawn refuses unknown `.git/hooks` files; only unsandboxed qa could still reach the coder clone. A lead or the owner who runs plain `git` in a worker's clone would run what the worker planted there: see section 7.
 
 A worker also cannot be assumed to be honest about its own state: the spawn refuses to start a listed role unsandboxed (fail closed), and escape detection (T-0174, merged) closes a sandboxed role's claude found in the host user namespace with event `sandbox-escaped` and alerts the director, so a bare `claude --resume` pane started by the multiplexer after a restart is caught.
 
