@@ -467,6 +467,9 @@ func srcExtract(gitExe, tarExe string, archiveArgs, paths []string, dest string,
 		arch.Wait() // reap; its exit status is the failure being reported
 		return fmt.Sprintf("%T: %v", err, err), 1
 	}
+	// The child tar holds its own copy of the read end. Drop ours so that if tar exits early, git archive sees a
+	// closed pipe (SIGPIPE) and ends at once instead of blocking until srcArchiveWait (Python: arch.stdout.close()).
+	pipe.Close()
 	terr := tar.Wait()
 	if tctx.Err() != nil {
 		cancelA()

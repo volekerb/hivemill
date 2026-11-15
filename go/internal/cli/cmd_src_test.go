@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"factory/go/internal/identity"
 )
@@ -221,4 +222,45 @@ func FuzzParseSrc(f *testing.F) {
 		parseSrc([]string{a, b, c})
 		parseSrc([]string{a, b, "--", c})
 	})
+}
+
+func writeStub(t *testing.T, body string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "stub")
+	if err := os.WriteFile(p, []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// TestSrcExtractTarExitsEarly: tar exits at once while git archive would write forever. The parent must close its
+// read end so git gets SIGPIPE; the result is immediate and carries the git-archive text, as Python's does.
+func TestSrcExtractTarExitsEarly(t *testing.T) {
+	gitStub := writeStub(t, "exec yes")
+	tarStub := writeStub(t, "echo boom >&2; exit 3")
+	done := make(chan struct{})
+	var why string
+	var rc int
+	go func() {
+		why, rc = srcExtract(gitStub, tarStub, nil, nil, t.TempDir(), nil)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatal("srcExtract stalled: archive pipe not closed after tar exited")
+	}
+	if rc != 1 || why != "git archive failed: " {
+		t.Fatalf("got rc=%d why=%q, want rc=1 why=%q", rc, why, "git archive failed: ")
+	}
+}
+
+// TestSrcExtractTarFails: git archive succeeds with no output, tar fails: the message is tar's stderr.
+func TestSrcExtractTarFails(t *testing.T) {
+	gitStub := writeStub(t, "exit 0")
+	tarStub := writeStub(t, "echo boom >&2; exit 3")
+	why, rc := srcExtract(gitStub, tarStub, nil, nil, t.TempDir(), nil)
+	if rc != 1 || why != "tar failed: boom" {
+		t.Fatalf("got rc=%d why=%q", rc, why)
+	}
 }
