@@ -1744,7 +1744,12 @@ def _host_ipc_result(exe, *args, check=False, timeout=HERDR_TIMEOUT_S):
     try:
         if exe == "hc":
             return _hc_parse_host_stdout(ipc_argv, out)
-        return json.loads(out.splitlines()[-1])["result"] if out else {}
+        if not out:
+            return {}
+        payload = json.loads(out.splitlines()[-1])
+        if not isinstance(payload, dict):  # plain pane text whose last line parses as JSON (7, 1.5, ["x"], null)
+            return {"raw": out}
+        return payload["result"]
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
 
@@ -1776,7 +1781,12 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     try:
         if exe == "hc":
             return _hc_parse_host_stdout(ipc_argv, out)
-        return json.loads(out.splitlines()[-1])["result"] if out else {}
+        if not out:
+            return {}
+        payload = json.loads(out.splitlines()[-1])
+        if not isinstance(payload, dict):  # plain pane text whose last line parses as JSON (7, 1.5, ["x"], null)
+            return {"raw": out}
+        return payload["result"]
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
 

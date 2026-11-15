@@ -73,6 +73,31 @@ class BroadReadTests(ReadsBase):
             with self.subTest(role=role):
                 self.blocked("factory goal list", role=role)
 
+    def test_pm_task_list_own_goal_allowed(self):
+        # T-1617: the pm of a goal may list that goal's tasks (denied to claude-pm-t-1603 on 2026-11-15)
+        for cmd in (f"factory task list --goal {OWN}", f"factory task list --goal={OWN}",
+                    f"factory task list --goal {OWN} | head -40"):
+            with self.subTest(cmd=cmd):
+                self.allowed(cmd, role="pm")
+
+    def test_pm_task_list_other_forms_blocked(self):
+        for cmd in ("factory task list", f"factory task list --goal {OTHER}", f"factory task list --goal={OTHER}",
+                    "factory task list --goal", "factory task list --goal=", "factory task list --goal $G",
+                    f"factory task list --goal {OWN} --all", f"factory task list --all --goal {OWN}",
+                    f"factory task list {OWN}", f"factory task --goal {OWN} list", f"factory task ready --goal {OWN}",
+                    f"factory goal list --goal {OWN}", f"factory task list --goal {OWN} {OTHER}"):
+            with self.subTest(cmd=cmd):
+                self.assertIn("broad factory reads", self.blocked(cmd, role="pm").stderr)
+        # fail closed: no agent, an unknown agent, an agent without a goal
+        for agent in (None, "ghost", "nogoal"):
+            with self.subTest(agent=agent):
+                self.blocked(f"factory task list --goal {OWN}", role="pm", agent=agent)
+
+    def test_task_list_own_goal_stays_blocked_for_other_roles(self):
+        for role in ("coder", "qa", "reviewer", "judge", "cleaner", None):
+            with self.subTest(role=role):
+                self.blocked(f"factory task list --goal {OWN}", role=role)
+
     def test_other_roles_blocked(self):
         for role in ("pm", "qa", "reviewer", "judge", None):
             with self.subTest(role=role):
