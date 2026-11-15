@@ -30,12 +30,10 @@ type Deps struct {
 	Getppid  func() int                   // nil: os.Getppid
 
 	// Write-port seams (G-041 S2g).
-	Stdin io.Reader // nil: os.Stdin
-	// StdinReplay: stdin text a command already consumed; delegate() feeds it to Python on a pipe as its stdin.
-	StdinReplay []byte
-	Getwd       func() (string, error) // nil: os.Getwd
-	RunCmd      RunCmdFunc             // nil: os/exec, never a shell
-	Trace       *[]Stmt                // non-nil: every ctx.exec appends the (verb, table) of its statement
+	Stdin  io.Reader              // nil: os.Stdin
+	Getwd  func() (string, error) // nil: os.Getwd
+	RunCmd RunCmdFunc             // nil: os/exec, never a shell
+	Trace  *[]Stmt                // non-nil: every ctx.exec appends the (verb, table) of its statement
 }
 
 // RunCmdFunc runs name with argv (the arguments after name) in dir with env (nil: the process environment) and

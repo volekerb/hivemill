@@ -55,12 +55,6 @@ func (d *Deps) delegate() int {
 	env = append(env, "FACTORY_CLI_IMPL=python")
 	ex := d.Exec
 	if ex == nil {
-		if len(d.StdinReplay) > 0 {
-			if err := replayStdin(d.StdinReplay); err != nil {
-				fmt.Fprintf(d.Stderr, "factory: cannot replay stdin for python: %v; rerun with --reason text\n", err)
-				return 1
-			}
-		}
 		ex = syscall.Exec
 	}
 	err = ex(py, argv, env)
@@ -73,29 +67,4 @@ func (d *Deps) delegate() int {
 	}
 	fmt.Fprintf(d.Stderr, "factory: exec python3 %s failed: %v; run it with python3 directly\n", argv[1], err)
 	return 1
-}
-
-// replayStdinMax is far below the smallest pipe buffer (one 4 KiB page under the user pipe quota), so the write below
-// never blocks before Python has a reader.
-const replayStdinMax = 4000
-
-// replayStdin makes fd 0 a pipe holding b, so Python reads what Go already consumed.
-func replayStdin(b []byte) error {
-	if len(b) > replayStdinMax {
-		return fmt.Errorf("text of %d bytes is too large to replay (limit %d)", len(b), replayStdinMax)
-	}
-	r, w, err := os.Pipe()
-	if err != nil {
-		return fmt.Errorf("pipe: %w", err)
-	}
-	if _, err := w.Write(b); err != nil {
-		return fmt.Errorf("write pipe: %w", err)
-	}
-	if err := w.Close(); err != nil {
-		return fmt.Errorf("close pipe: %w", err)
-	}
-	if err := syscall.Dup3(int(r.Fd()), 0, 0); err != nil { // Dup3 exists on every linux arch, Dup2 not on arm64
-		return fmt.Errorf("dup3: %w", err)
-	}
-	return nil
 }

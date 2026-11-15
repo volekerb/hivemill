@@ -12,9 +12,9 @@ type Rollup []map[string]any
 // PendingStates are the check states that mean "not finished yet" (PENDING_CHECK_STATES).
 var PendingStates = []string{"PENDING", "IN_PROGRESS", "QUEUED", "WAITING", "REQUESTED", "EXPECTED", "NONE"}
 
-// str is c.get(key) when it is a string (ok), "" for absent or null; ok=false for any other JSON type, which Python
+// chkStr is c.get(key) when it is a string (ok), "" for absent or null; ok=false for any other JSON type, which Python
 // would handle in ways this port does not copy.
-func str(c map[string]any, key string) (string, bool) {
+func chkStr(c map[string]any, key string) (string, bool) {
 	switch v := c[key].(type) {
 	case nil:
 		return "", true
@@ -24,16 +24,23 @@ func str(c map[string]any, key string) (string, bool) {
 	return "", false
 }
 
-// orStr is Python's `a or b` over c.get(ka), c.get(kb) when both are strings or null: the first non-empty one.
-func orStr(c map[string]any, ka, kb string) (string, bool) {
-	a, ok := str(c, ka)
+// chkOrStr is Python's `a or b` over c.get(ka), c.get(kb) when both are strings or null: the first non-empty one.
+func chkOrStr(c map[string]any, ka, kb string) (string, bool) {
+	a, ok := chkStr(c, ka)
 	if !ok {
 		return "", false
 	}
 	if a != "" {
 		return a, true
 	}
-	return str(c, kb)
+	return chkStr(c, kb)
+}
+
+// checkKey is a check identity as a tuple, like Python's: joined strings would let ("x|sy","z") and ("x","y|sz")
+// collide, and a red check could hide behind a later green one.
+type checkKey struct {
+	kind, wf, name string
+	null           bool
 }
 
 // LatestChecks is latest_checks: the newest rollup entry per check identity ((workflowName, name) for check runs,
@@ -44,41 +51,33 @@ func LatestChecks(rollup Rollup) (Rollup, error) {
 		i  int
 		c  map[string]any
 	}
-	latest := map[string]slot{}
+	latest := map[checkKey]slot{}
 	for i, c := range rollup {
-		tn, ok := str(c, "__typename")
+		tn, ok := chkStr(c, "__typename")
 		if !ok {
 			return nil, ErrUnsupported
 		}
-		ctxv, ok := str(c, "context")
+		ctxv, ok := chkStr(c, "context")
 		if !ok {
 			return nil, ErrUnsupported
 		}
-		name, ok := str(c, "name")
+		name, ok := chkStr(c, "name")
 		if !ok {
 			return nil, ErrUnsupported
 		}
-		var ident string
+		var ident checkKey
 		if tn == "StatusContext" || (ctxv != "" && name == "") {
-			if c["context"] == nil {
-				ident = "ctx|null"
-			} else {
-				ident = "ctx|s" + ctxv
-			}
+			ident = checkKey{kind: "ctx", name: ctxv, null: c["context"] == nil}
 		} else {
-			wf, ok := str(c, "workflowName")
+			wf, ok := chkStr(c, "workflowName")
 			if !ok {
 				return nil, ErrUnsupported
 			}
-			if c["name"] == nil {
-				ident = "run|" + wf + "|null"
-			} else {
-				ident = "run|" + wf + "|s" + name
-			}
+			ident = checkKey{kind: "run", wf: wf, name: name, null: c["name"] == nil}
 		}
 		ts := ""
 		for _, k := range []string{"startedAt", "completedAt", "createdAt"} {
-			v, ok := str(c, k)
+			v, ok := chkStr(c, k)
 			if !ok {
 				return nil, ErrUnsupported
 			}
@@ -111,7 +110,7 @@ func ChecksOK(rollup Rollup) ([]string, error) {
 	}
 	bad := []string{}
 	for _, c := range latest {
-		concl, ok := orStr(c, "conclusion", "state")
+		concl, ok := chkOrStr(c, "conclusion", "state")
 		if !ok {
 			return nil, ErrUnsupported
 		}
@@ -120,7 +119,7 @@ func ChecksOK(rollup Rollup) ([]string, error) {
 		case "SUCCESS", "SKIPPED", "NEUTRAL":
 			continue
 		}
-		name, ok := orStr(c, "name", "context")
+		name, ok := chkOrStr(c, "name", "context")
 		if !ok {
 			return nil, ErrUnsupported
 		}
@@ -170,7 +169,7 @@ func Pending(bad []string) bool {
 func MissingChecks(required string, rollup Rollup) ([]string, error) {
 	seen := map[string]bool{}
 	for _, c := range rollup {
-		n, ok := orStr(c, "name", "context")
+		n, ok := chkOrStr(c, "name", "context")
 		if !ok {
 			return nil, ErrUnsupported
 		}

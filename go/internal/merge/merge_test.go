@@ -253,3 +253,14 @@ func FuzzRepoSlug(f *testing.F) {
 		_ = ParseRedMain(s)
 	})
 }
+
+// TestLatestChecksIdentityIsATuple: (workflow "x|sy", name "z") and (workflow "x", name "y|sz") are two checks, as in
+// Python's (workflowName, name) tuple; the red one must not be replaced by the later green one.
+func TestLatestChecksIdentityIsATuple(t *testing.T) {
+	r := roll(t, `[{"__typename":"CheckRun","name":"z","workflowName":"x|sy","conclusion":"FAILURE","startedAt":"2026-01-01T00:00:00Z"},
+	 {"__typename":"CheckRun","name":"y|sz","workflowName":"x","conclusion":"SUCCESS","startedAt":"2026-01-01T00:05:00Z"}]`)
+	bad, err := ChecksOK(r)
+	if err != nil || !reflect.DeepEqual(bad, []string{"z=FAILURE"}) {
+		t.Fatalf("ChecksOK = %v, %v; want the red check kept apart", bad, err)
+	}
+}

@@ -33,6 +33,7 @@ type judgeCmd struct {
 	task, reason string
 	cause        *string
 	reject       bool
+	replay       *[]byte // set by runJudge: stdin text already consumed, replayed to Python on a hand-over
 }
 
 // parseJudge accepts `judge [TASK] (--merge | --reject) [--reason V] [--cause V]` with exact long flags, each at most
@@ -165,6 +166,19 @@ func judgeRequiredChecks(c *ctx, prURL string) (string, error) {
 
 func runJudge(c *ctx, parsed any) (int, error) {
 	a := parsed.(judgeCmd)
+	var replay []byte
+	a.replay = &replay
+	code, err := runJudgeGate(c, a)
+	if errors.Is(err, errDelegate) && len(replay) > 0 && c.deps.Exec == nil {
+		// --reason - was read by Go; Python must find the same text on its stdin
+		if rerr := replayStdin(replay); rerr != nil {
+			return 0, dieErr(1, "cannot replay stdin for python: "+rerr.Error()+"; rerun with --reason text")
+		}
+	}
+	return code, err
+}
+
+func runJudgeGate(c *ctx, a judgeCmd) (int, error) {
 	if a.task == "" || a.reason == "" {
 		return 0, dieErr(2, "judge needs a task and --reason (or --train T-a T-b ... [--dry-run])")
 	}
@@ -701,7 +715,7 @@ func judgeMerge(c *ctx, j *judgeEnv, a judgeCmd, t judgeTask) error {
 			return judgeRefuse(c, a.task, "judge-blocked", refused, 4, "merge refused: "+refused+"; nothing merged")
 		}
 		// the reason is read once (Python reads it once, before its retry); stdin cannot be read twice, so a retry
-		// pass reuses the value, and a later hand-over to Python replays it on a pipe (Deps.StdinReplay)
+		// pass reuses the value, and a later hand-over to Python replays it on a pipe (judgeCmd.replay)
 		if !reasonRead {
 			rp, err := readText(c, &a.reason, false)
 			if err != nil {
@@ -709,7 +723,7 @@ func judgeMerge(c *ctx, j *judgeEnv, a judgeCmd, t judgeTask) error {
 			}
 			reason, reasonRead = *rp, true
 			if a.reason == "-" {
-				c.deps.StdinReplay = []byte(reason)
+				*a.replay = []byte(reason)
 			}
 		}
 		res, err := ghx.Run(j.ghEnv(), "", judgeMergeTimeout, "pr", "merge", t.prURL, "--squash", "--delete-branch", "--match-head-commit", sha)
