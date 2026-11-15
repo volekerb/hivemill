@@ -319,7 +319,7 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 		return block("`go mod " + ms + "` is not allowed (network or a write)")
 	}
 	hasFuzz := false
-	for _, f := range flags {
+	for _, f := range allf {
 		if f.name == "fuzz" {
 			hasFuzz = true
 		}

@@ -688,7 +688,7 @@ class GoToolchainForWorkers(ProtTreesCase):
         cmds = [self.G + "go build -ldflags=-extld=/tmp/evil ./...", self.G + "go build -gcflags=-json=0,/x ./...",
                 self.G + "go test -ldflags=-extld=/tmp/evil ./...", self.G + "go fmt strings", self.G + "go fmt std", self.G + "go fmt cmd/...",
                 self.G + "go test -fuzz=. strings", self.G + "go test -fuzz=. ~/.local/go/src/strings", self.G + "go list -m foo@latest",
-                "cd ~/.local/go/src/strings && " + self.G + "go test -fuzz=."]
+                "cd ~/.local/go/src/strings && " + self.G + "go test -fuzz=.", "GOFLAGS=-fuzz=. " + self.G + "go test strings"]
         for role in ("coder", "qa", "reviewer"):
             for cmd in cmds:
                 self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}")

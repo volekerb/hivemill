@@ -169,7 +169,7 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		g+"go -x build ./...", g+"go test -overlay /tmp/o.json ./...", g+"go test -C /tmp -run X", g+"go test -run",
 		g+"go build -ldflags=-extld=/tmp/evil ./...", g+"go build -gcflags=-json=0,/x ./...", g+"go test -ldflags=-extld=/tmp/evil ./...",
 		g+"go fmt strings", g+"go fmt std", g+"go fmt cmd/...", g+"go test -fuzz=. strings", g+"go test -fuzz=. ~/.local/go/src/strings",
-		g+"go list -m foo@latest", "cd ~/.local/go/src/strings && "+g+"go test -fuzz=.")
+		g+"go list -m foo@latest", "cd ~/.local/go/src/strings && "+g+"go test -fuzz=.", "GOFLAGS=-fuzz=. "+g+"go test strings")
 	allow = append(allow, g+"go fmt ./pkg", g+"go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off "+g+"go list -m foo@latest", g+"go list -m all")
 	for _, role := range []string{"coder", "qa", "reviewer"} {
 		for _, c := range allow {

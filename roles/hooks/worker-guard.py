@@ -2841,9 +2841,9 @@ class Analyzer:
                 block(f"`go mod {pos[0] if pos else ''}` is not allowed (network or a write)")
         if sub == "list" and any("@" in x for x in pos) and env.get("GOPROXY") != "off":
             block("`go list` with a module@version query needs the GOPROXY=off prefix (it queries the proxy)")
-        if (sub == "fmt" or any(n == "fuzz" for n, v in flags)) and any(not x.startswith((".", "/")) for x in pos):
+        if (sub == "fmt" or any(n == "fuzz" for n, v in gflags + flags)) and any(not x.startswith((".", "/")) for x in pos):
             block(f"`go {sub}` (it rewrites or creates files in the package directory) takes directory paths (./x, ../x, /x), not import paths")
-        if sub == "test" and any(n == "fuzz" for n, v in flags):  # a failing fuzz run writes testdata/ into the package directory
+        if sub == "test" and any(n == "fuzz" for n, v in gflags + flags):  # a failing fuzz run writes testdata/ into the package directory
             if not pos and base is not None and prot_path(base):
                 block("`go test -fuzz` in a protected tree")
             for x in pos:
