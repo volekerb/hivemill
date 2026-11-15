@@ -39,7 +39,7 @@ func newDequeueEnv(t *testing.T) *dqEnv {
 	t.Cleanup(func() { <-dqSlots })
 	e := ft.New(t)
 	e.HerdrStateful()
-	e.OK("config", "terminal_backend", "herdr") // the Python harness pins the TUI (both stubs are on PATH and auto prefers hc)
+	sqlExec(t, e, "UPDATE config SET value='herdr' WHERE key='terminal_backend'") // the Python harness pins the TUI (both stubs are on PATH and auto prefers hc)
 	e.SeedGoal("G-001", "", "zz-test goal")
 	e.SeedGoal("G-003", "", "zz-test goal")
 	sqlExec(t, e, "UPDATE goals SET priority=3 WHERE id='G-003'")
