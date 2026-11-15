@@ -144,11 +144,21 @@ func tail(s string, n int) string {
 // through any symlink (never lexically first), and a component that does not exist is kept as is. A dangling
 // link therefore still resolves to where it would land, so callers can check containment.
 func realpath(p string) string {
+	r, _ := realpathErr(p)
+	return r
+}
+
+// errLoop reports a symlink chain that cannot be resolved (a loop or an unreadable link).
+var errLoop = errors.New("symlink chain cannot be resolved (loop or unreadable link)")
+
+// realpathErr is realpath that also reports a chain it could not resolve. The returned path is always cleaned;
+// on error it is the cleaned input, and containment callers must refuse (fail closed) rather than trust it.
+func realpathErr(p string) (string, error) {
 	abs := p
 	if !filepath.IsAbs(p) {
 		var err error
 		if abs, err = filepath.Abs(p); err != nil {
-			return filepath.Clean(p)
+			return filepath.Clean(p), nil
 		}
 	}
 	todo := strings.Split(strings.TrimPrefix(abs, string(filepath.Separator)), string(filepath.Separator))
@@ -173,14 +183,14 @@ func realpath(p string) string {
 		hops++
 		link, err := os.Readlink(next)
 		if err != nil || hops > 255 {
-			return abs
+			return filepath.Clean(abs), errLoop
 		}
 		if filepath.IsAbs(link) {
 			cur = string(filepath.Separator)
 		}
 		todo = append(strings.Split(link, string(filepath.Separator)), todo...)
 	}
-	return cur
+	return cur, nil
 }
 
 // LiveHomes are the live factory homes: <passwd home>/factory plus the single safe line of
@@ -368,7 +378,7 @@ func verifyLinks(root, ref string) error {
 		if d.Type()&fs.ModeSymlink == 0 {
 			return nil
 		}
-		if r := realpath(p); !within(root, r) {
+		if r, err := realpathErr(p); err != nil || !within(root, r) {
 			return fmt.Errorf("archive symlink member refused by the tar safety filter (link target, path or mode not allowed): "+
 				"remove or fix that entry in %s and rerun. Find it with: git ls-tree -r %s", ref, ref)
 		}
@@ -395,8 +405,8 @@ func extractMember(tr *tar.Reader, h *tar.Header, root, ref string) error {
 	if !within(root, dest) {
 		return fmt.Errorf("archive member %q escapes %s", h.Name, root)
 	}
-	parent := realpath(filepath.Dir(dest))
-	if !within(root, parent) {
+	parent, perr := realpathErr(filepath.Dir(dest))
+	if perr != nil || !within(root, parent) {
 		return fmt.Errorf("archive member %q escapes %s", h.Name, root)
 	}
 	if err := os.MkdirAll(parent, 0o755); err != nil {
@@ -426,7 +436,10 @@ func extractMember(tr *tar.Reader, h *tar.Header, root, ref string) error {
 		target := h.Linkname
 		// Follow the chain for real: the target is resolved from the (already resolved) parent through every
 		// symlink extracted so far, so a hop that only looks inside the root lexically is still refused.
-		if filepath.IsAbs(target) || !within(root, realpath(parent+string(filepath.Separator)+target)) {
+		if filepath.IsAbs(target) {
+			return refuse("symlink")
+		}
+		if r, err := realpathErr(parent + string(filepath.Separator) + target); err != nil || !within(root, r) {
 			return refuse("symlink")
 		}
 		return os.Symlink(target, dest)

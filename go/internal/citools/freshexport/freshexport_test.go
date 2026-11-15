@@ -406,3 +406,48 @@ func TestSymlinkDanglingInsideRootAccepted(t *testing.T) {
 		t.Fatalf("a dangling link staying inside the root is accepted: %+v", got)
 	}
 }
+
+// A symlink loop cannot be resolved, so it is refused (fail closed) whether it stays inside the export
+// (a -> b, b -> a) or reaches outside (a -> b, b -> ../a).
+func TestSymlinkLoopRefused(t *testing.T) {
+	for name, links := range map[string][][2]string{
+		"inside":  {{"b", "a"}, {"a", "b"}},
+		"outside": {{"b", "a"}, {"../a", "b"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t, nil)
+			for _, l := range links {
+				if err := os.Symlink(l[0], filepath.Join(e.src, l[1])); err != nil {
+					t.Fatal(err)
+				}
+			}
+			gitIn(t, e.src, "add", "-A")
+			gitIn(t, e.src, "commit", "-q", "-m", "loop")
+			out := filepath.Join(e.root, "loop-out-"+name)
+			got := e.goRun(t, common(e, out, "--public-repo", "example-org/hivemill")...)
+			if got.rc == 0 || !strings.Contains(got.err, "symlink member refused") {
+				t.Fatalf("a symlink loop must be refused: %+v", got)
+			}
+		})
+	}
+}
+
+func TestRealpathLoopErrorsAndIsClean(t *testing.T) {
+	d := t.TempDir()
+	if err := os.Symlink("b", filepath.Join(d, "a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("a", filepath.Join(d, "b")); err != nil {
+		t.Fatal(err)
+	}
+	r, err := realpathErr(d + "/x/../a/./")
+	if err == nil {
+		t.Fatalf("loop must error, got %q", r)
+	}
+	if r != filepath.Clean(r) {
+		t.Fatalf("returned path not clean: %q", r)
+	}
+	if got := realpath(d + "/a"); got != filepath.Clean(got) {
+		t.Fatalf("realpath not clean: %q", got)
+	}
+}
