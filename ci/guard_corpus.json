@@ -235,6 +235,72 @@
     "exec herdr server stop",
     "nohup herdr server stop",
     "timeout 5 herdr server stop",
+    {
+      "cmd": "FOO=1 herdr pane close x",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "env hc server stop",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "nohup herdr-core kill x",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "command claude -p hi",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "timeout 5 gh pr merge 1",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "exec sqlite3 x.db .tables",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "bash -c 'hc run x'",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "true && gh -R o/n pr merge 1",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "echo $(herdr workspace close w)",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "./hc rm x",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "/usr/local/bin/herdr agent start",
+      "modes": [
+        "hq"
+      ]
+    },
     "ls | xargs herdr",
     "bash -c \"herdr server stop\"",
     "sh -c 'cd /tmp && herdr server stop'",
@@ -20162,6 +20228,78 @@
   ],
   "must_allow": [
     "echo hc",
+    {
+      "cmd": "grep 'herdr server stop' f",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "echo claude",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "git log --grep sqlite3",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "factory msg director s 'herdr pane close happened'",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "gh pr view 1",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "gh pr diff 1",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "gh pr checks 1",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "which claude",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "command -v claude",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "command -v herdr",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "command -v hc",
+      "modes": [
+        "hq"
+      ]
+    },
+    {
+      "cmd": "command -v sqlite3",
+      "modes": [
+        "hq"
+      ]
+    },
     "grep hc README.md",
     "tar -xCf /tmp/x a.tar",
     "unzip -qd /tmp/x a.zip",

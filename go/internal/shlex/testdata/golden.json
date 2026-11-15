@@ -3688,6 +3688,456 @@
 "src": "corpus"
 },
 {
+"input": "FOO=1 herdr pane close x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"FOO=1",
+"herdr",
+"pane",
+"close",
+"x"
+]
+},
+{
+"input": "FOO=1 herdr pane close x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"FOO=1",
+"herdr",
+"pane",
+"close",
+"x"
+]
+},
+{
+"input": "FOO=1 herdr pane close x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"FOO=1",
+"herdr",
+"pane",
+"close",
+"x"
+]
+},
+{
+"input": "FOO=1 herdr pane close x",
+"mode": "quote",
+"quoted": "'FOO=1 herdr pane close x'",
+"src": "corpus"
+},
+{
+"input": "env hc server stop",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"hc",
+"server",
+"stop"
+]
+},
+{
+"input": "env hc server stop",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"hc",
+"server",
+"stop"
+]
+},
+{
+"input": "env hc server stop",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"hc",
+"server",
+"stop"
+]
+},
+{
+"input": "env hc server stop",
+"mode": "quote",
+"quoted": "'env hc server stop'",
+"src": "corpus"
+},
+{
+"input": "nohup herdr-core kill x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"nohup",
+"herdr-core",
+"kill",
+"x"
+]
+},
+{
+"input": "nohup herdr-core kill x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"nohup",
+"herdr-core",
+"kill",
+"x"
+]
+},
+{
+"input": "nohup herdr-core kill x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"nohup",
+"herdr-core",
+"kill",
+"x"
+]
+},
+{
+"input": "nohup herdr-core kill x",
+"mode": "quote",
+"quoted": "'nohup herdr-core kill x'",
+"src": "corpus"
+},
+{
+"input": "command claude -p hi",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"command",
+"claude",
+"-p",
+"hi"
+]
+},
+{
+"input": "command claude -p hi",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"command",
+"claude",
+"-p",
+"hi"
+]
+},
+{
+"input": "command claude -p hi",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"command",
+"claude",
+"-p",
+"hi"
+]
+},
+{
+"input": "command claude -p hi",
+"mode": "quote",
+"quoted": "'command claude -p hi'",
+"src": "corpus"
+},
+{
+"input": "timeout 5 gh pr merge 1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"gh",
+"pr",
+"merge",
+"1"
+]
+},
+{
+"input": "timeout 5 gh pr merge 1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"gh",
+"pr",
+"merge",
+"1"
+]
+},
+{
+"input": "timeout 5 gh pr merge 1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"gh",
+"pr",
+"merge",
+"1"
+]
+},
+{
+"input": "timeout 5 gh pr merge 1",
+"mode": "quote",
+"quoted": "'timeout 5 gh pr merge 1'",
+"src": "corpus"
+},
+{
+"input": "exec sqlite3 x.db .tables",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"sqlite3",
+"x.db",
+".tables"
+]
+},
+{
+"input": "exec sqlite3 x.db .tables",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"sqlite3",
+"x.db",
+".tables"
+]
+},
+{
+"input": "exec sqlite3 x.db .tables",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"sqlite3",
+"x.db",
+".tables"
+]
+},
+{
+"input": "exec sqlite3 x.db .tables",
+"mode": "quote",
+"quoted": "'exec sqlite3 x.db .tables'",
+"src": "corpus"
+},
+{
+"input": "bash -c 'hc run x'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"hc run x"
+]
+},
+{
+"input": "bash -c 'hc run x'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"hc run x"
+]
+},
+{
+"input": "bash -c 'hc run x'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"hc run x"
+]
+},
+{
+"input": "bash -c 'hc run x'",
+"mode": "quote",
+"quoted": "'bash -c '\"'\"'hc run x'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "true && gh -R o/n pr merge 1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"true",
+"&&",
+"gh",
+"-R",
+"o/n",
+"pr",
+"merge",
+"1"
+]
+},
+{
+"input": "true && gh -R o/n pr merge 1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"true",
+"&&",
+"gh",
+"-R",
+"o/n",
+"pr",
+"merge",
+"1"
+]
+},
+{
+"input": "true && gh -R o/n pr merge 1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"true",
+"&&",
+"gh",
+"-R",
+"o/n",
+"pr",
+"merge",
+"1"
+]
+},
+{
+"input": "true && gh -R o/n pr merge 1",
+"mode": "quote",
+"quoted": "'true && gh -R o/n pr merge 1'",
+"src": "corpus"
+},
+{
+"input": "echo $(herdr workspace close w)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"$",
+"(",
+"herdr",
+"workspace",
+"close",
+"w",
+")"
+]
+},
+{
+"input": "echo $(herdr workspace close w)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"$",
+"(",
+"herdr",
+"workspace",
+"close",
+"w",
+")"
+]
+},
+{
+"input": "echo $(herdr workspace close w)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"$(herdr",
+"workspace",
+"close",
+"w)"
+]
+},
+{
+"input": "echo $(herdr workspace close w)",
+"mode": "quote",
+"quoted": "'echo $(herdr workspace close w)'",
+"src": "corpus"
+},
+{
+"input": "./hc rm x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"./hc",
+"rm",
+"x"
+]
+},
+{
+"input": "./hc rm x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"./hc",
+"rm",
+"x"
+]
+},
+{
+"input": "./hc rm x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"./hc",
+"rm",
+"x"
+]
+},
+{
+"input": "./hc rm x",
+"mode": "quote",
+"quoted": "'./hc rm x'",
+"src": "corpus"
+},
+{
+"input": "/usr/local/bin/herdr agent start",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"/usr/local/bin/herdr",
+"agent",
+"start"
+]
+},
+{
+"input": "/usr/local/bin/herdr agent start",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"/usr/local/bin/herdr",
+"agent",
+"start"
+]
+},
+{
+"input": "/usr/local/bin/herdr agent start",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"/usr/local/bin/herdr",
+"agent",
+"start"
+]
+},
+{
+"input": "/usr/local/bin/herdr agent start",
+"mode": "quote",
+"quoted": "'/usr/local/bin/herdr agent start'",
+"src": "corpus"
+},
+{
 "input": "ls | xargs herdr",
 "mode": "script",
 "src": "corpus",
@@ -115873,6 +116323,450 @@
 "src": "corpus"
 },
 {
+"input": "grep 'herdr server stop' f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"grep",
+"herdr server stop",
+"f"
+]
+},
+{
+"input": "grep 'herdr server stop' f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"grep",
+"herdr server stop",
+"f"
+]
+},
+{
+"input": "grep 'herdr server stop' f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"grep",
+"herdr server stop",
+"f"
+]
+},
+{
+"input": "grep 'herdr server stop' f",
+"mode": "quote",
+"quoted": "'grep '\"'\"'herdr server stop'\"'\"' f'",
+"src": "corpus"
+},
+{
+"input": "echo claude",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"claude"
+]
+},
+{
+"input": "echo claude",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"claude"
+]
+},
+{
+"input": "echo claude",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"claude"
+]
+},
+{
+"input": "echo claude",
+"mode": "quote",
+"quoted": "'echo claude'",
+"src": "corpus"
+},
+{
+"input": "git log --grep sqlite3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--grep",
+"sqlite3"
+]
+},
+{
+"input": "git log --grep sqlite3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--grep",
+"sqlite3"
+]
+},
+{
+"input": "git log --grep sqlite3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--grep",
+"sqlite3"
+]
+},
+{
+"input": "git log --grep sqlite3",
+"mode": "quote",
+"quoted": "'git log --grep sqlite3'",
+"src": "corpus"
+},
+{
+"input": "factory msg director s 'herdr pane close happened'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"factory",
+"msg",
+"director",
+"s",
+"herdr pane close happened"
+]
+},
+{
+"input": "factory msg director s 'herdr pane close happened'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"factory",
+"msg",
+"director",
+"s",
+"herdr pane close happened"
+]
+},
+{
+"input": "factory msg director s 'herdr pane close happened'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"factory",
+"msg",
+"director",
+"s",
+"herdr pane close happened"
+]
+},
+{
+"input": "factory msg director s 'herdr pane close happened'",
+"mode": "quote",
+"quoted": "'factory msg director s '\"'\"'herdr pane close happened'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "gh pr view 1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"1"
+]
+},
+{
+"input": "gh pr view 1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"1"
+]
+},
+{
+"input": "gh pr view 1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"1"
+]
+},
+{
+"input": "gh pr view 1",
+"mode": "quote",
+"quoted": "'gh pr view 1'",
+"src": "corpus"
+},
+{
+"input": "gh pr diff 1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"diff",
+"1"
+]
+},
+{
+"input": "gh pr diff 1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"diff",
+"1"
+]
+},
+{
+"input": "gh pr diff 1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"diff",
+"1"
+]
+},
+{
+"input": "gh pr diff 1",
+"mode": "quote",
+"quoted": "'gh pr diff 1'",
+"src": "corpus"
+},
+{
+"input": "gh pr checks 1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"checks",
+"1"
+]
+},
+{
+"input": "gh pr checks 1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"checks",
+"1"
+]
+},
+{
+"input": "gh pr checks 1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"checks",
+"1"
+]
+},
+{
+"input": "gh pr checks 1",
+"mode": "quote",
+"quoted": "'gh pr checks 1'",
+"src": "corpus"
+},
+{
+"input": "which claude",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"which",
+"claude"
+]
+},
+{
+"input": "which claude",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"which",
+"claude"
+]
+},
+{
+"input": "which claude",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"which",
+"claude"
+]
+},
+{
+"input": "which claude",
+"mode": "quote",
+"quoted": "'which claude'",
+"src": "corpus"
+},
+{
+"input": "command -v claude",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"claude"
+]
+},
+{
+"input": "command -v claude",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"claude"
+]
+},
+{
+"input": "command -v claude",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"claude"
+]
+},
+{
+"input": "command -v claude",
+"mode": "quote",
+"quoted": "'command -v claude'",
+"src": "corpus"
+},
+{
+"input": "command -v herdr",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"herdr"
+]
+},
+{
+"input": "command -v herdr",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"herdr"
+]
+},
+{
+"input": "command -v herdr",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"herdr"
+]
+},
+{
+"input": "command -v herdr",
+"mode": "quote",
+"quoted": "'command -v herdr'",
+"src": "corpus"
+},
+{
+"input": "command -v hc",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"hc"
+]
+},
+{
+"input": "command -v hc",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"hc"
+]
+},
+{
+"input": "command -v hc",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"hc"
+]
+},
+{
+"input": "command -v hc",
+"mode": "quote",
+"quoted": "'command -v hc'",
+"src": "corpus"
+},
+{
+"input": "command -v sqlite3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"sqlite3"
+]
+},
+{
+"input": "command -v sqlite3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"sqlite3"
+]
+},
+{
+"input": "command -v sqlite3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"command",
+"-v",
+"sqlite3"
+]
+},
+{
+"input": "command -v sqlite3",
+"mode": "quote",
+"quoted": "'command -v sqlite3'",
+"src": "corpus"
+},
+{
 "input": "grep hc README.md",
 "mode": "script",
 "src": "corpus",
@@ -119533,42 +120427,6 @@
 "src": "corpus"
 },
 {
-"input": "command -v herdr",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"command",
-"-v",
-"herdr"
-]
-},
-{
-"input": "command -v herdr",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"command",
-"-v",
-"herdr"
-]
-},
-{
-"input": "command -v herdr",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"command",
-"-v",
-"herdr"
-]
-},
-{
-"input": "command -v herdr",
-"mode": "quote",
-"quoted": "'command -v herdr'",
-"src": "corpus"
-},
-{
 "input": "which herdr",
 "mode": "script",
 "src": "corpus",
@@ -122286,39 +123144,6 @@
 "input": "gh pr comment --body 'claude'",
 "mode": "quote",
 "quoted": "'gh pr comment --body '\"'\"'claude'\"'\"''",
-"src": "corpus"
-},
-{
-"input": "echo claude",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"echo",
-"claude"
-]
-},
-{
-"input": "echo claude",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"echo",
-"claude"
-]
-},
-{
-"input": "echo claude",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"echo",
-"claude"
-]
-},
-{
-"input": "echo claude",
-"mode": "quote",
-"quoted": "'echo claude'",
 "src": "corpus"
 },
 {
@@ -129545,45 +130370,6 @@
 "input": "gh api --method GET x -F per_page=5",
 "mode": "quote",
 "quoted": "'gh api --method GET x -F per_page=5'",
-"src": "corpus"
-},
-{
-"input": "gh pr view 1",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"gh",
-"pr",
-"view",
-"1"
-]
-},
-{
-"input": "gh pr view 1",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"gh",
-"pr",
-"view",
-"1"
-]
-},
-{
-"input": "gh pr view 1",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"gh",
-"pr",
-"view",
-"1"
-]
-},
-{
-"input": "gh pr view 1",
-"mode": "quote",
-"quoted": "'gh pr view 1'",
 "src": "corpus"
 },
 {
@@ -148871,7 +149657,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3419,
+"corpus_commands": 3439,
 "edge_inputs": 123,
 "python": "3.13"
 }
