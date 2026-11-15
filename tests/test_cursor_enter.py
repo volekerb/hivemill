@@ -90,6 +90,28 @@ class Kickoff(CursorEnterBase):
         self.assertEqual(self.send_keys_enter(self.CURSOR_PM), [])
 
 
+class TrailerEnv(CursorEnterBase):
+    """T-1624: a cursor worker never runs with CURSOR_AGENT (Cursor adds a co-author trailer the push guard refuses)."""
+
+    def start_argv(self, name):
+        return [a for a in self.herdr_argv() if a[:2] == ["agent", "start"] and a[2] == name]
+
+    def test_cursor_start_runs_under_env_unset(self):
+        self.spawn_cursor_pm()
+        starts = self.start_argv(self.CURSOR_PM)
+        self.assertEqual(len(starts), 1)
+        tail = starts[0][starts[0].index("--") + 1:]
+        self.assertEqual(tail[:3], ["env", "-u", "CURSOR_AGENT"])
+
+    def test_claude_start_unchanged(self):
+        self.spawn_claude_pm()
+        starts = self.start_argv(self.CLAUDE_PM)
+        self.assertEqual(len(starts), 1)
+        tail = starts[0][starts[0].index("--") + 1:]
+        self.assertNotIn("CURSOR_AGENT", tail)
+        self.assertNotEqual(tail[0], "env")
+
+
 class TickNudge(CursorEnterBase):
     def test_cursor_tick_nudge_prompt_then_enter(self):
         self.spawn_cursor_pm()

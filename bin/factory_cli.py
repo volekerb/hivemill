@@ -10916,6 +10916,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     if plan.launch == "subprocess":
         run_env = {**os.environ, **env, **(settings_obj.get("env") or {})}
         run_env.update(env)
+        if runtime == "cursor":  # T-1624: no Cursor co-author trailer on factory worker commits
+            run_env = cursor_harness.scrub_worker_env(run_env)
         log_path = RUN / f"{name}.{runtime}.log"
         try:
             proc = agent_runtime.launch_subprocess(plan, cwd=Path(cwd), env=run_env, log_path=log_path)
@@ -10963,8 +10965,11 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
                 "spawn_args=excluded.spawn_args, started=excluded.started, ended=NULL, summary=NULL, blocked_since=NULL, blocked_alerted=0, "
                 "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL, start_pending=NULL, start_pending_info=NULL",
                 (name, role, goal, team, task, "live", pane, ws, tab, model, sid, cwd, json.dumps(args), now()))
+    start_argv = plan.argv
+    if runtime == "cursor" and spawn_host == "herdr":  # T-1624: hc starts under env -i; a herdr pane shell may inherit it
+        start_argv = cursor_harness.unset_trailer_env_argv(start_argv)
     start_args = ("agent", "start", name, "--kind", plan.herdr_kind, "--pane", pane, "--timeout", "90000",
-                  "--", *plan.argv)
+                  "--", *start_argv)
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
     _HC_RUN_PROGRAM, _HC_RUN_NAME = plan.binary, name
     _SPAWN_HOST_EXE = spawn_host
