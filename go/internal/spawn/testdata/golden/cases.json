@@ -1,0 +1,417 @@
+{
+ "slug": [
+  [
+   "",
+   "a"
+  ],
+  [
+   "Coder T-1",
+   "coder-t-1"
+  ],
+  [
+   "lead-g-048-a",
+   "lead-g-048-a"
+  ],
+  [
+   "  --x--  ",
+   "x"
+  ],
+  [
+   "123",
+   "a-123"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "İstanbul",
+   "i-stanbul"
+  ],
+  [
+   "Kelvin K",
+   "kelvin-k"
+  ],
+  [
+   "é",
+   "a"
+  ],
+  [
+   "ab  cd__ef",
+   "ab-cd-ef"
+  ],
+  [
+   "-",
+   "a"
+  ],
+  [
+   "T-1459-",
+   "t-1459"
+  ],
+  [
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yy",
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  ],
+  [
+   "ünï",
+   "n"
+  ]
+ ],
+ "jsonescape": [
+  [
+   "plain",
+   "plain"
+  ],
+  [
+   "q\"b\\",
+   "q\\\"b\\\\"
+  ],
+  [
+   "tab\t\n\r\b\f\u0001\u001f",
+   "tab\\t\\n\\r\\b\\f\\u0001\\u001f\\u007f"
+  ],
+  [
+   "é✓𝔘",
+   "\\u00e9\\u2713\\ud835\\udd18"
+  ],
+  [
+   " ",
+   "\\u2028"
+  ]
+ ],
+ "kickoff": [
+  [
+   [
+    "coder",
+    "claude-coder-t-1",
+    "G-1",
+    "g-1-a",
+    "T-1",
+    "extra x"
+   ],
+   "You are `claude-coder-t-1`, the factory coder. Run `factory whoami` and `factory inbox` first. Your task is T-1: read it with `factory task show T-1`. Goal context: `factory goal show G-1`. Your team is g-1-a. extra x"
+  ],
+  [
+   [
+    "boss",
+    "boss",
+    null,
+    null,
+    null,
+    null
+   ],
+   "You are `boss`, the factory boss. Run `factory whoami` and `factory inbox` first."
+  ],
+  [
+   [
+    "lead",
+    "l",
+    "G-2",
+    "g-2-a",
+    null,
+    ""
+   ],
+   "You are `l`, the factory lead. Run `factory whoami` and `factory inbox` first. Goal context: `factory goal show G-2`. Your team is g-2-a."
+  ]
+ ],
+ "parse_runtimes": [
+  [
+   "",
+   "",
+   {
+    "ok": {}
+   }
+  ],
+  [
+   "coder=cursor",
+   "",
+   {
+    "ok": {
+     "coder": "cursor"
+    }
+   }
+  ],
+  [
+   "*=cursor",
+   "",
+   {
+    "ok": {
+     "boss": "cursor",
+     "cleaner": "cursor",
+     "coder": "cursor",
+     "director": "cursor",
+     "judge": "cursor",
+     "lead": "cursor",
+     "pm": "cursor",
+     "qa": "cursor",
+     "reviewer": "cursor",
+     "scout": "cursor",
+     "staff-engineer": "cursor"
+    }
+   }
+  ],
+  [
+   "all=claude",
+   "",
+   {
+    "ok": {}
+   }
+  ],
+  [
+   "researcher=cursor",
+   "",
+   {
+    "err": "runtime 'cursor' allow-list is ['boss', 'cleaner', 'coder', 'director', 'judge', 'lead', 'pm', 'qa', 'reviewer', 'scout', 'staff-engineer']; not 'researcher'"
+   }
+  ],
+  [
+   "coder",
+   "",
+   {
+    "err": "agent_runtimes entry 'coder' must be role=runtime (known runtimes: claude, cursor; use *=cursor or all=cursor for every Cursor-capable role)"
+   }
+  ],
+  [
+   "coder=grok",
+   "",
+   {
+    "err": "unknown runtime 'grok'; known: claude, cursor"
+   }
+  ],
+  [
+   "",
+   "pm",
+   {
+    "ok": {
+     "pm": "cursor"
+    }
+   }
+  ],
+  [
+   "",
+   "researcher",
+   {
+    "err": "cursor_pilot_roles: 'researcher' not in cursor allow-list (boss, cleaner, coder, director, judge, lead, pm, qa, reviewer, scout, staff-engineer)"
+   }
+  ],
+  [
+   "pm=cursor, coder=claude",
+   "coder",
+   {
+    "ok": {
+     "pm": "cursor",
+     "coder": "claude"
+    }
+   }
+  ],
+  [
+   "x'y=cursor",
+   "",
+   {
+    "err": "runtime 'cursor' allow-list is ['boss', 'cleaner', 'coder', 'director', 'judge', 'lead', 'pm', 'qa', 'reviewer', 'scout', 'staff-engineer']; not \"x'y\""
+   }
+  ]
+ ],
+ "effort": [
+  [
+   "bogus",
+   "claude-opus-5-5",
+   {
+    "err": "factory: config opus_effort must be one of low, medium, high, xhigh, max or empty, got 'bogus': fix it with `factory config opus_effort medium`",
+    "code": 1
+   }
+  ],
+  [
+   "medium",
+   "claude-opus-5-5",
+   {
+    "ok": true
+   }
+  ],
+  [
+   "",
+   "x",
+   {
+    "ok": true
+   }
+  ]
+ ],
+ "org_section": [
+  [
+   "claude",
+   false,
+   ""
+  ],
+  [
+   "claude",
+   true,
+   "\n## Your org\nYou belong to the **Claude org** (claude): runtime claude. Every agent name in your org starts with `claude-`. Your boss is `claude-boss`, your director is `claude-director`; `factory msg boss|director|owner` reaches your own org's HQ.\nModels in your org (these override any model rule above): judgement roles claude-opus-5-5, build roles claude-sonnet-5-5. Subagents you start use the same models. Never use Fable.\nOther orgs on this box: Cursor (`cursor-*`). They share the box capacity (one agent cap; P1 goals first across orgs) and the repos. Only the boss and the director talk across orgs (e.g. `factory msg cursor-director ...` for capacity, file conflicts or red main); leads and workers never do.\n"
+  ],
+  [
+   "cursor",
+   false,
+   "\n## Your org\nYou belong to the **Cursor org** (cursor): runtime cursor. Every agent name in your org starts with `cursor-`. Your boss is `cursor-boss`, your director is `cursor-director`; `factory msg boss|director|owner` reaches your own org's HQ.\nModels in your org (these override any model rule above): judgement roles grok-4.7-high, build roles composer-2.5. Subagents you start use the same models. Never use Fable.\nOther orgs on this box: Claude (`claude-*`). They share the box capacity (one agent cap; P1 goals first across orgs) and the repos. Only the boss and the director talk across orgs (e.g. `factory msg claude-director ...` for capacity, file conflicts or red main); leads and workers never do.\n"
+  ],
+  [
+   "cursor",
+   true,
+   "\n## Your org\nYou belong to the **Cursor org** (cursor): runtime cursor. Every agent name in your org starts with `cursor-`. Your boss is `cursor-boss`, your director is `cursor-director`; `factory msg boss|director|owner` reaches your own org's HQ.\nModels in your org (these override any model rule above): judgement roles grok-4.7-high, build roles composer-2.5. Subagents you start use the same models. Never use Fable.\nOther orgs on this box: Claude (`claude-*`). They share the box capacity (one agent cap; P1 goals first across orgs) and the repos. Only the boss and the director talk across orgs (e.g. `factory msg claude-director ...` for capacity, file conflicts or red main); leads and workers never do.\n"
+  ],
+  [
+   null,
+   false,
+   ""
+  ],
+  [
+   null,
+   true,
+   "\n## Your org\nYou belong to the **Claude org** (claude): runtime claude. Every agent name in your org starts with `claude-`. Your boss is `claude-boss`, your director is `claude-director`; `factory msg boss|director|owner` reaches your own org's HQ.\nModels in your org (these override any model rule above): judgement roles claude-opus-5-5, build roles claude-sonnet-5-5. Subagents you start use the same models. Never use Fable.\nOther orgs on this box: Cursor (`cursor-*`). They share the box capacity (one agent cap; P1 goals first across orgs) and the repos. Only the boss and the director talk across orgs (e.g. `factory msg cursor-director ...` for capacity, file conflicts or red main); leads and workers never do.\n"
+  ]
+ ],
+ "args_json": [
+  "{\"role\": \"coder\", \"goal\": \"G-1\", \"team\": null, \"task\": \"T-1\", \"name\": \"claude-coder-t-1\", \"cwd\": null, \"prompt\": \"p \\u00e9\\n\", \"model\": null, \"resume\": null, \"fresh\": false, \"org\": \"claude\", \"host_backend\": \"hc\", \"host_backend_pinned\": true, \"sandbox_optin\": true}",
+  "{\"role\": \"evaluator\", \"name\": \"e\", \"env_extra\": {\"FACTORY_HOME\": \"/x/fh\", \"PATH\": \"/x/bin:/b\"}, \"plugin_dirs\": [\"/v/a\", \"/v/b\"], \"add_home_dir\": false}"
+ ],
+ "model": [
+  [
+   "boss",
+   "claude",
+   "claude-opus-5-5"
+  ],
+  [
+   "boss",
+   "cursor",
+   "grok-4.7-high"
+  ],
+  [
+   "director",
+   "claude",
+   "claude-opus-5-5"
+  ],
+  [
+   "director",
+   "cursor",
+   "grok-4.7-high"
+  ],
+  [
+   "lead",
+   "claude",
+   "claude-opus-5-5"
+  ],
+  [
+   "lead",
+   "cursor",
+   "grok-4.7-high"
+  ],
+  [
+   "pm",
+   "claude",
+   "claude-opus-5-5"
+  ],
+  [
+   "pm",
+   "cursor",
+   "grok-4.7-high"
+  ],
+  [
+   "coder",
+   "claude",
+   "claude-sonnet-5-5"
+  ],
+  [
+   "coder",
+   "cursor",
+   "composer-2.5"
+  ],
+  [
+   "qa",
+   "claude",
+   "claude-sonnet-5-5"
+  ],
+  [
+   "qa",
+   "cursor",
+   "composer-2.5"
+  ],
+  [
+   "reviewer",
+   "claude",
+   "claude-opus-5-5"
+  ],
+  [
+   "reviewer",
+   "cursor",
+   "grok-4.7-high"
+  ],
+  [
+   "judge",
+   "claude",
+   "claude-opus-5-5"
+  ],
+  [
+   "judge",
+   "cursor",
+   "grok-4.7-high"
+  ],
+  [
+   "cleaner",
+   "claude",
+   "claude-haiku-5-5"
+  ],
+  [
+   "cleaner",
+   "cursor",
+   "composer-2.5"
+  ],
+  [
+   "staff-engineer",
+   "claude",
+   "claude-opus-5-5"
+  ],
+  [
+   "staff-engineer",
+   "cursor",
+   "grok-4.7-high"
+  ],
+  [
+   "researcher",
+   "claude",
+   "claude-opus-5-5"
+  ],
+  [
+   "researcher",
+   "cursor",
+   "grok-4.7-high"
+  ],
+  [
+   "scout",
+   "claude",
+   "claude-sonnet-5-5"
+  ],
+  [
+   "scout",
+   "cursor",
+   "composer-2.5"
+  ],
+  [
+   "retro",
+   "claude",
+   "claude-sonnet-5-5"
+  ],
+  [
+   "retro",
+   "cursor",
+   "composer-2.5"
+  ],
+  [
+   "evaluator",
+   "claude",
+   "claude-sonnet-5-5"
+  ],
+  [
+   "evaluator",
+   "cursor",
+   "claude-sonnet-5-5"
+  ]
+ ]
+}
