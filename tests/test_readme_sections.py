@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # Adding an entry needs a '# readme-section: <reason>' comment on the same or
 # the previous line (checked by test_added_sections_have_reason).
 README_SECTIONS = [
+    "Where you run and watch it",  # readme-section: G-046 T-1443 v0.5.0 surface table (owner M35301, M35306, M35307 via boss)
     "What you get",  # readme-section: G-023 T-0712 README v2 feature grid (owner "A+C is great", M13225)
     "One change, five steps",  # readme-section: G-023 T-0712 README v2 headline loop (owner "A+C is great", M13225)
     "Quickstart",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)
@@ -21,6 +22,7 @@ README_SECTIONS = [
     "Features",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)
     "How it compares",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)
     "The web UI",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)
+    "Herdr desktop dashboard",  # readme-section: G-046 T-1443 Herdr desktop dashboard picture and install (owner M35298 via boss)
     "Status and limits",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)
     "Use it from your phone",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)
     "Resources",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)
