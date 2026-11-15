@@ -143,14 +143,6 @@ func execute(ctx context.Context, o *options, k *kids, stdout, stderr io.Writer)
 	if err := checkGuards(sb, o); err != nil {
 		return err
 	}
-	ffmpeg, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		return failf("ffmpeg not found on PATH. Install it yourself; film-render installs nothing.")
-	}
-	ffprobe, err := exec.LookPath("ffprobe")
-	if err != nil {
-		return failf("ffprobe not found on PATH. Install it yourself; film-render installs nothing.")
-	}
 	cache, err := os.UserCacheDir()
 	if err != nil {
 		return failf("no user cache dir: %v", err)
@@ -159,6 +151,17 @@ func execute(ctx context.Context, o *options, k *kids, stdout, stderr io.Writer)
 	work := o.work
 	if work == "" {
 		work = filepath.Join(cache, fmt.Sprintf("work-%d", os.Getpid()))
+	}
+	if err := checkOutWork(o.out, work); err != nil {
+		return err
+	}
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return failf("ffmpeg not found on PATH. Install it yourself; film-render installs nothing.")
+	}
+	ffprobe, err := exec.LookPath("ffprobe")
+	if err != nil {
+		return failf("ffprobe not found on PATH. Install it yourself; film-render installs nothing.")
 	}
 	if err := prepareWork(work); err != nil {
 		return err
