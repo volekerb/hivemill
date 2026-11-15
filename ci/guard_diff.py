@@ -316,6 +316,8 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
             for m in modes:
                 work += [(m, x, c, seed, xenv) for x in roles] if roles and m == "worker" else [(m, role, c, seed, xenv)]
         elif "worker" in modes:
+            if roles is not None and r not in roles:  # a shard runs only its roles; other shards cover the rest
+                continue
             work.append(("worker", r, c, seed, xenv))
     work = list(dict.fromkeys(work))
     seed_tmp = tempfile.TemporaryDirectory(prefix="guard-diff-seed-")
@@ -567,6 +569,13 @@ def roles_for_all(top):
     return template_roles(top)
 
 
+def shard_roles(roles, shard, shards):
+    """The roles for one CI shard: index modulo ``shards`` equals ``shard - 1``. Shards are 1-based and cover every role once."""
+    if shards < 1 or shard < 1 or shard > shards:
+        raise UsageError(f"--role-shard must be from 1 to --role-shards (got {shard} of {shards})")
+    return [r for i, r in enumerate(roles) if i % shards == shard - 1]
+
+
 def go_candidate(top, go_bin, tmp):
     """Path of the Go candidate: --go-bin, or `go build` of go/cmd/worker-guard into tmp. Fails closed (UsageError)."""
     if go_bin:
@@ -603,6 +612,8 @@ def main(argv=None):
                     help="python: base ref vs working tree hook (default); go: working-tree Python hook vs the Go binary")
     ap.add_argument("--go-bin", help="--impl go: prebuilt worker-guard binary (default: go build ./go/cmd/worker-guard)")
     ap.add_argument("--roles", choices=("all",), help="all: worker mode under every role whose settings template calls the hook")
+    ap.add_argument("--role-shard", type=int, help="1-based shard of --roles all (with --role-shards)")
+    ap.add_argument("--role-shards", type=int, help="how many shards --roles all is split into")
     ap.add_argument("--strict", action="store_true", help="TIGHTENED and CHANGED lines also exit 1 (the G-016 gate)")
     ap.add_argument("--hook", default=DEFAULT_HOOK, help="hook under test (default %(default)s)")
     ap.add_argument("--corpus", action="append", help="corpus JSON file (repeatable; default ci/guard_corpus.json)")
@@ -638,12 +649,26 @@ def main(argv=None):
             rel = DEFAULT_HOOK  # hook copy outside the repo (scratch experiment): compare with main's hook
         base_src = None if go else git(a.repo, "show", "--end-of-options", f"{a.base}:{rel}")
         roles = roles_for_all(top) if a.roles else None
+        if (a.role_shard is None) != (a.role_shards is None):
+            raise UsageError("--role-shard and --role-shards are set together")
         cmds = []
         for path in a.corpus or [DEFAULT_CORPUS]:
             cmds += load_corpus(path)
         cmds = list(dict.fromkeys(cmds))
         if not cmds:
             raise UsageError("corpus has no commands; nothing to compare")
+        if a.role_shards is not None and roles is None:
+            raise UsageError("--role-shard needs --roles all")
+        if roles is not None:
+            known = set(roles)
+            # A corpus role with no settings template still has to run. On a split it runs on shard 1 only.
+            extra = sorted({e[1] for e in cmds if len(e) > 1 and e[1] and e[1] not in known})
+            if a.role_shards is not None:
+                roles = shard_roles(roles, a.role_shard, a.role_shards)
+                if a.role_shard == 1:
+                    roles = roles + extra
+            else:
+                roles = list(roles) + extra
         allow = load_allow(a.allow_loosen)
     except UsageError as e:
         sys.stderr.write(f"guard-diff: {e}\n")

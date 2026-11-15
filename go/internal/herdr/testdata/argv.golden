@@ -1,0 +1,6 @@
+herdr list: herdr agent list
+herdr close-pane: herdr pane close p7
+herdr kill-terminal: <not applicable: hc only>
+hc list: hc ls
+hc close-pane: <no hc equivalent>
+hc kill-terminal: hc kill agent-a

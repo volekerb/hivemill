@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Hivemill</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  #mark { position: absolute; left: 600px; top: 0; width: 720px; height: 160px; }
+  .pane {
+    position: absolute; width: 360px; height: 166px; border-radius: 14px; overflow: hidden;
+    background: rgba(18,18,20,0.92); box-shadow: 0 0 0 1px rgb(47,47,50), 0 24px 60px rgba(0,0,0,0.6);
+    font-family: var(--mono); font-size: 15px; color: var(--ink-3);
+  }
+  .pane .hd {
+    height: 38px; display: flex; align-items: center; gap: 10px; padding: 0 14px;
+    background: rgb(26,26,29); border-bottom: 1px solid rgb(42,42,45); font-family: "Inter"; font-weight: 600;
+    font-size: 16px; color: var(--ink-1);
+  }
+  .pane .hd .st { margin-left: auto; width: 9px; height: 9px; border-radius: 50%; background: var(--success-solid); }
+  .pane .hd .org { font-size: 13px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
+  .pane .hd .org.claude { background: var(--org-claude-bg); color: var(--org-claude-fg); }
+  .pane .hd .org.cursor { background: var(--org-cursor-bg); color: var(--org-cursor-fg); }
+  .pane .ln { padding: 0 16px; height: 28px; line-height: 28px; white-space: nowrap; overflow: hidden; }
+  .pane .ln b { color: var(--success-fg); font-weight: 400; }
+  .pane .ln em { color: var(--accent); font-style: normal; }
+  .pane .ln .cur { display: inline-block; width: 9px; height: 17px; background: var(--ink-2); vertical-align: -3px; }
+</style>
+</head><body>
+<div class="backdrop" id="bg"></div>
+<div class="stage" id="panes"></div>
+<img id="mark" src="../../images/wordmark-dark.svg" alt="Hivemill">
+<script src="film.js"></script>
+<script>
+(function () {
+  'use strict';
+  const { prog, fade, tr, $, lerp, easeInOut } = Film;
+  // Eight agent panes around the wordmark. Text is generic role work, no ids.
+  const PANES = [
+    { x: 96,   y: 70,  role: 'boss',     org: 'claude', lines: ['<em>›</em> brief the owner', 'goals: <b>on track</b>', 'report sent'] },
+    { x: 504,  y: 40,  role: 'director', org: 'claude', lines: ['<em>›</em> staff team', 'lead started', 'capacity <b>ok</b>'] },
+    { x: 1056, y: 40,  role: 'lead',     org: 'cursor', lines: ['<em>›</em> plan approved', 'coder → review', 'qa queued'] },
+    { x: 1464, y: 70,  role: 'coder',    org: 'claude', lines: ['<em>$</em> go test ./...', '<b>ok</b>  all packages', 'pushed branch'] },
+    { x: 96,   y: 640, role: 'reviewer', org: 'cursor', lines: ['<em>›</em> read the diff', 'security: <b>clean</b>', 'verdict: pass'] },
+    { x: 504,  y: 676, role: 'qa',       org: 'claude', lines: ['<em>$</em> run checks', 'tests <b>passed</b>', 'criteria met'] },
+    { x: 1056, y: 676, role: 'judge',    org: 'claude', lines: ['<em>›</em> review + qa', 'gate: <b>green</b>', 'merged'] },
+    { x: 1464, y: 640, role: 'coder',    org: 'cursor', lines: ['<em>$</em> npm test', '<b>ok</b> all passing', 'opened for review'] },
+  ];
+  const host = $('#panes');
+  const els = PANES.map(p => {
+    const d = document.createElement('div');
+    d.className = 'pane';
+    d.innerHTML = '<div class="hd">' + p.role + ' <span class="org ' + p.org + '">' +
+      (p.org === 'claude' ? 'Claude' : 'Cursor') + '</span><span class="st"></span></div>' +
+      p.lines.map(l => '<div class="ln">' + l + '</div>').join('') +
+      '<div class="ln"><span class="cur"></span></div>';
+    host.appendChild(d);
+    return d;
+  });
+
+  function seek(t) {
+    // Wordmark: fades up in the centre, then lifts slightly to make room for the panes.
+    const m = prog(t, 0.2, 1.4);
+    const lift = prog(t, 1.8, 3.0, easeInOut);
+    const mark = $('#mark');
+    mark.style.opacity = m.toFixed(3);
+    mark.style.transform = tr(0, lerp(420, 380, lift) + 30 * (1 - m));
+    mark.style.filter = 'blur(' + (10 * (1 - m)).toFixed(2) + 'px)';
+    $('#bg').style.opacity = (0.35 + 0.65 * prog(t, 0, 1.6)).toFixed(3);
+
+    els.forEach((el, i) => {
+      const p = PANES[i];
+      const s = 1.9 + i * 0.22;
+      const a = prog(t, s, s + 0.7);
+      const drift = (t - s) * 6;                       // slow parallax drift after arrival
+      const dir = p.y < 400 ? -1 : 1;
+      el.style.opacity = (a * 0.92).toFixed(3);
+      el.style.transform = tr(p.x, p.y + dir * (40 * (1 - a)) - dir * Math.max(0, drift) * 0.4);
+      // Lines type in one by one; the cursor blinks on a fixed beat derived from t.
+      const lines = el.querySelectorAll('.ln');
+      lines.forEach((ln, k) => { ln.style.opacity = prog(t, s + 0.4 + k * 0.28, s + 0.6 + k * 0.28).toFixed(3); });
+      const cur = el.querySelector('.cur');
+      cur.style.opacity = (Math.floor(t * 2.5) % 2 === 0) ? '1' : '0';
+    });
+  }
+  Film.boot(seek);
+})();
+</script>
+</body></html>

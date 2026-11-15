@@ -7,6 +7,234 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "hc server stop",
+"mask_quotes_pre": "hc server stop",
+"mask_quotes_raw": "hc server stop",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "hc server stop"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "hc server stop"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"hc",
+"server",
+"stop"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"hc",
+"server",
+"stop"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "hc send other-agent hi",
+"mask_quotes_pre": "hc send other-agent hi",
+"mask_quotes_raw": "hc send other-agent hi",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "hc send other-agent hi"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "hc send other-agent hi"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"hc",
+"send",
+"other-agent",
+"hi"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"hc",
+"send",
+"other-agent",
+"hi"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "herdr-core run --bg --name x claude",
+"mask_quotes_pre": "herdr-core run --bg --name x claude",
+"mask_quotes_raw": "herdr-core run --bg --name x claude",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "herdr-core run --bg --name x claude"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "herdr-core run --bg --name x claude"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"herdr-core",
+"run",
+"--bg",
+"--name",
+"x",
+"claude"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"herdr-core",
+"run",
+"--bg",
+"--name",
+"x",
+"claude"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "export HC_SOCKET=/tmp/x",
+"mask_quotes_pre": "export HC_SOCKET=/tmp/x",
+"mask_quotes_raw": "export HC_SOCKET=/tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "export HC_SOCKET=/tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "export HC_SOCKET=/tmp/x"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"export",
+"HC_SOCKET=/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"export",
+"HC_SOCKET=/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "sudo hc server stop",
+"mask_quotes_pre": "sudo hc server stop",
+"mask_quotes_raw": "sudo hc server stop",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "sudo hc server stop"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "sudo hc server stop"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"sudo",
+"hc",
+"server",
+"stop"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"sudo",
+"hc",
+"server",
+"stop"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "uvx --from x pytest",
 "mask_quotes_pre": "uvx --from x pytest",
 "mask_quotes_raw": "uvx --from x pytest",
@@ -4219,6 +4447,554 @@
 "herdr",
 "server",
 "stop"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "FOO=1 herdr pane close x",
+"mask_quotes_pre": "FOO=1 herdr pane close x",
+"mask_quotes_raw": "FOO=1 herdr pane close x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "FOO=1 herdr pane close x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "FOO=1 herdr pane close x"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"FOO=1",
+"herdr",
+"pane",
+"close",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"FOO=1",
+"herdr",
+"pane",
+"close",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env hc server stop",
+"mask_quotes_pre": "env hc server stop",
+"mask_quotes_raw": "env hc server stop",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env hc server stop"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env hc server stop"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"env",
+"hc",
+"server",
+"stop"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"env",
+"hc",
+"server",
+"stop"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nohup herdr-core kill x",
+"mask_quotes_pre": "nohup herdr-core kill x",
+"mask_quotes_raw": "nohup herdr-core kill x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "nohup herdr-core kill x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "nohup herdr-core kill x"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"nohup",
+"herdr-core",
+"kill",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"nohup",
+"herdr-core",
+"kill",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "command claude -p hi",
+"mask_quotes_pre": "command claude -p hi",
+"mask_quotes_raw": "command claude -p hi",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "command claude -p hi"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "command claude -p hi"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"command",
+"claude",
+"-p",
+"hi"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"command",
+"claude",
+"-p",
+"hi"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "timeout 5 gh pr merge 1",
+"mask_quotes_pre": "timeout 5 gh pr merge 1",
+"mask_quotes_raw": "timeout 5 gh pr merge 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 gh pr merge 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 gh pr merge 1"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"timeout",
+"5",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"timeout",
+"5",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "exec sqlite3 x.db .tables",
+"mask_quotes_pre": "exec sqlite3 x.db .tables",
+"mask_quotes_raw": "exec sqlite3 x.db .tables",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "exec sqlite3 x.db .tables"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "exec sqlite3 x.db .tables"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"exec",
+"sqlite3",
+"x.db",
+".tables"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"exec",
+"sqlite3",
+"x.db",
+".tables"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'hc run x'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'hc run x'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'hc run x'"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"bash",
+"-c",
+"'QQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"bash",
+"-c",
+"'QQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "true && gh -R o/n pr merge 1",
+"mask_quotes_pre": "true && gh -R o/n pr merge 1",
+"mask_quotes_raw": "true && gh -R o/n pr merge 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "true && gh -R o/n pr merge 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "true && gh -R o/n pr merge 1"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"true"
+]
+],
+[
+7,
+28,
+[
+"gh",
+"-R",
+"o/n",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"true"
+]
+],
+[
+7,
+28,
+[
+"gh",
+"-R",
+"o/n",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo $(herdr workspace close w)",
+"mask_quotes_pre": "echo $(herdr workspace close w)",
+"mask_quotes_raw": "echo $(herdr workspace close w)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo $(herdr workspace close w)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo $(herdr workspace close w)"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"echo"
+]
+],
+[
+7,
+30,
+[
+"herdr",
+"workspace",
+"close",
+"w"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"echo"
+]
+],
+[
+7,
+30,
+[
+"herdr",
+"workspace",
+"close",
+"w"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "./hc rm x",
+"mask_quotes_pre": "./hc rm x",
+"mask_quotes_raw": "./hc rm x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "./hc rm x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "./hc rm x"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"./hc",
+"rm",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"./hc",
+"rm",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "/usr/local/bin/herdr agent start",
+"mask_quotes_pre": "/usr/local/bin/herdr agent start",
+"mask_quotes_raw": "/usr/local/bin/herdr agent start",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "/usr/local/bin/herdr agent start"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "/usr/local/bin/herdr agent start"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"/usr/local/bin/herdr",
+"agent",
+"start"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"/usr/local/bin/herdr",
+"agent",
+"start"
 ]
 ]
 ],
@@ -137689,6 +138465,628 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "echo hc",
+"mask_quotes_pre": "echo hc",
+"mask_quotes_raw": "echo hc",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo hc"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo hc"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"hc"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"hc"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "grep 'herdr server stop' f",
+"mask_quotes_pre": "grep 'QQQQQQQQQQQQQQQQQ' f",
+"mask_quotes_raw": "grep 'QQQQQQQQQQQQQQQQQ' f",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "grep 'herdr server stop' f"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "grep 'herdr server stop' f"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"grep",
+"'QQQQQQQQQQQQQQQQQ'",
+"f"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"grep",
+"'QQQQQQQQQQQQQQQQQ'",
+"f"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo claude",
+"mask_quotes_pre": "echo claude",
+"mask_quotes_raw": "echo claude",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo claude"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo claude"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"echo",
+"claude"
+]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"echo",
+"claude"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log --grep sqlite3",
+"mask_quotes_pre": "git log --grep sqlite3",
+"mask_quotes_raw": "git log --grep sqlite3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log --grep sqlite3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log --grep sqlite3"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"git",
+"log",
+"--grep",
+"sqlite3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"git",
+"log",
+"--grep",
+"sqlite3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory msg director s 'herdr pane close happened'",
+"mask_quotes_pre": "factory msg director s 'QQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "factory msg director s 'QQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory msg director s 'herdr pane close happened'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory msg director s 'herdr pane close happened'"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"factory",
+"msg",
+"director",
+"s",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"factory",
+"msg",
+"director",
+"s",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr view 1",
+"mask_quotes_pre": "gh pr view 1",
+"mask_quotes_raw": "gh pr view 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"view",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"view",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr diff 1",
+"mask_quotes_pre": "gh pr diff 1",
+"mask_quotes_raw": "gh pr diff 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr diff 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr diff 1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"diff",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"diff",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr checks 1",
+"mask_quotes_pre": "gh pr checks 1",
+"mask_quotes_raw": "gh pr checks 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr checks 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr checks 1"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"gh",
+"pr",
+"checks",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"gh",
+"pr",
+"checks",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "which claude",
+"mask_quotes_pre": "which claude",
+"mask_quotes_raw": "which claude",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "which claude"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "which claude"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"which",
+"claude"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"which",
+"claude"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "command -v claude",
+"mask_quotes_pre": "command -v claude",
+"mask_quotes_raw": "command -v claude",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "command -v claude"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "command -v claude"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"command",
+"-v",
+"claude"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"command",
+"-v",
+"claude"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "command -v herdr",
+"mask_quotes_pre": "command -v herdr",
+"mask_quotes_raw": "command -v herdr",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "command -v herdr"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "command -v herdr"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"command",
+"-v",
+"herdr"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"command",
+"-v",
+"herdr"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "command -v hc",
+"mask_quotes_pre": "command -v hc",
+"mask_quotes_raw": "command -v hc",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "command -v hc"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "command -v hc"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"command",
+"-v",
+"hc"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"command",
+"-v",
+"hc"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "command -v sqlite3",
+"mask_quotes_pre": "command -v sqlite3",
+"mask_quotes_raw": "command -v sqlite3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "command -v sqlite3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "command -v sqlite3"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"command",
+"-v",
+"sqlite3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"command",
+"-v",
+"sqlite3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "grep hc README.md",
+"mask_quotes_pre": "grep hc README.md",
+"mask_quotes_raw": "grep hc README.md",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "grep hc README.md"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "grep hc README.md"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"grep",
+"hc",
+"README.md"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"grep",
+"hc",
+"README.md"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -142050,50 +143448,6 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "command -v herdr",
-"mask_quotes_pre": "command -v herdr",
-"mask_quotes_raw": "command -v herdr",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "command -v herdr"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "command -v herdr"
-},
-"segments_pre": [
-[
-0,
-16,
-[
-"command",
-"-v",
-"herdr"
-]
-]
-],
-"segments_raw": [
-[
-0,
-16,
-[
-"command",
-"-v",
-"herdr"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
 "input": "which herdr",
 "mask_quotes_pre": "which herdr",
 "mask_quotes_raw": "which herdr",
@@ -145446,48 +146800,6 @@
 "comment",
 "--body",
 "'QQQQQQ'"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
-"input": "echo claude",
-"mask_quotes_pre": "echo claude",
-"mask_quotes_raw": "echo claude",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "echo claude"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "echo claude"
-},
-"segments_pre": [
-[
-0,
-11,
-[
-"echo",
-"claude"
-]
-]
-],
-"segments_raw": [
-[
-0,
-11,
-[
-"echo",
-"claude"
 ]
 ]
 ],
@@ -154317,52 +155629,6 @@
 "x",
 "-F",
 "per_page=5"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
-"input": "gh pr view 1",
-"mask_quotes_pre": "gh pr view 1",
-"mask_quotes_raw": "gh pr view 1",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "gh pr view 1"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "gh pr view 1"
-},
-"segments_pre": [
-[
-0,
-12,
-[
-"gh",
-"pr",
-"view",
-"1"
-]
-]
-],
-"segments_raw": [
-[
-0,
-12,
-[
-"gh",
-"pr",
-"view",
-"1"
 ]
 ]
 ],
@@ -179226,7 +180492,7 @@
 ]
 }
 },
-"corpus_commands": 3311,
+"corpus_commands": 3338,
 "edge_inputs": 97,
 "python": "3.13"
 }

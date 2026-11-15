@@ -1,0 +1,11 @@
+{
+  "title": "Smoke fixture",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "max_seconds": 10,
+  "scenes": [
+    {"id": "alpha", "start": 0, "end": 2, "visual": "colour sweep", "caption": "Smoke caption one", "onscreen": ["alpha"], "sources": [], "placeholder": false},
+    {"id": "beta", "start": 2, "end": 4, "visual": "colour sweep", "caption": "Smoke caption two", "onscreen": ["beta"], "sources": [], "placeholder": false}
+  ]
+}

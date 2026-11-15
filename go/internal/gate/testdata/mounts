@@ -1,0 +1,4 @@
+rootfs / rootfs rw 0 0
+/dev/sda1 / ext4 rw 0 0
+tmpfs /tmp tmpfs rw 0 0
+tmpfs /tmp/sub tmpfs rw 0 0
