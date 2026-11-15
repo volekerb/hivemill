@@ -26,12 +26,11 @@ import (
 
 // Constants carried over from scout/skilleval.py.
 const (
-	CheckTimeout = 60 * time.Second // CHECK_TIMEOUT_S
-	OutputMax    = 2048             // OUTPUT_MAX
-	StartTail    = 20               // START_TAIL
-	StartingMax  = 15               // STARTING_MAX_MIN
-	StartLogRead = 64 * 1024        // the pread cap of start_log_lines
-	MarkerRead   = 256              // the read cap of control_marker
+	OutputMax    = 2048      // OUTPUT_MAX
+	StartTail    = 20        // START_TAIL
+	StartingMax  = 15        // STARTING_MAX_MIN
+	StartLogRead = 64 * 1024 // the pread cap of start_log_lines
+	MarkerRead   = 256       // the read cap of control_marker
 	// MaxTranscriptLine is a safety cap the Python code does not have: one transcript line the evaluator wrote can
 	// be any size, and a longer one is skipped instead of read into memory.
 	MaxTranscriptLine = 64 << 20
@@ -42,6 +41,9 @@ const (
 	BaselineID    = "C-0000"
 	BaselineSha   = "baseline"
 )
+
+// CheckTimeout is CHECK_TIMEOUT_S; a variable only so a test can shorten it.
+var CheckTimeout = 60 * time.Second
 
 var (
 	Reasons      = []string{"timeout", "over-budget", "cancelled"}
