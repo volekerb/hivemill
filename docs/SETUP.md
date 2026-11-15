@@ -54,10 +54,14 @@ The same installer runs without Claude. From a checkout, run it in your own term
 ```
 git clone https://github.com/volekerb/hivemill.git
 cd hivemill
-python3 plugins/hivemill/scripts/install.py --check
-python3 plugins/hivemill/scripts/install.py --dry-run
-python3 plugins/hivemill/scripts/install.py --yes
+plugins/hivemill/scripts/install --check
+plugins/hivemill/scripts/install --dry-run
+plugins/hivemill/scripts/install --yes
 ```
+
+`plugins/hivemill/scripts/install` is a short POSIX shell script, not the installer itself. It detects your OS and CPU (Linux amd64 or arm64, macOS arm64), downloads the `hivemill-install` binary of the plugin's release from GitHub, compares its sha256 with the value written into the script, and only then runs it with your arguments. A different hash, a missing `curl` or `sha256sum`/`shasum`, or an unsupported platform stops it with a non-zero exit before anything runs. The installer is a Go program, so the target machine needs no Python for the install step (the factory itself still needs Python 3.11 or newer). The binary is cached in `${XDG_CACHE_HOME:-~/.cache}/hivemill-install/<version>/` and is checked again on every run. Until the release process has written the hashes (a checkout of the development branch), the script refuses to run; use the Python installer below.
+
+If the Go installer misbehaves, `plugins/hivemill/scripts/install.py` is still in the repository until the Python removal step lands. The release notes name the last ref that carries it, so `git checkout <that ref>` and `python3 plugins/hivemill/scripts/install.py ...` take you back.
 
 `--check` is a read-only report, `--dry-run` prints the ordered plan and changes nothing, `--yes` does the work. Give exactly one of them.
 

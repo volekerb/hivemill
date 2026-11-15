@@ -4,8 +4,6 @@ import os
 import sys
 import unittest
 
-GUARD_IMPL_PYTHON_ONLY = "G-031 SC5 hc/herdr-core worker rules are Python-only until the Go mirror (T-0990)"
-
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard_impl import hook_run  # noqa: E402
 
@@ -24,6 +22,14 @@ class WorkerGuardHcParityTests(unittest.TestCase):
             "env -i hc server stop",
             "bash -c 'hc server stop'",
             "hc kill other-agent",
+            "hc run --bg --name x claude",
+            "hc send other-agent hi",
+            "hc keys other-agent Enter",
+            "hc rm other-agent",
+            "hc read other-agent",
+            "hc ls",
+            "herdr-core send x hi",
+            "herdr-core run --bg --name x claude",
             "HC_SOCKET=/tmp/x hc ls",
             "export HC_SOCKET=/tmp/x",
             "export $(echo HC_SOCKET=/tmp/x)",

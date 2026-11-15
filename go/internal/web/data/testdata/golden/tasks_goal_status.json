@@ -1,0 +1,1 @@
+[{"id": "T-7", "goal_id": "G-002", "team_id": null, "title": "not json deps", "role": "coder", "status": "todo", "assignee": null, "depends_on": [], "pr_url": null, "attempts": 0, "follow_up_of": null, "waits": "internal", "created": "2026-11-06T10:00:00+01:00", "updated": "2026-11-06T10:00:00+01:00"}]
