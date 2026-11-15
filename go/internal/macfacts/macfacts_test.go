@@ -200,3 +200,24 @@ func TestTruncation(t *testing.T) {
 		t.Errorf("z count %d, truncated=%v", n, strings.Contains(rep, "[truncated]"))
 	}
 }
+
+func TestExecRunnerStdinNullAndTimeout(t *testing.T) {
+	r := ExecRunner{Dir: t.TempDir()}
+	// cat only returns when stdin is at EOF, i.e. the null device.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res := r.Run(ctx, "cat")
+	if res.Exit != 0 || res.TimedOut || res.Stdout != "" {
+		t.Fatalf("cat did not see a null stdin: %+v", res)
+	}
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel2()
+	start := time.Now()
+	res = r.Run(ctx2, "sleep", "30")
+	if !res.TimedOut || time.Since(start) > 10*time.Second {
+		t.Fatalf("sleep not cut: %+v", res)
+	}
+	if res := r.Run(context.Background(), "no-such-binary-xyz"); res.Err == nil || res.Exit != -1 {
+		t.Fatalf("missing binary not reported: %+v", res)
+	}
+}
