@@ -352,13 +352,13 @@ class WorkflowTest(unittest.TestCase):
         self.assertRegex(
             self.wf,
             r"(?m)^  unittest:\n    name: unittest\n"
-            r"    needs: \[ci-tier, docs-check, unittest-shard, go, guard-unittest, guard-diff, "
+            r"    needs: \[ci-tier, preflight, docs-check, unittest-shard, go, guard-unittest, guard-diff, "
             r"guard-self-compare, guard-evaluator-home-loosen, guard-equiv-fanin, guard-equiv-rest\]\n"
             r"    if: always\(\)",
         )
         self.assertEqual(
             re.findall(r"timeout-minutes: (\d+)", self.wf),
-            ["5", "10", "30", "40", "30", "5", "30", "30", "30", "30", "5", "30", "5"],
+            ["5", "5", "10", "30", "40", "30", "5", "30", "30", "30", "30", "5", "30", "5"],
         )
 
     def test_edited_trigger_is_not_used(self):
@@ -376,6 +376,162 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("needs.guard-self-compare.result", self.wf)
         self.assertIn("needs.guard-evaluator-home-loosen.result", self.wf)
         self.assertIn("GOTOOLCHAIN: local", self.wf)
+
+
+def workflow_job(wf, key):
+    """Text of one job of tests.yml (the lines under `  <key>:` up to the next job)."""
+    lines = []
+    for line in wf.split("\n  %s:\n" % key, 1)[1].splitlines():
+        if re.match(r"^  [A-Za-z0-9_-]+:\s*$", line):
+            break
+        lines.append(line)
+    return "\n".join(lines) + "\n"
+
+
+def step_script(job, step_name):
+    """The `run: |` script of the named step, dedented, so a test can execute what CI executes."""
+    body = job.split("      - name: %s\n" % step_name, 1)[1].split("        run: |\n", 1)[1]
+    out = []
+    for line in body.splitlines():
+        if line.strip() and not line.startswith(" " * 10):
+            break
+        out.append(line[10:])
+    return "\n".join(out) + "\n"
+
+
+class PreflightTest(unittest.TestCase):
+    """T-1593: the 1-minute preflight job gates the heavy jobs and a red preflight makes `unittest` red."""
+    wf = (ROOT / ".github" / "workflows" / "tests.yml").read_text()
+    GATED = ("unittest-shard", "go", "guard-unittest-shard", "guard-diff", "guard-self-compare",
+             "guard-evaluator-home-loosen", "guard-equiv", "guard-equiv-rest")
+    GREEN = {"MODE": "full", "PREFLIGHT_RESULT": "success", "DOCS_CHECK_RESULT": "skipped", "SHARD_RESULT": "success",
+             "GO_RESULT": "success", "GUARD_UNITTEST_RESULT": "success", "GUARD_DIFF_RESULT": "success",
+             "GUARD_SELF_COMPARE_RESULT": "success", "GUARD_EVALUATOR_HOME_LOOSEN_RESULT": "success",
+             "GUARD_EQUIV_RESULT": "success", "GUARD_EQUIV_REST_RESULT": "success"}
+
+    def header(self, key):
+        return workflow_job(self.wf, key).split("    steps:\n", 1)[0]
+
+    def test_one_preflight_job_on_a_free_runner_with_a_5_minute_cap(self):
+        self.assertEqual(len(re.findall(r"(?m)^  preflight:$", self.wf)), 1)
+        head = self.header("preflight")
+        self.assertIn("    needs: ci-tier\n", head)
+        self.assertIn("    runs-on: ubuntu-latest\n", head)
+        self.assertIn("    timeout-minutes: 5\n", head)
+        # It runs in every tier and on push: no job-level if. No name line: the check name is the job id.
+        self.assertNotRegex(head, r"(?m)^    (if|name):")
+
+    def test_heavy_jobs_need_preflight_and_have_no_status_function(self):
+        for key in self.GATED:
+            head = self.header(key)
+            self.assertIn("    needs: [ci-tier, preflight]\n", head, key)
+            # always() / failure() / cancelled() / !cancelled() in a job-level if would start the job after a red preflight.
+            for line in head.splitlines():
+                if line.startswith("    if:"):
+                    self.assertNotRegex(line, r"always\(|failure\(|cancelled\(", key)
+
+    def test_docs_check_does_not_wait_for_preflight(self):
+        # Docs tier: docs-check and preflight start together after ci-tier, so the docs lane stays about a minute.
+        self.assertIn("    needs: ci-tier\n", self.header("docs-check"))
+
+    def test_shard_matrix_and_shards_env_unchanged(self):
+        self.assertIn("\n  SHARDS: 10\n", self.wf)
+        self.assertIn("        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n", workflow_job(self.wf, "unittest-shard"))
+
+    def aggregate(self, **env):
+        script = step_script(workflow_job(self.wf, "unittest"), "Docs lane or every shard and guard job succeeded")
+        e = {"PATH": os.environ["PATH"]}
+        e.update(self.GREEN)
+        e.update(env)
+        return subprocess.run(["bash", "-c", script], env=e, capture_output=True, text=True)
+
+    def test_aggregate_reads_the_preflight_result(self):
+        agg = workflow_job(self.wf, "unittest")
+        self.assertIn("          PREFLIGHT_RESULT: ${{ needs.preflight.result }}\n", agg)
+
+    def test_aggregate_is_green_when_everything_succeeded(self):
+        r = self.aggregate()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r = self.aggregate(MODE="docs", DOCS_CHECK_RESULT="success", SHARD_RESULT="success")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("docs fast lane: docs-check passed", r.stdout)
+
+    def test_aggregate_is_red_when_preflight_did_not_succeed(self):
+        skipped = {k: "skipped" for k in self.GREEN if k.endswith("_RESULT") and k != "PREFLIGHT_RESULT"}
+        for result in ("failure", "cancelled", "skipped", ""):
+            # full tier: the heavy jobs were skipped by needs
+            r = self.aggregate(PREFLIGHT_RESULT=result, **skipped)
+            self.assertEqual(r.returncode, 1, result)
+            self.assertIn("preflight result: %s" % result, r.stderr)
+            # even if every other job reported success, and on the docs lane
+            self.assertEqual(self.aggregate(PREFLIGHT_RESULT=result).returncode, 1, result)
+            r = self.aggregate(PREFLIGHT_RESULT=result, MODE="docs", DOCS_CHECK_RESULT="success")
+            self.assertEqual(r.returncode, 1, result)
+            self.assertNotIn("docs fast lane", r.stdout)
+
+    def test_aggregate_is_red_when_a_heavy_job_was_skipped_after_a_green_preflight(self):
+        for key in sorted(k for k in self.GREEN if k.endswith("_RESULT") and k not in ("PREFLIGHT_RESULT", "DOCS_CHECK_RESULT")):
+            self.assertEqual(self.aggregate(**{key: "skipped"}).returncode, 1, key)
+
+    def listed(self):
+        text = (ROOT / "ci" / "preflight.txt").read_text()
+        return [w for line in text.splitlines() for w in line.split("#", 1)[0].split()]
+
+    def test_preflight_list_holds_real_test_files_that_stay_in_the_shards(self):
+        files = self.listed()
+        self.assertIn("tests/test_docs_index.py", files)
+        self.assertEqual(len(files), len(set(files)))
+        mods = set(shard.all_modules())
+        for f in files:
+            self.assertRegex(f, r"^tests/test_[A-Za-z0-9_]+\.py$")
+            self.assertTrue((ROOT / f).is_file(), f)
+            self.assertIn(f[len("tests/"):], mods, "%s must stay in the full suite" % f)
+        # a comment says how the list was chosen
+        self.assertRegex((ROOT / "ci" / "preflight.txt").read_text(), r"(?m)^#.*failed runs")
+        self.assertIn("ci/preflight.txt", workflow_job(self.wf, "preflight"))
+
+    def run_preflight(self, listing, files):
+        """Run the preflight step script as CI does, in a scratch repo with its own tests/ and ci/preflight.txt."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        os.mkdir(os.path.join(tmp.name, "tests"))
+        os.mkdir(os.path.join(tmp.name, "ci"))
+        os.mkdir(os.path.join(tmp.name, "bin"))
+        for name, body in files.items():
+            Path(tmp.name, "tests", name).write_text(body)
+        Path(tmp.name, "ci", "preflight.txt").write_text(listing)
+        py = Path(tmp.name, "bin", "python")  # the runner has `python` from setup-python
+        py.write_text('#!/bin/sh\nexec "%s" "$@"\n' % sys.executable)
+        py.chmod(0o755)
+        script = step_script(workflow_job(self.wf, "preflight"), r"Preflight test files (ci/preflight.txt)")
+        env = {"PATH": os.path.join(tmp.name, "bin") + os.pathsep + os.environ["PATH"]}
+        return subprocess.run(["bash", "-c", script], cwd=tmp.name, env=env, capture_output=True, text=True)
+
+    OK = "import unittest\nclass T(unittest.TestCase):\n    def test_1(self): pass\n"
+    BAD = "import unittest\nclass T(unittest.TestCase):\n    def test_1(self): self.fail('x')\n"
+
+    def test_preflight_step_passes_when_every_listed_file_passes(self):
+        r = self.run_preflight("# how chosen\ntests/test_pf_ok.py  # note\n\ntests/test_pf_ok2.py\n",
+                               {"test_pf_ok.py": self.OK, "test_pf_ok2.py": self.OK})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("preflight: tests/test_pf_ok.py rc=0", r.stdout)
+        self.assertIn("preflight: tests/test_pf_ok2.py rc=0", r.stdout)
+
+    def test_preflight_step_fails_on_a_failing_file_and_still_runs_the_rest(self):
+        r = self.run_preflight("tests/test_pf_bad.py\ntests/test_pf_ok.py\n", {"test_pf_bad.py": self.BAD, "test_pf_ok.py": self.OK})
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("preflight: tests/test_pf_bad.py failed; reproduce with: python3 -m unittest discover -s tests -p test_pf_bad.py", r.stderr)
+        self.assertIn("preflight: tests/test_pf_ok.py rc=0", r.stdout)
+
+    def test_preflight_step_fails_on_an_empty_list_a_missing_file_or_zero_tests(self):
+        r = self.run_preflight("# nothing listed\n\n", {"test_pf_ok.py": self.OK})
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("lists no test file", r.stderr)
+        r = self.run_preflight("tests/test_pf_gone.py\ntests/test_pf_ok.py\n", {"test_pf_ok.py": self.OK})
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("tests/test_pf_gone.py (from ci/preflight.txt) does not exist", r.stderr)
+        r = self.run_preflight("tests/test_pf_empty.py\n", {"test_pf_empty.py": "import unittest\n"})
+        self.assertEqual(r.returncode, 1, r.stdout)
 
 
 if __name__ == "__main__":

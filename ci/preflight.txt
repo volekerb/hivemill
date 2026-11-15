@@ -1,0 +1,16 @@
+# Test files the `preflight` job of .github/workflows/tests.yml runs before any heavy job starts (T-1593).
+# One path per line; '#' starts a comment. These files also stay in their unittest shards: nothing leaves the full suite.
+#
+# How the list was chosen (docs/ci-cost.md): from the last 100 failed pull_request runs of tests.yml
+# (2026-11-12 to 2026-11-15), every test file that failed in at least 3 failed runs and runs in under 20 s,
+# plus tests/test_docs_index.py in any case. Keep the total under 60 s of test time (now about 41 s).
+# Trailing comment per file: failed runs out of 100, runtime in the shard log.
+tests/test_docs_index.py        # 40 failed runs, 0.04 s
+tests/test_sandbox_required.py  # 12 failed runs, 11.3 s
+tests/test_shlex_golden.py      # 7 failed runs, 1.2 s
+tests/test_guard_build.py       # 7 failed runs, 13.3 s
+tests/test_guard_golden.py      # 5 failed runs, 1.4 s
+tests/test_utilization.py       # 5 failed runs, 2.3 s
+tests/test_shard.py             # 4 failed runs, 0.3 s
+tests/test_skilleval_tick.py    # 4 failed runs, 10.2 s
+tests/test_cli_stub.py          # 4 failed runs, 0.2 s
