@@ -9916,6 +9916,20 @@ def _prior_spawn_arg(prior, key):
         return None
 
 
+def task_pinned_host_backend(con, task):
+    """'hc' or 'herdr' of the newest agent row of task started with an explicit --host-backend, else None."""
+    if not task:
+        return None
+    for r in con.execute("SELECT spawn_args FROM agents WHERE task_id=? ORDER BY started IS NULL, started DESC, rowid DESC", (task,)):
+        try:
+            a = json.loads(r["spawn_args"] or "{}")
+        except ValueError:
+            continue
+        if isinstance(a, dict) and a.get("host_backend_pinned") is True and a.get("host_backend") in ("hc", "herdr"):
+            return a["host_backend"]
+    return None
+
+
 def spawn_org(con, prior, name, goal, task, org=None):
     """The org spawn() puts an agent in: the caller's org, else the one stored in the prior row, else the name prefix, else the goal's."""
     return org_for(con, goal, task, org=org or _prior_spawn_arg(prior, "org") or orgs.prefix_of(name)
@@ -9999,15 +10013,24 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         sandbox_optin = True  # a sandbox_required task never starts unsandboxed, whoever spawns it (queue and relaunch keep it)
     args = {"role": role, "goal": goal, "team": team, "task": task, "name": name, "cwd": cwd,
             "prompt": prompt, "model": model, "resume": resume, "fresh": fresh, "org": org}
-    if host_backend is not None:
-        args["host_backend"] = host_backend
-    elif from_queue and existing:
+    prev = {}
+    if from_queue and existing:
         try:
             prev = json.loads(existing["spawn_args"] or "{}")
         except ValueError:
             prev = {}
-        if prev.get("host_backend") in ("hc", "herdr"):
-            args["host_backend"] = prev["host_backend"]
+        if not isinstance(prev, dict):
+            prev = {}
+    if host_backend is not None:
+        args["host_backend"] = host_backend
+        # explicit backend: the tick keeps it when it restarts the task's agents. The tick's queue drain passes the queued
+        # row's host_backend back in, so a from_queue call keeps the marker of the queued row instead of setting its own
+        if not from_queue or prev.get("host_backend_pinned") is True:
+            args["host_backend_pinned"] = True
+    elif prev.get("host_backend") in ("hc", "herdr"):
+        args["host_backend"] = prev["host_backend"]
+        if prev.get("host_backend_pinned") is True:
+            args["host_backend_pinned"] = True
     if sandbox_optin:
         args["sandbox_optin"] = True
     if role == "evaluator":
@@ -10037,7 +10060,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
                 old = {}
             if not isinstance(old, dict):
                 old = {}
-            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend") if k in old})
+            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend", "host_backend_pinned") if k in old})
         # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
         # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
         # and leaves a cancelled row alone
@@ -15262,7 +15285,7 @@ def judge_autospawn_tick(con):
         if not gate(con, load_exempt=True, role="judge", runtime=org_runtime(con, "judge", _o))[0]:
             break
         try:
-            spawn(con, "judge", t["goal_id"], t["team_id"], tid, name)
+            spawn(con, "judge", t["goal_id"], t["team_id"], tid, name, host_backend=task_pinned_host_backend(con, tid))
         except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
             event(con, "task", tid, "judge-autospawn-error",
                   (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
@@ -18136,7 +18159,7 @@ def review_rerun_tick(con):
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
                 break
             try:
-                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief)
+                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief, host_backend=task_pinned_host_backend(con, tid))
             except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the others or the tick
                 event(con, "task", tid, "review-autospawn-error", f"{name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
                 break
@@ -18212,7 +18235,7 @@ def review_autospawn_tick(con):
             if low:
                 brief = COMBINED_BRIEF.format(tier=t["tier"], task=tid) + brief
             try:
-                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief)
+                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief, host_backend=task_pinned_host_backend(con, tid))
             except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the others or the tick
                 event(con, "task", tid, "review-autospawn-error", f"{name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
                 break
@@ -18352,7 +18375,8 @@ def coder_ci_resume_tick(con):
         if not gate(con, role="coder")[0]:
             return
         try:
-            spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume)
+            spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume,
+                  host_backend=task_pinned_host_backend(con, tid))
         except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
             event(con, "task", tid, "coder-ci-resume-error", f"@{sha[:8]} {name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
             refused = con.execute("SELECT count(*) c FROM events WHERE entity='task' AND entity_id=? AND action='coder-ci-resume-error' "
