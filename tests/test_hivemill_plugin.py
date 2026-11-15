@@ -1,5 +1,7 @@
 import json
+import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -118,6 +120,30 @@ class SkillTests(unittest.TestCase):
     def test_apt_line_not_claimed_in_check(self):
         self.assertIn("not in the `--check` report", self.text)
         self.assertNotIn("the apt line the report printed", self.text)
+
+
+class IosReleaseNodeTests(unittest.TestCase):
+    """Runs the node --test suite of plugins/hivemill/scripts/ios-release (Linux, no Apple access)."""
+
+    def test_ios_release_node_tests(self):
+        node = shutil.which("node")
+        if node is None:
+            if os.environ.get("CI"):
+                self.fail("node is not installed but CI is set: the ios-release tests must run in CI")
+            self.skipTest("node is not installed")
+        major = subprocess.run([node, "-p", "process.versions.node.split('.')[0]"],
+                               capture_output=True, text=True, timeout=30).stdout.strip()
+        if not major.isdigit() or int(major) < 20:
+            if os.environ.get("CI"):
+                self.fail(f"node >= 20 is required in CI, found {major or 'unknown'}")
+            self.skipTest("node >= 20 is required")
+        tests = sorted((REPO / "plugins/hivemill/scripts/ios-release/test").glob("*.test.mjs"))
+        self.assertTrue(tests, "no *.test.mjs files under plugins/hivemill/scripts/ios-release/test")
+        r = subprocess.run([node, "--test", "--test-reporter=tap", *map(str, tests)], cwd=REPO, capture_output=True,
+                           text=True, timeout=300)
+        out = r.stdout + r.stderr
+        self.assertEqual(r.returncode, 0, out[-3000:])
+        self.assertIn("# fail 0", out)
 
 
 if __name__ == "__main__":
