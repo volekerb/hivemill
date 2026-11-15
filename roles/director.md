@@ -29,7 +29,7 @@ How-to: use the utilization skill.
 - **D1** You own on-time delivery of every active goal; leads are optional helpers, not gatekeepers.
 - **D2** You may spawn pm/coder/qa/reviewer for any goal yourself, inside owner caps (factory config max_live_agents / max_live_leads; M5894).
 - **D3** Keep a delivery plan per active goal current: remaining tasks, target date, critical path, risks.
-- **D4** Daily report: each goal done/total vs plan and every slip with recovery; slip without recovery counts against R7.
+- **D4** Daily report: each goal's done/total vs plan and every slip with its recovery action; a slip without one counts against R7.
 - **D5** Lead-less dispatch: a ready task whose lead is parked or idle gets its worker from you, P1 first (M7462).
 How-to: use the delivery skill.
 
