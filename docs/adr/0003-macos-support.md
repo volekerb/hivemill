@@ -146,7 +146,8 @@ the coder then runs with the read-write token. So macbox does not copy it:
 
 - The coder's clone gets an ACL entry for `_hivemill_rw` (read-write) and one for `_hivemill_ro` (read-only, for
   the reviewer).
-- qa works in a second clone of the same task (`git clone --shared`, as cheap in objects as the first), with an
+- qa works in a second clone of the same task (`git clone --shared` from `~/factory/.git` like the coder's, never
+  from the coder's clone, in a sibling directory so that it inherits none of the coder clone's entries), with an
   ACL entry for `_hivemill_ro` (read-write) and none for `_hivemill_rw`. qa already tests the pushed PR head
   (`refs/pull/<n>/head`), not the coder's working files, so it loses nothing.
 - The rule the spawn enforces and the preflight checks: `_hivemill_ro` never has a write entry on a clone that a
@@ -170,7 +171,10 @@ running as the owner. The shim reads the token files, builds the environment fro
 
 Tokens travel in the environment only, never in an argument (other users can see arguments with `ps`). The
 launcher sets `HOME`, `CLAUDE_CONFIG_DIR`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_NOSYSTEM=1` (the system git config on
-macOS may name the Keychain credential helper `[untested]`) and `TMPDIR` to per-agent directories owned by the worker account.
+macOS may name the Keychain credential helper `[untested]`) and `TMPDIR` to per-agent directories owned by the
+worker account. What the owner runs or reads for an agent (the `bin/` shim, `profile.sb`, the git config) stays
+owned by the owner and read-only for the worker accounts, apart from those directories; otherwise a worker could
+rewrite what the owner executes at the next relaunch. The preflight checks this.
 
 **Profile.** Generated per agent from the same inputs as the Linux worker profile: deny by default; read-only for
 system paths, the Claude install, the Go toolchain and `~/factory`; read-write for the agent's own directories,
@@ -215,7 +219,7 @@ counterpart; `test_cgroup` is refused on macOS and `test_slots` remains the brak
    update may break a profile; the self-test turns that into a refused spawn, not a silent hole.
 8. **Same class, same user.** Two coders run as the same account. Only the profile separates their work trees.
    The same holds inside the read-only class: without the profile a reviewer can write a qa clone and read every
-   live coder clone. Both hold the same read-only token, so this crosses no token boundary.
+   live coder clone `[untested]`. Both hold the same read-only token, so this crosses no token boundary.
 9. **HQ is not sandboxed**, as on Linux. Boss, director, leads and the judge run as the owner.
 10. **Claude Code's own Bash sandbox** may not work inside the profile (a sandbox inside a sandbox); it is turned
     off for sandboxed workers if the test shows that.
@@ -230,7 +234,7 @@ counterpart; `test_cgroup` is refused on macOS and `test_slots` remains the brak
     behaving as designed `[untested]`; S6 and S15 check it. It also costs one more checked-out tree per task on
     disk, and it differs from Linux, where qa shares the coder's clone and can write its hooks today.
 
-Limits 3 to 6 and 11 describe expected macOS behaviour and are `[untested]`; M0 and M7 confirm or correct them.
+Limits 3 to 6, 8, 11 and 13 describe expected macOS behaviour and are `[untested]`; M0 and M7 confirm or correct them.
 
 ### 3.4 What must be proven on a Mac (the SC4 tests)
 
@@ -407,7 +411,7 @@ themselves.
 | M3 | Gates: host-facts interface, macOS readers for load, CPU, memory, swap, processes; tmp gate with the free-space floor | Unit tests with recorded macOS command output (from M0) for each reader, including an unreadable value closing the gate; on a Mac `factory res` prints sane numbers next to Activity Monitor's; no `/proc` path is opened on macOS | **Yes**, for the final check only |
 | M4 | Seatbelt profile generator for reviewer, coder and qa, plus the self-test | Golden-file tests of the generated profile; on a Mac, same user: a canary in the home is unreadable, the clone is writable, `claude`, `gh`, `git` and `go test` work inside. Recorded as not sufficient for SC4 | **Yes**. No root |
 | M5 | Owner setup script for the accounts, sudoers file and ACLs; `factory` prints it and has a matching uninstall script | The script is reviewed by the owner before it runs; after it, `sudo -n -u _hivemill_ro true` works and the worker account cannot list the owner's home; the uninstall script restores the previous state | **Yes, with root, the owner runs it.** MacBook first; the Mac mini only after M7 passed on the MacBook |
-| M6 | macbox launcher, shim, preflight reasons, escape detection by user id, the qa clone and the per-clone ACL entries, spawn wiring behind `sandbox_roles` | Linux golden spawn tests unchanged (qa keeps the shared clone on Linux); unit tests for each new refusal reason through the CLI as a subprocess (one refused and one accepted case each); a test that a macOS qa spawn gets its own clone and that no write entry for `_hivemill_ro` is put on a coder's clone; on macOS without M5 a sandboxed spawn exits 3 with reason `user` and places no pane | No (fakes); a short one to confirm the refusal |
+| M6 | macbox launcher, shim, preflight reasons, escape detection by user id, the qa clone and the per-clone ACL entries, spawn wiring behind `sandbox_roles` | Linux golden spawn tests unchanged (qa keeps the shared clone on Linux); unit tests for each new refusal reason through the CLI as a subprocess (one refused and one accepted case each); a test that a macOS qa spawn gets its own clone (its path recorded for the agent, the `clone` preflight reason applied to it, `factory clean` removing both clones after the merge) and that no write entry for `_hivemill_ro` is put on a coder's clone; on macOS without M5 a sandboxed spawn exits 3 with reason `user` and places no pane | No (fakes); a short one to confirm the refusal |
 | M7 | SC4 proof: run S1 to S16 of section 3.4 | A PR that quotes each command and its output; every row meets its "must" column, or the limit is added to 3.3 and the owner accepts it; `docs/worker-sandbox.md` gets a macOS section (SC4) | **Yes** (needs M5 done) |
 | M8 | Fresh-install test for macOS and the `docs/SETUP.md` macOS section | The test creates and removes a throwaway macOS user and passes; every command of the new section was run on a Mac and its output is quoted in the PR (SC2, SC5) | **Yes, with root** |
 | M9 | Rollout on the Mac mini: one sandboxed reviewer canary, then qa, then coder, with the hold times of `docs/worker-sandbox.md` section 4 | No `sandbox-refused` or `sandbox-escaped` event during each hold; rollback is `factory config sandbox_roles ''` | **Yes, the owner's OK for each run** |
@@ -420,7 +424,8 @@ M7. Release text claims macOS support only after M2, M3, M7 and M8 (SC5).
 ## 6. Consequences
 
 - The Linux sandbox is unchanged. macOS gets a second implementation behind the same config key, preflight and
-  events, so operators learn one set of commands.
+  events, so operators learn one set of commands. One layout differs: on macOS qa works in its own clone, one more
+  checked-out tree per task (3.2, limit 13).
 - Two sandbox implementations must be kept working. The shared part (profile inputs, token handling, preflight,
   refusal reasons) must live in one place so that a change to the allow-list reaches both.
 - macOS support needs an owner action as root on each Mac. Without it the factory still runs on macOS, with
