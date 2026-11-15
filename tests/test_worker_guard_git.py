@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 from guard_impl import hook_run
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # T-0212
