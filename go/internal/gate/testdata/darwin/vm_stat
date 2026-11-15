@@ -1,0 +1,8 @@
+# synthetic: replace with M0 output
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                               10000.
+Pages active:                            200000.
+Pages inactive:                           50000.
+Pages speculative:                         2000.
+Pages throttled:                              0.
+Pages wired down:                         90000.

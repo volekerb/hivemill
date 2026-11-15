@@ -1,7 +1,10 @@
 package install
 
 import (
+	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -589,5 +592,216 @@ func mustWrite(t *testing.T, p, s string) {
 	t.Helper()
 	if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// ---------------------------------------------------------------------------------------------- macOS (G-049 M1)
+
+func newDarwin(t *testing.T) *fakeHost {
+	t.Helper()
+	f := newFake(t)
+	f.goos, f.machine, f.memsize = "darwin", "arm64", "17179869184" // 16 GiB
+	return f
+}
+
+// pinTest swaps one pin for the duration of the test; the real pins are checked against the downloads separately.
+func pinTest(t *testing.T, table map[string]Asset, key string, as Asset) {
+	t.Helper()
+	old := table[key]
+	table[key] = as
+	t.Cleanup(func() { table[key] = old })
+}
+
+func zipWith(t *testing.T, name, body string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.Create(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte(body)); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func shaHex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+func TestDarwinPinsAreAppleSilicon(t *testing.T) {
+	h, g := HerdrAssets["darwin/aarch64"], GHAssets["darwin/aarch64"]
+	if h.URL != herdrRelease+"/herdr-macos-aarch64" || h.Size != 22536176 {
+		t.Errorf("pin: %+v", h)
+	}
+	if g.URL != ghRelease+"/gh_2.103.3_macOS_arm64.zip" {
+		t.Errorf("gh pin: %+v", g)
+	}
+	for _, as := range []Asset{h, g} {
+		if len(as.SHA256) != 64 || as.Size <= 0 {
+			t.Errorf("incomplete pin %+v", as)
+		}
+	}
+}
+
+func TestDarwinIntelAndOtherOSRefused(t *testing.T) {
+	for _, tc := range []struct{ goos, machine, want string }{
+		{"darwin", "x86_64", "hivemill-install: no pinned release for darwin/x86_64 (Apple silicon only on macOS)"},
+		{"freebsd", "x86_64", "hivemill-install: no pinned release for freebsd/x86_64 (Apple silicon only on macOS)"},
+	} {
+		for _, mode := range []string{"--dry-run", "--check"} {
+			f := newFake(t)
+			f.goos, f.machine = tc.goos, tc.machine
+			rc, out, errw := runMain(t, f, mode)
+			if rc != 2 || !strings.Contains(out+errw, tc.want) {
+				t.Errorf("%s %s: rc=%d\n%s%s", tc.goos, mode, rc, out, errw)
+			}
+		}
+	}
+}
+
+func TestLinuxUnknownArchNotRefusedUpFront(t *testing.T) {
+	f := newFake(t)
+	f.machine = "riscv64"
+	rc, out, errw := runMain(t, f, "--check")
+	if strings.Contains(out+errw, "no pinned release for") || rc == 2 {
+		t.Errorf("rc=%d\n%s%s", rc, out, errw)
+	}
+}
+
+func TestDarwinCheck(t *testing.T) {
+	f := newDarwin(t)
+	f.login(t)
+	rc, out, _ := runMain(t, f, "--check")
+	if rc != 0 {
+		t.Fatalf("rc=%d\n%s", rc, out)
+	}
+	for _, want := range []string{"ok python3>=3.11 ", "ok git ", "ok ram 16.0 GiB", "boot units: launchd step not available yet (G-049 M2)\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("check lacks %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "systemd") {
+		t.Errorf("systemd reported on macOS\n%s", out)
+	}
+	for _, c := range f.calls {
+		if c[0] == "systemctl" || c[0] == "loginctl" {
+			t.Errorf("probed %v", c)
+		}
+	}
+}
+
+func TestDarwinCheckRAMReadFailureFails(t *testing.T) {
+	for _, bad := range []string{"fail", "", "lots"} {
+		f := newDarwin(t)
+		f.memsize = bad
+		rc, out, _ := runMain(t, f, "--check")
+		if rc != 3 || !strings.Contains(out, "missing ram ") {
+			t.Errorf("memsize %q: rc=%d\n%s", bad, rc, out)
+		}
+	}
+}
+
+func TestDarwinDryRun(t *testing.T) {
+	f := newDarwin(t)
+	f.tools = map[string]bool{"git": true, "python3": true}
+	rc, out, _ := runMain(t, f, "--dry-run", "--linger")
+	if rc != 0 {
+		t.Fatalf("rc=%d\n%s", rc, out)
+	}
+	for _, want := range []string{
+		"    download " + HerdrAssets["darwin/aarch64"].URL + " -> <tmpdir>/herdr, then verify size 22536176 and sha256 fb77c223",
+		"herdr-macos-aarch64",
+		"    download " + GHAssets["darwin/aarch64"].URL + " -> <tmpdir>/gh.zip, then verify size",
+		"    extract gh_2.103.3_macOS_arm64/bin/gh from the zip and install it as " + f.HomeDir + "/.local/bin/gh\n",
+		"boot units: launchd step not available yet (G-049 M2)",
+		"--linger: not applicable on macOS (launchd user agents run while you are logged in)",
+		"plan only: nothing was changed\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("plan lacks %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "systemd") || strings.Contains(out, "enable-linger") {
+		t.Errorf("systemd text in a macOS plan\n%s", out)
+	}
+}
+
+func TestDarwinMissingGitHintsXcode(t *testing.T) {
+	f := newDarwin(t)
+	f.tools = map[string]bool{"python3": true}
+	rc, out, errw := runMain(t, f, "--dry-run")
+	if rc != 3 || !strings.Contains(out+errw, "xcode-select --install") || strings.Contains(out+errw, "apt-get") {
+		t.Errorf("rc=%d\n%s%s", rc, out, errw)
+	}
+}
+
+func darwinToolsFake(t *testing.T, zb []byte) (*fakeHost, *Ctx) {
+	t.Helper()
+	f := newDarwin(t)
+	f.tools = map[string]bool{"git": true, "python3": true, "claude": true, "herdr": true}
+	f.assets[GHAssets["darwin/aarch64"].URL] = zb
+	c := NewCtx(f, &Args{}, &bytes.Buffer{}, false)
+	c.tmp = t.TempDir()
+	return f, c
+}
+
+func TestDarwinInstallsVerifiedZip(t *testing.T) {
+	zb := zipWith(t, "gh_2.103.3_macOS_arm64/bin/gh", "gh-binary")
+	pinTest(t, GHAssets, "darwin/aarch64", Asset{GHAssets["darwin/aarch64"].URL, int64(len(zb)), shaHex(zb)})
+	f, c := darwinToolsFake(t, zb)
+	f.tools["gh"] = false
+	detail, err := stepTools(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(detail, "gh 2.103.3 (size+sha256 verified)") {
+		t.Errorf("detail %q", detail)
+	}
+	got, err := os.ReadFile(filepath.Join(f.HomeDir, ".local", "bin", "gh"))
+	if err != nil || string(got) != "gh-binary" {
+		t.Errorf("gh: %q %v", got, err)
+	}
+}
+
+func TestDarwinTamperedZipShaSizeRefused(t *testing.T) {
+	zb := zipWith(t, "gh_2.103.3_macOS_arm64/bin/gh", "gh-binary")
+	evil := zipWith(t, "gh_2.103.3_macOS_arm64/bin/gh", "evil-binary")
+	url := GHAssets["darwin/aarch64"].URL
+	for _, tc := range []struct {
+		name string
+		pin  Asset
+		want string
+	}{
+		{"Sha", Asset{url, int64(len(evil)), shaHex(zb)}, "sha256 mismatch; nothing installed"},
+		{"Size", Asset{url, int64(len(zb)) + 1, shaHex(evil)}, "size mismatch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pinTest(t, GHAssets, "darwin/aarch64", tc.pin)
+			f, c := darwinToolsFake(t, evil)
+			f.tools["gh"] = false
+			_, err := stepTools(c)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(f.HomeDir, ".local", "bin", "gh")); err == nil {
+				t.Error("an unverified gh was installed")
+			}
+		})
+	}
+}
+
+func TestDarwinZipMemberMissingFails(t *testing.T) {
+	zb := zipWith(t, "other/gh", "x")
+	pinTest(t, GHAssets, "darwin/aarch64", Asset{GHAssets["darwin/aarch64"].URL, int64(len(zb)), shaHex(zb)})
+	f, c := darwinToolsFake(t, zb)
+	f.tools["gh"] = false
+	if _, err := stepTools(c); err == nil || !strings.Contains(err.Error(), "not found in gh.zip") {
+		t.Errorf("err %v", err)
 	}
 }
