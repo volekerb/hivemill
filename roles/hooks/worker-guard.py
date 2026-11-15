@@ -1536,10 +1536,10 @@ def tc_parse(words, tbl, dd="end"):
                 raise ValueError(w + " (a terminator is not allowed here)")
             pos.extend(words[k:])
             break
-        m = re.match(r"^--?([^=\s-][^=\s]*)(=(.*))?$", w, re.S)
+        m = re.match(r"^--?([^=\s-][^=\s]*)(=(.*))?\Z", w, re.S)
         if not m:
-            if w.startswith("-") and w != "-":
-                raise ValueError(w)
+            if (w.startswith("-") and w != "-") or w.startswith(("$", "{")) or "`" in w:
+                raise ValueError(w)  # a word the shell can expand into a flag (dollar-quote, ${X}-o, brace list) cannot be classified
             pos.append(w)
             continue
         name = re.sub(r"^test\.", "", m.group(1))

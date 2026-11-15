@@ -84,8 +84,8 @@ func tcParse(words []string, tbl tcTable, ddEnd bool) ([]tcFlag, []string, strin
 		}
 		m := reTcParse.FindStringSubmatch(w)
 		if m == nil {
-			if strings.HasPrefix(w, "-") && w != "-" {
-				return nil, nil, w
+			if (strings.HasPrefix(w, "-") && w != "-") || strings.HasPrefix(w, "$") || strings.HasPrefix(w, "{") || strings.Contains(w, "`") {
+				return nil, nil, w // a word the shell can expand into a flag cannot be classified
 			}
 			pos = append(pos, w)
 			continue

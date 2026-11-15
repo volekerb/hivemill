@@ -690,7 +690,9 @@ class GoToolchainForWorkers(ProtTreesCase):
                 self.G + "go test -run -- -exec /tmp/x ./x", self.G + "go test -c -run -- -o /etc/evilout ./x",
                 self.G + "go test -- -test.cpuprofile=/tmp/x", "GOFLAGS=-- " + self.G + "go test ./...",
                 prot + "go test -cpuprofile /dev/null", prot + "go test -memprofile=/dev/null .", prot + "go test -test.blockprofile /dev/null",
-                prot + "go test -mutexprofile /dev/null", prot + "go test -trace /dev/null", prot + "go test -coverprofile /dev/null"]
+                prot + "go test -mutexprofile /dev/null", prot + "go test -trace /dev/null", prot + "go test -coverprofile /dev/null",
+                self.G + "go build $'-o' ~/.local/lib/factory/factory-go ./x", self.G + "go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+                self.G + "go test $'-exec' /tmp/x ./x", self.G + "go build $'-toolexec=/tmp/x' ./x"]
         for role in ("coder", "qa", "reviewer"):
             for cmd in cmds:
                 self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")

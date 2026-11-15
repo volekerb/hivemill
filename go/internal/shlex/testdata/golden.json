@@ -116530,6 +116530,138 @@
 "src": "corpus"
 },
 {
+"input": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"$-o",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"$",
+"-o",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"$-o",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go build $'\"'\"'-o'\"'\"' ~/.local/lib/factory/factory-go ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"${X}-o",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"$",
+"{",
+"X",
+"}",
+"-o",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"build",
+"${X}-o",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test $'-exec' /tmp/x ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"$-exec",
+"/tmp/x",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test $'-exec' /tmp/x ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"$",
+"-exec",
+"/tmp/x",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test $'-exec' /tmp/x ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"$-exec",
+"/tmp/x",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test $'-exec' /tmp/x ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test $'\"'\"'-exec'\"'\"' /tmp/x ./x'",
+"src": "corpus"
+},
+{
 "input": "echo hc",
 "mode": "script",
 "src": "corpus",
@@ -149897,7 +150029,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3444,
+"corpus_commands": 3447,
 "edge_inputs": 123,
 "python": "3.13"
 }

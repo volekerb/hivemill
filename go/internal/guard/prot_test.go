@@ -175,7 +175,8 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		g+"go test -run -- -exec /tmp/x ./x", g+"go test -c -run -- -o /etc/evilout ./x", g+"go test -- -test.cpuprofile=/tmp/x",
 		"GOFLAGS=-- "+g+"go test ./...", pt+"go test -cpuprofile /dev/null", pt+"go test -memprofile=/dev/null .",
 		pt+"go test -test.blockprofile /dev/null", pt+"go test -mutexprofile /dev/null", pt+"go test -trace /dev/null",
-		pt+"go test -coverprofile /dev/null")
+		pt+"go test -coverprofile /dev/null", g+"go build $'-o' ~/.local/lib/factory/factory-go ./x", g+"go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+		g+"go test $'-exec' /tmp/x ./x", g+"go build $'-toolexec=/tmp/x' ./x")
 	allow = append(allow, g+"go vet -- ./...", g+"go test -cpuprofile /dev/null ./...", g+"go build -tags x -- ./...")
 	allow = append(allow, g+"go fmt ./pkg", g+"go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off "+g+"go list -m foo@latest", g+"go list -m all")
 	for _, role := range []string{"coder", "qa", "reviewer"} {

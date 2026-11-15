@@ -142377,6 +142377,178 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x",
+"mask_quotes_pre": "~/.local/go/bin/go build $'QQ' ~/.local/lib/factory/factory-go ./x",
+"mask_quotes_raw": "~/.local/go/bin/go build $'QQ' ~/.local/lib/factory/factory-go ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"~/.local/go/bin/go",
+"build",
+"$'QQ'",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"~/.local/go/bin/go",
+"build",
+"$'QQ'",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+"mask_quotes_pre": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+"mask_quotes_raw": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"~/.local/go/bin/go",
+"build",
+"$"
+]
+],
+[
+27,
+28,
+[
+"X"
+]
+],
+[
+29,
+67,
+[
+"-o",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"~/.local/go/bin/go",
+"build",
+"$"
+]
+],
+[
+27,
+28,
+[
+"X"
+]
+],
+[
+29,
+67,
+[
+"-o",
+"~/.local/lib/factory/factory-go",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test $'-exec' /tmp/x ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test $'QQQQQ' /tmp/x ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test $'QQQQQ' /tmp/x ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test $'-exec' /tmp/x ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test $'-exec' /tmp/x ./x"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"~/.local/go/bin/go",
+"test",
+"$'QQQQQ'",
+"/tmp/x",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"~/.local/go/bin/go",
+"test",
+"$'QQQQQ'",
+"/tmp/x",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "echo hc",
 "mask_quotes_pre": "echo hc",
 "mask_quotes_raw": "echo hc",
@@ -185570,7 +185742,7 @@
 ]
 }
 },
-"corpus_commands": 3444,
+"corpus_commands": 3447,
 "edge_inputs": 97,
 "python": "3.13"
 }
