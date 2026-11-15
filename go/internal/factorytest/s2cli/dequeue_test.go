@@ -25,6 +25,8 @@ import (
 //     test_gate_closed_from_queue_upsert_leaves_cancelled_row_alone, test_manual_spawn_of_starting_row_exits_2,
 //     the six T-0130 queued_at tests, test_help_lists_dequeue (Python argparse --help) - spawn/tick/up through the
 //     stateful herdr, hooks, or ns.spawn() called in-process.
+// The four DequeueCmd cases call NeedPython through queue() (spawn is not ported): they skip visibly where python3
+// is missing.
 // A follow-up needs a stateful herdr stub in the Go harness (or the Go spawn/tick) before they can move.
 
 type dqEnv struct {

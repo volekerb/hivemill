@@ -14,6 +14,8 @@ import (
 // Port of tests/test_smoke.py (5 cases; see ported_s2cli.txt).
 // not ported: SmokeTests.test_py_compile - it byte-compiles bin/factory_cli.py; the Go counterpart is that factory-go
 // builds, which TestSmokeGoBuilds asserts (ft.New fails the test when the build fails).
+// Also dropped: the Python check that gh resolves into tests/stubs; the Go stubs are one binary, so the test asserts
+// gh and herdr are byte-identical copies instead.
 
 func TestSmokeGoBuilds(t *testing.T) {
 	e := ft.New(t)
