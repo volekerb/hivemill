@@ -97,7 +97,7 @@
       "start": 34.0,
       "end": 42.0,
       "visual": "Cards fan out per role, then the setup command.",
-      "caption": "Every role ships with its own skills: coders self-review, reviewers look from several angles, researchers follow a benchmark protocol. Setup is one command.",
+      "caption": "Every role ships with its own skills: self-review, multi-angle review, benchmark protocol. Setup is one command.",
       "onscreen": [
         "41 role skills · 7 roles",
         "/hivemill:setup"
@@ -131,17 +131,19 @@
       "start": 48.0,
       "end": 54.0,
       "visual": "Herdr app panel, composed at 1920x1080 from the native 1x crops in docs/film/herdr/ (no upscaling beyond native size): the Factory card (live/cap tiles, Claude and Cursor lanes) and Budget & cost (cost per merged PR, spend per day) slide in side by side, Resources and Active goals follow, then the status bar rises along the bottom and is highlighted. Use only the five panel-*.png crops. Never show the Needs you list, the Most expensive tasks list or the Factory agents list. No version number in this scene.",
-      "caption": "Or watch in the Herdr app panel. Agents run on the classic Herdr terminal or on herdr-core.",
+      "caption": "Or watch in the Herdr app panel. herdr-core is the default; the classic Herdr terminal is still supported.",
       "onscreen": [
         "Herdr app panel",
-        "classic Herdr terminal · herdr-core",
+        "herdr-core by default · classic Herdr terminal supported",
         "live agents · weekly usage · cost per merged PR"
       ],
       "sources": [
         "docs/film/herdr/CAPTURE.md:3",
         "docs/film/herdr/CAPTURE.md:5",
         "docs/terminal-backends.md:9",
-        "docs/terminal-backends.md:10"
+        "docs/terminal-backends.md:10",
+        "docs/terminal-backends.md:22",
+        "docs/terminal-backends.md:24"
       ],
       "placeholder": false
     },
