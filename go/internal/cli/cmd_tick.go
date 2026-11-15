@@ -32,6 +32,7 @@ func runTick(c *ctx, _ any) (int, error) {
 	// The Python child's migrate_db unit moves a legacy HOME/factory.db aside; a pooled idle connection of ours would
 	// keep the -wal/-shm sidecars alive and they would be renamed too (several migrated files, as Python never leaves).
 	// Zero idle connections: each query closes its connection, so nothing holds the file between units.
+	// Follow-up: a Go unit that queries after migrate_db would reconnect to the old legacy path (gone); re-resolve then.
 	c.db.SetMaxIdleConns(0)
 	base := time.Now()
 	// From here on the handler never returns errDelegate: Python would redo the whole tick. Output goes straight to
