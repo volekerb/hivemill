@@ -519,3 +519,23 @@ func TestPlanReviewFindings(t *testing.T) {
 		t.Errorf("evaluator refusal lacks the marker: %+v", p.Refusal)
 	}
 }
+
+// TestPlanStopAtGate: the probe stops before the gate (and reads no gate input: a zero snapshot is fine) when nothing
+// earlier refused, and still returns an earlier refusal.
+func TestPlanStopAtGate(t *testing.T) {
+	f := baseFacts()
+	f.Gate, f.GateConfig = gate.Snapshot{}, gate.Config{}
+	f.StopAtGate = true
+	if p := Plan(coderReq(), f); !p.AtGate || p.Refusal != nil || p.Start != nil || p.Queue != nil {
+		t.Fatalf("probe plan %+v", p)
+	}
+	bad := coderReq()
+	bad.Role = "nosuchrole"
+	if p := Plan(bad, f); p.AtGate || p.Refusal == nil || p.Refusal.Code != 1 {
+		t.Fatalf("refusal plan %+v", p)
+	}
+	f.StopAtGate = false
+	if p := Plan(coderReq(), f); p.AtGate {
+		t.Fatalf("AtGate set without StopAtGate")
+	}
+}

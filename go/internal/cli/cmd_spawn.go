@@ -113,7 +113,23 @@ func runSpawn(c *ctx, parsed any) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	plan := spawn.Plan(req, f)
+	// Plan refusals all precede the gate (a failed gate queues): a probe that stops at the gate finds them without a
+	// host call. Then the shape hand-over, then the gate snapshot (it lists the host's agents): a hand-over to Python
+	// never follows a host call of ours (M36655).
+	probe := f
+	probe.StopAtGate = true
+	plan := spawn.Plan(req, probe)
+	if plan.AtGate {
+		if shapeDelegates(req, f, host.exe) {
+			return 0, needPython("shape not ported")
+		}
+		snap, gcfg, err := resSnapshot(c, c.env.Now())
+		if err != nil {
+			return 0, err
+		}
+		f.Gate, f.GateConfig = snap, gcfg
+		plan = spawn.Plan(req, f)
+	}
 	if plan.Start != nil {
 		if plan.Start.NeedWorktree || plan.Start.Sandboxed || plan.Start.GhCred || plan.Start.EvaluatorSettings || plan.Start.Runtime != "claude" || host.exe != "hc" {
 			return 0, errDelegate
@@ -398,15 +414,6 @@ func spawnFacts(c *ctx, req spawn.Request, home string) (spawn.Facts, spawnHost,
 	default:
 		_, exe = cl.TerminalBackendEffective()
 	}
-	if shapeDelegates(req, f, exe) {
-		return f, spawnHost{}, needPython("shape not ported")
-	}
-	// the gate snapshot reads the host (agent list): taken last, so a hand-over above has made no host call (M36655)
-	snap, gcfg, err := resSnapshot(c, c.env.Now())
-	if err != nil {
-		return f, spawnHost{}, err
-	}
-	f.Gate, f.GateConfig = snap, gcfg
 	return f, spawnHost{exe: exe, client: cl}, nil
 }
 

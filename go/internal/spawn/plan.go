@@ -84,6 +84,9 @@ type Facts struct {
 
 	Gate       gate.Snapshot
 	GateConfig gate.Config
+	// StopAtGate makes Plan return, before the gate, with SpawnPlan.AtGate set when no earlier check refused: the caller
+	// then decides a hand-over to Python before it takes the gate snapshot (which reads the host).
+	StopAtGate bool
 
 	Home, RunDir, RolesDir string
 	ResearchDir            string // research_dir(task), resolved by the caller
@@ -135,6 +138,8 @@ type SpawnPlan struct {
 	// Bounce: a claimed queued row whose head went stale; the caller cancels it (event spawn-bounced).
 	// Requeue: a claimed judge row that is held; the caller sets it back to queued. Both leave Start nil.
 	Bounce, Requeue string
+	// AtGate: Facts.StopAtGate was set and every check before the gate passed; nothing else in the plan is filled.
+	AtGate bool
 }
 
 // Refusal reasons the tick keys on (Python's exception attributes).
@@ -312,6 +317,10 @@ func Plan(req Request, f Facts) SpawnPlan {
 	}
 	if role == "researcher" && rt == "cursor" {
 		return fail(3, "the researcher role is not supported on the Cursor runtime (docs/research-team.md); use the claude org")
+	}
+	if f.StopAtGate {
+		p.AtGate = true
+		return p
 	}
 	liveExisting := existing != nil && existing.Status == "live"
 	d := gate.Decide(f.Gate, f.GateConfig, gate.Options{
