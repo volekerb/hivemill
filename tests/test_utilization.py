@@ -254,10 +254,14 @@ class UtilCase(Base):
         self.assertEqual(len(left), 2)
 
     def test_tick_wiring(self):
+        con = self.load()
+        walk = self.mod.TICK_WALK_UNITS
+        self.assertLess(walk.index("relaunches"), walk.index("util"))
         src = FACTORY_SRC.read_text().splitlines()
         hits = [i for i, l in enumerate(src) if "util_sample(con)" in l and not l.lstrip().startswith(("def ", "#"))]
         self.assertEqual(len(hits), 1)
-        self.assertEqual(src[hits[0] - 1].strip(), "tick_relaunches(con)")
+        self.assertTrue(src[hits[0] - 1].lstrip().startswith("def _tick_u_util"))
+        con.close()
 
     def test_tick_runs_sampler(self):
         p = self.env.run("tick", extra_env={"FACTORY_NOW": NOW})

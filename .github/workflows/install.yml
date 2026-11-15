@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "plugins/hivemill/**"
+      - "go/cmd/hivemill-install/**"
+      - "go/internal/install/**"
       - ".github/workflows/install.yml"
       - "ci/install_container_test.py"
       - "systemd/**"
@@ -20,6 +22,28 @@ permissions:
   contents: read
 
 jobs:
+  install-go:
+    name: install-go (shim + Go installer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+      - name: Go tests
+        run: cd go && go test -race -count=1 ./cmd/hivemill-install/... ./internal/install/...
+      - name: Run the installer through the shim (--check)
+        run: |
+          mkdir -p "$RUNNER_TEMP/rel" "$RUNNER_TEMP/plugin/scripts"
+          (cd go && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o "$RUNNER_TEMP/rel/hivemill-install-linux-amd64" ./cmd/hivemill-install)
+          sum=$(sha256sum "$RUNNER_TEMP/rel/hivemill-install-linux-amd64" | cut -d' ' -f1)
+          sed "s/^SHA_LINUX_AMD64=.*/SHA_LINUX_AMD64=\"$sum\"/" plugins/hivemill/scripts/install > "$RUNNER_TEMP/plugin/scripts/install"
+          chmod +x "$RUNNER_TEMP/plugin/scripts/install"
+          # exit 3 = something to install first, which is a valid --check answer on a CI runner
+          HIVEMILL_INSTALL_BASE_URL="file://$RUNNER_TEMP/rel" "$RUNNER_TEMP/plugin/scripts/install" --check || [ $? -eq 3 ]
   install-smoke:
     name: install-smoke (${{ matrix.image }}, ${{ matrix.ref }})
     runs-on: ubuntu-latest

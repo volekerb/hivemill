@@ -388,6 +388,45 @@ class GoImplTests(GuardDiffCase):
         self.assertEqual(roles, {"alpha", "beta-two"})
         self.assertIn(" hq ls -la", p.stdout)
 
+    def test_role_shard_runs_only_its_roles(self):
+        sdir = os.path.join(self.repo, "roles", "settings")
+        os.makedirs(sdir)
+        for role in ("alpha", "beta-two"):
+            with open(os.path.join(sdir, role + ".json.in"), "w") as f:
+                f.write('{"command": "python3 x/roles/hooks/worker-guard.py --role %s"}' % role)
+        with open(self.corpus, "w") as f:
+            json.dump({"must_block": [BAD, {"cmd": "zzz-only", "role": "zzz"}], "must_allow": ["ls -la"]}, f)
+        log = os.path.join(self._tmp.name, "argv.log")
+        body = ("import json, sys\nopen(%r, 'a').write(' '.join(sys.argv[1:]) + '\\n')\n"
+                "c = json.load(sys.stdin)['tool_input']['command']\nsys.exit(2 if c == %r else 0)\n" % (log, BAD))
+        p = self.run_go(body, "--roles", "all", "--role-shard", "1", "--role-shards", "2")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        with open(log) as f:
+            one = f.read()
+        self.assertIn("--role alpha", one)
+        self.assertIn("--role zzz", one)  # a corpus role with no template still runs, on shard 1
+        self.assertNotIn("--role beta-two", one)
+        os.remove(log)
+        p = self.run_go(body, "--roles", "all", "--role-shard", "2", "--role-shards", "2")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        with open(log) as f:
+            two = f.read()
+        self.assertIn("--role beta-two", two)
+        self.assertNotIn("--role alpha", two)
+        self.assertNotIn("--role zzz", two)
+        half = self.run_go(body, "--role-shard", "1")
+        self.assertEqual(half.returncode, 2, half.stderr)
+        self.assertIn("set together", half.stderr)
+
+    def test_role_shards_partition_every_template_role(self):
+        roles = guard_diff.roles_for_all(harness.REPO)
+        parts = [guard_diff.shard_roles(roles, i, 4) for i in range(1, 5)]
+        self.assertTrue(all(parts))
+        self.assertEqual(sorted(r for part in parts for r in part), roles)
+        for bad in ((0, 4), (5, 4), (1, 0)):
+            with self.assertRaises(guard_diff.UsageError):
+                guard_diff.shard_roles(roles, *bad)
+
     def test_allow_loosen_refused(self):
         p = self.run_go(STUB_BASE, "--allow-loosen", os.devnull)
         self.assertEqual(p.returncode, 2)

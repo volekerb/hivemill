@@ -63,6 +63,7 @@ func regenDiff(want, got map[string][]byte) []string {
 // TestGoldenRegenClean is the "parity regen" proof: update mode run on a temp copy of testdata/golden must
 // reproduce the checked-in goldens byte for byte. The worktree is never written.
 func TestGoldenRegenClean(t *testing.T) {
+	requireFullRepo(t)
 	copyRoot := filepath.Join(t.TempDir(), "golden")
 	if err := copyTree(goldenDir, copyRoot); err != nil {
 		t.Fatal(err)

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Scene: herdr-core</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+.panel { position:absolute; left:140px; top:180px; width:1640px; background:var(--panel); border:3px solid var(--line); border-radius:22px; padding:56px 72px; }
+.h { font-size:var(--fs-title); font-weight:bold; margin-bottom:40px; }
+.line { font-size:48px; line-height:1.35; margin:28px 0; padding:24px 32px; background:#05080f; border-radius:14px; border-left:6px solid var(--lead); opacity:0; }
+.chip { display:inline-block; margin-bottom:32px; }
+</style></head>
+<body data-scene="herdr-core">
+<div class="stage">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="panel card">
+<span class="chip role-coder card active" style="color:var(--accent)">coder</span>
+<div class="h">herdr-core pilot</div>
+<div class="line" id="l0">One coder, T-1218</div>
+<div class="line" id="l1">spawned with --host-backend hc</div>
+<div class="line" id="l2">terminal_backend stays herdr</div>
+<div class="line" id="l3">hc 0.1.21 has no view slot. There is no Hivemill UI plugin.</div>
+</div>
+<div class="caption-bar"><span></span></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "herdr-core", "duration": 16, "captions": [{"at": 0.0, "until": 4.0, "text": "One coder, T-1218"}, {"at": 4.0, "until": 8.0, "text": "spawned with --host-backend hc"}, {"at": 8.0, "until": 12.0, "text": "terminal_backend stays herdr"}, {"at": 12.0, "until": 16.0, "text": "hc 0.1.21 has no view slot. There is no Hivemill UI plugin."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="demo.js"></script>
+<script>
+(function () {
+  function clamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function ramp(t, a, b) { return clamp((t - a) / (b - a)); }
+  function $(id) { return document.getElementById(id); }
+  demo.on(function (t) {
+    $("l0").style.opacity = ramp(t, 0.0, 0.8);
+    $("l1").style.opacity = ramp(t, 4.0, 4.8);
+    $("l2").style.opacity = ramp(t, 8.0, 8.8);
+    $("l3").style.opacity = ramp(t, 12.0, 12.8);
+  });
+  demo.seek(0);
+})();
+</script>
+</body></html>

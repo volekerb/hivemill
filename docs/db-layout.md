@@ -51,3 +51,7 @@ python3 -c "import sqlite3,sys;c=sqlite3.connect(sys.argv[1],isolation_level=Non
 ```
 
 `tests/test_db_layout.py` runs both rollback variants in a temp home.
+
+## Tables
+
+- `schedules` — owner-defined recurring jobs (G-038 F-31): one row per job (`id` `S-###`), soft-removed rows stay for audit (`removed_at`).

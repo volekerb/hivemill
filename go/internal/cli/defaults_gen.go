@@ -7,6 +7,7 @@ var DefaultConfig = []ConfigDefault{
 	{"guard_impl", "python"},
 	{"model_cleaner", ""},
 	{"cli_impl", "python"},
+	{"tick_impl", "python"},
 	{"cli_go_cmds", ""},
 	{"max_live_agents", "6"},
 	{"max_total_claude", "10"},
