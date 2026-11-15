@@ -32,7 +32,7 @@ goal record itself is not readable from a worker pane):
 | G2 | The owner's gh token is out of reach | `gh` stores it in the system credential store, with a plain-text fallback `[doc D7]`. Both must be unreachable |
 | G3 | The owner's ssh keys and agent are out of reach | `~/.ssh`, the `SSH_AUTH_SOCK` agent socket, and key passphrases kept in the Keychain `[untested]` |
 | G4 | The owner's Keychain is out of reach | New on macOS. One default keychain per user `[doc D14]`; access is decided by the `securityd` daemon, not by file permissions alone `[doc D14]` |
-| G5 | A per-role GitHub token | Read-only PAT for reviewer, qa, pm and researcher; read-write PAT for coder. A read-only role must not be able to read the read-write token |
+| G5 | A per-role GitHub token | Among the roles that can be sandboxed: read-only PAT for reviewer, qa and researcher; read-write PAT for coder (pm, judge and cleaner are not sandboxed, as on Linux). A read-only role must not be able to read the read-write token or write into a read-write role's work tree |
 | G6 | An allow-list view of home | The worker sees only listed paths of the owner's home; everything else is denied by default |
 
 What the Linux sandbox also gives, and what macOS must match or list as a limit: HQ-run code (`bin/`,
@@ -65,15 +65,15 @@ Four mechanisms:
 | G3 ssh keys, agent | Deny `~/.ssh` and the agent socket path in the profile; unset `SSH_AUTH_SOCK` `[untested]` | Met: `~/.ssh` is 0700 and the agent socket belongs to the owner `[untested]` | Met: not shared into the guest `[untested]` | As G1 `[untested]` |
 | G4 Keychain | Depends on the profile, as G1. The sandbox-runtime project warns that even its narrower Mach allowance for TLS trust "opens a potential data exfiltration vector through the trustd service" `[doc D5]` | Met by the operating system: a different user, a different keychain `[doc D14]` | Met: no Keychain in the guest `[untested]` | Met in principle `[untested]` |
 | G5 per-role token | Works (token in the environment, as on Linux), but a read-only worker runs as the same user as a read-write worker and can read its environment unless the profile denies process inspection `[untested]` | Met with one account per token class: a process cannot read the environment of another user's process `[untested]` | Met: one guest, or one Linux sandbox inside the guest, per worker; the Linux mechanism is already proven | Works through the environment `[untested]` |
-| G6 allow-list view | Met by rules: deny the home subtree, allow listed paths `[untested]`. Paths are denied, not hidden: the worker gets a permission error where Linux shows an empty directory | Partly: Unix permissions are deny-by-default only where the owner's files are not readable by others. Anything in the home that is world-readable stays readable unless the home directory itself is closed and the allowed paths are opened by ACL `[untested]` | Met: only the shared directories exist in the guest `[untested]` | Not usable: the view is the app's fixed container plus entitlements, not a per-worker list `[untested]` |
+| G6 allow-list view | Met by rules: deny the home subtree, allow listed paths `[untested]`. Paths are denied, not hidden: the worker gets a permission error where Linux shows an empty directory `[untested]` | Partly: Unix permissions are deny-by-default only where the owner's files are not readable by others. Anything in the home that is world-readable stays readable unless the home directory itself is closed and the allowed paths are opened by ACL `[untested]` | Met: only the shared directories exist in the guest `[untested]` | Not usable: the view is the app's fixed container plus entitlements, not a per-worker list `[untested]` |
 
 ### 2.2 Cost, risk and fit
 
 | | A. Seatbelt | B. Separate user | C. Linux VM | D. App Sandbox |
 |---|---|---|---|---|
-| Needs root | No `[untested]` | Yes, once: create the accounts and one sudoers file. Creating a user needs administrator rights `[untested]` | `container`: an administrator password at install `[doc D12]`. Lima-style tools: no `[untested]` | No root, but needs code signing with an entitlement `[doc D13]` |
-| Setup cost | Medium to high: one profile per role, written and kept working by us. The profile language has no Apple reference `[untested]`; the working examples are other projects' profiles `[doc D5]` | Medium: an owner-run script (accounts, sudoers, ACLs) plus the launcher. Standard, documented Unix tools | High: guest image, Claude Code and the Go toolchain for Linux arm64 in the guest, file sharing, and a way to show a guest process in a host pane | Very high: a signed app bundle that hosts the worker; `claude` and every tool it starts would have to run as its helpers `[untested]` |
-| Deprecation | `sandbox-exec` "is DEPRECATED" `[doc D1]`, and so is `sandbox_init` `[doc D3]`. The man pages are dated 2017 `[doc D1]`. It is still what Claude Code itself uses on macOS today `[doc D4]`, so it is in wide use, but Apple can remove it | None. User accounts, `sudo` and ACLs are core system features `[untested]` | Current and promoted by Apple `[doc D11]`. `container` "is designed to run on macOS 26 or later" and needs Apple silicon `[doc D12]` | Current `[doc D13]` |
+| Needs root | No `[untested]` | Yes, once: create the accounts and one sudoers file. Creating a user needs administrator rights `[untested]` | `container`: an administrator password at install `[doc D12]`. Lima-style tools: no `[untested]` | No root, but needs an entitlement `[doc D13]`, which is applied by code signing `[untested]` |
+| Setup cost | Medium to high: one profile per role, written and kept working by us. The profile language has no Apple reference `[untested]`; the working examples are other projects' profiles `[doc D5]` | Medium: an owner-run script (accounts, sudoers, ACLs) plus the launcher. Standard Unix tools `[untested]` | High: guest image, Claude Code and the Go toolchain for Linux arm64 in the guest, file sharing, and a way to show a guest process in a host pane | Very high: a signed app bundle that hosts the worker; `claude` and every tool it starts would have to run as its helpers `[untested]` |
+| Deprecation | `sandbox-exec` "is DEPRECATED" `[doc D1]`, and so is `sandbox_init` `[doc D3]`. The man pages are dated 2017 `[doc D1]`. It is still what Claude Code itself uses on macOS today `[doc D4]`, so it is in wide use, but Apple can remove it | None. User accounts, `sudo` and ACLs are core system features `[untested]` | Documented by Apple as a current framework `[doc D11]`; no deprecation notice was seen `[untested]`. `container` "is designed to run on macOS 26 or later" and needs Apple silicon `[doc D12]` | Documented as current and required for the Mac App Store `[doc D13]` |
 | Performance | No measurable start cost expected; files are used in place `[untested]` | A `sudo` call per launch; files are used in place `[untested]` | A guest boot per worker or one long-lived guest; reserved guest RAM; shared-directory file access is slower for git and Go builds `[untested]` | In place `[untested]` |
 | claude and cursor CLIs inside | The CLIs run in place. Claude Code's own Bash sandbox also uses Seatbelt `[doc D4]`; whether a sandbox can be applied inside a sandbox is not known, so that feature may have to be off inside `[untested]` | The CLIs run in place as the worker user, with their own config directory. Nothing nested | The Linux builds run in the guest. Work for macOS-only tool chains (Xcode) is impossible in a Linux guest `[untested]` | Not practical |
 | herdr and hc | `sandbox-exec` is expected to replace itself with the command, so the pane's foreground process is still `claude` `[untested]` | `sudo` stays as the parent of `claude` `[untested]`. herdr's agent detection must be tested with that process tree. The `hc` backend reads the status the program reports itself (`docs/terminal-backends.md`), which should not depend on the tree `[untested]` | The pane's foreground process is the tool that attaches to the guest, not `claude`. Detection, pid checks and escape detection all need new code `[untested]` | Not practical |
@@ -93,20 +93,22 @@ The two mechanisms fail in different places, and each covers the other's weak po
 
 - **The user boundary (B) carries the credential guarantees G1 to G5.** The things that are hardest to fence with
   rules on macOS are not files: the Keychain, the owner's launchd domain, Apple Events to the owner's apps, signals
-  to the owner's processes, the environment of the owner's processes. A different user id puts all of them out of
-  reach by the operating system's own access control, with no rule list to get wrong, using features that are not
-  deprecated.
+  to the owner's processes, the environment of the owner's processes. A different user id is expected to put all of
+  them out of reach by the operating system's own access control, with no rule list to get wrong, using features
+  that are not deprecated `[untested]`. One open point: `sudo -u` changes the user but may leave the worker in the
+  owner's login session, so services that are scoped to the session and not to the user (the pasteboard, screen
+  capture) may stay reachable `[untested]`. Tests S9 and S15 decide this; until then it is limit 11.
 - **Seatbelt (A) carries the allow-list view G6 and the write limits.** Unix permissions cannot express "deny all
   of the home except these paths" when some files are world-readable, and cannot hide other tasks' work trees from
-  a worker of the same class. A deny-by-default profile can. Because it runs inside the worker user, a hole in the
+  a worker of the same class. A deny-by-default profile can `[untested]`. Because it runs inside the worker user, a hole in the
   profile exposes at most what the worker user could reach anyway, never the owner's credentials.
 - **If Apple removes `sandbox-exec`**, G1 to G5 still hold. G6 falls back to file permissions checked by the
   preflight (3.3), a weaker but honest state, and this ADR is reopened.
 
 Seatbelt alone (A without B) is **not accepted** as the worker sandbox for SC4: it needs no root, which is
 attractive, but it keeps the worker in the owner's user, so every guarantee rests on a profile in an undocumented
-language that this task could not test. The profile is still built first (stage M4), because it needs no owner
-action and is needed for the pick anyway.
+language that this task could not test. The profile is still the first sandbox stage to be built (M4, before the
+accounts of M5), because it needs no owner action as root and is needed for the pick anyway.
 
 The Linux VM (C) is not the default: it costs RAM on a shared machine, cannot run macOS tool chains, and breaks
 the "the pane's process is claude" assumption that herdr detection and escape detection are built on. It stays the
@@ -129,11 +131,18 @@ for the guarantees: workers of one class hold identical tokens.
 owner reads and runs it:
 
 1. create the two accounts and the group;
-2. install `/etc/sudoers.d/hivemill`: the owner may run exactly one launcher as `_hivemill_ro` or `_hivemill_rw`
-   without a password and with a fixed list of preserved environment variables. Nothing lets a worker account run
-   anything as the owner;
-3. set ACLs: the worker group may traverse (not list) the owner's home, read `~/factory`, write `~/factory/db`
-   and the per-task clone root, with inheritance so that files a worker creates stay writable by the owner.
+2. install the launcher as a root-owned file outside the owner's home (not writable by the owner or a worker), and
+   `/etc/sudoers.d/hivemill`: the owner may run exactly that launcher as `_hivemill_ro` or `_hivemill_rw` without a
+   password, with the `SETENV` tag so that a fixed list of environment variables can be preserved. Nothing lets a
+   worker account run anything as the owner;
+3. set ACLs: the worker group may traverse (not list) the owner's home, read `~/factory` and write `~/factory/db`.
+
+**Work trees are opened per task, not per group.** At spawn the factory (as the owner, who owns the directory, so
+no root is needed) adds an ACL entry on that task's clone for the one account of the agent that works in it:
+read-write for a coder or qa, read-only for a reviewer, with inheritance so that files the worker creates stay
+writable by the owner. The read-only account therefore gets no write access to a coder's clone, and so cannot plant
+a git hook that would later run with the read-write token. The token files in `~/.config/factory` stay 0600 and
+owned by the owner; no worker account can read them.
 
 **Launch chain.** As on Linux the pane's `PATH` starts with the agent's `bin/`, so the pane's `claude` is a shim
 running as the owner. The shim reads the token files, builds the environment from the same allow-list as
@@ -143,7 +152,7 @@ running as the owner. The shim reads the token files, builds the environment fro
 
 Tokens travel in the environment only, never in an argument (other users can see arguments with `ps`). The
 launcher sets `HOME`, `CLAUDE_CONFIG_DIR`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_NOSYSTEM=1` (the system git config on
-macOS may name the Keychain credential helper) and `TMPDIR` to per-agent directories owned by the worker account.
+macOS may name the Keychain credential helper `[untested]`) and `TMPDIR` to per-agent directories owned by the worker account.
 
 **Profile.** Generated per agent from the same inputs as the Linux worker profile: deny by default; read-only for
 system paths, the Claude install, the Go toolchain and `~/factory`; read-write for the agent's own directories,
@@ -186,6 +195,13 @@ counterpart; `test_cgroup` is refused on macOS and `test_slots` remains the brak
 9. **HQ is not sandboxed**, as on Linux. Boss, director, leads and the judge run as the owner.
 10. **Claude Code's own Bash sandbox** may not work inside the profile (a sandbox inside a sandbox); it is turned
     off for sandboxed workers if the test shows that.
+11. **Session services.** Until S9 shows otherwise, assume a worker can reach what belongs to the owner's login
+    session and not to the owner's user: the pasteboard (which may hold a copied secret) and possibly screen
+    capture. The profile denies the services it knows of; the user boundary alone may not.
+12. **Shared DB directory.** Both worker accounts can write `~/factory/db`, as every worker can on Linux
+    (residual risk 1 of `docs/worker-sandbox.md`).
+
+Limits 3 to 6 and 11 describe expected macOS behaviour and are `[untested]`; M0 and M7 confirm or correct them.
 
 ### 3.4 What must be proven on a Mac (the SC4 tests)
 
@@ -199,10 +215,10 @@ Each test runs through the real launch chain as a sandboxed reviewer (read-only 
 | S3 | G2 | read `~/.config/gh/hosts.yml`; `security find-internet-password -s github.com`; `gh auth status` with `GH_TOKEN` unset | all fail or report not logged in |
 | S4 | G3 | read `~/.ssh`; connect to the owner's ssh-agent socket; `ssh-add -l` | all fail |
 | S5 | G4 | read the owner's `~/Library/Keychains`; `security dump-keychain` on the owner's login keychain | fail |
-| S6 | G5 | as the read-only class: `git push` of a test branch; read the environment of a read-write worker's process | push refused by GitHub; no environment shown |
+| S6 | G5 | as the read-only class: `git push` of a test branch; read the environment of a read-write worker's process; read the read-write token file; create a file in a coder's clone and in its `.git/hooks` | push refused by GitHub; no environment shown; read and both writes fail |
 | S7 | G5 | as the read-write class: push a test branch, open and close a PR | works; never push to `main` |
 | S8 | G6 | list the owner's home; read each allow-listed path; write to `~/factory/bin`; read another task's clone | list fails; reads work; write fails; other clone unreadable |
-| S9 | no way out | `launchctl bootstrap gui/<owner uid>` with a test job; `osascript` telling Terminal to run a command; `kill -0` of an owner process; connect to the herdr socket | all fail |
+| S9 | no way out | `launchctl bootstrap gui/<owner uid>` with a test job; `osascript` telling Terminal to run a command; `kill -0` of an owner process; connect to the herdr socket; `pbpaste` after the owner copied a marker string; `screencapture` to a file | all fail, and `pbpaste` does not print the marker. Run once with and once without the Seatbelt layer; a pass only with Seatbelt stays limit 11 |
 | S10 | it still works | `git fetch`, `git merge origin/main`, `go vet`, `go test -race` on `go/`, `gh pr view`, `factory inbox`, `factory done` | all work; DB written by owner and worker without a lock or permission error |
 | S11 | multiplexer | herdr and `hc`: the agent shows as a Claude agent, goes working to idle; Esc, `factory stop`, `factory relaunch --when-idle` | all work |
 | S12 | fail closed | outside: remove the sudoers file, then each of the other preflight inputs, and spawn | exit 3, no pane, `sandbox-refused` with the reason |
@@ -230,13 +246,13 @@ summary below is this task's own `git grep` over non-test code, grouped by depen
 | cgroup caps for tests | `scout/testcg.py`, `systemd/factory-tests.service`, `systemd/factory-tests.slice` | none; refused on macOS (3.2) |
 | memory gate, `/proc/meminfo` | `bin/factory_cli.py:2409,14578`; `go/internal/cli/cmd_res.go:175,418`; `go/internal/gate/proc.go:74,93`; `web/views/resources.py:146`; `go/internal/install/host.go:139` | `vm_stat`, `sysctl hw.memsize`, `sysctl vm.swapusage` (4.3) |
 | load gate, `/proc/loadavg`, CPU count from `/sys` | `go/internal/cli/cmd_res.go:38,204,216`; `go/internal/gate/proc.go:113,557` (Python uses `os.getloadavg`, `bin/factory_cli.py:2527`) | `sysctl vm.loadavg`, `runtime.NumCPU` (4.3) |
-| process scan, `/proc/<pid>/stat`, `cmdline` | `bin/factory_cli.py:935-1005,2009-2093,2246,2277,8193,8370`; `go/internal/gate/proc.go:437`; `go/internal/cli/worker.go:99-104`; `web/views/agents.py:60-108`; `scout/egress.py:32` | one `ps` call or the `kern.proc` sysctls (4.3) |
+| process scan, `/proc/<pid>/stat`, `cmdline` | `bin/factory_cli.py:935-1005,2009-2093,2246,2277,8193,8370`; `go/internal/gate/proc.go:437`; `go/internal/cli/worker.go:99-104`; `web/views/agents.py:60-108`; `scout/egress.py:32`; `go/internal/sandbox/egress.go:64` | one `ps` call or the `kern.proc` sysctls (4.3) |
 | process cwd, open files, environment, comm | `bin/factory_cli.py:8063-8086,8279-8326,8385,8428` | `lsof`; arguments and cwd instead of the environment (4.3) |
 | user-namespace identity for escape detection | `bin/factory_cli.py:2265` | process user id (3.2) |
 | tmp gate file-system type, `/proc/mounts` | `bin/factory_cli.py:2447`; `go/internal/cli/cmd_res.go:200,1007`; `go/internal/gate/proc.go:146-173` | the type name from `statfs` (4.4) |
 | path of an open file, `/proc/self/fd` | `web/tokens.py:133`; `go/internal/tokens/index.go:275` | `fcntl` with `F_GETPATH` `[untested]` |
 | namespaces: `unshare`, `setpriv`, `newuidmap`, tmpfs mounts, `/proc/self/fd` binds | `scout/nsbox.py`, `scout/workerbox.py`, `scout/gatebox.py`, `scout/testbox.py`, `scout/sandbox.py`; `go/internal/sandbox/*.go` (`run.go:118-129`, `launch.go:25-97`, `setup.go:21-33,249,456`, `gatebox.go:27-29,146-149`, `workerbox.go:158,587,635`) | macbox (3.2); Linux code stays behind a build tag |
-| runtime dir `/run/user/<uid>`, `/dev/shm` | `bin/factory_cli.py:13985,14330`; `scout/nsbox.py:33,167`; `scout/gatebox.py:22,74` | do not exist on macOS; macbox does not use them |
+| runtime dir `/run/user/<uid>`, `/dev/shm` | runtime dir: `bin/factory_cli.py:13985,14330`, `scout/nsbox.py:33,167`, `scout/gatebox.py:74`; `/dev/shm`: `scout/gatebox.py:22`, `go/internal/sandbox/gatebox.go:27-29`, `go/internal/sandbox/workerbox.go:158` | do not exist on macOS; macbox does not use them |
 | herdr and gh pins are Linux builds | `go/internal/install/install.go:41-47,438`; `plugins/hivemill/scripts/install.py:39-41`; `ci/freshbox_test.py:39-41` | macOS assets (4.5) |
 | GNU `ps` flags | `bin/factory_cli.py:14635` (`--sort=-rss`) | BSD form, `ps -axo rss=,command= -m` `[untested]` |
 | fresh-install test creates a Linux user | `ci/freshbox_test.py:265,347,615,630`; `ci/install_container_test.py:143,168` | a macOS variant with `sysadminctl`, `sudo -u`, `launchctl bootout` (stage M8) |
@@ -244,7 +260,7 @@ summary below is this task's own `git grep` over non-test code, grouped by depen
 | installer shim platform switch | `plugins/hivemill/scripts/install:15-24` | already accepts `Darwin-arm64` and `shasum`; `.github/workflows/release.yml:31,38` already builds `darwin/arm64` |
 
 Needs no change: the dead-socket paths under `/proc/nonexistent` (`bin/factory_cli.py:927`,
-`roles/settings/*.json.in`, `scout/sandbox.py:36`) only have to not exist, and `/proc` does not exist on macOS
+`go/internal/herdr/herdr.go:30`, `roles/settings/*.json.in`, `scout/sandbox.py:36`) only have to not exist, and `/proc` does not exist on macOS
 `[untested]`; `fcntl.flock` and `start_new_session` are POSIX and exist on macOS `[untested]`.
 
 Scope decisions: **Apple silicon only** (the release already builds `darwin/arm64` and nothing else for macOS).
@@ -376,7 +392,8 @@ M7. Release text claims macOS support only after M2, M3, M7 and M8 (SC5).
 - Two sandbox implementations must be kept working. The shared part (profile inputs, token handling, preflight,
   refusal reasons) must live in one place so that a change to the allow-list reaches both.
 - macOS support needs an owner action as root on each Mac. Without it the factory still runs on macOS, with
-  workers unsandboxed as on a Linux box where `sandbox_roles` is empty, and the release notes must say so.
+  workers unsandboxed as on a Linux box where `sandbox_roles` is empty, except the researcher, which is always
+  sandboxed and is refused there. The release notes must say so.
 - Part of the design rests on a tool Apple calls deprecated. The layering and test S15 limit what its removal
   would cost.
 - Until M0 runs, most of sections 2 to 4 is informed expectation. The staged plan is built so that no stage
@@ -406,7 +423,7 @@ Read on 2026-11-15. Quotes are exact. The man pages are Apple's, as mirrored fro
 | D10 | `launchctl(1)`, <https://keith.github.io/xcode-man-pages/launchctl.1.html> | "bootstrap \| bootout domain-target [service-path service-path2 ...] \| service-target"; domains `system/`, `user/<uid>`, `gui/<uid>`; `kickstart` "Instructs launchd to run the specified service immediately"; for `load` and `unload`: "Recommended alternative subcommands: bootstrap \| bootout \| enable \| disable". The page says the output of `print` is not a stable format |
 | D11 | Apple, Virtualization framework, <https://developer.apple.com/documentation/virtualization> | "Create virtual machines and run macOS and Linux-based operating systems." "The Virtualization framework provides high-level APIs for creating and managing virtual machines (VM) on Apple silicon and Intel-based Mac computers." Entitlement `com.apple.security.virtualization`: "A Boolean value that indicates whether your app can use the Virtualization framework." |
 | D12 | apple/container README, <https://github.com/apple/container> | "`container` is a tool that you can use to create and run Linux containers as lightweight virtual machines on your Mac." "You need a Mac with Apple silicon to run `container`." "`container` is designed to run on macOS 26 or later." Install: "Enter your administrator password when prompted." |
-| D13 | Apple, App Sandbox, <https://developer.apple.com/documentation/security/app-sandbox> | "Restrict access to system resources and user data in macOS apps to contain damage if an app becomes compromised." "App Sandbox provides protection to system resources and user data by limiting your app's access to resources requested through entitlements." Entitlement `com.apple.security.app-sandbox` |
+| D13 | Apple, App Sandbox, <https://developer.apple.com/documentation/security/app-sandbox> | "Restrict access to system resources and user data in macOS apps to contain damage if an app becomes compromised." "App Sandbox provides protection to system resources and user data by limiting your app's access to resources requested through entitlements." "To distribute a macOS app through the Mac App Store, you must enable the App Sandbox capability." Entitlement `com.apple.security.app-sandbox` |
 | D14 | Apple Platform Security, Keychain data protection, <https://support.apple.com/guide/security/keychain-data-protection-secb0694df1a/web> | "An initial default keychain is created for each Mac user". "the securityd daemon determines which keychain items each process or app can access." "Keychains can use access control lists (ACLs) to set policies for accessibility and authentication requirements." |
 | D15 | GitHub API, <https://api.github.com/repos/herdrdev/herdr/releases/tags/v0.9.5> and <https://api.github.com/repos/herdrdev/herdr-core/releases> | herdr v0.9.5 assets: `herdr-linux-aarch64`, `herdr-linux-x86_64`, `herdr-macos-aarch64` (22,536,176 bytes), `herdr-macos-x86_64` (24,367,600 bytes), `herdr-windows-x86_64.zip`. The herdr-core releases list was empty |
 
