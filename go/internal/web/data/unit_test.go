@@ -299,7 +299,7 @@ func TestAdvisorAuditCLI(t *testing.T) {
 		t.Errorf("text report:\n%s", out.String())
 	}
 	out.Reset()
-	if code := RunAdvisorAudit([]string{"--projects", projectsRoot(), "--json"}, &out, &errb); code != 0 || !strings.HasPrefix(out.String(), "[\n {\n  \"agent\"") {
+	if code := RunAdvisorAudit([]string{"--projects", projectsRoot(), "--json"}, &out, &errb); code != 0 || !strings.HasPrefix(out.String(), "[\n  {\n    \"agent\"") {
 		t.Errorf("json report (exit %d):\n%s", code, out.String())
 	}
 	// a/x.jsonl sorts before a-b/y.jsonl as Python's Path order (component-wise), unlike plain string order.
@@ -396,4 +396,20 @@ func indexOf(ss []string, s string) int {
 		}
 	}
 	return -1
+}
+
+// TestAdvisorAuditJSONParity compares the --json bytes with web/advisor_audit.py (json.dumps(rows, indent=2) + newline),
+// captured in testdata/golden/advisor_audit_json.txt.
+func TestAdvisorAuditJSONParity(t *testing.T) {
+	want, err := os.ReadFile(filepath.Join("testdata", "golden", "advisor_audit_json.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := RunAdvisorAudit([]string{"--projects", projectsRoot(), "--json"}, &out, &errb); code != 0 {
+		t.Fatalf("exit %d: %s", code, errb.String())
+	}
+	if !bytes.Equal(out.Bytes(), want) {
+		t.Errorf("advisor --json differs from Python bytes:\n got: %q\nwant: %q", out.String(), want)
+	}
 }

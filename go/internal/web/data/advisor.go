@@ -239,7 +239,7 @@ func RunAdvisorAudit(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if asJSON {
-		b, err := DumpsIndent1(rows)
+		b, err := DumpsIndent2(rows)
 		if err != nil {
 			fmt.Fprintf(stderr, "advisor_audit: %v\n", err)
 			return 2

@@ -193,13 +193,18 @@ func Dumps(v any) ([]byte, error) {
 }
 
 // DumpsIndent1 is json.dumps(v, indent=1).
-func DumpsIndent1(v any) ([]byte, error) {
+func DumpsIndent1(v any) ([]byte, error) { return dumpsIndent(v, " ") }
+
+// DumpsIndent2 is json.dumps(v, indent=2).
+func DumpsIndent2(v any) ([]byte, error) { return dumpsIndent(v, "  ") }
+
+func dumpsIndent(v any, indent string) ([]byte, error) {
 	raw, err := marshal(v)
 	if err != nil {
 		return nil, err
 	}
 	var ind bytes.Buffer
-	if err := json.Indent(&ind, raw, "", " "); err != nil {
+	if err := json.Indent(&ind, raw, "", indent); err != nil {
 		return nil, err
 	}
 	var out bytes.Buffer
