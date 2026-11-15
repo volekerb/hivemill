@@ -1,0 +1,1 @@
+[{"id": 11, "sender": "a", "recipient": "b", "kind": "msg", "subject": "plain msg", "goal_id": null, "task_id": null, "created": "2026-11-12T10:00:00+01:00", "read": false}, {"id": 3, "sender": "cursor-lead-g-002", "recipient": "cursor-boss", "kind": "request", "subject": "Cursor ask", "goal_id": "G-002", "task_id": "T-6", "created": "2026-11-14T09:40:00+01:00", "read": false}]

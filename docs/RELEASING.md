@@ -70,15 +70,35 @@ Later merges to main do not invalidate the candidate: the tag points at the SHA.
 ## Release steps
 
 1. The director files the release PR task. The coder bumps `VERSION`, writes `ci/release-notes/<version>.md` from `ci/release-notes/TEMPLATE.md`, updates the CHANGELOG header in `ci/changelog.py` and runs `python3 ci/changelog.py --write`.
+   The same PR pins the installer build (`hivemill-install`, see [Installer binaries](#installer-binaries)): the coder builds the three binaries, writes their sha256 into the `SHA_*` lines of `plugins/hivemill/scripts/install` and sets `VERSION` there to the release version. The release notes `### Upgrade` section names the last ref that still carries `plugins/hivemill/scripts/install.py`, the rollback target.
    Or, from G-048 P5c: `go run ./cmd/ci-changelog --write` from `go/` (the header constants are still the ones in `ci/changelog.py` until stage P5e).
 2. The release PR goes through the normal review, QA and judge merge.
 3. The director runs `python3 ci/release_check.py <merge sha>`.
    Or, from G-048 P5c: `go run ./cmd/ci-release-check <merge sha>` from `go/`.
 4. The boss sends the owner the exact commands the check printed.
 5. The owner pushes the tag (see the next section).
-6. `.github/workflows/release.yml` runs on the `v*` tag push and creates the GitHub release from the notes.
+6. `.github/workflows/release.yml` runs on the `v*` tag push, creates the GitHub release from the notes and attaches the `hivemill-install` binaries.
 7. The director checks the release page and tells the boss.
 8. The owner closes the released milestone and creates the next one, with the commands the director sends (see [ISSUES.md](ISSUES.md)).
+
+## Installer binaries
+
+`go/cmd/hivemill-install` is the installer that `plugins/hivemill/scripts/install` downloads and runs. The shim refuses any binary whose sha256 is not the one written into it, so the release process must produce byte-identical binaries twice: once locally for the release PR and once in `release.yml`. The build is reproducible with the toolchain pinned in `go/go.mod`:
+
+```
+cd go
+for p in linux/amd64 linux/arm64 darwin/arm64; do
+  CGO_ENABLED=0 GOOS="${p%/*}" GOARCH="${p#*/}" go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' \
+    -o "../dist/hivemill-install-${p%/*}-${p#*/}" ./cmd/hivemill-install
+done
+sha256sum ../dist/hivemill-install-*
+```
+
+1. In the release PR, run the loop above and write the three hashes into `SHA_LINUX_AMD64`, `SHA_LINUX_ARM64` and `SHA_DARWIN_ARM64` of `plugins/hivemill/scripts/install`, and the version into its `VERSION` line. Until then the lines hold 64 zeros and the shim fails closed.
+2. `release.yml` builds the same three binaries with the same flags, prints their sha256, fails if one differs from the value in the shim, and attaches them to the release as `hivemill-install-<os>-<arch>`.
+3. After the tag push, the director checks that the three assets are on the release page and that `sha256sum` of a downloaded asset equals the shim's value.
+
+Nothing in the shim trusts the download location: a different hash is a stop, whoever served the file.
 
 ## Owner tag step
 

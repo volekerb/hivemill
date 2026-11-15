@@ -1,0 +1,26 @@
+spawn gate: CLOSED — /tmp 905/953 MB used (95.0%) ≥ 90% — clean finished tasks' scratchpads
+terminal backend: herdr (config=herdr; effective=herdr)
+load gate: load1 0.1 vs cap <cap> (1.25 x <n> CPUs): open
+test runs: 0 full suites running (slots 0/2)
+gate runs: 0 running (max 1)
+cleaner gate: OPEN — exempt from the /tmp gate (tmp_max_pct) so it can free /tmp; every other cap still applies
+agents live 0/6 · queued 0 · other claude panes 0 (counted in host total)
+workers live 0 · leads live 0/4 (parked 0, wake-queued 0) · hq 0/3 (reserved for workers 10) · lead parking off
+live 0: workers 0 / leads 0 / judges 0 / HQ 0 / queued 0; P1 goals without workers: none
+utilization: workers 0/4 target · leads+judges 0/0 (max 1/3)
+org claude: live 0 · workers 0 · leads 0 · hq 0 · queued 0
+org cursor: live 0 · workers 0 · leads 0 · hq 0 · queued 0
+blocked tasks: 0 owner-blocked · 0 internal-blocked
+mem available <n> MB (floor 1) · swap used <n> MB · load 0.1/<n>
+tmp used 905 MB / 953 MB (95.0%) (gate closes at 90%)
+tmp sweep (over 80%): last 2026-11-11T20:00:00+00:00 freed 512 MB in 3 dirs
+claude processes 0/10 on host (factory 0 · other 0)
+claude usage 5h 0% · week 0% (stale: -1 min old)
+owner-only blockers: 1
+  spawn gate closed: /tmp 905/953 MB used (95.0%) ≥ 90% (open 62 min)
+top memory:
+    793 MB  /usr/bin/claude --session-id s-1
+     50 MB  /usr/lib/systemd/systemd --user
+      1 MB  sleep 1
+      0 MB  a
+      0 MB  b
