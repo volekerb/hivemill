@@ -126,6 +126,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [main-freeze.md](main-freeze.md): the tick freezes merging and syncing when public main gets a non-PR commit; only director/boss clears it.
 - [spawn-context.md](spawn-context.md): what a spawned agent carries, including the advisor tool.
 - [runtimes.md](runtimes.md): agent runtimes (Claude, Cursor) and the two-org model (claude-* and cursor-* side by side).
+- [cursor-prompt.md](cursor-prompt.md): `cursor_prompt` v2, the short loop-until-done prompt and kickoff for Cursor workers; the audit behind it and the A/B table.
 - [research/cursor-harness.md](research/cursor-harness.md): research behind the Cursor Agent CLI runtime.
 - [research/cursor-e2e-issues.md](research/cursor-e2e-issues.md): issues found dogfooding Cursor coder, qa, reviewer and judge.
 - [web-design.md](web-design.md): the design pass behind the web UI styling.

@@ -121,6 +121,15 @@
   "current": ""
  },
  {
+  "key": "cursor_prompt",
+  "kind": "setting",
+  "default": "v1",
+  "summary": "v1 = Cursor agents get the Claude role prompt and kickoff; v2 = the short loop-until-done prompt (roles/cursor/<role>.md) and the Cursor worker kickoff",
+  "goal": "G-058",
+  "doc": "docs/cursor-prompt.md",
+  "current": "v1"
+ },
+ {
   "key": "day_end_hour",
   "kind": "setting",
   "default": "20",

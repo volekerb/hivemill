@@ -120,4 +120,5 @@ cursor_pilot_roles =
 orgs_enabled = claude
 org_prefix_default = 0
 cap_fallback_offer = 0
+cursor_prompt = v1
 guard binary: missing

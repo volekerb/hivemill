@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from harness import REPO, FactoryTestCase
+from test_util_alerts import AlertCase  # noqa: E402
 
 HOOKS = REPO / "roles" / "hooks"
 
@@ -278,3 +279,151 @@ class WorktreeSpawnRefusalTests(FactoryTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CursorPromptV2Tests(FactoryTestCase):
+    """T-1623: config cursor_prompt=v2 gives a Cursor coder roles/cursor/coder.md and the loop-until-done kickoff;
+    v1 (default), Claude agents and HQ roles keep the old prompt and kickoff."""
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_goal()
+        e.seed_team(lead="zz-test-lead")
+        e.seed_agent("zz-test-director", "director", goal="G-001", team="g-001-a")
+        e.seed_task("T-0001", status="todo", pr_url=None, team="g-001-a")
+        self.ok("config", "agent_runtimes", "*=cursor", agent="zz-test-director")
+        fake = e.stub_bin / "agent"
+        fake.write_text("#!/bin/sh\necho ok\n")
+        fake.chmod(0o755)
+        self.roles = e.home_dir / "roles"
+        self.cwd = e.home / "zz-coder-cwd"
+        self.cwd.mkdir()
+
+    def spawn(self, role, name):
+        before = len(self.env.calls("herdr"))
+        self.ok("spawn", role, "--name", name, "--goal", "G-001", "--team", "g-001-a", "--task", "T-0001",
+                "--cwd", str(self.cwd), agent="zz-test-director")
+        prompts = [c["argv"] for c in self.env.calls("herdr")[before:] if c.get("argv", [])[:2] == ["agent", "prompt"]]
+        self.assertEqual(len(prompts), 1, prompts)
+        brief = (self.env.home_dir / "run" / f"{name}.prompt.md").read_text()
+        return prompts[0][3], brief
+
+    def old_brief(self, role):
+        return (self.roles / "_common.md").read_text() + "\n\n" + (self.roles / f"{role}.md").read_text()
+
+    def test_v2_coder_gets_short_prompt_and_loop_kickoff(self):
+        self.ok("config", "cursor_prompt", "v2", agent="zz-test-director")
+        kick, brief = self.spawn("coder", "zz-cursor-coder-v2")
+        short = (self.roles / "cursor" / "coder.md").read_text()
+        self.assertEqual(brief, short)
+        self.assertLess(len(brief), len(self.old_brief("coder")) // 2)
+        self.assertIn("Do not end your turn until `factory done` has succeeded", kick)
+        self.assertIn("`factory pr create --title 'T-0001: <what the change does>' --body -`", kick)
+        self.assertIn("`git push origin HEAD:factory/t-0001`", kick)
+        self.assertIn("`factory prcheck`", kick)
+        self.assertIn("`factory task update T-0001 --status in_review --pr <PR url>`", kick)
+        self.assertIn('`factory done "BLOCKED:', kick)
+        self.assertNotIn("\n", kick)
+        rule = (self.cwd / ".cursor" / "rules" / "factory-role.mdc").read_text()  # a cwd outside the home holds its own policy
+        self.assertIn("## Loop contract", rule)
+        self.assertNotIn("# Factory operating rules (every role)", rule)
+        inbox = self.env.sql("SELECT body FROM messages WHERE recipient='zz-cursor-coder-v2' AND subject LIKE 'kickoff:%'")
+        self.assertEqual([r["body"] for r in inbox], [kick])
+
+    def test_v2_recorded_branch_is_the_push_target(self):
+        self.ok("config", "cursor_prompt", "v2", agent="zz-test-director")
+        self.env.sql("UPDATE tasks SET branch='factory/zz-other' WHERE id='T-0001'")
+        kick, _ = self.spawn("coder", "zz-cursor-coder-br")
+        self.assertIn("`git push origin HEAD:factory/zz-other`", kick)
+
+    def test_v1_default_keeps_old_prompt_and_kickoff(self):
+        self.assertEqual(self.ok("config", "cursor_prompt", agent="zz-test-director").stdout.strip(), "v1")
+        kick, brief = self.spawn("coder", "zz-cursor-coder-v1")
+        self.assertEqual(brief, self.old_brief("coder"))
+        self.assertTrue(kick.startswith("You are `zz-cursor-coder-v1`, the factory coder. Run `factory whoami` and "
+                                        "`factory inbox` first. Your task is T-0001"), kick)
+        self.assertNotIn("Do not end your turn", kick)
+
+    def test_v2_worker_without_cursor_file_keeps_role_prompt_gets_loop_kickoff(self):
+        self.ok("config", "cursor_prompt", "v2", agent="zz-test-director")
+        kick, brief = self.spawn("pm", "zz-cursor-pm-v2")
+        self.assertEqual(brief, self.old_brief("pm"))
+        self.assertIn("Do not end your turn until `factory done` has succeeded", kick)
+        self.assertIn("Your task is T-0001: read it with `factory task show T-0001`.", kick)
+        self.assertNotIn("factory pr create", kick)
+
+    def test_v2_hq_role_keeps_old_kickoff(self):
+        self.ok("config", "cursor_prompt", "v2", agent="zz-test-director")
+        before = len(self.env.calls("herdr"))
+        self.ok("spawn", "lead", "--name", "zz-cursor-lead-v2", "--goal", "G-001", "--team", "g-001-a",
+                agent="zz-test-director")
+        (kick,) = [c["argv"][3] for c in self.env.calls("herdr")[before:] if c.get("argv", [])[:2] == ["agent", "prompt"]]
+        self.assertTrue(kick.startswith("You are `zz-cursor-lead-v2`, the factory lead. Run `factory whoami`"), kick)
+        self.assertNotIn("Do not end your turn", kick)
+        self.assertEqual((self.env.home_dir / "run" / "zz-cursor-lead-v2.prompt.md").read_text(), self.old_brief("lead"))
+
+    def test_v2_leaves_claude_agents_alone(self):
+        self.ok("config", "agent_runtimes", "", agent="zz-test-director")
+        self.ok("config", "cursor_prompt", "v2", agent="zz-test-director")
+        kick, brief = self.spawn("pm", "zz-claude-pm-v2")
+        self.assertEqual(brief, self.old_brief("pm"))
+        self.assertEqual(kick, "You are `zz-claude-pm-v2`, the factory pm. Run `factory whoami` and `factory inbox` first. "
+                               "Your task is T-0001: read it with `factory task show T-0001`. Goal context: "
+                               "`factory goal show G-001`. Your team is g-001-a.")
+
+    def test_config_refuses_unknown_version_accepts_v2(self):
+        p = self.refused(2, "config", "cursor_prompt", "v3", agent="zz-test-director")
+        self.assertIn("cursor_prompt must be one of v1, v2", p.stderr)
+        self.assertIn("factory config cursor_prompt v1", p.stderr)
+        self.assertEqual(self.ok("config", "cursor_prompt", agent="zz-test-director").stdout.strip(), "v1")
+        self.ok("config", "cursor_prompt", "v2", agent="zz-test-director")
+        self.assertEqual(self.ok("config", "cursor_prompt", agent="zz-test-director").stdout.strip(), "v2")
+
+    def test_v2_live_cursor_coder_is_not_flagged_stale(self):
+        self.ok("config", "cursor_prompt", "v2", agent="zz-test-director")
+        self.spawn("coder", "zz-cursor-coder-fr")
+        self.ok("tick")
+        stale = self.env.sql("SELECT detail FROM events WHERE action='stale-agent' AND entity_id='zz-cursor-coder-fr'")
+        self.assertEqual([r["detail"] for r in stale if "prompt" in r["detail"]], [])
+        self.ok("config", "cursor_prompt", "v1", agent="zz-test-director")
+        self.ok("tick")
+        stale = self.env.sql("SELECT detail FROM events WHERE action='stale-agent' AND entity_id='zz-cursor-coder-fr'")
+        self.assertEqual(len([r for r in stale if "prompt" in r["detail"]]), 1, [dict(r) for r in stale])
+
+
+class ClaudePromptUnchangedTests(AlertCase):
+    """T-1623 hard constraint: the Cursor prompt layer never changes what a Claude agent gets. For every role the
+    rendered Claude prompt is roles/_common.md + roles/<role>.md (+ the org section), whatever cursor_prompt says."""
+
+    def set_version(self, value):
+        self.con.execute("INSERT INTO config(key,value) VALUES('cursor_prompt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (value,))
+        self.con.commit()
+
+    def test_every_role_renders_the_same_under_v1_and_v2(self):
+        roles_dir = self.mod.ROLES_DIR
+        roles = sorted(p.stem for p in roles_dir.glob("*.md") if not p.stem.startswith("_"))
+        self.assertGreaterEqual(len(roles), 14, roles)
+        common = (roles_dir / "_common.md").read_text()
+        for version in ("v1", "v2"):
+            self.set_version(version)
+            for role in roles:
+                for org, multi in ((None, False), ("claude", True)):
+                    with self.subTest(version=version, role=role, org=org):
+                        self.assertFalse(self.mod.cursor_prompt_v2_on(self.con, "claude"))
+                        want = common + "\n\n" + (roles_dir / f"{role}.md").read_text() + self.mod.org_prompt_section(org, multi)
+                        got = self.mod.role_prompt_text(role, org, multi,
+                                                        cursor_v2=self.mod.cursor_prompt_v2_on(self.con, "claude"))
+                        self.assertEqual(got, want)
+                        self.assertEqual(self.mod.role_prompt_text(role, org, multi), want)
+
+    def test_shared_role_files_do_not_mention_the_cursor_layer(self):
+        for p in sorted(self.mod.ROLES_DIR.glob("*.md")):
+            self.assertNotIn("roles/cursor", p.read_text(), p.name)
+
+    def test_claude_coder_kickoff_is_kickoff_text(self):
+        self.assertEqual(
+            self.mod.kickoff_text("coder", "claude-coder-t-0001", "G-001", "g-001-a", "T-0001", "x"),
+            "You are `claude-coder-t-0001`, the factory coder. Run `factory whoami` and `factory inbox` first. "
+            "Your task is T-0001: read it with `factory task show T-0001`. Goal context: `factory goal show G-001`. "
+            "Your team is g-001-a. x")

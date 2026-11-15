@@ -126,4 +126,5 @@ var DefaultConfig = []ConfigDefault{
 	{"orgs_enabled", "claude"},
 	{"org_prefix_default", "0"},
 	{"cap_fallback_offer", "0"},
+	{"cursor_prompt", "v1"},
 }

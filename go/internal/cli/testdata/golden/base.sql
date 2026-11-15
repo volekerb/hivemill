@@ -282,6 +282,7 @@ INSERT INTO "config"("key","value") VALUES('cursor_pilot_roles','');
 INSERT INTO "config"("key","value") VALUES('orgs_enabled','claude');
 INSERT INTO "config"("key","value") VALUES('org_prefix_default','0');
 INSERT INTO "config"("key","value") VALUES('cap_fallback_offer','0');
+INSERT INTO "config"("key","value") VALUES('cursor_prompt','v1');
 CREATE INDEX idx_util_samples_ts ON util_samples(ts);
 CREATE UNIQUE INDEX idx_owner_alert_open ON owner_alert_feed(kind, ref) WHERE closed IS NULL;
 CREATE INDEX idx_msg_rcpt ON messages(recipient, read_at);

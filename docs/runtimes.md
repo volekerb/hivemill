@@ -69,6 +69,7 @@ factory up                                # starts the missing <org>-director / 
 | `agent_runtimes` | `pm=cursor` | Per-role runtime override on the **default** org only. |
 | `agent_runtimes` | `*=cursor` or `all=cursor` | Every role in `CURSOR_ROLES` → `cursor` (not `evaluator`). |
 | `cursor_pilot_roles` | `pm,coder` | Legacy alias → `pm=cursor,coder=cursor`. Prefer `agent_runtimes`. |
+| `cursor_prompt` | `v2` | Prompt chain of Cursor agents: `v1` (default) = the Claude role prompt and kickoff, `v2` = the short loop-until-done prompt. See [cursor-prompt.md](cursor-prompt.md). |
 
 **Resolution (`org_runtime`):** On the default org, **empty** `agent_runtimes` resolves **every** role to Claude. `*=cursor` (or `all=cursor`) resolves every role in `scout/cursor_harness.CURSOR_ROLES` to `cursor`. The skilleval **evaluator always stays Claude**, even with `*=cursor`. A **non-default org** ignores `agent_runtimes` for runtime choice and uses `scout/orgs.py` instead — the **cursor org is `cursor` even when `agent_runtimes` is empty** on the default org.
 
