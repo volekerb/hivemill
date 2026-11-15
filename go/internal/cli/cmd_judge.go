@@ -230,6 +230,9 @@ func judgeReject(c *ctx, j *judgeEnv, a judgeCmd, t judgeTask) error {
 		return err
 	}
 	reason := *rp
+	if a.reason == "-" {
+		*a.replay = []byte(reason)
+	}
 	cause, err := verdictNormalizeCause(a.cause)
 	if err != nil {
 		return err
