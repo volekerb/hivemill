@@ -51,18 +51,18 @@ class RoutedRestSelectorTest(unittest.TestCase):
         with open(WF, encoding="utf-8") as f:
             text = f.read()
         self.assertEqual(text.count("test_worker_guard"), 0)
-        job = text.split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]  # both jobs
-        strict_job, rest_job = job.split("  guard-equiv-rest:\n", 1)
+        strict_job = text.split("  guard-equiv:\n", 1)[1].split("\n  guard-equiv-fanin:\n", 1)[0]
+        rest_job = text.split("  guard-equiv-rest:\n", 1)[1].split("\n  unittest:\n", 1)[0]
         self.assertIn("--impl go", strict_job)
         self.assertIn("--strict", strict_job)
         self.assertNotIn("--routed-rest", strict_job.replace("list --routed-rest", ""))
         self.assertNotIn("--strict", rest_job)
-        self.assertNotIn("continue-on-error", job)
+        self.assertNotIn("continue-on-error", strict_job + rest_job)
         self.assertIn("run --routed-rest", rest_job)
         self.assertEqual(text.count("--impl go"), 1)
         self.assertEqual(text.count("--strict"), 1)
-        self.assertIn("needs: [unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv, guard-equiv-rest]", text)
-        self.assertIn("needs.guard-equiv.result", text)
+        self.assertIn("needs: [ci-tier, docs-check, unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv-fanin, guard-equiv-rest]", text)
+        self.assertIn("needs.guard-equiv-fanin.result", text)
         self.assertIn("needs.guard-equiv-rest.result", text)
         self.assertIn("if: ${{ !cancelled() && steps.paths.outputs.run == 'true' }}", rest_job)  # REAL_GO logs after a red step
 
@@ -89,26 +89,34 @@ class RoutedRestSelectorTest(unittest.TestCase):
                 self.assertNotEqual(r.returncode, 0, (key, bad))
                 self.assertIn(bad, r.stderr)
 
-    def test_guard_equiv_runs_on_every_pr(self):
+    def test_guard_equiv_runs_on_every_non_docs_pr(self):
         with open(WF, encoding="utf-8") as f:
             text = f.read()
         on = text.split("\non:\n", 1)[1].split("\n\n", 1)[0]
         self.assertNotIn("paths", on)
-        job = text.split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]
-        for part in job.split("  guard-equiv-rest:\n"):
-            self.assertNotRegex(part.split("    steps:\n", 1)[0], r"(?m)^    (if|needs):")
-        self.assertIn('echo "run=false"', job)  # non-guard paths skip the steps, the job still succeeds
+        strict = text.split("  guard-equiv:\n", 1)[1].split("\n  guard-equiv-fanin:\n", 1)[0]
+        rest = text.split("  guard-equiv-rest:\n", 1)[1].split("\n  unittest:\n", 1)[0]
+        docs_if = "needs.ci-tier.outputs.mode != 'docs'"
+        for part in (strict, rest):
+            header = part.split("    steps:\n", 1)[0]
+            self.assertIn(docs_if, header)
+            ifs = [ln for ln in header.splitlines() if ln.startswith("    if:")]
+            self.assertEqual(len(ifs), 1, ifs)
+        self.assertIn('echo "run=false"', strict + rest)  # non-guard paths skip the steps, the job still succeeds
 
     def test_guard_equiv_keeps_name_timeout_and_shape(self):
         with open(WF, encoding="utf-8") as f:
             text = f.read()
-        job = text.split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]
-        self.assertIn("    name: guard-equiv\n", job)
-        self.assertIn("    name: guard-equiv-rest\n", job)
+        strict = text.split("  guard-equiv:\n", 1)[1].split("\n  guard-equiv-fanin:\n", 1)[0]
+        fanin = text.split("  guard-equiv-fanin:\n", 1)[1].split("\n  guard-equiv-rest:\n", 1)[0]
+        rest = text.split("  guard-equiv-rest:\n", 1)[1].split("\n  unittest:\n", 1)[0]
+        job = strict + rest
+        self.assertIn("    name: guard-equiv\n", fanin)
+        self.assertIn("    name: guard-equiv-rest\n", rest)
         self.assertEqual(job.count("    timeout-minutes: 30\n"), 2)  # T-1009: split the job, never a raise
-        self.assertIn("--roles all --role-shard ${{ matrix.shard }} --role-shards 4", job)
-        self.assertIn("--mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict", job)
-        self.assertIn("run --routed-rest", job)
+        self.assertIn("--roles all --role-shard ${{ matrix.shard }} --role-shards 4", strict)
+        self.assertIn("--mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict", strict)
+        self.assertIn("run --routed-rest", rest)
 
     def test_unknown_selector_flag_is_refused(self):
         self.assertNotEqual(run("list", "--bogus").returncode, 0)
