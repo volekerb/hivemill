@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -225,14 +226,11 @@ func judgeReject(c *ctx, j *judgeEnv, a judgeCmd, t judgeTask) error {
 		return judgeHard(err)
 	}
 	sha := pr.HeadSHA
-	rp, err := readText(c, &a.reason, false)
+	rp, err := judgeReadReason(c, a)
 	if err != nil {
 		return err
 	}
 	reason := *rp
-	if a.reason == "-" {
-		*a.replay = []byte(reason)
-	}
 	cause, err := verdictNormalizeCause(a.cause)
 	if err != nil {
 		return err
@@ -720,14 +718,11 @@ func judgeMerge(c *ctx, j *judgeEnv, a judgeCmd, t judgeTask) error {
 		// the reason is read once (Python reads it once, before its retry); stdin cannot be read twice, so a retry
 		// pass reuses the value, and a later hand-over to Python replays it on a pipe (judgeCmd.replay)
 		if !reasonRead {
-			rp, err := readText(c, &a.reason, false)
+			rp, err := judgeReadReason(c, a)
 			if err != nil {
 				return err
 			}
 			reason, reasonRead = *rp, true
-			if a.reason == "-" {
-				*a.replay = []byte(reason)
-			}
 		}
 		res, err := ghx.Run(j.ghEnv(), "", judgeMergeTimeout, "pr", "merge", t.prURL, "--squash", "--delete-branch", "--match-head-commit", sha)
 		var stderr string
@@ -835,4 +830,21 @@ func judgeSQLiteText(s string) string {
 		}
 	}
 	return s
+}
+
+// judgeReadReason is readText for --reason, except that a "-" keeps the raw stdin bytes (not the decoded, stripped
+// text) in a.replay before anything can hand over, so Python finds exactly what Go consumed, invalid UTF-8 included.
+func judgeReadReason(c *ctx, a judgeCmd) (*string, error) {
+	if a.reason != "-" {
+		return readText(c, &a.reason, false)
+	}
+	if _, used := stdinUsed.LoadOrStore(c, true); used {
+		return readText(c, &a.reason, false) // prints the one-'-' refusal
+	}
+	b, err := io.ReadAll(c.deps.stdin())
+	*a.replay = b
+	if err != nil || !utf8.Valid(b) {
+		return nil, errDelegate
+	}
+	return strp(pyStrip(pyNewlines(string(b)))), nil
 }

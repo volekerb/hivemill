@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -384,5 +385,33 @@ func TestReplayStdin(t *testing.T) {
 	}
 	if err := replayStdin(make([]byte, replayStdinMax+1)); err == nil {
 		t.Fatal("an oversized text was accepted")
+	}
+}
+
+// TestJudgeReadReasonKeepsRawBytes: --reason - keeps the raw stdin bytes for the hand-over to Python, even when they are
+// not UTF-8 (Go hands over, Python decides what to record) and even when Go strips them for its own use.
+func TestJudgeReadReasonKeepsRawBytes(t *testing.T) {
+	for _, tc := range []struct {
+		name, in string
+		wantErr  bool
+		want     string
+	}{
+		{"invalid utf-8", "bad \xff\xfe reason\n", true, ""},
+		{"valid, stripped for Go only", "  why\r\n\n", false, "why"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var replay []byte
+			c := &ctx{deps: &Deps{Stdin: strings.NewReader(tc.in)}}
+			got, err := judgeReadReason(c, judgeCmd{reason: "-", replay: &replay})
+			if tc.wantErr != errors.Is(err, errDelegate) {
+				t.Fatalf("err = %v, want delegate=%v", err, tc.wantErr)
+			}
+			if !tc.wantErr && *got != tc.want {
+				t.Fatalf("reason = %q, want %q", *got, tc.want)
+			}
+			if string(replay) != tc.in {
+				t.Fatalf("replay = %q, want the raw stdin %q", replay, tc.in)
+			}
+		})
 	}
 }
