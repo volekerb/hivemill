@@ -4474,8 +4474,7 @@ def cmd_msg(a):
     con = db()
     role = actor_role(con)
     if a.kind == "escalation" and role not in ("owner", "director", "boss", "lead") and not coder_done_escalation_ok(con, role, a):
-        die("only leads, the director and the boss escalate; message your lead instead (a coder may escalate its own task "
-            "to lead:<its team> or the director with --task <its task>, the exit of a refused factory done)", 3)
+        die("only leads, the director and the boss escalate; message your lead instead", 3)
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
     refuse_cross_org(con, role, a.to, a.goal, a.task)
@@ -11919,19 +11918,19 @@ def done_record_refusal(con, r, why, gate):
     """Log the refusal (task, head, why): a later escalation must be newer than it, for the same head."""
     head = done_head(con, r)
     if head:
-        event(con, "task", r["task_id"], "done-refused", {"head": head, "gate": gate, "why": why[:200]})
+        event(con, "task", r["task_id"], "refused-done", {"head": head, "gate": gate, "why": why[:200]})
         con.commit()
 
 
 def done_escalation_exit(con, r, gate):
     """True when this coder already took the exit for the CURRENT head: the task is in_review or blocked and an
-    escalation from it to its lead (or a director) for this task is newer than the latest done-refused on that head."""
+    escalation from it to its lead (or a director) for this task is newer than the latest refused-done on that head."""
     head = done_head(con, r)
     t = con.execute("SELECT status FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
     if not head or not t or t["status"] not in ("in_review", "blocked"):
         return False
     refused = None
-    for e in con.execute("SELECT detail, ts FROM events WHERE entity='task' AND entity_id=? AND action='done-refused' ORDER BY id DESC",
+    for e in con.execute("SELECT detail, ts FROM events WHERE entity='task' AND entity_id=? AND action='refused-done' ORDER BY id DESC",
                          (r["task_id"],)):
         try:
             d = json.loads(e["detail"])
