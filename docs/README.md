@@ -110,6 +110,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0001-language-policy.md](adr/0001-language-policy.md): the language policy (Go, Rust exceptions, Python).
 - [adr/0002-sandbox-runtime-v3.md](adr/0002-sandbox-runtime-v3.md): sandbox runtime v3 (hardened nsbox testbox, no microVMs for tests).
 - [adr/0003-macos-support.md](adr/0003-macos-support.md): macOS support (sandbox mechanism and port plan).
+- [adr/0004-multi-factory.md](adr/0004-multi-factory.md): several independent factories that share repos and one Claude account (plan, validation, rollback).
 
 ## Internals
 
