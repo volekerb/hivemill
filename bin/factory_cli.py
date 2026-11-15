@@ -11113,7 +11113,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         v2 = cursor_prompt_v2_on(con, runtime)
         prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1, cursor_v2=v2)
         sysprompt.write_text(prompt_text)
-        kick = ((cursor_harness.kickoff_v2(role, name, goal, team, task, prompt, task_branch(con, task)) if v2 else None)
+        kick = ((cursor_harness.kickoff_v2(role, name, goal, team, task, prompt) if v2 else None)
                 or kickoff_text(role, name, goal, team, task, prompt))
         return _spawn_start_external(
             con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
@@ -15659,12 +15659,6 @@ FRESH_PERSISTENT = ("boss", "director", "lead")
 def cursor_prompt_v2_on(con, runtime):
     """True when this agent runs on Cursor and config cursor_prompt is v2 (T-1623, docs/cursor-prompt.md)."""
     return runtime == "cursor" and cfg(con, "cursor_prompt") == "v2"
-
-
-def task_branch(con, task):
-    """The task's recorded branch, or None (no task, no row, no branch yet)."""
-    r = con.execute("SELECT branch FROM tasks WHERE id=?", (task,)).fetchone() if task else None
-    return (r and r["branch"]) or None
 
 
 def role_prompt_text(role, org=None, multi=False, cursor_v2=False):

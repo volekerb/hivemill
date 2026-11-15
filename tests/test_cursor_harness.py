@@ -64,10 +64,6 @@ class HooksJsonShapeTests(unittest.TestCase):
             self.assertEqual(matcher, "Shell|Write|Delete|Read|Grep|StrReplace|EditNotebook")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class PromptV2Tests(unittest.TestCase):
     """T-1623: the Cursor prompt chain v2 (docs/cursor-prompt.md)."""
 
@@ -138,6 +134,8 @@ class PromptV2Tests(unittest.TestCase):
             'begins "Factory watchdog: your turn ended"',
             "an offer",
             "`env -u CURSOR_AGENT git commit -m",
+            "`env -u CURSOR_AGENT git merge origin/main`",
+            "A CI check that is red on your head is yours",
             "`Co-authored-by: Cursor`",
             "git commit-tree HEAD^{tree} -p origin/main",
             "`git reset --soft <the printed sha>`",
@@ -160,3 +158,7 @@ class PromptV2Tests(unittest.TestCase):
         steps = [text.index(x) for x in ("git push origin HEAD", "factory pr create", "`factory prcheck`",
                                          "--status in_review", '10. `factory done')]
         self.assertEqual(steps, sorted(steps))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -359,14 +359,14 @@ def role_prompt_v2(roles_dir: Path | str, role: str) -> str | None:
     return path.read_text(encoding="utf-8")
 
 
-def kickoff_v2(role: str, name: str, goal: str | None, team: str | None, task: str | None, extra: str | None,
-               branch: str | None = None) -> str | None:
+def kickoff_v2(role: str, name: str, goal: str | None, team: str | None, task: str | None,
+               extra: str | None) -> str | None:
     """First prompt of a Cursor worker under cursor_prompt=v2: the loop contract and, for a coder, the exact
     commands with its own ids. One line. None for HQ roles (boss, director, lead never run `factory done`)."""
     if role in HQ_ROLES or role not in CURSOR_ROLES:
         return None
     if role == "coder" and task:
-        branch = branch or f"factory/{task.lower()}"
+        branch = f"factory/{task.lower()}"  # the only push target worker-guard allows a coder
         parts = [
             f"You are `{name}`, the factory coder for {task}.",
             LOOP_CONTRACT,

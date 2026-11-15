@@ -277,8 +277,6 @@ class WorktreeSpawnRefusalTests(FactoryTestCase):
         self.assertEqual(starts, [])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CursorPromptV2Tests(FactoryTestCase):
@@ -331,11 +329,12 @@ class CursorPromptV2Tests(FactoryTestCase):
         inbox = self.env.sql("SELECT body FROM messages WHERE recipient='zz-cursor-coder-v2' AND subject LIKE 'kickoff:%'")
         self.assertEqual([r["body"] for r in inbox], [kick])
 
-    def test_v2_recorded_branch_is_the_push_target(self):
+    def test_v2_push_target_is_the_guard_pinned_branch(self):
         self.ok("config", "cursor_prompt", "v2", agent="zz-test-director")
         self.env.sql("UPDATE tasks SET branch='factory/zz-other' WHERE id='T-0001'")
         kick, _ = self.spawn("coder", "zz-cursor-coder-br")
-        self.assertIn("`git push origin HEAD:factory/zz-other`", kick)
+        self.assertIn("`git push origin HEAD:factory/t-0001`", kick)
+        self.assertNotIn("zz-other", kick)
 
     def test_v1_default_keeps_old_prompt_and_kickoff(self):
         self.assertEqual(self.ok("config", "cursor_prompt", agent="zz-test-director").stdout.strip(), "v1")
@@ -403,7 +402,7 @@ class ClaudePromptUnchangedTests(AlertCase):
     def test_every_role_renders_the_same_under_v1_and_v2(self):
         roles_dir = self.mod.ROLES_DIR
         roles = sorted(p.stem for p in roles_dir.glob("*.md") if not p.stem.startswith("_"))
-        self.assertGreaterEqual(len(roles), 14, roles)
+        self.assertLessEqual({"boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner"}, set(roles))
         common = (roles_dir / "_common.md").read_text()
         for version in ("v1", "v2"):
             self.set_version(version)
@@ -427,3 +426,7 @@ class ClaudePromptUnchangedTests(AlertCase):
             "You are `claude-coder-t-0001`, the factory coder. Run `factory whoami` and `factory inbox` first. "
             "Your task is T-0001: read it with `factory task show T-0001`. Goal context: `factory goal show G-001`. "
             "Your team is g-001-a. x")
+
+
+if __name__ == "__main__":
+    unittest.main()
