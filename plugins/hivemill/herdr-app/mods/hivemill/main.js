@@ -8,17 +8,17 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, theme, run, exec, spaces, panes, window, keys, notify, nextCommand } from "herdr";
-import { data, config, tick, ago, money, dur, pipeline, alerts, usage, orgsShown, webUrl, levelColor, warn, good, demo, hidden, clean, machineRows } from "./data.js";
+import { ROLE, data, config, tick, ago, money, dur, pipeline, alerts, usage, orgsShown, webUrl, levelColor, warn, good, demo, hidden, clean, machineRows, teamViews, barSegments, locationLabel, resolveSpace } from "./data.js";
 
 const MOD = "hivemill";
 const alpha = (c, a) => (typeof c === "string" && c.length === 7 ? c + a : c);
 const pct = (v) => (v == null ? "–" : `${Math.round(Number(v))}%`);
 const toneColor = (t, tone) => ({ danger: t.blocked, error: t.blocked, warning: warn(t), success: good(t), info: t.accent }[tone] ?? t.muted);
 
-function openUrl(href) {
-  const url = href?.startsWith("http") ? href : webUrl(href ?? "/");
+function openUrl(href, team) {
+  const url = href?.startsWith("http") ? href : webUrl(href ?? "/", team);
   if (url) exec(window()?.platform === "macos" ? "open" : "xdg-open", [url]);
-  else notify({ title: "Hivemill", body: "Set factory.web_url in ~/.config/hivemill/dashboard.json to open factory pages.", level: "info" });
+  else notify({ title: "Hivemill", body: "Set web_url (teams[N].web_url, or factory.web_url) in ~/.config/hivemill/dashboard.json to open a team's pages.", level: "info" });
 }
 
 // The dashboard tab: show it, or make it in the first project's space (else the shown space).
@@ -31,7 +31,7 @@ export function showDashboard() {
     return;
   }
   const want = (config().projects ?? [])[0]?.space;
-  const sp = spaces().find((s) => s.machine == null && (s.id === want || s.name === want));
+  const sp = resolveSpace(want, spaces()); // "machine/space" opens a space on an hc machine
   if (sp) run("space.select", { id: sp.id });
   run("tab.new", { ...(sp ? { space: sp.id } : {}), name: "hivemill", mod: MOD, props: { mode: "full" } });
 }
@@ -108,11 +108,9 @@ export default class Dashboard extends View {
     const space = spaces().find((s) => s.active);
     const list = alerts(d);
     const top = list[0];
-    const f = d.factory;
-    const orgs = orgsShown(d);
-    const fLive = f ? f.system?.agents?.live ?? f.live_agents ?? 0 : null;
-    const fNeeds = f ? (f.needs_you ?? []).filter((n) => (!n.org || orgs.has(n.org)) && !hidden(n.subject)).length : 0;
     const u = usage(d);
+    const segments = barSegments(d);
+    const claudeShown = orgsShown(d).has("claude");
     const seg = (id, onClick, ...kids) =>
       h_flex().id(id).gap(6).items_center().px(6).h_full().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(onClick).children(kids);
     const dot = (c) => div().size(6).rounded(3).flex_none().bg(c);
@@ -121,7 +119,7 @@ export default class Dashboard extends View {
     const stallMs = (cfg.alerts?.stall_minutes ?? 60) * 60_000;
 
     const bar = h_flex().id("root").size_full().px(8).gap(6).items_center().bg(t.chrome).border_t(1).border_color(t.border).text_size(11.8).text_color(t.muted)
-      .child(h_flex().px(6).gap(14).items_center().child(label(space?.machine && !demo() ? "server" : "monitor", demo() ? "This computer" : space?.machine ?? "This computer"))
+      .child(h_flex().px(6).gap(14).items_center().child(label(space?.machine && !demo() ? "server" : "monitor", locationLabel(space, d)))
         .when(Boolean(space?.branch) && !demo(), (el) => el.child(label("branch", space.branch))));
 
     for (const p of (cfg.projects ?? []).filter((x) => x.github && !hidden(x.name ?? x.github))) {
@@ -133,15 +131,17 @@ export default class Dashboard extends View {
           div().text_color(t.dim).child(pl.lastMerge ? `merged ${ago(pl.lastMerge)} ago` : "")),
       );
     }
-    bar.child(sep()).child(
-      seg("b-factory", () => showDashboard(),
-        dot(d.factoryError ? t.blocked : good(t)),
-        div().child(d.factoryError && !f ? "Factory offline" : f ? `Factory ${fLive} live` : "Factory…"),
-        div().text_color(fNeeds ? warn(t) : t.dim).child(f && fNeeds ? `${fNeeds} need you` : ""),
-        div().text_color(u.seven >= (cfg.alerts?.usage_danger_pct ?? 90) ? t.blocked : t.dim).child(orgs.has("claude") && u.seven != null ? `wk ${pct(u.seven)}` : ""),
-        div().text_color(t.dim).child(d.through?.cost?.cost_median != null ? `${money(d.through.cost.cost_median)}/PR` : ""),
-        div().text_color(t.dim).child(d.tokens?.byDay?.[0]?.cost != null ? `${money(d.tokens.byDay[0].cost)} today` : "")),
-    );
+    // One segment per team: "<machine> <role> N live", "<machine> offline" or "<machine>…".
+    segments.forEach((s, i) =>
+      bar.child(sep()).child(
+        seg(`b-${s.key}`, () => showDashboard(),
+          dot(s.offline ? t.blocked : good(t)),
+          div().child(s.text),
+          div().text_color(s.needs ? warn(t) : t.dim).child(s.needs ? `${s.needs} need you` : ""),
+          div().text_color(u.seven >= (cfg.alerts?.usage_danger_pct ?? 90) ? t.blocked : t.dim).child(i === 0 && claudeShown && u.seven != null ? `wk ${pct(u.seven)}` : ""),
+          div().text_color(t.dim).child(s.perPR ?? ""),
+          div().text_color(t.dim).child(s.today ?? "")),
+      ));
     bar.child(div().flex_1());
     if (top)
       bar.child(
@@ -156,10 +156,12 @@ export default class Dashboard extends View {
 
   // ---- building blocks -----------------------------------------------------------
 
-  card(t, title, right, body) {
+  card(t, title, right, body, tag) {
     return v_flex().flex_none().rounded(10).border(1).border_color(t.border).bg(t.surface).overflow_hidden()
       .child(h_flex().h(34).px(12).gap(8).items_center().bg(t.chrome).border_b(1).border_color(t.border)
-        .child(div().flex_1().truncate().text_size(12.5).font_semibold().text_color(t.foreground).child(title))
+        .child(div().flex_none().max_w(300).truncate().text_size(12.5).font_semibold().text_color(t.foreground).child(title))
+        .when(Boolean(tag), (el) => el.child(div().flex_none().px(6).rounded(4).bg(t.raised).text_size(10).text_color(t.muted).child(tag)))
+        .child(div().flex_1())
         .when(Boolean(right), (el) => el.child(right)))
       .child(body);
   }
@@ -266,7 +268,8 @@ export default class Dashboard extends View {
       body.child(this.meter(t, "m-7d", "Weekly (7-day)", pct(u.seven), u.seven != null ? u.seven / u.capSeven : null, `cap ${u.capSeven}%`));
       body.child(this.meter(t, "m-5h", "5-hour window", pct(u.five), u.five != null ? u.five / u.capFive : null, `cap ${u.capFive}%`));
     }
-    const cur = d.res?.cursor ?? d.factory?.system?.cursor;
+    const hv = teamViews(d).filter((v) => v.kind === "hivemill");
+    const cur = hv.map((v) => v.state.res?.cursor ?? v.home?.system?.cursor).find(Boolean);
     if (orgs.has("cursor") && cur) {
       const bad = (cur.models ?? []).filter((m) => m.status !== "ok");
       body.child(this.sub(t, "Cursor", cur.tier ?? null));
@@ -275,20 +278,22 @@ export default class Dashboard extends View {
         .child(div().text_size(12).text_color(bad.length ? t.blocked : good(t)).child(bad.length ? `${bad.map((m) => m.model).join(", ")} limited` : "ok"))
         .child(div().text_size(10.5).text_color(t.dim).child(cur.hours != null ? `${Math.round(cur.hours)} agent-hours` : "")));
     }
-    const tk = d.tokens, th = d.through;
-    if (tk || th) {
+    for (const v of hv) {
+      const tk = v.state.tokens, th = v.state.through, orgs = v.orgs;
+      const lab = hv.length > 1 ? ` · ${v.label}` : ""; // with 2+ teams, each team's figures are named
+      if (!tk && !th) continue;
       const byOrg = (tk?.byOrg ?? []).filter((o) => orgs.has(o.key));
       const total = byOrg.length ? byOrg.reduce((s, o) => s + (o.cost ?? 0), 0) : tk?.total;
       // The factory reports per-day spend, cost per PR and per-task cost for all orgs together.
       if ((tk?.byOrg ?? []).some((o) => !orgs.has(o.key) && o.cost))
         body.child(div().px(12).pt(8).text_size(10.5).text_color(t.dim).child("Today, cost per PR, spend per day and tasks below cover every org."));
-      body.child(this.sub(t, `Spend · last ${tk?.period ?? 7} days`, total != null ? money(total) : null));
+      body.child(this.sub(t, `Spend${lab} · last ${tk?.period ?? 7} days`, total != null ? money(total) : null));
       body.child(h_flex().px(10).pt(4).gap(6).children([
         this.stat(t, "today", money((tk?.byDay ?? [])[0]?.cost)),
         ...(byOrg.length > 1 ? byOrg.map((o) => this.stat(t, o.key === "cursor" ? "Cursor (est.)" : "Claude", money(o.cost))) : []),
       ]));
       const c = th?.cost ?? {};
-      body.child(this.sub(t, "Cost per merged PR", c.merged ? `${c.priced}/${c.merged} priced · ${th.days}d` : null));
+      body.child(this.sub(t, `Cost per merged PR${lab}`, c.merged ? `${c.priced}/${c.merged} priced · ${th.days}d` : null));
       body.child(h_flex().px(10).pt(4).gap(6).children([
         this.stat(t, "median", money(c.cost_median)),
         this.stat(t, "p90", money(c.cost_p90), c.cost_p90 > 10 ? warn(t) : null),
@@ -300,21 +305,21 @@ export default class Dashboard extends View {
           `${(c.tokens_median / 1e6).toFixed(1)}M tokens median · ${(c.tokens_p90 / 1e6).toFixed(1)}M p90${orgs.has("cursor") && c.cursor_tasks ? ` · ${c.cursor_tasks} Cursor tasks unpriced` : ""}`));
       const days = [...(tk?.byDay ?? [])].slice(0, 7).reverse();
       if (days.length) {
-        body.child(this.sub(t, "Spend per day", null));
-        body.child(this.bars(t, "spend-days", days, (x) => x.cost ?? 0, (x) => money(x.cost).replace(".00", ""), t.accent));
+        body.child(this.sub(t, `Spend per day${lab}`, null));
+        body.child(this.bars(t, `spend-days-${v.key}`, days, (x) => x.cost ?? 0, (x) => money(x.cost).replace(".00", ""), t.accent));
       }
       const tasks = (tk?.byTask ?? []).filter((x) => !hidden(x.title));
       if (tasks.length) {
-        body.child(this.sub(t, "Most expensive tasks", null));
+        body.child(this.sub(t, `Most expensive tasks${lab}`, null));
         body.children(tasks.map((x) =>
-          this.row(t, `cost-${x.key}`, () => openUrl(`/task/${x.key}`), [
+          this.row(t, `cost-${v.key}-${x.key}`, () => openUrl(`/task/${x.key}`, v.team), [
             div().flex_none().w(demo() ? 0 : 52).text_size(10.5).text_color(t.dim).child(demo() ? "" : x.key),
             div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(x.title ?? "")),
             div().flex_none().text_size(11.5).font_semibold().text_color(x.cost > 10 ? warn(t) : t.muted).child(money(x.cost)),
           ])));
       }
     }
-    return this.card(t, "Budget & cost", this.btn(t, "tok-open", "Tokens ↗", () => openUrl("/tokens")), body);
+    return this.card(t, "Budget & cost", this.btn(t, "tok-open", "Tokens ↗", () => openUrl("/tokens", hv[0]?.team)), body);
   }
 
   machinesSection(t, d, body) {
@@ -348,41 +353,73 @@ export default class Dashboard extends View {
   }
 
   resourcesCard(t, d) {
-    const r = d.res;
+    const hv = teamViews(d).filter((v) => v.kind === "hivemill");
+    const multi = hv.length > 1;
     const body = v_flex().pb(10);
     this.machinesSection(t, d, body);
-    if (!r) {
-      body.child(div().px(12).py(8).text_size(12).text_color(t.dim).child(d.factoryError ? "Factory unreachable" : "Loading…"));
-      return this.card(t, "Resources", null, body);
+    for (const v of hv) {
+      const r = v.state.res;
+      const lab = multi ? ` · ${v.label}` : "";
+      if (!r) {
+        body.child(div().px(12).py(8).text_size(12).text_color(t.dim).child(v.error ? `${v.label} unreachable` : "Loading…"));
+        continue;
+      }
+      body.child(this.sub(t, `Spawn gate${lab}`, null));
+      body.children((r.rows ?? []).map((row, i) =>
+        h_flex().id(`gate-${v.key}-${i}`).px(12).py(3).gap(8).items_center()
+          .child(div().size(7).rounded(4).flex_none().bg(row.state === "ok" ? good(t) : row.state === "warn" ? warn(t) : t.blocked))
+          .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(row.label))
+          .child(div().flex_none().text_size(12).text_color(t.muted).child(row.value))
+          .child(div().flex_none().w(110).truncate().text_size(10.5).text_color(t.dim).child(row.limit && row.limit !== "-" ? row.limit : ""))));
+      const th = v.state.through;
+      const per = (th?.perDay ?? []).slice(-14);
+      if (per.length) {
+        body.child(this.sub(t, `Merges per day${lab}`, th?.merges != null ? `${th.merges} in ${th.days}d` : null));
+        body.child(this.bars(t, `merge-days-${v.key}`, per, (x) => x.merges ?? 0, (x) => String(x.merges ?? 0), good(t)));
+      }
     }
-    body.child(this.sub(t, "Spawn gate", null));
-    body.children((r.rows ?? []).map((row, i) =>
-      h_flex().id(`gate-${i}`).px(12).py(3).gap(8).items_center()
-        .child(div().size(7).rounded(4).flex_none().bg(row.state === "ok" ? good(t) : row.state === "warn" ? warn(t) : t.blocked))
-        .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(row.label))
-        .child(div().flex_none().text_size(12).text_color(t.muted).child(row.value))
-        .child(div().flex_none().w(110).truncate().text_size(10.5).text_color(t.dim).child(row.limit && row.limit !== "-" ? row.limit : ""))));
-    const per = (d.through?.perDay ?? []).slice(-14);
-    if (per.length) {
-      body.child(this.sub(t, "Merges per day", d.through?.merges != null ? `${d.through.merges} in ${d.through.days}d` : null));
-      body.child(this.bars(t, "merge-days", per, (x) => x.merges ?? 0, (x) => String(x.merges ?? 0), good(t)));
-    }
-    return this.card(t, "Resources", this.btn(t, "res-open", "Resources ↗", () => openUrl("/resources")), body);
+    return this.card(t, "Resources", this.btn(t, "res-open", "Resources ↗", () => openUrl("/resources", hv[0]?.team)), body);
   }
 
-  factoryCard(t, d) {
-    const f = d.factory;
-    const orgs = orgsShown(d);
+  // A team that runs no Hivemill API, declared by projects[].boss: its boss and its project's agents as lanes.
+  projectTeamCard(t, v) {
+    const body = v_flex().pb(10);
+    const dotFor = (s) => (s === "working" ? good(t) : s === "blocked" ? t.blocked : s === "idle" || s === "done" ? warn(t) : t.dim);
+    body.child(this.sub(t, "Boss", null));
+    body.child(v.boss
+      ? this.row(t, `${v.key}-boss`, () => run("agent.focus", { terminal: v.boss.address }), [
+        div().size(7).rounded(4).flex_none().bg(dotFor(v.boss.status)),
+        div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(v.boss.name),
+        div().flex_none().text_size(10.5).text_color(t.muted).child(v.boss.status),
+      ])
+      : div().px(12).py(2).text_size(11.5).text_color(t.dim).child("No boss found: check projects[].boss."));
+    body.child(this.sub(t, "Lanes", v.lanes.length));
+    if (!v.lanes.length) body.child(div().px(12).py(2).text_size(11.5).text_color(t.dim).child("No other agents in this space."));
+    body.children(v.lanes.map((l, i) =>
+      this.row(t, `${v.key}-lane-${i}`, () => run("agent.focus", { terminal: l.address }), [
+        div().size(7).rounded(4).flex_none().bg(dotFor(l.status)),
+        div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(l.name),
+        div().flex_none().text_size(10.5).text_color(t.muted).child(l.status),
+      ])));
+    return this.card(t, v.label, null, body);
+  }
+
+  // One Hivemill team: its boss and lanes, what needs you, goals, agents and shipped work.
+  teamCard(t, d, v) {
+    const f = v.home;
+    const k = v.key;
+    const orgs = v.orgs;
     const inOrg = (x) => !x.org || orgs.has(x.org);
+    const multi = teamViews(d).filter((x) => x.kind === "hivemill").length > 1;
     const right = h_flex().gap(6).items_center()
-      .child(div().text_size(10.5).text_color(d.factoryError ? t.blocked : t.dim).child(d.factoryError ? (f ? `offline · ${ago(d.factoryAt)} old` : "offline") : f ? ago(d.factoryAt) : "loading…"))
-      .child(this.btn(t, "f-open", "Open ↗", () => openUrl("/")));
+      .child(div().text_size(10.5).text_color(v.error ? t.blocked : t.dim).child(v.error ? (f ? `offline · ${ago(v.at)} old` : "offline") : f ? ago(v.at) : "loading…"))
+      .child(this.btn(t, `${k}-open`, "Open ↗", () => openUrl("/", v.team)));
     const body = v_flex().pb(10);
     if (!f) {
-      body.child(v_flex().m(10).p(12).gap(4).rounded(8).border(1).border_color(d.factoryError ? alpha(t.blocked, "66") : t.border)
-        .child(div().text_size(12.5).text_color(d.factoryError ? t.blocked : t.muted).child(d.factoryError ? "Factory unreachable" : "Reaching the factory…"))
-        .when(Boolean(d.factoryError), (el) => el.child(div().text_size(11).text_color(t.dim).child(`${d.factoryError}. Check factory.url / factory.machine in ~/.config/hivemill/dashboard.json.`))));
-      return this.card(t, "Factory", right, body);
+      body.child(v_flex().m(10).p(12).gap(4).rounded(8).border(1).border_color(v.error ? alpha(t.blocked, "66") : t.border)
+        .child(div().text_size(12.5).text_color(v.error ? t.blocked : t.muted).child(v.error ? `${v.label} unreachable` : `Reaching ${v.label}…`))
+        .when(Boolean(v.error), (el) => el.child(div().text_size(11).text_color(t.dim).child(`${demo() ? "Not reachable" : v.error}. Check the team's url / machine (teams[] or factory) in ~/.config/hivemill/dashboard.json.`))));
+      return this.card(t, v.label, right, body, ROLE);
     }
     const sa = f.system?.agents ?? {};
     const needs = (f.needs_you ?? []).filter((n) => inOrg(n) && !hidden(n.subject));
@@ -392,27 +429,28 @@ export default class Dashboard extends View {
       this.stat(t, "open PRs", f.open_prs ?? 0),
       this.stat(t, "needs you", needs.length, needs.length ? warn(t) : null),
     ]));
-    const lanes = (f.lanes ?? []).filter((l) => orgs.has(l.org));
-    if (lanes.length > 1 || (lanes.length === 1 && orgs.size > 1)) {
+    // Each lane shows its boss and director; with 2+ teams the lanes show even for a single org.
+    const lanes = v.lanes;
+    if (multi || lanes.length > 1 || (lanes.length === 1 && orgs.size > 1)) {
       body.child(this.sub(t, "Lanes", null));
       body.children(lanes.map((l) =>
-        this.row(t, `lane-${l.org}`, () => openUrl(`/?org=${l.org}`), [
-          div().size(7).rounded(4).flex_none().bg(toneColor(t, l.health?.tone)),
-          div().flex_none().w(60).text_size(12).text_color(t.foreground).child(l.label ?? l.org),
-          div().flex_1().min_w(0).truncate().text_size(11).text_color(t.muted).child(`${l.workers_live ?? 0} workers · ${l.leads_awake ?? 0} leads awake · ${l.goals_active ?? 0} goals`),
-          div().flex_none().text_size(10.5).text_color(toneColor(t, l.health?.tone)).child(demo() ? ((n) => (n ? `${n} need${n === 1 ? "s" : ""} you` : "ok"))(needs.filter((x) => x.org === l.org).length) : l.health?.text ?? ""),
+        this.row(t, `${k}-lane-${l.org}`, () => openUrl(`/?org=${l.org}`, v.team), [
+          div().size(7).rounded(4).flex_none().bg(toneColor(t, l.tone)),
+          div().flex_none().w(60).text_size(12).text_color(t.foreground).child(l.label),
+          div().flex_1().min_w(0).truncate().text_size(11).text_color(t.muted).child(l.text),
+          div().flex_none().text_size(10.5).text_color(toneColor(t, l.tone)).child(demo() ? ((n) => (n ? `${n} need${n === 1 ? "s" : ""} you` : "ok"))(needs.filter((x) => x.org === l.org).length) : l.health),
         ])));
     }
     body.child(this.sub(t, "Needs you", needs.length));
     if (!needs.length) body.child(div().px(12).py(2).text_size(11.5).text_color(t.dim).child("Nothing waiting on you."));
     body.children(needs.slice(0, 8).map((n, i) =>
-      this.row(t, `need-${i}`, () => openUrl(n.href), [
+      this.row(t, `${k}-need-${i}`, () => openUrl(n.href, v.team), [
         div().size(7).rounded(4).flex_none().bg(toneColor(t, n.tone)),
         v_flex().flex_1().min_w(0)
           .child(div().truncate().text_size(12).text_color(t.foreground).child(clean(n.subject ?? n.ref ?? "?")))
           .child(div().truncate().text_size(10.5).text_color(t.dim).child([orgs.size > 1 ? n.org : null, n.kind, demo() ? null : n.ref, n.age].filter(Boolean).join(" · "))),
       ])));
-    if (needs.length > 8) body.child(this.row(t, "need-more", () => openUrl("/"), [div().text_size(11).text_color(t.accent).child(`+${needs.length - 8} more in the browser`)]));
+    if (needs.length > 8) body.child(this.row(t, `${k}-need-more`, () => openUrl("/", v.team), [div().text_size(11).text_color(t.accent).child(`+${needs.length - 8} more in the browser`)]));
 
     const goals = (f.goals ?? []).filter((g) => g.status === "active" && inOrg(g) && !hidden(g.title))
       .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9) || (b.last_activity ?? "").localeCompare(a.last_activity ?? ""));
@@ -420,7 +458,7 @@ export default class Dashboard extends View {
       body.child(this.sub(t, "Active goals", `${goals.length} · ${f.goals_by_status?.done ?? 0} done`));
       body.children(goals.map((g) => {
         const done = g.tasks_done ?? 0, total = g.tasks_total ?? 0, frac = total ? Math.min(1, done / total) : 0;
-        return v_flex().id(`goal-${g.id}`).mx(6).px(6).py(4).gap(3).rounded(6).hover((s) => s.bg(t.hover)).on_click(() => openUrl(`/goal/${g.id}`))
+        return v_flex().id(`${k}-goal-${g.id}`).mx(6).px(6).py(4).gap(3).rounded(6).hover((s) => s.bg(t.hover)).on_click(() => openUrl(`/goal/${g.id}`, v.team))
           .child(h_flex().gap(6).items_center()
             .child(div().flex_none().text_size(10.5).text_color(t.dim).child(demo() ? "" : g.id))
             .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(g.title ?? "")))
@@ -428,12 +466,12 @@ export default class Dashboard extends View {
           .child(div().h(4).w_full().rounded(2).bg(t.border).child(div().h_full().w(`${(frac * 100).toFixed(1)}%`).rounded(2).bg(done >= total && total ? good(t) : t.accent)));
       }));
     }
-    // Factory agents run on the factory's own terminals, so this app's agents list may not show them.
+    // A team's agents run on its own terminals, so this app's agents list may not show them.
     const rows = (f.agents?.rows ?? []).filter((a) => (a.status === "live" || a.status === "running") && inOrg(a) && !hidden(a.task_title));
     if (rows.length) {
-      body.child(this.sub(t, "Factory agents", `${rows.length} · ${f.agents?.queued ?? 0} queued`));
+      body.child(this.sub(t, "Agents", `${rows.length} · ${f.agents?.queued ?? 0} queued`));
       body.children(rows.map((a, i) =>
-        this.row(t, `fa-${i}`, () => openUrl("/agents"), [
+        this.row(t, `${k}-fa-${i}`, () => openUrl("/agents", v.team), [
           div().size(7).rounded(4).flex_none().bg(good(t)),
           v_flex().flex_1().min_w(0)
             .child(h_flex().gap(6).child(div().truncate().text_size(12).text_color(t.foreground).child(clean(a.name))).child(div().flex_none().text_size(10.5).text_color(t.dim).child(a.role ?? "")))
@@ -445,13 +483,13 @@ export default class Dashboard extends View {
     if (shipped.length) {
       body.child(this.sub(t, "Shipped", f.quality?.first_try_pct != null ? `${f.quality.first_try_pct}% first try` : null));
       body.children(shipped.map((s, i) =>
-        this.row(t, `ship-${i}`, () => openUrl(s.pr_url || `/task/${s.task_id}`), [
+        this.row(t, `${k}-ship-${i}`, () => openUrl(s.pr_url || `/task/${s.task_id}`, v.team), [
           div().flex_none().text_size(11).text_color(good(t)).child("✓"),
           div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(s.title ?? s.task_id)),
           div().flex_none().text_size(10.5).text_color(t.dim).child(ago(Date.parse(s.merged))),
         ])));
     }
-    return this.card(t, "Factory", right, body);
+    return this.card(t, v.label, right, body, ROLE);
   }
 
   renderFull() {
@@ -460,14 +498,16 @@ export default class Dashboard extends View {
     const cols = this.width >= 1300 ? 3 : this.width >= 860 ? 2 : 1;
     const col = (cards) => v_flex().flex_none().flex_1().min_w(0).gap(12).children(cards);
     const projects = (config().projects ?? []).filter((p) => p.github && !hidden(p.name ?? p.github)).map((p) => this.projectCard(t, d, p));
-    const alertsC = this.alertsCard(t, d), budget = this.budgetCard(t, d), res = this.resourcesCard(t, d), factory = this.factoryCard(t, d);
+    const alertsC = this.alertsCard(t, d), budget = this.budgetCard(t, d), res = this.resourcesCard(t, d);
+    // One card per team: each Hivemill team, then each team declared by projects[].boss.
+    const teamCards = teamViews(d).map((v) => (v.kind === "project" ? this.projectTeamCard(t, v) : this.teamCard(t, d, v)));
     const grid =
       cols === 3
         ? projects.length
-          ? h_flex().flex_none().gap(12).items_start().child(col([alertsC, ...projects])).child(col([budget, res])).child(col([factory]))
-          : h_flex().flex_none().gap(12).items_start().child(col([alertsC, res])).child(col([budget])).child(col([factory]))
-      : cols === 2 ? h_flex().flex_none().gap(12).items_start().child(col([alertsC, budget, ...projects])).child(col([res, factory]))
-      : v_flex().flex_none().gap(12).children([alertsC, budget, ...projects, res, factory]);
+          ? h_flex().flex_none().gap(12).items_start().child(col([alertsC, ...projects])).child(col([budget, res])).child(col(teamCards))
+          : h_flex().flex_none().gap(12).items_start().child(col([alertsC, res])).child(col([budget])).child(col(teamCards))
+      : cols === 2 ? h_flex().flex_none().gap(12).items_start().child(col([alertsC, budget, ...projects])).child(col([res, ...teamCards]))
+      : v_flex().flex_none().gap(12).children([alertsC, budget, ...projects, res, ...teamCards]);
     const header = h_flex().gap(8).items_center().px(4)
       .child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("Hivemill"))
       .child(this.btn(t, "refresh", "Refresh", (cx) => tick(this.me, cx, true)));
