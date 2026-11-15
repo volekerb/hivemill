@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -22,7 +24,17 @@ func runCmd(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], args...)
 	home := t.TempDir()
-	cmd.Env = []string{"HIVEMILL_INSTALL_TEST_MAIN=1", "HOME=" + home, "PATH=/usr/bin:/bin"}
+	// A go toolchain download under HOME writes a read-only module cache that TempDir's RemoveAll cannot delete:
+	// ask go for a writable one, and chmod anything left over before the TempDir cleanup runs (cleanups are LIFO).
+	t.Cleanup(func() {
+		_ = filepath.WalkDir(home, func(p string, _ fs.DirEntry, err error) error {
+			if err == nil {
+				_ = os.Chmod(p, 0o700)
+			}
+			return nil
+		})
+	})
+	cmd.Env = []string{"HIVEMILL_INSTALL_TEST_MAIN=1", "HOME=" + home, "PATH=/usr/bin:/bin", "GOFLAGS=-modcacherw"}
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	rc := 0
