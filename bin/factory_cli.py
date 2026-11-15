@@ -10013,19 +10013,24 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         sandbox_optin = True  # a sandbox_required task never starts unsandboxed, whoever spawns it (queue and relaunch keep it)
     args = {"role": role, "goal": goal, "team": team, "task": task, "name": name, "cwd": cwd,
             "prompt": prompt, "model": model, "resume": resume, "fresh": fresh, "org": org}
-    if host_backend is not None:
-        args["host_backend"] = host_backend
-        if not from_queue:
-            args["host_backend_pinned"] = True  # explicit backend: the tick keeps it when it restarts the task's agents
-    elif from_queue and existing:
+    prev = {}
+    if from_queue and existing:
         try:
             prev = json.loads(existing["spawn_args"] or "{}")
         except ValueError:
             prev = {}
-        if prev.get("host_backend") in ("hc", "herdr"):
-            args["host_backend"] = prev["host_backend"]
-            if prev.get("host_backend_pinned") is True:
-                args["host_backend_pinned"] = True
+        if not isinstance(prev, dict):
+            prev = {}
+    if host_backend is not None:
+        args["host_backend"] = host_backend
+        # explicit backend: the tick keeps it when it restarts the task's agents. The tick's queue drain passes the queued
+        # row's host_backend back in, so a from_queue call keeps the marker of the queued row instead of setting its own
+        if not from_queue or prev.get("host_backend_pinned") is True:
+            args["host_backend_pinned"] = True
+    elif prev.get("host_backend") in ("hc", "herdr"):
+        args["host_backend"] = prev["host_backend"]
+        if prev.get("host_backend_pinned") is True:
+            args["host_backend_pinned"] = True
     if sandbox_optin:
         args["sandbox_optin"] = True
     if role == "evaluator":

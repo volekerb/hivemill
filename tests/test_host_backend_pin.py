@@ -137,7 +137,8 @@ class QueueKeepsPinTests(PinBase):
         self.ok("config", "max_live_agents", "99", agent="owner")
         with self.env.load_factory() as f:
             con = f.db()
-            f.spawn(con, "coder", name=CODER, from_queue=True)
+            # the tick's queue drain passes the queued row's host_backend back in
+            f.spawn(con, "coder", name=CODER, from_queue=True, host_backend="hc")
             con.commit()
         self.assertEqual(len(self.hc_runs()), 1)
         self.assertEqual(self.herdr_starts(), [])
