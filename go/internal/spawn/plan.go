@@ -109,6 +109,7 @@ type Start struct {
 	NeedWorktree        bool // coder/qa/reviewer without an explicit cwd: the caller prepares the task worktree
 	Sandboxed, GhCred   bool // the caller adds the sandbox PATH / gh credential env (side effects)
 	Env                 []KV
+	EnvBase             int // len(Env) before the settings env was merged: the env an existing pane is told to export
 	Effort              []string
 	SettingsPath        string
 	SettingsText        string

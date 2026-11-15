@@ -187,6 +187,7 @@ func planStart(req Request, f Facts, p SpawnPlan, rt string, sandboxOptin bool, 
 	if err != nil {
 		return nil, &Refusal{Msg: fmt.Sprintf("settings render failed for %s: %v; nothing was started", role, err), Code: 3, Reason: ReasonSettings}
 	}
+	st.EnvBase = len(env)
 	for _, kv := range senv {
 		env = setdefault(env, kv.Key, kv.Value)
 	}
