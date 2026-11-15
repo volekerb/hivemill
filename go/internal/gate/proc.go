@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -157,11 +156,10 @@ func TmpUsage(dir, fake, mountsPath string) *Tmp {
 		}
 		total, free = int64(a), int64(b)
 	} else {
-		var v syscall.Statfs_t
-		if err := syscall.Statfs(dir, &v); err != nil {
+		var err error
+		if total, free, err = statfsBytes(dir); err != nil {
 			return nil
 		}
-		total, free = int64(v.Blocks)*int64(v.Frsize), int64(v.Bavail)*int64(v.Frsize)
 	}
 	if total <= 0 {
 		return nil
@@ -178,7 +176,7 @@ func TmpUsage(dir, fake, mountsPath string) *Tmp {
 		}
 	}
 	used := total - free
-	return &Tmp{UsedMB: FloorDiv(used, 1048576), TotalMB: FloorDiv(total, 1048576), Pct: 100.0 * float64(used) / float64(total), FSType: fstype}
+	return &Tmp{UsedMB: FloorDiv(used, 1048576), TotalMB: FloorDiv(total, 1048576), Pct: 100.0 * float64(used) / float64(total), FSType: fstype, FreeMB: FloorDiv(free, 1048576)}
 }
 
 // ResolvePath is Path(p).resolve() (non-strict): symlinks of the longest existing prefix are followed.
