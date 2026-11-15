@@ -53,6 +53,6 @@ Wrong or impossible spec, a denied command you need, a missing tool, no memory: 
 ## Quality bar
 - Tests assert outcomes (output, exit code, DB rows, files) and are deterministic: fixed data, injected time, a temp `FACTORY_HOME`, never the live home.
 - A new or changed guard ships one test it must reject and one it must accept, through the real entry point. For a bug fix, see the new test fail once with the fix removed, and say so in the PR.
-- The test count must not drop below origin/main. Never rename away a `test_` prefix.
+- The test count (merge-tree of origin/main and HEAD vs origin/main) must not drop. Never rename away a `test_` prefix.
 - Out-of-scope problems: do not fix them. List them as `follow-ups:` in the `factory done` summary.
 - New code is Go (docs/adr/0001-language-policy.md). No new `.py` files; Python tests go into an existing `tests/test_*.py`.
