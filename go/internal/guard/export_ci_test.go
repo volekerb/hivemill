@@ -302,3 +302,22 @@ func TestCIPrePushGitTimeout(t *testing.T) {
 		t.Errorf("a stalled git must refuse the push: code %d, stderr %q", code, errb.String())
 	}
 }
+
+// The default allowlist only loosens the guard: neither the environment nor the working directory may choose it.
+func TestCIDefaultAllowlistIgnoresEnvAndCwd(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "ci"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ci", "scrub_allowlist.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FACTORY_CI_DIR", dir)
+	t.Chdir(dir)
+	if got := ciDefaultAllowlist(); strings.HasPrefix(got, dir) || got == filepath.Join("ci", "scrub_allowlist.txt") {
+		t.Errorf("allowlist %q was chosen by the environment or the working directory", got)
+	}
+	if got := ciDefaultAllowlist(dir); got != filepath.Join(dir, "ci", "scrub_allowlist.txt") {
+		t.Errorf("a given root must be searched: got %q", got)
+	}
+}

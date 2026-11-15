@@ -322,13 +322,12 @@ func ciTermsOrFail(configPath string, extra []string) ([]string, error) {
 }
 
 // ciDefaultAllowlist is scrub_scan.DEFAULT_ALLOWLIST (ci/scrub_allowlist.txt next to the Python script). The Go tool
-// has no script directory: $FACTORY_CI_DIR, else ci/ of the checkout above the executable or of any given root, else
-// ci/ of the working directory.
+// has no script directory: it looks for ci/scrub_allowlist.txt in the checkout above the executable or above any
+// given root (the factory home). It reads no environment variable and never the working directory: the allowlist only
+// loosens the guard, so the pushing worker must not be able to choose it. Not found -> "", which the loader refuses
+// (fail closed).
 func ciDefaultAllowlist(roots ...string) string {
 	const name = "scrub_allowlist.txt"
-	if d := os.Getenv("FACTORY_CI_DIR"); d != "" {
-		return filepath.Join(d, name)
-	}
 	if exe, err := os.Executable(); err == nil {
 		roots = append(roots, filepath.Dir(exe))
 	}
@@ -342,7 +341,7 @@ func ciDefaultAllowlist(roots ...string) string {
 			}
 		}
 	}
-	return filepath.Join("ci", name)
+	return ""
 }
 
 // ----- allowlists -----
