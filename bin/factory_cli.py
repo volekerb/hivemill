@@ -10693,7 +10693,8 @@ def _hc_cursor_submit(con, name, row_goal=None, row_task=None, prompt_ok=True):
             return True
     event(con, "agent", name, "cursor-submit-unconfirmed", {"host": "hc", "attempts": 2, "prompt_ok": prompt_ok})
     send(con, "director", f"{name}: Cursor kickoff turn did not start on hc",
-         f"{name} (runtime cursor, host hc) got its kickoff prompt and enter twice, but hc ls showed no working, done or "
+         f"{name} (runtime cursor, host hc) got its kickoff prompt (hc send {'ok' if prompt_ok else 'failed'}) and enter "
+         f"twice, but hc ls showed no working, done or "
          f"blocked status within {os.environ.get('FACTORY_HC_CURSOR_TURN_WAIT_S') or HC_CURSOR_TURN_WAIT_S} s of "
          f"either. The prompt may still sit unsent. Check `hc read {name}`, then `factory relaunch --fresh {name}`.",
          "alert", row_goal, row_task, sender="factory")
