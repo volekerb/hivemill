@@ -157,7 +157,8 @@ func relayScrubEnv(environ []string, add ...string) []string {
 		}
 		out = append(out, kv)
 	}
-	out = append(out, "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1")
+	// GIT_NO_REPLACE_OBJECTS: a worker-planted refs/replace/<sha> must not make the checks read a substitute commit
+	out = append(out, "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_NO_REPLACE_OBJECTS=1")
 	return append(out, add...)
 }
 
@@ -571,16 +572,19 @@ func wfEntries(text string) []wfEntry {
 	}
 	for _, raw := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
 		s := strings.TrimSpace(raw)
-		if s == "" || strings.HasPrefix(s, "#") || s == "---" || s == "..." {
+		if s == "" {
 			continue
 		}
 		ind := len(raw) - len(strings.TrimLeft(raw, " \t"))
 		if scalarIndent >= 0 {
-			if ind > scalarIndent {
+			if ind > scalarIndent { // block-scalar content, a "#" line included (a script comment GitHub still expands)
 				out = append(out, wfEntry{keys(), s})
 				continue
 			}
 			scalarIndent = -1
+		}
+		if strings.HasPrefix(s, "#") || s == "---" || s == "..." {
+			continue
 		}
 		m := wfKeyRE.FindStringSubmatch(raw)
 		if m == nil {

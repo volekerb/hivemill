@@ -401,6 +401,7 @@ func TestRelayPushWorkflowRefusals(t *testing.T) {
 	base := gitIn(t, r.wt, "rev-parse", "HEAD")
 	for _, tc := range []struct{ name, wf, want string }{
 		{"secrets expr", relayWF(t, "        run: |\n", "        env:\n          T: ${{ secrets.DEPLOY }}\n        run: |\n"), "secrets reference added"},
+		{"secrets in a script comment", relayWF(t, "          echo hi\n", "          echo hi\n          # ${{ secrets.DEPLOY }}\n"), "secrets reference added"},
 		{"secrets inherit", relayWF(t, "  test:\n", "  call:\n    uses: ./.github/workflows/x.yml\n    secrets: inherit\n  test:\n"), "secrets reference added"},
 		{"permissions write", relayWF(t, "contents: read", "contents: write"), "permissions changed"},
 		{"permissions removed", relayWF(t, "permissions:\n  contents: read\n", ""), "permissions changed (removed)"},
@@ -570,5 +571,23 @@ func TestRelayPushPublicTextAllowlist(t *testing.T) {
 	os.Remove(filepath.Join(r.e.home, "ci", "scrub_allowlist.txt"))
 	if _, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, "could not decide") || !strings.Contains(errs, "scrub_allowlist.txt") || r.pushed() != "" {
 		t.Errorf("no allowlist: exit %d err %q", code, errs)
+	}
+}
+
+// TestRelayPushReplaceRefIgnored: a refs/replace/<head> that swaps a foreign-email head for a clean one must not fool
+// the checks: they read the real commit (GIT_NO_REPLACE_OBJECTS), so the push is refused.
+func TestRelayPushReplaceRefIgnored(t *testing.T) {
+	r := newRelayRepo(t)
+	base := gitIn(t, r.wt, "rev-parse", "HEAD")
+	r.write("g.txt", "evil\n")
+	bad := r.commit("foreign", "GIT_AUTHOR_EMAIL=someone@example.com")
+	gitIn(t, r.wt, "reset", "-q", "--hard", base)
+	r.write("g.txt", "evil\n")
+	good := r.commit("clean")
+	gitIn(t, r.wt, "reset", "-q", "--hard", bad)
+	gitIn(t, r.wt, "replace", bad, good)
+	r.verify(bad)
+	if _, errs, code := r.push(bad); code != 3 || !strings.Contains(errs, "author email 'someone@example.com' is not the factory noreply") || r.pushed() != "" {
+		t.Errorf("replace ref: exit %d err %q", code, errs)
 	}
 }
