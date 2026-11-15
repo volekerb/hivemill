@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +25,9 @@ const (
 	ghVersion          = "2.103.3"
 	ghRelease          = "https://github.com/cli/cli/releases/download/v" + ghVersion
 	tailLines          = 15
+	xcodeHint          = "xcode-select --install"
+	darwinBootNote     = "boot units: launchd step not available yet (G-049 M2)"
+	darwinLingerNote   = "--linger: not applicable on macOS (launchd user agents run while you are logged in)"
 	aptHint            = "sudo apt-get install -y git python3"
 )
 
@@ -41,10 +43,13 @@ var (
 	HerdrAssets = map[string]Asset{
 		"x86_64":  {herdrRelease + "/herdr-linux-x86_64", 30285672, "14d9e8bc8b4a9e0118d77c32266f76d461f09b40342eb23752960bd89f59929d"},
 		"aarch64": {herdrRelease + "/herdr-linux-aarch64", 27900752, "17d7536f2da50859523680ef279dffcac8e4a235f4e46fe8da6c2ec44141897c"},
+		// macOS entries are keyed "darwin/<arch>"; Linux keeps the bare machine name
+		"darwin/aarch64": {herdrRelease + "/herdr-macos-aarch64", 22536176, "fb77c2232a05a8035421382c894392f4174e4e38a18e48af3dd0290157c3a7e2"},
 	}
 	GHAssets = map[string]Asset{
-		"x86_64":  {ghRelease + "/gh_" + ghVersion + "_linux_amd64.tar.gz", 15031972, "4c806978ffce1cec70853302a56d70ac6da4f19bae7adca4e1a8ab00633dd91d"},
-		"aarch64": {ghRelease + "/gh_" + ghVersion + "_linux_arm64.tar.gz", 13661485, "ee32df2323c8847f5fac6cb6b4b69ca75828e9329a8f22f677021f7b3306ce63"},
+		"x86_64":         {ghRelease + "/gh_" + ghVersion + "_linux_amd64.tar.gz", 15031972, "4c806978ffce1cec70853302a56d70ac6da4f19bae7adca4e1a8ab00633dd91d"},
+		"aarch64":        {ghRelease + "/gh_" + ghVersion + "_linux_arm64.tar.gz", 13661485, "ee32df2323c8847f5fac6cb6b4b69ca75828e9329a8f22f677021f7b3306ce63"},
+		"darwin/aarch64": {ghRelease + "/gh_" + ghVersion + "_macOS_arm64.zip", 14106091, "d700207eae9ae98fe2b89535c2c087c07823d4628c56364695a5a07ef311c062"},
 	}
 	archAlias = map[string]string{"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}
 )
@@ -183,7 +188,29 @@ func pyAtLeast(out string, major, minor int64) (found, ok bool) {
 	return true, mnr.Cmp(big.NewInt(minor)) >= 0
 }
 
+// memGiB reads the RAM size: `sysctl -n hw.memsize` on macOS, the host's own reader elsewhere.
+func memGiB(h Host) (float64, error) {
+	if h.GOOS() != "darwin" {
+		return h.MemGiB()
+	}
+	rc, out := h.Run([]string{"sysctl", "-n", "hw.memsize"}, "", 0, false)
+	if rc != 0 {
+		return 0, fmt.Errorf("sysctl -n hw.memsize failed (rc=%d)", rc)
+	}
+	n, ok := asciiDigits64(pyStrip(out))
+	if !ok || n <= 0 {
+		return 0, errors.New("sysctl -n hw.memsize printed no byte count")
+	}
+	return float64(n) / (1024.0 * 1024.0 * 1024.0), nil
+}
+
+func asciiDigits64(s string) (int64, bool) {
+	n, err := strconv.ParseInt(s, 10, 64)
+	return n, err == nil && !strings.ContainsAny(s, "+-_ ")
+}
+
 func checkItems(h Host, noSystemd bool) ([]checkItem, float64, bool) {
+	darwin := h.GOOS() == "darwin"
 	var items []checkItem
 	add := func(status, name, detail string) { items = append(items, checkItem{status, name, detail}) }
 	rc, out := h.Run([]string{"python3", "--version"}, "", 0, false)
@@ -239,16 +266,20 @@ func checkItems(h Host, noSystemd bool) ([]checkItem, float64, bool) {
 	} else {
 		add("missing", "claude-auth", "not logged in: run `claude` in your own terminal and complete /login")
 	}
-	if rc, _ = h.Run([]string{"systemctl", "--user", "show-environment"}, "", 0, false); rc == 0 {
-		add("ok", "systemd-user", "user session reachable")
-	} else if noSystemd {
-		add("warn", "systemd-user", "no user systemd session (--no-systemd)")
-	} else {
-		add("missing", "systemd-user", "no user systemd session; pass --no-systemd to install without it")
+	if !darwin { // no systemd on macOS: runCheck prints the launchd note instead
+		if rc, _ = h.Run([]string{"systemctl", "--user", "show-environment"}, "", 0, false); rc == 0 {
+			add("ok", "systemd-user", "user session reachable")
+		} else if noSystemd {
+			add("warn", "systemd-user", "no user systemd session (--no-systemd)")
+		} else {
+			add("missing", "systemd-user", "no user systemd session; pass --no-systemd to install without it")
+		}
 	}
-	gib, err := h.MemGiB()
+	gib, err := memGiB(h)
 	haveMem := err == nil
-	if !haveMem {
+	if !haveMem && darwin {
+		add("missing", "ram", "cannot read the memory size: "+err.Error())
+	} else if !haveMem {
 		add("warn", "ram", "unknown: "+err.Error())
 	} else if gib < 4 {
 		add("warn", "ram", fmt.Sprintf("%.1f GiB (below 4 GB)", gib))
@@ -278,6 +309,13 @@ func suggestedMaxAgents(gib float64, have bool) int {
 }
 
 func runCheck(h Host, a *Args, out io.Writer) int {
+	if err := pinRefusal(h); err != nil {
+		var stop *Stop
+		if errors.As(err, &stop) {
+			_, _ = fmt.Fprintln(out, stop.Msg) // nothing to do if stdout is gone
+			return stop.Code
+		}
+	}
 	items, gib, have := checkItems(h, a.NoSystemd)
 	missing := false
 	for _, it := range items {
@@ -285,6 +323,9 @@ func runCheck(h Host, a *Args, out io.Writer) int {
 		if it.status == "missing" {
 			missing = true
 		}
+	}
+	if h.GOOS() == "darwin" {
+		_, _ = fmt.Fprintln(out, darwinBootNote)
 	}
 	_, _ = fmt.Fprintf(out, "suggested-max-agents %d\n", suggestedMaxAgents(gib, have))
 	if missing {
@@ -308,6 +349,9 @@ func preflight(c *Ctx) error {
 	}
 	if h.Environ()["FACTORY_AGENT"] != "" {
 		return stopf(1, "FACTORY_AGENT is set: this is an agent pane. Run the installer in your own terminal")
+	}
+	if err := pinRefusal(h); err != nil {
+		return err
 	}
 	if err := checkPrereqs(c); err != nil { // missing git must exit 3 before the first git call below
 		return err
@@ -362,7 +406,7 @@ func checkPrereqs(c *Ctx) error {
 		missing = append(missing, "git")
 	}
 	if len(missing) > 0 {
-		return stopf(3, "missing: %s. Run this yourself, then re-run the installer:\n  %s", strings.Join(missing, ", "), aptHint)
+		return stopf(3, "missing: %s. Run this yourself, then re-run the installer:\n  %s", strings.Join(missing, ", "), c.hint())
 	}
 	return nil
 }
@@ -413,12 +457,47 @@ func fetchVerified(c *Ctx, name string, as Asset) (string, error) {
 	return path, nil
 }
 
-func assetFor(table map[string]Asset, machine, what string) (Asset, error) {
-	as, ok := table[archAlias[machine]]
-	if !ok {
-		return Asset{}, stepf("no pinned %s release for %s; install it yourself into ~/.local/bin", what, machine)
+// pinKey is the pin-table key of a host: the bare arch on Linux, "darwin/aarch64" on Apple silicon, "" otherwise.
+func pinKey(goos, machine string) string {
+	arch := archAlias[machine]
+	switch goos {
+	case "linux":
+		return arch
+	case "darwin":
+		if arch == "aarch64" {
+			return "darwin/aarch64"
+		}
+	}
+	return ""
+}
+
+func assetFor(table map[string]Asset, goos, machine, what string) (Asset, error) {
+	key := pinKey(goos, machine)
+	as, ok := table[key]
+	if key == "" || !ok {
+		return Asset{}, stepf("no pinned %s release for %s/%s; install it yourself into ~/.local/bin", what, goos, machine)
 	}
 	return as, nil
+}
+
+// pinRefusal is the exit-2 refusal for a host with no pinned release (Intel Macs, other operating systems).
+func pinRefusal(h Host) error {
+	if pinKey(h.GOOS(), h.Machine()) != "" {
+		return nil
+	}
+	arch := h.Machine()
+	if a, ok := archAlias[arch]; ok {
+		arch = a
+	}
+	return stopf(2, "hivemill-install: no pinned release for %s/%s (Apple silicon only on macOS)", h.GOOS(), arch)
+}
+
+// hint is the command that installs git and python3 on this host.
+func (c *Ctx) hint() string {
+	if c.host.GOOS() == "darwin" {
+		return xcodeHint
+	}
+	return aptHint
 }
 
 func have(c *Ctx, argv ...string) bool {
@@ -434,17 +513,9 @@ func stepTools(c *Ctx) (string, error) {
 			return "", fmt.Errorf("create %s: %w", c.bindir, err)
 		}
 	}
-	linuxOnly := func(what string) error {
-		if runtime.GOOS != "linux" {
-			return stepf("the pinned %s release is a Linux build; install it yourself into ~/.local/bin", what)
-		}
-		return nil
-	}
+	goos := c.host.GOOS()
 	if !have(c, "herdr", "--version") {
-		if err := linuxOnly("herdr"); err != nil {
-			return "", err
-		}
-		as, err := assetFor(HerdrAssets, machine, "herdr")
+		as, err := assetFor(HerdrAssets, goos, machine, "herdr")
 		if err != nil {
 			return "", err
 		}
@@ -460,27 +531,34 @@ func stepTools(c *Ctx) (string, error) {
 		done = append(done, fmt.Sprintf("herdr %s (size+sha256 verified)", herdrVersion))
 	}
 	if !have(c, "gh", "--version") {
-		if err := linuxOnly("gh"); err != nil {
-			return "", err
-		}
-		as, err := assetFor(GHAssets, machine, "gh")
+		as, err := assetFor(GHAssets, goos, machine, "gh")
 		if err != nil {
 			return "", err
 		}
-		src, err := fetchVerified(c, "gh.tar.gz", as)
+		archive, kind, member := "gh.tar.gz", "tarball", ""
+		if goos == "darwin" {
+			archive, kind = "gh.zip", "zip"
+			member = fmt.Sprintf("gh_%s_macOS_arm64/bin/gh", ghVersion)
+		} else {
+			arch := "arm64"
+			if archAlias[machine] == "x86_64" {
+				arch = "amd64"
+			}
+			member = fmt.Sprintf("gh_%s_linux_%s/bin/gh", ghVersion, arch)
+		}
+		src, err := fetchVerified(c, archive, as)
 		if err != nil {
 			return "", err
 		}
-		arch := "arm64"
-		if archAlias[machine] == "x86_64" {
-			arch = "amd64"
-		}
-		member := fmt.Sprintf("gh_%s_linux_%s/bin/gh", ghVersion, arch)
 		if c.plan {
-			c.note(fmt.Sprintf("extract %s from the tarball and install it as %s/gh", member, c.bindir))
+			c.note(fmt.Sprintf("extract %s from the %s and install it as %s/gh", member, kind, c.bindir))
 		} else {
 			ex := filepath.Join(c.tmp, "gh")
-			if err := c.host.ExtractMember(src, member, ex); err != nil {
+			extract := c.host.ExtractMember
+			if goos == "darwin" {
+				extract = c.host.ExtractZipMember
+			}
+			if err := extract(src, member, ex); err != nil {
 				return "", err
 			}
 			if err := c.host.InstallFile(ex, filepath.Join(c.bindir, "gh"), 0o755); err != nil {
@@ -700,6 +778,13 @@ func stepProject(c *Ctx) (string, error) {
 
 func stepServices(c *Ctx) (string, error) {
 	a := c.args
+	if c.host.GOOS() == "darwin" {
+		if a.Linger {
+			c.emit("    " + darwinLingerNote)
+		}
+		c.emit("    " + darwinBootNote)
+		return "skipped: launchd step not available yet (G-049 M2)", nil
+	}
 	if a.NoSystemd {
 		return servicesBackground(c)
 	}
@@ -889,7 +974,7 @@ func runSteps(c *Ctx) int {
 			}
 			c.ref = ref
 		}
-		if !c.plan && !c.args.NoSystemd {
+		if !c.plan && !c.args.NoSystemd && c.host.GOOS() != "darwin" {
 			if rc, _ := c.read([]string{"systemctl", "--user", "show-environment"}, 60*time.Second); rc != 0 {
 				return stopf(3, "no user systemd session here. Either log in to a session that has one, or re-run with "+
 					"--no-systemd (CI, containers: the factory then runs as plain background processes without a tick timer)")

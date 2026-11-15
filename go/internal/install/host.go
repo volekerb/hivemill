@@ -2,6 +2,7 @@ package install
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"compress/gzip"
@@ -66,6 +67,8 @@ type Host interface {
 	Environ() map[string]string
 	Euid() int
 	Machine() string
+	// GOOS is the operating system: "linux", "darwin" or another runtime.GOOS value.
+	GOOS() string
 	MemGiB() (float64, error)
 	CPUCount() int
 	Exists(path string) bool
@@ -81,6 +84,7 @@ type Host interface {
 	Download(url, dest string) error
 	InstallFile(src, dest string, mode os.FileMode) error
 	ExtractMember(tarball, member, dest string) error
+	ExtractZipMember(zipfile, member, dest string) error
 	Symlink(target, link string) error
 	Popen(argv []string, logpath string) error
 	WriteText(path, text string) error
@@ -111,6 +115,7 @@ func NewOSHost() (*OSHost, error) {
 	return &OSHost{HomeDir: home, Env: env}, nil
 }
 
+func (h *OSHost) GOOS() string                 { return runtime.GOOS }
 func (h *OSHost) Home() string                 { return h.HomeDir }
 func (h *OSHost) Environ() map[string]string   { return h.Env }
 func (h *OSHost) Euid() int                    { return os.Geteuid() }
@@ -431,6 +436,41 @@ func (h *OSHost) ExtractMember(tarball, member, dest string) error {
 		}
 		return nil
 	}
+}
+
+// ExtractZipMember copies one regular file out of a .zip.
+func (h *OSHost) ExtractZipMember(zipfile, member, dest string) error {
+	zr, err := zip.OpenReader(zipfile)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", filepath.Base(zipfile), err)
+	}
+	defer zr.Close() //nolint:errcheck // read side
+	for _, zf := range zr.File {
+		if zf.Name != member {
+			continue
+		}
+		if !zf.Mode().IsRegular() {
+			return stepf("%s in %s is not a regular file", member, filepath.Base(zipfile))
+		}
+		in, err := zf.Open()
+		if err != nil {
+			return fmt.Errorf("extract %s: %w", member, err)
+		}
+		defer in.Close() //nolint:errcheck // read side
+		out, err := os.Create(dest)
+		if err != nil {
+			return fmt.Errorf("extract %s: %w", member, err)
+		}
+		if _, err := io.Copy(out, in); err != nil { //nolint:gosec // the archive size is checked against the pinned asset size beforehand
+			_ = out.Close() // the copy error is the one reported
+			return fmt.Errorf("extract %s: %w", member, err)
+		}
+		if err := out.Close(); err != nil {
+			return fmt.Errorf("extract %s: %w", member, err)
+		}
+		return nil
+	}
+	return stepf("%s not found in %s", member, filepath.Base(zipfile))
 }
 
 func (h *OSHost) Symlink(target, link string) error {
