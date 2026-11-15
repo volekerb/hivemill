@@ -428,8 +428,10 @@ class TickGate(DequeueBase):
         self.assertEqual(self.env.sql("SELECT status,note FROM gate_runs WHERE id=1")[0]["status"], "error")
 
 
-if __name__ == "__main__":
-    unittest.main()
 for _n in dir(LocalJudge):  # only the T-1634 cases: LocalJudge's own run once, under its own (empty) required_checks
     if _n.startswith("test_") and _n not in LocalJudgeRequiredChecks.__dict__:
         setattr(LocalJudgeRequiredChecks, _n, None)
+
+
+if __name__ == "__main__":
+    unittest.main()
