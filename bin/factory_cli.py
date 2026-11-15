@@ -1747,7 +1747,12 @@ def _host_ipc_result(exe, *args, check=False, timeout=HERDR_TIMEOUT_S):
     try:
         if exe == "hc":
             return _hc_parse_host_stdout(ipc_argv, out)
-        return json.loads(out.splitlines()[-1])["result"] if out else {}
+        if not out:
+            return {}
+        payload = json.loads(out.splitlines()[-1])
+        if not isinstance(payload, dict):  # plain pane text whose last line parses as JSON (7, 1.5, ["x"], null)
+            return {"raw": out}
+        return payload["result"]
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
 
@@ -1779,7 +1784,12 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     try:
         if exe == "hc":
             return _hc_parse_host_stdout(ipc_argv, out)
-        return json.loads(out.splitlines()[-1])["result"] if out else {}
+        if not out:
+            return {}
+        payload = json.loads(out.splitlines()[-1])
+        if not isinstance(payload, dict):  # plain pane text whose last line parses as JSON (7, 1.5, ["x"], null)
+            return {"raw": out}
+        return payload["result"]
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
 
@@ -16364,8 +16374,8 @@ def _tick_state_from_handoff(doc):
 
 def _tick_need_agents(units, doc):
     j = TICK_UNIT_INDEX["judge_ci_prune"]
-    if not any(TICK_UNIT_INDEX[u] > j for u in units):
-        return
+    if not any(TICK_UNIT_INDEX[u] > j for u in units if u != "offline"):
+        return  # the offline unit runs without agents (Go driver, agents=null)
     if "herdr_list" in units:
         return
     state = doc.get("state") or {}
