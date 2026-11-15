@@ -61,8 +61,8 @@ type Env struct {
 	Now        string        // FACTORY_TEST_NOW
 	Agent      string        // default FACTORY_AGENT of Run and OK
 	HeadSHA    string        // set by UseGitHead: the PR head commit on the local bare remote
-	Timeout    time.Duration // 0 = 60 s: the limit after which Run kills a hung CLI run (a hook that hangs ends this way)
 	RepoURL    string        // set by UseGitHead: the local bare remote gh repo view answers with
+	Timeout    time.Duration // 0 = 60 s: the limit after which Run kills a hung CLI run (a hook that hangs ends this way)
 
 	herdrStateful bool   // HerdrStateful: the herdr stub keeps state in HerdrStatePath
 	hook, hookAt  string // HerdrHook

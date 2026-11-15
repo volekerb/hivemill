@@ -723,11 +723,25 @@ func TestDequeueCmdGateClosedRequeueOfQueuedRowKeepsQueuedAt(t *testing.T) {
 	d.wantQueued(t, "queued", oldQueuedAt)
 }
 
+// Mutating the CASE to IN ('queued') alone fails this test (checked).
 func TestDequeueCmdGateClosedRequeueOfStartingRowKeepsQueuedAt(t *testing.T) {
 	d := newDequeueCmdEnv(t)
-	d.claim(t, nowS()-86400) // a stale claim: the tick recovers it to queued, then the re-queue runs
+	d.NeedPython()
 	sqlExec(t, d.Env, "UPDATE agents SET queued_at=? WHERE name='zz-q'", oldQueuedAt)
-	d.requeueFromQueue(t)
+	// The Python case hands spawn(from_queue=True) a row whose status is 'starting' with no claim. A stale claim the
+	// tick would recover to 'queued' first, so the hook sets 'starting' in the spawn's gate check, right before the
+	// gate closes: the upsert then takes the 'starting' arm of its queued_at CASE.
+	marker := filepath.Join(d.Home, "starting.out")
+	set := "python3 -c " + shq("import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); "+
+		"n=c.execute(\"UPDATE agents SET status='starting' WHERE name='zz-q' AND status='queued'\").rowcount; c.commit(); print(n)") +
+		" " + shq(d.DBPath) + " >" + shq(marker)
+	d.hookInSpawnGate(set + "; " + failHook)
+	d.OK("tick")
+	// the assert that fails when the arm is skipped: the hook found a queued row and made it starting
+	b, err := os.ReadFile(marker)
+	if err != nil || strings.TrimSpace(string(b)) != "1" {
+		t.Fatalf("hook did not turn the queued zz-q into a starting row (marker %q, err %v): the starting arm was not reached", b, err)
+	}
 	d.wantQueued(t, "queued", oldQueuedAt)
 }
 
