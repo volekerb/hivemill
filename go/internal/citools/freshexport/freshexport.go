@@ -144,9 +144,12 @@ func tail(s string, n int) string {
 // through any symlink (never lexically first), and a component that does not exist is kept as is. A dangling
 // link therefore still resolves to where it would land, so callers can check containment.
 func realpath(p string) string {
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		return filepath.Clean(p)
+	abs := p
+	if !filepath.IsAbs(p) {
+		var err error
+		if abs, err = filepath.Abs(p); err != nil {
+			return filepath.Clean(p)
+		}
 	}
 	todo := strings.Split(strings.TrimPrefix(abs, string(filepath.Separator)), string(filepath.Separator))
 	cur := string(filepath.Separator)
@@ -423,7 +426,7 @@ func extractMember(tr *tar.Reader, h *tar.Header, root, ref string) error {
 		target := h.Linkname
 		// Follow the chain for real: the target is resolved from the (already resolved) parent through every
 		// symlink extracted so far, so a hop that only looks inside the root lexically is still refused.
-		if filepath.IsAbs(target) || !within(root, realpath(filepath.Join(parent, target))) {
+		if filepath.IsAbs(target) || !within(root, realpath(parent+string(filepath.Separator)+target)) {
 			return refuse("symlink")
 		}
 		return os.Symlink(target, dest)
