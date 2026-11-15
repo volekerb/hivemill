@@ -456,7 +456,11 @@ func runRes(c *ctx, _ any) (int, error) {
 		}
 		loadText = fmt.Sprintf("%.1f", load)
 	}
-	fmt.Fprintf(w, "mem available %d MB (floor %s) · swap used %s MB · load %s/%d\n", s.MemMB, cfg.MinMemText, swapText, loadText, snap.NumCPU)
+	memText := fmt.Sprintf("%d", s.MemMB)
+	if hf.Strict() && s.MemMB < 0 {
+		memText = "unknown"
+	}
+	fmt.Fprintf(w, "mem available %s MB (floor %s) · swap used %s MB · load %s/%d\n", memText, cfg.MinMemText, swapText, loadText, snap.NumCPU)
 	if t := s.Tmp; t == nil {
 		fmt.Fprintln(w, "tmp unknown")
 	} else {

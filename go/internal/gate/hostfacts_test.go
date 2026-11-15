@@ -34,7 +34,7 @@ func TestDarwinLoad(t *testing.T) {
 }
 
 func TestDarwinVMStat(t *testing.T) {
-	// (10000+50000+2000) pages x 16384 B = 969 MB (floor)
+	// (10000+50000+2000) pages x 16384 B = 968.75 MB (floor 968)
 	if v, err := ParseDarwinVMStat(fixture(t, "vm_stat")); err != nil || v != 968 {
 		t.Fatalf("vm_stat = %v, %v; want 968", v, err)
 	}

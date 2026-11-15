@@ -143,6 +143,9 @@ func ParseDarwinSwap(out string) (int64, error) {
 	case "K":
 		v /= 1024
 	}
+	if math.IsNaN(v) || v < 0 || v > 1<<40 { // int64 conversion of a huge float is undefined
+		return 0, unparsable("vm.swapusage", out)
+	}
 	return int64(v), nil
 }
 

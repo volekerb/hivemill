@@ -6,6 +6,7 @@ package gate
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -327,6 +328,9 @@ func Decide(s Snapshot, c Config, o Options) Decision {
 		return refuse(fmt.Sprintf("%d/%d claude processes on host (incl. non-factory)", *st.Total, c.MaxTotalClaude))
 	}
 	if s.MemMB < int64(c.MinMemAvailableMB) {
+		if s.MemMB < 0 { // unreadable on a strict host (ApplyHostFacts)
+			return refuse(fmt.Sprintf("MemAvailable unknown < floor %sMB", c.MinMemText))
+		}
 		return refuse(fmt.Sprintf("MemAvailable %dMB < floor %sMB", s.MemMB, c.MinMemText))
 	}
 	if s.MemPressure != 0 && s.MemPressure != PressureNormal {
@@ -357,8 +361,12 @@ func Decide(s Snapshot, c Config, o Options) Decision {
 		}
 	}
 	if !(o.OwnSlot || o.LoadExempt) && st.Load1 > st.LoadCap {
-		return refuse(fmt.Sprintf("load1 %.1f > %s x %d CPUs (%.1f) — the tests or builds on the box are saturating the CPU",
-			st.Load1, c.LoadRatioText, s.NumCPU, st.LoadCap))
+		load := fmt.Sprintf("%.1f", st.Load1)
+		if math.IsInf(st.Load1, 1) { // unreadable on a strict host (ApplyHostFacts)
+			load = "unknown"
+		}
+		return refuse(fmt.Sprintf("load1 %s > %s x %d CPUs (%.1f) — the tests or builds on the box are saturating the CPU",
+			load, c.LoadRatioText, s.NumCPU, st.LoadCap))
 	}
 	// Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
 	if o.Runtime != "cursor" {
