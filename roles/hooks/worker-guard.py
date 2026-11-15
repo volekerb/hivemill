@@ -1516,15 +1516,26 @@ def tc_bool_on(v):
     return v is None or v not in ("0", "f", "F", "FALSE", "false", "False")
 
 
-def tc_parse(words, tbl):
+TC_PROFILE_FLAGS = {"cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "coverprofile"}
+
+
+def tc_parse(words, tbl, dd="end"):
     """T-1498: ([(name, value|None)], positionals) of `words` against (bool flags, value flags). ValueError(word) on any flag
     that is not in the table, on `-args`, and on a value flag with no value. A value flag consumes the next word whatever it
-    looks like (go's flag package does the same), so `-run -o` has no -o."""
+    looks like, `--` included (go's flag package does the same: `-tags -- -o x` sets tags to `--` and then parses -o), so
+    `-run -o` has no -o. A bare `--` at flag position ends the flags (dd="end": the rest are positionals, as flag.go does)
+    or is refused (dd="block": `go test` hands everything after it to the test binary, GOFLAGS refuses it). Nothing is
+    dropped before the parse."""
     bools, vals = tbl
     flags, pos, k = [], [], 0
     while k < len(words):
         w = words[k]
         k += 1
+        if w == "--":
+            if dd != "end":
+                raise ValueError(w + " (a terminator is not allowed here)")
+            pos.extend(words[k:])
+            break
         m = re.match(r"^--?([^=\s-][^=\s]*)(=(.*))?$", w, re.S)
         if not m:
             if w.startswith("-") and w != "-":
@@ -2742,12 +2753,12 @@ class Analyzer:
 
         if lookalike:
             block("the path is not in its normal form (`..`, `//` or `/./`)")
-        args = [a for a in rest if a != "--"]
+        args = list(rest)  # N7: no pre-strip of `--`; tc_parse decides (a value flag consumes it)
         root = os.path.realpath(self.ccwd) if self.ccwd else None
 
-        def parse(words, tbl):
+        def parse(words, tbl, dd="end"):
             try:
-                return tc_parse(words, tbl)
+                return tc_parse(words, tbl, dd)
             except ValueError as e:
                 block(f"{e} is not in the flag allow-list")
 
@@ -2777,7 +2788,7 @@ class Analyzer:
         if "GOMODCACHE" in env and env.get("GOPROXY") != "off" and under(os.path.normpath(
                 PW_DIR + env["GOMODCACHE"][1:] if env["GOMODCACHE"].startswith("~/") else env["GOMODCACHE"]), TC_MODCACHE):
             block("GOMODCACHE in the factory lib needs the GOPROXY=off prefix (a module download would write there)")
-        gflags, gpos = parse(env.get("GOFLAGS", "").split(), TC_FLAGS["GOFLAGS"])
+        gflags, gpos = parse(env.get("GOFLAGS", "").split(), TC_FLAGS["GOFLAGS"], "block")
         if gpos:
             block("GOFLAGS holds a word that is not a flag")
 
@@ -2824,7 +2835,7 @@ class Analyzer:
                 break
         if sub is None or sub not in TC_SUBS:
             block(f"`go {sub or ''}` is not allowed")
-        flags, pos = parse(args[k + 1:], TC_FLAGS[sub])
+        flags, pos = parse(args[k + 1:], TC_FLAGS[sub], "block" if sub == "test" else "end")
         flags = pre + flags
         for n, v in flags:  # the working directory is decided by the parsed -C flags only (a "-C" that is another flag's value is not one)
             if n == "C":
@@ -2864,7 +2875,8 @@ class Analyzer:
                     block("`go fmt` outside your worktree and scratchpad")
         else:
             allf = gflags + flags
-            if (sub == "build" or (sub == "test" and any(n == "c" and tc_bool_on(v) for n, v in allf))) and not any(
+            # N8: go test keeps pkg.test in the cwd for -c and for testNeedBinary (the profile flags), cmd/go test.go:632,:1269
+            if (sub == "build" or (sub == "test" and any((n == "c" and tc_bool_on(v)) or n in TC_PROFILE_FLAGS for n, v in allf))) and not any(
                     n == "o" for n, v in allf):
                 if base is not None and prot_path(base):  # the binary lands in the working directory
                     block(f"`go {sub}` without -o would write its output into a protected tree (use -o into your worktree)")

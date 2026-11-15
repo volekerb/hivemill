@@ -682,6 +682,21 @@ class GoToolchainForWorkers(ProtTreesCase):
             for role in ("coder", "qa", "reviewer"):
                 self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
 
+    def test_review_round4_n7_n8_dashdash_and_profile_flags(self):
+        # N7: `--` is not dropped before the parse: a value flag consumes it, so the next word is a flag (-pkgdir/-toolexec/-exec/-o)
+        # N8: the profile flags keep pkg.test in the cwd like -c (testNeedBinary), so a protected cwd blocks them
+        prot = "cd ~/.local/go/src/cmd/gofmt && " + self.G
+        cmds = [self.G + "go build -tags -- -pkgdir ~/.local/go/pkg ./x", self.G + "go build -tags -- -toolexec=/tmp/x ./x",
+                self.G + "go test -run -- -exec /tmp/x ./x", self.G + "go test -c -run -- -o /etc/evilout ./x",
+                self.G + "go test -- -test.cpuprofile=/tmp/x", "GOFLAGS=-- " + self.G + "go test ./...",
+                prot + "go test -cpuprofile /dev/null", prot + "go test -memprofile=/dev/null .", prot + "go test -test.blockprofile /dev/null",
+                prot + "go test -mutexprofile /dev/null", prot + "go test -trace /dev/null", prot + "go test -coverprofile /dev/null"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")
+            for cmd in (self.G + "go vet -- ./...", self.G + "go test -cpuprofile /dev/null ./...", self.G + "go build -tags x -- ./..."):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
     def test_self_review_round3_flags_and_import_paths(self):
         # -ldflags/-gcflags values hold compiler flags (-tmpdir, -cpuprofile, -extld): not in the table; go fmt / -fuzz on an import
         # path (std) would write into GOROOT; go list -m mod@query hits the proxy

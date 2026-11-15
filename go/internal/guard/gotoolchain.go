@@ -60,16 +60,28 @@ type tcFlag struct {
 	hasVal    bool
 }
 
+// tcProfileFlags are the flags that make `go test` keep pkg.test in the cwd like -c (testNeedBinary, cmd/go test.go:632,:1269).
+var tcProfileFlags = set("cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "coverprofile")
+
 var reTcParse = regexp.MustCompile(`(?s)^--?([^=\s-][^=\s]*)(=(.*))?$`)
 
 // tcParse is tc_parse: the flags and positionals of words against tbl. An error names the first word that is not in the
 // table (including -args) or a value flag with no value. A value flag consumes the next word whatever it looks like.
-func tcParse(words []string, tbl tcTable) ([]tcFlag, []string, string) {
+// A value flag consumes the next word including `--` (flag.go does); a bare `--` at flag position ends the flags
+// (ddEnd: the rest are positionals) or is refused (!ddEnd: `go test` hands everything after it to the test binary, GOFLAGS refuses it).
+func tcParse(words []string, tbl tcTable, ddEnd bool) ([]tcFlag, []string, string) {
 	var flags []tcFlag
 	var pos []string
 	for k := 0; k < len(words); {
 		w := words[k]
 		k++
+		if w == "--" {
+			if !ddEnd {
+				return nil, nil, w + " (a terminator is not allowed here)"
+			}
+			pos = append(pos, words[k:]...)
+			break
+		}
 		m := reTcParse.FindStringSubmatch(w)
 		if m == nil {
 			if strings.HasPrefix(w, "-") && w != "-" {
@@ -144,7 +156,7 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 	if lookalike {
 		return block("the path is not in its normal form (`..`, `//` or `/./`)")
 	}
-	args := dropDashDash(rest)
+	args := append([]string(nil), rest...) // N7: no pre-strip of `--`; tcParse decides (a value flag consumes it)
 	root := ""
 	if a.ccwdKnown {
 		root = pyRealpath(a.ccwd)
@@ -195,14 +207,14 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 			return block("GOMODCACHE in the factory lib needs the GOPROXY=off prefix (a module download would write there)")
 		}
 	}
-	parse := func(words []string, tbl tcTable) ([]tcFlag, []string, error) {
-		f, p, bad := tcParse(words, tbl)
+	parse := func(words []string, tbl tcTable, ddEnd bool) ([]tcFlag, []string, error) {
+		f, p, bad := tcParse(words, tbl, ddEnd)
 		if bad != "" {
 			return nil, nil, block(bad + " is not in the flag allow-list")
 		}
 		return f, p, nil
 	}
-	gflags, gpos, err := parse(strings.Fields(env["GOFLAGS"]), tcGoflagsFlags)
+	gflags, gpos, err := parse(strings.Fields(env["GOFLAGS"]), tcGoflagsFlags, false)
 	if err != nil {
 		return err
 	}
@@ -227,7 +239,7 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 		return nil
 	}
 	if tool == "gofmt" {
-		flags, targets, err := parse(args, tcGofmtFlags)
+		flags, targets, err := parse(args, tcGofmtFlags, true)
 		if err != nil {
 			return err
 		}
@@ -282,7 +294,7 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 	if sub == "" || !ok {
 		return block("`go " + sub + "` is not allowed")
 	}
-	flags, pos, err := parse(args[k+1:], tbl)
+	flags, pos, err := parse(args[k+1:], tbl, sub != "test")
 	if err != nil {
 		return err
 	}
@@ -375,6 +387,9 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 	hasC, hasO := false, false
 	for _, f := range allf {
 		if f.name == "c" && (!f.hasVal || !in(set("0", "f", "F", "FALSE", "false", "False"), f.val)) {
+			hasC = true
+		}
+		if sub == "test" && in(tcProfileFlags, f.name) { // N8: the profile flags keep pkg.test in the cwd like -c
 			hasC = true
 		}
 		if f.name == "o" {

@@ -20224,6 +20224,81 @@
       "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
       "cmd": "cd ~/.local/go/src/strings && ~/.local/go/bin/go test -fuzz=.",
       "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N8: profile flags keep pkg.test in the cwd like -c (testNeedBinary)",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N8: profile flags keep pkg.test in the cwd like -c (testNeedBinary)",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N8: profile flags keep pkg.test in the cwd like -c (testNeedBinary)",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null",
+      "role": "reviewer"
     }
   ],
   "must_allow": [

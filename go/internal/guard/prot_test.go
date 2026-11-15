@@ -170,6 +170,13 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		g+"go build -ldflags=-extld=/tmp/evil ./...", g+"go build -gcflags=-json=0,/x ./...", g+"go test -ldflags=-extld=/tmp/evil ./...",
 		g+"go fmt strings", g+"go fmt std", g+"go fmt cmd/...", g+"go test -fuzz=. strings", g+"go test -fuzz=. ~/.local/go/src/strings",
 		g+"go list -m foo@latest", "cd ~/.local/go/src/strings && "+g+"go test -fuzz=.", "GOFLAGS=-fuzz=. "+g+"go test strings")
+	// T-1498 review round 4 (N7, N8): `--` is not pre-stripped (a value flag consumes it); profile flags keep pkg.test in the cwd
+	block = append(block, g+"go build -tags -- -pkgdir ~/.local/go/pkg ./x", g+"go build -tags -- -toolexec=/tmp/x ./x",
+		g+"go test -run -- -exec /tmp/x ./x", g+"go test -c -run -- -o /etc/evilout ./x", g+"go test -- -test.cpuprofile=/tmp/x",
+		"GOFLAGS=-- "+g+"go test ./...", pt+"go test -cpuprofile /dev/null", pt+"go test -memprofile=/dev/null .",
+		pt+"go test -test.blockprofile /dev/null", pt+"go test -mutexprofile /dev/null", pt+"go test -trace /dev/null",
+		pt+"go test -coverprofile /dev/null")
+	allow = append(allow, g+"go vet -- ./...", g+"go test -cpuprofile /dev/null ./...", g+"go build -tags x -- ./...")
 	allow = append(allow, g+"go fmt ./pkg", g+"go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off "+g+"go list -m foo@latest", g+"go list -m all")
 	for _, role := range []string{"coder", "qa", "reviewer"} {
 		for _, c := range allow {

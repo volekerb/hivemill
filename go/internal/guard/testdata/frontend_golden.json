@@ -142107,6 +142107,276 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x",
+"mask_quotes_pre": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x",
+"mask_quotes_raw": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x"
+},
+"segments_pre": [
+[
+0,
+61,
+[
+"~/.local/go/bin/go",
+"build",
+"-tags",
+"--",
+"-pkgdir",
+"~/.local/go/pkg",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+61,
+[
+"~/.local/go/bin/go",
+"build",
+"-tags",
+"--",
+"-pkgdir",
+"~/.local/go/pkg",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x",
+"mask_quotes_pre": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x",
+"mask_quotes_raw": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"~/.local/go/bin/go",
+"build",
+"-tags",
+"--",
+"-toolexec=/tmp/x",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"~/.local/go/bin/go",
+"build",
+"-tags",
+"--",
+"-toolexec=/tmp/x",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x"
+},
+"segments_pre": [
+[
+0,
+48,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"--",
+"-exec",
+"/tmp/x",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+48,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"--",
+"-exec",
+"/tmp/x",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"~/.local/go/bin/go",
+"test",
+"-c",
+"-run",
+"--",
+"-o",
+"/etc/evilout",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"~/.local/go/bin/go",
+"test",
+"-c",
+"-run",
+"--",
+"-o",
+"/etc/evilout",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null",
+"mask_quotes_pre": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null",
+"mask_quotes_raw": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"cd",
+"~/.local/go/src/cmd/gofmt"
+]
+],
+[
+31,
+77,
+[
+"~/.local/go/bin/go",
+"test",
+"-cpuprofile",
+"/dev/null"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"cd",
+"~/.local/go/src/cmd/gofmt"
+]
+],
+[
+31,
+77,
+[
+"~/.local/go/bin/go",
+"test",
+"-cpuprofile",
+"/dev/null"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "echo hc",
 "mask_quotes_pre": "echo hc",
 "mask_quotes_raw": "echo hc",
@@ -185300,7 +185570,7 @@
 ]
 }
 },
-"corpus_commands": 3439,
+"corpus_commands": 3444,
 "edge_inputs": 97,
 "python": "3.13"
 }
