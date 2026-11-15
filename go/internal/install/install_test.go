@@ -665,6 +665,15 @@ func TestDarwinIntelAndOtherOSRefused(t *testing.T) {
 	}
 }
 
+func TestLinuxUnknownArchNotRefusedUpFront(t *testing.T) {
+	f := newFake(t)
+	f.machine = "riscv64"
+	rc, out, errw := runMain(t, f, "--check")
+	if strings.Contains(out+errw, "no pinned release for") || rc == 2 {
+		t.Errorf("rc=%d\n%s%s", rc, out, errw)
+	}
+}
+
 func TestDarwinCheck(t *testing.T) {
 	f := newDarwin(t)
 	f.login(t)

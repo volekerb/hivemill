@@ -438,7 +438,7 @@ func (h *OSHost) ExtractMember(tarball, member, dest string) error {
 	}
 }
 
-// ExtractZipMember copies one regular file out of a .zip.
+// ExtractZipMember copies one regular file out of a .zip. Callers verify the archive's size and sha256 first.
 func (h *OSHost) ExtractZipMember(zipfile, member, dest string) error {
 	zr, err := zip.OpenReader(zipfile)
 	if err != nil {

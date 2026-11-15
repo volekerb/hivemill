@@ -315,6 +315,8 @@ func runCheck(h Host, a *Args, out io.Writer) int {
 			_, _ = fmt.Fprintln(out, stop.Msg) // nothing to do if stdout is gone
 			return stop.Code
 		}
+		_, _ = fmt.Fprintln(out, err)
+		return 1
 	}
 	items, gib, have := checkItems(h, a.NoSystemd)
 	missing := false
@@ -482,7 +484,7 @@ func assetFor(table map[string]Asset, goos, machine, what string) (Asset, error)
 
 // pinRefusal is the exit-2 refusal for a host with no pinned release (Intel Macs, other operating systems).
 func pinRefusal(h Host) error {
-	if pinKey(h.GOOS(), h.Machine()) != "" {
+	if h.GOOS() == "linux" || pinKey(h.GOOS(), h.Machine()) != "" { // Linux keeps its own unsupported-arch error at the tools step
 		return nil
 	}
 	arch := h.Machine()
