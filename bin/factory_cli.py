@@ -16194,7 +16194,7 @@ def _cmd_tick_phases(spec):
 
 def _tick_deadline_at(spec):
     """Monotonic time at which the tick stops starting phases, or None without --deadline. 240s, 4m, 1h or bare seconds."""
-    if spec is None:
+    if not isinstance(spec, (str, int, float)) or isinstance(spec, bool):  # absent (None, or a bare namespace in unit tests)
         return None
     m = re.fullmatch(r"(\d+(?:\.\d+)?)([smh]?)", str(spec).strip())
     if not m or float(m.group(1)) <= 0:
@@ -20562,8 +20562,7 @@ def main():
     x.set_defaults(fn=cmd_serve)
     x = sp.add_parser("tick", help="heartbeat (systemd runs it every minute)")
     x.add_argument("--phases", metavar="LIST", help=argparse.SUPPRESS)
-    x.add_argument("--deadline", metavar="DURATION", help="abort the remaining tick phases after this long (e.g. 240s, 4m): "
-                   "event tick-deadline, exit 0 (the launchd job passes 240s; systemd keeps TimeoutStartSec)")
+    x.add_argument("--deadline", metavar="DURATION", help=argparse.SUPPRESS)  # 240s, 4m: stop starting phases after this long (docs/darwin-python-branches.md)
     x.set_defaults(fn=cmd_tick)
     x = sp.add_parser("clean", help="remove worktrees and branches of merged/cancelled tasks (cleaner, director); "
                                      "--dry-run still runs git fetch origin")

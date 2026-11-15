@@ -367,9 +367,9 @@ class TickDeadline(DarwinBase):
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
         self.assertIn("not a positive duration", p.stderr + p.stdout)
 
-    def test_deadline_flag_in_help(self):
+    def test_deadline_flag_hidden_from_help_but_accepted(self):
         p = self.env.run("tick", "--help")
-        self.assertIn("--deadline", p.stdout)
+        self.assertNotIn("--deadline", p.stdout)
 
 
 if __name__ == "__main__":
