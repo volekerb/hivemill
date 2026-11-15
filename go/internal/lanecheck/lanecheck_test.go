@@ -361,6 +361,15 @@ func TestOpenAllClean(t *testing.T) {
 	}
 }
 
+// capRows is a listing of exactly prLimit rows: gh may have cut it off, so no answer may be given.
+func capRows(oid string) string {
+	rows := make([]string, prLimit)
+	for i := range rows {
+		rows[i] = fmt.Sprintf(`{"number":%d,"headRefName":"x","headRefOid":"%s"}`, i+1, oid)
+	}
+	return strings.Join(rows, ",")
+}
+
 // Every failure on the open path is exit 2 with no verdict line, and still leaves no private ref.
 func TestOpenErrors(t *testing.T) {
 	fx, oids := newOpenFixture(t, threeHeads())
@@ -379,6 +388,8 @@ func TestOpenErrors(t *testing.T) {
 		{"duplicate", "[" + row(1, oids[1]) + "," + row(1, oids[1]) + "]", []string{"open"}, "PR 1 listed twice"},
 		{"bad repo", "[]", []string{"open", "--repo", "-x"}, `bad --repo "-x"`},
 		{"bad remote", "[" + row(1, oids[1]) + "]", []string{"open", "--remote", "nosuchremote"}, "git fetch nosuchremote"},
+		{"option-like remote", "[" + row(1, oids[1]) + "]", []string{"open", "--remote=-x"}, `bad --remote "-x"`},
+		{"listing at the cap", "[" + capRows(oids[1]) + "]", []string{"open"}, "1000 or more open PRs"},
 		{"bad base", "[]", []string{"open", "--base", "nobase"}, `--base: bad ref "nobase"`},
 		{"plan bad ref", "[]", []string{"plan", "nosuchref", "--against-open"}, `bad ref "nosuchref"`},
 	} {

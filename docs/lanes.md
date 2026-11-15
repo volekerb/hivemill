@@ -61,6 +61,8 @@ HEAD x 702 CLEAN
 | `--file <path>` | open, plan | only pairs where both sides change this path (relative to the repository root) |
 | `--dir <path>` | all | repository directory; default the current directory |
 
+`gh` runs in the current directory, not in `--dir`. When `--dir` names another repository, pass `--repo` too; otherwise the listed heads do not match the fetched ones and the tool exits 2.
+
 A path with a space or a control character is printed in double quotes so it stays one token.
 
 ## Exit codes
