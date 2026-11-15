@@ -371,3 +371,38 @@ func TestSymlinkChainInsideRootAccepted(t *testing.T) {
 		t.Fatalf("a chain staying inside the root is accepted: %+v", got)
 	}
 }
+
+// A dangling chain: d/b -> .. and up -> d/b/../missing. Lexically up stays in the root; for real it lands
+// in the parent of the root, and the missing final target must not let it through.
+func TestSymlinkDanglingChainEscapeRefused(t *testing.T) {
+	e := newEnv(t, nil)
+	if err := os.MkdirAll(filepath.Join(e.src, "d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("..", filepath.Join(e.src, "d", "b")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("d/b/../missing", filepath.Join(e.src, "up")); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, e.src, "add", "-A")
+	gitIn(t, e.src, "commit", "-q", "-m", "dangling chain")
+	out := filepath.Join(e.root, "dangling-out")
+	got := e.goRun(t, common(e, out, "--public-repo", "example-org/hivemill")...)
+	if got.rc == 0 || !strings.Contains(got.err, "symlink member refused") {
+		t.Fatalf("a dangling escaping chain must be refused: %+v", got)
+	}
+}
+
+func TestSymlinkDanglingInsideRootAccepted(t *testing.T) {
+	e := newEnv(t, nil)
+	if err := os.Symlink("nowhere", filepath.Join(e.src, "dangling")); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, e.src, "add", "-A")
+	gitIn(t, e.src, "commit", "-q", "-m", "dangling")
+	out := filepath.Join(e.root, "dangling-ok-out")
+	if got := e.goRun(t, common(e, out, "--public-repo", "example-org/hivemill")...); got.rc != 0 {
+		t.Fatalf("a dangling link staying inside the root is accepted: %+v", got)
+	}
+}

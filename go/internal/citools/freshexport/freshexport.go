@@ -140,23 +140,44 @@ func tail(s string, n int) string {
 	return s
 }
 
+// realpath resolves p component by component: ".." is applied after the preceding component has been resolved
+// through any symlink (never lexically first), and a component that does not exist is kept as is. A dangling
+// link therefore still resolves to where it would land, so callers can check containment.
 func realpath(p string) string {
 	abs, err := filepath.Abs(p)
 	if err != nil {
 		return filepath.Clean(p)
 	}
-	rest, cur := "", abs
-	for {
-		if r, err := filepath.EvalSymlinks(cur); err == nil {
-			return filepath.Join(r, rest)
+	todo := strings.Split(strings.TrimPrefix(abs, string(filepath.Separator)), string(filepath.Separator))
+	cur := string(filepath.Separator)
+	hops := 0
+	for len(todo) > 0 {
+		c := todo[0]
+		todo = todo[1:]
+		switch c {
+		case "", ".":
+			continue
+		case "..":
+			cur = filepath.Dir(cur)
+			continue
 		}
-		parent := filepath.Dir(cur)
-		if parent == cur {
+		next := filepath.Join(cur, c)
+		fi, err := os.Lstat(next)
+		if err != nil || fi.Mode()&fs.ModeSymlink == 0 {
+			cur = next
+			continue
+		}
+		hops++
+		link, err := os.Readlink(next)
+		if err != nil || hops > 255 {
 			return abs
 		}
-		rest = filepath.Join(filepath.Base(cur), rest)
-		cur = parent
+		if filepath.IsAbs(link) {
+			cur = string(filepath.Separator)
+		}
+		todo = append(strings.Split(link, string(filepath.Separator)), todo...)
 	}
+	return cur
 }
 
 // LiveHomes are the live factory homes: <passwd home>/factory plus the single safe line of
