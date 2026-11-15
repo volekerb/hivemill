@@ -408,11 +408,12 @@ func TestSymlinkDanglingInsideRootAccepted(t *testing.T) {
 }
 
 // A symlink loop cannot be resolved, so it is refused (fail closed) whether it stays inside the export
-// (a -> b, b -> a) or reaches outside (a -> b, b -> ../a).
+// (a -> b, b -> a) or is reached through one (c -> a/x).
 func TestSymlinkLoopRefused(t *testing.T) {
 	for name, links := range map[string][][2]string{
-		"inside":  {{"b", "a"}, {"a", "b"}},
-		"outside": {{"b", "a"}, {"../a", "b"}},
+		"inside": {{"b", "a"}, {"a", "b"}},
+		// c's target runs through the loop a <-> b: refused when c is extracted (before verifyLinks)
+		"through": {{"b", "a"}, {"a", "b"}, {"a/x", "c"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := newEnv(t, nil)
@@ -449,5 +450,26 @@ func TestRealpathLoopErrorsAndIsClean(t *testing.T) {
 	}
 	if got := realpath(d + "/a"); got != filepath.Clean(got) {
 		t.Fatalf("realpath not clean: %q", got)
+	}
+}
+
+// A loop whose chain also leaves the root (x -> y, y -> ../out/x, out/x -> ../in/x) is an error too, and
+// CheckOut refuses an --out that loops.
+func TestRealpathLoopThroughOutside(t *testing.T) {
+	d := t.TempDir()
+	for _, l := range [][2]string{{"y", "in/x"}, {"../out/x", "in/y"}, {"../in/x", "out/x"}} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(d, l[1])), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(l[0], filepath.Join(d, l[1])); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := realpathErr(filepath.Join(d, "in", "x"))
+	if err == nil || r != filepath.Clean(r) {
+		t.Fatalf("outside loop must error with a clean path: %q %v", r, err)
+	}
+	if _, err := CheckOut(filepath.Join(d, "in", "x")); err == nil {
+		t.Fatal("CheckOut must refuse a looping --out")
 	}
 }

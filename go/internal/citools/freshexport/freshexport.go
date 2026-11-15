@@ -158,7 +158,7 @@ func realpathErr(p string) (string, error) {
 	if !filepath.IsAbs(p) {
 		var err error
 		if abs, err = filepath.Abs(p); err != nil {
-			return filepath.Clean(p), nil
+			return filepath.Clean(p), errLoop
 		}
 	}
 	todo := strings.Split(strings.TrimPrefix(abs, string(filepath.Separator)), string(filepath.Separator))
@@ -280,7 +280,10 @@ func CheckOut(out string) (string, error) {
 			out = filepath.Join(h, out[2:])
 		}
 	}
-	target := realpath(out)
+	target, rerr := realpathErr(out)
+	if rerr != nil {
+		return "", Refused{fmt.Sprintf("%s cannot be resolved (symlink loop or unreadable link). Choose a new directory without symlink loops, e.g. under /tmp.", out)}
+	}
 	for live := range LiveHomes() {
 		if target == live || strings.HasPrefix(target, live+string(filepath.Separator)) {
 			return "", Refused{fmt.Sprintf("%s is inside the live factory home %s. Choose a directory outside it, e.g. a new dir under /tmp.", target, live)}
