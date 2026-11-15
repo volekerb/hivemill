@@ -604,6 +604,14 @@ class GoToolchainForWorkers(ProtTreesCase):
                 r = run(cmd, "wt", role=role)
                 self.assertEqual(r.returncode, 0, f"{role}: {cmd!r}: expected allow, got {r.returncode}: {r.stderr}")
 
+    def test_bare_go_empty_subcommand_refused(self):
+        """T-1498 N11: bare `go` on PATH with an empty subcommand word (corpus must_block), not only the toolchain binary."""
+        cmds = ["go ''", 'go "" test', "go '' test ./..."]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+
     def test_network_and_unlisted_subcommands_blocked(self):
         cmds = [self.G + "go mod download", self.G + "go get x@v1", self.G + "go install ./...", self.G + "go mod tidy",
                 self.G + "go clean -modcache", self.G + "go work sync", self.G + "go", "GOFLAGS=-mod=mod " + self.G + "go test ./...",

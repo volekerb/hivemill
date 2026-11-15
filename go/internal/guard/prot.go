@@ -456,6 +456,9 @@ func (a *Analyzer) protWrite(name string, rest []string, assigns []string) error
 				break
 			}
 		}
+		if sub == "" { // T-1498 N11: an empty quoted subcommand word must refuse (corpus + toolchain parity)
+			return blockf("`go ` is not allowed")
+		}
 		if sub == "env" {
 			for _, x := range args {
 				if reGoEnvWU.MatchString(x) {

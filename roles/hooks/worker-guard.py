@@ -2969,6 +2969,8 @@ class Analyzer:
                     sub = args[k]
                     break
                 k += 1
+            if sub == "":  # T-1498 N11: an empty quoted subcommand word must refuse (corpus + toolchain parity)
+                raise Block("`go ` is not allowed")
             if sub == "env" and any(re.match(r"^--?[wu](=|$)", a) for a in args):
                 block(None, "`go env -w|-u` (it writes ~/.config/go/env)")
             cdir = (opt_values(args, "", {"-C", "--C"}) or [None])[-1]
