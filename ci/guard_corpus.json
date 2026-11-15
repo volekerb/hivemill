@@ -19688,6 +19688,31 @@
       "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
       "cmd": "~/.local/go/bin/go build -modfile ~/.local/go/m.mod ./...",
       "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "~/.local/go/bin/gofmt -w=1 ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "~/.local/go/bin/gofmt -w=t ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt fmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c ~/.local/go/bin/go test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+      "role": "coder"
     }
   ],
   "must_allow": [
@@ -24422,6 +24447,8 @@
     "~/.local/go/bin/go build",
     "~/.local/go/bin/go build -o bin/x ./cmd/x",
     "~/.local/go/bin/go test -test.coverprofile=c.out ./...",
-    "~/.local/go/bin/go test -c -o /tmp/x.test"
+    "~/.local/go/bin/go test -c -o /tmp/x.test",
+    "~/.local/go/bin/gofmt -w=0 x.go",
+    "GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./..."
   ]
 }

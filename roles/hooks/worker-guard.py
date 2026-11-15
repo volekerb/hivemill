@@ -1454,6 +1454,12 @@ TC_MODCACHE = os.path.join(PW_DIR, ".local", "lib", "factory", "go", "mod")
 TC_PATH_VALUE = re.compile(r"^(?:~|\$HOME|\$\{HOME\}|" + re.escape(PW_DIR) + r")/\.local/go/bin:\$(?:PATH|\{PATH\})$")
 
 
+def tc_bool_flag(name, word):
+    """Go's flag package: -w, --w, -w=1|t|T|TRUE|true|True are on; any other -w=VALUE that is not a false spelling counts as on."""
+    m = re.match(r"^--?" + name + r"(=(.*))?$", word)
+    return bool(m) and (m.group(1) is None or m.group(2) not in ("0", "f", "F", "FALSE", "false", "False"))
+
+
 def tc_kind(w):
     """T-1498: ("go"|"gofmt", lookalike) when command word `w` names the toolchain binary (~, $HOME, ${HOME} or the passwd
     home spelled out); lookalike is True when the spelling is not its own normal form (`..`, `//`, `/./`). Else None."""
@@ -2683,9 +2689,12 @@ class Analyzer:
             if name == "GOFLAGS":
                 flag_hits(val.split())
             env[name] = val
+        if "GOMODCACHE" in env and env.get("GOPROXY") != "off" and under(os.path.normpath(
+                PW_DIR + env["GOMODCACHE"][1:] if env["GOMODCACHE"].startswith("~/") else env["GOMODCACHE"]), TC_MODCACHE):
+            block("GOMODCACHE in the factory lib needs the GOPROXY=off prefix (a module download would write there)")
         if tool == "gofmt":
             flag_hits(args)  # gofmt -cpuprofile FILE creates a file too
-            if any(re.match(r"^--?w(=true)?$", a) for a in args):
+            if any(tc_bool_flag("w", a) for a in args):
                 targets = [a for a in args if not a.startswith("-")]
                 base = self.ccwd
                 if not targets or base is None:
@@ -2723,13 +2732,15 @@ class Analyzer:
             root = os.path.realpath(self.ccwd) if self.ccwd else None
             if prot_path(base):
                 block("`go fmt` in a protected tree")
+            if not targets and not (root and under(os.path.realpath(base), root) or in_scratchpad(os.path.realpath(base))):
+                block("`go fmt` with no package argument formats the -C directory, which is outside your worktree and scratchpad")
             for t in targets:
                 if any(c in t for c in "$`*?[{~"):
                     block("`go fmt` with a glob or an expansion")
                 real = os.path.realpath(os.path.join(base, t))
                 if self.prot_hit(t, base=base) or not (root and under(real, root) or in_scratchpad(real)):
                     block("`go fmt` outside your worktree and scratchpad")
-        elif (sub == "build" or (sub == "test" and any(re.match(r"^--?c(=true)?$", a) for a in args))) and not any(
+        elif (sub == "build" or (sub == "test" and any(tc_bool_flag("c", a) for a in args + env.get("GOFLAGS", "").split()))) and not any(
                 re.match(r"^--?o(=|$)", a) for a in rest_args + env.get("GOFLAGS", "").split()):
             if base is not None and prot_path(base):  # the binary lands in the working directory
                 block(f"`go {sub}` without -o would write its output into a protected tree (use -o into your worktree)")

@@ -148,6 +148,11 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		g + "go test ./... -args -test.coverprofile=~/.local/go/c.out", g + "go test -test.memprofile ~/.local/go/m ./...",
 		"cd ~/.local/go/src/cmd/gofmt && " + g + "go build", "cd ~/.local/go/src/cmd/gofmt && " + g + "go test -c",
 		"cd ~/.local/lib/factory && " + g + "go build ./...", g + "go -C ~/.local/go/src/cmd/gofmt build"}
+	block = append(block, g+"gofmt -w=1 ../x.go", g+"gofmt -w=t ../x.go", g+"gofmt -w=TRUE ../x.go", g+"go -C ~/.local/go/src/cmd/gofmt fmt", g+"go -C /etc fmt",
+		"cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c "+g+"go test", "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true "+g+"go test",
+		"GOMODCACHE=~/.local/lib/factory/go/mod "+g+"go test ./...")
+	allow = append(allow, g+"gofmt -w=0 x.go", g+"gofmt -w=true x.go", g+"gofmt -w=1 x.go",
+		"GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod "+g+"go test ./...", "GOFLAGS=-c "+g+"go test ./...", g+"go -C . fmt")
 	for _, c := range []string{"~/.local/go/bin/gofmt -cpuprofile ~/.local/go/x .", "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build -o out", "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt test -c -o t.test", "~/.local/go/bin/go test -test.blockprofile ~/.local/go/b ./...", "~/.local/go/bin/go test -test.mutexprofile=~/.local/go/m ./...", "~/.local/go/bin/go test -test.gocoverdir=~/.local/go ./...", "~/.local/go/bin/go test -test.fuzzcachedir=~/.local/go ./...", "~/.local/go/bin/go test -test.testlogfile=~/.local/go/l ./...", "~/.local/go/bin/go build -modfile ~/.local/go/m.mod ./..."} {
 		block = append(block, strings.ReplaceAll(c, "~/.local/go/bin/", g))
 	}

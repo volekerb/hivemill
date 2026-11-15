@@ -642,6 +642,18 @@ class GoToolchainForWorkers(ProtTreesCase):
                 r = run(cmd, "wt", role=role)
                 self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
 
+    def test_review_round2_n1_n4_blocked(self):
+        # N1 gofmt -w=1|t spellings, N2 go -C <dir> fmt with no target, N3 GOFLAGS=-c in a protected cwd, N4 GOMODCACHE in the lib without GOPROXY=off
+        cmds = [self.G + "gofmt -w=1 ../x.go", self.G + "gofmt -w=t ../x.go", self.G + "gofmt -w=TRUE ../x.go", self.G + "go -C ~/.local/go/src/cmd/gofmt fmt", self.G + "go -C /etc fmt", "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c " + self.G + "go test", "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true " + self.G + "go test", "GOMODCACHE=~/.local/lib/factory/go/mod " + self.G + "go test ./..."]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+        for cmd in (self.G + "gofmt -w=0 x.go", self.G + "gofmt -w=true x.go", self.G + "gofmt -w=1 x.go",
+                    "GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod " + self.G + "go test ./...", "GOFLAGS=-c " + self.G + "go test ./...",
+                    self.G + "go -C . fmt"):
+            self.assertEqual(run(cmd, "wt").returncode, 0, cmd)
+
     def test_review_gaps_still_allowed_in_the_tree(self):
         for role in ("coder", "qa", "reviewer"):
             for cmd in (self.G + "go fmt ./...", self.G + "go fmt", self.G + "go build", self.G + "go test -c", self.G + "go build -o bin/x ./cmd/x",

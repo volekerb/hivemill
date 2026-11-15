@@ -18,9 +18,18 @@ var tcExecFlags = set("exec", "toolexec", "vettool")
 var tcEnvNames = set("GOTOOLCHAIN", "GOFLAGS", "GOPROXY", "GOCACHE", "GOMODCACHE", "CGO_ENABLED", "PATH")
 var reTcHomeWord = regexp.MustCompile(`^\$(?:HOME|\{HOME\})/\.local/go/bin/(?:go|gofmt)$`)
 var reTcFlag = regexp.MustCompile(`^--?([A-Za-z.-]+)(=(.*))?$`)
-var reTcC = regexp.MustCompile(`^--?c(=true)?$`)
+var reTcC = regexp.MustCompile(`^--?c(=(.*))?$`)
 var reTcO = regexp.MustCompile(`^--?o(=|$)`)
-var reTcW = regexp.MustCompile(`^--?w(=true)?$`)
+var reTcW = regexp.MustCompile(`^--?w(=(.*))?$`)
+
+// tcBoolOn: word matches the bool-flag regexp re and is not spelled false (Go's flag package: 0, f, F, FALSE, false, False).
+func tcBoolOn(re *regexp.Regexp, w string) bool {
+	m := re.FindStringSubmatch(w)
+	if m == nil {
+		return false
+	}
+	return m[1] == "" || !in(set("0", "f", "F", "FALSE", "false", "False"), m[2])
+}
 
 func tcPathValue(v string) bool {
 	h := mustHost().pwDir
@@ -129,13 +138,22 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 		}
 		env[name] = val
 	}
+	if gm, ok := env["GOMODCACHE"]; ok && env["GOPROXY"] != "off" {
+		exp := gm
+		if strings.HasPrefix(gm, "~/") {
+			exp = mustHost().pwDir + gm[1:]
+		}
+		if Under(pyNormpath(exp), pyJoin(pyJoin(pyJoin(pyJoin(pyJoin(mustHost().pwDir, ".local"), "lib"), "factory"), "go"), "mod")) {
+			return block("GOMODCACHE in the factory lib needs the GOPROXY=off prefix (a module download would write there)")
+		}
+	}
 	if tool == "gofmt" {
 		if err := flagHits(args); err != nil { // gofmt -cpuprofile FILE creates a file too
 			return err
 		}
 		write := false
 		for _, x := range args {
-			if reTcW.MatchString(x) {
+			if tcBoolOn(reTcW, x) {
 				write = true
 			}
 		}
@@ -214,6 +232,18 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 		if a.ccwdKnown {
 			root = pyRealpath(a.ccwd)
 		}
+		hasTarget := false
+		for _, t := range restArgs {
+			if !strings.HasPrefix(t, "-") {
+				hasTarget = true
+			}
+		}
+		if !hasTarget {
+			rb := pyRealpath(base)
+			if !((root != "" && Under(rb, root)) || inScratchpad(rb)) {
+				return block("`go fmt` with no package argument formats the -C directory, which is outside your worktree and scratchpad")
+			}
+		}
 		for _, t := range restArgs {
 			if strings.HasPrefix(t, "-") {
 				continue
@@ -229,8 +259,8 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 		return nil
 	}
 	hasC := false
-	for _, x := range args {
-		if reTcC.MatchString(x) {
+	for _, x := range append(append([]string(nil), args...), strings.Fields(env["GOFLAGS"])...) {
+		if tcBoolOn(reTcC, x) {
 			hasC = true
 		}
 	}
