@@ -77,7 +77,40 @@ func newRelayRepo(t *testing.T) *relayRepo {
 	e.sql("UPDATE tasks SET worktree=?, branch='factory/t-0001' WHERE id='T-0001'", r.wt)
 	e.sql("UPDATE projects SET repo_path=? WHERE id='P-1'", r.wt)
 	e.sql("INSERT OR REPLACE INTO config(key,value) VALUES('noreply_email','1+a@users.noreply.github.com')")
+	// the public-text check: a fake owner term in a temp terms file (config, never the live one) and the HQ allowlist
+	t.Setenv(relayTermsVar, "")
+	terms := filepath.Join(root, "terms.txt")
+	os.WriteFile(terms, []byte(relayTerm+"\n"), 0o600)
+	e.sql("INSERT OR REPLACE INTO config(key,value) VALUES('scrub_terms_file',?)", terms)
+	os.MkdirAll(filepath.Join(e.home, "ci"), 0o755)
+	os.WriteFile(filepath.Join(e.home, "ci", "scrub_allowlist.txt"), []byte("# none\n"), 0o644)
 	return r
+}
+
+// relayTermsVar is the owner-terms env var the guard reads; cleared so the machine's own terms never load in a test.
+var relayTermsVar = strings.Join([]string{"SCRUB", "TERMS", "FILE"}, "_")
+
+// relayTerm is the fake owner term in the test terms file.
+const relayTerm = "zorblaxquent"
+
+// mergeHead merges a side commit into the task branch with a --no-ff merge commit whose message is msg.
+func (r *relayRepo) mergeHead(msg string) string {
+	t := r.e.t
+	t.Helper()
+	gitIn(t, r.wt, "checkout", "-q", "-b", "side")
+	r.write("side.txt", "side\n")
+	r.commit("side work")
+	gitIn(t, r.wt, "checkout", "-q", "factory/t-0001")
+	cmd := exec.Command("git", "merge", "-q", "--no-ff", "-m", msg, "side")
+	cmd.Dir = r.wt
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=a", "GIT_AUTHOR_EMAIL=1+a@users.noreply.github.com",
+		"GIT_COMMITTER_NAME=a", "GIT_COMMITTER_EMAIL=1+a@users.noreply.github.com",
+		"GIT_AUTHOR_DATE=2026-11-12T00:00:00+0000", "GIT_COMMITTER_DATE=2026-11-12T00:00:00+0000")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("merge: %v\n%s", err, out)
+	}
+	return gitIn(t, r.wt, "rev-parse", "HEAD")
 }
 
 func (r *relayRepo) write(rel, text string) {
@@ -466,5 +499,76 @@ func TestRelayPushWorkflowAllowed(t *testing.T) {
 	wf := "on: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: |\n          echo 1\n"
 	if p := workflowProblems(wf, strings.Replace(wf, "echo 1", "echo 1\n          on: x", 1)); len(p) != 0 {
 		t.Errorf("block scalar: %v", p)
+	}
+}
+
+// TestRelayPushPublicText: the pre-push public-text check runs over every commit message, identity and added line of
+// main..sha. A merge commit whose message holds a home path is refused (exit 3, the commit and pattern id named, the
+// matched text not); an owner term in an added line or a commit message is refused; a clean merge history passes. A
+// missing terms file or allowlist refuses (fail closed). Nothing is pushed or recorded on a refusal.
+func TestRelayPushPublicText(t *testing.T) {
+	r := newRelayRepo(t)
+	base := gitIn(t, r.wt, "rev-parse", "HEAD")
+	home := "/" + "home/alice/notes/"
+	refused := func(name, sha, want string, banned ...string) {
+		t.Helper()
+		r.verify(sha)
+		out, errs, code := r.push(sha)
+		if code != 3 || out != "" || !strings.Contains(errs, "refused: public text in the pushed range") ||
+			!strings.Contains(errs, want) || r.pushed() != "" {
+			t.Errorf("%s: exit %d out %q err %q (want %q)", name, code, out, errs, want)
+		}
+		for _, b := range banned {
+			if strings.Contains(errs, b) {
+				t.Errorf("%s: the matched text %q is in the refusal %q", name, b, errs)
+			}
+		}
+	}
+	r.head("")
+	sha := r.mergeHead("Merge side, see " + home + "x.txt")
+	refused("merge home path", sha, "home-path in commit "+sha[:8]+" message", "alice")
+
+	gitIn(t, r.wt, "reset", "-q", "--hard", base)
+	r.write("h.txt", "contact "+relayTerm+" here\n")
+	sha = r.commit("work")
+	refused("term in added line", sha, "in an added line", relayTerm)
+
+	gitIn(t, r.wt, "reset", "-q", "--hard", base)
+	r.write("h.txt", "x\n")
+	sha = r.commit("talked to " + relayTerm)
+	refused("term in message", sha, "in commit "+sha[:8]+" message", relayTerm)
+	if n := r.e.str("SELECT count(*) FROM events WHERE action='relay-push'"); n != "0" {
+		t.Errorf("refused pushes wrote %s relay-push rows", n)
+	}
+
+	// clean history (with a merge commit) passes
+	gitIn(t, r.wt, "reset", "-q", "--hard", base)
+	gitIn(t, r.wt, "branch", "-q", "-D", "side")
+	r.head("")
+	sha = r.mergeHead("Merge side")
+	r.verify(sha)
+	if out, errs, code := r.push(sha); code != 0 || r.pushed() == "" {
+		t.Fatalf("clean merge: exit %d out %q err %q", code, out, errs)
+	}
+
+	// fail closed: no terms, no allowlist
+	r.e.sql("UPDATE config SET value='' WHERE key='scrub_terms_file'")
+	if _, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, "the public-text check could not decide") || r.pushed() != "" {
+		t.Errorf("no terms: exit %d err %q", code, errs)
+	}
+	r.e.sql("UPDATE config SET value=? WHERE key='scrub_terms_file'", filepath.Join(r.e.home, "missing-terms.txt"))
+	if _, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, "could not decide") || r.pushed() != "" {
+		t.Errorf("missing terms file: exit %d err %q", code, errs)
+	}
+}
+
+// TestRelayPushPublicTextAllowlist: without <home>/ci/scrub_allowlist.txt the check cannot decide and refuses.
+func TestRelayPushPublicTextAllowlist(t *testing.T) {
+	r := newRelayRepo(t)
+	sha := r.head("")
+	r.verify(sha)
+	os.Remove(filepath.Join(r.e.home, "ci", "scrub_allowlist.txt"))
+	if _, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, "could not decide") || !strings.Contains(errs, "scrub_allowlist.txt") || r.pushed() != "" {
+		t.Errorf("no allowlist: exit %d err %q", code, errs)
 	}
 }

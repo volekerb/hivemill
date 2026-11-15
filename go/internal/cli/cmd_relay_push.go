@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"factory/go/internal/gitx"
+	"factory/go/internal/guard"
 )
 
 // relay-push (G-058 T-1618, owner decision M37756): the worker gh token has no `workflow` scope, so a coder cannot push
@@ -363,7 +365,12 @@ func runRelayPush(c *ctx, parsed any) (int, error) {
 		return 0, relayRefuse(a.task, "forbidden workflow change:\n  "+strings.Join(problems, "\n  "))
 	}
 
-	// 5. push with the HQ gh credential; the token lives only in this process and in git's env
+	// 5. the same public-text check the pre-push hook runs, over every commit message, identity, path and added line
+	if err := relayPublicText(c, wt.String, mainSHA, a.sha); err != nil {
+		return 0, relayRefuse(a.task, err.Error())
+	}
+
+	// 6. push with the HQ gh credential; the token lives only in this process and in git's env
 	tout, terr, code, err := c.deps.runCmd("gh", []string{"auth", "token", "--hostname", "github.com"}, wt.String, ghEnv, 30*time.Second)
 	token := strings.TrimSpace(tout)
 	if err != nil || code != 0 || token == "" || strings.ContainsAny(token, " \t\r\n") {
@@ -418,6 +425,64 @@ func relayNoreply(c *ctx, opts gitx.Options) (string, error) {
 	}
 	return email, nil
 }
+
+// relayPublicText runs the Go public-text guard (ci/public_text_guard.py push, the check the pre-push hook makes) over
+// main..sha with the owner terms (config scrub_terms_file, else the terms env var spawn exports) and the HQ allowlist
+// (<home>/ci/scrub_allowlist.txt). Any hit, or any failure to check, refuses. The refusal names each hit's pattern id and
+// its commit (message, author, committer, path) or "an added line"; never the matched text, a masked excerpt or a path.
+func relayPublicText(c *ctx, repo, mainSHA, sha string) error {
+	allow := filepath.Join(c.env.Home(), "ci", "scrub_allowlist.txt")
+	termsFile, err := cfgText(c, "scrub_terms_file")
+	if err != nil {
+		return fmt.Errorf("cannot read config scrub_terms_file: %v", err)
+	}
+	var args []string
+	if t := strings.TrimSpace(termsFile); t != "" {
+		args = append(args, "--terms-file", t)
+	}
+	args = append(args, "push", "--repo", repo, "--allowlist", allow, mainSHA, sha)
+	var out, errb strings.Builder
+	code := guard.CIPublicTextGuardMain(args, strings.NewReader(""), &out, &errb)
+	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
+	last := lines[len(lines)-1]
+	if code == 0 && last == "0 hits" {
+		return nil
+	}
+	var hits []string
+	seen := map[string]bool{}
+	for _, ln := range lines[:len(lines)-1] {
+		f := strings.Fields(ln)
+		if len(f) < 2 {
+			continue
+		}
+		where := "an added line"
+		if p := strings.Split(f[1], ":"); len(p) == 3 && p[0] == "commit" && relayShortRE.MatchString(p[1]) {
+			switch p[2] {
+			case "message", "author", "committer", "path":
+				where = "commit " + p[1] + " " + p[2]
+			}
+		}
+		if h := f[0] + " in " + where; !seen[h] {
+			seen[h] = true
+			hits = append(hits, h)
+		}
+	}
+	if code == 1 && len(hits) > 0 && strings.HasSuffix(last, " hits") {
+		return fmt.Errorf("public text in the pushed range (%s): %s; reword or drop the commits, then verify the new head",
+			last, strings.Join(hits, "; "))
+	}
+	msg := "no result"
+	for _, ln := range strings.Split(errb.String(), "\n") {
+		if strings.HasPrefix(ln, "public-text-guard:") && !strings.HasSuffix(ln, "term(s) loaded") {
+			msg = relayRedact(ln, "")
+			break
+		}
+	}
+	return fmt.Errorf("the public-text check could not decide (exit %d: %s); set the owner terms (`factory config scrub_terms_file <path>`) "+
+		"and make sure %s exists", code, msg, allow)
+}
+
+var relayShortRE = regexp.MustCompile(`^[0-9a-f]{4,40}$`)
 
 const relayWorkflowDir = ".github/workflows/"
 
