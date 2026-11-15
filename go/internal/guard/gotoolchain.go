@@ -197,6 +197,9 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 			(name == "CGO_ENABLED" && val != "0") || (name == "PATH" && !tcPathValue(val)) {
 			return block("the env prefix " + name + "=" + val + " is not an allowed value")
 		}
+		if name != "PATH" && tcExpands(val) { // PATH has its exact allowed value above; every other value is default-deny like a word
+			return block("the env prefix " + name + "= holds an expansion or glob that cannot be classified")
+		}
 		if (name == "GOCACHE" || name == "GOMODCACHE") && a.protHit(val, false, a.ccwd, a.ccwdKnown) {
 			exp := val
 			if strings.HasPrefix(val, "~/") {

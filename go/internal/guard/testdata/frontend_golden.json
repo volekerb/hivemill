@@ -143293,6 +143293,5156 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"GOFLAGS=-run=$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"GOFLAGS=-run=$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"GOFLAGS=-run=$"
+]
+],
+[
+15,
+16,
+[
+"x"
+]
+],
+[
+17,
+45,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"GOFLAGS=-run=$"
+]
+],
+[
+15,
+16,
+[
+"x"
+]
+],
+[
+17,
+45,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"GOFLAGS=-run="
+]
+],
+[
+15,
+17,
+[
+"id"
+]
+],
+[
+18,
+46,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"GOFLAGS=-run="
+]
+],
+[
+15,
+17,
+[
+"id"
+]
+],
+[
+18,
+46,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"GOFLAGS=-run="
+]
+],
+[
+14,
+16,
+[
+"id"
+]
+],
+[
+17,
+45,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"GOFLAGS=-run="
+]
+],
+[
+14,
+16,
+[
+"id"
+]
+],
+[
+17,
+45,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"GOFLAGS=-run=[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"GOFLAGS=-run=[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"GOFLAGS=-run=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"GOFLAGS=-run=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"GOFLAGS=-run=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"GOFLAGS=-run=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"GOFLAGS=-run="
+]
+],
+[
+14,
+17,
+[
+"a,b"
+]
+],
+[
+18,
+46,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"GOFLAGS=-run="
+]
+],
+[
+14,
+17,
+[
+"a,b"
+]
+],
+[
+18,
+46,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"GOCACHE=/tmp/$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"GOCACHE=/tmp/$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"GOCACHE=/tmp/$"
+]
+],
+[
+15,
+16,
+[
+"x"
+]
+],
+[
+17,
+45,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"GOCACHE=/tmp/$"
+]
+],
+[
+15,
+16,
+[
+"x"
+]
+],
+[
+17,
+45,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"GOCACHE=/tmp/"
+]
+],
+[
+15,
+17,
+[
+"id"
+]
+],
+[
+18,
+46,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"GOCACHE=/tmp/"
+]
+],
+[
+15,
+17,
+[
+"id"
+]
+],
+[
+18,
+46,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"GOCACHE=/tmp/"
+]
+],
+[
+14,
+16,
+[
+"id"
+]
+],
+[
+17,
+45,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"GOCACHE=/tmp/"
+]
+],
+[
+14,
+16,
+[
+"id"
+]
+],
+[
+17,
+45,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"GOCACHE=/tmp/[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"GOCACHE=/tmp/[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"GOCACHE=/tmp/*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"GOCACHE=/tmp/*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"GOCACHE=/tmp/?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"GOCACHE=/tmp/?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"GOCACHE=/tmp/"
+]
+],
+[
+14,
+17,
+[
+"a,b"
+]
+],
+[
+18,
+46,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"GOCACHE=/tmp/"
+]
+],
+[
+14,
+17,
+[
+"a,b"
+]
+],
+[
+18,
+46,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=$x ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=$x ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=$x ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=$x ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=$x ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"GOFLAGS=$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"GOFLAGS=$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=${x} ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=${x} ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=${x} ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=${x} ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=${x} ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"GOFLAGS=$"
+]
+],
+[
+10,
+11,
+[
+"x"
+]
+],
+[
+12,
+40,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"GOFLAGS=$"
+]
+],
+[
+10,
+11,
+[
+"x"
+]
+],
+[
+12,
+40,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"GOFLAGS="
+]
+],
+[
+10,
+12,
+[
+"id"
+]
+],
+[
+13,
+41,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"GOFLAGS="
+]
+],
+[
+10,
+12,
+[
+"id"
+]
+],
+[
+13,
+41,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "GOFLAGS=`id` ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=`id` ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=`id` ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=`id` ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"GOFLAGS="
+]
+],
+[
+9,
+11,
+[
+"id"
+]
+],
+[
+12,
+40,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"GOFLAGS="
+]
+],
+[
+9,
+11,
+[
+"id"
+]
+],
+[
+12,
+40,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"GOFLAGS=[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"GOFLAGS=[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=* ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=* ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=* ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=* ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=* ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"GOFLAGS=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"GOFLAGS=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS=? ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS=? ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS=? ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=? ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS=? ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"GOFLAGS=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"GOFLAGS=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x",
+"mask_quotes_pre": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x",
+"mask_quotes_raw": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"GOFLAGS="
+]
+],
+[
+9,
+12,
+[
+"a,b"
+]
+],
+[
+13,
+41,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"GOFLAGS="
+]
+],
+[
+9,
+12,
+[
+"a,b"
+]
+],
+[
+13,
+41,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -run $x ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -run $x ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -run $x ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run $x ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run $x ./x"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$x",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$x",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -run ${x} ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -run ${x} ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -run ${x} ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run ${x} ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run ${x} ./x"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$"
+]
+],
+[
+31,
+32,
+[
+"x"
+]
+],
+[
+33,
+37,
+[
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$"
+]
+],
+[
+31,
+32,
+[
+"x"
+]
+],
+[
+33,
+37,
+[
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -run $(id) ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -run $(id) ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -run $(id) ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run $(id) ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run $(id) ./x"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"-run"
+]
+],
+[
+31,
+33,
+[
+"id"
+]
+],
+[
+34,
+38,
+[
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"-run"
+]
+],
+[
+31,
+33,
+[
+"id"
+]
+],
+[
+34,
+38,
+[
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "~/.local/go/bin/go test -run `id` ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -run `id` ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -run `id` ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run `id` ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run $(id) ./x"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"-run"
+]
+],
+[
+30,
+32,
+[
+"id"
+]
+],
+[
+33,
+37,
+[
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"-run"
+]
+],
+[
+30,
+32,
+[
+"id"
+]
+],
+[
+33,
+37,
+[
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -run [-]o ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -run [-]o ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -run [-]o ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run [-]o ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run [-]o ./x"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"[-]o",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"[-]o",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -run * ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -run * ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -run * ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run * ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run * ./x"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"*",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"*",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -run ? ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -run ? ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -run ? ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run ? ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run ? ./x"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"?",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"~/.local/go/bin/go",
+"test",
+"-run",
+"?",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -run {a,b} ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -run {a,b} ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -run {a,b} ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run {a,b} ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -run {a,b} ./x"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"-run"
+]
+],
+[
+30,
+33,
+[
+"a,b"
+]
+],
+[
+34,
+38,
+[
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"-run"
+]
+],
+[
+30,
+33,
+[
+"a,b"
+]
+],
+[
+34,
+38,
+[
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -tags=$x ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -tags=$x ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -tags=$x ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=$x ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=$x ./x"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=$x",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=$x",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -tags=${x} ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -tags=${x} ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -tags=${x} ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=${x} ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=${x} ./x"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=$"
+]
+],
+[
+32,
+33,
+[
+"x"
+]
+],
+[
+34,
+38,
+[
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=$"
+]
+],
+[
+32,
+33,
+[
+"x"
+]
+],
+[
+34,
+38,
+[
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -tags=$(id) ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -tags=$(id) ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -tags=$(id) ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=$(id) ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=$(id) ./x"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags="
+]
+],
+[
+32,
+34,
+[
+"id"
+]
+],
+[
+35,
+39,
+[
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags="
+]
+],
+[
+32,
+34,
+[
+"id"
+]
+],
+[
+35,
+39,
+[
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "~/.local/go/bin/go test -tags=`id` ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -tags=`id` ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -tags=`id` ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=`id` ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=$(id) ./x"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags="
+]
+],
+[
+31,
+33,
+[
+"id"
+]
+],
+[
+34,
+38,
+[
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags="
+]
+],
+[
+31,
+33,
+[
+"id"
+]
+],
+[
+34,
+38,
+[
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -tags=[-]o ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -tags=[-]o ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -tags=[-]o ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=[-]o ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=[-]o ./x"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=[-]o",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=[-]o",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -tags=* ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -tags=* ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -tags=* ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=* ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=* ./x"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=*",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=*",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -tags=? ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -tags=? ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -tags=? ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=? ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags=? ./x"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=?",
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags=?",
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test -tags={a,b} ./x",
+"mask_quotes_pre": "~/.local/go/bin/go test -tags={a,b} ./x",
+"mask_quotes_raw": "~/.local/go/bin/go test -tags={a,b} ./x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags={a,b} ./x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test -tags={a,b} ./x"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags="
+]
+],
+[
+31,
+34,
+[
+"a,b"
+]
+],
+[
+35,
+39,
+[
+"./x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"-tags="
+]
+],
+[
+31,
+34,
+[
+"a,b"
+]
+],
+[
+35,
+39,
+[
+"./x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x$x",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x$x",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x$x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x$x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x$x"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"./x$x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"./x$x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x${x}",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x${x}",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x${x}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x${x}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x${x}"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x$"
+]
+],
+[
+29,
+30,
+[
+"x"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x$"
+]
+],
+[
+29,
+30,
+[
+"x"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x$(id)",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x$(id)",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x$(id)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x$(id)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x$(id)"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+29,
+31,
+[
+"id"
+]
+],
+[
+32,
+32,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+29,
+31,
+[
+"id"
+]
+],
+[
+32,
+32,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "~/.local/go/bin/go test ./x`id`",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x`id`",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x`id`",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x`id`"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x$(id)"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+28,
+30,
+[
+"id"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+28,
+30,
+[
+"id"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x[-]o",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x[-]o",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x[-]o",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x[-]o"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x[-]o"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"~/.local/go/bin/go",
+"test",
+"./x[-]o"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"~/.local/go/bin/go",
+"test",
+"./x[-]o"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x*",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x*",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x*"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x?",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x?",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x?",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x?"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x?"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x?"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x?"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x{a,b}",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x{a,b}",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x{a,b}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x{a,b}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x{a,b}"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+28,
+31,
+[
+"a,b"
+]
+],
+[
+32,
+32,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+28,
+31,
+[
+"a,b"
+]
+],
+[
+32,
+32,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x $x",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x $x",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x $x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x $x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x $x"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x ${x}",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x ${x}",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x ${x}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x ${x}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x ${x}"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$"
+]
+],
+[
+30,
+31,
+[
+"x"
+]
+],
+[
+32,
+32,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$"
+]
+],
+[
+30,
+31,
+[
+"x"
+]
+],
+[
+32,
+32,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x $(id)",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x $(id)",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x $(id)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x $(id)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x $(id)"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+30,
+32,
+[
+"id"
+]
+],
+[
+33,
+33,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+30,
+32,
+[
+"id"
+]
+],
+[
+33,
+33,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "~/.local/go/bin/go test ./x `id`",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x `id`",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x `id`",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x `id`"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x $(id)"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+29,
+31,
+[
+"id"
+]
+],
+[
+32,
+32,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+29,
+31,
+[
+"id"
+]
+],
+[
+32,
+32,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x [-]o",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x [-]o",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x [-]o",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x [-]o"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x [-]o"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"[-]o"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"[-]o"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x *",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x *",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x *",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x *"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x *"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x ?",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x ?",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x ?",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x ?"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x ?"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"?"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"test",
+"./x",
+"?"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go test ./x {a,b}",
+"mask_quotes_pre": "~/.local/go/bin/go test ./x {a,b}",
+"mask_quotes_raw": "~/.local/go/bin/go test ./x {a,b}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x {a,b}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go test ./x {a,b}"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+29,
+32,
+[
+"a,b"
+]
+],
+[
+33,
+33,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+],
+[
+29,
+32,
+[
+"a,b"
+]
+],
+[
+33,
+33,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- ./x$x",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ./x$x",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ./x$x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x$x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x$x"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x$x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x$x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- ./x${x}",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ./x${x}",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ./x${x}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x${x}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x${x}"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x$"
+]
+],
+[
+31,
+32,
+[
+"x"
+]
+],
+[
+33,
+33,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x$"
+]
+],
+[
+31,
+32,
+[
+"x"
+]
+],
+[
+33,
+33,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- ./x$(id)",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ./x$(id)",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ./x$(id)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x$(id)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x$(id)"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x"
+]
+],
+[
+31,
+33,
+[
+"id"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x"
+]
+],
+[
+31,
+33,
+[
+"id"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "~/.local/go/bin/go vet -- ./x`id`",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ./x`id`",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ./x`id`",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x`id`"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x$(id)"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x"
+]
+],
+[
+30,
+32,
+[
+"id"
+]
+],
+[
+33,
+33,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x"
+]
+],
+[
+30,
+32,
+[
+"id"
+]
+],
+[
+33,
+33,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- ./x[-]o",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ./x[-]o",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ./x[-]o",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x[-]o"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x[-]o"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x[-]o"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x[-]o"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- ./x*",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ./x*",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ./x*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x*"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- ./x?",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ./x?",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ./x?",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x?"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x?"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x?"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x?"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- ./x{a,b}",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ./x{a,b}",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ./x{a,b}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x{a,b}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ./x{a,b}"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x"
+]
+],
+[
+30,
+33,
+[
+"a,b"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x"
+]
+],
+[
+30,
+33,
+[
+"a,b"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- $x",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- $x",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- $x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- $x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- $x"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- ${x}",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ${x}",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ${x}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ${x}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ${x}"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$"
+]
+],
+[
+28,
+29,
+[
+"x"
+]
+],
+[
+30,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$"
+]
+],
+[
+28,
+29,
+[
+"x"
+]
+],
+[
+30,
+30,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- $(id)",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- $(id)",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- $(id)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- $(id)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- $(id)"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"~/.local/go/bin/go",
+"vet",
+"--"
+]
+],
+[
+28,
+30,
+[
+"id"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"~/.local/go/bin/go",
+"vet",
+"--"
+]
+],
+[
+28,
+30,
+[
+"id"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "~/.local/go/bin/go vet -- `id`",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- `id`",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- `id`",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- `id`"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- $(id)"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"~/.local/go/bin/go",
+"vet",
+"--"
+]
+],
+[
+27,
+29,
+[
+"id"
+]
+],
+[
+30,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"~/.local/go/bin/go",
+"vet",
+"--"
+]
+],
+[
+27,
+29,
+[
+"id"
+]
+],
+[
+30,
+30,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- [-]o",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- [-]o",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- [-]o",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- [-]o"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- [-]o"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"[-]o"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"[-]o"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- *",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- *",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- *",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- *"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- *"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- ?",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- ?",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- ?",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ?"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- ?"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"?"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"~/.local/go/bin/go",
+"vet",
+"--",
+"?"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/go vet -- {a,b}",
+"mask_quotes_pre": "~/.local/go/bin/go vet -- {a,b}",
+"mask_quotes_raw": "~/.local/go/bin/go vet -- {a,b}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- {a,b}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/go vet -- {a,b}"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"~/.local/go/bin/go",
+"vet",
+"--"
+]
+],
+[
+27,
+30,
+[
+"a,b"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"~/.local/go/bin/go",
+"vet",
+"--"
+]
+],
+[
+27,
+30,
+[
+"a,b"
+]
+],
+[
+31,
+31,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -l $x",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -l $x",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -l $x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l $x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l $x"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"$x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"$x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -l ${x}",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -l ${x}",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -l ${x}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l ${x}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l ${x}"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"$"
+]
+],
+[
+27,
+28,
+[
+"x"
+]
+],
+[
+29,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"$"
+]
+],
+[
+27,
+28,
+[
+"x"
+]
+],
+[
+29,
+29,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -l $(id)",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -l $(id)",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -l $(id)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l $(id)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l $(id)"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-l"
+]
+],
+[
+27,
+29,
+[
+"id"
+]
+],
+[
+30,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-l"
+]
+],
+[
+27,
+29,
+[
+"id"
+]
+],
+[
+30,
+30,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "~/.local/go/bin/gofmt -l `id`",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -l `id`",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -l `id`",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l `id`"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l $(id)"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-l"
+]
+],
+[
+26,
+28,
+[
+"id"
+]
+],
+[
+29,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-l"
+]
+],
+[
+26,
+28,
+[
+"id"
+]
+],
+[
+29,
+29,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -l [-]o",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -l [-]o",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -l [-]o",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l [-]o"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l [-]o"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"[-]o"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"[-]o"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -l *",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -l *",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -l *",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l *"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l *"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -l ?",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -l ?",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -l ?",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l ?"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l ?"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"?"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"~/.local/go/bin/gofmt",
+"-l",
+"?"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -l {a,b}",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -l {a,b}",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -l {a,b}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l {a,b}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -l {a,b}"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-l"
+]
+],
+[
+26,
+29,
+[
+"a,b"
+]
+],
+[
+30,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-l"
+]
+],
+[
+26,
+29,
+[
+"a,b"
+]
+],
+[
+30,
+30,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -r $x .",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -r $x .",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -r $x .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r $x ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r $x ."
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"$x",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"$x",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -r ${x} .",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -r ${x} .",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -r ${x} .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r ${x} ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r ${x} ."
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"$"
+]
+],
+[
+27,
+28,
+[
+"x"
+]
+],
+[
+29,
+31,
+[
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"$"
+]
+],
+[
+27,
+28,
+[
+"x"
+]
+],
+[
+29,
+31,
+[
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -r $(id) .",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -r $(id) .",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -r $(id) .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r $(id) ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r $(id) ."
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-r"
+]
+],
+[
+27,
+29,
+[
+"id"
+]
+],
+[
+30,
+32,
+[
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-r"
+]
+],
+[
+27,
+29,
+[
+"id"
+]
+],
+[
+30,
+32,
+[
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"id"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"id"
+]
+},
+"input": "~/.local/go/bin/gofmt -r `id` .",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -r `id` .",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -r `id` .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r `id` ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r $(id) ."
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-r"
+]
+],
+[
+26,
+28,
+[
+"id"
+]
+],
+[
+29,
+31,
+[
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-r"
+]
+],
+[
+26,
+28,
+[
+"id"
+]
+],
+[
+29,
+31,
+[
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -r [-]o .",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -r [-]o .",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -r [-]o .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r [-]o ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r [-]o ."
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"[-]o",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"[-]o",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -r * .",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -r * .",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -r * .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r * ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r * ."
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"*",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"*",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -r ? .",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -r ? .",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -r ? .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r ? ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r ? ."
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"?",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"~/.local/go/bin/gofmt",
+"-r",
+"?",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "~/.local/go/bin/gofmt -r {a,b} .",
+"mask_quotes_pre": "~/.local/go/bin/gofmt -r {a,b} .",
+"mask_quotes_raw": "~/.local/go/bin/gofmt -r {a,b} .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r {a,b} ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "~/.local/go/bin/gofmt -r {a,b} ."
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-r"
+]
+],
+[
+26,
+29,
+[
+"a,b"
+]
+],
+[
+30,
+32,
+[
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"~/.local/go/bin/gofmt",
+"-r"
+]
+],
+[
+26,
+29,
+[
+"a,b"
+]
+],
+[
+30,
+32,
+[
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "echo hc",
 "mask_quotes_pre": "echo hc",
 "mask_quotes_raw": "echo hc",
@@ -186532,7 +191682,7 @@
 ]
 }
 },
-"corpus_commands": 3463,
+"corpus_commands": 3551,
 "edge_inputs": 97,
 "python": "3.13"
 }

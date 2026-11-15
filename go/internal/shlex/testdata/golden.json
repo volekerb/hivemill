@@ -117318,6 +117318,3659 @@
 "src": "corpus"
 },
 {
+"input": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=",
+"$",
+"x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=-run=$x ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=${x}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=",
+"$",
+"{",
+"x",
+"}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=${x}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=$",
+"(",
+"id",
+")",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=",
+"$",
+"(",
+"id",
+")",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=$(id)",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=`id`",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=",
+"`",
+"id",
+"`",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=`id`",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=",
+"[",
+"-",
+"]",
+"o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=-run=* ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=-run=? ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run={a,b}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run=",
+"{",
+"a",
+",",
+"b",
+"}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=-run={a,b}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/",
+"$",
+"x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/${x}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/",
+"$",
+"{",
+"x",
+"}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/${x}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/$",
+"(",
+"id",
+")",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/",
+"$",
+"(",
+"id",
+")",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/$(id)",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/`id`",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/",
+"`",
+"id",
+"`",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/`id`",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/",
+"[",
+"-",
+"]",
+"o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOCACHE=/tmp/* ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOCACHE=/tmp/? ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/{a,b}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/",
+"{",
+"a",
+",",
+"b",
+"}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOCACHE=/tmp/{a,b}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=$x ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=$x ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=",
+"$",
+"x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=$x ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=$x",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=$x ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=$x ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=${x} ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=${x}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=${x} ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=",
+"$",
+"{",
+"x",
+"}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=${x} ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=${x}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=${x} ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=${x} ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=$",
+"(",
+"id",
+")",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=",
+"$",
+"(",
+"id",
+")",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=$(id)",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=$(id) ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=`id` ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=`id`",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=`id` ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=",
+"`",
+"id",
+"`",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=`id` ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=`id`",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=`id` ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=`id` ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=",
+"[",
+"-",
+"]",
+"o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=[-]o",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=[-]o ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=* ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=* ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=* ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=*",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=* ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=* ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS=? ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=? ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=? ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=?",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS=? ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS=? ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOFLAGS={a,b}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOFLAGS=",
+"{",
+"a",
+",",
+"b",
+"}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOFLAGS={a,b}",
+"~/.local/go/bin/go",
+"test",
+"./x"
+]
+},
+{
+"input": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x",
+"mode": "quote",
+"quoted": "'GOFLAGS={a,b} ~/.local/go/bin/go test ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -run $x ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$x",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run $x ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$",
+"x",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run $x ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$x",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run $x ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -run $x ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -run ${x} ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"${x}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run ${x} ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$",
+"{",
+"x",
+"}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run ${x} ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"${x}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run ${x} ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -run ${x} ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -run $(id) ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$",
+"(",
+"id",
+")",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run $(id) ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$",
+"(",
+"id",
+")",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run $(id) ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"$(id)",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run $(id) ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -run $(id) ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -run `id` ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"`id`",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run `id` ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"`",
+"id",
+"`",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run `id` ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"`id`",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run `id` ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -run `id` ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -run [-]o ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"[-]o",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run [-]o ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"[",
+"-",
+"]",
+"o",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run [-]o ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"[-]o",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run [-]o ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -run [-]o ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -run * ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"*",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run * ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"*",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run * ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"*",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run * ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -run * ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -run ? ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"?",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run ? ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"?",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run ? ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"?",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run ? ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -run ? ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -run {a,b} ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"{a,b}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run {a,b} ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"{",
+"a",
+",",
+"b",
+"}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run {a,b} ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-run",
+"{a,b}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -run {a,b} ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -run {a,b} ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -tags=$x ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=$x",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=$x ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=",
+"$",
+"x",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=$x ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=$x",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=$x ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -tags=$x ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -tags=${x} ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=${x}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=${x} ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=",
+"$",
+"{",
+"x",
+"}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=${x} ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=${x}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=${x} ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -tags=${x} ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -tags=$(id) ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=$",
+"(",
+"id",
+")",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=$(id) ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=",
+"$",
+"(",
+"id",
+")",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=$(id) ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=$(id)",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=$(id) ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -tags=$(id) ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -tags=`id` ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=`id`",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=`id` ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=",
+"`",
+"id",
+"`",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=`id` ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=`id`",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=`id` ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -tags=`id` ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -tags=[-]o ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=[-]o",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=[-]o ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=",
+"[",
+"-",
+"]",
+"o",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=[-]o ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=[-]o",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=[-]o ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -tags=[-]o ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -tags=* ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=*",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=* ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=*",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=* ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=*",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=* ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -tags=* ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -tags=? ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=?",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=? ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=?",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=? ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=?",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags=? ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -tags=? ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test -tags={a,b} ./x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags={a,b}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags={a,b} ./x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags=",
+"{",
+"a",
+",",
+"b",
+"}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags={a,b} ./x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"-tags={a,b}",
+"./x"
+]
+},
+{
+"input": "~/.local/go/bin/go test -tags={a,b} ./x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test -tags={a,b} ./x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x$x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x$x"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x$x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$",
+"x"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x$x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x$x"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x$x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x$x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x${x}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x${x}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x${x}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$",
+"{",
+"x",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x${x}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x${x}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x${x}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x${x}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x$(id)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x$(id)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x$(id)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x$(id)"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x$(id)",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x$(id)'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x`id`",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x`id`"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x`id`",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"`",
+"id",
+"`"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x`id`",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x`id`"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x`id`",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x`id`'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x[-]o",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x[-]o",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"[",
+"-",
+"]",
+"o"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x[-]o",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x[-]o",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x[-]o'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x*"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x*"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x*"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x*",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x*'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x?",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x?"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x?",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x?"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x?",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x?"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x?",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x?'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x{a,b}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x{a,b}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"{",
+"a",
+",",
+"b",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x{a,b}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x{a,b}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x{a,b}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x $x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$x"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x $x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$",
+"x"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x $x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$x"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x $x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x $x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x ${x}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"${x}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x ${x}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$",
+"{",
+"x",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x ${x}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"${x}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x ${x}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x ${x}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x $(id)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x $(id)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x $(id)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"$(id)"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x $(id)",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x $(id)'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x `id`",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"`id`"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x `id`",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"`",
+"id",
+"`"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x `id`",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"`id`"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x `id`",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x `id`'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x [-]o",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x [-]o",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"[",
+"-",
+"]",
+"o"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x [-]o",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x [-]o",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x [-]o'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x *",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"*"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x *",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"*"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x *",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"*"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x *",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x *'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x ?",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"?"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x ?",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"?"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x ?",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"?"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x ?",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x ?'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go test ./x {a,b}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x {a,b}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"{",
+"a",
+",",
+"b",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x {a,b}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"test",
+"./x",
+"{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/go test ./x {a,b}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go test ./x {a,b}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x$x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x$x"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x$x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x",
+"$",
+"x"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x$x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x$x"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x$x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ./x$x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x${x}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x${x}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x${x}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x",
+"$",
+"{",
+"x",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x${x}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x${x}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x${x}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ./x${x}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x$(id)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x$(id)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x",
+"$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x$(id)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x$(id)"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x$(id)",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ./x$(id)'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x`id`",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x`id`"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x`id`",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x",
+"`",
+"id",
+"`"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x`id`",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x`id`"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x`id`",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ./x`id`'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x[-]o",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x[-]o",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x",
+"[",
+"-",
+"]",
+"o"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x[-]o",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x[-]o",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ./x[-]o'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x*"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x*"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x*"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x*",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ./x*'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x?",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x?"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x?",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x?"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x?",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x?"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x?",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ./x?'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x{a,b}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x{a,b}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x",
+"{",
+"a",
+",",
+"b",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x{a,b}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"./x{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ./x{a,b}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ./x{a,b}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- $x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$x"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- $x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$",
+"x"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- $x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$x"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- $x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- $x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ${x}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"${x}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ${x}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$",
+"{",
+"x",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ${x}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"${x}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ${x}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ${x}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- $(id)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- $(id)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- $(id)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"$(id)"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- $(id)",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- $(id)'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- `id`",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"`id`"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- `id`",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"`",
+"id",
+"`"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- `id`",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"`id`"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- `id`",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- `id`'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- [-]o",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- [-]o",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"[",
+"-",
+"]",
+"o"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- [-]o",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- [-]o",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- [-]o'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- *",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"*"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- *",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"*"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- *",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"*"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- *",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- *'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- ?",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"?"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ?",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"?"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ?",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"?"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- ?",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- ?'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go vet -- {a,b}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- {a,b}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"{",
+"a",
+",",
+"b",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- {a,b}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"vet",
+"--",
+"{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/go vet -- {a,b}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go vet -- {a,b}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -l $x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"$x"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l $x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"$",
+"x"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l $x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"$x"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l $x",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -l $x'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -l ${x}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"${x}"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l ${x}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"$",
+"{",
+"x",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l ${x}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"${x}"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l ${x}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -l ${x}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -l $(id)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l $(id)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"$",
+"(",
+"id",
+")"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l $(id)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"$(id)"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l $(id)",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -l $(id)'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -l `id`",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"`id`"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l `id`",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"`",
+"id",
+"`"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l `id`",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"`id`"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l `id`",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -l `id`'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -l [-]o",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l [-]o",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"[",
+"-",
+"]",
+"o"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l [-]o",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"[-]o"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l [-]o",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -l [-]o'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -l *",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"*"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l *",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"*"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l *",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"*"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l *",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -l *'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -l ?",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"?"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l ?",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"?"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l ?",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"?"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l ?",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -l ?'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -l {a,b}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l {a,b}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"{",
+"a",
+",",
+"b",
+"}"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l {a,b}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-l",
+"{a,b}"
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -l {a,b}",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -l {a,b}'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -r $x .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"$x",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r $x .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"$",
+"x",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r $x .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"$x",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r $x .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -r $x .'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -r ${x} .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"${x}",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r ${x} .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"$",
+"{",
+"x",
+"}",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r ${x} .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"${x}",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r ${x} .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -r ${x} .'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -r $(id) .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"$",
+"(",
+"id",
+")",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r $(id) .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"$",
+"(",
+"id",
+")",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r $(id) .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"$(id)",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r $(id) .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -r $(id) .'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -r `id` .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"`id`",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r `id` .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"`",
+"id",
+"`",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r `id` .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"`id`",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r `id` .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -r `id` .'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -r [-]o .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"[-]o",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r [-]o .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"[",
+"-",
+"]",
+"o",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r [-]o .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"[-]o",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r [-]o .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -r [-]o .'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -r * .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"*",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r * .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"*",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r * .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"*",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r * .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -r * .'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -r ? .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"?",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r ? .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"?",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r ? .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"?",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r ? .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -r ? .'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/gofmt -r {a,b} .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"{a,b}",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r {a,b} .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"{",
+"a",
+",",
+"b",
+"}",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r {a,b} .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/gofmt",
+"-r",
+"{a,b}",
+"."
+]
+},
+{
+"input": "~/.local/go/bin/gofmt -r {a,b} .",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/gofmt -r {a,b} .'",
+"src": "corpus"
+},
+{
 "input": "echo hc",
 "mode": "script",
 "src": "corpus",
@@ -150724,7 +154377,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3463,
+"corpus_commands": 3551,
 "edge_inputs": 123,
 "python": "3.13"
 }

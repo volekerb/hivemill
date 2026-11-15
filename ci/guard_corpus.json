@@ -20419,6 +20419,446 @@
       "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
       "cmd": "~/.local/go/bin/go test ./x ~user/y",
       "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=$x ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=${x} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=`id` ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=* ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=? ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run $x ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run ${x} ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run $(id) ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run `id` ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run [-]o ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run * ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run ? ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run {a,b} ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=$x ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=${x} ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=$(id) ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=`id` ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=[-]o ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=* ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=? ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags={a,b} ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x$x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x$(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x`id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x[-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x*",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x{a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x $x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x ${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x $(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x `id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x [-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x *",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x ?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x {a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x$x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x$(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x`id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x[-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x*",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x{a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- $x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- $(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- `id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- [-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- *",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- {a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l $x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l ${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l $(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l `id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l [-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l *",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l ?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l {a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r $x .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r ${x} .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r $(id) .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r `id` .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r [-]o .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r * .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r ? .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r {a,b} .",
+      "role": "coder"
     }
   ],
   "must_allow": [

@@ -723,6 +723,17 @@ class GoToolchainForWorkers(ProtTreesCase):
                 self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")
             self.assertEqual(run(self.G + "go build ./x ./y/...", "wt", role=role).returncode, 0, role)
 
+    def test_review_round6_metachars_in_every_position_blocked(self):
+        # the same default-deny rule in every position: prefix env value, flag, flag value, positional, after `--`; every metachar
+        pos = ["GOFLAGS=-run=%s {g}go test ./x", "GOCACHE=/tmp/%s {g}go test ./x", "GOFLAGS=%s {g}go test ./x", "{g}go test -run %s ./x",
+               "{g}go test -tags=%s ./x", "{g}go test ./x%s", "{g}go test ./x %s", "{g}go vet -- ./x%s", "{g}go vet -- %s",
+               "{g}gofmt -l %s", "{g}gofmt -r %s ."]
+        for role in ("coder", "qa", "reviewer"):
+            for p in pos:
+                for m in ("$x", "${x}", "$(id)", "`id`", "[-]o", "*", "?", "{a,b}"):
+                    cmd = p.replace("{g}", self.G) % m
+                    self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")
+
     def test_self_review_round3_flags_and_import_paths(self):
         # -ldflags/-gcflags values hold compiler flags (-tmpdir, -cpuprofile, -extld): not in the table; go fmt / -fuzz on an import
         # path (std) would write into GOROOT; go list -m mod@query hits the proxy

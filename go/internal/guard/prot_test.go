@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -193,6 +194,13 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		g+"go test -c ./x ?o ~/.local/lib/factory/x",
 		g+"go test ./x a~b",
 		g+"go test ./x ~user/y")
+	// T-1498 review round 6: the same rule in every position (prefix env value, flag, flag value, positional, after --)
+	for _, p := range []string{"GOFLAGS=-run=%s {g}go test ./x", "GOCACHE=/tmp/%s {g}go test ./x", "GOFLAGS=%s {g}go test ./x", "{g}go test -run %s ./x",
+		"{g}go test -tags=%s ./x", "{g}go test ./x%s", "{g}go test ./x %s", "{g}go vet -- ./x%s", "{g}go vet -- %s", "{g}gofmt -l %s", "{g}gofmt -r %s ."} {
+		for _, m := range []string{"$x", "${x}", "$(id)", "`id`", "[-]o", "*", "?", "{a,b}"} {
+			block = append(block, fmt.Sprintf(strings.ReplaceAll(p, "{g}", g), m))
+		}
+	}
 	allow = append(allow, g+"go build ./x ./y/...", g+"go vet -- ./...", g+"go test -cpuprofile /dev/null ./...", g+"go build -tags x -- ./...")
 	allow = append(allow, g+"go fmt ./pkg", g+"go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off "+g+"go list -m foo@latest", g+"go list -m all")
 	for _, role := range []string{"coder", "qa", "reviewer"} {

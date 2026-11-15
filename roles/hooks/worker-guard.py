@@ -2315,6 +2315,8 @@ class Analyzer:
                             cur, piped, hs = stack.pop()
                             if any(not (ASSIGN.match(w) or w in RESERVED) for w in cur):
                                 cur = cur + ["$SUB"]  # the substitution's value is an argument of that command
+                            elif cur and ASSIGN.match(cur[-1]) and cur[-1].split("=", 1)[0] in TC_ENV_NAMES:
+                                cur = cur[:-1] + [cur[-1] + "$SUB"]  # T-1498: a substitution in a toolchain env value (GOFLAGS=$(..)) is dynamic
                         else:
                             cmds.append((cur, piped, hs))
                             cur, piped, hs = [], "|" in piece, []
@@ -2793,6 +2795,8 @@ class Analyzer:
             if (name == "GOTOOLCHAIN" and val != "local") or (name == "GOPROXY" and val != "off") or (
                     name == "CGO_ENABLED" and val != "0") or (name == "PATH" and not TC_PATH_VALUE.match(val)):
                 block(f"the env prefix {name}={val} is not an allowed value")
+            if name != "PATH" and tc_expands(val):  # PATH has its exact allowed value above; every other value is default-deny like a word
+                block(f"the env prefix {name}= holds an expansion or glob that cannot be classified")
             if name in ("GOCACHE", "GOMODCACHE") and self.prot_hit(val):
                 exp = PW_DIR + val[1:] if val.startswith("~/") else val
                 if not (name == "GOMODCACHE" and under(os.path.normpath(exp), TC_MODCACHE)):
