@@ -51,8 +51,10 @@ func newRelayRepo(t *testing.T) *relayRepo {
 	root := t.TempDir()
 	r := &relayRepo{e: e, wt: filepath.Join(root, "wt"), stub: filepath.Join(root, "stub")}
 	os.MkdirAll(r.stub, 0o755)
-	git := "#!/bin/sh\nfor a in \"$@\"; do if [ \"$a\" = push ]; then\n" +
+	git := "#!/bin/sh\nprev=; cdir=.; for a in \"$@\"; do [ \"$prev\" = -C ] && cdir=$a; prev=$a; if [ \"$a\" = push ]; then\n" +
 		"  printf '%s\\n' \"$*\" > \"" + r.stub + "/push.argv\"\n" +
+		// where the push would really go: the URL after the push repo's own url.*.insteadOf rewrites
+		"  (cd \"$cdir\" && " + realGit + " ls-remote --get-url https://github.com/acme/app.git) > \"" + r.stub + "/push.url\"\n" +
 		"  [ \"$FACTORY_RELAY_TOKEN\" = \"" + relayToken + "\" ] && echo ok > \"" + r.stub + "/push.token\"\n" +
 		"  env | grep -c '^GIT_TRACE' > \"" + r.stub + "/push.trace\"\n" +
 		"  at=@\n  echo \"To https://x-access-token:$FACTORY_RELAY_TOKEN${at}github.com/acme/app.git\"\n" +
@@ -62,7 +64,10 @@ func newRelayRepo(t *testing.T) *relayRepo {
 	gh := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"" + r.stub + "/gh.argv\"\n" +
 		"case \"$1 $2\" in\n" +
 		"  'api repos/acme/app/git/ref/heads/main') cat \"" + r.stub + "/main\";;\n" +
-		"  'auth token') [ -f \"" + r.stub + "/notoken\" ] && { echo 'not logged in' >&2; exit 1; }; echo " + relayToken + ";;\n" +
+		"  'auth token') [ -f \"" + r.stub + "/notoken\" ] && { echo 'not logged in' >&2; exit 1; }\n" +
+		// TOCTOU: plant a redirect in the worktree config after the relay read it (step 1), before the push (step 6)
+		"    [ -f \"" + r.stub + "/plant\" ] && " + realGit + " -C \"" + r.wt + "\" config url.https://evil.example/.insteadOf https://github.com/\n" +
+		"    echo " + relayToken + ";;\n" +
 		"  *) echo \"unexpected gh $*\" >&2; exit 9;;\nesac\n"
 	os.WriteFile(filepath.Join(r.stub, "git"), []byte(git), 0o755)
 	os.WriteFile(filepath.Join(r.stub, "gh"), []byte(gh), 0o755)
@@ -386,6 +391,37 @@ func TestRelayPushRepoRefusals(t *testing.T) {
 	}
 }
 
+// TestRelayPushInsteadOfAfterCheck (reviewer B2, TOCTOU): a url.*.insteadOf planted in the worktree config after the
+// relay read it is not obeyed: the push runs in an HQ-owned repo, its URL resolves to GitHub, and no token leaks.
+func TestRelayPushInsteadOfAfterCheck(t *testing.T) {
+	r := newRelayRepo(t)
+	sha := r.head("")
+	r.verify(sha)
+	t.Setenv("TMPDIR", t.TempDir()) // the relay repo lands here, so the leftover check sees only this test
+	os.WriteFile(filepath.Join(r.stub, "plant"), nil, 0o644)
+	out, errs, code := r.push(sha)
+	if code != 0 {
+		t.Fatalf("push: exit %d out %q err %q", code, out, errs)
+	}
+	if got := gitIn(t, r.wt, "config", "--get", "url.https://evil.example/.insteadOf"); got != "https://github.com/" {
+		t.Fatalf("the redirect was not planted: %q", got)
+	}
+	if b, _ := os.ReadFile(filepath.Join(r.stub, "push.url")); strings.TrimSpace(string(b)) != "https://github.com/acme/app.git" {
+		t.Errorf("the push would go to %q, not GitHub", b)
+	}
+	argv := r.pushed()
+	if strings.Contains(argv, r.wt) || !strings.Contains(argv, "factory-relay-") {
+		t.Errorf("the push did not run in the relay repo: %q", argv)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(argv), "https://github.com/acme/app.git "+sha+":refs/heads/factory/t-0001") {
+		t.Errorf("push argv %q", argv)
+	}
+	if left, _ := filepath.Glob(filepath.Join(os.TempDir(), "factory-relay-*")); len(left) != 0 {
+		t.Errorf("relay push repos left behind: %v", left)
+	}
+	r.noToken(t, "toctou", out, errs, argv, r.e.str("SELECT group_concat(COALESCE(detail,''), '|') FROM events"))
+}
+
 // relayWF swaps old for new in the good workflow.
 func relayWF(t *testing.T, old, new string) string {
 	t.Helper()
@@ -413,6 +449,14 @@ func TestRelayPushWorkflowRefusals(t *testing.T) {
 		{"self-hosted list", relayWF(t, "runs-on: ubuntu-latest", "runs-on: [self-hosted, linux]"), "non-GitHub-hosted runner"},
 		{"runner group", relayWF(t, "runs-on: ubuntu-latest", "runs-on:\n      group: box"), "non-GitHub-hosted runner"},
 		{"custom label", relayWF(t, "runs-on: ubuntu-latest", "runs-on: my-box"), "non-GitHub-hosted runner"},
+		{"permissions space colon", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    permissions : write-all\n"), "permissions changed (added)"},
+		{"quoted permissions space colon", relayWF(t, "contents: read", "\"contents\" : write"), "permissions changed"},
+		{"on space colon", relayWF(t, "on:\n  pull_request:\n", "on :\n  issue_comment :\n"), "on: trigger changed"},
+		{"merge key", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    <<: *defaults\n"), "cannot read the line"},
+		{"complex key", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    ? permissions\n    : write-all\n"), "cannot read the line"},
+		{"flow mapping", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    defaults: {permissions: write-all}\n"), "cannot read the line"},
+		{"anchor", relayWF(t, "permissions:\n  contents: read\n", "permissions: &p\n  contents: read\n"), "YAML anchor, alias or tag"},
+		{"alias", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    permissions: *p\n"), "YAML anchor, alias or tag"},
 		{"matrix self-hosted", relayWF(t, "    runs-on: ubuntu-latest\n", "    strategy:\n      matrix:\n        os: [self-hosted]\n    runs-on: ${{ matrix.os }}\n"), "non-GitHub-hosted runner"},
 	} {
 		gitIn(t, r.wt, "reset", "-q", "--hard", base)

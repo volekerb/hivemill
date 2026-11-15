@@ -378,7 +378,15 @@ func runRelayPush(c *ctx, parsed any) (int, error) {
 		return 0, relayRefuse(a.task, fmt.Sprintf("the HQ gh has no github.com token (gh auth token: exit %d %s); run `gh auth login` as the owner",
 			code, relayRedact(firstLine(terr), token)))
 	}
-	push := relayGit{c: c, opts: opts, wt: wt.String, env: relayScrubEnv(c.deps.Environ, "FACTORY_RELAY_TOKEN="+token)}
+	// the push runs in an HQ-owned temporary bare repo that borrows the worktree's objects (alternates): git reads only
+	// that repo's config, so a url.*.insteadOf or credential config planted in the worktree after step 1 is never seen
+	// (reviewer B2, TOCTOU). The objects are content-addressed, so the borrowed store cannot change what sha names.
+	relay, cleanup, err := relayPushRepo(g, opts, a.sha)
+	if err != nil {
+		return 0, relayRefuse(a.task, err.Error())
+	}
+	defer cleanup()
+	push := relayGit{c: c, opts: opts, wt: relay, env: relayScrubEnv(c.deps.Environ, "FACTORY_RELAY_TOKEN="+token)}
 	helper := `!f() { test "$1" = get || exit 0; echo username=x-access-token; printf 'password=%s\n' "$FACTORY_RELAY_TOKEN"; }; f`
 	url := "https://github.com/" + repo + ".git"
 	pout, perr, code, err := push.run(120*time.Second, "-c", "credential.helper=", "-c", "credential.helper="+helper,
@@ -403,6 +411,43 @@ func runRelayPush(c *ctx, parsed any) (int, error) {
 	}
 	fmt.Fprintf(c.out, "relay-push %s: pushed %s to %s refs/heads/%s (%d files)\n", a.task, a.sha, repo, want, len(files))
 	return 0, nil
+}
+
+// relayPushRepo creates the HQ-owned bare repo the push runs in: no templates (no hooks), objects/info/alternates
+// pointing at the worktree's object store, and sha must resolve to a commit there. cleanup removes it.
+func relayPushRepo(wt relayGit, opts gitx.Options, sha string) (string, func(), error) {
+	objOut, err := wt.ok("rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot find the worktree git dir: %v", err)
+	}
+	objects := filepath.Join(strings.TrimSpace(objOut), "objects")
+	if fi, err := os.Stat(objects); err != nil || !fi.IsDir() {
+		return "", nil, fmt.Errorf("the worktree object store %s is not a directory", verdictRepr(objects))
+	}
+	dir, err := os.MkdirTemp("", "factory-relay-")
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot create the relay push repo: %v; check free space in %s", err, os.TempDir())
+	}
+	cleanup := func() { os.RemoveAll(dir) }
+	r := relayGit{c: wt.c, opts: opts, wt: dir, env: wt.env}
+	if _, err := r.ok("init", "-q", "--bare", "--template=", "."); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("cannot create the relay push repo: %v", err)
+	}
+	info := filepath.Join(dir, "objects", "info")
+	if err := os.MkdirAll(info, 0o700); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("cannot write the relay push repo alternates: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(info, "alternates"), []byte(objects+"\n"), 0o600); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("cannot write the relay push repo alternates: %v", err)
+	}
+	if _, err := r.ok("cat-file", "-e", sha+"^{commit}"); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("commit %s is not readable from the relay push repo: %v", sha, err)
+	}
+	return dir, cleanup, nil
 }
 
 // relayNoreply is noreply_email(): config noreply_email, else user.email of the HQ checkout; it must end in the GitHub
@@ -534,7 +579,17 @@ func relayWorkflowCheck(g relayGit, mainSHA, sha string) ([]string, []string, er
 
 // ---- workflow policy: line-based YAML reading (stdlib only), the same approach as tests/test_ci_policy.py ----
 
-var wfKeyRE = regexp.MustCompile(`^(\s*)(-\s+)?["']?([A-Za-z_][\w-]*)["']?:(?:\s+(.*)|\s*)$`)
+// wfKeyRE: a block mapping key line; YAML allows spaces before the colon (`permissions : write-all`, reviewer B1).
+var wfKeyRE = regexp.MustCompile(`^(\s*)(-\s+)?["']?([A-Za-z_][\w-]*)["']?\s*:(?:\s+(.*)|\s*)$`)
+
+var (
+	// wfMapLikeRE: a line that is not a key line by wfKeyRE but still reads as a mapping to YAML (an odd key, a
+	// complex "? key", a merge key "<<:"): the line reader cannot place it, so it fails closed.
+	wfMapLikeRE = regexp.MustCompile(`^\?(\s|$)|:(\s|$)`)
+	// wfAnchorRE: a value that is (or starts with) a YAML anchor, alias or tag: an alias repeats content the line reader
+	// sees only where the anchor is, so any anchor or alias in a changed workflow is refused.
+	wfAnchorRE = regexp.MustCompile(`^[&*!][^\s,\[\]{}]+`)
+)
 
 // wfEntry is one significant line: the key path it sits under (jobs.build.runs-on), and its text.
 type wfEntry struct {
@@ -554,14 +609,14 @@ func (e wfEntry) under(key string) bool {
 }
 
 // wfEntries reads a workflow into entries. A key line is an entry under its own path (text = its value); any other
-// line (a list item, a block-scalar line) is an entry under the path of the key it belongs to.
-func wfEntries(text string) []wfEntry {
+// line (a list item, a block-scalar line) is an entry under the path of the key it belongs to. odd lists the lines
+// the reader cannot follow (wfMapLikeRE, a flow mapping value): the caller refuses any odd line the change adds.
+func wfEntries(text string) (out []wfEntry, odd []string) {
 	type frame struct {
 		indent int
 		key    string
 	}
 	var stack []frame
-	var out []wfEntry
 	scalarIndent := -1 // inside a block scalar (| or >): lines indented deeper than this are content
 	keys := func() []string {
 		p := make([]string, len(stack))
@@ -588,7 +643,11 @@ func wfEntries(text string) []wfEntry {
 		}
 		m := wfKeyRE.FindStringSubmatch(raw)
 		if m == nil {
-			out = append(out, wfEntry{keys(), strings.TrimPrefix(s, "- ")})
+			e := wfEntry{keys(), strings.TrimPrefix(s, "- ")}
+			if wfMapLikeRE.MatchString(wfCommentRE.ReplaceAllString(e.text, "")) {
+				odd = append(odd, e.String())
+			}
+			out = append(out, e)
 			continue
 		}
 		kind := ind + len(m[2]) // a "- key:" item: the key sits after the dash
@@ -598,11 +657,14 @@ func wfEntries(text string) []wfEntry {
 		stack = append(stack, frame{kind, m[3]})
 		val := strings.TrimSpace(m[4])
 		out = append(out, wfEntry{keys(), val})
+		if strings.HasPrefix(val, "{") { // a flow mapping hides keys (jobs: {x: {permissions: write-all}})
+			odd = append(odd, out[len(out)-1].String())
+		}
 		if strings.HasPrefix(val, "|") || strings.HasPrefix(val, ">") {
 			scalarIndent = kind
 		}
 	}
-	return out
+	return out, odd
 }
 
 var (
@@ -695,7 +757,8 @@ func wfRunner(e wfEntry) bool {
 
 // workflowProblems compares one workflow file before and after (either may be "" for an added or deleted file).
 func workflowProblems(oldText, newText string) []string {
-	oldE, newE := wfEntries(oldText), wfEntries(newText)
+	oldE, oldOdd := wfEntries(oldText)
+	newE, newOdd := wfEntries(newText)
 	var out []string
 	add := func(rule string, lines []string) {
 		sort.Strings(lines)
@@ -703,6 +766,9 @@ func workflowProblems(oldText, newText string) []string {
 			out = append(out, rule+": "+l)
 		}
 	}
+	// fail closed on a line the reader cannot place, and on any anchor, alias or tag
+	add("cannot read the line (odd key or flow mapping)", wfAdded(oldOdd, newOdd))
+	add("YAML anchor, alias or tag (refused)", wfSelect(newE, func(e wfEntry) bool { return wfAnchorRE.MatchString(e.text) }))
 	// fail closed on a layout the line reader cannot follow: a flow/JSON document, or no block-style top-level on:
 	if strings.TrimSpace(newText) != "" {
 		hasOn := false
