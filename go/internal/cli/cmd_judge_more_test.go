@@ -43,8 +43,8 @@ func FuzzParseJudge(f *testing.F) {
 	f.Add("--train\x00T-1")
 	f.Fuzz(func(t *testing.T, s string) {
 		if p, ok := parseJudge(strings.Split(s, "\x00")); ok {
-			if c := p.(judgeCmd); c.reject && c.task == "x" && false {
-				t.Fatal("unreachable")
+			if c := p.(judgeCmd); strings.HasPrefix(c.task, "-") && c.task != "-" {
+				t.Fatalf("a flag-looking word %q was taken as the task", c.task)
 			}
 		}
 	})

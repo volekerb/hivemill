@@ -366,7 +366,10 @@ func judgeRedState(c *ctx) func(slug string) merge.RedMain {
 	return func(slug string) merge.RedMain {
 		var v sql.NullString
 		if err := c.db.QueryRow("SELECT value FROM config WHERE key=?", "red_main:"+slug).Scan(&v); err != nil {
-			return merge.RedMain{} // an unreadable store is read as "no record" only when the row is absent
+			if errors.Is(err, sql.ErrNoRows) {
+				return merge.RedMain{}
+			}
+			return merge.ParseRedMain("not json") // an unreadable store keeps the freeze (Python raises: nothing merges)
 		}
 		return merge.ParseRedMain(v.String)
 	}
