@@ -77,8 +77,12 @@ A dead reviewer or QA used to park the PR until a human acted (the alert was the
    started (it has a `review-autospawn` event on its head; first-round, combined and re-run agents alike) and that has been live longer
    than the limit with no verdict of its role on that head (the combined agent: both verdicts) gets one stop request: a `STOP` decision
    message, `stop_requested_at`, Esc and a nudge, events `stop-requested` (agent) and `review-verdict-timeout` (task). The tick's stop
-   fallback closes the pane after `stop_timeout_s` if it does not leave by itself. Once the row has ended, rule 1 or 2 applies on the
-   next tick. Agents a lead or director spawned are never stopped by this rule. The default is 15 times the median review + QA time.
+   fallback closes the pane after `stop_timeout_s` if it does not leave by itself. Once a re-run row (`<role>-<task>-<sha8>`) has ended,
+   rule 1 or 2 applies on the next tick. A stopped first-round or combined agent is not named per head, so rules 1 and 2 do not match
+   it: the re-run pass treats its head as a head with no round and starts a fresh `<role>-<task>-<sha8>` reviewer + qa (with the usual
+   `fyi`, no `review-respawn` event), and those are then under rules 1 and 2. Agents a lead or director spawned are never stopped by
+   this rule, nor is an agent that was queued at its start (its start time is later than its `review-autospawn` event, which reads
+   like a lead's respawn of the name). The default is 15 times the median review + QA time.
 
 The merge gate is unchanged: a verdict of both roles on the merged head is still required, the replacement is a fresh, independent
 agent of the same role, and nothing is carried over or waived. Limit: while the other role's agent on the task is still queued,
