@@ -55,18 +55,22 @@ type Request struct {
 	PluginDirs                                                                       []string
 	AddHomeDir                                                                       bool // spawn()'s add_home_dir; the zero value is "false": set it true for every non-evaluator
 	Caller                                                                           string
+	CallerName                                                                       string // the acting agent's name, for the require_role text
+	CallerWorker                                                                     string // caller_is_worker(): the worker role of the caller, "" = not a worker
 	SessionID                                                                        string // the uuid4 of a fresh spawn, injected so the plan is deterministic
 }
 
 // Facts is everything Plan needs from outside, read by the caller from the DB, config and filesystem.
 type Facts struct {
-	Config      map[string]string // effective config values (the row, else the built-in default)
-	Agent       func(name string) *AgentRow
-	Task        TaskFacts // the row of Request.Task
-	GoalOrg     string    // goals.org of Request.Goal ("" none/unknown)
-	TaskOrg     string    // org of Request.Task's goal
-	CallerOrg   string    // agent_org of the acting agent
-	EnabledOrgs int
+	Config    map[string]string // effective config values (the row, else the built-in default)
+	Agent     func(name string) *AgentRow
+	Task      TaskFacts // the row of Request.Task
+	GoalOrg   string    // goals.org of Request.Goal ("" none/unknown)
+	TaskOrg   string    // org of Request.Task's goal
+	CallerOrg string    // agent_org of the acting agent
+	// WorkerStubExempt is worker_stub_exempt(): a tests/stubs pane tool AND a non-live FACTORY_HOME; it lifts refuse_worker.
+	WorkerStubExempt bool
+	EnabledOrgs      int
 	// LiveTwin returns the name of a live or starting boss/director of org ("" none).
 	LiveTwin func(role, org string) string
 
@@ -152,6 +156,10 @@ func Plan(req Request, f Facts) SpawnPlan {
 	fail := func(code int, format string, a ...any) SpawnPlan {
 		p.Refusal = refuse(code, format, a...)
 		return p
+	}
+	// refuse_worker("spawn"): cmd_spawn's first line and spawn()'s belt, so it holds for internal callers too.
+	if req.CallerWorker != "" && !f.WorkerStubExempt {
+		return fail(3, "role '%s' (%s) may not do this: workers may not run `factory spawn`; ask your lead", req.CallerWorker, req.CallerName)
 	}
 	if req.Caller != "" {
 		if r := checkCommand(&req, f, &p); r != nil {
@@ -498,6 +506,10 @@ func checkCommand(req *Request, f Facts, p *SpawnPlan) *Refusal {
 	if role == "evaluator" {
 		return refuse(3, "the evaluator is spawned only by the skilleval harness; run `factory skilleval try` instead")
 	}
+	// require_role(con, "director", "lead", "boss"): the owner or one of these; anything else is refused.
+	if caller != "owner" && caller != "director" && caller != "lead" && caller != "boss" {
+		return refuse(3, "role '%s' (%s) may not do this; allowed: director, lead, boss", caller, req.CallerName)
+	}
 	if role == "scout" && caller != "director" && caller != "owner" {
 		return refuse(3, "only the director (or the owner) spawns a scout; the tick does it on schedule")
 	}
@@ -570,6 +582,20 @@ func checkEvaluatorSpawn(role string, req Request, f Facts) *Refusal {
 	if len(req.EnvExtra) == 0 || req.AddHomeDir {
 		return refuse(3, "the evaluator is spawned only into a trial sandbox: env_extra and add_home_dir=False are required "+
 			"(use `factory skilleval try`)")
+	}
+	// Python's env_extra is a dict and cannot repeat a key; start applies the last of a repeated key while kvGet reads
+	// the first, so a repeat would let an unchecked value through: refuse it (fail closed).
+	seen := map[string]bool{}
+	var dup []string
+	for _, kv := range req.EnvExtra {
+		if seen[kv.Key] && !inList(dup, kv.Key) {
+			dup = append(dup, kv.Key)
+		}
+		seen[kv.Key] = true
+	}
+	if len(dup) > 0 {
+		sort.Strings(dup)
+		return refuse(3, "evaluator env_extra repeats a key (a dict cannot): %s; refused", strings.Join(dup, ", "))
 	}
 	var bad []string
 	for _, kv := range req.EnvExtra {
