@@ -578,6 +578,7 @@ func judgeMerge(c *ctx, j *judgeEnv, a judgeCmd, t judgeTask) error {
 		}
 	}()
 	retried := false
+	reason, reasonRead := "", false
 	var repoURL string
 	for {
 		sha := pr.HeadSHA
@@ -699,12 +700,18 @@ func judgeMerge(c *ctx, j *judgeEnv, a judgeCmd, t judgeTask) error {
 		if refused != "" {
 			return judgeRefuse(c, a.task, "judge-blocked", refused, 4, "merge refused: "+refused+"; nothing merged")
 		}
-		// the reason is read here and only here: every hand-over to Python is above, so stdin is still unread then
-		rp, err := readText(c, &a.reason, false)
-		if err != nil {
-			return err
+		// the reason is read once (Python reads it once, before its retry); stdin cannot be read twice, so a retry
+		// pass reuses the value, and a later hand-over to Python replays it on a pipe (Deps.StdinReplay)
+		if !reasonRead {
+			rp, err := readText(c, &a.reason, false)
+			if err != nil {
+				return err
+			}
+			reason, reasonRead = *rp, true
+			if a.reason == "-" {
+				c.deps.StdinReplay = []byte(reason)
+			}
 		}
-		reason := *rp
 		res, err := ghx.Run(j.ghEnv(), "", judgeMergeTimeout, "pr", "merge", t.prURL, "--squash", "--delete-branch", "--match-head-commit", sha)
 		var stderr string
 		code := res.ExitCode

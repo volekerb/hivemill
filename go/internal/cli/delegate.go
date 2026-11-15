@@ -55,6 +55,12 @@ func (d *Deps) delegate() int {
 	env = append(env, "FACTORY_CLI_IMPL=python")
 	ex := d.Exec
 	if ex == nil {
+		if len(d.StdinReplay) > 0 {
+			if err := replayStdin(d.StdinReplay); err != nil {
+				fmt.Fprintf(d.Stderr, "factory: cannot replay stdin for python: %v; rerun with --reason text\n", err)
+				return 1
+			}
+		}
 		ex = syscall.Exec
 	}
 	err = ex(py, argv, env)
@@ -67,4 +73,25 @@ func (d *Deps) delegate() int {
 	}
 	fmt.Fprintf(d.Stderr, "factory: exec python3 %s failed: %v; run it with python3 directly\n", argv[1], err)
 	return 1
+}
+
+// replayStdin makes fd 0 a pipe holding b (at most the pipe buffer), so Python reads what Go already consumed.
+func replayStdin(b []byte) error {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("pipe: %w", err)
+	}
+	if len(b) > 60000 {
+		return fmt.Errorf("reason of %d bytes is too large to replay", len(b))
+	}
+	if _, err := w.Write(b); err != nil {
+		return fmt.Errorf("write pipe: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("close pipe: %w", err)
+	}
+	if err := syscall.Dup2(int(r.Fd()), 0); err != nil {
+		return fmt.Errorf("dup2: %w", err)
+	}
+	return nil
 }

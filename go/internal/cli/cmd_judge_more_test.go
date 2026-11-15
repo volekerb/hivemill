@@ -181,6 +181,25 @@ func TestJudgeRefusals(t *testing.T) {
 	})
 }
 
+// TestJudgeMergeRetryStdinReason: "Base branch was modified" retries the merge once; the --reason - text is read once
+// (stdin cannot be read twice) and the retried merge still carries it.
+func TestJudgeMergeRetryStdinReason(t *testing.T) {
+	r := newJudgeRig(t)
+	r.both()
+	os.WriteFile(filepath.Join(r.stub, "merge_once"), []byte("GraphQL: Base branch was modified. Review and try the merge again.\n"), 0o644)
+	code, out, e, del := r.run("ship it from stdin\n", "T-0001", "--merge", "--reason", "-")
+	if del || code != 0 || e != "" {
+		t.Fatalf("delegated=%v exit %d stderr %q stdout %q", del, code, e, out)
+	}
+	r.merged(out)
+	if n := strings.Count(r.ghLog(), "pr merge"); n != 2 {
+		t.Fatalf("gh pr merge ran %d times, want 2 (one retry):\n%s", n, r.ghLog())
+	}
+	if got := r.scalar("SELECT summary FROM verdicts WHERE role='judge'"); got != "ship it from stdin" {
+		t.Fatalf("judge verdict summary = %q, want the stdin reason", got)
+	}
+}
+
 // TestJudgeReject: --reject writes the verdict, incident, status, event and the coder notice like Python.
 func TestJudgeReject(t *testing.T) {
 	r := newJudgeRig(t)

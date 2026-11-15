@@ -50,7 +50,8 @@ case "$1 $2" in
   esac ;;
 "repo view") printf '{"url":"%s"}' "$(cat "$STUB/origin")" ;;
 "api repos/o/r/commits/main") cat "$STUB/main" ;;
-"pr merge") if [ -f "$STUB/merge_fail" ]; then cat "$STUB/merge_fail" >&2; exit 1; fi; exit 0 ;;
+"pr merge") if [ -f "$STUB/merge_once" ]; then cat "$STUB/merge_once" >&2; rm "$STUB/merge_once"; exit 1; fi
+  if [ -f "$STUB/merge_fail" ]; then cat "$STUB/merge_fail" >&2; exit 1; fi; exit 0 ;;
 *) echo "stub gh: unexpected $*" >&2; exit 9 ;;
 esac
 `
