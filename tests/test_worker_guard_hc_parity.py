@@ -86,6 +86,10 @@ class WorkerGuardHcParityTests(unittest.TestCase):
                 self.assertEqual(p.returncode, 0, (cmd, p.stderr))
 
     def test_hq_matches_herdr_for_hc(self):
+        for cmd in ("hc ls",):
+            with self.subTest(cmd=cmd):
+                p = self._rc(cmd, hq=True)
+                self.assertEqual(p.returncode, 0, (cmd, p.stderr))
         for cmd in (
             "herdr server stop",
             "hc server stop",
@@ -94,7 +98,8 @@ class WorkerGuardHcParityTests(unittest.TestCase):
         ):
             with self.subTest(cmd=cmd):
                 p = self._rc(cmd, hq=True)
-                self.assertEqual(p.returncode, 0, (cmd, p.stderr))
+                self.assertEqual(p.returncode, 2, (cmd, p.stderr))
+                self.assertIn("HQ deny rule", p.stderr)
         for cmd in ("sudo hc server stop", "sudo herdr server stop"):
             with self.subTest(cmd=cmd):
                 p = self._rc(cmd, hq=True)
