@@ -69,6 +69,16 @@ def hc_print(obj):
     print(json.dumps(obj))
 
 
+# FAKE_HC_NEEDS_TARGET=1 (or state needs_target): a target-taking verb with no target, or a name that is not a
+# listed terminal, answers hc's needs_target JSON on stdout and exits nonzero (placeholder machine names only).
+if (os.environ.get("FAKE_HC_NEEDS_TARGET") or st.get("needs_target")) and argv[:1] in (["read"], ["get"], ["kill"], ["keys"], ["send"]):
+    _tgt = argv[1] if len(argv) >= 2 and not argv[1].startswith("-") else None
+    if _tgt is None or _tgt not in [a.get("name") for a in st["agents"]]:
+        print(json.dumps({"ok": False, "error": {"kind": "needs_target", "hint": "pass an address like t7 or a name",
+                                                  "message": "no such terminal; others: m2/t1, m2/t2"}}))
+        sys.exit(1)
+
+
 # herdr-core native verbs (factory translates TUI calls when terminal_backend=hc)
 if argv[:1] == ["ls"]:
     hc_print(hc_ls_envelope())
@@ -89,6 +99,9 @@ if argv[:1] == ["run"] and "--bg" in argv:
         json.dump(st, f)
     sys.exit(0)
 if argv[:1] == ["send"] and len(argv) >= 3:
+    if st.get("send_fail"):  # the text was pasted, but the send itself reports failure (e.g. it never saw quiet)
+        print("hc: send failed", file=sys.stderr)
+        sys.exit(1)
     out({})
     with open(STATE, "w") as f:
         json.dump(st, f)
@@ -103,6 +116,15 @@ if argv[:1] == ["read"] and len(argv) >= 2:
         json.dump(st, f)
     sys.exit(0)
 if argv[:1] == ["keys"] and len(argv) >= 2:
+    # keys_start_turn=N: the Nth `keys <t> enter` starts that terminal's turn (its status becomes working)
+    if st.get("keys_start_turn") and "enter" in argv[2:]:
+        seen = st.setdefault("enter_count", {})
+        seen[argv[1]] = seen.get(argv[1], 0) + 1
+        if seen[argv[1]] >= int(st["keys_start_turn"]):
+            for a in st["agents"]:
+                if a.get("name") == argv[1]:
+                    a.pop("osc_status", None)
+                    a["agent_status"] = "working"
     out({})
     with open(STATE, "w") as f:
         json.dump(st, f)

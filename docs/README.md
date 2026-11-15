@@ -11,9 +11,14 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [examples/02-handling-a-rejection.md](examples/02-handling-a-rejection.md): what happens when review fails and the judge rejects.
 - [examples/03-digest-and-scorecard.md](examples/03-digest-and-scorecard.md): the morning digest and the per-team scorecard.
 - [web-ui.md](web-ui.md): the dashboard started by `factory serve` and what each panel shows.
+- [herdr-app-dashboard.md](herdr-app-dashboard.md): the Hivemill status bar and dashboard tab for the Herdr app; install, settings, Claude/Cursor choice.
 - [releases/v0.4.0-announcement.md](releases/v0.4.0-announcement.md): what's new in v0.4.0, in plain English, with two screenshots.
+- [releases/v0.5.0-announcement.md](releases/v0.5.0-announcement.md): what's new in v0.5.0, in plain English.
+- [releases/v0.5.0-linkedin.md](releases/v0.5.0-linkedin.md): draft LinkedIn post for v0.5.0, to publish after the release exists.
 - [images/README.md](images/README.md): light and dark screenshots of the dashboard, built from fictional data.
 - [demo-data.md](demo-data.md): how the fictional demo home used for screenshots and examples is generated.
+- [film/README.md](film/README.md): storyboard for the customer film, with each claim, its source line and a re-check command.
+- [film/herdr/CAPTURE.md](film/herdr/CAPTURE.md): provenance of the Herdr app panel stills used in film scene 7.
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
@@ -24,6 +29,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [design/g-023/readme-option-a.md](design/g-023/readme-option-a.md): README draft A, showcase.
 - [design/g-023/readme-option-b.md](design/g-023/readme-option-b.md): README draft B, docs-first.
 - [design/g-023/readme-option-c.md](design/g-023/readme-option-c.md): README draft C, the loop.
+- [design/macos-linux-deps.md](design/macos-linux-deps.md): Linux-only dependency inventory for the macOS port.
 
 ## Operate it
 
@@ -46,6 +52,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [clean-remote-branch.md](clean-remote-branch.md): deleting stale `factory/*` branches on origin safely.
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
 - [refresh-lane.md](refresh-lane.md): `refresh_lane` flag, only the merge-queue head is refreshed.
+- [lanes.md](lanes.md): `lane-check`, whether two branches or the open PR heads really conflict (git merge-tree), with exit codes.
 - [retro.md](retro.md): how the daily retro loop runs and how to turn it off.
 - [red-pr-owner-alert.md](red-pr-owner-alert.md): `red_pr_owner_alert` flag, the tick mails the lead once per red or conflicted head with no coder.
 - [gh-quota.md](gh-quota.md): `pr_view_ttl_s` and `gh_quota_min`, the tick's PR probe cache and low GraphQL quota guard.
@@ -98,10 +105,13 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
 - [worker-guard-go.md](worker-guard-go.md): the Go port of the worker-guard hook (opt-in through `guard_impl`, Python stays the default; section status, golden data, lookaround map).
 - [cli-go.md](cli-go.md): the Go CLI behind `bin/factory` (opt-in through `cli_impl`, Python stays the default; fast path, shadow mode, build and dependency fetch).
+- [schedule.md](schedule.md): owner-defined recurring jobs (`factory schedule`), Go-only dispatch, per-run token caps and overlap with digest, retro and scout.
 - [profiling.md](profiling.md): the baseline script for per-call cost measurements.
 - [adr/README.md](adr/README.md): index of architecture decision records.
 - [adr/0001-language-policy.md](adr/0001-language-policy.md): the language policy (Go, Rust exceptions, Python).
 - [adr/0002-sandbox-runtime-v3.md](adr/0002-sandbox-runtime-v3.md): sandbox runtime v3 (hardened nsbox testbox, no microVMs for tests).
+- [adr/0003-macos-support.md](adr/0003-macos-support.md): macOS support (sandbox mechanism and port plan).
+- [adr/0004-node-esm-hivemill-ios-release.md](adr/0004-node-esm-hivemill-ios-release.md): Node ESM for the hivemill ios-release script.
 
 ## Internals
 

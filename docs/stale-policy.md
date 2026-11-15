@@ -69,6 +69,6 @@ STALE-LOOP risk: `bin/factory_cli.py` is edited by most PRs. A refresh triggers 
 ## Merged Go proof (`merged_go_proof`, default `1`)
 
 When `stale_policy=behind_ok` would merge a PR whose diff since the merge-base touches `go/`, the judge and mechanical
-merger run `go vet` then `go test -count=1` on the `git merge-tree` result (materialised with `git archive`, no checkout
-or worktree). A failure refuses with prefix `MERGED-TREE` and does **not** refresh and does **not** merge. PRs that do
+merger run `go vet` then `go test -count=1` on the `git merge-tree` result (the whole merge tree is materialised with `git archive`, no checkout
+or worktree, so Go tests may read repo files outside `go/` via `../` paths). A failure refuses with prefix `MERGED-TREE` and does **not** refresh and does **not** merge. PRs that do
 not touch `go/`, and non-go stale merges, are unchanged. Rollback: `factory config merged_go_proof 0`.

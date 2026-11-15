@@ -352,7 +352,7 @@ class HcConfigHerdrRowTests(FactoryTestCase):
             (json.dumps({"host_backend": "herdr"}), session, name),
         )
 
-    def test_spawn_omitted_host_backend_no_spawn_args_key(self):
+    def test_spawn_omitted_host_backend_records_effective_backend(self):
         self.ok("config", "max_live_agents", "99", agent="owner")
         self.env.seed_task("T-omit", goal="G-001", team="g-001-a", role="coder", status="todo", pr_url=None)
         self.env.set_herdr(
@@ -378,7 +378,7 @@ class HcConfigHerdrRowTests(FactoryTestCase):
         )
         self.assertIn("SPAWNED", p.stdout)
         sa = json.loads(self.env.sql("SELECT spawn_args FROM agents WHERE name=?", (name,))[0][0])
-        self.assertNotIn("host_backend", sa)
+        self.assertEqual(sa.get("host_backend"), "hc")  # T-1447: the backend actually used (this class's config is hc)
 
     def test_tick_reaps_done_herdr_row_on_hc_config(self):
         self._herdr_row(self.TUI, "p-pilot", status="done")
@@ -555,6 +555,112 @@ class HcConfigHerdrRowTests(FactoryTestCase):
         self.ok("tick", agent="owner", extra_env={**self.hc_extra, "FACTORY_NOW": "2026-06-01T12:00:00+00:00"})
         queued = self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action='recycle-queued'", (lead,))
         self.assertEqual(len(queued), 1)
+
+
+class HcCursorSubmitTests(FactoryTestCase):
+    """T-1554: a Cursor kickoff on hc gets `hc keys <name> enter` after the send, then a turn check (hc ls status)."""
+    CUR = "cursor-pm-g-002-a"
+    CLA = "pm-g-001-a"
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        self.ok("config", "terminal_backend", "herdr", agent="owner")
+        e.seed_goal("G-001")
+        e.seed_goal("G-002")
+        e.sql("UPDATE goals SET org='cursor' WHERE id='G-002'")
+        e.seed_team("g-002-a", goal="G-002", lead="cursor-lead-g-002-a")
+        e.seed_agent("director", "director")
+        fake = e.stub_bin / "agent"
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
+        self.hc_state = e.home / "hc.json"
+        self.hc_state.write_text("{}")
+        self.hc_extra = {"FAKE_HC_STATE": str(self.hc_state), "FACTORY_HC_CURSOR_TURN_WAIT_S": "0"}
+
+    def spawn(self, name, goal, *extra, team=None):
+        args = ["spawn", "pm", "--goal", goal, "--name", name, *(["--team", team] if team else []), *extra]
+        return self.ok(*args, agent="director", extra_env=self.hc_extra)
+
+    def spawn_cursor_hc(self):
+        return self.spawn(self.CUR, "G-002", "--host-backend", "hc", team="g-002-a")
+
+    def hc_sends(self, name):
+        return [c["argv"] for c in self.env.calls("hc") if c["argv"][:1] in (["send"], ["keys"]) and c["argv"][1] == name]
+
+    def alerts(self, name):
+        return self.env.sql("SELECT recipient FROM messages WHERE recipient LIKE '%director' AND kind='alert' "
+                            "AND subject LIKE ?", (name + ":%",))
+
+    def events(self, name, action):
+        return self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action=?", (name, action))
+
+    def test_cursor_hc_spawn_sends_prompt_then_enter(self):
+        self.hc_state.write_text(json.dumps({"keys_start_turn": 1}))
+        self.spawn_cursor_hc()
+        sends = self.hc_sends(self.CUR)
+        self.assertEqual([a[0] for a in sends], ["send", "keys"], sends)
+        self.assertEqual(sends[1], ["keys", self.CUR, "enter"])
+
+    def test_cursor_hc_failed_send_still_presses_enter(self):
+        self.hc_state.write_text(json.dumps({"keys_start_turn": 1, "send_fail": True}))
+        self.spawn_cursor_hc()
+        self.assertEqual(self.hc_sends(self.CUR), [["send", self.CUR, mock.ANY], ["keys", self.CUR, "enter"]])
+        self.assertEqual(self.alerts(self.CUR), [])
+
+    def test_cursor_hc_no_turn_one_retry_then_one_alert(self):
+        self.spawn_cursor_hc()  # stub status stays idle: the turn never starts
+        sends = self.hc_sends(self.CUR)
+        self.assertEqual([a[0] for a in sends], ["send", "keys", "keys"], sends)
+        self.assertEqual(sends[1:], [["keys", self.CUR, "enter"]] * 2)
+        self.assertEqual(len(self.events(self.CUR, "cursor-submit-unconfirmed")), 1)
+        self.assertEqual(len(self.alerts(self.CUR)), 1)
+
+    def test_cursor_hc_turn_started_no_retry(self):
+        self.hc_state.write_text(json.dumps({"keys_start_turn": 1}))
+        self.spawn_cursor_hc()
+        keys = [a for a in self.hc_sends(self.CUR) if a[0] == "keys"]
+        self.assertEqual(keys, [["keys", self.CUR, "enter"]])
+        self.assertEqual(self.events(self.CUR, "cursor-submit-unconfirmed"), [])
+        self.assertEqual(self.alerts(self.CUR), [])
+
+    def test_cursor_hc_turn_on_retry_no_alert(self):
+        self.hc_state.write_text(json.dumps({"keys_start_turn": 2}))
+        self.spawn_cursor_hc()
+        keys = [a for a in self.hc_sends(self.CUR) if a[0] == "keys"]
+        self.assertEqual(len(keys), 2)
+        self.assertEqual(self.alerts(self.CUR), [])
+        self.assertEqual(len(self.events(self.CUR, "cursor-submit-retried")), 1)
+
+    def test_claude_hc_spawn_has_no_keys(self):
+        self.spawn(self.CLA, "G-001", "--host-backend", "hc")
+        sends = self.hc_sends(self.CLA)
+        self.assertEqual([a[0] for a in sends], ["send"], sends)
+        self.assertEqual(self.alerts(self.CLA), [])
+
+    def test_cursor_herdr_spawn_unchanged(self):
+        self.spawn(self.CUR, "G-002", team="g-002-a")
+        self.assertEqual(self.env.calls("hc"), [])
+        tui = [c["argv"] for c in self.env.calls("herdr") if c["argv"][:2] in (["agent", "prompt"], ["agent", "send-keys"])]
+        self.assertEqual([a[:2] for a in tui], [["agent", "prompt"], ["agent", "send-keys"]])
+        self.assertEqual(tui[1], ["agent", "send-keys", self.CUR, "Enter"])
+        self.assertEqual(self.alerts(self.CUR), [])
+
+    def test_cursor_hc_relaunch_fresh_submits_and_verifies(self):
+        self.hc_state.write_text(json.dumps({"keys_start_turn": 1}))
+        self.spawn_cursor_hc()
+        self.env.sql("UPDATE agents SET session_id='sess-cur' WHERE name=?", (self.CUR,))
+        self.env.calls_file.write_text("")
+        st = json.loads(self.hc_state.read_text())
+        st["enter_count"], st["keys_start_turn"] = {}, 99  # the relaunched kickoff never starts: retry + alert
+        for a in st["agents"]:
+            a["agent_status"] = "idle"
+        self.hc_state.write_text(json.dumps(st))
+        self.ok("relaunch", self.CUR, "--fresh", agent="owner", extra_env=self.hc_extra)
+        sends = self.hc_sends(self.CUR)
+        self.assertEqual([a[0] for a in sends], ["send", "keys", "keys"], sends)
+        self.assertEqual(len(self.events(self.CUR, "cursor-submit-unconfirmed")), 1)
+        self.assertEqual(len(self.alerts(self.CUR)), 1)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,56 @@
+#!/bin/sh
+# Verifier shim for the Hivemill installer. It downloads the hivemill-install release build for this plugin
+# version, checks its sha256 against the value pinned below, then runs it with all arguments. Any mismatch, a
+# missing tool or an unknown platform stops it with a non-zero exit before anything is executed.
+# The pinned values are written by the release process (docs/RELEASING.md); 64 zeros means "not pinned yet".
+set -eu
+
+VERSION="0.4.0"
+SHA_LINUX_AMD64="3bbb50fe0263a2b533d74241de5ca08de92ea43460a7a485c8aa91493431f0d4"
+SHA_LINUX_ARM64="4c7e088116b10d10c5c21d8c54dc5e70f098aea9ce55b2b7c5e5d755ca55f168"
+SHA_DARWIN_ARM64="7ccffb122692f2f56843bc824e9635158e180bba628526fd3f7014444cf98b19"
+
+die() { echo "install: $*" >&2; exit 1; }
+
+case "$(uname -s)-$(uname -m)" in
+  Linux-x86_64 | Linux-amd64) plat=linux-amd64; want=$SHA_LINUX_AMD64 ;;
+  Linux-aarch64 | Linux-arm64) plat=linux-arm64; want=$SHA_LINUX_ARM64 ;;
+  Darwin-arm64) plat=darwin-arm64; want=$SHA_DARWIN_ARM64 ;;
+  *) die "no hivemill-install build for $(uname -s) $(uname -m)" ;;
+esac
+
+if command -v sha256sum >/dev/null 2>&1; then hasher="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then hasher="shasum -a 256"
+else die "need sha256sum or shasum to verify the download"; fi
+command -v curl >/dev/null 2>&1 || die "need curl to download hivemill-install"
+
+# HIVEMILL_INSTALL_BASE_URL only moves the download (tests, mirrors); the pinned sha256 still decides.
+base=${HIVEMILL_INSTALL_BASE_URL:-https://github.com/volekerb/hivemill/releases/download/v$VERSION}
+case "$base" in
+  https://* | file://*) ;;
+  *) die "refusing a download base that is not https:// or file://" ;;
+esac
+asset="hivemill-install-$plat"
+
+umask 077
+dir=${XDG_CACHE_HOME:-${HOME:?HOME is not set}/.cache}/hivemill-install/$VERSION
+mkdir -p "$dir"
+bin="$dir/$asset"
+part="$bin.part.$$"
+trap 'rm -f "$part"' EXIT
+
+sum_of() { $hasher "$1" | cut -d' ' -f1; }
+if [ ! -f "$bin" ] || [ "$(sum_of "$bin")" != "$want" ]; then
+  curl -fsSL --proto '=https,file' --proto-redir '=https' --max-time 300 -o "$part" "$base/$asset" ||
+    die "cannot download $base/$asset"
+  got=$(sum_of "$part")
+  [ "$got" = "$want" ] || die "sha256 mismatch for $asset: got $got, pinned $want; nothing was run"
+  chmod 700 "$part"
+  mv -f "$part" "$bin"
+fi
+[ "$(sum_of "$bin")" = "$want" ] || die "sha256 mismatch for the cached $asset; nothing was run"
+
+HIVEMILL_PLUGIN_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+export HIVEMILL_PLUGIN_ROOT
+trap - EXIT
+exec "$bin" "$@"

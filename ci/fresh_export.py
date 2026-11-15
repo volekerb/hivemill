@@ -132,6 +132,8 @@ def extract(repo, ref, target):
                 kind = "symlink" if m.issym() else "hardlink" if m.islnk() else "directory" if m.isdir() else "file"
                 raise RuntimeError(f"archive {kind} member refused by the tar safety filter (link target, path or mode not allowed): "
                                    f"remove or fix that entry in {ref} and rerun. Find it with: git ls-tree -r {ref}") from None
+    while proc.stdout.read(65536):  # drain the tar padding so git is not killed by SIGPIPE (rc -13, empty stderr)
+        pass
     proc.stdout.close()
     err = proc.stderr.read().decode("utf-8", "replace").strip()
     proc.stderr.close()
