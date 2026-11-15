@@ -284,13 +284,19 @@ func (h *OSHost) Mkdtemp() (string, error) { return os.MkdirTemp("", "hivemill-i
 // idleReader cancels the request when no byte arrives for the idle limit, which is what a per-operation socket
 // timeout does in Python's urlopen(timeout=60). A slow but steady download is never cut off.
 type idleReader struct {
-	r io.Reader
-	t *time.Timer
-	d time.Duration
+	r   io.Reader
+	t   *time.Timer
+	d   time.Duration
+	ctx context.Context
 }
 
 func (i *idleReader) Read(p []byte) (int, error) {
 	n, err := i.r.Read(p)
+	// The idle timer cancels ctx. A cancelled connection can surface as a clean EOF, so a read that ends while ctx is
+	// cancelled is reported as the timeout it was, never as a complete body.
+	if cerr := i.ctx.Err(); cerr != nil && (err == nil || err == io.EOF) {
+		return n, cerr
+	}
 	i.t.Reset(i.d)
 	return n, err
 }
@@ -349,7 +355,7 @@ func (h *OSHost) Download(url, dest string) error {
 	if err != nil {
 		return stepWrap(err, "cannot fetch "+url)
 	}
-	if _, err := io.Copy(f, &idleReader{r: resp.Body, t: timer, d: idle}); err != nil {
+	if _, err := io.Copy(f, &idleReader{r: resp.Body, t: timer, d: idle, ctx: ctx}); err != nil {
 		_ = f.Close() // the copy error is the one reported
 		return fail(err)
 	}
