@@ -44,7 +44,7 @@
 #   unittest test-count   the runner does it: gate_count_cmd (--count) on head and on main, tests-removed: bypass.
 #   upload/download-artifact, GITHUB_STEP_SUMMARY: GitHub plumbing, no test.
 #
-# Env: GATE_REMOTE_HOST (ssh host, required), GATE_SHARDS (runner; capped at 8), GATE_BASE (base rev; default the
+# Env: GATE_REMOTE_HOST (ssh host, or `local` to run here without ssh; required), GATE_SHARDS (runner; capped at 8), GATE_BASE (base rev; default the
 # merge base of HEAD with refs/factory-judge/main, else origin/main; HEAD^ when that is HEAD; none: refused).
 set -euo pipefail
 
@@ -111,7 +111,13 @@ case "$host" in ''|-*|*[!A-Za-z0-9._@-]*) echo "remote-gate: GATE_REMOTE_HOST='$
 
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=4
           -o ForwardAgent=no -o ForwardX11=no -o ClearAllForwardings=yes -o SendEnv=-* -o RequestTTY=no)
-rssh() { ssh "${ssh_opts[@]}" "$host" "$@"; }
+# GATE_REMOTE_HOST=local: the runner already is on the test host; the same steps run here without ssh (same shipping
+# into ~/factory-gate/<run>, same env -i, lock, CPU cap and cleanup).
+if [ "$host" = local ]; then
+  rssh() { bash -c "$*"; }
+else
+  rssh() { ssh "${ssh_opts[@]}" "$host" "$@"; }
+fi
 
 ts=$(date -u +%Y%m%dT%H%M%SZ)
 rdir="factory-gate/${head:0:12}-$ts-$$"   # relative to the remote home

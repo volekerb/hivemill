@@ -147,6 +147,9 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   remote driver on exit (it kills its own process group first; a lost ssh connection ends it within 5 s), and again
   by the local script's EXIT trap (also on SIGTERM from the runner). Dirs older than 12 h are swept under the lock.
   Only the Go module and build caches (`~/go/pkg/mod`, `~/.cache/factory-gate/go-build`) persist between runs.
+- **Local mode**: `GATE_REMOTE_HOST=local` runs the same driver on the box that runs `factory gate run`, with no ssh.
+  Use it when the runner already is on the test host. Shipping, `env -i`, the CPU cap, the lock and cleanup are the
+  same, and the run dirs live under the caller's `~/factory-gate`.
 - **Count**: `--count` prints `ci/test_count_gate.py count .` of the gate tree as its last line, locally (no ssh).
 - **Sandbox**: the remote gate needs the network, so it needs `gate_sandbox 0` (the box has no network). The runner
   already passes what ssh needs: it strips `SSH_AUTH_SOCK` but keeps `HOME`, so ssh reads `~/.ssh/config` and the key

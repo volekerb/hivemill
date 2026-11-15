@@ -227,6 +227,18 @@ class RemoteGate(unittest.TestCase):
         # the head tree is the archive (plus the rebuilt history): no .ssh, .claude, db
         self.assertEqual(sorted(set(seen["files"]) - {".git"}), ["bin", "tests"])
 
+    def test_local_host_runs_the_driver_without_ssh(self):
+        self.env["GATE_REMOTE_HOST"] = "local"
+        self.env["HOME"] = str(self.remote)  # local mode uses the caller's HOME as the run root
+        p = self.gate()
+        self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("remote-gate-driver: FAIL", p.stdout)
+        self.assertEqual(self.ssh_calls(), [])
+        seen = json.loads(self.mark.read_text())
+        self.assertNotIn("GH_TOKEN", seen["env"])
+        self.assertTrue(seen["env"]["HOME"].startswith(str(self.remote / "factory-gate")), seen["env"]["HOME"])
+        self.assertEqual(self.run_dirs(), [])
+
     def test_sigterm_to_the_process_group_removes_the_remote_dir(self):
         self.commit_head(sleep=120)
         p = subprocess.Popen(["bash", str(GATE_SH)], cwd=self.tree, env=self.env, stdout=subprocess.PIPE,
