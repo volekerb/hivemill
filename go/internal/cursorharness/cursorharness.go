@@ -13,6 +13,7 @@ import (
 	"strings"
 	"unicode"
 
+	"factory/go/internal/sandbox"
 	"factory/go/internal/scout"
 	"factory/go/internal/shlex"
 )
@@ -144,15 +145,8 @@ func (p Perms) OMap() scout.OMap {
 // HooksDirForRepo is <repo>/roles/hooks.
 func HooksDirForRepo(repoRoot string) string { return filepath.Join(repoRoot, "roles", "hooks") }
 
-func resolve(p string) string {
-	if a, err := filepath.Abs(p); err == nil {
-		p = a
-	}
-	if r, err := filepath.EvalSymlinks(p); err == nil {
-		return r
-	}
-	return filepath.Clean(p)
-}
+// resolve is Python's os.path.realpath (non-strict): a symlinked parent of a missing path is followed.
+func resolve(p string) string { return sandbox.Realpath(p) }
 
 // AdapterCommand is the shell-quoted adapter command line of one hook event.
 func AdapterCommand(hooksDir, role, event string, hq bool) string {

@@ -13,8 +13,8 @@ import (
 	"strings"
 )
 
-// Realpath is Python's os.path.realpath: symlinks are resolved as far as the path exists, the rest is appended
-// unchanged (EvalSymlinks alone fails on a missing leaf).
+// Realpath is Python's os.path.realpath (non-strict): every symlink on the path is followed, including a dangling
+// one (its target is appended) and a symlinked parent of a missing path; a symlink loop is left as is.
 func Realpath(p string) string {
 	p = filepath.Clean(p)
 	if !filepath.IsAbs(p) {
@@ -22,15 +22,40 @@ func Realpath(p string) string {
 			p = filepath.Join(wd, p)
 		}
 	}
-	if r, err := filepath.EvalSymlinks(p); err == nil {
-		return r
+	seen := map[string]bool{}
+	return realpathWalk("/", splitPath(p), seen)
+}
+
+func realpathWalk(path string, rest []string, seen map[string]bool) string {
+	for len(rest) > 0 {
+		name := rest[0]
+		rest = rest[1:]
+		switch name {
+		case ".":
+			continue
+		case "..":
+			path = filepath.Dir(path)
+			continue
+		}
+		newPath := filepath.Join(path, name)
+		target, err := os.Readlink(newPath)
+		if err != nil {
+			path = newPath
+			continue
+		}
+		if seen[newPath] { // loop: Python keeps the path unresolved
+			path = newPath
+			continue
+		}
+		seen[newPath] = true
+		base := path
+		if filepath.IsAbs(target) {
+			base = "/"
+		}
+		path = realpathWalk(base, splitPath(target), seen)
+		delete(seen, newPath)
 	}
-	dir, base := filepath.Split(p)
-	dir = filepath.Clean(dir)
-	if dir == p {
-		return p
-	}
-	return filepath.Join(Realpath(dir), base)
+	return path
 }
 
 // Abs is os.path.abspath.

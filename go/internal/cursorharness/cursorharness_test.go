@@ -163,3 +163,52 @@ func FuzzParsePilotRoles(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, s string) { ParsePilotRoles(s) })
 }
+
+// TestResolveRealpathParity pins resolve to Python's os.path.realpath (non-strict) on a symlinked parent of a
+// missing path, a dangling symlink and a loop. Expected values are the Python 3.13 output (D = temp dir).
+func TestResolveRealpathParity(t *testing.T) {
+	d, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.Mkdir(filepath.Join(d, "real"), 0o755))
+	must(os.Symlink(filepath.Join(d, "real"), filepath.Join(d, "lnk")))
+	must(os.Symlink(filepath.Join(d, "missing"), filepath.Join(d, "dang")))
+	must(os.Symlink("l", filepath.Join(d, "l")))
+	cases := map[string]string{
+		"lnk/missing/x": "real/missing/x", // python: D/real/missing/x
+		"dang":          "missing",        // python: D/missing
+		"dang/x":        "missing/x",      // python: D/missing/x
+		"l":             "l",              // python: D/l
+		"l/x":           "l/x",            // python: D/l/x
+	}
+	for in, want := range cases {
+		if got := resolve(filepath.Join(d, in)); got != filepath.Join(d, want) {
+			t.Errorf("resolve(%s)=%s want %s", in, got, filepath.Join(d, want))
+		}
+	}
+	// The three policy guards see through a symlinked parent of a missing path.
+	home := filepath.Join(d, "home")
+	must(os.MkdirAll(filepath.Join(home, "worktrees"), 0o755))
+	must(os.Symlink(filepath.Join(home, "worktrees"), filepath.Join(d, "wt")))
+	if !IsFactoryWorktreePath(home, filepath.Join(d, "wt", "missing", "x")) {
+		t.Error("IsFactoryWorktreePath missed a symlinked parent of a missing path")
+	}
+	if err := AssertPolicyTargetAllowed(home, filepath.Join(d, "wt", "missing")); err == nil {
+		t.Error("AssertPolicyTargetAllowed accepted a symlinked parent into worktrees")
+	}
+	must(os.Symlink(home, filepath.Join(d, "hl")))
+	if _, err := IsolatedPolicyDir(home, "a", filepath.Join(d, "hl", "state")); err == nil {
+		t.Error("IsolatedPolicyDir accepted a state root under FACTORY_HOME through a symlink")
+	}
+	if ws, err := PolicyWorkspace(home, "a", filepath.Join(d, "wt", "missing"), filepath.Join(d, "st")); err != nil ||
+		ws != filepath.Join(d, "st", "factory", "cursor", "a") {
+		t.Errorf("PolicyWorkspace=%q,%v want isolated dir", ws, err)
+	}
+}
