@@ -7820,7 +7820,7 @@ def _sweep_candidates(con, t):
     root = root.resolve()
     found = []
     base = root / f"claude-{os.getuid()}"
-    slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"G-\d+-(T-\d+)$")
+    slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"G-\d+-(T-\d+)(?:-qa)?$")
     if base.is_dir() and not base.is_symlink():
         for d in sorted(base.iterdir()):
             m = slug.match(d.name)
@@ -8215,7 +8215,7 @@ def _serve_pad(path):
     if not parts:
         return None
     if parts[0] == f"claude-{os.getuid()}":
-        slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"(G-\d+)-(T-\d+)$")
+        slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"(G-\d+)-(T-\d+)(?:-qa)?$")
         m = slug.match(parts[1]) if len(parts) > 1 else None
         return (tmp / parts[0] / parts[1], m.group(2)) if m else None
     m = re.search(r"(?<![A-Za-z0-9])[Tt]-(\d+)(?![0-9])", parts[0])
@@ -9707,6 +9707,8 @@ def git_hooks_refusal(clone):
     """Names in <clone>/.git/hooks that a coder spawn must not run under: anything but *.sample files and a regular
     pre-push whose text is the one install_pre_push_hook writes. A symlink or a directory counts. [] = clean."""
     hooks = Path(clone) / ".git" / "hooks"
+    if os.path.lexists(Path(clone) / ".git" / "commondir"):  # git would take hooks/ from another directory
+        return ["commondir"]
     if hooks.is_symlink():
         return ["hooks (symlink)"]
     if not hooks.exists():
@@ -9736,6 +9738,8 @@ def git_hooks_guard(con, clone):
     names = git_hooks_refusal(clone)
     if not names:
         return True
+    # worker-chosen file names reach the director's inbox: printable characters only, capped
+    names = ["".join(c if c.isprintable() else "?" for c in n)[:60] for n in names[:10]]
     try:
         event(con, "export", "-", "git-hooks-refused", json.dumps({"clone": str(clone), "files": names}))
         last = con.execute("SELECT value FROM config WHERE key='last_git_hooks_refused_ts'").fetchone()
@@ -9788,16 +9792,18 @@ def prepare_worktree(con, task, role):
         return None
     if t["worktree"] and Path(t["worktree"]).exists():
         coder_git = Path(t["worktree"]) / ".git"
-        if role == "qa" and coder_git.is_dir() and not coder_git.is_symlink():
+        if coder_git.is_symlink() and role in ("coder", "qa"):  # git would read config and hooks from wherever it points
+            die(f"spawn refused: {coder_git} is a symlink; inspect it, remove it, then spawn again", 4)
+        if role == "qa" and coder_git.is_dir():
             return prepare_qa_clone(con, t, task)  # a legacy worktree (.git is a file) keeps today's reuse
+        if role == "coder" and coder_git.is_dir() and not git_hooks_guard(con, t["worktree"]):
+            con.commit()
+            die(f"spawn refused: {t['worktree']}/.git holds {', '.join(git_hooks_refusal(t['worktree']))} "
+                "(only *.sample and the factory pre-push are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
         if role == "coder" and t["branch"]:
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
-            if coder_git.is_dir() and not coder_git.is_symlink() and not git_hooks_guard(con, t["worktree"]):
-                con.commit()
-                die(f"spawn refused: {t['worktree']}/.git/hooks holds {', '.join(git_hooks_refusal(t['worktree']))} "
-                    "(only *.sample and the factory pre-push are allowed). Inspect and remove them, then spawn again.", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
         install_pre_push_hook(t["worktree"])
         return t["worktree"]
@@ -13140,6 +13146,24 @@ def cmd_clean(a):
             row["reason"] += "; " + qa_note
         event(con, "task", t["id"], "cleaned", {"worktree": str(wt) if ("worktree" in gone or "clone" in gone) else None,
                                                 "branch": t["branch"] if "branch" in gone else None})
+    # a qa clone left behind by an earlier pass (kept while a pane sat in it) or whose coder clone is already gone
+    for t in con.execute("SELECT * FROM tasks WHERE status IN ('done','cancelled') ORDER BY id").fetchall():
+        qa = qa_clone_path(t["goal_id"], t["id"])
+        if not (qa.exists() or qa.is_symlink()) or (t["worktree"] and Path(t["worktree"]).exists()):
+            continue  # nothing there, or the coder clone is still there (its own row above decides)
+        row = {"task": t["id"], "worktree": str(qa), "branch": "", "action": "skip", "reason": ""}
+        rows.append(row)
+        if task_agent_live(con, t["id"], listed, panes):
+            row["reason"] = "agent live"
+        elif a.dry_run:
+            row["action"], row["reason"] = "would remove", "qa clone of a finished task"
+        else:
+            note = clean_qa_clone(con, t, panes, listed)
+            if note == "removed":
+                row["action"], row["reason"] = "removed", "qa clone of a finished task"
+                event(con, "task", t["id"], "cleaned", {"worktree": str(qa), "branch": None})
+            else:
+                row["reason"] = note
     if not a.dry_run:
         for repo in repos:
             _git(repo, "worktree", "prune")

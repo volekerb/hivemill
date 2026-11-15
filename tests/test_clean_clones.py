@@ -116,6 +116,20 @@ class QaCloneCleanTests(CloneCleanBase):
         self.assertTrue(qa.exists())
         self.assertIn("qa kept: cwd of a live pane", p.stdout)
 
+    def test_kept_qa_clone_is_removed_by_a_later_pass(self):
+        wt, _ = self.clone_task()
+        qa = self.qa_clone()
+        pane = {"pane_id": "p9", "tab_id": "t9", "workspace_id": "w9"}
+        self.env.set_herdr(panes=[{**pane, "cwd": "/", "foreground_cwd": str(qa)}])
+        self.clean()
+        self.assertFalse(wt.exists())
+        self.assertTrue(qa.exists())
+        self.assertIn("qa kept: cwd of a live pane", self.clean().stdout)  # still in use: kept again
+        self.env.set_herdr(panes=[])
+        p = self.clean()
+        self.assertFalse(qa.exists())
+        self.assertIn("qa clone of a finished task", p.stdout)
+
     def test_qa_clone_symlink_is_never_followed(self):
         wt, _ = self.clone_task()
         target = self.env.home / "precious"
