@@ -22,6 +22,8 @@ type fakeHost struct {
 	mu      sync.Mutex
 	euid    int
 	machine string
+	goos    string // "" means linux
+	memsize string // darwin: the `sysctl -n hw.memsize` output; "fail" makes it exit 1
 	mem     float64
 	cpus    int
 	tools   map[string]bool
@@ -65,6 +67,12 @@ func (f *fakeHost) login(t *testing.T) {
 
 func (f *fakeHost) Euid() int       { return f.euid }
 func (f *fakeHost) Machine() string { return f.machine }
+func (f *fakeHost) GOOS() string {
+	if f.goos == "" {
+		return "linux"
+	}
+	return f.goos
+}
 func (f *fakeHost) MemGiB() (float64, error) {
 	return f.mem, nil
 }
@@ -108,6 +116,11 @@ func (f *fakeHost) Run(argv []string, cwd string, timeout time.Duration, mutate 
 	joined := strings.Join(argv, " ")
 	name := filepath.Base(argv[0])
 	switch {
+	case joined == "sysctl -n hw.memsize":
+		if f.memsize == "fail" {
+			return 1, "sysctl: unknown oid"
+		}
+		return 0, f.memsize + "\n"
 	case len(argv) == 2 && argv[1] == "--version" && name == "python3":
 		return 0, "Python 3.13.5\n"
 	case len(argv) == 2 && argv[1] == "--version" && f.tools[name]:
