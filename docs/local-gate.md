@@ -114,3 +114,44 @@ The flip is proven end to end by `tests/test_gate_sandbox.py` `FlagRollback.test
 `FACTORY_HOME` it runs a real unittest module (`test_nsbox_allow.GoldenDefaultsTests`) through `factory gate run` with
 `gate_sandbox 1` (pass, note says `sandboxed`), then after `factory config gate_sandbox 0` (pass, no `sandboxed`), then with
 `1` again (pass, `sandboxed`). The test skips with the reason where user namespaces are unavailable.
+
+## Remote gate over ssh (T-1633)
+
+`ci/remote_gate.sh` runs the coverage of `.github/workflows/tests.yml` for the gate tree on a remote ssh host
+(`GATE_REMOTE_HOST`, an ssh alias; a 16-CPU test box) instead of on this box. Set it from the main checkout, so a PR cannot edit its own gate:
+
+    factory project update factory --gate-cmd 'GATE_REMOTE_HOST=<alias> bash $FACTORY_MAIN/ci/remote_gate.sh' \
+        --gate-count-cmd 'bash $FACTORY_MAIN/ci/remote_gate.sh --count'
+
+and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
+
+- **What runs**: the script header maps each step to its tests.yml job: py_compile, `factory --help`, the unittest shards
+  (`tests/gate_shards.py` from the main checkout, which also verifies every module ran once), go gofmt / vet /
+  `test -race` / build, guard-unittest (3 shards, `GUARD_IMPL=diff`), guard-diff, guard-self-compare,
+  guard-evaluator-home-loosen, guard-equiv (4 strict Go shards), guard-equiv-rest and docs-check. It is stronger than CI:
+  no tier (everything runs every time, no affected-only or docs-only lane) and the guard path filters are not applied.
+  Not covered: ci-tier (nothing to classify) and the test-count gate (the runner does it with `--count`).
+  `--plan` prints the steps.
+- **What is shipped**: `git archive HEAD` of the gate tree, `git archive` of the base (merge base of HEAD with
+  `refs/factory-judge/main`, else `origin/main`, else `HEAD^`; `GATE_BASE` overrides) for the jobs that compare with the
+  base, and three files of the main checkout (`ci/remote_gate_driver.sh`, `tests/gate_shards.py`, `ci/test_count_gate.py`).
+  Nothing else: no `.git`, gh token, `~/.ssh`, `~/.claude` or factory DB. ssh runs with `BatchMode=yes`, `SendEnv=-*`,
+  no agent or port forwarding, and the remote side starts under `env -i` with an explicit allow-list (`HOME`, `TMPDIR`,
+  `FACTORY_HOME` all inside the run dir, `GATE_SHARDS`, Go cache paths, `PATH`). A dirty tree is refused before any ssh.
+  On the remote host the history is rebuilt as two commits (base, head) so `git diff <base> HEAD` works as in CI's checkout.
+- **Cores**: at most 8 of the 16: the remote driver runs under `taskset -c 0-7` and `nice -n 5`, `GATE_SHARDS` and
+  `GOMAXPROCS` are capped at 8, `go test -p 8`, at most 8 guard jobs at once (each in its own copy of the tree).
+- **One run at a time**: `flock` on `~/factory-gate/.lock` on the remote host; a second run prints that it waits and waits.
+- **Cleanup**: each run has its own `~/factory-gate/<sha12>-<utc ts>-<pid>` on the remote host, removed on every path: by the
+  remote driver on exit (it kills its own process group first; a lost ssh connection ends it within 5 s), and again
+  by the local script's EXIT trap (also on SIGTERM from the runner). Dirs older than 12 h are swept under the lock.
+  Only the Go module and build caches (`~/go/pkg/mod`, `~/.cache/factory-gate/go-build`) persist between runs.
+- **Count**: `--count` prints `ci/test_count_gate.py count .` of the gate tree as its last line, locally (no ssh).
+- **Sandbox**: the remote gate needs the network, so it needs `gate_sandbox 0` (the box has no network). The runner
+  already passes what ssh needs: it strips `SSH_AUTH_SOCK` but keeps `HOME`, so ssh reads `~/.ssh/config` and the key
+  file directly; the key for the remote host must therefore be a file key usable without an agent.
+- **Access**: this box needs a `Host <alias>` ssh client entry and its key in the remote host's `authorized_keys`.
+  `GATE_REMOTE_HOST` is set in the DB `gate_cmd`, never in this repo, and is refused unless it is a plain host name.
+- **Toolchain on the remote host**: the `toolchain` step fails unless python3 is 3.13, `go env GOVERSION` equals the
+  `toolchain` line of `go/go.mod`, and zsh and gcc (cgo for `-race`) exist. It never installs anything.
+- **Measured**: see the PR of T-1633 for the first full run (wall time, peak RAM and CPU, per-step times).
