@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -358,5 +360,29 @@ func TestJudgeSQLiteText(t *testing.T) {
 		if got := judgeSQLiteText(in); got != want {
 			t.Errorf("judgeSQLiteText(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// TestReplayStdin: a child process that replays text onto its fd 0 reads exactly that text from os.Stdin; an
+// oversized text is refused before any fd is touched. (The dup onto fd 0 is done in a child, never in the test process.)
+func TestReplayStdin(t *testing.T) {
+	if os.Getenv("REPLAY_STDIN_CHILD") == "1" {
+		if err := replayStdin([]byte("why I merge\n")); err != nil {
+			os.Stderr.WriteString(err.Error())
+			os.Exit(3)
+		}
+		b, _ := io.ReadAll(os.Stdin)
+		os.Stdout.Write(b)
+		os.Exit(0)
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestReplayStdin$")
+	cmd.Env = append(os.Environ(), "REPLAY_STDIN_CHILD=1")
+	cmd.Stdin = strings.NewReader("ignored original stdin")
+	out, err := cmd.Output()
+	if err != nil || string(out) != "why I merge\n" {
+		t.Fatalf("child output %q err %v, want the replayed text", out, err)
+	}
+	if err := replayStdin(make([]byte, replayStdinMax+1)); err == nil {
+		t.Fatal("an oversized text was accepted")
 	}
 }

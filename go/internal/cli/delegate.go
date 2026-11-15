@@ -75,14 +75,18 @@ func (d *Deps) delegate() int {
 	return 1
 }
 
-// replayStdin makes fd 0 a pipe holding b (at most the pipe buffer), so Python reads what Go already consumed.
+// replayStdinMax is far below the smallest pipe buffer (one 4 KiB page under the user pipe quota), so the write below
+// never blocks before Python has a reader.
+const replayStdinMax = 4000
+
+// replayStdin makes fd 0 a pipe holding b, so Python reads what Go already consumed.
 func replayStdin(b []byte) error {
+	if len(b) > replayStdinMax {
+		return fmt.Errorf("text of %d bytes is too large to replay (limit %d)", len(b), replayStdinMax)
+	}
 	r, w, err := os.Pipe()
 	if err != nil {
 		return fmt.Errorf("pipe: %w", err)
-	}
-	if len(b) > 60000 {
-		return fmt.Errorf("reason of %d bytes is too large to replay", len(b))
 	}
 	if _, err := w.Write(b); err != nil {
 		return fmt.Errorf("write pipe: %w", err)
@@ -90,8 +94,8 @@ func replayStdin(b []byte) error {
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("close pipe: %w", err)
 	}
-	if err := syscall.Dup2(int(r.Fd()), 0); err != nil {
-		return fmt.Errorf("dup2: %w", err)
+	if err := syscall.Dup3(int(r.Fd()), 0, 0); err != nil { // Dup3 exists on every linux arch, Dup2 not on arm64
+		return fmt.Errorf("dup3: %w", err)
 	}
 	return nil
 }
