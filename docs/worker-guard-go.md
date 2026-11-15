@@ -101,13 +101,13 @@ Refused: the network and write subcommands (`go mod download`, `go get`, `go ins
 Flags are a strict per-subcommand allow-list, default deny (`TC_FLAGS` in worker-guard.py, `tcSubFlags` in gotoolchain.go; the two
 tables are the same). Anything not in the table blocks: an unknown flag, `-args`, `-exec`/`-toolexec`/`-vettool`, `-pkgdir`,
 `-overlay`, `-modfile`, `gofmt -cpuprofile`, `go env -w`. A value flag consumes the next word whatever it looks like (as Go does), so
-`-run -o` has no `-o`. The flags: `build` and `run` take `-race -v -trimpath -tags -mod -p -buildvcs` (`build` also `-o`);
+`-run -o` has no `-o`; `--` is never dropped before the parse, so `-tags -- -o x` has tags `--` and an `-o`. A bare `--` at flag position ends the flags, and is refused for `go test` (everything after it goes to the test binary) and in `GOFLAGS`. The flags: `build` and `run` take `-race -v -trimpath -tags -mod -p -buildvcs` (`build` also `-o`);
 `test` adds `-short -cover -failfast -json -benchmem -c -run -skip -count -timeout -bench -benchtime -cpu -parallel -shuffle -coverpkg
 -covermode -list -fuzz -fuzztime` and the path flags `-o -coverprofile -cpuprofile -memprofile -blockprofile -mutexprofile -trace
 -outputdir` (a `-test.NAME` spelling is the same flag); `vet`: `-race -v -tags -mod`; `list`, `env`, `version`, `fmt`, `mod` a few
 read-only flags (see the table); `gofmt`: `-l -d -s -e -w -r`. `GOFLAGS` is parsed by the same table. Path flags and `-C` accept a plain path
 inside the caller's worktree or scratchpad only (`-o /dev/null` is allowed too). `-mod` accepts `readonly` or `vendor`; `-mod=mod`
-(any spelling: `-mod mod`, `--mod=mod`, `GOFLAGS='-mod mod'`) needs `GOPROXY=off`. `go build` and `go test -c` without `-o` write into
+(any spelling: `-mod mod`, `--mod=mod`, `GOFLAGS='-mod mod'`) needs `GOPROXY=off`. `go build`, `go test -c` and `go test` with a profile flag (`-cpuprofile -memprofile -blockprofile -mutexprofile -trace -coverprofile`, which keep `pkg.test` in the cwd) without `-o` write into
 the working directory, so they are refused when it is a protected tree. Every write into those trees stays blocked as before. QA copy-paste line:
 
     GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...
