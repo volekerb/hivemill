@@ -2,7 +2,10 @@
 for over the threshold when its task has a PR, its tree is clean, its HEAD is the pushed PR head, it has no unread mail
 and nothing runs in its pane. Real tick as a subprocess, temp FACTORY_HOME, real git worktree + bare origin, herdr and
 gh stubs. The clock is FACTORY_NOW: tick 1 starts the idle clock, tick 2 runs 1000 s later (threshold 900)."""
+import datetime as dt
 import json
+import os
+import re
 import unittest
 
 from harness import PR_URL, FactoryTestCase, git
@@ -255,6 +258,336 @@ class DryRun(Base):
         self.assertEqual(len(ev), 1)
         self.assertEqual(json.loads(ev[0]["detail"])["task"], "T-0001")
         self.assertEqual([c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "send-keys"]], [])
+
+
+
+
+# ───────────── T-1622: idle-progress watchdog (config idle_watchdog off|shadow|on, idle_watchdog_min) ─────────────
+WD_T0 = dt.datetime(2026, 3, 1, 10, 0, 0, tzinfo=dt.timezone.utc)
+WD_CLAUDE, WD_CURSOR = "pm-g-001-a", "cursor-pm-g-002-a"
+
+
+class WatchdogBase(FactoryTestCase):
+    """Real spawn and tick as subprocesses on a temp FACTORY_HOME (HOME is a temp dir too), herdr stub, fake /proc. The
+    clock is FACTORY_TEST_NOW; transcript and worktree times are set with os.utime relative to it. The claude agent's cwd
+    is a `git init` dir without commits, so no wall-clock commit time leaks into the progress signal."""
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_goal("G-001")
+        e.seed_goal("G-002")
+        e.sql("UPDATE goals SET org='cursor' WHERE id='G-002'")
+        e.seed_team("g-002-a", goal="G-002", lead="cursor-lead-g-002-a")
+        e.seed_agent("director", "director")
+        e.seed_task("T-0001", "G-001", role="pm", status="in_progress", pr_url=None)
+        e.seed_task("T-0002", "G-002", role="pm", status="in_progress", pr_url=None, team="g-002-a")
+        fake = e.stub_bin / "agent"
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
+        self.proc = e.home / "fakeproc-wd"
+        self.proc.mkdir()
+        self.cwd = {}
+        for n in (WD_CLAUDE, WD_CURSOR):
+            d = e.home / f"wd-{n}"
+            d.mkdir()
+            if n == WD_CLAUDE:  # cursor refuses a git work tree as its policy workspace: its cwd stays a plain dir
+                git("init", "-q", str(d), cwd=e.home)
+            self.cwd[n] = d
+        self.ok("config", "idle_watchdog", "on", agent="owner")
+
+    def at(self, minutes):
+        return {"FACTORY_TEST_NOW": (WD_T0 + dt.timedelta(minutes=minutes)).isoformat(),
+                "FACTORY_SERVE_PROC_DIR": str(self.proc)}
+
+    def epoch(self, minutes):
+        return (WD_T0 + dt.timedelta(minutes=minutes)).timestamp()
+
+    def spawn(self, cursor=False, read_kickoff=True):
+        name = WD_CURSOR if cursor else WD_CLAUDE
+        where = ("--goal", "G-002", "--team", "g-002-a", "--task", "T-0002") if cursor else ("--goal", "G-001", "--task", "T-0001")
+        self.ok("spawn", "pm", *where, "--cwd", str(self.cwd[name]), "--name", name, agent="director", extra_env=self.at(0))
+        if not cursor:
+            self.claude_proc(name)
+        if read_kickoff:
+            self.ok("inbox", agent=name, extra_env=self.at(0))
+        self.env.calls_file.write_text("")
+        return name
+
+    def claude_proc(self, name, pid=100):
+        d = self.proc / str(pid)
+        d.mkdir()
+        (d / "cmdline").write_bytes(b"claude\0")
+        (d / "stat").write_text(f"{pid} (claude) S 1 {pid} {pid} 0 -1 " + " ".join(["0"] * 30) + "\n")
+        (d / "environ").write_bytes(f"FACTORY_AGENT={name}\0".encode())
+
+    def tick(self, minutes):
+        return self.ok("tick", extra_env=self.at(minutes))
+
+    def row(self, name):
+        return self.env.sql("SELECT * FROM agents WHERE name=?", (name,))[0]
+
+    def steps(self, action, name):
+        return [json.loads(r["detail"]) for r in self.env.sql(
+            "SELECT detail FROM events WHERE action=? AND entity_id=? ORDER BY id", (action, name))]
+
+    def nudges(self, name):
+        return [a for a in (c["argv"] for c in self.env.calls("herdr"))
+                if a[:3] == ["agent", "prompt", name] and "Factory watchdog" in " ".join(a[3:])]
+
+    def alerts(self, name):
+        return self.env.sql("SELECT recipient, subject, body FROM messages WHERE kind='alert' AND sender='tick' "
+                            "AND subject LIKE ? ORDER BY id", (f"{name}:%",))
+
+    def host_calls(self, *cmd):
+        return [c["argv"] for c in self.env.calls("herdr") if c["argv"][:len(cmd)] == list(cmd)]
+
+    def notes(self, task):
+        return [r["detail"] for r in self.env.sql("SELECT detail FROM events WHERE entity='task' AND entity_id=? "
+                                                  "AND action='note' AND detail LIKE 'idle watchdog:%'", (task,))]
+
+    def directors(self):
+        """The claude org's director name (prefix depends on org_prefix_default) and cursor's."""
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            return {mod.oname(con, "claude", "director"), mod.oname(con, "cursor", "director")}
+
+    def claude_transcript(self, name, minutes):
+        r = self.row(name)
+        d = self.env.user_home / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", r["cwd"])
+        d.mkdir(parents=True, exist_ok=True)
+        f = d / f"{r['session_id']}.jsonl"
+        f.write_text('{"type":"assistant"}\n')
+        os.utime(f, (self.epoch(minutes), self.epoch(minutes)))
+
+    def cursor_transcript(self, name, minutes, lines):
+        ws = json.loads(self.row(name)["spawn_args"]).get("cursor_workspace") or self.row(name)["cwd"]
+        d = self.env.user_home / ".cursor" / "projects" / re.sub(r"[^A-Za-z0-9]+", "-", ws).strip("-") / "agent-transcripts"
+        d.mkdir(parents=True, exist_ok=True)
+        f = d / "run.jsonl"
+        f.write_text("".join(json.dumps(x) + "\n" for x in lines))
+        os.utime(f, (self.epoch(minutes), self.epoch(minutes)))
+
+
+class WatchdogClaude(WatchdogBase):
+    def test_defaults_shadow_and_30_min(self):
+        with self.env.load_factory() as mod:
+            self.assertEqual((mod.DEFAULT_CONFIG["idle_watchdog"], mod.DEFAULT_CONFIG["idle_watchdog_min"]), ("shadow", "30"))
+
+    def test_nudge_once_then_relaunch_once_then_alert_both_directors_once(self):
+        name = self.spawn()
+        self.tick(29)
+        self.assertEqual(self.nudges(name), [])
+        self.tick(31)
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.assertIn("task T-0001 is not done", self.nudges(name)[0][3])
+        self.assertEqual([s["n"] for s in self.steps("idle-watchdog-nudge", name)], [1])
+        self.assertEqual(len(self.notes("T-0001")), 1)
+        self.tick(40)  # 9 min after the nudge: no second nudge, no relaunch yet
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.assertEqual(self.host_calls("pane", "close"), [])
+        old = self.row(name)
+        self.tick(47)  # 16 min after the nudge (> W/2)
+        self.assertEqual(len(self.host_calls("pane", "close")), 1)
+        self.assertEqual(len(self.host_calls("agent", "start")), 1)
+        self.assertEqual(len(self.steps("idle-watchdog-relaunch", name)), 1)
+        self.assertEqual(self.steps("idle-watchdog-relaunch", name)[0]["old_sid"], old["session_id"])
+        new = self.row(name)
+        self.assertEqual((new["status"], new["task_id"]), ("live", "T-0001"))
+        self.assertNotEqual(new["session_id"], old["session_id"])
+        self.ok("inbox", agent=name, extra_env=self.at(47))  # the fresh pane reads its kickoff, then stalls again
+        self.tick(70)
+        self.assertEqual(self.alerts(name), [])
+        self.tick(78)  # 31 min after the relaunch
+        al = self.alerts(name)
+        self.assertEqual({a["recipient"] for a in al}, self.directors())
+        self.assertEqual(len(al), 2)
+        self.assertIn("1 nudge(s), 1 fresh relaunch", al[0]["body"])
+        for m in (100, 200, 400):  # idempotent: nothing more, ever, on this task attempt
+            self.tick(m)
+        self.assertEqual(len(self.alerts(name)), 2)
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.assertEqual(len(self.host_calls("agent", "start")), 1)
+
+    def assert_clock_reset(self, touch):
+        name = self.spawn()
+        touch(name)  # progress at minute 20
+        self.tick(31)
+        self.assertEqual(self.nudges(name), [])
+        self.assertEqual(self.steps("idle-watchdog-nudge", name), [])
+        self.tick(51)  # 31 min after that progress
+        self.assertEqual(len(self.nudges(name)), 1)
+
+    def test_worktree_change_resets_the_clock(self):
+        def touch(name):
+            f = self.cwd[name] / "new.txt"
+            f.write_text("x\n")
+            os.utime(f, (self.epoch(20), self.epoch(20)))
+        self.assert_clock_reset(touch)
+
+    def test_transcript_turn_resets_the_clock(self):
+        self.assert_clock_reset(lambda name: self.claude_transcript(name, 20))
+
+    def test_own_db_write_resets_the_clock(self):
+        self.assert_clock_reset(lambda name: self.ok("task", "note", "T-0001", "working on it", agent=name,
+                                                     extra_env=self.at(20)))
+
+    def test_shadow_records_steps_without_pane_action_or_messages(self):
+        self.ok("config", "idle_watchdog", "shadow", agent="owner")
+        name = self.spawn()
+        for m in (31, 47, 78):
+            self.tick(m)
+        self.assertEqual([s["mode"] for s in self.steps("idle-watchdog-nudge", name)], ["shadow"])
+        self.assertEqual([s["mode"] for s in self.steps("idle-watchdog-relaunch", name)], ["shadow"])
+        self.assertEqual([s["mode"] for s in self.steps("idle-watchdog-alert", name)], ["shadow"])
+        self.assertEqual(self.nudges(name), [])
+        self.assertEqual(self.host_calls("pane", "close"), [])
+        self.assertEqual(self.alerts(name), [])
+        self.assertEqual(self.notes("T-0001"), [])
+
+    def test_off_does_nothing(self):
+        self.ok("config", "idle_watchdog", "off", agent="owner")
+        name = self.spawn()
+        self.tick(31)
+        self.assertEqual(self.steps("idle-watchdog-nudge", name), [])
+
+    def test_blocked_task_is_skipped(self):
+        name = self.spawn()
+        self.env.sql("UPDATE tasks SET status='blocked', waits='owner' WHERE id='T-0001'")
+        for m in (31, 47, 78, 200):
+            self.tick(m)
+        self.assertEqual(self.nudges(name), [])
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action LIKE 'idle-watchdog-%'"), [])
+
+    def test_hold_in_the_spec_is_alerted_not_nudged(self):
+        name = self.spawn()
+        self.env.sql("UPDATE tasks SET spec='HOLD: wait for PR 703 to merge' WHERE id='T-0001'")
+        self.tick(31)
+        self.tick(60)
+        self.assertEqual(self.nudges(name), [])
+        self.assertEqual(len(self.alerts(name)), 2)
+        self.assertIn("named hold", self.alerts(name)[0]["body"])
+
+    def test_shell_under_the_agent_blocks_the_nudge(self):
+        name = self.spawn()
+        d = self.proc / "101"
+        d.mkdir()
+        (d / "cmdline").write_bytes(b"bash\0-c\0gh run watch 1\0")
+        (d / "stat").write_text("101 (bash) S 100 101 101 0 -1 " + " ".join(["0"] * 30) + "\n")
+        (d / "environ").write_bytes(b"X=1\0")
+        self.tick(31)
+        self.assertEqual(self.nudges(name), [])
+
+    def test_unread_kickoff_is_left_to_the_kickoff_check(self):
+        name = self.spawn(read_kickoff=False)
+        self.tick(31)
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action LIKE 'idle-watchdog-%' AND entity_id=?", (name,)), [])
+
+
+class WatchdogCursor(WatchdogBase):
+    TEXT = "I pushed the branch. " + "x" * 400 + " Shall I open the PR now?"
+
+    def test_ended_turn_two_nudges_ten_min_apart_then_alert_with_the_final_text(self):
+        name = self.spawn(cursor=True)
+        self.cursor_transcript(name, 5, [{"role": "user", "message": {"content": [{"type": "text", "text": "kickoff"}]}},
+                                         {"role": "assistant", "message": {"content": [{"type": "text", "text": self.TEXT}]}},
+                                         {"type": "turn_ended", "status": "success"}])
+        self.tick(14)  # the turn ended 9 min ago
+        self.assertEqual(self.nudges(name), [])
+        self.tick(16)
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.assertIn("your turn ended 11 min ago", self.nudges(name)[0][3])
+        self.assertIn("factory msg cursor-director", self.nudges(name)[0][3])
+        enters = self.host_calls("agent", "send-keys", name, "Enter")
+        self.assertEqual(len(enters), 1)  # T-1599's submit: prompt, then Enter
+        self.tick(20)  # 4 min after nudge 1
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.tick(27)
+        self.assertEqual(len(self.nudges(name)), 2)
+        self.tick(38)
+        self.assertEqual(len(self.nudges(name)), 2)  # never a third
+        al = self.alerts(name)
+        self.assertEqual({a["recipient"] for a in al}, self.directors())
+        self.assertIn(repr(self.TEXT[-300:]), al[0]["body"])
+        for m in (60, 120):
+            self.tick(m)
+        self.assertEqual(len(self.alerts(name)), 2)
+        self.assertEqual(self.host_calls("pane", "close"), [])  # the cursor ended-turn path never relaunches
+
+    def test_ended_turn_with_error_alerts_the_org_director_at_once_without_nudge(self):
+        name = self.spawn(cursor=True)
+        err = "Claude Opus 5.5 is not included in your weekly usage"
+        self.cursor_transcript(name, 1, [{"type": "turn_ended", "status": "error", "error": err}])
+        self.tick(2)
+        self.tick(40)
+        self.assertEqual(self.nudges(name), [])
+        al = self.alerts(name)
+        self.assertEqual([a["recipient"] for a in al], ["cursor-director"])
+        self.assertIn(err, al[0]["body"])
+
+    def test_hold_with_an_ended_turn_is_alerted_not_nudged(self):
+        name = self.spawn(cursor=True)
+        self.env.sql("UPDATE tasks SET judge_hold_reason='lane slot pending' WHERE id='T-0002'")
+        self.cursor_transcript(name, 0, [{"type": "turn_ended", "status": "success"}])
+        self.tick(11)
+        self.assertEqual(self.nudges(name), [])
+        self.assertIn("named hold", self.alerts(name)[0]["body"])
+
+    def test_no_transcript_after_a_read_kickoff_takes_the_generic_nudge(self):
+        name = self.spawn(cursor=True)
+        self.tick(29)
+        self.assertEqual(self.nudges(name), [])
+        self.tick(31)
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.assertEqual(self.steps("idle-watchdog-nudge", name)[0]["runtime"], "cursor")
+
+    def test_no_transcript_and_unread_kickoff_is_t1599s(self):
+        name = self.spawn(cursor=True, read_kickoff=False)
+        self.tick(31)
+        self.assertEqual(self.steps("idle-watchdog-nudge", name), [])
+        self.assertTrue(self.env.sql("SELECT 1 FROM events WHERE action='kickoff-resent' AND entity_id=?", (name,)))
+
+    def test_transcript_mid_turn_resets_the_clock(self):
+        name = self.spawn(cursor=True)
+        self.cursor_transcript(name, 20, [{"role": "assistant", "message": {"content": "running tests"}}])
+        self.tick(31)
+        self.assertEqual(self.nudges(name), [])
+        self.tick(51)
+        self.assertEqual(len(self.nudges(name)), 1)
+
+
+class WatchdogDoneRefused(WatchdogBase):
+    """W5: a refused factory done is recorded as done-refused (with the refusing check) and alerted at once."""
+
+    def test_refused_done_is_recorded_and_alerted_once(self):
+        e = self.env
+        wt = e.home / "wd-coder"
+        git("init", "-q", "-b", "main", str(wt), cwd=e.home)
+        git("config", "user.email", "zz-test@example.invalid", cwd=wt)
+        git("config", "user.name", "zz-test", cwd=wt)
+        (wt / "a.txt").write_text("a\n")
+        git("add", "a.txt", cwd=wt)
+        git("commit", "-q", "-m", "a", cwd=wt)
+        (wt / "a.txt").write_text("changed\n")  # uncommitted tracked change: done refuses
+        e.seed_task("T-0003", "G-001", status="in_progress", pr_url=None)
+        e.sql("UPDATE tasks SET worktree=?, branch='factory/t-0003' WHERE id='T-0003'", (str(wt),))
+        e.seed_agent("zz-test-coder", "coder", "G-001", None, "T-0003", pane_id="p-9", started=WD_T0.isoformat())
+        e.sql("UPDATE agents SET spawn_args='{}', cwd=? WHERE name='zz-test-coder'", (str(wt),))
+        e.set_herdr(agents=[{"name": "zz-test-coder", "agent": "claude", "pane_id": "p-9", "agent_status": "idle"}])
+        p = e.run("done", "finished", agent="zz-test-coder", extra_env=self.at(5))
+        self.assertEqual(p.returncode, 3, p.stderr)
+        ref = self.steps("done-refused", "zz-test-coder")
+        self.assertEqual([(r["gate"], r["code"]) for r in ref], [("unpushed-work", 3)])
+        self.tick(6)
+        self.tick(7)
+        al = self.alerts("zz-test-coder")
+        self.assertEqual(len(al), 1)
+        self.assertIn("unpushed-work", al[0]["subject"])
+
+    def test_done_that_passes_records_no_refusal(self):
+        self.env.seed_agent("zz-test-qa", "qa", "G-001", None, "T-0001", pane_id="p-8", started=WD_T0.isoformat())
+        self.ok("done", "PASS", agent="zz-test-qa", extra_env=self.at(1))
+        self.assertEqual(self.steps("done-refused", "zz-test-qa"), [])
 
 
 if __name__ == "__main__":

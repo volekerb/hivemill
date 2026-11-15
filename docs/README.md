@@ -48,6 +48,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [lead-wake.md](lead-wake.md): bringing a parked lead back when its team has work.
 - [lead-parking.md](lead-parking.md): parking an idle lead, its wake triggers, caps and rollback.
 - [lead-less-dispatch.md](lead-less-dispatch.md): the tick starts workers for ready tasks of parked teams and only mails the lead.
+- [idle-watchdog.md](idle-watchdog.md): the tick nudges, relaunches, then alerts both directors about a live worker with no progress.
 - [updating-persistent-agents.md](updating-persistent-agents.md): how role changes reach long-running agents.
 - [clean-remote-branch.md](clean-remote-branch.md): deleting stale `factory/*` branches on origin safely.
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.

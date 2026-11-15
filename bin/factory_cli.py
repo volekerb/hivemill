@@ -259,6 +259,8 @@ DEFAULT_CONFIG = {
     "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
     "idle_coder_reap": "off",    # off | dry-run | on: the tick stops a coder idle past idle_coder_reap_s with a clean tree, pushed PR head, no mail, no shell (T-1028, docs/lead-wake.md)
     "idle_coder_reap_s": "900",  # seconds a coder must be idle/done before idle_coder_reap acts
+    "idle_watchdog": "shadow",   # off | shadow | on: T-1622 idle-progress watchdog for live workers; shadow = event rows only (docs/idle-watchdog.md)
+    "idle_watchdog_min": "30",   # minutes without progress before the watchdog nudges; relaunch W/2 later, alert W after the relaunch
     "digest_hour": "8",         # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -8851,6 +8853,362 @@ def reap_idle_coders(con, agents):
             pass
 
 
+IDLE_WATCHDOG_MODES = ("off", "shadow", "on")
+IDLE_WATCHDOG_ROLES = ("coder", "qa", "reviewer", "pm")
+IDLE_WATCHDOG_TURN_ENDED_S = 600  # T-1621 W1: a cursor turn that ended this long ago with the task open is a stall
+IDLE_WATCHDOG_NUDGE_GAP_S = 600   # W3: cursor nudges at least this far apart
+IDLE_WATCHDOG_CURSOR_NUDGES = 2   # W3: then one alert, never a third nudge
+IDLE_WATCHDOG_DB_WINDOW = 50000   # newest events/messages rows scanned for an agent's own DB writes
+IDLE_WATCHDOG_TAIL_BYTES = 65536
+IDLE_WATCHDOG_HOLD_RE = re.compile(r"(?im)^\s*hold\b|\bHOLD:")
+IDLE_WATCHDOG_STEPS = ("idle-watchdog-nudge", "idle-watchdog-relaunch", "idle-watchdog-alert", "idle-watchdog-error-alert",
+                       "idle-watchdog-refused-alert")
+IDLE_WATCHDOG_NUDGE = ("Factory watchdog: your turn ended {min} min ago and task {task} is not done. No human reads this "
+                       "pane; do not ask or offer, act. If a push was refused for a Co-authored-by trailer, rebuild the "
+                       "commit with git commit-tree (no trailer) and push again. Then finish: factory pr create, factory "
+                       "prcheck, set in_review, factory done. If a command is still refused, run factory msg {director} "
+                       "'{task} blocked' 'the refused command and its exact output' --kind escalation, then wait.")
+
+
+def _alnum(s):
+    return re.sub(r"[^A-Za-z0-9]", "", str(s))
+
+
+def _idle_newest_mtime(paths):
+    best = None
+    for p in paths:
+        try:
+            m = p.stat().st_mtime
+        except OSError:
+            continue
+        best = m if best is None or m > best else best
+    return best
+
+
+def _claude_transcript_mtime(r):
+    """mtime of the claude session jsonl of row `r` (~/.claude/projects/<cwd, non-alphanumerics as '-'>/<session>.jsonl);
+    an unknown or missing session falls back to the newest jsonl of that project dir. None = no transcript found."""
+    if not r["cwd"]:
+        return None
+    d = Path.home() / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", r["cwd"])
+    own = d / f"{r['session_id']}.jsonl" if r["session_id"] else None
+    if own is not None and own.is_file():
+        return _idle_newest_mtime([own])
+    try:
+        return _idle_newest_mtime(list(d.glob("*.jsonl")))
+    except OSError:
+        return None
+
+
+def _cursor_transcript(r):
+    """(newest file, mtime) under ~/.cursor/projects/<dir>/agent-transcripts for cursor row `r`, where <dir> is the agent's
+    policy workspace (spawn_args cursor_workspace, else its cwd) compared without separators; None = no transcript."""
+    ws = _spawn_args_row(r).get("cursor_workspace") or r["cwd"]
+    root = Path.home() / ".cursor" / "projects"
+    if not ws or not root.is_dir():
+        return None
+    want, best = _alnum(ws), None
+    try:
+        for d in root.iterdir():
+            if not d.is_dir() or _alnum(d.name) != want:
+                continue
+            for f in (d / "agent-transcripts").rglob("*"):
+                if f.is_file():
+                    m = f.stat().st_mtime
+                    if best is None or m > best[1]:
+                        best = (f, m)
+    except OSError:
+        return None
+    return best
+
+
+def _transcript_text(obj):
+    """The text of one transcript line (a string or a list of {type: text} parts), else ''."""
+    msg = obj.get("message", obj)
+    if isinstance(msg, dict):
+        msg = msg.get("content", msg.get("text"))
+    if isinstance(msg, str):
+        return msg
+    if isinstance(msg, list):
+        return " ".join(p["text"] for p in msg if isinstance(p, dict) and isinstance(p.get("text"), str))
+    return ""
+
+
+def _cursor_transcript_tail(path):
+    """(last JSON line object or None, the last assistant text) of a cursor transcript jsonl; unreadable = (None, '')."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - IDLE_WATCHDOG_TAIL_BYTES))
+            lines = [x for x in f.read().decode("utf-8", "replace").splitlines() if x.strip()]
+    except OSError:
+        return None, ""
+    objs = []
+    for x in lines:
+        try:
+            o = json.loads(x)
+        except ValueError:
+            continue
+        if isinstance(o, dict):
+            objs.append(o)
+    text = next((s for o in reversed(objs) if o.get("role") == "assistant" for s in [_transcript_text(o)] if s), "")
+    return (objs[-1] if objs else None), text
+
+
+def _turn_ended(o):
+    """(status, error text) when transcript line `o` is a turn_ended line, else None."""
+    if not isinstance(o, dict) or o.get("type") != "turn_ended":
+        return None
+    err = o.get("error") or o.get("message") or ""
+    return str(o.get("status") or o.get("subtype") or "").lower(), (err if isinstance(err, str) else json.dumps(err))[:500]
+
+
+def _worktree_progress(cwd):
+    """Latest of the HEAD commit time and the mtimes of changed or untracked files in `cwd`; None when unreadable."""
+    if not cwd or not Path(cwd).is_dir():
+        return None
+    best = None
+    rc, ct = _git_out(cwd, "log", "-1", "--format=%ct")
+    if rc == 0 and ct.strip().isdigit():
+        best = float(ct.strip())
+    rc, st = _git_out(cwd, "status", "--porcelain", "-uall")
+    if rc == 0:
+        paths = [Path(cwd) / ln[3:].split(" -> ")[-1].strip('"') for ln in st.splitlines()[:2000] if len(ln) > 3]
+        m = _idle_newest_mtime(paths)
+        if m is not None and (best is None or m > best):
+            best = m
+    return best
+
+
+def _idle_watchdog_db_marks(con):
+    """{agent: newest epoch of its own DB writes}: events it wrote and messages it sent, among the newest rows."""
+    out = {}
+    for sql in ("SELECT actor a, ts FROM events WHERE id IN (SELECT max(id) FROM events WHERE id > "
+                "(SELECT coalesce(max(id),0) FROM events) - ? GROUP BY actor)",
+                "SELECT sender a, created ts FROM messages WHERE id IN (SELECT max(id) FROM messages WHERE id > "
+                "(SELECT coalesce(max(id),0) FROM messages) - ? GROUP BY sender)"):
+        for x in con.execute(sql, (IDLE_WATCHDOG_DB_WINDOW,)).fetchall():
+            t = _ts(x["ts"])
+            if t is not None and (x["a"] not in out or t.timestamp() > out[x["a"]]):
+                out[x["a"]] = t.timestamp()
+    return out
+
+
+def idle_watchdog_progress(con, r, marks, cursor_tr=None):
+    """{signal: epoch} of live worker row `r`'s progress: the run's start, a worktree change, a transcript write and its
+    own DB write (an event, a sent message, reading mail). The watchdog's idle clock starts at the newest of these."""
+    started = _ts(r["started"])
+    if _agent_runtime(r) == "cursor":
+        transcript = cursor_tr[1] if cursor_tr else None
+    else:
+        transcript = _claude_transcript_mtime(r)
+    sig = {"started": started.timestamp() if started else None, "worktree": _worktree_progress(r["cwd"]),
+           "transcript": transcript, "db": marks.get(r["name"])}
+    rd = _ts(con.execute("SELECT max(read_at) m FROM messages WHERE recipient=?", (r["name"],)).fetchone()["m"])
+    if rd and (sig["db"] is None or rd.timestamp() > sig["db"]):
+        sig["db"] = rd.timestamp()
+    return {k: v for k, v in sig.items() if v is not None}
+
+
+def _idle_watchdog_state(con, name, key):
+    """{step: [epoch, ...]} of the watchdog steps recorded for this agent + task + attempt (`key`); events are the state."""
+    out = {a: [] for a in IDLE_WATCHDOG_STEPS}
+    for e in con.execute("SELECT action, ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action IN "
+                         f"({','.join('?' * len(out))}) ORDER BY id", (name, *out)).fetchall():
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        t = _ts(e["ts"])
+        if isinstance(d, dict) and d.get("key") == key and t is not None:
+            out[e["action"]].append(t.timestamp())
+    return out
+
+
+def _idle_watchdog_record(con, r, step, mode, detail, note=None):
+    """One watchdog step: the agent event (the state, both modes) and, in mode on, a task note."""
+    event_as(con, "tick", "agent", r["name"], step, {**detail, "mode": mode})
+    if note and mode == "on":
+        event_as(con, "tick", "task", r["task_id"], "note", f"idle watchdog: {note}")
+
+
+def _idle_watchdog_alert(con, r, mode, detail, why, orgs_to):
+    """The terminal step: one alert per org director in `orgs_to` (mode on); then the watchdog leaves the agent alone."""
+    _idle_watchdog_record(con, r, "idle-watchdog-alert", mode, {**detail, "why": why, "to": list(orgs_to)},
+                          f"alerted the director(s) {', '.join(orgs_to)}: {why}")
+    if mode != "on":
+        return
+    body = (f"{r['name']} ({r['role']}, runtime {_agent_runtime(r)}) on task {r['task_id']}: no progress for "
+            f"{detail['idle_min']} min. Actions taken: {', '.join(detail['actions']) or 'none'}. {why} "
+            f"The watchdog does nothing more for this agent on this task attempt. Look at pane {r['pane_id']}, then "
+            f"stop and respawn it (factory stop {r['name']} --now) or reassign the task.")
+    for o in orgs_to:
+        send(con, "director", f"{r['name']}: idle {detail['idle_min']} min on {r['task_id']}", body, "alert",
+             r["goal_id"], r["task_id"], sender="tick", org=o)
+
+
+def _idle_watchdog_refused(con, r, mode, key, st, org):
+    """W5: a factory done refused during this run is alerted to the org director once per task attempt."""
+    if st["idle-watchdog-refused-alert"]:
+        return
+    e = con.execute("SELECT ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action='done-refused' "
+                    "ORDER BY id DESC LIMIT 1", (r["name"],)).fetchone()
+    when, started = (_ts(e["ts"]) if e else None), _ts(r["started"])
+    if when is None or (started is not None and when < started):
+        return
+    try:
+        gname = json.loads(e["detail"]).get("gate") or "?"
+    except (TypeError, ValueError, AttributeError):
+        gname = "?"
+    _idle_watchdog_record(con, r, "idle-watchdog-refused-alert", mode, {"key": key, "gate": gname},
+                          f"factory done refused by the {gname} gate; director alerted")
+    if mode == "on":
+        send(con, "director", f"{r['name']}: factory done refused ({gname})",
+             f"{r['name']} ({r['role']}, runtime {_agent_runtime(r)}) ran factory done on {r['task_id']} and the {gname} "
+             f"check refused it. It may not get past it alone: look at pane {r['pane_id']} and the task.",
+             "alert", r["goal_id"], r["task_id"], sender="tick", org=org)
+
+
+def idle_watchdog(con, agents):
+    """T-1622 (G-058 SC2/SC4, docs/idle-watchdog.md): idle-progress watchdog for live workers (coder, qa, reviewer, pm;
+    claude and cursor) with an open task, run in the idle-coder tick step after reap_idle_coders. Config idle_watchdog
+    off|shadow|on (unknown = shadow: event rows only, no pane action, no msg, no task note) and idle_watchdog_min (W,
+    default 30). Progress = the newest of the run's start, a worktree change, a transcript write and the agent's own DB
+    write (idle_watchdog_progress). Every step is recorded as an idle-watchdog-* event keyed agent|task|attempts, which
+    is the only state: a relaunch keeps the key, so nothing repeats or loops across ticks or runs.
+    claude, and cursor without an ended turn: idle W -> one nudge; still idle W/2 after it (and W overall) -> one fresh
+    relaunch (behind the spawn gate, one per tick); still idle W after the relaunch -> one alert to both directors.
+    cursor whose transcript ends in turn_ended (T-1621 W1-W4): status error -> alert the org director at once, never a
+    nudge; otherwise, once the turn is 10 min old -> up to 2 nudges 10 min apart, then the alert to both directors with
+    the last 300 chars of its text. A kickoff never read is T-1599's (tick_cursor_kickoff) and skipped here. A hold
+    (judge hold or HOLD in the spec) is alerted, never nudged. A refused factory done (done-refused event, W5) is alerted
+    to the org director once. Skipped: tasks done/cancelled/blocked (blocked = a named wait in tasks.waits), goals not
+    active, rows stopping/relaunching/starting, a pane the host does not list or reports working, a claude agent with a
+    shell running (a CI wait, a test)."""
+    try:
+        mode = cfg(con, "idle_watchdog")
+        mode = mode if mode in IDLE_WATCHDOG_MODES else "shadow"
+        if mode == "off" or not agents:
+            return
+        try:
+            w = int(cfg(con, "idle_watchdog_min")) * 60
+        except (TypeError, ValueError):
+            return  # a bad threshold never acts
+        if w <= 0:
+            return
+        clock = _ts(now()).timestamp()  # $FACTORY_TEST_NOW on a test home, as tick_cursor_kickoff
+        by_name = {x.get("name"): x for x in agents if x.get("name")}
+        marks = _idle_watchdog_db_marks(con)
+        both = tuple(o for o in ("claude", "cursor") if o in orgs.ORGS)
+        relaunched = False
+        rows = con.execute(f"SELECT * FROM agents WHERE status='live' AND role IN ({','.join('?' * len(IDLE_WATCHDOG_ROLES))}) "
+                           "AND task_id IS NOT NULL AND stop_requested_at IS NULL AND relaunch_requested_at IS NULL "
+                           "AND start_pending IS NULL ORDER BY name", IDLE_WATCHDOG_ROLES).fetchall()
+        for r in rows:
+            t = con.execute("SELECT * FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+            if not t or t["status"] in ("done", "cancelled", "blocked"):
+                continue
+            g = con.execute("SELECT status FROM goals WHERE id=?", (t["goal_id"],)).fetchone()
+            if not g or g["status"] != "active":
+                continue
+            if _spawn_args_row(r).get("launch") == "subprocess" or kickoff_unread(con, r["name"]):
+                continue  # no pane, or a kickoff never accepted: T-1599's tick_cursor_kickoff owns that pane
+            h = by_name.get(r["name"])
+            if not h or h.get("agent_status") == "working":
+                continue  # unlisted (cannot decide) or mid-turn
+            name, runtime = r["name"], _agent_runtime(r)
+            key = f"{name}|{t['id']}|{t['attempts']}"
+            st = _idle_watchdog_state(con, name, key)
+            if st["idle-watchdog-alert"]:
+                continue  # the terminal step was taken: no more automatic actions on this task attempt
+            org = agent_org(con, name) or orgs.DEFAULT_ORG
+            _idle_watchdog_refused(con, r, mode, key, st, org)
+            nudges, relaunches = st["idle-watchdog-nudge"], st["idle-watchdog-relaunch"]
+            hold = bool((t["judge_hold_reason"] or "").strip()) or bool(IDLE_WATCHDOG_HOLD_RE.search(t["spec"] or ""))
+            tr = _cursor_transcript(r) if runtime == "cursor" else None
+            sig = idle_watchdog_progress(con, r, marks, tr)
+            idle_s = int(clock - max(sig.values())) if sig else 0
+            detail = {"key": key, "task": t["id"], "runtime": runtime, "idle_min": idle_s // 60, "signals": sorted(sig),
+                      "actions": [f"{len(nudges)} nudge(s)"] * bool(nudges) + ["1 fresh relaunch"] * bool(relaunches)}
+
+            def nudge(minutes):
+                if runtime == "claude" and _agent_shells_busy(name):
+                    return  # a shell runs under the agent (a CI wait, a test): it is waiting on purpose
+                text = IDLE_WATCHDOG_NUDGE.format(min=minutes, task=t["id"], director=oname(con, org, "director"))
+                ok = kickoff_resend(con, r, text) if mode == "on" else None  # T-1599's submit: prompt, then Enter
+                _idle_watchdog_record(con, r, "idle-watchdog-nudge", mode, {**detail, "n": len(nudges) + 1, "prompt_ok": ok},
+                                      f"nudged {name} ({minutes} min without progress)")
+
+            if runtime == "cursor" and tr:
+                last, text = _cursor_transcript_tail(tr[0])
+                ended = _turn_ended(last)
+                if ended and ended[0] == "error":  # W4: a nudge cannot fix a usage-limit or model error
+                    if not st["idle-watchdog-error-alert"]:
+                        _idle_watchdog_record(con, r, "idle-watchdog-error-alert", mode, {**detail, "error": ended[1]},
+                                              f"turn ended with an error, director alerted: {ended[1][:200]}")
+                        if mode == "on":
+                            send(con, "director", f"{name}: turn ended with an error on {t['id']}",
+                                 f"{name} (cursor {r['role']}) on {t['id']}: its last turn ended with status error: "
+                                 f"{ended[1]}\nNo nudge is sent; it cannot help. Fix the cause (model, plan, usage) "
+                                 "and relaunch it, or reassign the task.", "alert", r["goal_id"], r["task_id"],
+                                 sender="tick", org=org)
+                    continue
+                if ended:  # W1: the turn ended, the task is open and the row is still live (no factory done)
+                    ended_s = int(clock - tr[1])
+                    if ended_s < IDLE_WATCHDOG_TURN_ENDED_S:
+                        continue
+                    detail["idle_min"] = ended_s // 60
+                    tail = f" Its final text (last 300 chars): {text[-300:]!r}" if text else ""
+                    if hold:
+                        _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged." + tail, both)
+                    elif nudges and clock - max(nudges) < IDLE_WATCHDOG_NUDGE_GAP_S:
+                        pass
+                    elif len(nudges) < IDLE_WATCHDOG_CURSOR_NUDGES:
+                        nudge(ended_s // 60)
+                    else:
+                        _idle_watchdog_alert(con, r, mode, detail, f"{len(nudges)} nudges did not get it going." + tail, both)
+                    continue
+            if idle_s < w:
+                continue
+            if hold:
+                _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged.", both)
+            elif not nudges:
+                nudge(idle_s // 60)
+            elif not relaunches:
+                if relaunched or clock - max(nudges) < w // 2:
+                    continue
+                if runtime == "claude" and _agent_shells_busy(name):
+                    continue
+                if mode == "on":
+                    ok, why, _ = gate(con, own_slot=True)  # the agent keeps its slot; never close a pane the gate would queue
+                    if not ok:
+                        dkey = f"idlewatch_relaunch_deferred:{name}"
+                        last = con.execute("SELECT ts FROM throttle WHERE key=?", (dkey,)).fetchone()
+                        if not last or time.time() - float(last["ts"]) >= 3600:
+                            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET "
+                                        "ts=excluded.ts", (dkey, str(time.time())))
+                            event_as(con, "tick", "agent", name, "idle-watchdog-relaunch-deferred", why)
+                        continue
+                # the event first: a crash or a failure must not repeat the relaunch every tick
+                _idle_watchdog_record(con, r, "idle-watchdog-relaunch", mode, {**detail, "old_sid": r["session_id"]},
+                                      f"relaunched {name} fresh ({idle_s // 60} min without progress after one nudge)")
+                if mode == "on":
+                    relaunched = True
+                    msg = relaunch_fresh_from_tick(con, r)
+                    if msg:
+                        event_as(con, "tick", "agent", name, "idle-watchdog-relaunch-failed", {"key": key, "error": msg})
+                        _idle_watchdog_alert(con, r, mode, {**detail, "actions": detail["actions"] + ["relaunch failed"]},
+                                             f"The fresh relaunch failed: {msg}", both)
+            elif clock - max(relaunches) >= w:
+                _idle_watchdog_alert(con, r, mode, detail, "Still no progress after a nudge and a fresh relaunch; a "
+                                     "second relaunch would be needed.", both)
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "idle-watchdog", "idle-watchdog-failed", str(e)[:300])
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _is_test_runner(argv):
     """True only for a local test run: python3 ci/affected.py, -m unittest, -m pytest, `factory test`, pytest/py.test."""
     if not argv:
@@ -11960,15 +12318,29 @@ def judge_done_refusal(con, r):
 
 
 def cmd_done(a):
-    """A worker finishes: summary goes to its lead, its pane is reaped by the next tick."""
+    """A worker finishes: summary goes to its lead, its pane is reaped by the next tick. A refusal by one of the finish
+    checks is recorded as a done-refused event naming the check (T-1622 W5: the idle watchdog alerts on it)."""
+    stage = {"gate": None, "agent": None}
+    try:
+        _cmd_done(a, stage)
+    except SystemExit as e:
+        if stage["gate"] and e.code not in (0, None):
+            event(db(), "agent", stage["agent"], "done-refused", {"gate": stage["gate"], "code": e.code})
+        raise
+
+
+def _cmd_done(a, stage):
     con = db()
     me = actor()
     r = con.execute("SELECT * FROM agents WHERE name=?", (me,)).fetchone() or die("not a factory agent")
     if r["status"] != "live":  # e.g. force-stopped meanwhile: the lead already got its report; no second one
         die(f"{me} is '{r['status']}', not live: nothing to finish (no second done/report)", 2)
+    stage["agent"] = me
     summary = read_text(a.summary)
     if r["role"] == "judge" and r["task_id"]:
+        stage["gate"] = "judge"
         judge_done_refusal(con, r)
+        stage["gate"] = None
     unread = [] if r["role"] in PERSISTENT_ROLES else con.execute(
         "SELECT * FROM messages WHERE recipient=? AND read_at IS NULL AND kind IN ('decision','request') ORDER BY id",
         (me,)).fetchall()
@@ -11997,6 +12369,7 @@ def cmd_done(a):
             found.append("uncommitted tracked changes: " + ", ".join(dirty[:10]))
         if unpushed:
             found.append(unpushed)
+        stage["gate"] = "unpushed-work"
         if found and not a.force:
             for f in found:
                 print(f"factory: {f}", file=sys.stderr)
@@ -12008,8 +12381,11 @@ def cmd_done(a):
         # a fix-round coder is already in_review and never sets it again: same body gate as the in_review transition
         t = con.execute("SELECT status, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
         if t and t["status"] == "in_review" and t["pr_url"]:
+            stage["gate"] = "acceptance-walk"
             require_acceptance_walk(t["pr_url"])
+        stage["gate"] = "prcheck"
         prcheck_done_refusal(con, r, t)
+        stage["gate"] = None
         unclean = "; ".join(found)
         if untracked:
             print("WARNING: untracked files left in the worktree: " + ", ".join(untracked[:10]), file=sys.stderr)
@@ -16372,6 +16748,7 @@ def _tick_u_exited_panes(con, st):
 
 def _tick_u_idle_coders(con, st):
         reap_idle_coders(con, st["agents"])
+        idle_watchdog(con, st["agents"])  # T-1622: after the reap, so a coder it just stopped is skipped
         _pt_lap("idle_coders")
 
 

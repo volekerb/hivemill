@@ -173,6 +173,8 @@ Read the Upgrade section of that version's release notes (https://github.com/vol
 | `max_seven_day_pct` | `92` | Same, for the seven-day window. |
 | `nudge_cooldown_s` | `120` | Minimum seconds between nudges to one agent about unread mail. |
 | `cursor_kickoff_grace_s` | `180` | Cursor agents only: how long a kickoff message may stay unread before the tick submits the kickoff again, and again that long before it relaunches the pane once and then escalates. `0` turns the check off. See [runtimes.md](runtimes.md). |
+| `idle_watchdog` | `shadow` | `off`, `shadow` or `on`. A live worker with no progress for `idle_watchdog_min` gets one nudge, then one fresh relaunch, then one alert to both directors. `shadow` writes event rows only. See [idle-watchdog.md](idle-watchdog.md). |
+| `idle_watchdog_min` | `30` | Minutes without progress before the watchdog nudges. The relaunch comes half that long after the nudge, and the alert that long after the relaunch. |
 | `director_cycle_s` | `900` | How often the tick gives the director a planning cycle. |
 | `blocked_alert_s` | `600` | How long an agent may sit on a dialog before it is reported blocked. |
 | `hq_unblock_s` | `900` | After this long the tick denies (Esc) a permission dialog on a boss, director or lead pane. |
