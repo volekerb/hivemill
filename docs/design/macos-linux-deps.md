@@ -106,6 +106,7 @@ The tick's resource gates read Linux `/proc` and assume `/tmp` is a size-limited
 | R15 | `go/internal/skilleval/results.go`: 153; `go/internal/guard/ptrule.go`: 324,443; `go/internal/guard/researcher.go`: 72; `roles/hooks/worker-guard.py`: 5554,6438 | `/proc/self/fd/N` and `/proc/*/environ` named in guard rules and in the result writer (`fdPath`) | `/dev/fd/N` exists on macOS; `/proc/<pid>/environ` does not, but `ps eww`/`ps -E` exposes the environment of same-user processes, so the guard rule becomes "deny `ps` with `e`/`-E`/`eww`" for workers. `fdPath` -> `/dev/fd/N` or `F_GETPATH`. |
 | R16 | `bin/factory_cli.py`: 927; `go/internal/herdr/herdr.go`: 30; `go/internal/sandbox/sandbox.go`: 23; `scout/sandbox.py`: 36; `roles/settings/{cleaner,coder,evaluator,judge,pm,qa,researcher,retro,reviewer,scout,staff-engineer}.json.in`: `HERDR_SOCKET_PATH` = `/proc/nonexistent/worker-no-herdr.sock` | "dead socket": a path under a directory that cannot exist, so a worker's herdr calls fail closed | works unchanged on macOS (`/proc` does not exist, so the path stays unreachable) **[macOS ok]**; rename to a neutral `/nonexistent/...` so the intent does not rely on procfs. 14 rows collapsed to one: the same literal, 14 places. |
 | R17 | `bin/factory_cli.py`: 2531,2541,2891,5464,5471,6228,6233,6806,14647,14651,15710,15714,15718; `go/internal/cli/cmd_res.go`: 277,294,298; `tests/_slot.py` | `fcntl.flock` / `syscall.Flock`: test slots, merge locks, tick single-flight | BSD `flock(2)` exists on macOS [macOS ok]; semantics match for these (non-blocking exclusive/shared on regular files). Not a port item; listed because it is a classic "Linux-only" suspect. One difference to verify: macOS flock on NFS/SMB volumes. |
+| R19 | `go/internal/tick/lock.go`: 14,26,28 (new Go tick, T-1384, added on main after this doc was started) | `syscall.Flock(LOCK_EX\|LOCK_NB)` single-flight lock for the tick, `EWOULDBLOCK` | compiles for darwin (G12 is unchanged by it) and BSD `flock(2)` has the same semantics [macOS ok]. The tick's *unit order* in `go/internal/tick/units.go` is data about factory phases, not systemd units. |
 | R18 | `bin/factory_cli.py`: 2898 | `/usr/bin/nice -n 10` if present | `/usr/bin/nice` exists on macOS [macOS ok]. |
 
 ## Area 3 - sandbox (namespaces, mounts, credentials)
@@ -208,14 +209,14 @@ Rows are those in the tables above; "files" is the number of distinct files name
 | area | rows | no replacement (needs design) | works as is on macOS | replacement exists |
 |---|---|---|---|---|
 | 1 boot | 17 | 5 (B5, B8 cgroup scan, B10, B11, B12) | 1 (B17 false positive) | 11 |
-| 2 gates | 18 | 3 (R12, R13, R9 value compatibility is a data issue) | 3 (R16, R17, R18) | 12 |
+| 2 gates | 19 | 2 (R12, R13) | 4 (R16, R17, R18, R19) | 13 |
 | 3 sandbox | 13 | 9 (S1-S4, S8, S9, S13 and the probe in S5, S6 home) | 1 (S7 partly) | 3 |
 | 4 terminal backend + binaries | 10 | 2 (P1 if no darwin herdr asset, P6 unknown herdr dir) | 3 (P3 done, P5, P7 already macOS-aware) | 5 |
 | 5 install | 15 | 2 (I3, I8) | 2 (I6, I13) | 11 |
 | 6 CI | 10 | 2 (C3 container test, C5) | 0 | 8 |
 | 7 tests | 8 | 2 groups (T2, T3 skip on darwin) | 2 (T4 mostly, T6) | 4 |
 | 8 coreutils | prose (4 items counted in rows R8, P9, B5, P7) | 0 | n/a | n/a |
-| **total** | **91 rows** | **25** | **12** | **54** |
+| **total** | **92 rows** | **24** | **13** | **55** |
 
 (Totals recomputed with `grep -c '^| [A-Z]\+[0-9]\+ |' docs/design/macos-linux-deps.md`; the per-column split is by judgement and is the part a reviewer should challenge.)
 
