@@ -33,10 +33,21 @@ func parseRes(rest []string) (any, bool) { return nil, len(rest) == 0 }
 
 // Constants carried over from the Python source.
 const (
-	psTimeout        = 60 * time.Second // Python has no ps timeout; this only keeps a wedged ps from hanging the command
-	resUsageRelPath  = ".claude/usage-limits.json"
-	resCPUOnlinePath = "/sys/devices/system/cpu/online"
+	psTimeout       = 60 * time.Second // Python has no ps timeout; this only keeps a wedged ps from hanging the command
+	resUsageRelPath = ".claude/usage-limits.json"
 )
+
+// resPSArgs is the ps argv listing processes by memory and whether its output starts with a header line. BSD ps
+// (macOS) has no --sort; -m orders by memory and rss=,command= drops the header.
+func resPSArgs(goos string) ([]string, bool) {
+	if goos == "darwin" {
+		return []string{"-axo", "rss=,command=", "-m"}, false
+	}
+	return []string{"-eo", "rss,args", "--sort=-rss"}, true
+}
+
+// resGOOS is the OS `res` runs on; a variable so the BSD ps form is testable on Linux.
+var resGOOS = runtime.GOOS
 
 var (
 	utilWorkerRoles = []string{"pm", "coder", "qa", "reviewer", "researcher"} // UTIL_WORKER_ROLES
@@ -172,12 +183,11 @@ func resSnapshot(c *ctx, now time.Time) (gate.Snapshot, gate.Config, error) {
 	if snap.ReviewHeld, err = sbCount(c.db, "SELECT count(*) c FROM agents WHERE status IN ('live','starting') AND role IN ('reviewer','qa')"); err != nil {
 		return snap, cfg, fmt.Errorf("res: reviewer count: %w", err)
 	}
-	mem, err := gate.ReadFile("/proc/meminfo")
-	if err != nil {
-		return snap, cfg, errDelegate
-	}
-	if snap.MemMB, err = gate.MemAvailableMB(mem); err != nil {
-		return snap, cfg, errDelegate
+	hf := gate.NewHostFacts(c.env.Getenv("FACTORY_TMP_STATVFS"), runtime.NumCPU())
+	if !hf.Strict() {
+		if snap.MemMB, err = hf.MemAvailableMB(); err != nil {
+			return snap, cfg, errDelegate
+		}
 	}
 	home, err := homeDir(c)
 	if err != nil {
@@ -197,11 +207,21 @@ func resSnapshot(c *ctx, now time.Time) (gate.Snapshot, gate.Config, error) {
 	if tmpDir == "" {
 		tmpDir = "/tmp"
 	}
-	snap.Tmp = gate.TmpUsage(tmpDir, c.env.Getenv("FACTORY_TMP_STATVFS"), "/proc/mounts")
+	if hf.Strict() {
+		// unreadable values close the gate (ApplyHostFacts); `res` still prints them as unknown
+		gate.ApplyHostFacts(&snap, hf, tmpDir)
+		if pinned := c.env.Getenv("FACTORY_LOADAVG"); pinned != "" {
+			if f, perr := gate.PyFloat(pinned); perr == nil {
+				snap.Load1 = f
+			}
+		}
+		return snap, cfg, nil
+	}
+	snap.Tmp = hf.TmpUsage(tmpDir)
 	if snap.Load1, err = resLoad1(c); err != nil {
 		return snap, cfg, err
 	}
-	snap.NumCPU = gate.CPUCount(resCPUOnlinePath, runtime.NumCPU())
+	snap.NumCPU = hf.NumCPU()
 	return snap, cfg, nil
 }
 
@@ -213,11 +233,7 @@ func resLoad1(c *ctx) (float64, error) {
 		}
 		return f, nil
 	}
-	s, err := gate.ReadFile("/proc/loadavg")
-	if err != nil {
-		return 0, errDelegate
-	}
-	f, err := gate.Load1(s)
+	f, err := gate.NewHostFacts("", runtime.NumCPU()).Load1()
 	if err != nil {
 		return 0, errDelegate
 	}
@@ -415,19 +431,32 @@ func runRes(c *ctx, _ any) (int, error) {
 		return 0, fmt.Errorf("res: blocked tasks: %w", err)
 	}
 	fmt.Fprintf(w, "blocked tasks: %d owner-blocked · %d internal-blocked\n", owner, internal)
-	meminfo, err := gate.ReadFile("/proc/meminfo")
-	if err != nil {
-		return 0, errDelegate
+	hf := gate.NewHostFacts(c.env.Getenv("FACTORY_TMP_STATVFS"), runtime.NumCPU())
+	swapMB, err := hf.SwapUsedMB()
+	swapText := fmt.Sprintf("%d", swapMB)
+	loadText := fmt.Sprintf("%.1f", s.Load1)
+	if hf.Strict() {
+		// unreadable on a strict host prints unknown; the gate is already closed on it
+		if err != nil {
+			swapText = "unknown"
+		}
+		if math.IsInf(s.Load1, 1) {
+			loadText = "unknown"
+		}
+		if snap.MemPressure != 0 {
+			fmt.Fprintf(w, "memory pressure %s\n", gate.PressureName(snap.MemPressure))
+		}
+	} else {
+		if err != nil {
+			return 0, errDelegate
+		}
+		load, err := resLoad1(c)
+		if err != nil {
+			return 0, err
+		}
+		loadText = fmt.Sprintf("%.1f", load)
 	}
-	swapMB, err := gate.SwapUsedMB(meminfo)
-	if err != nil {
-		return 0, errDelegate
-	}
-	load, err := resLoad1(c)
-	if err != nil {
-		return 0, err
-	}
-	fmt.Fprintf(w, "mem available %d MB (floor %s) · swap used %d MB · load %.1f/%d\n", s.MemMB, cfg.MinMemText, swapMB, load, snap.NumCPU)
+	fmt.Fprintf(w, "mem available %d MB (floor %s) · swap used %s MB · load %s/%d\n", s.MemMB, cfg.MinMemText, swapText, loadText, snap.NumCPU)
 	if t := s.Tmp; t == nil {
 		fmt.Fprintln(w, "tmp unknown")
 	} else {
@@ -478,16 +507,19 @@ func runRes(c *ctx, _ any) (int, error) {
 		fmt.Fprintf(w, "\n  %s (open %d min)", b.text, b.ageMin)
 	}
 	fmt.Fprintln(w)
-	out, _, code, err := c.deps.runCmd("ps", []string{"-eo", "rss,args", "--sort=-rss"}, "", nil, psTimeout)
+	psArgs, psHeader := resPSArgs(resGOOS)
+	out, _, code, err := c.deps.runCmd("ps", psArgs, "", nil, psTimeout)
 	if err != nil || code != 0 {
 		return 0, errDelegate
 	}
 	lines := pySplitlines(out)
 	fmt.Fprintln(w, "top memory:")
-	if len(lines) > 1 {
-		lines = lines[1:]
-	} else {
-		lines = nil
+	if psHeader {
+		if len(lines) > 1 {
+			lines = lines[1:]
+		} else {
+			lines = nil
+		}
 	}
 	if len(lines) > 5 {
 		lines = lines[:5]
@@ -1004,7 +1036,7 @@ func resThrottlePreflight(c *ctx, cfg gate.Config) error {
 	if tmpDir == "" {
 		tmpDir = "/tmp"
 	}
-	tmp := gate.TmpUsage(tmpDir, c.env.Getenv("FACTORY_TMP_STATVFS"), "/proc/mounts")
+	tmp := gate.NewHostFacts(c.env.Getenv("FACTORY_TMP_STATVFS"), runtime.NumCPU()).TmpUsage(tmpDir)
 	// Python's db() migrates a database that predates util_samples when it opens it; Go opens read-only and leaves that to Python.
 	nTbl, terr := sbCount(c.db, "SELECT count(*) c FROM sqlite_master WHERE type='table' AND name='util_samples'")
 	if terr != nil {

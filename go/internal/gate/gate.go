@@ -157,6 +157,8 @@ type Tmp struct {
 	UsedMB, TotalMB int64
 	Pct             float64
 	FSType          string // "" is None
+	FreeMB          int64  // free space; read on darwin, where TmpMinFreeMB applies
+	Mount           string // mount point; read on darwin only
 }
 
 // CursorLimit is a Cursor model that is limited until Reset (cursor_limits state entry with status "limited").
@@ -187,11 +189,16 @@ type Snapshot struct {
 	MemMB int64
 	Usage Usage
 	// Procs is total_claude_procs(); nil Argv map with TotalKnown=false is "unreadable".
-	Procs      ProcScan
-	Tmp        *Tmp
-	Load1      float64
-	NumCPU     int
-	LimitedFor *CursorLimit // the cursor_limits entry of Options.Role's model when its status is "limited"
+	Procs  ProcScan
+	Tmp    *Tmp
+	Load1  float64
+	NumCPU int
+
+	// Host-facts extras. The zero values are today's Linux behaviour; only ApplyHostFacts on a strict host sets them.
+	MemPressure  int          // 0 not reported, 1 normal, 2 warn, 4 critical, PressureUnknown unreadable
+	TmpMinFreeMB int64        // >0: the tmp free-space floor (non-tmpfs only)
+	StrictTmp    bool         // a nil Tmp closes the gate instead of skipping the check
+	LimitedFor   *CursorLimit // the cursor_limits entry of Options.Role's model when its status is "limited"
 }
 
 // HerdrAgent is the part of a herdr agent row gate() reads.
@@ -321,6 +328,16 @@ func Decide(s Snapshot, c Config, o Options) Decision {
 	}
 	if s.MemMB < int64(c.MinMemAvailableMB) {
 		return refuse(fmt.Sprintf("MemAvailable %dMB < floor %sMB", s.MemMB, c.MinMemText))
+	}
+	if s.MemPressure != 0 && s.MemPressure != PressureNormal {
+		return refuse(fmt.Sprintf("memory pressure %s (level %d) — min-mem gate closed", PressureName(s.MemPressure), s.MemPressure))
+	}
+	if st.Tmp == nil && s.StrictTmp && o.Role != "cleaner" {
+		return refuse("/tmp usage unknown — gate closed")
+	}
+	if t := st.Tmp; t != nil && s.TmpMinFreeMB > 0 && t.FSType != "tmpfs" && t.FreeMB < s.TmpMinFreeMB && o.Role != "cleaner" {
+		return refuse(fmt.Sprintf("/tmp on %s (%s) %.1f%% used, %d MB free < floor %d MB — clean finished tasks' scratchpads",
+			t.Mount, t.FSType, t.Pct, t.FreeMB, s.TmpMinFreeMB))
 	}
 	if t := st.Tmp; t != nil && t.Pct >= c.TmpMaxPct {
 		// a cleaner frees /tmp: holding it behind the tmp gate deadlocks the factory (T-0610). Only this check is skipped.
