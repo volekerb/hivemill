@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "defaultBranch": "main",
+  "checks": [
+    ["npm", "test"],
+    {
+      "cwd": "apps/web",
+      "argv": ["npm", "run", "lint"]
+    }
+  ]
+}
