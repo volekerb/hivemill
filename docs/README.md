@@ -29,6 +29,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [design/g-023/readme-option-a.md](design/g-023/readme-option-a.md): README draft A, showcase.
 - [design/g-023/readme-option-b.md](design/g-023/readme-option-b.md): README draft B, docs-first.
 - [design/g-023/readme-option-c.md](design/g-023/readme-option-c.md): README draft C, the loop.
+- [design/macos-linux-deps.md](design/macos-linux-deps.md): Linux-only dependency inventory for the macOS port.
 
 ## Operate it
 
