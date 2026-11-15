@@ -12,6 +12,8 @@ import time
 import unittest
 from pathlib import Path
 
+import harness
+
 ROOT = Path(__file__).resolve().parent.parent
 HELPER = ROOT / "tests" / "gate_shards.py"
 
@@ -91,8 +93,8 @@ time.sleep(%d)
 
 
 def git(tree, *args):
-    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", *args],
-                   cwd=tree, check=True, capture_output=True)
+    return harness.git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", *args,
+                       cwd=tree)
 
 
 class RemoteGate(unittest.TestCase):
@@ -171,7 +173,7 @@ class RemoteGate(unittest.TestCase):
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
         self.assertIn("no merge base", p.stderr)
         self.assertEqual(self.ssh_calls(), [])
-        base = subprocess.run(["git", "rev-parse", "HEAD^"], cwd=self.tree, capture_output=True, text=True).stdout.strip()
+        base = git(self.tree, "rev-parse", "HEAD^")
         self.env["GATE_BASE"] = base  # an explicit base is used as given
         p = self.gate()
         self.assertIn(f"base {base}", p.stdout)
