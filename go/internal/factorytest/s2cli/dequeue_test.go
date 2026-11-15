@@ -10,7 +10,7 @@ import (
 	ft "factory/go/internal/factorytest"
 )
 
-// Port of the part of tests/test_dequeue.py that the Go harness can drive (see ported_s2cli.txt).
+// Partial Go tests for tests/test_dequeue.py (7 of 52 cases, no line in ported_s2cli.txt: the module stays a follow-up, because the 45 stateful-herdr cases need a stateful herdr stub).
 //
 // The Go stub (go/internal/factorytest/stub) is scripted and stateless: it cannot keep the agent/pane/tab state
 // tests/stubs/herdr keeps, nor run FAKE_HERDR_HOOK. So these Python cases are NOT ported (they need a started agent
