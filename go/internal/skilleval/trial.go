@@ -245,3 +245,6 @@ func cell(n sql.NullInt64) string {
 	}
 	return fmt.Sprint(n.Int64)
 }
+
+// PyRepr is Python's repr(str), for the CLI that prints dicts and `!r` values.
+func PyRepr(s string) string { return pyRepr(s) }

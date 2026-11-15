@@ -78,10 +78,48 @@ type SpawnContext struct {
 	NewUUID   func() string
 }
 
+// RolePair is one entry of the parsed runtime map.
+type RolePair struct{ Role, Runtime string }
+
+// ordered is a Python dict[str, str]: setting a key again keeps its first position.
+type ordered []RolePair
+
+func (o *ordered) set(role, rt string) {
+	for i := range *o {
+		if (*o)[i].Role == role {
+			(*o)[i].Runtime = rt
+			return
+		}
+	}
+	*o = append(*o, RolePair{role, rt})
+}
+
+func (o ordered) has(role string) bool {
+	for _, p := range o {
+		if p.Role == role {
+			return true
+		}
+	}
+	return false
+}
+
 // ParseRuntimes returns {role: runtime}. Bad tokens are an error. "*=cursor" and "all=cursor" expand to every
 // Cursor-capable role.
 func ParseRuntimes(agentRuntimes, cursorPilotRoles string) (map[string]string, error) {
-	out := map[string]string{}
+	pairs, err := ParseRuntimesOrdered(agentRuntimes, cursorPilotRoles)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]string, len(pairs))
+	for _, p := range pairs {
+		m[p.Role] = p.Runtime
+	}
+	return m, nil
+}
+
+// ParseRuntimesOrdered is ParseRuntimes in the insertion order of the Python dict (what `cursor-pilot status` prints).
+func ParseRuntimesOrdered(agentRuntimes, cursorPilotRoles string) ([]RolePair, error) {
+	var out ordered
 	if raw := cursorharness.PyStrip(agentRuntimes); raw != "" {
 		for _, part := range strings.Split(raw, ",") {
 			part = cursorharness.PyStrip(part)
@@ -102,7 +140,7 @@ func ParseRuntimes(agentRuntimes, cursorPilotRoles string) (map[string]string, e
 					continue // explicit all-claude: the default already is Claude
 				}
 				for _, r := range cursorharness.SortedRoles() {
-					out[r] = runtime
+					out.set(r, runtime)
 				}
 				continue
 			}
@@ -110,7 +148,7 @@ func ParseRuntimes(agentRuntimes, cursorPilotRoles string) (map[string]string, e
 				return nil, fmt.Errorf("runtime %s allow-list is %s; not %s", pyRepr(runtime),
 					pyList(cursorharness.SortedRoles()), pyRepr(role))
 			}
-			out[role] = runtime
+			out.set(role, runtime)
 		}
 	}
 	for _, role := range strings.Split(cursorPilotRoles, ",") {
@@ -121,8 +159,8 @@ func ParseRuntimes(agentRuntimes, cursorPilotRoles string) (map[string]string, e
 			return nil, fmt.Errorf("cursor_pilot_roles: %s not in cursor allow-list (%s)", pyRepr(role),
 				strings.Join(cursorharness.SortedRoles(), ", "))
 		}
-		if _, ok := out[role]; !ok {
-			out[role] = "cursor"
+		if !out.has(role) {
+			out.set(role, "cursor")
 		}
 	}
 	return out, nil
