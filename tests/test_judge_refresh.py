@@ -141,6 +141,11 @@ if "vet" in sys.argv:
 if "test" in sys.argv and "-count=1" in sys.argv:
     with open(log, "a") as f:
         f.write("test -count=1\n")
+    for p in files:
+        for m in re.finditer(r"^// zz-reads: (\S+)", open(p).read(), re.M):
+            if not os.path.exists(m.group(1)):
+                print(f"open {m.group(1)}: no such file or directory", file=sys.stderr)
+                sys.exit(1)
     for name, where in seen.items():
         if len(where) > 1:
             print(f"mergedproof.{name} redeclared", file=sys.stderr)
@@ -857,6 +862,34 @@ class JudgeRefreshTests(FactoryTestCase):
         self.assertIn("test -count=1", log)
         self.assertIn("pr_clean.go", log)
         self.assertIn("main_clean.go", log)
+
+    def _reads_outside_go(self, with_file):
+        self._init_go_pr("reads_test.go", "package mergedproof\n// zz-reads: ../ci/x.json\nfunc ReadsOutside() {}\n")
+        if with_file:
+            self.main_commit("ci/x.json", "{}\n")
+        self._behind_go_main("main_other.go", "package mergedproof\nfunc FromMain() {}\n")
+        self.plant_go_stub()
+
+    def test_merged_go_reads_repo_file_outside_go(self):
+        self._reads_outside_go(True)
+        git(self.wt, "fetch", "-q", "origin", "main")
+        sha, main = self.head, self.remote_ref("refs/heads/main")
+        with self.env.load_factory() as f:
+            msg = f.merged_go_refusal(f.db(), str(self.wt), sha, main)
+        self.assertIsNone(msg)
+        self.assertIn("test -count=1", self.go_log())
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_merged_go_reads_missing_repo_file_refuses(self):
+        self._reads_outside_go(False)
+        git(self.wt, "fetch", "-q", "origin", "main")
+        sha, main = self.head, self.remote_ref("refs/heads/main")
+        with self.env.load_factory() as f:
+            msg = f.merged_go_refusal(f.db(), str(self.wt), sha, main)
+        self.assertTrue(msg.startswith("MERGED-TREE:"), msg)
+        self.assertIn("no such file", msg)
 
     def test_merged_go_proof_off_merges_clash(self):
         self._init_go_pr("pr_clash.go", "package mergedproof\nfunc Clash() {}\n")

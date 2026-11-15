@@ -10,6 +10,9 @@ If you use the [Herdr app](https://herdr.dev) (the desktop client of herdr-core)
   - **One card per project:** its open PRs, oldest first, and its recent merges.
   - **One card per team**, titled by the team's machine (see [Machines and teams](#machines-and-teams)): its boss and lanes, what needs you, active goals, agents, and shipped work.
 
+![The dashboard's factory card: lanes and tiles](film/herdr/panel-factory.png)
+![The status bar across the bottom of the app](film/herdr/panel-status-bar.png)
+
 The app's own agents list already shows every agent on this machine, so the dashboard does not repeat it. An agent appears on the dashboard only in an alert, for example when its context window is almost full.
 
 New alerts also appear as notifications. Clicking one opens the dashboard.

@@ -1,0 +1,2682 @@
+[
+ {
+  "blobs": {
+   "27c99fa0f879be3ea4d5d8a982736a372dcd198e": "# hi\n",
+   "96b8e39a90c985ad73bee2aa7e80522060a435d7": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "plain-skill||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "96b8e39a90c985ad73bee2aa7e80522060a435d7",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "README.md",
+    "sha": "27c99fa0f879be3ea4d5d8a982736a372dcd198e",
+    "size": 5,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "skill",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "unreadable",
+  "name": "plain-skill|unreadable",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "96b8e39a90c985ad73bee2aa7e80522060a435d7",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "README.md",
+    "sha": "27c99fa0f879be3ea4d5d8a982736a372dcd198e",
+    "size": 5,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unreadable: README.md (boom)",
+    "unknown: unreadable: SKILL.md (boom)"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "nil",
+  "name": "plain-skill|noreader",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "96b8e39a90c985ad73bee2aa7e80522060a435d7",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "README.md",
+    "sha": "27c99fa0f879be3ea4d5d8a982736a372dcd198e",
+    "size": 5,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: not inspected: README.md",
+    "unknown: not inspected: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "301a12cc7d465a86905cf07c6a100380974a5ad2": "{\"a\":1}",
+   "a4192fd06a1f896be6f6d3b6db021057ffe7031a": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "b8a7b2574a68d88ee5d9b43a93df65282f7d2ac8": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "collection||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "skills/a/SKILL.md",
+    "sha": "a4192fd06a1f896be6f6d3b6db021057ffe7031a",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "skills/b/SKILL.md",
+    "sha": "b8a7b2574a68d88ee5d9b43a93df65282f7d2ac8",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "skills/b/data.json",
+    "sha": "301a12cc7d465a86905cf07c6a100380974a5ad2",
+    "size": 7,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "collection",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "1101e67746b353cf0c58080155bdf7d60006d6f6": "#!/bin/sh\necho\n",
+   "cae010017d20ae457d2a038838b66f0e0a77315d": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "script-file||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "cae010017d20ae457d2a038838b66f0e0a77315d",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "run.sh",
+    "sha": "1101e67746b353cf0c58080155bdf7d60006d6f6",
+    "size": 15,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: run.sh"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "414c1a4466534e7320f3659cef74afb730fd399b": "x",
+   "626f05de0707d5a57a8fe95fdae1d11ea3369144": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "exec-mode||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "626f05de0707d5a57a8fe95fdae1d11ea3369144",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100755",
+    "path": "tool",
+    "sha": "414c1a4466534e7320f3659cef74afb730fd399b",
+    "size": 1,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: tool"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "224335d74e4fcebb91ca97e5edc21a280e8319a0": "../etc",
+   "7d107c73b38276081d799c02fadad2393b134615": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "symlink||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "7d107c73b38276081d799c02fadad2393b134615",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "120000",
+    "path": "link",
+    "sha": "224335d74e4fcebb91ca97e5edc21a280e8319a0",
+    "size": 6,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "symlinks: link"
+   ],
+   "kind": "skill",
+   "risk": "symlinks"
+  }
+ },
+ {
+  "blobs": {
+   "1d27b7ebf71c88f6bc15d783e96dbe54418c22c0": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "200c33dff77e6fcfdca9d5d7fcec4ab571d447ec": ""
+  },
+  "name": "submodule||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "1d27b7ebf71c88f6bc15d783e96dbe54418c22c0",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "160000",
+    "path": "sub",
+    "sha": "200c33dff77e6fcfdca9d5d7fcec4ab571d447ec",
+    "size": 0,
+    "type": "commit"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "symlinks: sub"
+   ],
+   "kind": "skill",
+   "risk": "symlinks"
+  }
+ },
+ {
+  "blobs": {
+   "0eed78076332afb58ef671315000ab0269a65022": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "64475fbd34e94869f581e8f85e0cf1904d526ebc": "x"
+  },
+  "name": "hooks-dir||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "0eed78076332afb58ef671315000ab0269a65022",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "hooks/pre.md",
+    "sha": "64475fbd34e94869f581e8f85e0cf1904d526ebc",
+    "size": 1,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "hooks: hooks/pre.md"
+   ],
+   "kind": "skill",
+   "risk": "hooks"
+  }
+ },
+ {
+  "blobs": {
+   "2b60f4eff65444c8acd8b14a4715dc2f94b883de": "{}",
+   "faf002557866ebbefabb5ab1ff870280489ec3bf": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "hooks-json||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "faf002557866ebbefabb5ab1ff870280489ec3bf",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "hooks.json",
+    "sha": "2b60f4eff65444c8acd8b14a4715dc2f94b883de",
+    "size": 2,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "hooks: hooks.json"
+   ],
+   "kind": "skill",
+   "risk": "hooks"
+  }
+ },
+ {
+  "blobs": {
+   "5132daeba7ab20759c9b9f2a344e580930470032": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "aea59678bc65f9c31f736c9f2e2f4ff3eb3f3e63": "{}"
+  },
+  "name": "mcp-json||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "5132daeba7ab20759c9b9f2a344e580930470032",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": ".mcp.json",
+    "sha": "aea59678bc65f9c31f736c9f2e2f4ff3eb3f3e63",
+    "size": 2,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: .mcp.json"
+   ],
+   "kind": "skill",
+   "risk": "mcp"
+  }
+ },
+ {
+  "blobs": {
+   "a81718a4b00d8636c0b89ee473620a44bd124c2e": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "f540704ddf1bae70fce7fa8aee353228de827dd3": "{}"
+  },
+  "name": "mcp-example||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "a81718a4b00d8636c0b89ee473620a44bd124c2e",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "x.mcp.example.json",
+    "sha": "f540704ddf1bae70fce7fa8aee353228de827dd3",
+    "size": 2,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: x.mcp.example.json"
+   ],
+   "kind": "skill",
+   "risk": "mcp"
+  }
+ },
+ {
+  "blobs": {
+   "46975d784c1136dd6a0cdb1e3b82ff790c7ce32b": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "a336a2ad59ba5c920c957b5c82e23326eaec02bd": "{\"name\":\"p\",\"hooks\":{}}"
+  },
+  "name": "plugin-json-hooks||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": ".claude-plugin/plugin.json",
+    "sha": "a336a2ad59ba5c920c957b5c82e23326eaec02bd",
+    "size": 23,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "skills/a/SKILL.md",
+    "sha": "46975d784c1136dd6a0cdb1e3b82ff790c7ce32b",
+    "size": 43,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "hooks: .claude-plugin/plugin.json"
+   ],
+   "kind": "plugin",
+   "risk": "hooks"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "unreadable",
+  "name": "plugin-json-hooks|unreadable",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": ".claude-plugin/plugin.json",
+    "sha": "a336a2ad59ba5c920c957b5c82e23326eaec02bd",
+    "size": 23,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "skills/a/SKILL.md",
+    "sha": "46975d784c1136dd6a0cdb1e3b82ff790c7ce32b",
+    "size": 43,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unreadable: .claude-plugin/plugin.json (boom)",
+    "unknown: unreadable: skills/a/SKILL.md (boom)"
+   ],
+   "kind": "plugin",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "nil",
+  "name": "plugin-json-hooks|noreader",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": ".claude-plugin/plugin.json",
+    "sha": "a336a2ad59ba5c920c957b5c82e23326eaec02bd",
+    "size": 23,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "skills/a/SKILL.md",
+    "sha": "46975d784c1136dd6a0cdb1e3b82ff790c7ce32b",
+    "size": 43,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: not inspected: .claude-plugin/plugin.json",
+    "unknown: not inspected: skills/a/SKILL.md"
+   ],
+   "kind": "plugin",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "c13e8da86514c5180ee4bc5dc96b923560c720a4": "{\"name\":\"p\",\"mcpServers\":{\"x\":{\"url\":\"https://example.com/sse\"}}}"
+  },
+  "name": "plugin-json-mcp||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": ".claude-plugin/plugin.json",
+    "sha": "c13e8da86514c5180ee4bc5dc96b923560c720a4",
+    "size": 65,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: .claude-plugin/plugin.json",
+    "network: .claude-plugin/plugin.json"
+   ],
+   "kind": "plugin",
+   "risk": "mcp,network"
+  }
+ },
+ {
+  "blobs": {
+   "2522b9094a29c777159af62a74146faf4a1d1a90": "{\"name\":\"p\",\"lspServers\":{\"go\":{\"command\":\"gopls\"}}}"
+  },
+  "name": "plugin-json-lsp||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": ".claude-plugin/plugin.json",
+    "sha": "2522b9094a29c777159af62a74146faf4a1d1a90",
+    "size": 52,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: .claude-plugin/plugin.json"
+   ],
+   "kind": "plugin",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "7b838a14fefd614dd2fb02efd32844d862b52c9f": "{not json \"hooks\""
+  },
+  "name": "plugin-json-bad||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": ".claude-plugin/plugin.json",
+    "sha": "7b838a14fefd614dd2fb02efd32844d862b52c9f",
+    "size": 17,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "hooks: .claude-plugin/plugin.json",
+    "unknown: unparseable json: .claude-plugin/plugin.json"
+   ],
+   "kind": "plugin",
+   "risk": "hooks,unknown"
+  }
+ },
+ {
+  "blobs": {
+   "4341c7da38c29b884e6ce162b0bfd6e53ca7d002": "Run it.\n",
+   "e43cdd721c3dcbbc8baa7a65781d9ed340083ac0": "{\"name\":\"p\",\"description\":\"d\"}"
+  },
+  "name": "plugin-json-clean||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": ".claude-plugin/plugin.json",
+    "sha": "e43cdd721c3dcbbc8baa7a65781d9ed340083ac0",
+    "size": 30,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/go.md",
+    "sha": "4341c7da38c29b884e6ce162b0bfd6e53ca7d002",
+    "size": 8,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "plugin",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "2a5a84e32055af1047a7e28563e6300eb663d006": "---\nname: x\n---\nrun !`ls` now\n"
+  },
+  "name": "md-shell-bang||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "2a5a84e32055af1047a7e28563e6300eb663d006",
+    "size": 30,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown"
+  }
+ },
+ {
+  "blobs": {
+   "0c334770f8093c94628f63d287f76db49dd09fd9": "---\nname: x\n---\n```!\nls\n```\n"
+  },
+  "name": "md-fence-bang||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "0c334770f8093c94628f63d287f76db49dd09fd9",
+    "size": 28,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown"
+  }
+ },
+ {
+  "blobs": {
+   "40ceda52a99ce630596c8e2a0393631b62d6cd5d": "---\nname: x\ndescription: d\n---\nDo a thing.\nUse curl to get it.\n"
+  },
+  "name": "md-curl||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "40ceda52a99ce630596c8e2a0393631b62d6cd5d",
+    "size": 63,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "network"
+  }
+ },
+ {
+  "blobs": {
+   "374b0418a91e8fa7be6922875aee906117ee8805": "---\nname: x\ndescription: d\n---\nDo a thing.\nDownload the file from https://x.example/a\n"
+  },
+  "name": "md-fetch-url||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "374b0418a91e8fa7be6922875aee906117ee8805",
+    "size": 86,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "network"
+  }
+ },
+ {
+  "blobs": {
+   "389dee69ebf1dcd6f707d85ca4fed36fbdafccfe": "---\nname: x\ndescription: d\n---\nDo a thing.\nRun claude mcp add foo\n"
+  },
+  "name": "md-mcp-add||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "389dee69ebf1dcd6f707d85ca4fed36fbdafccfe",
+    "size": 66,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "mcp"
+  }
+ },
+ {
+  "blobs": {
+   "20f4a0a75fa092bfdfd34925d5259e9f6bd00b1d": "---\nname: x\ndescription: d\n---\nDo a thing.\nServer at https://mcp.asana.com/v2/mcp\n"
+  },
+  "name": "md-mcp-url||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "20f4a0a75fa092bfdfd34925d5259e9f6bd00b1d",
+    "size": 82,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "mcp,network"
+  }
+ },
+ {
+  "blobs": {
+   "7594bf61c97121ec0a35c76a19d1d01b75d07115": "---\nname: x\ndescription: d\n---\nDo a thing.\nclaude mcp \\\n  add foo\n"
+  },
+  "name": "md-mcp-cont||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "7594bf61c97121ec0a35c76a19d1d01b75d07115",
+    "size": 66,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "mcp"
+  }
+ },
+ {
+  "blobs": {
+   "ebc0ee1958dfaed29f1c8a6108017003c91cfdec": "---\nname: x\ndescription: d\n---\nDo a thing.\nnpx -y mcp-remote https://x/sse\n"
+  },
+  "name": "md-launcher||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "ebc0ee1958dfaed29f1c8a6108017003c91cfdec",
+    "size": 75,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "mcp,network"
+  }
+ },
+ {
+  "blobs": {
+   "8f7c1ade0a94c51c8ac2bc04ca162600e4b7a30f": "---\nname: x\ndescription: d\n---\nDo a thing.\nMCP is a protocol.\n"
+  },
+  "name": "md-mcp-prose||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "8f7c1ade0a94c51c8ac2bc04ca162600e4b7a30f",
+    "size": 62,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "skill",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "5e53bfaf8ab9f6afa4a81671a699a75c4f7e9954": "---\nname: x\nallowed-tools: Bash, Read\n---\nbody\n"
+  },
+  "name": "fm-bash-bare||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "5e53bfaf8ab9f6afa4a81671a699a75c4f7e9954",
+    "size": 47,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "network"
+  }
+ },
+ {
+  "blobs": {
+   "e67cefb2838617d82410eb3064dddf900faf7e33": "---\nname: x\nallowed-tools: Bash(sh:*)\n---\nbody\n"
+  },
+  "name": "fm-bash-sh||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "e67cefb2838617d82410eb3064dddf900faf7e33",
+    "size": 47,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "ba1f3bdc25156ebb3971fd688165a9215b609101": "---\nname: x\nallowed-tools: Bash(git status:*), Read\n---\nbody\n"
+  },
+  "name": "fm-bash-git-ok||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "ba1f3bdc25156ebb3971fd688165a9215b609101",
+    "size": 61,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "skill",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "7121e871f5ad97cbeb103f784e9137b53474b964": "---\nname: x\nallowed-tools: Bash(git rebase:*)\n---\nbody\n"
+  },
+  "name": "fm-bash-git-bad||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "7121e871f5ad97cbeb103f784e9137b53474b964",
+    "size": 55,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "ef8aa3fde3ec5568ee12b531a6844eff68aafc3d": "---\nname: x\nallowed-tools: Bash(git status -c x:*)\n---\nbody\n"
+  },
+  "name": "fm-bash-git-opt||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "ef8aa3fde3ec5568ee12b531a6844eff68aafc3d",
+    "size": 60,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "2a7c789add4fbacaef862ad8e173daabca6e68da": "---\nname: x\nallowed-tools: Bash(ls:*)\n---\nbody\n"
+  },
+  "name": "fm-bash-ls||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "2a7c789add4fbacaef862ad8e173daabca6e68da",
+    "size": 47,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "skill",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "d7ae9c8a48716eb129543f64e0e0a9f98b690923": "---\nname: x\nallowed-tools: Bash('sh':*)\n---\nbody\n"
+  },
+  "name": "fm-bash-quoted||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "d7ae9c8a48716eb129543f64e0e0a9f98b690923",
+    "size": 49,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "41df4d83ea21e63cd4c9a5a1a37e32395d9c55ee": "---\nname: x\nallowed-tools: Bash(FOO=1 ls:*)\n---\nbody\n"
+  },
+  "name": "fm-bash-env||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "41df4d83ea21e63cd4c9a5a1a37e32395d9c55ee",
+    "size": 53,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "890ac955a1fd38d41c0ac51f9889870558de40b9": "---\nname: x\nallowed-tools: Bash($SHELL:*)\n---\nbody\n"
+  },
+  "name": "fm-bash-expand||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "890ac955a1fd38d41c0ac51f9889870558de40b9",
+    "size": 51,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "4dbc70201843253e5b1088f34159d06df9ca2b12": "---\nname: x\nallowed-tools: Bash(/bin/bash:*)\n---\nbody\n"
+  },
+  "name": "fm-bash-path||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "4dbc70201843253e5b1088f34159d06df9ca2b12",
+    "size": 54,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "f902273215bbfee63dc7a6da9c3e9f6814046192": "---\nname: x\nallowed-tools: MyBash, Bash-like\n---\nbody\n"
+  },
+  "name": "fm-bash-prefixword||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "f902273215bbfee63dc7a6da9c3e9f6814046192",
+    "size": 54,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "skill",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "c07558561fc2f57e27bd53db39c8a8037bf1484f": "---\nname: x\nallowed-tools: Bash()\n---\nbody\n"
+  },
+  "name": "fm-bash-empty||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "c07558561fc2f57e27bd53db39c8a8037bf1484f",
+    "size": 43,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "cb7507983182a71330f36daaa4baa979f5d89fae": "---\nname: x\nallowed-tools: Bash(curl:*)\n---\nbody\n"
+  },
+  "name": "fm-bash-net||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "cb7507983182a71330f36daaa4baa979f5d89fae",
+    "size": 49,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown"
+  }
+ },
+ {
+  "blobs": {
+   "c3d4db49bfa99d69da5a3115107310403991db66": "---\nname: x\ntools:\n  - WebFetch\n---\nbody\n"
+  },
+  "name": "fm-webfetch||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "c3d4db49bfa99d69da5a3115107310403991db66",
+    "size": 41,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "network"
+  }
+ },
+ {
+  "blobs": {
+   "fb196a43baa8baa25ed26e2f9ac8fc7f06d22938": "---\nname: x\nallowed-tools:\n  - mcp__github__list\n---\nbody\n"
+  },
+  "name": "fm-mcp-tool||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "fb196a43baa8baa25ed26e2f9ac8fc7f06d22938",
+    "size": 58,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "mcp"
+  }
+ },
+ {
+  "blobs": {
+   "89fce80587cddfa2e6cb9d2a066dc00d8a4bcaaa": "---\nname: x\nhooks:\n  PreToolUse: x\n---\nbody\n"
+  },
+  "name": "fm-hooks||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "89fce80587cddfa2e6cb9d2a066dc00d8a4bcaaa",
+    "size": 44,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "hooks: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "hooks"
+  }
+ },
+ {
+  "blobs": {
+   "b216d0c05cfd24c5cbd4685282754c9150d1cfbc": "---\nname: x\nno close\n"
+  },
+  "name": "fm-unclosed||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "b216d0c05cfd24c5cbd4685282754c9150d1cfbc",
+    "size": 21,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unclosed frontmatter: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "d9b75302d544e1bc4d4f9a25d7b3680e7726065b": "\ufeff  ---\nname: x\nallowed-tools: Bash\n---\nbody\n"
+  },
+  "name": "fm-bom||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "d9b75302d544e1bc4d4f9a25d7b3680e7726065b",
+    "size": 44,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "network"
+  }
+ },
+ {
+  "blobs": {
+   "dacda726747a6561d87b15f0184d49b1edad6812": "---\r\nname: x\r\nallowed-tools: Bash(bash:*)\r\n---\r\nbody\r\n"
+  },
+  "name": "fm-crlf||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "dacda726747a6561d87b15f0184d49b1edad6812",
+    "size": 54,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "9f3406585d18087d6f7a510621a435602f33ff1f": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "e0a811450c428a14fb568e49521b9f290ef1d160": "Setup: claude mcp add-json x '{}'\n"
+  },
+  "name": "readme-mcp||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "9f3406585d18087d6f7a510621a435602f33ff1f",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "README.md",
+    "sha": "e0a811450c428a14fb568e49521b9f290ef1d160",
+    "size": 34,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: README.md"
+   ],
+   "kind": "skill",
+   "risk": "mcp"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "unreadable",
+  "name": "readme-mcp|unreadable",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "9f3406585d18087d6f7a510621a435602f33ff1f",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "README.md",
+    "sha": "e0a811450c428a14fb568e49521b9f290ef1d160",
+    "size": 34,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unreadable: README.md (boom)",
+    "unknown: unreadable: SKILL.md (boom)"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "nil",
+  "name": "readme-mcp|noreader",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "9f3406585d18087d6f7a510621a435602f33ff1f",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "README.md",
+    "sha": "e0a811450c428a14fb568e49521b9f290ef1d160",
+    "size": 34,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: not inspected: README.md",
+    "unknown: not inspected: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "1a9c5fe81c95413c7a87721f11a761dd31cc9e1f": "claude mcp add x\n",
+   "2cc73868f2f8aa3016c1bd5c6a8b81664a49895d": "hi"
+  },
+  "name": "readme-in-commands||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "commands/README.md",
+    "sha": "1a9c5fe81c95413c7a87721f11a761dd31cc9e1f",
+    "size": 17,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/a.md",
+    "sha": "2cc73868f2f8aa3016c1bd5c6a8b81664a49895d",
+    "size": 2,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: commands/README.md"
+   ],
+   "kind": "plugin",
+   "risk": "mcp"
+  }
+ },
+ {
+  "blobs": {
+   "72ad2169c17e441fe8e9308a1881567aa0a2061f": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "c6df4c65d6f98c5e34b757c8ffb88185070c6fda": "hooks:\n  a: b\n"
+  },
+  "name": "cfg-hooks||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "72ad2169c17e441fe8e9308a1881567aa0a2061f",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "config.yaml",
+    "sha": "c6df4c65d6f98c5e34b757c8ffb88185070c6fda",
+    "size": 14,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "hooks: config.yaml"
+   ],
+   "kind": "skill",
+   "risk": "hooks"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "unreadable",
+  "name": "cfg-hooks|unreadable",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "72ad2169c17e441fe8e9308a1881567aa0a2061f",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "config.yaml",
+    "sha": "c6df4c65d6f98c5e34b757c8ffb88185070c6fda",
+    "size": 14,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unreadable: SKILL.md (boom)",
+    "unknown: unreadable: config.yaml (boom)"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "nil",
+  "name": "cfg-hooks|noreader",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "72ad2169c17e441fe8e9308a1881567aa0a2061f",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "config.yaml",
+    "sha": "c6df4c65d6f98c5e34b757c8ffb88185070c6fda",
+    "size": 14,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: not inspected: SKILL.md",
+    "unknown: not inspected: config.yaml"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "1949fd6c155612a4938e529d9b42d082b0ef8f5d": "servers:\n  - command: node\n",
+   "45526796720f61aed41abc6b58a757b4c3d2707c": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "cfg-command-yaml||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "45526796720f61aed41abc6b58a757b4c3d2707c",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c.yml",
+    "sha": "1949fd6c155612a4938e529d9b42d082b0ef8f5d",
+    "size": 27,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: c.yml"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "0bbdd5adbf695f86467f1686e16854d650354567": "[a]\ncommand = \"x\"\n",
+   "26ced3d474fda9022b81ab8a5e042887050acbdb": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "cfg-command-toml||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "26ced3d474fda9022b81ab8a5e042887050acbdb",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c.toml",
+    "sha": "0bbdd5adbf695f86467f1686e16854d650354567",
+    "size": 18,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: c.toml"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "90f565c01209fde9335e2a73bab7a81e4e8b3174": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "94758f7892a6ada9514ca8771bdaa440afe42236": "a = { command = 'x' }\n"
+  },
+  "name": "cfg-toml-inline||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "90f565c01209fde9335e2a73bab7a81e4e8b3174",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c.toml",
+    "sha": "94758f7892a6ada9514ca8771bdaa440afe42236",
+    "size": 22,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: c.toml"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "cbb717fed5072596aea35a3c300cc6e3c6ab9ab2": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "ff1f1e58afe358b1c7fff5f97ba056cc96134d08": "{\"a\":[{\"command\":\"x\"}]}"
+  },
+  "name": "cfg-json-command||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "cbb717fed5072596aea35a3c300cc6e3c6ab9ab2",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c.json",
+    "sha": "ff1f1e58afe358b1c7fff5f97ba056cc96134d08",
+    "size": 23,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: c.json"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "3c9fcce2b489785f835cb23d84278e8966c5b8b5": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "ae2fbbe7996b3802dde7199907536dbb1353f1a8": "{\"\\u0063ommand\":\"x\"}"
+  },
+  "name": "cfg-json-escaped||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "3c9fcce2b489785f835cb23d84278e8966c5b8b5",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c.json",
+    "sha": "ae2fbbe7996b3802dde7199907536dbb1353f1a8",
+    "size": 20,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: c.json"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "174e4f1e0b96ee8c0f9a6afd63c8ab33a232f1b1": "{\"command\": \"x\"",
+   "2a1ef6dbe016980cd31f776a8e112b75cddfe54b": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "cfg-json-broken||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "2a1ef6dbe016980cd31f776a8e112b75cddfe54b",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c.json",
+    "sha": "174e4f1e0b96ee8c0f9a6afd63c8ab33a232f1b1",
+    "size": 15,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: c.json"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "77874a4ff1d7cf141c3ceb11261d0331e4c6ba2c": "{\"command\":\"x\"}",
+   "ea24fcec30e63196802217f8a118585ba72aefb0": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "cfg-mcpname||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "ea24fcec30e63196802217f8a118585ba72aefb0",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "mcp-config.json",
+    "sha": "77874a4ff1d7cf141c3ceb11261d0331e4c6ba2c",
+    "size": 15,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: mcp-config.json",
+    "mcp: mcp-config.json"
+   ],
+   "kind": "skill",
+   "risk": "scripts,mcp"
+  }
+ },
+ {
+  "blobs": {
+   "4d05343259629d8c356310b120744562dcf6da7f": "{\"mcpServers\":{\"a\":1}}",
+   "9f8cbd2695f49c6d4f02a78120521f4ce9e975a6": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "cfg-mcpservers||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "9f8cbd2695f49c6d4f02a78120521f4ce9e975a6",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c.json",
+    "sha": "4d05343259629d8c356310b120744562dcf6da7f",
+    "size": 22,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: c.json"
+   ],
+   "kind": "skill",
+   "risk": "mcp"
+  }
+ },
+ {
+  "blobs": {
+   "0c5fde03fa69119a9a8918012699252bc2e7c20d": "\ufeff{\"hooks\":{}}",
+   "cac0ff9a785e33e1ee60504a4e2729a8a553de8b": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "cfg-bom||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "cac0ff9a785e33e1ee60504a4e2729a8a553de8b",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c.json",
+    "sha": "0c5fde03fa69119a9a8918012699252bc2e7c20d",
+    "size": 13,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "hooks: c.json"
+   ],
+   "kind": "skill",
+   "risk": "hooks"
+  }
+ },
+ {
+  "blobs": {
+   "c012be0f355cf22b848eae58735c3a8c29227c22": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "fa7edd21314df299480f2201b6257919034dabbd": "{}"
+  },
+  "name": "package-json||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "c012be0f355cf22b848eae58735c3a8c29227c22",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "package.json",
+    "sha": "fa7edd21314df299480f2201b6257919034dabbd",
+    "size": 2,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: package.json"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "279d650cae8c7d3b7ca535db1cb94ebbc2509c7e": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "c6bca958e0a73f94a02b739c19c9cd2f24dc54e8": "data"
+  },
+  "name": "unknown-type||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "279d650cae8c7d3b7ca535db1cb94ebbc2509c7e",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "weird.xyz",
+    "sha": "c6bca958e0a73f94a02b739c19c9cd2f24dc54e8",
+    "size": 4,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unrecognised file type: weird.xyz"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "5d23fdc6a2e7dcf8dd100e41c8a5eccad116ff98": "#!/bin/sh\n",
+   "d46fe0e9325b7388ddce0338769fe1e717fc9f23": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "unknown-shebang||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "d46fe0e9325b7388ddce0338769fe1e717fc9f23",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "weird.xyz",
+    "sha": "5d23fdc6a2e7dcf8dd100e41c8a5eccad116ff98",
+    "size": 10,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: weird.xyz"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "unreadable",
+  "name": "unknown-shebang|unreadable",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "d46fe0e9325b7388ddce0338769fe1e717fc9f23",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "weird.xyz",
+    "sha": "5d23fdc6a2e7dcf8dd100e41c8a5eccad116ff98",
+    "size": 10,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unreadable: SKILL.md (boom)",
+    "unknown: unrecognised file type: weird.xyz"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {},
+  "mode": "nil",
+  "name": "unknown-shebang|noreader",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "d46fe0e9325b7388ddce0338769fe1e717fc9f23",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "weird.xyz",
+    "sha": "5d23fdc6a2e7dcf8dd100e41c8a5eccad116ff98",
+    "size": 10,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: not inspected: SKILL.md",
+    "unknown: unrecognised file type: weird.xyz"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "6f7ab961d796c8d2bf30e9692533983db829b1b5": "---\nname: x\ndescription: d\n---\nDo a thing.\n",
+   "94b9f2e8059130a7a7527026c1211d61adec1ff8": "MIT",
+   "ce035761fcf79ac4412f2ad6a2559c39464c3b80": "all:"
+  },
+  "name": "no-ext||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "6f7ab961d796c8d2bf30e9692533983db829b1b5",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "LICENSE",
+    "sha": "94b9f2e8059130a7a7527026c1211d61adec1ff8",
+    "size": 3,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "Makefile",
+    "sha": "ce035761fcf79ac4412f2ad6a2559c39464c3b80",
+    "size": 4,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: Makefile"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {},
+  "name": "empty||False",
+  "prefix": "",
+  "tree": [],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: no files under path"
+   ],
+   "kind": "unknown",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {},
+  "name": "empty||True",
+  "prefix": "",
+  "tree": [],
+  "truncated": true,
+  "want": {
+   "detail": [
+    "unknown: no files under path",
+    "unknown: tree truncated by the API"
+   ],
+   "kind": "unknown",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "c5e85774429c5d53209d556f75bc678982d7901c": "---\nname: a\n---\nhi\n"
+  },
+  "name": "agent||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "agents/a.md",
+    "sha": "c5e85774429c5d53209d556f75bc678982d7901c",
+    "size": 19,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "agent",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "6491ae66d01b9941e6ea305d93538ede361d41d6": "x"
+  },
+  "name": "hook-kind||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "hooks/a.txt",
+    "sha": "6491ae66d01b9941e6ea305d93538ede361d41d6",
+    "size": 1,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "hooks: hooks/a.txt"
+   ],
+   "kind": "hook",
+   "risk": "hooks"
+  }
+ },
+ {
+  "blobs": {
+   "823542cad3a2416c687990880a4d8ef1fcd2e712": "{}"
+  },
+  "name": "mcp-kind||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "a/.mcp.json",
+    "sha": "823542cad3a2416c687990880a4d8ef1fcd2e712",
+    "size": 2,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "mcp: a/.mcp.json"
+   ],
+   "kind": "mcp",
+   "risk": "mcp"
+  }
+ },
+ {
+  "blobs": {
+   "9be8f1e5d17e0bff2f83a3024c422841dca0a2e8": "---\nallowed-tools: Bash(ls:*)\n---\nhi `!ls`\n"
+  },
+  "name": "commands-md||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "commands/a.md",
+    "sha": "9be8f1e5d17e0bff2f83a3024c422841dca0a2e8",
+    "size": 43,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "plugin",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "edd818e11049a7d76805825463a30cdc40077330": "---\nname: x\ndescription: d\n---\nDo a thing.\n\u00e9Bash and Bash(\u00e9) and xBash(sh:*)\n"
+  },
+  "name": "unicode-before||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "edd818e11049a7d76805825463a30cdc40077330",
+    "size": 77,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "skill",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "a30b7dd2f0b6f16a16ebebe73a5ad0106cbb5546": "---\nname: x\ndescription: d\n---\nDo a thing.\n\u0109url and \u00e9WebFetch\n"
+  },
+  "name": "unicode-curl||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "a30b7dd2f0b6f16a16ebebe73a5ad0106cbb5546",
+    "size": 62,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "skill",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "f278cc500fe839d12ca3225ef3d2073572312f28": "---\nname: x\nallowed-tools: xBash(a Bash(sh:*)\n---\nb\n"
+  },
+  "name": "nested-bash||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "f278cc500fe839d12ca3225ef3d2073572312f28",
+    "size": 52,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "shell-in-markdown: SKILL.md",
+    "network: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "shell-in-markdown,network"
+  }
+ },
+ {
+  "blobs": {
+   "a2f3283983e750a9861dc9ea11b7e7dc219d1f92": "---\nname: x\nallowed-tools: xmcp__a, my-mcp__b\n---\nb\n"
+  },
+  "name": "mcp-tool-prefix||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "a2f3283983e750a9861dc9ea11b7e7dc219d1f92",
+    "size": 52,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "skill",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "0b66396bc234831f756b1efa80cec0d5230b7b7a": "hi",
+   "25d057682a0aab250fadf71ea60d2aeaac226aad": "hi",
+   "364296725586f5b76eee9379c6a3d104b4e24682": "hi",
+   "460b6ef2f0f556300411efa22099ec126653529e": "hi",
+   "52100d3428fc59f1141a9084f40fabf3321d5eb9": "hi",
+   "569d1bcb37a029d3122685dac63e0c0f7681c1c1": "hi",
+   "8a404a0abebe0650444c6610be9e986056802aa9": "hi",
+   "a58a95544d8876bc3265bf76acbd9455620c62a3": "hi",
+   "a71acd8bba41fbfb6caed3530e927b008b2a7f24": "hi",
+   "bec5bca3ca378441702fc4bd71f0689f5bd969c4": "hi",
+   "d123a4ef19623b56b065fa113bd3ddf73e99df5e": "hi",
+   "e9f4198c907338a1c20b1cfb0bc8ff930200542f": "hi",
+   "fdbaf9b569d56b4978d7ec84745452ed576bc3f3": "hi",
+   "fe702a56bad6c19c611018cdb13ebd1dd457fab2": "hi"
+  },
+  "name": "many-md||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "commands/c0.md",
+    "sha": "fdbaf9b569d56b4978d7ec84745452ed576bc3f3",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c1.md",
+    "sha": "bec5bca3ca378441702fc4bd71f0689f5bd969c4",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c2.md",
+    "sha": "8a404a0abebe0650444c6610be9e986056802aa9",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c3.md",
+    "sha": "0b66396bc234831f756b1efa80cec0d5230b7b7a",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c4.md",
+    "sha": "fe702a56bad6c19c611018cdb13ebd1dd457fab2",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c5.md",
+    "sha": "a58a95544d8876bc3265bf76acbd9455620c62a3",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c6.md",
+    "sha": "25d057682a0aab250fadf71ea60d2aeaac226aad",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c7.md",
+    "sha": "a71acd8bba41fbfb6caed3530e927b008b2a7f24",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c8.md",
+    "sha": "d123a4ef19623b56b065fa113bd3ddf73e99df5e",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c9.md",
+    "sha": "52100d3428fc59f1141a9084f40fabf3321d5eb9",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c10.md",
+    "sha": "569d1bcb37a029d3122685dac63e0c0f7681c1c1",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c11.md",
+    "sha": "460b6ef2f0f556300411efa22099ec126653529e",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c12.md",
+    "sha": "e9f4198c907338a1c20b1cfb0bc8ff930200542f",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "commands/c13.md",
+    "sha": "364296725586f5b76eee9379c6a3d104b4e24682",
+    "size": 2,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unread: 4 file(s) over the read limit"
+   ],
+   "kind": "plugin",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "7bdedd3cdc30f9dfb35a45350112ebce920b827f": "{\"name\":\"p\"}",
+   "83163090316dcdf9871e84e0171b0257f0cdf712": "{\"name\":\"p\"}",
+   "ae7dbf3389d5fe01cf75c07a2018df8cbc0fe3c2": "{\"name\":\"p\"}",
+   "f24abe6a615cac37a8c19cef245e96f6c8631feb": "{\"name\":\"p\"}",
+   "f51e3bb59f753f31885857935061653f0f2686e8": "{\"name\":\"p\"}"
+  },
+  "name": "many-json||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "p0/.claude-plugin/plugin.json",
+    "sha": "83163090316dcdf9871e84e0171b0257f0cdf712",
+    "size": 12,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "p1/.claude-plugin/plugin.json",
+    "sha": "f51e3bb59f753f31885857935061653f0f2686e8",
+    "size": 12,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "p2/.claude-plugin/plugin.json",
+    "sha": "ae7dbf3389d5fe01cf75c07a2018df8cbc0fe3c2",
+    "size": 12,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "p3/.claude-plugin/plugin.json",
+    "sha": "7bdedd3cdc30f9dfb35a45350112ebce920b827f",
+    "size": 12,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "p4/.claude-plugin/plugin.json",
+    "sha": "f24abe6a615cac37a8c19cef245e96f6c8631feb",
+    "size": 12,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unread: 2 file(s) over the read limit"
+   ],
+   "kind": "plugin",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "07aaf0b1aa6832c0d9150298a14d47f56b74cc1f": "{}",
+   "5aa6554298cf53ff897a5c744a20ad81826e1187": "{}",
+   "792801f6588e7f7f5be6fd5bc2f1e5b7c9025343": "{}",
+   "7996418ef06d4607806423768c236b369470b3f7": "{}",
+   "82c94aa5d13a454d315de1f1cd9aa59e69a177e5": "{}",
+   "99d08f09692bb33e3b640512fb453b0f77f54753": "{}",
+   "a5e0f56d5f47d47320bc7f0f8bb5a3fb6b99768d": "{}",
+   "bf14e270c1bb68bbd10994d770b90093aad0bb31": "{}",
+   "cba7316c7d982b6f0bb45739d3dd17a976c5754d": "{}",
+   "dc6d6e4e771b20f8b677dc6578d12d8e859ab550": "{}",
+   "dec51b50dbdfc0c19ea2ff43e2609b563b9551c0": "{}",
+   "f3548111a583b7de0819f32c35ddff6af8541dc2": "{}"
+  },
+  "name": "many-cfg||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "c0.json",
+    "sha": "7996418ef06d4607806423768c236b369470b3f7",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c1.json",
+    "sha": "f3548111a583b7de0819f32c35ddff6af8541dc2",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c2.json",
+    "sha": "dc6d6e4e771b20f8b677dc6578d12d8e859ab550",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c3.json",
+    "sha": "dec51b50dbdfc0c19ea2ff43e2609b563b9551c0",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c4.json",
+    "sha": "5aa6554298cf53ff897a5c744a20ad81826e1187",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c5.json",
+    "sha": "99d08f09692bb33e3b640512fb453b0f77f54753",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c6.json",
+    "sha": "82c94aa5d13a454d315de1f1cd9aa59e69a177e5",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c7.json",
+    "sha": "bf14e270c1bb68bbd10994d770b90093aad0bb31",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c8.json",
+    "sha": "cba7316c7d982b6f0bb45739d3dd17a976c5754d",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c9.json",
+    "sha": "a5e0f56d5f47d47320bc7f0f8bb5a3fb6b99768d",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c10.json",
+    "sha": "07aaf0b1aa6832c0d9150298a14d47f56b74cc1f",
+    "size": 2,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "c11.json",
+    "sha": "792801f6588e7f7f5be6fd5bc2f1e5b7c9025343",
+    "size": 2,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unread: 2 file(s) over the read limit"
+   ],
+   "kind": "unknown",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "2da20639bb2dac14eab00c3179a0e99c767b601c": "x",
+   "42281b60a9f0ea60d52b437e8c00bf82affcfdda": "x",
+   "8a57e4089c19b85fbef0f8393784aa7a16636870": "x",
+   "9d05e83cc6a90334649747b223794ca6eac3714f": "x",
+   "f2e327d2b3559b7df23d80ad052dbdfb5ca9ad06": "x"
+  },
+  "name": "many-readme||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "d0/README.md",
+    "sha": "42281b60a9f0ea60d52b437e8c00bf82affcfdda",
+    "size": 1,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "d1/README.md",
+    "sha": "9d05e83cc6a90334649747b223794ca6eac3714f",
+    "size": 1,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "d2/README.md",
+    "sha": "2da20639bb2dac14eab00c3179a0e99c767b601c",
+    "size": 1,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "d3/README.md",
+    "sha": "f2e327d2b3559b7df23d80ad052dbdfb5ca9ad06",
+    "size": 1,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "d4/README.md",
+    "sha": "8a57e4089c19b85fbef0f8393784aa7a16636870",
+    "size": 1,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: unread: 2 file(s) over the read limit"
+   ],
+   "kind": "unknown",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "1e90662db0cfe451530a60d5c23504c5215e6f26": "---\nname: x\ndescription: d\n---\nDo a thing.\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "name": "big-md||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "SKILL.md",
+    "sha": "1e90662db0cfe451530a60d5c23504c5215e6f26",
+    "size": 70043,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: over 65536 bytes, not fully scanned: SKILL.md"
+   ],
+   "kind": "skill",
+   "risk": "unknown"
+  }
+ },
+ {
+  "blobs": {
+   "d5dc19d7bd72fc1fa1bbac07f66b491c78f53e93": "x",
+   "ecbaffea151a6bfdf6e661fed5169110cf6d38fe": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "prefix-case|sub|False",
+  "prefix": "sub",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "sub/SKILL.md",
+    "sha": "ecbaffea151a6bfdf6e661fed5169110cf6d38fe",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "other/run.sh",
+    "sha": "d5dc19d7bd72fc1fa1bbac07f66b491c78f53e93",
+    "size": 1,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [],
+   "kind": "skill",
+   "risk": "prompt-only"
+  }
+ },
+ {
+  "blobs": {
+   "d5dc19d7bd72fc1fa1bbac07f66b491c78f53e93": "x",
+   "ecbaffea151a6bfdf6e661fed5169110cf6d38fe": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "prefix-case|other|False",
+  "prefix": "other",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "sub/SKILL.md",
+    "sha": "ecbaffea151a6bfdf6e661fed5169110cf6d38fe",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "other/run.sh",
+    "sha": "d5dc19d7bd72fc1fa1bbac07f66b491c78f53e93",
+    "size": 1,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: run.sh"
+   ],
+   "kind": "unknown",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "d5dc19d7bd72fc1fa1bbac07f66b491c78f53e93": "x",
+   "ecbaffea151a6bfdf6e661fed5169110cf6d38fe": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "prefix-case||False",
+  "prefix": "",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "sub/SKILL.md",
+    "sha": "ecbaffea151a6bfdf6e661fed5169110cf6d38fe",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "other/run.sh",
+    "sha": "d5dc19d7bd72fc1fa1bbac07f66b491c78f53e93",
+    "size": 1,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "scripts: other/run.sh"
+   ],
+   "kind": "skill",
+   "risk": "scripts"
+  }
+ },
+ {
+  "blobs": {
+   "d5dc19d7bd72fc1fa1bbac07f66b491c78f53e93": "x",
+   "ecbaffea151a6bfdf6e661fed5169110cf6d38fe": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "name": "prefix-case|nothing|False",
+  "prefix": "nothing",
+  "tree": [
+   {
+    "mode": "100644",
+    "path": "sub/SKILL.md",
+    "sha": "ecbaffea151a6bfdf6e661fed5169110cf6d38fe",
+    "size": 43,
+    "type": "blob"
+   },
+   {
+    "mode": "100644",
+    "path": "other/run.sh",
+    "sha": "d5dc19d7bd72fc1fa1bbac07f66b491c78f53e93",
+    "size": 1,
+    "type": "blob"
+   }
+  ],
+  "truncated": false,
+  "want": {
+   "detail": [
+    "unknown: no files under path"
+   ],
+   "kind": "unknown",
+   "risk": "unknown"
+  }
+ }
+]

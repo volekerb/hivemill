@@ -981,7 +981,7 @@
   "key": "terminal_backend",
   "kind": "setting",
   "default": "auto",
-  "summary": "auto | herdr | hc \u2014 which CLI factory uses for the agent host; auto prefers the TUI when both are on PATH",
+  "summary": "auto | herdr | hc \u2014 which CLI factory uses for the agent host; auto prefers herdr-core (hc) when it is on PATH, herdr only when hc is missing or terminal_backend=herdr",
   "goal": "G-031",
   "doc": "docs/terminal-backends.md",
   "current": "auto"
