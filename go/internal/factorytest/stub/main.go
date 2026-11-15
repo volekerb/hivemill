@@ -1,7 +1,8 @@
 // Command stub is the fake gh, herdr and hc of the Go test harness (package factorytest). It is one binary: the
 // tool is the base name it is run as. Every call is appended to the JSONL file $FAKE_CALLS in exactly the bytes the
 // Python stubs in tests/stubs write (Python json.dumps: ", " and ": " separators, ensure_ascii), so a test can compare
-// call logs across implementations. Answers come from the per-test script $FAKE_STUB_SCRIPT (see answer).
+// call logs across implementations. Answers come from the per-test script $FAKE_STUB_SCRIPT (see answer); the herdr
+// stub answers from a state file instead when $FAKE_HERDR_MODE is "stateful" (herdr.go).
 package main
 
 import (
@@ -133,6 +134,9 @@ type rule struct {
 }
 
 func answer(tool string, argv []string) int {
+	if tool == "herdr" && os.Getenv("FAKE_HERDR_MODE") == "stateful" {
+		return herdrStateful(argv)
+	}
 	rules, err := loadRules(tool)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s stub: %v\n", tool, err)
