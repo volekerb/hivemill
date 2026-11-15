@@ -230,16 +230,25 @@ func decide(ctx context.Context, db *sql.DB, t task, now time.Time, expiry int) 
 		setBy = "unknown"
 	}
 	e := &Expired{Task: t.id, PRURL: t.prURL, HeldMin: held, SetBy: setBy, Reason: t.reason, Marker: marker}
-	if m := prNumberRE.FindStringSubmatch(strings.TrimSpace(t.prURL)); m != nil {
-		if n, err := strconv.Atoi(m[1]); err == nil {
-			e.PR = n
-		}
-	}
+	e.PR = prNumber(t.prURL)
 	e.To, err = recipient(ctx, db, setBy, t.goal)
 	if err != nil {
 		return nil, "", err
 	}
 	return e, "", nil
+}
+
+// prNumber is the PR number at the end of a pull request URL, 0 when there is none (or it overflows an int).
+func prNumber(url string) int {
+	m := prNumberRE.FindStringSubmatch(strings.TrimSpace(url))
+	if m == nil {
+		return 0
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // latestVerdict is the verdict of the highest-id row of the role, "" when there is none.
