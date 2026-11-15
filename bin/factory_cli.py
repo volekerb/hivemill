@@ -19180,7 +19180,7 @@ def tick_relaunches(con):
                 event(con, "agent", r["name"], "relaunch-alert-failed", {"to": to, "error": str(e2) or f"exit {getattr(e2, 'code', '?')}"})
 
 
-KICKOFF_WATCH_EVENTS = ("kickoff-resent", "kickoff-relaunch", "kickoff-escalated")
+KICKOFF_WATCH_EVENTS = ("kickoff-resent", "kickoff-relaunch", "kickoff-relaunch-failed", "kickoff-escalated")
 KICKOFF_SQL = "recipient=? AND sender='factory' AND subject LIKE 'kickoff:%'"  # the message spawn sends with the kickoff
 
 
@@ -19198,7 +19198,7 @@ def kickoff_unread(con, name):
 def _kickoff_watch_state(con, name):
     """{action: {kickoff message id: event ts}} of the agent's kickoff-watch events (the check's only state)."""
     out = {a: {} for a in KICKOFF_WATCH_EVENTS}
-    for e in con.execute("SELECT action, ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action IN (?,?,?) "
+    for e in con.execute("SELECT action, ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action IN (?,?,?,?) "
                          "ORDER BY id", (name, *KICKOFF_WATCH_EVENTS)).fetchall():
         try:
             kick = json.loads(e["detail"])["kick"]
@@ -19248,7 +19248,8 @@ def tick_cursor_kickoff(con):
        (kickoff-escalated), then nothing.
     State is the events, keyed by the kickoff message id; a relaunch is recognised by an event on the kickoff before
     the current one. Rows being stopped, queued for a relaunch or still starting belong to those paths and are skipped,
-    so a pane has one owner. Claude agents are never looked at."""
+    so a pane has one owner. A pane the host reports working, or does not list, is left alone this tick.
+    Claude agents are never looked at."""
     try:
         grace = int(cfg(con, "cursor_kickoff_grace_s"))
     except (TypeError, ValueError):
@@ -19270,7 +19271,12 @@ def tick_cursor_kickoff(con):
         seen = _kickoff_watch_state(con, name)
         if k["id"] in seen["kickoff-escalated"]:
             continue
-        after_relaunch = prev is not None and prev in seen["kickoff-relaunch"]
+        listed = _host_list_row(con, name)
+        if not listed or listed.get("agent_status") == "working":
+            continue  # mid-turn: it accepted a prompt and may not have read its mail yet (r1); unlisted or host down: cannot decide
+        # a failed relaunch sent no new kickoff: a later spawn under the same name is a new agent with its own budget
+        after_relaunch = (prev is not None and prev in seen["kickoff-relaunch"]
+                          and prev not in seen["kickoff-relaunch-failed"])
         first = con.execute("SELECT created FROM messages WHERE id=?", (prev,)).fetchone() if after_relaunch else k
         idle_s = int((clock - (_ts(first["created"]) or started)).total_seconds())
         detail = {"kick": k["id"], "idle_s": idle_s, "host": host, "pane": r["pane_id"]}
@@ -19308,7 +19314,7 @@ def tick_cursor_kickoff(con):
         relaunched = True
         msg = relaunch_fresh_from_tick(con, cur)
         if msg:
-            event(con, "agent", name, "kickoff-relaunch-failed", msg)
+            event(con, "agent", name, "kickoff-relaunch-failed", {"kick": k["id"], "error": msg})
             _kickoff_escalate(con, cur, k["id"], host, idle_s, f"The fresh relaunch failed: {msg}")
 
 

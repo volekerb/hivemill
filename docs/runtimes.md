@@ -111,6 +111,7 @@ A Cursor pane can sit idle for hours because its kickoff prompt was typed but ne
 - The spawn gate is read before the relaunch, as for any relaunch. While it is closed the pane is left alone and the relaunch waits (`kickoff-relaunch-deferred`, at most one event an hour).
 - At most one kickoff relaunch runs per tick.
 - An agent that is being stopped (`factory stop`), has a queued `factory relaunch --when-idle`, or is still starting is skipped: the stop path or the relaunch path owns that pane.
+- A pane the host reports as working is left alone: it accepted a prompt and may simply not have read its mail yet. So is a pane the host does not list.
 - Claude agents are never checked.
 - `factory config cursor_kickoff_grace_s 0` turns the check off. The key is a timing key, not an owner cap.
 - Each event's detail holds `kick` (the kickoff message id), `idle_s`, `host` and `pane`. To count them: `grep -c '"kickoff-resent"' ~/factory/state/events.jsonl`.

@@ -307,8 +307,8 @@ class KickoffWatch(CursorEnterBase):
 
     def test_queued_relaunch_is_left_to_the_relaunch_path(self):
         name = self.spawn()
-        listed = json.loads(self.env.herdr_state.read_text())["agents"]
-        self.env.set_herdr(agents=[{**a, "agent_status": "working"} for a in listed])  # not idle: the queue waits
+        # idle, and the spawn gate closed: the queued relaunch waits, and only the queue flag keeps this check away
+        self.ok("config", "min_mem_available_mb", "99999999", agent="owner")
         self.env.sql("UPDATE agents SET relaunch_requested_at='2026-03-01T10:00:00+00:00', relaunch_requested_by='director' "
                      "WHERE name=?", (name,))
         self.tick(181)
@@ -330,6 +330,40 @@ class KickoffWatch(CursorEnterBase):
         self.tick(1200)
         self.assertEqual(len(self.events("kickoff-relaunch")), 1)
         self.assertEqual(len(self.escalations()), 1)
+
+    def set_status(self, status):
+        listed = json.loads(self.env.herdr_state.read_text())["agents"]
+        self.env.set_herdr(agents=[{**a, "agent_status": status} for a in listed])
+
+    def test_agent_mid_turn_is_neither_resent_nor_relaunched(self):
+        name = self.spawn()
+        self.set_status("working")  # it accepted a prompt and has not read its mail yet
+        self.tick(181)
+        self.tick(600)
+        self.assert_untouched(name)
+        self.set_status("idle")
+        self.tick(660)
+        self.assertEqual(len(self.resubmits(name)), 1)
+        self.set_status("working")
+        self.tick(2000)  # relaunch time is long past, but the pane works
+        self.assertEqual(self.host_calls("pane", "close"), [])
+        self.assertEqual(self.events("kickoff-relaunch"), [])
+
+    def test_respawn_under_the_same_name_after_a_failed_relaunch_gets_its_own_relaunch(self):
+        name = self.spawn()
+        self.tick(181)
+        self.env.set_herdr(start_fail=True)
+        self.tick(361)
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (name,))[0]["status"], "exited")
+        self.env.set_herdr(start_fail=False)
+        self.ok("spawn", "pm", "--goal", "G-002", "--team", "g-002-a", "--name", name, agent="director",
+                extra_env=self.at(5000))
+        self.env.calls_file.write_text("")
+        self.tick(5181)
+        self.tick(5361)
+        self.assertEqual(len(self.host_calls("pane", "close")), 1)
+        self.assertEqual(len(self.events("kickoff-relaunch")), 2)
+        self.assertEqual(len(self.escalations()), 1)  # only the failed relaunch's
 
     def test_hc_hosted_agent_gets_one_send_and_one_enter_without_waiting(self):
         name = self.spawn()
