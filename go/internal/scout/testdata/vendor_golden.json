@@ -1,0 +1,2867 @@
+{
+ "local": {
+  "cand": {
+   "head_sha": "a04934e6b678f0f9ce4d47c0d5271becb5e5741c",
+   "id": "C-0007",
+   "install_risk": "prompt-only",
+   "licence": null,
+   "status": "new"
+  },
+  "cleared": "{\n  \"candidate\": \"C-0007\",\n  \"repo\": null,\n  \"path\": \"\",\n  \"sha\": \"a04934e6b678f0f9ce4d47c0d5271becb5e5741c\",\n  \"licence\": null,\n  \"plugin\": \"plug\",\n  \"wrapped\": false,\n  \"local\": true,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"README.md\",\n    \"skills/a-b/SKILL.md\",\n    \"skills/a/SKILL.md\"\n  ],\n  \"skipped\": [],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"1416ea6b83ffe9b2fbeb607fbacc5096204de160861bcc5ea81a1841edfa4a16\",\n    \"README.md\": \"00d75b5176b48ccc71d91bcc1d7b90fc2820429b1629b77fd1d5f4c5dcee4f6d\",\n    \"skills/a-b/SKILL.md\": \"bc6b7845683f6f388dfcea6740a8a286bba8b839fbc7c94e45fd182205828e1a\",\n    \"skills/a/SKILL.md\": \"97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c\"\n  },\n  \"prescreen_hits\": []\n}\n",
+  "content_sha": "a04934e6b678f0f9ce4d47c0d5271becb5e5741c",
+  "dir": "vendor/C-0007@a04934e6b678f0f9ce4d47c0d5271becb5e5741c",
+  "reused_second": true,
+  "src_files": {
+   ".claude-plugin/plugin.json": "{\"name\": \"plug\"}\n",
+   "README.md": "readme\n",
+   "skills/a-b/SKILL.md": "---\nname: x\ndescription: d\n---\nDo a thing.\nb\n",
+   "skills/a/SKILL.md": "---\nname: x\ndescription: d\n---\nDo a thing.\n"
+  },
+  "vendor_json": "{\n  \"candidate\": \"C-0007\",\n  \"repo\": null,\n  \"path\": \"\",\n  \"sha\": \"a04934e6b678f0f9ce4d47c0d5271becb5e5741c\",\n  \"licence\": null,\n  \"plugin\": \"plug\",\n  \"wrapped\": false,\n  \"local\": true,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"README.md\",\n    \"skills/a-b/SKILL.md\",\n    \"skills/a/SKILL.md\"\n  ],\n  \"skipped\": [],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"1416ea6b83ffe9b2fbeb607fbacc5096204de160861bcc5ea81a1841edfa4a16\",\n    \"README.md\": \"00d75b5176b48ccc71d91bcc1d7b90fc2820429b1629b77fd1d5f4c5dcee4f6d\",\n    \"skills/a-b/SKILL.md\": \"bc6b7845683f6f388dfcea6740a8a286bba8b839fbc7c94e45fd182205828e1a\",\n    \"skills/a/SKILL.md\": \"97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c\"\n  },\n  \"prescreen_hits\": []\n}\n"
+ },
+ "scenarios": [
+  {
+   "cand": {
+    "head_sha": "6d4748511a55fa6157acca8ed4e1c20dedf60c7b",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/skill",
+    "status": "new"
+   },
+   "name": "skill-root",
+   "ok": {
+    "dir": "vendor/C-0001@6d4748511a55fa6157acca8ed4e1c20dedf60c7b",
+    "files": {
+     "VENDOR.json": {
+      "mode": "0o644",
+      "sha256": "65e9b5b4c079d9fbbd267220fe8b0398345d940c3d486111cfca0d2c57f289ea"
+     },
+     "cand-c-0001/.claude-plugin/plugin.json": {
+      "mode": "0o644",
+      "sha256": "800a3bb79cf1083de560a75e4c182c4f197ba8dae66627840fb630cfd04e4493"
+     },
+     "cand-c-0001/skills/skill/LICENSE": {
+      "mode": "0o644",
+      "sha256": "adc37366f403835c1470ab2df93d3837d4719372fc1ef8593d922e06f033f8b2"
+     },
+     "cand-c-0001/skills/skill/README.md": {
+      "mode": "0o644",
+      "sha256": "045d2d07c2db3b9e6cef022457ee89434045a508c2dadccf9abe182ad633c273"
+     },
+     "cand-c-0001/skills/skill/SKILL.md": {
+      "mode": "0o644",
+      "sha256": "97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c"
+     },
+     "cand-c-0001/skills/skill/notes.txt": {
+      "mode": "0o644",
+      "sha256": "a4fb621495a0122493b2203591c448903c472e306a1ede54fabad829e01075c0"
+     }
+    },
+    "partial_left": false,
+    "plugin": "cand-c-0001",
+    "reclassified": "prompt-only",
+    "reused": false,
+    "second_plugin": "cand-c-0001",
+    "second_reused": true,
+    "vendor_json": "{\n  \"candidate\": \"C-0001\",\n  \"repo\": \"o/skill\",\n  \"path\": \"\",\n  \"sha\": \"6d4748511a55fa6157acca8ed4e1c20dedf60c7b\",\n  \"licence\": \"MIT\",\n  \"plugin\": \"cand-c-0001\",\n  \"wrapped\": true,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"skills/skill/LICENSE\",\n    \"skills/skill/README.md\",\n    \"skills/skill/SKILL.md\",\n    \"skills/skill/notes.txt\"\n  ],\n  \"skipped\": [],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"800a3bb79cf1083de560a75e4c182c4f197ba8dae66627840fb630cfd04e4493\",\n    \"skills/skill/LICENSE\": \"adc37366f403835c1470ab2df93d3837d4719372fc1ef8593d922e06f033f8b2\",\n    \"skills/skill/README.md\": \"045d2d07c2db3b9e6cef022457ee89434045a508c2dadccf9abe182ad633c273\",\n    \"skills/skill/SKILL.md\": \"97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c\",\n    \"skills/skill/notes.txt\": \"a4fb621495a0122493b2203591c448903c472e306a1ede54fabad829e01075c0\"\n  },\n  \"prescreen_hits\": []\n}\n"
+   },
+   "responses": {
+    "repos/o/skill/git/blobs/77ebc6577e3fc2c38b5bc7f233510fafba6822ac": {
+     "content": "IyBoaQo=\n",
+     "encoding": "base64",
+     "sha": "77ebc6577e3fc2c38b5bc7f233510fafba6822ac"
+    },
+    "repos/o/skill/git/blobs/8ba3a16384aacc37d01564b28401755ce8053f51": {
+     "content": "bgo=\n",
+     "encoding": "base64",
+     "sha": "8ba3a16384aacc37d01564b28401755ce8053f51"
+    },
+    "repos/o/skill/git/blobs/a22a2da24d1ceeef3d0c2f1f4f68923f55b8d4cc": {
+     "content": "TUlUCg==\n",
+     "encoding": "base64",
+     "sha": "a22a2da24d1ceeef3d0c2f1f4f68923f55b8d4cc"
+    },
+    "repos/o/skill/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/skill/git/trees/6d4748511a55fa6157acca8ed4e1c20dedf60c7b?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "README.md",
+       "sha": "77ebc6577e3fc2c38b5bc7f233510fafba6822ac",
+       "size": 5,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "notes.txt",
+       "sha": "8ba3a16384aacc37d01564b28401755ce8053f51",
+       "size": 2,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "LICENSE",
+       "sha": "a22a2da24d1ceeef3d0c2f1f4f68923f55b8d4cc",
+       "size": 4,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   }
+  },
+  {
+   "cand": {
+    "head_sha": "fd8c7c8edae3b4c57efb1d2d3c2eb91936aba8ce",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/plug",
+    "status": "new"
+   },
+   "name": "plugin",
+   "ok": {
+    "dir": "vendor/C-0001@fd8c7c8edae3b4c57efb1d2d3c2eb91936aba8ce",
+    "files": {
+     "My-Plugin/.claude-plugin/plugin.json": {
+      "mode": "0o644",
+      "sha256": "bf0af9b60c7cd83d413eefd3cd9f5c008452f57f023bcf65085f511c45dd6a6b"
+     },
+     "My-Plugin/README.md": {
+      "mode": "0o644",
+      "sha256": "8e54b0ca18020275e4aef1ca0eb5e197e066c065c1864817652a8a39c55402cd"
+     },
+     "My-Plugin/commands/a.md": {
+      "mode": "0o644",
+      "sha256": "98ea6e4f216f2fb4b69fff9b3a44842c38686ca685f3f55dc48c5d3fb1107be4"
+     },
+     "My-Plugin/skills/s/SKILL.md": {
+      "mode": "0o644",
+      "sha256": "97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c"
+     },
+     "VENDOR.json": {
+      "mode": "0o644",
+      "sha256": "7aac10fb93682c0f593a8bd3872a74a1c0d7dc92b0b423979b9af88261a0fb73"
+     }
+    },
+    "partial_left": false,
+    "plugin": "My-Plugin",
+    "reclassified": "prompt-only",
+    "reused": false,
+    "second_plugin": "My-Plugin",
+    "second_reused": true,
+    "vendor_json": "{\n  \"candidate\": \"C-0001\",\n  \"repo\": \"o/plug\",\n  \"path\": \"\",\n  \"sha\": \"fd8c7c8edae3b4c57efb1d2d3c2eb91936aba8ce\",\n  \"licence\": \"MIT\",\n  \"plugin\": \"My-Plugin\",\n  \"wrapped\": false,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"README.md\",\n    \"commands/a.md\",\n    \"skills/s/SKILL.md\"\n  ],\n  \"skipped\": [],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"bf0af9b60c7cd83d413eefd3cd9f5c008452f57f023bcf65085f511c45dd6a6b\",\n    \"README.md\": \"8e54b0ca18020275e4aef1ca0eb5e197e066c065c1864817652a8a39c55402cd\",\n    \"commands/a.md\": \"98ea6e4f216f2fb4b69fff9b3a44842c38686ca685f3f55dc48c5d3fb1107be4\",\n    \"skills/s/SKILL.md\": \"97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c\"\n  },\n  \"prescreen_hits\": []\n}\n"
+   },
+   "responses": {
+    "repos/o/plug/git/blobs/4286f428e3b19fe84de503916ce0e7dc8deefea1": {
+     "content": "cgo=\n",
+     "encoding": "base64",
+     "sha": "4286f428e3b19fe84de503916ce0e7dc8deefea1"
+    },
+    "repos/o/plug/git/blobs/45b983be36b73c0788dc9cbcb76cbb80fc7bb057": {
+     "content": "aGkK\n",
+     "encoding": "base64",
+     "sha": "45b983be36b73c0788dc9cbcb76cbb80fc7bb057"
+    },
+    "repos/o/plug/git/blobs/7b9f8dd2a479234dae995b37df79c90cda951bf7": {
+     "content": "eyJuYW1lIjogIk15IFBsdWdpbiEifQ==\n",
+     "encoding": "base64",
+     "sha": "7b9f8dd2a479234dae995b37df79c90cda951bf7"
+    },
+    "repos/o/plug/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/plug/git/trees/fd8c7c8edae3b4c57efb1d2d3c2eb91936aba8ce?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": ".claude-plugin/plugin.json",
+       "sha": "7b9f8dd2a479234dae995b37df79c90cda951bf7",
+       "size": 22,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "commands/a.md",
+       "sha": "45b983be36b73c0788dc9cbcb76cbb80fc7bb057",
+       "size": 3,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "skills/s/SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "README.md",
+       "sha": "4286f428e3b19fe84de503916ce0e7dc8deefea1",
+       "size": 2,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   }
+  },
+  {
+   "cand": {
+    "head_sha": "4c383e996800429236ebb2b590874a574a494ca0",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "x",
+    "repo": "o/plug2",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": "unknown",
+    "msg": "C-0001: fresh install risk at 4c383e996800 is unknown (DB said prompt-only): unknown: no files under path; refusing"
+   },
+   "name": "plugin-noname",
+   "responses": {
+    "repos/o/plug2/git/blobs/45b983be36b73c0788dc9cbcb76cbb80fc7bb057": {
+     "content": "aGkK\n",
+     "encoding": "base64",
+     "sha": "45b983be36b73c0788dc9cbcb76cbb80fc7bb057"
+    },
+    "repos/o/plug2/git/blobs/7471e88d86efe32be7fdc05cd5805d153932d15a": {
+     "content": "eyJkZXNjcmlwdGlvbiI6ICJkIn0=\n",
+     "encoding": "base64",
+     "sha": "7471e88d86efe32be7fdc05cd5805d153932d15a"
+    },
+    "repos/o/plug2/git/trees/4c383e996800429236ebb2b590874a574a494ca0?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": ".claude-plugin/plugin.json",
+       "sha": "7471e88d86efe32be7fdc05cd5805d153932d15a",
+       "size": 20,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "commands/a.md",
+       "sha": "45b983be36b73c0788dc9cbcb76cbb80fc7bb057",
+       "size": 3,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "46231c6a894b5a529e6d85c946ed9655d97e9453",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/plug3",
+    "status": "new"
+   },
+   "name": "plugin-noname2",
+   "ok": {
+    "dir": "vendor/C-0001@46231c6a894b5a529e6d85c946ed9655d97e9453",
+    "files": {
+     "VENDOR.json": {
+      "mode": "0o644",
+      "sha256": "f857a70420cea77d3e8e8ccbd4428de58502ed62eccb969e0c9c417290fb9883"
+     },
+     "plug3/.claude-plugin/plugin.json": {
+      "mode": "0o644",
+      "sha256": "656ffcb4f093275627e38f7df0ad3ccd7d8b2b546548d8f0bbed242dbb466960"
+     },
+     "plug3/commands/a.md": {
+      "mode": "0o644",
+      "sha256": "98ea6e4f216f2fb4b69fff9b3a44842c38686ca685f3f55dc48c5d3fb1107be4"
+     }
+    },
+    "partial_left": false,
+    "plugin": "plug3",
+    "reclassified": "prompt-only",
+    "reused": false,
+    "second_plugin": "plug3",
+    "second_reused": true,
+    "vendor_json": "{\n  \"candidate\": \"C-0001\",\n  \"repo\": \"o/plug3\",\n  \"path\": \"\",\n  \"sha\": \"46231c6a894b5a529e6d85c946ed9655d97e9453\",\n  \"licence\": \"MIT\",\n  \"plugin\": \"plug3\",\n  \"wrapped\": false,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"commands/a.md\"\n  ],\n  \"skipped\": [],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"656ffcb4f093275627e38f7df0ad3ccd7d8b2b546548d8f0bbed242dbb466960\",\n    \"commands/a.md\": \"98ea6e4f216f2fb4b69fff9b3a44842c38686ca685f3f55dc48c5d3fb1107be4\"\n  },\n  \"prescreen_hits\": []\n}\n"
+   },
+   "responses": {
+    "repos/o/plug3/git/blobs/45b983be36b73c0788dc9cbcb76cbb80fc7bb057": {
+     "content": "aGkK\n",
+     "encoding": "base64",
+     "sha": "45b983be36b73c0788dc9cbcb76cbb80fc7bb057"
+    },
+    "repos/o/plug3/git/blobs/7471e88d86efe32be7fdc05cd5805d153932d15a": {
+     "content": "eyJkZXNjcmlwdGlvbiI6ICJkIn0=\n",
+     "encoding": "base64",
+     "sha": "7471e88d86efe32be7fdc05cd5805d153932d15a"
+    },
+    "repos/o/plug3/git/trees/46231c6a894b5a529e6d85c946ed9655d97e9453?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": ".claude-plugin/plugin.json",
+       "sha": "7471e88d86efe32be7fdc05cd5805d153932d15a",
+       "size": 20,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "commands/a.md",
+       "sha": "45b983be36b73c0788dc9cbcb76cbb80fc7bb057",
+       "size": 3,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   }
+  },
+  {
+   "cand": {
+    "head_sha": "6f1754bb09ab0597e6068f467bd007e4c3d3414b",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "pkgs/tool",
+    "repo": "o/mono",
+    "status": "new"
+   },
+   "name": "prefixed",
+   "ok": {
+    "dir": "vendor/C-0001@6f1754bb09ab0597e6068f467bd007e4c3d3414b",
+    "files": {
+     "VENDOR.json": {
+      "mode": "0o644",
+      "sha256": "fdea6bc9bf3783713d96a2b04a5bec567eccf7cf006d2f72e2e923218a2638af"
+     },
+     "cand-c-0001/.claude-plugin/plugin.json": {
+      "mode": "0o644",
+      "sha256": "d05d1e0e95df1bbab6e40b572bf0a2b77017b52dcd41cd53626bd417e14b8424"
+     },
+     "cand-c-0001/skills/tool/SKILL.md": {
+      "mode": "0o644",
+      "sha256": "97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c"
+     },
+     "cand-c-0001/skills/tool/docs/guide.md": {
+      "mode": "0o644",
+      "sha256": "90c390ec1de806bf945885cd0af51e90c3cd8cda0d0ff676051a56c20848c90f"
+     }
+    },
+    "partial_left": false,
+    "plugin": "cand-c-0001",
+    "reclassified": "prompt-only",
+    "reused": false,
+    "second_plugin": "cand-c-0001",
+    "second_reused": true,
+    "vendor_json": "{\n  \"candidate\": \"C-0001\",\n  \"repo\": \"o/mono\",\n  \"path\": \"pkgs/tool\",\n  \"sha\": \"6f1754bb09ab0597e6068f467bd007e4c3d3414b\",\n  \"licence\": \"MIT\",\n  \"plugin\": \"cand-c-0001\",\n  \"wrapped\": true,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"skills/tool/SKILL.md\",\n    \"skills/tool/docs/guide.md\"\n  ],\n  \"skipped\": [\n    {\n      \"path\": \"logo.png\",\n      \"reason\": \"not allow-listed\"\n    },\n    {\n      \"path\": \"data.json\",\n      \"reason\": \"not allow-listed\"\n    }\n  ],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"d05d1e0e95df1bbab6e40b572bf0a2b77017b52dcd41cd53626bd417e14b8424\",\n    \"skills/tool/SKILL.md\": \"97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c\",\n    \"skills/tool/docs/guide.md\": \"90c390ec1de806bf945885cd0af51e90c3cd8cda0d0ff676051a56c20848c90f\"\n  },\n  \"prescreen_hits\": []\n}\n"
+   },
+   "responses": {
+    "repos/o/mono/git/blobs/0dd1608e45a9c4d35bfc1e6f266a796364aa8754": {
+     "content": "iVBORw0KGgo=\n",
+     "encoding": "base64",
+     "sha": "0dd1608e45a9c4d35bfc1e6f266a796364aa8754"
+    },
+    "repos/o/mono/git/blobs/4a036f56bb619924ec4189bd84ed716c766971ae": {
+     "content": "eyJhIjogMX0=\n",
+     "encoding": "base64",
+     "sha": "4a036f56bb619924ec4189bd84ed716c766971ae"
+    },
+    "repos/o/mono/git/blobs/587be6b4c3f93f93c489c0111bba5596147a26cb": {
+     "content": "eAo=\n",
+     "encoding": "base64",
+     "sha": "587be6b4c3f93f93c489c0111bba5596147a26cb"
+    },
+    "repos/o/mono/git/blobs/7e2b6439aebf0bb975796f691b3b227d0af43bb5": {
+     "content": "Z3VpZGUK\n",
+     "encoding": "base64",
+     "sha": "7e2b6439aebf0bb975796f691b3b227d0af43bb5"
+    },
+    "repos/o/mono/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/mono/git/trees/6f1754bb09ab0597e6068f467bd007e4c3d3414b?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "pkgs/tool/SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "pkgs/tool/logo.png",
+       "sha": "0dd1608e45a9c4d35bfc1e6f266a796364aa8754",
+       "size": 8,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "pkgs/tool/data.json",
+       "sha": "4a036f56bb619924ec4189bd84ed716c766971ae",
+       "size": 8,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "pkgs/tool/docs/guide.md",
+       "sha": "7e2b6439aebf0bb975796f691b3b227d0af43bb5",
+       "size": 6,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "other/x.md",
+       "sha": "587be6b4c3f93f93c489c0111bba5596147a26cb",
+       "size": 2,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   }
+  },
+  {
+   "cand": {
+    "head_sha": "1f63e99d99b366ce328f68bb9c53b987cf37c746",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/coll",
+    "status": "new"
+   },
+   "name": "skills-dir",
+   "ok": {
+    "dir": "vendor/C-0001@1f63e99d99b366ce328f68bb9c53b987cf37c746",
+    "files": {
+     "VENDOR.json": {
+      "mode": "0o644",
+      "sha256": "5d284fd2672dc998e8afefa35397cdcc332f3f1db783cfa3e08eefd8fbb5e93d"
+     },
+     "cand-c-0001/.claude-plugin/plugin.json": {
+      "mode": "0o644",
+      "sha256": "aed881babd72a0af05954cf3802bda6358d59e3417070e06db32e7c3c789e358"
+     },
+     "cand-c-0001/agents/x.md": {
+      "mode": "0o644",
+      "sha256": "cae40aba0ec4669770f1c71d6d11b030458908e588938a11baa432a61127fa39"
+     },
+     "cand-c-0001/skills/a/SKILL.md": {
+      "mode": "0o644",
+      "sha256": "97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c"
+     },
+     "cand-c-0001/skills/a/data.json": {
+      "mode": "0o644",
+      "sha256": "4be281edc378f1c5e5eb9c15f9dbf5a80da2977981850f93553d5d70b75f1626"
+     },
+     "cand-c-0001/skills/a/ref/notes.csv": {
+      "mode": "0o644",
+      "sha256": "5be08c9684a1d25efcee09318204824278b08bbfb4aef973ffefd0b9d7478313"
+     }
+    },
+    "partial_left": false,
+    "plugin": "cand-c-0001",
+    "reclassified": "prompt-only",
+    "reused": false,
+    "second_plugin": "cand-c-0001",
+    "second_reused": true,
+    "vendor_json": "{\n  \"candidate\": \"C-0001\",\n  \"repo\": \"o/coll\",\n  \"path\": \"\",\n  \"sha\": \"1f63e99d99b366ce328f68bb9c53b987cf37c746\",\n  \"licence\": \"MIT\",\n  \"plugin\": \"cand-c-0001\",\n  \"wrapped\": true,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"agents/x.md\",\n    \"skills/a/SKILL.md\",\n    \"skills/a/data.json\",\n    \"skills/a/ref/notes.csv\"\n  ],\n  \"skipped\": [],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"aed881babd72a0af05954cf3802bda6358d59e3417070e06db32e7c3c789e358\",\n    \"agents/x.md\": \"cae40aba0ec4669770f1c71d6d11b030458908e588938a11baa432a61127fa39\",\n    \"skills/a/SKILL.md\": \"97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c\",\n    \"skills/a/data.json\": \"4be281edc378f1c5e5eb9c15f9dbf5a80da2977981850f93553d5d70b75f1626\",\n    \"skills/a/ref/notes.csv\": \"5be08c9684a1d25efcee09318204824278b08bbfb4aef973ffefd0b9d7478313\"\n  },\n  \"prescreen_hits\": []\n}\n"
+   },
+   "responses": {
+    "repos/o/coll/git/blobs/83d3a65a8033673d272bb93945739ef228dcbc66": {
+     "content": "LS0tCm5hbWU6IHgKLS0tCmhpCg==\n",
+     "encoding": "base64",
+     "sha": "83d3a65a8033673d272bb93945739ef228dcbc66"
+    },
+    "repos/o/coll/git/blobs/91e7b5b17dd85f6e9b9d2d85acb2982bd5f455ee": {
+     "content": "YSxiCg==\n",
+     "encoding": "base64",
+     "sha": "91e7b5b17dd85f6e9b9d2d85acb2982bd5f455ee"
+    },
+    "repos/o/coll/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/coll/git/blobs/df06281a74944e9894487f3e79b9e2665465938c": {
+     "content": "eyJrIjogInYifQ==\n",
+     "encoding": "base64",
+     "sha": "df06281a74944e9894487f3e79b9e2665465938c"
+    },
+    "repos/o/coll/git/trees/1f63e99d99b366ce328f68bb9c53b987cf37c746?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "skills/a/SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "skills/a/data.json",
+       "sha": "df06281a74944e9894487f3e79b9e2665465938c",
+       "size": 10,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "agents/x.md",
+       "sha": "83d3a65a8033673d272bb93945739ef228dcbc66",
+       "size": 19,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "skills/a/ref/notes.csv",
+       "sha": "91e7b5b17dd85f6e9b9d2d85acb2982bd5f455ee",
+       "size": 4,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   }
+  },
+  {
+   "cand": {
+    "head_sha": "c748c763b97a533d92bfac6a182446d80586c4c8",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/hits",
+    "status": "new"
+   },
+   "name": "hits",
+   "ok": {
+    "dir": "vendor/C-0001@c748c763b97a533d92bfac6a182446d80586c4c8",
+    "files": {
+     "VENDOR.json": {
+      "mode": "0o644",
+      "sha256": "9738f74a925efb2f9272f0a2e554f0b3b786be9409859158e46ed2c1f77e44d1"
+     },
+     "cand-c-0001/.claude-plugin/plugin.json": {
+      "mode": "0o644",
+      "sha256": "31469ba93a370550dad8591a6933ff465a433ea75ba0ca8c8d99536565f91e4a"
+     },
+     "cand-c-0001/skills/hits/SKILL.md": {
+      "mode": "0o644",
+      "sha256": "bb681af7b44bdafcec0b286b2cea3d8bbcbc11819c17d38e409cb794ec8c1d23"
+     }
+    },
+    "partial_left": false,
+    "plugin": "cand-c-0001",
+    "reclassified": "prompt-only",
+    "reused": false,
+    "second_plugin": "cand-c-0001",
+    "second_reused": true,
+    "vendor_json": "{\n  \"candidate\": \"C-0001\",\n  \"repo\": \"o/hits\",\n  \"path\": \"\",\n  \"sha\": \"c748c763b97a533d92bfac6a182446d80586c4c8\",\n  \"licence\": \"MIT\",\n  \"plugin\": \"cand-c-0001\",\n  \"wrapped\": true,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"skills/hits/SKILL.md\"\n  ],\n  \"skipped\": [],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"31469ba93a370550dad8591a6933ff465a433ea75ba0ca8c8d99536565f91e4a\",\n    \"skills/hits/SKILL.md\": \"bb681af7b44bdafcec0b286b2cea3d8bbcbc11819c17d38e409cb794ec8c1d23\"\n  },\n  \"prescreen_hits\": [\n    {\n      \"file\": \"skills/hits/SKILL.md\",\n      \"line\": 6,\n      \"pattern\": \"api-key\"\n    },\n    {\n      \"file\": \"skills/hits/SKILL.md\",\n      \"line\": 6,\n      \"pattern\": \"sk-ant\"\n    },\n    {\n      \"file\": \"skills/hits/SKILL.md\",\n      \"line\": 6,\n      \"pattern\": \"url\"\n    }\n  ]\n}\n"
+   },
+   "responses": {
+    "repos/o/hits/git/blobs/4bb3533fee15242a22425fc020d42072d868dab4": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuClNlZSBodHRwczovL2V2\naWwuZXhhbXBsZS9hIGFuZCBzay1hbnQteHl6IGFuZCBBTlRIUk9QSUNfQVBJX0tFWS4K\n",
+     "encoding": "base64",
+     "sha": "4bb3533fee15242a22425fc020d42072d868dab4"
+    },
+    "repos/o/hits/git/trees/c748c763b97a533d92bfac6a182446d80586c4c8?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "4bb3533fee15242a22425fc020d42072d868dab4",
+       "size": 108,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   }
+  },
+  {
+   "cand": {
+    "head_sha": "3362e060c5d8186563986dd7921802177a28b990",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/uni",
+    "status": "new"
+   },
+   "name": "unicode-names",
+   "ok": {
+    "dir": "vendor/C-0001@3362e060c5d8186563986dd7921802177a28b990",
+    "files": {
+     "VENDOR.json": {
+      "mode": "0o644",
+      "sha256": "9879a171dafd46cc7c0298c5fa5e25b87a8791465c7d25a561ba914c3df1e98d"
+     },
+     "cand-c-0001/.claude-plugin/plugin.json": {
+      "mode": "0o644",
+      "sha256": "07c1595451601c716c87b1144afb6834e797e6630b443f9d2bce0906162d0a10"
+     },
+     "cand-c-0001/skills/uni/SKILL.md": {
+      "mode": "0o644",
+      "sha256": "97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c"
+     },
+     "cand-c-0001/skills/uni/docs/caf\u00e9.md": {
+      "mode": "0o644",
+      "sha256": "40793ac06ff20eb2e739a4a2e50e97ae6cfff98adf434a96207da5a78b23fe99"
+     }
+    },
+    "partial_left": false,
+    "plugin": "cand-c-0001",
+    "reclassified": "prompt-only",
+    "reused": false,
+    "second_plugin": "cand-c-0001",
+    "second_reused": true,
+    "vendor_json": "{\n  \"candidate\": \"C-0001\",\n  \"repo\": \"o/uni\",\n  \"path\": \"\",\n  \"sha\": \"3362e060c5d8186563986dd7921802177a28b990\",\n  \"licence\": \"MIT\",\n  \"plugin\": \"cand-c-0001\",\n  \"wrapped\": true,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"skills/uni/SKILL.md\",\n    \"skills/uni/docs/caf\\u00e9.md\"\n  ],\n  \"skipped\": [],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"07c1595451601c716c87b1144afb6834e797e6630b443f9d2bce0906162d0a10\",\n    \"skills/uni/SKILL.md\": \"97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c\",\n    \"skills/uni/docs/caf\\u00e9.md\": \"40793ac06ff20eb2e739a4a2e50e97ae6cfff98adf434a96207da5a78b23fe99\"\n  },\n  \"prescreen_hits\": []\n}\n"
+   },
+   "responses": {
+    "repos/o/uni/git/blobs/6ad5944125b9cab52472f96d993bab59a9e70dee": {
+     "content": "Y2Fmw6kg4piDCg==\n",
+     "encoding": "base64",
+     "sha": "6ad5944125b9cab52472f96d993bab59a9e70dee"
+    },
+    "repos/o/uni/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/uni/git/trees/3362e060c5d8186563986dd7921802177a28b990?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "docs/caf\u00e9.md",
+       "sha": "6ad5944125b9cab52472f96d993bab59a9e70dee",
+       "size": 10,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   }
+  },
+  {
+   "cand": {
+    "head_sha": "d207a0751441f00af90aba9bbc28fd1357e94083",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/rs",
+    "status": "new"
+   },
+   "name": "root-skill-sub",
+   "ok": {
+    "dir": "vendor/C-0001@d207a0751441f00af90aba9bbc28fd1357e94083",
+    "files": {
+     "VENDOR.json": {
+      "mode": "0o644",
+      "sha256": "b825ee600d151205b8cd928eb4279c37171e782b60000c8e3334834030565d39"
+     },
+     "cand-c-0001/.claude-plugin/plugin.json": {
+      "mode": "0o644",
+      "sha256": "972f07a3562c4cda59abc93dce525cb2248900d834c66b7707ed46b9e288e7fa"
+     },
+     "cand-c-0001/skills/rs/SKILL.md": {
+      "mode": "0o644",
+      "sha256": "97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c"
+     },
+     "cand-c-0001/skills/rs/extra/more.md": {
+      "mode": "0o644",
+      "sha256": "01a60e35df88d8b49546cb3f8f4ba4f406870f9b8e1f394c9d48ab73548d748d"
+     },
+     "cand-c-0001/skills/s/SKILL.md": {
+      "mode": "0o644",
+      "sha256": "97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c"
+     }
+    },
+    "partial_left": false,
+    "plugin": "cand-c-0001",
+    "reclassified": "prompt-only",
+    "reused": false,
+    "second_plugin": "cand-c-0001",
+    "second_reused": true,
+    "vendor_json": "{\n  \"candidate\": \"C-0001\",\n  \"repo\": \"o/rs\",\n  \"path\": \"\",\n  \"sha\": \"d207a0751441f00af90aba9bbc28fd1357e94083\",\n  \"licence\": \"MIT\",\n  \"plugin\": \"cand-c-0001\",\n  \"wrapped\": true,\n  \"copied\": [\n    \".claude-plugin/plugin.json\",\n    \"skills/rs/SKILL.md\",\n    \"skills/rs/extra/more.md\",\n    \"skills/s/SKILL.md\"\n  ],\n  \"skipped\": [],\n  \"files\": {\n    \".claude-plugin/plugin.json\": \"972f07a3562c4cda59abc93dce525cb2248900d834c66b7707ed46b9e288e7fa\",\n    \"skills/rs/SKILL.md\": \"97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c\",\n    \"skills/rs/extra/more.md\": \"01a60e35df88d8b49546cb3f8f4ba4f406870f9b8e1f394c9d48ab73548d748d\",\n    \"skills/s/SKILL.md\": \"97a2c00485cc0d1e55648cefe1addc9e4d59055b034219f29207a802518d5a8c\"\n  },\n  \"prescreen_hits\": []\n}\n"
+   },
+   "responses": {
+    "repos/o/rs/git/blobs/28ce6a8b26aa170e1de65536fe8abe1832bd3242": {
+     "content": "bQo=\n",
+     "encoding": "base64",
+     "sha": "28ce6a8b26aa170e1de65536fe8abe1832bd3242"
+    },
+    "repos/o/rs/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/rs/git/trees/d207a0751441f00af90aba9bbc28fd1357e94083?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "extra/more.md",
+       "sha": "28ce6a8b26aa170e1de65536fe8abe1832bd3242",
+       "size": 2,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "skills/s/SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   }
+  },
+  {
+   "cand": {
+    "head_sha": "dccdeb961ec1834e2c162a3bf4bb2d910bd6506e",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/risky",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": "scripts",
+    "msg": "C-0001: fresh install risk at dccdeb961ec1 is scripts (DB said prompt-only): scripts: run.sh; refusing"
+   },
+   "name": "risky-tree",
+   "responses": {
+    "repos/o/risky/git/blobs/1a2485251c33a70432394c93fb89330ef214bfc9": {
+     "content": "IyEvYmluL3NoCg==\n",
+     "encoding": "base64",
+     "sha": "1a2485251c33a70432394c93fb89330ef214bfc9"
+    },
+    "repos/o/risky/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/risky/git/trees/dccdeb961ec1834e2c162a3bf4bb2d910bd6506e?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "run.sh",
+       "sha": "1a2485251c33a70432394c93fb89330ef214bfc9",
+       "size": 10,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "687616caaa749605ee5e92b761e1aff224a3f86e",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/no",
+    "status": "needs-owner"
+   },
+   "err": {
+    "code": 4,
+    "fresh": null,
+    "msg": "C-0001 is needs-owner: pre-screen hits wait for the owner; nothing is vendored"
+   },
+   "name": "needs-owner",
+   "responses": {
+    "repos/o/no/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/no/git/trees/687616caaa749605ee5e92b761e1aff224a3f86e?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "0add2c1c9888074c33114955e8255220c944c298",
+    "id": "C-0001",
+    "install_risk": "scripts",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/dbr",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": null,
+    "msg": "C-0001: install_risk is 'scripts', not prompt-only; refusing"
+   },
+   "name": "db-risk",
+   "responses": {
+    "repos/o/dbr/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/dbr/git/trees/0add2c1c9888074c33114955e8255220c944c298?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "abc",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/bs",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": null,
+    "msg": "C-0001: needs a GitHub repo and a full head sha (have repo='o/bs', sha='abc'); run `factory scout fetch` again"
+   },
+   "name": "bad-sha",
+   "responses": {
+    "repos/o/bs/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/bs/git/trees/ee0c15a1113cb094561f8999e55d02492cbaf4e9?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "c0084a0ac4989e55b65380459c698e3cc7d087e6",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "nope",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": null,
+    "msg": "C-0001: needs a GitHub repo and a full head sha (have repo='nope', sha='c0084a0ac4989e55b65380459c698e3cc7d087e6'); run `factory scout fetch` again"
+   },
+   "name": "bad-repo",
+   "responses": {
+    "repos/o/br/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/br/git/trees/c0084a0ac4989e55b65380459c698e3cc7d087e6?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "b7a43bf6e6dde2d86eb5fc9082c1e71a3633de2f",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/bm",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": "unknown",
+    "msg": "C-0001: fresh install risk at b7a43bf6e6dd is unknown (DB said prompt-only): unknown: unreadable: SKILL.md (blob of 'SKILL.md' does not match its sha ce6546fb914e49efce3ee40e9110d30f2cc276); refusing"
+   },
+   "name": "blob-mismatch",
+   "responses": {
+    "repos/o/bm/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "dGFtcGVyZWQ=\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/bm/git/trees/b7a43bf6e6dde2d86eb5fc9082c1e71a3633de2f?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "f998fa57d5fd6c9bfa57f291353f53150d4b7cc3",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/big",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": "unknown",
+    "msg": "C-0001: fresh install risk at f998fa57d5fd is unknown (DB said prompt-only): unknown: over 65536 bytes, not fully scanned: SKILL.md; refusing"
+   },
+   "name": "too-big",
+   "responses": {
+    "repos/o/big/git/blobs/c1b0730e0133447badcfd47fd144e254807b06e1": {
+     "content": "eA==\n",
+     "encoding": "base64",
+     "sha": "c1b0730e0133447badcfd47fd144e254807b06e1"
+    },
+    "repos/o/big/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/big/git/trees/f998fa57d5fd6c9bfa57f291353f53150d4b7cc3?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 2097152,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "a.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 2097152,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "c40f1f796a82cc692768cd6c0efd6050737fdfc0",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/dd",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": null,
+    "msg": "unsafe path in tree: '../evil.md'"
+   },
+   "name": "unsafe-dotdot",
+   "responses": {
+    "repos/o/dd/git/blobs/c1b0730e0133447badcfd47fd144e254807b06e1": {
+     "content": "eA==\n",
+     "encoding": "base64",
+     "sha": "c1b0730e0133447badcfd47fd144e254807b06e1"
+    },
+    "repos/o/dd/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/dd/git/trees/c40f1f796a82cc692768cd6c0efd6050737fdfc0?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "../evil.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "4f515b29d1dcf1941f81fe0a150104b93fe791b8",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/abs",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": null,
+    "msg": "unsafe path in tree: '/etc/evil.md'"
+   },
+   "name": "unsafe-abs",
+   "responses": {
+    "repos/o/abs/git/blobs/c1b0730e0133447badcfd47fd144e254807b06e1": {
+     "content": "eA==\n",
+     "encoding": "base64",
+     "sha": "c1b0730e0133447badcfd47fd144e254807b06e1"
+    },
+    "repos/o/abs/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/abs/git/trees/4f515b29d1dcf1941f81fe0a150104b93fe791b8?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "/etc/evil.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "4adec94ef9bee1f3d64219555e91b8c264efb3ac",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/bsl",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": null,
+    "msg": "unsafe path in tree: 'a\\\\b.md'"
+   },
+   "name": "unsafe-backslash",
+   "responses": {
+    "repos/o/bsl/git/blobs/c1b0730e0133447badcfd47fd144e254807b06e1": {
+     "content": "eA==\n",
+     "encoding": "base64",
+     "sha": "c1b0730e0133447badcfd47fd144e254807b06e1"
+    },
+    "repos/o/bsl/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/bsl/git/trees/4adec94ef9bee1f3d64219555e91b8c264efb3ac?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "a\\b.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "a1209cae4213927aa6dd7448cb7bbebc7a88fec1",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/dot",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": null,
+    "msg": "unsafe path in tree: 'a//b.md'"
+   },
+   "name": "unsafe-dot",
+   "responses": {
+    "repos/o/dot/git/blobs/c1b0730e0133447badcfd47fd144e254807b06e1": {
+     "content": "eA==\n",
+     "encoding": "base64",
+     "sha": "c1b0730e0133447badcfd47fd144e254807b06e1"
+    },
+    "repos/o/dot/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/dot/git/trees/a1209cae4213927aa6dd7448cb7bbebc7a88fec1?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "a//b.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "b282128e9f472cade38f541670d05c997f5edf7a",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/sym",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": "symlinks",
+    "msg": "C-0001: fresh install risk at b282128e9f47 is symlinks (DB said prompt-only): symlinks: link.md; refusing"
+   },
+   "name": "symlink",
+   "responses": {
+    "repos/o/sym/git/blobs/9b4019521f1cf2aeba623664c58abd8f98e03b8e": {
+     "content": "Li4vLi4vZXRjL3Bhc3N3ZA==\n",
+     "encoding": "base64",
+     "sha": "9b4019521f1cf2aeba623664c58abd8f98e03b8e"
+    },
+    "repos/o/sym/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/sym/git/trees/b282128e9f472cade38f541670d05c997f5edf7a?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "120000",
+       "path": "link.md",
+       "sha": "9b4019521f1cf2aeba623664c58abd8f98e03b8e",
+       "size": 16,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "8e32a6259737327ddebae65a01b9bdcc36da31e5",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/sub",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": "symlinks",
+    "msg": "C-0001: fresh install risk at 8e32a6259737 is symlinks (DB said prompt-only): symlinks: vendor; refusing"
+   },
+   "name": "submodule",
+   "responses": {
+    "repos/o/sub/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/sub/git/blobs/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391": {
+     "content": "",
+     "encoding": "base64",
+     "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    "repos/o/sub/git/trees/8e32a6259737327ddebae65a01b9bdcc36da31e5?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      },
+      {
+       "mode": "160000",
+       "path": "vendor",
+       "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+       "size": 0,
+       "type": "commit"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "c8d9277c9f41f151c88d02acfc1aea4e6c4a02e1",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/tr",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": "unknown",
+    "msg": "C-0001: fresh install risk at c8d9277c9f41 is unknown (DB said prompt-only): unknown: tree truncated by the API; refusing"
+   },
+   "name": "truncated",
+   "responses": {
+    "repos/o/tr/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/tr/git/trees/c8d9277c9f41f151c88d02acfc1aea4e6c4a02e1?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      }
+     ],
+     "truncated": true
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "93117722cd6c9e84c93f504b30d7a5da694fe491",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/many",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": null,
+    "msg": "C-0001: 201 files exceed the cap of 200; refusing"
+   },
+   "name": "too-many",
+   "responses": {
+    "repos/o/many/git/blobs/c1b0730e0133447badcfd47fd144e254807b06e1": {
+     "content": "eA==\n",
+     "encoding": "base64",
+     "sha": "c1b0730e0133447badcfd47fd144e254807b06e1"
+    },
+    "repos/o/many/git/trees/93117722cd6c9e84c93f504b30d7a5da694fe491?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "d/f0.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f1.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f2.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f3.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f4.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f5.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f6.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f7.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f8.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f9.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f10.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f11.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f12.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f13.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f14.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f15.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f16.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f17.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f18.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f19.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f20.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f21.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f22.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f23.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f24.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f25.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f26.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f27.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f28.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f29.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f30.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f31.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f32.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f33.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f34.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f35.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f36.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f37.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f38.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f39.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f40.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f41.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f42.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f43.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f44.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f45.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f46.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f47.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f48.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f49.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f50.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f51.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f52.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f53.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f54.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f55.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f56.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f57.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f58.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f59.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f60.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f61.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f62.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f63.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f64.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f65.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f66.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f67.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f68.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f69.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f70.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f71.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f72.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f73.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f74.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f75.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f76.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f77.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f78.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f79.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f80.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f81.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f82.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f83.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f84.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f85.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f86.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f87.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f88.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f89.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f90.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f91.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f92.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f93.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f94.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f95.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f96.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f97.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f98.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f99.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f100.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f101.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f102.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f103.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f104.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f105.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f106.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f107.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f108.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f109.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f110.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f111.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f112.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f113.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f114.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f115.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f116.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f117.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f118.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f119.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f120.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f121.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f122.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f123.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f124.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f125.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f126.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f127.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f128.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f129.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f130.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f131.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f132.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f133.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f134.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f135.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f136.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f137.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f138.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f139.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f140.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f141.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f142.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f143.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f144.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f145.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f146.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f147.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f148.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f149.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f150.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f151.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f152.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f153.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f154.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f155.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f156.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f157.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f158.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f159.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f160.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f161.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f162.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f163.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f164.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f165.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f166.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f167.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f168.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f169.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f170.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f171.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f172.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f173.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f174.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f175.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f176.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f177.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f178.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f179.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f180.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f181.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f182.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f183.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f184.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f185.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f186.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f187.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f188.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f189.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f190.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f191.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f192.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f193.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f194.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f195.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f196.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f197.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f198.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f199.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      },
+      {
+       "mode": "100644",
+       "path": "d/f200.md",
+       "sha": "c1b0730e0133447badcfd47fd144e254807b06e1",
+       "size": 1,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "64fcdb17dcac1cad2d733adef5429625531e03be",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "",
+    "repo": "o/nt",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": null,
+    "msg": "C-0001: cannot list the tree at 64fcdb17dcac1cad2d733adef5429625531e03be: gh api repos/o/nt/git/trees/64fcdb17dcac1cad2d733adef5429625531e03be?recursive=1: exit 1: Not Found"
+   },
+   "name": "no-tree",
+   "responses": {},
+   "root_exists_after": false
+  },
+  {
+   "cand": {
+    "head_sha": "47982a4f0996ba6702c1dc938908cd42117eadcc",
+    "id": "C-0001",
+    "install_risk": "prompt-only",
+    "licence": "MIT",
+    "path": "nothing/here",
+    "repo": "o/ep",
+    "status": "new"
+   },
+   "err": {
+    "code": 2,
+    "fresh": "unknown",
+    "msg": "C-0001: fresh install risk at 47982a4f0996 is unknown (DB said prompt-only): unknown: no files under path; refusing"
+   },
+   "name": "empty-path",
+   "responses": {
+    "repos/o/ep/git/blobs/ce6546fb914e49efce3ee40e9110d30f2cc276bd": {
+     "content": "LS0tCm5hbWU6IHgKZGVzY3JpcHRpb246IGQKLS0tCkRvIGEgdGhpbmcuCg==\n",
+     "encoding": "base64",
+     "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd"
+    },
+    "repos/o/ep/git/trees/47982a4f0996ba6702c1dc938908cd42117eadcc?recursive=1": {
+     "tree": [
+      {
+       "mode": "100644",
+       "path": "SKILL.md",
+       "sha": "ce6546fb914e49efce3ee40e9110d30f2cc276bd",
+       "size": 43,
+       "type": "blob"
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "root_exists_after": false
+  }
+ ]
+}

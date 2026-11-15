@@ -223,7 +223,7 @@ DEFAULT_CONFIG = {
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
-    "terminal_backend": "auto",  # auto | herdr | hc — which CLI talks to the agent host (herdr TUI vs herdr-core `hc`); auto prefers herdr when both are on PATH
+    "terminal_backend": "auto",  # auto | herdr | hc — which CLI talks to the agent host (herdr TUI vs herdr-core `hc`); auto prefers hc when it is on PATH (herdr only when hc is missing)
     "stop_timeout_s": "300",     # `factory stop`: the tick force-closes the pane of a stopped agent still live after this long
     # worker sandbox (G-010): comma list of roles whose claude runs in the namespace sandbox, each one of
     # workerbox.SANDBOXABLE (reviewer, qa, coder, researcher). Empty = off = today's behaviour. Read fresh at every spawn.
@@ -1262,19 +1262,15 @@ def terminal_backend_config(con):
 def terminal_backend_effective(con):
     """(effective_label, host_cli) — which binary factory uses for agent host IPC (herdr TUI vs herdr-core `hc`).
 
-    auto: prefer the TUI (`herdr`) when it is on PATH; otherwise use `hc` if present; if neither is on PATH,
-    keep `herdr` so errors match today's herdr-not-found behaviour.
+    auto: prefer `hc` whenever it is on PATH, even when `herdr` is too; use `herdr` when only it is present; if
+    neither is on PATH, keep `herdr` so errors match today's herdr-not-found behaviour.
     """
     raw = terminal_backend_config(con)
     if raw == "herdr":
         return "herdr", "herdr"
     if raw == "hc":
         return "hc", "hc"
-    h_ok = shutil.which("herdr") is not None
-    hc_ok = shutil.which("hc") is not None
-    if h_ok:
-        return "auto→herdr", "herdr"
-    if hc_ok:
+    if shutil.which("hc") is not None:
         return "auto→hc", "hc"
     return "auto→herdr", "herdr"
 
@@ -5324,7 +5320,7 @@ def merged_go_refusal(con, repo, sha, main_sha, *, timeout=MERGED_GO_PROOF_TIMEO
     try:
         env = merged_go_proof_env()
         gcmd = git_argv(repo, *HARDENED_GIT_FLAGS)
-        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree, "go"], capture_output=True, env=_carry_env(),
+        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree], capture_output=True, env=_carry_env(),
                               timeout=60)
         if arch.returncode:
             return f"MERGED-TREE: git archive of the merge-tree failed ({arch.stderr.decode(errors='replace').strip() or arch.returncode}); nothing merged"

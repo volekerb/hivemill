@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Web view</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .head { position: absolute; left: 120px; top: 44px; display: flex; align-items: center; gap: 40px; }
+  .head .title { font-size: 60px; }
+  .tabs { display: flex; gap: 12px; }
+  .tab { height: 48px; padding: 0 22px; border-radius: 24px; display: flex; align-items: center;
+    font-size: 24px; font-weight: 600; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--hairline); }
+  .shot { position: absolute; left: 0; top: 0; overflow: hidden; border-radius: 16px; background: rgb(0,0,0);
+    box-shadow: 0 0 0 1px rgb(58,58,60), 0 40px 120px rgba(0,0,0,0.75); }
+  .shot img { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  /* Rings sit inside the chip rectangle (inset only), so they never reach neighbouring text. */
+  .ring { position: absolute; border-radius: 7px; }
+  .ring.seg { border-radius: 14px; }
+  .ring.claude { background: rgba(224,120,77,0.16);
+    box-shadow: inset 0 0 0 3px var(--org-claude-solid), inset 0 0 14px 2px rgba(224,120,77,0.55); }
+  .ring.cursor { background: rgba(43,179,192,0.16);
+    box-shadow: inset 0 0 0 3px var(--org-cursor-solid), inset 0 0 14px 2px rgba(43,179,192,0.55); }
+</style>
+</head><body>
+<div class="backdrop"></div>
+<div class="stage">
+  <div class="head" id="head">
+    <h1 class="title">Web view</h1>
+    <div class="tabs">
+      <div class="tab" id="tab-overview">Overview</div>
+      <div class="tab" id="tab-goals">Goals</div>
+      <div class="tab" id="tab-agents">Agents</div>
+      <div class="tab" id="tab-throughput">Throughput</div>
+    </div>
+  </div>
+  <div class="shot" id="w-overview"><img src="../../images/home-dark.png" alt="Overview page"></div>
+  <div class="shot" id="w-agents"><img src="../../images/agents-dark.png" alt="Agents page"></div>
+  <div class="shot" id="w-cursor"><img src="../../images/agents-dark.png" alt="Agents page, Cursor rows"></div>
+  <div class="shot" id="w-throughput"><img src="../../images/throughput-dark.png" alt="Throughput page"></div>
+  <div class="ring claude seg" id="r-hdr-claude"></div>
+  <div class="ring cursor seg" id="r-hdr-cursor"></div>
+  <div class="ring claude" id="r-hq-claude"></div>
+  <div class="ring claude" id="r-boss-claude"></div>
+  <div class="ring cursor" id="r-hq-cursor"></div>
+  <div class="ring cursor" id="r-boss-cursor"></div>
+</div>
+<script src="film.js"></script>
+<script>
+(function () {
+  'use strict';
+  const { prog, fade, tr, $, lerp, clamp, easeInOut } = Film;
+  // Each still shows only a crop of its README screenshot (pixel rectangles of the 2560 px wide source).
+  // The crops stop above the parts of the pages that list goal or task ids.
+  // The two agents crops show whole rows of one table, one after the other (never side by side):
+  // the top of the page down to the row line under "director", then the Cursor HQ group from the row
+  // line above it to the row line under "cursor-director". Both keep the table's left and right edges.
+  const SHOTS = {
+    overview:   { crop: { x: 440, y: 0, w: 2120, h: 620 },  win: { x: 128, y: 236, w: 1664, h: 487 }, in: 0.0, out: 2.55 },
+    agents:     { crop: { x: 470, y: 0, w: 2090, h: 822 },  win: { x: 144, y: 156, w: 1632, h: 642 }, in: 2.45, out: 4.05 },
+    cursor:     { crop: { x: 470, y: 2379, w: 2090, h: 234 }, win: { x: 144, y: 385, w: 1632, h: 183 }, in: 4.4, out: 5.35 },
+    throughput: { crop: { x: 500, y: 0, w: 2060, h: 620 },  win: { x: 136, y: 232, w: 1648, h: 496 }, in: 5.25, out: 99 },
+  };
+  // Chip rectangles in source pixels (the ring is drawn inside them), with their highlight window [in, out].
+  // The runtime filter and the Claude chips light on the top crop, the Cursor chips on the Cursor crop.
+  const CHIPS = {
+    'r-hdr-claude':  ['agents', 1153, 41, 138, 66, 2.9, 4.05],
+    'r-hdr-cursor':  ['agents', 1314, 41, 140, 66, 3.25, 4.05],
+    'r-hq-claude':   ['agents', 561, 624, 98, 36, 3.1, 4.05],
+    'r-boss-claude': ['agents', 687, 685, 100, 36, 3.25, 4.05],
+    'r-hq-cursor':   ['cursor', 560, 2415, 100, 36, 4.7, 5.3],
+    'r-boss-cursor': ['cursor', 854, 2477, 101, 36, 4.8, 5.3],
+  };
+  const view = {};   // current left/top/scale per shot, for placing rings
+
+  // Place one still: zoom z >= 1 pushes in on focus (fx, fy) without leaving the crop.
+  function show(key, t, z, fx, fy) {
+    const s = SHOTS[key];
+    const el = $('#w-' + key);
+    const base = s.win.w / s.crop.w;
+    const S = base * z;
+    const vw = s.win.w / S, vh = s.win.h / S;
+    const left = clamp(fx - vw / 2, s.crop.x, s.crop.x + s.crop.w - vw);
+    const top = clamp(fy - vh / 2, s.crop.y, s.crop.y + s.crop.h - vh);
+    const wy = s.win.y + 30 * (1 - prog(t, s.in, s.in + 0.5));
+    view[key] = { left, top, S, wy };
+    el.style.width = s.win.w + 'px'; el.style.height = s.win.h + 'px';
+    const a = fade(t, s.in, 0.35, s.out);
+    el.style.opacity = a.toFixed(3);
+    el.style.transform = tr(s.win.x, wy);
+    el.querySelector('img').style.transform =
+      'translate(' + (-left * S).toFixed(2) + 'px,' + (-top * S).toFixed(2) + 'px) scale(' + S.toFixed(5) + ')';
+    return a;
+  }
+
+  function seek(t) {
+    const h = prog(t, 0, 0.5);
+    $('#head').style.opacity = h; $('#head').style.transform = tr(0, 16 * (1 - h));
+
+    // Overview: slow push-in across both org cards.
+    show('overview', t, lerp(1, 1.07, prog(t, 0, 2.6, easeInOut)), 1520, 330);
+    // Agents: the top of the table with the runtime filter and the Claude chips, then the Cursor HQ rows.
+    show('agents', t, 1, 1515, 411);
+    show('cursor', t, 1, 1515, 2496);
+    // Throughput: push in on the tiles.
+    show('throughput', t, lerp(1, 1.06, prog(t, 5.3, 8, easeInOut)), 1530, 330);
+
+    const active = t < 2.5 ? 'overview' : (t < 5.3 ? 'agents' : 'throughput');
+    ['overview', 'goals', 'agents', 'throughput'].forEach(k => {
+      const tab = $('#tab-' + k);
+      const on = k === active;
+      tab.style.color = on ? 'var(--ink-1)' : 'var(--ink-3)';
+      tab.style.background = on ? 'var(--info-bg)' : 'transparent';
+      tab.style.boxShadow = on ? 'inset 0 0 0 1px rgba(10,132,255,0.7)' : 'inset 0 0 0 1px var(--hairline)';
+    });
+
+    // Highlight rings on the Claude and Cursor chips, one after another.
+    Object.keys(CHIPS).forEach(id => {
+      const [key, x, y, w, hh, on, off] = CHIPS[id];
+      const v = view[key], s = SHOTS[key];
+      const r = $('#' + id);
+      r.style.left = Math.round(s.win.x + (x - v.left) * v.S) + 'px';
+      r.style.top = Math.round(v.wy + (y - v.top) * v.S) + 'px';
+      r.style.width = Math.round(w * v.S) + 'px';
+      r.style.height = Math.round(hh * v.S) + 'px';
+      r.style.opacity = fade(t, on, 0.3, off).toFixed(3);
+    });
+  }
+  Film.boot(seek);
+})();
+</script>
+</body></html>

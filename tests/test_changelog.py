@@ -125,8 +125,9 @@ class ChangelogTest(unittest.TestCase):
 
     def test_committed_changelog_has_curated_block_first(self):
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertEqual(len(re.findall(r"^### Highlights$", text, re.M)), 4)
-        self.assertLess(text.index("## [0.4.0]"), text.index("### Highlights"))
+        self.assertEqual(len(re.findall(r"^### Highlights$", text, re.M)), 5)
+        self.assertLess(text.index("## [0.5.0]"), text.index("### Highlights"))
+        self.assertLess(text.index("### Highlights"), text.index("## [0.4.0]"))
         self.assertLess(text.index("## [0.1.0]"), text.rindex("### Highlights"))
 
     def test_release_notes_are_public_text(self):
