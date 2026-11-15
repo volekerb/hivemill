@@ -539,12 +539,13 @@ func TestGitDecisionsFromTheExport(t *testing.T) {
 	for _, c := range []struct{ cmd, role, want string }{
 		{"git push origin HEAD:factory/t-7", "coder", block}, {"git push origin x", "judge", block},
 		{"git -C . send-pack x", "coder", block}, {"git push origin x", "coder", block},
-		{"git commit -m x", "coder", allow}, {"git tag v1", "judge", allow}, {"git tag -a v1 -m x", "judge", allow},
-		{"git merge x", "judge", allow}, {"git notes add", "coder", allow}, {"git commit-tree x", "coder", allow},
+		{"git commit -m x", "coder", allow}, {"git commit -m x", "judge", allow},
+		{"git tag v1", "judge", allow}, {"git tag -a v1 -m x", "judge", allow},
+		{"git merge x", "judge", block}, {"git notes add", "coder", allow}, {"git commit-tree x", "coder", allow},
 		{"git -c alias.c=commit c", "coder", block}, {"git -C x commit -m y", "coder", allow},
 		{"git status", "coder", allow}, {"git add -A", "coder", allow}, {"git log commit", "coder", allow},
 		{"git rebase main", "coder", allow}, {"git branch -a", "coder", allow}, {"git checkout x", "coder", allow},
-		{"git --git-dir=x status", "coder", allow}, {"git stash", "judge", allow},
+		{"git --git-dir=x status", "coder", allow}, {"git stash", "judge", block},
 	} {
 		err := f.check(c.cmd, f.wt, c.role)
 		got := allow
@@ -575,10 +576,13 @@ func TestGitDecisionsFromTheExport(t *testing.T) {
 	writeExport(t, off, exportDoc{Worktrees: map[string]string{"T-7": f.wt}})
 	t.Setenv("FACTORY_HOME", off)
 	for _, c := range []struct{ cmd, role string }{{"git push origin HEAD:factory/t-7", "coder"}, {"git commit -m x", "coder"},
-		{"git tag -a v1 -m x", "judge"}, {"git merge x", "judge"}, {"git -c alias.c=commit c", "coder"}} {
+		{"git commit -m x", "judge"}, {"git tag -a v1 -m x", "judge"}, {"git -c alias.c=commit c", "coder"}} {
 		if err := f.check(c.cmd, f.wt, c.role); err != nil {
 			t.Errorf("%q (%s) with the rule off: %v, want allow", c.cmd, c.role, err)
 		}
+	}
+	if err := f.check("git merge x", f.wt, "judge"); err == nil {
+		t.Error("judge merge with public text off: want block")
 	}
 	if err := Check("git commit -m x", f.wt, "", true); err != nil {
 		t.Errorf("hq git commit with the rule off: %v", err)

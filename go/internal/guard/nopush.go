@@ -13,7 +13,7 @@ var noPushRoles = set("qa", "reviewer", "pm", "staff-engineer", "scout", "evalua
 var (
 	gitOptsAllowed = set("-P", "--no-pager", "--no-optional-locks", "--version", "--help")
 	gitAllowPlain  = func() map[string]struct{} {
-		m := set("merge-tree")
+		m := set("merge-tree", "commit-tree")
 		for k := range GitReadOnly {
 			if k != "fetch" && k != "ls-remote" {
 				m[k] = struct{}{}
@@ -189,7 +189,7 @@ func (a *Analyzer) gitAllow(rest []string) error {
 		return nil
 	case sub == "remote" && gitRemoteRead(args):
 		return nil
-	case sub == "worktree" && len(args) > 0 && args[0] == "list":
+	case sub == "worktree" && len(args) > 0 && (args[0] == "list" || gitWorktreeDetachAdd(args)):
 		return nil
 	case sub == "config" && gitConfigRead(args):
 		return nil

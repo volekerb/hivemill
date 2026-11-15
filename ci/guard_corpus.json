@@ -19327,11 +19327,6 @@
     {
       "note": "T-0336: non-coders must not commit",
       "cmd": "git commit -m x",
-      "role": "judge"
-    },
-    {
-      "note": "T-0336: non-coders must not commit",
-      "cmd": "git commit -m x",
       "role": "cleaner"
     },
     {

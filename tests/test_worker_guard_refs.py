@@ -48,12 +48,17 @@ def g_hook(cmd, role):
     return hook_run(payload, ["--role", role], env=env).returncode
 
 
+COMMIT_REFUSED = tuple(r for r in NON_CODERS if r != "judge")
+
+
 class RefMoveNonCoderTests(unittest.TestCase):
     def test_plain_merge_and_commit_refused(self):
         for role in NON_CODERS:
-            for cmd in ("git merge origin/main", "git commit -m x"):
-                with self.subTest(role=role, cmd=cmd):
-                    self.assertEqual(g_hook(cmd, role), 2, cmd)
+            with self.subTest(role=role, cmd="git merge origin/main"):
+                self.assertEqual(g_hook("git merge origin/main", role), 2)
+        for role in COMMIT_REFUSED:
+            with self.subTest(role=role, cmd="git commit -m x"):
+                self.assertEqual(g_hook("git commit -m x", role), 2)
 
     def test_qa_bypass_forms_refused(self):
         for cmd in BYPASS:

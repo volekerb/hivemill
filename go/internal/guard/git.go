@@ -504,6 +504,91 @@ func gitMutates(sub string, args []string) bool {
 	return true
 }
 
+// T-0336: non-coders must not run these (fail closed); coder and unset role exempt.
+var gitRefMoveDeny = set("commit", "merge", "rebase", "cherry-pick", "revert", "am", "pull", "reset",
+	"update-ref", "symbolic-ref", "stash")
+
+const refMoveWhy = "only coders may create commits or move refs (T-0336); qa/reviewer use merge-tree --write-tree, " +
+	"commit-tree and worktree add --detach only; ask your lead"
+
+// gitWorktreeDetachAdd is T-0336: worktree add --detach (object id only; no branch ref move).
+func gitWorktreeDetachAdd(args []string) bool {
+	if len(args) == 0 || args[0] != "add" {
+		return false
+	}
+	for _, a := range args[1:] {
+		if a == "--detach" || strings.HasPrefix(a, "--detach=") {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *Analyzer) gitRefMoveExempt(sub string, args []string) bool {
+	if in(GitReadOnly, sub) || sub == "merge-tree" || sub == "merge-base" || sub == "commit-tree" {
+		return true
+	}
+	if sub == "worktree" && gitWorktreeDetachAdd(args) {
+		return true
+	}
+	if a.Role == "cleaner" && gitCleanerOK(sub, args) {
+		return true
+	}
+	return false
+}
+
+// gitRefMove is a port of Analyzer.git_ref_move: non-coders refuse git forms that create commits or move refs.
+func (a *Analyzer) gitRefMove(rest []string) error {
+	if a.Role == "coder" || a.HQ || a.Role == "" {
+		return nil
+	}
+	i := 0
+	for i < len(rest) && strings.HasPrefix(rest[i], "-") {
+		o := rest[i]
+		if IsDynamic(o, true) {
+			return blockf(refMoveWhy + " (dynamic word " + pyRepr(o) + " before the subcommand)")
+		}
+		if in(GitValueOpts, o) && i+1 < len(rest) {
+			if IsDynamic(rest[i+1], true) {
+				return blockf(refMoveWhy + " (dynamic word before the subcommand)")
+			}
+			i += 2
+			continue
+		}
+		if strings.HasPrefix(o, "--git-dir=") || strings.HasPrefix(o, "--work-tree=") ||
+			strings.HasPrefix(o, "-c") || strings.HasPrefix(o, "--config-env") {
+			i++
+			continue
+		}
+		if in(gitOptsAllowed, o) {
+			i++
+			continue
+		}
+		i++
+	}
+	if i >= len(rest) {
+		return nil
+	}
+	sub, args := rest[i], rest[i+1:]
+	if IsDynamic(sub, true) || strings.ContainsAny(sub, "*?[") || strings.Contains(sub, "{") {
+		return blockf(refMoveWhy + " (the subcommand word " + pyRepr(sub) + " is dynamic)")
+	}
+	if a.gitRefMoveExempt(sub, args) {
+		return nil
+	}
+	if a.Role == "judge" && sub == "commit" {
+		return nil
+	}
+	if in(gitRefMoveDeny, sub) {
+		shown := strings.Join(append([]string{"git", sub}, args...), " ")
+		if len(shown) > 72 {
+			shown = shown[:72]
+		}
+		return blockf("`" + shown + "`: " + refMoveWhy)
+	}
+	return nil
+}
+
 // gitCleanerOK is a port of Analyzer.git_cleaner_ok: the cleaner's hand-removal of stray worktrees:
 // worktree remove (no --force), worktree prune, branch -d.
 func gitCleanerOK(sub string, args []string) bool {

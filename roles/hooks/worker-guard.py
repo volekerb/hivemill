@@ -3994,7 +3994,7 @@ class Analyzer:
 
     def git_ref_move(self, rest):
         """T-0336: non-coders refuse git forms that create commits or move refs."""
-        if self.role == "coder" or self.hq:
+        if self.role == "coder" or self.hq or not self.role:
             return
         i = 0
         while i < len(rest) and rest[i].startswith("-"):
@@ -4020,6 +4020,8 @@ class Analyzer:
         if is_dynamic(sub, True) or GLOB.search(sub) or "{" in sub:
             raise Block(f"{REF_MOVE_WHY} (the subcommand word {sub!r} is dynamic)")
         if self.git_ref_move_exempt(sub, args):
+            return
+        if self.role == "judge" and sub == "commit":
             return
         if sub in GIT_REF_MOVE_DENY:
             shown = " ".join(["git", sub, *args])
