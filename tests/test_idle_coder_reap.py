@@ -555,6 +555,49 @@ class WatchdogCursor(WatchdogBase):
         self.tick(51)
         self.assertEqual(len(self.nudges(name)), 1)
 
+    def test_worktree_change_resets_the_clock(self):
+        name = self.spawn(cursor=True)
+        wt = self.env.home / "wd-cursor-tree"  # the task tree; the policy workspace stays outside git
+        git("init", "-q", str(wt), cwd=self.env.home)
+        self.env.sql("UPDATE agents SET cwd=? WHERE name=?", (str(wt), name))
+        f = wt / "new.txt"
+        f.write_text("x\n")
+        os.utime(f, (self.epoch(20), self.epoch(20)))
+        self.tick(31)
+        self.assertEqual(self.nudges(name), [])
+        self.tick(51)
+        self.assertEqual(len(self.nudges(name)), 1)
+
+    def test_own_db_write_resets_the_clock(self):
+        name = self.spawn(cursor=True)
+        self.ok("task", "note", "T-0002", "working on it", agent=name, extra_env=self.at(20))
+        self.tick(31)
+        self.assertEqual(self.nudges(name), [])
+        self.tick(51)
+        self.assertEqual(len(self.nudges(name)), 1)
+
+    def test_stall_without_an_ended_turn_nudges_relaunches_then_alerts_both_directors_once(self):
+        name = self.spawn(cursor=True)
+        self.tick(31)
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.assertEqual(len(self.host_calls("agent", "send-keys", name, "Enter")), 1)
+        old = self.row(name)
+        self.tick(47)
+        self.assertEqual(len(self.host_calls("pane", "close")), 1)
+        self.assertEqual(len(self.steps("idle-watchdog-relaunch", name)), 1)
+        new = self.row(name)
+        self.assertEqual((new["status"], new["task_id"]), ("live", "T-0002"))
+        self.assertNotEqual(new["session_id"], old["session_id"])
+        self.ok("inbox", agent=name, extra_env=self.at(47))
+        self.tick(78)
+        al = self.alerts(name)
+        self.assertEqual({a["recipient"] for a in al}, self.directors())
+        for m in (100, 300):
+            self.tick(m)
+        self.assertEqual(len(self.alerts(name)), 2)
+        self.assertEqual(len(self.host_calls("pane", "close")), 1)
+        self.assertEqual(len(self.nudges(name)), 1)
+
 
 class WatchdogDoneRefused(WatchdogBase):
     """W5: a refused factory done is recorded as done-refused (with the refusing check) and alerted at once."""
