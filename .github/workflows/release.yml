@@ -16,11 +16,33 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
       - name: Check the tag matches VERSION, the release notes and the changelog
         run: python3 ci/changelog.py --check-version "${GITHUB_REF_NAME#v}"
+      - name: Build hivemill-install and check it against the shim pins
+        run: |
+          mkdir -p dist
+          cd go
+          for p in linux/amd64 linux/arm64 darwin/arm64; do
+            os="${p%/*}"; arch="${p#*/}"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' \
+              -o "../dist/hivemill-install-$os-$arch" ./cmd/hivemill-install
+          done
+          cd ..
+          status=0
+          for p in linux-amd64 linux-arm64 darwin-arm64; do
+            var="SHA_$(echo "$p" | tr 'a-z-' 'A-Z_')"
+            want=$(sed -n "s/^$var=\"\\([0-9a-f]*\\)\"$/\\1/p" plugins/hivemill/scripts/install)
+            got=$(sha256sum "dist/hivemill-install-$p" | cut -d' ' -f1)
+            echo "hivemill-install-$p sha256 $got (shim pins $want)"
+            [ "$got" = "$want" ] || status=1
+          done
+          exit "$status"
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -31,4 +53,4 @@ jobs:
           if [ "$(python3 ci/changelog.py --prerelease "$version")" = "true" ]; then
             flags+=(--prerelease)
           fi
-          gh release create "$GITHUB_REF_NAME" --title "Hivemill $GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}"
+          gh release create "$GITHUB_REF_NAME" --title "Hivemill $GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}" dist/hivemill-install-*
