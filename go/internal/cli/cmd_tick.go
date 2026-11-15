@@ -29,6 +29,10 @@ func runTick(c *ctx, _ any) (int, error) {
 	if err != nil {
 		return 0, errDelegate // delegate() says what is missing
 	}
+	// The Python child's migrate_db unit moves a legacy HOME/factory.db aside; a pooled idle connection of ours would
+	// keep the -wal/-shm sidecars alive and they would be renamed too (several migrated files, as Python never leaves).
+	// Zero idle connections: each query closes its connection, so nothing holds the file between units.
+	c.db.SetMaxIdleConns(0)
 	base := time.Now()
 	// From here on the handler never returns errDelegate: Python would redo the whole tick. Output goes straight to
 	// the real writers, in call order with the children's.
