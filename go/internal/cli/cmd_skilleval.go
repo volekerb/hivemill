@@ -3,10 +3,10 @@ package cli
 import (
 	"database/sql"
 	"errors"
-	"os"
 	"path/filepath"
 	"time"
 
+	sbx "factory/go/internal/sandbox"
 	"factory/go/internal/scout"
 	"factory/go/internal/skilleval"
 )
@@ -166,11 +166,6 @@ func runSkilleval(c *ctx, p any) (int, error) {
 	}
 }
 
-// passwdHome is the passwd home of the caller (the live `eval_test_seams` value; the eval token lives under it).
-func passwdHome(c *ctx) string {
-	h, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return h
-}
+// passwdHome is the passwd home of the user (nsbox.real_home, the live eval_test_seams value), never $HOME: the eval
+// token path must not be redirectable by the environment.
+func passwdHome(_ *ctx) string { return sbx.RealHome() }

@@ -164,7 +164,16 @@ func TestSkillevalCLI(t *testing.T) {
 	if code, _, errs := r.run("", "skilleval", "queue", "C-0001"); code != 2 || !strings.Contains(errs, "unknown eval task (none given); known: ") {
 		t.Fatalf("queue with no eval tasks: %d %q", code, errs)
 	}
+	if code, _, errs := r.run("", "skilleval", "vendor"); code != 2 || !strings.Contains(errs, "usage: factory skilleval vendor C-xxxx [--rescreen]") {
+		t.Fatalf("vendor usage: %d %q", code, errs)
+	}
+	if code, _, errs := r.run("", "skilleval", "vendor", "C-9", "--rescreen"); code != 2 || !strings.Contains(errs, "no candidate C-9") {
+		t.Fatalf("vendor rescreen unknown: %d %q", code, errs)
+	}
 	boss := newP4cRig(t, "boss-1", "boss")
+	if code, _, errs := boss.run("", "skilleval", "queue", "C-0001"); code != 2 || !strings.Contains(errs, "unknown eval task") {
+		t.Fatalf("boss may queue: %d %q", code, errs)
+	}
 	if code, _, errs := boss.run("", "skilleval", "list"); code != 3 || !strings.Contains(errs, "role 'boss' (boss-1) may not do this; allowed: director, lead") {
 		t.Fatalf("boss may queue but not list: %d %q", code, errs)
 	}
