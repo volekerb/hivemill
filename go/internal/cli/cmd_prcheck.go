@@ -160,6 +160,9 @@ func prcheckIdentity(g prcheckGit, base string) (bool, string, error) {
 		if len(f) != 3 {
 			return false, "", errDelegate // Python's unpacking raises
 		}
+		if !isASCII(f[1]) || !isASCII(f[2]) {
+			return false, "", errDelegate // Python's str.lower() folds non-ASCII differently from Go's
+		}
 		n++
 		if pr := emailProblems(f[1], f[2]); len(pr) > 0 {
 			bad = append(bad, pyTrunc(f[0], 9)+" "+strings.Join(pr, "+"))

@@ -265,7 +265,7 @@ func srcConfigClean(c *ctx, repo string, opts gitx.Options) (bool, error) {
 			lk := strings.ToLower(k)
 			switch {
 			case srcSafeKeyRE.MatchString(k):
-			case lk == "user.email" && strings.HasSuffix(strings.ToLower(pyStrip(v)), noreplySuffix):
+			case lk == "user.email" && isASCII(v) && strings.HasSuffix(strings.ToLower(pyStrip(v)), noreplySuffix):
 			case lk == "extensions.worktreeconfig" && inList(srcSafeBoolOff, strings.ToLower(pyStrip(v))):
 			default:
 				return false, nil

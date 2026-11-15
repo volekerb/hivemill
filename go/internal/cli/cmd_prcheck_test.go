@@ -225,6 +225,23 @@ func TestPrcheckRefusals(t *testing.T) {
 }
 
 // TestPrcheckHandsOver: what Go does not decide runs in Python before any check, with nothing written.
+func TestEmailProblems(t *testing.T) {
+	for _, tc := range []struct {
+		author, committer string
+		want              string
+	}{
+		{"1+a@users.noreply.github.com", "1+a@users.noreply.github.com", ""},
+		{"1+a@users.noreply.github.com", "noreply@github.com", ""},
+		{"1+a@users.noreply.github.com", "me@example.com", "committer"},
+		{"me@example.com", "noreply@github.com", "author"},
+		{" 1+A@Users.Noreply.GitHub.com ", "x@users.noreply.github.com", ""},
+	} {
+		if got := strings.Join(emailProblems(tc.author, tc.committer), "+"); got != tc.want {
+			t.Errorf("emailProblems(%q, %q) = %q, want %q", tc.author, tc.committer, got, tc.want)
+		}
+	}
+}
+
 func TestPrcheckHandsOver(t *testing.T) {
 	r := newPrRepo(t, true)
 	r.e.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','acme/app')")
