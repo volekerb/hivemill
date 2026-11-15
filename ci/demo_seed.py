@@ -420,6 +420,65 @@ def merge_days(now, existing):
     return c, [c[k] - ex[k] for k in range(n)], dip
 
 
+# ───────────────────────────── the fictional Cursor org ─────────────────────────────
+# A second, complete chain of command (boss, director, one team) on the Cursor runtime, so the org switch, the runtime
+# chip and the throughput page show both runtimes. Names carry the org prefix (cursor-...), which is how the web UI
+# resolves the org and so the runtime; the models are the ones web/_orgs.py maps for the cursor org. The Claude data
+# above does not change; only the seeded agent cap counts the Cursor agents that are live (cap = live + HEADROOM).
+CURSOR_JUDGEMENT = "grok-4.7-high"
+CURSOR_BUILD = "composer-2.5"
+CURSOR_GOAL = ("G-013", "ledger-api", "Send scheduled account statements", "active", 2,
+               "Let an account owner receive a statement by e-mail on a schedule they choose.",
+               "1. An owner can pick a monthly or weekly schedule.\n2. The statement is rendered as a PDF.\n"
+               "3. The PDF is delivered by e-mail at the scheduled time.\n4. A preview shows the next statement.")
+CURSOR_TEAM = ("g-013-a", "G-013", "cursor-lead-g-013-a", "Statement schedule, PDF rendering and delivery", "active")
+# id, role, title, kind (merged | plain | live | review | todo), file, attempts (merged only)
+CURSOR_TASKS = [
+    ("T-0201", "pm", "Specify scheduled account statements", "plain", None, 1),
+    ("T-0202", "coder", "Add the statement schedule model", "merged", "api/schedule.py", 1),
+    ("T-0203", "coder", "Render the statement as a PDF", "merged", "api/render.py", 2),
+    ("T-0204", "coder", "Deliver the statement by e-mail", "merged", "api/delivery.py", 1),
+    ("T-0205", "coder", "Add a delivery time zone per account", "live", "api/schedule_tz.py", 1),
+    ("T-0206", "qa", "Verify scheduled delivery end to end", "live", None, 1),
+    ("T-0207", "coder", "Add a statement preview endpoint", "review", "api/preview.py", 2),
+    ("T-0208", "reviewer", "Review the preview endpoint PR", "live", None, 1),
+    ("T-0209", "coder", "Add an unsubscribe link to the e-mail", "todo", "api/unsubscribe.py", 0),
+    ("T-0210", "judge", "Decide merge for the preview endpoint PR", "todo", None, 0),
+]
+CURSOR_LIVE = 3 + 3   # boss, director, lead + three live workers (a coder, a qa, a reviewer)
+CURSOR_PR = {"T-0202": 401, "T-0203": 402, "T-0204": 403, "T-0207": 405}
+
+
+def cursor_merge_days(per_day, dip, now, want=3):
+    """Days (k = days before --now's date) that get one Cursor merge each: weekdays, never today or the dip day, at least
+    two days apart, and only where one more merge keeps the Claude curve rule (no two consecutive days equal). The
+    Claude per-day counts themselves are not touched."""
+    c = list(per_day)
+    picks = []
+    for k in range(2, len(c) - 1):
+        if len(picks) == want:
+            break
+        if k == dip or (now.date() - dt.timedelta(days=k)).weekday() >= 5 or (picks and k - picks[-1] < 2):
+            continue
+        if c[k] + 1 not in (c[k - 1], c[k + 1]):
+            c[k] += 1
+            picks.append(k)
+    return picks
+
+
+def cursor_world(now, per_day, dip):
+    """Hours-ago of each Cursor merge, and how far back the Cursor goal starts. A pure function of `now`."""
+    midnight0 = dt.datetime.combine(now.date(), dt.time.min, tzinfo=dt.timezone.utc)
+    base = (now - midnight0).total_seconds() / 3600
+    days = cursor_merge_days(per_day, dip, now)
+    merged = [t for t in CURSOR_TASKS if t[3] == "merged"]
+    if len(days) != len(merged):
+        raise RuntimeError("demo_seed: no weekday slots for the Cursor merges (%s)" % days)
+    mh = {t[0]: round(base + k * 24 - 11.0, 3) for t, k in zip(merged, sorted(days, reverse=True))}   # oldest first
+    start_h = max(mh.values()) + 40.0
+    return {"merge_h": mh, "start_h": start_h}
+
+
 class World:
     """The generated growth, for one `now`: all extra rows plus the hand-written core, merged."""
 
@@ -553,8 +612,116 @@ def world(now):
     W.goal_upd = {g[0]: g[8] for g in GOALS + goals}
     W.pm_of = pm_of
     # live agents: boss, director, 3 core leads, 3 core workers, then the generated live leads and workers
-    W.n_live = 8 + sum(1 for t in NEW_TEAMS if t[3] == "active") + sum(1 for it in items if it["kind"] == "live")
+    W.cursor = cursor_world(now, W.per_day, W.dip)
+    W.n_live = (8 + sum(1 for t in NEW_TEAMS if t[3] == "active") + sum(1 for it in items if it["kind"] == "live")
+                + CURSOR_LIVE)
     return W
+
+
+def cursor_rows(now, W):
+    """Everything the Cursor org adds, as plain data: (goal row, team row, task rows, agents, events, verdicts, messages).
+    Task rows are (id, goal, team, role, title, status, spec, acceptance, assignee, deps, pr number, attempts)."""
+    H = lambda h: now - dt.timedelta(hours=h)  # noqa: E731
+    cw = W.cursor
+    gid, project, title, gstatus, prio, intent, crit = CURSOR_GOAL
+    team, _, lead, scope, _ = CURSOR_TEAM
+    start = cw["start_h"]
+    ev, ver, agents, tasks, msgs = [], [], {}, [], []
+    pm_id = CURSOR_TASKS[0][0]
+
+    def e(h, actor, entity, eid, action, detail=None):
+        ev.append((H(h), actor, entity, eid, action, detail))
+
+    def v(h, tid, role, verdict, summary, attempt):
+        ver.append((H(h), tid, REPO % (project, CURSOR_PR[tid]), sha(tid, attempt), role, verdict, summary, f"cursor-{role}-{tid.lower()}"))
+
+    def a(name, role, tid, status, started_h, ended_h=None, summary=None):
+        model = CURSOR_JUDGEMENT if role in ("boss", "director", "lead", "pm", "reviewer", "judge") else CURSOR_BUILD
+        hq = role in ("boss", "director")
+        agents[name] = (name, role, None if hq else gid, None if hq else team, tid, status, model, iso(H(started_h)),
+                        iso(H(ended_h)) if ended_h is not None else None, summary, None, None)
+
+    a("cursor-boss", "boss", None, "live", start + 12)
+    a("cursor-director", "director", None, "live", start + 11)
+    a(lead, "lead", None, "live", start - 1)
+    e(start + 12, "owner", "agent", "cursor-boss", "spawn", "role=boss runtime=cursor")
+    e(start + 11, "cursor-boss", "agent", "cursor-director", "spawn", "role=director runtime=cursor")
+    e(start + 1, "cursor-boss", "goal", gid, "add", title)
+    e(start, "cursor-director", "team", team, "new", scope)
+    e(start - 1, "cursor-director", "agent", lead, "spawn", f"role=lead team={team}")
+    e(start - 20, "cursor-director", "team", team, "eval", "4")
+    for tid, role, ttl, kind, path, att in CURSOR_TASKS:
+        who = f"cursor-{role}-{tid.lower()}"
+        if role == "pm":
+            sp = f"Collect what '{ttl.split(' ', 1)[1]}' needs and who it is for.\nOutput is a one-page list the coders can build from."
+            ac = "1. Lists every endpoint that changes.\n2. Each item has a one-line purpose.\n3. Names what is out of scope."
+        elif role in ("qa", "reviewer", "judge"):
+            sp = f"{ttl}.\nReport only what blocks the next step."
+            ac = "1. Every finding names a file and line.\n2. The verdict says whether work may continue."
+        else:
+            sp = f"{ttl}. Work in {path}.\nKeep the change small and add a test next to it."
+            ac = (f"1. The change in {path} gives the documented result for a normal case.\n"
+                  "2. A bad or empty input is rejected with a clear message.\n3. A test covers both cases.")
+        deps = [] if kind == "plain" else [pm_id]
+        pr = CURSOR_PR.get(tid)
+        if kind == "plain":
+            e(start - 4, lead, "task", tid, "add", ttl)
+            e(start - 12, who, "task", tid, "update", "status=done")
+            tasks.append((tid, gid, team, role, ttl, "done", sp, ac, who, deps, pr, 1))
+        elif kind == "merged":
+            mh = cw["merge_h"][tid]
+            end = 5.0 if att == 1 else 8.0
+            b = mh + end
+            e(b, lead, "task", tid, "add", ttl)
+            e(b - 0.3, lead, "agent", who, "spawn", f"role=coder task={tid}")
+            e(b - 0.3, who, "task", tid, "update", "status=in_progress")
+            n = 0
+            offs = [(2.5, "review")] if att == 1 else [(2.5, "review"), (3.5, "qa-fail"), (4.0, "progress"), (6.0, "review")]
+            for off, what in offs:
+                if what == "review":
+                    n += 1
+                    e(b - off, who, "task", tid, "update", f"status=in_review pr={REPO % (project, pr)}")
+                elif what == "qa-fail":
+                    v(b - off, tid, "qa", "fail", f"Changes needed: {path}:57 returned the wrong value for the edge case in acceptance item 2.", n)
+                else:
+                    e(b - off, who, "task", tid, "update", "status=in_progress")
+            a(who, "coder", tid, "done", b - 0.3, b - offs[-1][0] + 0.15, f"Opened PR {pr}.")
+            e(b - offs[-1][0] + 0.15, who, "agent", who, "done")
+            v(mh + 1.4, tid, "reviewer", "pass", f"Checked the diff in {path} against the spec; naming and error handling match the surrounding code.", n)
+            v(mh + 0.9, tid, "qa", "pass", "Ran every acceptance item on staging; the normal case and the bad-input case behaved as specified.", n)
+            v(mh, tid, "judge", "merge", f"Reviewer and QA PASS at {sha(tid, n)[:8]}; checks green; merging.", n)
+            e(mh, f"cursor-judge-{tid.lower()}", "task", tid, "merged", "@" + sha(tid, n)[:8])
+            e(mh, f"cursor-judge-{tid.lower()}", "task", tid, "update", "status=done")
+            tasks.append((tid, gid, team, role, ttl, "done", sp, ac, who, deps, pr, att))
+        elif kind == "live":
+            hrs = {"T-0205": 5, "T-0206": 3, "T-0208": 2}[tid]
+            e(hrs + 12, lead, "task", tid, "add", ttl)
+            e(hrs, lead, "agent", who, "spawn", f"role={role} task={tid}")
+            e(hrs, who, "task", tid, "update", "status=in_progress")
+            a(who, role, tid, "live", hrs)
+            d2 = deps + (["T-0207"] if tid in ("T-0206", "T-0208") else [])
+            tasks.append((tid, gid, team, role, ttl, "in_progress", sp, ac, who, d2, pr, 1))
+        elif kind == "review":
+            e(31, lead, "task", tid, "add", ttl)
+            e(30, lead, "agent", who, "spawn", f"role=coder task={tid}")
+            e(29, who, "task", tid, "update", "status=in_progress")
+            e(22, who, "task", tid, "update", f"status=in_review pr={REPO % (project, pr)}")
+            v(19, tid, "reviewer", "fail", f"Changes needed: {path}:41 an error is swallowed instead of being returned to the caller.", 1)
+            e(18, who, "task", tid, "update", "status=in_progress")
+            e(9, who, "task", tid, "update", f"status=in_review pr={REPO % (project, pr)}")
+            v(7, tid, "reviewer", "pass", f"Checked the retry in {path}: the earlier finding is fixed and the diff stays inside the spec.", 2)
+            a(who, "coder", tid, "done", 29, 9 - 0.2, f"Opened PR {pr}.")
+            tasks.append((tid, gid, team, role, ttl, "in_review", sp, ac, who, deps, pr, 2))
+        else:
+            e(8, lead, "task", tid, "add", ttl)
+            tasks.append((tid, gid, team, role, ttl, "todo", sp, ac, None, deps if tid != "T-0210" else ["T-0208"], pr, 0))
+    msgs += [(start + 12.5, "owner", "cursor-boss", "request", f"New goal: {title}", f"Please plan: {title}.", gid, None, True),
+             (start + 11, "cursor-boss", "cursor-director", "request", f"Staff goal {gid}", f"Goal {gid} is approved. Please staff a team.", gid, None, True),
+             (start - 1.5, "cursor-director", "cursor-boss", "report", f"Team {team} staffed", f"Lead {lead} is running.", gid, None, True),
+             (6, lead, "cursor-director", "report", f"Status {gid}", "Three tasks merged, one in review, three in progress.", gid, None, True),
+             (2, "cursor-boss", "owner", "report", "Cursor org summary", "One goal active on the Cursor runtime: statements are rendered and delivered, previews are in review.", gid, None, False)]
+    goal = (gid, project, title, gstatus, prio, intent, crit, start / 24, 2)
+    return goal, CURSOR_TEAM, tasks, agents, ev, ver, [(H(m[0]),) + m[1:] for m in msgs]
 
 
 def goal_of(tid):
@@ -752,6 +919,13 @@ def build(now):
     goals_ev += [(g[0], D(g[7]), "boss", "add") for g in W.goals]
     for gid, ts, who, act in goals_ev:
         ev(ts, who, "goal", gid, act, next(g[2] for g in GOALS + W.goals if g[0] == gid))
+    # the Cursor org: its own rows, appended after the Claude ones
+    _, _, c_tasks, c_agents, c_events, c_verdicts, _ = cursor_rows(now, W)
+    for ts, actor, entity, eid, action, detail in c_events:
+        ev(ts, actor, entity, eid, action, detail)
+    for ts, tid, pr, head, role, v, summary, author in c_verdicts:
+        verdicts.append((ts, len(verdicts), tid, pr, head, role, v, summary, author))
+    agents.update(c_agents)
     return events, verdicts, agents, evals, task, pr_url
 
 
@@ -804,6 +978,7 @@ def messages(now):
       "Goal G-009 cannot finish the shop translations without them. The team is parked until you reply.", "G-009", None, read=False)
     m(9, "boss", "owner", "request", "Approve goal G-010 (webhooks)?",
       "I drafted the scope for transaction webhooks. Reply yes to start a team, or tell me what to change.", "G-010", None, read=False)
+    out += cursor_rows(now, W)[6]
     out.sort(key=lambda r: (r[0], r[1], r[4]))
     return out
 
@@ -854,6 +1029,14 @@ def fill_db(db, now):
             for tid_, gid, scope, st, note in NEW_TEAMS:
                 if st == "parked":
                     con.execute("UPDATE teams SET parked_at=?, resume_note=? WHERE id=?", (iso(H(W.goal_upd[gid] - 2)), note, tid_))
+            c_goal, c_team, c_tasks = cursor_rows(now, W)[:3]
+            con.execute("INSERT INTO goals(id,project_id,title,intent,success_criteria,status,priority,requested_by,created,updated,org) "
+                        "VALUES(?,?,?,?,?,?,?,?,?,?,?)", (c_goal[0], c_goal[1], c_goal[2], c_goal[5], c_goal[6], c_goal[3], c_goal[4], "owner",
+                                                          iso(D(c_goal[7])), iso(H(c_goal[8])), "cursor"))
+            con.execute("INSERT INTO plans(goal_id,version,body,author,created) VALUES(?,?,?,?,?)",
+                        (c_goal[0], 1, "1. Specify\n2. Build\n3. Verify", c_team[2], iso(D(c_goal[7] - 0.2))))
+            con.execute("INSERT INTO teams(id,goal_id,scope,lead_agent,status,created) VALUES(?,?,?,?,?,?)",
+                        (c_team[0], c_team[1], c_team[3], c_team[2], c_team[4], iso(D(c_goal[7] - 0.04))))
             first = {}
             last = {}
             for ts, _, _, entity, eid, *_ in events:
@@ -865,10 +1048,16 @@ def fill_db(db, now):
                             "attempts,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                             (tid, goal, team, title, detail_of[tid][0], detail_of[tid][1], role, status, who, json.dumps(deps),
                              f"factory/{tid.lower()}", pr_url.get(tid), attempts, iso(first[tid]), iso(last[tid])))
+            for tid, goal, team, role, title, status, spec, acc, who, deps, prn, attempts in c_tasks:
+                con.execute("INSERT INTO tasks(id,goal_id,team_id,title,spec,acceptance,role,status,assignee,depends_on,branch,pr_url,"
+                            "attempts,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (tid, goal, team, title, spec, acc, role, status, who, json.dumps(deps),
+                             f"factory/{tid.lower()}", REPO % (c_goal[1], prn) if prn else None, attempts, iso(first[tid]), iso(last[tid])))
             for name, role, goal, team, tid, status, model, started, ended, summary, session, queued in agents.values():
                 con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,model,session_id,summary,queued_at,started,ended) "
                             "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                             (name, role, goal, team, tid, status, model, sessions.get(name, {}).get("sid"), summary, queued, started, ended))
+            con.execute("UPDATE agents SET org='cursor' WHERE name LIKE 'cursor-%'")
             for ts, _, tid, pr, head, role, v, summary, author in sorted(verdicts):
                 con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                             (tid, pr, head, role, v, summary, author, iso(ts)))
@@ -898,7 +1087,7 @@ def session_plan(now, agents):
     plan = {}
     n = 0
     for name, a in agents.items():
-        if a[7] is None or name.startswith(("reviewer", "judge", "staff", "cleaner")):
+        if a[7] is None or name.startswith(("reviewer", "judge", "staff", "cleaner", "cursor-")):
             continue
         n += 1
         start = dt.datetime.fromisoformat(a[7])

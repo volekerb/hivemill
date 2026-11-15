@@ -105,7 +105,7 @@ func TestParseGates(t *testing.T) {
 
 // TestRejectionCausesMatchPython reads REJECTION_CAUSES out of bin/factory_cli.py.
 func TestRejectionCausesMatchPython(t *testing.T) {
-	src, err := os.ReadFile("../../../bin/factory_cli.py")
+	src, err := os.ReadFile(repoFile(t, "bin/factory_cli.py"))
 	if err != nil {
 		t.Fatal(err)
 	}

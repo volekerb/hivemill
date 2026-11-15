@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Two runtimes, one box</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .head { position: absolute; left: 0; right: 0; top: 52px; text-align: center; }
+  .head .title { font-size: 72px; }
+  .head .title .cl { color: var(--org-claude-fg); }
+  .head .title .cu { color: var(--org-cursor-fg); }
+  .head .title .sep { color: var(--ink-3); font-weight: 500; }
+  #svg { position: absolute; left: 0; top: 0; }
+  svg text { font-family: "Inter", sans-serif; }
+  .node rect { stroke-width: 1.5; }
+  .node text { font-size: 21px; font-weight: 600; fill: var(--ink-1); text-anchor: middle; dominant-baseline: central; }
+  .node.w text { font-size: 17px; font-weight: 500; fill: var(--ink-2); }
+  .claude .node rect { fill: rgb(36,21,15); stroke: rgba(224,120,77,0.65); }
+  .cursor .node rect { fill: rgb(12,33,36); stroke: rgba(43,179,192,0.65); }
+  .claude .edge { stroke: rgba(224,120,77,0.55); }
+  .cursor .edge { stroke: rgba(43,179,192,0.55); }
+  .edge { fill: none; stroke-width: 2; }
+  .orglabel { font-size: 26px; font-weight: 700; text-anchor: middle; }
+  .claude .orglabel { fill: var(--org-claude-fg); }
+  .cursor .orglabel { fill: var(--org-cursor-fg); }
+  .wire { fill: none; stroke-width: 2.5; }
+  #box { position: absolute; left: 460px; top: 0; width: 1000px; height: 124px; }
+  #box .card { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 28px; padding: 0 40px;
+    background: linear-gradient(180deg, rgb(31,31,34), rgb(20,20,22)); }
+  #box .ic { width: 64px; height: 64px; }
+  #box .lbl { font-size: 40px; font-weight: 700; letter-spacing: -0.01em; }
+  #box .leds { position: absolute; right: 40px; top: 56px; display: flex; gap: 10px; }
+  #box .leds i { width: 12px; height: 12px; border-radius: 50%; background: var(--success-solid); display: block; }
+</style>
+</head><body>
+<div class="backdrop"></div>
+<div class="stage">
+  <div class="head" id="head"><h1 class="title"><span class="cl">Claude Code</span> <span class="sep">·</span> <span class="cu">Cursor</span></h1></div>
+  <svg id="svg" width="1920" height="940" viewBox="0 0 1920 940"></svg>
+  <div id="box"><div class="card">
+    <svg class="ic" viewBox="0 0 64 64"><rect x="6" y="8" width="52" height="20" rx="5" fill="none" stroke="#C7C7CC" stroke-width="3"/><rect x="6" y="36" width="52" height="20" rx="5" fill="none" stroke="#C7C7CC" stroke-width="3"/><circle cx="16" cy="18" r="3" fill="rgb(48,179,90)"/><circle cx="16" cy="46" r="3" fill="rgb(48,179,90)"/></svg>
+    <div class="lbl">2 runtimes · 1 box</div>
+    <div class="leds"><i></i><i></i><i></i></div>
+  </div></div>
+</div>
+<script src="film.js"></script>
+<script>
+(function () {
+  'use strict';
+  const { prog, fade, tr, $, lerp } = Film;
+  const svg = $('#svg');
+  const NS = svg.namespaceURI;   // the SVG namespace, taken from the inline svg element
+  const mk = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(e);
+    return e;
+  };
+  const BOX_TOP = 760;
+
+  // One org chart: boss, director, three leads, six workers.
+  function tree(cx, org, label) {
+    const g = mk('g', { class: org });
+    const levels = [];
+    const nodes = [];
+    const edges = [];
+    const add = (x, y, w, h, text, lvl, worker) => {
+      const n = mk('g', { class: 'node' + (worker ? ' w' : '') }, g);
+      mk('rect', { x: x - w / 2, y: y - h / 2, width: w, height: h, rx: 12 }, n);
+      const tx = mk('text', { x: x, y: y }, n); tx.textContent = text;
+      nodes.push({ el: n, lvl, x, y });
+      return { x, y, h };
+    };
+    const edge = (a, b, lvl) => {
+      const my = (a.y + a.h / 2 + b.y - b.h / 2) / 2;
+      const p = mk('path', { class: 'edge', d: `M${a.x} ${a.y + a.h / 2} V${my} H${b.x} V${b.y - b.h / 2}` }, g);
+      const len = p.getTotalLength();
+      p.style.strokeDasharray = len; edges.push({ el: p, lvl, len });
+    };
+    const lab = mk('text', { class: 'orglabel', x: cx, y: 214 }, g); lab.textContent = label;
+    const boss = add(cx, 272, 170, 52, 'boss', 0);
+    const dir = add(cx, 368, 170, 52, 'director', 1); edge(boss, dir, 1);
+    const workers = [];
+    [-230, 0, 230].forEach((dx, i) => {
+      const l = add(cx + dx, 470, 150, 52, 'lead', 2); edge(dir, l, 2);
+      ['coder', i === 1 ? 'reviewer' : 'qa'].forEach((w, k) => {
+        const wx = cx + dx + (k ? 56 : -56);
+        const n = add(wx, 572, 100, 44, w, 3, true); edge(l, n, 3);
+        workers.push(n);
+      });
+    });
+    // Wires from each worker down into the shared box.
+    const wires = workers.map((w, i) => {
+      const tx = cx + (cx < 960 ? 120 : -120) + (i - 2.5) * 22;
+      const p = mk('path', { class: 'wire', d: `M${w.x} ${w.y + 22} C${w.x} ${w.y + 110}, ${tx} ${BOX_TOP - 80}, ${tx} ${BOX_TOP}`,
+        stroke: org === 'claude' ? 'rgba(224,120,77,0.45)' : 'rgba(43,179,192,0.45)' }, g);
+      const len = p.getTotalLength(); p.style.strokeDasharray = len;
+      const dot = mk('circle', { r: 5, fill: org === 'claude' ? '#E0784D' : 'rgb(43,179,192)' }, g);
+      return { el: p, len, dot };
+    });
+    return { g, lab, nodes, edges, wires };
+  }
+  const T = [tree(560, 'claude', 'Claude org'), tree(1360, 'cursor', 'Cursor org')];
+
+  function seek(t) {
+    const h = prog(t, 0, 0.7);
+    $('#head').style.opacity = h; $('#head').style.transform = tr(0, 24 * (1 - h));
+    T.forEach((o, i) => {
+      const s = 0.5 + i * 0.45;                       // Cursor starts a beat after Claude
+      o.lab.style.opacity = prog(t, s, s + 0.4);
+      o.nodes.forEach(n => {
+        const a = prog(t, s + 0.15 + n.lvl * 0.42, s + 0.5 + n.lvl * 0.42);
+        n.el.style.opacity = a;
+        n.el.setAttribute('transform', `translate(0 ${Math.round(14 * (1 - a))})`);
+      });
+      o.edges.forEach(e => {
+        const a = prog(t, s + 0.05 + e.lvl * 0.42, s + 0.4 + e.lvl * 0.42);
+        e.el.style.strokeDashoffset = (e.len * (1 - a)).toFixed(1);
+      });
+      o.wires.forEach((w, k) => {
+        const a = prog(t, 3.5 + k * 0.05, 4.3 + k * 0.05);
+        w.el.style.strokeDashoffset = (w.len * (1 - a)).toFixed(1);
+        // A packet runs down each wire on a fixed cycle once the wires are drawn.
+        const ph = ((t - 4.4 - k * 0.17 - i * 0.09) / 1.1) % 1;
+        const on = t >= 4.4 + k * 0.17 + i * 0.09;
+        const pt = w.el.getPointAtLength(w.len * (on ? ph : 0));
+        w.dot.setAttribute('cx', pt.x.toFixed(1)); w.dot.setAttribute('cy', pt.y.toFixed(1));
+        w.dot.style.opacity = on ? Math.sin(Math.PI * ph).toFixed(3) : 0;
+      });
+    });
+    const b = prog(t, 3.0, 3.8);
+    const box = $('#box');
+    box.style.opacity = b;
+    box.style.transform = tr(0, BOX_TOP + 40 * (1 - b));
+    box.querySelectorAll('.leds i').forEach((l, k) => {
+      l.style.opacity = (0.35 + 0.65 * ((Math.floor(t * 3) + k) % 3 === 0 ? 1 : 0.4)).toFixed(2);
+    });
+  }
+  Film.boot(seek);
+})();
+</script>
+</body></html>

@@ -18,6 +18,8 @@
     "agentic-workflow"
   ],
   "required_checks": [
+    "ci-tier",
+    "docs-check",
     "unittest-shard (1)",
     "unittest-shard (2)",
     "unittest-shard (3)",
@@ -36,6 +38,10 @@
     "guard-diff",
     "guard-self-compare",
     "guard-evaluator-home-loosen",
+    "guard-equiv-shard (1)",
+    "guard-equiv-shard (2)",
+    "guard-equiv-shard (3)",
+    "guard-equiv-shard (4)",
     "guard-equiv",
     "guard-equiv-rest",
     "unittest"
