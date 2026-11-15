@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -16,6 +17,23 @@ import (
 func TestShimPinsMatchReproducibleBuild(t *testing.T) {
 	if testing.Short() {
 		t.Skip("cross-builds three targets")
+	}
+	// The pins are only valid for the toolchain release.yml builds with (go.mod "toolchain" line). A job that runs a
+	// newer 1.27.x produces other bytes; the install-go job (go-version-file) is the one that enforces the pins.
+	mod, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tc := regexp.MustCompile(`(?m)^toolchain (go[0-9.]+)$`).FindSubmatch(mod)
+	if tc == nil {
+		t.Fatal("go/go.mod has no toolchain line: add one so the pinned build is defined")
+	}
+	ver, err := exec.Command("go", "env", "GOVERSION").Output()
+	if err != nil {
+		t.Fatalf("go env GOVERSION: %v", err)
+	}
+	if got := strings.TrimSpace(string(ver)); got != string(tc[1]) {
+		t.Skipf("go is %s but the pins are for %s (go.mod toolchain); the install-go CI job enforces them", got, tc[1])
 	}
 	shim, err := os.ReadFile(filepath.Join("..", "..", "..", "plugins", "hivemill", "scripts", "install"))
 	if err != nil {
