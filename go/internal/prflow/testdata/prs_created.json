@@ -1,0 +1,9 @@
+[
+ {"number": 7, "state": "CLOSED", "createdAt": "2026-11-10T12:00:00Z", "mergedAt": null, "headRefName": "factory/t-0007", "mergeStateStatus": "DIRTY"},
+ {"number": 6, "state": "OPEN", "createdAt": "2026-11-10T21:00:00Z", "mergedAt": null, "headRefName": "factory/t-0006", "mergeStateStatus": "CLEAN"},
+ {"number": 5, "state": "MERGED", "createdAt": "2026-11-10T10:00:00Z", "mergedAt": "2026-11-10T12:00:00Z", "headRefName": "owner-patch", "mergeStateStatus": "UNKNOWN"},
+ {"number": 4, "state": "OPEN", "createdAt": "2026-11-10T10:00:00Z", "mergedAt": null, "headRefName": "factory/t-0004", "mergeStateStatus": "DIRTY"},
+ {"number": 3, "state": "MERGED", "createdAt": "2026-11-10T10:00:00Z", "mergedAt": "2026-11-10T20:00:00Z", "headRefName": "weird", "mergeStateStatus": "UNKNOWN"},
+ {"number": 2, "state": "MERGED", "createdAt": "2026-11-10T10:00:00Z", "mergedAt": "2026-11-10T16:00:00Z", "headRefName": "feature/x", "mergeStateStatus": "UNKNOWN"},
+ {"number": 1, "state": "MERGED", "createdAt": "2026-11-10T10:00:00Z", "mergedAt": "2026-11-10T13:00:00Z", "headRefName": "factory/t-0001", "mergeStateStatus": "UNKNOWN"}
+]

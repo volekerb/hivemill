@@ -198,11 +198,13 @@ func resSnapshot(c *ctx, now time.Time) (gate.Snapshot, gate.Config, error) {
 		return snap, cfg, errDelegate
 	}
 	snap.Usage = u
-	root, del := c.procRoot()
+	procs, del, perr := c.hostProcesses()
 	if del {
 		return snap, cfg, errDelegate
 	}
-	snap.Procs = gate.ScanProcs(root)
+	if perr == nil {
+		snap.Procs = gate.ScanFrom(procs) // an unreadable scan stays Known=false: a strict host closes the gate
+	}
 	tmpDir := c.env.Getenv("FACTORY_TMP_DIR")
 	if tmpDir == "" {
 		tmpDir = "/tmp"

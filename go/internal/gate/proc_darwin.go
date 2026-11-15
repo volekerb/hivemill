@@ -49,5 +49,14 @@ func runCmd(name string, args ...string) (string, error) {
 
 // NewHostFacts returns the readers of this OS. fakeStatvfs is ignored on macOS.
 func NewHostFacts(_ string, _ int) HostFacts {
-	return DarwinFacts{Run: runCmd, CPUs: runtime.NumCPU(), Statfs: darwinStatfs}
+	return DarwinFacts{Run: runCmd, CPUs: runtime.NumCPU(), Statfs: darwinStatfs, Procs: darwinProcs}
+}
+
+// darwinProcs is one ps call per scan, in the C locale so lstart is always English.
+func darwinProcs() ([]Proc, error) {
+	out, err := runCmd("env", append([]string{"LC_ALL=C", "ps"}, PsArgs...)...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePs(out, time.Now().Location())
 }

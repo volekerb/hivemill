@@ -427,6 +427,28 @@ func TestModelChoice(t *testing.T) {
 	}
 }
 
+// TestCursorQAOnJudgementModel (T-1615, owner decision 2026-11-15): QA is part of the review gate, so cursor qa runs on
+// the org's judgement model; the cursor coder and the claude qa keep their build models.
+func TestCursorQAOnJudgementModel(t *testing.T) {
+	for _, c := range []struct{ role, org, want string }{
+		{"qa", "cursor", "grok-4.7-high"},
+		{"reviewer", "cursor", "grok-4.7-high"},
+		{"coder", "cursor", "composer-2.5"},
+		{"qa", "claude", "claude-sonnet-5-5"},
+		{"cleaner", "cursor", "composer-2.5"},
+		{"scout", "cursor", "composer-2.5"},
+		{"retro", "cursor", "composer-2.5"},
+		{"evaluator", "cursor", "claude-sonnet-5-5"},
+	} {
+		if got := RoleModel(c.role, c.org, map[string]string{}); got != c.want {
+			t.Errorf("RoleModel(%s, %s) = %q, want %q", c.role, c.org, got, c.want)
+		}
+		if got := OrgModel(c.org, c.role); got != c.want {
+			t.Errorf("OrgModel(%s, %s) = %q, want %q", c.org, c.role, got, c.want)
+		}
+	}
+}
+
 // TestPurity: the package starts no process and imports no pane code (acceptance item 2, also asserted here).
 func TestPurity(t *testing.T) {
 	entries, err := os.ReadDir(".")

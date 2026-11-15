@@ -60,3 +60,6 @@ func (LinuxFacts) MemPressure() (int, error) { return 0, nil }
 
 // TmpFloorMB is 0 on Linux: no floor.
 func (LinuxFacts) TmpFloorMB() int64 { return 0 }
+
+// Processes is the /proc scan, unchanged: argv from cmdline, parent from stat (Uid and Start stay unset).
+func (LinuxFacts) Processes() ([]Proc, error) { return ReadProcRoot("/proc") }
