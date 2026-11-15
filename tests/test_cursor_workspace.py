@@ -365,6 +365,8 @@ class CursorPromptV2Tests(FactoryTestCase):
         self.ok("config", "cursor_prompt", "v2", agent="zz-test-director")
         kick, brief = self.spawn("pm", "zz-claude-pm-v2")
         self.assertEqual(brief, self.old_brief("pm"))
+        golden = (GOLDEN_DIR / "pm.txt").read_text().split(GOLDEN_SPLIT, 1)[1]  # golden = this brief + the org section
+        self.assertTrue(golden.startswith(brief + "\n## Your org\n"), "spawned Claude pm prompt is not the golden text")
         self.assertEqual(kick, "You are `zz-claude-pm-v2`, the factory pm. Run `factory whoami` and `factory inbox` first. "
                                "Your task is T-0001: read it with `factory task show T-0001`. Goal context: "
                                "`factory goal show G-001`. Your team is g-001-a.")
@@ -424,6 +426,61 @@ class ClaudePromptUnchangedTests(AlertCase):
             "You are `claude-coder-t-0001`, the factory coder. Run `factory whoami` and `factory inbox` first. "
             "Your task is T-0001: read it with `factory task show T-0001`. Goal context: `factory goal show G-001`. "
             "Your team is g-001-a. x")
+
+
+GOLDEN_DIR = REPO / "tests" / "testdata" / "claude_prompts"
+GOLDEN_REGEN = ("FACTORY_REGEN_GOLDENS=1 python3 -m unittest discover -s tests -p test_cursor_workspace.py "
+                "-k ClaudePromptGoldenTests")
+GOLDEN_SPLIT = "\n----- role prompt (run/<name>.prompt.md) -----\n"
+
+
+class ClaudePromptGoldenTests(AlertCase):
+    """T-1623 hard constraint (owner M37849): what a Claude agent is given, the kickoff and the role prompt, is pinned
+    byte for byte in tests/testdata/claude_prompts/<role>.txt for every role. The files were rendered from origin/main
+    before the Cursor prompt layer existed. A wanted role edit regenerates them with GOLDEN_REGEN (docs/cursor-prompt.md)."""
+
+    def roles(self):
+        return sorted(p.stem for p in self.mod.ROLES_DIR.glob("*.md") if not p.stem.startswith("_"))
+
+    def render(self, role, **kw):
+        kick = self.mod.kickoff_text(role, f"claude-{role}-t-0001", "G-001", "g-001-a", "T-0001", "")
+        return kick + GOLDEN_SPLIT + self.mod.role_prompt_text(role, "claude", True, **kw)
+
+    def set_version(self, value):
+        self.con.execute("INSERT INTO config(key,value) VALUES('cursor_prompt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (value,))
+        self.con.commit()
+
+    def test_claude_prompt_of_every_role_equals_its_golden_under_v1_and_v2(self):
+        roles = self.roles()
+        self.assertLessEqual({"boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner"}, set(roles))
+        if os.environ.get("FACTORY_REGEN_GOLDENS") == "1":
+            GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
+            for old in GOLDEN_DIR.glob("*.txt"):
+                old.unlink()
+            for role in roles:
+                (GOLDEN_DIR / f"{role}.txt").write_text(self.render(role))
+            self.skipTest(f"regenerated {len(roles)} goldens in {GOLDEN_DIR}")
+        hint = f"the Claude prompt changed; if that is wanted, regenerate the goldens: {GOLDEN_REGEN}"
+        self.assertEqual(sorted(p.stem for p in GOLDEN_DIR.glob("*.txt")), roles, hint)
+        for version in ("v1", "v2"):
+            self.set_version(version)
+            for role in roles:
+                with self.subTest(version=version, role=role):
+                    want = (GOLDEN_DIR / f"{role}.txt").read_bytes().decode()
+                    v2 = self.mod.cursor_prompt_v2_on(self.con, "claude")
+                    self.assertFalse(v2)
+                    self.assertEqual(self.render(role), want, hint)
+                    self.assertEqual(self.render(role, cursor_v2=v2), want, hint)
+
+    def test_a_changed_claude_prompt_fails_the_golden(self):
+        if os.environ.get("FACTORY_REGEN_GOLDENS") == "1":
+            self.skipTest("regenerating the goldens")
+        want = (GOLDEN_DIR / "coder.txt").read_text()
+        self.assertNotEqual(self.render("coder", cursor_v2=True), want)  # the Cursor v2 text is not the Claude text
+        real = self.mod.kickoff_text
+        with mock.patch.object(self.mod, "kickoff_text", lambda *a: real(*a) + " "):
+            self.assertNotEqual(self.render("coder"), want)
+        self.assertEqual(self.render("coder"), want)
 
 
 if __name__ == "__main__":

@@ -41,6 +41,20 @@ task; their role prompt stays v1 until a `roles/cursor/<role>.md` exists.
 
 No hook, deny rule or guard changes. `.cursor/hooks.json`, `cli.json` and `cursor-guard-adapter.py` are as before.
 
+## Claude prompts are pinned
+
+The Cursor layer must never change what a Claude agent gets. `tests/testdata/claude_prompts/<role>.txt` holds, for
+every role, the kickoff and the role prompt of a Claude agent (org `claude`, more than one org enabled), rendered
+from `main` before this layer existed. `ClaudePromptGoldenTests` (`tests/test_cursor_workspace.py`) fails when the
+renderer gives one different byte under `cursor_prompt` `v1` or `v2`.
+
+A wanted edit of `roles/_common.md`, `roles/<role>.md`, the org section or the kickoff changes these files too.
+Regenerate them and commit the result with the edit:
+
+```
+FACTORY_REGEN_GOLDENS=1 python3 -m unittest discover -s tests -p test_cursor_workspace.py -k ClaudePromptGoldenTests
+```
+
 ## Why (audit of the v1 chain)
 
 Measured on 40 Cursor coders from their `hook-events.jsonl`: 87% of the logged span (6649 of 7634 minutes) is

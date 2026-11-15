@@ -11999,7 +11999,8 @@ def cmd_done(a):
             if dirty:
                 print("commit (a WIP commit is fine) and push, then run factory done again", file=sys.stderr)
             if unpushed:
-                print("push your commits (git push -u origin HEAD), then run factory done again", file=sys.stderr)
+                print(f"push your commits (git push origin HEAD:factory/{r['task_id'].lower()}), then run factory done again",
+                      file=sys.stderr)
             sys.exit(3)
         # a fix-round coder is already in_review and never sets it again: same body gate as the in_review transition
         t = con.execute("SELECT status, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
