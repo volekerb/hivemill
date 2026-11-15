@@ -277,8 +277,6 @@ class WorktreeSpawnRefusalTests(FactoryTestCase):
         self.assertEqual(starts, [])
 
 
-
-
 class CursorPromptV2Tests(FactoryTestCase):
     """T-1623: config cursor_prompt=v2 gives a Cursor coder roles/cursor/coder.md and the loop-until-done kickoff;
     v1 (default), Claude agents and HQ roles keep the old prompt and kickoff."""
