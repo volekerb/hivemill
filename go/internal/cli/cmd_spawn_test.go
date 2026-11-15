@@ -385,11 +385,12 @@ func FuzzKickoffDelay(f *testing.F) {
 // TestSpawnHandsOverRuntimeShapes: the gh-credential worker (default worker_gh_roles) and the cursor runtime go to
 // Python with no row, event, file or host call written first.
 func TestSpawnHandsOverRuntimeShapes(t *testing.T) {
-	seed := []string{"INSERT OR REPLACE INTO config(key,value) VALUES('gate_max_load_ratio','1000')", "INSERT OR REPLACE INTO config(key,value) VALUES('terminal_backend','herdr')", "INSERT OR REPLACE INTO config(key,value) VALUES('worker_gh_roles','pm,cleaner')",
+	seed := []string{"INSERT OR REPLACE INTO config(key,value) VALUES('gate_max_load_ratio','1000')", "INSERT OR REPLACE INTO config(key,value) VALUES('terminal_backend','herdr')", "INSERT OR REPLACE INTO config(key,value) VALUES('worker_gh_roles','cleaner, pm')",
 		spawnSeed[len(spawnSeed)-1]}
 	for name, argv := range map[string][]string{
-		"ghcred": {"spawn", "pm", "--goal", "G-1", "--host-backend", "hc"},
-		"cursor": {"spawn", "pm", "--host-backend", "hc", "--org", "cursor"},
+		"ghcred":                  {"spawn", "pm", "--goal", "G-1", "--host-backend", "hc"},
+		"cursor":                  {"spawn", "pm", "--host-backend", "hc", "--org", "cursor"},
+		"cursor-org-empty-config": {"spawn", "retro", "--host-backend", "hc"},
 	} {
 		r := runSpawnGo(t, "owner", seed, argv...)
 		if r.execs != 1 || r.out != "" || r.errb != "" {
@@ -397,6 +398,9 @@ func TestSpawnHandsOverRuntimeShapes(t *testing.T) {
 		}
 		if _, err := os.Stat(r.log); err == nil {
 			t.Errorf("%s: hc was called", name)
+		}
+		if _, err := os.Stat(r.log + ".herdr"); err == nil {
+			t.Errorf("%s: the host agent list was read before the hand-over", name)
 		}
 		if _, err := os.Stat(filepath.Join(r.home, "run")); err == nil {
 			t.Errorf("%s: files written", name)

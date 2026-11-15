@@ -120,7 +120,7 @@ func runSpawn(c *ctx, parsed any) (int, error) {
 	probe.StopAtGate = true
 	plan := spawn.Plan(req, probe)
 	if plan.AtGate {
-		if shapeDelegates(req, f, host.exe) {
+		if shapeDelegates(req, f, host.exe, plan.Org) {
 			return 0, needPython("shape not ported")
 		}
 		snap, gcfg, err := resSnapshot(c, c.env.Now())
@@ -427,13 +427,17 @@ func spawnFacts(c *ctx, req spawn.Request, home string) (spawn.Facts, spawnHost,
 // shapeDelegates is the plan.Start shape check of runSpawn (new worktree, sandbox, gh credential, evaluator, non-claude
 // runtime, non-hc host) decided from config alone, so it runs before the gate snapshot makes a host call. It is
 // conservative: any cursor runtime setting hands over. Python decides everything it hands over.
-func shapeDelegates(req spawn.Request, f spawn.Facts, exe string) bool {
+func shapeDelegates(req spawn.Request, f spawn.Facts, exe, org string) bool {
 	switch {
 	case exe != "hc", req.Role == "evaluator":
 		return true
+	// SandboxWanted sees only the opt-in flag: a sandbox_required task of a sandboxable role is already handed over by
+	// runSpawn's first check (coder, qa/reviewer with a task, researcher), so this does not depend on the task row.
 	case spawn.SandboxWanted(req.Role, req.SandboxOptin, f.Config["sandbox_roles"]):
 		return true
-	case inList(strings.Split(f.Config["worker_gh_roles"], ","), req.Role):
+	case spawn.InCSV(f.Config["worker_gh_roles"], req.Role):
+		return true
+	case shapeRuntimeNotClaude(req.Role, org, f.Config):
 		return true
 	case strings.Contains(f.Config["agent_runtimes"], "cursor") || strings.TrimSpace(f.Config["cursor_pilot_roles"]) != "":
 		return true
@@ -441,6 +445,13 @@ func shapeDelegates(req spawn.Request, f spawn.Facts, exe string) bool {
 		return true
 	}
 	return false
+}
+
+// shapeRuntimeNotClaude is Plan's runtime for the planned org (a cursor org, also one forced by the role or a name
+// prefix, is not claude); an unresolvable runtime hands over too.
+func shapeRuntimeNotClaude(role, org string, cfg map[string]string) bool {
+	rt, err := spawn.OrgRuntimeFor(role, org, cfg["agent_runtimes"], cfg["cursor_pilot_roles"])
+	return err != nil || rt != "claude"
 }
 
 // spawnStaleCheck hands over a name whose previous row is done/exited with a pane (release_stale_pane).
