@@ -6,6 +6,8 @@ import (
 	"math"
 	"os"
 	"time"
+
+	"factory/go/internal/factorydb"
 )
 
 // Unit judge_ci_prune (tick_judge_ci_prune in bin/factory_cli.py + the try/except of _tick_u_judge_ci_prune): delete the
@@ -25,14 +27,36 @@ var (
 
 func init() { registerGo("judge_ci_prune", pruneUnitFn) }
 
+// pruneOpen returns the database the unit works on. The Python migrate_db unit that runs before it may have moved the
+// file (legacy HOME/factory.db -> db/factory.db), so when the resolved path exists it is opened afresh; the driver's
+// connection (a path resolved before the migration) is used only when there is no such file (tests).
+func pruneOpen(u *UnitCtx) (*sql.DB, func(), error) {
+	if u.Home != "" {
+		p := factorydb.ResolvePath(u.Home)
+		if _, err := os.Stat(p); err == nil {
+			d, err := factorydb.Open(p)
+			if err != nil {
+				return nil, func() {}, err
+			}
+			return d.DB, func() { d.Close() }, nil
+		}
+	}
+	return u.DB, func() {}, nil
+}
+
 func pruneUnitFn(u *UnitCtx) error {
-	n, err := pruneRun(u.DB)
+	db, closeDB, err := pruneOpen(u)
+	if err != nil {
+		return err // no database to write an error event to: the tick ends, as an uncaught Python exception would
+	}
+	defer closeDB()
+	n, err := pruneRun(db)
 	if err != nil {
 		// a bad cache row or a clock error must never stop the tick: one error event, the tick goes on
-		return pruneEvent(u.DB, "judge-ci-prune-error", truncRunes(err.Error(), pruneErrorMax))
+		return pruneEvent(db, "judge-ci-prune-error", truncRunes(err.Error(), pruneErrorMax))
 	}
 	if n > 0 {
-		return pruneEvent(u.DB, "judge-ci-pruned", fmt.Sprint(n))
+		return pruneEvent(db, "judge-ci-pruned", fmt.Sprint(n))
 	}
 	return nil
 }
