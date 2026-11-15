@@ -294,7 +294,8 @@ func decodeObj(raw []byte) (map[string]any, bool) {
 	if err := dec.Decode(&d); err != nil || d == nil {
 		return nil, false
 	}
-	if dec.More() {
+	// json.loads rejects anything but whitespace after the value ("Extra data").
+	if _, err := dec.Token(); err != io.EOF {
 		return nil, false
 	}
 	return d, true
