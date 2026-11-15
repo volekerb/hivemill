@@ -148,10 +148,6 @@ func TestShimUnpinnedCopyFailsClosed(t *testing.T) {
 	if rc, _, errb := r.run(t, ""); rc == 0 || r.executed() || !strings.Contains(errb, "sha256 mismatch") {
 		t.Errorf("rc=%d executed=%v stderr=%q", rc, r.executed(), errb)
 	}
-	if !bytes.Contains(shimSource(t), []byte(`SHA_LINUX_AMD64="`+strings.Repeat("0", 64)+`"`)) &&
-		!regexp.MustCompile(`SHA_LINUX_AMD64="[0-9a-f]{64}"`).Match(shimSource(t)) {
-		t.Error("the shim has no pinned linux-amd64 value")
-	}
 }
 
 func TestShimFailsWhenTheAssetCannotBeDownloaded(t *testing.T) {

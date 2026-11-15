@@ -94,15 +94,17 @@ func TestDownloadTimesOutOnAHangingServer(t *testing.T) {
 func TestDownloadIdleTimeoutIsPerRead(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fl, _ := w.(http.Flusher)
-		for i := 0; i < 4; i++ {
+		for i := 0; i < 8; i++ {
 			_, _ = w.Write([]byte("x"))
 			fl.Flush()
-			time.Sleep(150 * time.Millisecond) // total 600 ms, above the 300 ms limit, but never idle that long
+			time.Sleep(100 * time.Millisecond) // total 800 ms, above the 600 ms limit, but never idle that long
 		}
 	}))
 	defer srv.Close()
 	dest := filepath.Join(t.TempDir(), "o")
-	if err := tlsHost(t, srv).Download(srv.URL+"/a", dest); err != nil {
+	steady := tlsHost(t, srv)
+	steady.DownloadIdle = 600 * time.Millisecond
+	if err := steady.Download(srv.URL+"/a", dest); err != nil {
 		t.Fatalf("a steady slow download failed: %v", err)
 	}
 	stall := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
