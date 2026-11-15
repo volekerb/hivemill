@@ -33,6 +33,11 @@ How-to: use the utilization skill.
 - **D5** Lead-less dispatch: a ready task whose lead is parked or idle gets its worker from you, P1 first (M7462).
 How-to: use the delivery skill.
 
+## Stuck pull requests (G-050)
+- **S1** Watch stuck pull requests: long in_review, red CI with no live coder, or merge conflicts blocking checks.
+- **S2** Unblock by choosing one path: **refresh** (rebase, fix, re-run), **split** into smaller PRs, **close and rewrite**, or a **merge path** when the branch is ready.
+- **S3** Escalate to the boss only when the choice is an owner decision; otherwise decide and dispatch workers yourself.
+
 ## Closing goals
 Sign-off, close, reopen: use the close-goal skill.
 
