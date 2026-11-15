@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from harness import PR_URL, SHA_B, FactoryTestCase, gates_summary
@@ -292,6 +293,66 @@ class JudgeTests(FactoryTestCase):
         self.assertEqual(self.judge("--reject").returncode, 0)
         self.assertEqual(self.env.sql("SELECT status FROM goals WHERE id='G-001'")[0]["status"], "done")
         self.assertEqual(self.env.sql("SELECT count(*) c FROM events WHERE action='goal-auto-active'")[0]["c"], 0)
+
+    # -- T-1590: bare-id PR titles -----------------------------------------
+    def set_title(self, title):
+        st = json.loads(self.env.gh_state.read_text())["prs"][PR_URL]
+        self.env.set_gh(prs={PR_URL: {**st, "title": title}})
+
+    def test_judge_refuses_a_bare_id_title(self):
+        self.verdicts()
+        self.set_title("T-0001")
+        self.assert_refused("is only the task id")
+
+    def test_judge_accepts_a_described_title(self):
+        self.verdicts()
+        self.set_title("T-0001: fix the thing")
+        p = self.judge()
+        self.assertNotIn("is only the task id", p.stderr)
+
+
+class PrTitleTickTests(FactoryTestCase):
+    NOW = "2026-10-31T12:00:00+00:00"
+
+    def setUp(self):
+        super().setUp()
+        self.env.seed_goal()
+        self.env.seed_task("T-0001", status="in_review", pr_url=PR_URL)
+        self.env.sql("UPDATE tasks SET title=? WHERE id='T-0001'", ("[SC2][SC4] PR titles enforced " + "x" * 80,))
+
+    def prs(self, *rows):
+        self.env.set_gh(pr_list=[{"number": n, "url": f"https://github.com/zz-test/repo/pull/{n}", "headRefName": br,
+                                  "headRefOid": "a" * 40, "title": title} for n, br, title in rows])
+
+    def tick(self):
+        p = self.env.run("tick", extra_env={"FACTORY_NOW": self.NOW})
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def edits(self):
+        return [c["argv"] for c in self.env.calls("gh") if c["argv"][:2] == ["pr", "edit"]]
+
+    def test_bare_id_is_renamed_and_logged(self):
+        self.prs((1, "factory/t-0001", "T-0001"))
+        self.tick()
+        new = ("T-0001: PR titles enforced " + "x" * 80)[:72]
+        self.assertEqual(self.edits(), [["pr", "edit", "https://github.com/zz-test/repo/pull/1", "--title", new]])
+        ev = self.env.sql("SELECT detail FROM events WHERE action='pr-title-renamed'")
+        self.assertEqual(len(ev), 1)
+        d = json.loads(ev[0]["detail"])
+        self.assertEqual((d["old"], d["new"]), ("T-0001", new))
+        self.tick()  # same head: handled once
+        self.assertEqual(len(self.edits()), 1)
+
+    def test_described_title_is_untouched(self):
+        self.prs((1, "factory/t-0001", "T-0001: already fine"))
+        self.tick()
+        self.assertEqual(self.edits(), [])
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM events WHERE action='pr-title-renamed'")[0]["c"], 0)
+
+    def test_non_factory_branch_is_untouched(self):
+        self.prs((1, "feature/x", "T-0001"))
+        self.tick()
+        self.assertEqual(self.edits(), [])
 
 
 if __name__ == "__main__":

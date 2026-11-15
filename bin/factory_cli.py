@@ -4846,7 +4846,7 @@ def require_acceptance_walk(pr_url):
 
 def pr_state(url):
     return gh_json("pr", "view", url, "--json",
-                   "number,state,headRefOid,headRefName,baseRefName,mergeable,isDraft,statusCheckRollup,url")
+                   "number,state,headRefOid,headRefName,baseRefName,mergeable,isDraft,statusCheckRollup,url,title")
 
 
 def latest_checks(rollup):
@@ -6351,6 +6351,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append(f"PR is {pr['state']}")
         if pr["isDraft"]:
             problems.append("PR is a draft")
+        if bare_id_title(pr.get("title")):
+            problems.append(f"PR title {pr['title']!r} is only the task id: retitle it \"{t['id']}: <what changed>\" "
+                            f"(the tick renames factory/t-* PRs within a minute)")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
         bad = checks_ok(pr)
@@ -6820,6 +6823,58 @@ def cmd_mech_merge(a):
         if out == "merged":
             break
     con.commit()
+
+
+BARE_ID_TITLE = re.compile(r"T-\d+\s*")
+TITLE_TAGS = re.compile(r"(?:\s*\[[A-Za-z]+\d+\])+\s*")
+PR_TITLE_MAX = 72
+
+
+def bare_id_title(title):
+    """True for a PR title that is only a task id ("T-0336", whitespace around it allowed). None/non-str: not decidable here."""
+    return isinstance(title, str) and BARE_ID_TITLE.fullmatch(title.strip()) is not None
+
+
+def pr_title_for(task_id, task_title):
+    """"T-xxxx: <task title>" with leading [SCn] tags stripped, trimmed to PR_TITLE_MAX chars."""
+    text = TITLE_TAGS.sub("", task_title or "", count=1).strip()
+    return (f"{task_id}: {text}" if text else task_id)[:PR_TITLE_MAX].rstrip()
+
+
+def tick_pr_titles(con):
+    """Tick (T-1590): rename every OPEN PR on a factory/t-* head whose title is only the task id to "T-xxxx: <task title>"
+    (gh pr edit --title) and write one `pr-title-renamed` event (old, new, PR). One `gh pr list` per repo of a live task PR;
+    each PR head is handled once (throttle key prtitle:<url> = head sha). PRs on other branches are never touched."""
+    repos = {}
+    for r in con.execute("SELECT pr_url FROM tasks WHERE pr_url IS NOT NULL AND pr_url!='' "
+                         "AND status NOT IN ('done','cancelled')").fetchall():
+        parts = r["pr_url"].split("/")
+        if len(parts) >= 5:
+            repos["/".join(parts[3:5])] = 1
+    for repo in repos:
+        prs = gh_json("pr", "list", "-R", repo, "--state", "open", "--limit", "200",
+                      "--json", "number,title,headRefName,headRefOid,url")
+        for pr in prs:
+            m = re.fullmatch(r"factory/(t-\d+)", pr.get("headRefName") or "")
+            if not m:
+                continue
+            key, head = f"prtitle:{pr['url']}", pr.get("headRefOid") or ""
+            old = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+            if old and old["ts"] == head:
+                continue
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (key, head))
+            if not bare_id_title(pr.get("title")):
+                continue
+            tid = m.group(1).upper()
+            t = con.execute("SELECT title FROM tasks WHERE id=?", (tid,)).fetchone()
+            if not t:
+                continue
+            new = pr_title_for(tid, t["title"])
+            p = subprocess.run(["gh", "pr", "edit", pr["url"], "--title", new], capture_output=True, text=True, timeout=60)
+            if p.returncode != 0:
+                event(con, "task", tid, "pr-title-rename-failed", {"pr": pr["url"], "err": p.stderr.strip()[:200]})
+                continue
+            event(con, "task", tid, "pr-title-renamed", {"pr": pr["url"], "old": pr["title"], "new": new})
 
 
 def tick_mech_merge(con):
@@ -16373,6 +16428,10 @@ def _tick_u_ci_wake(con, st):
             tick_ci_wake(con)
         except Exception as e:  # noqa: BLE001 — a bad PR or team row must never stop the tick
             event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
+        try:  # T-1590: a bare-id PR title on a factory/t-* head becomes "T-xxxx: <task title>"
+            tick_pr_titles(con)
+        except (SystemExit, subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError) as e:  # a gh hiccup must never stop the tick
+            event(con, "tick", "pr-titles", "pr-titles-error", str(e)[:300])
         _pt_lap("ci_wake")
 
 
