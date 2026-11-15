@@ -1,0 +1,80 @@
+# PR flow report (`go/cmd/pr-flow`)
+
+Read-only measurement of how fast pull requests move through the pipeline: merges per day, open-to-merge time,
+PRs open too long, and the hours spent in each stage, split by org. Built for G-058 SC3/SC5 so every pipeline
+fix is judged by the same numbers.
+
+```
+cd go && go run ./cmd/pr-flow --repo <owner>/<repo> [--since 72h] [--events <path>] [--json]
+```
+
+`--since` takes `72h`, `90m` or `3d`. `--events` defaults to `$FACTORY_HOME/state/events.jsonl`. `--json` prints
+the same numbers as one JSON object. Exit 0 on success, 2 on a usage error, a missing events file or a failed
+`gh` call (the message says what to check).
+
+## What it reads
+
+- **GitHub, two calls per run, no per-PR call.** `gh pr list -R <repo> --state all --limit 500 --search
+  "created:>=<window start>"` and the same with `"created:<<start> -closed:<<start>"` (PRs created before the
+  window that merged inside it or are still open). Fields: `number,state,createdAt,mergedAt,headRefName,mergeStateStatus`.
+  PRs closed without a merge are left out. A call that returns 500 rows adds a `warning:` line.
+- **The event log**, streamed line by line and never loaded whole. Lines that are not JSON, have no valid `ts`
+  or are longer than 4 MiB are skipped; the header line prints how many.
+
+It writes nothing: no factory DB access, no `gh` write, no file.
+
+## PR to task and org
+
+1. the task whose `update` event detail contains `pr=<url ending /pull/N>`;
+2. else the task of the `pr-create` event for the PR's head branch;
+3. else a branch named `factory/t-NNNN` gives `T-NNNN`.
+
+The org is the prefix (`claude-`, `cursor-`) of the task's latest coder agent. A PR with no task, or a task with
+no such coder, is org `other`; with no events its whole life is `ci_wait`.
+
+## Stage map
+
+The PR starts in `ci_wait` at `createdAt`. Each mapped event of its task starts a stage that lasts until the next
+mapped event, up to `mergedAt` (or now for an open PR). Events before the PR opened and unknown or renamed
+actions are ignored, so a change in the CLI's action names never fails a run.
+
+| event | stage |
+|---|---|
+| `pr-create`, `pr-ready`, coder agent `done` | `ci_wait` |
+| `review-autospawn-wait` with `"kind": "ci"` / `"coder"` / `"gate"` | `ci_wait` / `coder_rework` / `capacity_gate` |
+| `review-autospawn` | `review_qa` |
+| reviewer and QA verdict of the round both in: both pass / otherwise | `judge` / `coder_rework` |
+| coder agent `spawn`, `coder-ci-resume`, `judge-reject` | `coder_rework` |
+| `red-pr-unowned` | `red_pr_unowned` |
+| `judge-autospawn`, `mech-blocked`, `judge-hold-clear` | `judge` |
+| `judge-hold-set`, `judge-hold` | `hold` |
+| `judge-blocked` containing `STALE` or `head is now`, `refreshed`, `verdict-carried` | `refresh` |
+| task `update` with `status=blocked` | `blocked` |
+
+Time in `judge`, `hold` or `refresh` that falls inside a red-main window of the repo (`red-main` to
+`red-main-clear`; a window with no clear lasts until now) is counted as `red_main` instead.
+
+A review round starts at a `review-autospawn` for a new head sha (or at a verdict when none is open). The
+`refreshes` count is the number of `refreshed` events.
+
+## Output
+
+In this order: the window; `merged per day` (UTC days, per org; the first day is partial); `open-to-merge hours`
+for all, claude, cursor and other (n, median, p90, max, count over 6 h; percentiles interpolate linearly); `open
+over 4 h` and `open over 6 h` with number, age, `mergeStateStatus`, current stage, org and task; `stage hours` per
+org; reviewer FAIL and QA FAIL counts, PRs with 2+ review rounds and the refresh count; the 10 slowest PRs with
+their largest stage. Stage hours and the review counts cover the whole life of every PR in the report (merged
+in the window, or open), including hours before the window started. `mergeStateStatus` is what the list call
+returns; GitHub often answers `UNKNOWN` there.
+
+## Daily run (director)
+
+Once a day, from the factory checkout:
+
+```
+cd go && go run ./cmd/pr-flow --repo <owner>/<repo> --since 24h > /tmp/pr-flow.txt
+factory report --goal G-058 --to boss "PR flow <date>: <merged> merged, median <h> h, <n> open over 6 h" - < /tmp/pr-flow.txt
+```
+
+Compare the merged count, the open-to-merge median and the `open over 6 h` count with the day before, and name
+the largest row of `stage hours` in the headline when it changed.
