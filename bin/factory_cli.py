@@ -6351,14 +6351,6 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append(f"PR is {pr['state']}")
         if pr["isDraft"]:
             problems.append("PR is a draft")
-        try:  # a separate read: pr_state's field list is mirrored by the Go verdict/prcheck goldens
-            title = gh_json("pr", "view", t["pr_url"], "--json", "title").get("title")
-        except (SystemExit, ValueError, AttributeError) as e:
-            title = None
-            problems.append(f"cannot verify the PR title: {_tick_gh_detail(e)}")
-        if bare_id_title(title):
-            problems.append(f"PR title {title!r} is only the task id: retitle it \"{t['id']}: <what changed>\" "
-                            f"(the tick renames factory/t-* PRs itself; any other head must be retitled by hand)")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
         bad = checks_ok(pr)
@@ -6479,6 +6471,15 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 block(f"after the refresh the PR head is {pr['headRefOid'][:8]}, not {new[:8]} (branch moved or GitHub lagging, waited {waited}s)")
             sha = new
             continue
+        if not problems:  # last, so a PR already refused for another reason costs no extra gh call
+            try:  # a separate read: pr_state's field list is mirrored by the Go verdict/prcheck goldens
+                title = gh_json("pr", "view", t["pr_url"], "--json", "title").get("title")
+            except (SystemExit, ValueError, AttributeError) as e:
+                title = None
+                problems.append(f"cannot verify the PR title: {_tick_gh_detail(e)}")
+            if bare_id_title(title):
+                problems.append(f"PR title {title!r} is only the task id: retitle it \"{t['id']}: <what changed>\" "
+                                f"(the tick renames factory/t-* PRs itself; any other head must be retitled by hand)")
         if problems:
             rejection_gate_refusal(con, a.task, "judge-blocked", "; ".join(problems))
             die("merge refused: " + "; ".join(problems), 4)
