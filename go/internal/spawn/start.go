@@ -131,6 +131,9 @@ func planStart(req Request, f Facts, p SpawnPlan, rt string, sandboxOptin bool, 
 	if st.Model == "" {
 		st.Model = RoleModel(role, org, f.Config)
 	}
+	if strings.Contains(strings.ToLower(st.Model), "fable") {
+		return nil, refuse(3, "model %s is a Fable model; the factory never uses Fable", st.Model)
+	}
 	effort, r := EffortArgs(f.Config["opus_effort"], st.Model)
 	if r != nil {
 		return nil, r
@@ -139,12 +142,15 @@ func planStart(req Request, f Facts, p SpawnPlan, rt string, sandboxOptin bool, 
 	settings, sr := SettingsText(f.RoleSettingsTemplate, filepath.Join(f.RolesDir, "settings", role+".json.in"), f.Tokens)
 	if sr != nil {
 		why := sr.Msg
-		if len(why) > 300 {
-			why = why[:300]
+		if rs := []rune(why); len(rs) > 300 {
+			why = string(rs[:300])
 		}
 		return nil, &Refusal{Msg: fmt.Sprintf("settings render failed for %s: %s; nothing was started", role, why), Code: 3, Reason: ReasonSettings}
 	}
 	st.SettingsText = settings
+	if role == "evaluator" {
+		st.SettingsText, st.EvaluatorSettings = "", true
+	}
 	st.SettingsPath = filepath.Join(f.RunDir, "settings", role+".json")
 	st.Sandboxed = SandboxWanted(role, sandboxOptin, f.Config["sandbox_roles"])
 	st.GhCred = !st.Sandboxed && inList(csv(f.Config["worker_gh_roles"]), role)

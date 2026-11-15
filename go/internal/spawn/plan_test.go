@@ -275,7 +275,7 @@ func TestPlanEvaluator(t *testing.T) {
 	good := func() (Request, Facts) {
 		f := baseFacts()
 		f.Task = TaskFacts{}
-		f.Eval = EvalFacts{Root: "/root", Realpath: func(s string) string { return s }, ShimOK: func(string) bool { return true }}
+		f.Eval = EvalFacts{Root: "/root", Realpath: func(s string) string { return s }, ShimOK: func(string) bool { return true }, PromptOnly: func(string) error { return nil }}
 		return Request{Role: "evaluator", Cwd: trial + "/work", PluginDirs: []string{"/root/vendor/p"}, Name: "e1", SessionID: "s",
 			EnvExtra: []KV{{"FACTORY_HOME", trial + "/fh"}, {"HOME", trial + "/home"}, {"CLAUDE_CONFIG_DIR", trial + "/cfg"}, {"PATH", trial + "/bin:/usr/bin"}}}, f
 	}
@@ -425,5 +425,76 @@ func TestPurity(t *testing.T) {
 				t.Errorf("%s uses %s", e.Name(), bad)
 			}
 		}
+	}
+}
+
+// TestPlanReviewFindings: the claimed-row recheck, the evaluator fail-closed facts and marker, the stale-pane refusal,
+// the evaluator settings hand-off and the Fable guard.
+func TestPlanReviewFindings(t *testing.T) {
+	queued := &AgentRow{Name: "claude-coder-t-1", Status: "queued"}
+	f := baseFacts()
+	f.Agent = func(string) *AgentRow { return queued }
+	f.Staleness = "CONFLICT-ONLY: a.go; spawn a merge-only coder (fix-loop, not an attempt)"
+	req := coderReq()
+	req.Caller, req.FromQueue = "", true
+	if p := Plan(req, f); p.Bounce != f.Staleness || p.Start != nil || p.Queue != nil || len(p.Events) != 1 || p.Events[0].Action != "spawn-bounced" {
+		t.Errorf("stale queued row: %+v", p)
+	}
+	f.Staleness = ""
+	jr := Request{Role: "judge", Task: "T-1", AddHomeDir: true, FromQueue: true}
+	f.Task.Role = "judge"
+	f.JudgeHold = "T-1 PR is not ready"
+	if p := Plan(jr, f); p.Requeue != "T-1 PR is not ready" || p.Start != nil {
+		t.Errorf("held queued judge: %+v", p)
+	}
+	f.JudgeHold = ""
+	if p := Plan(jr, f); p.Start == nil {
+		t.Errorf("unheld queued judge must start: %+v", p.Refusal)
+	}
+	// stale pane
+	f2 := baseFacts()
+	f2.Agent = func(n string) *AgentRow { return &AgentRow{Name: n, Status: "done", PaneID: "p-9"} }
+	f2.OldPaneNotClosed = "p-9"
+	if p := Plan(coderReq(), f2); p.Refusal == nil || p.Refusal.Code != 1 || p.Refusal.Msg !=
+		"claude-coder-t-1: its old pane p-9 could not be confirmed closed; not reusing the name. The row keeps the pane id (the exited-pane reaper retries it); retry the spawn later." {
+		t.Errorf("stale pane: %+v", p.Refusal)
+	}
+	// Fable model
+	f3 := baseFacts()
+	r3 := coderReq()
+	r3.Model = "fable-5-2"
+	if p := Plan(r3, f3); p.Refusal == nil || p.Refusal.Code != 3 {
+		t.Errorf("fable model accepted: %+v", p.Refusal)
+	}
+	f3.Config["model_cleaner"] = "claude-fable-5-2"
+	if p := Plan(Request{Role: "cleaner", AddHomeDir: true, Name: "c"}, f3); p.Refusal == nil {
+		t.Errorf("fable cleaner override accepted")
+	}
+	// evaluator: nil facts fail closed, refusal carries the marker, settings are the caller's
+	trial := "/root/trials/t1"
+	ev := func() (Request, Facts) {
+		fe := baseFacts()
+		fe.Eval = EvalFacts{Root: "/root", Realpath: func(s string) string { return s }, ShimOK: func(string) bool { return true }, PromptOnly: func(string) error { return nil }}
+		return Request{Role: "evaluator", Cwd: trial + "/work", PluginDirs: []string{"/root/vendor/p"}, Name: "e1", SessionID: "s",
+			EnvExtra: []KV{{"FACTORY_HOME", trial + "/fh"}, {"HOME", trial + "/home"}, {"CLAUDE_CONFIG_DIR", trial + "/cfg"}, {"PATH", trial + "/bin:/usr/bin"}}}, fe
+	}
+	r, fe := ev()
+	if p := Plan(r, fe); p.Start == nil || !p.Start.EvaluatorSettings || p.Start.SettingsText != "" {
+		t.Errorf("evaluator settings hand-off: %+v", p.Start)
+	}
+	r, fe = ev()
+	fe.Eval.PromptOnly = nil
+	if p := Plan(r, fe); p.Refusal == nil || p.Refusal.Reason != ReasonEvaluator {
+		t.Errorf("nil PromptOnly: %+v", p.Refusal)
+	}
+	r, fe = ev()
+	fe.Eval.Realpath = nil
+	if p := Plan(r, fe); p.Refusal == nil || p.Refusal.Reason != ReasonEvaluator {
+		t.Errorf("nil Realpath: %+v", p.Refusal)
+	}
+	r, fe = ev()
+	r.Cwd = "/x"
+	if p := Plan(r, fe); p.Refusal == nil || p.Refusal.Reason != ReasonEvaluator {
+		t.Errorf("evaluator refusal lacks the marker: %+v", p.Refusal)
 	}
 }

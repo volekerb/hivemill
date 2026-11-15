@@ -74,7 +74,9 @@ type Facts struct {
 	GoalTokenTally                bool // a goal_token_tally row exists
 
 	Staleness string // staleness_precheck result for Request.Task ("" = proceed)
-	JudgeHold string // judge_hold(con, task) ("" = none)
+	// OldPaneNotClosed is the pane id when release_stale_pane could not confirm the old pane of Request.Name closed (the caller asks herdr), else "".
+	OldPaneNotClosed string
+	JudgeHold        string // judge_hold(con, task) ("" = none)
 
 	Gate       gate.Snapshot
 	GateConfig gate.Config
@@ -106,13 +108,14 @@ type Start struct {
 	Effort              []string
 	SettingsPath        string
 	SettingsText        string
+	EvaluatorSettings   bool // evaluator: SettingsText is empty; the caller builds evaluator_settings() (guard copies, hook rewrite), not ported here
 	PromptPath          string
 	PromptText          string
 	Kickoff             string
 	ClaudeArgs          []string // runtime claude only
 }
 
-// SpawnPlan is the result of Plan: exactly one of Refusal, Queue, Start is set.
+// SpawnPlan is the result of Plan: exactly one of Refusal, Queue, Start, Bounce, Requeue is set.
 type SpawnPlan struct {
 	Name, Org, Role  string
 	Goal, Team, Task string
@@ -124,17 +127,26 @@ type SpawnPlan struct {
 	Start            *Start
 	Stats            gate.Stats
 	ArgsJSON         string
+	// Bounce: a claimed queued row whose head went stale; the caller cancels it (event spawn-bounced).
+	// Requeue: a claimed judge row that is held; the caller sets it back to queued. Both leave Start nil.
+	Bounce, Requeue string
 }
 
 // Refusal reasons the tick keys on (Python's exception attributes).
 const (
 	ReasonGoalLimit = "goal-token-limit"
 	ReasonSettings  = "settings-render"
+	ReasonEvaluator = "evaluator-invalid"
 )
 
 var goalIDRE = regexp.MustCompile(`^G-\p{Nd}+$`)
 
-// Plan is spawn() and the refusals of cmd_spawn() without any side effect.
+// Plan is spawn() and the refusals of cmd_spawn() without any side effect. The caller prepares: Request.Prompt is the
+// prompt after gated_reviewer_prompt, coder_judge_reject_kickoff and coder_ci_handoff_kickoff; a lead caller has its own
+// goal and team filled into Request.Goal and Request.Team (cmd_spawn does that before spawn()); the sandbox PATH and
+// the gh credential env are applied over Start.Env (they replace, not setdefault); a claimed queued row passes
+// Facts.Staleness and Facts.JudgeHold for the recheck.
+// Known gaps for P1h: evaluator_settings (see Start.EvaluatorSettings) and release_stale_pane (Facts.OldPaneNotClosed).
 func Plan(req Request, f Facts) SpawnPlan {
 	p := SpawnPlan{Role: req.Role}
 	fail := func(code int, format string, a ...any) SpawnPlan {
@@ -214,6 +226,9 @@ func Plan(req Request, f Facts) SpawnPlan {
 	}
 	p.Name, p.Org, p.Goal, p.Team, p.Task, p.Resume, p.Fresh = name, org, goal, team, task, resume, fresh
 	if r := checkEvaluatorSpawn(role, req, f); r != nil {
+		if role == "evaluator" {
+			r.Reason = ReasonEvaluator // EvaluatorInvalid: the tick cancels the row on this one only
+		}
 		p.Refusal = r
 		return p
 	}
@@ -235,6 +250,9 @@ func Plan(req Request, f Facts) SpawnPlan {
 	}
 	if existing != nil && existing.Status == "live" && !req.Relaunch {
 		return fail(1, "%s is already live in %s", name, existing.PaneID)
+	}
+	if existing != nil && f.OldPaneNotClosed != "" {
+		return fail(1, "%s: its old pane %s could not be confirmed closed; not reusing the name. The row keeps the pane id (the exited-pane reaper retries it); retry the spawn later.", name, f.OldPaneNotClosed)
 	}
 	sandboxOptin := req.SandboxOptin
 	if inList(Sandboxable, role) && task != "" && f.Task.SandboxRequired && f.Task.Role == role {
@@ -326,6 +344,26 @@ func Plan(req Request, f Facts) SpawnPlan {
 	aj, err := args.json()
 	if err != nil {
 		return fail(1, "spawn_args: %v", err)
+	}
+	if req.FromQueue && existing != nil && existing.Status == "queued" && task != "" && resume == "" && !req.Relaunch {
+		// the claimed-row recheck of spawn(): main moved while the row waited (Facts.Staleness), or a judge is held
+		// (Facts.JudgeHold computed with cap=False, or the task flag)
+		if f.Staleness != "" {
+			p.Bounce = f.Staleness
+			p.Events = append(p.Events, Event{"task", task, "spawn-bounced", role + ": " + f.Staleness})
+			return p
+		}
+		if role == "judge" {
+			held := f.JudgeHold
+			if held == "" {
+				held = pyStrip(f.Task.JudgeHoldReason)
+			}
+			if held != "" {
+				p.Requeue = held
+				p.Events = append(p.Events, Event{"agent", name, "queued", held})
+				return p
+			}
+		}
 	}
 	p.ArgsJSON = aj
 	st, r := planStart(req, f, p, rt, sandboxOptin, resume, fresh)
@@ -554,7 +592,7 @@ func checkEvaluatorSpawn(role string, req Request, f Facts) *Refusal {
 	trial := filepath.Dir(fh)
 	rp := e.Realpath
 	if rp == nil {
-		rp = func(s string) string { return s }
+		return refuse(3, "evaluator spawn: the caller gave no path resolver; not starting it")
 	}
 	if filepath.Base(fh) != "fh" || filepath.Dir(rp(trial)) != filepath.Join(e.Root, "trials") || rp(trial) != trial {
 		return refuse(3, "evaluator FACTORY_HOME %s is not <skilleval_root>/trials/<id>/fh", fh)
@@ -578,10 +616,11 @@ func checkEvaluatorSpawn(role string, req Request, f Facts) *Refusal {
 		if r != vendor && !strings.HasPrefix(r, vendor+"/") {
 			return refuse(3, "plugin dir %s is outside %s", d, vendor)
 		}
-		if e.PromptOnly != nil {
-			if err := e.PromptOnly(r); err != nil {
-				return refuse(3, "plugin dir %s is not prompt-only: %v", d, err)
-			}
+		if e.PromptOnly == nil {
+			return refuse(3, "evaluator spawn: the caller gave no prompt-only check for plugin dir %s; not starting it", d)
+		}
+		if err := e.PromptOnly(r); err != nil {
+			return refuse(3, "plugin dir %s is not prompt-only: %v", d, err)
 		}
 	}
 	return nil
