@@ -397,8 +397,41 @@ func TestRelayPushWorkflowRefusals(t *testing.T) {
 	if _, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, ".github/workflows/new.yml: on: trigger changed (added)") {
 		t.Errorf("new workflow: exit %d err %q", code, errs)
 	}
+	gitIn(t, r.wt, "reset", "-q", "--hard", base)
+	os.Remove(filepath.Join(r.wt, ".github/workflows/tests.yml"))
+	sha = r.head("")
+	r.verify(sha)
+	if _, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, ".github/workflows/tests.yml: on: trigger changed (removed)") ||
+		!strings.Contains(errs, "permissions changed (removed)") {
+		t.Errorf("deleted workflow: exit %d err %q", code, errs)
+	}
 	if n := r.e.str("SELECT count(*) FROM events WHERE action='relay-push'"); n != "0" {
 		t.Errorf("refused pushes wrote %s rows", n)
+	}
+	// unit cases the line reader must not miss
+	for name, wf := range map[string]string{
+		"upper SECRETS": relayWF(t, "echo hi", "echo ${{ SECRETS.DEPLOY }}"),
+		"json document": `{"on":{"issue_comment":{}},"permissions":{"contents":"write"},"jobs":{}}`,
+		"flow on":       "name: x\n{on: [issue_comment]}\n",
+	} {
+		if p := workflowProblems(relayGoodWF, wf); len(p) == 0 {
+			t.Errorf("%s: not refused", name)
+		}
+	}
+}
+
+// TestRelayPushMoreRefusals: a head equal to main adds nothing; a bad project slug refuses before any git or gh call.
+func TestRelayPushMoreRefusals(t *testing.T) {
+	r := newRelayRepo(t)
+	r.verify(r.main)
+	if _, errs, code := r.push(r.main); code != 3 || !strings.Contains(errs, "adds no commit over origin/main") {
+		t.Errorf("no commit: exit %d err %q", code, errs)
+	}
+	sha := r.head("")
+	r.verify(sha)
+	r.e.sql("UPDATE projects SET gh_repo='evil' WHERE id='P-1'")
+	if _, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, "its project has no valid gh_repo ('evil')") || r.pushed() != "" {
+		t.Errorf("bad slug: exit %d err %q", code, errs)
 	}
 }
 

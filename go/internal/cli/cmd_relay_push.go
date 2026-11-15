@@ -537,7 +537,7 @@ func wfEntries(text string) []wfEntry {
 }
 
 var (
-	wfSecretsRE = regexp.MustCompile(`\bsecrets\b`)
+	wfSecretsRE = regexp.MustCompile(`(?i)\bsecrets\b`) // expression contexts are case-insensitive
 	wfHostedRE  = regexp.MustCompile(`^(?:ubuntu|windows|macos)-[A-Za-z0-9.-]+$`)
 	// wfForkSafe are the triggers a fork pull request cannot start; any other trigger (pull_request, workflow_call,
 	// workflow_run, issue_comment, ...) or an unreadable trigger set makes the workflow fork-reachable.
@@ -632,6 +632,22 @@ func workflowProblems(oldText, newText string) []string {
 		sort.Strings(lines)
 		for _, l := range lines {
 			out = append(out, rule+": "+l)
+		}
+	}
+	// fail closed on a layout the line reader cannot follow: a flow/JSON document, or no block-style top-level on:
+	if strings.TrimSpace(newText) != "" {
+		hasOn := false
+		for _, e := range newE {
+			hasOn = hasOn || wfTopIs(e, "on")
+		}
+		for _, raw := range strings.Split(newText, "\n") {
+			if strings.HasPrefix(raw, "{") || strings.HasPrefix(raw, "[") {
+				hasOn = false
+				break
+			}
+		}
+		if !hasOn {
+			out = append(out, "cannot read the triggers: no block-style top-level on: key (flow or JSON workflows are refused)")
 		}
 	}
 	// on: triggers and permissions: any added, removed or changed line
