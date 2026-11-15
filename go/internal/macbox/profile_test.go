@@ -202,3 +202,26 @@ func TestSelfTestPlan(t *testing.T) {
 		}
 	}
 }
+
+func TestProfileTmpDenyBeforeAllows(t *testing.T) {
+	in, _ := ForRole(RoleCoder, testPaths)
+	in.AgentDir = "/tmp/agent"
+	s, err := Profile(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deny := strings.Index(s, `(deny file* (subpath "/private/tmp"))`)
+	for _, a := range []string{`(allow file-read* (subpath "/private/tmp/agent"))`, `(allow file-write* (subpath "/private/tmp/agent"))`} {
+		if i := strings.Index(s, a); i < 0 || i < deny {
+			t.Errorf("%s must exist after the /private/tmp deny (deny=%d, allow=%d)", a, deny, i)
+		}
+	}
+}
+
+func TestProfileRejectSecretOverlap(t *testing.T) {
+	in, _ := ForRole(RoleCoder, testPaths)
+	in.AgentDir = "/Users/owner/.config/factory/agents/a1"
+	if s, err := Profile(in); err == nil || s != "" {
+		t.Errorf("want overlap error, got %v", err)
+	}
+}

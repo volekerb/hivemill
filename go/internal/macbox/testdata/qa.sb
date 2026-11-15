@@ -8,6 +8,12 @@
 (allow process-info* (target self))
 (allow sysctl-read)
 
+;; shared temp is closed first, so the allows below re-open what lies under it (the agent TMPDIR)
+(deny file* (subpath "/private/tmp"))
+
+;; path lookup (stat, realpath, getcwd) on any path; metadata only, no contents
+(allow file-read-metadata)
+
 ;; read: system, tool installs, the factory checkout, the agent and clone dirs
 (allow file-read* (subpath "/usr"))
 (allow file-read* (subpath "/bin"))
@@ -24,9 +30,6 @@
 (allow file-read* (subpath "/Users/owner/factory"))
 (allow file-read* (subpath "/Users/owner/factory/agents/a1"))
 (allow file-read* (subpath "/Users/owner/factory/clones/T-1-qa-clone"))
-
-;; shared temp is closed; only the agent-owned TMPDIR (under AgentDir) is open
-(deny file* (subpath "/private/tmp"))
 
 ;; write: agent dir, the factory db, the clone when writable
 (allow file-write-data (literal "/dev/null"))

@@ -27,7 +27,7 @@ func SelfTestPlan(in ProfileInput) []Probe {
 	plan := []Probe{
 		{Name: "owner-home-canary", Kind: ProbeRead, Path: path.Join(in.OwnerHome, ".hivemill-selftest-canary"), SetupAsOwner: true},
 		{Name: "owner-keychains-denied", Kind: ProbeRead, Path: path.Join(in.OwnerHome, "Library/Keychains/.hivemill-selftest-canary"), SetupAsOwner: true},
-		{Name: "outside-allow-list-unreadable", Kind: ProbeRead, Path: path.Join(path.Dir(in.OwnerHome), ".hivemill-selftest-outside"), SetupAsOwner: true},
+		{Name: "outside-allow-list-unreadable", Kind: ProbeRead, Path: path.Join(in.OwnerHome, ".hivemill-selftest-outside"), SetupAsOwner: true},
 	}
 	clone := Probe{Name: "clone-writable", Kind: ProbeWrite, Path: path.Join(in.CloneDir, ".hivemill-selftest-write"), WantAllowed: in.CloneWritable}
 	if !in.CloneWritable {

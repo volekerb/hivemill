@@ -139,6 +139,15 @@ func Profile(in ProfileInput) (string, error) {
 		return "", err
 	}
 
+	for name, p := range map[string]string{"FactoryHome": factoryHome, "AgentDir": agentDir, "CloneDir": cloneDir} {
+		for _, d := range ownerSecretDirs {
+			sd := ownerHome + "/" + d
+			if p == sd || strings.HasPrefix(p, sd+"/") {
+				return "", fmt.Errorf("macbox: %s %q lies inside the denied owner secret dir %q; move it", name, p, sd)
+			}
+		}
+	}
+
 	b := &builder{}
 	b.line("(version 1)")
 	b.line("(deny default)")
@@ -149,6 +158,12 @@ func Profile(in ProfileInput) (string, error) {
 	b.line("(allow signal (target self))")
 	b.line("(allow process-info* (target self))")
 	b.line("(allow sysctl-read)")
+	b.line("")
+	b.line(";; shared temp is closed first, so the allows below re-open what lies under it (the agent TMPDIR)")
+	b.line("(deny file* %s)", subpath("/private/tmp"))
+	b.line("")
+	b.line(";; path lookup (stat, realpath, getcwd) on any path; metadata only, no contents")
+	b.line("(allow file-read-metadata)")
 	b.line("")
 	b.line(";; read: system, tool installs, the factory checkout, the agent and clone dirs")
 	for _, p := range systemReadPaths {
@@ -164,9 +179,6 @@ func Profile(in ProfileInput) (string, error) {
 	b.line("(allow file-read* %s)", subpath(factoryHome))
 	b.line("(allow file-read* %s)", subpath(agentDir))
 	b.line("(allow file-read* %s)", subpath(cloneDir))
-	b.line("")
-	b.line(";; shared temp is closed; only the agent-owned TMPDIR (under AgentDir) is open")
-	b.line("(deny file* %s)", subpath("/private/tmp"))
 	b.line("")
 	b.line(";; write: agent dir, the factory db, the clone when writable")
 	b.line(`(allow file-write-data (literal "/dev/null"))`)
