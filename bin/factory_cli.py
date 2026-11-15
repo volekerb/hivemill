@@ -15963,8 +15963,8 @@ def _tick_state_from_handoff(doc):
 
 def _tick_need_agents(units, doc):
     j = TICK_UNIT_INDEX["judge_ci_prune"]
-    if not any(TICK_UNIT_INDEX[u] > j for u in units):
-        return
+    if not any(TICK_UNIT_INDEX[u] > j for u in units if u != "offline"):
+        return  # the offline unit runs without agents (Go driver, agents=null)
     if "herdr_list" in units:
         return
     state = doc.get("state") or {}
