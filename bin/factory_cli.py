@@ -10746,6 +10746,49 @@ def _cursor_enter_after_prompt(name, runtime, prompt_ok):
         herdr("agent", "send-keys", name, "Enter", check=False)
 
 
+HC_CURSOR_TURN_WAIT_S = 60  # T-1554: how long a Cursor kickoff on hc may take to start its turn, per submit
+HC_CURSOR_TURN_POLL_S = 3
+HC_CURSOR_KEYS_TIMEOUT_S = 30  # hc keys presses after ~3 s of quiet; bounds the spawn when the screen never goes quiet
+HC_TURN_STARTED = ("working", "done", "blocked")  # an hc OSC 7501 status the agent only reaches after the turn began
+
+
+def _hc_cursor_turn_started(con, name):
+    """True when `hc ls` reports a status the agent reaches only after a turn began; idle, unknown or unlisted is not."""
+    h = _host_list_row(con, name)
+    return bool(h) and h.get("agent_status") in HC_TURN_STARTED
+
+
+def _hc_cursor_wait_turn(con, name):
+    wait = float(os.environ.get("FACTORY_HC_CURSOR_TURN_WAIT_S") or HC_CURSOR_TURN_WAIT_S)
+    poll = float(os.environ.get("FACTORY_HC_CURSOR_TURN_POLL_S") or HC_CURSOR_TURN_POLL_S)
+    deadline = time.monotonic() + wait
+    while True:
+        if _hc_cursor_turn_started(con, name):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(poll)
+
+
+def _hc_cursor_submit(con, name, row_goal=None, row_task=None, prompt_ok=True):
+    """T-1554: on hc a Cursor kickoff can stay typed in the input box. Press enter (`hc keys <name> enter`), confirm the
+    turn started within HC_CURSOR_TURN_WAIT_S, press it once more, then one events row and one director alert."""
+    for attempt in (1, 2):
+        herdr("agent", "send-keys", name, "Enter", check=False, timeout=HC_CURSOR_KEYS_TIMEOUT_S)
+        if _hc_cursor_wait_turn(con, name):
+            if attempt > 1:
+                event(con, "agent", name, "cursor-submit-retried", {"host": "hc", "attempts": attempt})
+            return True
+    event(con, "agent", name, "cursor-submit-unconfirmed", {"host": "hc", "attempts": 2, "prompt_ok": prompt_ok})
+    send(con, "director", f"{name}: Cursor kickoff turn did not start on hc",
+         f"{name} (runtime cursor, host hc) got its kickoff prompt (hc send {'ok' if prompt_ok else 'failed'}) and enter "
+         f"twice, but hc ls showed no working, done or "
+         f"blocked status within {os.environ.get('FACTORY_HC_CURSOR_TURN_WAIT_S') or HC_CURSOR_TURN_WAIT_S} s of "
+         f"either. The prompt may still sit unsent. Check `hc read {name}`, then `factory relaunch --fresh {name}`.",
+         "alert", row_goal, row_task, sender="factory")
+    return False
+
+
 CURSOR_START_LOG_MAX_S = 600  # director lost alert names logs/<name>-cursor-start.log only within this after agents.started
 _CURSOR_START_LOG_ENV_KEYS = frozenset((*GH_SCRUB_ENV, *HC_SPAWN_DROP, "CURSOR_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"))
 
@@ -10950,9 +10993,13 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
              sender="factory")
         time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
-        if herdr("agent", "prompt", name, kick, check=False) is not None:
-            _cursor_enter_after_prompt(name, runtime, True)
+        prompt_ok = herdr("agent", "prompt", name, kick, check=False) is not None
+        if prompt_ok:
             con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
+        if use_hc and runtime == "cursor":
+            _hc_cursor_submit(con, name, goal, task, prompt_ok)  # a timed-out hc send may still have pasted the text
+        elif prompt_ok:
+            _cursor_enter_after_prompt(name, runtime, True)
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
                                         "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
     print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}, kind={plan.herdr_kind}) in {pane} cwd={cwd}")
