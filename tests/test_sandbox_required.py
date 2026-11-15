@@ -4,7 +4,7 @@ import json
 import re
 import unittest
 
-from harness import FactoryTestCase
+from harness import FactoryTestCase, git
 from test_sandbox_spawn import prep, ROLE_NAMES
 
 T = "T-0001"
@@ -155,6 +155,15 @@ class ManualSpawnTests(Base):
     def test_reviewer_and_qa_on_a_flagged_coder_task_are_not_forced_or_refused(self):
         """T-1291: the flag applies to the task's own role (coder) only."""
         self.task(role="coder")
+        # T-1563: qa spawn inspects the project repo's git config (T-1544, fail-closed on an unreadable repo)
+        repo = self.env.home / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        bare = self.env.home / "origin.git"
+        git("init", "-q", "--bare", "-b", "main", str(bare), cwd=self.env.home)
+        git("init", "-q", "-b", "main", cwd=repo)
+        git("remote", "add", "origin", str(bare), cwd=repo)
+        git("commit", "-q", "--allow-empty", "-m", "base", cwd=repo)
+        git("push", "-q", "-u", "origin", "main", cwd=repo)
         for role in ("reviewer", "qa"):
             self.env.sql("UPDATE tasks SET worktree=? WHERE id=?", (str(self.env.home_dir / "worktrees" / f"w-{role}"), T))
             p = self.spawn(role, name=f"zz-{role}")
