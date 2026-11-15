@@ -658,8 +658,43 @@ class GoToolchainForWorkers(ProtTreesCase):
     def test_review_gaps_still_allowed_in_the_tree(self):
         for role in ("coder", "qa", "reviewer"):
             for cmd in (self.G + "go fmt ./...", self.G + "go fmt", self.G + "go build", self.G + "go test -c", self.G + "go build -o bin/x ./cmd/x",
-                        self.G + "go test -test.coverprofile=c.out ./...", self.G + "go test -c -o /tmp/x.test", self.G + "go build -pkgdir /tmp/pk ./...",
-                        self.G + "gofmt -cpuprofile /tmp/p ."):
+                        self.G + "go test -test.coverprofile=c.out ./...", self.G + "go test -c -o x.test", self.G + "go build -o /dev/null ./...",
+                        self.G + "go test -run TestX -v -count=1 -race -timeout 5m -short -cover ./...", self.G + "go test -mod=readonly ./...",
+                        self.G + "go test -mod readonly ./...", self.G + "go vet ./...", self.G + "gofmt -l -s -d ."):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
+    def test_review_round3_n5_n6_default_deny(self):
+        # N5 -C/-o after -args or as another flag's value, N6 -mod mod / --mod=mod without GOPROXY=off: blocked by the per-subcommand
+        # flag allow-list (an unknown flag, -args, a flag outside the table), not by a spelling check
+        prot = "cd ~/.local/go/src/cmd/gofmt && " + self.G
+        cmds = [prot + "go test -c -args -C /tmp", prot + "go test -c -run -o", prot + "go build -tags -o", prot + "go test -c -args -o x",
+                self.G + "go test -mod mod ./...", self.G + "go test --mod=mod ./...", "GOFLAGS='-mod mod' " + self.G + "go test ./...",
+                "GOFLAGS=--mod=mod " + self.G + "go test ./...", self.G + "go test ./... -args -test.v", self.G + "go build -pkgdir /tmp/pk ./...",
+                self.G + "gofmt -cpuprofile /tmp/p .", self.G + "go test -c -o /tmp/outside.test", self.G + "go -x build ./...",
+                self.G + "go test -overlay /tmp/o.json ./...", self.G + "go test -C /tmp -run X", self.G + "go test -run"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+        for cmd in (self.G + "go test -mod=readonly ./...", self.G + "go test -mod mod ./...".replace("test", "vet", 1).replace("mod ./", "readonly ./"),
+                    "GOPROXY=off GOFLAGS='-mod mod' " + self.G + "go test ./...", "GOPROXY=off " + self.G + "go test -mod=mod ./...",
+                    self.G + "go test -run '-o' ./..."):
+            for role in ("coder", "qa", "reviewer"):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
+    def test_self_review_round3_flags_and_import_paths(self):
+        # -ldflags/-gcflags values hold compiler flags (-tmpdir, -cpuprofile, -extld): not in the table; go fmt / -fuzz on an import
+        # path (std) would write into GOROOT; go list -m mod@query hits the proxy
+        cmds = [self.G + "go build -ldflags=-extld=/tmp/evil ./...", self.G + "go build -gcflags=-json=0,/x ./...",
+                self.G + "go test -ldflags=-extld=/tmp/evil ./...", self.G + "go fmt strings", self.G + "go fmt std", self.G + "go fmt cmd/...",
+                self.G + "go test -fuzz=. strings", self.G + "go test -fuzz=. ~/.local/go/src/strings", self.G + "go list -m foo@latest",
+                "cd ~/.local/go/src/strings && " + self.G + "go test -fuzz=."]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}")
+        for cmd in (self.G + "go fmt ./pkg", self.G + "go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off " + self.G + "go list -m foo@latest",
+                    self.G + "go list -m all"):
+            for role in ("coder", "qa", "reviewer"):
                 self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
 
     def test_gofmt_write_inside_the_tree_allowed(self):

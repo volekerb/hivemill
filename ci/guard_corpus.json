@@ -19723,6 +19723,441 @@
       "note": "T-1498 round-2 review N1/N3: other true spellings",
       "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
       "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=1 ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=1 ../x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=1 ../x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=t ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=t ../x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=t ../x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt fmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt fmt",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt fmt",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C /etc fmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C /etc fmt",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C /etc fmt",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c ~/.local/go/bin/go test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c ~/.local/go/bin/go test",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c ~/.local/go/bin/go test",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -C /tmp",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -C /tmp",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -C /tmp",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -run -o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -run -o",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -run -o",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go build -tags -o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go build -tags -o",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go build -tags -o",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -o x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -o x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -o x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod mod ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod mod ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod mod ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test --mod=mod ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test --mod=mod ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test --mod=mod ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod=mod ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod=mod ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod=mod ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS='-mod mod' ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS='-mod mod' ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS='-mod mod' ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS=--mod=mod ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS=--mod=mod ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS=--mod=mod ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test ./... -args -test.coverprofile=/tmp/c",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test ./... -args -test.coverprofile=/tmp/c",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test ./... -args -test.coverprofile=/tmp/c",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go build -pkgdir /tmp/pk ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go build -pkgdir /tmp/pk ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go build -pkgdir /tmp/pk ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -cpuprofile /tmp/p .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -cpuprofile /tmp/p .",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -cpuprofile /tmp/p .",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -o /tmp/x.test -c",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -o /tmp/x.test -c",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -o /tmp/x.test -c",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -x build ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -x build ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -x build ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -overlay /tmp/o.json ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -overlay /tmp/o.json ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -overlay /tmp/o.json ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -C ~/.local/go/src/cmd/gofmt -run X",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -C ~/.local/go/src/cmd/gofmt -run X",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -C ~/.local/go/src/cmd/gofmt -run X",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go build -ldflags=-extld=/tmp/evil ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go build -ldflags=-extld=/tmp/evil ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go build -ldflags=-extld=/tmp/evil ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go fmt strings",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go fmt strings",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go fmt strings",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go test -fuzz=. strings",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go test -fuzz=. strings",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go test -fuzz=. strings",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go list -m foo@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go list -m foo@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go list -m foo@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "cd ~/.local/go/src/strings && ~/.local/go/bin/go test -fuzz=.",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "cd ~/.local/go/src/strings && ~/.local/go/bin/go test -fuzz=.",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "cd ~/.local/go/src/strings && ~/.local/go/bin/go test -fuzz=.",
+      "role": "reviewer"
     }
   ],
   "must_allow": [
@@ -24459,6 +24894,46 @@
     "~/.local/go/bin/go test -test.coverprofile=c.out ./...",
     "~/.local/go/bin/go test -c -o /tmp/x.test",
     "~/.local/go/bin/gofmt -w=0 x.go",
-    "GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./..."
+    "GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -run TestX -v -count=1 -race -timeout 5m -short -cover ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go vet ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go build -o /dev/null ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -mod=readonly ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -mod readonly ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -c -o x.test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -coverprofile=c.out ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/gofmt -l -s -d .",
+      "role": "coder"
+    }
   ]
 }

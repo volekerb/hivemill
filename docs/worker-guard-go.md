@@ -92,12 +92,23 @@ shell payload in HQ mode is analysed only when it may hold a `git`/`gh` word onc
 The roles coder, qa and reviewer may run the toolchain by full path, `~/.local/go/bin/go` and `~/.local/go/bin/gofmt` (also
 written `$HOME/.local/go/bin/...` or with the passwd home spelled out). Both guards (worker-guard.py and this package) apply the
 same rules; every other role is unchanged. Allowed: `go build|test|vet|run|list|env|version|fmt` and `go mod verify|graph|why`;
-`gofmt` with any flag, and `gofmt -w` and `go fmt` (both rewrite files) only on files inside the caller's working tree or scratchpad. Allowed env prefixes:
+`gofmt -w` and `go fmt` (both rewrite files) only on files inside the caller's working tree or scratchpad. Allowed env prefixes:
 `GOTOOLCHAIN=local`, `GOFLAGS=...`, `GOPROXY=off`, `GOCACHE=<path>`, `GOMODCACHE=<path>` (`~/.local/lib/factory/go/mod` for
-read use), `CGO_ENABLED=0`, `PATH=~/.local/go/bin:$PATH`; any other prefix is refused, and `-mod=mod` needs `GOPROXY=off`.
+read use, and then only with `GOPROXY=off`), `CGO_ENABLED=0`, `PATH=~/.local/go/bin:$PATH`; any other prefix is refused.
 Refused: the network and write subcommands (`go mod download`, `go get`, `go install`, `go clean`, `go mod tidy`, `go work`, ...),
-`go env -w`, a write flag (`-o`, `-pkgdir`, `-coverprofile`, any `-test.*` profile, trace or output dir, in the `=` or the space form) or a cache path inside `~/.local/go` or `~/.local/lib/factory`, and a
-lookalike spelling (`~/.local/go/bin/../../go/bin/go`). `go build` and `go test -c` without `-o` write into the working directory, so they are refused when it is a protected tree. Every write into those trees stays blocked as before. QA copy-paste line:
+`go env -w` and a lookalike spelling (`~/.local/go/bin/../../go/bin/go`).
+
+Flags are a strict per-subcommand allow-list, default deny (`TC_FLAGS` in worker-guard.py, `tcSubFlags` in gotoolchain.go; the two
+tables are the same). Anything not in the table blocks: an unknown flag, `-args`, `-exec`/`-toolexec`/`-vettool`, `-pkgdir`,
+`-overlay`, `-modfile`, `gofmt -cpuprofile`, `go env -w`. A value flag consumes the next word whatever it looks like (as Go does), so
+`-run -o` has no `-o`. The flags: `build` and `run` take `-race -v -trimpath -tags -mod -p -buildvcs` (`build` also `-o`);
+`test` adds `-short -cover -failfast -json -benchmem -c -run -skip -count -timeout -bench -benchtime -cpu -parallel -shuffle -coverpkg
+-covermode -list -fuzz -fuzztime` and the path flags `-o -coverprofile -cpuprofile -memprofile -blockprofile -mutexprofile -trace
+-outputdir` (a `-test.NAME` spelling is the same flag); `vet`: `-race -v -tags -mod`; `list`, `env`, `version`, `fmt`, `mod` a few
+read-only flags (see the table); `gofmt`: `-l -d -s -e -w -r`. `GOFLAGS` is parsed by the same table. Path flags and `-C` accept a plain path
+inside the caller's worktree or scratchpad only (`-o /dev/null` is allowed too). `-mod` accepts `readonly` or `vendor`; `-mod=mod`
+(any spelling: `-mod mod`, `--mod=mod`, `GOFLAGS='-mod mod'`) needs `GOPROXY=off`. `go build` and `go test -c` without `-o` write into
+the working directory, so they are refused when it is a protected tree. Every write into those trees stays blocked as before. QA copy-paste line:
 
     GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...
 

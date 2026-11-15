@@ -1444,20 +1444,61 @@ def fold_mktemp(toks):
 # T-1498: the Go toolchain for workers. coder, qa and reviewer may EXECUTE ~/.local/go/bin/go and gofmt (the tree stays
 # protected: nothing here lets them write into it). A fixed subcommand list, a fixed env-prefix list, no network.
 TC_ROLES = ("coder", "qa", "reviewer")
-TC_SUBS = {"build", "test", "vet", "run", "list", "env", "version", "fmt"}
 TC_MOD_SUBS = {"verify", "graph", "why"}
-TC_WRITE_FLAGS = ("o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir", "modfile",
-                  "pkgdir", "gocoverdir", "fuzzcachedir", "testlogfile")  # a -test.NAME spelling is the same flag
-TC_EXEC_FLAGS = ("exec", "toolexec", "vettool")
+# Strict flag allow-list per subcommand (default deny): name -> (bool flags, value flags). -C and the path flags are
+# checked for a worktree/scratchpad target; "test." spellings (-test.run) are the same flag.
+TC_PATH_FLAGS = {"o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir"}
+_B_BOOL, _B_VAL = {"race", "v", "trimpath"}, {"tags", "mod", "p", "buildvcs", "C"}
+_T_BOOL = {"short", "cover", "failfast", "json", "benchmem", "c"}
+_T_VAL = {"run", "skip", "count", "timeout", "bench", "benchtime", "cpu", "parallel", "shuffle", "coverpkg", "covermode", "list",
+          "fuzz", "fuzztime"} | TC_PATH_FLAGS
+TC_FLAGS = {
+    "build": (_B_BOOL, _B_VAL | {"o"}), "run": (_B_BOOL, _B_VAL), "vet": ({"race", "v"}, {"tags", "mod", "C"}),
+    "test": (_B_BOOL | _T_BOOL, _B_VAL | _T_VAL), "list": ({"json", "m", "deps", "e", "test", "race", "v"}, {"f", "tags", "mod", "C"}),
+    "env": ({"json", "changed"}, {"C"}), "version": ({"m", "v"}, {"C"}), "fmt": ({"n", "x"}, {"C"}), "mod": ({"m", "vendor"}, {"C"}),
+}
+TC_SUBS = set(TC_FLAGS)
+TC_FLAGS["gofmt"] = ({"l", "d", "s", "e", "w"}, {"r"})
+TC_FLAGS["GOFLAGS"] = (set().union(*(TC_FLAGS[s][0] for s in TC_SUBS)), set().union(*(TC_FLAGS[s][1] for s in TC_SUBS)) - {"C"})
 TC_ENV_NAMES = {"GOTOOLCHAIN", "GOFLAGS", "GOPROXY", "GOCACHE", "GOMODCACHE", "CGO_ENABLED", "PATH"}
 TC_MODCACHE = os.path.join(PW_DIR, ".local", "lib", "factory", "go", "mod")
 TC_PATH_VALUE = re.compile(r"^(?:~|\$HOME|\$\{HOME\}|" + re.escape(PW_DIR) + r")/\.local/go/bin:\$(?:PATH|\{PATH\})$")
 
 
-def tc_bool_flag(name, word):
-    """Go's flag package: -w, --w, -w=1|t|T|TRUE|true|True are on; any other -w=VALUE that is not a false spelling counts as on."""
-    m = re.match(r"^--?" + name + r"(=(.*))?$", word)
-    return bool(m) and (m.group(1) is None or m.group(2) not in ("0", "f", "F", "FALSE", "false", "False"))
+def tc_bool_on(v):
+    """Go's flag package: a bool flag is on without a value and with 1|t|T|TRUE|true|True; any other value that is not a false spelling counts as on."""
+    return v is None or v not in ("0", "f", "F", "FALSE", "false", "False")
+
+
+def tc_parse(words, tbl):
+    """T-1498: ([(name, value|None)], positionals) of `words` against (bool flags, value flags). ValueError(word) on any flag
+    that is not in the table, on `-args`, and on a value flag with no value. A value flag consumes the next word whatever it
+    looks like (go's flag package does the same), so `-run -o` has no -o."""
+    bools, vals = tbl
+    flags, pos, k = [], [], 0
+    while k < len(words):
+        w = words[k]
+        k += 1
+        m = re.match(r"^--?([^=\s-][^=\s]*)(=(.*))?$", w, re.S)
+        if not m:
+            if w.startswith("-") and w != "-":
+                raise ValueError(w)
+            pos.append(w)
+            continue
+        name = re.sub(r"^test\.", "", m.group(1))
+        if name in bools:
+            flags.append((name, m.group(3) if m.group(2) else None))
+        elif name in vals:
+            if m.group(2):
+                flags.append((name, m.group(3)))
+            elif k < len(words):
+                flags.append((name, words[k]))
+                k += 1
+            else:
+                raise ValueError(w + " (no value)")
+        else:
+            raise ValueError(w)
+    return flags, pos
 
 
 def tc_kind(w):
@@ -2638,41 +2679,36 @@ class Analyzer:
 
     def go_toolchain(self, tc, rest, assigns):
         """T-1498: a coder/qa/reviewer command whose word is the toolchain binary. Exec only: the subcommands that build,
-        test and inspect, an env-prefix allow-list, no network (`go mod download`, `go get`), no `go install|clean|work`,
-        no write flag into a protected tree, `gofmt -w` only on files in the caller's tree or scratchpad."""
+        test and inspect, an env-prefix allow-list, no network (`go mod download`, `go get`), no `go install|clean|work`.
+        Flags are a strict per-subcommand allow-list (TC_FLAGS), default deny: an unknown flag, `-args`, a flag that is not
+        spelled at flag position (a value of another flag is consumed as that value) all block. Path flags (-o, profiles,
+        -C) only name a file or directory in the caller's worktree or scratchpad."""
         tool, lookalike = tc
 
         def block(what):
             raise Block(f"~/.local/go/bin/{tool}: {what}; the toolchain may be run with build, test, vet, run, list, env, version, "
-                        "fmt and mod verify|graph|why only (docs/worker-guard-go.md, Go toolchain for workers)")
+                        "fmt and mod verify|graph|why only, with the flags of its allow-list (docs/worker-guard-go.md, Go toolchain for workers)")
 
         if lookalike:
             block("the path is not in its normal form (`..`, `//` or `/./`)")
         args = [a for a in rest if a != "--"]
-        cdir = (opt_values(args, "", {"-C", "--C"}) or [None])[-1]  # relative flag values resolve against the -C directory
-        cdir = None if cdir is None else self.cfg_expand(cdir)
-        if cdir is None:
-            base = self.ccwd
-        elif os.path.isabs(cdir):
-            base = cdir
-        else:
-            base = None if self.ccwd is None else os.path.join(self.ccwd, cdir)
+        root = os.path.realpath(self.ccwd) if self.ccwd else None
 
-        def flag_hits(words, fbase=None):
-            fbase = base if fbase is None else fbase
-            k = 0
-            while k < len(words):
-                m = re.match(r"^--?([A-Za-z.-]+)(=(.*))?$", words[k])
-                k += 1
-                fname = re.sub(r"^test\.", "", m.group(1)) if m else None  # -test.coverprofile is -coverprofile
-                if m and fname in TC_EXEC_FLAGS:
-                    block(f"-{m.group(1)} runs a program the guard does not inspect")
-                if m and fname in TC_WRITE_FLAGS:
-                    v = m.group(3) if m.group(2) else (words[k] if k < len(words) else None)
-                    if v and self.prot_hit(v, base=fbase):
-                        block(f"-{m.group(1)} names a protected tree")
-                elif m and m.group(2) and m.group(3) and self.prot_hit(m.group(3), base=fbase):
-                    block("a flag value names a protected tree")
+        def parse(words, tbl):
+            try:
+                return tc_parse(words, tbl)
+            except ValueError as e:
+                block(f"{e} is not in the flag allow-list")
+
+        def safe_dir_or_file(v, fbase, what):
+            v = self.cfg_expand(v)
+            if not v or any(c in v for c in "$`*?[{~") or fbase is None:
+                block(f"{what} needs a plain path and a known working directory")
+            real = os.path.realpath(os.path.join(fbase, v))
+            if v == "/dev/null" and what != "-C":
+                return
+            if self.prot_hit(v, base=fbase) or not (root and under(real, root) or in_scratchpad(real)):
+                block(f"{what} {v} is outside your worktree and scratchpad")
 
         env = {}
         for x in assigns:
@@ -2686,64 +2722,101 @@ class Analyzer:
                 exp = PW_DIR + val[1:] if val.startswith("~/") else val
                 if not (name == "GOMODCACHE" and under(os.path.normpath(exp), TC_MODCACHE)):
                     block(f"{name} names a protected tree")
-            if name == "GOFLAGS":
-                flag_hits(val.split())
             env[name] = val
         if "GOMODCACHE" in env and env.get("GOPROXY") != "off" and under(os.path.normpath(
                 PW_DIR + env["GOMODCACHE"][1:] if env["GOMODCACHE"].startswith("~/") else env["GOMODCACHE"]), TC_MODCACHE):
             block("GOMODCACHE in the factory lib needs the GOPROXY=off prefix (a module download would write there)")
+        gflags, gpos = parse(env.get("GOFLAGS", "").split(), TC_FLAGS["GOFLAGS"])
+        if gpos:
+            block("GOFLAGS holds a word that is not a flag")
+
+        def check_flags(flags, base):
+            """Every parsed flag: path flags stay in the worktree/scratchpad, -mod=mod needs GOPROXY=off, a value never
+            names a protected tree."""
+            for name, val in flags:
+                if name in TC_PATH_FLAGS:
+                    safe_dir_or_file(val, base, "-" + name)
+                elif name == "mod":
+                    if val not in ("readonly", "vendor") and not (val == "mod" and env.get("GOPROXY") == "off"):
+                        block("-mod needs readonly or vendor (mod only with the GOPROXY=off prefix)")
+                elif val and name != "C" and self.prot_hit(val, base=base):
+                    block(f"-{name} value names a protected tree")
+
         if tool == "gofmt":
-            flag_hits(args)  # gofmt -cpuprofile FILE creates a file too
-            if any(tc_bool_flag("w", a) for a in args):
-                targets = [a for a in args if not a.startswith("-")]
-                base = self.ccwd
-                if not targets or base is None:
+            flags, targets = parse(args, TC_FLAGS["gofmt"])
+            check_flags(gflags + flags, self.ccwd)
+            if any(n == "w" and tc_bool_on(v) for n, v in flags):
+                if not targets or self.ccwd is None:
                     block("-w needs file arguments and a known working directory")
-                root = os.path.realpath(base)
                 for t in targets:
                     if any(c in t for c in "$`*?[{~"):
                         block("-w with a glob or an expansion")
-                    real = os.path.realpath(os.path.join(base, t))
+                    real = os.path.realpath(os.path.join(self.ccwd, t))
                     if self.prot_hit(t) or not (under(real, root) or in_scratchpad(real)):
                         block("-w outside your worktree and scratchpad")
             return
-        sub, k = None, 0
+        sub, k, pre = None, 0, []
         while k < len(args):
-            if args[k] in ("-C", "--C"):
+            w = args[k]
+            if w in ("-C", "--C"):
+                if k + 1 >= len(args):
+                    block("-C needs a value")
+                pre.append(("C", args[k + 1]))
+                k += 2
+            elif re.match(r"^--?C=", w):
+                pre.append(("C", w.split("=", 1)[1]))
                 k += 1
-            elif not args[k].startswith("-"):
-                sub = args[k]
+            elif w.startswith("-") and w != "-":
+                block(f"{w} before the subcommand (only -C may come there)")
+            else:
+                sub = w
                 break
-            k += 1
-        if sub is None or sub not in TC_SUBS | {"mod"}:
+        if sub is None or sub not in TC_SUBS:
             block(f"`go {sub or ''}` is not allowed")
+        flags, pos = parse(args[k + 1:], TC_FLAGS[sub])
+        flags = pre + flags
+        for n, v in flags:  # the working directory is decided by the parsed -C flags only (a "-C" that is another flag's value is not one)
+            if n == "C":
+                safe_dir_or_file(v, self.ccwd, "-C")
+        cdirs = [v for n, v in flags if n == "C"]
+        if not cdirs:
+            base = self.ccwd
+        else:
+            c = self.cfg_expand(cdirs[-1])
+            base = c if os.path.isabs(c) else (None if self.ccwd is None else os.path.join(self.ccwd, c))
+        check_flags(gflags + flags, base)
         if sub == "mod":
-            ms = next((a for a in args[k + 1:] if not a.startswith("-")), None)
-            if ms not in TC_MOD_SUBS:
-                block(f"`go mod {ms or ''}` is not allowed (network or a write)")
-        if "-mod=mod" in args + env.get("GOFLAGS", "").split() and env.get("GOPROXY") != "off":
-            block("-mod=mod needs the GOPROXY=off prefix")
-        flag_hits(args)
-        rest_args = args[k + 1:]
+            if not pos or pos[0] not in TC_MOD_SUBS:
+                block(f"`go mod {pos[0] if pos else ''}` is not allowed (network or a write)")
+        if sub == "list" and any("@" in x for x in pos) and env.get("GOPROXY") != "off":
+            block("`go list` with a module@version query needs the GOPROXY=off prefix (it queries the proxy)")
+        if (sub == "fmt" or any(n == "fuzz" for n, v in flags)) and any(not x.startswith((".", "/")) for x in pos):
+            block(f"`go {sub}` (it rewrites or creates files in the package directory) takes directory paths (./x, ../x, /x), not import paths")
+        if sub == "test" and any(n == "fuzz" for n, v in flags):  # a failing fuzz run writes testdata/ into the package directory
+            if not pos and base is not None and prot_path(base):
+                block("`go test -fuzz` in a protected tree")
+            for x in pos:
+                if self.prot_hit(x, base=base):
+                    block("`go test -fuzz` on a protected tree")
         if sub == "fmt":  # `go fmt` rewrites files in place, like `gofmt -w`: the same worktree-or-scratchpad rule
-            targets = [a for a in rest_args if not a.startswith("-")]
             if base is None:
                 block("`go fmt` needs a known working directory")
-            root = os.path.realpath(self.ccwd) if self.ccwd else None
             if prot_path(base):
                 block("`go fmt` in a protected tree")
-            if not targets and not (root and under(os.path.realpath(base), root) or in_scratchpad(os.path.realpath(base))):
+            if not pos and not (root and under(os.path.realpath(base), root) or in_scratchpad(os.path.realpath(base))):
                 block("`go fmt` with no package argument formats the -C directory, which is outside your worktree and scratchpad")
-            for t in targets:
+            for t in pos:
                 if any(c in t for c in "$`*?[{~"):
                     block("`go fmt` with a glob or an expansion")
                 real = os.path.realpath(os.path.join(base, t))
                 if self.prot_hit(t, base=base) or not (root and under(real, root) or in_scratchpad(real)):
                     block("`go fmt` outside your worktree and scratchpad")
-        elif (sub == "build" or (sub == "test" and any(tc_bool_flag("c", a) for a in args + env.get("GOFLAGS", "").split()))) and not any(
-                re.match(r"^--?o(=|$)", a) for a in rest_args + env.get("GOFLAGS", "").split()):
-            if base is not None and prot_path(base):  # the binary lands in the working directory
-                block(f"`go {sub}` without -o would write its output into a protected tree (use -o into your worktree)")
+        else:
+            allf = gflags + flags
+            if (sub == "build" or (sub == "test" and any(n == "c" and tc_bool_on(v) for n, v in allf))) and not any(
+                    n == "o" for n, v in allf):
+                if base is not None and prot_path(base):  # the binary lands in the working directory
+                    block(f"`go {sub}` without -o would write its output into a protected tree (use -o into your worktree)")
 
     def prot_write(self, name, rest, assigns=()):
         """T-0925 (gaps a, b, c, e, f, g): Bash writes into a protected tree. The writers cfg_write knows (now also with a

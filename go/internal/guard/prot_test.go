@@ -157,7 +157,20 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		block = append(block, strings.ReplaceAll(c, "~/.local/go/bin/", g))
 	}
 	allow = append(allow, g+"go fmt ./...", g+"go fmt", g+"go build", g+"go test -c", g+"go build -o bin/x ./cmd/x",
-		g+"go test -test.coverprofile=c.out ./...", g+"go test -c -o /tmp/x.test", g+"go build -pkgdir /tmp/pk ./...", g+"gofmt -cpuprofile /tmp/p .")
+		g+"go test -test.coverprofile=c.out ./...", g+"go test -c -o x.test", g+"go build -o /dev/null ./...",
+		g+"go test -run TestX -v -count=1 -race -timeout 5m -short -cover ./...", g+"go test -mod=readonly ./...", g+"go test -mod readonly ./...",
+		g+"go vet ./...", g+"gofmt -l -s -d .", "GOPROXY=off GOFLAGS='-mod mod' "+g+"go test ./...", "GOPROXY=off "+g+"go test -mod=mod ./...",
+		g+"go test -run '-o' ./...")
+	// T-1498 review round 3 (N5, N6): blocked by the per-subcommand flag allow-list, default deny
+	pt := "cd ~/.local/go/src/cmd/gofmt && " + g
+	block = append(block, pt+"go test -c -args -C /tmp", pt+"go test -c -run -o", pt+"go build -tags -o", pt+"go test -c -args -o x",
+		g+"go test -mod mod ./...", g+"go test --mod=mod ./...", "GOFLAGS='-mod mod' "+g+"go test ./...", "GOFLAGS=--mod=mod "+g+"go test ./...",
+		g+"go test ./... -args -test.v", g+"go build -pkgdir /tmp/pk ./...", g+"gofmt -cpuprofile /tmp/p .", g+"go test -c -o /tmp/outside.test",
+		g+"go -x build ./...", g+"go test -overlay /tmp/o.json ./...", g+"go test -C /tmp -run X", g+"go test -run",
+		g+"go build -ldflags=-extld=/tmp/evil ./...", g+"go build -gcflags=-json=0,/x ./...", g+"go test -ldflags=-extld=/tmp/evil ./...",
+		g+"go fmt strings", g+"go fmt std", g+"go fmt cmd/...", g+"go test -fuzz=. strings", g+"go test -fuzz=. ~/.local/go/src/strings",
+		g+"go list -m foo@latest", "cd ~/.local/go/src/strings && "+g+"go test -fuzz=.")
+	allow = append(allow, g+"go fmt ./pkg", g+"go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off "+g+"go list -m foo@latest", g+"go list -m all")
 	for _, role := range []string{"coder", "qa", "reviewer"} {
 		for _, c := range allow {
 			if err := Check(c, wt, role, false); err != nil {
