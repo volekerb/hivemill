@@ -37,6 +37,15 @@ https://github.com/user-attachments/assets/dfec91f4-de05-4592-aaec-3662ce674c4a
   </picture></a>
 </p>
 
+## Where you run and watch it
+
+| Surface | What it is | Status in v0.5.0 |
+|---|---|---|
+| herdr-core (`hc`) | The headless core of herdr. Hivemill runs its agent panes through it. | The default backend: `terminal_backend = auto` prefers `hc` when both binaries are installed. See [docs/terminal-backends.md](docs/terminal-backends.md). |
+| Classic herdr terminal UI | The herdr TUI you attach to and watch panes in. | Still supported, opt-in: set `terminal_backend = herdr`. |
+| Herdr desktop app plugin | The Hivemill dashboard: a status bar and a dashboard tab in the Herdr desktop app, installed with `/hivemill:setup`. | Available. See [Herdr desktop dashboard](#herdr-desktop-dashboard). |
+| Web view | `factory serve`: the web UI with goals, agents, cost and throughput. | Available. See [The web UI](#the-web-ui). |
+
 ## What you get
 
 You describe what you want built to one boss agent. A director staffs a team, and a chain of coders, QA, reviewers and a judge ships it as pull requests. The agent that writes a change never reviews, tests or merges it. Hivemill's CLI is `factory`.
@@ -106,7 +115,7 @@ Three walkthroughs with full output on the demo data: [from a goal to a merged P
 - **Two orgs, one box.** An org is a complete chain of command (boss, director, leads, workers) on one runtime and one model map: `claude` (Claude Code, the default) and `cursor` (Cursor Agent). Each goal belongs to one org, every spawn inherits it, and both orgs share one agent cap and one resource gate ([docs/runtimes.md](docs/runtimes.md)).
 - **Evidence over claims.** A task is done when a reviewer and QA have checked the PR diff and a real test run, not when an agent says so.
 - **Resource-aware on a small box.** A spawn gate watches RAM, load and the number of Claude processes, and queues new agents until there is room. The whole factory runs on one modest VM.
-- **Contained workers.** A worker guard hook blocks actions outside a role's job. Opt-in extras: the worker sandbox (`sandbox_roles`), a worker GitHub token per role (`worker_gh_roles`) and a standalone clone per coder task instead of a worktree (`task_clones`, off by default; [docs/git-hardening.md](docs/git-hardening.md)). The guard is Python by default; a Go port is available through `guard_impl` ([docs/worker-guard-go.md](docs/worker-guard-go.md)).
+- **Contained workers.** A worker guard hook blocks actions outside a role's job. Opt-in extras: the worker sandbox (`sandbox_roles`), a worker GitHub token per role (`worker_gh_roles`) and a standalone clone per coder task instead of a worktree (`task_clones`, off by default; [docs/git-hardening.md](docs/git-hardening.md)). The guard is Python by default; a Go port is available through `guard_impl` ([docs/worker-guard-go.md](docs/worker-guard-go.md)), about 8 ms against about 69 ms per call. A Go build of the `factory` CLI is opt-in through `cli_impl`, `factory schedule` runs only in Go, and Python stays the default ([docs/cli-go.md](docs/cli-go.md), [docs/schedule.md](docs/schedule.md)).
 - **Everything auditable.** Goals, plans, tasks, messages, verdicts and decisions are rows in SQLite with an append-only event log, exported to readable markdown every minute.
 
 ```mermaid
@@ -170,6 +179,10 @@ Details: [docs/lifecycle.md](docs/lifecycle.md), [docs/verdict-gates.md](docs/ve
 | Stopping a worker | Stop one agent cleanly without losing its work | [stopping-a-worker](docs/stopping-a-worker.md) |
 | **Two runtimes** | | |
 | Claude and Cursor orgs | Orgs, runtimes, model maps and message routing | [runtimes](docs/runtimes.md) |
+| **Run it fast** | | |
+| Scheduled jobs | Owner-defined recurring jobs that mail the director (`factory schedule`) | [schedule](docs/schedule.md) |
+| Go CLI | Opt-in Go build of the `factory` CLI (`cli_impl`); Python stays the default | [cli-go](docs/cli-go.md) |
+| Terminal backends | herdr-core (`hc`) is the default; the classic herdr terminal UI is opt-in | [terminal-backends](docs/terminal-backends.md) |
 | **See it** | | |
 | Web UI | Read-only pages for goals, tasks, agents, throughput and quality | [web-ui](docs/web-ui.md) |
 | State branch | Markdown exports and a DB dump pushed to the `state` branch | [state-branch](docs/state-branch.md) |
@@ -254,10 +267,21 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
   </tr>
 </table>
 
+## Herdr desktop dashboard
+
+If you use the [Herdr app](https://herdr.dev), Hivemill adds a status bar and a dashboard tab to it. The dashboard shows alerts, budget and cost, the Claude and Cursor lanes, active goals and the factory's agents.
+
+`/hivemill:setup` offers it as an optional step. Or run `python3 plugins/hivemill/scripts/install.py --herdr-app --dry-run` and then `--yes` on the machine where the app runs. Details: [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md).
+
+<p align="center">
+  <img src="docs/film/herdr/panel-factory.png" width="420" alt="The Hivemill dashboard tab in the Herdr desktop app: lanes and tiles for the factory">
+  <img src="docs/film/herdr/panel-status-bar.png" width="420" alt="The Hivemill status bar across the bottom of the Herdr desktop app">
+</p>
+
 ## Status and limits
 
 - An agent is a Claude Code or a Cursor Agent session, depending on its org, so it uses your Claude or Cursor usage. Claude is the default.
-- The `hc` (herdr-core) terminal backend is experimental and off by default ([docs/terminal-backends.md](docs/terminal-backends.md)).
+- The `hc` (herdr-core) terminal backend is the default (`terminal_backend = auto` prefers `hc`); the classic herdr terminal UI is still supported as an opt-in (`terminal_backend = herdr`) ([docs/terminal-backends.md](docs/terminal-backends.md)).
 - It is built for a single box, not a cluster. State is one SQLite file.
 - Agent isolation is a tripwire, not a sandbox. Hooks and permission settings stop honest mistakes and make bypasses visible; they do not contain a determined adversary. Read [SECURITY.md](SECURITY.md) for the threat model and the known limits before you point it at anything you cannot afford to lose.
 - The worker sandbox is opt-in (`sandbox_roles`, off by default) and a tripwire, not a boundary: it has no egress filter ([docs/worker-sandbox.md](docs/worker-sandbox.md)).
@@ -271,6 +295,7 @@ Install [Moshi](https://getmoshi.app) on your phone, connect to your box over SS
 
 ## Resources
 
+- [What's new in v0.5.0](docs/releases/v0.5.0-announcement.md): a short plain-English summary of the v0.5.0 release.
 - [What's new in v0.4.0](docs/releases/v0.4.0-announcement.md): a short plain-English summary of this release.
 - [docs/examples/](docs/examples/README.md): three walkthroughs with real output.
 - [docs/README.md](docs/README.md): index of every docs page. [docs/SETUP.md](docs/SETUP.md): install and troubleshooting.
