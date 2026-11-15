@@ -490,7 +490,7 @@ class PreflightTest(unittest.TestCase):
         self.assertRegex((ROOT / "ci" / "preflight.txt").read_text(), r"(?m)^#.*failed runs")
         self.assertIn("ci/preflight.txt", workflow_job(self.wf, "preflight"))
 
-    def run_preflight(self, listing, files):
+    def run_preflight(self, listing, files, event="pull_request", mode="full"):
         """Run the preflight step script as CI does, in a scratch repo with its own tests/ and ci/preflight.txt."""
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -504,7 +504,7 @@ class PreflightTest(unittest.TestCase):
         py.write_text('#!/bin/sh\nexec "%s" "$@"\n' % sys.executable)
         py.chmod(0o755)
         script = step_script(workflow_job(self.wf, "preflight"), r"Preflight test files (ci/preflight.txt)")
-        env = {"PATH": os.path.join(tmp.name, "bin") + os.pathsep + os.environ["PATH"]}
+        env = {"PATH": os.path.join(tmp.name, "bin") + os.pathsep + os.environ["PATH"], "EVENT": event, "MODE": mode}
         return subprocess.run(["bash", "-c", script], cwd=tmp.name, env=env, capture_output=True, text=True)
 
     OK = "import unittest\nclass T(unittest.TestCase):\n    def test_1(self): pass\n"
@@ -522,6 +522,32 @@ class PreflightTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("preflight: tests/test_pf_bad.py failed; reproduce with: python3 -m unittest discover -s tests -p test_pf_bad.py", r.stderr)
         self.assertIn("preflight: tests/test_pf_ok.py rc=0", r.stdout)
+
+    def test_preflight_step_on_the_docs_tier_runs_only_the_docs_index(self):
+        files = {"test_docs_index.py": self.OK, "test_pf_bad.py": self.BAD}
+        listing = "tests/test_pf_bad.py\ntests/test_docs_index.py\n"
+        r = self.run_preflight(listing, files, mode="docs")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("preflight: tests/test_docs_index.py rc=0", r.stdout)
+        self.assertNotIn("test_pf_bad.py", r.stdout + r.stderr)
+        # a red docs index is red on the docs tier too
+        r = self.run_preflight(listing, {"test_docs_index.py": self.BAD}, mode="docs")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        # the docs shortcut is for pull requests only: push and the other tiers run the whole list
+        for event, mode in (("push", "docs"), ("pull_request", "affected"), ("pull_request", "full"), ("workflow_dispatch", "")):
+            r = self.run_preflight(listing, files, event=event, mode=mode)
+            self.assertEqual(r.returncode, 1, (event, mode))
+            self.assertIn("tests/test_pf_bad.py failed", r.stderr)
+
+    def test_fan_in_jobs_are_red_when_their_shards_were_skipped(self):
+        # After a red preflight the shard matrices are skipped; the always() fan-ins must not pass on that.
+        for key, step in (("guard-unittest", "Every guard-unittest shard succeeded"),
+                          ("guard-equiv-fanin", "Every guard-equiv shard succeeded")):
+            script = step_script(workflow_job(self.wf, key), step)
+            for result, want in (("success", 0), ("skipped", 1), ("failure", 1), ("cancelled", 1)):
+                r = subprocess.run(["bash", "-c", script], env={"PATH": os.environ["PATH"], "SHARD_RESULT": result},
+                                   capture_output=True, text=True)
+                self.assertEqual(r.returncode, want, (key, result))
 
     def test_preflight_step_fails_on_an_empty_list_a_missing_file_or_zero_tests(self):
         r = self.run_preflight("# nothing listed\n\n", {"test_pf_ok.py": self.OK})

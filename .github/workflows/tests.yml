@@ -75,12 +75,20 @@ jobs:
         with:
           python-version: "3.13"
       - name: Preflight test files (ci/preflight.txt)
+        env:
+          EVENT: ${{ github.event_name }}
+          MODE: ${{ needs.ci-tier.outputs.mode }}
         run: |
           # One test file per line in ci/preflight.txt; '#' starts a comment. An empty list, a missing file or a file with 0 tests fails.
           files=$(sed -e 's/#.*//' ci/preflight.txt | tr -s ' \t\n' '\n' | sed '/^$/d')
           if [ -z "$files" ]; then
             echo "preflight: ci/preflight.txt lists no test file; list at least tests/test_docs_index.py" >&2
             exit 1
+          fi
+          # Docs tier: only the docs index, so the docs fast lane stays fast (the other files test code a docs PR cannot change).
+          if [ "$EVENT" = pull_request ] && [ "$MODE" = docs ]; then
+            files=tests/test_docs_index.py
+            echo "preflight: docs tier, running only $files"
           fi
           rc=0
           total=$(date +%s)
