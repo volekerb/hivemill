@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -120,6 +121,9 @@ func resSnapshot(c *ctx, now time.Time) (gate.Snapshot, gate.Config, error) {
 		return snap, cfg, mapGateErr(err)
 	}
 	snap.Now = now
+	if err := resThrottlePreflight(c, cfg); err != nil {
+		return snap, cfg, err
+	}
 	store := &resStore{db: c.db}
 	cl := &herdr.Client{Store: store}
 	role, del := callerIsWorker(c)
@@ -990,4 +994,45 @@ func resOwnerBlockers(c *ctx, clock time.Time, loc *time.Location, tmp *gate.Tmp
 		res = append(res, ownerBlocker{p.text, age})
 	}
 	return res, nil
+}
+
+// resThrottlePreflight hands the command to Python before any host call when owner_blockers() would write or delete
+// the owner-blocker:gate throttle row (/tmp at or over tmp_max_pct with no row, or under it with a stale row). Deciding
+// late, after the host agent list, made Python repeat that call, which the parity harness sees as extra stub calls.
+func resThrottlePreflight(c *ctx, cfg gate.Config) error {
+	tmpDir := c.env.Getenv("FACTORY_TMP_DIR")
+	if tmpDir == "" {
+		tmpDir = "/tmp"
+	}
+	tmp := gate.TmpUsage(tmpDir, c.env.Getenv("FACTORY_TMP_STATVFS"), "/proc/mounts")
+	// Python's db() migrates a database that predates util_samples when it opens it; Go opens read-only and leaves that to Python.
+	nTbl, terr := sbCount(c.db, "SELECT count(*) c FROM sqlite_master WHERE type='table' AND name='util_samples'")
+	if terr != nil {
+		return terr
+	}
+	if nTbl == 0 {
+		return errDelegate
+	}
+	// A sweep event whose mb is a float prints through Python's repr: decide that before any host call too.
+	if _, serr := resLastSweep(c); errors.Is(serr, errDelegate) {
+		return errDelegate
+	}
+	// terminal_backend=auto with `hc` on PATH: Python picks hc, the Go herdr client prefers herdr (follow-up in
+	// go/internal/herdr, outside this task's files), so Python answers rather than list the wrong host.
+	if cl := (&herdr.Client{Store: &resStore{db: c.db}}); cl.TerminalBackendConfig() == "auto" {
+		if _, lerr := exec.LookPath("hc"); lerr == nil {
+			return errDelegate
+		}
+	}
+	var ts sql.NullString
+	err := c.db.QueryRow("SELECT ts FROM throttle WHERE key='owner-blocker:gate'").Scan(&ts)
+	hasRow := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("res: owner blockers: %w", err)
+	}
+	over := tmp != nil && tmp.Pct >= cfg.TmpMaxPct
+	if over != hasRow {
+		return errDelegate
+	}
+	return nil
 }
