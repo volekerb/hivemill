@@ -49105,6 +49105,114 @@
 "src": "corpus"
 },
 {
+"input": "go ''",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+""
+]
+},
+{
+"input": "go ''",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+""
+]
+},
+{
+"input": "go ''",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+""
+]
+},
+{
+"input": "go ''",
+"mode": "quote",
+"quoted": "'go '\"'\"''\"'\"''",
+"src": "corpus"
+},
+{
+"input": "go \"\" test",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"",
+"test"
+]
+},
+{
+"input": "go \"\" test",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"",
+"test"
+]
+},
+{
+"input": "go \"\" test",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"",
+"test"
+]
+},
+{
+"input": "go \"\" test",
+"mode": "quote",
+"quoted": "'go \"\" test'",
+"src": "corpus"
+},
+{
+"input": "go '' test ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"",
+"test",
+"./..."
+]
+},
+{
+"input": "go '' test ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"",
+"test",
+"./..."
+]
+},
+{
+"input": "go '' test ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"",
+"test",
+"./..."
+]
+},
+{
+"input": "go '' test ./...",
+"mode": "quote",
+"quoted": "'go '\"'\"''\"'\"' test ./...'",
+"src": "corpus"
+},
+{
 "input": "go env -u GOFLAGS",
 "mode": "script",
 "src": "corpus",
@@ -154377,7 +154485,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3551,
+"corpus_commands": 3554,
 "edge_inputs": 123,
 "python": "3.13"
 }
