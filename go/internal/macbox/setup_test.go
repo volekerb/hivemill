@@ -159,7 +159,14 @@ func TestSetupRejectInjection(t *testing.T) {
 
 func TestUninstallReversesEverySetupStep(t *testing.T) {
 	setup, un := mustSetup(t), mustUninstall(t)
+	// uninstall undoes in reverse order of setup.
+	prevS, prevU := -1, len(un)
 	for _, id := range []string{StepAccounts, StepLauncher, StepSudoers, StepACL} {
+		si, ui := strings.Index(setup, "echo \"step "+id+":"), strings.Index(un, "echo \"undo step "+id+":")
+		if si <= prevS || ui >= prevU {
+			t.Errorf("step %s out of order (setup %d after %d, undo %d before %d)", id, si, prevS, ui, prevU)
+		}
+		prevS, prevU = si, ui
 		if !strings.Contains(setup, "echo \"step "+id+":") {
 			t.Errorf("setup lacks step %s", id)
 		}
