@@ -45,6 +45,12 @@ var AllowedEnv = []string{
 
 // serverBaseEnv are the keys the server copies from its own (HQ-side) env into the CLI's env so bin/factory can
 // run (find python3, its home, its DB). Nothing here comes from the client.
+//
+// Locale: only LANG, LC_ALL and LC_CTYPE are kept, and they are the HQ side's own, as the ssh session gave them
+// (its login shell and sshd). The client's locale is never forwarded and the client cannot send LANG or LC_*
+// (they are not in AllowedEnv, so a header carrying them is refused). Other LC_* keys (LC_MESSAGES, ...) are
+// dropped. A client's LANG/LC_* reaching the server through ssh SendEnv/AcceptEnv does not matter: the server
+// copies only the keys listed here from its own env.
 var serverBaseEnv = []string{
 	"PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TMPDIR", "FACTORY_HOME",
 }
