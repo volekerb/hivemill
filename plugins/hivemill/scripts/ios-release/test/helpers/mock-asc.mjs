@@ -19,7 +19,10 @@ export async function startMock() {
         body: raw ? JSON.parse(raw) : null,
       });
       const queue = routes.get(`${req.method} ${url.pathname}`);
-      const next = queue ? (queue.length > 1 ? queue.shift() : queue[0]) : { status: 404, body: { errors: [{ title: "unscripted" }] } };
+      // Unscripted GET /v1/betaGroups/<id> serves an internal group with selected builds.
+      const groupDefault = req.method === "GET" && /^\/v1\/betaGroups\/[^/]+$/.test(url.pathname) ? { status: 200, body: groupBody(url.pathname.split("/").pop(), true, false) } : null;
+      const next = queue ? (queue.length > 1 ? queue.shift() : queue[0]) : groupDefault ?? { status: 404, body: { errors: [{ title: "unscripted" }] } };
+      if (next.hang) return; // never answer: the client must time out
       const typeof_ = typeof next.body === "function" ? next.body(url) : next.body;
       res.writeHead(next.status, { "Content-Type": "application/json" });
       res.end(next.status === 204 ? "" : JSON.stringify(typeof_ ?? {}));
@@ -42,3 +45,6 @@ export function fakeClock(startMs = 1_700_000_000_000) {
   const clock = { t: startMs, sleeps: [], now: () => clock.t, sleep: async (ms) => { clock.sleeps.push(ms / 1000); clock.t += ms; } };
   return clock;
 }
+
+// Body of GET /v1/betaGroups/<id>.
+export const groupBody = (id, isInternalGroup, hasAccessToAllBuilds) => ({ data: { id, type: "betaGroups", attributes: { isInternalGroup, hasAccessToAllBuilds } } });
