@@ -81,7 +81,8 @@ func LoadConfig(get func(key string) (string, error)) (Config, error) {
 		}
 		n, e := PyInt(v)
 		if e != nil {
-			if hasNonASCII(v) {
+			if hasNonASCII(v) || strings.Contains(v, "_") || intRE.MatchString(pyStrip(v)) {
+				// "1_0" and integers beyond int64 are valid Python ints: not ours to default
 				err = fmt.Errorf("config %s %q: %w", key, v, ErrUnparsable)
 			}
 			return def

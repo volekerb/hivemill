@@ -228,7 +228,7 @@ func pyNum(v any) (f float64, state string) {
 		return numText(string(x))
 	case string:
 		t := pyStrip(x)
-		if specRE.MatchString(t) {
+		if specRE.MatchString(t) || strings.Contains(t, "_") || hasNonASCII(t) {
 			return 0, "special"
 		}
 		if !floatRE.MatchString(t) {
@@ -300,6 +300,9 @@ func ParseUsage(data []byte, now time.Time) (u Usage, ok, ambiguous bool) {
 		case "special":
 			return Usage{}, false, true
 		case "ok":
+			if math.IsInf(f, 0) {
+				return Usage{}, false, true // Python: age // 60 is nan and int() raises
+			}
 			age = float64(now.UnixNano())/1e9 - f
 		default:
 			return Usage{}, false, false
@@ -315,6 +318,11 @@ func ParseUsage(data []byte, now time.Time) (u Usage, ok, ambiguous bool) {
 	for _, k := range []string{"five_hour_pct", "seven_day_pct"} {
 		if _, st := pyNum(m[k]); st == "overflow" {
 			return Usage{}, false, false // the OverflowError escapes _pct_field into the retry
+		}
+	}
+	for _, k := range []string{"five_hour_resets_at", "seven_day_resets_at"} {
+		if _, st := pyNum(m[k]); st == "overflow" {
+			return Usage{}, false, true // _epoch raises OverflowError in Python
 		}
 	}
 	five, seven := pctField(m["five_hour_pct"]), pctField(m["seven_day_pct"])
