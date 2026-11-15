@@ -1,9 +1,12 @@
 package guard
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Mirror of tests/test_worker_guard_hc_parity.py, one to one, same order.
-// Counts: worker-block 49, worker-allow 7, HQ-allow 4, HQ-priv 2.
+// Counts: worker-block 49, worker-allow 7, HQ-allow 1, HQ-block 4, HQ-priv 2.
 
 var hcWorkerBlock = []string{
 	"hc server stop",
@@ -68,6 +71,10 @@ var hcWorkerAllow = []string{
 }
 
 var hcHQAllow = []string{
+	"hc ls",
+}
+
+var hcHQBlock = []string{
 	"herdr server stop",
 	"hc server stop",
 	"herdr-core server stop",
@@ -101,6 +108,13 @@ func TestHcParity(t *testing.T) {
 		for _, cmd := range hcHQAllow {
 			if err := Check(cmd, "", "", true); err != nil {
 				t.Errorf("hq %q: %v", cmd, err)
+			}
+		}
+	})
+	t.Run("hq-block", func(t *testing.T) {
+		for _, cmd := range hcHQBlock {
+			if err := Check(cmd, "", "", true); err == nil || !strings.Contains(Explain(err), "HQ deny rule") {
+				t.Errorf("hq block %q: %v", cmd, err)
 			}
 		}
 	})
