@@ -1,0 +1,10 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# s2cli batch (T-1490). The Python count is the number of cases of the module that have a Go port; the cases left
+# on the Python side are listed as "not ported" in the header comment of each Go file (test_flags, test_config_check
+# are complete: 15 of 15 and 7 of 7). Full Python case counts: test_smoke 5, test_db_layout 30, test_dequeue 37,
+# test_relaunch_idle 18, test_stop 27, test_worker_gate 11, test_resume (see the PR body).
+tests/test_flags.py 15 -> internal/factorytest/s2cli:TestFlags 15
+tests/test_smoke.py 5 -> internal/factorytest/s2cli:TestSmoke 5
+tests/test_config_check.py 7 -> internal/factorytest/s2cli:TestConfigCheck 7
+tests/test_db_layout.py 18 -> internal/factorytest/s2cli:TestDBLayout 18
+tests/test_dequeue.py 7 -> internal/factorytest/s2cli:TestDequeue 7
