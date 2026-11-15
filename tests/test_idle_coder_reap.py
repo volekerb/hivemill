@@ -363,8 +363,9 @@ class WatchdogBase(FactoryTestCase):
     def cursor_transcript(self, name, minutes, lines):
         ws = json.loads(self.row(name)["spawn_args"]).get("cursor_workspace") or self.row(name)["cwd"]
         d = self.env.user_home / ".cursor" / "projects" / re.sub(r"[^A-Za-z0-9]+", "-", ws).strip("-") / "agent-transcripts"
+        d = d / "run-1"  # the real layout (T-1621): agent-transcripts/<ID>/<ID>.jsonl
         d.mkdir(parents=True, exist_ok=True)
-        f = d / "run.jsonl"
+        f = d / "run-1.jsonl"
         f.write_text("".join(json.dumps(x) + "\n" for x in lines))
         os.utime(f, (self.epoch(minutes), self.epoch(minutes)))
 
@@ -524,6 +525,12 @@ class WatchdogCursor(WatchdogBase):
         al = self.alerts(name)
         self.assertEqual([a["recipient"] for a in al], ["cursor-director"])
         self.assertIn(err, al[0]["body"])
+
+    def test_error_text_under_an_unknown_key_is_still_quoted(self):
+        name = self.spawn(cursor=True)
+        self.cursor_transcript(name, 1, [{"type": "turn_ended", "status": "error", "detail": "usage cap reached"}])
+        self.tick(2)
+        self.assertIn("usage cap reached", self.alerts(name)[0]["body"])
 
     def test_hold_with_an_ended_turn_is_alerted_not_nudged(self):
         name = self.spawn(cursor=True)

@@ -8959,7 +8959,7 @@ def _turn_ended(o):
     """(status, error text) when transcript line `o` is a turn_ended line, else None."""
     if not isinstance(o, dict) or o.get("type") != "turn_ended":
         return None
-    err = o.get("error") or o.get("message") or ""
+    err = o.get("error") or o.get("message") or o.get("text") or json.dumps(o)  # the key is not documented: keep the line
     return str(o.get("status") or o.get("subtype") or "").lower(), (err if isinstance(err, str) else json.dumps(err))[:500]
 
 
