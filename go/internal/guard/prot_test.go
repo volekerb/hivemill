@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // T-0925: the protected trees for workers (tests/test_worker_guard_prot_trees.py is the behaviour contract; this runs
@@ -220,6 +221,26 @@ func TestGoToolchainForWorkers(t *testing.T) {
 			if err := Check(c, wt, role, false); err != nil {
 				t.Errorf("%s: %q: unchanged roles must still be allowed, got %v", role, c, err)
 			}
+		}
+	}
+}
+
+// T-1498 N11: an empty go subcommand word (an empty quoted word after go) once looped forever in the Go port; the refusal must come back.
+func TestGoEmptySubcommandReturns(t *testing.T) {
+	_, wt, _ := protFixture(t)
+	g := "~/.local/go/bin/"
+	for _, c := range []string{g + "go ''", g + `go ""`, g + `go "" test ./...`, g + "go '' test", g + "go -C . ''"} {
+		done := make(chan error, 1)
+		go func() { done <- Check(c, wt, "coder", false) }()
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Errorf("%q: expected a block", c)
+			} else if !strings.Contains(err.Error(), "is not allowed") {
+				t.Errorf("%q: expected the `go  is not allowed` refusal, got %v", c, err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%q: Check did not return within 2s (empty subcommand loop)", c)
 		}
 	}
 }

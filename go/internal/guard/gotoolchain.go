@@ -283,9 +283,9 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 		}
 		return nil
 	}
-	sub, k := "", 0
+	sub, k, found := "", 0, false
 	var pre []tcFlag
-	for k < len(args) && sub == "" {
+	for k < len(args) && !found {
 		w := args[k]
 		switch {
 		case w == "-C" || w == "--C":
@@ -301,11 +301,11 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 		case strings.HasPrefix(w, "-") && w != "-":
 			return block(w + " before the subcommand (only -C may come there)")
 		default:
-			sub = w
+			sub, found = w, true
 		}
 	}
 	tbl, ok := tcSubFlags[sub]
-	if sub == "" || !ok {
+	if !found || sub == "" || !ok {
 		return block("`go " + sub + "` is not allowed")
 	}
 	flags, pos, err := parse(args[k+1:], tbl, sub != "test")
