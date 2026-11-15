@@ -165,7 +165,8 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("timeout-minutes: 30", shard)
         fan = self.wf.split("\n  guard-unittest:\n", 1)[1].split("\n  guard-diff:\n", 1)[0]
         self.assertIn("name: guard-unittest\n", fan)
-        self.assertIn("if: always()", fan)
+        self.assertIn("always()", fan)
+        self.assertIn("needs.ci-tier.outputs.mode != 'docs'", fan)
         self.assertIn('"$SHARD_RESULT" != "success"', fan)
 
 
