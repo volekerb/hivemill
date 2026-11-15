@@ -3,8 +3,11 @@ package install
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -320,5 +323,17 @@ func TestMemGiBReadsProc(t *testing.T) {
 	}
 	if g, err := (&OSHost{}).MemGiB(); err != nil || g <= 0 {
 		t.Errorf("mem = %v, %v", g, err)
+	}
+}
+
+// A read that ends cleanly while the idle timer has cancelled the request is a timeout, never a complete body.
+func TestIdleReaderCancelledReadIsTimeout(t *testing.T) {
+	for name, src := range map[string]io.Reader{"eof": strings.NewReader(""), "data": strings.NewReader("x")} {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		r := &idleReader{r: src, t: time.NewTimer(time.Hour), d: time.Hour, ctx: ctx}
+		if _, err := r.Read(make([]byte, 4)); !errors.Is(err, context.Canceled) {
+			t.Errorf("%s: err = %v, want context.Canceled", name, err)
+		}
 	}
 }

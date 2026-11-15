@@ -294,7 +294,7 @@ func (i *idleReader) Read(p []byte) (int, error) {
 	n, err := i.r.Read(p)
 	// The idle timer cancels ctx. A cancelled connection can surface as a clean EOF, so a read that ends while ctx is
 	// cancelled is reported as the timeout it was, never as a complete body.
-	if cerr := i.ctx.Err(); cerr != nil && (err == nil || err == io.EOF) {
+	if cerr := i.ctx.Err(); cerr != nil && (err == nil || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) {
 		return n, cerr
 	}
 	i.t.Reset(i.d)
