@@ -725,6 +725,7 @@ class ClaudeGuardTests(unittest.TestCase):
                 added = {"Advisor", "Bash(claude:*)", "Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)", "Bash(pkexec:*)",
                          "Bash(docker:*)", "Edit(/@FACTORY_LIVE_HOME@/db/**)", "Write(/@FACTORY_LIVE_HOME@/db/**)",  # T-A
                          "Edit(/@FACTORY_LIVE_HOME@/run/settings/**)", "Write(/@FACTORY_LIVE_HOME@/run/settings/**)"}  # T-B2
+                added |= {f"Bash({c}:*)" for c in ("hc server stop", "herdr-core server stop", "hc kill", "hc rm", "hc run")}  # T-1446
                 added |= {f"{t}(/@FACTORY_LIVE_HOME@/run/guard-export.json*)"
                           for t in ("Edit", "Write", "MultiEdit", "NotebookEdit")}  # T-0883
                 self.assertEqual([x for x in tdeny if x not in added], [x for x in old if x not in added])
