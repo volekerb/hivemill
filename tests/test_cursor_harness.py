@@ -123,6 +123,14 @@ class PromptV2Tests(unittest.TestCase):
         for role in ("boss", "director", "lead", "evaluator"):
             self.assertIsNone(self.h.kickoff_v2(role, "x", "G-001", None, None, None))
 
+    def test_kickoff_v2_coder_without_task_gets_loop_contract_and_no_task_commands(self):
+        k = self.h.kickoff_v2("coder", "cursor-coder-x", "G-001", None, None, None)
+        self.assertIn("the factory coder.", k)
+        self.assertIn("Do not end your turn until `factory done` has succeeded", k)
+        self.assertIn("Goal context: `factory goal show G-001`.", k)
+        for no_id in ("git push origin HEAD", "factory pr create", "factory task show", "None"):
+            self.assertNotIn(no_id, k)
+
     def test_cursor_coder_prompt_file_rules(self):
         text = (REPO / "roles" / "cursor" / "coder.md").read_text()
         old = (REPO / "roles" / "_common.md").read_text() + (REPO / "roles" / "coder.md").read_text()
