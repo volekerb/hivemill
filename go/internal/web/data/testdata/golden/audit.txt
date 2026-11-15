@@ -1,0 +1,10 @@
+G-001-T-2 session=s-t2 advisor_calls=1 fable_messages=0 advisor_models=claude-fable-5-2,claude-opus-5-5 FLAGGED=claude-fable-5-2
+    advisor at: 2026-11-14T10:08:00Z
+G-002-T-11 session=unattr advisor_calls=1 fable_messages=1 advisor_models=-
+    advisor at: 2026-11-09T10:00:00Z
+    fable at: 2026-11-09T10:00:00Z
+a session=x advisor_calls=0 fable_messages=1 advisor_models=-
+    fable at: 2026-11-01T00:00:00Z
+a-b session=y advisor_calls=0 fable_messages=1 advisor_models=-
+    fable at: 2026-11-02T00:00:00Z
+total: 4 sessions, advisor_calls=2, fable_messages=3
