@@ -6,6 +6,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+
 from guard_impl import hook_run
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # T-0212
@@ -56,6 +58,15 @@ class GitGuardBase(unittest.TestCase):
     def allowed(self, cmd, **kw):
         p = self.run_hook(cmd, **kw)
         self.assertEqual(p.returncode, 0, f"should allow: {cmd!r}\n{p.stderr}")
+
+    def blocked_python_hook(self, cmd, **kw):
+        """T-0330: assert against roles/hooks/worker-guard.py only (not the Go port)."""
+        with mock.patch.dict(os.environ, {"GUARD_IMPL": "python"}, clear=False):
+            self.blocked(cmd, **kw)
+
+    def allowed_python_hook(self, cmd, **kw):
+        with mock.patch.dict(os.environ, {"GUARD_IMPL": "python"}, clear=False):
+            self.allowed(cmd, **kw)
 
 
 class SharedCheckoutTests(GitGuardBase):
@@ -208,7 +219,7 @@ class ArchiveInitTests(GitGuardBase):
         h, s = self.home, self.scratch
         for cmd in ("git archive -o %s/x.tar HEAD" % h, "git init %s/r" % h, "git archive --output=%s/x HEAD" % h):
             with self.subTest(cmd=cmd):
-                self.blocked(cmd, cwd=self.wt)
+                self.blocked_python_hook(cmd, cwd=self.wt)
 
     def test_archive_init_shared_refused_from_scratch_cwd(self):
         """T-0330: same rule from a scratchpad cwd (not the shared checkout)."""
@@ -220,14 +231,39 @@ class ArchiveInitTests(GitGuardBase):
                     "git archive -o %s HEAD" % rel_out,
                     "git init %s/r" % h):
             with self.subTest(cmd=cmd):
-                self.blocked(cmd, cwd=s)
+                self.blocked_python_hook(cmd, cwd=s)
 
     def test_archive_init_scratch_still_allowed_from_worktree(self):
         """T-0330: scratchpad targets stay allowed from the worktree cwd."""
         s = self.scratch
-        self.allowed("git archive -o %s/x.tar HEAD" % s, cwd=self.wt)
-        self.allowed("git init %s/r" % s, cwd=self.wt)
-        self.allowed("git archive HEAD | tar -x -C %s" % s, cwd=self.wt)
+        self.allowed_python_hook("git archive -o %s/x.tar HEAD" % s, cwd=self.wt)
+        self.allowed_python_hook("git init %s/r" % s, cwd=self.wt)
+        self.allowed_python_hook("git archive HEAD | tar -x -C %s" % s, cwd=self.wt)
+
+    def test_archive_init_shared_origin_main_python_allows_non_shared_cwd(self):
+        """T-0330 AC8: origin/main's Python hook still allows writing into the shared checkout from another cwd."""
+        h, s = self.home, self.scratch
+        show = subprocess.run(["git", "-C", ROOT, "show", "origin/main:roles/hooks/worker-guard.py"],
+                              capture_output=True, text=True, check=True, timeout=60)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(show.stdout)
+            main_hook = f.name
+        self.addCleanup(os.unlink, main_hook)
+        os.chmod(main_hook, 0o755)
+        env = {k: v for k, v in os.environ.items() if k != "WORKER_GUARD_LIVE_HOME"}
+        env.update(HOME=self.tmp, FACTORY_HOME=self.home, FACTORY_AGENT="coder-t-7",
+                   WORKER_GUARD_LIVE_HOME=self.home, WORKER_GUARD_SCRATCH=s)
+
+        def rc(cmd, cwd):
+            payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd})
+            return subprocess.run([sys.executable, main_hook, "--role", "coder"], input=payload, capture_output=True,
+                                  text=True, env=env, cwd=cwd, timeout=30).returncode
+
+        for cmd in ("git archive -o %s/x.tar HEAD" % h, "git init %s/r" % h):
+            with self.subTest(cmd=cmd, cwd="scratch"):
+                self.assertEqual(rc(cmd, s), 0, cmd)
+            with self.subTest(cmd=cmd, cwd="worktree"):
+                self.assertEqual(rc(cmd, self.wt), 0, cmd)
 
 
 class WorktreeTests(GitGuardBase):
