@@ -241,6 +241,25 @@ func TestHerdrExistingPane(t *testing.T) {
 	}
 }
 
+// TestUnknownPaneHandsOverFirst: an unknown pane hands over to Python with no settings file, host call or row (M36655).
+func TestUnknownPaneHandsOverFirst(t *testing.T) {
+	dir := t.TempDir()
+	db, h := newExecDB(t), &fakeHost{startRes: map[string]any{}}
+	d := deps(db, h, &bytes.Buffer{})
+	d.HostExe, d.Pane = "herdr", "p-9"
+	d.FindPane = func(string) (string, string, bool) { return "", "", false }
+	pl := startPlan(t, dir)
+	if _, err := Exec(pl, d); !errors.Is(err, ErrNotPorted) {
+		t.Fatalf("err %v, want ErrNotPorted", err)
+	}
+	if _, err := os.Stat(pl.Start.SettingsPath); !os.IsNotExist(err) {
+		t.Errorf("settings file written before hand-over: %v", err)
+	}
+	if len(h.calls) != 0 || count(t, db, "SELECT count(*) FROM agents") != 0 {
+		t.Errorf("side effects before hand-over: calls %v", h.calls)
+	}
+}
+
 // TestSandboxSpawn: --sandbox, a sandbox_required task and the gh credential are never started by Go; the whole spawn
 // goes to Python (the sandbox entry is workerbox.prepare_agent, in-process Python) before any file, row or host call.
 func TestSandboxSpawn(t *testing.T) {

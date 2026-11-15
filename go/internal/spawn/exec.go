@@ -319,6 +319,18 @@ func Exec(plan SpawnPlan, d ExecDeps) (string, error) {
 
 func execStart(plan SpawnPlan, d ExecDeps) (string, error) {
 	st, name, role := plan.Start, plan.Name, plan.Role
+	hc := d.HostExe == "hc"
+	var ws, tab, pane string
+	if hc {
+		pane = name // place(): hc has no workspace or tab
+	} else {
+		// look the pane up first: an unknown pane hands over to Python before any side effect (M36655)
+		w, t, ok := d.FindPane(d.Pane)
+		if !ok {
+			return "", ErrNotPorted
+		}
+		ws, tab, pane = w, t, d.Pane
+	}
 	// every launch re-renders the settings, before any worktree, pane or row exists
 	if err := writeAtomic(st.SettingsPath, st.SettingsText); err != nil {
 		return "", fmt.Errorf("render settings for %s: %w", role, err)
@@ -340,16 +352,7 @@ func execStart(plan SpawnPlan, d ExecDeps) (string, error) {
 		}
 	}
 	env := st.Env
-	var ws, tab, pane string
-	hc := d.HostExe == "hc"
-	if hc {
-		pane = name // place(): hc has no workspace or tab
-	} else {
-		w, t, ok := d.FindPane(d.Pane)
-		if !ok {
-			return "", ErrNotPorted
-		}
-		ws, tab, pane = w, t, d.Pane
+	if !hc {
 		if _, err := d.Host.Herdr(true, "pane", "run", pane, exportCmd(env[:st.EnvBase])+" && cd "+shellQuote(cwd)+" && clear"); err != nil {
 			return "", fmt.Errorf("export env in pane %s: %w", pane, err)
 		}
