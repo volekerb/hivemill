@@ -218,6 +218,14 @@ func TestTaskTierStoredValueOutsideTiersDelegates(t *testing.T) {
 	if code, out, _ := e.run("claude-lead", "T-0001"); code != 0 || out != "T7\n" { // show prints what is stored
 		t.Fatalf("show: %d %q", code, out)
 	}
+	e.repo()
+	for _, argv := range [][]string{{"T-0001", "T3"}, {"T-0001", "--classify", "--base", "main", "--head", "small"}} {
+		e.execs = nil
+		e.run("claude-lead", argv...)
+		if len(e.execs) != 1 || e.tier("T-0001") != "T7" || len(e.events()) != 0 {
+			t.Errorf("%v: execs %v tier %s events %v", argv, e.execs, e.tier("T-0001"), e.events())
+		}
+	}
 }
 
 // tierRepo makes HOME a git repo: main has src/a.txt, branch "small" changes one line, "big" adds 700 lines, "guard"

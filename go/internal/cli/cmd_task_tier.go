@@ -211,6 +211,9 @@ func runTaskTier(c *ctx, p any) (int, error) {
 			}
 		}
 	}
+	if old != "" && taskTierIndex(old) < 0 {
+		return 0, errDelegate // Python's max_tier raises on a stored value outside T0..T3 (the raise path too)
+	}
 	top := risktier.MaxTier(old, newTier)
 	if top != old {
 		if _, err := c.exec("UPDATE tasks SET tier=?, updated=? WHERE id=?", top, eventTS(c), a.id); err != nil {
