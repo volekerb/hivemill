@@ -1519,6 +1519,16 @@ def tc_bool_on(v):
 TC_PROFILE_FLAGS = {"cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "coverprofile"}
 
 
+TC_EXPANDS = re.compile(r"[$`*?\[{]")
+
+
+def tc_expands(w):
+    """N9/N10: True when the shell could expand or split word `w` into something else: a `$`, a backtick, a glob character
+    or a brace, or a `~` that is not the whole word or a `~/` prefix. Words reach the guard already dequoted, so a quoted
+    literal such as '*' cannot be told apart and is refused too (default deny)."""
+    return bool(TC_EXPANDS.search(w)) or ("~" in w and w != "~" and (not w.startswith("~/") or "~" in w[1:]))
+
+
 def tc_parse(words, tbl, dd="end"):
     """T-1498: ([(name, value|None)], positionals) of `words` against (bool flags, value flags). ValueError(word) on any flag
     that is not in the table, on `-args`, and on a value flag with no value. A value flag consumes the next word whatever it
@@ -1527,6 +1537,9 @@ def tc_parse(words, tbl, dd="end"):
     or is refused (dd="block": `go test` hands everything after it to the test binary, GOFLAGS refuses it). Nothing is
     dropped before the parse."""
     bools, vals = tbl
+    for w in words:
+        if tc_expands(w):
+            raise ValueError(w + " (an expansion or glob in a word cannot be classified)")
     flags, pos, k = [], [], 0
     while k < len(words):
         w = words[k]
@@ -1538,8 +1551,8 @@ def tc_parse(words, tbl, dd="end"):
             break
         m = re.match(r"^--?([^=\s-][^=\s]*)(=(.*))?\Z", w, re.S)
         if not m:
-            if (w.startswith("-") and w != "-") or w.startswith(("$", "{")) or "`" in w:
-                raise ValueError(w)  # a word the shell can expand into a flag (dollar-quote, ${X}-o, brace list) cannot be classified
+            if w.startswith("-") and w != "-":
+                raise ValueError(w)
             pos.append(w)
             continue
         name = re.sub(r"^test\.", "", m.group(1))

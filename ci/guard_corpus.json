@@ -20344,6 +20344,81 @@
       "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
       "cmd": "~/.local/go/bin/go test $'-exec' /tmp/x ./x",
       "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x$X",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "X=' -o ~/.local/lib/factory/w'; ~/.local/go/bin/go test -c ./x$X",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "bash -c 'X=\" -o ~/.local/lib/factory/x\"; ~/.local/go/bin/go test -c ./x$X'",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "X=' -exec /tmp/x'; ~/.local/go/bin/go test ./x$X",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c -run $X ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c -run a$X ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go build -tags $X ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x [-]o ~/.local/lib/factory/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x [-]exec /tmp/e",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x [-]pkgdir ~/.local/go/pkg",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test ./x [-]toolexec=/tmp/e",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x *o ~/.local/lib/factory/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x ?o ~/.local/lib/factory/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test ./x a~b",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test ./x ~user/y",
+      "role": "coder"
     }
   ],
   "must_allow": [
@@ -25191,6 +25266,11 @@
     {
       "note": "T-1498: Go toolchain flag allow-list (allowed)",
       "cmd": "~/.local/go/bin/gofmt -l -s -d .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5: plain positionals and a ~/ path still pass the default-deny word check",
+      "cmd": "~/.local/go/bin/go build ./x ./y/...",
       "role": "coder"
     }
   ]

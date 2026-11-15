@@ -177,7 +177,23 @@ func TestGoToolchainForWorkers(t *testing.T) {
 		pt+"go test -test.blockprofile /dev/null", pt+"go test -mutexprofile /dev/null", pt+"go test -trace /dev/null",
 		pt+"go test -coverprofile /dev/null", g+"go build $'-o' ~/.local/lib/factory/factory-go ./x", g+"go build ${X}-o ~/.local/lib/factory/factory-go ./x",
 		g+"go test $'-exec' /tmp/x ./x", g+"go build $'-toolexec=/tmp/x' ./x")
-	allow = append(allow, g+"go vet -- ./...", g+"go test -cpuprofile /dev/null ./...", g+"go build -tags x -- ./...")
+	// T-1498 review round 5 (N9, N10): any word holding an expansion or glob is refused (default deny, once in tcParse)
+	block = append(block, g+"go test -c ./x$X",
+		"X=' -o ~/.local/lib/factory/w'; "+g+"go test -c ./x$X",
+		"bash -c 'X=\" -o ~/.local/lib/factory/x\"; "+g+"go test -c ./x$X'",
+		"X=' -exec /tmp/x'; "+g+"go test ./x$X",
+		g+"go test -c -run $X ./x",
+		g+"go test -c -run a$X ./x",
+		g+"go build -tags $X ./x",
+		g+"go test -c ./x [-]o ~/.local/lib/factory/x",
+		g+"go test -c ./x [-]exec /tmp/e",
+		g+"go test -c ./x [-]pkgdir ~/.local/go/pkg",
+		g+"go test ./x [-]toolexec=/tmp/e",
+		g+"go test -c ./x *o ~/.local/lib/factory/x",
+		g+"go test -c ./x ?o ~/.local/lib/factory/x",
+		g+"go test ./x a~b",
+		g+"go test ./x ~user/y")
+	allow = append(allow, g+"go build ./x ./y/...", g+"go vet -- ./...", g+"go test -cpuprofile /dev/null ./...", g+"go build -tags x -- ./...")
 	allow = append(allow, g+"go fmt ./pkg", g+"go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off "+g+"go list -m foo@latest", g+"go list -m all")
 	for _, role := range []string{"coder", "qa", "reviewer"} {
 		for _, c := range allow {

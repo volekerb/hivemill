@@ -699,6 +699,30 @@ class GoToolchainForWorkers(ProtTreesCase):
             for cmd in (self.G + "go vet -- ./...", self.G + "go test -cpuprofile /dev/null ./...", self.G + "go build -tags x -- ./..."):
                 self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
 
+    def test_review_round5_n9_n10_expansions_and_globs_blocked(self):
+        # N9: an unquoted $ inside a word (positional, flag or flag value) is word-split by bash; N10: a glob such as [-]o expands to a
+        # flag after `touch ./-o`. Default deny for every word of a go/gofmt command, once in tc_parse.
+        cmds = [
+            self.G + "go test -c ./x$X",
+            "X=' -o ~/.local/lib/factory/w'; "+self.G+"go test -c ./x$X",
+            "bash -c 'X=\" -o ~/.local/lib/factory/x\"; "+self.G+"go test -c ./x$X'",
+            "X=' -exec /tmp/x'; "+self.G+"go test ./x$X",
+            self.G + "go test -c -run $X ./x",
+            self.G + "go test -c -run a$X ./x",
+            self.G + "go build -tags $X ./x",
+            self.G + "go test -c ./x [-]o ~/.local/lib/factory/x",
+            self.G + "go test -c ./x [-]exec /tmp/e",
+            self.G + "go test -c ./x [-]pkgdir ~/.local/go/pkg",
+            self.G + "go test ./x [-]toolexec=/tmp/e",
+            self.G + "go test -c ./x *o ~/.local/lib/factory/x",
+            self.G + "go test -c ./x ?o ~/.local/lib/factory/x",
+            self.G + "go test ./x a~b",
+            self.G + "go test ./x ~user/y"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")
+            self.assertEqual(run(self.G + "go build ./x ./y/...", "wt", role=role).returncode, 0, role)
+
     def test_self_review_round3_flags_and_import_paths(self):
         # -ldflags/-gcflags values hold compiler flags (-tmpdir, -cpuprofile, -extld): not in the table; go fmt / -fuzz on an import
         # path (std) would write into GOROOT; go list -m mod@query hits the proxy

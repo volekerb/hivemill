@@ -65,6 +65,12 @@ var tcProfileFlags = set("cpuprofile", "memprofile", "blockprofile", "mutexprofi
 
 var reTcParse = regexp.MustCompile(`(?s)^--?([^=\s-][^=\s]*)(=(.*))?$`)
 
+// tcExpands is tc_expands: true when the shell could expand or split w (a `$`, a backtick, a glob character, a brace, or a
+// `~` that is not the whole word or a `~/` prefix). Words arrive dequoted, so a quoted literal is refused too (default deny).
+func tcExpands(w string) bool {
+	return strings.ContainsAny(w, "$`*?[{") || (strings.Contains(w, "~") && w != "~" && (!strings.HasPrefix(w, "~/") || strings.Contains(w[1:], "~")))
+}
+
 // tcParse is tc_parse: the flags and positionals of words against tbl. An error names the first word that is not in the
 // table (including -args) or a value flag with no value. A value flag consumes the next word whatever it looks like.
 // A value flag consumes the next word including `--` (flag.go does); a bare `--` at flag position ends the flags
@@ -72,6 +78,11 @@ var reTcParse = regexp.MustCompile(`(?s)^--?([^=\s-][^=\s]*)(=(.*))?$`)
 func tcParse(words []string, tbl tcTable, ddEnd bool) ([]tcFlag, []string, string) {
 	var flags []tcFlag
 	var pos []string
+	for _, w := range words {
+		if tcExpands(w) {
+			return nil, nil, w + " (an expansion or glob in a word cannot be classified)"
+		}
+	}
 	for k := 0; k < len(words); {
 		w := words[k]
 		k++
@@ -84,8 +95,8 @@ func tcParse(words []string, tbl tcTable, ddEnd bool) ([]tcFlag, []string, strin
 		}
 		m := reTcParse.FindStringSubmatch(w)
 		if m == nil {
-			if (strings.HasPrefix(w, "-") && w != "-") || strings.HasPrefix(w, "$") || strings.HasPrefix(w, "{") || strings.Contains(w, "`") {
-				return nil, nil, w // a word the shell can expand into a flag cannot be classified
+			if strings.HasPrefix(w, "-") && w != "-" {
+				return nil, nil, w
 			}
 			pos = append(pos, w)
 			continue
