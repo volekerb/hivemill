@@ -66,6 +66,19 @@ describe("config.mjs validation (every rejection is exit 3 and names the field)"
     ["testerGroup empty array", { testerGroup: [] }, "testerGroup"],
     ["testerGroup with duplicates", { testerGroup: ["A", "A"] }, "testerGroup"],
     ["testerGroup with a non-string", { testerGroup: ["A", 3] }, "testerGroup"],
+    ["testerGroup entry with an unknown key", { testerGroup: [{ id: "g1", extra: 1 }] }, "testerGroup entry 0"],
+    ["testerGroup unknown key without id", { testerGroup: ["A", { name: "B", internal: true, extra: 1 }] }, "testerGroup entry 1"],
+    ["testerGroup name without internal", { testerGroup: [{ name: "A" }] }, "testerGroup entry 0"],
+    ["testerGroup internal without name", { testerGroup: [{ internal: true }] }, "testerGroup entry 0"],
+    ["testerGroup id with another key", { testerGroup: [{ id: "g1", name: "A" }] }, "testerGroup entry 0"],
+    ["testerGroup internal not a boolean", { testerGroup: [{ name: "A", internal: "true" }] }, "testerGroup entry 0"],
+    ["testerGroup empty id", { testerGroup: [{ id: "" }] }, "testerGroup entry 0"],
+    ["testerGroup id with a bad character", { testerGroup: [{ id: "a b" }] }, "testerGroup entry 0"],
+    ["testerGroup id longer than 64", { testerGroup: [{ id: "a".repeat(65) }] }, "testerGroup entry 0"],
+    ["testerGroup empty name", { testerGroup: [{ name: "", internal: true }] }, "testerGroup entry 0"],
+    ["testerGroup empty string entry", { testerGroup: [""] }, "testerGroup entry 0"],
+    ["testerGroup duplicate id", { testerGroup: [{ id: "g1" }, { id: "g1" }] }, "duplicate"],
+    ["testerGroup duplicate name+internal", { testerGroup: [{ name: "A", internal: true }, { name: "A", internal: true }] }, "duplicate"],
     ["forbiddenWorktrees with a relative entry", { forbiddenWorktrees: ["../x"] }, "forbiddenWorktrees"],
     ["bundleId that is not reverse-DNS", { bundleId: "nodots" }, "bundleId"],
     ["workspace without the .xcworkspace suffix", { project: undefined, workspace: "a.xcodeproj" }, "workspace"],
@@ -163,5 +176,31 @@ describe("config.mjs CLI", () => {
   it("--help documents the helper commands", () => {
     const out = execFileSync("node", [CONFIG, "--help"], { encoding: "utf8" });
     for (const w of ["gate-count", "get-gate", "marketing-version", "notes-path", "check-forbidden"]) assert.ok(out.includes(w), w);
+  });
+
+  describe("testerGroup entry forms", () => {
+    const ok = (tg) => validate({ ...base(), testerGroup: tg }, { home: "/h" }).testerGroup;
+    it("accepts a string, a list of strings, an id object, a name+internal object and a mixed list", () => {
+      assert.deepEqual(ok("A"), ["A"]);
+      assert.deepEqual(ok(["A", "B"]), ["A", "B"]);
+      assert.deepEqual(ok({ id: "00000000-0000-0000-0000-000000000000" }), [{ id: "00000000-0000-0000-0000-000000000000" }]);
+      assert.deepEqual(ok({ name: "A", internal: false }), [{ name: "A", internal: false }]);
+      assert.equal(ok(["A", { id: "g-1" }, { name: "A", internal: true }]).length, 3);
+    });
+    it("allows a name string and a name+internal entry with the same name, and the same name with different internal", () => {
+      assert.equal(ok(["A", { name: "A", internal: true }, { name: "A", internal: false }]).length, 3);
+    });
+    it("names the entry index for an invalid entry and says duplicate for a repeated selector", () => {
+      assert.throws(() => ok(["A", { name: "B" }]), (e) => e.code === 3 && /testerGroup entry 1/.test(e.message));
+      assert.throws(() => ok(["A", "A"]), (e) => e.code === 3 && /duplicate/.test(e.message));
+    });
+    it("get testerGroup.selectors prints kind, value, internal as NUL-terminated items per entry", () => {
+      const f = writeCfg({ ...base(), testerGroup: ["Plain", { id: "g-1" }, { name: "Both", internal: true }, { name: "Both", internal: false }] });
+      assert.equal(cli(["get", "--config", f, "testerGroup.selectors"]).stdout, "name\0Plain\0\0id\0g-1\0\0name-internal\0Both\0true\0name-internal\0Both\0false\0");
+    });
+    it("get testerGroup exits 2 when an entry is not a plain name", () => {
+      const f = writeCfg({ ...base(), testerGroup: [{ id: "g-1" }] });
+      assert.equal(cli(["get", "--config", f, "testerGroup"]).status, 2);
+    });
   });
 });
