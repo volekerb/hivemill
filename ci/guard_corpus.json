@@ -19313,6 +19313,36 @@
       "note": "T-1142: T-0908 coder git runners (mirror Go guard)",
       "cmd": "git bisect run pytest -q",
       "role": "coder"
+    },
+    {
+      "note": "T-0336: non-coders must not merge",
+      "cmd": "git merge origin/main",
+      "role": "judge"
+    },
+    {
+      "note": "T-0336: non-coders must not merge",
+      "cmd": "git merge origin/main",
+      "role": "cleaner"
+    },
+    {
+      "note": "T-0336: non-coders must not commit",
+      "cmd": "git commit -m x",
+      "role": "judge"
+    },
+    {
+      "note": "T-0336: non-coders must not commit",
+      "cmd": "git commit -m x",
+      "role": "cleaner"
+    },
+    {
+      "note": "T-0336: non-coders must not merge",
+      "cmd": "git merge origin/main",
+      "role": "staff-engineer"
+    },
+    {
+      "note": "T-0336: dynamic git subcommand",
+      "cmd": "S=merge; git $S x",
+      "role": "qa"
     }
   ],
   "must_allow": [

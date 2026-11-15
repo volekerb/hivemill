@@ -62,6 +62,10 @@ coder-t-NNNN; optional `git -C <dir>`); any other refspec, remote, URL, force fo
 option, -c override or GIT_CONFIG_* assignment is blocked, as is a push when the task id is unknown.
 T-0743: the hook cwd and any -C target must be the worktree recorded for the task in the factory DB (read-only);
 an unresolvable task/worktree refuses.
+Ref moves (T-0336): every role except coder refuses git commit, merge, rebase, cherry-pick, revert, am, pull, reset,
+update-ref, symbolic-ref and stash (any cwd, worktree or wrapper form); dynamic subcommand words fail closed. Allowed for
+all non-coders: merge-tree, merge-base, commit-tree, fetch and the other read-only subs, worktree add --detach, and the
+cleaner's worktree remove / branch -d forms (T-0057). Coder unchanged.
 """
 import collections
 import fnmatch
@@ -944,13 +948,18 @@ GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec
 GIT_READ_ONLY = {"status", "log", "diff", "show", "rev-parse", "ls-files", "ls-tree", "cat-file", "blame", "grep",
                  "describe", "fetch", "shortlog", "rev-list", "show-ref", "merge-base", "ls-remote",
                  "for-each-ref", "diff-tree", "diff-index", "name-rev", "version", "help"}
+# T-0336: non-coders must not run these (fail closed); coder exempt
+GIT_REF_MOVE_DENY = frozenset({"commit", "merge", "rebase", "cherry-pick", "revert", "am", "pull", "reset",
+                               "update-ref", "symbolic-ref", "stash"})
+REF_MOVE_WHY = ("only coders may create commits or move refs (T-0336); qa/reviewer use merge-tree --write-tree, "
+                "commit-tree and worktree add --detach only; ask your lead")
 BRANCH_LIST_LONG = {"--list", "--all", "--remotes"}
 BRANCH_PLAIN_LONG = {"--show-current", "--verbose", "--ignore-case", "--color", "--no-color", "--column",
                      "--no-column", "--abbrev", "--no-abbrev", "--quiet"}
 BRANCH_VALUE_LONG = {"--contains", "--no-contains", "--merged", "--no-merged", "--points-at", "--sort", "--format"}
 # T-0755: read-only git allow-list for NO_PUSH_ROLES (git_allow); anything not listed fails closed
 GIT_OPTS_ALLOWED = {"-P", "--no-pager", "--no-optional-locks", "--version", "--help"}
-GIT_ALLOW_PLAIN = (GIT_READ_ONLY - {"fetch", "ls-remote"}) | {"merge-tree"}
+GIT_ALLOW_PLAIN = (GIT_READ_ONLY - {"fetch", "ls-remote"}) | {"merge-tree", "commit-tree"}
 GIT_FORBID_LONG = ("--ext-diff", "--output")
 GIT_CONFIG_READ_ONLY = {"--get", "--get-all", "--get-regexp", "--list", "-l"}
 GIT_FETCH_FLAGS = {"--all", "--prune", "-p", "--tags", "-t", "--no-tags", "-q", "--quiet", "-v", "--verbose", "-n",
@@ -3967,6 +3976,55 @@ class Analyzer:
             return args[:1] == ["-d"] and len(args) > 1 and not any(a.startswith("-") for a in args[1:])
         return False
 
+    @staticmethod
+    def git_worktree_detach_add(args):
+        """T-0336: worktree add --detach (object id only; no branch ref move)."""
+        if not args or args[0] != "add":
+            return False
+        return any(a == "--detach" or a.startswith("--detach=") for a in args[1:])
+
+    def git_ref_move_exempt(self, sub, args):
+        if sub in GIT_READ_ONLY or sub in ("merge-tree", "merge-base", "commit-tree"):
+            return True
+        if sub == "worktree" and self.git_worktree_detach_add(args):
+            return True
+        if self.role == "cleaner" and self.git_cleaner_ok(sub, args):
+            return True
+        return False
+
+    def git_ref_move(self, rest):
+        """T-0336: non-coders refuse git forms that create commits or move refs."""
+        if self.role == "coder" or self.hq:
+            return
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            o = rest[i]
+            if is_dynamic(o, True):
+                raise Block(f"{REF_MOVE_WHY} (dynamic word {o!r} before the subcommand)")
+            if o in GIT_VALUE_OPTS and i + 1 < len(rest):
+                if is_dynamic(rest[i + 1], True):
+                    raise Block(f"{REF_MOVE_WHY} (dynamic word before the subcommand)")
+                i += 2
+                continue
+            if o.startswith("--git-dir=") or o.startswith("--work-tree=") or o.startswith("-c") \
+                    or o.startswith("--config-env"):
+                i += 1
+                continue
+            if o in GIT_OPTS_ALLOWED:
+                i += 1
+                continue
+            i += 1
+        if i >= len(rest):
+            return
+        sub, args = rest[i], rest[i + 1:]
+        if is_dynamic(sub, True) or GLOB.search(sub) or "{" in sub:
+            raise Block(f"{REF_MOVE_WHY} (the subcommand word {sub!r} is dynamic)")
+        if self.git_ref_move_exempt(sub, args):
+            return
+        if sub in GIT_REF_MOVE_DENY:
+            shown = " ".join(["git", sub, *args])
+            raise Block(f"`{shown[:72]}`: {REF_MOVE_WHY}")
+
     def git_delete(self, rest):
         """Branch deletion (T-0057): every worker role is refused; --role cleaner may delete only factory/* branches
         (local `git branch -d/-D/--delete`, remote `git push <remote> --delete|-d|:<ref>`); its other pushes are refused."""
@@ -4229,7 +4287,7 @@ class Analyzer:
             return
         elif sub == "remote" and self.git_remote_read(args):
             return
-        elif sub == "worktree" and args[:1] == ["list"]:
+        elif sub == "worktree" and (args[:1] == ["list"] or self.git_worktree_detach_add(args)):
             return
         elif sub == "config" and self.git_config_read(args):
             return
@@ -4657,6 +4715,8 @@ class Analyzer:
         elif name == "git":
             self.git_shared(words, assigns)  # first: its reason names the own-worktree advice
             self.git_delete(rest)
+            if not self.hq:
+                self.git_ref_move(rest)  # T-0336: after git_delete so cleaner branch scope still applies
             if self.role in NO_PUSH_ROLES and not self.hq:
                 self.git_allow(rest)  # T-0755: after git_delete, whose reason names the branch-deletion rule
             self.git_persist(rest, depth)
