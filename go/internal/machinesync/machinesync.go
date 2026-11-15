@@ -136,6 +136,11 @@ func Redact(text, content []byte) []byte {
 	for _, l := range bytes.Split(content, []byte("\n")) {
 		if l = bytes.TrimSpace(l); len(l) >= 4 {
 			needles = append(needles, l)
+			if i := bytes.IndexAny(l, "=:"); i >= 0 {
+				if v := bytes.TrimSpace(l[i+1:]); len(v) >= 4 {
+					needles = append(needles, v) // KEY=value: also catch the bare value
+				}
+			}
 		}
 	}
 	lines := bytes.Split(text, []byte("\n"))
@@ -191,8 +196,14 @@ func copyOne(o Options, e Entry) error {
 		return ErrFailed
 	}
 	tmp := e.Dst + ".sync-tmp"
-	remote := fmt.Sprintf("umask 077 && mkdir -p -m 700 %s && cat > %s && mv -f %s %s",
-		shq(filepath.Dir(e.Dst)), shq(tmp), shq(tmp), shq(e.Dst))
+	// The remote script (a) finds the deepest existing ancestor of the dst dir and refuses when its real path is
+	// not under the real remote home (symlinked parents), (b) creates missing dirs 0700, (c) removes any stale
+	// temp file, creates a fresh one with noclobber (O_EXCL, 0600 via umask) and removes it on any failure.
+	remote := fmt.Sprintf(`umask 077; set -e; a=%s; while [ ! -d "$a" ]; do a=$(dirname "$a"); done; `+
+		`h=$(cd "$HOME" && pwd -P); r=$(cd "$a" && pwd -P); `+
+		`case "$r/" in "$h"/*) ;; *) echo "dst resolves outside the remote home" >&2; exit 3;; esac; `+
+		`mkdir -p -m 700 %s; t=%s; rm -f "$t"; trap 'rm -f "$t"' EXIT; (set -C; cat > "$t"); mv -f "$t" %s`,
+		shq(filepath.Dir(e.Dst)), shq(filepath.Dir(e.Dst)), shq(tmp), shq(e.Dst))
 	_, errb, err := ssh(o.Machine, remote, bytes.NewReader(content))
 	if err != nil {
 		fmt.Fprintf(o.Stderr, "copy to %s failed: %v\n%s\n", e.Dst, err, bytes.TrimSpace(Redact(errb, content)))

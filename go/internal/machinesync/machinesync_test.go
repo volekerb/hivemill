@@ -182,7 +182,7 @@ func TestPathGuard(t *testing.T) {
 		{"directory", Entry{dir, okDst}, dir},
 		{"outside-home", Entry{outside, okDst}, outside},
 		{"dst-outside-remote-home", Entry{good, "/etc/x"}, "/etc/x"},
-		{"dst-dotdot", Entry{good, rh + "/a/../../x"}, "x"},
+		{"dst-dotdot", Entry{good, rh + "/a/../../x"}, rh + "/a/../../x"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -228,5 +228,43 @@ func TestLoadList(t *testing.T) {
 	os.WriteFile(p, []byte(`{"nope":1}`), 0o600)
 	if _, err := LoadList(p); err == nil {
 		t.Fatal("bad JSON accepted")
+	}
+}
+
+func TestRemoteSymlinkedParentRefused(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	src := writeSrc(t, lh, ".env")
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(rh, "x")); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := run(t, Options{Entries: []Entry{{src, filepath.Join(rh, "x", "new", ".env")}}, LocalHome: lh})
+	if !errors.Is(err, ErrFailed) {
+		t.Fatalf("want ErrFailed got %v", err)
+	}
+	if ents, _ := os.ReadDir(outside); len(ents) != 0 {
+		t.Fatalf("wrote outside remote home: %v", ents)
+	}
+}
+
+func TestQuotedDstAndStaleWorldReadableTemp(t *testing.T) {
+	lh, rh := fakeSSH(t)
+	src := writeSrc(t, lh, ".env")
+	dst := filepath.Join(rh, "a b", "it's.env")
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stale := dst + ".sync-tmp"
+	if err := os.WriteFile(stale, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(stale, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, e, err := run(t, Options{Entries: []Entry{{src, dst}}, LocalHome: lh}); err != nil {
+		t.Fatalf("%v %s", err, e)
+	}
+	if fi, err := os.Stat(dst); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("dst: %v %v", fi, err)
 	}
 }
