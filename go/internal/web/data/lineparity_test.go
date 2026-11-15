@@ -153,3 +153,45 @@ func TestCIFetchArgv(t *testing.T) {
 		t.Errorf("argv = %q, want %q", got, want)
 	}
 }
+
+// TestDecodeObjTrailingDataMatchesPython feeds decodeObj directly (no strip / brace prefilter).
+func TestDecodeObjTrailingDataMatchesPython(t *testing.T) {
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 not available")
+	}
+	cases := [][]byte{
+		[]byte(`{"a":1}}`), []byte(`{"a":1} x`), []byte(`{"a":1}  `),
+		[]byte("{\"a\":1} \n\t\r"), []byte(`{"a":1}{"b":2}`), []byte(`{"a":1} ]`),
+	}
+	var hexes []string
+	for _, c := range cases {
+		hexes = append(hexes, hexOf(c))
+	}
+	in, _ := json.Marshal(hexes)
+	const py = `
+import json, sys
+out = []
+for h in json.load(sys.stdin):
+    try:
+        out.append(isinstance(json.loads(bytes.fromhex(h)), dict))
+    except ValueError:
+        out.append(False)
+print(json.dumps(out))
+`
+	cmd := exec.Command("python3", "-I", "-c", py)
+	cmd.Stdin = bytes.NewReader(in)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want []bool
+	if err := json.Unmarshal(out, &want); err != nil {
+		t.Fatal(err)
+	}
+	for i, c := range cases {
+		_, got := decodeObj(c)
+		if got != want[i] {
+			t.Errorf("decodeObj(%q) = %v, python %v", c, got, want[i])
+		}
+	}
+}
