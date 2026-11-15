@@ -1,6 +1,6 @@
 # Terminal backends (TUI vs herdr-core)
 
-Hivemill talks to agent panes through one of two terminal backends. The TUI is the live default. Core (`hc`) is a second backend that is opt-in.
+Hivemill talks to agent panes through one of two terminal backends. Core (`hc`) is the default backend when it is on PATH (`terminal_backend=auto`). The classic herdr TUI is still supported and is opt-in with `factory config terminal_backend herdr`. `factory spawn --host-backend herdr|hc` overrides the backend per agent.
 
 ## TUI versus core
 
