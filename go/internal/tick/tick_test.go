@@ -428,8 +428,8 @@ func TestUnitsMatchPython(t *testing.T) {
 	if got := formatTable(); got != string(want) {
 		t.Fatalf("unit table differs from testdata/units.txt:\n%s\nwant:\n%s", got, want)
 	}
-	if n := len(walkUnits()); n != 42 {
-		t.Fatalf("walk has %d units, want 42 (43 numbered rows less emit, plus none)", n)
+	if n := len(walkUnits()); n != 43 {
+		t.Fatalf("walk has %d units, want 43 (44 numbered rows less emit, plus none)", n)
 	}
 	if b := strings.Join(Blocks(), ","); b != "boot,hygiene,offline,side,reap,flow,start,nudge,publish,tail" {
 		t.Fatalf("blocks %s", b)

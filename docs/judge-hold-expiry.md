@@ -73,9 +73,20 @@ rule off. A value that is not a non-negative whole number means 120.
 
     factory config judge_hold_expiry_min 90
 
-## Inert until the unit row exists
+Rollback without a deploy: `factory config judge_hold_expiry_min 0` (director). The next tick keeps every hold.
 
-`go/internal/tick/holdexpiry.go` registers the unit only when the unit table (`go/internal/tick/units.go`,
-`TICK_UNITS` in `bin/factory_cli.py`) has a row named `hold_expiry`. Until a follow-up task adds that row the code
-does not run. Once it runs, a failure of the unit is printed in the tick output (`judge-hold-expiry: failed, holds
-kept: ...`) and the tick goes on with the next unit.
+## Where it runs
+
+The rule is live since 2026-11-15 (T-1610): the unit table (`go/internal/tick/units.go`, `TICK_UNITS` in
+`bin/factory_cli.py`) has the row `hold_expiry` in the `flow` block, directly before `mech_merge`, so a hold cleared
+in a tick is seen by the mechanical merger and the judge autospawn of the same tick.
+
+- It runs in the Go tick only (`factory config tick_impl go`). `go/internal/tick/holdexpiry.go` registers the unit
+  when the table has the row.
+- The all-Python tick (`tick_impl python`) has no implementation: it walks the row, records the lap `hold_expiry`
+  and keeps every hold.
+- When herdr is unreachable the tick ends after `judge_ci_prune` ("herdr unreachable; exporting only"), so no hold
+  expires in that tick.
+- A failure of the unit is printed in the tick output (`judge-hold-expiry: failed, holds kept: ...`) and the tick
+  goes on with the next unit.
+- With `tick_phase_timers` on, the `tick-phases` line has a `hold_expiry=<s>` lap between `gate` and `mech_merge`.

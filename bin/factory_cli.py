@@ -197,6 +197,7 @@ DEFAULT_CONFIG = {
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
     "mech_merge_retry_s": "600", # the merger looks at a PR head it already blocked on (or shadow-recorded) at most this often
+    "judge_hold_expiry_min": "120",  # minutes a manual judge hold may stay on a reviewer+QA PASS PR without a boss decision (boss-approved M<id> in the hold text); 0 = off (G-058, owner M37547; docs/judge-hold-expiry.md)
     "risk_tiers": "off",        # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
@@ -15839,6 +15840,7 @@ TICK_UNITS = (
     ("claude_audit", "claude_audit", "reap"),
     ("stop_fallback", "stop_fallback", "flow"),
     ("gate", "gate", "flow"),
+    ("hold_expiry", "hold_expiry", "flow"),
     ("mech_merge", "mech_merge", "flow"),
     ("ci_wake", "ci_wake", "flow"),
     ("wake_leads", "wake_leads", "flow"),
@@ -16403,6 +16405,12 @@ def _tick_u_gate(con, st):
         except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
             event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
         _pt_lap("gate")
+
+
+def _tick_u_hold_expiry(con, st):
+        # 1c''+. judge hold expiry (G-058, docs/judge-hold-expiry.md): Go only (go/internal/tick/holdexpiry.go). The
+        # Python tick has no implementation: it keeps every hold and prints nothing; only the lap is recorded.
+        _pt_lap("hold_expiry")
 
 
 def _tick_u_mech_merge(con, st):
@@ -20261,7 +20269,8 @@ def main():
     x.add_argument("--sandbox-required", dest="sandbox_required", choices=["0", "1"],
                    help="task must run in the worker sandbox: spawn refuses it without --sandbox; the tick starts it sandboxed")
     x.add_argument("--judge-hold", dest="judge_hold",
-                   help="hold judge spawn on this task until cleared (lead, director, or owner)")
+                   help="hold judge spawn on this task until cleared (lead, director, or owner)"
+                        " (on a reviewer+QA PASS PR it expires after judge_hold_expiry_min unless the text names a boss decision: boss-approved M<id>)")
     x.add_argument("--judge-hold-clear", dest="judge_hold_clear", action="store_true",
                    help="clear the judge hold on this task (lead, director, or owner)")
     x.add_argument("--priority", type=int); x.set_defaults(fn=cmd_task)
