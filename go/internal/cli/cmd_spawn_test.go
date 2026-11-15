@@ -155,6 +155,7 @@ var spawnSeed = []string{
 	"INSERT OR REPLACE INTO config(key,value) VALUES('worker_gh_roles','')",
 	"INSERT OR REPLACE INTO config(key,value) VALUES('terminal_backend','herdr')",
 	"ALTER TABLE tasks ADD COLUMN judge_hold_reason TEXT",
+	"INSERT OR REPLACE INTO config(key,value) VALUES('gate_max_load_ratio','1000')", // the gate must not queue under the box's load
 	"INSERT INTO goals(id,title,status,created,updated) VALUES('G-1','g','active','2026-11-12T00:00:00+00:00','2026-11-12T00:00:00+00:00')",
 }
 
@@ -384,7 +385,7 @@ func FuzzKickoffDelay(f *testing.F) {
 // TestSpawnHandsOverRuntimeShapes: the gh-credential worker (default worker_gh_roles) and the cursor runtime go to
 // Python with no row, event, file or host call written first.
 func TestSpawnHandsOverRuntimeShapes(t *testing.T) {
-	seed := []string{"INSERT OR REPLACE INTO config(key,value) VALUES('terminal_backend','herdr')", "INSERT OR REPLACE INTO config(key,value) VALUES('worker_gh_roles','pm,cleaner')",
+	seed := []string{"INSERT OR REPLACE INTO config(key,value) VALUES('gate_max_load_ratio','1000')", "INSERT OR REPLACE INTO config(key,value) VALUES('terminal_backend','herdr')", "INSERT OR REPLACE INTO config(key,value) VALUES('worker_gh_roles','pm,cleaner')",
 		spawnSeed[len(spawnSeed)-1]}
 	for name, argv := range map[string][]string{
 		"ghcred": {"spawn", "pm", "--goal", "G-1", "--host-backend", "hc"},
