@@ -348,3 +348,67 @@ func FuzzDecodeLine(f *testing.F) {
 		}
 	})
 }
+
+// TestFdPath: the open-fd path is the real file; a closed fd is an error, never a path.
+func TestFdPath(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "f.jsonl")
+	if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := fdPath(int(f.Fd()))
+	if err != nil || got != p {
+		t.Fatalf("fdPath = %q, %v; want %q", got, err, p)
+	}
+	fd := int(f.Fd())
+	f.Close()
+	if got, err := fdPath(fd); err == nil {
+		t.Fatalf("closed fd gave a path %q", got)
+	}
+}
+
+// TestFdPathSwappedFailsClosed: a symlink swapped in for the file, or a path outside the confine, opens nothing.
+func TestFdPathSwappedFailsClosed(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	confine := filepath.Join(root, "confine")
+	outside := filepath.Join(root, "outside")
+	for _, d := range []string{confine, outside} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	good := filepath.Join(confine, "a.jsonl")
+	secret := filepath.Join(outside, "secret.jsonl")
+	for _, p := range []string{good, secret} {
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if f := openConfined(good, confine); f == nil {
+		t.Fatal("a regular file inside the confine must open")
+	} else {
+		f.Close()
+	}
+	swapped := filepath.Join(confine, "swapped.jsonl")
+	if err := os.Symlink(secret, swapped); err != nil {
+		t.Fatal(err)
+	}
+	if f := openConfined(swapped, confine); f != nil {
+		f.Close()
+		t.Fatal("a symlink swapped in must not open")
+	}
+	if f := openConfined(secret, confine); f != nil {
+		f.Close()
+		t.Fatal("a file outside the confine must not open")
+	}
+}

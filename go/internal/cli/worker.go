@@ -3,11 +3,11 @@ package cli
 import (
 	"database/sql"
 	"errors"
-	"os"
-	"path/filepath"
 	"regexp"
-	"strconv"
+	"runtime"
 	"strings"
+
+	"factory/go/internal/gate"
 )
 
 // Worker detection: the Go port of caller_is_worker / _detect_worker / _ancestry_worker / compact_view in
@@ -23,44 +23,21 @@ var workerRoles = map[string]bool{
 // settingsRoleRE is re.search(r"/settings/([\w-]+)\.json$", v); Python's $ also matches before a final newline.
 var settingsRoleRE = regexp.MustCompile(`/settings/([\w-]+)\.json\n?\z`)
 
-// procStatPPid is the parent pid from <root>/<pid>/stat, ok=false when it cannot be read (Python: None).
-func procStatPPid(root string, pid int) (int, bool) {
-	b, err := os.ReadFile(filepath.Join(root, strconv.Itoa(pid), "stat"))
-	if err != nil {
-		return 0, false
-	}
-	s := string(b)
-	i := strings.LastIndex(s, ")")
-	if i < 0 {
-		return 0, false
-	}
-	f := strings.Fields(s[i+1:])
-	if len(f) < 2 {
-		return 0, false
-	}
-	pp, err := strconv.Atoi(f[1])
-	if err != nil {
-		return 0, false
-	}
-	return pp, true
-}
-
 // ancestryWorker is _ancestry_worker: the worker role named by the first claude ancestor's --settings file, or "".
-// startPid is the own pid and startPPid the parent, used when the own pid has no stat under root.
-func ancestryWorker(root string, startPid, startPPid int) string {
+// startPid is the own pid and startPPid the parent, used when the own pid is not in the process list (or its
+// parent is unknown).
+func ancestryWorker(procs []gate.Proc, startPid, startPPid int) string {
+	byPid := make(map[int]gate.Proc, len(procs))
+	for _, p := range procs {
+		byPid[p.Pid] = p
+	}
 	pid := startPid
-	if _, ok := procStatPPid(root, pid); !ok {
+	if p, ok := byPid[pid]; !ok || p.Ppid < 0 {
 		pid = startPPid
 	}
 	for i := 0; i < 64; i++ {
-		var argv []string
-		if raw, err := os.ReadFile(filepath.Join(root, strconv.Itoa(pid), "cmdline")); err == nil {
-			for _, x := range strings.Split(string(raw), "\x00") {
-				if x != "" {
-					argv = append(argv, x)
-				}
-			}
-		}
+		cur, known := byPid[pid]
+		argv := cur.Argv
 		head := argv
 		if len(head) > 3 {
 			head = head[:3]
@@ -87,13 +64,27 @@ func ancestryWorker(root string, startPid, startPPid int) string {
 			}
 			return ""
 		}
-		pp, ok := procStatPPid(root, pid)
-		if !ok || pp <= 1 {
+		if !known || cur.Ppid <= 1 {
 			return ""
 		}
-		pid = pp
+		pid = cur.Ppid
 	}
 	return ""
+}
+
+// hostProcesses is the process list: $FACTORY_PROC_DIR (a fake /proc, off the live home only) or the host's own
+// scan. delegate=true is procRoot's: Python must answer. A scan error is returned as err.
+func (c *ctx) hostProcesses() (procs []gate.Proc, delegate bool, err error) {
+	root, del := c.procRoot()
+	if del {
+		return nil, true, nil
+	}
+	if c.env.Getenv("FACTORY_PROC_DIR") != "" {
+		procs, err = gate.ReadProcRoot(root)
+		return procs, false, err
+	}
+	procs, err = gate.NewHostFacts(c.env.Getenv("FACTORY_TMP_STATVFS"), runtime.NumCPU()).Processes()
+	return procs, false, err
 }
 
 // procRoot is proc_root(): /proc, or $FACTORY_PROC_DIR off the live home only. On a live home a set variable makes
@@ -113,11 +104,12 @@ func (c *ctx) procRoot() (string, bool) {
 // callerIsWorker is caller_is_worker: the worker role of the caller ("" = none). delegate=true means Python must
 // answer: a read here would need a write (events) or the answer depends on state Go does not reproduce.
 func callerIsWorker(c *ctx) (role string, delegate bool) {
-	root, del := c.procRoot()
+	procs, del, err := c.hostProcesses()
 	if del {
 		return "", true
 	}
-	if r := ancestryWorker(root, c.deps.pid(), c.deps.ppid()); r != "" {
+	// an unreadable scan leaves no ancestry: fall through to the env and DB checks, as an unreadable /proc did
+	if r := ancestryWorker(procs, c.deps.pid(), c.deps.ppid()); r != "" && err == nil {
 		return r, false
 	}
 	if r := c.env.Getenv("FACTORY_ROLE"); workerRoles[r] {
