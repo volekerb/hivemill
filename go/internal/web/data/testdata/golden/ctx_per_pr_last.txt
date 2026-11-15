@@ -1,0 +1,12 @@
+merged tasks: start .. now, last 2
+  task    goal   merged (UTC)           sess        input    output        $  rej  pr
+  T-5     G-001  2026-11-12T11:00:00+00:00    1            6         4     0.002 qa=1 reviewer=1  https://x/pr/5
+  T-11    G-002  2026-11-11T09:00:00+00:00    0            0         0     0.00    0  https://x/pr/11
+
+summary
+  n merged tasks: 2
+  input tokens per merged PR: median 3.0, p75 6
+  sessions per merged PR: median 0.5
+  $ per merged PR: median 0.0001
+  rejects: 2
+  HQ input per merged PR: 208020 (HQ input in window 416040 / 2 merged tasks)
