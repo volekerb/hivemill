@@ -1,0 +1,861 @@
+{
+ "gatebox_plain": {
+  "argv": [
+   "/usr/bin/unshare",
+   "-r",
+   "-n",
+   "-m",
+   "--pid",
+   "--fork",
+   "--kill-child",
+   "--mount-proc",
+   "--propagation",
+   "private",
+   "@SELF@",
+   "--setup",
+   {
+    "claude": null,
+    "cwd": "@ROOT@/gate",
+    "env_set": {},
+    "forward_sock": null,
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm",
+     "@ROOT@/run",
+     "/tmp",
+     "/dev/shm",
+     "/var/tmp",
+     "/run"
+    ],
+    "hide_files": [],
+    "keep": [],
+    "keep_ro": [],
+    "masks": [
+     "@ROOT@/main/db",
+     "@ROOT@/main/logs",
+     "@ROOT@/main/worktrees"
+    ],
+    "mode": "allow",
+    "net": false,
+    "ro": [
+     "@ROOT@/main",
+     "@ROOT@/outside.git",
+     "@ROOT@/gate/.git"
+    ],
+    "rw": [
+     "@ROOT@/gate",
+     "@ROOT@/wt/reports",
+     "@ROOT@/wt/factory-home",
+     "@ROOT@/wt/tmp"
+    ],
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS",
+     "CLAUDE_CODE_OAUTH_TOKEN",
+     "ANTHROPIC_API_KEY",
+     "ANTHROPIC_AUTH_TOKEN",
+     "HTTPS_PROXY",
+     "https_proxy",
+     "HTTP_PROXY",
+     "http_proxy",
+     "ALL_PROXY",
+     "all_proxy"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "tmpfs_sizes": {
+     "/dev/shm": "16m",
+     "/tmp": "64m",
+     "/var/tmp": "16m"
+    },
+    "trial": "@ROOT@/wt/reports",
+    "trials_root": "@ROOT@/wt",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "bash",
+   "-c",
+   "make test 'x y'"
+  ],
+  "env": {
+   "FACTORY_GATEBOX": "1",
+   "FACTORY_HOME": "/live",
+   "FACTORY_MAIN": "@ROOT@/main",
+   "GATE_REPORT_DIR": "@ROOT@/wt/reports",
+   "GATE_SHARDS": "2",
+   "HOME": "@ROOT@/hm",
+   "LANG": "C",
+   "LC_ALL": "C",
+   "PATH": "/usr/bin",
+   "PYTHONDONTWRITEBYTECODE": "1",
+   "PYTHONPYCACHEPREFIX": "@ROOT@/wt/tmp/pycache",
+   "TMPDIR": "@ROOT@/wt/tmp"
+  }
+ },
+ "gatebox_subuid": {
+  "argv": [
+   "@SELF@",
+   "--launch",
+   {
+    "claude": null,
+    "copy": {
+     "mkdirs": [
+      "@ROOT@/gate/.factory-box/reports",
+      "@ROOT@/gate/.factory-box/factory-home",
+      "@ROOT@/gate/.factory-box/tmp",
+      "@ROOT@/gate/.factory-box/tmp/pycache"
+     ],
+     "size": "130m",
+     "tree": "@ROOT@/gate"
+    },
+    "cwd": "@ROOT@/gate",
+    "env_set": {},
+    "forward_sock": null,
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm",
+     "@ROOT@/run",
+     "/tmp",
+     "/dev/shm",
+     "/var/tmp",
+     "/run"
+    ],
+    "hide_files": [],
+    "keep": [],
+    "keep_ro": [],
+    "masks": [
+     "@ROOT@/main/db",
+     "@ROOT@/main/logs",
+     "@ROOT@/main/worktrees"
+    ],
+    "mode": "allow",
+    "net": false,
+    "ro": [
+     "@ROOT@/main",
+     "@ROOT@/gate",
+     "@ROOT@/outside.git",
+     "@ROOT@/gate/.git"
+    ],
+    "rw": [],
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS",
+     "CLAUDE_CODE_OAUTH_TOKEN",
+     "ANTHROPIC_API_KEY",
+     "ANTHROPIC_AUTH_TOKEN",
+     "HTTPS_PROXY",
+     "https_proxy",
+     "HTTP_PROXY",
+     "http_proxy",
+     "ALL_PROXY",
+     "all_proxy"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "subuid": true,
+    "tmpfs_sizes": {
+     "/dev/shm": "16m",
+     "/tmp": "64m",
+     "/var/tmp": "16m"
+    },
+    "trial": "@ROOT@/wt/reports",
+    "trials_root": "@ROOT@/wt",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "bash",
+   "-c",
+   "make test 'x y'"
+  ],
+  "env": {
+   "FACTORY_GATEBOX": "1",
+   "FACTORY_HOME": "/live",
+   "FACTORY_MAIN": "@ROOT@/main",
+   "GATE_REPORT_DIR": "@ROOT@/gate/.factory-box/reports",
+   "GATE_SHARDS": "2",
+   "HOME": "@ROOT@/hm",
+   "LANG": "C",
+   "LC_ALL": "C",
+   "PATH": "/usr/bin",
+   "PYTHONDONTWRITEBYTECODE": "1",
+   "PYTHONPYCACHEPREFIX": "@ROOT@/gate/.factory-box/tmp/pycache",
+   "TMPDIR": "@ROOT@/gate/.factory-box/tmp"
+  }
+ },
+ "nsbox_allow": {
+  "argv": [
+   "/usr/bin/unshare",
+   "-r",
+   "-n",
+   "-m",
+   "--pid",
+   "--fork",
+   "--kill-child",
+   "--mount-proc",
+   "--propagation",
+   "private",
+   "@SELF@",
+   "--setup",
+   {
+    "claude": "@ROOT@/hm/.local/bin/claude",
+    "cwd": "@ROOT@/trials/tr0001/work",
+    "env_set": {
+     "HTTPS_PROXY": "http://127.0.0.1:3128",
+     "NO_PROXY": "",
+     "https_proxy": "http://127.0.0.1:3128",
+     "no_proxy": ""
+    },
+    "forward_sock": "@ROOT@/trials/tr0001/proxy.sock",
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm",
+     "@ROOT@/run"
+    ],
+    "hide_files": [],
+    "keep": [],
+    "keep_ro": [],
+    "masks": [
+     "@ROOT@/trials"
+    ],
+    "mode": "allow",
+    "net": false,
+    "ro": [
+     "@ROOT@/vendor",
+     "@ROOT@/hm/.local/bin/claude",
+     "@ROOT@/hm/.local/share/claude/versions/1/claude"
+    ],
+    "rw": [
+     "@ROOT@/trials/tr0001"
+    ],
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "tmpfs_size": "16m",
+    "tmpfs_sizes": {
+     "@ROOT@/hm": "64m"
+    },
+    "trial": "@ROOT@/trials/tr0001",
+    "trials_root": "@ROOT@/trials",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "--version"
+  ],
+  "env": null
+ },
+ "nsbox_allow_nopid_net": {
+  "argv": [
+   "/usr/bin/unshare",
+   "-r",
+   "-m",
+   "--propagation",
+   "private",
+   "@SELF@",
+   "--setup",
+   {
+    "claude": null,
+    "cwd": null,
+    "env_set": {},
+    "forward_sock": null,
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm"
+    ],
+    "hide_files": [
+     "@ROOT@/hm/.git-credentials",
+     "@ROOT@/hm/.netrc"
+    ],
+    "keep": [],
+    "keep_ro": [],
+    "mode": "allow",
+    "net": true,
+    "pid": false,
+    "ro": [],
+    "rw": [
+     "@ROOT@/wt"
+    ],
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS",
+     "CLAUDE_CODE_OAUTH_TOKEN",
+     "ANTHROPIC_API_KEY",
+     "ANTHROPIC_AUTH_TOKEN",
+     "HTTPS_PROXY",
+     "https_proxy",
+     "HTTP_PROXY",
+     "http_proxy",
+     "ALL_PROXY",
+     "all_proxy"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "trial": "@ROOT@/trials/tr0001",
+    "trials_root": "@ROOT@/trials",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "true"
+  ],
+  "env": null
+ },
+ "nsbox_allow_subuid_copy": {
+  "argv": [
+   "@SELF@",
+   "--launch",
+   {
+    "claude": null,
+    "copy": {
+     "mkdirs": [
+      "@ROOT@/gate/tmp"
+     ],
+     "size": "128m",
+     "tree": "@ROOT@/gate"
+    },
+    "cwd": null,
+    "env_set": {},
+    "forward_sock": null,
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm"
+    ],
+    "hide_files": [
+     "@ROOT@/hm/.git-credentials",
+     "@ROOT@/hm/.netrc"
+    ],
+    "keep": [],
+    "keep_ro": [],
+    "mode": "allow",
+    "net": false,
+    "ro": [
+     "@ROOT@/gate"
+    ],
+    "rw": [],
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS",
+     "CLAUDE_CODE_OAUTH_TOKEN",
+     "ANTHROPIC_API_KEY",
+     "ANTHROPIC_AUTH_TOKEN",
+     "HTTPS_PROXY",
+     "https_proxy",
+     "HTTP_PROXY",
+     "http_proxy",
+     "ALL_PROXY",
+     "all_proxy"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "subuid": true,
+    "trial": "@ROOT@/trials/tr0001",
+    "trials_root": "@ROOT@/trials",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "bash",
+   "-c",
+   "true"
+  ],
+  "env": null
+ },
+ "nsbox_deny": {
+  "argv": [
+   "/usr/bin/unshare",
+   "-r",
+   "-n",
+   "-m",
+   "--pid",
+   "--fork",
+   "--kill-child",
+   "--mount-proc",
+   "--propagation",
+   "private",
+   "@SELF@",
+   "--setup",
+   {
+    "claude": "@ROOT@/hm/.local/bin/claude",
+    "cwd": "@ROOT@/trials/tr0001/work",
+    "env_set": {
+     "HTTPS_PROXY": "http://127.0.0.1:3128",
+     "NO_PROXY": "",
+     "https_proxy": "http://127.0.0.1:3128",
+     "no_proxy": ""
+    },
+    "forward_sock": "@ROOT@/trials/tr0001/proxy.sock",
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm/.claude",
+     "@ROOT@/hm/.config",
+     "@ROOT@/hm/.ssh",
+     "@ROOT@/hm/.gnupg",
+     "@ROOT@/hm/factory",
+     "@ROOT@/run"
+    ],
+    "hide_files": [
+     "@ROOT@/hm/.git-credentials",
+     "@ROOT@/hm/.netrc"
+    ],
+    "keep": [
+     "@ROOT@/trials/tr0001",
+     "@ROOT@/keep",
+     "@ROOT@/hm/.local/bin/claude",
+     "@ROOT@/hm/.local/share/claude/versions/1/claude"
+    ],
+    "keep_ro": [
+     "@ROOT@/vendor"
+    ],
+    "net": false,
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "trial": "@ROOT@/trials/tr0001",
+    "trials_root": "@ROOT@/trials",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "--print",
+   "hi"
+  ],
+  "env": null
+ },
+ "nsbox_deny_net_noforward": {
+  "argv": [
+   "/usr/bin/unshare",
+   "-r",
+   "-m",
+   "--pid",
+   "--fork",
+   "--kill-child",
+   "--mount-proc",
+   "--propagation",
+   "private",
+   "@SELF@",
+   "--setup",
+   {
+    "claude": null,
+    "cwd": null,
+    "env_set": {},
+    "forward_sock": null,
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm/.ssh",
+     "@ROOT@/run"
+    ],
+    "hide_files": [
+     "@ROOT@/hm/.git-credentials",
+     "@ROOT@/hm/.netrc"
+    ],
+    "keep": [
+     "@ROOT@/trials/tr0001"
+    ],
+    "keep_ro": [],
+    "net": true,
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS",
+     "CLAUDE_CODE_OAUTH_TOKEN",
+     "ANTHROPIC_API_KEY",
+     "ANTHROPIC_AUTH_TOKEN",
+     "HTTPS_PROXY",
+     "https_proxy",
+     "HTTP_PROXY",
+     "http_proxy",
+     "ALL_PROXY",
+     "all_proxy"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "trial": "@ROOT@/trials/tr0001",
+    "trials_root": "@ROOT@/trials",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "id"
+  ],
+  "env": null
+ },
+ "sandbox_eval": {
+  "argv": [
+   "/usr/bin/unshare",
+   "-r",
+   "-n",
+   "-m",
+   "--pid",
+   "--fork",
+   "--kill-child",
+   "--mount-proc",
+   "--propagation",
+   "private",
+   "@SELF@",
+   "--setup",
+   {
+    "claude": "@ROOT@/hm/.local/bin/claude",
+    "cwd": "@ROOT@/trials/tr0001/work",
+    "env_set": {
+     "HTTPS_PROXY": "http://127.0.0.1:3128",
+     "NO_PROXY": "",
+     "https_proxy": "http://127.0.0.1:3128",
+     "no_proxy": ""
+    },
+    "forward_sock": "@ROOT@/trials/tr0001/proxy.sock",
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm",
+     "@ROOT@/run",
+     "/tmp",
+     "/dev/shm",
+     "/run"
+    ],
+    "hide_files": [],
+    "keep": [],
+    "keep_ro": [],
+    "masks": [
+     "@ROOT@/trials"
+    ],
+    "mode": "allow",
+    "net": false,
+    "ro": [
+     "@ROOT@/trials/tr0001/bin",
+     "@ROOT@/trials/tr0001/scout",
+     "@ROOT@/trials/tr0001/role",
+     "@ROOT@/hm/.local/share/claude/versions/1",
+     "@ROOT@/vendor",
+     "@ROOT@/hm/.local/bin/claude",
+     "@ROOT@/hm/.local/share/claude/versions/1/claude"
+    ],
+    "rw": [
+     "@ROOT@/trials/tr0001"
+    ],
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "trial": "@ROOT@/trials/tr0001",
+    "trials_root": "@ROOT@/trials",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "--version"
+  ],
+  "env": null
+ },
+ "testbox": {
+  "argv": [
+   "/usr/bin/unshare",
+   "-r",
+   "-n",
+   "-m",
+   "--pid",
+   "--fork",
+   "--kill-child",
+   "--mount-proc",
+   "--propagation",
+   "private",
+   "@SELF@",
+   "--setup",
+   {
+    "claude": null,
+    "cwd": "@ROOT@/gate",
+    "env_set": {},
+    "forward_sock": null,
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm",
+     "@ROOT@/run",
+     "/tmp",
+     "/dev/shm",
+     "/var/tmp",
+     "/run"
+    ],
+    "hide_files": [],
+    "keep": [],
+    "keep_ro": [],
+    "masks": [
+     "@ROOT@/main/db",
+     "@ROOT@/main/logs",
+     "@ROOT@/main/worktrees"
+    ],
+    "mode": "allow",
+    "net": false,
+    "ro": [
+     "@ROOT@/main",
+     "@ROOT@/outside.git",
+     "@ROOT@/gate/.git"
+    ],
+    "rw": [
+     "@ROOT@/gate",
+     "@ROOT@/wt/reports",
+     "@ROOT@/wt/factory-home",
+     "@ROOT@/wt/tmp"
+    ],
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS",
+     "CLAUDE_CODE_OAUTH_TOKEN",
+     "ANTHROPIC_API_KEY",
+     "ANTHROPIC_AUTH_TOKEN",
+     "HTTPS_PROXY",
+     "https_proxy",
+     "HTTP_PROXY",
+     "http_proxy",
+     "ALL_PROXY",
+     "all_proxy"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "tmpfs_sizes": {
+     "/dev/shm": "16m",
+     "/tmp": "64m",
+     "/var/tmp": "16m"
+    },
+    "trial": "@ROOT@/wt/reports",
+    "trials_root": "@ROOT@/wt",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "bash",
+   "-c",
+   "pytest -k 'a b'"
+  ],
+  "env": {
+   "FACTORY_GATEBOX": "1",
+   "FACTORY_HOME": "@ROOT@/wt/factory-home",
+   "FACTORY_MAIN": "@ROOT@/main",
+   "GATE_REPORT_DIR": "@ROOT@/wt/reports",
+   "HOME": "@ROOT@/hm",
+   "LANG": "C",
+   "LC_ALL": "C",
+   "PATH": "/usr/bin",
+   "PYTHONDONTWRITEBYTECODE": "1",
+   "PYTHONPYCACHEPREFIX": "@ROOT@/wt/tmp/pycache",
+   "TMPDIR": "@ROOT@/wt/tmp"
+  }
+ },
+ "workerbox_gitconfig": {
+  "argv": null,
+  "env": null,
+  "text": "[user]\n\tname = \"N \\\"x\\\"\"\n\temail = \"n-e.x\"\n[credential]\n\tuseHttpPath = true\n[credential \"https://github.com\"]\n\thelper = \"!/bin/helper git-credential a/b\"\n"
+ },
+ "workerbox_ro_cwd": {
+  "argv": [
+   "/usr/bin/unshare",
+   "-r",
+   "-m",
+   "--propagation",
+   "private",
+   "@SELF@",
+   "--setup",
+   {
+    "claude": "@ROOT@/hm/.local/bin/claude",
+    "cwd": "@ROOT@/fh/worktrees/wt1",
+    "env_set": {},
+    "forward_sock": null,
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm",
+     "@ROOT@/run",
+     "/tmp",
+     "/dev/shm",
+     "/run"
+    ],
+    "hide_files": [],
+    "keep": [],
+    "keep_ro": [],
+    "masks": [
+     "@ROOT@/fh/worktrees"
+    ],
+    "mode": "allow",
+    "net": true,
+    "pid": false,
+    "ro": [
+     "@ROOT@/fh",
+     "@ROOT@/agents/w1/bin",
+     "@ROOT@/agents/w1/gitconfig",
+     "@ROOT@/hm/.local/share/claude/versions/1",
+     "@ROOT@/hm/.local/go",
+     "@ROOT@/hm/.cache/go/path/pkg/mod",
+     "@ROOT@/fh/worktrees/wt1",
+     "@ROOT@/hm/.local/bin/claude",
+     "@ROOT@/hm/.local/share/claude/versions/1/claude",
+     "@ROOT@/hm/.local/bin/factory",
+     "@ROOT@/hm/.config/factory/scrub-terms.txt"
+    ],
+    "rw": [
+     "@ROOT@/fh/db",
+     "@ROOT@/agents/w1/claude",
+     "@ROOT@/agents/w1/go"
+    ],
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS",
+     "ANTHROPIC_API_KEY",
+     "ANTHROPIC_AUTH_TOKEN",
+     "HTTPS_PROXY",
+     "https_proxy",
+     "HTTP_PROXY",
+     "http_proxy",
+     "ALL_PROXY",
+     "all_proxy"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "tmpfs_sizes": {
+     "/tmp": "512m",
+     "@ROOT@/hm": "64m"
+    },
+    "trial": "@ROOT@/agents/w1/claude",
+    "trials_root": "@ROOT@/agents/w1",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "--model",
+   "m"
+  ],
+  "env": {
+   "CLAUDE_CODE_OAUTH_TOKEN": "OAUTH",
+   "CLAUDE_CONFIG_DIR": "@ROOT@/agents/w1/claude",
+   "DISABLE_AUTOUPDATER": "1",
+   "FACTORY_AGENT": "a",
+   "FACTORY_HOME": "/fh",
+   "FACTORY_ROLE": "coder",
+   "GH_TOKEN": "GHTOK",
+   "GIT_CONFIG_GLOBAL": "@ROOT@/agents/w1/gitconfig",
+   "GOCACHE": "@ROOT@/agents/w1/go/cache",
+   "GOENV": "off",
+   "GOFLAGS": "-mod=readonly",
+   "GOMODCACHE": "@ROOT@/hm/.cache/go/path/pkg/mod",
+   "GOPATH": "@ROOT@/agents/w1/go/path",
+   "GOPROXY": "off",
+   "GOROOT": "@ROOT@/hm/.local/go",
+   "GOSUMDB": "off",
+   "GOTMPDIR": "@ROOT@/agents/w1/go/tmp",
+   "GOTOOLCHAIN": "local",
+   "GOWORK": "off",
+   "HERDR_PANE_ID": "p1",
+   "HOME": "@ROOT@/hm",
+   "LANG": "C",
+   "LC_ALL": "C",
+   "PATH": "/usr/bin:/bin:@ROOT@/hm/.local/go/bin"
+  }
+ },
+ "workerbox_rw_cwd": {
+  "argv": [
+   "/usr/bin/unshare",
+   "-r",
+   "-m",
+   "--propagation",
+   "private",
+   "@SELF@",
+   "--setup",
+   {
+    "claude": "@ROOT@/hm/.local/bin/claude",
+    "cwd": "@ROOT@/fh/worktrees/wt1",
+    "env_set": {},
+    "forward_sock": null,
+    "gid": 1000,
+    "hide_dirs": [
+     "@ROOT@/hm",
+     "@ROOT@/run",
+     "/tmp",
+     "/dev/shm",
+     "/run"
+    ],
+    "hide_files": [],
+    "keep": [],
+    "keep_ro": [],
+    "masks": [
+     "@ROOT@/fh/worktrees"
+    ],
+    "mode": "allow",
+    "net": true,
+    "pid": false,
+    "ro": [
+     "@ROOT@/fh",
+     "@ROOT@/agents/w1/bin",
+     "@ROOT@/agents/w1/gitconfig",
+     "@ROOT@/hm/.local/share/claude/versions/1",
+     "@ROOT@/hm/.local/go",
+     "@ROOT@/hm/.cache/go/path/pkg/mod",
+     "@ROOT@/hm/.local/bin/claude",
+     "@ROOT@/hm/.local/share/claude/versions/1/claude",
+     "@ROOT@/hm/.local/bin/factory",
+     "@ROOT@/hm/.config/factory/scrub-terms.txt"
+    ],
+    "rw": [
+     "@ROOT@/fh/db",
+     "@ROOT@/agents/w1/claude",
+     "@ROOT@/agents/w1/go",
+     "@ROOT@/fh/worktrees/wt1"
+    ],
+    "scrub": [
+     "SSH_AUTH_SOCK",
+     "DBUS_SESSION_BUS_ADDRESS",
+     "ANTHROPIC_API_KEY",
+     "ANTHROPIC_AUTH_TOKEN",
+     "HTTPS_PROXY",
+     "https_proxy",
+     "HTTP_PROXY",
+     "http_proxy",
+     "ALL_PROXY",
+     "all_proxy"
+    ],
+    "self": "@SELF@",
+    "setpriv": "/usr/bin/setpriv",
+    "tmpfs_sizes": {
+     "/tmp": "512m",
+     "@ROOT@/hm": "64m"
+    },
+    "trial": "@ROOT@/agents/w1/claude",
+    "trials_root": "@ROOT@/agents/w1",
+    "uid": 1000,
+    "unshare": "/usr/bin/unshare"
+   },
+   "--",
+   "--model",
+   "m"
+  ],
+  "env": {
+   "CLAUDE_CODE_OAUTH_TOKEN": "OAUTH",
+   "CLAUDE_CONFIG_DIR": "@ROOT@/agents/w1/claude",
+   "DISABLE_AUTOUPDATER": "1",
+   "FACTORY_AGENT": "a",
+   "FACTORY_HOME": "/fh",
+   "FACTORY_ROLE": "coder",
+   "GH_TOKEN": "GHTOK",
+   "GIT_CONFIG_GLOBAL": "@ROOT@/agents/w1/gitconfig",
+   "GOCACHE": "@ROOT@/agents/w1/go/cache",
+   "GOENV": "off",
+   "GOFLAGS": "-mod=readonly",
+   "GOMODCACHE": "@ROOT@/hm/.cache/go/path/pkg/mod",
+   "GOPATH": "@ROOT@/agents/w1/go/path",
+   "GOPROXY": "off",
+   "GOROOT": "@ROOT@/hm/.local/go",
+   "GOSUMDB": "off",
+   "GOTMPDIR": "@ROOT@/agents/w1/go/tmp",
+   "GOTOOLCHAIN": "local",
+   "GOWORK": "off",
+   "HERDR_PANE_ID": "p1",
+   "HOME": "@ROOT@/hm",
+   "LANG": "C",
+   "LC_ALL": "C",
+   "PATH": "/usr/bin:/bin:@ROOT@/hm/.local/go/bin"
+  }
+ }
+}

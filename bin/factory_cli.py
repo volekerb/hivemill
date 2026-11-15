@@ -223,7 +223,7 @@ DEFAULT_CONFIG = {
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
-    "terminal_backend": "auto",  # auto | herdr | hc — which CLI talks to the agent host (herdr TUI vs herdr-core `hc`); auto prefers herdr when both are on PATH
+    "terminal_backend": "auto",  # auto | herdr | hc — which CLI talks to the agent host (herdr TUI vs herdr-core `hc`); auto prefers hc when it is on PATH (herdr only when hc is missing)
     "stop_timeout_s": "300",     # `factory stop`: the tick force-closes the pane of a stopped agent still live after this long
     # worker sandbox (G-010): comma list of roles whose claude runs in the namespace sandbox, each one of
     # workerbox.SANDBOXABLE (reviewer, qa, coder, researcher). Empty = off = today's behaviour. Read fresh at every spawn.
@@ -1262,19 +1262,15 @@ def terminal_backend_config(con):
 def terminal_backend_effective(con):
     """(effective_label, host_cli) — which binary factory uses for agent host IPC (herdr TUI vs herdr-core `hc`).
 
-    auto: prefer the TUI (`herdr`) when it is on PATH; otherwise use `hc` if present; if neither is on PATH,
-    keep `herdr` so errors match today's herdr-not-found behaviour.
+    auto: prefer `hc` whenever it is on PATH, even when `herdr` is too; use `herdr` when only it is present; if
+    neither is on PATH, keep `herdr` so errors match today's herdr-not-found behaviour.
     """
     raw = terminal_backend_config(con)
     if raw == "herdr":
         return "herdr", "herdr"
     if raw == "hc":
         return "hc", "hc"
-    h_ok = shutil.which("herdr") is not None
-    hc_ok = shutil.which("hc") is not None
-    if h_ok:
-        return "auto→herdr", "herdr"
-    if hc_ok:
+    if shutil.which("hc") is not None:
         return "auto→hc", "hc"
     return "auto→herdr", "herdr"
 
@@ -1389,11 +1385,16 @@ def _hc_terminal_to_agent_row(t):
     if t.get("name") is not None:
         row["name"] = t["name"]
     if t.get("agent") is not None:
-        row["agent"] = t["agent"]
+        row["agent"] = "claude" if t["agent"] == "claude-code" else t["agent"]  # hc 0.1.21 names the kind claude-code
     word = _hc_status_word(t)
     if "status" in t or word != "unknown":
         row["agent_status"] = word
     return row
+
+
+def _hc_remote_terminal(t):
+    """True for an hc ls terminal whose address contains "/" (machine/tN)."""
+    return isinstance(t, dict) and any(isinstance(t.get(k), str) and "/" in t[k] for k in ("address", "id", "terminal", "name"))
 
 
 def _hc_unwrap_result(ipc_argv, payload):
@@ -1405,7 +1406,8 @@ def _hc_unwrap_result(ipc_argv, payload):
         terminals = payload.get("terminals")
         if not isinstance(terminals, list):
             return None
-        return {"agents": [_hc_terminal_to_agent_row(t) for t in terminals]}
+        # a machine/tN address is another machine's terminal: never stands in for a local agent of the same name
+        return {"agents": [_hc_terminal_to_agent_row(t) for t in terminals if not _hc_remote_terminal(t)]}
     if cmd == "read":
         if "text" in payload:
             return {"text": payload["text"]}
@@ -1497,6 +1499,21 @@ def _row_hosted_on_hc(row):
     return (pane or "") == name
 
 
+LEGACY_TUI_SQL = ("(json_extract(spawn_args,'$.host_backend')='herdr' OR "
+                  "(json_extract(spawn_args,'$.host_backend') IS NULL AND pane_id != name))")
+
+
+def _row_is_legacy_tui(row):
+    """A row with no host_backend whose pane_id is not its name is a TUI pane, whatever the config says."""
+    try:
+        sa = _spawn_args_row(row)
+        name = row["name"] if "name" in row.keys() else ""
+        pane = row["pane_id"] if "pane_id" in row.keys() else ""
+    except (KeyError, TypeError, IndexError):
+        return False
+    return sa.get("host_backend") not in ("hc", "herdr") and bool(pane) and pane != name
+
+
 def _spawn_args_row(row):
     try:
         raw = row["spawn_args"] if row and "spawn_args" in row.keys() else None
@@ -1518,6 +1535,8 @@ def _agent_host_exe(con, row):
         return hb
     if _row_hosted_on_hc(row):
         return "hc"
+    if _row_is_legacy_tui(row):
+        return "herdr"
     return terminal_backend_effective(con)[1]
 
 
@@ -1547,7 +1566,12 @@ def _host_agent_ipc_exe(con, args):
     if len(args) >= 3 and args[0] == "agent" and args[1] in ("prompt", "read", "send-keys", "wait", "start"):
         row = con.execute("SELECT name, spawn_args, pane_id FROM agents WHERE name=?", (args[2],)).fetchone()
         if row:
-            return _agent_host_exe(con, row)
+            exe = _agent_host_exe(con, row)
+            if exe == "hc" and eff == "herdr" and _spawn_args_row(row).get("host_backend") != "hc":
+                # (e) a target-taking hc verb (read/send/keys) only for a row that says host_backend=hc: a name hc
+                # cannot resolve answers needs_target; inferred hc (pane_id == name) on a herdr config stays on the TUI
+                return "herdr"
+            return exe
     return eff
 
 
@@ -1625,6 +1649,9 @@ def _host_list_row(con, name):
     return next((x for x in listed if x.get("name") == name), None)
 
 
+_HC_KEY_NAMES = {"Enter": "enter", "esc": "esc", "Esc": "esc", "Escape": "esc", "Tab": "tab"}  # TUI key word -> hc 0.1.21 key name
+
+
 def _hc_translate_args(args):
     """Map TUI herdr IPC verbs to herdr-core `hc` CLI. None means no hc equivalent (fail this step only)."""
     a = list(args)
@@ -1652,7 +1679,7 @@ def _hc_translate_args(args):
                     break
                 else:
                     i += 1
-            out = ["run", "--bg", "--name", name]
+            out = ["run", "--bg", "--no-parent", "--name", name]  # never the caller terminal's child (hc 0.1.21)
             cwd = _HC_RUN_CWD
             if not cwd:
                 for j, tok in enumerate(post):
@@ -1677,7 +1704,7 @@ def _hc_translate_args(args):
                     i += 1
             return out
         if verb == "send-keys" and len(a) >= 3:
-            return ["keys", a[2], *a[3:]]
+            return ["keys", a[2], *[_HC_KEY_NAMES.get(k, k) for k in a[3:]]]
         if verb == "wait":
             return None
     if a[0] in ("pane", "workspace", "tab", "worktree"):
@@ -5293,7 +5320,7 @@ def merged_go_refusal(con, repo, sha, main_sha, *, timeout=MERGED_GO_PROOF_TIMEO
     try:
         env = merged_go_proof_env()
         gcmd = git_argv(repo, *HARDENED_GIT_FLAGS)
-        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree, "go"], capture_output=True, env=_carry_env(),
+        arch = subprocess.run([*gcmd, "archive", "--format=tar", tree], capture_output=True, env=_carry_env(),
                               timeout=60)
         if arch.returncode:
             return f"MERGED-TREE: git archive of the merge-tree failed ({arch.stderr.decode(errors='replace').strip() or arch.returncode}); nothing merged"
@@ -10762,6 +10789,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     if plan.launch != "herdr-kind" or not plan.herdr_kind:
         die(f"runtime {runtime}: launch={plan.launch!r} herdr_kind={plan.herdr_kind!r} not wired", 3)
 
+    args["host_backend"] = spawn_host  # explicit: a later config flip never re-reads this row's host
     global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE
     _SPAWN_HOST_EXE = spawn_host
     try:
@@ -10927,6 +10955,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         args["sandbox"] = True
     if ghcred_on:
         env.update(gh_cred_env(con, role, name, cwd))
+    args["host_backend"] = spawn_host  # explicit: a later config flip never re-reads this row's host
     global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE
     _SPAWN_HOST_EXE = spawn_host
     try:
@@ -15872,7 +15901,7 @@ def _tick_u_herdr_list(con, st):
             st["agents"] = agents = herdr_agents()
             need_tui_tick = bool(con.execute(
                 "SELECT 1 FROM agents WHERE status IN ('live','done') "
-                "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+                "AND " + LEGACY_TUI_SQL + " LIMIT 1"
             ).fetchone())
             if need_tui_tick:
                 tui_agents = _host_agents_list("herdr")
@@ -16009,10 +16038,8 @@ def _tick_u_reap_loop(con, st):
                     if not tui_list_ok:
                         continue
                     h = _pane_host(con, tui_by_name, tui_by_pane, r)
-                elif _row_hosted_on_hc(r):
-                    h = _pane_host(con, by_name, by_pane, r)
                 else:
-                    continue  # a legacy TUI pane id without host_backend=herdr: tick does not reconcile on hc
+                    h = _pane_host(con, by_name, by_pane, r)
             elif row_exe == "hc":
                 if not hc_list_ok:
                     continue
@@ -16353,7 +16380,7 @@ def _tick_u_nudge(con, st):
             nudge_agents = herdr_agents() or []
             if con.execute(
                 "SELECT 1 FROM agents WHERE status='live' "
-                "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+                "AND " + LEGACY_TUI_SQL + " LIMIT 1"
             ).fetchone():
                 tui_agents = _host_agents_list("herdr")
                 tui_list_ok = tui_agents is not None
@@ -17513,7 +17540,7 @@ def tick_recycle(con):
         agents = herdr_agents()
         if con.execute(
             "SELECT 1 FROM agents WHERE status IN ('live') AND role IN ('director','lead') "
-            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+            "AND " + LEGACY_TUI_SQL + " LIMIT 1"
         ).fetchone():
             tui_agents = _host_agents_list("herdr")
             tui_list_ok = tui_agents is not None
@@ -18870,7 +18897,7 @@ def tick_relaunches(con):
         agents = herdr_agents()
         if con.execute(
             "SELECT 1 FROM agents WHERE status='live' AND relaunch_requested_at IS NOT NULL "
-            "AND json_extract(spawn_args,'$.host_backend')='herdr' LIMIT 1"
+            "AND " + LEGACY_TUI_SQL + " LIMIT 1"
         ).fetchone():
             tui_agents = _host_agents_list("herdr")
             tui_list_ok = tui_agents is not None
