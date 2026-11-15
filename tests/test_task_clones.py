@@ -407,6 +407,11 @@ class TaskCloneTests(FactoryTestCase):
         self.assertIn("commit-msg", self.hook_events()[-1]["files"])
         self.assertFalse((wt / "x").exists())
 
+    def test_cursor_on_a_shared_worktree_never_writes_commit_msg_into_the_main_repo(self):
+        self.assertEqual(self.prepare(runtime="cursor")[0], 0)  # task_clones=0: `git worktree add`, hooks/ shared with main
+        self.assertTrue((self.wt / ".git").is_file())
+        self.assertFalse((self.h / ".git" / "hooks" / "commit-msg").exists())
+
     def test_cursor_clone_guard_still_refuses_core_hookspath(self):
         wt = self.cursor_clone()
         git("config", "core.hooksPath", "/tmp/elsewhere", cwd=wt)

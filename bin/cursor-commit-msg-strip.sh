@@ -6,6 +6,7 @@
 f="$1"
 [ -f "$f" ] || { echo "cursor-commit-msg-strip: no message file given" >&2; exit 1; }
 tmp=$(mktemp "${f}.XXXXXX") || exit 1
+trap 'rm -f "$tmp" "$tmp.t"' EXIT
 dropped=0
 while IFS= read -r line || [ -n "$line" ]; do
   lower=$(printf '%s' "$line" | tr 'A-Z' 'a-z')
@@ -15,8 +16,8 @@ while IFS= read -r line || [ -n "$line" ]; do
   printf '%s\n' "$line" >> "$tmp"
 done < "$f"
 if [ "$dropped" = 1 ]; then
-  while [ -s "$tmp" ] && [ -z "$(tail -n 1 "$tmp" | tr -d ' \t')" ]; do
-    head -n -1 "$tmp" > "$tmp.t" && mv "$tmp.t" "$tmp"
+  while [ -s "$tmp" ] && [ -z "$(tail -n 1 "$tmp" | tr -d ' \t\r')" ]; do
+    sed '$d' "$tmp" > "$tmp.t" && mv "$tmp.t" "$tmp"
   done
   cat "$tmp" > "$f"
 fi
