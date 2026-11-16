@@ -14,3 +14,4 @@ A Proposed ADR becomes Accepted only with the approving message id recorded in i
 | [0002](0002-sandbox-runtime-v3.md) | Sandbox runtime v3: hardened nsbox testbox (A+), no microVMs for tests | Accepted | 2026-10-29 |
 | [0003](0003-macos-support.md) | macOS support: separate worker user plus Seatbelt for the sandbox, launchd and /proc-free gates for the port | Proposed | 2026-11-15 |
 | [0004](0004-node-esm-hivemill-ios-release.md) | Node ESM and bash for the hivemill iOS release script | Accepted | 2026-11-14 |
+| [0005](0005-self-hosted-ci-runners.md) | Self-hosted CI runners for trusted PRs: ephemeral runner on a private CI repository, never on the public one | Proposed | 2026-11-15 |

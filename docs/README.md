@@ -78,6 +78,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [lessons.md](lessons.md): where corrections and incidents are recorded and applied.
 - [utilization.md](utilization.md): the live-agent count shown by `factory res`, the tick sample and the web home.
 - [terminal-backends.md](terminal-backends.md): Herdr TUI vs herdr-core (`hc`), how to switch `terminal_backend`, caveats.
+- [multi-machine.md](multi-machine.md): the `factory-forward` ssh forwarder (protocol, env allow-list, owner install, threat model) for workers on a second machine (G-057).
 - [utilization-alerts.md](utilization-alerts.md): tick alerts to the director and boss for low worker count, starved goals and owner-cap breaches.
 - [PUBLISHING.md](PUBLISHING.md): the one approved route to a public copy of the repository.
 - [RELEASING.md](RELEASING.md): how a release is made, who does each step, and the feature-flag lifecycle.
@@ -113,6 +114,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0002-sandbox-runtime-v3.md](adr/0002-sandbox-runtime-v3.md): sandbox runtime v3 (hardened nsbox testbox, no microVMs for tests).
 - [adr/0003-macos-support.md](adr/0003-macos-support.md): macOS support (sandbox mechanism and port plan).
 - [adr/0004-node-esm-hivemill-ios-release.md](adr/0004-node-esm-hivemill-ios-release.md): Node ESM for the hivemill ios-release script.
+- [adr/0005-self-hosted-ci-runners.md](adr/0005-self-hosted-ci-runners.md): self-hosted CI runners for trusted PRs (proposed design, nothing installed).
 
 ## Internals
 
