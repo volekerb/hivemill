@@ -172,5 +172,39 @@ class HelperTests(FactoryTestCase):
         self.assertIsNone(self.pinned(None))
 
 
+class NonDictPaneOutputTests(FactoryTestCase):
+    """T-1598: herdr prints plain pane text; a last line that parses as non-dict JSON (7, 1.5, ["x"]) must take the
+    {"raw": out} fallback in herdr() and _host_ipc_result, not raise TypeError and abort the tick."""
+    ARGS = ("pane", "process-info", "--pane", "p1")
+
+    def stub_prints(self, text):
+        """The herdr stub prints this text verbatim (its pane "fixture" hook)."""
+        fx = self.env.home / "pane-out.txt"
+        fx.write_text(text)
+        self.env.set_herdr(panes=[{"pane_id": "p1", "tab_id": "t1", "workspace_id": "w1", "fixture": str(fx)}])
+
+    def both(self):
+        with self.env.load_factory() as f:
+            return f.herdr(*self.ARGS), f._host_ipc_result("herdr", *self.ARGS)
+
+    def test_g_last_line_int_float_or_list_returns_the_raw_fallback(self):
+        for last in ("7", "1.5", '["x"]'):
+            with self.subTest(last=last):
+                text = "tokens used\n" + last
+                self.stub_prints(text)
+                self.assertEqual(self.both(), ({"raw": text}, {"raw": text}))
+
+    def test_h_valid_result_line_is_returned_unchanged(self):
+        self.stub_prints('noise\n{"id": "x", "result": {"text": "hello", "n": 7}}')
+        want = {"text": "hello", "n": 7}
+        self.assertEqual(self.both(), (want, want))
+
+    def test_i_non_json_text_and_dict_without_result_keep_the_raw_fallback(self):
+        for text in ("plain pane text", '{"id": "x"}'):
+            with self.subTest(text=text):
+                self.stub_prints(text)
+                self.assertEqual(self.both(), ({"raw": text}, {"raw": text}))
+
+
 if __name__ == "__main__":
     unittest.main()
