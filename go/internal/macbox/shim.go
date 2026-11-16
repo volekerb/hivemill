@@ -10,19 +10,19 @@ import (
 
 // ShimOpts are the paths and accounts baked into bin/claude.
 type ShimOpts struct {
-	Role          string
-	Account       string
-	LauncherPath  string
-	ProfilePath   string
-	RealClaude    string
-	OwnerUID      int
-	AgentHome     string
-	ConfigDir     string
-	GitConfig     string
-	TmpDir        string
-	OAuthToken    string
-	GhToken       string
-	CallerEnv     map[string]string // allow-listed keys only
+	Role         string
+	Account      string
+	LauncherPath string
+	ProfilePath  string
+	RealClaude   string
+	OwnerUID     int
+	AgentHome    string
+	ConfigDir    string
+	GitConfig    string
+	TmpDir       string
+	OAuthToken   string
+	GhToken      string
+	CallerEnv    map[string]string // allow-listed keys only
 }
 
 // RenderShim writes the agent's bin/claude shim (owner-owned, 0755). Tokens

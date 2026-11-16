@@ -117,7 +117,7 @@ func baseSpec() Spec {
 		CloneDir: "/Users/o/factory/worktrees/x", RealClaude: "/bin/sh", AgentDir: "/Users/o/.local/a",
 		OAuthPath: "/Users/o/.config/factory/cred-oauth",
 		GhPath:    "/Users/o/.config/factory/cred-gh-rw",
-		ProfileIn:  baseProfileIn(),
+		ProfileIn: baseProfileIn(),
 	}
 }
 

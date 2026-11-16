@@ -52,10 +52,10 @@ func FilterEnviron(environ []string) []string {
 // ApplyLauncherDirs sets per-agent paths the launcher owns (ADR 3.2).
 func ApplyLauncherDirs(env map[string]string) {
 	for src, dst := range map[string]string{
-		"MACBOX_AGENT_HOME":         "HOME",
-		"MACBOX_CLAUDE_CONFIG_DIR":  "CLAUDE_CONFIG_DIR",
-		"MACBOX_GIT_CONFIG_GLOBAL":  "GIT_CONFIG_GLOBAL",
-		"MACBOX_TMPDIR":             "TMPDIR",
+		"MACBOX_AGENT_HOME":        "HOME",
+		"MACBOX_CLAUDE_CONFIG_DIR": "CLAUDE_CONFIG_DIR",
+		"MACBOX_GIT_CONFIG_GLOBAL": "GIT_CONFIG_GLOBAL",
+		"MACBOX_TMPDIR":            "TMPDIR",
 	} {
 		if v := env[src]; v != "" {
 			env[dst] = v
