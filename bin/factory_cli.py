@@ -7522,11 +7522,13 @@ def _red_main_latest(slug):
     """Latest completed tests.yml push run on main of `slug` as a dict, None when there is none. Raises OSError, ValueError
     or subprocess.TimeoutExpired when gh cannot tell (the caller keeps the old state)."""
     p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
-                        "--limit", "5", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
+                        "--limit", "40", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
                        capture_output=True, text=True, timeout=30, env=gh_git_env())
     if p.returncode != 0:
         raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
-    return next((r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")), None)
+    done = [r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")]
+    # the newest commit's verdict is the newest createdAt, not the first listed; queued runs crowd a small window (T-1636)
+    return max(done, key=lambda r: r.get("createdAt") or "", default=None)
 
 
 def _red_main_green_mark(value):
