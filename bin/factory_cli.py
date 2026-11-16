@@ -2941,6 +2941,10 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             return False, why, stats
         stats["machine"] = machine
         stats["hq_fails"] = per["machines"].get(per["hq"], {}).get("fails") or []
+        # Remote start is a later task. A caller that only checks gate()[0] (the resume tick) must see a
+        # refusal here, or it records a start while spawn queues the row.
+        if machine != per["hq"] and stats["hq_fails"]:
+            return False, f"would place on {machine} (remote start not enabled yet)", stats
     return True, "ok", stats
 
 

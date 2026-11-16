@@ -566,6 +566,12 @@ class PlacementTests(FactoryTestCase):
         self.assertEqual(self.env.calls("ssh"), [])
         self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-inc-off'")[0]["status"], "queued")
         self.enable()
+        with self.env.load_factory() as mod:
+            os.environ.update(env)
+            os.environ["FACTORY_FACTS_NOW"] = "10000"
+            ok, why, _ = mod.gate(mod.db(), role="coder", runtime="claude")
+        self.assertFalse(ok)
+        self.assertIn("would place on workerhost (remote start not enabled yet)", why)
         p = self.ok("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-inc-on", extra_env=env)
         self.assertIn("QUEUED", p.stdout)
         self.assertIn("would place on workerhost (remote start not enabled yet)", p.stdout)
