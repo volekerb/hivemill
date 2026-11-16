@@ -287,5 +287,6 @@ INSERT INTO config(key,value) VALUES('tick_impl','python');
 INSERT INTO config(key,value) VALUES('tick_phase_timers','0');
 INSERT INTO config(key,value) VALUES('tmp_max_pct','90');
 INSERT INTO config(key,value) VALUES('tmp_sweep_pct','80');
+INSERT INTO config(key,value) VALUES('usage_reopen_samples','3');
 INSERT INTO config(key,value) VALUES('worker_gh_repos','');
 INSERT INTO config(key,value) VALUES('worker_gh_roles','');

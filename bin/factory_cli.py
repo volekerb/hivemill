@@ -184,6 +184,9 @@ DEFAULT_CONFIG = {
     "tmp_max_pct": "90",         # the gate closes when the filesystem holding /tmp is this full (it is RAM-backed tmpfs on your-box)
     "max_five_hour_pct": "92",
     "max_seven_day_pct": "92",
+    # After a fresh 5h or 7d reading at/over its cap, non-cursor spawns stay queued while the reading is stale or
+    # unreadable, and until this many consecutive fresh readings are under both caps. No at-cap reading yet: unchanged.
+    "usage_reopen_samples": "3",
     "nudge_cooldown_s": "120",
     "boss_wake_after_s": "900",    # tick step 3: boss pane is prompted only when an unread escalation/request is at least this old (T-1199)
     "boss_wake_cooldown_s": "1800",  # at most one boss wake per this many seconds (agents.last_nudge)
@@ -2496,28 +2499,41 @@ def usage_text(u):
     return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
 
 
+def _updated_at(v):
+    """The usage file's updated_at as a finite float, or None. The reopen streak counts one sample per timestamp."""
+    if isinstance(v, bool) or v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
 def usage():
     """5h/7d usage. Each field is parsed on its own: an empty or bad one is None, the other still counts. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
-    read mid-write) is "unreadable": five_hour/seven_day None, never fresh, so the gate neither opens nor closes on it."""
+    read mid-write) is "unreadable": five_hour/seven_day None, never fresh. With no prior at-cap reading the gate skips the usage caps; after one, a stale or unreadable reading keeps it closed."""
     for attempt in (0, 1):
         try:
             u = json.loads(USAGE_FILE.read_text())
-            age = time.time() - float(u.get("updated_at", 0))
+            updated = _updated_at(u.get("updated_at"))
+            age = time.time() - float(updated if updated is not None else 0)
             five, seven = _pct_field(u.get("five_hour_pct")), _pct_field(u.get("seven_day_pct"))
             if five is None and seven is None:
                 raise ValueError("neither five_hour_pct nor seven_day_pct is a number")
             return {"five_hour": five, "seven_day": seven,
                     "fresh": age < 3 * 3600, "age_min": int(age // 60),
                     "five_hour_resets_at": _epoch(u.get("five_hour_resets_at")),
-                    "seven_day_resets_at": _epoch(u.get("seven_day_resets_at"))}
+                    "seven_day_resets_at": _epoch(u.get("seven_day_resets_at")),
+                    "updated_at": updated}
         except FileNotFoundError:
             return {"five_hour": 0.0, "seven_day": 0.0, "fresh": False, "age_min": -1,
-                    "five_hour_resets_at": None, "seven_day_resets_at": None}
+                    "five_hour_resets_at": None, "seven_day_resets_at": None, "updated_at": None}
         except Exception:  # noqa: BLE001 — partial JSON, IO error, bad numbers
             if attempt == 0:
                 time.sleep(0.05)
     return {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1, "unreadable": True,
-            "five_hour_resets_at": None, "seven_day_resets_at": None}
+            "five_hour_resets_at": None, "seven_day_resets_at": None, "updated_at": None}
 
 
 STARTUP_GRACE_S = 180  # herdr may not list a freshly started agent yet
@@ -2565,6 +2581,105 @@ def _int_cfg(con, key, default):
 
 
 REVIEW_RESERVE_BLOCKED = ("pm", "coder", "cleaner")  # roles that may not take the slots review_reserved_slots keeps for reviewer/qa
+USAGE_REOPEN_KEY = "usage-reopen-streak"  # throttle.ts JSON {"n","sample"}: consecutive fresh below-cap readings since the last at-cap sample
+
+
+def _usage_sample_id(u):
+    """Identity of one usage file write. None when the file has no timestamp (unreadable or missing)."""
+    v = u.get("updated_at")
+    if v is None:
+        return None
+    return f"{float(v):.6f}"
+
+
+def _usage_hold_load(con):
+    """The reopen streak row, or None when no reading has been at/over the cap. A row that cannot be read is n=0 (fail closed)."""
+    row = con.execute("SELECT ts FROM throttle WHERE key=?", (USAGE_REOPEN_KEY,)).fetchone()
+    if not row:
+        return None
+    try:
+        data = json.loads(row["ts"])
+    except (json.JSONDecodeError, TypeError, ValueError):
+        data = None
+    if not isinstance(data, dict) or isinstance(data.get("n"), bool) or not isinstance(data.get("n"), int) or data["n"] < 0:
+        return {"n": 0, "sample": None}
+    return data
+
+
+def _usage_hold_save(con, n, sample):
+    con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                (USAGE_REOPEN_KEY, json.dumps({"n": n, "sample": sample}, separators=(",", ":"))))
+
+
+def _usage_over_reason(con, u):
+    """The fresh at-cap reason, or None when both windows are under their caps. A None field is not at the cap."""
+    if u.get("five_hour") is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
+        return f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%"
+    if u.get("seven_day") is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
+        return f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%"
+    return None
+
+
+def _usage_reopen_need(con):
+    """How many consecutive fresh below-cap readings reopen the gate. Below 1 or not an integer: the default 3."""
+    n = _int_cfg(con, "usage_reopen_samples", 3)
+    return n if n >= 1 else 3
+
+
+def _pct_text(v):
+    return "n/a" if v is None else f"{v:.0f}%"
+
+
+def _usage_arm(con, u):
+    """Record a fresh at-cap reading before any earlier cap returns, so a later stale file still holds the queue."""
+    if not (u.get("fresh") and not u.get("unreadable")) or not _usage_over_reason(con, u):
+        return
+    sample = _usage_sample_id(u)
+    hold = _usage_hold_load(con)
+    if not hold or hold.get("sample") != sample or hold.get("n") != 0:
+        _usage_hold_save(con, 0, sample)
+
+
+def _usage_cap_gate(con, u):
+    """(True, reason) when the Claude usage cap holds the queue, else (False, None).
+
+    A fresh reading at/over either cap records a streak of 0 in the throttle table. The queue stays closed while that
+    row exists and the current reading is stale, unreadable, or a run of fewer than usage_reopen_samples fresh
+    readings under both caps. The same updated_at counts once. No row yet: today's behaviour (a stale reading does
+    not close the gate). Cursor callers must not use this."""
+    fresh = bool(u.get("fresh")) and not u.get("unreadable")
+    hold = _usage_hold_load(con)
+    sample = _usage_sample_id(u)
+    if fresh:
+        over = _usage_over_reason(con, u)
+        if over:
+            if not hold or hold.get("sample") != sample or hold.get("n") != 0:
+                _usage_hold_save(con, 0, sample)
+            return True, over
+        if not hold:
+            return False, None
+        if sample is None or hold.get("sample") == sample:
+            n = int(hold["n"])
+        else:
+            n = int(hold["n"]) + 1
+            if n >= _usage_reopen_need(con):
+                con.execute("DELETE FROM throttle WHERE key=?", (USAGE_REOPEN_KEY,))
+                return False, None
+            _usage_hold_save(con, n, sample)
+        need = _usage_reopen_need(con)
+        if n >= need:
+            con.execute("DELETE FROM throttle WHERE key=?", (USAGE_REOPEN_KEY,))
+            return False, None
+        return True, (f"weekly usage 5h {_pct_text(u.get('five_hour'))} · week {_pct_text(u.get('seven_day'))} "
+                      f"below cap; {n}/{need} consecutive fresh readings")
+    if not hold:
+        return False, None
+    if hold.get("n") != 0:
+        _usage_hold_save(con, 0, sample if sample is not None else hold.get("sample"))
+    if u.get("unreadable"):
+        return True, "weekly usage unreadable; holding the queue until fresh readings are below the cap"
+    return True, (f"weekly usage stale: 5h {_pct_text(u.get('five_hour'))} · week {_pct_text(u.get('seven_day'))} "
+                  f"({u.get('age_min')} min old); holding the queue until fresh readings are below the cap")
 
 
 def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None):
@@ -2577,7 +2692,10 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
     light orchestration that must not wait behind builders (T-0867); every other cap applies, including max_live_leads).
     role="lead" with config lead_parking=1 adds the lead cap (max_live_leads) and the worker reserve (HQ panes stay
     <= max_live_agents - reserved_worker_slots); own_slot or own_lead (a relaunch of a lead that holds its row) skips both.
-    Any other role, or role=None, gets exactly the checks above."""
+    Any other role, or role=None, gets exactly the checks above.
+    For runtime other than cursor, a fresh 5h or 7d reading at or over its cap latches the queue: a later stale or
+    unreadable reading stays closed, and the latch clears only after usage_reopen_samples consecutive fresh readings
+    under both caps (one count per usage-file timestamp, stored in throttle). No latch yet: a stale reading is ignored."""
     agents = herdr_agents()
     names = {x.get("name") for x in (agents or []) if x.get("name")}
     panes = {x.get("pane_id") for x in (agents or []) if x.get("pane_id")}
@@ -2593,6 +2711,8 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
                 and a.get("name") not in known and a.get("pane_id") not in known)
     mem = mem_available_mb()
     u = usage()
+    if runtime != "cursor":
+        _usage_arm(con, u)  # before the pane, memory and load returns, or a full box never latches an at-cap reading
     procs = total_claude_procs()
     total = procs["total"]
     starting = 0
@@ -2665,10 +2785,9 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     # Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
     if runtime != "cursor":
-        if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
-            return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
-        if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
-            return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+        blocked, why = _usage_cap_gate(con, u)
+        if blocked:
+            return False, why, stats
     if runtime == "cursor" and role:
         from web import cursor_limits
         slug = role_model(con, role, org="cursor")

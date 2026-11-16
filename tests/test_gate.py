@@ -203,6 +203,192 @@ class GateTests(FactoryTestCase):
         self.assertIn("herdr unreachable", p.stdout)
 
 
+class UsageReopenTests(FactoryTestCase):
+    """T-1641: after an at-cap reading, a stale, unreadable or single below-cap sample keeps the Claude queue closed."""
+
+    def setUp(self):
+        super().setUp()
+        self.env.seed_goal()
+        self.env.seed_task(status="todo", pr_url=None)
+
+    def write_reading(self, five, seven, updated_at):
+        f = self.env.user_home / ".claude" / "usage-limits.json"
+        f.parent.mkdir(exist_ok=True)
+        f.write_text(json.dumps({"five_hour_pct": five, "seven_day_pct": seven, "updated_at": updated_at}))
+
+    def hold(self):
+        rows = self.env.sql("SELECT ts FROM throttle WHERE key='usage-reopen-streak'")
+        self.assertLessEqual(len(rows), 1)
+        return json.loads(rows[0]["ts"]) if rows else None
+
+    def spawn_pm(self, name):
+        return self.ok("spawn", "pm", "--goal", "G-001", "--name", name)
+
+    def assert_queued_row(self, p, text, name):
+        self.assertIn("QUEUED", p.stdout)
+        self.assertIn(text, p.stdout)
+        self.assertNotIn("SPAWNED", p.stdout)
+        rows = self.env.sql("SELECT status FROM agents WHERE name=?", (name,))
+        self.assertEqual([r["status"] for r in rows], ["queued"])
+
+    def statuses(self, *names):
+        out = {}
+        for name in names:
+            rows = self.env.sql("SELECT status FROM agents WHERE name=?", (name,))
+            self.assertEqual(len(rows), 1, name)
+            out[name] = rows[0]["status"]
+        return out
+
+    def test_owner_caps_and_reopen_default(self):
+        self.assertEqual(self.ok("config", "max_five_hour_pct").stdout.strip(), "92")
+        self.assertEqual(self.ok("config", "max_seven_day_pct").stdout.strip(), "92")
+        self.assertEqual(self.ok("config", "usage_reopen_samples").stdout.strip(), "3")
+
+    def test_replay_2351_stale_then_one_dip_stays_closed_until_three(self):
+        # 23:51 drain: 90 fresh, then a stale reading, then one fresh 89, must not start the queue.
+        now = time.time()
+        self.ok("config", "max_seven_day_pct", "90")
+        self.ok("config", "max_live_agents", "20")
+        self.ok("config", "scout_enabled", "0")
+        self.ok("config", "retro_enabled", "0")
+        names = ["zz-a-over", "zz-a-stale", "zz-a-one", "zz-a-again"]
+        self.write_reading(10, 90, now)
+        self.assert_queued_row(self.spawn_pm(names[0]), "weekly usage 90% ≥ 90%", names[0])
+        self.assertEqual(self.hold()["n"], 0)
+        self.assertTrue(self.hold()["sample"])
+
+        self.write_reading(10, 90, now - 5 * 3600)
+        stale = self.spawn_pm(names[1])
+        self.assert_queued_row(stale, "weekly usage stale:", names[1])
+        self.assertIn("90%", stale.stdout)
+        self.assertEqual(self.hold()["n"], 0)
+
+        self.write_reading(10, 89, now + 1)
+        one = self.spawn_pm(names[2])
+        self.assert_queued_row(one, "1/3 consecutive fresh readings", names[2])
+        self.assertIn("89%", one.stdout)
+        again = self.spawn_pm(names[3])
+        self.assert_queued_row(again, "1/3 consecutive fresh readings", names[3])
+        self.assertEqual(self.hold()["n"], 1)
+
+        self.ok("tick")
+        self.assertEqual(self.statuses(*names), {n: "queued" for n in names})
+        self.assertEqual(self.hold()["n"], 1)
+
+        self.write_reading(10, 89, now + 2)
+        self.ok("tick")
+        self.assertEqual(self.statuses(*names), {n: "queued" for n in names})
+        self.assertEqual(self.hold()["n"], 2)
+
+        self.write_reading(10, 89, now + 3)
+        self.ok("tick")
+        self.assertEqual(self.statuses(*names), {n: "live" for n in names})
+        self.assertIsNone(self.hold())
+
+    def test_unreadable_after_over_cap_stays_closed(self):
+        now = time.time()
+        self.ok("config", "max_seven_day_pct", "90")
+        self.write_reading(10, 91, now)
+        self.assert_queued_row(self.spawn_pm("zz-b-over"), "weekly usage 91% ≥ 90%", "zz-b-over")
+        f = self.env.user_home / ".claude" / "usage-limits.json"
+        f.write_text("not json")
+        bad = self.spawn_pm("zz-b-bad")
+        self.assert_queued_row(bad, "weekly usage unreadable", "zz-b-bad")
+        f.write_text(json.dumps({"five_hour_pct": None, "seven_day_pct": None, "updated_at": now + 1}))
+        none = self.spawn_pm("zz-b-none")
+        self.assert_queued_row(none, "weekly usage unreadable", "zz-b-none")
+        self.assertIsNotNone(self.hold())
+
+    def test_cold_start_stale_without_over_cap_stays_open(self):
+        now = time.time()
+        self.write_reading(95, 95, now - 5 * 3600)
+        p = self.spawn_pm("zz-c-open")
+        self.assertIn("SPAWNED zz-c-open", p.stdout)
+        self.assertNotIn("QUEUED", p.stdout)
+        self.assertNotIn("holding the queue", p.stdout)
+        self.assertIsNone(self.hold())
+        rows = self.env.sql("SELECT status FROM agents WHERE name='zz-c-open'")
+        self.assertEqual(rows[0]["status"], "live")
+
+    def test_cursor_runtime_ignores_the_hold(self):
+        now = time.time()
+        self.ok("config", "max_seven_day_pct", "90")
+        self.env.seed_team(lead="zz-test-lead")
+        self.env.seed_agent("zz-test-director", "director", goal="G-001", team="g-001-a")
+        fake = self.env.stub_bin / "agent"
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
+        self.write_reading(10, 90, now)
+        self.ok("config", "agent_runtimes", "*=cursor")
+        first = self.spawn_pm("zz-d-cursor")
+        self.assertIn("SPAWNED zz-d-cursor", first.stdout)
+        self.assertIn("runtime=cursor", first.stdout)
+        self.assertNotIn("weekly usage", first.stdout)
+        self.assertIsNone(self.hold())  # a cursor spawn does not arm the latch
+
+        self.ok("config", "agent_runtimes", "")
+        self.write_reading(10, 90, now)  # same at-cap sample
+        held = self.spawn_pm("zz-d-claude")
+        self.assert_queued_row(held, "weekly usage 90% ≥ 90%", "zz-d-claude")
+        self.assertEqual(self.hold()["n"], 0)
+
+        self.ok("config", "agent_runtimes", "*=cursor")
+        still = self.spawn_pm("zz-d-cursor2")
+        self.assertIn("SPAWNED zz-d-cursor2", still.stdout)
+        self.assertNotIn("weekly usage", still.stdout)
+        self.assertEqual(self.hold()["n"], 0)
+
+        self.write_reading(10, 90, now - 5 * 3600)
+        stale_cursor = self.spawn_pm("zz-d-cursor3")
+        self.assertIn("SPAWNED zz-d-cursor3", stale_cursor.stdout)
+        self.assertNotIn("weekly usage", stale_cursor.stdout)
+        self.ok("config", "agent_runtimes", "")
+        stale_claude = self.spawn_pm("zz-d-claude2")
+        self.assert_queued_row(stale_claude, "weekly usage stale:", "zz-d-claude2")
+        self.assertIn("90%", stale_claude.stdout)
+
+        self.write_reading(10, 89, now + 1)
+        self.ok("config", "agent_runtimes", "*=cursor")
+        dip_cursor = self.spawn_pm("zz-d-cursor4")
+        self.assertIn("SPAWNED zz-d-cursor4", dip_cursor.stdout)
+        self.assertNotIn("weekly usage", dip_cursor.stdout)
+        self.ok("config", "agent_runtimes", "")
+        dip_claude = self.spawn_pm("zz-d-claude3")
+        self.assert_queued_row(dip_claude, "1/3 consecutive fresh readings", "zz-d-claude3")
+        self.assertEqual(self.hold()["n"], 1)
+
+    def test_at_cap_reading_latches_when_an_earlier_cap_closes_first(self):
+        now = time.time()
+        self.ok("config", "max_live_agents", "1")
+        self.ok("config", "max_seven_day_pct", "90")
+        self.env.seed_agent("zz-full", "coder", goal="G-001")
+        self.env.sql("UPDATE agents SET pane_id=? WHERE name=?", ("p-zz-full", "zz-full"))
+        self.env.set_herdr(agents=[{"name": "zz-full", "agent": "claude", "pane_id": "p-zz-full"}])
+        self.write_reading(10, 90, now)
+        blocked = self.spawn_pm("zz-arm")
+        self.assert_queued_row(blocked, "agent panes live", "zz-arm")
+        self.assertEqual(self.hold()["n"], 0)
+        self.ok("config", "max_live_agents", "6")
+        self.write_reading(10, 90, now - 5 * 3600)
+        stale = self.spawn_pm("zz-arm-stale")
+        self.assert_queued_row(stale, "weekly usage stale:", "zz-arm-stale")
+        self.assertIn("90%", stale.stdout)
+
+    def test_reopen_count_follows_usage_reopen_samples(self):
+        now = time.time()
+        self.ok("config", "max_seven_day_pct", "90")
+        self.ok("config", "usage_reopen_samples", "2")
+        self.write_reading(10, 90, now)
+        self.assert_queued_row(self.spawn_pm("zz-n-over"), "weekly usage 90% ≥ 90%", "zz-n-over")
+        self.write_reading(10, 89, now + 1)
+        self.assert_queued_row(self.spawn_pm("zz-n-one"), "1/2 consecutive fresh readings", "zz-n-one")
+        self.write_reading(10, 89, now + 2)
+        opened = self.spawn_pm("zz-n-two")
+        self.assertIn("SPAWNED zz-n-two", opened.stdout)
+        self.assertNotIn("QUEUED", opened.stdout)
+        self.assertIsNone(self.hold())
+
+
 class TotalClaudeCapTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
@@ -408,7 +594,7 @@ class UsageReadTests(FactoryTestCase):
         with self.env.load_factory() as mod:
             self.assertEqual(mod.usage(), {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1,
                                            "unreadable": True, "five_hour_resets_at": None,
-                                           "seven_day_resets_at": None})
+                                           "seven_day_resets_at": None, "updated_at": None})
 
     def test_usage_overflowing_reset_keeps_percentages(self):
         for bad in ("1e400", "inf", "-inf", "nan"):
@@ -477,7 +663,8 @@ class UsageReadTests(FactoryTestCase):
     def test_usage_missing_file_stays_stale(self):
         with self.env.load_factory() as mod:
             self.assertEqual(mod.usage(), {"five_hour": 0.0, "seven_day": 0.0, "fresh": False, "age_min": -1,
-                                           "five_hour_resets_at": None, "seven_day_resets_at": None})
+                                           "five_hour_resets_at": None, "seven_day_resets_at": None,
+                                           "updated_at": None})
 
     def test_usage_reset_epochs_coerced_from_strings(self):
         self.write_raw(json.dumps({"five_hour_pct": "9", "seven_day_pct": "40", "updated_at": time.time(),

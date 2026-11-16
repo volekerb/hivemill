@@ -171,6 +171,7 @@ Read the Upgrade section of that version's release notes (https://github.com/vol
 | (tick housekeeping) | — | Hourly the tick also removes stale test-harness homes `/tmp/zz-test-factory-<8 chars>`: real dirs of the factory user directly under `/tmp`, nothing in the tree touched for 1 h, no process of that user with its cwd or an fd inside (an unreadable `/proc/<pid>` keeps everything), at most 500 per pass; one `tmp-harness-swept` event. The `/tmp` percent in `factory res` and the gate text has one decimal. |
 | `max_five_hour_pct` | `92` | The gate closes above this share of the five-hour Claude usage window. |
 | `max_seven_day_pct` | `92` | Same, for the seven-day window. |
+| `usage_reopen_samples` | `3` | After a fresh 5h or 7d reading at or over its cap, a non-cursor spawn stays queued while that reading is stale or unreadable, and until this many consecutive fresh readings (one per usage-file timestamp) are under both caps. With no at-cap reading yet, a stale reading does not close the gate. Cursor spawns ignore it. |
 | `nudge_cooldown_s` | `120` | Minimum seconds between nudges to one agent about unread mail. |
 | `director_cycle_s` | `900` | How often the tick gives the director a planning cycle. |
 | `blocked_alert_s` | `600` | How long an agent may sit on a dialog before it is reported blocked. |
