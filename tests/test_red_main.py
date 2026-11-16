@@ -10,6 +10,8 @@ RED = {"databaseId": 901, "status": "completed", "conclusion": "failure", "creat
 GOOD = {"databaseId": 902, "status": "completed", "conclusion": "success", "createdAt": "2026-01-01T00:00:00Z", "headSha": "c" * 40, "url": "https://github.com/acme/priv/actions/runs/902"}
 NEWER_GOOD = dict(GOOD, createdAt="2026-11-01T00:00:00Z")  # newer than RED: the newest commit is green
 RUNNING = {"databaseId": 903, "status": "in_progress", "conclusion": None, "headSha": "d" * 40, "url": ""}
+# T-1592: an older *pending* main run that a newer merge superseded (one shared push concurrency group)
+CANCELLED = {"databaseId": 906, "status": "completed", "conclusion": "cancelled", "createdAt": "2026-10-29T11:00:00Z", "headSha": "e" * 40, "url": "https://github.com/acme/priv/actions/runs/906"}
 URL = "https://github.com/acme/priv/pull/1"
 
 
@@ -132,6 +134,55 @@ class RedMainTests(FactoryTestCase):
         self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
         self.assertIn("red main: run 901", p.stderr)
         self.assertEqual(len(self.director_mail()), 1)
+
+    def red_main_events(self):
+        return self.env.sql("SELECT action, detail FROM events WHERE entity='redmain' AND action IN ('red-main','red-main-clear')")
+
+    def test_cancelled_run_after_green_is_not_red(self):
+        """T-1592: green, then a cancelled (superseded) run, then a newer pending or green run: never red, nothing filed."""
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        newer_green = dict(GOOD, databaseId=907, createdAt="2026-10-29T12:00:00Z", headSha="f" * 40)
+        for runs in ((CANCELLED, GOOD), (RUNNING, CANCELLED, GOOD), (dict(RUNNING, status="queued"), CANCELLED, GOOD),
+                     (newer_green, CANCELLED, GOOD)):
+            with self.subTest(runs=[r["databaseId"] for r in runs]):
+                self.runs(*runs)
+                self.tick()
+                self.assertEqual(self.env.sql("SELECT key FROM config WHERE key GLOB 'red_main:*'"), [])
+                self.assertEqual(self.red_main_events(), [])
+                self.assertEqual(self.director_mail(), [])
+                self.assertEqual(self.env.sql("SELECT id FROM tasks WHERE title LIKE 'Red main:%'"), [])
+        p = self.merge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_cancelled_run_after_red_is_not_green(self):
+        """T-1592: a cancelled run newer than a red one clears nothing: the freeze stays, with no second alert or task."""
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        self.runs(RED)
+        self.tick()
+        for runs in ((CANCELLED, RED), (RUNNING, CANCELLED, RED)):
+            with self.subTest(runs=[r["databaseId"] for r in runs]):
+                self.runs(*runs)
+                self.tick()
+                self.assertEqual([e["action"] for e in self.red_main_events()], ["red-main"])
+                self.assertEqual(len(self.director_mail()), 1)
+                self.assertEqual(len(self.env.sql("SELECT id FROM tasks WHERE title LIKE 'Red main:%'")), 1)
+        p = self.merge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("red main: run 901", p.stderr)
+        self.assertEqual(self.merges(), [])
+
+    def test_only_cancelled_runs_leave_the_state_unknown(self):
+        """T-1592: with nothing but cancelled and pending runs there is no information: no state, no green mark, no event."""
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        self.runs(RUNNING, CANCELLED, dict(CANCELLED, databaseId=905))
+        self.tick()
+        self.assertEqual(self.env.sql("SELECT key FROM config WHERE key GLOB 'red_main*:*'"), [])
+        self.assertEqual(self.red_main_events(), [])
+        self.assertEqual(self.director_mail(), [])
 
     def test_other_repo_red_does_not_block(self):
         self.ok("config", "red_main_freeze", "1")
