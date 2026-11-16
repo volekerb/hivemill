@@ -9,8 +9,8 @@ Written by the Fable model on the owner's explicit request, relayed as boss deci
 "For Mac I think we need to find the best way to get sandboxes running there and get fable model to design this").
 The exception covers this design only. Every build task below uses Opus or Sonnet as usual.
 
-**The design was written, and the `[doc]` and `[untested]` claims below were not run, on a Mac.** It was written on the Linux factory host, where no macOS mechanism
-can be tried. Every claim about macOS therefore carries one of two tags:
+**This ADR was drafted on the Linux factory host** (Fable, boss decision M36804). Nothing in sections 2–4 was measured on
+a Mac unless tagged `[fact M0]`. Every claim about macOS therefore carries one of these tags:
 
 - `[doc Dn]`: stated by a document that was read during this task. The documents, their URLs and the quoted text
   are in [Evidence](#evidence).
@@ -62,7 +62,7 @@ Four mechanisms:
 
 | | A. Seatbelt | B. Separate user | C. Linux VM | D. App Sandbox |
 |---|---|---|---|---|
-| G1 Claude login | Met only if the profile denies both the credentials file and every Mach service that reaches the Keychain. A deny-default profile does that on paper; one wrong allow rule exposes the login, because the worker is still the owner's user. The Claude login is in the Keychain item "Claude Code-credentials" and there is no credentials file `[fact M0 F11]` | Met by the operating system: the worker user has its own keychain `[doc D14]` and cannot read the owner's 0600 file `[untested]`. The worker logs in with `CLAUDE_CODE_OAUTH_TOKEN`, which ranks above the stored login `[doc D6]` | Met: the owner's Keychain does not exist inside a Linux guest `[untested]`. Only directories shared into the guest are visible `[untested]` | Met in principle (no Keychain or home access without an entitlement) `[untested]` |
+| G1 Claude login | Met only if the profile denies both the credentials file and every Mach service that reaches the Keychain. A deny-default profile does that on paper; one wrong allow rule may expose the login `[untested]`, because the worker is still the owner's user. The Claude login is in the Keychain item "Claude Code-credentials" and there is no credentials file `[fact M0 F11]` | Met by the operating system: the worker user has its own keychain `[doc D14]` and cannot read the owner's 0600 file `[untested]`. The worker logs in with `CLAUDE_CODE_OAUTH_TOKEN`, which ranks above the stored login `[doc D6]` | Met: the owner's Keychain does not exist inside a Linux guest `[untested]`. Only directories shared into the guest are visible `[untested]` | Met in principle (no Keychain or home access without an entitlement) `[untested]` |
 | G2 gh token | As G1: same Keychain, same condition `[untested]`. Worker `gh` uses `GH_TOKEN` `[doc D7]` | Met as G1. Worker `gh` uses `GH_TOKEN` `[doc D7]` | Met as G1 | As G1 `[untested]` |
 | G3 ssh keys, agent | Deny `~/.ssh` and the agent socket path in the profile; unset `SSH_AUTH_SOCK` `[untested]` | Met: `~/.ssh` is 0700 `[fact M0 F9]` and the agent socket belongs to the owner `[untested]` | Met: not shared into the guest `[untested]` | As G1 `[untested]` |
 | G4 Keychain | Depends on the profile, as G1. The sandbox-runtime project warns that even its narrower Mach allowance for TLS trust "opens a potential data exfiltration vector through the trustd service" `[doc D5]` | Met by the operating system: a different user, a different keychain `[doc D14]` | Met: no Keychain in the guest `[untested]` | Met in principle `[untested]` |
@@ -391,7 +391,7 @@ reports unknown, never open".
 - The shim (`plugins/hivemill/scripts/install`) and the release already cover `darwin-arm64`. In
   `hivemill-install`, the "pinned release is a Linux build" refusal (`install.go:438`) becomes a macOS pin table,
   and the systemd step becomes the launchd step of 4.2 (`--no-systemd` gets a neutral alias).
-- Prerequisites that differ: Python 3.11 or newer is not part of macOS, but the MacBook already has python3 3.13.0 `[fact M0 F14]`; until the Python removal
+- Prerequisites that differ: Python 3.11 or newer is not part of the macOS base install `[untested]`, but the MacBook already has python3 3.13.0 `[fact M0 F14]`; until the Python removal
   lands the owner installs it (Homebrew or python.org) and `--check` reports it. The MacBook's `/usr/local/bin/go` is 1.23.3 darwin/**amd64** (Rosetta) `[fact M0 F14]`: the installer must pin and install darwin/arm64 go 1.27.3 and ignore it; `git` comes with the Xcode
   command-line tools `[untested]`. The installer still never uses `sudo` and never edits dotfiles.
 - Logins: `gh auth login` and `claude` `/login` in the owner's own terminal, as on Linux. On macOS both end up in
@@ -440,7 +440,7 @@ Mac). Facts that break or tighten an assumption, each a design follow-up for the
 
 Claims still `[untested]` after M0, and why: the SBPL rule language, whether `sandbox-exec` replaces itself with the
 command, `sudo -u` terminal and process-tree behaviour and herdr detection (M0 did not run them), session-scoped
-services under another user, `vm_stat`/`ps` output shapes (the report does not carry the raw text), APFS free-space
+services under another user, APFS free-space
 behaviour, `/tmp` cleaning, `F_GETPATH`, quarantine of downloads, macOS asset availability for gh, Keychain behaviour
 for a second user, VM and App Sandbox rows (not tried), and BSD `ps` flags. M2 to M7 prove them.
 
