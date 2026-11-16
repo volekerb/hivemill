@@ -272,7 +272,7 @@ func openConfined(path, confine string) *os.File {
 		syscall.Close(fd)
 		return nil
 	}
-	real, err := os.Readlink(fmt.Sprintf("/proc/self/fd/%d", fd))
+	real, err := fdPath(fd)
 	if err != nil || !within(real, confine) {
 		syscall.Close(fd)
 		return nil

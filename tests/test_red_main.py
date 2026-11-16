@@ -8,6 +8,7 @@ import test_public_repo_safety as base
 
 RED = {"databaseId": 901, "status": "completed", "conclusion": "failure", "createdAt": "2026-10-29T10:00:00Z", "headSha": "b" * 40, "url": "https://github.com/acme/priv/actions/runs/901"}
 GOOD = {"databaseId": 902, "status": "completed", "conclusion": "success", "createdAt": "2026-01-01T00:00:00Z", "headSha": "c" * 40, "url": "https://github.com/acme/priv/actions/runs/902"}
+NEWER_GOOD = dict(GOOD, createdAt="2026-11-01T00:00:00Z")  # newer than RED: the newest commit is green
 RUNNING = {"databaseId": 903, "status": "in_progress", "conclusion": None, "headSha": "d" * 40, "url": ""}
 # T-1592: an older *pending* main run that a newer merge superseded (one shared push concurrency group)
 CANCELLED = {"databaseId": 906, "status": "completed", "conclusion": "cancelled", "createdAt": "2026-10-29T11:00:00Z", "headSha": "e" * 40, "url": "https://github.com/acme/priv/actions/runs/906"}
@@ -79,7 +80,7 @@ class RedMainTests(FactoryTestCase):
         self.ok("config", "red_main_interval_s", "0")
         self.runs(RED)
         self.tick()
-        self.runs(GOOD, RED)
+        self.runs(NEWER_GOOD, RED)
         self.tick()
         p = self.merge()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
@@ -91,7 +92,7 @@ class RedMainTests(FactoryTestCase):
         self.runs(RED)
         self.tick()
         self.assertEqual(self.merge().returncode, 4)
-        self.runs(GOOD, RED)
+        self.runs(NEWER_GOOD, RED)
         self.tick()
         p = self.merge()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
@@ -326,6 +327,52 @@ class RedMainTests(FactoryTestCase):
         self.ok("config", "red_main_freeze", "0")
         p = self.merge()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    # T-1636: queued runs crowd the window; the newest completed run's verdict decides.
+    @staticmethod
+    def queued(n):
+        return [{"databaseId": 950 + i, "status": "queued", "conclusion": None, "createdAt": f"2026-11-15T19:0{i}:00Z",
+                 "headSha": "e" * 40, "url": ""} for i in range(n)]
+
+    def test_green_clears_red_behind_queued_runs(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        self.runs(RED)
+        self.tick()
+        self.assertEqual(self.merge().returncode, 4)
+        newer = dict(GOOD, createdAt="2026-10-30T10:00:00Z")
+        self.runs(*self.queued(6), newer, RED)
+        self.tick()
+        self.assertTrue(self.env.sql("SELECT 1 FROM events WHERE action='red-main-clear'"))
+        p = self.merge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_red_newest_completed_behind_queued_keeps_freeze(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        older_green = dict(GOOD, createdAt="2026-10-01T10:00:00Z")
+        self.runs(*self.queued(3), RED, older_green)
+        self.tick()
+        self.assertEqual(self.merge().returncode, 4)
+        with self.env.load_factory() as f:
+            self.assertEqual(f.red_main_state(f.db(), "acme/priv")["run"], 901)
+
+    def test_latest_reads_window_beyond_five_and_picks_newest_created(self):
+        """Fails on a --limit 5 window (the green run sits behind 6 queued runs); also picks by createdAt, not list order."""
+        import json
+        import subprocess
+        from unittest import mock
+        older_red = dict(RED, createdAt="2026-10-01T10:00:00Z")
+        newer_green = dict(GOOD, createdAt="2026-10-30T10:00:00Z")
+        listing = self.queued(6) + [older_red, newer_green]  # red listed before the newer green
+
+        def fake_gh(argv, **kw):
+            n = int(argv[argv.index("--limit") + 1])
+            return subprocess.CompletedProcess(argv, 0, json.dumps(listing[:n]), "")
+        with self.env.load_factory() as f, mock.patch.object(f.subprocess, "run", fake_gh):
+            run = f._red_main_latest("acme/priv")
+        self.assertIsNotNone(run)
+        self.assertEqual(run["databaseId"], 902)
 
 
 if __name__ == "__main__":

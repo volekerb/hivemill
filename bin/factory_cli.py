@@ -1744,7 +1744,12 @@ def _host_ipc_result(exe, *args, check=False, timeout=HERDR_TIMEOUT_S):
     try:
         if exe == "hc":
             return _hc_parse_host_stdout(ipc_argv, out)
-        return json.loads(out.splitlines()[-1])["result"] if out else {}
+        if not out:
+            return {}
+        payload = json.loads(out.splitlines()[-1])
+        if not isinstance(payload, dict):  # plain pane text whose last line parses as JSON (7, 1.5, ["x"], null)
+            return {"raw": out}
+        return payload["result"]
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
 
@@ -1776,7 +1781,12 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     try:
         if exe == "hc":
             return _hc_parse_host_stdout(ipc_argv, out)
-        return json.loads(out.splitlines()[-1])["result"] if out else {}
+        if not out:
+            return {}
+        payload = json.loads(out.splitlines()[-1])
+        if not isinstance(payload, dict):  # plain pane text whose last line parses as JSON (7, 1.5, ["x"], null)
+            return {"raw": out}
+        return payload["result"]
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
 
@@ -4327,6 +4337,61 @@ def send(con, to, subject, body=None, kind="msg", goal=None, task=None, sender=N
     return cur.lastrowid, rcpt
 
 
+STALE_STOP_PREFIX = "[stale: sent to an earlier pane]"
+# A STOP order is what cmd_stop and the tick's idle-coder reap send: a decision message with the subject STOP.
+_STOP_ORDER_SQL = "kind='decision' AND subject='STOP'"
+
+
+def is_stop_order(m):
+    return m["kind"] == "decision" and m["subject"] == "STOP"
+
+
+def stop_order_predates(m, started, same_second=False):
+    """True when STOP order m was created before the agent start `started`. messages.created and agents.started are
+    both written by now() (ISO seconds). A timestamp that cannot be read or compared decides nothing: the order then
+    counts as current and is delivered. same_second: also count an order of the very same second (spawn only, where
+    every order already in the table was sent to an earlier pane)."""
+    c, st = _ts(m["created"]), _ts(started)
+    if c is None or st is None:
+        return False
+    return c <= st if same_second else c < st
+
+
+def drop_stale_stop_orders(con, name):
+    """Spawn: mark read every unread STOP order sent to `name` before this spawn's start. It was meant for an earlier
+    pane of the same name, and the new agent would obey it and quit without working. One stop-stale-dropped event per
+    message. Other unread mail is untouched. Runs inside the caller's transaction (spawn_row_write)."""
+    r = con.execute("SELECT started FROM agents WHERE name=?", (name,)).fetchone()
+    if not r:
+        return []
+    dropped = []
+    for m in con.execute(f"SELECT id, created FROM messages WHERE recipient=? AND read_at IS NULL AND {_STOP_ORDER_SQL} "
+                         "ORDER BY id", (name,)).fetchall():
+        if not stop_order_predates(m, r["started"], same_second=True):
+            continue
+        con.execute("UPDATE messages SET read_at=? WHERE id=? AND read_at IS NULL", (now(), m["id"]))
+        event(con, "agent", name, "stop-stale-dropped",
+              {"agent": name, "message": m["id"], "sent": m["created"], "started": r["started"], "by": "spawn"})
+        dropped.append(m["id"])
+    return dropped
+
+
+def spawn_row_write(con, name, sql, params):
+    """Write the agents row of a spawn and drop the stale STOP orders of that name, in one transaction."""
+    own = not con.in_transaction
+    if own:
+        con.execute("BEGIN IMMEDIATE")
+    try:
+        con.execute(sql, params)
+        drop_stale_stop_orders(con, name)
+        if own:
+            con.execute("COMMIT")
+    except BaseException:
+        if own and con.in_transaction:
+            con.execute("ROLLBACK")
+        raise
+
+
 def release_stale_pane(con, name):
     """A finished (`done`) agent keeps its pane until the next tick reaps it. Reusing the name before then would
     overwrite pane_id and leak that pane, so close it now (same call as the tick reap), confirm with pane_gone and mark
@@ -4530,8 +4595,9 @@ def cmd_inbox(a):
     if a.limit < 1:
         die("--limit must be at least 1")
     me = a.agent or actor()
-    r = con.execute("SELECT role FROM agents WHERE name=?", (me,)).fetchone()
+    r = con.execute("SELECT role, started FROM agents WHERE name=?", (me,)).fetchone()
     hq = (r["role"] if r else ("boss" if me == "boss" else "")) in HQ_ROLES
+    started = r["started"] if r else None
     q = "SELECT * FROM messages WHERE recipient=?" + ("" if a.all else " AND read_at IS NULL") + " ORDER BY id"
     rows = con.execute(q, (me,)).fetchall()
     if not rows:
@@ -4540,8 +4606,16 @@ def cmd_inbox(a):
     hidden = [m for m in rows[:len(rows) - len(shown)] if m["read_at"] is None]
     if hidden:
         print(f"({len(hidden)} older unread not shown; run factory inbox again or --all)")
+    stale = []  # unread STOP orders older than the reader's own start: the spawn missed them (race)
     for m in shown:
         print(inbox_header(m))
+        if m["read_at"] is None and is_stop_order(m) and stop_order_predates(m, started):
+            stale.append(m)
+            print(f"   {STALE_STOP_PREFIX} {m['subject']}")
+            print(f"   This order was sent {m['created']}, before your pane started ({started}). It was for an earlier "
+                  f"pane named {me}, not for you.\n   Carry on with your task. "
+                  f"Full text: factory inbox --show M{m['id']}")
+            continue
         print(f"   {m['subject']}")
         body = m["body"] or ""
         if inbox_collapsed(m, hq, a.full):
@@ -4553,7 +4627,17 @@ def cmd_inbox(a):
         elif body:
             print(textwrap.indent(body, "   "))
     if shown and not a.peek and me == actor():
-        con.executemany("UPDATE messages SET read_at=? WHERE id=? AND read_at IS NULL", [(now(), m["id"]) for m in shown])
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            con.executemany("UPDATE messages SET read_at=? WHERE id=? AND read_at IS NULL", [(now(), m["id"]) for m in shown])
+            for m in stale:
+                event(con, "agent", me, "stop-stale-dropped",
+                      {"agent": me, "message": m["id"], "sent": m["created"], "started": started, "by": "inbox"})
+            con.execute("COMMIT")
+        except BaseException:
+            if con.in_transaction:
+                con.execute("ROLLBACK")
+            raise
 
 
 def cmd_report(a):
@@ -4632,8 +4716,48 @@ def rejection_cause_counts(con):
         "SELECT cause, COUNT(*) n FROM rejection_incidents GROUP BY cause ORDER BY n DESC, cause")}
 
 
+_SC_TITLE_TAG = re.compile(r"^\[SC\d+(?:\s*,\s*SC\d+)*\]\s*")
+_PR_TITLE_SEP = re.compile(r"^[ :-]+")
+
+
+def _task_title_description(db_title):
+    s = (db_title or "").strip()
+    s = _SC_TITLE_TAG.sub("", s, count=1)
+    return s.strip()
+
+
+def _pr_create_gh_title(task_id, given_raw, db_title):
+    """Build the gh --title for `factory pr create`: task id, colon, description (T-1263)."""
+    given = (given_raw or "").strip()
+    tid = task_id
+    tl = len(tid)
+
+    def refuse():
+        die("title needs a description", 2)
+
+    def emit(desc):
+        d = desc.strip()
+        if not d or d.lower() == tid.lower():
+            refuse()
+        return f"{tid}: {d}"
+
+    db_desc = _task_title_description(db_title)
+    if len(given) >= tl and given[:tl].lower() == tid.lower():
+        after = given[tl:]
+        if not after:
+            return emit(db_desc)
+        sep = _PR_TITLE_SEP.match(after)
+        if sep:
+            rem = after[sep.end() :]
+            rem_strip = rem.strip()
+            if not rem_strip or rem_strip.lower() == tid.lower():
+                return emit(db_desc)
+            return emit(rem_strip)
+    return emit(given)
+
+
 def cmd_pr(a):
-    """coder: `pr create --title T --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
+    """coder: `pr create --title 'T-1234: what the change does' --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
     the PR from the own branch, never from args or env: gh's glob-matchable flags (--repo=X, -RX, GH_REPO, a PR URL) cannot
     redirect it. The child env drops GH_REPO and GH_HOST."""
     con = db()
@@ -4644,8 +4768,8 @@ def cmd_pr(a):
     tid = ag["task_id"] if ag else None
     if not tid:
         die(f"{actor()} has no task: `factory pr` opens the PR of your own task; ask your lead", 3)
-    row = con.execute("SELECT p.gh_repo, p.base_branch, t.branch AS task_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
-                      "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
+    row = con.execute("SELECT p.gh_repo, p.base_branch, t.branch AS task_branch, t.title AS task_title FROM tasks t "
+                      "JOIN goals g ON g.id=t.goal_id JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
     repo = ((row["gh_repo"] if row else "") or "").strip()
     if not ghcred.SLUG_RE.fullmatch(repo):
         die(f"{tid}: its project has no valid gh_repo ({repo!r}); ask your lead to set it with `factory project update`", 3)
@@ -4669,13 +4793,14 @@ def cmd_pr(a):
         body = read_text("-")
         if not (a.title or "").strip() or not body:
             die("`factory pr create` needs a non-empty --title and a body on stdin", 2)
+        gh_title = _pr_create_gh_title(tid, a.title, (row["task_title"] if row else "") or "")
         argv = ["gh", "pr", "create", "--repo", repo, "--base", row["base_branch"], "--head", branch,
-                "--title", a.title, "--body-file", "-"]
+                "--title", gh_title, "--body-file", "-"]
         if _repo_slug(repo) in _cfg_slugs(con, "public_text_repos"):  # G-021: raw `gh pr create` is denied, so this is the only text path
             try:
                 guard = _public_guard()
                 terms = guard.load_terms_or_fail(os.environ, cfg(con, "scrub_terms_file") or None)
-                hits = guard.check_text(a.title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
+                hits = guard.check_text(gh_title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
             except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses, never lets the text through
                 die(f"pr create refused (public text): cannot check the text: {type(e).__name__}: {str(e)[:200]}; "
                     f"fix the guard or SCRUB_TERMS_FILE, or ask your lead", 3)
@@ -7438,11 +7563,13 @@ def _red_main_latest(slug):
     """Latest completed tests.yml push run on main of `slug` as a dict, None when there is none. Raises OSError, ValueError
     or subprocess.TimeoutExpired when gh cannot tell (the caller keeps the old state)."""
     p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
-                        "--limit", "5", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
+                        "--limit", "40", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
                        capture_output=True, text=True, timeout=30, env=gh_git_env())
     if p.returncode != 0:
         raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
-    return next((r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")), None)
+    done = [r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")]
+    # the newest commit's verdict is the newest createdAt, not the first listed; queued runs crowd a small window (T-1636)
+    return max(done, key=lambda r: r.get("createdAt") or "", default=None)
 
 
 def _red_main_green_mark(value):
@@ -10923,7 +11050,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             die(f"runtime {runtime}: failed to start: {e}", 3)
         args["pid"] = proc.pid
         args["log"] = str(log_path)
-        con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+        spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                     "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=NULL, "
                     "workspace_id=NULL, tab_id=NULL, model=excluded.model, "
                     "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
@@ -10956,7 +11083,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             ws, tab, pane = place(con, role, goal, team, name, cwd, env, spawn_host)
     finally:
         _SPAWN_HOST_EXE = None
-    con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+    spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
                 "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
@@ -11160,7 +11287,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         claude_args += ["--session-id", sid]
         if fresh:  # same role flags as a resume: the prompt file is re-read on every request
             claude_args += RESUME_PROMPT_FLAGS
-    con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+    spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
                 "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
@@ -11627,7 +11754,8 @@ def prcheck_evidence_problem(sec):
 def prcheck_body(wt, base, pr_url):
     """Check 3: the PR body follows the template, shows a test command, and says `Tests removed:` when the count drops."""
     if not pr_url:
-        return False, "no PR for this task yet: open it (factory pr create --title T --body -) or pass --pr <url>, then rerun"
+        return False, ("no PR for this task yet: open it (factory pr create --title 'T-1234: what the change does' "
+                       "--body -) or pass --pr <url>, then rerun")
     try:
         p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "body"], capture_output=True, text=True, timeout=120,
                            env=gh_git_env())
@@ -15953,8 +16081,8 @@ def _tick_state_from_handoff(doc):
 
 def _tick_need_agents(units, doc):
     j = TICK_UNIT_INDEX["judge_ci_prune"]
-    if not any(TICK_UNIT_INDEX[u] > j for u in units):
-        return
+    if not any(TICK_UNIT_INDEX[u] > j for u in units if u != "offline"):
+        return  # the offline unit runs without agents (Go driver, agents=null)
     if "herdr_list" in units:
         return
     state = doc.get("state") or {}
