@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"factory/go/internal/factorydb"
+	"factory/go/internal/identity"
 )
 
 // Unit judge_ci_prune (tick_judge_ci_prune in bin/factory_cli.py + the try/except of _tick_u_judge_ci_prune): delete the
@@ -19,11 +20,48 @@ const (
 	pruneErrorMax = 300       // Python str(e)[:300]
 )
 
-// pruneNow is the clock of the unit and pruneEventTime the one of its events rows; tests replace them.
+// pruneNow is the FACTORY_NOW clock of the unit (digest_clock). pruneIdentity is the S2 events clock
+// (identity.Env.Now): FACTORY_TEST_NOW on a non-live home, else the real clock. Tests replace both.
 var (
-	pruneNow       = func() (float64, error) { return pyClockNow(os.Getenv, time.Now, nil) }
-	pruneEventTime = time.Now
+	pruneNow      = func() (float64, error) { return pyClockNow(os.Getenv, time.Now, nil) }
+	pruneIdentity = defaultPruneIdentity
 )
+
+func defaultPruneIdentity() identity.Env {
+	return identity.Env{
+		Getenv:    os.Getenv,
+		LookupEnv: os.LookupEnv,
+		Uid:       os.Getuid(),
+		Now:       time.Now,
+	}
+}
+
+// pruneEventClock is cmd/factory testClock: a FACTORY_TEST_NOW with an offset fixes events on a non-live home.
+// A live home, an unset variable, or a home whose liveness cannot be decided keeps the real clock. A value
+// without an offset on a non-live home is an error, the same text main prints before a tick starts.
+func pruneEventClock(env identity.Env) (func() time.Time, error) {
+	raw := ""
+	if env.Getenv != nil {
+		raw = env.Getenv("FACTORY_TEST_NOW")
+	}
+	real := env.Now
+	if real == nil {
+		real = time.Now
+	}
+	if raw == "" {
+		return real, nil
+	}
+	live, err := env.HomeIsLive()
+	if err != nil || live {
+		return real, nil
+	}
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04Z07:00"} {
+		if t, perr := time.Parse(layout, raw); perr == nil {
+			return func() time.Time { return t }, nil
+		}
+	}
+	return nil, fmt.Errorf("FACTORY_TEST_NOW must be an ISO timestamp")
+}
 
 func init() { registerGo("judge_ci_prune", pruneUnitFn) }
 
@@ -62,9 +100,13 @@ func pruneUnitFn(u *UnitCtx) error {
 }
 
 func pruneEvent(db *sql.DB, action, detail string) error {
-	_, err := db.Exec("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
-		pruneEventTime().Format("2006-01-02T15:04:05-07:00"), pruneActor, "tick", "judge-ci-prune", action, detail)
-	return err
+	env := pruneIdentity()
+	now, err := pruneEventClock(env)
+	if err != nil {
+		return err
+	}
+	env.Now = now
+	return env.EventAs(db, pruneActor, "tick", "judge-ci-prune", action, detail)
 }
 
 func truncRunes(s string, n int) string {

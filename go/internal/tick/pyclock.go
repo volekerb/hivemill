@@ -28,7 +28,11 @@ func pyClockNow(getenv func(string) string, real func() time.Time, local *time.L
 	return epochSeconds(t), nil
 }
 
-func epochSeconds(t time.Time) float64 { return float64(t.UnixNano()) / 1e9 }
+// epochSeconds is datetime.timestamp(). UnixNano is undefined before 1678 and after 2262 (it wraps), and
+// Python accepts those years, so the seconds and the nanosecond offset are added separately.
+func epochSeconds(t time.Time) float64 {
+	return float64(t.Unix()) + float64(t.Nanosecond())/1e9
+}
 
 func allDigits(s string) bool {
 	for i := 0; i < len(s); i++ {
