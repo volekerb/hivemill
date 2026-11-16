@@ -285,6 +285,15 @@ DEFAULT_CONFIG = {
     # G-038 F-44: 1 = while the Claude weekly gate is closed (seven_day >= max_seven_day_pct), mail claude-boss once per goal and
     # cap window to offer moving a queued P1/P2 claude goal to cursor. It only mails; it never moves a goal. 0 = off.
     "cap_fallback_offer": "0",
+    # G-057 placement. Empty worker_machines = off: no ssh, no second machine, gate() as before (docs/multi-machine.md).
+    "worker_machines": "",       # comma list of worker machine names; HQ stays on machine_hq
+    "machine_hq": "hqhost",      # this machine's name; boss, director, leads and judges never leave it
+    "machine_mem_floor_mb": "1500",  # eligible only when mem_mb - per_agent_mb is at least this
+    "machine_mem_per_cursor_mb": "900",
+    "machine_mem_per_claude_mb": "500",
+    "machine_facts_ttl_s": "20",  # one ssh per machine per this many seconds
+    "machine_ssh_timeout_s": "5",
+    "machine_cpu_heavy_roles": "coder,qa",  # prefer the first worker machine that passes; others use RAM headroom
 }
 
 AUDIT_DDL = """
@@ -2415,11 +2424,25 @@ def claude_outside_spawn(con):
 
 # ───────────────────────────── resources ─────────────────────────────
 
+def _meminfo_text():
+    """/proc/meminfo. $FACTORY_MEMINFO pins a snapshot for tests; unset reads the live file."""
+    pinned = os.environ.get("FACTORY_MEMINFO")
+    return Path(pinned).read_text() if pinned else Path("/proc/meminfo").read_text()
+
+
 def mem_available_mb():
-    for line in Path("/proc/meminfo").read_text().splitlines():
+    for line in _meminfo_text().splitlines():
         if line.startswith("MemAvailable:"):
             return int(line.split()[1]) // 1024
     return 0
+
+
+def host_mem_available_mb():
+    """MemAvailable in MB. $FACTORY_MEM_MB pins it for tests (the same idea as $FACTORY_LOADAVG); unset reads /proc."""
+    pinned = os.environ.get("FACTORY_MEM_MB")
+    if pinned:
+        return int(pinned)
+    return mem_available_mb()
 
 
 def serve_mem_available_mb():
@@ -2566,6 +2589,232 @@ def _int_cfg(con, key, default):
 
 REVIEW_RESERVE_BLOCKED = ("pm", "coder", "cleaner")  # roles that may not take the slots review_reserved_slots keeps for reviewer/qa
 
+# G-057: only these roles may be placed off machine_hq. HQ, leads, judges and the other roles stay put (R1).
+PLACEMENT_WORKER_ROLES = ("coder", "qa", "reviewer", "cleaner")
+_MACHINE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
+_MACHINE_FACTS_CACHE = {}  # machine -> (clock, facts); one ssh per machine per machine_facts_ttl_s
+_REMOTE_FACTS_CMD = "cat /proc/meminfo; echo ---; cat /proc/loadavg; echo ---; nproc"
+
+
+def check_worker_machines(value):
+    """The normalised comma list, or exit 2. Empty turns placement off. 'factory' is refused before the shape check (R2)."""
+    names = [x.strip() for x in value.split(",")] if value.strip() else []
+    out = []
+    for n in names:
+        if "factory" in n.lower():
+            die('refused: machine name must not contain "factory"', 2)
+        if not _MACHINE_NAME_RE.fullmatch(n):
+            die("refused: bad machine name", 2)
+        if n not in out:
+            out.append(n)
+    return ",".join(out)
+
+
+def _worker_machine_list(con):
+    return [x.strip() for x in (cfg(con, "worker_machines") or "").split(",") if x.strip()]
+
+
+def _machine_hq(con):
+    return (cfg(con, "machine_hq") or "hqhost").strip() or "hqhost"
+
+
+def _host_nproc():
+    """CPUs for placement. $FACTORY_NPROC pins it; the single-machine load line still uses os.cpu_count()."""
+    pinned = os.environ.get("FACTORY_NPROC")
+    if pinned:
+        return int(pinned)
+    return os.cpu_count() or 1
+
+
+def _facts_clock():
+    """Cache clock. $FACTORY_FACTS_NOW (a number of seconds) pins it; unset is monotonic so one tick shares one ssh."""
+    pinned = os.environ.get("FACTORY_FACTS_NOW")
+    if pinned:
+        return float(pinned)
+    return time.monotonic()
+
+
+def _facts_row(mem_mb, load, nproc, reachable, err):
+    return {"mem_mb": mem_mb, "load1": load, "nproc": nproc, "reachable": reachable, "err": err}
+
+
+def _local_machine_facts():
+    try:
+        return _facts_row(host_mem_available_mb(), load1(), _host_nproc(), True, "")
+    except (OSError, ValueError) as e:
+        return _facts_row(0, 0.0, 0, False, str(e)[:200])
+
+
+def _parse_remote_facts(text):
+    parts = (text or "").split("---")
+    if len(parts) < 3:
+        return None
+    mem = None
+    for line in parts[0].splitlines():
+        if line.startswith("MemAvailable:"):
+            try:
+                mem = int(line.split()[1]) // 1024
+            except (IndexError, ValueError):
+                return None
+            break
+    if mem is None:
+        return None
+    load_lines = [ln for ln in parts[1].splitlines() if ln.strip()]
+    nproc_lines = [ln.strip() for ln in parts[2].splitlines() if ln.strip()]
+    if not load_lines or not nproc_lines:
+        return None
+    try:
+        load = float(load_lines[0].split()[0])
+        nproc = int(nproc_lines[-1])
+    except (IndexError, ValueError):
+        return None
+    if nproc < 1:
+        return None
+    return _facts_row(mem, load, nproc, True, "")
+
+
+def _ssh_machine_facts(machine, timeout):
+    """One ssh, argv only: the machine name is an argument, never interpolated into a shell command."""
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}", "--", machine, _REMOTE_FACTS_CMD]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 2)
+    except (OSError, subprocess.SubprocessError) as e:
+        return _facts_row(0, 0.0, 0, False, str(e)[:200])
+    if p.returncode != 0:
+        err = (p.stderr or "").strip()[:200] or f"exit {p.returncode}"
+        return _facts_row(0, 0.0, 0, False, err)
+    parsed = _parse_remote_facts(p.stdout)
+    if parsed is None:
+        return _facts_row(0, 0.0, 0, False, "unreadable remote facts")
+    return parsed
+
+
+def machine_facts(con, machine):
+    """Dict mem_mb, load1, nproc, reachable, err. machine_hq is local /proc; any other name is one ssh, cached for the TTL.
+    A remote failure sets reachable=False and does not raise."""
+    now_s = _facts_clock()
+    ttl = _int_cfg(con, "machine_facts_ttl_s", 20)
+    hit = _MACHINE_FACTS_CACHE.get(machine)
+    if hit is not None and ttl > 0 and now_s - hit[0] < ttl:
+        return dict(hit[1])
+    if machine == _machine_hq(con):
+        facts = _local_machine_facts()
+    else:
+        facts = _ssh_machine_facts(machine, max(_int_cfg(con, "machine_ssh_timeout_s", 5), 1))
+    _MACHINE_FACTS_CACHE[machine] = (now_s, facts)
+    return dict(facts)
+
+
+def _per_agent_mb(con, runtime):
+    if runtime == "cursor":
+        return _int_cfg(con, "machine_mem_per_cursor_mb", 900)
+    return _int_cfg(con, "machine_mem_per_claude_mb", 500)
+
+
+def _cpu_heavy_role(con, role):
+    raw = cfg(con, "machine_cpu_heavy_roles") or ""
+    return bool(role) and role in {x.strip() for x in raw.split(",") if x.strip()}
+
+
+def _row_machine(row, hq):
+    """Machine recorded on the row. Absent (the only value this task writes for a real start) means machine_hq."""
+    try:
+        args = json.loads(row["spawn_args"] or "{}")
+    except (TypeError, ValueError):
+        args = {}
+    if isinstance(args, dict) and args.get("machine"):
+        return str(args["machine"])
+    return hq
+
+
+def _placement_census(con, hq):
+    """(hq_in_use, workers_by_machine) over live and starting rows. Non-worker roles are the HQ slots kept on machine_hq."""
+    hq_in_use, workers = 0, {}
+    for r in con.execute("SELECT role, spawn_args FROM agents WHERE status IN ('live','starting')"):
+        if r["role"] in PLACEMENT_WORKER_ROLES:
+            m = _row_machine(r, hq)
+            workers[m] = workers.get(m, 0) + 1
+        else:
+            hq_in_use += 1
+    return hq_in_use, workers
+
+
+def _worker_shares(budget, nprocs):
+    """Shares of budget by nproc that sum to budget. Leftover seats go to the largest fraction; a tie goes to the earlier machine."""
+    total = sum(nprocs)
+    if budget <= 0 or total <= 0:
+        return [0] * len(nprocs)
+    raw = [budget * n / total for n in nprocs]
+    base = [int(x) for x in raw]
+    left = budget - sum(base)
+    order = sorted(range(len(nprocs)), key=lambda i: (-(raw[i] - base[i]), i))
+    shares = base[:]
+    for i in order:
+        if left <= 0:
+            break
+        shares[i] += 1
+        left -= 1
+    return shares
+
+
+def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False):
+    """(machine, reason, per_machine_stats). reason is 'ok', or a refusal that names every machine's failing check.
+    Does not relax owner caps: gate() applies those first. A role other than coder, qa, reviewer, cleaner is machine_hq only."""
+    hq = _machine_hq(con)
+    remotes = []
+    for name in _worker_machine_list(con):
+        if name != hq and name not in remotes:
+            remotes.append(name)
+    machines = [hq, *remotes]
+    facts = {m: machine_facts(con, m) for m in machines}
+    per_mb = _per_agent_mb(con, runtime)
+    floor = _int_cfg(con, "machine_mem_floor_mb", 1500)
+    try:
+        ratio = float(cfg(con, "gate_max_load_ratio"))
+    except (TypeError, ValueError):
+        ratio = 1.25
+    hq_in_use, on_machine = _placement_census(con, hq)
+    budget = max(0, _int_cfg(con, "max_live_agents", 6) - hq_in_use)
+    reachable = [m for m in machines if facts[m]["reachable"] and facts[m]["nproc"] > 0]
+    share_of = dict(zip(reachable, _worker_shares(budget, [facts[m]["nproc"] for m in reachable])))
+
+    def fails_of(m):
+        f = facts[m]
+        if not f["reachable"]:
+            return [f"unreachable ({f['err']})" if f["err"] else "unreachable"]
+        bad = []
+        if f["mem_mb"] - per_mb < floor:
+            bad.append(f"mem {f['mem_mb']}MB - {per_mb}MB < floor {floor}MB")
+        if not skip_load and f["load1"] > ratio * f["nproc"]:
+            bad.append(f"load1 {f['load1']:.1f} > {ratio} x {f['nproc']}")
+        if role in PLACEMENT_WORKER_ROLES and on_machine.get(m, 0) >= share_of.get(m, 0):
+            bad.append(f"workers {on_machine.get(m, 0)}/{share_of.get(m, 0)}")
+        return bad
+
+    per = {"hq": hq, "budget": budget, "hq_in_use": hq_in_use, "per_agent_mb": per_mb,
+           "machines": {m: {**facts[m], "share": share_of.get(m, 0), "workers": on_machine.get(m, 0), "fails": fails_of(m)}
+                        for m in machines}}
+    eligible = [m for m in machines if not per["machines"][m]["fails"]]
+    if role not in PLACEMENT_WORKER_ROLES:
+        bad = per["machines"][hq]["fails"]
+        if bad:
+            return hq, f"{hq}: " + "; ".join(bad), per
+        return hq, "ok", per
+    chosen = None
+    if cpu_heavy:
+        for m in remotes:
+            if m in eligible:
+                chosen = m
+                break
+    if chosen is None and eligible:
+        def headroom(m):
+            return facts[m]["mem_mb"] - per_mb - floor
+        chosen = max(eligible, key=lambda m: (headroom(m), -machines.index(m)))
+    if chosen is None:
+        parts = [f"{m}: " + "; ".join(per["machines"][m]["fails"]) for m in machines]
+        return hq, "no machine: " + "; ".join(parts), per
+    return chosen, "ok", per
+
 
 def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
@@ -2591,7 +2840,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             live += 1
     other = sum(1 for a in (agents or []) if a.get("agent") in ("claude", "cursor")
                 and a.get("name") not in known and a.get("pane_id") not in known)
-    mem = mem_available_mb()
+    mem = host_mem_available_mb()
     u = usage()
     procs = total_claude_procs()
     total = procs["total"]
@@ -2644,7 +2893,9 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         return False, f"{live}/{stats['cap']} agent panes live", stats
     if stats["total"] is not None and stats["total"] - mine >= total_cap:
         return False, f"{stats['total']}/{total_cap} claude processes on host (incl. non-factory)", stats
-    if mem < int(cfg(con, "min_mem_available_mb")):
+    # worker_machines empty: this is the only MemAvailable check, unchanged. Non-empty: each machine is checked in
+    # place_machine, so a full HQ machine does not close the gate while a worker machine still has room (M37141 stays first).
+    if not _worker_machine_list(con) and mem < int(cfg(con, "min_mem_available_mb")):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
@@ -2660,7 +2911,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if live >= free_for_others:
             return False, (f"{live}/{stats['cap']} agent panes live; {max(_int_cfg(con, 'review_reserved_slots', 2) - held, 0)} "
                            "slots kept for reviewer/qa (review_reserved_slots)"), stats
-    if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
+    if not _worker_machine_list(con) and not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     # Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
@@ -2682,6 +2933,14 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if hq + 1 > stats["hq_cap"]:
             return False, (f"{hq}/{stats['hq_cap']} HQ panes; {reserved} slots reserved for workers "
                            "(reserved_worker_slots)"), stats
+    if role and _worker_machine_list(con):
+        machine, why, per = place_machine(con, role, runtime, _cpu_heavy_role(con, role),
+                                           skip_load=bool(own_slot or load_exempt))
+        stats["placement"] = per
+        if why != "ok":
+            return False, why, stats
+        stats["machine"] = machine
+        stats["hq_fails"] = per["machines"].get(per["hq"], {}).get("fails") or []
     return True, "ok", stats
 
 
@@ -3121,6 +3380,8 @@ def _config_value_rules(key, value):
             scoutvendor.resolve_root(a.value, HOME)
         except scoutvendor.VendorError as e:
             die(str(e), 2)
+    if a.key == "worker_machines":
+        a.value = check_worker_machines(a.value)
     return a.value
 
 
@@ -10258,6 +10519,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         die("the researcher role is not supported on the Cursor runtime (docs/research-team.md); use the claude org", 3)
     ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
                           own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt)
+    placed = stats.get("machine")
+    if placed:  # the decision, including a worker machine this task cannot start yet (remote start is T-C)
+        event(con, "agent", name, "place", {"machine": placed, "role": role})
+        if ok and placed != _machine_hq(con) and stats.get("hq_fails"):
+            ok, why = False, f"would place on {placed} (remote start not enabled yet)"
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
@@ -11064,7 +11330,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
                  sender="factory")
         event(con, "agent", name, "spawn", {"pane": None, "model": model, "cwd": cwd, "runtime": runtime,
-                                            "launch": plan.launch, "pid": proc.pid, "live": stats["live"] + 1})
+                                            "launch": plan.launch, "pid": proc.pid, "live": stats["live"] + 1,
+                                            **({"machine": stats["machine"]} if stats.get("machine") else {})})
         print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}) pid={proc.pid} cwd={cwd} log={log_path}")
         return name
 
@@ -11128,7 +11395,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         elif prompt_ok:
             _cursor_enter_after_prompt(name, runtime, True)
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
-                                        "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
+                                        "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1,
+                                        **({"machine": stats["machine"]} if stats.get("machine") else {})})
     print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}, kind={plan.herdr_kind}) in {pane} cwd={cwd}")
     return name
 
@@ -11360,7 +11628,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             if herdr("agent", "prompt", name, kick, check=False) is not None:
                 con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "live": stats["live"] + 1,
-                                        **({"sandbox": True} if sandboxed else {})})
+                                        **({"sandbox": True} if sandboxed else {}),
+                                        **({"machine": stats["machine"]} if stats.get("machine") else {})})
     print(f"SPAWNED {name} ({role}, {model}) in {pane} cwd={cwd}")
     return name
 
@@ -14888,7 +15157,7 @@ def cmd_res(a):
     ok, why, s = gate(con)
     u = s["usage"]
     load = (load1(),)
-    swap = {l.split(":")[0]: int(l.split()[1]) for l in Path("/proc/meminfo").read_text().splitlines()
+    swap = {l.split(":")[0]: int(l.split()[1]) for l in _meminfo_text().splitlines()
             if l.startswith(("SwapTotal", "SwapFree"))}
     q = con.execute("SELECT count(*) c FROM agents WHERE status='queued'").fetchone()["c"]
     print(f"spawn gate: {'OPEN' if ok else 'CLOSED — ' + why}")
@@ -20293,6 +20562,9 @@ def cli_shadow(binary, argv, environ):
 
 
 def main():
+    # `factory config set <key> <value>` is the same write as `factory config <key> <value>` (G-057 names the set form).
+    if len(sys.argv) > 3 and sys.argv[1] == "config" and sys.argv[2] == "set" and not sys.argv[3].startswith("-"):
+        del sys.argv[2]
     mode, binary = cli_dispatch_mode(sys.argv)
     if mode == "shadow" and not cli_shadow_readonly(sys.argv):
         mode = "python"  # only read-only commands are shadowed: a write would run twice

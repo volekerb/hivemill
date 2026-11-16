@@ -1,4 +1,5 @@
 import json
+import os
 import time
 import unittest
 from pathlib import Path
@@ -502,6 +503,193 @@ class UsageReadTests(FactoryTestCase):
         self.assertIn("SPAWNED", p.stdout)
         self.env.write_usage(five_hour=95, seven_day=95, age_s=5 * 3600)  # stale: the same outcome
         self.assertIn("spawn gate: OPEN", self.ok("res").stdout)
+
+
+class PlacementTests(FactoryTestCase):
+    """G-057 placement. worker_machines empty keeps today's gate; the ssh stub records every call."""
+
+    def setUp(self):
+        super().setUp()
+        self.env.seed_goal()
+        self.env.seed_task(status="todo", pr_url=None)
+
+    def facts(self, workerhost, mem="8000", load="0.1", nproc="8"):
+        return {
+            "FACTORY_MEM_MB": str(mem),
+            "FACTORY_LOADAVG": str(load),
+            "FACTORY_NPROC": str(nproc),
+            "FACTORY_SSH_FACTS": json.dumps({"workerhost": workerhost}),
+        }
+
+    def enable(self):
+        self.ok("config", "worker_machines", "workerhost")
+        self.ok("config", "machine_hq", "hqhost")
+
+    def test_worker_machines_empty_makes_no_ssh_call(self):
+        env = self.facts({"mem_mb": 11000, "load1": 0.5, "nproc": 16, "exit": 0})
+        p = self.ok("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-off", extra_env=env)
+        self.assertIn("SPAWNED", p.stdout)
+        self.assertEqual(self.env.calls("ssh"), [])
+        self.ok("res", extra_env=env)
+        self.assertEqual(self.env.calls("ssh"), [])
+
+    def test_res_matches_origin_main_when_worker_machines_empty(self):
+        import subprocess
+        import sys
+        ps = self.env.stub_bin / "ps"
+        ps.write_text("#!/bin/sh\nprintf '%s\\n' 'RSS COMMAND' ' 2048 zz-factory-test'\n")
+        ps.chmod(0o755)
+        meminfo = self.env.home / "meminfo"
+        meminfo.write_text("MemAvailable: 8388608 kB\nSwapTotal: 4194304 kB\nSwapFree: 3145728 kB\n")
+        pinned = {"FACTORY_MEMINFO": str(meminfo)}
+        ours = self.ok("res", extra_env=pinned).stdout
+        origin = Path(__file__).resolve().parent.parent / "bin" / "_factory_cli_origin_main.py"
+        self.addCleanup(origin.unlink, missing_ok=True)
+        body = subprocess.check_output(["git", "show", "origin/main:bin/factory_cli.py"],
+                                       cwd=Path(__file__).resolve().parent.parent)
+        # origin has no FACTORY_MEMINFO pin; point its /proc/meminfo reads at the same snapshot
+        body = body.replace(b'Path("/proc/meminfo")', b'Path(os.environ["FACTORY_MEMINFO"])')
+        origin.write_bytes(body + b"\nmain()\n")
+        p = subprocess.run([sys.executable, str(origin), "res"], capture_output=True, text=True,
+                           env=self.env.env(extra=pinned), cwd=self.env.home, timeout=60)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(ours, p.stdout)
+        self.assertEqual(self.env.calls("ssh"), [])
+
+    def test_incident_2026_11_15_replay(self):
+        self.ok("config", "min_mem_available_mb", "1024")
+        env = self.facts({"mem_mb": 11000, "load1": 0.5, "nproc": 16, "exit": 0}, mem="300", load="14", nproc="8")
+        p = self.ok("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-inc-off", extra_env=env)
+        self.assertIn("QUEUED", p.stdout)
+        self.assertIn("MemAvailable 300MB < floor 1024MB", p.stdout)
+        self.assertNotIn("workerhost", p.stdout)
+        self.assertEqual(self.env.calls("ssh"), [])
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-inc-off'")[0]["status"], "queued")
+        self.enable()
+        p = self.ok("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-inc-on", extra_env=env)
+        self.assertIn("QUEUED", p.stdout)
+        self.assertIn("would place on workerhost (remote start not enabled yet)", p.stdout)
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-inc-on'")[0]["status"], "queued")
+        detail = self.env.sql("SELECT detail FROM events WHERE action='place' AND entity_id='zz-inc-on'")[0]["detail"]
+        self.assertIn("workerhost", detail)
+
+    def test_placement_shares_follow_nproc(self):
+        self.ok("config", "max_live_agents", "28")
+        self.enable()
+        for i, role in enumerate(("boss", "director", "lead", "judge")):
+            self.env.seed_agent(f"zz-hq{i}", role, goal="G-001")
+        doc = (Path(__file__).resolve().parent.parent / "docs" / "multi-machine.md").read_text()
+        self.assertEqual(sum(1 for ln in doc.splitlines() if ln == "## Placement"), 1)
+        self.assertIn("24 * 8 / 24 = 8", doc)
+        self.assertIn("24 * 16 / 24 = 16", doc)
+        with self.env.load_factory() as mod:
+            os.environ.update(self.facts({"mem_mb": 11000, "load1": 0.5, "nproc": 16, "exit": 0}, nproc="8"))
+            os.environ["FACTORY_FACTS_NOW"] = "10000"
+            _, reason, stats = mod.place_machine(mod.db(), "coder", "claude", True)
+        self.assertEqual(reason, "ok")
+        dev, two = stats["machines"]["hqhost"]["share"], stats["machines"]["workerhost"]["share"]
+        self.assertEqual(dev + two, 24)
+        self.assertGreater(two, dev)
+
+    def test_placement_owner_cap_blocks_a_free_machine(self):
+        self.ok("config", "max_live_agents", "2")
+        self.enable()
+        names = ("zz-cap-a", "zz-cap-b")
+        for n in names:
+            self.env.seed_agent(n, "coder", goal="G-001")
+            self.env.sql("UPDATE agents SET pane_id=? WHERE name=?", ("p-" + n, n))
+        self.env.set_herdr(agents=[{"name": n, "agent": "claude", "pane_id": "p-" + n} for n in names])
+        env = self.facts({"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 0})
+        p = self.ok("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-cap", extra_env=env)
+        self.assertIn("QUEUED", p.stdout)
+        self.assertIn("2/2 agent panes live", p.stdout)
+        self.assertNotIn("workerhost", p.stdout)
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-cap'")[0]["status"], "queued")
+
+    def test_placement_gate_passes_onto_workerhost(self):
+        self.enable()
+        with self.env.load_factory() as mod:
+            os.environ.update(self.facts({"mem_mb": 11000, "load1": 0.2, "nproc": 16, "exit": 0}))
+            os.environ["FACTORY_FACTS_NOW"] = "10000"
+            ok, why, stats = mod.gate(mod.db(), role="coder", runtime="claude")
+        self.assertTrue(ok, why)
+        self.assertEqual(why, "ok")
+        self.assertEqual(stats["machine"], "workerhost")
+
+    def test_machine_floor_cursor_2300_blocked_2500_eligible(self):
+        self.enable()
+        with self.env.load_factory() as mod:
+            os.environ["FACTORY_MEM_MB"] = "8000"
+            os.environ["FACTORY_LOADAVG"] = "0.1"
+            os.environ["FACTORY_NPROC"] = "8"
+            os.environ["FACTORY_FACTS_NOW"] = "10000"
+            os.environ["FACTORY_SSH_FACTS"] = json.dumps(
+                {"workerhost": {"mem_mb": 2300, "load1": 0.1, "nproc": 16, "exit": 0}})
+            con = mod.db()
+            machine, reason, stats = mod.place_machine(con, "coder", "cursor", True)
+            self.assertNotEqual(machine, "workerhost")
+            self.assertTrue(any("floor" in f for f in stats["machines"]["workerhost"]["fails"]), stats)
+            self.assertEqual(machine, "hqhost")
+            os.environ["FACTORY_FACTS_NOW"] = "20000"
+            os.environ["FACTORY_SSH_FACTS"] = json.dumps(
+                {"workerhost": {"mem_mb": 2500, "load1": 0.1, "nproc": 16, "exit": 0}})
+            machine, reason, stats = mod.place_machine(con, "coder", "cursor", True)
+        self.assertEqual((machine, reason), ("workerhost", "ok"))
+        self.assertEqual(stats["machines"]["workerhost"]["fails"], [])
+
+    def test_placement_hq_roles_never_leave_machine_hq(self):
+        self.enable()
+        pinned = ("boss", "director", "lead", "judge", "pm", "staff-engineer")
+        workers = ("coder", "qa", "reviewer", "cleaner")
+        with self.env.load_factory() as mod:
+            os.environ.update(self.facts({"mem_mb": 20000, "load1": 0.1, "nproc": 16, "exit": 0}, mem="2000"))
+            os.environ["FACTORY_FACTS_NOW"] = "10000"
+            con = mod.db()
+            for role in pinned:
+                machine, reason, _ = mod.place_machine(con, role, "claude", role in ("coder", "qa"))
+                self.assertEqual((role, machine, reason), (role, "hqhost", "ok"))
+            for role in workers:
+                machine, reason, _ = mod.place_machine(con, role, "claude", role in ("coder", "qa"))
+                self.assertEqual((role, machine, reason), (role, "workerhost", "ok"))
+            os.environ["FACTORY_FACTS_NOW"] = "20000"
+            os.environ["FACTORY_MEM_MB"] = "1000"  # below the floor: refused on hqhost, still not workerhost
+            for role in pinned:
+                machine, reason, _ = mod.place_machine(con, role, "claude", False)
+                self.assertNotEqual(machine, "workerhost", role)
+                self.assertNotEqual(reason, "ok", role)
+                self.assertIn("hqhost:", reason)
+                self.assertNotIn("workerhost", reason)
+
+    def test_machine_name_guard_refuses_factory_and_accepts_workerhost(self):
+        p = self.refused(2, "config", "set", "worker_machines", "factorybox2")
+        self.assertIn('refused: machine name must not contain "factory"', p.stderr)
+        p = self.refused(2, "config", "set", "worker_machines", "Bad_Name")
+        self.assertIn("refused: bad machine name", p.stderr)
+        self.ok("config", "set", "worker_machines", "workerhost")
+        self.assertEqual(self.env.sql("SELECT value FROM config WHERE key='worker_machines'")[0]["value"], "workerhost")
+
+    def test_machine_facts_ttl_ssh_once(self):
+        self.enable()
+        with self.env.load_factory() as mod:
+            os.environ.update(self.facts({"mem_mb": 11000, "load1": 0.2, "nproc": 16, "exit": 0}))
+            os.environ["FACTORY_FACTS_NOW"] = "10000"
+            self.env.calls_file.write_text("")
+            con = mod.db()
+            for _ in range(10):
+                mod.place_machine(con, "coder", "claude", True)
+        ssh = self.env.calls("ssh")
+        self.assertEqual(len(ssh), 1)
+        self.assertIn("workerhost", ssh[0]["argv"])
+
+    def test_placement_unreachable_worker_machine_uses_hq(self):
+        self.enable()
+        with self.env.load_factory() as mod:
+            os.environ.update(self.facts({"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 255}, mem="8000"))
+            os.environ["FACTORY_FACTS_NOW"] = "10000"
+            con = mod.db()
+            machine, reason, stats = mod.place_machine(con, "reviewer", "claude", False)
+        self.assertEqual((machine, reason), ("hqhost", "ok"))
+        self.assertFalse(stats["machines"]["workerhost"]["reachable"])
 
 
 if __name__ == "__main__":
