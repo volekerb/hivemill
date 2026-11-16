@@ -1744,7 +1744,12 @@ def _host_ipc_result(exe, *args, check=False, timeout=HERDR_TIMEOUT_S):
     try:
         if exe == "hc":
             return _hc_parse_host_stdout(ipc_argv, out)
-        return json.loads(out.splitlines()[-1])["result"] if out else {}
+        if not out:
+            return {}
+        payload = json.loads(out.splitlines()[-1])
+        if not isinstance(payload, dict):  # plain pane text whose last line parses as JSON (7, 1.5, ["x"], null)
+            return {"raw": out}
+        return payload["result"]
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
 
@@ -1776,7 +1781,12 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     try:
         if exe == "hc":
             return _hc_parse_host_stdout(ipc_argv, out)
-        return json.loads(out.splitlines()[-1])["result"] if out else {}
+        if not out:
+            return {}
+        payload = json.loads(out.splitlines()[-1])
+        if not isinstance(payload, dict):  # plain pane text whose last line parses as JSON (7, 1.5, ["x"], null)
+            return {"raw": out}
+        return payload["result"]
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
 
@@ -4327,6 +4337,61 @@ def send(con, to, subject, body=None, kind="msg", goal=None, task=None, sender=N
     return cur.lastrowid, rcpt
 
 
+STALE_STOP_PREFIX = "[stale: sent to an earlier pane]"
+# A STOP order is what cmd_stop and the tick's idle-coder reap send: a decision message with the subject STOP.
+_STOP_ORDER_SQL = "kind='decision' AND subject='STOP'"
+
+
+def is_stop_order(m):
+    return m["kind"] == "decision" and m["subject"] == "STOP"
+
+
+def stop_order_predates(m, started, same_second=False):
+    """True when STOP order m was created before the agent start `started`. messages.created and agents.started are
+    both written by now() (ISO seconds). A timestamp that cannot be read or compared decides nothing: the order then
+    counts as current and is delivered. same_second: also count an order of the very same second (spawn only, where
+    every order already in the table was sent to an earlier pane)."""
+    c, st = _ts(m["created"]), _ts(started)
+    if c is None or st is None:
+        return False
+    return c <= st if same_second else c < st
+
+
+def drop_stale_stop_orders(con, name):
+    """Spawn: mark read every unread STOP order sent to `name` before this spawn's start. It was meant for an earlier
+    pane of the same name, and the new agent would obey it and quit without working. One stop-stale-dropped event per
+    message. Other unread mail is untouched. Runs inside the caller's transaction (spawn_row_write)."""
+    r = con.execute("SELECT started FROM agents WHERE name=?", (name,)).fetchone()
+    if not r:
+        return []
+    dropped = []
+    for m in con.execute(f"SELECT id, created FROM messages WHERE recipient=? AND read_at IS NULL AND {_STOP_ORDER_SQL} "
+                         "ORDER BY id", (name,)).fetchall():
+        if not stop_order_predates(m, r["started"], same_second=True):
+            continue
+        con.execute("UPDATE messages SET read_at=? WHERE id=? AND read_at IS NULL", (now(), m["id"]))
+        event(con, "agent", name, "stop-stale-dropped",
+              {"agent": name, "message": m["id"], "sent": m["created"], "started": r["started"], "by": "spawn"})
+        dropped.append(m["id"])
+    return dropped
+
+
+def spawn_row_write(con, name, sql, params):
+    """Write the agents row of a spawn and drop the stale STOP orders of that name, in one transaction."""
+    own = not con.in_transaction
+    if own:
+        con.execute("BEGIN IMMEDIATE")
+    try:
+        con.execute(sql, params)
+        drop_stale_stop_orders(con, name)
+        if own:
+            con.execute("COMMIT")
+    except BaseException:
+        if own and con.in_transaction:
+            con.execute("ROLLBACK")
+        raise
+
+
 def release_stale_pane(con, name):
     """A finished (`done`) agent keeps its pane until the next tick reaps it. Reusing the name before then would
     overwrite pane_id and leak that pane, so close it now (same call as the tick reap), confirm with pane_gone and mark
@@ -4530,8 +4595,9 @@ def cmd_inbox(a):
     if a.limit < 1:
         die("--limit must be at least 1")
     me = a.agent or actor()
-    r = con.execute("SELECT role FROM agents WHERE name=?", (me,)).fetchone()
+    r = con.execute("SELECT role, started FROM agents WHERE name=?", (me,)).fetchone()
     hq = (r["role"] if r else ("boss" if me == "boss" else "")) in HQ_ROLES
+    started = r["started"] if r else None
     q = "SELECT * FROM messages WHERE recipient=?" + ("" if a.all else " AND read_at IS NULL") + " ORDER BY id"
     rows = con.execute(q, (me,)).fetchall()
     if not rows:
@@ -4540,8 +4606,16 @@ def cmd_inbox(a):
     hidden = [m for m in rows[:len(rows) - len(shown)] if m["read_at"] is None]
     if hidden:
         print(f"({len(hidden)} older unread not shown; run factory inbox again or --all)")
+    stale = []  # unread STOP orders older than the reader's own start: the spawn missed them (race)
     for m in shown:
         print(inbox_header(m))
+        if m["read_at"] is None and is_stop_order(m) and stop_order_predates(m, started):
+            stale.append(m)
+            print(f"   {STALE_STOP_PREFIX} {m['subject']}")
+            print(f"   This order was sent {m['created']}, before your pane started ({started}). It was for an earlier "
+                  f"pane named {me}, not for you.\n   Carry on with your task. "
+                  f"Full text: factory inbox --show M{m['id']}")
+            continue
         print(f"   {m['subject']}")
         body = m["body"] or ""
         if inbox_collapsed(m, hq, a.full):
@@ -4553,7 +4627,17 @@ def cmd_inbox(a):
         elif body:
             print(textwrap.indent(body, "   "))
     if shown and not a.peek and me == actor():
-        con.executemany("UPDATE messages SET read_at=? WHERE id=? AND read_at IS NULL", [(now(), m["id"]) for m in shown])
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            con.executemany("UPDATE messages SET read_at=? WHERE id=? AND read_at IS NULL", [(now(), m["id"]) for m in shown])
+            for m in stale:
+                event(con, "agent", me, "stop-stale-dropped",
+                      {"agent": me, "message": m["id"], "sent": m["created"], "started": started, "by": "inbox"})
+            con.execute("COMMIT")
+        except BaseException:
+            if con.in_transaction:
+                con.execute("ROLLBACK")
+            raise
 
 
 def cmd_report(a):
@@ -7820,7 +7904,7 @@ def _sweep_candidates(con, t):
     root = root.resolve()
     found = []
     base = root / f"claude-{os.getuid()}"
-    slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"G-\d+-(T-\d+)$")
+    slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"G-\d+-(T-\d+)(?:-qa)?$")
     if base.is_dir() and not base.is_symlink():
         for d in sorted(base.iterdir()):
             m = slug.match(d.name)
@@ -8215,7 +8299,7 @@ def _serve_pad(path):
     if not parts:
         return None
     if parts[0] == f"claude-{os.getuid()}":
-        slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"(G-\d+)-(T-\d+)$")
+        slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"(G-\d+)-(T-\d+)(?:-qa)?$")
         m = slug.match(parts[1]) if len(parts) > 1 else None
         return (tmp / parts[0] / parts[1], m.group(2)) if m else None
     m = re.search(r"(?<![A-Za-z0-9])[Tt]-(\d+)(?![0-9])", parts[0])
@@ -9703,6 +9787,85 @@ def trust_task_clone(con, task, wt, add=True):
     return res
 
 
+def git_hooks_refusal(clone):
+    """Names in <clone>/.git/hooks that a coder spawn must not run under: anything but *.sample files and a regular
+    pre-push whose text is the one install_pre_push_hook writes. A symlink or a directory counts. [] = clean."""
+    hooks = Path(clone) / ".git" / "hooks"
+    if os.path.lexists(Path(clone) / ".git" / "commondir"):  # git would take hooks/ from another directory
+        return ["commondir"]
+    if hooks.is_symlink():
+        return ["hooks (symlink)"]
+    if not hooks.exists():
+        return []
+    try:
+        script = Path(__file__).resolve().parent.parent / "ci" / "pre_push_public_text.py"
+        body = (f"#!/bin/sh\n{PRE_PUSH_MARK}\n"
+                f"exec python3 {shlex.quote(str(script))} --home {shlex.quote(str(HOME))} \"$@\"\n")
+        bad = []
+        for f in sorted(hooks.iterdir()):
+            if f.is_symlink() or not f.is_file():
+                bad.append(f.name)
+            elif f.name.endswith(".sample"):
+                continue
+            elif f.name == "pre-push" and f.read_text() == body:
+                continue
+            else:
+                bad.append(f.name)
+        return bad
+    except (OSError, UnicodeDecodeError) as e:
+        return [f"hooks unreadable: {e}"]
+
+
+def git_hooks_guard(con, clone):
+    """False (after recording git-hooks-refused) when git_hooks_refusal(clone) finds anything. Event on every refusal,
+    director message at most once an hour. Deletes nothing: the operator inspects and removes the files."""
+    names = git_hooks_refusal(clone)
+    if not names:
+        return True
+    # worker-chosen file names reach the director's inbox: printable characters only, capped
+    names = ["".join(c if c.isprintable() else "?" for c in n)[:60] for n in names[:10]]
+    try:
+        event(con, "export", "-", "git-hooks-refused", json.dumps({"clone": str(clone), "files": names}))
+        last = con.execute("SELECT value FROM config WHERE key='last_git_hooks_refused_ts'").fetchone()
+        if not last or time.time() - float(last["value"]) >= 3600:
+            send(con, "director", "git hooks refused: " + ", ".join(names)[:80],
+                 f"{clone}/.git/hooks holds {', '.join(names)}: a coder session there would run it with the read-write token. "
+                 "Spawn refused, nothing deleted. Inspect the files, find who planted them, remove them, then spawn again.",
+                 "report", sender="factory")
+            con.execute("INSERT INTO config(key,value) VALUES('last_git_hooks_refused_ts',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (str(time.time()),))
+    except Exception:  # noqa: BLE001 — the spawn is refused either way
+        pass
+    return False
+
+
+def qa_clone_path(goal_id, task):
+    return WORKTREES / f"{goal_id}-{task}-qa"
+
+
+def prepare_qa_clone(con, t, task):
+    """T-1544: qa (read-only token) works in its own clone <goal>-<task>-qa, made from the PROJECT repo, never from the
+    coder clone (its config, hooks and alternates are worker-writable). tasks.worktree stays the coder clone."""
+    repo, base = t["repo_path"], t["base_branch"] or "main"
+    qa = qa_clone_path(t["goal_id"], task)
+    if qa.is_symlink() or (qa.exists() and (qa / ".git").is_symlink()):
+        die(f"spawn refused: {qa} is a symlink; remove it after finding who made it", 4)
+    if qa.exists():
+        if not (qa / ".git").is_dir():
+            die(f"spawn refused: {qa} exists but is not a clone; remove it, then spawn again", 4)
+        if not git_config_guard(con, qa):
+            con.commit()
+            die(f"spawn refused: git config in {qa} would run code: {', '.join(git_config_refusal(qa))}", 4)
+    else:
+        if not git_config_guard(con, repo):
+            con.commit()
+            die(f"spawn refused: git config in {repo} would run code: {', '.join(git_config_refusal(repo))}", 4)
+        make_task_clone(con, repo, qa, f"{t['branch'] or 'factory/' + task.lower()}-qa", base)
+    trust_task_clone(con, task, qa)
+    install_pre_push_hook(qa)
+    return str(qa)
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -9712,6 +9875,15 @@ def prepare_worktree(con, task, role):
     if not t or not t["repo_path"]:
         return None
     if t["worktree"] and Path(t["worktree"]).exists():
+        coder_git = Path(t["worktree"]) / ".git"
+        if coder_git.is_symlink() and role in ("coder", "qa"):  # git would read config and hooks from wherever it points
+            die(f"spawn refused: {coder_git} is a symlink; inspect it, remove it, then spawn again", 4)
+        if role == "qa" and coder_git.is_dir():
+            return prepare_qa_clone(con, t, task)  # a legacy worktree (.git is a file) keeps today's reuse
+        if role == "coder" and coder_git.is_dir() and not git_hooks_guard(con, t["worktree"]):
+            con.commit()
+            die(f"spawn refused: {t['worktree']}/.git holds {', '.join(git_hooks_refusal(t['worktree']))} "
+                "(only *.sample and the factory pre-push are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
         if role == "coder" and t["branch"]:
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
@@ -10658,6 +10830,49 @@ def _cursor_enter_after_prompt(name, runtime, prompt_ok):
         herdr("agent", "send-keys", name, "Enter", check=False)
 
 
+HC_CURSOR_TURN_WAIT_S = 60  # T-1554: how long a Cursor kickoff on hc may take to start its turn, per submit
+HC_CURSOR_TURN_POLL_S = 3
+HC_CURSOR_KEYS_TIMEOUT_S = 30  # hc keys presses after ~3 s of quiet; bounds the spawn when the screen never goes quiet
+HC_TURN_STARTED = ("working", "done", "blocked")  # an hc OSC 7501 status the agent only reaches after the turn began
+
+
+def _hc_cursor_turn_started(con, name):
+    """True when `hc ls` reports a status the agent reaches only after a turn began; idle, unknown or unlisted is not."""
+    h = _host_list_row(con, name)
+    return bool(h) and h.get("agent_status") in HC_TURN_STARTED
+
+
+def _hc_cursor_wait_turn(con, name):
+    wait = float(os.environ.get("FACTORY_HC_CURSOR_TURN_WAIT_S") or HC_CURSOR_TURN_WAIT_S)
+    poll = float(os.environ.get("FACTORY_HC_CURSOR_TURN_POLL_S") or HC_CURSOR_TURN_POLL_S)
+    deadline = time.monotonic() + wait
+    while True:
+        if _hc_cursor_turn_started(con, name):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(poll)
+
+
+def _hc_cursor_submit(con, name, row_goal=None, row_task=None, prompt_ok=True):
+    """T-1554: on hc a Cursor kickoff can stay typed in the input box. Press enter (`hc keys <name> enter`), confirm the
+    turn started within HC_CURSOR_TURN_WAIT_S, press it once more, then one events row and one director alert."""
+    for attempt in (1, 2):
+        herdr("agent", "send-keys", name, "Enter", check=False, timeout=HC_CURSOR_KEYS_TIMEOUT_S)
+        if _hc_cursor_wait_turn(con, name):
+            if attempt > 1:
+                event(con, "agent", name, "cursor-submit-retried", {"host": "hc", "attempts": attempt})
+            return True
+    event(con, "agent", name, "cursor-submit-unconfirmed", {"host": "hc", "attempts": 2, "prompt_ok": prompt_ok})
+    send(con, "director", f"{name}: Cursor kickoff turn did not start on hc",
+         f"{name} (runtime cursor, host hc) got its kickoff prompt (hc send {'ok' if prompt_ok else 'failed'}) and enter "
+         f"twice, but hc ls showed no working, done or "
+         f"blocked status within {os.environ.get('FACTORY_HC_CURSOR_TURN_WAIT_S') or HC_CURSOR_TURN_WAIT_S} s of "
+         f"either. The prompt may still sit unsent. Check `hc read {name}`, then `factory relaunch --fresh {name}`.",
+         "alert", row_goal, row_task, sender="factory")
+    return False
+
+
 CURSOR_START_LOG_MAX_S = 600  # director lost alert names logs/<name>-cursor-start.log only within this after agents.started
 _CURSOR_START_LOG_ENV_KEYS = frozenset((*GH_SCRUB_ENV, *HC_SPAWN_DROP, "CURSOR_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"))
 
@@ -10792,7 +11007,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             die(f"runtime {runtime}: failed to start: {e}", 3)
         args["pid"] = proc.pid
         args["log"] = str(log_path)
-        con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+        spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                     "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=NULL, "
                     "workspace_id=NULL, tab_id=NULL, model=excluded.model, "
                     "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
@@ -10825,7 +11040,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             ws, tab, pane = place(con, role, goal, team, name, cwd, env, spawn_host)
     finally:
         _SPAWN_HOST_EXE = None
-    con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+    spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
                 "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
@@ -10862,9 +11077,13 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
              sender="factory")
         time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
-        if herdr("agent", "prompt", name, kick, check=False) is not None:
-            _cursor_enter_after_prompt(name, runtime, True)
+        prompt_ok = herdr("agent", "prompt", name, kick, check=False) is not None
+        if prompt_ok:
             con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
+        if use_hc and runtime == "cursor":
+            _hc_cursor_submit(con, name, goal, task, prompt_ok)  # a timed-out hc send may still have pasted the text
+        elif prompt_ok:
+            _cursor_enter_after_prompt(name, runtime, True)
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
                                         "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
     print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}, kind={plan.herdr_kind}) in {pane} cwd={cwd}")
@@ -11025,7 +11244,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         claude_args += ["--session-id", sid]
         if fresh:  # same role flags as a resume: the prompt file is re-read on every request
             claude_args += RESUME_PROMPT_FLAGS
-    con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+    spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
                 "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
@@ -12952,6 +13171,29 @@ def clean_sandbox_dirs(con, pane_cwds, dry_run, root=None):
     return [r for r in rows if r not in kept], len(kept)  # kept dirs are counted, not listed, so a quiet run stays quiet
 
 
+def clean_qa_clone(con, t, panes, listed):
+    """T-1544: remove <goal>-<task>-qa after its coder clone went (the task is already merged/cancelled and has no live
+    agent). Same rules as a clone: direct non-symlink child of worktrees/, guard first, no live pane or agent cwd there.
+    Its refs are disposable (qa never pushes). None = nothing there, 'removed', else the reason it was kept."""
+    qa = qa_clone_path(t["goal_id"], t["id"])
+    if not (qa.exists() or qa.is_symlink()):
+        return None
+    root = WORKTREES.resolve()
+    if qa.is_symlink() or qa.parent.resolve() != root or os.path.realpath(qa) != str(qa) or not (qa / ".git").is_dir() or (qa / ".git").is_symlink():
+        return "qa kept: not a plain direct child"
+    if not git_config_guard(con, qa, always_event=True):
+        return "qa kept: git config refused"
+    why = protected_by(con, qa.resolve(), panes, listed)
+    if why:
+        return "qa kept: " + why.removeprefix("protected: ")
+    try:
+        shutil.rmtree(qa)
+    except OSError as e:
+        return "qa clone remove failed: " + str(e)[:80]
+    trust_task_clone(con, t["id"], qa, add=False)
+    return "removed"
+
+
 def cmd_clean(a):
     """Remove worktrees and branches of finished tasks, after safety checks that a squash merge defeats for git itself."""
     w = caller_is_worker()
@@ -12976,6 +13218,7 @@ def cmd_clean(a):
                          "LEFT JOIN projects p ON p.id=g.project_id ORDER BY t.id").fetchall():
         if t["worktree"]:
             known.add(Path(t["worktree"]).resolve())
+            known.add(qa_clone_path(t["goal_id"], t["id"]).resolve())  # a kept qa clone is not an orphan
         if not (t["worktree"] or t["branch"]):
             continue
         row = {"task": t["id"], "worktree": t["worktree"] or "", "branch": t["branch"] or "", "action": "skip", "reason": ""}
@@ -13014,6 +13257,11 @@ def cmd_clean(a):
                 gone.append("worktree")
             else:
                 err = "worktree remove failed: " + r.stderr.strip()[:80]
+        qa_note = clean_qa_clone(con, t, panes, listed) if "clone" in gone else None
+        if qa_note == "removed":
+            gone.append("qa clone")
+        elif qa_note and not qa_note.startswith("qa kept"):
+            err = err or qa_note
         if has_branch and err is None:
             r = _git(repo, "branch", "-D", t["branch"])
             if r.returncode == 0:
@@ -13025,8 +13273,28 @@ def cmd_clean(a):
             continue
         row["action"] = "removed"
         row["reason"] = f"removed {' + '.join(gone)}; {err}" if err else "merged and clean"
+        if qa_note and qa_note.startswith("qa kept"):
+            row["reason"] += "; " + qa_note
         event(con, "task", t["id"], "cleaned", {"worktree": str(wt) if ("worktree" in gone or "clone" in gone) else None,
                                                 "branch": t["branch"] if "branch" in gone else None})
+    # a qa clone left behind by an earlier pass (kept while a pane sat in it) or whose coder clone is already gone
+    for t in con.execute("SELECT * FROM tasks WHERE status IN ('done','cancelled') ORDER BY id").fetchall():
+        qa = qa_clone_path(t["goal_id"], t["id"])
+        if not (qa.exists() or qa.is_symlink()) or (t["worktree"] and Path(t["worktree"]).exists()):
+            continue  # nothing there, or the coder clone is still there (its own row above decides)
+        row = {"task": t["id"], "worktree": str(qa), "branch": "", "action": "skip", "reason": ""}
+        rows.append(row)
+        if task_agent_live(con, t["id"], listed, panes):
+            row["reason"] = "agent live"
+        elif a.dry_run:
+            row["action"], row["reason"] = "would remove", "qa clone of a finished task"
+        else:
+            note = clean_qa_clone(con, t, panes, listed)
+            if note == "removed":
+                row["action"], row["reason"] = "removed", "qa clone of a finished task"
+                event(con, "task", t["id"], "cleaned", {"worktree": str(qa), "branch": None})
+            else:
+                row["reason"] = note
     if not a.dry_run:
         for repo in repos:
             _git(repo, "worktree", "prune")
@@ -15769,8 +16037,8 @@ def _tick_state_from_handoff(doc):
 
 def _tick_need_agents(units, doc):
     j = TICK_UNIT_INDEX["judge_ci_prune"]
-    if not any(TICK_UNIT_INDEX[u] > j for u in units):
-        return
+    if not any(TICK_UNIT_INDEX[u] > j for u in units if u != "offline"):
+        return  # the offline unit runs without agents (Go driver, agents=null)
     if "herdr_list" in units:
         return
     state = doc.get("state") or {}
