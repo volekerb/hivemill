@@ -21,6 +21,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [film/herdr/CAPTURE.md](film/herdr/CAPTURE.md): provenance of the Herdr app panel stills used in film scene 7.
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
+- [pr-flow.md](pr-flow.md): read-only PR flow report: merges per day, open-to-merge time and stage hours per org.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [researcher.md](researcher.md): the researcher role, its per-task research directory and where its findings go.
@@ -77,6 +78,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [lessons.md](lessons.md): where corrections and incidents are recorded and applied.
 - [utilization.md](utilization.md): the live-agent count shown by `factory res`, the tick sample and the web home.
 - [terminal-backends.md](terminal-backends.md): Herdr TUI vs herdr-core (`hc`), how to switch `terminal_backend`, caveats.
+- [multi-machine.md](multi-machine.md): the `factory-forward` ssh forwarder (protocol, env allow-list, owner install, threat model) for workers on a second machine (G-057).
 - [utilization-alerts.md](utilization-alerts.md): tick alerts to the director and boss for low worker count, starved goals and owner-cap breaches.
 - [PUBLISHING.md](PUBLISHING.md): the one approved route to a public copy of the repository.
 - [RELEASING.md](RELEASING.md): how a release is made, who does each step, and the feature-flag lifecycle.
@@ -112,6 +114,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0002-sandbox-runtime-v3.md](adr/0002-sandbox-runtime-v3.md): sandbox runtime v3 (hardened nsbox testbox, no microVMs for tests).
 - [adr/0003-macos-support.md](adr/0003-macos-support.md): macOS support (sandbox mechanism and port plan).
 - [adr/0004-node-esm-hivemill-ios-release.md](adr/0004-node-esm-hivemill-ios-release.md): Node ESM for the hivemill ios-release script.
+- [adr/0005-self-hosted-ci-runners.md](adr/0005-self-hosted-ci-runners.md): self-hosted CI runners for trusted PRs (proposed design, nothing installed).
 
 ## Internals
 
