@@ -20,4 +20,4 @@ The serve and orphan reapers do nothing on macOS (cwd, environ and open fds are 
 
 `factory tick --deadline <duration>` (`240s`, `4m`, `1h`, bare seconds): once the deadline has passed, the tick starts no
 further phase, records event `tick-deadline` and exits 0. The launchd job passes `--deadline 240s`; without the flag nothing
-changes. Tests: `tests/test_darwin_branches.py`.
+changes. Tests: `tests/test_gate.py` (T-1568 darwin sections).

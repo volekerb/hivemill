@@ -962,10 +962,22 @@ def proc_root():
 DARWIN_TMP_MIN_FREE_MB = 10240  # same floor as go/internal/gate TmpMinFreeMB (T-1562), non-tmpfs /tmp on macOS
 
 
+def _darwin_cmd_head_claude(command):
+    """True when the first tokens of a ps command line name claude (including node …/claude)."""
+    if not command:
+        return False
+    parts = command.split(None, 3)
+    if any(os.path.basename(x) == "claude" for x in parts[:3]):
+        return True
+    return (len(parts) > 1 and os.path.basename(parts[0]) in ("node", "nodejs")
+            and os.path.basename(parts[1]) == "claude")
+
+
 def _darwin_ps():
-    """macOS (no /proc): {pid: {"ppid","uid","lstart","argv"}} from ONE `ps -axo pid=,ppid=,uid=,lstart=,command=` (LC_ALL=C),
-    or None when ps cannot be read (callers then keep the pid: never reaped, T-1568 ADR 0003 4.4). argv is the command
-    split on whitespace (ps prints no argv boundaries)."""
+    """macOS (no /proc): {pid: {"ppid","uid","lstart","command","argv"}} from ONE `ps -axo pid=,ppid=,uid=,lstart=,command=`
+    (LC_ALL=C), or None when ps cannot be read (callers then keep the pid: never reaped, T-1568 ADR 0003 4.4).
+    `command` is the full ps tail (spaces preserved); `argv` is shlex-split for callers that need a list — paths with
+    spaces in --settings are matched on `command` via regex, not argv."""
     try:
         r = subprocess.run(["ps", "-axo", "pid=,ppid=,uid=,lstart=,command="], capture_output=True, text=True, timeout=15,
                            env={**os.environ, "LC_ALL": "C"})
@@ -978,8 +990,9 @@ def _darwin_ps():
         f = line.split(None, 8)  # pid ppid uid + lstart (5 words: "Sat Nov 15 21:20:43 2026") + command
         if len(f) < 8 or not (f[0].isdigit() and f[1].isdigit() and f[2].isdigit()):
             continue
+        cmd = f[8] if len(f) > 8 else ""
         out[int(f[0])] = {"ppid": int(f[1]), "uid": int(f[2]), "lstart": " ".join(f[3:8]),
-                          "argv": f[8].split() if len(f) > 8 else []}
+                          "command": cmd, "argv": shlex.split(cmd) if cmd else []}
     return out or None
 
 
@@ -1004,12 +1017,20 @@ def _ancestry_worker():
     for _ in range(64):
         try:
             if sys.platform == "darwin":
-                argv = (snap or {}).get(pid, {}).get("argv", [])
+                ent = (snap or {}).get(pid, {})
+                argv, cmd = ent.get("argv", []), ent.get("command", "")
             else:
+                cmd = ""
                 argv = [x.decode(errors="replace") for x in (root / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
         except OSError:
-            argv = []
-        if any(os.path.basename(x) == "claude" for x in argv[:3]):
+            argv, cmd = [], ""
+        is_claude = _darwin_cmd_head_claude(cmd) if sys.platform == "darwin" else any(os.path.basename(x) == "claude" for x in argv[:3])
+        if is_claude:
+            if sys.platform == "darwin":
+                m = re.search(r"/settings/([\w-]+)\.json", cmd)
+                if m and m.group(1) in WORKER_ROLES:
+                    return m.group(1)
+                return None
             vals = [argv[i + 1] for i, x in enumerate(argv[:-1]) if x == "--settings"]
             vals += [x.split("=", 1)[1] for x in argv if x.startswith("--settings=")]
             for v in vals:
@@ -2043,7 +2064,7 @@ def _scan_claude():
     if sys.platform == "darwin":
         snap = _darwin_ps()
         return None if snap is None else {p: (e["argv"], e["ppid"]) for p, e in snap.items()
-                                          if any(os.path.basename(x) == "claude" for x in e["argv"][:3])}
+                                          if _darwin_cmd_head_claude(e.get("command", ""))}
     root = proc_root()
     try:
         entries = list(root.iterdir())
@@ -2110,7 +2131,7 @@ def _scan_host_agent_procs():
     if sys.platform == "darwin":
         snap = _darwin_ps()
         return None if snap is None else {p: (e["argv"], e["ppid"]) for p, e in snap.items()
-                                          if any(os.path.basename(x) == "claude" for x in e["argv"][:3])
+                                          if _darwin_cmd_head_claude(e.get("command", ""))
                                           or _is_cursor_agent_argv(e["argv"])}
     root = proc_root()
     try:
