@@ -31,6 +31,9 @@ func RenderShim(o ShimOpts) (string, error) {
 	if o.Account == "" || o.LauncherPath == "" || o.ProfilePath == "" || o.RealClaude == "" {
 		return "", fmt.Errorf("macbox shim: account, launcher, profile and real claude are required")
 	}
+	if o.OwnerUID <= 0 {
+		return "", fmt.Errorf("macbox shim: owner uid is required")
+	}
 	var b strings.Builder
 	fmt.Fprintln(&b, "#!/bin/sh")
 	fmt.Fprintln(&b, "set -eu")

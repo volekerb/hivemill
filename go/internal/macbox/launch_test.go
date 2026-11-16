@@ -33,6 +33,15 @@ func TestDropsEnv(t *testing.T) {
 	if got["PATH"] != "/bin" || got["GH_TOKEN"] != "tok" || got["LC_CTYPE"] != "UTF-8" {
 		t.Fatalf("allow-listed keys missing: %v", got)
 	}
+	metaIn := []string{
+		"PATH=/bin", "MACBOX_AGENT_HOME=/a", "MACBOX_CLAUDE_CONFIG_DIR=/c",
+		"MACBOX_GIT_CONFIG_GLOBAL=/g", "MACBOX_TMPDIR=/t", "MACBOX_OWNER_UID=9", "DROP=1",
+	}
+	filtered := EnvironMap(FilterEnviron(metaIn))
+	ApplyLauncherDirs(filtered)
+	if filtered["HOME"] != "/a" || filtered["TMPDIR"] != "/t" {
+		t.Fatalf("meta env through filter: %v", filtered)
+	}
 	m := map[string]string{"MACBOX_AGENT_HOME": "/a", "PATH": "/bin", "MACBOX_OWNER_UID": "9"}
 	ApplyLauncherDirs(m)
 	if m["HOME"] != "/a" || m["GIT_CONFIG_NOSYSTEM"] != "1" {

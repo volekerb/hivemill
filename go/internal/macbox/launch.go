@@ -12,7 +12,10 @@ func RefuseLauncherUID(uid, ownerUID int) error {
 	if uid == 0 {
 		return fmt.Errorf("macbox launcher: refusing to run as uid 0")
 	}
-	if ownerUID > 0 && uid == ownerUID {
+	if ownerUID <= 0 {
+		return fmt.Errorf("macbox launcher: MACBOX_OWNER_UID is missing; refusing to run")
+	}
+	if uid == ownerUID {
 		return fmt.Errorf("macbox launcher: refusing to run as the owner (uid %d)", ownerUID)
 	}
 	return nil

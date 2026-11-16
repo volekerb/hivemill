@@ -71,5 +71,10 @@ func EnvAllowed(k string) bool {
 			return true
 		}
 	}
+	for _, a := range LauncherMetaEnv {
+		if a == k {
+			return true
+		}
+	}
 	return false
 }
