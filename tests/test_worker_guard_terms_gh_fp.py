@@ -166,6 +166,89 @@ class TermsGhFpTests(unittest.TestCase):
         self.refused("eval 'grep -E \"a{1,2}\" " + self.secrets + "/x'")
         self.refused("bash -c 'grep \"a\" " + self.secrets + "/{s,x}'")
 
+    # --- T-1617: read-only filter stages over gh/git output, and a heredoc body fed to the factory CLI ---
+    def test_t1617_filter_pipelines_pass(self):
+        for cmd in (
+            "gh pr diff 703 | awk '/factory_cli/{split($0,a,\"/\");print(a[2])}'",
+            "gh pr diff 703 | awk -F, '/factory_cli/{n=substr($1,1,5)} END{print n}' | sort | uniq -c | head -5",
+            "gh pr diff 703 | awk -F ':' -v n=3 '/factory/{x=substr($1,1,n);print(x)}'",
+            "gh pr diff 703 | awk '$1!=\"-\"||/factory/{c[substr($0,1,1)]++} END{for(k in c)print k,c[k]}'",
+            "git diff origin/main...HEAD -- bin/factory_cli.py | sed -nE 's/^[+]def (test_[a-z_]{1,40}).*/\\1/p' | wc -l",
+            "git log --oneline -20 | sed -n '/factory{1,2}/p' | cut -c1-80 | tail -3",
+            "git show HEAD --stat | sed -e 's#factory/{a,b}#x#g'",
+            "gh pr diff 703 | grep -cE 'factory/t-[0-9]{3,4}'",
+        ):
+            with self.subTest(cmd=cmd):
+                self.allowed(cmd)
+
+    def test_t1617_unsafe_awk_and_sed_stay_refused(self):
+        # the exemption never covers a program that can run a command, name a file or write one
+        for prog in ("{split($0,a,\",\");system(\"id\")}", "{split($0,a,\",\");print>\"out\"}", "{split($0,a,\",\");print>>\"out\"}",
+                     "{split($0,a,\",\");print|\"sh\"}", "{split($0,a,\",\");\"id\"|getline}",
+                     "{split($0,a,\",\");while((getline<a[1])>0)print}", "BEGIN{ARGV[1]=\"f\";ARGC=2}{split($0,a,\",\")}",
+                     "{split(ENVIRON[\"X\"],a,\",\")}", "@include \"f\"\n{a,b}".replace("\n", ";"), "{if(a>=1)split($0,a,\",\")}",
+                     "/a|b/{split($0,a,\",\")}"):
+            with self.subTest(prog=prog):
+                self.refused("gh pr diff 703 | awk '/factory/" + prog + "'")
+        for cmd in (
+            "gh pr diff 703 | awk -f '{a,b}' factory",
+            "gh pr diff 703 | awk --exec '{a,b}' factory",
+            "gh pr diff 703 | awk -i inplace '{split($0,a,\",\")}' factory",
+            "gh pr diff 703 | awk '{split($0,a,\",\")}' " + self.brace,
+            "gh pr diff 703 | sed -i 's/factory{1,2}/x/' f",
+            "gh pr diff 703 | sed -i.bak 's/factory{1,2}/x/' f",
+            "gh pr diff 703 | sed --in-place 's/factory{1,2}/x/' f",
+            "gh pr diff 703 | sed -n 's/factory{1,2}/x/p' -i f",
+            "gh pr diff 703 | sed -n 's/factory{1,2}/x/p' '-i' f",
+            "gh pr diff 703 | sed -n 's/factory{1,2}/x/w out'",
+            "gh pr diff 703 | sed 's/factory{1,2}/x/e'",
+            "gh pr diff 703 | sed -f 's/factory{1,2}/x/' f",
+            "gh pr diff 703 | sed 's/factory{1,2}/x/;w out'",
+            "gh pr diff 703 | sed '/factory{1,2}/w out'",
+            "gh pr diff 703 | sed '1r factory/{a,b}'",
+            "gh pr diff 703 | sort -o 'factory{a,b}'",
+            "gh pr diff 703 | tee 'factory{a,b}'",
+            "git -C factory diff | grep 'a{1,2}'",
+            "git config 'a{1,2}' factory",
+            "git diff 'a{1,2}' factory",
+        ):
+            with self.subTest(cmd=cmd):
+                self.refused(cmd)
+
+    def test_t1617_factory_heredoc_body_is_data(self):
+        body = "1. grep -cE 'T-[0-9]{3,4}' out.txt -> 3\n2. names factory, scrub and terms; keys {a,b}"
+        for cmd in (
+            "factory task update T-1607 --acceptance - <<'EOF'\n" + body + "\nEOF",
+            "factory task update T-1607 --acceptance - <<'EOF'\n" + body + "\nEOF\n",
+            "factory task add --goal G-058 --title \"a b\" --spec - <<'SPEC'\n" + body + "\n\nSPEC",
+            "factory plan G-058 - <<'EOF'\n" + body + "\nEOF",
+        ):
+            with self.subTest(cmd=cmd):
+                self.allowed(cmd)
+
+    def test_t1617_heredoc_real_terms_and_other_shapes_refused(self):
+        t = self.terms
+        for cmd in (
+            "factory task update T-1 --acceptance - <<'EOF'\ncat " + t + "\nEOF",  # the terms file itself
+            "factory task update T-1 --acceptance - <<'EOF'\nrun $SCRUB_TERMS_FILE {1,2}\nEOF",
+            "factory task update T-1 --acceptance - <<'EOF'\nx{1,2}\nEOF\ncat " + self.brace,  # a command after the body
+            "factory task update T-1 --acceptance - <<'EOF'; cat " + self.brace + "\nx\nEOF",
+            "factory task update T-1 --acceptance - <<'EOF' | cat " + self.brace + "\nx\nEOF",
+            "factory task update T-1 --acceptance - <<EOF\nx{1,2}\nEOF",  # unquoted delimiter: the shell expands the body
+            "factory task update T-1 --acceptance - <<\"EOF\"\nx{1,2}\nEOF",
+            "factory task update T-1 --acceptance - <<-'EOF'\nx{1,2}\nEOF",
+            "factory task update T-1 --acceptance - <<'EOF'\nx{1,2}\n",  # no terminator
+            "factory task update T-1 --title 'x{1,2}' --acceptance - <<'EOF'\nx\nEOF",  # a brace on the command line
+            "factory task update T-1 --title $(cat " + self.brace + ") - <<'EOF'\nx\nEOF",
+            "cat <<'EOF'\nfactory x{1,2}\nEOF",
+            "bash <<'EOF'\nfactory x{1,2}\nEOF",
+            "X=1 factory task note T-1 - <<'EOF'\nx{1,2}\nEOF",
+            "/tmp/factory task note T-1 - <<'EOF'\nx{1,2}\nEOF",
+            "factory task note T-1 - <<'EOF' <<'B'\nx{1,2}\nEOF\nB",
+        ):
+            with self.subTest(cmd=cmd):
+                self.refused(cmd)
+
     # --- item 4: real reads stay refused ---
     def test_real_terms_reads_refused(self):
         t, d = self.terms, self.secrets
