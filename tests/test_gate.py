@@ -697,6 +697,25 @@ class PlacementTests(FactoryTestCase):
         self.assertEqual((machine, reason), ("hqhost", "ok"))
         self.assertFalse(stats["machines"]["workerhost"]["reachable"])
 
+    def test_placement_relaunch_does_not_spend_its_own_share(self):
+        self.ok("config", "max_live_agents", "6")
+        self.enable()
+        for i, role in enumerate(("boss", "director", "lead")):
+            self.env.seed_agent(f"zz-hq{i}", role, goal="G-001")
+        self.env.seed_agent("zz-coder", "coder", goal="G-001", pane_id="p-coder")
+        with self.env.load_factory() as mod:
+            os.environ.update(self.facts({"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 0}, mem="8000", nproc="8"))
+            os.environ["FACTORY_FACTS_NOW"] = "10000"
+            con = mod.db()
+            blocked, why, _ = mod.gate(con, role="coder", runtime="claude")
+            self.assertFalse(blocked, why)
+            self.assertIn("would place on workerhost", why)
+            os.environ["FACTORY_FACTS_NOW"] = "10001"
+            ok, why, stats = mod.gate(con, role="coder", runtime="claude", placement_discount="hqhost")
+        self.assertTrue(ok, why)
+        self.assertEqual(stats["placement"]["machines"]["hqhost"]["fails"], [])
+        self.assertEqual(stats["placement"]["machines"]["hqhost"]["workers"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

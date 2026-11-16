@@ -2716,6 +2716,13 @@ def _cpu_heavy_role(con, role):
     return bool(role) and role in {x.strip() for x in raw.split(",") if x.strip()}
 
 
+def _relaunch_placement_discount(con, row):
+    """The machine a live worker already occupies, so a relaunch does not spend a second share seat."""
+    if not row or row["status"] != "live" or row["role"] not in PLACEMENT_WORKER_ROLES:
+        return None
+    return _row_machine(row, _machine_hq(con))
+
+
 def _row_machine(row, hq):
     """Machine recorded on the row. Absent (the only value this task writes for a real start) means machine_hq."""
     try:
@@ -2757,9 +2764,10 @@ def _worker_shares(budget, nprocs):
     return shares
 
 
-def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False):
+def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False, discount_machine=None):
     """(machine, reason, per_machine_stats). reason is 'ok', or a refusal that names every machine's failing check.
-    Does not relax owner caps: gate() applies those first. A role other than coder, qa, reviewer, cleaner is machine_hq only."""
+    Does not relax owner caps: gate() applies those first. A role other than coder, qa, reviewer, cleaner is machine_hq only.
+    discount_machine: a relaunch of a worker already counted on that machine. One seat is not counted twice."""
     hq = _machine_hq(con)
     remotes = []
     for name in _worker_machine_list(con):
@@ -2774,6 +2782,8 @@ def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False):
     except (TypeError, ValueError):
         ratio = 1.25
     hq_in_use, on_machine = _placement_census(con, hq)
+    if discount_machine and role in PLACEMENT_WORKER_ROLES:
+        on_machine[discount_machine] = max(0, on_machine.get(discount_machine, 0) - 1)
     budget = max(0, _int_cfg(con, "max_live_agents", 6) - hq_in_use)
     reachable = [m for m in machines if facts[m]["reachable"] and facts[m]["nproc"] > 0]
     share_of = dict(zip(reachable, _worker_shares(budget, [facts[m]["nproc"] for m in reachable])))
@@ -2816,7 +2826,7 @@ def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False):
     return chosen, "ok", per
 
 
-def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None):
+def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None, *, placement_discount=None):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
@@ -2935,7 +2945,8 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
                            "(reserved_worker_slots)"), stats
     if role and _worker_machine_list(con):
         machine, why, per = place_machine(con, role, runtime, _cpu_heavy_role(con, role),
-                                           skip_load=bool(own_slot or load_exempt))
+                                           skip_load=bool(own_slot or load_exempt),
+                                           discount_machine=placement_discount)
         stats["placement"] = per
         if why != "ok":
             return False, why, stats
@@ -10595,7 +10606,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if role == "researcher" and rt == "cursor":
         die("the researcher role is not supported on the Cursor runtime (docs/research-team.md); use the claude org", 3)
     ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
-                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt)
+                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt,
+                          placement_discount=_relaunch_placement_discount(con, existing) if relaunch else None)
     placed = stats.get("machine")
     if placed:  # the decision, including a worker machine this task cannot start yet (remote start is T-C)
         event(con, "agent", name, "place", {"machine": placed, "role": role})
@@ -18079,6 +18091,13 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             sandbox_refuse(con, r["role"], r["name"], *bad)
     if gh_cred_wanted(con, r["role"], sandbox_wanted(con, r["role"], optin)):  # same: before the old pane is closed
         gh_cred_preflight(con, r["role"], r["name"])
+    if _worker_machine_list(con):  # placement can refuse a restart the single-machine gate would allow; do not close first
+        ok, why, _stats = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
+                               role=r["role"], own_lead=r["status"] == "live",
+                               runtime=org_runtime(con, r["role"], r["org"]),
+                               placement_discount=_relaunch_placement_discount(con, r))
+        if not ok:
+            die(f"not relaunching {r['name']}: {why}", 3)
     steps = []
     if close:
         if by_pane:
@@ -19610,7 +19629,9 @@ def tick_relaunches(con):
             h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue  # mid-turn, blocked or not listed: a later tick
-        ok, why, _ = gate(con, own_slot=True)  # the agent already holds its slot; never close a pane the gate would queue
+        ok, why, _ = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
+                          role=r["role"], own_lead=True, runtime=org_runtime(con, r["role"], r["org"]),
+                          placement_discount=_relaunch_placement_discount(con, r))  # never close a pane the gate would queue
         if not ok:
             key = f"relaunch_deferred:{r['name']}"
             last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()

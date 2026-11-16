@@ -329,5 +329,40 @@ class MigrationTests(RelaunchIdleCase):
         self.assertEqual(len(self.env.sql("SELECT 1 FROM agents WHERE name=?", (LEAD,))), 1)
 
 
+_LOW_HQ = {
+    "FACTORY_MEM_MB": "1800",
+    "FACTORY_LOADAVG": "0.1",
+    "FACTORY_NPROC": "8",
+    "FACTORY_FACTS_NOW": "10000",
+    "FACTORY_SSH_FACTS": '{"workerhost": {"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 0}}',
+}
+
+
+class PlacementRelaunchTests(RelaunchIdleCase):
+    def _arm(self):
+        self.ok("config", "worker_machines", "workerhost", agent="zz-director")
+        self.ok("config", "machine_hq", "hqhost", agent="zz-director")
+
+    def test_placement_floor_defers_a_live_lead_without_closing(self):
+        self._arm()
+        self.queue()
+        self.ok("tick", extra_env=_LOW_HQ)
+        self.assertEqual(self.closes(), [])
+        self.assertEqual(self.starts(), [])
+        self.assertTrue(self.flag()[0])
+        row = self.env.sql("SELECT status, pane_id FROM agents WHERE name=?", (LEAD,))[0]
+        self.assertEqual((row[0], row[1]), ("live", PANE))
+        self.assertEqual(len(self.events("relaunch-deferred")), 1)
+
+    def test_immediate_relaunch_under_placement_floor_keeps_the_pane(self):
+        self._arm()
+        p = self.refused(3, "relaunch", LEAD, "--force", agent="zz-director", extra_env=_LOW_HQ)
+        self.assertIn(f"not relaunching {LEAD}", p.stderr)
+        self.assertIn("floor", p.stderr)
+        self.assertEqual(self.closes(), [])
+        row = self.env.sql("SELECT status, pane_id FROM agents WHERE name=?", (LEAD,))[0]
+        self.assertEqual((row[0], row[1]), ("live", PANE))
+
+
 if __name__ == "__main__":
     unittest.main()
