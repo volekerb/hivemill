@@ -299,8 +299,7 @@ The shim locates the binary under `$HOME`; the guard protects the passwd home. T
 ## Build and stamp
 
 No binary is in git. `factory up` and the tick call `build_guard_go()` (T-0354), which builds `go/cmd/worker-guard`
-After a flip to `go` or `shadow` the shim stays on Python until the stamp matches the new `srchash`.
-(or `factory up`) builds, and the shim stays on Python until the stamp matches.
+into `~/.local/lib/factory/worker-guard`, on every tick and `factory up` whatever `guard_impl` says (T-1804; no-op when stamped, skipped under load or without a toolchain). `write_guard_impl()` runs in every case and dispatch still follows `guard_impl`: after a flip to `go` or `shadow` the shim stays on Python until the stamp matches the new `srchash`.
 
 1. The toolchain is `~/.local/go/bin/go` only, `nice` is `/usr/bin/nice`; neither is
    looked up on `PATH`. A missing toolchain: one stderr line `guard go build: skipped (no go toolchain)`, no stamp, no error.
