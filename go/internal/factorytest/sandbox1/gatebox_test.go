@@ -595,8 +595,15 @@ func TestGateboxRealTimeoutKillsTheTree(t *testing.T) {
 	if inner < 2 || inner >= 20 {
 		t.Errorf("inner pid = %d, want a low pid of a fresh pid namespace", inner)
 	}
-	out, _ := exec.Command("pgrep", "-f", "^sleep "+secs+"$", "-u", strconv.Itoa(os.Getuid())).Output() // exit 1 = no match
-	if got := strings.Fields(string(out)); len(got) != 0 {
+	var got []string
+	for i := 0; i < 20; i++ { // the kill is asynchronous: poll up to 2 s for the sleeper to be gone
+		out, _ := exec.Command("pgrep", "-f", "^sleep "+secs+"$", "-u", strconv.Itoa(os.Getuid())).Output() // exit 1 = no match
+		if got = strings.Fields(string(out)); len(got) == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if len(got) != 0 {
 		t.Errorf("a gate child outlived the timeout: pids %v", got)
 	}
 }

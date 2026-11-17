@@ -295,7 +295,11 @@ func TestWorkerboxAgentDirSymlinkedClaudeJSONIsReplacedAndItsTargetUntouched(t *
 	wbMust(t, os.Symlink(target, link))
 	w.prepare(nil)
 	wbEq(t, "target sha", wbSha(t, target), before)
-	if fi, _ := os.Lstat(link); fi.Mode()&os.ModeSymlink != 0 {
+	fi, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
 		t.Error(".claude.json is still a symlink")
 	}
 	wbEq(t, "onboarding", wbClaudeJSON(t, link)["hasCompletedOnboarding"], true)
