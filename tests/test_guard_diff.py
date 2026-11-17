@@ -48,11 +48,9 @@ GUARD_PATH_RE = re.compile(
 
 
 def _changed_paths(base_ref):
-    p = subprocess.run(["git", "diff", "--name-only", "--no-renames", "origin/%s...HEAD" % base_ref],
-                       cwd=ROOT, capture_output=True, text=True, timeout=60)
-    if p.returncode != 0:
-        raise RuntimeError("git diff failed: %s" % p.stderr)
-    return [x for x in p.stdout.splitlines() if x]
+    # harness.git raises on a non-zero exit; the caller's broad except turns that into "run the test"
+    out = harness.git("diff", "--name-only", "--no-renames", "origin/%s...HEAD" % base_ref, cwd=ROOT)
+    return [x for x in out.splitlines() if x]
 
 
 def _pr_without_guard_change():
