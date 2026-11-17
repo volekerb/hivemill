@@ -185,6 +185,7 @@ DEFAULT_CONFIG = {
     "max_five_hour_pct": "92",
     "max_seven_day_pct": "92",
     "nudge_cooldown_s": "120",
+    "cursor_kickoff_grace_s": "180",  # T-1599: a live cursor agent's kickoff message unread this long after the spawn is re-submitted once, that long again later the pane is relaunched fresh once, then one escalation; 0 = off
     "boss_wake_after_s": "900",    # tick step 3: boss pane is prompted only when an unread escalation/request is at least this old (T-1199)
     "boss_wake_cooldown_s": "1800",  # at most one boss wake per this many seconds (agents.last_nudge)
     "director_cycle_s": "900",
@@ -197,6 +198,7 @@ DEFAULT_CONFIG = {
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
     "mech_merge_retry_s": "600", # the merger looks at a PR head it already blocked on (or shadow-recorded) at most this often
+    "judge_hold_expiry_min": "120",  # minutes a manual judge hold may stay on a reviewer+QA PASS PR without a boss decision (boss-approved M<id> in the hold text); 0 = off (G-058, owner M37547; docs/judge-hold-expiry.md)
     "risk_tiers": "off",        # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
@@ -4625,10 +4627,25 @@ def sender_org_for(con, role, to, goal=None, task=None):
     return org_for(con, goal, task, actor())
 
 
+def coder_done_escalation_ok(con, role, a):
+    """T-1627: the exit of a refused `factory done`. A coder may escalate ONLY its own task (--task) and ONLY up its own
+    chain: lead:<its team>, its lead's name, or the director. Nothing else a worker sends changes."""
+    if role != "coder":
+        return False
+    me = con.execute("SELECT task_id, team_id FROM agents WHERE name=?", (actor(),)).fetchone()
+    if not me or not me["task_id"] or a.task != me["task_id"]:
+        return False
+    ups = {"director", "lead:" + (me["team_id"] or "")}
+    lead = con.execute("SELECT lead_agent FROM teams WHERE id=?", (me["team_id"],)).fetchone() if me["team_id"] else None
+    if lead and lead["lead_agent"]:
+        ups.add(lead["lead_agent"])
+    return a.to in ups
+
+
 def cmd_msg(a):
     con = db()
     role = actor_role(con)
-    if a.kind == "escalation" and role not in ("owner", "director", "boss", "lead"):
+    if a.kind == "escalation" and role not in ("owner", "director", "boss", "lead") and not coder_done_escalation_ok(con, role, a):
         die("only leads, the director and the boss escalate; message your lead instead", 3)
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
@@ -11146,6 +11163,25 @@ def _hc_cursor_submit(con, name, row_goal=None, row_task=None, prompt_ok=True):
     return False
 
 
+def kickoff_submit(con, name, kick, runtime, use_hc, goal=None, task=None, confirm=True):
+    """Type the kickoff into a pane-hosted agent and submit it. The spawn of a herdr-kind runtime and the tick's resend
+    (tick_cursor_kickoff) both call this one function. Cursor needs Enter after the prompt (C8). On hc, confirm=True
+    (the spawn) also waits for the turn to start and alerts the director when it does not (_hc_cursor_submit);
+    confirm=False (the tick) presses Enter once and never waits: the kickoff read mark is its confirmation.
+    Returns whether the prompt call succeeded."""
+    prompt_ok = herdr("agent", "prompt", name, kick, check=False) is not None
+    if prompt_ok:
+        con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
+    if use_hc and runtime == "cursor":
+        if confirm:
+            _hc_cursor_submit(con, name, goal, task, prompt_ok)  # a timed-out hc send may still have pasted the text
+        else:
+            herdr("agent", "send-keys", name, "Enter", check=False, timeout=HC_CURSOR_KEYS_TIMEOUT_S)
+    elif prompt_ok:
+        _cursor_enter_after_prompt(name, runtime, True)
+    return prompt_ok
+
+
 CURSOR_START_LOG_MAX_S = 600  # director lost alert names logs/<name>-cursor-start.log only within this after agents.started
 _CURSOR_START_LOG_ENV_KEYS = frozenset((*GH_SCRUB_ENV, *HC_SPAWN_DROP, "CURSOR_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"))
 
@@ -11350,13 +11386,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
              sender="factory")
         time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
-        prompt_ok = herdr("agent", "prompt", name, kick, check=False) is not None
-        if prompt_ok:
-            con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
-        if use_hc and runtime == "cursor":
-            _hc_cursor_submit(con, name, goal, task, prompt_ok)  # a timed-out hc send may still have pasted the text
-        elif prompt_ok:
-            _cursor_enter_after_prompt(name, runtime, True)
+        kickoff_submit(con, name, kick, runtime, use_hc, goal, task)
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
                                         "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
     print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}, kind={plan.herdr_kind}) in {pane} cwd={cwd}")
@@ -12240,6 +12270,63 @@ def ci_green_on_head(con, head, pr_url):
     return True, "all checks SUCCESS"
 
 
+DONE_EXIT_STEPS = ("the way out: (1) `factory task update {t} --status in_review` (or `--status blocked` with a reason when the head is "
+                   "unpushed and held, e.g. 'no merge until PR x' / owner push needed); (2) `factory msg lead:{team} '<why>' "
+                   "--kind escalation --task {t}` (the director when there is no lead), sent AFTER the status change and after this refusal; (3) run `factory done` again: it is "
+                   "accepted once both exist and the message is newer than this refusal")
+
+
+def done_exit_hint(r):
+    return DONE_EXIT_STEPS.format(t=r["task_id"], team=r["team_id"] or "<team>")
+
+
+def done_head(con, r):
+    row = con.execute("SELECT worktree FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+    wt = row and row["worktree"]
+    rc, head = _git_out(wt, "rev-parse", "HEAD") if wt and Path(wt).is_dir() else (1, "")
+    return head if rc == 0 and head else None
+
+
+def done_record_refusal(con, r, why, gate):
+    """Log the refusal (task, head, why): a later escalation must be newer than it, for the same head."""
+    head = done_head(con, r)
+    if head:
+        event(con, "task", r["task_id"], "refused-done", {"head": head, "gate": gate, "why": why[:200]})
+        con.commit()
+
+
+def done_escalation_exit(con, r, gate):
+    """True when this coder already took the exit for the CURRENT head: the task is in_review or blocked and an
+    escalation from it to its lead (or a director) for this task is newer than the latest refused-done on that head."""
+    head = done_head(con, r)
+    t = con.execute("SELECT status FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+    if not head or not t or t["status"] not in ("in_review", "blocked"):
+        return False
+    refused = None
+    for e in con.execute("SELECT detail, ts FROM events WHERE entity='task' AND entity_id=? AND action='refused-done' ORDER BY id DESC",
+                         (r["task_id"],)):
+        try:
+            d = json.loads(e["detail"])
+            if d.get("head") != head or d.get("gate") != gate:
+                continue
+        except (TypeError, ValueError, AttributeError):
+            continue
+        refused = _ts(e["ts"])
+        break
+    if not refused:
+        return False
+    lead = con.execute("SELECT lead_agent FROM teams WHERE id=?", (r["team_id"],)).fetchone() if r["team_id"] else None
+    ups = {x["name"] for x in con.execute("SELECT name FROM agents WHERE role='director'")}
+    if lead and lead["lead_agent"]:
+        ups.add(lead["lead_agent"])
+    for m in con.execute("SELECT recipient, created FROM messages WHERE sender=? AND task_id=? AND kind='escalation'",
+                         (r["name"], r["task_id"])):
+        ts = _ts(m["created"])
+        if m["recipient"] in ups and ts and ts > refused:
+            return True
+    return False
+
+
 def prcheck_done_refusal(con, r, t):
     """With config prcheck_required=1, a coder's `factory done` on a task that has a PR needs a passing prcheck on the
     worktree's current HEAD. Cannot read HEAD or the record = refuse."""
@@ -12278,8 +12365,10 @@ def prcheck_done_refusal(con, r, t):
     if ok:
         print(f"factory: prcheck accepted via green CI on PR head {head[:9]} ({why})", file=sys.stderr)
         return
-    die(f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
-        "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
+    msg = (f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
+           "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)")
+    done_record_refusal(con, r, msg, "prcheck")
+    die(f"{msg}. If it cannot pass, {done_exit_hint(r)}", 3)
 
 
 JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject", "judge-reject-status-only")  # what cmd_judge records
@@ -12337,23 +12426,38 @@ def cmd_done(a):
     if r["role"] == "coder" and r["task_id"]:
         dirty, untracked, unpushed, ci = coder_done_findings(con, r, a.force)
         found = []
+        escalated = False
+        if unpushed and not dirty and done_escalation_exit(con, r, "unpushed"):
+            unpushed, escalated = None, True  # exit taken: the unpushed head is now the lead's call
         if dirty:
             found.append("uncommitted tracked changes: " + ", ".join(dirty[:10]))
         if unpushed:
             found.append(unpushed)
         if found and not a.force:
+            if unpushed and not dirty:
+                done_record_refusal(con, r, unpushed, "unpushed")
             for f in found:
                 print(f"factory: {f}", file=sys.stderr)
             if dirty:
                 print("commit (a WIP commit is fine) and push, then run factory done again", file=sys.stderr)
             if unpushed:
                 print("push your commits (git push -u origin HEAD), then run factory done again", file=sys.stderr)
+                if not dirty:
+                    print(f"factory: if the push is held (spec says no merge until PR x, owner push needed), {done_exit_hint(r)}",
+                          file=sys.stderr)
             sys.exit(3)
         # a fix-round coder is already in_review and never sets it again: same body gate as the in_review transition
         t = con.execute("SELECT status, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
         if t and t["status"] == "in_review" and t["pr_url"]:
             require_acceptance_walk(t["pr_url"])
-        prcheck_done_refusal(con, r, t)
+        if not escalated and done_escalation_exit(con, r, "prcheck"):
+            escalated = True  # a prcheck refusal on this head was logged, then the exit was taken
+        if not escalated:
+            prcheck_done_refusal(con, r, t)
+        else:
+            head = done_head(con, r)
+            event(con, "task", r["task_id"], "done-after-escalation", {"head": head, "status": t["status"] if t else None})
+            summary += f"\n\nNOTE: done accepted after escalation: refused on head {(head or '')[:9]}, task is {t['status'] if t else '?'}, escalation sent."
         unclean = "; ".join(found)
         if untracked:
             print("WARNING: untracked files left in the worktree: " + ", ".join(untracked[:10]), file=sys.stderr)
@@ -16235,6 +16339,7 @@ TICK_UNITS = (
     ("claude_audit", "claude_audit", "reap"),
     ("stop_fallback", "stop_fallback", "flow"),
     ("gate", "gate", "flow"),
+    ("hold_expiry", "hold_expiry", "flow"),
     ("mech_merge", "mech_merge", "flow"),
     ("ci_wake", "ci_wake", "flow"),
     ("wake_leads", "wake_leads", "flow"),
@@ -16816,6 +16921,12 @@ def _tick_u_gate(con, st):
         _pt_lap("gate")
 
 
+def _tick_u_hold_expiry(con, st):
+        # 1c''+. judge hold expiry (G-058, docs/judge-hold-expiry.md): Go only (go/internal/tick/holdexpiry.go). The
+        # Python tick has no implementation: it keeps every hold and prints nothing; only the lap is recorded.
+        _pt_lap("hold_expiry")
+
+
 def _tick_u_mech_merge(con, st):
         # 1c'''. mechanical merger (G-022 #4, config mech_merge off|shadow|on): one detached unit, never blocks the tick
         try:
@@ -17163,6 +17274,10 @@ def _tick_u_recycle(con, st):
 
 def _tick_u_relaunches(con, st):
         tick_relaunches(con)
+        try:  # T-1599, after the stop fallback and the queued relaunches: those paths own their panes first
+            tick_cursor_kickoff(con)
+        except Exception as e:  # noqa: BLE001 — one bad agent row must not stop the tick
+            event(con, "tick", "cursor-kickoff", "cursor-kickoff-error", str(e)[:300])
 
 
 def _tick_u_util(con, st):
@@ -19577,6 +19692,144 @@ def tick_relaunches(con):
                 event(con, "agent", r["name"], "relaunch-alert-failed", {"to": to, "error": str(e2) or f"exit {getattr(e2, 'code', '?')}"})
 
 
+KICKOFF_WATCH_EVENTS = ("kickoff-resent", "kickoff-relaunch", "kickoff-relaunch-failed", "kickoff-escalated")
+KICKOFF_SQL = "recipient=? AND sender='factory' AND subject LIKE 'kickoff:%'"  # the message spawn sends with the kickoff
+
+
+def kickoff_unread(con, name):
+    """(latest kickoff message row, id of the one before it or None) when the agent's latest kickoff message is still
+    unread, else None. The read mark is the proof the agent accepted its kickoff: `factory inbox`, its first command,
+    sets it (runtime-neutral, no transcript or pane probing)."""
+    rows = con.execute(f"SELECT id, body, created, read_at FROM messages WHERE {KICKOFF_SQL} ORDER BY id DESC LIMIT 2",
+                       (name,)).fetchall()
+    if not rows or rows[0]["read_at"] or not rows[0]["body"]:
+        return None
+    return rows[0], (rows[1]["id"] if len(rows) > 1 else None)
+
+
+def _kickoff_watch_state(con, name):
+    """{action: {kickoff message id: event ts}} of the agent's kickoff-watch events (the check's only state)."""
+    out = {a: {} for a in KICKOFF_WATCH_EVENTS}
+    for e in con.execute("SELECT action, ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action IN (?,?,?,?) "
+                         "ORDER BY id", (name, *KICKOFF_WATCH_EVENTS)).fetchall():
+        try:
+            kick = json.loads(e["detail"])["kick"]
+        except (TypeError, ValueError, KeyError):
+            continue
+        out[e["action"]][kick] = e["ts"]
+    return out
+
+
+def kickoff_resend(con, r, kick):
+    """Re-submit kickoff text `kick` to live agent row `r` through the spawn's own submit function. Never waits."""
+    return kickoff_submit(con, r["name"], kick, _agent_runtime(r), _agent_host_exe(con, r) == "hc",
+                          r["goal_id"], r["task_id"], confirm=False)
+
+
+def relaunch_fresh_from_tick(con, r):
+    """Close live agent row `r`'s pane and start it fresh through relaunch_agent (the path `factory relaunch --fresh`
+    and the queued relaunches use): same slot, new session id, new kickoff message. The caller checked the gate.
+    Returns None on success, else the error text; never raises."""
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(err), contextlib.redirect_stderr(err):
+            relaunch_agent(con, r, force=True, fresh=True)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
+        return (err.getvalue().strip() or str(e) or f"exit {getattr(e, 'code', '?')}")[-500:]
+    return None
+
+
+def _kickoff_escalate(con, r, kick_id, host, idle_s, why):
+    """The one escalation per kickoff: to the agent's org director (the boss for a director)."""
+    to = "boss" if r["role"] == "director" else "director"
+    event(con, "agent", r["name"], "kickoff-escalated",
+          {"kick": kick_id, "to": to, "idle_s": idle_s, "host": host, "pane": r["pane_id"]})
+    send(con, to, f"{r['name']}: kickoff never accepted",
+         f"{r['name']} ({r['role']}, runtime cursor) has not read its kickoff message M{kick_id}: pane {r['pane_id']}, "
+         f"backend {host}, {idle_s} s idle since its first kickoff. {why} The tick does nothing more for this agent. "
+         f"Look at the pane, then stop it (factory stop {r['name']} --now) and respawn, or reassign task {r['task_id'] or '-'}.",
+         "escalation", r["goal_id"], r["task_id"], sender="tick", org=agent_org(con, r["name"]))
+
+
+def tick_cursor_kickoff(con):
+    """T-1599: catch a cursor pane whose kickoff prompt was never submitted (docs/runtimes.md). For every live cursor
+    agent whose latest kickoff message is unread more than cursor_kickoff_grace_s after the spawn:
+    1. re-submit the kickoff once per pane (event kickoff-resent);
+    2. still unread one grace after the resend: one fresh relaunch per agent, behind the spawn gate (kickoff-relaunch);
+    3. the relaunched pane unread after its own resend and grace, or the relaunch failed: one escalation
+       (kickoff-escalated), then nothing.
+    State is the events, keyed by the kickoff message id; a relaunch is recognised by an event on the kickoff before
+    the current one. Rows being stopped, queued for a relaunch or still starting belong to those paths and are skipped,
+    so a pane has one owner. A pane the host reports working, or does not list, is left alone this tick.
+    Claude agents are never looked at."""
+    try:
+        grace = int(cfg(con, "cursor_kickoff_grace_s"))
+    except (TypeError, ValueError):
+        grace = int(DEFAULT_CONFIG["cursor_kickoff_grace_s"])
+    if grace <= 0:
+        return
+    clock = _ts(now())
+    relaunched = False
+    for r in con.execute("SELECT * FROM agents WHERE status='live' AND stop_requested_at IS NULL "
+                         "AND relaunch_requested_at IS NULL AND start_pending IS NULL").fetchall():
+        if _agent_runtime(r) != "cursor" or _spawn_args_row(r).get("launch") == "subprocess":
+            continue  # a headless subprocess has no pane to prompt or close
+        found = kickoff_unread(con, r["name"])
+        started = _ts(r["started"])
+        if not found or started is None or (clock - started).total_seconds() <= grace:
+            continue
+        k, prev = found
+        name, host = r["name"], _agent_host_exe(con, r)
+        seen = _kickoff_watch_state(con, name)
+        if k["id"] in seen["kickoff-escalated"]:
+            continue
+        listed = _host_list_row(con, name)
+        if not listed or listed.get("agent_status") == "working":
+            continue  # mid-turn: it accepted a prompt and may not have read its mail yet (r1); unlisted or host down: cannot decide
+        # a failed relaunch sent no new kickoff: a later spawn under the same name is a new agent with its own budget
+        after_relaunch = (prev is not None and prev in seen["kickoff-relaunch"]
+                          and prev not in seen["kickoff-relaunch-failed"])
+        first = con.execute("SELECT created FROM messages WHERE id=?", (prev,)).fetchone() if after_relaunch else k
+        idle_s = int((clock - (_ts(first["created"]) or started)).total_seconds())
+        detail = {"kick": k["id"], "idle_s": idle_s, "host": host, "pane": r["pane_id"]}
+        if k["id"] in seen["kickoff-relaunch"]:  # a relaunch that left the row live without a new kickoff (e.g. a crash)
+            _kickoff_escalate(con, r, k["id"], host, idle_s, "A relaunch was started for it and did not finish.")
+            continue
+        resent = _ts(seen["kickoff-resent"].get(k["id"]))
+        if resent is None:
+            event(con, "agent", name, "kickoff-resent", {**detail, "prompt_ok": kickoff_resend(con, r, k["body"])})
+            continue
+        if (clock - resent).total_seconds() < grace:
+            continue
+        if after_relaunch:
+            _kickoff_escalate(con, r, k["id"], host, idle_s,
+                              "The kickoff was re-submitted, the pane relaunched fresh once and the kickoff re-submitted again.")
+            continue
+        if relaunched:
+            continue  # one relaunch per tick: each may wait for a TUI
+        ok, why, _ = gate(con, own_slot=True)  # the agent holds its slot; never close a pane the gate would queue
+        if not ok:
+            key = f"kickoff_relaunch_deferred:{name}"
+            last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+            if not last or time.time() - float(last["ts"]) >= 3600:
+                con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                            (key, str(time.time())))
+                event(con, "agent", name, "kickoff-relaunch-deferred", why)
+            continue
+        cur = con.execute("SELECT * FROM agents WHERE name=? AND status='live' AND stop_requested_at IS NULL "
+                          "AND relaunch_requested_at IS NULL", (name,)).fetchone()
+        if not cur:
+            continue  # a stop or a relaunch claimed the pane meanwhile
+        # the event first: a crash or failure must not loop the relaunch every minute
+        event(con, "agent", name, "kickoff-relaunch", {**detail, "old_sid": cur["session_id"]})
+        con.commit()
+        relaunched = True
+        msg = relaunch_fresh_from_tick(con, cur)
+        if msg:
+            event(con, "agent", name, "kickoff-relaunch-failed", {"kick": k["id"], "error": msg})
+            _kickoff_escalate(con, cur, k["id"], host, idle_s, f"The fresh relaunch failed: {msg}")
+
+
 # ───────────────────────────── lessons ─────────────────────────────
 
 LESSON_SOURCE_RE = re.compile(r"^(M\d+|T-\d{4}|G-\d{3}|#\d+|https://github\.com/[^/\s]+/[^/\s]+/pull/\d+)$")
@@ -20687,7 +20940,8 @@ def main():
     x.add_argument("--sandbox-required", dest="sandbox_required", choices=["0", "1"],
                    help="task must run in the worker sandbox: spawn refuses it without --sandbox; the tick starts it sandboxed")
     x.add_argument("--judge-hold", dest="judge_hold",
-                   help="hold judge spawn on this task until cleared (lead, director, or owner)")
+                   help="hold judge spawn on this task until cleared (lead, director, or owner)"
+                        " (on a reviewer+QA PASS PR it expires after judge_hold_expiry_min unless the text names a boss decision: boss-approved M<id>)")
     x.add_argument("--judge-hold-clear", dest="judge_hold_clear", action="store_true",
                    help="clear the judge hold on this task (lead, director, or owner)")
     x.add_argument("--priority", type=int); x.set_defaults(fn=cmd_task)

@@ -172,6 +172,7 @@ Read the Upgrade section of that version's release notes (https://github.com/vol
 | `max_five_hour_pct` | `92` | The gate closes above this share of the five-hour Claude usage window. |
 | `max_seven_day_pct` | `92` | Same, for the seven-day window. |
 | `nudge_cooldown_s` | `120` | Minimum seconds between nudges to one agent about unread mail. |
+| `cursor_kickoff_grace_s` | `180` | Cursor agents only: how long a kickoff message may stay unread before the tick submits the kickoff again, and again that long before it relaunches the pane once and then escalates. `0` turns the check off. See [runtimes.md](runtimes.md). |
 | `director_cycle_s` | `900` | How often the tick gives the director a planning cycle. |
 | `blocked_alert_s` | `600` | How long an agent may sit on a dialog before it is reported blocked. |
 | `hq_unblock_s` | `900` | After this long the tick denies (Esc) a permission dialog on a boss, director or lead pane. |
@@ -190,6 +191,7 @@ Read the Upgrade section of that version's release notes (https://github.com/vol
 | `opus_effort` | `medium` | `--effort` level for Opus agents. Empty leaves Claude's default. Sonnet agents are never touched. |
 | `judge_max_refreshes` | `4` | Refreshes one `factory judge --merge` run does before it gives up with `STALE-LOOP`. Invalid or below 1 falls back to 4. |
 | `judge_ci_wait_s` | `2400` | `factory judge --merge` waits this long for pending CI before refusing. |
+| `judge_hold_expiry_min` | `120` | Minutes a manual judge hold (`factory task update --judge-hold`) may stay on a reviewer+QA PASS PR unless its text names a boss decision (`boss-approved M<id>`). `0` = off. See [judge-hold-expiry.md](judge-hold-expiry.md). |
 | `skilleval_root` | `~/.cache/factory-skilleval` | Where vendored third-party skills are kept for evaluation. Must lie outside the factory home and `~/.claude`. |
 | `digest_hour` | `8` | Local hour from which the tick sends the daily digest (director to boss), once a day. |
 | `retro_enabled` | `1` | `1` starts the daily retro agent. `0` turns it off. Any other value does not start a new run. See docs/retro.md. |
