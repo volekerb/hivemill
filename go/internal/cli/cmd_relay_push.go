@@ -592,8 +592,9 @@ var (
 
 // wfEntry is one significant line: the key path it sits under (jobs.build.runs-on), and its text.
 type wfEntry struct {
-	path []string
-	text string
+	path  []string
+	text  string
+	block bool // block-scalar content (| or >): YAML decodes no escapes there
 }
 
 func (e wfEntry) String() string { return strings.Join(e.path, ".") + ": " + e.text }
@@ -632,7 +633,7 @@ func wfEntries(text string) (out []wfEntry, odd []string) {
 		ind := len(raw) - len(strings.TrimLeft(raw, " \t"))
 		if scalarIndent >= 0 {
 			if ind > scalarIndent { // block-scalar content, a "#" line included (a script comment GitHub still expands)
-				out = append(out, wfEntry{keys(), s})
+				out = append(out, wfEntry{keys(), s, true})
 				continue
 			}
 			scalarIndent = -1
@@ -642,7 +643,7 @@ func wfEntries(text string) (out []wfEntry, odd []string) {
 		}
 		m := wfKeyRE.FindStringSubmatch(raw)
 		if m == nil {
-			e := wfEntry{keys(), strings.TrimPrefix(s, "- ")}
+			e := wfEntry{path: keys(), text: strings.TrimPrefix(s, "- ")}
 			if wfMapLikeRE.MatchString(wfCommentRE.ReplaceAllString(e.text, "")) {
 				odd = append(odd, e.String())
 			}
@@ -655,7 +656,7 @@ func wfEntries(text string) (out []wfEntry, odd []string) {
 		}
 		stack = append(stack, frame{kind, m[3]})
 		val := strings.TrimSpace(m[4])
-		out = append(out, wfEntry{keys(), val})
+		out = append(out, wfEntry{path: keys(), text: val})
 		if strings.HasPrefix(val, "{") { // a flow mapping hides keys (jobs: {x: {permissions: write-all}})
 			odd = append(odd, out[len(out)-1].String())
 		}
@@ -668,7 +669,8 @@ func wfEntries(text string) (out []wfEntry, odd []string) {
 
 var (
 	wfSecretsRE = regexp.MustCompile(`(?i)\bsecrets\b`) // expression contexts are case-insensitive
-	wfHostedRE  = regexp.MustCompile(`^(?:ubuntu|windows|macos)-[A-Za-z0-9.-]+$`)
+	// wfHostedRE: the GitHub-hosted image labels (latest, a version, an arm or larger macOS variant), nothing looser
+	wfHostedRE = regexp.MustCompile(`^(?:ubuntu-(?:latest|\d{2}\.\d{2})(?:-arm)?|windows-(?:latest|\d{4}|11)(?:-arm)?|macos-(?:latest|\d{2})(?:-large|-xlarge|-intel)?)$`)
 	// wfForkSafe are the triggers a fork pull request cannot start; any other trigger (pull_request, workflow_call,
 	// workflow_run, issue_comment, ...) or an unreadable trigger set makes the workflow fork-reachable.
 	wfForkSafe = map[string]bool{"push": true, "workflow_dispatch": true, "schedule": true, "release": true,
@@ -772,6 +774,10 @@ func workflowProblems(oldText, newText string) []string {
 	// fail closed on a line the reader cannot place, and on any anchor, alias or tag
 	add("cannot read the line (odd key or flow mapping)", wfAdded(oldOdd, newOdd))
 	add("YAML anchor, alias or tag (refused)", wfSelect(newE, func(e wfEntry) bool { return wfAnchorRE.MatchString(e.text) }))
+	// a backslash outside a block scalar may be a double-quoted escape (\x73ecrets, \u0073, an escaped line break)
+	// that YAML decodes after the line rules ran (reviewer N1): any added or changed one fails closed
+	esc := func(e wfEntry) bool { return !e.block && strings.Contains(e.text, `\`) }
+	add("backslash outside a block scalar (a YAML escape is refused)", wfAdded(wfSelect(oldE, esc), wfSelect(newE, esc)))
 	// fail closed on a layout the line reader cannot follow: a flow/JSON document, or no block-style top-level on:
 	if strings.TrimSpace(newText) != "" {
 		hasOn := false

