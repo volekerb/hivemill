@@ -494,6 +494,15 @@ func tbSubuidBox(t *testing.T) *tbSubBox {
 			t.Fatal(err)
 		}
 	}
+	for p := b.e.Home; p != "/"; p = filepath.Dir(p) { // an ancestor outside os.TempDir (GOTMPDIR under a 0700 home) cannot be opened up here
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Mode().Perm()&0o001 == 0 {
+			t.Skipf("the subordinate uid cannot traverse %s (mode %v): run with TMPDIR under /tmp", p, fi.Mode().Perm())
+		}
+	}
 	s := &tbSubBox{tbBox: b, outside: b.e.Home + "/outside"}
 	if err := os.Mkdir(s.outside, 0o755); err != nil {
 		t.Fatal(err)
@@ -627,7 +636,19 @@ func TestTestboxOwner0600FileIsUnreadableEvenThoughVisible(t *testing.T) {
 
 func TestTestboxSocketConnectFailsWithoutTheRunMask(t *testing.T) {
 	s := tbSubuidBox(t)
-	sock := s.outside + "/owner.sock"
+	dir, err := os.MkdirTemp("/tmp", "tbs") // short: a unix socket path is capped near 108 bytes, t.TempDir paths can exceed it
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("remove %s: %v", dir, err)
+		}
+	})
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sock := dir + "/o.sock"
 	ln, err := net.Listen("unix", sock)
 	if err != nil {
 		t.Fatal(err)
@@ -640,7 +661,7 @@ func TestTestboxSocketConnectFailsWithoutTheRunMask(t *testing.T) {
 	if err := os.Chmod(sock, 0o660); err != nil { // engine-socket bits: group-only access; the box is neither the owner nor in the group
 		t.Fatal(err)
 	}
-	code, _, se := s.contained(fmt.Sprintf(`python3 -c "import socket; c = socket.socket(socket.AF_UNIX); c.connect('%s')"`, sock), s.outside)
+	code, _, se := s.contained(fmt.Sprintf(`python3 -c "import socket; c = socket.socket(socket.AF_UNIX); c.connect('%s')"`, sock), dir)
 	if code == 0 {
 		t.Fatal("connected to the owner socket")
 	}
