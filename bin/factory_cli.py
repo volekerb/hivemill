@@ -5146,8 +5146,69 @@ def cmd_task(a):
                     (blob, waits, now(), a.id))
         event(con, "task", a.id, "update", f"status=blocked — {' '.join(tokens)}")
         print(f"{a.id} blocked")
+    elif a.action == "block-migrate":
+        block_migrate(con, a)
     elif a.action == "tier":
         task_tier_cmd(con, a)
+
+
+_BLOCK_NOTE_SLUG = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+
+
+def block_note_text(con, tid):
+    """Text after ' — ' on the newest update event of tid whose detail has status=blocked; '' when there is none."""
+    r = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                    "AND detail LIKE '%status=blocked%' ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
+    d = (r["detail"] or "") if r else ""
+    return d.split(" — ", 1)[1].strip() if " — " in d else ""
+
+
+def block_note_token(text, factory_slug):
+    """The one block condition token a whole note text converts to, or None (keep as free text)."""
+    for m in _BLOCK_NOTE_SLUG.finditer(text):
+        if _repo_slug(m.group(0)) != factory_slug:
+            return None
+    m = re.fullmatch(r"held until #([0-9]+) merges", text)
+    if m:
+        return f"pr:#{m.group(1)}:merged"
+    m = re.fullmatch(r"until #([0-9]+) closed", text)
+    if m:
+        return f"pr:#{m.group(1)}:closed"
+    if not text or len(text.split()) != 1:
+        return None
+    try:
+        p = subprocess.run([block_eval_binary(), "parse"], input=text + "\n", capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        die(f"block-eval parse failed: {e}", 2)
+    if p.returncode == 2:
+        return None
+    if p.returncode != 0:
+        die(f"block-eval parse failed: {(p.stderr or '').strip()[:200] or p.returncode}", 2)
+    return text
+
+
+def block_migrate(con, a):
+    """factory task block-migrate [--dry-run]: typed block_on for blocked tasks whose note is one condition (T-1351)."""
+    refuse_worker("task block-migrate")
+    require_role(con, "lead", "director")
+    if cfg(con, "block_conditions") != "1" and not a.dry_run:
+        die("block_conditions is not 1; nothing was written. Use --dry-run, or turn the flag on first.", 2)
+    rc, url, _ = _git_rc(["remote", "get-url", "origin"])
+    factory_slug = _repo_slug(cfg(con, "factory_remote_url")) or (_repo_slug(url) if rc == 0 else None)
+    for t in con.execute("SELECT id FROM tasks WHERE status='blocked' ORDER BY id").fetchall():
+        tid = t["id"]
+        cond_text = block_note_token(block_note_text(con, tid), factory_slug)
+        if not cond_text:
+            print(f"keep {tid}")
+            continue
+        print(f"convert {tid} {cond_text}")
+        if a.dry_run:
+            continue
+        conds = block_eval_parse([cond_text])
+        waits = "owner" if any(c.get("type") == "owner" for c in conds) else "internal"
+        con.execute("UPDATE tasks SET block_on=?, waits=?, updated=? WHERE id=?",
+                    (json.dumps(conds, separators=(",", ":"), ensure_ascii=False), waits, now(), tid))
+        event(con, "task", tid, "block-migrate", cond_text)
 
 
 # ───────────────────────────── messages ─────────────────────────────
@@ -22700,7 +22761,8 @@ def main():
     x = sp.add_parser("team"); x.add_argument("action", choices=["new", "list", "close", "reopen", "wake"]); x.add_argument("id", nargs="?")
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
-    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "block", "tier"])
+    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "block", "block-migrate", "tier"])
+    x.add_argument("--dry-run", dest="dry_run", action="store_true", help="block-migrate: print keep/convert per blocked task, write nothing")
     x.add_argument("--full", action="store_true")
     x.add_argument("--classify", action="store_true", help="tier: compute the tier from the task's PR branch (needs risk_tiers=on)")
     x.add_argument("--base", default="origin/main"); x.add_argument("--head")
