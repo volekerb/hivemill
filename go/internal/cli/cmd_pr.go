@@ -130,6 +130,39 @@ func ghEnv(o gitx.Options, drop ...string) []string {
 	return out
 }
 
+var (
+	scTitleTagRE = regexp.MustCompile(`^\[SC\d+(?:\s*,\s*SC\d+)*\]\s*`)
+	prTitleSepRE = regexp.MustCompile(`^[ :-]+`)
+)
+
+// prCreateTitle is _pr_create_gh_title (T-1263, G-039): "T-1234: description". Only the task id gives the task title
+// from the database minus one leading [SCn] tag; a title without the id gets it in front; id plus description keeps it.
+func prCreateTitle(tid, givenRaw, dbTitle string) (string, error) {
+	emit := func(desc string) (string, error) {
+		d := pyStrip(desc)
+		if d == "" || strings.EqualFold(d, tid) {
+			return "", dieErr(2, "title needs a description")
+		}
+		return tid + ": " + d, nil
+	}
+	dbDesc := pyStrip(scTitleTagRE.ReplaceAllString(pyStrip(dbTitle), ""))
+	given := pyStrip(givenRaw)
+	if len(given) >= len(tid) && strings.EqualFold(given[:len(tid)], tid) {
+		after := given[len(tid):]
+		if after == "" {
+			return emit(dbDesc)
+		}
+		if loc := prTitleSepRE.FindStringIndex(after); loc != nil {
+			rem := pyStrip(after[loc[1]:])
+			if rem == "" || strings.EqualFold(rem, tid) {
+				return emit(dbDesc)
+			}
+			return emit(rem)
+		}
+	}
+	return emit(given)
+}
+
 func runPr(c *ctx, parsed any) (int, error) {
 	a := parsed.(prCmd)
 	role, err := actorRole(c)
@@ -147,9 +180,9 @@ func runPr(c *ctx, parsed any) (int, error) {
 	if tid.String == "" {
 		return 0, dieErr(3, fmt.Sprintf("%s has no task: `factory pr` opens the PR of your own task; ask your lead", c.who))
 	}
-	var ghRepo, base, taskBranch sql.NullString
-	err = c.db.QueryRow("SELECT p.gh_repo, p.base_branch, t.branch FROM tasks t JOIN goals g ON g.id=t.goal_id "+
-		"JOIN projects p ON p.id=g.project_id WHERE t.id=?", tid.String).Scan(&ghRepo, &base, &taskBranch)
+	var ghRepo, base, taskBranch, taskTitle sql.NullString
+	err = c.db.QueryRow("SELECT p.gh_repo, p.base_branch, t.branch, t.title FROM tasks t JOIN goals g ON g.id=t.goal_id "+
+		"JOIN projects p ON p.id=g.project_id WHERE t.id=?", tid.String).Scan(&ghRepo, &base, &taskBranch, &taskTitle)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, fmt.Errorf("read project of %s: %w", tid.String, err)
 	}
@@ -214,6 +247,10 @@ func runPr(c *ctx, parsed any) (int, error) {
 		}
 		if pyStrip(title) == "" || input == "" {
 			return 0, dieErr(2, "`factory pr create` needs a non-empty --title and a body on stdin")
+		}
+		title, terr := prCreateTitle(tid.String, title, taskTitle.String)
+		if terr != nil {
+			return 0, terr
 		}
 		argv = []string{"pr", "create", "--repo", repo, "--base", base.String, "--head", branch, "--title", title, "--body-file", "-"}
 	} else {

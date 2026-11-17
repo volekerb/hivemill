@@ -16,6 +16,7 @@ const PricesAsOf = "2026-10-25"
 
 // Prices mirrors PRICES (source: platform.claude.com pricing page, checked 2026-10-25).
 var Prices = map[string]PriceRow{
+	"claude-fable-5-2":  {Input: 8.00, Output: 40.00, CacheRead: 0.20, CacheWrite5m: 10.00, CacheWrite1h: 16.00},
 	"claude-opus-5-5":   {Input: 4.00, Output: 20.00, CacheRead: 0.20, CacheWrite5m: 5.00, CacheWrite1h: 8.00},
 	"claude-sonnet-5-5": {Input: 2.00, Output: 10.00, CacheRead: 0.10, CacheWrite5m: 2.50, CacheWrite1h: 4.00},
 	"claude-haiku-5-5":  {Input: 0.10, Output: 0.50, CacheRead: 0.01, CacheWrite5m: 0.125, CacheWrite1h: 0.20},
@@ -25,7 +26,7 @@ var Prices = map[string]PriceRow{
 var HaikuLongPrompt = PriceRow{Input: 0.50, Output: 2.50, CacheRead: 0.05, CacheWrite5m: 0.625, CacheWrite1h: 1.00}
 
 // FastMultiplier mirrors FAST_MULTIPLIER (usage.speed == "fast").
-var FastMultiplier = map[string]float64{"claude-opus-5-5": 2.0}
+var FastMultiplier = map[string]float64{"claude-opus-5-5": 2.0, "claude-fable-5-2": 2.0}
 
 // Usage is the token counts Cost prices.
 type Usage struct{ Input, Output, CacheRead, CacheWrite5m, CacheWrite1h int64 }
