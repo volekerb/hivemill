@@ -26,6 +26,7 @@ var DefaultConfig = []ConfigDefault{
 	{"lead_parking", "0"},
 	{"max_live_leads", "4"},
 	{"stale_policy", "behind_ok"},
+	{"stale_no_refresh", "on"},
 	{"refresh_lane", "off"},
 	{"max_live_judges", "3"},
 	{"reserved_worker_slots", "10"},

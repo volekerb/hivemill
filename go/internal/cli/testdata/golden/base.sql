@@ -182,6 +182,7 @@ INSERT INTO "config"("key","value") VALUES('owner_alert_feed','0');
 INSERT INTO "config"("key","value") VALUES('lead_parking','0');
 INSERT INTO "config"("key","value") VALUES('max_live_leads','4');
 INSERT INTO "config"("key","value") VALUES('stale_policy','behind_ok');
+INSERT INTO "config"("key","value") VALUES('stale_no_refresh','on');
 INSERT INTO "config"("key","value") VALUES('refresh_lane','off');
 INSERT INTO "config"("key","value") VALUES('max_live_judges','3');
 INSERT INTO "config"("key","value") VALUES('reserved_worker_slots','10');

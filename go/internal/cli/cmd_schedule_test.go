@@ -191,3 +191,51 @@ func FuzzParseScheduleAdd(f *testing.F) {
 		_, _ = parseScheduleAdd(strings.Fields(s))
 	})
 }
+
+func TestScheduleDueCLI(t *testing.T) {
+	home := t.TempDir()
+	if _, err := buildGoldenDB(t, home, "digestall"); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{"FACTORY_HOME": home, "HOME": home, "FACTORY_PROC_DIR": t.TempDir(), "FACTORY_NOW": "2026-11-13T09:05"}
+	idEnv := identity.Env{Getenv: func(k string) string { return env[k] }, LookupEnv: func(k string) (string, bool) { v, ok := env[k]; return v, ok },
+		PwDir: func(int) (string, error) { return home, nil }, Now: func() time.Time { return time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC) }}
+	pid := func() int { return 1 }
+	run := func(argv ...string) (int, string, string) {
+		var out, errb bytes.Buffer
+		code := Run(Deps{Args: argv, Stdout: &out, Stderr: &errb, Getpid: pid, Getppid: pid, Env: idEnv})
+		return code, out.String(), errb.String()
+	}
+	if code, _, e := run("schedule", "add", "--hour", "9", "--goal", "G-1", "--token-cap", "5000", "do the thing"); code != 0 {
+		t.Fatalf("add %d %s", code, e)
+	}
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(home, "db", "factory.db")+"?_pragma=busy_timeout(30000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec("INSERT INTO config(key,value) VALUES('goal_token_tally_s','60') ON CONFLICT(key) DO UPDATE SET value='60'"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("DELETE FROM tasks WHERE goal_id='G-1'"); err != nil { // an open task would skip the run
+		t.Fatal(err)
+	}
+	if code, _, _ := run("schedule", "due"); code != 2 {
+		t.Fatal("bare `schedule due` must exit 2 and not claim")
+	}
+	code, out, e := run("schedule", "due", "--json")
+	if code != 0 {
+		t.Fatalf("due %d %s", code, e)
+	}
+	var items []map[string]string
+	if err := json.Unmarshal([]byte(out), &items); err != nil || len(items) != 1 || items[0]["id"] != "S-001" || items[0]["kind"] != "request" {
+		t.Fatalf("out %q err %v", out, err)
+	}
+	if !strings.Contains(items[0]["body"], "<<<job\ndo the thing\njob>>>") {
+		t.Fatalf("body %q", items[0]["body"])
+	}
+	_, out, _ = run("schedule", "due", "--json")
+	if strings.TrimSpace(out) != "[]" {
+		t.Fatalf("second call %q", out)
+	}
+}
