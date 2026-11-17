@@ -63,6 +63,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [red-pr-owner-alert.md](red-pr-owner-alert.md): `red_pr_owner_alert` flag, the tick mails the lead once per red or conflicted head with no coder.
 - [gh-quota.md](gh-quota.md): `pr_view_ttl_s` and `gh_quota_min`, the tick's PR probe cache and low GraphQL quota guard.
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
+- [judge-ci-gate.md](judge-ci-gate.md): judge_ci_gate=none merges without reading PR checks; red-main bisect + revert task (T-1772).
 - [merge-queue.md](merge-queue.md): the serial and batch-train merge path (`judge --train` without `--dry-run`).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
