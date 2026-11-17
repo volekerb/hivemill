@@ -293,6 +293,9 @@ DEFAULT_CONFIG = {
     # G-038 F-44: 1 = while the Claude weekly gate is closed (seven_day >= max_seven_day_pct), mail claude-boss once per goal and
     # cap window to offer moving a queued P1/P2 claude goal to cursor. It only mails; it never moves a goal. 0 = off.
     "cap_fallback_offer": "0",
+    # T-1623: v1 = Cursor agents get the Claude role prompt and kickoff; v2 = the short loop-until-done prompt of
+    # roles/cursor/<role>.md (where one exists) and the Cursor worker kickoff (docs/cursor-prompt.md).
+    "cursor_prompt": "v1",
     # G-057 placement. Empty worker_machines = off: no ssh, no second machine, gate() as before (docs/multi-machine.md).
     "worker_machines": "",       # comma list of worker machine names; HQ stays on machine_hq
     "machine_hq": "hqhost",      # this machine's name; boss, director, leads and judges never leave it
@@ -3980,6 +3983,11 @@ def _config_value_rules(key, value):
         a.value = check_sandbox_roles(a.value)
     if a.key in ("worker_gh_roles", "gh_rw_roles"):
         a.value = check_gh_roles(a.key, a.value)
+    if a.key == "cursor_prompt":
+        try:
+            a.value = cursor_harness.check_prompt_version(a.value)
+        except ValueError as e:
+            die(f"{e}: fix it with `factory config cursor_prompt v1`", 2)
     if a.key == "cursor_pilot_roles":
         try:
             a.value = ",".join(cursor_harness.parse_pilot_roles(a.value))
@@ -12986,9 +12994,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         for k, v in (settings_obj.get("env") or {}).items():
             env.setdefault(k, v)
         sysprompt = RUN / f"{name}.prompt.md"
-        prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1)
+        v2 = cursor_prompt_v2_on(con, runtime)
+        prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1, cursor_v2=v2)
         sysprompt.write_text(prompt_text)
-        kick = kickoff_text(role, name, goal, team, task, prompt)
+        kick = ((cursor_harness.kickoff_v2(role, name, goal, team, task, prompt) if v2 else None)
+                or kickoff_text(role, name, goal, team, task, prompt))
         return _spawn_start_external(
             con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
             env, settings, settings_obj, prompt_text, kick, runtime)
@@ -17790,10 +17800,18 @@ def queue_order_key(row, at=None):
 FRESH_PERSISTENT = ("boss", "director", "lead")
 
 
-def role_prompt_text(role, org=None, multi=False):
-    """What `_spawn_start` writes to run/<name>.prompt.md for `role` (kept in step with it by hand; docs/freshness.md)."""
-    return ((ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
-            + org_prompt_section(org, multi))
+def cursor_prompt_v2_on(con, runtime):
+    """True when this agent runs on Cursor and config cursor_prompt is v2 (T-1623, docs/cursor-prompt.md)."""
+    return runtime == "cursor" and cfg(con, "cursor_prompt") == "v2"
+
+
+def role_prompt_text(role, org=None, multi=False, cursor_v2=False):
+    """What `_spawn_start` writes to run/<name>.prompt.md for `role` (kept in step with it by hand; docs/freshness.md).
+    cursor_v2: a Cursor agent under cursor_prompt=v2 gets roles/cursor/<role>.md alone when that file exists."""
+    own = cursor_harness.role_prompt_v2(ROLES_DIR, role) if cursor_v2 else None
+    if own is None:
+        own = (ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
+    return own + org_prompt_section(org, multi)
 
 
 def _newest_mtime(*paths):
@@ -17837,7 +17855,8 @@ def tick_freshness(con):
         started = _ts(r["started"])
         t0 = started.timestamp() + 1 if started else None  # `started` is whole seconds: tolerate a same-second write
         try:
-            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role, orgs.of_agent(dict(r)), len(enabled_orgs(con)) > 1):
+            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role, orgs.of_agent(dict(r)), len(enabled_orgs(con)) > 1,
+                                                                           cursor_v2=cursor_prompt_v2_on(con, agent_runtime_of(r))):
                 reasons.append("prompt")
         except FileNotFoundError:
             pass  # no prompt file recorded for this row (not started by factory spawn): nothing to compare

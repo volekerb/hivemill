@@ -288,6 +288,7 @@ INSERT INTO "config"("key","value") VALUES('cursor_pilot_roles','');
 INSERT INTO "config"("key","value") VALUES('orgs_enabled','claude');
 INSERT INTO "config"("key","value") VALUES('org_prefix_default','0');
 INSERT INTO "config"("key","value") VALUES('cap_fallback_offer','0');
+INSERT INTO "config"("key","value") VALUES('cursor_prompt','v1');
 INSERT INTO "config"("key","value") VALUES('worker_machines','');
 INSERT INTO "config"("key","value") VALUES('machine_hq','hqhost');
 INSERT INTO "config"("key","value") VALUES('machine_mem_floor_mb','1500');
