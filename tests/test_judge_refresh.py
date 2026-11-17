@@ -1068,6 +1068,92 @@ class JudgeRefreshTests(FactoryTestCase):
         self._strict_refreshes(True)
         self.assertNotMergedNoRefresh()
 
+    # -- T-1772 judge_ci_gate=none: no GitHub PR check is read or waited on (owner M40242) --------------------------
+    def ci_none(self, wait="30"):
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('judge_ci_gate','none')")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('judge_ci_wait_s',?)", (wait,))
+
+    def test_ci_none_merges_fresh_head_with_pending_checks_without_waiting(self):
+        self.ci_none()
+        self.write_state(ci_orig="pending")
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("waiting for CI", p.stdout)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "done")
+
+    def test_ci_none_merges_behind_head_with_pending_checks_without_refresh(self):
+        self.ci_none()
+        self.main_commit()
+        self.write_state(strict=False, ci_orig="pending")
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("waiting for CI", p.stdout)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.events("refreshed"), [])
+        m = self.merges()
+        self.assertEqual(len(m), 1)
+        self.assertEqual(m[0]["argv"][m[0]["argv"].index("--match-head-commit") + 1], self.head)
+
+    def test_ci_none_does_not_read_a_red_check_either(self):
+        self.ci_none()
+        self.write_state(ci_orig="fail")
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def _ci_none_refuses_after(self, role, text):
+        self.ci_none()
+        self.write_state(ci_orig="pending")
+        p = self.run_cli("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "no", agent=role)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn(text, p.stderr)
+        self.assertNoMerge()
+
+    def test_ci_none_refuses_reviewer_fail(self):
+        self._ci_none_refuses_after("zz-test-reviewer", "reviewer")
+
+    def test_ci_none_refuses_qa_fail(self):
+        self._ci_none_refuses_after("zz-test-qa", "qa")
+
+    def test_ci_none_refuses_dirty_merge_tree_and_never_refreshes(self):
+        self.ci_none()
+        git(self.wt, "checkout", "-q", BRANCH)
+        self.commit(self.wt, "base.txt", "line1\nPR\nline3\n", "pr edits base")
+        git(self.wt, "push", "-q", "origin", f"HEAD:refs/heads/{BRANCH}", "HEAD:refs/pull/1/head")
+        self.head = git(self.wt, "rev-parse", "HEAD")
+        (self.zz / "pushes.log").write_text("")
+        self.main_commit("base.txt", "line1\nMAIN\nline3\n")
+        self.ok_verdicts()
+        self.write_state(strict=False, ci_orig="pending")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("judge_ci_gate=none does not refresh the branch", p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertNoMerge()
+
+    def test_ci_none_refuses_file_overlap_with_main_since_the_merge_base(self):
+        self.ci_none()
+        self._pr_edits_base_main_edits_other_line()
+        self.write_state(strict=False, ci_orig="pending")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("judge_ci_gate=none does not refresh the branch", p.stderr)
+        self.assertIn("base.txt", p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertNoMerge()
+
+    def test_ci_pr_default_still_refuses_pending_checks(self):
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('judge_ci_wait_s','0')")
+        self.write_state(ci_orig="pending")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("checks not green", p.stderr)
+        self.assertNoMerge()
+
     def test_nr_doc_section(self):
         doc = (Path(__file__).resolve().parent.parent / "docs" / "stale-policy.md").read_text()
         self.assertIn("## No-refresh merge (owner 2026-11-17)", doc)
