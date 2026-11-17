@@ -37,7 +37,27 @@ func workflowJobBlock(text, job string) (string, bool) {
 	return rest, true
 }
 
-var continueOnError = regexp.MustCompile(`(?m)^\s+continue-on-error:\s*true`)
+// continueOnError is Python's (?m)^\s+continue-on-error:\s*true. Python's str \s is Unicode (NBSP, \v, U+001C..U+001F,
+// U+0085), Go's is not, so the class is spelled out (G8).
+var continueOnError = regexp.MustCompile(`(?m)^[\p{Z}\s\v\x1c-\x1f\x85]+continue-on-error:[\p{Z}\s\v\x1c-\x1f\x85]*true`)
+
+// TestCiCursorGuardUnicodeSpaceInContinueOnError: the Python results for the same lines (quoted from
+// re.search(r"(?m)^\s+continue-on-error:\s*true", s)): NBSP, \v, U+001C and U+0085 match; U+0663 (an Arabic-Indic
+// digit, which is not whitespace) does not.
+func TestCiCursorGuardUnicodeSpaceInContinueOnError(t *testing.T) {
+	for line, want := range map[string]bool{
+		" continue-on-error: true":      true,
+		"\vcontinue-on-error:\vtrue":    true,
+		"    continue-on-error:true":    true,
+		"\x1ccontinue-on-error: true":   true,
+		"\u0085continue-on-error: true": true,
+		"٣continue-on-error: true":      false,
+	} {
+		if got := continueOnError.MatchString(line); got != want {
+			t.Errorf("%q: match = %v, Python says %v", line, got, want)
+		}
+	}
+}
 
 var guardJobs = []string{"guard-unittest-shard", "guard-unittest", "guard-diff", "guard-self-compare", "guard-evaluator-home-loosen"}
 
