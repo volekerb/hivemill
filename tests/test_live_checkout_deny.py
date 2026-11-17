@@ -115,6 +115,9 @@ class LiveCheckoutDeny(unittest.TestCase):
             deny = settings(role)["permissions"]["deny"]
             for p in ("factory.db*", "db/**", "exports/**", "state/**", "run/settings/**", "run", "run/**", "audit.log", "audit.log*"):
                 self.assertIn(f"NotebookEdit(/{LIVE}/{p})", deny, f"{role}: missing NotebookEdit rule for {p}")
+            for p in ("run", "run/**", "audit.log", "audit.log*"):
+                for tool in ("Edit", "Write"):
+                    self.assertIn(f"{tool}(/{LIVE}/{p})", deny, f"{role}: missing {tool} rule for {p}")
 
     def test_new_top_level_entry_would_fail(self):
         deny = settings("coder")["permissions"]["deny"]
