@@ -3910,23 +3910,22 @@ def write_cli_impl(con, src=None):
 
 
 def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
-    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (only when guard_impl != python: at the
-    default no Go toolchain runs; cheap no-op when stamped; skipped under load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
+    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (factory-go and the guard binary, whatever
+    guard_impl/cli_impl say, T-1804; cheap no-op when stamped; skipped under load or without a go/ tree or toolchain), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
     (the shim uses Python) before a slow or killed build. Never raises: the guard falls back to Python on its own."""
     cap = None
     try:
         write_guard_impl(con, src)
         cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
-        if build and cfg(con, "guard_impl") != "python" and load1() <= cap \
+        if build and load1() <= cap \
                 and build_guard_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_guard_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
         print(f"guard go build: tick step failed ({e})", file=sys.stderr)
     try:  # its own step: a failing guard build must not leave run/cli_impl stale
         write_cli_impl(con, src)  # G-041: written first too, so a changed go/ makes srchash differ from the stamp
-        cli_build = cfg(con, "cli_impl") != "python" or cfg(con, "tick_impl") == "go" \
-            or cfg(con, "judge_hold_expiry_min") != "0"  # the hold_expiry unit runs factory-go (T-1631)
-        if build and cap is not None and cli_build and load1() <= cap \
+        # T-1804: built whatever cli_impl/tick_impl say (schedule and hold_expiry need the binary); dispatch is untouched
+        if build and cap is not None and load1() <= cap \
                 and build_cli_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_cli_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
