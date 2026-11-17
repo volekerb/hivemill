@@ -1,0 +1,22 @@
+# /goal/G-003
+TEXT
+Done goal - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources Done goal All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Goals / G-003 Done Claude · P3 · no team · updated <TS> Intent Long intent é ababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababa… 1/1 tasks Cost and time Tokens - Estimated cost, tasks - Estimated cost, goal overhead - Estimated cost, total - Rework share - Merged PRs 1 Median wall time per merged PR - Estimated at list prices as of 2026-10-25 (API-equivalent, not a bill). Success criteria 0/1 To do Open SC1 only Tasks 1 Done 1 status ID Task Assignee PR Tries Done T-8 old merged coder PR 1 Plan No plan yet Created <TS> Updated <TS> Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-003
+a:/goal/G-003?org=claude
+a:/goal/G-003?org=cursor
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-8
+a:/tasks
+a:/throughput
+a:/tokens

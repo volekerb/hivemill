@@ -1,0 +1,22 @@
+# /task/T-3
+TEXT
+[SC2,SC3] docs - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources [SC2,SC3] docs All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Tasks / T-3 Blocked · G-001 · tm-b · coder Cost: none recorded (no tokens attributed to this task). Verdicts No verdicts yet. Total time 11d 3h Rejections 0 Attempts 0 Lifecycle Stage Duration Share queued - unknown coding - unknown judge - unknown waiting: blocked (owner) inside a stage 11d 3h 100% total (open) 11d 3h 100% Cost and tokens Estimated at list prices as of 2026-10-25 (API-equivalent, not a bill) No tokens attributed to this task. Rework: none (no rejections) PR cycle Attempt 1 in progress <TS> Status -> blocked claude-boss Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-001
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-3
+a:/task/T-3?org=claude
+a:/task/T-3?org=cursor
+a:/tasks
+a:/throughput
+a:/tokens
