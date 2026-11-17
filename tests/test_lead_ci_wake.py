@@ -95,6 +95,29 @@ class CiWakeTests(FactoryTestCase):
         self.assertEqual(self.mails("CI"), [])
         self.assertEqual(self.lead(), "exited")
 
+    def stuck_job(self, conclusion):
+        """The Actions jobs-API shape seen on hivemill PR 608: status in_progress with a final conclusion and completed_at."""
+        self.pr([])
+        run = {"name": "guard-unittest", "status": "in_progress", "conclusion": conclusion,
+               "started_at": "2026-11-12T20:12:08Z", "completed_at": "2026-11-12T20:12:10Z"}
+        self.env.set_gh(api=[{"match": ["check-runs"], "out": json.dumps({"check_runs": [run], "total_count": 1})}])
+
+    def test_in_progress_success_with_completed_at_mails_green(self):
+        self.stuck_job("success")
+        self.ok("tick")
+        m = self.mails("CI green: T-0001")
+        self.assertEqual(len(m), 1)
+        self.assertIn("guard-unittest", m[0]["body"])
+        self.assertEqual(self.mails("CI red:"), [])
+
+    def test_in_progress_failure_with_completed_at_mails_red(self):
+        self.stuck_job("failure")
+        self.ok("tick")
+        m = self.mails("CI red: T-0001")
+        self.assertEqual(len(m), 1)
+        self.assertIn("guard-unittest", m[0]["subject"])
+        self.assertEqual(self.mails("CI green:"), [])
+
     def test_live_lead_no_message_no_gh_call(self):
         self.pr([OK])
         self.env.sql("UPDATE teams SET parked_at=NULL WHERE id=?", (TEAM,))
@@ -288,6 +311,55 @@ class CiWakeTests(FactoryTestCase):
             heads = [mod._ci_remote_head(b, batch) for b in ("factory/t-0001", "factory/t-0002")]
             self.assertEqual(heads, [None, None])  # same as a failed per-task call
             self.assertEqual(len(n), 1)  # and the failure is not retried per task
+
+
+class CiWakeVerdictTests(FactoryTestCase):
+    """ci_verdict on the normalized rollup (status/conclusion upper-case, completedAt camelCase)."""
+    DONE_AT = "2026-11-12T20:12:10Z"
+
+    def verdict(self, *checks):
+        with self.env.load_factory() as mod:
+            return mod.ci_verdict(list(checks))
+
+    @staticmethod
+    def run_(status, conclusion, completed=DONE_AT, name="guard-unittest"):
+        c = {"__typename": "CheckRun", "name": name, "status": status, "conclusion": conclusion}
+        if completed is not None:
+            c["completedAt"] = completed
+        return c
+
+    def test_stuck_success_is_green(self):
+        g = ("green", ["guard-unittest"])
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "SUCCESS")), g)
+        self.assertEqual(self.verdict(self.run_("in_progress", "success")), g)
+        self.assertEqual(self.verdict(self.run_("QUEUED", "SUCCESS")), g)
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "NEUTRAL")), g)
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "SKIPPED")), g)
+
+    def test_unfinished_stays_pending(self):
+        p = ("pending", [])
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "SUCCESS", completed=None)), p)
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "SUCCESS", completed="")), p)
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "")), p)
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "", completed=self.DONE_AT)), p)
+
+    def test_finished_failures_are_red(self):
+        r = ("red", ["guard-unittest"])
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "FAILURE")), r)
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "WEIRD")), r)
+        self.assertEqual(self.verdict(self.run_("COMPLETED", "FAILURE")), r)
+
+    def test_completed_rules_unchanged(self):
+        self.assertEqual(self.verdict(self.run_("COMPLETED", "SUCCESS", completed="")), ("green", ["guard-unittest"]))
+        self.assertEqual(self.verdict(self.run_("COMPLETED", "", completed="")), ("red", ["guard-unittest"]))
+
+    def test_unfinished_sibling_keeps_rollup_pending(self):
+        self.assertEqual(self.verdict(self.run_("IN_PROGRESS", "SUCCESS"),
+                                      self.run_("IN_PROGRESS", "", completed=None, name="unittest")), ("pending", []))
+
+    def test_status_context_unchanged(self):
+        self.assertEqual(self.verdict({"__typename": "StatusContext", "context": "ci", "state": "SUCCESS"}), ("green", ["ci"]))
+        self.assertEqual(self.verdict({"__typename": "StatusContext", "context": "ci", "state": "PENDING"}), ("pending", []))
 
 
 if __name__ == "__main__":
