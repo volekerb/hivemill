@@ -121,6 +121,34 @@ class MsgNoLeadFallthroughTests(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.last()["recipient"], "claude-director")
 
+    def test_closed_team_falls_through(self):
+        self.env.sql("UPDATE teams SET status='closed' WHERE id='g-001-a'")
+        p = self.env.run("msg", "lead:g-001-a", "s", "b", agent="claude-coder-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"]), ("claude-director", "escalation"))
+
+    def test_done_lead_on_unparked_team_falls_through(self):
+        self.env.sql("UPDATE agents SET status='done' WHERE name='claude-lead-g-001-a'")
+        p = self.env.run("msg", "lead:g-001-a", "s", "b", agent="claude-coder-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"]), ("claude-director", "escalation"))
+
+    def test_parked_team_still_routes_to_lead(self):
+        self.env.sql("UPDATE agents SET status='done' WHERE name='claude-lead-g-001-a'")
+        self.env.sql("UPDATE teams SET parked_at='2026-01-01T00:00:00+00:00' WHERE id='g-001-a'")
+        p = self.env.run("msg", "lead:g-001-a", "s", "b", agent="claude-coder-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"]), ("claude-lead-g-001-a", "msg"))
+
+    def test_unregistered_sender_falls_through_to_default_org_director(self):
+        p = self.env.run("msg", "lead:none", "s", "b", agent="zz-nobody")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"]), ("claude-director", "escalation"))
+
     def test_existing_lead_unchanged(self):
         p = self.env.run("msg", "lead:g-001-a", "s", "b", agent="claude-coder-x")
         self.assertEqual(p.returncode, 0, p.stderr)

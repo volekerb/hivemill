@@ -4298,6 +4298,12 @@ def org_agent_name(con, base, goal=None, task=None, org=None):
     return oname(con, org_for(con, goal, task, org=org), slug(base))
 
 
+def team_lead(con, team):
+    """The lead_agent recorded for a team id, or None."""
+    r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (team,)).fetchone()
+    return r["lead_agent"] if r and r["lead_agent"] else None
+
+
 def resolve_recipient(con, to, org=None):
     """Accept an agent name, a role ('director'), 'lead:<team>' or 'owner'. A bare HQ role ('boss', 'director',
     'staff-engineer') and 'owner' resolve inside `org` (the message's org: see send) to <org>-<role>."""
@@ -4321,8 +4327,7 @@ def resolve_recipient(con, to, org=None):
                 return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
-        r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
-        return r["lead_agent"] if r and r["lead_agent"] else die(f"team {to[5:]} has no lead")
+        return team_lead(con, to[5:]) or die(f"team {to[5:]} has no lead")
     if con.execute("SELECT 1 FROM agents WHERE name=?", (to,)).fetchone():
         return to
     r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') ORDER BY started DESC LIMIT 1",
@@ -4538,9 +4543,18 @@ def coder_done_escalation_ok(con, role, a):
 
 
 def lead_missing(con, to):
-    """True when 'lead:<x>' names no team, or a team without a lead agent (T-1626)."""
-    r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
-    return not (r and r["lead_agent"])
+    """True when 'lead:<x>' has no lead that can receive: no such team, no lead agent, a closed team, or an
+    unparked team whose lead is not live/starting/queued (a parked lead wakes on the message). T-1626."""
+    lead = team_lead(con, to[5:])
+    if not lead:
+        return True
+    t = con.execute("SELECT status, parked_at FROM teams WHERE id=?", (to[5:],)).fetchone()
+    if t["status"] == "closed":
+        return True
+    if t["parked_at"]:
+        return False
+    a = con.execute("SELECT status FROM agents WHERE name=?", (lead,)).fetchone()
+    return not a or a["status"] not in ("live", "starting", "queued")
 
 
 def msg_no_lead_fallthrough(con, a):
