@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"factory/go/internal/ghx"
@@ -209,7 +210,7 @@ func repoSlug(s string) (slug string, ok bool) {
 	if owner == "" || name == "" || owner == "." || owner == ".." || name == "." || name == ".." {
 		return "", true
 	}
-	return strings.ToLower(owner + "/" + name), true
+	return pyLower(owner + "/" + name), true
 }
 
 // cfgSlugs is _cfg_slugs: the set of slugs of a comma-list config key.
@@ -398,4 +399,25 @@ func mainProtectionAlert(a *alertEnv) error {
 		}
 	}
 	return nil
+}
+
+// pyLower is str.lower(): Go's ToLower differs for U+0130 (Python: "i" + U+0307) and for a capital sigma at the end of a
+// word (Python: final sigma U+03C2).
+func pyLower(s string) string {
+	rs := []rune(s)
+	var b strings.Builder
+	cased := func(r rune) bool {
+		return unicode.IsLetter(r) && (unicode.IsUpper(r) || unicode.IsLower(r) || unicode.IsTitle(r))
+	}
+	for i, r := range rs {
+		switch {
+		case r == 0x130:
+			b.WriteString("i\u0307")
+		case r == 0x3a3 && i > 0 && cased(rs[i-1]) && (i+1 >= len(rs) || !cased(rs[i+1])):
+			b.WriteRune(0x3c2)
+		default:
+			b.WriteRune(unicode.ToLower(r))
+		}
+	}
+	return b.String()
 }

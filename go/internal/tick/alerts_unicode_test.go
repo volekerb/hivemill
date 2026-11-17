@@ -49,6 +49,8 @@ func TestUnicodeRepoSlug(t *testing.T) {
 		{"acme/hive#frag", "acme/hive"},
 		{"https://h/x/y/z.git/", "y/z"},
 		{"\x1cacme/hive\x1c", "acme/hive"},
+		{"\u0130x/y", "i\u0307x/y"},          // Python lower() of U+0130
+		{"a/\u039f\u03a3", "a/\u03bf\u03c2"}, // final sigma
 	} {
 		got, ok := repoSlug(c.in)
 		if !ok || got != c.want {
