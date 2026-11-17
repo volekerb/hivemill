@@ -24,14 +24,14 @@
 #   py-compile            unittest-shard: python -m py_compile bin/factory bin/factory_cli.py
 #   factory-help          unittest-shard: python bin/factory --help
 #   unittest              unittest-shard (1..10) + unittest fan-in "every module ran exactly once":
-#                         $FACTORY_MAIN/tests/gate_shards.py (ci/shard.py run + verify) with GATE_SHARDS <= 8
+#                         $FACTORY_MAIN/tests/gate_shards.py (ci/shard.py run + verify) with GATE_SHARDS <= the job cap
 #   go-modules            go: setup-go module download (go mod download; the only step with network, GOPROXY default)
 #   go-gofmt              go: gofmt -l .
 #   go-vet                go: go vet ./...
-#   go-test               go: go test -race -count=1 -timeout 30m ./...   (-p 8)
+#   go-test               go: go test -race -count=1 -timeout 30m ./...   (-p = the job cap below)
 #   go-build              go: go build ./...
 #   guard-build           guard-equiv / guard-equiv-rest: "Build worker-guard once" (GUARD_GO_BIN); guard steps run with
-#                         GOFLAGS=-mod=readonly GOPROXY=off, each in its own copy of the tree, <= 8 at once
+#                         GOFLAGS=-mod=readonly GOPROXY=off, each in its own copy of the tree, <= the job cap at once
 #   guard-unittest-1..3   guard-unittest-shard (1..3) + guard-unittest fan-in: GUARD_IMPL=diff ci/guard_impl_unittest.py
 #   guard-diff            guard-diff: base-tool guard_diff.py --mode both and --mode worker --role evaluator
 #   guard-self-compare    guard-self-compare
@@ -48,6 +48,9 @@
 #
 # Env: GATE_REMOTE_HOST (ssh host, or `local` to run here without ssh; required), GATE_SHARDS (runner; capped at 8), GATE_BASE (base rev; default the
 # merge base of HEAD with refs/factory-judge/main, else origin/main; HEAD^ when that is HEAD; none: refused).
+# Run dir: /tmp/fg-XXXXXX on the gate host (mktemp), HOME, TMPDIR and FACTORY_HOME inside it (T-1679).
+# Job cap (T-1679): the driver runs min(GATE_SHARDS, 8 CPUs, MemAvailable / 2048 MiB, MemTotal / 2560 MiB) jobs at once
+# (unittest shards, go test -p, guard jobs): 4 on an 8-CPU / 12 GB host, so the run never fills swap.
 set -euo pipefail
 
 MAX_CORES=8
@@ -115,32 +118,41 @@ case "$host" in ''|-*|*[!A-Za-z0-9._@-]*) echo "remote-gate: GATE_REMOTE_HOST='$
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=4
           -o ForwardAgent=no -o ForwardX11=no -o ClearAllForwardings=yes -o SendEnv=-* -o RequestTTY=no)
 # GATE_REMOTE_HOST=local: the runner already is on the test host; the same steps run here without ssh (same shipping
-# into ~/factory-gate/<run>, same env -i, lock, CPU cap and cleanup).
+# into <run root>/fg-XXXXXX, same env -i, lock, CPU and RAM cap and cleanup).
 if [ "$host" = local ]; then
   rssh() { bash -c "$*"; }
 else
   rssh() { ssh "${ssh_opts[@]}" "$host" "$@"; }
 fi
 
-ts=$(date -u +%Y%m%dT%H%M%SZ)
-rdir="factory-gate/${head:0:12}-$ts-$$"   # relative to the remote home
+# Short run dir under /tmp (T-1679): TMPDIR is /tmp/fg-XXXXXX/tmp (18 chars). The old ~/factory-gate/<sha>-<ts>-<pid>
+# pushed unix socket paths under TMPDIR past the 108-byte limit (go/internal/sandbox binds
+# <TMPDIR>/<test name>NNN/001/p.sock, up to 82 chars after TMPDIR), and path tests expect GitHub CI's /tmp layout.
+run_root=/tmp
 cleaned=0
+rdir=
 cleanup() {
   [ "$cleaned" = 1 ] && return 0
   cleaned=1
-  if rssh "rm -rf -- \"\$HOME/$rdir\""; then
-    echo "remote-gate: removed $host:~/$rdir"
+  [ -n "$rdir" ] || return 0
+  if rssh "rm -rf -- '$rdir'"; then
+    echo "remote-gate: removed $host:$rdir"
   else
-    echo "remote-gate: WARNING: could not remove $host:~/$rdir (the next run's sweep removes dirs older than 12 h)" >&2
+    echo "remote-gate: WARNING: could not remove $host:$rdir (the next run's sweep removes dirs older than 12 h)" >&2
   fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 
-echo "remote-gate: head $head base $base host $host dir ~/$rdir shards $shards"
 t0=$(date +%s)
-rssh "mkdir -p \"\$HOME/$rdir/head\" \"\$HOME/$rdir/base\" \"\$HOME/$rdir/trusted\""
+made=$(rssh "mktemp -d $run_root/fg-XXXXXX")
+case "$made" in
+  "$run_root"/fg-??????) rdir=$made ;;
+  *) echo "remote-gate: could not create a run dir under $host:$run_root (mktemp said '$made')" >&2; exit 2 ;;
+esac
+echo "remote-gate: head $head base $base host $host dir $rdir shards $shards"
+rssh "mkdir -p '$rdir/head' '$rdir/base' '$rdir/trusted'"
 # Ship the head as its tracked files, read from the worktree. Re-check right before shipping that the worktree still is
 # exactly the recorded head: HEAD unmoved, nothing staged, modified, deleted (the files tar reads are HEAD's).
 now=$(git rev-parse --verify HEAD)
@@ -153,14 +165,14 @@ if [ -n "$dirty" ]; then
   printf '%s\n' "$dirty" | head -20 >&2
   exit 2
 fi
-git ls-files -z | tar --null --no-recursion -T - -cf - | gzip -1 | rssh "tar -xzf - -C \"\$HOME/$rdir/head\""
-git archive --format=tar --end-of-options "$base" | gzip -1 | rssh "tar -xzf - -C \"\$HOME/$rdir/base\""
+git ls-files -z | tar --null --no-recursion -T - -cf - | gzip -1 | rssh "tar -xzf - -C '$rdir/head'"
+git archive --format=tar --end-of-options "$base" | gzip -1 | rssh "tar -xzf - -C '$rdir/base'"
 tar -C "$main_root" -czf - ci/remote_gate_driver.sh tests/gate_shards.py ci/test_count_gate.py \
-  | rssh "tar -xzf - -C \"\$HOME/$rdir/trusted\""
+  | rssh "tar -xzf - -C '$rdir/trusted'"
 echo "remote-gate: shipped in $(( $(date +%s) - t0 )) s"
 
 # Remote PATH: the host's own login PATH is not used; only system dirs plus the go toolchains the driver looks for.
 rc=0
-rssh "env -i HOME=\"\$HOME\" LANG=C.UTF-8 PATH=/usr/local/bin:/usr/bin:/bin bash \"\$HOME/$rdir/trusted/ci/remote_gate_driver.sh\" \"\$HOME/$rdir\" $head $base $shards" || rc=$?
+rssh "env -i HOME=\"\$HOME\" LANG=C.UTF-8 PATH=/usr/local/bin:/usr/bin:/bin bash '$rdir/trusted/ci/remote_gate_driver.sh' '$rdir' $head $base $shards" || rc=$?
 echo "remote-gate: remote exit $rc, total wall $(( $(date +%s) - t0 )) s"
 exit "$rc"

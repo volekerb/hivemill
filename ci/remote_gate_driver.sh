@@ -2,11 +2,13 @@
 # Remote half of ci/remote_gate.sh (T-1633). Runs ON the remote host under `env -i`, shipped from the main checkout.
 #   remote_gate_driver.sh <run dir> <head sha> <base sha> <shards>
 #   remote_gate_driver.sh --plan     print the step plan (no work)
+#   remote_gate_driver.sh --jobs <cores> <shards> <meminfo file>   print the job cap (no work)
 # <run dir> holds head/ (the tracked files of HEAD), base/ (git archive of the base) and trusted/ (this file, gate_shards.py,
 # test_count_gate.py). Everything the run writes stays under <run dir>, which is removed on every exit path; only the
 # shared Go module and build caches live outside it (~/go/pkg/mod, ~/.cache/factory-gate/go-build).
-# One run at a time: flock on ~/factory-gate/.lock (a second run waits). At most 8 CPUs: taskset -c 0-7, GOMAXPROCS,
-# go test -p, GATE_SHARDS, at most 8 parallel guard jobs.
+# One run at a time: flock on ~/factory-gate/.lock (a second run waits). At most 8 CPUs: taskset -c 0-7, GOMAXPROCS.
+# Job cap (T-1679), for GATE_SHARDS, go test -p and the parallel guard jobs: min(shards, cores, MemAvailable / 2048 MiB,
+# MemTotal / 2560 MiB), at least 1, read at the start of the run: 4 on an 8-CPU / 12 GB host, so swap does not fill.
 set -euo pipefail
 
 # Keep in run order and in step with the step map in ci/remote_gate.sh (tests/test_gate_shards.py checks both).
@@ -17,6 +19,27 @@ if [ "${1-}" = --plan ]; then
   for s in $PLAN; do echo "$s"; done
   exit 0
 fi
+MEM_PER_JOB_MIB=2048 TOTAL_PER_JOB_MIB=2560
+job_cap() {  # job_cap CORES SHARDS MEMINFO: how many jobs run at once
+  local cores=$1 shards=$2 avail total n
+  avail=$(awk '/^MemAvailable:/{print int($2/1024)}' "$3")
+  total=$(awk '/^MemTotal:/{print int($2/1024)}' "$3")
+  case "$avail" in ''|*[!0-9]*) echo "remote-gate-driver: cannot read MemAvailable from $3" >&2; return 2 ;; esac
+  case "$total" in ''|*[!0-9]*) echo "remote-gate-driver: cannot read MemTotal from $3" >&2; return 2 ;; esac
+  n=$cores
+  [ "$shards" -lt "$n" ] && n=$shards
+  [ $((avail / MEM_PER_JOB_MIB)) -lt "$n" ] && n=$((avail / MEM_PER_JOB_MIB))
+  [ $((total / TOTAL_PER_JOB_MIB)) -lt "$n" ] && n=$((total / TOTAL_PER_JOB_MIB))
+  [ "$n" -lt 1 ] && n=1
+  echo "$n"
+}
+if [ "${1-}" = --jobs ]; then
+  [ "$#" -eq 4 ] || { echo "remote-gate-driver: usage: --jobs <cores> <shards> <meminfo file>" >&2; exit 2; }
+  case "$2" in ''|*[!0-9]*) echo "remote-gate-driver: --jobs cores must be an integer" >&2; exit 2 ;; esac
+  case "$3" in ''|*[!0-9]*) echo "remote-gate-driver: --jobs shards must be an integer" >&2; exit 2 ;; esac
+  job_cap "$2" "$3" "$4"
+  exit
+fi
 if [ "$#" -ne 4 ]; then echo "remote-gate-driver: usage: remote_gate_driver.sh <run dir> <head> <base> <shards>" >&2; exit 2; fi
 run=$1 head_sha=$2 base_sha=$3 shards=$4
 case "$head_sha$base_sha" in *[!0-9a-f]*) echo "remote-gate-driver: head/base must be hex shas" >&2; exit 2 ;; esac
@@ -25,7 +48,8 @@ case "$shards" in ''|*[!0-9]*) echo "remote-gate-driver: shards must be an integ
 
 ncpu=$(nproc)
 cores=8; [ "$ncpu" -lt "$cores" ] && cores=$ncpu
-[ "$shards" -gt "$cores" ] && shards=$cores
+jobs=$(job_cap "$cores" "$shards" /proc/meminfo) || exit 2
+shards=$jobs
 # Re-exec once in a new session (so cleanup can kill the whole process group), pinned to $cores CPUs and niced.
 if [ "${REMOTE_GATE_LEADER-}" != 1 ]; then
   # The watch target is our sshd ancestor: it exits when the connection drops (a waiting shell in between would not).
@@ -63,17 +87,24 @@ if ! flock -n 9; then
   echo "remote-gate-driver: another gate run holds ~/factory-gate/.lock; waiting"
   flock 9
 fi
-# Sweep dirs of runs that died without cleanup (only under the lock, so never a live run's dir; > 12 h old).
+# Sweep dirs of runs that died without cleanup (only under the lock, so never a live run's dir; > 12 h old): our own
+# <run root>/fg-XXXXXX dirs, and dirs of the old ~/factory-gate/<sha>-<ts>-<pid> layout.
+find "$(dirname "$run")" -mindepth 1 -maxdepth 1 -type d -name 'fg-??????' -user "$(id -u)" -mmin +720 ! -path "$run" \
+  -exec rm -rf -- {} + || :
 find "$real_home/factory-gate" -mindepth 1 -maxdepth 1 -type d -mmin +720 ! -path "$run" -exec rm -rf -- {} + || :
 
-# Sampled machine load for the report, every 5 s: CPU busy % (all CPUs), used RAM MiB (MemTotal-MemAvailable), load1.
+# Sampled machine load for the report, every 5 s: CPU busy % (all CPUs), used RAM MiB (MemTotal-MemAvailable), load1,
+# used swap MiB (SwapTotal-SwapFree).
 mon="$run/monitor.txt"
+swap_used() { awk '/^SwapTotal/{t=$2} /^SwapFree/{f=$2} END{print int((t-f)/1024)}' /proc/meminfo; }
+swap_total=$(awk '/^SwapTotal/{print int($2/1024)}' /proc/meminfo)
+swap0=$(swap_used)
 ( read -r _ a b c d e f g _ < /proc/stat; pt=$((a+b+c+d+e+f+g)); pi=$((d+e))
   while sleep 5; do
     read -r _ a b c d e f g _ < /proc/stat; t=$((a+b+c+d+e+f+g)); i=$((d+e))
     mem=$(awk '/^MemTotal/{t=$2} /^MemAvailable/{a=$2} END{print int((t-a)/1024)}' /proc/meminfo)
     dt=$((t - pt)); busy=0; [ "$dt" -gt 0 ] && busy=$(( 100 * (dt - (i - pi)) / dt ))
-    echo "$busy $mem $(cut -d' ' -f1 /proc/loadavg)"
+    echo "$busy $mem $(cut -d' ' -f1 /proc/loadavg) $(swap_used)"
     pt=$t; pi=$i
   done ) > "$mon" &
 mon_pid=$!
@@ -125,11 +156,11 @@ step() {
   RC[$name]=$r; SECS[$name]=$((SECONDS - s)); order+=("$name")
   show "$name"
 }
-# bg NAME DIR CMD...: start a job in DIR (its own tree copy), at most $cores jobs at once. rc and seconds go to a
+# bg NAME DIR CMD...: start a job in DIR (its own tree copy), at most $jobs jobs at once. rc and seconds go to a
 # file: a job reaped by `wait -n` cannot be waited for again.
 bg() {
   local name=$1 dir=$2; shift 2
-  while [ "$(find "$run/logs" -name '*.running' | wc -l)" -ge "$cores" ]; do wait -n || :; done
+  while [ "$(find "$run/logs" -name '*.running' | wc -l)" -ge "$jobs" ]; do wait -n || :; done
   : > "$run/logs/$name.running"
   ( s=$SECONDS; r=0; cd "$dir" && "$@" || r=$?
     echo "$r $((SECONDS - s))" > "$run/logs/$name.done"; rm -f "$run/logs/$name.running"; exit "$r"
@@ -146,7 +177,9 @@ collect() {
   done
 }
 
-echo "remote-gate-driver: $(hostname) cpus $ncpu, using $cores ($(taskset -cp $$ 2>&1 || :)), head $head_sha base $base_sha"
+echo "remote-gate-driver: $(hostname) cpus $ncpu, using $cores ($(taskset -cp $$ 2>&1 || :)), jobs $jobs" \
+  "($(awk '/^MemAvailable/{a=$2} /^MemTotal/{t=$2} END{printf "%d of %d MiB available", a/1024, t/1024}' /proc/meminfo))," \
+  "swap used $swap0 of $swap_total MiB, head $head_sha base $base_sha"
 
 toolchain() {
   local want_go py
@@ -253,10 +286,10 @@ step unittest python3 "$T/tests/gate_shards.py"
 step go-modules bash -c 'cd go && go mod download'
 step go-gofmt gofmt_check
 step go-vet bash -c 'cd go && go vet ./...'
-step go-test bash -c "cd go && go test -race -count=1 -p $cores -timeout 30m ./..."
+step go-test bash -c "cd go && go test -race -count=1 -p $jobs -timeout 30m ./..."
 step go-build bash -c 'cd go && go build ./...'
 
-# Phase 2 (parallel, <= $cores jobs, each in its own copy of the head repo): the guard jobs, GOPROXY off as in CI.
+# Phase 2 (parallel, <= $jobs jobs, each in its own copy of the head repo): the guard jobs, GOPROXY off as in CI.
 export GOFLAGS=-mod=readonly GOPROXY=off
 mkdir -p "$TMPDIR/bin"
 step guard-build bash -c "cd go && go build -o '$TMPDIR/bin/worker-guard' ./cmd/worker-guard"
@@ -292,7 +325,7 @@ for n in "${order[@]}"; do
   [ "${RC[$n]}" = 0 ] || fail=1
 done
 if [ -s "$mon" ]; then
-  awk 'BEGIN{c=0;m=0;l=0} {if($1>c)c=$1; if($2>m)m=$2; if($3>l)l=$3} END{printf "peak cpu busy %d%% of %d cpus, peak used ram %d MiB, peak load1 %s\n", c, '"$ncpu"', m, l}' "$mon"
+  awk 'BEGIN{c=0;m=0;l=0;s=0} {if($1>c)c=$1; if($2>m)m=$2; if($3>l)l=$3; if($4>s)s=$4} END{printf "peak cpu busy %d%% of %d cpus, peak used ram %d MiB, peak load1 %s, peak swap used %d of %d MiB (at start %d)\n", c, '"$ncpu"', m, l, s, '"$swap_total"', '"$swap0"'}' "$mon"
 fi
 echo "unittest summary: $(cat "$GATE_REPORT_DIR/summary.json" 2>/dev/null || echo missing)"
 echo "remote-gate-driver: $([ "$fail" = 0 ] && echo PASS || echo FAIL), wall ${SECONDS} s"
