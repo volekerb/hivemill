@@ -10,7 +10,11 @@ import (
 	ft "factory/go/internal/factorytest"
 )
 
-// Go tests for tests/test_relaunch_idle.py: 27 cases, stateful herdr stub, roles/ copytree like Python.
+// PARTIAL (P7a, T-1495): 32 of 33 cases ported.
+// not ported: test_feature_off_cursor_pane_limit_does_not_defer_idle_relaunch - calls mod.tick_relaunches in-process
+// (a Python internal: no CLI entry point and no Go counterpart).
+//
+// Go tests for tests/test_relaunch_idle.py: 32 of 33 cases, stateful herdr stub, roles/ copytree like Python.
 
 func TestRelaunchIdleRequestFlagsRowAndTickRelaunchesWithResumeAndNewPrompt(t *testing.T) {
 	r := newRelaunchIdleEnv(t)
@@ -468,4 +472,81 @@ func TestRelaunchIdleColumnsAddedOnFirstCommand(t *testing.T) {
 	}
 	r.OK("agents")
 	wantLen(t, "lead row", r.SQL("SELECT 1 FROM agents WHERE name=?", riLead), 1)
+}
+
+// PlacementRelaunchTests (T-1585): the placement floor on the tick's idle relaunch and on an immediate relaunch.
+
+func TestRelaunchIdlePlacementFloorDefersALiveLeadWithoutClosing(t *testing.T) {
+	r := newRelaunchIdleEnv(t)
+	r.riArm(t)
+	r.queue(t, "zz-director")
+	r.OKWith(ft.Opts{Agent: "zz-director", Env: riLowHQ}, "tick")
+	wantEmpty(t, "closes", r.closes())
+	wantEmpty(t, "starts", r.starts())
+	at, _ := r.relaunchFlag(t, "")
+	expectFlagTimestamp(t, at)
+	row := r.SQL("SELECT status, pane_id FROM agents WHERE name=?", riLead)[0]
+	if row[0] != "live" || row[1] != riPane {
+		t.Fatalf("agent row = %v, want live/%s", row, riPane)
+	}
+	wantLen(t, "relaunch-deferred events", r.eventDetails(t, "relaunch-deferred"), 1)
+}
+
+func TestRelaunchIdleImmediateRelaunchUnderPlacementFloorKeepsThePane(t *testing.T) {
+	r := newRelaunchIdleEnv(t)
+	r.riArm(t)
+	r.NeedPython()
+	p := r.FailWith(ft.Opts{Agent: "zz-director", Env: riLowHQ}, 3, "relaunch", riLead, "--force")
+	contains(t, "stderr", p.Stderr, "not relaunching "+riLead)
+	contains(t, "stderr", p.Stderr, "floor")
+	wantEmpty(t, "closes", r.closes())
+	row := r.SQL("SELECT status, pane_id FROM agents WHERE name=?", riLead)[0]
+	if row[0] != "live" || row[1] != riPane {
+		t.Fatalf("agent row = %v, want live/%s", row, riPane)
+	}
+}
+
+// FeatureOffRelaunchTests: worker_machines empty, the tick's idle relaunch uses gate(own_slot=True) and nothing else.
+
+func TestRelaunchIdleFeatureOffCursorFiveHourDefersIdleRelaunch(t *testing.T) {
+	r := newRelaunchIdleEnv(t)
+	name := "cursor-coder-zz"
+	r.riFeatureOffAgent(t, name, "coder", "cursor")
+	r.writeUsage(t, 99, 0, 0)
+	r.OKWith(ft.Opts{Agent: "zz-director", Env: riRoomy}, "tick")
+	wantEmpty(t, "closes", r.closes())
+	at, _ := r.relaunchFlag(t, name)
+	expectFlagTimestamp(t, at)
+	rows := r.riDeferred(name)
+	wantLen(t, "relaunch-deferred events", rows, 1)
+	contains(t, "deferred detail", rows[0][0], "5h usage")
+}
+
+func TestRelaunchIdleFeatureOffCursorIdleRelaunchRunsWhenFiveHourIsOpen(t *testing.T) {
+	r := newRelaunchIdleEnv(t)
+	name := "cursor-coder-open"
+	r.riFeatureOffAgent(t, name, "coder", "cursor")
+	r.writeUsage(t, 10, 0, 0)
+	r.OKWith(ft.Opts{Agent: "zz-director", Env: riRoomy}, "tick")
+	wantEmpty(t, "relaunch-deferred events", r.riDeferred(name))
+	wantLen(t, "relaunch-run events", r.riRan(name), 1)
+	at, by := r.relaunchFlag(t, name)
+	expectFlagClearPair(t, at, by)
+}
+
+func TestRelaunchIdleFeatureOffCleanerTmpCapDefersIdleRelaunch(t *testing.T) {
+	r := newRelaunchIdleEnv(t)
+	name := "zz-cleaner-zz"
+	r.riFeatureOffAgent(t, name, "cleaner", "")
+	env := map[string]string{"FACTORY_TMP_STATVFS": "1000000000,50000000"}
+	for k, v := range riRoomy {
+		env[k] = v
+	}
+	r.OKWith(ft.Opts{Agent: "zz-director", Env: env}, "tick")
+	wantEmpty(t, "closes", r.closes())
+	at, _ := r.relaunchFlag(t, name)
+	expectFlagTimestamp(t, at)
+	rows := r.riDeferred(name)
+	wantLen(t, "relaunch-deferred events", rows, 1)
+	contains(t, "deferred detail", rows[0][0], "/tmp")
 }

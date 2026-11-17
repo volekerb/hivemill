@@ -360,3 +360,60 @@ func agentsLine(r *riEnv, stdout string) string {
 	}
 	return ""
 }
+
+// riInstallSSH is the harness line shutil.copy2(STUBS / "ssh", stub_bin / "ssh"): the placement cases need the fake ssh.
+func (r *riEnv) riInstallSSH(t *testing.T) {
+	t.Helper()
+	repo, err := ft.RepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(repo, "tests", "stubs", "ssh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(r.StubBin, "ssh"), b, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+var riLowHQ = map[string]string{
+	"FACTORY_MEM_MB":    "1800",
+	"FACTORY_LOADAVG":   "0.1",
+	"FACTORY_NPROC":     "8",
+	"FACTORY_FACTS_NOW": "10000",
+	"FACTORY_SSH_FACTS": `{"workerhost": {"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 0}}`,
+}
+
+var riRoomy = map[string]string{"FACTORY_MEM_MB": "8000", "FACTORY_LOADAVG": "0.1", "FACTORY_NPROC": "8"}
+
+// riArm is PlacementRelaunchTests._arm.
+func (r *riEnv) riArm(t *testing.T) {
+	t.Helper()
+	r.riInstallSSH(t)
+	r.OKWith(ft.Opts{Agent: "zz-director"}, "config", "worker_machines", "workerhost")
+	r.OKWith(ft.Opts{Agent: "zz-director"}, "config", "machine_hq", "hqhost")
+}
+
+// riFeatureOffAgent is FeatureOffRelaunchTests._coder: a queued idle relaunch for a second live agent.
+func (r *riEnv) riFeatureOffAgent(t *testing.T, name, role, org string) {
+	t.Helper()
+	pane := "p-" + name
+	r.SeedAgent(ft.AgentRow{Name: name, Role: role, Goal: "G-001", PaneID: pane})
+	sqlExec(t, r.Env, "UPDATE agents SET session_id=? WHERE name=?", "sess-"+name, "")
+	sqlExec(t, r.Env, "UPDATE agents SET session_id=? WHERE name=?", "sess-"+name, name)
+	if org != "" {
+		sqlExec(t, r.Env, "UPDATE agents SET org=? WHERE name=?", org, name)
+	}
+	r.herdrAgents(t, [][4]string{{"idle", riLead, riSess, riPane}, {"idle", name, "sess-" + name, pane}})
+	r.NeedPython()
+	r.OKWith(ft.Opts{Agent: "zz-director"}, "relaunch", name, "--when-idle")
+}
+
+func (r *riEnv) riDeferred(name string) [][]string {
+	return r.SQL("SELECT detail FROM events WHERE action='relaunch-deferred' AND entity_id=?", name)
+}
+
+func (r *riEnv) riRan(name string) [][]string {
+	return r.SQL("SELECT 1 FROM events WHERE action='relaunch-run' AND entity_id=?", name)
+}
