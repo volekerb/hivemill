@@ -123,6 +123,51 @@ class RetroScheduleTests(FactoryTestCase):
         self.assertEqual(len(nxt), 1)
         self.assertEqual((nxt[0]["status"], nxt[0]["stop_reason"]), ("skipped", "previous run active"))
 
+    def claude_agent(self):
+        rows = self.env.sql("SELECT * FROM agents WHERE name='claude-retro'")
+        self.assertEqual(len(rows), 1)
+        return dict(rows[0])
+
+    def test_bad_org_records_retro_failed_and_does_not_spawn(self):
+        self.ok("config", "retro_org", "banana")
+        self.tick(at("06:01"))
+        self.assertEqual(self.runs(), [])
+        self.assertEqual(self.starts(), [])
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM agents WHERE role='retro'")[0]["c"], 0)
+        (ev,) = self.env.sql("SELECT detail FROM events WHERE action='retro-failed'")
+        self.assertIn("retro_org must be cursor or claude", ev["detail"])
+
+    def test_claude_org_spawns_claude_retro(self):
+        import sys
+        sys.path.insert(0, str(REPO))
+        from scout import orgs
+        self.ok("config", "retro_org", "claude")
+        self.tick(at("06:01"))
+        row = self.claude_agent()
+        self.assertEqual((row["role"], row["org"], row["model"]), ("retro", "claude", orgs.model("claude", "retro")))
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM agents WHERE name='cursor-retro'")[0]["c"], 0)
+        (run,) = self.runs()
+        self.assertEqual(run["agent"], "claude-retro")
+
+    def test_open_run_synced_by_stored_agent_after_org_switch(self):
+        self.tick(at("06:01"))
+        self.ok("config", "retro_org", "claude")
+        self.env.sql("UPDATE agents SET status='done' WHERE name='cursor-retro'")
+        self.tick(at("06:10"))
+        (run,) = self.runs()
+        self.assertEqual((run["agent"], run["status"]), ("cursor-retro", "done"))
+        self.assertIsNone(run["stop_reason"])
+
+    def test_cursor_retro_live_skips_claude_claim(self):
+        self.tick(at("06:01"))
+        self.env.sql("UPDATE retro_runs SET status='done', ended=? WHERE day=?", (at("07:00"), D))
+        self.env.sql("UPDATE agents SET status='live', started=? WHERE name='cursor-retro'", (at("06:30", day="2026-10-27"),))
+        self.ok("config", "retro_org", "claude")
+        self.tick(at("07:00", day="2026-10-27"))
+        nxt = [r for r in self.runs() if r["day"] == "2026-10-27"]
+        self.assertEqual((len(nxt), nxt[0]["status"], nxt[0]["stop_reason"]), (1, "skipped", "previous run active"))
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM agents WHERE name='claude-retro'")[0]["c"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

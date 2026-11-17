@@ -177,6 +177,7 @@ DEFAULT_CONFIG = {
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
     "retro_enabled": "1",        # only the exact string "1" starts a new daily retro run from retro_hour
     "retro_hour": "6",           # local hour from which the tick may claim today's retro (before digest_hour)
+    "retro_org": "cursor",       # cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)
     "retro_max_minutes": "20",   # wall budget of one retro run; over it the tick force-stops it
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
@@ -10311,7 +10312,9 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if role == "researcher" and not task:
         die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
     if role == "retro":
-        org = "cursor"  # the daily retro job is always cursor runtime (retro/schedule.py passes the same org)
+        org = cfg(con, "retro_org")
+        if org not in ("cursor", "claude"):
+            die(f"retro_org must be cursor or claude, got '{org}'; fix it with `factory config retro_org cursor`", 2)
     if task and not (goal and team):  # a team-less `spawn --task` still belongs to the task's goal/team (utilization, alerts)
         trow = con.execute("SELECT goal_id, team_id FROM tasks WHERE id=?", (task,)).fetchone()
         if trow:

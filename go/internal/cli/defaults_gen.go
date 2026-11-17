@@ -35,6 +35,7 @@ var DefaultConfig = []ConfigDefault{
 	{"review_reserved_slots", "2"},
 	{"retro_enabled", "1"},
 	{"retro_hour", "6"},
+	{"retro_org", "cursor"},
 	{"retro_max_minutes", "20"},
 	{"dispatch_max_per_tick", "2"},
 	{"dispatch_max_team_workers", "2"},

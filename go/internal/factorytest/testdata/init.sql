@@ -248,6 +248,7 @@ INSERT INTO config(key,value) VALUES('reserved_worker_slots','10');
 INSERT INTO config(key,value) VALUES('retro_enabled','0');
 INSERT INTO config(key,value) VALUES('retro_hour','6');
 INSERT INTO config(key,value) VALUES('retro_max_minutes','20');
+INSERT INTO config(key,value) VALUES('retro_org','cursor');
 INSERT INTO config(key,value) VALUES('review_autospawn','off');
 INSERT INTO config(key,value) VALUES('review_reserved_slots','2');
 INSERT INTO config(key,value) VALUES('risk_tiers','off');
