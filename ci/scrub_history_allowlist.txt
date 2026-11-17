@@ -69,3 +69,4 @@ tests/test_web_server.py:rfc1918:9c06457a3996ba5b10fc9b4458abc8d8804495c5fdb5dc4
 tests/test_worker_guard_public_text.py:email:b1338c50fc82f7b904ef81878848e0b4e65ec991bb1b0081c88a75808f312211  # fake author and remote the public-text guard must catch
 tests/test_worker_guard_public_text.py:email:37587aaa1a5699484e98d9a0ba5804bb35c45b5608a1e8b639f376a76f60450c  # fake author and remote the public-text guard must catch
 tests/test_workerbox.py:generic-secret:6813fa5e0ebf37122580d51deb4442689fd21c7bfb2fe02f584d7416f72fd410  # fake sentinel secret fixture asserted not to leak
+ci/scrub_allowlist.txt:email:14709302a2cb8190791c06f355483142bf7fd7b16b3bbb00b329d4e744c06e21  # the allowlist entry for the owner-approved public contact address necessarily contains it (M40774)
