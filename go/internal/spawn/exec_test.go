@@ -66,6 +66,7 @@ func fixedNow() time.Time { return time.Date(2026, 11, 15, 10, 0, 0, 0, time.Fix
 
 func startPlan(t *testing.T, dir string) SpawnPlan {
 	t.Helper()
+	t.Setenv("HOME", t.TempDir()) // planStart makes ~/.cache/go/tmp (T-1698); never the live home
 	return SpawnPlan{
 		Name: "claude-pm-t-1", Org: "claude", Role: "pm", Goal: "G-1", Task: "T-1", ArgsJSON: `{"role": "pm", "name": "claude-pm-t-1"}`,
 		Start: &Start{Model: "m", Runtime: "claude", Cwd: dir, SettingsPath: filepath.Join(dir, "run", "settings", "pm.json"),
@@ -766,5 +767,20 @@ func TestTrustParityUnderWorktrees(t *testing.T) {
 	d.WorktreesDir = wts
 	if _, err := Exec(pl, d); err != nil {
 		t.Errorf("outside cwd: %v", err)
+	}
+}
+
+// TestWorkerCacheEnv: T-1698 keys, in Python's order, under HOME; the go tmp dir exists afterwards.
+func TestWorkerCacheEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	got := workerCacheEnv()
+	want := []KV{{"GOTMPDIR", home + "/.cache/go/tmp"}, {"GOCACHE", home + "/.cache/go/build"},
+		{"GOMODCACHE", home + "/.cache/go/path/pkg/mod"}, {"npm_config_store_dir", home + "/.cache/pnpm-store"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if fi, err := os.Stat(home + "/.cache/go/tmp"); err != nil || !fi.IsDir() {
+		t.Errorf("go tmp dir missing: %v", err)
 	}
 }

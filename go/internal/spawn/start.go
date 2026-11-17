@@ -246,11 +246,10 @@ func planStart(req Request, f Facts, p SpawnPlan, rt string, sandboxOptin bool, 
 // because go refuses a missing GOTMPDIR; a failure is ignored, the worker's first go call then says so itself.
 func workerCacheEnv() []KV {
 	home, err := os.UserHomeDir()
-	if err != nil {
-		home = ""
-	}
 	cache := filepath.Join(home, ".cache")
-	_ = os.MkdirAll(filepath.Join(cache, "go", "tmp"), 0o755)
+	if err == nil { // no home: relative paths, and never mkdir them in the cwd
+		_ = os.MkdirAll(filepath.Join(cache, "go", "tmp"), 0o755)
+	}
 	return []KV{
 		{"GOTMPDIR", filepath.Join(cache, "go", "tmp")},
 		{"GOCACHE", filepath.Join(cache, "go", "build")},
