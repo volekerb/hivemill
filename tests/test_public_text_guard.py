@@ -394,6 +394,77 @@ class PushModeTests(PushBase):
         self.assertEqual([h[0] for h in hits], ["rfc1918", "ipv4"])
 
 
+class PushSkipsPublicMainTests(PushBase):
+    """T-1774: commits already on origin/main are public; a merge of main must not re-flag them."""
+
+    def setUp(self):
+        super().setUp()
+        git(self.repo, "checkout", "-q", "-b", "feat")
+        self.write("f.txt", "feat\n")
+        self.base = self.commit("feat start")
+        git(self.repo, "checkout", "-q", "main")
+
+    def main_commit(self, rel, text, msg, env=None):
+        git(self.repo, "checkout", "-q", "main")
+        self.write(rel, text)
+        sha = self.commit(msg, env=env)
+        git(self.repo, "update-ref", "refs/remotes/origin/main", sha)
+        git(self.repo, "checkout", "-q", "feat")
+        return sha
+
+    def merge_main(self):
+        git(self.repo, "-c", "commit.gpgsign=false", "merge", "-q", "--no-edit", "main")
+
+    def hits(self):
+        return load_guard().check_push(self.repo, self.base, "HEAD", self.terms)
+
+    def test_merged_main_commit_with_term_author_not_flagged(self):
+        self.main_commit("m.txt", "m\n", "main work", env={"GIT_AUTHOR_NAME": TERM, "GIT_COMMITTER_NAME": TERM})
+        self.merge_main()
+        self.assertEqual(self.hits(), [])
+
+    def test_branch_commit_message_still_flagged(self):
+        self.main_commit("m.txt", "m\n", "main work", env={"GIT_AUTHOR_NAME": TERM})
+        self.merge_main()
+        self.write("g.txt", "g\n")
+        self.commit(f"about {TERM}")
+        hits = self.hits()
+        self.assertEqual([h[0] for h in hits], ["owner-term"])
+        self.assertIn(":message", hits[0][1])
+
+    def test_branch_commit_author_still_flagged(self):
+        self.main_commit("m.txt", "m\n", "main work")
+        self.merge_main()
+        self.write("g.txt", "g\n")
+        self.commit("ok", env={"GIT_AUTHOR_NAME": TERM})
+        hits = self.hits()
+        self.assertEqual([h[0] for h in hits], ["owner-term"])
+        self.assertIn(":author", hits[0][1])
+
+    def test_merge_conflict_resolution_with_term_still_flagged(self):
+        self.write("c.txt", "one\n")
+        git(self.repo, "add", "-A")
+        git(self.repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "c on main")
+        git(self.repo, "checkout", "-q", "-B", "feat", "main")
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.write("c.txt", "feat side\n")
+        self.commit("feat edit")
+        self.main_commit("c.txt", "main side\n", "main edit")
+        r = subprocess.run(["git", "-C", str(self.repo), "merge", "-q", "--no-edit", "main"], capture_output=True,
+                           env={**os.environ, **GIT_ENV})
+        self.assertNotEqual(r.returncode, 0, "expected a conflict")
+        self.write("c.txt", f"resolved {TERM}\n")
+        self.commit("resolve")
+        hits = self.hits()
+        self.assertTrue(any(h[0] == "owner-term" and "c.txt" in h[1] for h in hits), hits)
+
+    def test_no_origin_main_scans_everything_as_before(self):
+        self.main_commit("m.txt", "m\n", "main work", env={"GIT_AUTHOR_NAME": TERM})
+        self.merge_main()
+        git(self.repo, "update-ref", "-d", "refs/remotes/origin/main")
+        self.assertTrue(any(":author" in h[1] for h in self.hits()))
+
+
 def png(*chunks):
     """A PNG from (name, payload) chunks with correct CRCs."""
     out = b"\x89PNG\r\n\x1a\n"

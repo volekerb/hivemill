@@ -114,7 +114,7 @@
   "key": "cursor_kickoff_grace_s",
   "kind": "setting",
   "default": "180",
-  "summary": "cursor agents: seconds a kickoff may stay unread before the tick resubmits it, then relaunches once",
+  "summary": "cursor agents: seconds a kickoff may stay unread before the tick re-submits it, then relaunches once, then escalates; 0 = off",
   "goal": "G-058",
   "doc": "docs/runtimes.md",
   "current": "180"
@@ -128,6 +128,15 @@
   "doc": "docs/runtimes.md",
   "state": "off",
   "current": ""
+ },
+ {
+  "key": "cursor_prompt",
+  "kind": "setting",
+  "default": "v1",
+  "summary": "v1 = Cursor agents get the Claude role prompt and kickoff; v2 = the short loop-until-done prompt (roles/cursor/<role>.md) and the Cursor worker kickoff",
+  "goal": "G-058",
+  "doc": "docs/cursor-prompt.md",
+  "current": "v1"
  },
  {
   "key": "day_end_hour",
@@ -380,6 +389,25 @@
   "current": "900"
  },
  {
+  "key": "idle_watchdog",
+  "kind": "flag",
+  "default": "shadow",
+  "summary": "off | shadow | on: the tick nudges, then relaunches fresh, then alerts both directors about a live worker with no progress for idle_watchdog_min; shadow = event rows only",
+  "goal": "G-058",
+  "doc": "docs/idle-watchdog.md",
+  "state": "shadow",
+  "current": "shadow"
+ },
+ {
+  "key": "idle_watchdog_min",
+  "kind": "setting",
+  "default": "30",
+  "summary": "minutes without progress before idle_watchdog nudges; relaunch half that later, alert that long after the relaunch",
+  "goal": "G-058",
+  "doc": "docs/idle-watchdog.md",
+  "current": "30"
+ },
+ {
   "key": "issue_intake_repos",
   "kind": "flag",
   "default": "",
@@ -388,6 +416,15 @@
   "doc": "docs/ISSUES.md",
   "state": "off",
   "current": ""
+ },
+ {
+  "key": "judge_ci_gate",
+  "kind": "setting",
+  "default": "pr",
+  "summary": "pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS, clean merge-tree and no file overlap only (main push run is the gate)",
+  "goal": "G-050",
+  "doc": "docs/judge-ci-gate.md",
+  "current": "pr"
  },
  {
   "key": "judge_ci_wait_s",
@@ -825,6 +862,15 @@
   "current": "20"
  },
  {
+  "key": "retro_org",
+  "kind": "setting",
+  "default": "cursor",
+  "summary": "cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)",
+  "goal": "G-036",
+  "doc": "docs/retro.md",
+  "current": "cursor"
+ },
+ {
   "key": "review_autospawn",
   "kind": "flag",
   "default": "off",
@@ -1008,6 +1054,15 @@
   "goal": "",
   "doc": "",
   "current": "15"
+ },
+ {
+  "key": "stale_no_refresh",
+  "kind": "setting",
+  "default": "on",
+  "summary": "on: a BEHIND PR with CI green, reviewer+QA PASS on the head, clean merge-tree, no shared file and MERGEABLE merges without a refresh; off: rollback",
+  "goal": "G-058",
+  "doc": "docs/stale-policy.md",
+  "current": "on"
  },
  {
   "key": "stale_policy",
@@ -1197,6 +1252,15 @@
   "goal": "",
   "doc": "",
   "current": "80"
+ },
+ {
+  "key": "usage_reopen_samples",
+  "kind": "setting",
+  "default": "3",
+  "summary": "consecutive fresh below-cap readings that reopen the spawn gate after a Claude usage cap",
+  "goal": "G-058",
+  "doc": "docs/SETUP.md",
+  "current": "3"
  },
  {
   "key": "worker_gh_repos",
