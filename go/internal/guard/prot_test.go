@@ -244,3 +244,19 @@ func TestGoEmptySubcommandReturns(t *testing.T) {
 		}
 	}
 }
+
+// T-1498 N11 follow-up: `go` on PATH with no subcommand word stays allowed for every role (Python parity);
+// only an empty quoted word is refused.
+func TestGoNoSubcommandUnchanged(t *testing.T) {
+	_, wt, _ := protFixture(t)
+	for _, role := range []string{"coder", "qa", "pm", "judge"} {
+		for _, c := range []string{"go", "go -C .", "go -v"} {
+			if err := Check(c, wt, role, false); err != nil {
+				t.Errorf("%s: %q: expected allow, got %v", role, c, err)
+			}
+		}
+		if err := Check("go ''", wt, role, false); err == nil {
+			t.Errorf("%s: %q: expected a block", role, "go ''")
+		}
+	}
+}

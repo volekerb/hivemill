@@ -122622,6 +122622,105 @@
 "src": "corpus"
 },
 {
+"input": "go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go"
+]
+},
+{
+"input": "go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go"
+]
+},
+{
+"input": "go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go"
+]
+},
+{
+"input": "go",
+"mode": "quote",
+"quoted": "go",
+"src": "corpus"
+},
+{
+"input": "go -C .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"-C",
+"."
+]
+},
+{
+"input": "go -C .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"-C",
+"."
+]
+},
+{
+"input": "go -C .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"-C",
+"."
+]
+},
+{
+"input": "go -C .",
+"mode": "quote",
+"quoted": "'go -C .'",
+"src": "corpus"
+},
+{
+"input": "go -v",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"-v"
+]
+},
+{
+"input": "go -v",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"-v"
+]
+},
+{
+"input": "go -v",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"-v"
+]
+},
+{
+"input": "go -v",
+"mode": "quote",
+"quoted": "'go -v'",
+"src": "corpus"
+},
+{
 "input": "go build ./...",
 "mode": "script",
 "src": "corpus",
@@ -154675,7 +154774,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3558,
+"corpus_commands": 3561,
 "edge_inputs": 123,
 "python": "3.13"
 }

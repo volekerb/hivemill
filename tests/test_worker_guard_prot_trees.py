@@ -612,6 +612,14 @@ class GoToolchainForWorkers(ProtTreesCase):
                 r = run(cmd, "wt", role=role)
                 self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
 
+    def test_bare_go_without_subcommand_unchanged(self):
+        """T-1498 N11 follow-up: `go` on PATH with no subcommand word at all stays allowed (as on origin/main);
+        only an empty quoted word is refused. The Go port once refused these too (Python allowed them)."""
+        for role in ("coder", "qa", "pm", "judge"):
+            for cmd in ("go", "go -C .", "go -v"):
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 0, f"{role}: {cmd!r}: expected allow, got {r.returncode}: {r.stderr}")
+
     def test_network_and_unlisted_subcommands_blocked(self):
         cmds = [self.G + "go mod download", self.G + "go get x@v1", self.G + "go install ./...", self.G + "go mod tidy",
                 self.G + "go clean -modcache", self.G + "go work sync", self.G + "go", "GOFLAGS=-mod=mod " + self.G + "go test ./...",

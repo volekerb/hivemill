@@ -150423,6 +150423,132 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "go",
+"mask_quotes_pre": "go",
+"mask_quotes_raw": "go",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "go"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "go"
+},
+"segments_pre": [
+[
+0,
+2,
+[
+"go"
+]
+]
+],
+"segments_raw": [
+[
+0,
+2,
+[
+"go"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "go -C .",
+"mask_quotes_pre": "go -C .",
+"mask_quotes_raw": "go -C .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "go -C ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "go -C ."
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"go",
+"-C",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"go",
+"-C",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "go -v",
+"mask_quotes_pre": "go -v",
+"mask_quotes_raw": "go -v",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "go -v"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "go -v"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"go",
+"-v"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"go",
+"-v"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "go build ./...",
 "mask_quotes_pre": "go build ./...",
 "mask_quotes_raw": "go build ./...",
@@ -192030,7 +192156,7 @@
 ]
 }
 },
-"corpus_commands": 3558,
+"corpus_commands": 3561,
 "edge_inputs": 97,
 "python": "3.13"
 }
