@@ -408,6 +408,88 @@ class StopRaceTests(StopBase):
         r = self.row()
         self.assertEqual((r["status"], r["stop_requested_at"], r["stop_attempt_at"]), ("queued", None, None))
 
+    # T-1616 (F22): a STOP order left unread by a dead pane must not stop the next agent spawned under that name
+    def respawn(self):
+        self.ok("spawn", "coder", "--goal", "G-001", "--team", "g-001-a", "--task", "T-0001", "--name", "zz-coder",
+                "--cwd", str(self.env.home), agent="zz-director")
+
+    def inbox(self, *args, name="zz-coder"):
+        return self.ok("inbox", *args, agent=name).stdout
+
+    def test_respawn_drops_stale_stop_order(self):
+        self.stop("zz-coder", "--now", "--reason", "old pane stuck", agent="zz-director")
+        old = self.msgs("zz-coder", "STOP")
+        self.assertEqual([(m["kind"], m["read_at"]) for m in old], [("decision", None)])  # the dead pane never read it
+        self.respawn()
+        m = self.msgs("zz-coder", "STOP")
+        self.assertEqual(len(m), 1)
+        self.assertIsNotNone(m[0]["read_at"])
+        ev = self.events("stop-stale-dropped")
+        self.assertEqual(len(ev), 1)
+        d = json.loads(ev[0]["detail"])
+        self.assertEqual((d["agent"], d["message"], d["by"]), ("zz-coder", m[0]["id"], "spawn"))
+        out = self.inbox()
+        self.assertIn("kickoff", out)
+        self.assertNotIn("STOP", out)
+        self.assertNotIn("old pane stuck", out)
+
+    def test_respawn_keeps_non_stop_mail_and_later_stop_is_delivered(self):
+        self.ok("msg", "zz-coder", "rebase note", "rebase on main first", agent="zz-lead")
+        self.ok("msg", "zz-coder", "scope", "keep the flag", "--kind", "decision", agent="zz-lead")
+        self.stop("zz-coder", "--now", agent="zz-director")
+        self.respawn()
+        unread = {m["subject"] for m in self.msgs("zz-coder") if m["read_at"] is None}
+        self.assertLessEqual({"rebase note", "scope"}, unread)  # only STOP orders are dropped
+        self.assertNotIn("STOP", unread)
+        self.herdr_agents(["zz-coder", self.row()["pane_id"]])
+        self.stop("zz-coder", "--reason", "new order")  # sent after the new spawn: for this pane
+        live = [m for m in self.msgs("zz-coder", "STOP") if m["read_at"] is None]
+        self.assertEqual(len(live), 1)
+        self.assertEqual(len(self.events("stop-stale-dropped")), 1)
+        out = self.inbox()
+        self.assertIn("   STOP\n", out)
+        self.assertIn("new order\n   Stop work now.", out)
+        self.assertNotIn("[stale", out)
+        self.assertIn("rebase on main first", out)
+        self.assertEqual(len(self.events("stop-stale-dropped")), 1)
+
+    def stale_stop_row(self, created, started):
+        """The race the spawn cannot close: an unread STOP order older than the reader's own start."""
+        self.env.sql("UPDATE agents SET started=? WHERE name='zz-coder'", (started,))
+        self.env.sql("INSERT INTO messages(sender,recipient,kind,subject,body,created) VALUES(?,?,?,?,?,?)",
+                     ("zz-lead", "zz-coder", "decision", "STOP", "pane hung\nStop work now. Push, then run factory done",
+                      created))
+        return self.msgs("zz-coder", "STOP")[-1]["id"]
+
+    def test_inbox_marks_pre_spawn_stop_stale(self):
+        mid = self.stale_stop_row("2026-03-01T10:00:00+00:00", "2026-03-01T10:05:00+00:00")
+        peek = self.inbox("--peek")
+        self.assertIn("   [stale: sent to an earlier pane] STOP\n", peek)
+        self.assertEqual(self.events("stop-stale-dropped"), [])  # --peek changes nothing
+        out = self.inbox()
+        self.assertIn("   [stale: sent to an earlier pane] STOP\n", out)
+        self.assertIn("Carry on with your task", out)
+        self.assertNotIn("Stop work now", out)
+        self.assertNotIn("factory done", out)
+        self.assertIsNotNone(self.msgs("zz-coder", "STOP")[-1]["read_at"])
+        ev = self.events("stop-stale-dropped")
+        self.assertEqual([(json.loads(e["detail"])["message"], json.loads(e["detail"])["by"]) for e in ev],
+                         [(mid, "inbox")])
+
+    def test_inbox_delivers_stop_sent_after_start_or_to_another_kind(self):
+        # other timezone offset, later instant: compared as instants, not as text
+        self.stale_stop_row("2026-03-01T12:05:01+02:00", "2026-03-01T10:05:00+00:00")
+        self.env.sql("INSERT INTO messages(sender,recipient,kind,subject,body,created) VALUES(?,?,?,?,?,?)",
+                     ("zz-lead", "zz-coder", "msg", "STOP", "not a decision", "2026-03-01T09:00:00+00:00"))
+        self.env.sql("INSERT INTO messages(sender,recipient,kind,subject,body,created) VALUES(?,?,?,?,?,?)",
+                     ("zz-lead", "zz-coder", "decision", "STOP", "unreadable time", "not-a-time"))
+        out = self.inbox()
+        self.assertNotIn("[stale", out)
+        self.assertIn("Stop work now", out)
+        self.assertIn("not a decision", out)
+        self.assertIn("unreadable time", out)  # cannot decide: delivered, never dropped
+        self.assertEqual(self.events("stop-stale-dropped"), [])
+
     def test_fallback_does_not_overwrite_done(self):
         self.stop("zz-coder")
         self.env.sql("UPDATE agents SET status='done', summary='finished' WHERE name='zz-coder'")  # flag still set

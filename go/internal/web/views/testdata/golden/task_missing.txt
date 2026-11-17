@@ -1,0 +1,21 @@
+# /task/T-404
+TEXT
+Task - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources Task All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Tasks / T-404 No task T-404 Back to Tasks Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-404
+a:/task/T-404?org=claude
+a:/task/T-404?org=cursor
+a:/tasks
+a:/throughput
+a:/tokens

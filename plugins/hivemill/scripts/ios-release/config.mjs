@@ -93,6 +93,41 @@ function gate(item, i) {
   return { cwd: norm, argv: argv(item.argv, `${field}.argv`) };
 }
 
+// testerGroup: one entry or a non-empty array of entries. An entry is a name string, {id}, or {name, internal}.
+const GROUP_ID = /^[A-Za-z0-9-]{1,64}$/;
+function groupEntry(e, i) {
+  const f = `testerGroup entry ${i}`;
+  if (typeof e === "string") {
+    if (e === "") throw bad(f, "a group name must not be empty");
+    return e;
+  }
+  if (!isObj(e)) throw bad(f, 'must be a group name, {"id"}, or {"name", "internal"}');
+  const keys = Object.keys(e).sort().join(",");
+  if (keys === "id") {
+    if (typeof e.id !== "string" || !GROUP_ID.test(e.id)) throw bad(f, "id must be 1-64 characters of A-Z a-z 0-9 -");
+    return { id: e.id };
+  }
+  if (keys === "internal,name") {
+    if (!isStr(e.name)) throw bad(f, "name must be a non-empty string");
+    if (typeof e["internal"] !== "boolean") throw bad(f, "internal must be true or false");
+    return { name: e.name, internal: e["internal"] };
+  }
+  throw bad(f, 'an object entry must have exactly the key "id", or exactly the keys "name" and "internal"');
+}
+const selectorKey = (e) => (typeof e === "string" ? `n:${e}` : e.id !== undefined ? `i:${e.id}` : `p:${e["internal"]}:${e.name}`);
+function testerGroups(tg) {
+  const list = Array.isArray(tg) ? tg : [tg];
+  if (list.length === 0) throw bad("testerGroup", "must not be an empty array");
+  const out = list.map(groupEntry);
+  const seen = new Set();
+  out.forEach((e, i) => {
+    const k = selectorKey(e);
+    if (seen.has(k)) throw bad(`testerGroup entry ${i}`, "duplicate of an earlier entry");
+    seen.add(k);
+  });
+  return out;
+}
+
 // Validates a parsed config object and returns it with the defaults applied. Throws ConfigError(3).
 export function validate(cfg, { home = process.env.HOME } = {}) {
   if (!isObj(cfg)) throw bad("(root)", "must be a JSON object");
@@ -131,10 +166,7 @@ export function validate(cfg, { home = process.env.HOME } = {}) {
   out.marketingVersion = marketingVersion(cfg.marketingVersion);
   const tg = cfg.testerGroup;
   if (tg === undefined) throw bad("testerGroup", "is required");
-  const groups = typeof tg === "string" ? [tg] : tg;
-  if (!Array.isArray(groups) || groups.length === 0 || !groups.every(isStr)) throw bad("testerGroup", "must be a group name or a non-empty array of group names");
-  if (new Set(groups).size !== groups.length) throw bad("testerGroup", "group names must be distinct");
-  out.testerGroup = [...groups];
+  out.testerGroup = testerGroups(tg);
   if (cfg.submitExternal !== undefined && typeof cfg.submitExternal !== "boolean") throw bad("submitExternal", "must be true or false");
   out.submitExternal = cfg.submitExternal ?? false;
   if (cfg.notes === undefined) throw bad("notes", "is required");
@@ -247,8 +279,9 @@ Validates .hivemill/ios-release.json (defaults applied) and prints values for re
 Commands:
   check --config PATH                      validate only; prints nothing
   get --config PATH FIELD                  print one value. Lists (arrays) are NUL-terminated items.
-        FIELD: any config key (scalars as text, arrays as NUL lists; testerGroup is always a list; an unset optional
-        field prints nothing), or marketingVersion.form (file|buildSetting|command|value), marketingVersion.buildSetting,
+        FIELD: any config key (scalars as text, arrays as NUL lists; an unset optional field prints nothing;
+        testerGroup works only when every entry is a plain name, else exit 2), testerGroup.selectors (per entry three
+        NUL-terminated items: kind name|id|name-internal, value, internal true|false|empty), or marketingVersion.form (file|buildSetting|command|value), marketingVersion.buildSetting,
         notes.kind (path|command), notes.command (list), gate-count
   get-gate --config PATH --index I         print gate I: its cwd, then its argv, each NUL-terminated
   marketing-version --config PATH --build-dir DIR   print the marketing version; for the buildSetting form the
@@ -277,6 +310,11 @@ function getField(cfg, field) {
     case "marketingVersion.buildSetting": return cfg.marketingVersion.buildSetting === undefined ? "" : `${cfg.marketingVersion.buildSetting}\n`;
     case "notes.kind": return cfg.notes.path !== undefined ? "path\n" : "command\n";
     case "notes.command": return list(cfg.notes.command ?? []);
+    case "testerGroup.selectors":
+      return list(cfg.testerGroup.flatMap((e) => (typeof e === "string" ? ["name", e, ""] : e.id !== undefined ? ["id", e.id, ""] : ["name-internal", e.name, String(e["internal"])])));
+    case "testerGroup":
+      if (!cfg.testerGroup.every((e) => typeof e === "string")) throw new ConfigError(2, "testerGroup has id or name+internal entries: use the field testerGroup.selectors");
+      return list(cfg.testerGroup);
     case "notes": case "marketingVersion": case "gates": throw new ConfigError(2, `use a dotted field or a helper command for ${field}`);
     default:
       if (!KEYS.includes(field)) throw new ConfigError(2, `unknown field: ${field}`);

@@ -1,0 +1,43 @@
+{"id": 1, "ts": "2026-11-09T08:00:00Z", "actor": "owner", "entity": "agent", "entity_id": "claude-coder-t-0003", "action": "spawn", "detail": "{\"pane\": \"p1\"}"}
+{"id": 2, "ts": "2026-11-09T19:00:00Z", "actor": "owner", "entity": "agent", "entity_id": "claude-coder-t-0008", "action": "spawn", "detail": "{\"pane\": \"p2\"}"}
+{"id": 3, "ts": "2026-11-09T20:00:05Z", "actor": "claude-coder-t-0008", "entity": "task", "entity_id": "T-0008", "action": "pr-create", "detail": "o/r factory/t-0008"}
+{"id": 4, "ts": "2026-11-09T21:00:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0008", "action": "review-autospawn-wait", "detail": "{\"head\": \"h8\", \"kind\": \"gate\", \"why\": \"agent cap\"}"}
+{"id": 5, "ts": "2026-11-09T23:00:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0008", "action": "review-autospawn-wait", "detail": "{\"head\": \"h8\", \"kind\": \"coder\", \"why\": \"coder live\"}"}
+{"id": 6, "ts": "2026-11-10T01:00:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0008", "action": "red-pr-unowned", "detail": "h8 -> director"}
+{"id": 7, "ts": "2026-11-10T01:30:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0008", "action": "coder-ci-resume", "detail": "{\"agent\": \"claude-coder-t-0008\", \"mode\": \"resume\"}"}
+{"id": 8, "ts": "2026-11-10T11:00:05+01:00", "actor": "claude-coder-t-0001", "entity": "task", "entity_id": "T-0001", "action": "pr-create", "detail": "o/r factory/t-0001"}
+{"id": 9, "ts": "2026-11-10T10:01:00Z", "actor": "claude-coder-t-0001", "entity": "task", "entity_id": "T-0001", "action": "update", "detail": "status=in_review pr=https://github.com/o/r/pull/1"}
+{"id": 10, "ts": "2026-11-10T10:02:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0001", "action": "review-autospawn-wait", "detail": "{\"head\": \"aaa\", \"kind\": \"ci\", \"why\": \"CI is not green\"}"}
+this line is not JSON {
+{"id": 11, "ts": "2026-11-10T11:00:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0001", "action": "review-autospawn", "detail": "{\"agent\": \"claude-reviewer-t-0001\", \"role\": \"reviewer\", \"sha\": \"aaa\"}"}
+{"id": 12, "ts": "2026-11-10T11:00:01Z", "actor": "owner", "entity": "task", "entity_id": "T-0001", "action": "review-autospawn", "detail": "{\"agent\": \"claude-qa-t-0001\", \"role\": \"qa\", \"sha\": \"aaa\"}"}
+{"id": 13, "ts": "2026-11-10T11:30:00Z", "actor": "claude-reviewer-t-0001", "entity": "task", "entity_id": "T-0001", "action": "reviewer-pass", "detail": "@aaa"}
+{"id": 14, "ts": "2026-11-10T12:00:00Z", "actor": "claude-qa-t-0001", "entity": "task", "entity_id": "T-0001", "action": "qa-pass", "detail": "@aaa"}
+{"id": 15, "ts": "2026-11-10T12:00:30Z", "actor": "owner", "entity": "task", "entity_id": "T-0001", "action": "judge-autospawn", "detail": "{\"agent\": \"claude-judge-t-0001\", \"status\": \"live\"}"}
+{"id": 16, "ts": "2026-11-10T12:10:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0001", "action": "some-future-action", "detail": "renamed actions are ignored"}
+{"id": 17, "ts": "2026-11-10T13:00:00Z", "actor": "claude-judge-t-0001", "entity": "task", "entity_id": "T-0001", "action": "merged", "detail": "@aaa"}
+{"id": 18, "ts": "2026-11-10T10:00:05Z", "actor": "cursor-coder-t-0002", "entity": "task", "entity_id": "T-0002", "action": "pr-create", "detail": "o/r feature/x"}
+{"id": 19, "ts": "2026-11-10T10:00:06Z", "actor": "cursor-coder-t-0002", "entity": "task", "entity_id": "T-0901", "action": "pr-create", "detail": "x/y owner-patch"}
+{"id": 20, "ts": "2026-11-10T11:00:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0002", "action": "review-autospawn", "detail": "{\"role\": \"reviewer\", \"sha\": \"b1\"}"}
+{"id": 21, "ts": "2026-11-10T11:00:01Z", "actor": "owner", "entity": "task", "entity_id": "T-0002", "action": "review-autospawn", "detail": "{\"role\": \"qa\", \"sha\": \"b1\"}"}
+{"id": 22, "ts": "2026-11-10T11:30:00Z", "actor": "cursor-reviewer-t-0002", "entity": "task", "entity_id": "T-0002", "action": "reviewer-fail", "detail": "@b1"}
+{"id": 23, "ts": "2026-11-10T12:00:00Z", "actor": "cursor-qa-t-0002", "entity": "task", "entity_id": "T-0002", "action": "qa-pass", "detail": "@b1"}
+{"id": 24, "ts": "2026-11-10T13:00:00Z", "actor": "cursor-coder-t-0002-fix", "entity": "agent", "entity_id": "cursor-coder-t-0002-fix", "action": "done", "detail": "PR fixed"}
+{"id": 25, "ts": "2026-11-10T13:30:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0002", "action": "review-autospawn", "detail": "{\"role\": \"reviewer\", \"sha\": \"b2\"}"}
+{"id": 26, "ts": "2026-11-10T14:00:00Z", "actor": "cursor-reviewer-t-0002", "entity": "task", "entity_id": "T-0002", "action": "reviewer-pass", "detail": "@b2"}
+{"id": 27, "ts": "2026-11-10T14:30:00Z", "actor": "cursor-qa-t-0002", "entity": "task", "entity_id": "T-0002", "action": "qa-pass", "detail": "@b2"}
+{"id": 28, "ts": "2026-11-10T14:40:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0002", "action": "judge-blocked", "detail": "checks not green: unittest=IN_PROGRESS"}
+{"id": 29, "ts": "2026-11-10T15:00:00Z", "actor": "owner", "entity": "task", "entity_id": "T-0002", "action": "judge-blocked", "detail": "qa PASS is for b2, head is now b3"}
+{"id": 30, "ts": "2026-11-10T15:30:00Z", "actor": "cursor-judge-t-0002", "entity": "task", "entity_id": "T-0002", "action": "refreshed", "detail": "{\"from\": \"b2\", \"to\": \"b3\", \"how\": \"by judge\"}"}
+{"id": 31, "ts": "2026-11-10T15:45:00Z", "actor": "cursor-judge-t-0002", "entity": "task", "entity_id": "T-0002", "action": "verdict-carried", "detail": "{\"role\": \"qa\"}"}
+{"id": 32, "ts": "2026-11-10T10:00:30Z", "actor": "claude-lead-g-001-a", "entity": "task", "entity_id": "T-0003", "action": "update", "detail": "status=in_review pr=https://github.com/o/r/pull/3 — note"}
+{"id": 33, "ts": "2026-11-10T10:00:31Z", "actor": "claude-lead-g-001-a", "entity": "task", "entity_id": "T-0900", "action": "update", "detail": "status=in_review pr=https://github.com/x/y/pull/3"}
+{"id": 34, "ts": "2026-11-10T10:30:00Z", "actor": "claude-director", "entity": "task", "entity_id": "T-0003", "action": "judge-hold-set", "detail": "hold until the lane is free"}
+{"id": 35, "ts": "2026-11-10T17:00:00Z", "actor": "tick", "entity": "redmain", "entity_id": "o/r", "action": "red-main", "detail": "run 1 failure"}
+{"id": 36, "ts": "2026-11-10T17:30:00Z", "actor": "tick", "entity": "redmain", "entity_id": "o/r", "action": "red-main", "detail": "run 2 failure"}
+{"id": 37, "ts": "2026-11-10T18:00:00Z", "actor": "tick", "entity": "redmain", "entity_id": "x/y", "action": "red-main", "detail": "run 9 failure"}
+{"id": 38, "ts": "2026-11-10T19:00:00Z", "actor": "tick", "entity": "redmain", "entity_id": "o/r", "action": "red-main-clear", "detail": "run 3 green"}
+{"id": 39, "ts": "2026-11-10T19:30:00Z", "actor": "claude-director", "entity": "task", "entity_id": "T-0003", "action": "judge-hold-clear", "detail": ""}
+{"id": 40, "ts": "2026-11-10T10:00:05Z", "actor": "cursor-coder-t-0004", "entity": "task", "entity_id": "T-0004", "action": "pr-create", "detail": "o/r factory/t-0004"}
+{"id": 41, "ts": "2026-11-10T11:00:00Z", "actor": "cursor-lead-g-002-a", "entity": "task", "entity_id": "T-0004", "action": "update", "detail": "status=blocked waits=internal — lane held"}
+{"id": 42, "ts": "2026-11-10T11:30:00Z", "actor": "cursor-lead-g-002-a", "entity": "task", "entity_id": "T-0004", "action": "update", "detail": null}
