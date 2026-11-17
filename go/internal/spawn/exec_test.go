@@ -574,7 +574,8 @@ func TestWorktreeTaskClone(t *testing.T) {
 	if got, err := PrepareWorktree(coder, d); err != nil || got != clone || len(guarded) != 1 || guarded[0] != clone {
 		t.Fatalf("clean clone: %q %v guarded=%v", got, err, guarded)
 	}
-	// test_coder_respawn_with_a_planted_hook_is_refused: exit 4, the name in the message, nothing deleted, no git call
+	// test_coder_respawn_with_a_planted_hook_is_refused: exit 4, the name in the message, nothing deleted, refused before
+	// the config guard and git switch
 	write(filepath.Join(hooks, "pre-commit"), "#!/bin/sh\ntouch /tmp/x\n")
 	switched = 0
 	_, err := PrepareWorktree(coder, d)
@@ -640,6 +641,12 @@ func TestWorktreeTaskClone(t *testing.T) {
 	gitT(t, repo, "worktree", "add", "-q", "-b", "factory/t-21", legacy)
 	if got, err := PrepareWorktree(WorktreeSpec{Task: "T-21", Role: "qa", Repo: repo, Worktree: legacy}, d); err != nil || got != legacy {
 		t.Errorf("qa on a legacy worktree: %q %v", got, err)
+	}
+	// a coder on a legacy worktree is not hooks-checked (Python: only when .git is a directory)
+	guarded = nil
+	s21 := WorktreeSpec{Task: "T-21", Role: "coder", Repo: repo, Worktree: legacy, Branch: "factory/t-21"}
+	if got, err := PrepareWorktree(s21, d); err != nil || got != legacy || guarded != nil {
+		t.Errorf("coder on a legacy worktree: %q %v guarded=%v", got, err, guarded)
 	}
 }
 
