@@ -34,8 +34,9 @@ class InboxTests(FactoryTestCase):
         self.assertEqual(self.recipient("lead:g-001-a"), "zz-test-lead")
 
     def test_inbox_recipient_lead_team_without_lead_fails(self):
+        # T-1626: a worker falls through to its director; a lead sender still gets the refusal.
         self.env.seed_team("g-001-b", lead=None)
-        p = self.refused(1, "msg", "lead:g-001-b", "s", "b", agent="zz-test-coder")
+        p = self.refused(1, "msg", "lead:g-001-b", "s", "b", agent="zz-test-lead")
         self.assertIn("no lead", p.stderr)
 
     def test_inbox_recipient_owner_goes_to_boss(self):

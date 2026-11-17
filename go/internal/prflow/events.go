@@ -48,6 +48,8 @@ type Index struct {
 	Events map[string][]TaskEvent
 	// Red holds the red-main windows of the repo. An open window has a zero To.
 	Red []Interval
+	// RedRepos holds the red-main events and windows of every repo in the log, for the red main section.
+	RedRepos map[string]*RedState
 	// Lines and Skipped count the lines read and the lines that were not a usable JSON event.
 	Lines, Skipped int
 }
@@ -123,8 +125,8 @@ func ReadEvents(r io.Reader, repo string, notBefore time.Time) (*Index, error) {
 		BranchTask: map[string]string{},
 		TaskOrg:    map[string]string{},
 		Events:     map[string][]TaskEvent{},
+		RedRepos:   map[string]*RedState{},
 	}
-	redOpen := false
 	lines, tooLong, err := scanLines(r, MaxLineBytes, func(line []byte) {
 		if len(strings.TrimSpace(string(line))) == 0 {
 			return
@@ -145,19 +147,23 @@ func ReadEvents(r io.Reader, repo string, notBefore time.Time) (*Index, error) {
 		}
 		switch ev.Entity {
 		case "redmain":
-			if ev.EntityID != repo {
-				return
+			st := ix.RedRepos[ev.EntityID]
+			if st == nil {
+				st = &RedState{}
+				ix.RedRepos[ev.EntityID] = st
 			}
 			switch ev.Action {
 			case "red-main":
-				if !redOpen {
-					ix.Red = append(ix.Red, Interval{From: at})
-					redOpen = true
+				// The day is the date in the ts's own offset, so it does not depend on the machine time zone.
+				st.Events = append(st.Events, RedEvent{At: at, Day: at.Format("2006-01-02")})
+				if !st.open {
+					st.Windows = append(st.Windows, Interval{From: at})
+					st.open = true
 				}
 			case "red-main-clear":
-				if redOpen {
-					ix.Red[len(ix.Red)-1].To = at
-					redOpen = false
+				if st.open {
+					st.Windows[len(st.Windows)-1].To = at
+					st.open = false
 				}
 			}
 		case "agent":
@@ -185,6 +191,9 @@ func ReadEvents(r io.Reader, repo string, notBefore time.Time) (*Index, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	if st := ix.RedRepos[repo]; st != nil {
+		ix.Red = st.Windows
 	}
 	ix.Lines = lines
 	ix.Skipped += tooLong
