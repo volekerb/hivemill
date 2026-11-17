@@ -830,6 +830,8 @@ class ResOutput(FactoryTestCase):
             with contextlib.redirect_stdout(out):
                 mod.cmd_res(argparse.Namespace())
         self.assertIn(["/bin/ps", "-axo", "rss=,command=", "-m"], runner.named("ps"))
+        top_env = runner.envs[runner.calls.index(["/bin/ps", "-axo", "rss=,command=", "-m"])]
+        self.assertEqual((top_env or {}).get("PATH"), "/usr/bin:/bin:/usr/sbin:/sbin")  # not the caller's PATH
         self.assertNotIn("--sort=-rss", str(runner.calls))
         self.assertIn("serve unit drift check: skipped on macOS", out.getvalue())
         self.assertIn("2 MB  /usr/bin/big", out.getvalue())
