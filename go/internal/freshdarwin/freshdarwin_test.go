@@ -14,7 +14,8 @@ const pw = "S3cretPassw0rdXYZ"
 type fake struct {
 	calls    []string
 	failOn   string
-	ticks    int // distinct tick.lock mtimes the stat reports over successive polls
+	ticks    int  // tick.lock mtime moves after the one factory up set (first poll = baseline)
+	missing  bool // the lock file never exists
 	polls    int
 	userGone bool
 }
@@ -29,13 +30,13 @@ func (f *fake) Run(c Cmd) (string, int, error) {
 	case c.Argv[0] == "id":
 		return "501\n", 0, nil
 	case strings.Contains(j, "stat -f %m"):
-		if f.ticks == 0 {
+		if f.missing {
 			return "stat: No such file or directory", 1, nil // no tick ever ran
 		}
 		f.polls++
 		n := f.polls
-		if n > f.ticks {
-			n = f.ticks
+		if n > f.ticks+1 {
+			n = f.ticks + 1
 		}
 		return itoa(n) + "00\n", 0, nil // idle install: only the lock mtime moves, no events at all
 	case c.Argv[0] == "dscl":
@@ -338,10 +339,11 @@ func TestIdleInstallPassesOnTickLockMtime(t *testing.T) {
 	}
 }
 
-// A lock file that never moves (one run seen, or none) times out with a message saying what to check.
+// factory up sets the lock mtime and only one tick follows (or none, or no file): that is under 2 increments
+// past the baseline, so the wait times out with a message saying what to check.
 func TestNoTickTimesOutClearly(t *testing.T) {
-	for _, ticks := range []int{0, 1} {
-		f := &fake{ticks: ticks}
+	for _, ticks := range []int{-1, 0, 1} {
+		f := &fake{ticks: ticks, missing: ticks < 0}
 		var log bytes.Buffer
 		code, err := Run(cfgFor(f, &log))
 		if err != nil || code != 1 {

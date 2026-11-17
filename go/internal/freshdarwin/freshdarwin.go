@@ -278,13 +278,15 @@ func (s *runState) userStep(argv ...string) error {
 	return err
 }
 
-// waitTicks waits for Ticks distinct mtimes of the tick lock file. The tick driver reopens
+// waitTicks waits for Ticks mtime changes of the tick lock file past a baseline taken at the first poll
+// (after factory up, which itself rewrites the lock). The tick driver reopens
 // run/tick.lock with "w" on every tick run, so its mtime moves on every run, idle or not. The events log
 // only gets conditional tick events, which an idle fresh install may never write (T-1648).
 func (s *runState) waitTicks() error {
 	lock := s.home + "/" + s.cfg.TickLock
 	deadline := s.cfg.Now().Add(s.cfg.Timeout)
 	seen := map[string]bool{}
+	baseline, haveBase := "", false
 	last := ""
 	for {
 		// BSD stat as the user, so file permissions are the real ones. A missing file means no tick yet.
@@ -293,7 +295,14 @@ func (s *runState) waitTicks() error {
 			return err
 		}
 		last = fmt.Sprintf("last stat exit %d: %s", code, strings.TrimSpace(out))
-		if m := strings.TrimSpace(out); code == 0 && m != "" {
+		m := strings.TrimSpace(out)
+		if code != 0 || m == "" {
+			m = "" // missing file: baseline "missing", so the lock appearing later counts as a tick run
+		}
+		if !haveBase {
+			// factory up takes tick.lock too, so the first mtime is not a tick run: count moves past it.
+			baseline, haveBase = m, true
+		} else if m != "" && m != baseline {
 			seen[m] = true
 		}
 		n := len(seen)
