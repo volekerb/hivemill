@@ -107,3 +107,35 @@ func TestInboxParseSpecialCases(t *testing.T) {
 		t.Fatal("daily digest prefix check differs from Python's lower().startswith")
 	}
 }
+
+// TestInboxMarksPreSpawnStopStale: port of test_inbox_marks_pre_spawn_stop_stale for the read-only (--peek) path
+// Go answers; the golden case peek_stop_stale holds Python's exact output.
+func TestInboxMarksPreSpawnStopStale(t *testing.T) {
+	cases := []struct {
+		created, started string
+		stale, delegate  bool
+	}{
+		{"2026-03-01T10:00:00+00:00", "2026-03-01T10:05:00+00:00", true, false},
+		{"2026-03-01T10:05:00+00:00", "2026-03-01T10:05:00+00:00", false, false}, // same second: delivered
+		{"2026-03-01T10:05:01+00:00", "2026-03-01T10:05:00+00:00", false, false},
+		{"2026-11-05T08:30:00+00:00", "2026-11-05T10:00:00+01:00", true, false}, // instants, not text
+		{"2026-11-05T09:30:00+01:00", "", false, false},                         // NULL started decides nothing
+		{"2026-03-01T10:00:00", "2026-03-01T10:05:00+00:00", false, true},       // naive local time: Python decides
+		{"2026-03-01T10:00:00Z", "2026-03-01T10:05:00.5+00:00", true, false},    // Z suffix and fraction
+		{"2026-03-01T10:00:00+24:00", "2026-03-01T10:05:00+00:00", false, true},
+		{"0000-03-01T10:00:00+00:00", "2026-03-01T10:05:00+00:00", false, true},
+	}
+	for _, c := range cases {
+		got, err := stopOrderPredates(c.created, c.started)
+		if c.delegate != (err != nil) || got != c.stale {
+			t.Errorf("stopOrderPredates(%q, %q) = %v, %v; want stale=%v delegate=%v", c.created, c.started, got, err, c.stale, c.delegate)
+		}
+	}
+	out, err := os.ReadFile(filepath.Join(goldenDir, "inbox", "peek_stop_stale", "stdout"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(out, []byte("   [stale: sent to an earlier pane] STOP\n")) || bytes.Contains(out, []byte("Stop work now")) {
+		t.Fatalf("golden does not show the stale STOP marked:\n%s", out)
+	}
+}
