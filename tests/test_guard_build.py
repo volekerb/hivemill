@@ -425,23 +425,78 @@ class GuardBuildHardeningTests(FactoryTestCase):
     def test_gate_python_never_runs_go_and_still_writes_the_flag(self):
         h = write_go(self.env.home_dir)
         self.fake_go(self.OK_BUILD)
-        self.hold_expiry_min("0")  # about guard_impl only: the hold_expiry unit would otherwise build factory-go
+        self.hold_expiry_min("0")
         with self.factory() as f:
             for tick in (True, False):
                 f.guard_tick(f.db(), tick=tick, src=self.env.home_dir, lib=self.lib, go=self.go)
-        self.assertEqual(self.ncalls(), 0)
-        self.assertFalse(self.lib.exists())
+        # T-1804: since then both binaries are built at python/python (one call each, the second tick finds the stamps),
+        # but the flag stays python: nothing routes to Go
+        self.assertEqual(self.ncalls(), 2)
         self.assertEqual((self.env.home_dir / "run" / "guard_impl").read_text(), f"python {h}\n")
+        self.assertEqual((self.env.home_dir / "run" / "cli_impl").read_text(), "python -\n")
 
-    def test_python_python_with_hold_expiry_on_builds_factory_go_only(self):  # T-1631
+    def test_python_python_with_hold_expiry_on_builds_both_binaries(self):  # T-1631, widened by T-1804
         write_go(self.env.home_dir)
         self.fake_go(self.OK_BUILD)
         self.hold_expiry_min("120")
         with self.factory() as f:
             f.guard_tick(f.db(), tick=True, src=self.env.home_dir, lib=self.lib, go=self.go)
-        self.assertEqual(self.ncalls(), 1)  # factory-go only; the guard stays python
+        self.assertEqual(self.ncalls(), 2)
         self.assertTrue((self.lib / "factory-go.stamp").exists())
-        self.assertFalse((self.lib / "worker-guard.stamp").exists())
+        self.assertTrue((self.lib / "worker-guard.stamp").exists())
+
+    def test_python_python_python_builds_each_binary_once_and_stamps_skip(self):  # T-1804 acceptance 1
+        write_go(self.env.home_dir)
+        self.fake_go(self.OK_BUILD)
+        self.hold_expiry_min("0")
+        with self.factory() as f:
+            with mock.patch.object(f, "build_cli_go", wraps=f.build_cli_go) as cli, \
+                    mock.patch.object(f, "build_guard_go", wraps=f.build_guard_go) as guard:
+                f.guard_tick(f.db(), tick=True, src=self.env.home_dir, lib=self.lib, go=self.go)
+                # build_cli_go delegates to build_guard_go with name=factory-go; count the direct guard call apart
+                direct = [c for c in guard.call_args_list if "name" not in c.kwargs]
+                self.assertEqual((cli.call_count, len(direct)), (1, 1))
+            self.assertEqual(self.ncalls(), 2)
+            self.assertTrue((self.lib / "factory-go.stamp").exists())
+            self.assertTrue((self.lib / "worker-guard.stamp").exists())
+            f.guard_tick(f.db(), tick=True, src=self.env.home_dir, lib=self.lib, go=self.go)
+        self.assertEqual(self.ncalls(), 2)  # stamps match: no go invocation
+
+    def test_dispatch_flags_unchanged_by_the_build(self):  # T-1804 acceptance 2
+        h = write_go(self.env.home_dir)
+        self.hold_expiry_min("0")
+        self.set_impl("python")
+        for cli_impl, guard_impl in (("python", "python"), ("python", "go"), ("shadow", "python"), ("go", "go")):
+            self.fake_go(self.OK_BUILD)
+            self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('cli_impl',?)", (cli_impl,))
+            self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('guard_impl',?)", (guard_impl,))
+            lib = self.tmp / f"lib-{cli_impl}-{guard_impl}"
+            with self.factory() as f:
+                csv = f.cfg(f.db(), "cli_go_cmds")
+                f.guard_tick(f.db(), tick=True, src=self.env.home_dir, lib=lib, go=self.go)
+            want_cli = "python -" if cli_impl == "python" else f"{cli_impl} {h} {csv}"
+            self.assertEqual((self.env.home_dir / "run" / "cli_impl").read_text(), want_cli + "\n", cli_impl)
+            self.assertEqual((self.env.home_dir / "run" / "guard_impl").read_text(), f"{guard_impl} {h}\n", guard_impl)
+            self.assertTrue((lib / "factory-go.stamp").exists() and (lib / "worker-guard.stamp").exists())
+
+    def test_load_over_cap_builds_nothing(self):  # T-1804 acceptance 3
+        write_go(self.env.home_dir)
+        self.fake_go(self.OK_BUILD)
+        self.hold_expiry_min("0")
+        with self.factory() as f, mock.patch.object(f, "load1", return_value=1e9):
+            f.guard_tick(f.db(), tick=True, src=self.env.home_dir, lib=self.lib, go=self.go)
+        self.assertEqual(self.ncalls(), 0)
+        self.assertFalse(self.lib.exists())
+
+    def test_failing_build_prints_one_line_per_binary_and_returns(self):  # T-1804 acceptance 3
+        write_go(self.env.home_dir)
+        self.fake_go("exit 1")
+        self.hold_expiry_min("0")
+        with self.factory() as f:
+            f.guard_tick(f.db(), tick=True, src=self.env.home_dir, lib=self.lib, go=self.go)
+        lines = [x for x in self.err.getvalue().splitlines() if "go build" in x]
+        self.assertEqual(len(lines), 2, self.err.getvalue())  # guard + factory-go, one line each
+        self.assertFalse((self.lib / "factory-go.stamp").exists())
 
     def test_gate_open_for_go_and_shadow_on_both_paths(self):
         write_go(self.env.home_dir)
@@ -453,7 +508,7 @@ class GuardBuildHardeningTests(FactoryTestCase):
             before = self.ncalls()
             with self.factory() as f:
                 f.guard_tick(f.db(), tick=tick, src=self.env.home_dir, lib=lib, go=self.go)
-            self.assertEqual(self.ncalls(), before + 1, impl)
+            self.assertEqual(self.ncalls(), before + 2, impl)  # guard + factory-go (T-1804)
             self.assertTrue((lib / "worker-guard.stamp").exists(), impl)
 
     # E2 / acceptance 17: exactly this environment and argv, whatever the caller's environment holds
