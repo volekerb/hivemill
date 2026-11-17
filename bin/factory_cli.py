@@ -8944,6 +8944,7 @@ IDLE_WATCHDOG_NUDGE_GAP_S = 600   # W3: cursor nudges at least this far apart
 IDLE_WATCHDOG_CURSOR_NUDGES = 2   # W3: then one alert, never a third nudge
 IDLE_WATCHDOG_DB_WINDOW = 50000   # newest events/messages rows scanned for an agent's own DB writes
 IDLE_WATCHDOG_TAIL_BYTES = 65536
+IDLE_WATCHDOG_TRANSCRIPT_FILES = 2000  # cap on files stat'ed per cursor agent per tick
 IDLE_WATCHDOG_HOLD_RE = re.compile(r"(?im)^\s*hold\b|\bHOLD:")
 IDLE_WATCHDOG_STEPS = ("idle-watchdog-nudge", "idle-watchdog-relaunch", "idle-watchdog-alert", "idle-watchdog-error-alert",
                        "idle-watchdog-refused-alert")
@@ -8952,10 +8953,6 @@ IDLE_WATCHDOG_NUDGE = ("Factory watchdog: your turn ended {min} min ago and task
                        "commit with git commit-tree (no trailer) and push again. Then finish: factory pr create, factory "
                        "prcheck, set in_review, factory done. If a command is still refused, run factory msg {director} "
                        "'{task} blocked' 'the refused command and its exact output' --kind escalation, then wait.")
-
-
-def _alnum(s):
-    return re.sub(r"[^A-Za-z0-9]", "", str(s))
 
 
 def _idle_newest_mtime(paths):
@@ -8984,25 +8981,54 @@ def _claude_transcript_mtime(r):
         return None
 
 
+def _cursor_project_names(ws):
+    """The ~/.cursor/projects/<dir> names the Cursor CLI uses for workspace `ws`: the absolute path with each
+    non-alphanumeric character (or each run of them) as '-', outer dashes stripped. Exact names only: two workspaces
+    that differ only in separators never share a transcript dir."""
+    ws = str(ws)
+    return {re.sub(r"[^A-Za-z0-9]", "-", ws).strip("-"), re.sub(r"[^A-Za-z0-9]+", "-", ws).strip("-")} - {""}
+
+
 def _cursor_transcript(r):
-    """(newest file, mtime) under ~/.cursor/projects/<dir>/agent-transcripts for cursor row `r`, where <dir> is the agent's
-    policy workspace (spawn_args cursor_workspace, else its cwd) compared without separators; None = no transcript."""
+    """(newest file, mtime) under ~/.cursor/projects/<dir>/agent-transcripts for cursor row `r`, where <dir> is the
+    agent's policy workspace (spawn_args cursor_workspace, else its cwd) named as _cursor_project_names. The layout is
+    agent-transcripts/<id>.jsonl or agent-transcripts/<id>/<id>.jsonl: at most two levels and
+    IDLE_WATCHDOG_TRANSCRIPT_FILES files are read, and no symlink (dir or file) is followed. None = no transcript."""
     ws = _spawn_args_row(r).get("cursor_workspace") or r["cwd"]
     root = Path.home() / ".cursor" / "projects"
-    if not ws or not root.is_dir():
+    if not ws:
         return None
-    want, best = _alnum(ws), None
-    try:
-        for d in root.iterdir():
-            if not d.is_dir() or _alnum(d.name) != want:
+    best, seen = None, 0
+    for nm in sorted(_cursor_project_names(ws)):
+        d = root / nm
+        top = d / "agent-transcripts"
+        if d.is_symlink() or top.is_symlink() or not top.is_dir():
+            continue
+        stack = [(top, 0)]
+        while stack and seen < IDLE_WATCHDOG_TRANSCRIPT_FILES:
+            cur, depth = stack.pop()
+            try:
+                entries = list(os.scandir(cur))
+            except OSError:
                 continue
-            for f in (d / "agent-transcripts").rglob("*"):
-                if f.is_file():
-                    m = f.stat().st_mtime
-                    if best is None or m > best[1]:
-                        best = (f, m)
-    except OSError:
-        return None
+            for ent in entries:
+                if seen >= IDLE_WATCHDOG_TRANSCRIPT_FILES:
+                    break
+                try:
+                    if ent.is_symlink():
+                        continue
+                    if ent.is_dir(follow_symlinks=False):
+                        if depth < 1:
+                            stack.append((Path(ent.path), depth + 1))
+                        continue
+                    if not ent.is_file(follow_symlinks=False):
+                        continue
+                    seen += 1
+                    m = ent.stat(follow_symlinks=False).st_mtime
+                except OSError:
+                    continue
+                if best is None or m > best[1]:
+                    best = (Path(ent.path), m)
     return best
 
 
@@ -9161,13 +9187,15 @@ def idle_watchdog(con, agents):
     default 30). Progress = the newest of the run's start, a worktree change, a transcript write and the agent's own DB
     write (idle_watchdog_progress). Every step is recorded as an idle-watchdog-* event keyed agent|task|attempts, which
     is the only state: a relaunch keeps the key, so nothing repeats or loops across ticks or runs.
-    claude, and cursor without an ended turn: idle W -> one nudge; still idle W/2 after it (and W overall) -> one fresh
-    relaunch (behind the spawn gate, one per tick); still idle W after the relaunch -> one alert to both directors.
-    cursor whose transcript ends in turn_ended (T-1621 W1-W4): status error -> alert the org director at once, never a
-    nudge; otherwise, once the turn is 10 min old -> up to 2 nudges 10 min apart, then the alert to both directors with
-    the last 300 chars of its text. A kickoff never read is T-1599's (tick_cursor_kickoff) and skipped here. A hold
-    (judge hold or HOLD in the spec) is alerted, never nudged. A refused factory done (done-refused event, W5) is alerted
-    to the org director once. Skipped: tasks done/cancelled/blocked (blocked = a named wait in tasks.waits), goals not
+    claude, and cursor without an ended turn: idle W -> one nudge; then W/2 without progress (and W/2 after the nudge)
+    -> one fresh relaunch (behind the same checks as spawn's gate, one per tick; a start the spawn gate queues anyway is
+    alerted to both directors); still idle W after the relaunch, its kickoff read or not -> one alert to both directors.
+    cursor whose transcript of this run ends in turn_ended (T-1621 W1-W4): status error -> alert the org director at
+    once, never a nudge; otherwise, once the turn is 10 min old -> up to 2 nudges 10 min apart, then one escalation to
+    the org director with the last 300 chars of its text. A first kickoff never read is T-1599's (tick_cursor_kickoff)
+    and skipped here; after a watchdog relaunch T-1599 resends the new kickoff but does not relaunch again. A hold (judge
+    hold or HOLD in the spec) is escalated to the org director, never nudged. A refused factory done (done-refused
+    event, W5) is alerted to the org director once. Skipped: tasks done/cancelled/blocked (blocked = a named wait in tasks.waits), goals not
     active, rows stopping/relaunching/starting, a pane the host does not list or reports working, a claude agent with a
     shell running (a CI wait, a test)."""
     try:
@@ -9196,16 +9224,19 @@ def idle_watchdog(con, agents):
             g = con.execute("SELECT status FROM goals WHERE id=?", (t["goal_id"],)).fetchone()
             if not g or g["status"] != "active":
                 continue
-            if _spawn_args_row(r).get("launch") == "subprocess" or kickoff_unread(con, r["name"]):
-                continue  # no pane, or a kickoff never accepted: T-1599's tick_cursor_kickoff owns that pane
-            h = by_name.get(r["name"])
-            if not h or h.get("agent_status") == "working":
-                continue  # unlisted (cannot decide) or mid-turn
+            if _spawn_args_row(r).get("launch") == "subprocess":
+                continue  # no pane
             name, runtime = r["name"], _agent_runtime(r)
             key = f"{name}|{t['id']}|{t['attempts']}"
             st = _idle_watchdog_state(con, name, key)
             if st["idle-watchdog-alert"]:
                 continue  # the terminal step was taken: no more automatic actions on this task attempt
+            unread = kickoff_unread(con, name)
+            if unread and not st["idle-watchdog-relaunch"]:
+                continue  # a kickoff never accepted: T-1599's tick_cursor_kickoff owns that pane
+            h = by_name.get(name)
+            if not h or h.get("agent_status") == "working":
+                continue  # unlisted (cannot decide) or mid-turn
             org = agent_org(con, name) or orgs.DEFAULT_ORG
             _idle_watchdog_refused(con, r, mode, key, st, org)
             nudges, relaunches = st["idle-watchdog-nudge"], st["idle-watchdog-relaunch"]
@@ -9224,7 +9255,9 @@ def idle_watchdog(con, agents):
                 _idle_watchdog_record(con, r, "idle-watchdog-nudge", mode, {**detail, "n": len(nudges) + 1, "prompt_ok": ok},
                                       f"nudged {name} ({minutes} min without progress)")
 
-            if runtime == "cursor" and tr:
+            started = _ts(r["started"])
+            if runtime == "cursor" and tr and not unread and (started is None or tr[1] >= started.timestamp()):
+                # an ended turn of an earlier run (before a relaunch) says nothing about this one
                 last, text = _cursor_transcript_tail(tr[0])
                 ended = _turn_ended(last)
                 if ended and ended[0] == "error":  # W4: a nudge cannot fix a usage-limit or model error
@@ -9245,18 +9278,19 @@ def idle_watchdog(con, agents):
                     detail["idle_min"] = ended_s // 60
                     tail = f" Its final text (last 300 chars): {text[-300:]!r}" if text else ""
                     if hold:
-                        _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged." + tail, both)
+                        _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged." + tail, (org,))
                     elif nudges and clock - max(nudges) < IDLE_WATCHDOG_NUDGE_GAP_S:
                         pass
                     elif len(nudges) < IDLE_WATCHDOG_CURSOR_NUDGES:
                         nudge(ended_s // 60)
                     else:
-                        _idle_watchdog_alert(con, r, mode, detail, f"{len(nudges)} nudges did not get it going." + tail, both)
+                        _idle_watchdog_alert(con, r, mode, detail, f"{len(nudges)} nudges did not get it going." + tail, (org,))
                     continue
-            if idle_s < w:
+            # after the nudge the relaunch waits W/2 without progress (not W again); the alert W after the relaunch
+            if idle_s < (w // 2 if nudges and not relaunches else w):
                 continue
             if hold:
-                _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged.", both)
+                _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged.", (org,))
             elif not nudges:
                 nudge(idle_s // 60)
             elif not relaunches:
@@ -9265,7 +9299,11 @@ def idle_watchdog(con, agents):
                 if runtime == "claude" and _agent_shells_busy(name):
                     continue
                 if mode == "on":
-                    ok, why, _ = gate(con, own_slot=True)  # the agent keeps its slot; never close a pane the gate would queue
+                    # the checks spawn() runs once the pane is closed (role reserves, the cursor pane limit, load): a
+                    # relaunch the spawn gate would queue is never started
+                    ok, why, gst = gate(con, own_slot=True, role=r["role"], runtime=runtime)
+                    if ok and gst["load1"] > gst["load_cap"]:
+                        ok, why = False, f"load1 {gst['load1']:.1f} > load cap {gst['load_cap']:.1f}"
                     if not ok:
                         dkey = f"idlewatch_relaunch_deferred:{name}"
                         last = con.execute("SELECT ts FROM throttle WHERE key=?", (dkey,)).fetchone()
@@ -9275,7 +9313,9 @@ def idle_watchdog(con, agents):
                             event_as(con, "tick", "agent", name, "idle-watchdog-relaunch-deferred", why)
                         continue
                 # the event first: a crash or a failure must not repeat the relaunch every tick
-                _idle_watchdog_record(con, r, "idle-watchdog-relaunch", mode, {**detail, "old_sid": r["session_id"]},
+                kick = con.execute(f"SELECT id FROM messages WHERE {KICKOFF_SQL} ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+                _idle_watchdog_record(con, r, "idle-watchdog-relaunch", mode,
+                                      {**detail, "old_sid": r["session_id"], "kick": kick["id"] if kick else None},
                                       f"relaunched {name} fresh ({idle_s // 60} min without progress after one nudge)")
                 if mode == "on":
                     relaunched = True
@@ -9284,9 +9324,19 @@ def idle_watchdog(con, agents):
                         event_as(con, "tick", "agent", name, "idle-watchdog-relaunch-failed", {"key": key, "error": msg})
                         _idle_watchdog_alert(con, r, mode, {**detail, "actions": detail["actions"] + ["relaunch failed"]},
                                              f"The fresh relaunch failed: {msg}", both)
+                        continue
+                    cur = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+                    if not cur or cur["status"] != "live":  # the spawn gate queued it after the pane closed
+                        q = con.execute("SELECT detail FROM events WHERE entity='agent' AND entity_id=? AND action='queued' "
+                                        "ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+                        _idle_watchdog_alert(con, r, mode, {**detail, "actions": detail["actions"] + ["relaunch queued"]},
+                                             f"The old pane was closed and the spawn gate queued the fresh start "
+                                             f"({q['detail'] if q else 'no reason recorded'}); it starts when the gate "
+                                             "opens.", both)
             elif clock - max(relaunches) >= w:
                 _idle_watchdog_alert(con, r, mode, detail, "Still no progress after a nudge and a fresh relaunch; a "
-                                     "second relaunch would be needed.", both)
+                                     "second relaunch would be needed." + (" The relaunched pane never read its kickoff."
+                                                                           if unread else ""), both)
     except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
         try:
             event_as(con, "tick", "tick", "idle-watchdog", "idle-watchdog-failed", str(e)[:300])
@@ -19690,6 +19740,21 @@ def _kickoff_watch_state(con, name):
     return out
 
 
+def _idle_watchdog_relaunch_kicks(con, name):
+    """Kickoff message ids that an idle-watchdog fresh relaunch (T-1622) replaced: after one, T-1599 resends the new
+    kickoff and escalates, never a second relaunch."""
+    out = set()
+    for e in con.execute("SELECT detail FROM events WHERE entity='agent' AND entity_id=? AND action='idle-watchdog-relaunch'",
+                         (name,)).fetchall():
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("mode") == "on" and isinstance(d.get("kick"), int):
+            out.add(d["kick"])
+    return out
+
+
 def kickoff_resend(con, r, kick):
     """Re-submit kickoff text `kick` to live agent row `r` through the spawn's own submit function. Never waits."""
     return kickoff_submit(con, r["name"], kick, _agent_runtime(r), _agent_host_exe(con, r) == "hc",
@@ -19757,8 +19822,9 @@ def tick_cursor_kickoff(con):
         if not listed or listed.get("agent_status") == "working":
             continue  # mid-turn: it accepted a prompt and may not have read its mail yet (r1); unlisted or host down: cannot decide
         # a failed relaunch sent no new kickoff: a later spawn under the same name is a new agent with its own budget
-        after_relaunch = (prev is not None and prev in seen["kickoff-relaunch"]
-                          and prev not in seen["kickoff-relaunch-failed"])
+        after_relaunch = prev is not None and ((prev in seen["kickoff-relaunch"]
+                                                and prev not in seen["kickoff-relaunch-failed"])
+                                               or prev in _idle_watchdog_relaunch_kicks(con, name))
         first = con.execute("SELECT created FROM messages WHERE id=?", (prev,)).fetchone() if after_relaunch else k
         idle_s = int((clock - (_ts(first["created"]) or started)).total_seconds())
         detail = {"kick": k["id"], "idle_s": idle_s, "host": host, "pane": r["pane_id"]}

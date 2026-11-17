@@ -346,6 +346,10 @@ class WatchdogBase(FactoryTestCase):
         return [r["detail"] for r in self.env.sql("SELECT detail FROM events WHERE entity='task' AND entity_id=? "
                                                   "AND action='note' AND detail LIKE 'idle watchdog:%'", (task,))]
 
+    def org_director(self, org):
+        with self.env.load_factory() as mod:
+            return mod.oname(mod.db(), org, "director")
+
     def directors(self):
         """The claude org's director name (prefix depends on org_prefix_default) and cursor's."""
         with self.env.load_factory() as mod:
@@ -466,8 +470,49 @@ class WatchdogClaude(WatchdogBase):
         self.tick(31)
         self.tick(60)
         self.assertEqual(self.nudges(name), [])
+        al = self.alerts(name)  # W3: a hold is escalated to the org director only
+        self.assertEqual([a["recipient"] for a in al], [self.org_director("claude")])
+        self.assertIn("named hold", al[0]["body"])
+
+    def test_relaunched_pane_that_never_reads_its_kickoff_is_still_alerted(self):
+        name = self.spawn()
+        self.tick(31)
+        self.tick(47)
+        self.assertEqual(len(self.steps("idle-watchdog-relaunch", name)), 1)
+        self.claude_proc(name, pid=102)  # the fresh pane runs, but never runs factory inbox
+        self.tick(70)
+        self.assertEqual(self.alerts(name), [])
+        self.tick(78)
+        al = self.alerts(name)
+        self.assertEqual({a["recipient"] for a in al}, self.directors())
+        self.assertIn("never read its kickoff", al[0]["body"])
+        self.tick(120)
         self.assertEqual(len(self.alerts(name)), 2)
-        self.assertIn("named hold", self.alerts(name)[0]["body"])
+        self.assertEqual(len(self.host_calls("agent", "start")), 1)
+
+    def test_progress_after_the_nudge_relaunches_after_half_w_not_w(self):
+        name = self.spawn()
+        self.tick(31)
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.ok("task", "note", "T-0001", "on it", agent=name, extra_env=self.at(32))
+        self.tick(46)  # 14 min after that write: not yet W/2
+        self.assertEqual(self.host_calls("pane", "close"), [])
+        self.tick(48)  # 16 min after the write, 17 after the nudge
+        self.assertEqual(len(self.steps("idle-watchdog-relaunch", name)), 1)
+        self.assertEqual(len(self.host_calls("pane", "close")), 1)
+
+    def test_relaunch_waits_while_the_spawn_gate_load_cap_is_hit(self):
+        name = self.spawn()
+        self.tick(31)
+        self.ok("tick", extra_env={**self.at(47), "FACTORY_LOADAVG": "999"})
+        self.assertEqual(self.host_calls("pane", "close"), [])  # never close a pane spawn would only queue
+        self.assertEqual(self.steps("idle-watchdog-relaunch", name), [])
+        self.assertTrue(self.env.sql("SELECT 1 FROM events WHERE action='idle-watchdog-relaunch-deferred' AND entity_id=?",
+                                     (name,)))
+        self.assertEqual(self.row(name)["status"], "live")
+        self.ok("tick", extra_env={**self.at(50), "FACTORY_LOADAVG": "0.1"})
+        self.assertEqual(len(self.host_calls("pane", "close")), 1)
+        self.assertEqual(self.row(name)["status"], "live")
 
     def test_shell_under_the_agent_blocks_the_nudge(self):
         name = self.spawn()
@@ -507,12 +552,12 @@ class WatchdogCursor(WatchdogBase):
         self.assertEqual(len(self.nudges(name)), 2)
         self.tick(38)
         self.assertEqual(len(self.nudges(name)), 2)  # never a third
-        al = self.alerts(name)
-        self.assertEqual({a["recipient"] for a in al}, self.directors())
+        al = self.alerts(name)  # W3: one escalation to the org director, not both
+        self.assertEqual([a["recipient"] for a in al], ["cursor-director"])
         self.assertIn(repr(self.TEXT[-300:]), al[0]["body"])
         for m in (60, 120):
             self.tick(m)
-        self.assertEqual(len(self.alerts(name)), 2)
+        self.assertEqual(len(self.alerts(name)), 1)
         self.assertEqual(self.host_calls("pane", "close"), [])  # the cursor ended-turn path never relaunches
 
     def test_ended_turn_with_error_alerts_the_org_director_at_once_without_nudge(self):
@@ -538,7 +583,9 @@ class WatchdogCursor(WatchdogBase):
         self.cursor_transcript(name, 0, [{"type": "turn_ended", "status": "success"}])
         self.tick(11)
         self.assertEqual(self.nudges(name), [])
-        self.assertIn("named hold", self.alerts(name)[0]["body"])
+        al = self.alerts(name)
+        self.assertEqual([a["recipient"] for a in al], ["cursor-director"])
+        self.assertIn("named hold", al[0]["body"])
 
     def test_no_transcript_after_a_read_kickoff_takes_the_generic_nudge(self):
         name = self.spawn(cursor=True)
@@ -604,6 +651,46 @@ class WatchdogCursor(WatchdogBase):
         self.assertEqual(len(self.alerts(name)), 2)
         self.assertEqual(len(self.host_calls("pane", "close")), 1)
         self.assertEqual(len(self.nudges(name)), 1)
+
+
+    def test_relaunched_cursor_pane_unread_gets_no_second_relaunch_and_is_alerted(self):
+        name = self.spawn(cursor=True)
+        self.tick(31)
+        self.tick(47)
+        self.assertEqual(len(self.steps("idle-watchdog-relaunch", name)), 1)
+        for m in (55, 60, 65, 70, 78, 90, 120):  # the new kickoff is never read
+            self.tick(m)
+        self.assertEqual(len(self.host_calls("pane", "close")), 1)  # T-1599 does not relaunch it again
+        self.assertEqual(self.steps("kickoff-relaunch", name), [])
+        al = [a for a in self.alerts(name) if "idle" in a["subject"]]
+        self.assertEqual({a["recipient"] for a in al}, self.directors())
+
+    def test_separator_twin_project_dir_is_not_read(self):
+        name = self.spawn(cursor=True)
+        ws = json.loads(self.row(name)["spawn_args"]).get("cursor_workspace") or self.row(name)["cwd"]
+        twin = re.sub(r"[^A-Za-z0-9]", "", ws)  # same letters and digits, no separators: another agent's dir
+        d = self.env.user_home / ".cursor" / "projects" / twin / "agent-transcripts" / "x"
+        d.mkdir(parents=True)
+        f = d / "x.jsonl"
+        f.write_text(json.dumps({"type": "turn_ended", "status": "error", "error": "not mine"}) + "\n")
+        os.utime(f, (self.epoch(1), self.epoch(1)))
+        self.tick(2)
+        self.assertEqual(self.alerts(name), [])
+        self.assertEqual(self.steps("idle-watchdog-error-alert", name), [])
+
+    def test_symlinked_transcript_dir_is_not_followed(self):
+        name = self.spawn(cursor=True)
+        ws = json.loads(self.row(name)["spawn_args"]).get("cursor_workspace") or self.row(name)["cwd"]
+        elsewhere = self.env.home / "elsewhere" / "x"
+        elsewhere.mkdir(parents=True)
+        f = elsewhere / "x.jsonl"
+        f.write_text(json.dumps({"type": "turn_ended", "status": "error", "error": "via symlink"}) + "\n")
+        os.utime(f, (self.epoch(1), self.epoch(1)))
+        proj = self.env.user_home / ".cursor" / "projects" / re.sub(r"[^A-Za-z0-9]+", "-", ws).strip("-")
+        proj.mkdir(parents=True)
+        (proj / "agent-transcripts").symlink_to(self.env.home / "elsewhere")
+        self.tick(2)
+        self.assertEqual(self.steps("idle-watchdog-error-alert", name), [])
 
 
 class WatchdogDoneRefused(WatchdogBase):
