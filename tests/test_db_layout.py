@@ -89,6 +89,7 @@ class LegacyCase(FactoryTestCase):
 SCHEMA_PINS = {
     1: "4036fa8c89b1d08474cad7826bac84a173503c552557e05e768144aef9a4c82d",
     2: "8c5cdc436b2b122b143b0cd51374378075cf341ba3421591b9a7ac07b7369767",
+    3: "b9796b440cdd2ac09dc9e590d78ce42aa9c85167a8a8615e21e634ce704be97f",
 }
 
 
