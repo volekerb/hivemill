@@ -41,11 +41,26 @@ export const DEFAULTS = {
   demo: { enabled: false, hide: [], alerts: true },
 };
 
-export const data = () => shared(DATA) ?? {};
+// shared() copies the whole stored value on every call, and config(), demo(), hidden() and clean() run once per row:
+// one render read it hundreds of times and the app interrupted the render. A render is synchronous, so while one
+// runs (oneRead) every data() call reuses a single copy. Outside a render every call reads fresh, as before.
+let memo = null;
+export const data = () => memo ?? shared(DATA) ?? {};
+export function oneRead(fn) {
+  if (memo !== null) return fn();
+  memo = shared(DATA) ?? {};
+  try {
+    return fn();
+  } finally {
+    memo = null;
+  }
+}
 export const config = () => data().config ?? DEFAULTS;
 
 function put(patch) {
-  setShared(DATA, { ...data(), ...patch });
+  const next = { ...(shared(DATA) ?? {}), ...patch }; // a fresh read, never the memo: no lost writes
+  setShared(DATA, next);
+  if (memo !== null) memo = next;
 }
 
 function merge(base, over) {
