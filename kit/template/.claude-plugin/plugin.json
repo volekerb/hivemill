@@ -1,0 +1,14 @@
+{
+  "name": "hivemill-NAME",
+  "displayName": "Hivemill NAME",
+  "description": "One-line description of what the NAME skill does.",
+  "version": "@VERSION@",
+  "author": {
+    "name": "volekerb",
+    "url": "https://github.com/volekerb"
+  },
+  "homepage": "https://github.com/volekerb/hivemill",
+  "repository": "https://github.com/volekerb/hivemill",
+  "license": "MIT",
+  "keywords": ["hivemill", "kit"]
+}
