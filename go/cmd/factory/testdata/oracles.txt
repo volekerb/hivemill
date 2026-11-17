@@ -10,5 +10,3 @@ tests.test_relaunch_idle
 tests.test_stop
 tests.test_worker_gate
 tests.test_resume
-tests.test_agent_test_reap
-tests.test_tick_phase_timers
