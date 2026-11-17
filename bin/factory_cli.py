@@ -4537,11 +4537,28 @@ def coder_done_escalation_ok(con, role, a):
     return a.to in ups
 
 
+def lead_missing(con, to):
+    """True when 'lead:<x>' names no team, or a team without a lead agent (T-1626)."""
+    r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
+    return not (r and r["lead_agent"])
+
+
+def msg_no_lead_fallthrough(con, a):
+    """T-1626: a worker's message to a lead that does not exist goes to its own org's director as an escalation."""
+    body = read_text(a.body)
+    org = agent_org(con, actor()) or orgs.DEFAULT_ORG
+    full = ((body or "").rstrip("\n") + "\n" if body else "") + f"(originally addressed to {a.to}: no such lead)"
+    mid, rcpt = send(con, "director", "[no lead] " + a.subject, full, "escalation", a.goal, a.task, org=org)
+    print(f"no lead for {a.to}; sent to {rcpt} as escalation M{mid}")
+
+
 def cmd_msg(a):
     con = db()
     role = actor_role(con)
     if a.kind == "escalation" and role not in ("owner", "director", "boss", "lead") and not coder_done_escalation_ok(con, role, a):
         die("only leads, the director and the boss escalate; message your lead instead", 3)
+    if role not in HQ_ROLES and role != "owner" and a.to.startswith("lead:") and lead_missing(con, a.to):
+        return msg_no_lead_fallthrough(con, a)
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
     refuse_cross_org(con, role, a.to, a.goal, a.task)
