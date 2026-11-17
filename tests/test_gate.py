@@ -674,6 +674,67 @@ class PlacementTests(FactoryTestCase):
         self.ok("config", "set", "worker_machines", "workerhost")
         self.assertEqual(self.env.sql("SELECT value FROM config WHERE key='worker_machines'")[0]["value"], "workerhost")
 
+    def test_machine_hq_name_guard_refuses_factory_and_accepts_hqhost(self):
+        p = self.refused(2, "config", "set", "machine_hq", "factorybox")
+        self.assertIn('refused: machine name must not contain "factory"', p.stderr)
+        p = self.refused(2, "config", "set", "machine_hq", "Bad_Name")
+        self.assertIn("refused: bad machine name", p.stderr)
+        self.ok("config", "set", "machine_hq", "hqhost")
+        self.assertEqual(self.env.sql("SELECT value FROM config WHERE key='machine_hq'")[0]["value"], "hqhost")
+
+    def test_roleless_machine_gate_keeps_owner_mem_and_load(self):
+        self.ok("config", "min_mem_available_mb", "1024")  # the harness pins this to 1
+        self.enable()
+        low = self.facts({"mem_mb": 11000, "load1": 0.5, "nproc": 16, "exit": 0}, mem="300", load="14", nproc="8")
+        out = self.ok("res", extra_env=low).stdout
+        self.assertIn("spawn gate: CLOSED — MemAvailable 300MB < floor 1024MB", out)
+        self.assertNotIn("spawn gate: OPEN", out)
+        hot = self.facts({"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 0}, mem="8000", load="1000000", nproc="8")
+        out = self.ok("res", extra_env=hot).stdout
+        self.assertIn("spawn gate: CLOSED", out)
+        self.assertIn("load1", out)
+        self.assertNotIn("spawn gate: OPEN", out)
+        cool = self.facts({"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 0}, mem="8000", load="0.1", nproc="8")
+        self.assertIn("spawn gate: OPEN", self.ok("res", extra_env=cool).stdout)
+
+    def test_owner_mem_floor_blocks_a_machine_floor_pass(self):
+        """HQ at 2100 MB clears the claude per-machine floor (1500+500) and fails an owner floor of 3000."""
+        self.ok("config", "min_mem_available_mb", "3000")
+        self.enable()
+        env = self.facts({"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 0}, mem="2100", load="0.1", nproc="8")
+        p = self.ok("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-floor", extra_env=env)
+        self.assertIn("QUEUED", p.stdout)
+        self.assertIn("MemAvailable 2100MB < floor 3000MB", p.stdout)
+        self.assertNotIn("SPAWNED", p.stdout)
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-floor'")[0]["status"], "queued")
+        with self.env.load_factory() as mod:
+            os.environ.update(env)
+            os.environ["FACTORY_FACTS_NOW"] = "30000"
+            ok, why, stats = mod.gate(mod.db(), role="boss", runtime="claude")
+        self.assertFalse(ok)
+        self.assertIn("MemAvailable 2100MB < floor 3000MB", why)
+        self.assertNotEqual(stats.get("machine"), "workerhost")
+        self.ok("config", "min_mem_available_mb", "1024")
+        p = self.ok("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-floor-ok", extra_env=env)
+        self.assertIn("SPAWNED", p.stdout)
+        self.assertNotIn("MemAvailable", p.stdout)
+
+    def test_placement_owner_floor_holds_a_queued_cursor_coder(self):
+        """2500 MB clears the cursor per-machine floor (1500+900) and fails an owner floor of 3000. The tick must not start it."""
+        self.ok("config", "min_mem_available_mb", "3000")
+        self.enable()
+        name = "cursor-coder-zz"
+        args = json.dumps({"role": "coder", "goal": "G-001", "team": None, "task": "T-0001", "name": name,
+                           "cwd": None, "prompt": None, "model": None, "resume": None, "org": "cursor"})
+        self.env.sql("INSERT INTO agents(name,role,goal_id,task_id,status,spawn_args,queued_at,org) VALUES(?,?,?,?,?,?,?,?)",
+                     (name, "coder", "G-001", "T-0001", "queued", args, "2026-11-05T11:00:00", "cursor"))
+        env = self.facts({"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 0}, mem="2500", load="0.1", nproc="8")
+        env["FACTORY_NOW"] = "2026-11-05T12:00:00+00:00"
+        self.ok("tick", extra_env=env)
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (name,))[0]["status"], "queued")
+        starts = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"] and name in c["argv"]]
+        self.assertEqual(starts, [])
+
     def test_machine_facts_ttl_ssh_once(self):
         self.enable()
         with self.env.load_factory() as mod:

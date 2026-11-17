@@ -2596,15 +2596,21 @@ _MACHINE_FACTS_CACHE = {}  # machine -> (clock, facts); one ssh per machine per 
 _REMOTE_FACTS_CMD = "cat /proc/meminfo; echo ---; cat /proc/loadavg; echo ---; nproc"
 
 
+def check_machine_name(name):
+    """One machine name, or exit 2. 'factory' is refused before the shape check (R2)."""
+    if "factory" in name.lower():
+        die('refused: machine name must not contain "factory"', 2)
+    if not _MACHINE_NAME_RE.fullmatch(name):
+        die("refused: bad machine name", 2)
+    return name
+
+
 def check_worker_machines(value):
     """The normalised comma list, or exit 2. Empty turns placement off. 'factory' is refused before the shape check (R2)."""
     names = [x.strip() for x in value.split(",")] if value.strip() else []
     out = []
     for n in names:
-        if "factory" in n.lower():
-            die('refused: machine name must not contain "factory"', 2)
-        if not _MACHINE_NAME_RE.fullmatch(n):
-            die("refused: bad machine name", 2)
+        n = check_machine_name(n)
         if n not in out:
             out.append(n)
     return ",".join(out)
@@ -2903,9 +2909,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         return False, f"{live}/{stats['cap']} agent panes live", stats
     if stats["total"] is not None and stats["total"] - mine >= total_cap:
         return False, f"{stats['total']}/{total_cap} claude processes on host (incl. non-factory)", stats
-    # worker_machines empty: this is the only MemAvailable check, unchanged. Non-empty: each machine is checked in
-    # place_machine, so a full HQ machine does not close the gate while a worker machine still has room (M37141 stays first).
-    if not _worker_machine_list(con) and mem < int(cfg(con, "min_mem_available_mb")):
+    # Role-less calls (factory res, the tick hold) and an empty worker_machines keep this MemAvailable check.
+    # A role plus worker machines checks each machine in place_machine; a success still starts on machine_hq, so the
+    # owner floor is applied again on that return and is never replaced by machine_mem_floor_mb (M37141).
+    placement_on = bool(role) and bool(_worker_machine_list(con))
+    if not placement_on and mem < int(cfg(con, "min_mem_available_mb")):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
@@ -2921,7 +2929,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if live >= free_for_others:
             return False, (f"{live}/{stats['cap']} agent panes live; {max(_int_cfg(con, 'review_reserved_slots', 2) - held, 0)} "
                            "slots kept for reviewer/qa (review_reserved_slots)"), stats
-    if not _worker_machine_list(con) and not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
+    if not placement_on and not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     # Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
@@ -2943,7 +2951,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if hq + 1 > stats["hq_cap"]:
             return False, (f"{hq}/{stats['hq_cap']} HQ panes; {reserved} slots reserved for workers "
                            "(reserved_worker_slots)"), stats
-    if role and _worker_machine_list(con):
+    if placement_on:
         machine, why, per = place_machine(con, role, runtime, _cpu_heavy_role(con, role),
                                            skip_load=bool(own_slot or load_exempt),
                                            discount_machine=placement_discount)
@@ -2956,6 +2964,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         # refusal here, or it records a start while spawn queues the row.
         if machine != per["hq"] and stats["hq_fails"]:
             return False, f"would place on {machine} (remote start not enabled yet)", stats
+        if mem < int(cfg(con, "min_mem_available_mb")):
+            return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
+        if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
+            return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
+                           f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     return True, "ok", stats
 
 
@@ -3397,6 +3410,8 @@ def _config_value_rules(key, value):
             die(str(e), 2)
     if a.key == "worker_machines":
         a.value = check_worker_machines(a.value)
+    if a.key == "machine_hq":
+        a.value = check_machine_name(a.value.strip())
     return a.value
 
 
@@ -10609,10 +10624,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
                           own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt,
                           placement_discount=_relaunch_placement_discount(con, existing) if relaunch else None)
     placed = stats.get("machine")
-    if placed:  # the decision, including a worker machine this task cannot start yet (remote start is T-C)
+    if placed:  # recorded even on a refusal; gate() already refused a worker machine this task cannot start
         event(con, "agent", name, "place", {"machine": placed, "role": role})
-        if ok and placed != _machine_hq(con) and stats.get("hq_fails"):
-            ok, why = False, f"would place on {placed} (remote start not enabled yet)"
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
@@ -19629,9 +19642,13 @@ def tick_relaunches(con):
             h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue  # mid-turn, blocked or not listed: a later tick
-        ok, why, _ = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
-                          role=r["role"], own_lead=True, runtime=org_runtime(con, r["role"], r["org"]),
-                          placement_discount=_relaunch_placement_discount(con, r))  # never close a pane the gate would queue
+        if _worker_machine_list(con):
+            # placement can refuse a restart the single-machine gate would allow; do not close the pane first
+            ok, why, _ = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
+                              role=r["role"], own_lead=True, runtime=org_runtime(con, r["role"], r["org"]),
+                              placement_discount=_relaunch_placement_discount(con, r))
+        else:
+            ok, why, _ = gate(con, own_slot=True)  # feature off: the same call as before placement existed
         if not ok:
             key = f"relaunch_deferred:{r['name']}"
             last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()

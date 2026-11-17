@@ -1,5 +1,6 @@
 """G-006 A4: `factory relaunch --when-idle` (run by the tick), role permissions, mid-turn refusal, the
 --system-prompt-snapshot off flag on every resume, and the prompt file of a live agent never being rewritten."""
+import os
 import re
 import shutil
 import unittest
@@ -362,6 +363,71 @@ class PlacementRelaunchTests(RelaunchIdleCase):
         self.assertEqual(self.closes(), [])
         row = self.env.sql("SELECT status, pane_id FROM agents WHERE name=?", (LEAD,))[0]
         self.assertEqual((row[0], row[1]), ("live", PANE))
+
+
+_ROOMY = {"FACTORY_MEM_MB": "8000", "FACTORY_LOADAVG": "0.1", "FACTORY_NPROC": "8"}
+
+
+class FeatureOffRelaunchTests(RelaunchIdleCase):
+    """worker_machines empty: the tick's idle relaunch uses gate(own_slot=True) and nothing else."""
+
+    def _coder(self, name, org):
+        pane = "p-" + name
+        self.env.seed_agent(name, "coder", goal="G-001", pane_id=pane)
+        self.env.sql("UPDATE agents SET session_id=?, org=? WHERE name=?", ("sess-" + name, org, name))
+        self.herdr_agents(("idle", LEAD, SESS, PANE), ("idle", name, "sess-" + name, pane))
+        self.ok("relaunch", name, "--when-idle", agent="zz-director")
+        return name
+
+    def _deferred(self, name):
+        return self.env.sql("SELECT detail FROM events WHERE action='relaunch-deferred' AND entity_id=?", (name,))
+
+    def _ran(self, name):
+        return self.env.sql("SELECT 1 FROM events WHERE action='relaunch-run' AND entity_id=?", (name,))
+
+    def test_feature_off_cursor_five_hour_defers_idle_relaunch(self):
+        name = self._coder("cursor-coder-zz", "cursor")
+        self.env.write_usage(five_hour=99, seven_day=0)
+        self.ok("tick", extra_env=_ROOMY)
+        self.assertEqual(self.closes(), [])
+        self.assertTrue(self.flag(name)[0])
+        rows = self._deferred(name)
+        self.assertEqual(len(rows), 1)
+        self.assertIn("5h usage", rows[0][0])
+
+    def test_feature_off_cursor_idle_relaunch_runs_when_five_hour_is_open(self):
+        name = self._coder("cursor-coder-open", "cursor")
+        self.env.write_usage(five_hour=10, seven_day=0)
+        self.ok("tick", extra_env=_ROOMY)
+        self.assertEqual(self._deferred(name), [])
+        self.assertEqual(len(self._ran(name)), 1)
+        self.assertEqual(self.flag(name), (None, None))
+
+    def test_feature_off_cleaner_tmp_cap_defers_idle_relaunch(self):
+        name, pane = "zz-cleaner-zz", "pcln"
+        self.env.seed_agent(name, "cleaner", goal="G-001", pane_id=pane)
+        self.env.sql("UPDATE agents SET session_id=? WHERE name=?", ("sess-" + name, name))
+        self.herdr_agents(("idle", LEAD, SESS, PANE), ("idle", name, "sess-" + name, pane))
+        self.ok("relaunch", name, "--when-idle", agent="zz-director")
+        self.ok("tick", extra_env={**_ROOMY, "FACTORY_TMP_STATVFS": "1000000000,50000000"})
+        self.assertEqual(self.closes(), [])
+        self.assertTrue(self.flag(name)[0])
+        rows = self._deferred(name)
+        self.assertEqual(len(rows), 1)
+        self.assertIn("/tmp", rows[0][0])
+
+    def test_feature_off_cursor_pane_limit_does_not_defer_idle_relaunch(self):
+        name = self._coder("cursor-coder-lim", "cursor")
+        self.env.sql(
+            "INSERT INTO config(key,value) VALUES('cursor_model_limits',?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            ('{"composer-2.5": {"status": "limited", "reset": "2026-12-01"}}',))
+        self.env.write_usage(five_hour=10, seven_day=0)
+        with self.env.load_factory() as mod:
+            os.environ.update(_ROOMY)
+            mod.tick_relaunches(mod.db())
+        self.assertEqual(self._deferred(name), [])
+        self.assertEqual(len(self._ran(name)), 1)
 
 
 if __name__ == "__main__":

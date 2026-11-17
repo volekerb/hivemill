@@ -149,6 +149,15 @@ against a worker machine.
 caps). Those caps are unchanged and are checked first. Placement can refuse a spawn they allow; it cannot allow a
 spawn they refuse.
 
+A call with no role (`factory res`, the tick's queue hold) still applies this machine's MemAvailable floor and its
+load cap when `worker_machines` is set. Placement does not run on that call. A placement success still starts on
+`machine_hq` in this task, and that success is refused when MemAvailable is under `min_mem_available_mb`. The
+per-machine floor does not replace the owner floor for a start on `machine_hq`.
+
+An idle relaunch (`relaunch --when-idle`) uses the pre-placement gate call (own slot only) while `worker_machines`
+is empty. With the key set, the tick passes the role and runtime so a restart placement would refuse does not close
+the pane.
+
 Roles other than coder, qa, reviewer and cleaner are placed on `machine_hq` only. A machine is eligible when it is
 reachable, `mem_mb - per_agent_mb >= machine_mem_floor_mb` (cursor uses `machine_mem_per_cursor_mb`, claude uses
 `machine_mem_per_claude_mb`), `load1 <= gate_max_load_ratio x` that machine's nproc, and the workers already on it
