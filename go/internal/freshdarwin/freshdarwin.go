@@ -133,7 +133,13 @@ func (s *runState) exec(argv ...string) (string, int, error) {
 
 // asUser wraps argv to run as the throwaway user inside its launchd gui domain.
 func (s *runState) asUser(argv ...string) []string {
-	return append([]string{"launchctl", "asuser", s.uid, "sudo", "-u", s.name, "-H"}, argv...)
+	// Root's PATH lacks the user's ~/.local/bin (where the installer puts factory), so set it explicitly.
+	home := s.home
+	if home == "" {
+		home = "/Users/" + s.name
+	}
+	env := []string{"env", "HOME=" + home, "PATH=" + home + "/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"}
+	return append(append([]string{"launchctl", "asuser", s.uid, "sudo", "-u", s.name, "-H"}, env...), argv...)
 }
 
 func (s *runState) must(argv ...string) (string, error) {
@@ -196,10 +202,15 @@ func Run(cfg Config) (int, error) {
 	return s.summary(), nil
 }
 
-func (s *runState) record(name string, err error) bool {
+// step records one step; a signal that arrived while it ran turns a pass into an interruption.
+func (s *runState) step(name string, err error) bool {
 	if err == nil && s.cfg.Stop != nil && s.cfg.Stop() {
 		err = errors.New("interrupted by signal")
 	}
+	return s.record(name, err)
+}
+
+func (s *runState) record(name string, err error) bool {
 	st := Step{Name: name, Pass: err == nil}
 	if err != nil {
 		st.Note = s.redact(err.Error())
@@ -210,35 +221,39 @@ func (s *runState) record(name string, err error) bool {
 
 func (s *runState) runSteps() {
 	// 1. create user: no admin, password never printed.
-	if !s.record("create-user", s.createUser()) {
+	if !s.step("create-user", s.createUser()) {
 		return
 	}
 	shim := s.cfg.Shim
-	if !s.record("installer-dry-run", s.userStep(shim, "--dry-run")) {
+	if !s.step("installer-dry-run", s.userStep(shim, "--dry-run")) {
 		return
 	}
-	if !s.record("install", s.userStep(shim, "--yes")) {
+	if !s.step("install", s.userStep(shim, "--yes")) {
 		return
 	}
-	if !s.record("install-check", s.userStep("hivemill-install", "--check")) {
+	if !s.step("install-check", s.userStep(shim, "--check")) {
 		return
 	}
-	if !s.record("factory-up", s.userStep("factory", "up")) {
+	if !s.step("factory-up", s.userStep("factory", "up")) {
 		return
 	}
-	if !s.record("wait-ticks", s.waitTicks()) {
+	if !s.step("wait-ticks", s.waitTicks()) {
 		return
 	}
-	if !s.record("factory-res", s.userStep("factory", "res")) {
+	if !s.step("factory-res", s.userStep("factory", "res")) {
 		return
 	}
-	if !s.record("bootout", s.bootout()) {
+	if !s.step("bootout", s.bootout()) {
 		return
 	}
 }
 
 func (s *runState) createUser() error {
 	// The user is created before the command runs to completion, so a half-created user is still cleaned up.
+	// Never touch a user that already exists: cleanup would delete someone else's account.
+	if _, code, err := s.exec("dscl", ".", "-read", "/Users/"+s.name); err != nil || code == 0 {
+		return fmt.Errorf("user %s already exists or could not be checked; refusing to touch it", s.name)
+	}
 	s.created = true
 	if _, err := s.must("sysadminctl", "-addUser", s.name, "-password", s.secret, "-home", "/Users/"+s.name); err != nil {
 		return err
@@ -277,6 +292,9 @@ func (s *runState) waitTicks() error {
 			s.logf("%d tick events seen (need %d)", n, s.cfg.Ticks)
 			return nil
 		}
+		if s.cfg.Stop != nil && s.cfg.Stop() {
+			return errors.New("interrupted by signal")
+		}
 		if !s.cfg.Now().Before(deadline) {
 			return fmt.Errorf("only %d of %d tick events in %s", n, s.cfg.Ticks, s.cfg.Timeout)
 		}
@@ -287,9 +305,8 @@ func (s *runState) waitTicks() error {
 func (s *runState) bootout() error {
 	var errs []error
 	for _, l := range []string{"hivemill.serve", "hivemill.tick", "hivemill.up", "hivemill.herdr-server"} {
-		out, code, err := s.exec("launchctl", "asuser", s.uid, "sudo", "-u", s.name, "-H", "launchctl", "bootout",
+		_, code, err := s.exec("launchctl", "asuser", s.uid, "sudo", "-u", s.name, "-H", "launchctl", "bootout",
 			fmt.Sprintf("gui/%s/%s", s.uid, l))
-		_ = out
 		// 3 = No such process, 113 = Could not find service: not loaded is fine.
 		if err != nil {
 			errs = append(errs, err)

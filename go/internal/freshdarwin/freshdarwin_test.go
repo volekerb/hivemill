@@ -43,6 +43,15 @@ func cfgFor(f *fake, log *bytes.Buffer) Config {
 		Password: pw, Sleep: func(d time.Duration) { now = now.Add(d) }, Now: func() time.Time { return now }}
 }
 
+func lastIndex(calls []string, sub string) int {
+	for i := len(calls) - 1; i >= 0; i-- {
+		if strings.Contains(calls[i], sub) {
+			return i
+		}
+	}
+	return -1
+}
+
 func index(calls []string, sub string) int {
 	for i, c := range calls {
 		if strings.Contains(c, sub) {
@@ -59,8 +68,8 @@ func TestOrderOfSteps(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code %d err %v\n%s", code, err, log.String())
 	}
-	want := []string{"sysadminctl -addUser", "/shim/install --dry-run", "/shim/install --yes", "hivemill-install --check",
-		"factory up", "grep -c", "factory res", "bootout", "sysadminctl -deleteUser", "dscl . -read"}
+	want := []string{"sysadminctl -addUser", "/shim/install --dry-run", "/shim/install --yes", "/shim/install --check",
+		"factory up", "grep -c", "factory res", "bootout", "sysadminctl -deleteUser"}
 	last := -1
 	for _, w := range want {
 		i := index(f.calls, w)
@@ -74,11 +83,11 @@ func TestOrderOfSteps(t *testing.T) {
 			t.Errorf("summary lacks PASS for %s:\n%s", n, log.String())
 		}
 	}
-	if strings.Contains(strings.Join(f.calls, "\n"), "launchctl asuser 501 sudo -u hmfreshab12 -H /shim") == false {
+	if strings.Contains(strings.Join(f.calls, "\n"), "launchctl asuser 501 sudo -u hmfreshab12 -H env HOME=/Users/hmfreshab12 PATH=/Users/hmfreshab12/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin /shim") == false {
 		t.Errorf("installer must run via launchctl asuser + sudo -u: %v", f.calls)
 	}
-	if !strings.Contains(f.calls[0], "sysadminctl -addUser hmfreshab12") || strings.Contains(f.calls[0], " -admin") {
-		t.Errorf("create must not grant admin: %s", f.calls[0])
+	if !strings.Contains(f.calls[1], "sysadminctl -addUser hmfreshab12") || strings.Contains(f.calls[1], " -admin") {
+		t.Errorf("create must not grant admin: %s", f.calls[1])
 	}
 }
 
@@ -98,7 +107,7 @@ func TestCleanupOnFailureAtEachStep(t *testing.T) {
 			if index(f.calls, "sysadminctl -deleteUser hmfreshab12") < 0 {
 				t.Fatalf("no deleteUser after failure at %s: %v", step, f.calls)
 			}
-			if d := index(f.calls, "dscl . -read /Users/hmfreshab12"); d < index(f.calls, "-deleteUser") {
+			if d := lastIndex(f.calls, "dscl . -read /Users/hmfreshab12"); d < index(f.calls, "-deleteUser") {
 				t.Fatalf("dscl read-fails check missing or early: %v", f.calls)
 			}
 			if !strings.Contains(log.String(), "FAIL") {
@@ -113,7 +122,8 @@ func TestCleanupFailsWhenUserStillExists(t *testing.T) {
 	var log bytes.Buffer
 	c := cfgFor(f, &log)
 	c.Runner = runnerFunc(func(cmd Cmd) (string, int, error) {
-		if cmd.Argv[0] == "dscl" {
+		if cmd.Argv[0] == "dscl" && index(f.calls, "-deleteUser") >= 0 {
+			f.calls = append(f.calls, "dscl")
 			return "RecordName: x", 0, nil
 		}
 		return f.Run(cmd)
@@ -224,5 +234,69 @@ func TestRandomName(t *testing.T) {
 	n, err := RandomName()
 	if err != nil || len(n) != len("hmfresh")+4 || !strings.HasPrefix(n, "hmfresh") {
 		t.Fatalf("%q %v", n, err)
+	}
+}
+
+func TestSignalStillReportsConfirmedDeletionAsPass(t *testing.T) {
+	f := &fake{ticks: 2}
+	var log bytes.Buffer
+	c := cfgFor(f, &log)
+	c.Stop = func() bool { return index(f.calls, "--dry-run") >= 0 }
+	if code, _ := Run(c); code != 1 {
+		t.Fatalf("code %d, want 1 (interrupted)", code)
+	}
+	out := log.String()
+	if !strings.Contains(out, "delete-user") || !regexpLine(out, "delete-user", "PASS") {
+		t.Errorf("delete-user not PASS after signal:\n%s", out)
+	}
+	if !regexpLine(out, "installer-dry-run", "FAIL") {
+		t.Errorf("interrupted step not FAIL:\n%s", out)
+	}
+}
+
+func regexpLine(out, name, res string) bool {
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(l), name) && strings.Contains(l, res) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestUserStepsSetPathAndUseShimForCheck(t *testing.T) {
+	f := &fake{ticks: 2}
+	var log bytes.Buffer
+	if code, _ := Run(cfgFor(f, &log)); code != 0 {
+		t.Fatalf("code %d\n%s", code, log.String())
+	}
+	const env = "env HOME=/Users/hmfreshab12 PATH=/Users/hmfreshab12/.local/bin:"
+	for _, want := range []string{env + "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin /shim/install --check", "/sbin factory up", "/sbin factory res"} {
+		if index(f.calls, want) < 0 {
+			t.Errorf("missing %q in %v", want, f.calls)
+		}
+	}
+	for _, c := range f.calls {
+		if strings.Contains(c, " hivemill-install ") {
+			t.Errorf("bare hivemill-install on PATH-less root: %s", c)
+		}
+	}
+}
+
+func TestExistingUserIsNeverTouched(t *testing.T) {
+	f := &fake{ticks: 2}
+	var log bytes.Buffer
+	c := cfgFor(f, &log)
+	c.Runner = runnerFunc(func(cmd Cmd) (string, int, error) {
+		if cmd.Argv[0] == "dscl" {
+			f.calls = append(f.calls, "dscl")
+			return "RecordName: x", 0, nil
+		}
+		return f.Run(cmd)
+	})
+	if code, _ := Run(c); code != 1 {
+		t.Fatalf("code %d, want 1", code)
+	}
+	if index(f.calls, "sysadminctl") >= 0 || index(f.calls, "rm -rf") >= 0 {
+		t.Fatalf("touched a pre-existing user: %v", f.calls)
 	}
 }
