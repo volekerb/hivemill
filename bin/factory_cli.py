@@ -11289,7 +11289,7 @@ _GH_REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")  # used with fullmatch
 
 
 def _clone_source(con, common):
-    """The repo a per-task clone may be judged by: the clone sits directly under worktrees/ as <goal>-<task>, the
+    """The repo a per-task clone may be judged by: the clone sits directly under worktrees/ as <goal>-<task> (qa: <goal>-<task>-qa), the
     DB names that task's project repo, and the clone's one alternates line is exactly <repo>/.git/objects. The
     alternates file is worker-writable, so it is only compared, never trusted. None otherwise."""
     try:
@@ -11300,7 +11300,7 @@ def _clone_source(con, common):
     except OSError:
         return None
     row = con.execute("SELECT p.repo_path FROM tasks t JOIN goals g ON g.id=t.goal_id JOIN projects p ON p.id=g.project_id "
-                      "WHERE t.goal_id || '-' || t.id = ? AND p.repo_path IS NOT NULL", (wt.name,)).fetchone()
+                      "WHERE t.goal_id || '-' || t.id = ? AND p.repo_path IS NOT NULL", (wt.name.removesuffix("-qa"),)).fetchone()  # qa_clone_path: <goal>-<task>-qa
     if not row or not isinstance(row["repo_path"], str) or not Path(row["repo_path"]).is_absolute():
         return None
     repo = Path(row["repo_path"]).resolve()
