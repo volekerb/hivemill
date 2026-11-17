@@ -16,6 +16,8 @@ A check that cannot decide (gh or fetch failing) does not freeze and does not ad
 
 On the first run the baseline is the live checkout's own `main`.
 
+This check looks at every commit on its own and does not depend on CI: since T-1592 the `tests.yml` push runs on `main` share one concurrency group, so an older pending main run is cancelled when a newer merge lands, the newest pending run still runs, and one main run may cover several merges (see [red-main.md](red-main.md)).
+
 ## Clearing the freeze
 
 Only the director or boss, after verifying main (`git log`, `git diff`):
