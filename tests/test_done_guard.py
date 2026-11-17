@@ -38,7 +38,9 @@ class DoneGuardTests(FactoryTestCase):
     def nothing_changed(self):
         self.assertEqual(self.agent_status(), "live")
         self.assertEqual(self.env.sql("SELECT count(*) c FROM messages WHERE sender='zz-test-coder'")[0]["c"], 0)
-        self.assertEqual(self.env.sql("SELECT count(*) c FROM events WHERE action LIKE 'done%'")[0]["c"], 0)
+        # T-1622 W5: the refusal itself is recorded (done-refused, for the idle watchdog); nothing else done-like is
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM events WHERE action LIKE 'done%' "
+                                      "AND action != 'done-refused'")[0]["c"], 0)
 
     def commit(self, name="b.txt"):
         (self.wt / name).write_text("x\n")
@@ -143,6 +145,7 @@ class DoneGuardTests(FactoryTestCase):
         self.commit()
         p = self.refused(3, "done", "x", agent="zz-test-coder")
         self.assertIn("push your commits (git push origin HEAD:factory/t-0001), then run factory done again", p.stderr)
+        self.assertNotIn("push -u", p.stderr)  # the worker guard refuses -u: the hint is a command it allows
         self.nothing_changed()
 
     def test_committed_not_pushed_branch_unset_hint_falls_back(self):

@@ -92,7 +92,12 @@
     "HERDR_SOCKET_PATH": "/proc/nonexistent/worker-no-herdr.sock",
     "FACTORY_ROLE": "cleaner",
     "CLAUDE_CODE_DISABLE_ADVISOR_TOOL": "1",
-    "CAVEMAN_DEFAULT_MODE": "caveman"
+    "CAVEMAN_DEFAULT_MODE": "caveman",
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "60",
+    "BASH_MAX_OUTPUT_LENGTH": "20000",
+    "MAX_MCP_OUTPUT_TOKENS": "8000",
+    "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": "15000"
   },
   "hooks": {
     "PreToolUse": [

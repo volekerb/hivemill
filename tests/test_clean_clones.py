@@ -147,7 +147,8 @@ class CloneCleanTests(CloneCleanBase):
         wt, _ = self.clone_task()
         p = self.clean()
         self.assertFalse(wt.exists())
-        self.assertIn(str(wt), p.stdout)
+        # table() caps a cell at 60 chars: under a longer TMPDIR than /tmp (the local gate, T-1679) the path is cut
+        self.assertIn(str(wt)[:60], p.stdout)
         self.assertIn("removed", p.stdout)
         self.assertIn("1 removed", p.stdout)
         self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='cleaned' AND entity_id='T-0001'")), 1)
