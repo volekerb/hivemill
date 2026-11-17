@@ -303,7 +303,15 @@ class TildeName(ProtTreesCase):
 
     def test_reads_look_alikes_and_scratch_allowed(self):
         self.allowed(["ls ~@U@/.local/bin", "cat ~@U@/.config/factory/x", "cp ~@U@/.local/go/go.env /tmp/x",
-                      "echo x > ~@U@/.local/gox/y", "echo x > /tmp/ok", "~@U@/.local/bin/factory whoami"], cwds=("other",))
+                      "echo x > ~@U@/.local/gox/y", "echo x > /tmp/ok"], cwds=("other",))
+
+    def test_running_tilde_login_local_bin_allowed(self):
+        # T-1679: running an existing script makes the guard read that script's text, so on a host with an installed
+        # ~/.local/bin/factory the verdict is that file's content (host state), not the path rule tested here
+        if os.path.exists(os.path.join(PW, ".local", "bin", "factory")):
+            self.skipTest("host has an installed ~/.local/bin/factory: the guard judges its text, not the path "
+                          "(runs on GitHub CI, which has none)")
+        self.allowed(["~@U@/.local/bin/factory whoami"], cwds=("other",))
 
     def test_tilde_alone_and_tilde_slash_keep_their_decisions(self):
         self.blocked(["echo x > ~/.local/bin/git", "cp /tmp/x ~/"], cwds=("other",))
@@ -532,8 +540,9 @@ class ClosedListWritersT0988(ProtTreesCase):
 
     def test_blocked_into_protected_trees(self):
         p = paths()
-        libd = os.path.join(os.path.expanduser("~"), ".local", "lib", "factory")
-        bind = os.path.join(os.path.expanduser("~"), ".local", "bin")
+        # the guard protects the real user's (passwd) home, which is not $HOME when HOME is a temp dir (the local gate)
+        libd = os.path.join(PW, ".local", "lib", "factory")
+        bind = os.path.join(PW, ".local", "bin")
         hooksd = os.path.join(p["live"], "roles", "hooks")
         bind_x = os.path.join(bind, "x")
         self.blocked([
