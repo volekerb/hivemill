@@ -213,6 +213,8 @@ INSERT INTO "config"("key","value") VALUES('state_dump_interval_s','3600');
 INSERT INTO "config"("key","value") VALUES('state_push','0');
 INSERT INTO "config"("key","value") VALUES('mech_merge','off');
 INSERT INTO "config"("key","value") VALUES('mech_merge_retry_s','600');
+INSERT INTO "config"("key","value") VALUES('fix_carry','on');
+INSERT INTO "config"("key","value") VALUES('fix_carry_max_lines','150');
 INSERT INTO "config"("key","value") VALUES('judge_hold_expiry_min','120');
 INSERT INTO "config"("key","value") VALUES('risk_tiers','off');
 INSERT INTO "config"("key","value") VALUES('public_text_repos','');
