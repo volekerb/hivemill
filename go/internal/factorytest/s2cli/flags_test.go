@@ -83,7 +83,7 @@ var flagNames = []string{
 	"test_cgroup", "test_sandbox_subuid", "gate_post_status", "sandbox_roles", "worker_gh_roles", "task_clones",
 	"tick_async_start", "lead_wake_debounce_s", "tick_phase_timers", "orphan_reap_mode", "scout_enabled",
 	"gate_fast_projects", "issue_intake_repos", "cursor_pilot_roles", "agent_runtimes",
-	"red_pr_owner_alert", "coder_ci_handoff", "idle_coder_reap", "judge_wait_main_run",
+	"red_pr_owner_alert", "coder_ci_handoff", "idle_coder_reap", "idle_watchdog", "judge_wait_main_run",
 	"owner_alert_feed", "owner_alert_send",
 }
 
@@ -226,7 +226,7 @@ func TestFlagsRegistryExactFlagListAndStates(t *testing.T) {
 			if st != "on" || pr != "baseline" {
 				t.Errorf("%s: (%s, %s), want (on, baseline)", k, st, pr)
 			}
-		case k == "orphan_reap_mode":
+		case k == "orphan_reap_mode", k == "idle_watchdog":
 			if st != "shadow" {
 				t.Errorf("%s: state %s, want shadow", k, st)
 			}

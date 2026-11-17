@@ -239,3 +239,27 @@ func TestScheduleDueCLI(t *testing.T) {
 		t.Fatalf("second call %q", out)
 	}
 }
+
+func FuzzParseScheduleDue(f *testing.F) {
+	f.Add("")
+	f.Add("--json")
+	f.Add("--jsonx")
+	f.Add("-h")
+	f.Fuzz(func(t *testing.T, a string) {
+		// zero args parse to a non-claiming cmd; one arg only parses when it is exactly --json.
+		got, ok := parseScheduleDue(nil)
+		if !ok || got.(scheduleDueCmd).json {
+			t.Fatalf("no args: got %v ok=%v", got, ok)
+		}
+		got, ok = parseScheduleDue([]string{a})
+		if ok != (a == "--json") {
+			t.Fatalf("one arg %q: ok=%v", a, ok)
+		}
+		if ok && !got.(scheduleDueCmd).json {
+			t.Fatalf("--json not set")
+		}
+		if _, ok := parseScheduleDue([]string{a, a}); ok {
+			t.Fatalf("two args %q accepted", a)
+		}
+	})
+}
