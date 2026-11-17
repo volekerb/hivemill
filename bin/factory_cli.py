@@ -19022,7 +19022,9 @@ def spec_fill_tick(con):
 
 def ci_verdict(rollup):
     """('green'|'red'|'pending', [names]) of a PR's checks: green = at least one check and all completed with a
-    success/neutral/skipped conclusion; red = all completed and some failed (names = the failed ones)."""
+    success/neutral/skipped conclusion; red = all completed and some failed (names = the failed ones).
+    A CheckRun is finished when status is COMPLETED, and also: a CheckRun with a non-empty conclusion and a non-empty completedAt is finished even when status is not COMPLETED
+    (the Actions jobs API can report status in_progress with a final conclusion). An empty conclusion is never green."""
     checks = latest_checks(rollup)
     if not checks:
         return "pending", []
@@ -19036,9 +19038,11 @@ def ci_verdict(rollup):
             elif state != "SUCCESS":
                 done = False
             continue
-        if (c.get("status") or "").upper() != "COMPLETED":
+        finished = (c.get("status") or "").upper() == "COMPLETED" or bool(
+            (c.get("conclusion") or "").strip() and (c.get("completedAt") or "").strip())
+        if not finished:
             done = False
-        elif (c.get("conclusion") or "").upper() not in ("SUCCESS", "NEUTRAL", "SKIPPED"):
+        elif (c.get("conclusion") or "").strip().upper() not in ("SUCCESS", "NEUTRAL", "SKIPPED"):
             failed.append(name)  # FAILURE, CANCELLED, TIMED_OUT, ACTION_REQUIRED...; an unknown conclusion is never green
     if not done:
         return "pending", []
