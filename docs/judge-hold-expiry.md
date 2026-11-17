@@ -73,9 +73,10 @@ rule off. A value that is not a non-negative whole number means 120.
 
     factory config judge_hold_expiry_min 90
 
-## Inert until the unit row exists
+## Live since 2026-11-17
 
-`go/internal/tick/holdexpiry.go` registers the unit only when the unit table (`go/internal/tick/units.go`,
-`TICK_UNITS` in `bin/factory_cli.py`) has a row named `hold_expiry`. Until a follow-up task adds that row the code
-does not run. Once it runs, a failure of the unit is printed in the tick output (`judge-hold-expiry: failed, holds
-kept: ...`) and the tick goes on with the next unit.
+The unit table (`go/internal/tick/units.go`, `TICK_UNITS` in the Python CLI) has the row `hold_expiry`, placed
+directly before `mech_merge` so a hold cleared in a tick is seen by the mechanical merger and the judge autospawn of
+the same tick. The Python tick has no implementation: it keeps every hold and only records the lap. A failure of the
+unit is printed in the tick output (`judge-hold-expiry: failed, holds kept: ...`) and the tick goes on with the next
+unit. Rollback without a deploy: `factory config judge_hold_expiry_min 0`.
