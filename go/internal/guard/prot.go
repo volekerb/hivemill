@@ -447,14 +447,17 @@ func (a *Analyzer) protWrite(name string, rest []string, assigns []string) error
 			return cwdWrite(false, a.ccwd, a.ccwdKnown)
 		}
 	case name == "go":
-		sub := ""
+		sub, found := "", false
 		for k := 0; k < len(args); k++ { // the first word that is not an option (or the value of -C)
 			if args[k] == "-C" || args[k] == "--C" {
 				k++
 			} else if !strings.HasPrefix(args[k], "-") {
-				sub = args[k]
+				sub, found = args[k], true
 				break
 			}
+		}
+		if found && sub == "" { // T-1498 N11: an empty quoted subcommand word must refuse (corpus + toolchain parity)
+			return blockf("`go ` is not allowed")
 		}
 		if sub == "env" {
 			for _, x := range args {
