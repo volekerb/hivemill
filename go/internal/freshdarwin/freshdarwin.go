@@ -285,12 +285,14 @@ func (s *runState) waitTicks() error {
 	lock := s.home + "/" + s.cfg.TickLock
 	deadline := s.cfg.Now().Add(s.cfg.Timeout)
 	seen := map[string]bool{}
+	last := ""
 	for {
 		// BSD stat as the user, so file permissions are the real ones. A missing file means no tick yet.
 		out, code, err := s.exec(s.asUser("stat", "-f", "%m", lock)...)
 		if err != nil {
 			return err
 		}
+		last = fmt.Sprintf("last stat exit %d: %s", code, strings.TrimSpace(out))
 		if m := strings.TrimSpace(out); code == 0 && m != "" {
 			seen[m] = true
 		}
@@ -303,8 +305,8 @@ func (s *runState) waitTicks() error {
 			return errors.New("interrupted by signal")
 		}
 		if !s.cfg.Now().Before(deadline) {
-			return fmt.Errorf("no tick: only %d of %d tick runs (mtime changes of %s) in %s; check launchctl list hivemill.tick and the tick log",
-				n, s.cfg.Ticks, lock, s.cfg.Timeout)
+			return fmt.Errorf("no tick: only %d of %d tick runs (mtime changes of %s) in %s (%s); check launchctl list hivemill.tick and the tick log",
+				n, s.cfg.Ticks, lock, s.cfg.Timeout, last)
 		}
 		s.cfg.Sleep(s.cfg.Poll)
 	}
