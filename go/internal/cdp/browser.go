@@ -1,4 +1,4 @@
-package main
+package cdp
 
 import (
 	"archive/zip"
@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -20,8 +20,8 @@ import (
 // The pinned Chrome for Testing headless shell. These constants must equal the ones in ci/screenshots.py
 // (TestBrowserPin reads that file and compares).
 const (
-	browserVersion = "131.0.6778.204"
-	browserURL     = "https://storage.googleapis.com/chrome-for-testing-public/" + browserVersion + "/linux64/chrome-headless-shell-linux64.zip"
+	BrowserVersion = "131.0.6778.204"
+	browserURL     = "https://storage.googleapis.com/chrome-for-testing-public/" + BrowserVersion + "/linux64/chrome-headless-shell-linux64.zip"
 	browserSize    = 113084320
 	browserSHA256  = "afaac86e302c4874245991a3d509d529c50ecdd447affff0cdc2b08520906c32"
 	browserBinRel  = "chrome-headless-shell-linux64/chrome-headless-shell"
@@ -78,9 +78,9 @@ func download(ctx context.Context, url, dest string) error {
 	return nil
 }
 
-// ensureZip returns the verified cached zip, downloading it first when absent.
-func ensureZip(ctx context.Context, cacheDir string) (string, error) {
-	zpath := filepath.Join(cacheDir, "chrome-headless-shell-"+browserVersion+".zip")
+// EnsureZip returns the verified cached zip, downloading it first when absent.
+func EnsureZip(ctx context.Context, cacheDir string) (string, error) {
+	zpath := filepath.Join(cacheDir, "chrome-headless-shell-"+BrowserVersion+".zip")
 	if _, err := os.Stat(zpath); errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 			return "", failf("cannot create cache dir %s: %v", cacheDir, err)
@@ -105,7 +105,8 @@ func ensureZip(ctx context.Context, cacheDir string) (string, error) {
 	return zpath, nil
 }
 
-func unzipTo(zpath, dest string) (string, error) {
+// Unzip extracts the verified zip into dest and returns the browser binary path.
+func Unzip(zpath, dest string) (string, error) {
 	zr, err := zip.OpenReader(zpath)
 	if err != nil {
 		return "", failf("cannot open %s: %v", zpath, err)
@@ -157,26 +158,27 @@ func extractFile(zf *zip.File, target string) error {
 	return out.Close()
 }
 
-// proc is a child started in its own process group.
-type proc struct {
+// Proc is a child started in its own process group.
+type Proc struct {
 	name string
 	cmd  *exec.Cmd
 	done chan struct{}
 	err  error
 }
 
-func startProc(name string, cmd *exec.Cmd) (*proc, error) {
+// StartProc starts cmd in its own process group.
+func StartProc(name string, cmd *exec.Cmd) (*Proc, error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		return nil, failf("cannot start %s: %v", name, err)
 	}
-	p := &proc{name: name, cmd: cmd, done: make(chan struct{})}
+	p := &Proc{name: name, cmd: cmd, done: make(chan struct{})}
 	go func() { p.err = cmd.Wait(); close(p.done) }()
 	return p, nil
 }
 
-// stop terminates the whole process group (SIGTERM, 5 s grace, SIGKILL) and waits for the leader.
-func (p *proc) stop() {
+// Stop terminates the whole process group (SIGTERM, 5 s grace, SIGKILL) and waits for the leader.
+func (p *Proc) Stop() {
 	pgid := p.cmd.Process.Pid
 	select {
 	case <-p.done:
@@ -192,8 +194,8 @@ func (p *proc) stop() {
 	syscall.Kill(-pgid, syscall.SIGKILL) // stragglers left in the group; ESRCH when empty
 }
 
-// launchBrowser starts the headless shell with the CDP pipe on fd 3 (to the browser) and fd 4 (from the browser).
-func launchBrowser(bin, profile string, w, h int) (*proc, io.WriteCloser, io.ReadCloser, error) {
+// Launch starts the headless shell with the CDP pipe on fd 3 (to the browser) and fd 4 (from the browser).
+func Launch(bin, profile string, w, h int) (*Proc, io.WriteCloser, io.ReadCloser, error) {
 	toR, toW, err := os.Pipe()
 	if err != nil {
 		return nil, nil, nil, failf("pipe: %v", err)
@@ -207,7 +209,7 @@ func launchBrowser(bin, profile string, w, h int) (*proc, io.WriteCloser, io.Rea
 	cmd := exec.Command(bin, "--headless", "--disable-gpu", "--no-sandbox", "--hide-scrollbars",
 		fmt.Sprintf("--window-size=%d,%d", w, h), "--user-data-dir="+profile, "--remote-debugging-pipe", "about:blank")
 	cmd.ExtraFiles = []*os.File{toR, fromW}
-	p, err := startProc("browser", cmd)
+	p, err := StartProc("browser", cmd)
 	toR.Close()
 	fromW.Close()
 	if err != nil {
@@ -218,6 +220,37 @@ func launchBrowser(bin, profile string, w, h int) (*proc, io.WriteCloser, io.Rea
 	return p, toW, fromR, nil
 }
 
-func fileURL(path string) string {
-	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
+// Wait blocks until the child exits and returns its exit error.
+func (p *Proc) Wait() error {
+	<-p.done
+	return p.err
+}
+
+// DefaultCacheDir is where the pinned zip is cached: the user cache dir plus "hivemill-film".
+func DefaultCacheDir() (string, error) {
+	c, err := os.UserCacheDir()
+	if err != nil {
+		return "", failf("no user cache dir: %v", err)
+	}
+	return filepath.Join(c, "hivemill-film"), nil
+}
+
+// ExitError is an error that carries the process exit code the caller should use:
+// 1 for a failure, 3 for a refusal (for example a zip that does not match the pin).
+type ExitError struct {
+	Code int
+	Msg  string
+}
+
+func (e *ExitError) Error() string { return e.Msg }
+
+func refusef(f string, a ...any) error { return &ExitError{3, fmt.Sprintf(f, a...)} }
+func failf(f string, a ...any) error   { return &ExitError{1, fmt.Sprintf(f, a...)} }
+
+func within(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }

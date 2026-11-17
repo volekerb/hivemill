@@ -1,4 +1,4 @@
-package main
+package cdp
 
 import (
 	"errors"
@@ -27,14 +27,14 @@ func TestBrowserPin(t *testing.T) {
 		}
 		return string(m[1])
 	}
-	if v := grab("VERSION"); v != browserVersion {
-		t.Errorf("VERSION: screenshots.py %s, film-render %s", v, browserVersion)
+	if v := grab("VERSION"); v != BrowserVersion {
+		t.Errorf("VERSION: screenshots.py %s, browser pin %s", v, BrowserVersion)
 	}
 	if s := grab("SIZE"); s != strconv.Itoa(browserSize) {
-		t.Errorf("SIZE: screenshots.py %s, film-render %d", s, browserSize)
+		t.Errorf("SIZE: screenshots.py %s, browser pin %d", s, browserSize)
 	}
 	if h := grab("SHA256"); h != browserSHA256 {
-		t.Errorf("SHA256: screenshots.py %s, film-render %s", h, browserSHA256)
+		t.Errorf("SHA256: screenshots.py %s, browser pin %s", h, browserSHA256)
 	}
 }
 
@@ -44,8 +44,8 @@ func TestVerifyZipRefusesBadArchive(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := verifyZip(p)
-	ee, ok := err.(*exitError)
-	if !ok || ee.code != 3 {
+	ee, ok := err.(*ExitError)
+	if !ok || ee.Code != 3 {
 		t.Fatalf("a wrong-size zip must be refused with exit 3, got %v", err)
 	}
 }

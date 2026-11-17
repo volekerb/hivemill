@@ -1,4 +1,4 @@
-package main
+package cdp
 
 import (
 	"bufio"
@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-// cdpClient is a minimal Chrome DevTools Protocol client over the --remote-debugging-pipe transport:
+// Client is a minimal Chrome DevTools Protocol client over the --remote-debugging-pipe transport:
 // JSON messages, each terminated by a NUL byte, in both directions.
-type cdpClient struct {
+type Client struct {
 	w       io.Writer
 	wmu     sync.Mutex
 	timeout time.Duration
@@ -44,14 +44,14 @@ type cdpRequest struct {
 	SessionID string `json:"sessionId,omitempty"`
 }
 
-// newCDP starts the read loop on r; w receives the requests.
-func newCDP(w io.Writer, r io.Reader, timeout time.Duration) *cdpClient {
-	c := &cdpClient{w: w, timeout: timeout, pending: map[int]chan cdpReply{}}
+// NewClient starts the read loop on r; w receives the requests.
+func NewClient(w io.Writer, r io.Reader, timeout time.Duration) *Client {
+	c := &Client{w: w, timeout: timeout, pending: map[int]chan cdpReply{}}
 	go c.readLoop(r)
 	return c
 }
 
-func (c *cdpClient) readLoop(r io.Reader) {
+func (c *Client) readLoop(r io.Reader) {
 	br := bufio.NewReaderSize(r, 1<<20)
 	for {
 		raw, err := br.ReadBytes(0)
@@ -84,8 +84,8 @@ func (c *cdpClient) readLoop(r io.Reader) {
 	}
 }
 
-// call sends one command (session "" = browser level) and waits for its reply, the per-call timeout or ctx.
-func (c *cdpClient) call(ctx context.Context, session, method string, params any) (json.RawMessage, error) {
+// Call sends one command (session "" = browser level) and waits for its reply, the per-call timeout or ctx.
+func (c *Client) Call(ctx context.Context, session, method string, params any) (json.RawMessage, error) {
 	ch := make(chan cdpReply, 1)
 	c.mu.Lock()
 	if c.closed != nil {
@@ -125,7 +125,7 @@ func (c *cdpClient) call(ctx context.Context, session, method string, params any
 	}
 }
 
-func (c *cdpClient) drop(id int) {
+func (c *Client) drop(id int) {
 	c.mu.Lock()
 	delete(c.pending, id)
 	c.mu.Unlock()
