@@ -20,6 +20,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [film/README.md](film/README.md): storyboard for the customer film, with each claim, its source line and a re-check command.
 - [film/herdr/CAPTURE.md](film/herdr/CAPTURE.md): provenance of the Herdr app panel stills used in film scene 7.
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
+- [machine-sync.md](machine-sync.md): the owner-run tool that copies allow-listed secret files to a worker machine (chmod 600, never printed).
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-flow.md](pr-flow.md): read-only PR flow report: merges per day, open-to-merge time and stage hours per org.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
