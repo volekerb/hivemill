@@ -329,3 +329,49 @@ func TestClaimSkipsWhenOtherOrgRetroBusy(t *testing.T) {
 		t.Fatalf("spawned %q", api.spawned)
 	}
 }
+
+func TestParseOrg(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"cursor", "cursor"},
+		{"claude", "claude"},
+		{" claude ", "claude"},
+		{"\tcursor\n", "cursor"},
+	} {
+		got, err := ParseOrg(tc.in)
+		if err != nil || got != tc.want {
+			t.Errorf("ParseOrg(%q) = %q, %v; want %q", tc.in, got, err, tc.want)
+		}
+	}
+	for _, in := range []string{"", "Claude", "banana", "cursor-retro"} {
+		got, err := ParseOrg(in)
+		if err == nil || got != "" {
+			t.Errorf("ParseOrg(%q) = %q, %v; want refusal", in, got, err)
+			continue
+		}
+		want := "retro_org must be cursor or claude, got '" + in + "'; fix it with `factory config retro_org cursor`"
+		if err.Error() != want {
+			t.Errorf("ParseOrg(%q) error = %q, want %q", in, err.Error(), want)
+		}
+	}
+}
+
+func FuzzParseOrg(f *testing.F) {
+	for _, s := range []string{"cursor", "claude", " claude ", "\tcursor\n", "", "Claude", "banana", "cursor-retro"} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		got, err := ParseOrg(s)
+		if err != nil {
+			if got != "" {
+				t.Fatalf("ParseOrg(%q) returned %q with error", s, got)
+			}
+			return
+		}
+		for _, o := range Orgs {
+			if got == o {
+				return
+			}
+		}
+		t.Fatalf("ParseOrg(%q) accepted %q, not in Orgs", s, got)
+	})
+}
