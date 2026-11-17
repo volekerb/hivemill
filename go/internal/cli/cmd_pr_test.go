@@ -99,6 +99,8 @@ func TestPrCreateTitleRule(t *testing.T) {
 		{"missing status", "other", "T-0001: missing status"},
 		{"t-0001 - coder text", "other", "T-0001: coder text"},
 		{"T-0001: T-0001", "[SC1, SC2] two tags", "T-0001: two tags"},
+		{"T-0001:", "plain db title", "T-0001: plain db title"},
+		{"T-0001x", "other", "T-0001: T-0001x"},
 	} {
 		e.sql("UPDATE tasks SET title=? WHERE id='T-0001'", tc.db)
 		_, errs, code := e.run("claude-coder", "b\n", "pr", "create", "--title", tc.arg, "--body", "-")
@@ -113,6 +115,11 @@ func TestPrCreateTitleRule(t *testing.T) {
 	_, errs, code := e.run("claude-coder", "b\n", "pr", "create", "--title", "T-0001", "--body", "-")
 	if code != 2 || !strings.Contains(errs, "title needs a description") || stub.read(t, "argv") != before {
 		t.Errorf("empty description: exit %d err %q, gh must not run", code, errs)
+	}
+	e.sql("UPDATE tasks SET title='T-0001' WHERE id='T-0001'")
+	_, errs, code = e.run("claude-coder", "b\n", "pr", "create", "--title", "T-0001 - ", "--body", "-")
+	if code != 2 || !strings.Contains(errs, "title needs a description") || stub.read(t, "argv") != before {
+		t.Errorf("db title is the id: exit %d err %q, gh must not run", code, errs)
 	}
 }
 
