@@ -16236,6 +16236,47 @@ def mech_refused(con, task):
     return bool(last) and last["action"] == "mech-blocked"
 
 
+def autospawn_block_reason(con, t):
+    """T-1323: why the tick must not autospawn reviewer/qa/judge for task row t, else None. A depends_on task that is not done, or
+    status blocked, means the work is not ready for review (a done or missing dependency never blocks)."""
+    if t["status"] == "blocked":
+        return "task is blocked"
+    try:
+        deps = json.loads(t["depends_on"] or "[]")
+    except ValueError:
+        return None
+    for d in deps if isinstance(deps, list) else []:
+        r = con.execute("SELECT status FROM tasks WHERE id=?", (d,)).fetchone()
+        if r and r["status"] != "done":
+            return f"depends_on {d} is {r['status']}, not done"
+    return None
+
+
+def autospawn_blocked(con, t, kind):
+    """True when autospawn_block_reason holds for t; one `<kind>-autospawn-skip` event per task and reason per day."""
+    why = autospawn_block_reason(con, t)
+    if not why:
+        return False
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    key = f"autospawn-block:{kind}:{t['id']}:{why}"
+    if not _throttled(con, key, clock, 86400):
+        _throttle_set(con, key, clock)
+        event(con, "task", t["id"], f"{kind}-autospawn-skip", why[:300])
+    return True
+
+
+def judge_covered_by_other(con, tid):
+    """True when a live/queued/starting judge (a train judge included) names the task id in its agent name."""
+    needle = slug(tid)
+    for r in con.execute("SELECT name FROM agents WHERE role='judge' AND status IN ('live','starting','queued')"):
+        if re.search(r"(?<![a-z0-9])" + re.escape(needle) + r"(?![a-z0-9])", r["name"] or ""):
+            return True
+    return False
+
+
 def judge_autospawn_candidates(con):
     """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
     mech_ids = {t["id"] for t in mech_candidates(con) if not mech_refused(con, t["id"])} if mech_mode(con) == "on" else set()
@@ -16254,6 +16295,10 @@ def judge_autospawn_candidates(con):
                        (t["id"],)).fetchone():
             continue
         if judge_status_only_hold(con, t["id"]):
+            continue
+        if judge_covered_by_other(con, t["id"]):
+            continue  # T-1323: a train judge (or another judge) already covers it
+        if autospawn_blocked(con, t, "judge"):
             continue
         out.append(t)
     return out
@@ -19289,6 +19334,8 @@ def review_rerun_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
+        if autospawn_blocked(con, t, "review"):
+            continue
         head = _review_head(con, t, batch)
         if head:
             _review_alert_no_verdict(con, t, head, clock)
@@ -19368,6 +19415,8 @@ def review_autospawn_tick(con):
             _review_skip(con, t, why, clock)
             continue
         if _review_dead_recent(con, t, clock):
+            continue
+        if autospawn_blocked(con, t, "review"):
             continue
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _review_head(con, t, batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
