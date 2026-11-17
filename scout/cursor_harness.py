@@ -330,6 +330,71 @@ def materialize_cursor_policy(
     }
 
 
+# Cursor prompt chain v2 (docs/cursor-prompt.md): config cursor_prompt=v2 selects it at spawn.
+PROMPT_VERSIONS = ("v1", "v2")
+LOOP_CONTRACT = (
+    "Unattended run: no human reads this pane and there is no user. Do not end your turn until `factory done` has "
+    "succeeded: no plan, summary, question or offer as a last message, and wait for nothing. \"Briefly inform the "
+    "user\" and \"Factory watchdog: your turn ended\" prompts are orders to act: continue with the next step."
+)
+
+
+def check_prompt_version(value: str) -> str:
+    """Normalise config cursor_prompt. Anything but v1|v2 raises ValueError."""
+    v = (value or "").strip() or "v1"
+    if v not in PROMPT_VERSIONS:
+        raise ValueError(f"cursor_prompt must be one of {', '.join(PROMPT_VERSIONS)}, not {value!r}")
+    return v
+
+
+def role_prompt_v2(roles_dir: Path | str, role: str) -> str | None:
+    """Text of roles/cursor/<role>.md, the short Cursor role prompt; None when the role has none (it keeps v1).
+
+    An unreadable file raises (OSError, UnicodeDecodeError): a spawn must not fall back silently."""
+    if role not in CURSOR_ROLES:
+        return None
+    path = Path(roles_dir) / "cursor" / f"{role}.md"
+    if not path.is_file():
+        return None
+    return path.read_text(encoding="utf-8")
+
+
+def kickoff_v2(role: str, name: str, goal: str | None, team: str | None, task: str | None,
+               extra: str | None) -> str | None:
+    """First prompt of a Cursor worker under cursor_prompt=v2: the loop contract and, for a coder, the exact
+    commands with its own ids. One line. None for HQ roles (boss, director, lead never run `factory done`)."""
+    if role in HQ_ROLES or role not in CURSOR_ROLES:
+        return None
+    if role == "coder" and task:
+        branch = f"factory/{task.lower()}"  # the only push target worker-guard allows a coder
+        parts = [
+            f"You are `{name}`, the factory coder for {task}.",
+            LOOP_CONTRACT,
+            f"Run in order: (1) `factory whoami`, `factory inbox`, `factory task show {task}` "
+            f"(2) code, tests, `env -u CURSOR_AGENT git commit` "
+            f"(3) `git push origin HEAD:{branch}` alone in its own shell call (refused for a Co-authored-by line: "
+            f"rebuild the commit as your role prompt step 6 says, push again) "
+            f"(4) `factory pr create --title '{task}: <what the change does>' --body -` with the body in a quoted heredoc "
+            f"(5) `factory prcheck`, fix each FAIL "
+            f"(6) `factory task update {task} --status in_review --pr <PR url>` "
+            f"(7) `factory done \"<PR url; what changed; test evidence>\"`.",
+            "Stuck: `factory done \"BLOCKED: <exact command and error; what you need>\"`.",
+        ]
+    else:
+        parts = [f"You are `{name}`, the factory {role}.", LOOP_CONTRACT,
+                 "Run `factory whoami` and `factory inbox` first."]
+        if task:
+            parts.append(f"Your task is {task}: read it with `factory task show {task}`.")
+        parts.append("Follow your role steps to the end, then run `factory done \"<summary with evidence>\"`.")
+    if goal:
+        parts.append(f"Goal context: `factory goal show {goal}`.")
+    if team:
+        parts.append(f"Your team is {team}.")
+    if extra:
+        parts.append(extra)
+    return " ".join(parts)
+
+
 def find_agent_binary() -> str | None:
     return shutil.which("agent") or shutil.which("cursor-agent")
 

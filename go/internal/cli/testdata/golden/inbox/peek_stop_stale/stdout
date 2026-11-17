@@ -1,0 +1,14 @@
+── M17 [decision] from lead-a @ 2026-11-05T09:00:00+01:00
+   [stale: sent to an earlier pane] STOP
+   This order was sent 2026-11-05T09:00:00+01:00, before your pane started (2026-11-05T10:00:00+01:00). It was for an earlier pane named coder-b, not for you.
+   Carry on with your task. Full text: factory inbox --show M17
+── M18 [decision] from lead-a @ 2026-11-05T10:00:01+01:00
+   STOP
+   fresh order
+── M20 [msg] from lead-a @ 2026-11-05T08:00:00+01:00
+   STOP
+   not a decision
+── M21 [decision] from lead-a @ 2026-11-05T08:30:00+00:00
+   [stale: sent to an earlier pane] STOP
+   This order was sent 2026-11-05T08:30:00+00:00, before your pane started (2026-11-05T10:00:00+01:00). It was for an earlier pane named coder-b, not for you.
+   Carry on with your task. Full text: factory inbox --show M21
