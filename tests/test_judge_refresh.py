@@ -1146,6 +1146,117 @@ class JudgeRefreshTests(FactoryTestCase):
         self.assertEqual(self.pushes(), [])
         self.assertNoMerge()
 
+    # -- T-1802 judge_review_gate=green: no reviewer/QA PASS needed, only PR CI green + no FAIL on the head (owner M40731/M40734) --
+    def green(self, wait="0", ci_gate=None):
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('judge_review_gate','green')")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('judge_ci_wait_s',?)", (wait,))
+        if ci_gate:
+            self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('judge_ci_gate',?)", (ci_gate,))
+
+    def _no_verdicts(self):
+        self.env.sql("DELETE FROM verdicts")
+
+    def _state_pr(self, **pr_extra):
+        st = self.gh_state()
+        st["pr"].update(pr_extra)
+        self.state.write_text(json.dumps(st))
+
+    def _fail_verdict(self, who, head=None):
+        p = self.run_cli("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "no", agent=who)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        if head:
+            self.env.sql("UPDATE verdicts SET head_sha=? WHERE role=? AND verdict='fail'",
+                         (head, "reviewer" if "reviewer" in who else "qa"))
+
+    def test_passpass_default_refuses_without_verdicts(self):
+        self._no_verdicts()
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("no reviewer PASS", p.stderr)
+        self.assertNoMerge()
+
+    def test_passpass_default_merges_with_pass_verdicts(self):
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_green_merges_with_no_verdicts_and_green_ci(self):
+        self.green()
+        self._no_verdicts()
+        self.write_state(ci_orig="")
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "done")
+
+    def test_green_merges_when_fail_is_on_an_older_head(self):
+        self.green()
+        self._no_verdicts()
+        self._fail_verdict("zz-test-reviewer", head="deadbeef")
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_green_refuses_reviewer_fail_on_the_head(self):
+        self.green()
+        self._no_verdicts()
+        self._fail_verdict("zz-test-reviewer", head=self.head)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("reviewer FAIL on the head", p.stderr)
+        self.assertNoMerge()
+
+    def test_green_refuses_qa_fail_on_the_head(self):
+        self.green()
+        self._no_verdicts()
+        self._fail_verdict("zz-test-qa", head=self.head)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("qa FAIL on the head", p.stderr)
+        self.assertNoMerge()
+
+    def test_green_refuses_pending_ci_without_code_change(self):
+        self.green()
+        self._no_verdicts()
+        self.write_state(ci_orig="pending")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertNoMerge()
+
+    def test_green_refuses_red_ci(self):
+        self.green()
+        self._no_verdicts()
+        self.write_state(ci_orig="fail")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertNoMerge()
+
+    def test_green_reads_red_ci_even_with_judge_ci_gate_none(self):
+        self.green(ci_gate="none")
+        self._no_verdicts()
+        self.write_state(ci_orig="fail")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertNoMerge()
+
+    def test_green_refuses_judge_hold(self):
+        self.green()
+        self._no_verdicts()
+        self.env.sql("UPDATE tasks SET judge_hold_reason='zz hold' WHERE id='T-0001'")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertNoMerge()
+
+    def test_green_refuses_draft(self):
+        self.green()
+        self._no_verdicts()
+        self._state_pr(isDraft=True)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("draft", p.stderr)
+        self.assertNoMerge()
+
     def test_ci_pr_default_still_refuses_pending_checks(self):
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('judge_ci_wait_s','0')")
         self.write_state(ci_orig="pending")
