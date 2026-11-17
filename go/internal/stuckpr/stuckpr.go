@@ -115,8 +115,10 @@ func Run(ctx context.Context, d Deps) ([]Action, error) {
 	return actions, errors.Join(errs...)
 }
 
-func handleTask(ctx context.Context, d Deps, t TaskRow, now float64) (Action, error) {
-	act := Action{TaskID: t.ID}
+func handleTask(ctx context.Context, d Deps, t TaskRow, now float64) (act Action, err error) {
+	act = Action{TaskID: t.ID}
+	var wakeErr error
+	defer func() { err = errors.Join(err, wakeErr) }()
 	if d.ViewPR == nil {
 		return act, fmt.Errorf("ViewPR not set")
 	}
@@ -144,13 +146,15 @@ func handleTask(ctx context.Context, d Deps, t TaskRow, now float64) (Action, er
 			return act, fmt.Errorf("read wake marker: %w", err)
 		}
 		if !live && !(ok && woke != "") {
-			if err := d.WakeCoder(ctx, d.DB, t, pr); err != nil {
-				return act, err
-			}
+			// Mark first: a wake that fails (relaunch cannot restart the coder) is not retried every tick,
+			// and the stale rule below can still escalate it.
 			if err := d.ConfigSet(ctx, d.DB, wokeKey, fmt.Sprintf("%.3f", now)); err != nil {
 				return act, fmt.Errorf("record wake: %w", err)
 			}
 			act.Kind = "wake"
+			if err := d.WakeCoder(ctx, d.DB, t, pr); err != nil {
+				wakeErr = fmt.Errorf("wake coder: %w", err)
+			}
 		}
 	}
 	liveAgent, err := d.LiveAgent(ctx, d.DB, t.ID)
@@ -357,4 +361,23 @@ func DefaultEscalate(ctx context.Context, db *sql.DB, task TaskRow, pr *PRView, 
 		`INSERT INTO messages(sender,recipient,kind,subject,body,goal_id,task_id,created) VALUES(?,?,?,?,?,?,?,?)`,
 		"tick", director, "report", subject, body, task.GoalID, task.ID, time.Now().UTC().Format(time.RFC3339))
 	return err
+}
+
+// ResolveRecipient maps "lead:<team>" and a role name to the agent name that the inbox matches on.
+// The messages table is read by exact recipient name, so a role or lead: alias written as is reaches nobody.
+func ResolveRecipient(ctx context.Context, db *sql.DB, to string) (string, error) {
+	var name sql.NullString
+	var err error
+	if team, ok := strings.CutPrefix(to, "lead:"); ok {
+		err = db.QueryRowContext(ctx, `SELECT lead_agent FROM teams WHERE id=?`, team).Scan(&name)
+	} else {
+		err = db.QueryRowContext(ctx, `SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') ORDER BY started DESC LIMIT 1`, to).Scan(&name)
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return "", err
+	}
+	if !name.Valid || name.String == "" {
+		return "", fmt.Errorf("no agent for recipient %q; start it or name the agent", to)
+	}
+	return name.String, nil
 }

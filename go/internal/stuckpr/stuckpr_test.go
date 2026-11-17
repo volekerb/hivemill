@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 )
 
 const testSchema = `
+CREATE TABLE teams (id TEXT PRIMARY KEY, lead_agent TEXT);
 CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE tasks (
   id TEXT PRIMARY KEY, goal_id TEXT, team_id TEXT, pr_url TEXT, branch TEXT,
@@ -387,5 +389,53 @@ func TestRedWakeOncePerHead(t *testing.T) {
 	}
 	if wakes != 1 {
 		t.Fatalf("wakes=%d, want 1 for the same head", wakes)
+	}
+}
+
+func TestWakeFailureStillEscalatesOnce(t *testing.T) {
+	db := testDB(t)
+	task := seedTask(t, db, "T-1552", "2026-11-15T10:00:00Z")
+	rollup := []any{map[string]any{
+		"__typename": "CheckRun", "name": "ci", "status": "COMPLETED",
+		"conclusion": "FAILURE", "completedAt": "2026-11-15T10:05:00Z", "workflowName": "tests",
+	}}
+	var wakes int
+	d := stuckpr.Deps{
+		DB: db, Now: fixedNow("2026-11-15T16:10:00Z"), ViewPR: viewFrom(rollup), Escalate: stuckpr.DefaultEscalate,
+		ListTasks: func(context.Context, *sql.DB) ([]stuckpr.TaskRow, error) { return []stuckpr.TaskRow{task}, nil },
+		WakeCoder: func(context.Context, *sql.DB, stuckpr.TaskRow, *stuckpr.PRView) error {
+			wakes++
+			return fmt.Errorf("expected exactly one cursor-agent, found 0")
+		},
+		LastSignal: func(context.Context, *sql.DB, stuckpr.TaskRow) (float64, error) {
+			return fixedNow("2026-11-15T10:00:00Z")()
+		},
+	}
+	for i := 0; i < 3; i++ {
+		_, _ = stuckpr.Run(context.Background(), d)
+	}
+	var n int
+	_ = db.QueryRow(`SELECT count(*) FROM messages WHERE kind='report'`).Scan(&n)
+	if wakes != 1 || n != 1 {
+		t.Fatalf("wakes=%d escalations=%d, want 1 and 1", wakes, n)
+	}
+}
+
+func TestResolveRecipient(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	_, _ = db.Exec(`INSERT INTO teams(id,lead_agent) VALUES('g-050-a','claude-lead-g-050-a'),('g-051-a',NULL)`)
+	_, _ = db.Exec(`INSERT INTO agents(name,role,status,started) VALUES('claude-director','director','live','2026-11-17T10:00:00Z')`)
+	if got, err := stuckpr.ResolveRecipient(ctx, db, "lead:g-050-a"); err != nil || got != "claude-lead-g-050-a" {
+		t.Fatalf("lead: got %q %v", got, err)
+	}
+	if got, err := stuckpr.ResolveRecipient(ctx, db, "director"); err != nil || got != "claude-director" {
+		t.Fatalf("director: got %q %v", got, err)
+	}
+	if _, err := stuckpr.ResolveRecipient(ctx, db, "lead:g-051-a"); err == nil {
+		t.Fatal("team without a lead must be an error")
+	}
+	if _, err := stuckpr.ResolveRecipient(ctx, db, "lead:nope"); err == nil {
+		t.Fatal("unknown team must be an error")
 	}
 }

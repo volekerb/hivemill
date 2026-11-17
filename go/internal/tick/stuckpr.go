@@ -90,10 +90,14 @@ func stuckPRWake(ctx context.Context, db *sql.DB, task stuckpr.TaskRow, pr *stuc
 	if task.TeamID != "" {
 		to = "lead:" + task.TeamID
 	}
+	rcpt, err := stuckpr.ResolveRecipient(ctx, db, to)
+	if err != nil {
+		return err
+	}
 	subject := fmt.Sprintf("stuck PR, no coder on record: %s PR #%d", task.ID, pr.Number)
 	body := fmt.Sprintf("CI red on %s (%s); no coder agent is recorded for %s. Spawn a fix coder or block the task.", pr.URL, strings.Join(pr.FailedChecks, ", "), task.ID)
 	_, err = db.ExecContext(ctx, `INSERT INTO messages(sender,recipient,kind,subject,body,goal_id,task_id,created) VALUES(?,?,?,?,?,?,?,?)`,
-		"tick", to, "request", subject, body, task.GoalID, task.ID, time.Now().UTC().Format(time.RFC3339))
+		"tick", rcpt, "request", subject, body, task.GoalID, task.ID, time.Now().UTC().Format(time.RFC3339))
 	return err
 }
 
