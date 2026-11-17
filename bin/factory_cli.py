@@ -4337,6 +4337,61 @@ def send(con, to, subject, body=None, kind="msg", goal=None, task=None, sender=N
     return cur.lastrowid, rcpt
 
 
+STALE_STOP_PREFIX = "[stale: sent to an earlier pane]"
+# A STOP order is what cmd_stop and the tick's idle-coder reap send: a decision message with the subject STOP.
+_STOP_ORDER_SQL = "kind='decision' AND subject='STOP'"
+
+
+def is_stop_order(m):
+    return m["kind"] == "decision" and m["subject"] == "STOP"
+
+
+def stop_order_predates(m, started, same_second=False):
+    """True when STOP order m was created before the agent start `started`. messages.created and agents.started are
+    both written by now() (ISO seconds). A timestamp that cannot be read or compared decides nothing: the order then
+    counts as current and is delivered. same_second: also count an order of the very same second (spawn only, where
+    every order already in the table was sent to an earlier pane)."""
+    c, st = _ts(m["created"]), _ts(started)
+    if c is None or st is None:
+        return False
+    return c <= st if same_second else c < st
+
+
+def drop_stale_stop_orders(con, name):
+    """Spawn: mark read every unread STOP order sent to `name` before this spawn's start. It was meant for an earlier
+    pane of the same name, and the new agent would obey it and quit without working. One stop-stale-dropped event per
+    message. Other unread mail is untouched. Runs inside the caller's transaction (spawn_row_write)."""
+    r = con.execute("SELECT started FROM agents WHERE name=?", (name,)).fetchone()
+    if not r:
+        return []
+    dropped = []
+    for m in con.execute(f"SELECT id, created FROM messages WHERE recipient=? AND read_at IS NULL AND {_STOP_ORDER_SQL} "
+                         "ORDER BY id", (name,)).fetchall():
+        if not stop_order_predates(m, r["started"], same_second=True):
+            continue
+        con.execute("UPDATE messages SET read_at=? WHERE id=? AND read_at IS NULL", (now(), m["id"]))
+        event(con, "agent", name, "stop-stale-dropped",
+              {"agent": name, "message": m["id"], "sent": m["created"], "started": r["started"], "by": "spawn"})
+        dropped.append(m["id"])
+    return dropped
+
+
+def spawn_row_write(con, name, sql, params):
+    """Write the agents row of a spawn and drop the stale STOP orders of that name, in one transaction."""
+    own = not con.in_transaction
+    if own:
+        con.execute("BEGIN IMMEDIATE")
+    try:
+        con.execute(sql, params)
+        drop_stale_stop_orders(con, name)
+        if own:
+            con.execute("COMMIT")
+    except BaseException:
+        if own and con.in_transaction:
+            con.execute("ROLLBACK")
+        raise
+
+
 def release_stale_pane(con, name):
     """A finished (`done`) agent keeps its pane until the next tick reaps it. Reusing the name before then would
     overwrite pane_id and leak that pane, so close it now (same call as the tick reap), confirm with pane_gone and mark
@@ -4540,8 +4595,9 @@ def cmd_inbox(a):
     if a.limit < 1:
         die("--limit must be at least 1")
     me = a.agent or actor()
-    r = con.execute("SELECT role FROM agents WHERE name=?", (me,)).fetchone()
+    r = con.execute("SELECT role, started FROM agents WHERE name=?", (me,)).fetchone()
     hq = (r["role"] if r else ("boss" if me == "boss" else "")) in HQ_ROLES
+    started = r["started"] if r else None
     q = "SELECT * FROM messages WHERE recipient=?" + ("" if a.all else " AND read_at IS NULL") + " ORDER BY id"
     rows = con.execute(q, (me,)).fetchall()
     if not rows:
@@ -4550,8 +4606,16 @@ def cmd_inbox(a):
     hidden = [m for m in rows[:len(rows) - len(shown)] if m["read_at"] is None]
     if hidden:
         print(f"({len(hidden)} older unread not shown; run factory inbox again or --all)")
+    stale = []  # unread STOP orders older than the reader's own start: the spawn missed them (race)
     for m in shown:
         print(inbox_header(m))
+        if m["read_at"] is None and is_stop_order(m) and stop_order_predates(m, started):
+            stale.append(m)
+            print(f"   {STALE_STOP_PREFIX} {m['subject']}")
+            print(f"   This order was sent {m['created']}, before your pane started ({started}). It was for an earlier "
+                  f"pane named {me}, not for you.\n   Carry on with your task. "
+                  f"Full text: factory inbox --show M{m['id']}")
+            continue
         print(f"   {m['subject']}")
         body = m["body"] or ""
         if inbox_collapsed(m, hq, a.full):
@@ -4563,7 +4627,17 @@ def cmd_inbox(a):
         elif body:
             print(textwrap.indent(body, "   "))
     if shown and not a.peek and me == actor():
-        con.executemany("UPDATE messages SET read_at=? WHERE id=? AND read_at IS NULL", [(now(), m["id"]) for m in shown])
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            con.executemany("UPDATE messages SET read_at=? WHERE id=? AND read_at IS NULL", [(now(), m["id"]) for m in shown])
+            for m in stale:
+                event(con, "agent", me, "stop-stale-dropped",
+                      {"agent": me, "message": m["id"], "sent": m["created"], "started": started, "by": "inbox"})
+            con.execute("COMMIT")
+        except BaseException:
+            if con.in_transaction:
+                con.execute("ROLLBACK")
+            raise
 
 
 def cmd_report(a):
@@ -4642,8 +4716,48 @@ def rejection_cause_counts(con):
         "SELECT cause, COUNT(*) n FROM rejection_incidents GROUP BY cause ORDER BY n DESC, cause")}
 
 
+_SC_TITLE_TAG = re.compile(r"^\[SC\d+(?:\s*,\s*SC\d+)*\]\s*")
+_PR_TITLE_SEP = re.compile(r"^[ :-]+")
+
+
+def _task_title_description(db_title):
+    s = (db_title or "").strip()
+    s = _SC_TITLE_TAG.sub("", s, count=1)
+    return s.strip()
+
+
+def _pr_create_gh_title(task_id, given_raw, db_title):
+    """Build the gh --title for `factory pr create`: task id, colon, description (T-1263)."""
+    given = (given_raw or "").strip()
+    tid = task_id
+    tl = len(tid)
+
+    def refuse():
+        die("title needs a description", 2)
+
+    def emit(desc):
+        d = desc.strip()
+        if not d or d.lower() == tid.lower():
+            refuse()
+        return f"{tid}: {d}"
+
+    db_desc = _task_title_description(db_title)
+    if len(given) >= tl and given[:tl].lower() == tid.lower():
+        after = given[tl:]
+        if not after:
+            return emit(db_desc)
+        sep = _PR_TITLE_SEP.match(after)
+        if sep:
+            rem = after[sep.end() :]
+            rem_strip = rem.strip()
+            if not rem_strip or rem_strip.lower() == tid.lower():
+                return emit(db_desc)
+            return emit(rem_strip)
+    return emit(given)
+
+
 def cmd_pr(a):
-    """coder: `pr create --title T --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
+    """coder: `pr create --title 'T-1234: what the change does' --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
     the PR from the own branch, never from args or env: gh's glob-matchable flags (--repo=X, -RX, GH_REPO, a PR URL) cannot
     redirect it. The child env drops GH_REPO and GH_HOST."""
     con = db()
@@ -4654,8 +4768,8 @@ def cmd_pr(a):
     tid = ag["task_id"] if ag else None
     if not tid:
         die(f"{actor()} has no task: `factory pr` opens the PR of your own task; ask your lead", 3)
-    row = con.execute("SELECT p.gh_repo, p.base_branch, t.branch AS task_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
-                      "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
+    row = con.execute("SELECT p.gh_repo, p.base_branch, t.branch AS task_branch, t.title AS task_title FROM tasks t "
+                      "JOIN goals g ON g.id=t.goal_id JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
     repo = ((row["gh_repo"] if row else "") or "").strip()
     if not ghcred.SLUG_RE.fullmatch(repo):
         die(f"{tid}: its project has no valid gh_repo ({repo!r}); ask your lead to set it with `factory project update`", 3)
@@ -4679,13 +4793,14 @@ def cmd_pr(a):
         body = read_text("-")
         if not (a.title or "").strip() or not body:
             die("`factory pr create` needs a non-empty --title and a body on stdin", 2)
+        gh_title = _pr_create_gh_title(tid, a.title, (row["task_title"] if row else "") or "")
         argv = ["gh", "pr", "create", "--repo", repo, "--base", row["base_branch"], "--head", branch,
-                "--title", a.title, "--body-file", "-"]
+                "--title", gh_title, "--body-file", "-"]
         if _repo_slug(repo) in _cfg_slugs(con, "public_text_repos"):  # G-021: raw `gh pr create` is denied, so this is the only text path
             try:
                 guard = _public_guard()
                 terms = guard.load_terms_or_fail(os.environ, cfg(con, "scrub_terms_file") or None)
-                hits = guard.check_text(a.title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
+                hits = guard.check_text(gh_title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
             except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses, never lets the text through
                 die(f"pr create refused (public text): cannot check the text: {type(e).__name__}: {str(e)[:200]}; "
                     f"fix the guard or SCRUB_TERMS_FILE, or ask your lead", 3)
@@ -5410,7 +5525,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
     """Poll the PR while its only non-green checks are pending (`judge_ci_wait_s`). With `new_head` (just pushed by a
     refresh) it first waits for GitHub to report that head, and for its checks to appear (required ones, or any when the
     old head had some): an empty rollup right after a push is not green. Returns (pr, seconds waited)."""
-    local = gate_project_for(con, url) is not None  # T-0516: the gate is gate_runs, GitHub checks need not exist
+    proj = gate_project_for(con, url)  # T-0516: the gate is gate_runs, GitHub checks need not exist
+    local = proj is not None
 
     def waiting(pr):
         if new_head:
@@ -5418,7 +5534,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
                 return f"PR head still {pr['headRefOid'][:8]}, waiting for {new_head[:8]}"
             if not local and (missing_checks(con, pr, url) or (had_checks and not pr.get("statusCheckRollup"))):
                 return "checks of the new head not started"
-        bad = checks_ok(pr)
+        # T-1634: in local mode only the project's required_checks are waited for; other pending checks never block
+        bad = local_checks_problems(proj, pr) if local else checks_ok(pr)
         return ", ".join(bad) if _judge_pending(bad) else ""
 
     what = waiting(pr)
@@ -6363,7 +6480,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append("PR is a draft")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
-        bad = checks_ok(pr)
+        bad = local_checks_problems(proj, pr) if proj else checks_ok(pr)  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -6481,6 +6598,15 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 block(f"after the refresh the PR head is {pr['headRefOid'][:8]}, not {new[:8]} (branch moved or GitHub lagging, waited {waited}s)")
             sha = new
             continue
+        if not problems:  # last, so a PR already refused for another reason costs no extra gh call
+            try:  # a separate read: pr_state's field list is mirrored by the Go verdict/prcheck goldens
+                title = gh_json("pr", "view", t["pr_url"], "--json", "title").get("title")
+            except (SystemExit, ValueError, AttributeError) as e:
+                title = None
+                problems.append(f"cannot verify the PR title: {_tick_gh_detail(e)}")
+            if bare_id_title(title):
+                problems.append(f"PR title {title!r} is only the task id: retitle it \"{t['id']}: <what changed>\" "
+                                f"(the tick renames factory/t-* PRs itself; any other head must be retitled by hand)")
         if problems:
             rejection_gate_refusal(con, a.task, "judge-blocked", "; ".join(problems))
             die("merge refused: " + "; ".join(problems), 4)
@@ -6830,6 +6956,70 @@ def cmd_mech_merge(a):
         if out == "merged":
             break
     con.commit()
+
+
+BARE_ID_TITLE = re.compile(r"T-\d+\s*")
+TITLE_TAGS = re.compile(r"^\s*(?:\[[A-Za-z]+\d+\]\s*)+")
+PR_TITLE_MAX = 72
+
+
+def bare_id_title(title):
+    """True for a PR title that is only a task id ("T-0336", whitespace around it allowed). None/non-str: not decidable here."""
+    return isinstance(title, str) and BARE_ID_TITLE.fullmatch(title.strip()) is not None
+
+
+def pr_title_for(task_id, task_title):
+    """"T-xxxx: <task title>" with leading [SCn] tags stripped, trimmed to PR_TITLE_MAX chars."""
+    text = TITLE_TAGS.sub("", task_title or "", count=1).strip()
+    return (f"{task_id}: {text}" if text else task_id)[:PR_TITLE_MAX].rstrip()
+
+
+def tick_pr_titles(con):
+    """Tick (T-1590): rename every OPEN PR on a factory/t-* head whose title is only the task id to "T-xxxx: <task title>"
+    (gh pr edit --title) and write one `pr-title-renamed` event (old, new, PR). One `gh pr list` per repo of a live task PR;
+    each PR head is handled once (throttle key prtitle:<url> = head sha). PRs on other branches are never touched."""
+    repos = {}
+    for r in con.execute("SELECT pr_url FROM tasks WHERE pr_url IS NOT NULL AND pr_url!='' "
+                         "AND status NOT IN ('done','cancelled')").fetchall():
+        parts = r["pr_url"].split("/")
+        if len(parts) >= 5:
+            repos["/".join(parts[3:5])] = 1
+    for repo in repos:
+        try:
+            prs = gh_json("pr", "list", "-R", repo, "--state", "open", "--limit", "200",
+                          "--json", "number,title,headRefName,headRefOid,url")
+        except (SystemExit, subprocess.SubprocessError, OSError, ValueError) as e:  # one repo failing must not skip the others
+            event(con, "tick", "pr-titles", "pr-titles-error", f"{repo}: {_tick_gh_detail(e)}")
+            continue
+        for pr in prs:
+            m = re.fullmatch(r"factory/(t-\d+)", pr.get("headRefName") or "")
+            if not m:
+                continue
+            key, head = f"prtitle:{pr['url']}", pr.get("headRefOid") or ""
+            old = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+            if old and old["ts"] == head:
+                continue
+            done = lambda: con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                                       (key, head))  # a failed rename is not recorded: the next tick retries it
+            if not bare_id_title(pr.get("title")):
+                done()
+                continue
+            tid = m.group(1).upper()
+            t = con.execute("SELECT title FROM tasks WHERE id=?", (tid,)).fetchone()
+            if not t:
+                done()
+                continue
+            new = pr_title_for(tid, t["title"])
+            try:
+                p = subprocess.run(["gh", "pr", "edit", pr["url"], "--title", new], capture_output=True, text=True, timeout=60)
+            except (subprocess.SubprocessError, OSError) as e:
+                event(con, "task", tid, "pr-title-rename-failed", {"pr": pr["url"], "err": str(e)[:200]})
+                continue
+            if p.returncode != 0:
+                event(con, "task", tid, "pr-title-rename-failed", {"pr": pr["url"], "err": p.stderr.strip()[:200]})
+                continue
+            done()
+            event(con, "task", tid, "pr-title-renamed", {"pr": pr["url"], "old": pr["title"], "new": new})
 
 
 def tick_mech_merge(con):
@@ -7448,11 +7638,13 @@ def _red_main_latest(slug):
     """Latest completed tests.yml push run on main of `slug` as a dict, None when there is none. Raises OSError, ValueError
     or subprocess.TimeoutExpired when gh cannot tell (the caller keeps the old state)."""
     p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
-                        "--limit", "5", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
+                        "--limit", "40", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
                        capture_output=True, text=True, timeout=30, env=gh_git_env())
     if p.returncode != 0:
         raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
-    return next((r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")), None)
+    done = [r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")]
+    # the newest commit's verdict is the newest createdAt, not the first listed; queued runs crowd a small window (T-1636)
+    return max(done, key=lambda r: r.get("createdAt") or "", default=None)
 
 
 def _red_main_green_mark(value):
@@ -10933,7 +11125,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             die(f"runtime {runtime}: failed to start: {e}", 3)
         args["pid"] = proc.pid
         args["log"] = str(log_path)
-        con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+        spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                     "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=NULL, "
                     "workspace_id=NULL, tab_id=NULL, model=excluded.model, "
                     "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
@@ -10966,7 +11158,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             ws, tab, pane = place(con, role, goal, team, name, cwd, env, spawn_host)
     finally:
         _SPAWN_HOST_EXE = None
-    con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+    spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
                 "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
@@ -11170,7 +11362,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         claude_args += ["--session-id", sid]
         if fresh:  # same role flags as a resume: the prompt file is re-read on every request
             claude_args += RESUME_PROMPT_FLAGS
-    con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+    spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
                 "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
@@ -11637,7 +11829,8 @@ def prcheck_evidence_problem(sec):
 def prcheck_body(wt, base, pr_url):
     """Check 3: the PR body follows the template, shows a test command, and says `Tests removed:` when the count drops."""
     if not pr_url:
-        return False, "no PR for this task yet: open it (factory pr create --title T --body -) or pass --pr <url>, then rerun"
+        return False, ("no PR for this task yet: open it (factory pr create --title 'T-1234: what the change does' "
+                       "--body -) or pass --pr <url>, then rerun")
     try:
         p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "body"], capture_output=True, text=True, timeout=120,
                            env=gh_git_env())
@@ -14592,6 +14785,33 @@ def gate_project_for(con, pr_url):
     return r if r and (r["gate_cmd"] or "").strip() else None
 
 
+def local_required_checks(proj):
+    """T-1634: the GitHub check names a local-mode project still needs green: its own projects.required_checks only (the
+    global config required_checks is not a fallback here, so '' keeps the T-0516 behaviour: no check is required)."""
+    return [n for n in dict.fromkeys(x.strip() for x in (proj["required_checks"] or "").split(",")) if n]
+
+
+def local_checks_problems(proj, pr):
+    """T-1634: checks_ok for a local-mode project. The local gate replaces the heavy GitHub jobs, so a check that is still
+    pending (queued, in progress) does not block unless it is named in the project's required_checks; a red (completed,
+    not SUCCESS/SKIPPED/NEUTRAL) check always does, and a required check absent from the head's rollup is reported missing.
+    Same `name=STATE` format as checks_ok, plus `required check <n> missing`."""
+    req = local_required_checks(proj)
+    latest = latest_checks(pr.get("statusCheckRollup"))
+    bad = []
+    for c in latest:
+        name = c.get("name") or c.get("context")
+        concl = (c.get("conclusion") or c.get("state") or "").upper()
+        if concl in ("SUCCESS", "SKIPPED", "NEUTRAL"):
+            continue
+        label = concl or c.get("status")
+        if (label or "").upper() in PENDING_CHECK_STATES and name not in req:
+            continue
+        bad.append(f"{name}={label}")
+    seen = {c.get("name") or c.get("context") for c in latest}
+    return bad + [f"required check {n} missing" for n in req if n not in seen]
+
+
 def gate_run_for_head(con, pr_url, sha):
     return con.execute("SELECT * FROM gate_runs WHERE kind='pr' AND pr_url=? AND head_sha=? ORDER BY id DESC LIMIT 1",
                        (pr_url, sha)).fetchone()
@@ -14692,7 +14912,7 @@ def tick_gate(con):
 def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     """judge_pr_ready for a local-mode project: (ready, why) from gate_runs of the PR's current head."""
     try:
-        pr = gh_json("pr", "view", pr_url, "--json", "headRefOid,mergeStateStatus,state", timeout=30)
+        pr = gh_json("pr", "view", pr_url, "--json", "headRefOid,mergeStateStatus,state,statusCheckRollup", timeout=30)
         sha = pr["headRefOid"]
     except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
         return False, f"gh check failed: {e}"
@@ -14713,6 +14933,10 @@ def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     if r["status"] != "pass":
         gate_notify_fail(con, pr_url, r)
         return False, f"local gate run #{r['id']} {r['status']} on {sha[:8]}"
+    if local_required_checks(proj):  # T-1634: the named GitHub checks (e.g. smoke) green on this head, as the judge needs
+        bad = local_checks_problems(proj, pr)
+        if bad:
+            return False, "CI not green: " + ", ".join(bad)
     if (pr.get("mergeStateStatus") or "").upper() in ("BEHIND", "DIRTY"):
         return (True, "PR is BEHIND") if behind_ok and pr["mergeStateStatus"].upper() == "BEHIND" \
             else (False, f"PR is {pr['mergeStateStatus']}")
@@ -16430,6 +16654,10 @@ def _tick_u_ci_wake(con, st):
             tick_ci_wake(con)
         except Exception as e:  # noqa: BLE001 — a bad PR or team row must never stop the tick
             event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
+        try:  # T-1590: a bare-id PR title on a factory/t-* head becomes "T-xxxx: <task title>"
+            tick_pr_titles(con)
+        except Exception as e:  # noqa: BLE001 — a gh hiccup or odd row must never stop the tick
+            event(con, "tick", "pr-titles", "pr-titles-error", str(e)[:300])
         _pt_lap("ci_wake")
 
 
