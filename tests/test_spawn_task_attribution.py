@@ -3,6 +3,7 @@
 A queued spawn keeps the same values once the tick dequeues it. Real CLI, temp FACTORY_HOME, herdr stub."""
 import importlib.machinery
 import importlib.util
+import json
 import os
 import unittest
 
@@ -57,6 +58,14 @@ class SpawnTaskAttribution(FactoryTestCase):
         u = self.utilization()
         self.assertEqual(u["workers"], 1)
         self.assertNotIn("G-001", u["p1_starved"])
+
+    def test_worker_env_puts_go_and_pnpm_caches_on_disk(self):
+        self.assertEqual(self.spawn().returncode, 0)
+        blob = " ".join(json.dumps(c) for c in self.env.calls())
+        cache = str(self.env.user_home / ".cache")
+        for want in (f"GOTMPDIR={cache}/go/tmp", f"GOCACHE={cache}/go/build",
+                     f"GOMODCACHE={cache}/go/path/pkg/mod", f"npm_config_store_dir={cache}/pnpm-store"):
+            self.assertIn(want, blob)
 
     def test_explicit_goal_and_team_keep_precedence(self):
         p = self.spawn("--goal", "G-002", "--team", "g-002-a")
