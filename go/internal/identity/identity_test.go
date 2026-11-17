@@ -265,7 +265,7 @@ func TestRealpathParity(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "sub", "deep"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for name, target := range map[string]string{"lnk": "sub/deep", "dang": "nowhere", "l": "l"} {
+	for name, target := range map[string]string{"lnk": "sub/deep", "dang": "nowhere", "l": "l", "m": "l/q"} {
 		if err := os.Symlink(target, filepath.Join(root, name)); err != nil {
 			t.Fatal(err)
 		}
@@ -276,6 +276,9 @@ func TestRealpathParity(t *testing.T) {
 		{"dangling then missing", "dang/x", "nowhere/x"},
 		{"loop", "l", "l"},
 		{"loop then missing", "l/x", "l/x"},
+		{"dotdot after loop", "l/../a", "a"},
+		{"dot and slashes after loop", "l/./x//y", "l/x/y"},
+		{"loop inside a link target", "m/../a", "l/a"},
 		{"dotdot after link is physical", "lnk/../x", "sub/x"},
 	}
 	for _, c := range cases {
