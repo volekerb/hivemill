@@ -113,8 +113,14 @@ class SpawnPrecheckTests(FactoryTestCase):
         git(cwd, "commit", "-q", "-m", msg)
 
     def write_state(self, repo_url=None, **extra):
+        # T-1788 (owner M40469): the judge refreshes only a PR GitHub reports CONFLICTING; tests that exercise the refresh
+        # set it with gh_conflicting(), every other test keeps the stub's default MERGEABLE
+        self.state_extra = {**getattr(self, "state_extra", {}), **extra}
         self.state.write_text(json.dumps({"repo_url": repo_url or str(self.remote), "origin": str(self.remote),
-                                          "branch": BRANCH, "url": PR_URL, **extra}))
+                                          "branch": BRANCH, "url": PR_URL, **self.state_extra}))
+
+    def gh_conflicting(self, **extra):
+        self.write_state(mergeable="CONFLICTING", **extra)
 
     def main_commit(self, name="main.txt", text="m\n"):
         other = self.env.home / "other"
@@ -187,6 +193,7 @@ class SpawnPrecheckTests(FactoryTestCase):
     # -- cases -----------------------------------------------------------
     def test_a_judge_clean_behind_is_refreshed_then_queued_until_ci(self):
         # T-0391: the refreshed head has no green CI yet, so the judge waits in the queue instead of taking a pane
+        self.gh_conflicting()
         main = self.main_commit()
         p = self.spawn("judge")
         self.assertRefreshedSpawn(p, "judge", main)
@@ -197,6 +204,7 @@ class SpawnPrecheckTests(FactoryTestCase):
 
     def test_a2_public_repo_refresh_uses_noreply_identity(self):
         # T-0604: on a public_text_repos repo the pre-check merge is committed as the repo's noreply user.email
+        self.gh_conflicting()
         main = self.main_commit()
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
         git(self.env.home_dir, "config", "user.email", "456+volekerb@users.noreply.github.com")
@@ -206,6 +214,7 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.assertEqual(git(self.remote, "log", "-1", "--format=%an <%ae>|%cn <%ce>", self.remote_head()), f"{who}|{who}")
 
     def test_a3_public_repo_no_noreply_address_pushes_nothing(self):
+        self.gh_conflicting()
         self.main_commit()
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
         self.spawn("judge")
@@ -226,22 +235,47 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.assertEqual(self.events("refreshed"), [])
         self.assertEqual(self.events("spawn-bounced"), [])
 
-    def test_g2_behind_ok_dirty_is_still_refreshed(self):
-        main = self.main_commit()
+    def test_g2_unknown_mergeable_is_not_refreshed(self):
+        # T-1788: only GitHub CONFLICTING triggers the judge's refresh; UNKNOWN (not computed yet) leaves the head alone
+        self.main_commit()
         self.write_state(strict=False, mergeable="UNKNOWN")
+        self.assertSpawnedOnCurrentHead(self.spawn("judge"), "judge")
+
+    def test_t1788_judge_spawn_leaves_a_not_conflicting_pr_alone(self):
+        # owner M40469: mergeable MERGEABLE/UNKNOWN (BEHIND, CLEAN, UNSTABLE, BLOCKED all read MERGEABLE) never refreshes,
+        # whatever the branch protection says (strict true, unreadable) and whatever stale_policy is
+        self.main_commit()
+        for extra in ({}, {"strict": True}, {"strict": False}, {"mergeable": "UNKNOWN"}):
+            for pol in ("behind_ok", "strict"):
+                self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_policy',?)", (pol,))
+                self.write_state(**extra)
+                self.env.sql("DELETE FROM agents WHERE name='zz-test-judge-x'")
+                p = self.spawn("judge")
+                self.assertEqual(p.returncode, 0, f"{extra} {pol}: {p.stdout}{p.stderr}")
+                self.assertEqual(self.remote_head(), self.head, f"{extra} {pol}")
+                self.assertEqual(self.pushes(), [])
+                self.assertEqual(self.events("refreshed"), [])
+                self.assertEqual(len(self.agent("judge")), 1)
+
+    def test_t1788_judge_spawn_refreshes_a_conflicting_pr(self):
+        main = self.main_commit()
+        self.gh_conflicting()
         self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
 
     def test_g3_strict_true_unreadable_or_policy_strict_still_refresh(self):
+        self.gh_conflicting()
         main = self.main_commit()
         self.write_state(strict=True)  # strict=true on GitHub
         self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
 
     def test_g4_protection_unreadable_refreshes(self):
+        self.gh_conflicting()
         main = self.main_commit()
         self.write_state()  # the stub answers 404 for the protection read
         self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
 
     def test_g5_policy_strict_refreshes_even_if_github_strict_false(self):
+        self.gh_conflicting()
         main = self.main_commit()
         self.write_state(strict=False)
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_policy','strict')")
@@ -270,6 +304,7 @@ class SpawnPrecheckTests(FactoryTestCase):
 
     def test_nr_judge_strict_main_still_refreshes(self):
         main = self._nr_ready()
+        self.gh_conflicting()
         self.write_state(strict=True, rollup=[{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}])
         self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
         self.assertEqual(self.events("precheck-no-refresh"), [])
@@ -317,12 +352,14 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.assertBounced(p, "reviewer", "CONFLICT-ONLY:", "base.txt")
 
     def test_d2_judge_conflict_refused_nothing_pushed(self):
+        self.gh_conflicting()
         self.conflicting_main()
         p = self.spawn("judge")
         self.assertBounced(p, "judge", "CONFLICT-ONLY:", "base.txt")
         self.assertEqual(self.remote_head(), self.head)
 
     def test_e_fetch_fails_open(self):
+        self.gh_conflicting()
         self.main_commit()
         self.write_state(repo_url=str(self.env.home / "no-such-origin.git"))
         p = self.spawn("judge")
@@ -370,6 +407,7 @@ class SpawnPrecheckTests(FactoryTestCase):
 
     def test_g_queued_judge_conflict_at_start_is_bounced(self):
         self._queue("judge")
+        self.gh_conflicting()
         self.conflicting_main()
         p = self.run_cli("tick")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
@@ -388,6 +426,7 @@ class SpawnPrecheckTests(FactoryTestCase):
         # T-1080: the bounce answers the lead's own spawn, so it stays with that lead whatever the goal's org
         self._queue("judge")
         self.env.sql("UPDATE goals SET org='cursor' WHERE id='G-001'")  # the goal moves while the spawn waits
+        self.gh_conflicting()
         self.conflicting_main()
         p = self.run_cli("tick")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
@@ -396,6 +435,7 @@ class SpawnPrecheckTests(FactoryTestCase):
 
     def test_g2_queued_judge_clean_behind_is_refreshed_then_stays_queued_until_ci(self):
         self._queue("judge")
+        self.gh_conflicting()
         main = self.main_commit()
         p = self.run_cli("tick")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
@@ -407,6 +447,7 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-test-judge-x'")[0]["status"], "queued")
 
     def test_h_lock_held_is_refused_in_flight(self):
+        self.gh_conflicting()
         self.main_commit()
         lock = open(self.env.home_dir / "db" / "refresh-pr-1.lock", "w")
         self.addCleanup(lock.close)
@@ -416,6 +457,7 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.assertEqual(self.remote_head(), self.head)
 
     def test_i_lost_lease_fails_open_nothing_overwritten(self):
+        self.gh_conflicting()
         self.main_commit()
         self.write_state(race=True)
         p = self.spawn("judge")

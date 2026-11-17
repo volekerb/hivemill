@@ -24,6 +24,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [machine-sync.md](machine-sync.md): the owner-run tool that copies allow-listed secret files to a worker machine (chmod 600, never printed).
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-flow.md](pr-flow.md): read-only PR flow report: merges per day, open-to-merge time and stage hours per org.
+- [diff-checklist.md](diff-checklist.md): the diff-checklist tool: match checklist items to a diff, render and verify the PR body block.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [researcher.md](researcher.md): the researcher role, its per-task research directory and where its findings go.
@@ -124,6 +125,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0005-self-hosted-ci-runners.md](adr/0005-self-hosted-ci-runners.md): self-hosted CI runners for trusted PRs (proposed design, nothing installed).
 - [adr/0006-worker-sandbox-assessment.md](adr/0006-worker-sandbox-assessment.md): worker sandbox assessment (why go test fails for QA; proposed, nothing installed).
 - [adr/0007-hivemill-kit.md](adr/0007-hivemill-kit.md): Hivemill Kit design (standalone skills, three levels, evals and a catalog; proposed).
+- [adr/0008-resource-hygiene.md](adr/0008-resource-hygiene.md): deterministic resource hygiene (hm-clean; proposed, nothing installed).
 
 ## Internals
 

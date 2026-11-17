@@ -158,3 +158,34 @@ func TestRunGhFailure(t *testing.T) {
 		t.Errorf("stderr %q, stdout %q", errb.String(), out.String())
 	}
 }
+
+func TestRunRedMain(t *testing.T) {
+	stubGH(t, 0)
+	p := filepath.Join(t.TempDir(), "events.jsonl")
+	body := `{"ts": "2026-11-10T10:00:00Z", "entity": "redmain", "entity_id": "o/r", "action": "red-main"}` + "\n" +
+		`{"ts": "2026-11-10T12:00:00Z", "entity": "redmain", "entity_id": "x/y", "action": "red-main"}` + "\n"
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if rc := run([]string{"--repo", "o/r", "--since", "1d", "--events", p}, &out, &errb, now); rc != 0 {
+		t.Fatalf("exit %d: %s", rc, errb.String())
+	}
+	if !strings.Contains(out.String(), "events 1, events/day 1.00, windows 1, red hours 14.0") || strings.Contains(out.String(), "x/y") {
+		t.Errorf("red main section wrong:\n%s", out.String())
+	}
+	out.Reset()
+	if rc := run([]string{"--repo", "o/r", "--since", "1d", "--events", p, "--json", "--red-main-all"}, &out, &errb, now); rc != 0 {
+		t.Fatalf("exit %d: %s", rc, errb.String())
+	}
+	var got struct {
+		RedMain  map[string]any   `json:"red_main"`
+		AllRepos []map[string]any `json:"red_main_repos"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.RedMain["events"] != float64(1) || len(got.AllRepos) != 2 {
+		t.Errorf("json: %s", out.String())
+	}
+}
