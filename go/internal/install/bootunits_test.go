@@ -285,3 +285,24 @@ func TestDarwinTickPlistGolden(t *testing.T) {
 		}
 	}
 }
+
+func TestDarwinBootUnitsBootoutFailureIsNotFatalAndBootstrapRetries(t *testing.T) {
+	f := darwinWithTemplates(t)
+	fails := 0
+	f.rules = func(argv []string) (int, string, bool) {
+		if argv[0] != "launchctl" {
+			return 0, "", false
+		}
+		if argv[1] == "bootout" {
+			return 5, "Boot-out failed: 5: Input/output error", true
+		}
+		if fails < 1 { // the first bootstrap loses the race with the asynchronous bootout
+			fails++
+			return 5, "Bootstrap failed: 5", true
+		}
+		return 0, "", false
+	}
+	if rc, out, _ := runMain(t, f, "--resume", "--yes"); rc != 0 {
+		t.Fatalf("rc=%d\n%s", rc, out)
+	}
+}

@@ -138,11 +138,18 @@ func stepBootUnits(c *Ctx) (string, error) {
 	}
 	r := hostRunner{c.host}
 	for _, l := range labels {
-		// idempotent: an already-loaded job makes bootstrap fail, so boot it out first
-		if err := r.Bootout(uid, l); err != nil && !errors.Is(err, launchd.ErrNotLoaded) {
-			return "", stepWrap(err, "bootout "+l)
+		// idempotent: an already-loaded job makes bootstrap fail, so boot it out first. A bootout failure is not
+		// fatal (newer macOS answers rc 5 for a job that is not loaded): bootstrap below reports a real problem.
+		_ = r.Bootout(uid, l)
+		p := filepath.Join(dir, launchd.PlistName(l))
+		var err error
+		for try := 0; try < 3; try++ { // bootout is asynchronous: the first bootstrap can lose the race
+			if err = r.Bootstrap(uid, p); err == nil {
+				break
+			}
+			c.host.Sleep(time.Second)
 		}
-		if err := r.Bootstrap(uid, filepath.Join(dir, launchd.PlistName(l))); err != nil {
+		if err != nil {
 			return "", stepWrap(err, "bootstrap "+l)
 		}
 	}
