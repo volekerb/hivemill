@@ -43,7 +43,8 @@ func segments(goFns map[string]GoFunc) []segment {
 			switch {
 			case gap == 1:
 				segs[n-1].units = append(segs[n-1].units, u.Name)
-			case gap == 2 && Units[unitTableIndex(last)+1].Name == OfflineUnit:
+			case gap == 2 && Units[unitTableIndex(last)+1].Name == OfflineUnit && goFns["drift"] == nil:
+				// not when drift is a Go unit: the offline branch runs it first (see walk), so it needs its own child
 				// Python --phases forbids gaps: the offline row rides along (a no-op unless herdr_list gave None).
 				segs[n-1].units = append(segs[n-1].units, OfflineUnit, u.Name)
 			default:
@@ -121,6 +122,12 @@ func (d *driver) walk() int {
 		}
 		if !stop && sg.units[len(sg.units)-1] == pruneUnit && d.state.AgentsNull() {
 			// herdr was unreachable: the tick ends with the offline branch (drift, "exporting only", export)
+			if fn := d.cfg.Go["drift"]; fn != nil {
+				// _tick_u_offline's tick_drift: Go runs it first; the Python child then finds the throttle set and skips it
+				if _, code = d.runGo("drift", fn); code >= 0 {
+					return code
+				}
+			}
 			stop, code = d.runPython([]string{OfflineUnit})
 			if code >= 0 {
 				return code
