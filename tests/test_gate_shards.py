@@ -223,7 +223,10 @@ class RemoteGate(unittest.TestCase):
         for k in ("GH_TOKEN", "GITHUB_TOKEN", "SSH_AUTH_SOCK", "FACTORY_AGENT"):
             self.assertNotIn(k, seen["env"])
         self.assertNotIn("gh-secret-test", json.dumps(seen))
-        self.assertEqual(seen["env"]["GATE_SHARDS"], "8")  # 12 asked, capped at 8
+        # 12 asked: remote_gate.sh caps at 8 (host independent), the driver then caps at the host's cpu count
+        self.assertIn("shards 8", p.stdout)
+        ncpu = int(subprocess.run(["nproc"], capture_output=True, text=True, check=True).stdout)
+        self.assertEqual(seen["env"]["GATE_SHARDS"], str(min(8, ncpu)))
         self.assertTrue(seen["env"]["HOME"].startswith(str(self.remote / "factory-gate")), seen["env"]["HOME"])
         self.assertTrue(seen["env"]["FACTORY_HOME"].startswith(str(self.remote / "factory-gate")))
         # the head tree is the archive (plus the rebuilt history): no .ssh, .claude, db
