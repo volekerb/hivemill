@@ -1,0 +1,37 @@
+{
+ "factory_now": "2026-10-31T12:00:00+00:00",
+ "tasks": [
+  {
+   "id": "T-0001",
+   "status": "in_review",
+   "pr_url": "https://github.com/zz-test/repo/pull/1"
+  },
+  {
+   "id": "T-0002",
+   "status": "in_review",
+   "pr_url": "https://github.com/zz-test/repo/pull/2"
+  },
+  {
+   "id": "T-0003",
+   "status": "in_review",
+   "pr_url": "https://github.com/zz-test/repo/pull/3"
+  },
+  {
+   "id": "T-0004",
+   "status": "in_review",
+   "pr_url": "https://github.com/zz-test/repo/pull/4"
+  },
+  {
+   "id": "T-0005",
+   "status": "done",
+   "pr_url": "https://github.com/zz-test/repo/pull/5"
+  }
+ ],
+ "config": {
+  "judge_ci:https://github.com/zz-test/repo/pull/1": "{\"at\": 1e400}",
+  "judge_ci:https://github.com/zz-test/repo/pull/2": "{\"at\": NaN}",
+  "judge_ci:https://github.com/zz-test/repo/pull/3": "{\"at\": Infinity}",
+  "judge_ci:https://github.com/zz-test/repo/pull/4": "{\"at\": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, \"ready\": true}",
+  "judge_ci:https://github.com/zz-test/repo/pull/5": "{\"at\": 1793447940, \"ready\": true, \"why\": \"CI green\"}"
+ }
+}

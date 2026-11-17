@@ -59,6 +59,18 @@ class JudgeMainRunTests(FactoryTestCase):
         self.runs(self.run_json("completed", "failure"))
         self.refused("concluded failure")
 
+    def test_cancelled_run_at_head_refuses_and_is_not_green(self):
+        """T-1592: a cancelled (superseded) main run is no information: it never lets a merge through, also not with an
+        older green run behind it; a newer green run for the head does."""
+        self.ok("config", "judge_wait_main_run", "1")
+        cancelled = dict(self.run_json("completed", "cancelled"), databaseId=8)
+        self.runs(cancelled, self.run_json("completed", "success", sha="e" * 40))
+        self.refused("concluded cancelled")
+        self.runs(dict(self.run_json("completed", "success"), databaseId=9), cancelled)
+        p = self.merge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
     def test_no_run_for_head_refuses_even_if_older_run_green(self):
         self.ok("config", "judge_wait_main_run", "1")
         self.runs(self.run_json("completed", "success", sha="e" * 40))
