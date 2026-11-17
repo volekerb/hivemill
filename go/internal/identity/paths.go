@@ -1,57 +1,17 @@
 package identity
 
 import (
-	"os"
 	"os/user"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"unicode/utf8"
+
+	"factory/go/internal/sandbox"
 )
 
-// Realpath is Python's os.path.realpath (non-strict): symlinks are resolved as far as the path exists and the
-// remaining components are kept lexically.
-func Realpath(p string) string {
-	if !filepath.IsAbs(p) {
-		if wd, err := os.Getwd(); err == nil {
-			p = filepath.Join(wd, p)
-		}
-	}
-	parts := strings.Split(p, "/")
-	resolved := "/"
-	links := 0
-	for len(parts) > 0 {
-		c := parts[0]
-		parts = parts[1:]
-		switch c {
-		case "", ".":
-			continue
-		case "..":
-			resolved = filepath.Dir(resolved)
-			continue
-		}
-		next := filepath.Join(resolved, c)
-		fi, err := os.Lstat(next)
-		if err != nil || fi.Mode()&os.ModeSymlink == 0 {
-			resolved = next
-			continue
-		}
-		links++
-		if links > 40 {
-			return filepath.Join(append([]string{next}, parts...)...)
-		}
-		target, err := os.Readlink(next)
-		if err != nil {
-			resolved = next
-			continue
-		}
-		if filepath.IsAbs(target) {
-			resolved = "/"
-		}
-		parts = append(strings.Split(target, "/"), parts...)
-	}
-	return resolved
-}
+// Realpath is Python's os.path.realpath (non-strict). It is sandbox.Realpath, so the two cannot drift: no lexical Clean
+// (".." after a symlink is resolved physically), a dangling link's target is appended, a symlinked parent of a missing
+// path is followed, and a symlink loop is left as is.
+func Realpath(p string) string { return sandbox.Realpath(p) }
 
 // pwDir is the passwd home directory of uid.
 func pwDir(uid int) (string, error) {
