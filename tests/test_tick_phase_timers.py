@@ -10,11 +10,11 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness import FactoryTestCase, REPO  # noqa: E402
+from harness import FactoryTestCase, PR_URL, REPO  # noqa: E402
 
 LINE = re.compile(r"^tick-phases total=\d+\.\d\d( [a-z_]+=\d+(\.\d\d)?)+$")
 PHASES = ("migrate_db render_settings herdr_list digest tmp_alert remote_url_alert main_protection tmp_clean red_main "
-          "reap_serves reap_orphans scout skilleval pending_nudges reap_loop drift flagless claude_audit stop_fallback gate ci_wake "
+          "reap_serves reap_orphans scout skilleval pending_nudges reap_loop drift flagless claude_audit stop_fallback gate hold_expiry ci_wake "
           "wake_leads dequeue dispatch start_confirm nudge sidebar export freshness recycle relaunches util").split()
 COUNTERS = "dequeue_spawns dequeue_spawn_s ci_wake_ls_remote ci_wake_gh export_git".split()
 
@@ -223,6 +223,91 @@ class TickPhasesHandoff(FactoryTestCase):
                            env=self.env.env(), capture_output=True)
         self.assertEqual(a.stdout, b.stdout)
         self.assertEqual(a.stderr, b.stderr)
+
+    def test_hold_expiry_unit_is_a_python_noop(self):
+        """T-1610: the Python child runs the Go-only hold_expiry unit as a no-op: exit 0, no output, one lap, hold kept."""
+        seed_held_task(self.env)
+        self.hold_lock()
+        h = self.handoff({"agents": []})
+        p = self.phases("hold_expiry", h)
+        self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
+        self.assertEqual(p.stdout + p.stderr, "")
+        self.assertEqual([x[0] for x in json.loads(h.read_text())["laps"]], ["hold_expiry"])
+        self.assertEqual(held_reason(self.env), HOLD)
+
+    def test_hold_expiry_rides_in_the_flow_block(self):
+        """T-1610: the row sits directly before mech_merge, inside the flow block the Go driver names."""
+        self.hold_lock()
+        h = self.handoff({"agents": []})
+        p = self.phases("flow", h)
+        self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
+        laps = [x[0] for x in json.loads(h.read_text())["laps"]]
+        self.assertEqual(laps, ["stop_fallback", "gate", "hold_expiry", "mech_merge", "ci_wake", "wake_leads"])
+
+
+HOLD = "wait for PR 703"
+
+
+def seed_held_task(env):
+    """An in_review PR task with reviewer PASS and QA PASS and a manual judge hold set long ago (2026-01-01): the
+    fixture the Go unit would expire."""
+    env.seed_goal()
+    env.seed_task()
+    for role in ("reviewer", "qa"):
+        env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
+                "VALUES('T-0001',?,'a',?,'PASS','zz-test','zz-test','t')", (PR_URL, role))
+    env.sql("UPDATE tasks SET judge_hold_reason=? WHERE id='T-0001'", (HOLD,))
+    env.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) "
+            "VALUES('2026-01-01T00:00:00+00:00','zz-lead','task','T-0001','judge-hold-set',?)", (HOLD,))
+
+
+def held_reason(env):
+    return env.sql("SELECT judge_hold_reason FROM tasks WHERE id='T-0001'")[0][0]
+
+
+class TickHoldExpiryPython(FactoryTestCase):
+    """T-1610: hold_expiry is a Go tick unit. The all-Python tick (tick_impl=python) walks its row without an
+    implementation: it must not crash and must keep the hold."""
+
+    def test_python_tick_keeps_the_hold_and_does_not_crash(self):
+        seed_held_task(self.env)
+        self.assertEqual(self.env.sql("SELECT value FROM config WHERE key='tick_impl'")[0][0], "python")
+        p = self.env.run("tick", inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
+        self.assertNotIn("Traceback", p.stdout + p.stderr)
+        self.assertNotIn("hold-expir", p.stdout + p.stderr)
+        self.assertEqual(held_reason(self.env), HOLD)
+        self.assertEqual(self.env.sql("SELECT COUNT(*) FROM events WHERE action='judge-hold-expired'")[0][0], 0)
+
+    def test_python_tick_laps_the_unit_before_mech_merge(self):
+        self.ok("config", "tick_phase_timers", "1")
+        p = self.env.run("tick", inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
+        line = [l for l in p.stdout.splitlines() if l.startswith("tick-phases")][0]
+        keys = [w.split("=")[0] for w in line.split()[1:]]
+        self.assertEqual(keys[keys.index("gate"):keys.index("mech_merge") + 1], ["gate", "hold_expiry", "mech_merge"])
+
+    def test_unit_row_sits_directly_before_mech_merge(self):
+        sys.path.insert(0, str(REPO / "bin"))
+        import factory_cli  # noqa: E402
+        names = [u[0] for u in factory_cli.TICK_UNITS]
+        self.assertEqual(names.count("hold_expiry"), 1)
+        self.assertEqual(names[names.index("hold_expiry") + 1], "mech_merge")
+        self.assertEqual(factory_cli.TICK_UNITS[names.index("hold_expiry")], ("hold_expiry", "hold_expiry", "flow"))
+
+    def test_config_default_is_120_and_not_an_owner_cap(self):
+        sys.path.insert(0, str(REPO / "bin"))
+        import factory_cli  # noqa: E402
+        self.assertEqual(factory_cli.DEFAULT_CONFIG["judge_hold_expiry_min"], "120")
+        self.assertNotIn("judge_hold_expiry_min", factory_cli.OWNER_CAP_KEYS)
+        self.assertEqual(self.env.sql("SELECT value FROM config WHERE key='judge_hold_expiry_min'")[0][0], "120")
+
+    def test_judge_hold_help_names_the_expiry(self):
+        p = subprocess.run([sys.executable, str(REPO / "bin" / "factory"), "task", "update", "--help"],
+                           env=self.env.env(), capture_output=True, text=True, timeout=60)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(" ".join(p.stdout.split()).count("boss-approved M<id>"), 1)
+        self.assertIn("judge_hold_expiry_min", p.stdout)
 
 
 if __name__ == "__main__":

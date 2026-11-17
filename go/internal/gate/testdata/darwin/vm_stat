@@ -1,8 +1,24 @@
-# synthetic: replace with M0 output
+# real: MacBook M0 2026-11-15, vm_stat (T-1575)
 Mach Virtual Memory Statistics: (page size of 16384 bytes)
-Pages free:                               10000.
-Pages active:                            200000.
-Pages inactive:                           50000.
-Pages speculative:                         2000.
+Pages free:                               11361.
+Pages active:                            205257.
+Pages inactive:                          205358.
+Pages speculative:                          980.
 Pages throttled:                              0.
-Pages wired down:                         90000.
+Pages wired down:                        192790.
+Pages purgeable:                           2805.
+"Translation faults":               28822129786.
+Pages copy-on-write:                  975803135.
+Pages zero filled:                   9821281992.
+Pages reactivated:                   5552109517.
+Pages purged:                         746384006.
+File-backed pages:                       147152.
+Anonymous pages:                         264443.
+Pages stored in compressor:             1768462.
+Pages occupied by compressor:            510048.
+Decompressions:                      5356209763.
+Compressions:                        5790343887.
+Pageins:                              757174494.
+Pageouts:                              12863672.
+Swapins:                              200745985.
+Swapouts:                             208705111.
