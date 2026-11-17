@@ -1,3 +1,4 @@
+// PARTIAL for P7a (T-1495): see the 'not ported' lines below; keep the Python module until they have Go counterparts.
 // Go tests for tests/test_orgs.py (39 cases). spawn/up/tick/red-pr alert paths use NeedPython; msg routing uses the Go CLI.
 // not ported: GoalAlertRoutingTests tick-driven red/blocked/review alerts — Python tick pr_probe expects tests/stubs/gh
 //

@@ -99,6 +99,7 @@ func seedPRStub(t *testing.T, e *ft.Env, url, sha string, checks any) {
 	case []map[string]string:
 		ck = c
 	default:
+		// Marshal/Unmarshal of a plain []map/[]string literal cannot fail; ck stays empty otherwise and the test asserts on it.
 		b, _ := json.Marshal(checks)
 		_ = json.Unmarshal(b, &ck)
 	}

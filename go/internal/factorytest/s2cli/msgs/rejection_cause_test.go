@@ -1,3 +1,4 @@
+// PARTIAL for P7a (T-1495): see the 'not ported' lines below; keep the Python module until they have Go counterparts.
 package s2msgs
 
 import (
