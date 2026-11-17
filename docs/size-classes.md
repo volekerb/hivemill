@@ -8,6 +8,8 @@
 | medium | 41 to 300 changed lines, not risky | 30 min | the ci-tier mode (`affected`, `docs` or `full`) |
 | large | more than 300 lines, or risky, or undecidable | 40 min | the ci-tier mode; `full` for a risky diff |
 
+A diff over 600 changed lines is risky in `tier.Classify` (its own cutoff), so it gets `full`; 301 to 600 lines keep the ci-tier mode.
+
 Changed lines are added plus deleted lines from `git diff --numstat --no-renames BASE...HEAD`, so a rename counts as an add and a delete. A binary or other non-line numstat row makes the diff risky. The risky decision is `tier.Classify` in `go/internal/citools/tier` (the same lists the CI policy already runs in full); this tool does not keep its own list. The ci-tier mode comes from `tier.Plan`.
 
 ## Command
