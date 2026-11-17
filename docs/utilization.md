@@ -58,3 +58,8 @@ Weights: a sample weighs the gap to the next daytime sample, at most 5 minutes; 
 `factory scorecard --days N` (integer >= 1, default 1) sets the window to the last N x 24 hours; other values exit 2.
 
 Use by the boss: the daily director score (R7) is read from this line; the SC6 2-day check uses `factory scorecard --days 2` (filtering working days itself).
+
+## /tmp sweep and disk caches (T-1698)
+
+`/tmp` is RAM-backed. Over `tmp_sweep_pct` the tick also removes `/tmp/go-build<digits>` dirs untouched for 2 h that no process of ours holds (cwd, fd), and `/tmp/factorytest-cache-<uid>/<hash>` entries untouched for 2 h that no process holds or runs (cwd, fd, exe); the newest cache entry always stays. Finished agents' scratch (`claude-<uid>/<slug>`, `qa-*`) was already swept; a live agent's never is.
+Spawned workers get `GOTMPDIR`, `GOCACHE`, `GOMODCACHE` and `npm_config_store_dir` (pnpm store) under `~/.cache` (`go/tmp`, `go/build`, `go/path/pkg/mod`, `pnpm-store`), not `/tmp`. The sandbox keeps its own per-agent disk Go dirs; the gate already caches under `~/.cache`.
