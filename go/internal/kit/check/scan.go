@@ -16,7 +16,9 @@ var sensitiveKeys = []string{"token", "password", "secret", "apikey", "api_key",
 var (
 	placeholderRe = regexp.MustCompile(`^<[^<>]+>$`)
 	// textSecretRe finds the unmistakable credential shapes in a non-JSON fixture file.
-	textSecretRe = regexp.MustCompile(`(^|[^A-Za-z0-9_])(ghp_|github_pat_)[A-Za-z0-9_]{6,}|-----BEGIN`)
+	textSecretRe = regexp.MustCompile(`(^|[^A-Za-z0-9_])(ghp_|github_pat_|sk-)[A-Za-z0-9_-]{4,}|-----BEGIN|(?i)(token|password|secret|api[_-]?key|private[_-]?key)\s*[:=]\s*["']?[^\s<"']`)
+	// valueSecretRe finds a credential prefix anywhere in a string value, at a word boundary.
+	valueSecretRe = regexp.MustCompile(`(^|[^A-Za-z0-9])(ghp_|github_pat_|sk-)[A-Za-z0-9_-]{4,}`)
 )
 
 // scanSecrets looks for credentials in the example config, the eval cases and the eval fixtures of one plugin.
@@ -40,15 +42,24 @@ func scanSecrets(root, plugin, name string, c *collector) {
 		rel, _ := filepath.Rel(root, f)
 		var doc any
 		if strings.HasSuffix(f, ".json") && json.Unmarshal(b, &doc) == nil {
-			walk(doc, "", rel, c)
+			walk(doc, "", false, rel, c)
 		} else if textSecretRe.Match(b) {
-			c.add(rel, "contains a credential-looking value (ghp_, github_pat_ or a PEM block)")
+			c.add(rel, "contains a credential-looking value (ghp_, github_pat_, sk-, a PEM block or a token/password/secret/key assignment)")
 		}
 	}
 }
 
 // walk visits every value of a decoded JSON document; key is the nearest enclosing object key.
-func walk(v any, key, rel string, c *collector) {
+// sens is true when an enclosing key is sensitive, so nested values under it are held to the same rule.
+func walk(v any, key string, sens bool, rel string, c *collector) {
+	if !sens {
+		lk := strings.ToLower(key)
+		for _, frag := range sensitiveKeys {
+			if strings.Contains(lk, frag) {
+				sens = true
+			}
+		}
+	}
 	switch t := v.(type) {
 	case map[string]any:
 		keys := make([]string, 0, len(t))
@@ -57,30 +68,25 @@ func walk(v any, key, rel string, c *collector) {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			walk(t[k], k, rel, c)
+			walk(t[k], k, sens, rel, c)
 		}
 	case []any:
 		for _, e := range t {
-			walk(e, key, rel, c)
+			walk(e, key, sens, rel, c)
 		}
 	case string:
-		if reason := secretReason(key, t); reason != "" {
+		if reason := secretReason(key, t, sens); reason != "" {
 			c.add(rel, reason)
 		}
 	}
 }
 
-func secretReason(key, val string) string {
-	switch {
-	case strings.HasPrefix(val, "ghp_"), strings.HasPrefix(val, "github_pat_"), strings.HasPrefix(val, "sk-"),
-		strings.Contains(val, "-----BEGIN"):
+func secretReason(key, val string, sens bool) string {
+	if valueSecretRe.MatchString(val) || strings.Contains(val, "-----BEGIN") {
 		return "value under key " + quote(key) + " looks like a credential (ghp_, github_pat_, sk- or a PEM block)"
 	}
-	lk := strings.ToLower(key)
-	for _, frag := range sensitiveKeys {
-		if strings.Contains(lk, frag) && val != "" && !placeholderRe.MatchString(val) {
-			return "key " + quote(key) + " holds a non-placeholder value; use an empty string or <angle-bracket placeholder>"
-		}
+	if sens && val != "" && !placeholderRe.MatchString(val) {
+		return "key " + quote(key) + " holds a non-placeholder value; use an empty string or <angle-bracket placeholder>"
 	}
 	return ""
 }

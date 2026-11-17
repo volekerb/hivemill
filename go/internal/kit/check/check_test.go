@@ -173,6 +173,10 @@ func TestSecretKeysAndShapes(t *testing.T) {
 		`{"schemaVersion":1,"nested":{"db` + pwKey + `":"hunter2"}}`,
 		`{"schemaVersion":1,"list":[{"client_secret":"zzz"}]}`,
 		`{"schemaVersion":1,"x":"sk-abc123"}`,
+		`{"schemaVersion":1,"` + tokKey + `":{"value":"abc123"}}`,
+		`{"schemaVersion":1,"` + tokKey + `s":[{"v":"abc123"}]}`,
+		`{"schemaVersion":1,"h":"Bearer ghp_` + `0123456789abcd"}`,
+		`{"schemaVersion":1,"cmd":"curl -H x-api-key:sk-` + `ant12345"}`,
 		`{"schemaVersion":1,"privateKey":"MIIE"}`,
 	} {
 		root := repoRoot(t)
@@ -182,6 +186,11 @@ func TestSecretKeysAndShapes(t *testing.T) {
 		}
 	}
 	root := repoRoot(t)
+	put(t, root, "plugins/kit-demo/eval/fixtures/e.env", "API_"+tokKey+"=abc123\n")
+	if got := lines(Run(root)); len(got) != 1 {
+		t.Fatalf("env fixture: want 1 finding, got %v", got)
+	}
+	root = repoRoot(t)
 	put(t, root, "plugins/kit-demo/eval/fixtures/x.txt", "key = ghp_"+"abcdefghijklmnop\n")
 	if got := lines(Run(root)); len(got) != 1 {
 		t.Fatalf("text fixture: want 1 finding, got %v", got)
