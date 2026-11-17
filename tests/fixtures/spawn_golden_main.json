@@ -29,7 +29,15 @@
    "--env",
    "FACTORY_ROLE=coder",
    "--env",
-   "FACTORY_HOME=<HOME>"
+   "FACTORY_HOME=<HOME>",
+   "--env",
+   "GOTMPDIR=<TMP>/userhome/.cache/go/tmp",
+   "--env",
+   "GOCACHE=<TMP>/userhome/.cache/go/build",
+   "--env",
+   "GOMODCACHE=<TMP>/userhome/.cache/go/path/pkg/mod",
+   "--env",
+   "npm_config_store_dir=<TMP>/userhome/.cache/pnpm-store"
   ],
   [
    "agent",
@@ -123,7 +131,15 @@
    "--env",
    "FACTORY_ROLE=lead",
    "--env",
-   "FACTORY_HOME=<HOME>"
+   "FACTORY_HOME=<HOME>",
+   "--env",
+   "GOTMPDIR=<TMP>/userhome/.cache/go/tmp",
+   "--env",
+   "GOCACHE=<TMP>/userhome/.cache/go/build",
+   "--env",
+   "GOMODCACHE=<TMP>/userhome/.cache/go/path/pkg/mod",
+   "--env",
+   "npm_config_store_dir=<TMP>/userhome/.cache/pnpm-store"
   ],
   [
    "agent",
@@ -215,7 +231,15 @@
    "--env",
    "FACTORY_ROLE=qa",
    "--env",
-   "FACTORY_HOME=<HOME>"
+   "FACTORY_HOME=<HOME>",
+   "--env",
+   "GOTMPDIR=<TMP>/userhome/.cache/go/tmp",
+   "--env",
+   "GOCACHE=<TMP>/userhome/.cache/go/build",
+   "--env",
+   "GOMODCACHE=<TMP>/userhome/.cache/go/path/pkg/mod",
+   "--env",
+   "npm_config_store_dir=<TMP>/userhome/.cache/pnpm-store"
   ],
   [
    "agent",
@@ -299,7 +323,15 @@
    "--env",
    "FACTORY_ROLE=reviewer",
    "--env",
-   "FACTORY_HOME=<HOME>"
+   "FACTORY_HOME=<HOME>",
+   "--env",
+   "GOTMPDIR=<TMP>/userhome/.cache/go/tmp",
+   "--env",
+   "GOCACHE=<TMP>/userhome/.cache/go/build",
+   "--env",
+   "GOMODCACHE=<TMP>/userhome/.cache/go/path/pkg/mod",
+   "--env",
+   "npm_config_store_dir=<TMP>/userhome/.cache/pnpm-store"
   ],
   [
    "agent",
