@@ -1,0 +1,25 @@
+# /quality?org=cursor
+TEXT
+Quality - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 3 Insights Throughput Quality Tokens Changelog System Resources Quality All Claude Cursor <TS> Gate closed · 2 queued Needs you 6 Cursor usage · 0 h · Pro · ok Rejections per merged PR i Rejections divided by merged PRs, over all time. Lower is better. The change compares the last 14 days with the 14 days before. 0.00 First-try merge rate i Merged tasks that were never rejected, as a share of merged PRs, over all time. The change compares the last 14 days with the 14 days before. 100% CI-blocked merges i Times the judge refused a merge because checks were red or still pending, over all time. The change compares the last 14 days with the 14 days before. 0 no change vs prev 14 d Median attempts i Median number of attempts of the tasks that merged, over all time. 1 means most merged first time. The change compares the last 14 days with the 14 days before. 1 Bouncing now Nothing is bouncing Per team Team Merged Rejections Rejections per merged PR tm-c Merged 2 Rejections 0 Per merged PR 0.00 Rejections by source Reviewer 0 QA 0 Judge 0 CI counts merges the judge refused for red or pending checks (part of judge-blocked); they are not rejections. CI 0 Gate: judge-blocked 0 Gate: merge-failed 0 Per week No rejections recorded. More metrics 10 Merged PRs i Distinct tasks with a merge event. 2 Merged first try i Merged tasks that were never rejected. 2 Merged after >= 1 rejection i Merged tasks rejected at least once before they merged. 0 Rejections i Reviewer, QA and judge fail or reject verdicts, plus judge rejections without a verdict row. 0 Rejections per merged PR i Rejections divided by merged PRs. 0.00 Gate refusals i Judge-blocked and merge-failed events: stale verdict, red or pending CI, conflicts. 0 Rejections by cause i No cause is stored yet (counts incidents, not events). Not measured yet Retries per merged task i Attempts beyond the first, per merged task. 0.00 CI pass rate i Merged / (merged + tasks the judge blocked for red checks). 100% Latest team scores i Newest evaluation per team. tm-c 60/5 Rejections per merged PR = rejection events / merged PRs; retries = attempts beyond the first; CI pass rate = merged / (merged + tasks the judge blocked for red checks). Rejections count failed QA/review verdicts, plus old judge rejections that left no verdict row. Merged counts tasks with a merge event. Tasks without a team are counted in every team of their goal. Rework time is 0 when a task was never sent back. Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 3 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/#needs-you
+a:/?org=cursor
+a:/agents?org=cursor
+a:/changelog?org=cursor
+a:/goals?org=cursor
+a:/quality
+a:/quality?org=claude
+a:/quality?org=cursor
+a:/quality?sort=merged&dir=desc&org=cursor
+a:/quality?sort=rate&dir=desc&org=cursor
+a:/quality?sort=rejections&dir=desc&org=cursor
+a:/quality?sort=team&dir=desc&org=cursor
+a:/resources
+a:/resources?org=cursor
+a:/tasks?org=cursor
+a:/throughput?org=cursor
+a:/tokens?org=cursor
