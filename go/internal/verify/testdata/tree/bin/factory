@@ -1,0 +1,10 @@
+#!/bin/sh
+# Fake factory CLI for the verify tests; behaviour is picked by the first argument.
+case "$1" in
+sleep) echo $$ > "$VERIFY_TEST_PIDFILE"; sleep 30 ;;
+exit3) echo "out line"; echo "err line" >&2; exit 3 ;;
+env) echo "home=$FACTORY_HOME h=$HOME impl=$FACTORY_CLI_IMPL other=${FACTORY_OTHER-unset} cwd=$(pwd)" ;;
+init) exit 0 ;;
+fail) echo boom >&2; exit 1 ;;
+*) echo "ok $*" ;;
+esac
