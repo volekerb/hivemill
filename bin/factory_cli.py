@@ -5525,7 +5525,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
     """Poll the PR while its only non-green checks are pending (`judge_ci_wait_s`). With `new_head` (just pushed by a
     refresh) it first waits for GitHub to report that head, and for its checks to appear (required ones, or any when the
     old head had some): an empty rollup right after a push is not green. Returns (pr, seconds waited)."""
-    local = gate_project_for(con, url) is not None  # T-0516: the gate is gate_runs, GitHub checks need not exist
+    proj = gate_project_for(con, url)  # T-0516: the gate is gate_runs, GitHub checks need not exist
+    local = proj is not None
 
     def waiting(pr):
         if new_head:
@@ -5533,7 +5534,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
                 return f"PR head still {pr['headRefOid'][:8]}, waiting for {new_head[:8]}"
             if not local and (missing_checks(con, pr, url) or (had_checks and not pr.get("statusCheckRollup"))):
                 return "checks of the new head not started"
-        bad = checks_ok(pr)
+        # T-1634: in local mode only the project's required_checks are waited for; other pending checks never block
+        bad = local_checks_problems(proj, pr) if local else checks_ok(pr)
         return ", ".join(bad) if _judge_pending(bad) else ""
 
     what = waiting(pr)
@@ -6478,7 +6480,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append("PR is a draft")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
-        bad = checks_ok(pr)
+        bad = local_checks_problems(proj, pr) if proj else checks_ok(pr)  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -6596,6 +6598,15 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 block(f"after the refresh the PR head is {pr['headRefOid'][:8]}, not {new[:8]} (branch moved or GitHub lagging, waited {waited}s)")
             sha = new
             continue
+        if not problems:  # last, so a PR already refused for another reason costs no extra gh call
+            try:  # a separate read: pr_state's field list is mirrored by the Go verdict/prcheck goldens
+                title = gh_json("pr", "view", t["pr_url"], "--json", "title").get("title")
+            except (SystemExit, ValueError, AttributeError) as e:
+                title = None
+                problems.append(f"cannot verify the PR title: {_tick_gh_detail(e)}")
+            if bare_id_title(title):
+                problems.append(f"PR title {title!r} is only the task id: retitle it \"{t['id']}: <what changed>\" "
+                                f"(the tick renames factory/t-* PRs itself; any other head must be retitled by hand)")
         if problems:
             rejection_gate_refusal(con, a.task, "judge-blocked", "; ".join(problems))
             die("merge refused: " + "; ".join(problems), 4)
@@ -6945,6 +6956,70 @@ def cmd_mech_merge(a):
         if out == "merged":
             break
     con.commit()
+
+
+BARE_ID_TITLE = re.compile(r"T-\d+\s*")
+TITLE_TAGS = re.compile(r"^\s*(?:\[[A-Za-z]+\d+\]\s*)+")
+PR_TITLE_MAX = 72
+
+
+def bare_id_title(title):
+    """True for a PR title that is only a task id ("T-0336", whitespace around it allowed). None/non-str: not decidable here."""
+    return isinstance(title, str) and BARE_ID_TITLE.fullmatch(title.strip()) is not None
+
+
+def pr_title_for(task_id, task_title):
+    """"T-xxxx: <task title>" with leading [SCn] tags stripped, trimmed to PR_TITLE_MAX chars."""
+    text = TITLE_TAGS.sub("", task_title or "", count=1).strip()
+    return (f"{task_id}: {text}" if text else task_id)[:PR_TITLE_MAX].rstrip()
+
+
+def tick_pr_titles(con):
+    """Tick (T-1590): rename every OPEN PR on a factory/t-* head whose title is only the task id to "T-xxxx: <task title>"
+    (gh pr edit --title) and write one `pr-title-renamed` event (old, new, PR). One `gh pr list` per repo of a live task PR;
+    each PR head is handled once (throttle key prtitle:<url> = head sha). PRs on other branches are never touched."""
+    repos = {}
+    for r in con.execute("SELECT pr_url FROM tasks WHERE pr_url IS NOT NULL AND pr_url!='' "
+                         "AND status NOT IN ('done','cancelled')").fetchall():
+        parts = r["pr_url"].split("/")
+        if len(parts) >= 5:
+            repos["/".join(parts[3:5])] = 1
+    for repo in repos:
+        try:
+            prs = gh_json("pr", "list", "-R", repo, "--state", "open", "--limit", "200",
+                          "--json", "number,title,headRefName,headRefOid,url")
+        except (SystemExit, subprocess.SubprocessError, OSError, ValueError) as e:  # one repo failing must not skip the others
+            event(con, "tick", "pr-titles", "pr-titles-error", f"{repo}: {_tick_gh_detail(e)}")
+            continue
+        for pr in prs:
+            m = re.fullmatch(r"factory/(t-\d+)", pr.get("headRefName") or "")
+            if not m:
+                continue
+            key, head = f"prtitle:{pr['url']}", pr.get("headRefOid") or ""
+            old = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+            if old and old["ts"] == head:
+                continue
+            done = lambda: con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                                       (key, head))  # a failed rename is not recorded: the next tick retries it
+            if not bare_id_title(pr.get("title")):
+                done()
+                continue
+            tid = m.group(1).upper()
+            t = con.execute("SELECT title FROM tasks WHERE id=?", (tid,)).fetchone()
+            if not t:
+                done()
+                continue
+            new = pr_title_for(tid, t["title"])
+            try:
+                p = subprocess.run(["gh", "pr", "edit", pr["url"], "--title", new], capture_output=True, text=True, timeout=60)
+            except (subprocess.SubprocessError, OSError) as e:
+                event(con, "task", tid, "pr-title-rename-failed", {"pr": pr["url"], "err": str(e)[:200]})
+                continue
+            if p.returncode != 0:
+                event(con, "task", tid, "pr-title-rename-failed", {"pr": pr["url"], "err": p.stderr.strip()[:200]})
+                continue
+            done()
+            event(con, "task", tid, "pr-title-renamed", {"pr": pr["url"], "old": pr["title"], "new": new})
 
 
 def tick_mech_merge(con):
@@ -14710,6 +14785,33 @@ def gate_project_for(con, pr_url):
     return r if r and (r["gate_cmd"] or "").strip() else None
 
 
+def local_required_checks(proj):
+    """T-1634: the GitHub check names a local-mode project still needs green: its own projects.required_checks only (the
+    global config required_checks is not a fallback here, so '' keeps the T-0516 behaviour: no check is required)."""
+    return [n for n in dict.fromkeys(x.strip() for x in (proj["required_checks"] or "").split(",")) if n]
+
+
+def local_checks_problems(proj, pr):
+    """T-1634: checks_ok for a local-mode project. The local gate replaces the heavy GitHub jobs, so a check that is still
+    pending (queued, in progress) does not block unless it is named in the project's required_checks; a red (completed,
+    not SUCCESS/SKIPPED/NEUTRAL) check always does, and a required check absent from the head's rollup is reported missing.
+    Same `name=STATE` format as checks_ok, plus `required check <n> missing`."""
+    req = local_required_checks(proj)
+    latest = latest_checks(pr.get("statusCheckRollup"))
+    bad = []
+    for c in latest:
+        name = c.get("name") or c.get("context")
+        concl = (c.get("conclusion") or c.get("state") or "").upper()
+        if concl in ("SUCCESS", "SKIPPED", "NEUTRAL"):
+            continue
+        label = concl or c.get("status")
+        if (label or "").upper() in PENDING_CHECK_STATES and name not in req:
+            continue
+        bad.append(f"{name}={label}")
+    seen = {c.get("name") or c.get("context") for c in latest}
+    return bad + [f"required check {n} missing" for n in req if n not in seen]
+
+
 def gate_run_for_head(con, pr_url, sha):
     return con.execute("SELECT * FROM gate_runs WHERE kind='pr' AND pr_url=? AND head_sha=? ORDER BY id DESC LIMIT 1",
                        (pr_url, sha)).fetchone()
@@ -14810,7 +14912,7 @@ def tick_gate(con):
 def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     """judge_pr_ready for a local-mode project: (ready, why) from gate_runs of the PR's current head."""
     try:
-        pr = gh_json("pr", "view", pr_url, "--json", "headRefOid,mergeStateStatus,state", timeout=30)
+        pr = gh_json("pr", "view", pr_url, "--json", "headRefOid,mergeStateStatus,state,statusCheckRollup", timeout=30)
         sha = pr["headRefOid"]
     except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
         return False, f"gh check failed: {e}"
@@ -14831,6 +14933,10 @@ def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     if r["status"] != "pass":
         gate_notify_fail(con, pr_url, r)
         return False, f"local gate run #{r['id']} {r['status']} on {sha[:8]}"
+    if local_required_checks(proj):  # T-1634: the named GitHub checks (e.g. smoke) green on this head, as the judge needs
+        bad = local_checks_problems(proj, pr)
+        if bad:
+            return False, "CI not green: " + ", ".join(bad)
     if (pr.get("mergeStateStatus") or "").upper() in ("BEHIND", "DIRTY"):
         return (True, "PR is BEHIND") if behind_ok and pr["mergeStateStatus"].upper() == "BEHIND" \
             else (False, f"PR is {pr['mergeStateStatus']}")
@@ -16548,6 +16654,10 @@ def _tick_u_ci_wake(con, st):
             tick_ci_wake(con)
         except Exception as e:  # noqa: BLE001 — a bad PR or team row must never stop the tick
             event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
+        try:  # T-1590: a bare-id PR title on a factory/t-* head becomes "T-xxxx: <task title>"
+            tick_pr_titles(con)
+        except Exception as e:  # noqa: BLE001 — a gh hiccup or odd row must never stop the tick
+            event(con, "tick", "pr-titles", "pr-titles-error", str(e)[:300])
         _pt_lap("ci_wake")
 
 
