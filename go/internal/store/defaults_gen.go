@@ -117,6 +117,7 @@ var DefaultConfig = []ConfigDefault{
 	{"opus_effort", "medium"},
 	{"judge_max_refreshes", "4"},
 	{"judge_ci_gate", "pr"},
+	{"judge_review_gate", "passpass"},
 	{"judge_ci_wait_s", "2400"},
 	{"skilleval_root", "~/.cache/factory-skilleval"},
 	{"day_start_hour", "8"},
