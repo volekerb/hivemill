@@ -1,0 +1,7 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# skilleval part 2 (T-1684). Startlog cases with no Go counterpart are skip stubs named ...NotPorted... (see PR body).
+tests/test_skilleval_startlog.py 17 -> internal/factorytest/skilleval2:TestStartlog 34
+tests/test_skilleval_startlog_safety.py 17 -> internal/factorytest/skilleval2:TestStartlogSafety 17
+tests/test_skilleval_tasks.py 30 -> internal/factorytest/skilleval2:TestTasks 30
+tests/test_skilleval_tick.py 60 -> internal/factorytest/skilleval2:TestTick 60
+tests/test_skilleval_vendor.py 76 -> internal/factorytest/skilleval2:TestVendor 76
