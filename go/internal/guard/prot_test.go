@@ -202,6 +202,11 @@ func TestGoToolchainForWorkers(t *testing.T) {
 			block = append(block, fmt.Sprintf(strings.ReplaceAll(p, "{g}", g), m))
 		}
 	}
+	// T-1498 review round 8 (N12): any subcommand with a pkg@version argument downloads the module; only GOPROXY=off allows it
+	block = append(block, g+"go run golang.org/x/tools/cmd/stringer@latest", g+"go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+		g+"go run -race x@latest", g+"go build x@latest", g+"go test x@latest", g+"go vet x@latest", g+"go mod why x@latest",
+		"GOPROXY=direct "+g+"go run x@latest", "GOPROXY= "+g+"go run x@latest", g+"go -C . run x@latest")
+	allow = append(allow, "GOPROXY=off "+g+"go run golang.org/x/tools/cmd/stringer@latest", g+"go run ./cmd/x", g+"go run .")
 	allow = append(allow, g+"go build ./x ./y/...", g+"go vet -- ./...", g+"go test -cpuprofile /dev/null ./...", g+"go build -tags x -- ./...")
 	allow = append(allow, g+"go fmt ./pkg", g+"go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off "+g+"go list -m foo@latest", g+"go list -m all")
 	for _, role := range []string{"coder", "qa", "reviewer"} {

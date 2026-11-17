@@ -350,10 +350,10 @@ func (a *Analyzer) goToolchain(tool string, lookalike bool, rest, assigns []stri
 			hasFuzz = true
 		}
 	}
-	if sub == "list" && env["GOPROXY"] != "off" {
+	if env["GOPROXY"] != "off" { // N12: pkg@version (go run x@latest, go list -m x@v) fetches a module
 		for _, x := range pos {
 			if strings.Contains(x, "@") {
-				return block("`go list` with a module@version query needs the GOPROXY=off prefix (it queries the proxy)")
+				return block("`go " + sub + "` with a module@version argument needs the GOPROXY=off prefix (it downloads the module)")
 			}
 		}
 	}

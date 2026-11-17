@@ -2874,8 +2874,8 @@ class Analyzer:
         if sub == "mod":
             if not pos or pos[0] not in TC_MOD_SUBS:
                 block(f"`go mod {pos[0] if pos else ''}` is not allowed (network or a write)")
-        if sub == "list" and any("@" in x for x in pos) and env.get("GOPROXY") != "off":
-            block("`go list` with a module@version query needs the GOPROXY=off prefix (it queries the proxy)")
+        if any("@" in x for x in pos) and env.get("GOPROXY") != "off":  # N12: pkg@version (go run x@latest, go list -m x@v) fetches a module
+            block(f"`go {sub}` with a module@version argument needs the GOPROXY=off prefix (it downloads the module)")
         if (sub == "fmt" or any(n == "fuzz" for n, v in gflags + flags)) and any(not x.startswith((".", "/")) for x in pos):
             block(f"`go {sub}` (it rewrites or creates files in the package directory) takes directory paths (./x, ../x, /x), not import paths")
         if sub == "test" and any(n == "fuzz" for n, v in gflags + flags):  # a failing fuzz run writes testdata/ into the package directory

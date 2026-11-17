@@ -765,6 +765,20 @@ class GoToolchainForWorkers(ProtTreesCase):
             for role in ("coder", "qa", "reviewer"):
                 self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
 
+    def test_n12_module_at_version_needs_goproxy_off(self):
+        # N12: any go subcommand with a pkg@version argument downloads the module (go run x@latest also runs it)
+        cmds = [self.G + "go run golang.org/x/tools/cmd/stringer@latest", self.G + "go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+                self.G + "go run -race x@latest", self.G + "go build x@latest", self.G + "go test x@latest", self.G + "go vet x@latest",
+                self.G + "go list -m foo@latest", self.G + "go mod why x@latest", "GOPROXY=direct " + self.G + "go run x@latest",
+                "GOPROXY= " + self.G + "go run x@latest", self.G + "go -C . run x@latest"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")
+        for cmd in ("GOPROXY=off " + self.G + "go run golang.org/x/tools/cmd/stringer@latest", "GOPROXY=off " + self.G + "go list -m foo@latest",
+                    self.G + "go run ./cmd/x", self.G + "go run ."):
+            for role in ("coder", "qa", "reviewer"):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
     def test_gofmt_write_inside_the_tree_allowed(self):
         self.assertEqual(run(self.G + "gofmt -w x.go", "wt").returncode, 0)
 

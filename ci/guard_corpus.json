@@ -20896,6 +20896,156 @@
       "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
       "cmd": "~/.local/go/bin/gofmt -r {a,b} .",
       "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run -race x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run -race x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run -race x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go build x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go build x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go build x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go test x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go test x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go test x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go vet x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go vet x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go vet x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go mod why x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go mod why x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go mod why x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=direct ~/.local/go/bin/go run x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=direct ~/.local/go/bin/go run x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=direct ~/.local/go/bin/go run x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY= ~/.local/go/bin/go run x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY= ~/.local/go/bin/go run x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY= ~/.local/go/bin/go run x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go -C . run x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go -C . run x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go -C . run x@latest",
+      "role": "reviewer"
     }
   ],
   "must_allow": [
@@ -25752,6 +25902,51 @@
       "note": "T-1498 round 5: plain positionals and a ~/ path still pass the default-deny word check",
       "cmd": "~/.local/go/bin/go build ./x ./y/...",
       "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=off ~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=off ~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=off ~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run ./cmd/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run ./cmd/x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run ./cmd/x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run .",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run .",
+      "role": "reviewer"
     }
   ]
 }
