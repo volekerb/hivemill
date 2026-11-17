@@ -32,7 +32,10 @@ func addCand(t *testing.T, d *sql.DB, n int, c cand) {
 	if c.first == "" {
 		c.first = first0
 	}
-	src, _ := json.Marshal(c.sources)
+	src, err := json.Marshal(c.sources)
+	if err != nil {
+		t.Fatalf("marshal sources: %v", err)
+	}
 	var spd any
 	if c.spd != nil {
 		spd = *c.spd
