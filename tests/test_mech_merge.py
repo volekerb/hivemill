@@ -639,6 +639,27 @@ class MechMergeTests(FactoryTestCase):
             self.assert_held(self.mech("on"), f"main push run 7 {concl}")
             self.env.sql("DELETE FROM events WHERE action='mech-blocked'")
 
+    def test_main_run_cancelled_latest_holds_and_green_latest_merges(self):
+        """T-1592: main push runs share one concurrency group, so an older pending run ends "cancelled". A cancelled run
+        is no information: as the latest run it holds; behind a newer pending run the pending one holds; behind a newer
+        green run for main's head the merge goes on."""
+        cancelled = {"databaseId": 6, "status": "completed", "conclusion": "cancelled", "headSha": "0" * 40}
+        green_old = {"databaseId": 5, "status": "completed", "conclusion": "success", "headSha": "1" * 40}
+        latest_cancelled = {"databaseId": 7, "status": "completed", "conclusion": "cancelled", "headSha": "MAIN"}
+        pending = {"databaseId": 8, "status": "queued", "conclusion": "", "headSha": "MAIN"}
+        for runs, text in (([latest_cancelled, green_old], "main push run 7 cancelled"),
+                           ([pending, cancelled, green_old], "main push run 8 still queued")):
+            with self.subTest(text=text):
+                self.main_run(run_list={"runs": runs})
+                self.assert_held(self.mech("on"), text)
+                self.env.sql("DELETE FROM events WHERE action='mech-blocked'")
+        green = {"databaseId": 9, "status": "completed", "conclusion": "success", "headSha": "MAIN"}
+        self.main_run(run_list={"runs": [green, cancelled, green_old]})
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.status(), "done")
+
     def test_main_run_for_another_sha_holds(self):
         self.main_run(headSha="0" * 40)
         main = git(self.wt, "rev-parse", "HEAD~1")

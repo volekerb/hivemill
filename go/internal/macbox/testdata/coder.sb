@@ -1,0 +1,59 @@
+(version 1)
+(deny default)
+
+;; processes: run and spawn tools, signal and inspect only itself
+(allow process-exec*)
+(allow process-fork)
+(allow signal (target self))
+(allow process-info* (target self))
+(allow sysctl-read)
+
+;; shared temp is closed first, so the allows below re-open what lies under it (the agent TMPDIR)
+(deny file* (subpath "/private/tmp"))
+
+;; path lookup (stat, realpath, getcwd) on any path; metadata only, no contents
+(allow file-read-metadata)
+
+;; read: system, tool installs, the factory checkout, the agent and clone dirs
+(allow file-read* (subpath "/usr"))
+(allow file-read* (subpath "/bin"))
+(allow file-read* (subpath "/sbin"))
+(allow file-read* (subpath "/System"))
+(allow file-read* (subpath "/Library"))
+(allow file-read* (subpath "/private/etc"))
+(allow file-read* (literal "/dev/null"))
+(allow file-read* (literal "/dev/urandom"))
+(allow file-read* (literal "/dev/random"))
+(allow file-read* (regex #"^/dev/tty[a-z0-9]*$"))
+(allow file-read* (subpath "/opt/homebrew"))
+(allow file-read* (subpath "/usr/local/go"))
+(allow file-read* (subpath "/Users/owner/factory"))
+(allow file-read* (subpath "/Users/owner/factory/agents/a1"))
+(allow file-read* (subpath "/Users/owner/factory/clones/T-1-coder"))
+
+;; write: agent dir, the factory db, the clone when writable
+(allow file-write-data (literal "/dev/null"))
+(allow file-write-data (regex #"^/dev/tty[a-z0-9]*$"))
+(allow file-write* (subpath "/Users/owner/factory/agents/a1"))
+(allow file-write* (subpath "/Users/owner/factory/db"))
+(allow file-write* (subpath "/Users/owner/factory/clones/T-1-coder"))
+
+;; Mach services: fixed list, everything else is denied by default
+(allow mach-lookup (global-name "com.apple.system.opendirectoryd.libinfo"))
+(allow mach-lookup (global-name "com.apple.system.notification_center"))
+(allow mach-lookup (global-name "com.apple.logd"))
+(allow mach-lookup (global-name "com.apple.cfprefsd.daemon"))
+(allow mach-lookup (global-name "com.apple.SystemConfiguration.configd"))
+(allow mach-lookup (global-name "com.apple.dnssd.service"))
+
+;; network
+(allow network-outbound)
+(allow system-socket)
+
+;; owner secrets: explicit denies after every allow, so they always win
+(deny file* (subpath "/Users/owner/.ssh"))
+(deny file* (subpath "/Users/owner/.claude"))
+(deny file* (subpath "/Users/owner/.config/gh"))
+(deny file* (subpath "/Users/owner/.config/factory"))
+(deny file* (subpath "/Users/owner/Library/Keychains"))
+(deny file* (subpath "/Library/Keychains"))

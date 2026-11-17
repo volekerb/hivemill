@@ -69,6 +69,13 @@ except FileNotFoundError:
 if argv[:2] == ["pr", "create"]:
     print("https://github.com/zz-test/repo/pull/7")
     sys.exit(0)
+elif argv[:2] == ["pr", "edit"]:  # --title T sets the title of the PR in st["prs"] and of its st["pr_list"] row
+    title = argv[argv.index("--title") + 1]
+    for pr in [st.get("prs", {}).get(argv[2])] + [x for x in st.get("pr_list", []) if x.get("url") == argv[2]]:
+        if pr is not None:
+            pr["title"] = title
+    with open(os.environ["FAKE_GH_STATE"], "w") as f:
+        json.dump(st, f)
 elif argv[:2] == ["pr", "ready"]:
     sys.exit(0)
 elif argv[:2] == ["pr", "view"]:

@@ -1,0 +1,2 @@
+# real: MacBook M0 2026-11-15, sysctl -n vm.loadavg (T-1575)
+{ 3.71 3.99 3.66 }

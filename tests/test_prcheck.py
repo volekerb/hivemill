@@ -384,6 +384,109 @@ class PrcheckTests(FactoryTestCase):
         p = self.done()
         self.assertEqual(p.returncode, 0, p.stderr)
 
+    # -- T-1627: a refused done names the exit; taking it makes done accepted -------------------------
+    def at(self, t):
+        return {"FACTORY_TEST_NOW": f"2026-01-01T{t}+00:00"}
+
+    def refuse_at(self, t, *extra):
+        p = self.env.run("done", *extra, "summary", agent="zz-test-coder", extra_env=self.at(t))
+        self.assertEqual(p.returncode, 3, p.stderr)
+        return p
+
+    def escalate_at(self, t):
+        p = self.env.run("msg", "lead:g-001-a", "held", "why", "--kind", "escalation", "--task", "T-0001",
+                         agent="zz-test-coder", extra_env=self.at(t))
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def done_events(self, action):
+        return self.env.sql("SELECT id FROM events WHERE entity='task' AND entity_id='T-0001' AND action=?", (action,))
+
+    def test_coder_escalation_limited_to_own_task_and_chain(self):
+        for to, task in (("lead:g-001-a", "T-0002"), ("boss", "T-0001"), ("zz-test-lead", None)):
+            args = ["msg", to, "s", "b", "--kind", "escalation"] + (["--task", task] if task else [])
+            p = self.env.run(*args, agent="zz-test-coder")
+            self.assertEqual(p.returncode, 3, f"{to} {task}: {p.stderr}")
+            self.assertIn("only leads, the director and the boss escalate", p.stderr)
+        p = self.env.run("msg", "zz-test-lead", "s", "b", "--kind", "escalation", "--task", "T-0001", agent="zz-test-coder")
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_exit_named_on_prcheck_refusal(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        p = self.refuse_at("10:00:00")
+        for need in ("factory task update T-0001 --status in_review", "factory msg lead:g-001-a", "--kind escalation", "factory done"):
+            self.assertIn(need, p.stderr)
+
+    def test_exit_named_on_unpushed_refusal(self):
+        p = self.refuse_at("10:00:00")  # commit() in setUp left HEAD unpushed
+        self.assertIn("is not on origin/", p.stderr)
+        for need in ("factory task update T-0001 --status in_review", "factory msg lead:g-001-a", "--kind escalation"):
+            self.assertIn(need, p.stderr)
+
+    def test_done_accepted_after_exit_prcheck(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.refuse_at("10:00:00")
+        self.env.sql("UPDATE tasks SET status='in_review' WHERE id='T-0001'")
+        self.escalate_at("10:05:00")
+        p = self.done()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.agent_status(), "done")
+        self.assertEqual(len(self.done_events("done-after-escalation")), 1)
+
+    def test_done_accepted_after_exit_unpushed_blocked(self):
+        self.refuse_at("10:00:00")
+        self.env.sql("UPDATE tasks SET status='blocked' WHERE id='T-0001'")
+        self.escalate_at("10:05:00")
+        p = self.done()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(len(self.done_events("done-after-escalation")), 1)
+
+    def test_done_still_refused_without_escalation(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.refuse_at("10:00:00")
+        self.env.sql("UPDATE tasks SET status='in_review' WHERE id='T-0001'")  # status alone is not the exit
+        self.refuse_at("10:05:00")
+        self.assertEqual(self.agent_status(), "live")
+        self.assertEqual(len(self.done_events("done-after-escalation")), 0)
+
+    def test_done_still_refused_with_escalation_but_status_in_progress(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.refuse_at("10:00:00")
+        self.escalate_at("10:05:00")
+        self.refuse_at("10:06:00")
+        self.assertEqual(self.agent_status(), "live")
+
+    def test_escalation_older_than_refusal_does_not_count(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.env.sql("UPDATE tasks SET status='in_review' WHERE id='T-0001'")
+        self.escalate_at("09:00:00")
+        self.refuse_at("10:00:00")
+        self.refuse_at("10:01:00")
+        self.assertEqual(self.agent_status(), "live")
+
+    def test_unpushed_escalation_does_not_skip_prcheck_once_pushed(self):
+        self.ok("config", "prcheck_required", "1")
+        self.refuse_at("10:00:00")  # unpushed gate
+        self.env.sql("UPDATE tasks SET status='in_review' WHERE id='T-0001'")
+        self.escalate_at("10:05:00")
+        self.pushed()
+        p = self.refuse_at("10:10:00")
+        self.assertIn("no passing `factory prcheck`", p.stderr)
+
+    def test_escalation_does_not_cover_a_moved_head(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.refuse_at("10:00:00")
+        self.env.sql("UPDATE tasks SET status='in_review' WHERE id='T-0001'")
+        self.escalate_at("10:05:00")
+        commit(self.wt, "later.txt")
+        self.pushed()
+        self.refuse_at("10:10:00")
+
     # -- done accepts green CI on the PR head instead of the local affected run (T-0873) -----------
     def ci_pr(self, checks, sha=None, body=None):
         self.env.seed_pr(url=PR_URL, sha=sha or self.head(), checks=checks, body=body if body is not None else pr_body())
