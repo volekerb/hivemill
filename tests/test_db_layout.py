@@ -228,7 +228,7 @@ class LayoutTests(FactoryTestCase):
         self.assertEqual(len(files), 14)
         for f in files:
             deny = json.loads(Path(f).read_text())["permissions"]["deny"]
-            for tool in ("Edit", "Write"):
+            for tool in ("Edit",):  # T-1659: Edit(p) is the one deny; Write(p) twins were dead
                 for tail in ("db/**", "factory.db*"):
                     self.assertIn(f"{tool}(/{LIVE_HOME}/{tail})", deny, f)
 

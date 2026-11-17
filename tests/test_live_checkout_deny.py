@@ -40,11 +40,12 @@ def settings(role):
 def denied(deny, tool, path):
     """True if a deny rule for `tool` covers absolute `path` (exact, or X/** prefix, or bare tool name)."""
     for rule in deny:
-        if rule == tool:
+        if rule == tool or rule == "Edit":  # T-1659: Edit rules apply to Write and NotebookEdit too
             return True
-        if not rule.startswith(tool + "(") or not rule.endswith(")"):
+        head = next((h for h in (tool, "Edit") if rule.startswith(h + "(")), None)
+        if head is None or not rule.endswith(")"):
             continue
-        pat = rule[len(tool) + 1:-1]
+        pat = rule[len(head) + 1:-1]
         if pat.startswith("//"):
             pat = pat[1:]
         if pat.endswith("/**"):
@@ -91,7 +92,7 @@ class LiveCheckoutDeny(unittest.TestCase):
         for role in ("coder", "qa"):
             deny = settings(role)["permissions"]["deny"]
             for entry in PLANNED_ENTRIES:
-                for tool in TOOLS:
+                for tool in ("Edit",):  # T-1659: Edit(p) covers Write(p) and NotebookEdit(p); the twins are gone
                     if tool in deny:
                         continue
                     for rule in (f"{tool}(/{LIVE}/{entry})", f"{tool}(/{LIVE}/{entry}/**)"):

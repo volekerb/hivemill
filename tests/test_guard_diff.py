@@ -918,6 +918,31 @@ class SettingsCompareTests(GuardDiffCase):
         self.assertRegex(p.stdout, r"(?m)^SETTINGS-CHANGED qa env added: NEW_KEY=1")
         self.assertIn("0 loosened", p.stdout)
 
+    def test_t1659_dead_write_twin_removed_is_not_loosened(self):
+        def twins(d):
+            d["permissions"]["deny"] += ["Edit(/x/db/**)", "Write(/x/db/**)", "NotebookEdit(/x/db/**)"]
+        self.commit_base(twins)
+        self.edit_tree(lambda d: d["permissions"]["deny"].remove("Write(/x/db/**)"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("0 loosened", p.stdout)
+
+    def test_t1659_write_deny_converted_to_edit_is_not_loosened(self):
+        self.commit_base(lambda d: d["permissions"]["deny"].append("Write(/x/worktrees/**)"))
+        self.edit_tree(lambda d: d["permissions"]["deny"].__setitem__(d["permissions"]["deny"].index("Write(/x/worktrees/**)"),
+                                                                    "Edit(/x/worktrees/**)"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_t1659_dropping_the_edit_twin_too_is_loosened(self):
+        def twins(d):
+            d["permissions"]["deny"] += ["Edit(/x/db/**)", "Write(/x/db/**)"]
+        self.commit_base(twins)
+        self.edit_tree(lambda d: [d["permissions"]["deny"].remove(r) for r in ("Edit(/x/db/**)", "Write(/x/db/**)")])
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa deny removed: Edit\(/x/db/\*\*\)")
+
     def test_b4_deleted_template_is_loosened(self):
         self.commit_base()
         git(self.repo, "rm", "-q", "roles/settings/qa.json.in")

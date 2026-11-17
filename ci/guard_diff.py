@@ -445,7 +445,12 @@ def settings_rules(text, legacy=False, name="settings"):
         for rule in _shape(name, f"permissions.{kind}", perms.get(kind, []), "list"):
             if not isinstance(rule, str):
                 raise SettingsShapeError(f"settings {name}: permissions.{kind} entries must be strings; fix the file")
-            out.add((kind, fix(rule)))
+            rule = fix(rule)
+            if kind == "deny":  # T-1659: Claude Code applies Edit(p) to Write(p) and NotebookEdit(p); compare them as one deny
+                for tool in ("Write(", "NotebookEdit("):
+                    if rule.startswith(tool) and rule.endswith(")"):
+                        rule = "Edit(" + rule[len(tool):]
+            out.add((kind, rule))
     for event, groups in _shape(name, "hooks", d.get("hooks", {}), "object").items():
         ev = f"hooks.{json.dumps(event)}"  # json.dumps keeps a newline in the event name off the error line
         for group in _shape(name, ev, groups, "list"):
