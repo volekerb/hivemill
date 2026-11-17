@@ -98,13 +98,13 @@ git_id=(-c user.name=remote-gate -c user.email=gate@example.invalid -c commit.gp
 export GATE_HEAD_SHA="$head_sha" GATE_BASE_SHA="$base_sha"
 ( cd "$run/head"
   git init -q -b main .
-  git "${git_id[@]}" --work-tree="$run/base" add -A
+  git "${git_id[@]}" --work-tree="$run/base" add -A -f
   git "${git_id[@]}" commit -q --no-verify -m "base $base_sha"
   git tag gate-base
-  git "${git_id[@]}" add -A
+  git "${git_id[@]}" add -A -f
   git "${git_id[@]}" commit -q --no-verify --allow-empty -m "head $head_sha"
   git update-ref refs/remotes/origin/main gate-base
-  [ -z "$(git status --porcelain)" ] || { echo "remote-gate-driver: rebuilt head repo is not clean" >&2; exit 1; } )
+  [ -z "$(git status --porcelain --ignored)" ] || { echo "remote-gate-driver: rebuilt head repo is not clean" >&2; exit 1; } )
 B=gate-base
 T="$run/trusted"
 cd "$run/head"

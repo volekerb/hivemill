@@ -252,6 +252,28 @@ class RemoteGate(unittest.TestCase):
         self.assertEqual(seen["cli"], "X = '$Format:%H$'\n", "export-subst rewrote a shipped file")
         self.assertEqual(self.run_dirs(), [])
 
+    def test_self_ignored_force_added_file_is_in_the_remote_diff(self):
+        # a PR force-adds a file plus a .gitignore rule for it: the rebuilt repo must still diff it (docs-check
+        # lints only the files in `git diff gate-base HEAD`)
+        diff_out = self.tmp / "remote-diff.txt"
+        (self.tree / "bin" / "factory").write_text(
+            "#!/usr/bin/env python3\nimport subprocess\n"
+            f"open({str(diff_out)!r}, 'w').write(subprocess.run(['git', 'diff', '--name-only', 'gate-base', 'HEAD'],"
+            " capture_output=True, text=True, check=True).stdout)\n")
+        (self.tree / "docs").mkdir()
+        (self.tree / "docs" / "hidden.md").write_text("# broken [link](nowhere.md)\n")
+        (self.tree / ".gitignore").write_text("docs/hidden.md\n")
+        git(self.tree, "add", "-A")
+        git(self.tree, "add", "-f", "docs/hidden.md")
+        git(self.tree, "commit", "-q", "-m", "self-ignored doc")
+        p = self.gate()
+        self.assertIn("remote-gate-driver: FAIL", p.stdout, p.stdout + p.stderr)
+        self.assertNotIn("rebuilt head repo is not clean", p.stdout + p.stderr)
+        diffed = diff_out.read_text().split()
+        self.assertIn("docs/hidden.md", diffed, "a self-ignored, force-added file is missing from the remote diff")
+        self.assertIn(".gitignore", diffed)
+        self.assertEqual(self.run_dirs(), [])
+
     def test_tree_changed_after_the_checks_is_refused_and_nothing_is_shipped(self):
         cases = {"modified": f"echo 'X = 3' > {self.tree}/bin/factory_cli.py",
                  "staged": f"cd {self.tree} && echo y > new.txt && git add new.txt",
