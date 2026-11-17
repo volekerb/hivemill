@@ -88,6 +88,13 @@ type Host interface {
 	Symlink(target, link string) error
 	Popen(argv []string, logpath string) error
 	WriteText(path, text string) error
+	// IsTerminal reports whether stdin and stdout are both terminals (character devices).
+	IsTerminal() bool
+	// RunTTY runs argv attached to the user's terminal (stdin, stdout, stderr) and returns its exit code.
+	// The installer sees none of its output.
+	RunTTY(argv []string) int
+	// WaitEnter blocks until the user presses Enter; an error means stdin is closed.
+	WaitEnter() error
 }
 
 // OSHost is the real machine.
@@ -520,4 +527,36 @@ func (h *OSHost) WriteText(path, text string) error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
+}
+
+func isCharDevice(f *os.File) bool {
+	st, err := f.Stat()
+	return err == nil && st.Mode()&os.ModeCharDevice != 0
+}
+
+func (h *OSHost) IsTerminal() bool { return isCharDevice(os.Stdin) && isCharDevice(os.Stdout) }
+
+func (h *OSHost) RunTTY(argv []string) int {
+	env := h.childEnv()
+	path, err := lookPath(argv[0], pathOf(env))
+	if err != nil {
+		return 127
+	}
+	cmd := exec.Command(path, argv[1:]...)
+	cmd.Env = env
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	err = cmd.Run()
+	if err == nil {
+		return 0
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return ee.ExitCode()
+	}
+	return 1
+}
+
+func (h *OSHost) WaitEnter() error {
+	_, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	return err
 }
