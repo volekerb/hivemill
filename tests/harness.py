@@ -381,6 +381,7 @@ class FactoryEnv:
         # herdr and hc are copies: the worker gate exempts only a real tests/stubs path (tests/test_worker_gate.py)
         shutil.copy2(STUBS / "herdr", self.stub_bin / "herdr")
         shutil.copy2(STUBS / "hc", self.stub_bin / "hc")
+        shutil.copy2(STUBS / "ssh", self.stub_bin / "ssh")
         (self.stub_bin / "gh").symlink_to(STUBS / "gh")
         self.herdr_state = self.home / "herdr.json"
         self.gh_state = self.home / "gh.json"
@@ -742,11 +743,16 @@ class DarwinSubprocessRunner:
     def __init__(self, ps=DARWIN_PS_SAMPLE, vm=DARWIN_VM_STAT, level="1", stat_t="apfs\n", top="  2048 /usr/bin/big\n"):
         self.ps, self.vm, self.level, self.stat_t, self.top = ps, vm, level, stat_t, top
         self.calls = []
+        self.envs = []  # the env= of each call, parallel to calls
         self.real = subprocess.run
 
     def __call__(self, cmd, *a, **kw):
         self.calls.append(list(cmd) if isinstance(cmd, (list, tuple)) else cmd)
+        self.envs.append(kw.get("env"))
         name = cmd[0] if isinstance(cmd, (list, tuple)) else ""
+        if name in ("ps", "vm_stat", "sysctl", "stat"):  # PATH-resolved: a worker could shadow it (T-1568 S1)
+            raise AssertionError(f"{name} must run by absolute path on darwin: {cmd}")
+        name = {"/bin/ps": "ps", "/usr/bin/vm_stat": "vm_stat", "/usr/sbin/sysctl": "sysctl", "/usr/bin/stat": "stat"}.get(name, name)
         if name == "ps":
             if "rss=,command=" in cmd:
                 return _darwin_cp(self.top)
@@ -762,7 +768,7 @@ class DarwinSubprocessRunner:
         return self.real(cmd, *a, **kw)
 
     def named(self, name):
-        return [c for c in self.calls if c and c[0] == name]
+        return [c for c in self.calls if c and os.path.basename(c[0]) == name]
 
 
 class FactoryTestCase(unittest.TestCase):

@@ -2,12 +2,14 @@ package sandbox
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestSizeOK(t *testing.T) {
@@ -558,4 +560,21 @@ func TestSymlinkParent(t *testing.T) {
 		})
 	}
 	_ = syscall.Getpid
+}
+
+// TestRealpathDoublingChain: l_i -> <d>/l_{i-1}/../l_{i-1}, ... must not be exponential (Python memoises resolved links).
+func TestRealpathDoublingChain(t *testing.T) {
+	d := Realpath(t.TempDir())
+	must(t, os.Mkdir(d+"/l0", 0o755))
+	for i := 1; i <= 20; i++ {
+		must(t, os.Symlink(fmt.Sprintf("%s/l%d/../l%d", d, i-1, i-1), fmt.Sprintf("%s/l%d", d, i)))
+	}
+	start := time.Now()
+	got := Realpath(d + "/l20")
+	if el := time.Since(start); el > time.Second {
+		t.Errorf("took %v on a 2^20 doubling chain", el)
+	}
+	if got != d+"/l0" {
+		t.Errorf("Realpath = %s", got)
+	}
 }

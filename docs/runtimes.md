@@ -71,6 +71,7 @@ factory up                                # starts the missing <org>-director / 
 | `agent_runtimes` | `pm=cursor` | Per-role runtime override on the **default** org only. |
 | `agent_runtimes` | `*=cursor` or `all=cursor` | Every role in `CURSOR_ROLES` → `cursor` (not `evaluator`). |
 | `cursor_pilot_roles` | `pm,coder` | Legacy alias → `pm=cursor,coder=cursor`. Prefer `agent_runtimes`. |
+| `cursor_prompt` | `v2` | Prompt chain of Cursor agents: `v1` (default) = the Claude role prompt and kickoff, `v2` = the short loop-until-done prompt. See [cursor-prompt.md](cursor-prompt.md). |
 
 **Resolution (`org_runtime`):** On the default org, **empty** `agent_runtimes` resolves **every** role to Claude. `*=cursor` (or `all=cursor`) resolves every role in `scout/cursor_harness.CURSOR_ROLES` to `cursor`. The skilleval **evaluator always stays Claude**, even with `*=cursor`. A **non-default org** ignores `agent_runtimes` for runtime choice and uses `scout/orgs.py` instead — the **cursor org is `cursor` even when `agent_runtimes` is empty** on the default org.
 
@@ -97,6 +98,26 @@ Models: factory `MODELS` / `model_<role>` pass through to Cursor `--model`.
 - **User MCP blinding:** Empty project `.cursor/mcp.json` alone does **not** hide **`~/.cursor/mcp.json`**, but spawn materializes a **`beforeMCPExecution`** hook (`failClosed: true`) that denies MCP for every Cursor factory role except **boss** (boss delegates to **worker-guard**, same posture as Claude without `--strict-mcp-config`). User/plugin MCP calls are blocked at the hook, not by config stripping alone.
 - **flagless / claude_procs** audits ignore Cursor argv (expected).
 - Auth: `agent login` or `CURSOR_API_KEY`.
+
+### Kickoff that was never accepted (T-1599)
+
+A Cursor pane can sit idle for hours because its kickoff prompt was typed but never submitted, or landed in the follow-ups drawer. The tick now catches this for every live Cursor agent, whatever its role (workers, leads, director, boss).
+
+**Signal:** the agent's kickoff message in the factory DB is still unread. An agent that accepted its kickoff runs `factory inbox` as its first command, and that sets the read mark. No transcript or pane text is read.
+
+| When (per pane) | What the tick does | Event |
+|---|---|---|
+| Kickoff unread for more than `cursor_kickoff_grace_s` (default 180 s) after the spawn | Types and submits the kickoff again, through the same function the spawn used (prompt, then Enter). Once per pane. | `kickoff-resent` |
+| Still unread one grace period after that | Closes the pane and starts the agent fresh through the normal relaunch path (`factory relaunch --fresh`). The agent keeps its slot and gets a new session id and a new kickoff message. Once per agent. | `kickoff-relaunch` |
+| The relaunched pane is still unread after its own resend and one more grace period, or the relaunch failed | One escalation to the agent's org director (to the boss when the agent is the director). It names the pane, the backend and the seconds idle. Nothing further is done automatically. | `kickoff-escalated` |
+
+- The spawn gate is read before the relaunch, as for any relaunch. While it is closed the pane is left alone and the relaunch waits (`kickoff-relaunch-deferred`, at most one event an hour).
+- At most one kickoff relaunch runs per tick.
+- An agent that is being stopped (`factory stop`), has a queued `factory relaunch --when-idle`, or is still starting is skipped: the stop path or the relaunch path owns that pane.
+- A pane the host reports as working is left alone: it accepted a prompt and may simply not have read its mail yet. So is a pane the host does not list.
+- Claude agents are never checked.
+- `factory config cursor_kickoff_grace_s 0` turns the check off. The key is a timing key, not an owner cap.
+- Each event's detail holds `kick` (the kickoff message id), `idle_s`, `host` and `pane`. To count them: `grep -c '"kickoff-resent"' ~/factory/state/events.jsonl`.
 
 ## Adding a runtime
 

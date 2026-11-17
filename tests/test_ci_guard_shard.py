@@ -69,6 +69,32 @@ class AssignmentTest(unittest.TestCase):
             self.assertEqual(shards, [g.shard_of(list(reversed(ids)), i, n) for i in range(1, n + 1)])
         self.assertEqual(g.shard_of(ids, 2, 3), ids[1::3])  # round-robin on the sorted index
 
+    def test_real_corpus_id_is_excluded_and_nothing_else_is_dropped(self):
+        """G-050 R1: the duplicate real-corpus id is in no shard; the other ids are unchanged."""
+        ex = g.DIFF_EXCLUDED_IDS
+        self.assertEqual(len(ex), 1)
+        full, _, p_full = g.collect_ids(g.diff_module_names(), excluded=())
+        ids, _, problems = g.collect_ids(g.diff_module_names())
+        self.assertEqual(p_full + problems, [])
+        self.assertIn(ex[0], full)
+        self.assertNotIn(ex[0], ids)
+        shards = [x for i in (1, 2, 3) for x in g.shard_of(ids, i, 3)]
+        self.assertNotIn(ex[0], shards)
+        self.assertEqual(sorted(shards), sorted(set(full) - set(ex)))
+        self.assertEqual(len(shards), len(full) - 1)
+
+    def test_stale_exclusion_is_a_problem_and_present_one_is_not(self):
+        """An excluded id that no loaded module has is reported (rename guard); a real one is not."""
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d, ignore_errors=True))
+        write(d, "test_good.py", GOOD)
+        ids, _, problems = g.collect_ids(["test_good.py"], d, excluded=("test_good.A.test_a",))
+        self.assertEqual(problems, [])
+        self.assertNotIn("test_good.A.test_a", ids)
+        ids, _, problems = g.collect_ids(["test_good.py"], d, excluded=("test_good.A.test_gone",))
+        self.assertTrue(any("excluded test id not found" in x and "test_good.A.test_gone" in x for x in problems), problems)
+        self.assertEqual(len(ids), 5)
+
     def test_every_diff_module_contributes_ids(self):
         ids, _, _ = g.collect_ids(g.diff_module_names())
         for mod in ("test_worker_guard", "test_priv_guard", "test_guard_diff"):

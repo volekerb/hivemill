@@ -57,6 +57,8 @@ def hc_ls_envelope():
     terminals = []
     for a in st["agents"]:
         t = {"name": a.get("name"), "agent": a.get("agent", "claude"), "state": "live"}
+        if a.get("address"):  # a terminal on another machine (`run --on`): hc lists it as machine/tN
+            t["address"] = a["address"]
         if "osc_status" in a:
             t["status"] = a["osc_status"]
         elif a.get("agent_status"):
@@ -85,16 +87,29 @@ if argv[:1] == ["ls"]:
     with open(STATE, "w") as f:
         json.dump(st, f)
     sys.exit(0)
+if argv[:2] == ["machine", "ls"]:
+    # state "machines": names (connected) or {"name", "state"} objects; placeholder machine names only
+    ms = [m if isinstance(m, dict) else {"name": m, "state": "connected"} for m in st.get("machines", [])]
+    hc_print({"machines": ms})
+    sys.exit(0)
 if argv[:1] == ["run"] and "--bg" in argv:
     name = opt("--name")
+    on = opt("--on")
     if name and st.get("start_fail"):
         print("hc: " + (st["start_fail"] if isinstance(st["start_fail"], str) else "agent_not_ready"), file=sys.stderr)
         sys.exit(1)
+    if on and on not in [m if isinstance(m, str) else m.get("name") for m in st.get("machines", [])]:
+        print(f"hc: unknown machine {on}", file=sys.stderr)
+        sys.exit(1)
     agent = {"name": name, "agent": "claude", "pane_id": opt("--pane"), "agent_status": "idle",
              "agent_session": {"value": opt("--session-id") or "sess-" + name}}
+    run_out = {"name": name, "agent": "claude", "state": "live"}
+    if on:
+        st["seq"] += 1
+        agent["address"] = run_out["address"] = f"{on}/t{st['seq']}"
     if name and not st.get("slow_list"):
         st["agents"] = [a for a in st["agents"] if a.get("name") != name] + [agent]
-    hc_print({"name": name, "agent": "claude", "state": "live"})
+    hc_print(run_out)
     with open(STATE, "w") as f:
         json.dump(st, f)
     sys.exit(0)

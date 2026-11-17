@@ -100,6 +100,14 @@
    "doc": "docs/lead-wake.md"
   },
   {
+   "key": "cursor_kickoff_grace_s",
+   "kind": "setting",
+   "default": "180",
+   "summary": "cursor agents: seconds a kickoff may stay unread before the tick re-submits it, then relaunches once, then escalates; 0 = off",
+   "goal": "G-058",
+   "doc": "docs/runtimes.md"
+  },
+  {
    "key": "cursor_pilot_roles",
    "kind": "flag",
    "default": "",
@@ -107,6 +115,14 @@
    "goal": "",
    "doc": "docs/runtimes.md",
    "state": "off"
+  },
+  {
+   "key": "cursor_prompt",
+   "kind": "setting",
+   "default": "v1",
+   "summary": "v1 = Cursor agents get the Claude role prompt and kickoff; v2 = the short loop-until-done prompt (roles/cursor/<role>.md) and the Cursor worker kickoff",
+   "goal": "G-058",
+   "doc": "docs/cursor-prompt.md"
   },
   {
    "key": "day_end_hour",
@@ -332,6 +348,23 @@
    "doc": "docs/lead-wake.md"
   },
   {
+   "key": "idle_watchdog",
+   "kind": "flag",
+   "default": "shadow",
+   "summary": "off | shadow | on: the tick nudges, then relaunches fresh, then alerts both directors about a live worker with no progress for idle_watchdog_min; shadow = event rows only",
+   "goal": "G-058",
+   "doc": "docs/idle-watchdog.md",
+   "state": "shadow"
+  },
+  {
+   "key": "idle_watchdog_min",
+   "kind": "setting",
+   "default": "30",
+   "summary": "minutes without progress before idle_watchdog nudges; relaunch half that later, alert that long after the relaunch",
+   "goal": "G-058",
+   "doc": "docs/idle-watchdog.md"
+  },
+  {
    "key": "issue_intake_repos",
    "kind": "flag",
    "default": "",
@@ -347,6 +380,14 @@
    "summary": "`factory judge --merge` waits this long for pending CI before refusing",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "judge_hold_expiry_min",
+   "kind": "setting",
+   "default": "120",
+   "summary": "minutes a manual judge hold may stay on a reviewer+QA PASS PR without a boss decision; 0 = off",
+   "goal": "G-058",
+   "doc": "docs/judge-hold-expiry.md"
   },
   {
    "key": "judge_max_refreshes",
@@ -391,6 +432,62 @@
    "goal": "",
    "doc": "",
    "state": "off"
+  },
+  {
+   "key": "machine_cpu_heavy_roles",
+   "kind": "setting",
+   "default": "coder,qa",
+   "summary": "worker roles that prefer the first worker machine which passes placement",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_facts_ttl_s",
+   "kind": "setting",
+   "default": "20",
+   "summary": "seconds one machine's MemAvailable and load sample is reused",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_hq",
+   "kind": "setting",
+   "default": "hqhost",
+   "summary": "name of this machine; HQ, leads and judges stay on it",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_mem_floor_mb",
+   "kind": "setting",
+   "default": "1500",
+   "summary": "a machine is eligible only when free RAM minus one agent stays at least this (MB)",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_mem_per_claude_mb",
+   "kind": "setting",
+   "default": "500",
+   "summary": "RAM (MB) reserved for one claude agent when placing",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_mem_per_cursor_mb",
+   "kind": "setting",
+   "default": "900",
+   "summary": "RAM (MB) reserved for one cursor agent when placing",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_ssh_timeout_s",
+   "kind": "setting",
+   "default": "5",
+   "summary": "ssh ConnectTimeout in seconds when reading a worker machine's facts",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
   },
   {
    "key": "max_five_hour_pct",
@@ -830,6 +927,14 @@
    "doc": ""
   },
   {
+   "key": "stale_no_refresh",
+   "kind": "setting",
+   "default": "on",
+   "summary": "on: a BEHIND PR with CI green, reviewer+QA PASS on the head, clean merge-tree, no shared file and MERGEABLE merges without a refresh; off: rollback",
+   "goal": "G-058",
+   "doc": "docs/stale-policy.md"
+  },
+  {
    "key": "stale_policy",
    "kind": "flag",
    "default": "behind_ok",
@@ -999,6 +1104,14 @@
    "doc": ""
   },
   {
+   "key": "usage_reopen_samples",
+   "kind": "setting",
+   "default": "3",
+   "summary": "consecutive fresh below-cap readings that reopen the spawn gate after a Claude usage cap",
+   "goal": "G-058",
+   "doc": "docs/SETUP.md"
+  },
+  {
    "key": "worker_gh_repos",
    "kind": "setting",
    "default": "",
@@ -1014,6 +1127,14 @@
    "goal": "G-010",
    "doc": "",
    "state": "off"
+  },
+  {
+   "key": "worker_machines",
+   "kind": "setting",
+   "default": "",
+   "summary": "comma list of worker machine names; empty keeps every agent on this machine",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
   }
  ]
 }

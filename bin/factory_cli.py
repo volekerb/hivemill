@@ -167,6 +167,7 @@ DEFAULT_CONFIG = {
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
     # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
     "stale_policy": "behind_ok",
+    "stale_no_refresh": "on",    # T-1676 (owner 2026-11-17): on = a BEHIND head with CI green, reviewer+QA PASS, clean merge-tree, no shared file and MERGEABLE merges without a refresh; off = rollback (docs/stale-policy.md)
     "refresh_lane": "off",       # G-022: on = only the head of the merge queue (the oldest BEHIND judge row) is refreshed; the rest hold as 'lane: position N' (docs/refresh-lane.md)
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
@@ -184,7 +185,11 @@ DEFAULT_CONFIG = {
     "tmp_max_pct": "90",         # the gate closes when the filesystem holding /tmp is this full (it is RAM-backed tmpfs on your-box)
     "max_five_hour_pct": "92",
     "max_seven_day_pct": "92",
+    # After a fresh 5h or 7d reading at/over its cap, non-cursor spawns stay queued while the reading is stale or
+    # unreadable, and until this many consecutive fresh readings are under both caps. No at-cap reading yet: unchanged.
+    "usage_reopen_samples": "3",
     "nudge_cooldown_s": "120",
+    "cursor_kickoff_grace_s": "180",  # T-1599: a live cursor agent's kickoff message unread this long after the spawn is re-submitted once, that long again later the pane is relaunched fresh once, then one escalation; 0 = off
     "boss_wake_after_s": "900",    # tick step 3: boss pane is prompted only when an unread escalation/request is at least this old (T-1199)
     "boss_wake_cooldown_s": "1800",  # at most one boss wake per this many seconds (agents.last_nudge)
     "director_cycle_s": "900",
@@ -197,6 +202,7 @@ DEFAULT_CONFIG = {
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
     "mech_merge_retry_s": "600", # the merger looks at a PR head it already blocked on (or shadow-recorded) at most this often
+    "judge_hold_expiry_min": "120",  # minutes a manual judge hold may stay on a reviewer+QA PASS PR without a boss decision (boss-approved M<id> in the hold text); 0 = off (G-058, owner M37547; docs/judge-hold-expiry.md)
     "risk_tiers": "off",        # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
@@ -258,6 +264,8 @@ DEFAULT_CONFIG = {
     "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
     "idle_coder_reap": "off",    # off | dry-run | on: the tick stops a coder idle past idle_coder_reap_s with a clean tree, pushed PR head, no mail, no shell (T-1028, docs/lead-wake.md)
     "idle_coder_reap_s": "900",  # seconds a coder must be idle/done before idle_coder_reap acts
+    "idle_watchdog": "shadow",   # off | shadow | on: T-1622 idle-progress watchdog for live workers; shadow = event rows only (docs/idle-watchdog.md)
+    "idle_watchdog_min": "30",   # minutes without progress before the watchdog nudges; relaunch W/2 later, alert W after the relaunch
     "digest_hour": "8",         # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -285,6 +293,18 @@ DEFAULT_CONFIG = {
     # G-038 F-44: 1 = while the Claude weekly gate is closed (seven_day >= max_seven_day_pct), mail claude-boss once per goal and
     # cap window to offer moving a queued P1/P2 claude goal to cursor. It only mails; it never moves a goal. 0 = off.
     "cap_fallback_offer": "0",
+    # T-1623: v1 = Cursor agents get the Claude role prompt and kickoff; v2 = the short loop-until-done prompt of
+    # roles/cursor/<role>.md (where one exists) and the Cursor worker kickoff (docs/cursor-prompt.md).
+    "cursor_prompt": "v1",
+    # G-057 placement. Empty worker_machines = off: no ssh, no second machine, gate() as before (docs/multi-machine.md).
+    "worker_machines": "",       # comma list of worker machine names; HQ stays on machine_hq
+    "machine_hq": "hqhost",      # this machine's name; boss, director, leads and judges never leave it
+    "machine_mem_floor_mb": "1500",  # eligible only when mem_mb - per_agent_mb is at least this
+    "machine_mem_per_cursor_mb": "900",
+    "machine_mem_per_claude_mb": "500",
+    "machine_facts_ttl_s": "20",  # one ssh per machine per this many seconds
+    "machine_ssh_timeout_s": "5",
+    "machine_cpu_heavy_roles": "coder,qa",  # prefer the first worker machine that passes; others use RAM headroom
 }
 
 AUDIT_DDL = """
@@ -407,7 +427,7 @@ CREATE TABLE IF NOT EXISTS schedules (
 # T-1336 (G-041 S1-c): PRAGMA user_version of every DB this code has migrated. The Go CLI (go/internal/factorydb
 # SchemaVersion) answers only when it reads the same number; bump it, and the Go constant, with any SCHEMA or migrate()
 # change (tests/test_db_layout.py hashes both and fails until the pinned hash is renewed together with this number).
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -435,7 +455,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
+  waits TEXT NOT NULL DEFAULT 'internal', block_on TEXT, sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
 CREATE TABLE IF NOT EXISTS agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -558,6 +578,12 @@ def migrate(con):
             con.execute("ALTER TABLE tasks ADD COLUMN waits TEXT NOT NULL DEFAULT 'internal'")
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "waits" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+                raise
+    if "block_on" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+        try:  # typed block conditions JSON, NULL = free-text block (G-040 T-1350)
+            con.execute("ALTER TABLE tasks ADD COLUMN block_on TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "block_on" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
                 raise
     if "tier" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
         try:  # risk tier T0..T3 of the task's PR, only ever raised (G-022 #1)
@@ -973,14 +999,20 @@ def _darwin_cmd_head_claude(command):
             and os.path.basename(parts[1]) == "claude")
 
 
+# macOS tools by absolute path with a fixed PATH: a worker could put a fake `ps` first on its PATH and forge the process
+# ancestry refuse_worker trusts (T-1568 reviewer S1). These are the stock, SIP-protected macOS locations.
+DARWIN_PS, DARWIN_VM_STAT, DARWIN_SYSCTL, DARWIN_STAT = "/bin/ps", "/usr/bin/vm_stat", "/usr/sbin/sysctl", "/usr/bin/stat"
+DARWIN_TOOL_ENV = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C"}
+
+
 def _darwin_ps():
     """macOS (no /proc): {pid: {"ppid","uid","lstart","command","argv"}} from ONE `ps -axo pid=,ppid=,uid=,lstart=,command=`
     (LC_ALL=C), or None when ps cannot be read (callers then keep the pid: never reaped, T-1568 ADR 0003 4.4).
     `command` is the full ps tail (spaces preserved); `argv` is shlex-split for callers that need a list — paths with
     spaces in --settings are matched on `command` via regex, not argv."""
     try:
-        r = subprocess.run(["ps", "-axo", "pid=,ppid=,uid=,lstart=,command="], capture_output=True, text=True, timeout=15,
-                           env={**os.environ, "LC_ALL": "C"})
+        r = subprocess.run([DARWIN_PS, "-axo", "pid=,ppid=,uid=,lstart=,command="], capture_output=True, text=True,
+                           timeout=15, env=dict(DARWIN_TOOL_ENV))
     except (OSError, subprocess.SubprocessError):
         return None
     if r.returncode != 0:
@@ -1031,7 +1063,8 @@ def _ancestry_worker():
         is_claude = _darwin_cmd_head_claude(cmd) if sys.platform == "darwin" else any(os.path.basename(x) == "claude" for x in argv[:3])
         if is_claude:
             if sys.platform == "darwin":
-                m = re.search(r"/settings/([\w-]+)\.json", cmd)
+                # the first --settings value (may hold spaces), ending in /settings/<role>.json: Linux matches the same
+                m = re.search(r"--settings[= ]\S.*?/settings/([\w-]+)\.json(?=\s|$)", cmd)
                 if m and m.group(1) in WORKER_ROLES:
                     return m.group(1)
                 return None
@@ -1263,6 +1296,8 @@ _HC_RUN_ENV = None  # agent env written into the hc spawn script (never on the h
 _HC_RUN_PROGRAM = None  # resolved program for hc `run` (cursor: agent/cursor-agent, not the cursor shim)
 _HC_RUN_NAME = None  # agent name for the hc spawn script under run/
 _SPAWN_HOST_EXE = None  # override host CLI for the in-flight spawn/relaunch start (herdr|hc)
+_HC_RUN_MACHINE = None  # G-057: worker machine of the next hc `run` (adds `--on <machine>`); None = this machine
+_HC_RUN_SCRIPT = None  # G-057: spawn script already written and copied to that machine; `run` uses it as is
 # Parent hc `run` env must not reach the agent child (env -i + explicit exports only).
 HC_SPAWN_DROP = (
     "CLAUDE_CODE_MESSAGING_TOKEN", "HC_SOCKET", "HERDR_PANE_ID", "SSH_AUTH_SOCK", "HERDR_SESSION",
@@ -1452,6 +1487,54 @@ def _hc_remote_terminal(t):
     return isinstance(t, dict) and any(isinstance(t.get(k), str) and "/" in t[k] for k in ("address", "id", "terminal", "name"))
 
 
+def _hc_remote_address(t):
+    """The machine/tN address of an hc terminal on another machine, else None."""
+    if not isinstance(t, dict):
+        return None
+    return next((t[k] for k in ("address", "id", "terminal") if isinstance(t.get(k), str) and "/" in t[k]), None)
+
+
+def _hc_remote_terminals():
+    """{"<machine>/<name>": agent row} for the terminals hc lists on other machines, or None when hc cannot be read.
+    Only the tick calls it, and only for a row recorded on a worker machine (none while worker_machines is empty)."""
+    try:
+        p = subprocess.run(["hc", "ls"], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=_host_ipc_env("hc"))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if p.returncode != 0:
+        return None
+    lines = p.stdout.strip().splitlines()
+    try:
+        payload = json.loads(lines[-1]) if lines else {}
+    except json.JSONDecodeError:
+        return None
+    terminals = payload.get("terminals") if isinstance(payload, dict) else None
+    if not isinstance(terminals, list):
+        return None
+    out = {}
+    for t in terminals:
+        addr = _hc_remote_address(t)
+        name = t.get("name") if isinstance(t, dict) else None
+        if not addr or not isinstance(name, str) or not name:
+            continue
+        key = name if "/" in name else f"{addr.split('/', 1)[0]}/{name}"
+        out[key] = _normalize_agent_list_row(_hc_terminal_to_agent_row({**t, "name": key}))
+    return out
+
+
+def _hc_remote_target(con, args):
+    """agent prompt|read|send-keys <name> for a row started on a worker machine: the hc address instead of the name
+    (hc resolves a bare name on this machine only). Any other call or row: args unchanged."""
+    if len(args) < 3 or args[0] != "agent" or args[1] not in ("prompt", "read", "send-keys"):
+        return args
+    row = con.execute("SELECT spawn_args FROM agents WHERE name=?", (args[2],)).fetchone()
+    sa = _spawn_args_row(row) if row else {}
+    addr = sa.get("hc_address") if sa.get("machine") else None
+    if not isinstance(addr, str) or "/" not in addr:
+        return args
+    return (args[0], args[1], addr, *args[3:])
+
+
 def _hc_unwrap_result(ipc_argv, payload):
     """Convert herdr-core JSON stdout into the dict shape factory expects from the TUI `result` field."""
     if not isinstance(payload, dict):
@@ -1470,7 +1553,11 @@ def _hc_unwrap_result(ipc_argv, payload):
     if cmd == "run":
         if payload.get("name") is None and "state" not in payload:
             return None
-        return {"agent": _hc_terminal_to_agent_row(payload)}
+        row = _hc_terminal_to_agent_row(payload)
+        addr = _hc_remote_address(payload)
+        if addr:  # only a terminal on another machine (`run --on`) has one; a local run result is unchanged
+            row["address"] = addr
+        return {"agent": row}
     if cmd in ("send", "keys"):
         return {}
     return None
@@ -1532,6 +1619,8 @@ def _hc_run_argv_tail(program, post):
     """Tail of hc `run`: `sh <spawn script>` when spawn env is set (no env vars on the hc argv)."""
     if not _HC_RUN_ENV:
         return [program, *post]
+    if _HC_RUN_MACHINE and _HC_RUN_SCRIPT:  # the copy on the worker machine is this exact file: never rewrite it here
+        return ["sh", str(_HC_RUN_SCRIPT)]
     name = _HC_RUN_NAME or "hc-spawn"
     script = _hc_write_spawn_script(name, _HC_RUN_ENV, program, post)
     return ["sh", str(script)]
@@ -1735,6 +1824,8 @@ def _hc_translate_args(args):
                 else:
                     i += 1
             out = ["run", "--bg", "--no-parent", "--name", name]  # never the caller terminal's child (hc 0.1.21)
+            if _HC_RUN_MACHINE:  # G-057 remote start: hc runs it on that machine; its address is <machine>/tN
+                out.extend(["--on", _HC_RUN_MACHINE])
             cwd = _HC_RUN_CWD
             if not cwd:
                 for j, tok in enumerate(post):
@@ -1814,6 +1905,8 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     con = db()
     try:
         exe = _host_agent_ipc_exe(con, args)
+        if exe == "hc":
+            args = _hc_remote_target(con, args)
     finally:
         con.close()
     ipc_argv = _host_ipc_argv(exe, args)
@@ -2488,8 +2581,9 @@ def _darwin_mem_available_mb():
     """macOS MemAvailable in MB, the T-1562 formula: (free + inactive + speculative pages) x page size, and any memory
     pressure level other than 1 (normal) closes the gate (returns 0). Unreadable = 0 = gate closed."""
     try:
-        vm = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=10, env={**os.environ, "LC_ALL": "C"})
-        lvl = subprocess.run(["sysctl", "-n", "kern.memorystatus_vm_pressure_level"], capture_output=True, text=True, timeout=10)
+        vm = subprocess.run([DARWIN_VM_STAT], capture_output=True, text=True, timeout=10, env=dict(DARWIN_TOOL_ENV))
+        lvl = subprocess.run([DARWIN_SYSCTL, "-n", "kern.memorystatus_vm_pressure_level"], capture_output=True, text=True,
+                             timeout=10, env=dict(DARWIN_TOOL_ENV))
         if vm.returncode != 0 or lvl.returncode != 0 or lvl.stdout.strip() != "1":
             return 0
         m = re.search(r"page size of (\d+) bytes", vm.stdout)
@@ -2501,13 +2595,34 @@ def _darwin_mem_available_mb():
         return 0
 
 
+def _test_pin(var):
+    """$var for a test home only. A live home never honours it, so an agent exporting it cannot open the owner
+    MemAvailable floor or the placement checks on the live factory (same rule as FACTORY_TEST_NOW)."""
+    pinned = os.environ.get(var)
+    return pinned if pinned and not home_is_live() else None
+
+
+def _meminfo_text():
+    """/proc/meminfo. $FACTORY_MEMINFO pins a snapshot on a test home; otherwise the live file."""
+    pinned = _test_pin("FACTORY_MEMINFO")
+    return Path(pinned).read_text() if pinned else Path("/proc/meminfo").read_text()
+
+
 def mem_available_mb():
     if sys.platform == "darwin":
         return _darwin_mem_available_mb()
-    for line in Path("/proc/meminfo").read_text().splitlines():
+    for line in _meminfo_text().splitlines():
         if line.startswith("MemAvailable:"):
             return int(line.split()[1]) // 1024
     return 0
+
+
+def host_mem_available_mb():
+    """MemAvailable in MB. $FACTORY_MEM_MB pins it on a test home; otherwise /proc."""
+    pinned = _test_pin("FACTORY_MEM_MB")
+    if pinned:
+        return int(pinned)
+    return mem_available_mb()
 
 
 def serve_mem_available_mb():
@@ -2542,8 +2657,8 @@ def tmp_usage():
     if sys.platform == "darwin":
         # statvfs does not name the fs type on macOS: `stat -f %T <tmp>` (apfs, hfs, tmpfs...) T-1568 R5
         try:
-            r = subprocess.run(["stat", "-f", "%T", "/private/tmp" if str(tmp_dir()) == "/tmp" else str(tmp_dir())],
-                               capture_output=True, text=True, timeout=10)
+            r = subprocess.run([DARWIN_STAT, "-f", "%T", "/private/tmp" if str(tmp_dir()) == "/tmp" else str(tmp_dir())],
+                               capture_output=True, text=True, timeout=10, env=dict(DARWIN_TOOL_ENV))
             fstype = (r.stdout.strip() or None) if r.returncode == 0 else None
         except (OSError, subprocess.SubprocessError):
             fstype = None
@@ -2595,28 +2710,42 @@ def usage_text(u):
     return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
 
 
+def _updated_at(v):
+    """The usage file's updated_at as a finite float, or None. The reopen streak counts one sample per timestamp."""
+    if isinstance(v, bool) or v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
 def usage():
     """5h/7d usage. Each field is parsed on its own: an empty or bad one is None, the other still counts. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
-    read mid-write) is "unreadable": five_hour/seven_day None, never fresh, so the gate neither opens nor closes on it."""
+    read mid-write) is "unreadable": five_hour/seven_day None, never fresh. With no prior at-cap reading the gate skips the usage caps; after one, a stale or unreadable reading keeps it closed."""
     for attempt in (0, 1):
         try:
             u = json.loads(USAGE_FILE.read_text())
-            age = time.time() - float(u.get("updated_at", 0))
+            raw = u.get("updated_at", 0)
+            updated = _updated_at(raw)
+            age = time.time() - float(raw)  # as on main: a non-finite stamp keeps its old freshness (Infinity is fresh)
             five, seven = _pct_field(u.get("five_hour_pct")), _pct_field(u.get("seven_day_pct"))
             if five is None and seven is None:
                 raise ValueError("neither five_hour_pct nor seven_day_pct is a number")
             return {"five_hour": five, "seven_day": seven,
-                    "fresh": age < 3 * 3600, "age_min": int(age // 60),
+                    "fresh": age < 3 * 3600, "age_min": int(age // 60) if math.isfinite(age) else 0,
                     "five_hour_resets_at": _epoch(u.get("five_hour_resets_at")),
-                    "seven_day_resets_at": _epoch(u.get("seven_day_resets_at"))}
+                    "seven_day_resets_at": _epoch(u.get("seven_day_resets_at")),
+                    "updated_at": updated}
         except FileNotFoundError:
             return {"five_hour": 0.0, "seven_day": 0.0, "fresh": False, "age_min": -1,
-                    "five_hour_resets_at": None, "seven_day_resets_at": None}
+                    "five_hour_resets_at": None, "seven_day_resets_at": None, "updated_at": None}
         except Exception:  # noqa: BLE001 — partial JSON, IO error, bad numbers
             if attempt == 0:
                 time.sleep(0.05)
     return {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1, "unreadable": True,
-            "five_hour_resets_at": None, "seven_day_resets_at": None}
+            "five_hour_resets_at": None, "seven_day_resets_at": None, "updated_at": None}
 
 
 STARTUP_GRACE_S = 180  # herdr may not list a freshly started agent yet
@@ -2664,9 +2793,582 @@ def _int_cfg(con, key, default):
 
 
 REVIEW_RESERVE_BLOCKED = ("pm", "coder", "cleaner")  # roles that may not take the slots review_reserved_slots keeps for reviewer/qa
+USAGE_REOPEN_KEY = "usage-reopen-streak"  # throttle.ts JSON {"n","sample"}: consecutive fresh below-cap readings since the last at-cap sample
 
 
-def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None):
+def _usage_sample_id(u):
+    """Identity of one usage file write. None when the file has no timestamp (unreadable or missing)."""
+    v = u.get("updated_at")
+    if v is None:
+        return None
+    return f"{float(v):.6f}"
+
+
+def _usage_hold_load(con):
+    """The reopen streak row, or None when no reading has been at/over the cap. A row that cannot be read is n=0 (fail closed)."""
+    row = con.execute("SELECT ts FROM throttle WHERE key=?", (USAGE_REOPEN_KEY,)).fetchone()
+    if not row:
+        return None
+    try:
+        data = json.loads(row["ts"])
+    except (json.JSONDecodeError, TypeError, ValueError):
+        data = None
+    if not isinstance(data, dict) or isinstance(data.get("n"), bool) or not isinstance(data.get("n"), int) or data["n"] < 0:
+        return {"n": 0, "sample": None}
+    return data
+
+
+def _usage_hold_save(con, n, sample):
+    con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                (USAGE_REOPEN_KEY, json.dumps({"n": n, "sample": sample}, separators=(",", ":"))))
+
+
+def _usage_over_reason(con, u):
+    """The fresh at-cap reason, or None when both windows are under their caps. A None field is not at the cap."""
+    if u.get("five_hour") is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
+        return f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%"
+    if u.get("seven_day") is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
+        return f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%"
+    return None
+
+
+def _usage_reopen_need(con):
+    """How many consecutive fresh below-cap readings reopen the gate. Below 1 or not an integer: the default 3."""
+    n = _int_cfg(con, "usage_reopen_samples", 3)
+    return n if n >= 1 else 3
+
+
+def _pct_text(v):
+    return "n/a" if v is None else f"{v:.0f}%"
+
+
+def _usage_arm(con, u):
+    """Record a fresh at-cap reading before any earlier cap returns, so a later stale file still holds the queue."""
+    if not (u.get("fresh") and not u.get("unreadable")) or not _usage_over_reason(con, u):
+        return
+    sample = _usage_sample_id(u)
+    hold = _usage_hold_load(con)
+    if not hold or hold.get("sample") != sample or hold.get("n") != 0:
+        _usage_hold_save(con, 0, sample)
+
+
+def _usage_cap_gate(con, u):
+    """(True, reason) when the Claude usage cap holds the queue, else (False, None).
+
+    A fresh reading at/over either cap records a streak of 0 in the throttle table. The queue stays closed while that
+    row exists and the current reading is stale, unreadable, or a run of fewer than usage_reopen_samples fresh
+    readings under both caps. The same updated_at counts once. No row yet: today's behaviour (a stale reading does
+    not close the gate). Cursor callers must not use this."""
+    fresh = bool(u.get("fresh")) and not u.get("unreadable")
+    hold = _usage_hold_load(con)
+    sample = _usage_sample_id(u)
+    if fresh:
+        over = _usage_over_reason(con, u)
+        if over:
+            if not hold or hold.get("sample") != sample or hold.get("n") != 0:
+                _usage_hold_save(con, 0, sample)
+            return True, over
+        if not hold:
+            return False, None
+        if sample is None or hold.get("sample") == sample:
+            n = int(hold["n"])
+        else:
+            n = int(hold["n"]) + 1
+            if n >= _usage_reopen_need(con):
+                con.execute("DELETE FROM throttle WHERE key=?", (USAGE_REOPEN_KEY,))
+                return False, None
+            _usage_hold_save(con, n, sample)
+        need = _usage_reopen_need(con)
+        if n >= need:
+            con.execute("DELETE FROM throttle WHERE key=?", (USAGE_REOPEN_KEY,))
+            return False, None
+        return True, (f"weekly usage 5h {_pct_text(u.get('five_hour'))} · week {_pct_text(u.get('seven_day'))} "
+                      f"below cap; {n}/{need} consecutive fresh readings")
+    if not hold:
+        return False, None
+    if hold.get("n") != 0:
+        _usage_hold_save(con, 0, sample if sample is not None else hold.get("sample"))
+    if u.get("unreadable"):
+        return True, "weekly usage unreadable; holding the queue until fresh readings are below the cap"
+    return True, (f"weekly usage stale: 5h {_pct_text(u.get('five_hour'))} · week {_pct_text(u.get('seven_day'))} "
+                  f"({u.get('age_min')} min old); holding the queue until fresh readings are below the cap")
+
+# G-057: only these roles may be placed off machine_hq. HQ, leads, judges and the other roles stay put (R1).
+PLACEMENT_WORKER_ROLES = ("coder", "qa", "reviewer", "cleaner")
+_MACHINE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
+_MACHINE_FACTS_CACHE = {}  # machine -> (clock, facts); one ssh per machine per machine_facts_ttl_s
+_REMOTE_FACTS_CMD = "cat /proc/meminfo; echo ---; cat /proc/loadavg; echo ---; nproc"
+
+
+def check_machine_name(name):
+    """One machine name, or exit 2. 'factory' is refused before the shape check (R2)."""
+    if "factory" in name.lower():
+        die('refused: machine name must not contain "factory"', 2)
+    if not _MACHINE_NAME_RE.fullmatch(name):
+        die("refused: bad machine name", 2)
+    return name
+
+
+def check_worker_machines(value):
+    """The normalised comma list, or exit 2. Empty turns placement off. 'factory' is refused before the shape check (R2)."""
+    names = [x.strip() for x in value.split(",")] if value.strip() else []
+    out = []
+    for n in names:
+        n = check_machine_name(n)
+        if n not in out:
+            out.append(n)
+    return ",".join(out)
+
+
+def _worker_machine_list(con):
+    return [x.strip() for x in (cfg(con, "worker_machines") or "").split(",") if x.strip()]
+
+
+def _machine_hq(con):
+    return (cfg(con, "machine_hq") or "hqhost").strip() or "hqhost"
+
+
+def _host_nproc():
+    """CPUs for placement. $FACTORY_NPROC pins it on a test home; the single-machine load line still uses os.cpu_count()."""
+    pinned = _test_pin("FACTORY_NPROC")
+    if pinned:
+        return int(pinned)
+    return os.cpu_count() or 1
+
+
+def _facts_clock():
+    """Cache clock. $FACTORY_FACTS_NOW (a number of seconds) pins it; unset is monotonic so one tick shares one ssh."""
+    pinned = os.environ.get("FACTORY_FACTS_NOW")
+    if pinned:
+        return float(pinned)
+    return time.monotonic()
+
+
+def _facts_row(mem_mb, load, nproc, reachable, err):
+    return {"mem_mb": mem_mb, "load1": load, "nproc": nproc, "reachable": reachable, "err": err}
+
+
+def _local_machine_facts():
+    try:
+        return _facts_row(host_mem_available_mb(), load1(), _host_nproc(), True, "")
+    except (OSError, ValueError) as e:
+        return _facts_row(0, 0.0, 0, False, str(e)[:200])
+
+
+def _parse_remote_facts(text):
+    parts = (text or "").split("---")
+    if len(parts) < 3:
+        return None
+    mem = None
+    for line in parts[0].splitlines():
+        if line.startswith("MemAvailable:"):
+            try:
+                mem = int(line.split()[1]) // 1024
+            except (IndexError, ValueError):
+                return None
+            break
+    if mem is None:
+        return None
+    load_lines = [ln for ln in parts[1].splitlines() if ln.strip()]
+    nproc_lines = [ln.strip() for ln in parts[2].splitlines() if ln.strip()]
+    if not load_lines or not nproc_lines:
+        return None
+    try:
+        load = float(load_lines[0].split()[0])
+        nproc = int(nproc_lines[-1])
+    except (IndexError, ValueError):
+        return None
+    if nproc < 1:
+        return None
+    return _facts_row(mem, load, nproc, True, "")
+
+
+def _ssh_machine_facts(machine, timeout):
+    """One ssh, argv only: the machine name is an argument, never interpolated into a shell command."""
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}", "--", machine, _REMOTE_FACTS_CMD]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 2)
+    except (OSError, subprocess.SubprocessError) as e:
+        return _facts_row(0, 0.0, 0, False, str(e)[:200])
+    if p.returncode != 0:
+        err = (p.stderr or "").strip()[:200] or f"exit {p.returncode}"
+        return _facts_row(0, 0.0, 0, False, err)
+    parsed = _parse_remote_facts(p.stdout)
+    if parsed is None:
+        return _facts_row(0, 0.0, 0, False, "unreadable remote facts")
+    return parsed
+
+
+def machine_facts(con, machine):
+    """Dict mem_mb, load1, nproc, reachable, err. machine_hq is local /proc; any other name is one ssh, cached for the TTL.
+    A remote failure sets reachable=False and does not raise."""
+    now_s = _facts_clock()
+    ttl = _int_cfg(con, "machine_facts_ttl_s", 20)
+    if machine != _machine_hq(con) and _throttled(con, f"machine_unreachable:{machine}", _mark_clock(), ttl):
+        return _facts_row(0, 0.0, 0, False, "marked unreachable by a failed remote start")  # no ssh for the TTL
+    hit = _MACHINE_FACTS_CACHE.get(machine)
+    if hit is not None and ttl > 0 and now_s - hit[0] < ttl:
+        return dict(hit[1])
+    if machine == _machine_hq(con):
+        facts = _local_machine_facts()
+    else:
+        facts = _ssh_machine_facts(machine, max(_int_cfg(con, "machine_ssh_timeout_s", 5), 1))
+    _MACHINE_FACTS_CACHE[machine] = (now_s, facts)
+    return dict(facts)
+
+
+def _per_agent_mb(con, runtime):
+    if runtime == "cursor":
+        return _int_cfg(con, "machine_mem_per_cursor_mb", 900)
+    return _int_cfg(con, "machine_mem_per_claude_mb", 500)
+
+
+def _cpu_heavy_role(con, role):
+    raw = cfg(con, "machine_cpu_heavy_roles") or ""
+    return bool(role) and role in {x.strip() for x in raw.split(",") if x.strip()}
+
+
+def _relaunch_placement_discount(con, row):
+    """The machine a live worker already occupies, so a relaunch does not spend a second share seat."""
+    if not row or row["status"] != "live" or row["role"] not in PLACEMENT_WORKER_ROLES:
+        return None
+    return _row_machine(row, _machine_hq(con))
+
+
+def _row_machine(row, hq):
+    """Machine recorded on the row. Absent (the only value this task writes for a real start) means machine_hq."""
+    try:
+        args = json.loads(row["spawn_args"] or "{}")
+    except (TypeError, ValueError):
+        args = {}
+    if isinstance(args, dict) and args.get("machine"):
+        return str(args["machine"])
+    return hq
+
+
+def _placement_census(con, hq):
+    """(hq_in_use, workers_by_machine) over live and starting rows. Non-worker roles are the HQ slots kept on machine_hq."""
+    hq_in_use, workers = 0, {}
+    for r in con.execute("SELECT role, spawn_args FROM agents WHERE status IN ('live','starting')"):
+        if r["role"] in PLACEMENT_WORKER_ROLES:
+            m = _row_machine(r, hq)
+            workers[m] = workers.get(m, 0) + 1
+        else:
+            hq_in_use += 1
+    return hq_in_use, workers
+
+
+def _worker_shares(budget, nprocs):
+    """Shares of budget by nproc that sum to budget. Leftover seats go to the largest fraction; a tie goes to the earlier machine."""
+    total = sum(nprocs)
+    if budget <= 0 or total <= 0:
+        return [0] * len(nprocs)
+    raw = [budget * n / total for n in nprocs]
+    base = [int(x) for x in raw]
+    left = budget - sum(base)
+    order = sorted(range(len(nprocs)), key=lambda i: (-(raw[i] - base[i]), i))
+    shares = base[:]
+    for i in order:
+        if left <= 0:
+            break
+        shares[i] += 1
+        left -= 1
+    return shares
+
+
+def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False, discount_machine=None, allow_remote=True):
+    """(machine, reason, per_machine_stats). reason is 'ok', or a refusal that names every machine's failing check.
+    Does not relax owner caps: gate() applies those first. A role other than coder, qa, reviewer, cleaner is machine_hq only.
+    discount_machine: a relaunch of a worker already counted on that machine. One seat is not counted twice.
+    allow_remote=False: this spawn cannot start on a worker machine (not claude on hc, sandboxed): machine_hq or refuse."""
+    hq = _machine_hq(con)
+    remotes = []
+    for name in _worker_machine_list(con):
+        if name != hq and name not in remotes:
+            remotes.append(name)
+    machines = [hq, *remotes]
+    facts = {m: machine_facts(con, m) for m in machines}
+    per_mb = _per_agent_mb(con, runtime)
+    floor = _int_cfg(con, "machine_mem_floor_mb", 1500)
+    try:
+        ratio = float(cfg(con, "gate_max_load_ratio"))
+    except (TypeError, ValueError):
+        ratio = 1.25
+    hq_in_use, on_machine = _placement_census(con, hq)
+    if discount_machine and role in PLACEMENT_WORKER_ROLES:
+        on_machine[discount_machine] = max(0, on_machine.get(discount_machine, 0) - 1)
+    budget = max(0, _int_cfg(con, "max_live_agents", 6) - hq_in_use)
+    reachable = [m for m in machines if facts[m]["reachable"] and facts[m]["nproc"] > 0]
+    share_of = dict(zip(reachable, _worker_shares(budget, [facts[m]["nproc"] for m in reachable])))
+
+    def fails_of(m):
+        f = facts[m]
+        if not f["reachable"]:
+            return [f"unreachable ({f['err']})" if f["err"] else "unreachable"]
+        bad = []
+        if f["mem_mb"] - per_mb < floor:
+            bad.append(f"mem {f['mem_mb']}MB - {per_mb}MB < floor {floor}MB")
+        if not skip_load and f["load1"] > ratio * f["nproc"]:
+            bad.append(f"load1 {f['load1']:.1f} > {ratio} x {f['nproc']}")
+        if role in PLACEMENT_WORKER_ROLES and on_machine.get(m, 0) >= share_of.get(m, 0):
+            bad.append(f"workers {on_machine.get(m, 0)}/{share_of.get(m, 0)}")
+        return bad
+
+    per = {"hq": hq, "budget": budget, "hq_in_use": hq_in_use, "per_agent_mb": per_mb,
+           "machines": {m: {**facts[m], "share": share_of.get(m, 0), "workers": on_machine.get(m, 0), "fails": fails_of(m)}
+                        for m in machines}}
+    eligible = [m for m in machines if not per["machines"][m]["fails"]]
+    if role not in PLACEMENT_WORKER_ROLES or not allow_remote:
+        bad = per["machines"][hq]["fails"]
+        if bad:
+            return hq, f"{hq}: " + "; ".join(bad), per
+        return hq, "ok", per
+    chosen = None
+    if cpu_heavy:
+        for m in remotes:
+            if m in eligible:
+                chosen = m
+                break
+    if chosen is None and eligible:
+        def headroom(m):
+            return facts[m]["mem_mb"] - per_mb - floor
+        chosen = max(eligible, key=lambda m: (headroom(m), -machines.index(m)))
+    if chosen is None:
+        parts = [f"{m}: " + "; ".join(per["machines"][m]["fails"]) for m in machines]
+        return hq, "no machine: " + "; ".join(parts), per
+    return chosen, "ok", per
+
+
+# ── G-057 remote start (T-1586): preflight, worktree and per-agent files on a worker machine, fallback + alert ──
+REMOTE_FORWARD_DIR = (".local", "lib", "hivemill", "forward")  # under the worker's home: `factory` -> factory-forward
+MACHINE_ALERT_WINDOW_S = 1800  # at most one "<machine> unreachable" alert per machine per 30 min
+FORWARDED_REFUSAL = "refused: forwarded call from unknown agent"
+
+
+class RemoteStartFailed(Exception):
+    """A worker machine cannot take this start (preflight, worktree or file copy). Raised before any agent row is
+    written live and before hc starts a terminal there; spawn() falls back to machine_hq."""
+
+
+def _mark_clock():
+    """Clock of the unreachable mark and the alert window: $FACTORY_FACTS_NOW when pinned (tests), else the wall clock."""
+    pinned = os.environ.get("FACTORY_FACTS_NOW")
+    return float(pinned) if pinned else time.time()
+
+
+def remote_forward_dir():
+    """The dir put first on a remote worker's PATH; its `factory` must resolve to factory-forward (docs/multi-machine.md).
+    Same user and same paths on every machine, so it is this machine's home (the temp $HOME under a test home)."""
+    return os.path.join(str(sandbox_home() or ghcred.real_home()), *REMOTE_FORWARD_DIR)
+
+
+def machine_unreachable(con, machine, reason, sender="spawn"):
+    """Mark `machine` unreachable for machine_facts_ttl_s (no ssh to it meanwhile) and alert the director at most once per
+    MACHINE_ALERT_WINDOW_S per machine (a machine-unreachable event with it). Returns True when it alerted."""
+    clock = _mark_clock()
+    mkey = f"machine_unreachable:{machine}"
+    # An active mark is never renewed (machine_facts reports "marked" without ssh, and that must not re-mark): it expires
+    # after machine_facts_ttl_s and only a failed probe after that sets it again.
+    if not _throttled(con, mkey, clock, _int_cfg(con, "machine_facts_ttl_s", 20)):
+        _throttle_set(con, mkey, clock)
+    _MACHINE_FACTS_CACHE.pop(machine, None)
+    key = f"machine_alert:{machine}"
+    if _throttled(con, key, clock, MACHINE_ALERT_WINDOW_S):
+        return False
+    _throttle_set(con, key, clock)
+    hq = _machine_hq(con)
+    why = " ".join(str(reason or "unreachable").split())[:300]
+    event(con, "machine", machine, "machine-unreachable", {"machine": machine, "fallback": hq, "reason": why})
+    send(con, "director", f"{machine} unreachable: workers fall back to {hq}",
+         f"{why}. Spawns place workers on {hq} only until {machine} answers again; further alerts for {machine} are "
+         f"silent for {MACHINE_ALERT_WINDOW_S // 60} min.", "alert", sender=sender)
+    return True
+
+
+def remote_start_ok(con, role, runtime, args, sandboxed):
+    """True when this spawn could start on a worker machine: a worker role, claude runtime, an hc terminal, unsandboxed
+    (a sandbox and the Cursor launcher are built from this machine's paths). Anything else stays on machine_hq."""
+    return (role in PLACEMENT_WORKER_ROLES and runtime == "claude" and not sandboxed and _spawn_uses_hc(con, args))
+
+
+def _ssh_machine(con, machine, script, stdin=None, timeout=120):
+    """(exit code, last stderr line) of one ssh call, argv only; the machine name is an argument, `script` runs in the
+    remote user's shell. stdin (bytes) is never logged. A local failure to run ssh is 255, like an ssh connect failure."""
+    t = max(_int_cfg(con, "machine_ssh_timeout_s", 5), 1)
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={t}", "--", machine, script]
+    try:
+        p = subprocess.run(cmd, input=stdin if stdin is not None else b"", capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return 255, f"ssh timed out after {timeout}s"
+    except OSError as e:
+        return 255, f"ssh could not run ({type(e).__name__})"
+    lines = (p.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+    return p.returncode, (lines[-1][:200] if lines else "")
+
+
+def _hc_machine_state(text, machine):
+    """(ok, why) from `hc machine ls` output: JSON {"machines": [{"name", "state"}]} or a list of those, else text lines
+    whose first word is the name. A listed machine whose state is connecting, needs_login or unreachable is not ok."""
+    state, found = "", False
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError:
+        doc = None
+    items = doc.get("machines") if isinstance(doc, dict) else doc
+    if isinstance(items, list):
+        for it in items:
+            if isinstance(it, dict) and it.get("name") == machine:
+                found = True
+                st = it.get("state") or it.get("status") or ""
+                state = st if isinstance(st, str) else ""
+    else:
+        for line in (text or "").splitlines():
+            words = line.split()
+            if words and words[0] == machine:
+                found, state = True, (words[1] if len(words) > 1 else "")
+    if not found:
+        return False, f"hc machine ls does not list {machine}"
+    if state in ("connecting", "needs_login", "unreachable"):
+        return False, f"hc machine {machine} is {state}"
+    return True, ""
+
+
+def hc_lists_machine(machine):
+    """(ok, why): hc on this machine lists `machine` and can reach it (needed for `hc run --on`)."""
+    try:
+        p = subprocess.run(["hc", "machine", "ls"], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S,
+                           env=_host_ipc_env("hc"))
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, f"hc machine ls failed ({type(e).__name__})"
+    if p.returncode != 0:
+        return False, f"hc machine ls exit {p.returncode}"
+    return _hc_machine_state(p.stdout.strip(), machine)
+
+
+def _remote_task_row(con, task):
+    if not task:
+        return None
+    return con.execute("SELECT t.*, p.repo_path, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                       "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task,)).fetchone()
+
+
+def remote_preflight(con, machine, task):
+    """RemoteStartFailed unless hc lists `machine`, the task's repo clone is a git repo at the same path there, and
+    `factory` first on the worker PATH (remote_forward_dir) is factory-forward and answers --version."""
+    ok, why = hc_lists_machine(machine)
+    if not ok:
+        raise RemoteStartFailed(why)
+    t = _remote_task_row(con, task)
+    fdir = remote_forward_dir()
+    q = shlex.quote
+    lines = ["set -e"]
+    if t and t["repo_path"]:
+        lines.append(shlex.join(git_argv(t["repo_path"], "rev-parse", "--git-dir")) + " >/dev/null")
+    lines += [f"f={q(fdir + '/factory')}", 'test -x "$f"', "ff=$(command -v factory-forward)",
+              'test "$(readlink -f "$f")" = "$(readlink -f "$ff")"',
+              f'PATH={q(fdir)}:"$PATH" factory --version >/dev/null']
+    rc, err = _ssh_machine(con, machine, "\n".join(lines))
+    if rc != 0:
+        raise RemoteStartFailed(f"preflight on {machine} failed (exit {rc}): {err or 'no message'}")
+
+
+def remote_worktree(con, machine, task, role):
+    """The worktree path on `machine` (same layout as here), created over ssh in that machine's own clone. A coder gets
+    factory/<task> (its pushed branch, else a new one from origin/<base>); qa/reviewer get a detached checkout of the
+    pushed branch at <goal>-<task>-<role>. None for a task-less spawn or another role. RemoteStartFailed on a git error."""
+    t = _remote_task_row(con, task)
+    if role not in ("coder", "qa", "reviewer") or not t or not t["repo_path"]:
+        return None
+    repo, base = t["repo_path"], t["base_branch"] or "main"
+    branch = t["branch"] or f"factory/{task.lower()}"
+    wt = str(WORKTREES / (f"{t['goal_id']}-{task}" if role == "coder" else f"{t['goal_id']}-{task}-{role}"))
+    q = shlex.quote
+
+    def g(*a):
+        return shlex.join(git_argv(repo, *a))
+
+    has_branch = g("rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}") + " >/dev/null"
+    lines = ["set -e", g("fetch", "-q", "origin")]
+    if role == "coder":
+        lines += [f"if [ -e {q(wt)}/.git ]; then {shlex.join(git_argv(wt, 'switch', '-q', branch))}",
+                  f"elif {has_branch}; then {g('worktree', 'add', '-q', '-B', branch, wt, f'origin/{branch}')}",
+                  f"else {g('worktree', 'add', '-q', '-B', branch, wt, f'origin/{base}')}", "fi"]
+    else:
+        lines += [f"if {has_branch}; then s={q(f'origin/{branch}')}; else s={q(f'origin/{base}')}; fi",
+                  f"if [ -e {q(wt)}/.git ]; then {shlex.join(git_argv(wt, 'checkout', '-q', '--detach'))} \"$s\"",
+                  f"else {g('worktree', 'add', '-q', '--detach', wt)} \"$s\"", "fi"]
+    rc, err = _ssh_machine(con, machine, "\n".join(lines), timeout=600)
+    if rc != 0:
+        raise RemoteStartFailed(f"worktree on {machine} failed (exit {rc}): {err or 'no message'}")
+    if role == "coder":
+        con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (wt, branch, task))
+    return wt
+
+
+def remote_copy_file(con, machine, path, mode):
+    """Copy one local file to the same path on `machine` with `mode` (tmp + rename; dirs made 0700). The content goes on
+    ssh stdin only. RemoteStartFailed names neither the path nor the content (a token file is copied this way, R4)."""
+    data = Path(path).read_bytes()
+    q = shlex.quote
+    tmp = f"{path}.copy-tmp"
+    script = (f"umask 077 && mkdir -p {q(os.path.dirname(str(path)))} && cat > {q(tmp)} && chmod {mode:o} {q(tmp)} "
+              f"&& mv -f {q(tmp)} {q(str(path))}")
+    rc, _err = _ssh_machine(con, machine, script, stdin=data)
+    if rc != 0:
+        raise RemoteStartFailed(f"copying the agent files to {machine} failed (exit {rc})")
+
+
+def remote_copy_agent_files(con, machine, files, secret_files=()):
+    """Copy every (path, mode) of `files`, then each secret file with mode 0600. Returns the number copied."""
+    n = 0
+    for path, mode in files:
+        remote_copy_file(con, machine, path, mode)
+        n += 1
+    for path in secret_files:
+        remote_copy_file(con, machine, path, 0o600)
+        n += 1
+    return n
+
+
+def _tree_files(root):
+    """(path, mode) of every regular file under root, modes kept (the ghcred shim must stay executable)."""
+    out = []
+    for dirpath, _dirs, names in os.walk(root):
+        for nm in sorted(names):
+            p = os.path.join(dirpath, nm)
+            if os.path.isfile(p) and not os.path.islink(p):
+                out.append((p, stat.S_IMODE(os.stat(p).st_mode) & 0o700))
+    return out
+
+
+def forwarded_identity_gate(argv):
+    """G-057 guard on machine_hq: a call the forwarder ran for a worker machine (FACTORY_FORWARDED=1, set only by
+    `factory-forward --serve`) must name a live or starting worker row recorded on a configured worker machine, with the
+    same role. Anything else exits 3. Only `--version` (no DB, no identity) passes without a row."""
+    if os.environ.get("FACTORY_FORWARDED") != "1":
+        return
+    if list(argv) == ["--version"]:
+        return
+    agent, role = os.environ.get("FACTORY_AGENT") or "", os.environ.get("FACTORY_ROLE") or ""
+    ok = False
+    try:
+        con = db()
+        try:
+            row = con.execute("SELECT role, status, spawn_args FROM agents WHERE name=?", (agent,)).fetchone() if agent else None
+            if row and row["status"] in ("live", "starting") and row["role"] in PLACEMENT_WORKER_ROLES and row["role"] == role:
+                m = _spawn_args_row(row).get("machine")
+                ok = isinstance(m, str) and m != _machine_hq(con) and m in _worker_machine_list(con)
+        finally:
+            con.close()
+    except (sqlite3.Error, OSError):
+        ok = False  # cannot decide: refuse
+    if not ok:
+        print(FORWARDED_REFUSAL, file=sys.stderr)
+        sys.exit(3)
+
+
+def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None, *, placement_discount=None,
+         allow_remote=True):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
@@ -2676,7 +3378,10 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
     light orchestration that must not wait behind builders (T-0867); every other cap applies, including max_live_leads).
     role="lead" with config lead_parking=1 adds the lead cap (max_live_leads) and the worker reserve (HQ panes stay
     <= max_live_agents - reserved_worker_slots); own_slot or own_lead (a relaunch of a lead that holds its row) skips both.
-    Any other role, or role=None, gets exactly the checks above."""
+    Any other role, or role=None, gets exactly the checks above.
+    For runtime other than cursor, a fresh 5h or 7d reading at or over its cap latches the queue: a later stale or
+    unreadable reading stays closed, and the latch clears only after usage_reopen_samples consecutive fresh readings
+    under both caps (one count per usage-file timestamp, stored in throttle). No latch yet: a stale reading is ignored."""
     agents = herdr_agents()
     names = {x.get("name") for x in (agents or []) if x.get("name")}
     panes = {x.get("pane_id") for x in (agents or []) if x.get("pane_id")}
@@ -2690,8 +3395,10 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             live += 1
     other = sum(1 for a in (agents or []) if a.get("agent") in ("claude", "cursor")
                 and a.get("name") not in known and a.get("pane_id") not in known)
-    mem = mem_available_mb()
+    mem = host_mem_available_mb()
     u = usage()
+    if runtime != "cursor":
+        _usage_arm(con, u)  # before the pane, memory and load returns, or a full box never latches an at-cap reading
     procs = total_claude_procs()
     total = procs["total"]
     starting = 0
@@ -2743,7 +3450,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         return False, f"{live}/{stats['cap']} agent panes live", stats
     if stats["total"] is not None and stats["total"] - mine >= total_cap:
         return False, f"{stats['total']}/{total_cap} claude processes on host (incl. non-factory)", stats
-    if mem < int(cfg(con, "min_mem_available_mb")):
+    # Role-less calls (factory res, the tick hold) and an empty worker_machines keep this MemAvailable check.
+    # A role plus worker machines checks each machine in place_machine; a success still starts on machine_hq, so the
+    # owner floor is applied again on that return and is never replaced by machine_mem_floor_mb (M37141).
+    placement_on = bool(role) and bool(_worker_machine_list(con))
+    if not placement_on and mem < int(cfg(con, "min_mem_available_mb")):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
@@ -2765,15 +3476,14 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if live >= free_for_others:
             return False, (f"{live}/{stats['cap']} agent panes live; {max(_int_cfg(con, 'review_reserved_slots', 2) - held, 0)} "
                            "slots kept for reviewer/qa (review_reserved_slots)"), stats
-    if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
+    if not placement_on and not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     # Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
     if runtime != "cursor":
-        if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
-            return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
-        if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
-            return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+        blocked, why = _usage_cap_gate(con, u)
+        if blocked:
+            return False, why, stats
     if runtime == "cursor" and role:
         from web import cursor_limits
         slug = role_model(con, role, org="cursor")
@@ -2787,6 +3497,24 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if hq + 1 > stats["hq_cap"]:
             return False, (f"{hq}/{stats['hq_cap']} HQ panes; {reserved} slots reserved for workers "
                            "(reserved_worker_slots)"), stats
+    if placement_on:
+        machine, why, per = place_machine(con, role, runtime, _cpu_heavy_role(con, role),
+                                           skip_load=bool(own_slot or load_exempt),
+                                           discount_machine=placement_discount, allow_remote=allow_remote)
+        stats["placement"] = per
+        if why != "ok":
+            return False, why, stats
+        stats["machine"] = machine
+        stats["hq_fails"] = per["machines"].get(per["hq"], {}).get("fails") or []
+        if machine != per["hq"]:
+            # a worker machine passed its own floor, load and share (place_machine); spawn starts it there (T-1586).
+            # machine_hq's owner floor and load cap guard machine_hq's RAM and CPU, which this start does not use.
+            return True, "ok", stats
+        if mem < int(cfg(con, "min_mem_available_mb")):
+            return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
+        if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
+            return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
+                           f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     return True, "ok", stats
 
 
@@ -3061,6 +3789,74 @@ def build_cli_go(src=None, lib=None, tick=False, go=None):
     return build_guard_go(src, lib, tick=tick, go=go, name=CLI_GO_BIN, pkg="./cmd/factory")
 
 
+BLOCK_EVAL_BIN = "block-eval"
+
+
+def build_block_eval(src=None, lib=None, tick=False, go=None):
+    """Build go/cmd/block-eval into <lib>/block-eval. Same contract as build_guard_go; never raises."""
+    return build_guard_go(src, lib, tick=tick, go=go, name=BLOCK_EVAL_BIN, pkg="./cmd/block-eval")
+
+
+def block_eval_binary(lib=None):
+    """Path to block-eval for parse/eval. Honors FACTORY_BLOCK_EVAL except on the live factory home (exit 2)."""
+    override = (os.environ.get("FACTORY_BLOCK_EVAL") or "").strip()
+    if override:
+        if home_is_live():
+            die("FACTORY_BLOCK_EVAL is not allowed on the live factory home", 2)
+        return override
+    lib = Path(lib or guard_lib_dir())
+    build_block_eval(lib=lib)
+    path = lib / BLOCK_EVAL_BIN
+    if not os.access(path, os.X_OK):
+        die("block-eval binary missing or not executable; install the Go toolchain or set FACTORY_BLOCK_EVAL", 2)
+    return str(path)
+
+
+def block_eval_parse(tokens, lib=None):
+    """Run block-eval parse on tokens. Exit 2 on an unknown token. Returns the parsed condition list."""
+    if not tokens:
+        die("no block condition tokens", 2)
+    if any(not t or t != t.strip() or len(t.split()) != 1 for t in tokens):
+        die("block condition tokens must be non-empty and contain no whitespace", 2)
+    path = block_eval_binary(lib)
+    try:
+        p = subprocess.run([path, "parse"], input="\n".join(tokens) + "\n",
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        die(f"block-eval parse failed: {e}", 2)
+    if p.returncode == 2:
+        die("unknown block condition token", 2)
+    if p.returncode != 0:
+        err = (p.stderr or "").strip().splitlines()[:1]
+        die(f"block-eval parse failed: {err[0] if err else p.returncode}", 2)
+    try:
+        out = json.loads(p.stdout)
+    except json.JSONDecodeError:
+        die("block-eval parse returned invalid JSON", 2)
+    if not isinstance(out, list) or len(out) != len(tokens):
+        die("block-eval parse returned invalid JSON", 2)
+    return out
+
+
+def block_cond_token(c):
+    """One condition as a closed token string for show/events."""
+    typ, arg, form = c.get("type", ""), c.get("arg", ""), c.get("form") or ""
+    return f"{typ}:{arg}:{form}" if form else f"{typ}:{arg}"
+
+
+def block_on_show_line(raw):
+    """Tokens only for factory task show (no message body)."""
+    if not raw:
+        return None
+    try:
+        conds = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(conds, list) or not conds:
+        return None
+    return " ".join(block_cond_token(c) for c in conds)
+
+
 def fetch_cli_go_deps(lib=None, src=None, proxy=None, go=None):
     """Download and verify the modules go/cmd/factory needs into the private GOMODCACHE (<lib>/go/mod), go.sum-pinned.
     The only network step of the Go CLI: called from `factory up` / install, never from the tick (the build stays
@@ -3187,6 +3983,11 @@ def _config_value_rules(key, value):
         a.value = check_sandbox_roles(a.value)
     if a.key in ("worker_gh_roles", "gh_rw_roles"):
         a.value = check_gh_roles(a.key, a.value)
+    if a.key == "cursor_prompt":
+        try:
+            a.value = cursor_harness.check_prompt_version(a.value)
+        except ValueError as e:
+            die(f"{e}: fix it with `factory config cursor_prompt v1`", 2)
     if a.key == "cursor_pilot_roles":
         try:
             a.value = ",".join(cursor_harness.parse_pilot_roles(a.value))
@@ -3226,6 +4027,10 @@ def _config_value_rules(key, value):
             scoutvendor.resolve_root(a.value, HOME)
         except scoutvendor.VendorError as e:
             die(str(e), 2)
+    if a.key == "worker_machines":
+        a.value = check_worker_machines(a.value)
+    if a.key == "machine_hq":
+        a.value = check_machine_name(a.value.strip())
     return a.value
 
 
@@ -4085,8 +4890,12 @@ def cmd_task(a):
     elif a.action == "show":
         t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
         for k in t.keys():
-            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]) and (k != "judge_hold_reason" or (t[k] or "").strip()):
+            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance", "block_on") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]) and (k != "judge_hold_reason" or (t[k] or "").strip()):
                 print(f"{k}: {t[k]}")
+        if t["block_on"]:
+            line = block_on_show_line(t["block_on"])
+            if line:
+                print(f"block_on: {line}")
         for k in ("spec", "acceptance"):
             if t[k]:
                 print(f"\n## {k}\n{t[k]}")
@@ -4321,6 +5130,22 @@ def cmd_task(a):
             die("task note text is empty; pass the note as an argument or on stdin with '-'. Nothing was written.", 2)
         event(con, "task", tid, "note", text)
         print("noted")
+    elif a.action == "block":
+        refuse_worker("task block")
+        require_role(con, "owner", "lead", "director", "boss")
+        if not a.id:
+            die("task id is required", 2)
+        tokens = a.on or []
+        if not tokens:
+            die("give at least one --on <token>", 2)
+        t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
+        conds = block_eval_parse(tokens)
+        waits = "owner" if any(c.get("type") == "owner" for c in conds) else "internal"
+        blob = json.dumps(conds, separators=(",", ":"), ensure_ascii=False)
+        con.execute("UPDATE tasks SET status='blocked', block_on=?, waits=?, updated=? WHERE id=?",
+                    (blob, waits, now(), a.id))
+        event(con, "task", a.id, "update", f"status=blocked — {' '.join(tokens)}")
+        print(f"{a.id} blocked")
     elif a.action == "tier":
         task_tier_cmd(con, a)
 
@@ -5484,8 +6309,88 @@ def behind_ok_blocker(repo, sha, main_sha):
     return None
 
 
+def no_refresh_on(con):
+    """T-1676 switch: config stale_no_refresh (default on); any other value restores the behaviour before T-1676."""
+    return (cfg(con, "stale_no_refresh") or "on").strip().lower() == "on"
+
+
+def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carry=None, proj=None):
+    """T-1676 no-refresh merge rule (owner 2026-11-17, docs/stale-policy.md): may the PR's CURRENT head, BEHIND main,
+    be merged as it is, with no refresh anywhere? One decision for the judge spawn pre-check, the `factory judge` gate
+    (cmd_judge --merge) and the mechanical merger (mech_try). Returns (verdict, reasons):
+    - "merge": all hold: (1) CI green on the head, (2) reviewer and QA PASS on the head (exact or carried), (3)
+      `git merge-tree --write-tree` of main and the head is clean, (4) no file changed on main since the merge-base is
+      also changed by the PR and tests.yml is unchanged there (behind_ok_blocker), (5) GitHub mergeable == MERGEABLE;
+      and GitHub accepts a BEHIND merge (stale_behind_ok). reasons = the conditions that held.
+    - "hold": no refresh is needed, but (1) or (2) fails: nothing merges and nothing refreshes. reasons = what failed.
+    - "refresh": refresh as before T-1676 (a condition of 3-5 fails, GitHub requires an up-to-date branch, or a git/gh
+      error: fail closed). reasons = what failed.
+    - "fresh": the head already contains main; nothing to decide.
+    `main_sha`, when given, is the verified main commit of a head already known to be BEHIND (head_has_main); `carry` is
+    the caller's verdict-carry memo; `proj` the local-gate project (local_checks_problems instead of GitHub checks)."""
+    owner_repo = "/".join(t["pr_url"].split("/")[3:5])
+    if not no_refresh_on(con):
+        return "refresh", ["stale_no_refresh is off"]
+    sha = pr["headRefOid"]
+    if main_sha is None:  # staleness first: a head that contains main is "fresh" whatever the rest says
+        try:
+            repo_url = repo_url or gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+        except (SystemExit, ValueError, KeyError) as e:
+            return "refresh", [f"gh repo view failed: {e}"]
+        ok, why, main_sha = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
+        if ok:
+            return "fresh", []
+        if why != "STALE":
+            return "refresh", [f"cannot verify the head against main: {why}"]
+    if pr.get("state") != "OPEN" or pr.get("baseRefName") != "main":
+        return "refresh", [f"PR is {pr.get('state')} on base {pr.get('baseRefName')}"]
+    if pr.get("mergeable") != "MERGEABLE":
+        return "refresh", [f"GitHub mergeable is {pr.get('mergeable')}, not MERGEABLE"]
+    if not stale_behind_ok(con, owner_repo):
+        return "refresh", ["GitHub requires an up-to-date branch (strict), the protection is unreadable or stale_policy is strict"]
+    blocker = behind_ok_blocker(git_repo, sha, main_sha)
+    if blocker:
+        return "refresh", [blocker]
+    rc, _, err = _git_rc([*HARDENED_GIT_FLAGS, "merge-tree", "--write-tree", main_sha, sha], repo=git_repo, env=_carry_env())
+    if rc == 1:
+        return "refresh", ["git merge-tree of main and the head conflicts"]
+    if rc != 0:
+        return "refresh", [f"git merge-tree failed: {err or rc}"]
+    held = ["head %s behind main %s" % (sha[:8], main_sha[:8]), "merge-tree clean",
+            "no file changed by both main and the PR since the merge-base", f"{CI_WORKFLOW} unchanged on main",
+            "GitHub MERGEABLE"]
+    hold = []
+    bad = (local_checks_problems(proj, pr) if proj
+           else checks_ok(pr) + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
+    if bad:
+        hold.append("CI not green on the head: " + ", ".join(bad))
+    else:
+        held.append("CI green on the head")
+    carry = {} if carry is None else carry
+    for role in ("reviewer", "qa"):
+        kind, _ = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
+        if kind in ("holds", "carry"):
+            held.append(f"{role} PASS on the head" + (" (carried)" if kind == "carry" else ""))
+        else:
+            hold.append(f"no {role} PASS that holds on the head ({kind})")
+    return ("hold", hold) if hold else ("merge", held)
+
+
 MERGED_GO_PROOF_TIMEOUT_S = 180
 MERGED_GO_UNMERGEABLE = object()  # merge-tree conflict: not proof success; caller must drop behind_clean
+
+
+def worker_cache_env():
+    """T-1698: disk-backed Go and pnpm caches for a spawned worker (the same dirs as merged_go_proof_env and
+    docs/go-toolchain.md), so a killed build leaves nothing in the tmpfs /tmp."""
+    cache = Path.home() / ".cache"
+    try:
+        (cache / "go" / "tmp").mkdir(parents=True, exist_ok=True)  # go refuses a missing GOTMPDIR
+    except OSError:
+        pass   # the worker's first go call then says so itself
+    return {"GOTMPDIR": str(cache / "go" / "tmp"), "GOCACHE": str(cache / "go" / "build"),
+            "GOMODCACHE": str(cache / "go" / "path" / "pkg" / "mod"),
+            "npm_config_store_dir": str(cache / "pnpm-store")}
 
 
 def merged_go_proof_env():
@@ -6582,8 +7487,16 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         else:
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
         # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
-        behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
-        blocker = behind_clean and behind_ok_blocker(git_repo, sha, stale[2])
+        nr, nr_why = None, []
+        if stale[1] == "STALE" and no_refresh_on(con):
+            # T-1676: one decision (no_refresh_merge) for the judge, the mech merger and the spawn pre-check. "merge" and
+            # "hold" never refresh ("hold" is refused below: CI or a verdict); "refresh" refreshes (judge) or refuses (mech)
+            nr, nr_why = no_refresh_merge(con, t, pr, git_repo, repo_url=repo_url, main_sha=stale[2], carry=carry, proj=proj)
+            behind_clean = nr in ("merge", "hold")
+            blocker = "; ".join(nr_why) if nr == "refresh" else None
+        else:
+            behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
+            blocker = behind_clean and behind_ok_blocker(git_repo, sha, stale[2])
         if blocker:  # T-1000/T-1025: CI changed on main, or main touched a file the PR also changes: refresh (judge) or refuse (mech)
             behind_clean = False
         if behind_clean:
@@ -6623,6 +7536,8 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                         (t["goal_id"],)).fetchone()
         if g and g["auto_merge"] == 0:
             problems.append("project has auto_merge=0 — boss must get the owner's OK")
+        if nr == "hold" and not problems:  # fail closed: the rule's own CI/verdict reading refused, the gate must too
+            problems.append("no-refresh merge on hold: " + "; ".join(nr_why))
         # STALE-ONLY (a "PR has conflicts" next to it is GitHub's view of the same staleness; merge-tree decides):
         # the judge refreshes the branch itself, waits for CI on the new head and re-runs this whole gate on it
         others = [x for x in problems if not x.startswith("STALE-ONLY") and x != "PR has conflicts"]
@@ -6800,6 +7715,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             err = close_landed_pr(t["pr_url"], landed, reason)
             post_err += f"; PR not closed: {err}" if err else ""
     record_merged(con, t, a, sha, shown, reason, carried, post_err)
+    if nr == "merge" and behind_clean:  # T-1676: merged the BEHIND head as it was, no refresh anywhere
+        event(con, "task", a.task, "merged-no-refresh", json.dumps({"head": sha, "main": stale[2], "reasons": nr_why}))
+        con.commit()
     if _judge_is_public(con, t, owner_repo):
         judge_merge_email_check(con, t, a, owner_repo, shown if shown != sha else None)
 
@@ -7012,6 +7930,12 @@ def mech_try(con, t, mode, retry_s):
     if jhr:
         log_task_judge_hold(con, tid, jhr)
         return "skipped"
+    if no_refresh_on(con):
+        # T-1676: the shared no-refresh decision; the merger never refreshes, so a head that needs one goes to the judge
+        nr, nr_why = no_refresh_merge(con, t, pr, git_repo, proj=gate_project_for(con, url))
+        if nr == "refresh":
+            return block("STALE-ONLY: head does not contain origin/main (%s: behind_ok does not apply, refresh so CI runs "
+                         "the combined tree); the mechanical merger does not refresh, the judge does" % "; ".join(nr_why))
     reason = "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why)
     a = types.SimpleNamespace(task=tid, reason=reason, by="merger", dry_run=(mode == "shadow"), mech=True)
     mark = con.execute("SELECT COALESCE(MAX(id),0) m FROM events").fetchone()["m"]
@@ -7252,6 +8176,16 @@ def staleness_precheck(con, role, task):
     if not git_config_guard(con, repo, always_event=True):
         return skip(f"git config in {repo} would run code: {', '.join(git_config_refusal(repo))}")
     old = pr["headRefOid"]
+    if role == "judge" and no_refresh_on(con):
+        # T-1676: the same no-refresh decision as `factory judge --merge` and the mech merger. "merge"/"hold": spawn on
+        # the current head, no refresh; "fresh": nothing to do; "refresh" (incl. any git/gh error): the rule below as before
+        nr, why = no_refresh_merge(con, t, pr, repo, repo_url=repo_url, proj=gate_project_for(con, t["pr_url"]))
+        if nr == "fresh":
+            return None
+        if nr in ("merge", "hold"):
+            event(con, "task", task, "precheck-no-refresh", f"{nr} @ {old[:8]}: {'; '.join(why)}"[:900])
+            con.commit()
+            return None
     if role == "judge" and pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
         return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
     # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
@@ -8190,6 +9124,10 @@ _LEFTOVER_NAME = re.compile(r"(guard-diff-(seed-)?|factory-screenshots-|freshbox
                             r"|zz-test-[a-z0-9-]+-[a-z0-9_]{8}|zz-rv-[a-z0-9_]{8}|tmp[a-z0-9_]{8}|tmp\.[A-Za-z0-9]{10}")
 
 
+TMP_GOBUILD_MIN_AGE_S = 7200   # T-1698: go-build<digits> is a killed build's scratch; 2 h old and unopened is an orphan
+_GOBUILD_NAME = re.compile(r"go-build[0-9]+")
+
+
 def _sweep_leftovers(con, t):
     """(removed [(path, bytes)], locked count, blocked). A run blocked by an unreadable pid of an unlisted comm removes
     nothing and writes one tmp-sweep-blocked event. Entries of our uid directly under <tmp> whose name is in the closed list
@@ -8205,7 +9143,8 @@ def _sweep_leftovers(con, t):
     old = []
     locked = 0
     for d in sorted(base.iterdir()):
-        if not _LEFTOVER_NAME.fullmatch(d.name):
+        gobuild = bool(_GOBUILD_NAME.fullmatch(d.name))
+        if not gobuild and not _LEFTOVER_NAME.fullmatch(d.name):
             continue
         try:
             st = d.lstat()
@@ -8213,7 +9152,7 @@ def _sweep_leftovers(con, t):
             if not (isdir or stat.S_ISREG(st.st_mode)) or st.st_uid != os.getuid():
                 continue
             newest = _harness_newest_mtime(d) if isdir else st.st_mtime
-            if t - newest < TMP_LEFTOVER_MIN_AGE_S:
+            if t - newest < (TMP_GOBUILD_MIN_AGE_S if gobuild else TMP_LEFTOVER_MIN_AGE_S):
                 continue
             real = os.path.realpath(d)
             if any(c == real or c.startswith(real + os.sep) for c in cwds):
@@ -8260,6 +9199,45 @@ def _sweep_leftovers(con, t):
     return out, locked, False
 
 
+TMP_FTCACHE_MIN_AGE_S = 7200   # a factorytest-cache hash dir untouched this long is a stale build of the Go test tools
+TMP_FTCACHE_KEEP = 1           # the newest entry always stays: it is the current build
+
+
+def _sweep_factorytest_cache(t):
+    """T-1698: [(dir, bytes)] removed from <tmp>/factorytest-cache-<uid>/<hash>: entries untouched for 2 h, not held
+    (cwd, fd or running exe) by a process of ours, never the newest TMP_FTCACHE_KEEP. A rebuild costs one `go build`.
+    The parent must be a real dir of our uid; an unreadable pid keeps everything."""
+    base = tmp_dir() / f"factorytest-cache-{os.getuid()}"
+    try:
+        if base.is_symlink() or not base.is_dir() or base.stat().st_uid != os.getuid():
+            return []
+        ents = []
+        for d in base.iterdir():
+            st = d.lstat()
+            if stat.S_ISDIR(st.st_mode) and st.st_uid == os.getuid():
+                ents.append((_harness_newest_mtime(d), d))
+    except OSError:
+        return []
+    ents.sort(key=lambda e: e[0], reverse=True)
+    old = [(d, os.path.realpath(d)) for m, d in ents[TMP_FTCACHE_KEEP:] if t - m >= TMP_FTCACHE_MIN_AGE_S]
+    if not old:
+        return []
+    held = _proc_holds([r for _, r in old], TMP_LEFTOVER_IGNORE_COMMS, [])
+    if held is None:
+        return []
+    out = []
+    for d, real in old:
+        if real in held:
+            continue
+        try:
+            size = _tree_bytes(d)
+            shutil.rmtree(d)
+        except OSError:
+            continue
+        out.append((d, size))
+    return out
+
+
 def tmp_sweep(con):
     """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates)
     and stale leftovers with a listed prefix (see _sweep_leftovers),
@@ -8286,6 +9264,7 @@ def tmp_sweep(con):
             if not (last and t - float(last["ts"]) < TMP_LEFTOVER_THROTTLE_S):
                 con.execute("INSERT INTO throttle(key,ts) VALUES('tmpleftover',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
                 left, locked, blocked = _sweep_leftovers(con, t)
+                left = left + _sweep_factorytest_cache(t)
             freed += sum(sz for _, sz in left)
             if n or left or (locked and not blocked):
                 event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept",
@@ -8415,6 +9394,10 @@ def _proc_holds(roots, ignore_comms=frozenset(), blocker=None):
                 continue
             targets = [os.path.realpath(os.readlink(pdir / "cwd"))]
             targets += [os.path.realpath(f) for f in (pdir / "fd").iterdir()]
+            try:
+                targets.append(os.path.realpath(os.readlink(pdir / "exe")))  # a running built tool (T-1698)
+            except OSError:
+                pass   # kernel thread or no exe link: nothing to add
         except FileNotFoundError:
             continue   # the process exited while we looked
         except OSError:
@@ -9220,6 +10203,414 @@ def reap_idle_coders(con, agents):
             pass
 
 
+IDLE_WATCHDOG_MODES = ("off", "shadow", "on")
+IDLE_WATCHDOG_ROLES = ("coder", "qa", "reviewer", "pm")
+IDLE_WATCHDOG_TURN_ENDED_S = 600  # T-1621 W1: a cursor turn that ended this long ago with the task open is a stall
+IDLE_WATCHDOG_NUDGE_GAP_S = 600   # W3: cursor nudges at least this far apart
+IDLE_WATCHDOG_CURSOR_NUDGES = 2   # W3: then one alert, never a third nudge
+IDLE_WATCHDOG_DB_WINDOW = 50000   # newest events/messages rows scanned for an agent's own DB writes
+IDLE_WATCHDOG_TAIL_BYTES = 65536
+IDLE_WATCHDOG_TRANSCRIPT_FILES = 2000  # cap on files stat'ed per cursor agent per tick
+IDLE_WATCHDOG_HOLD_RE = re.compile(r"(?im)^\s*hold\b|\bHOLD:")
+IDLE_WATCHDOG_STEPS = ("idle-watchdog-nudge", "idle-watchdog-relaunch", "idle-watchdog-alert", "idle-watchdog-error-alert",
+                       "idle-watchdog-refused-alert")
+IDLE_WATCHDOG_NUDGE = ("Factory watchdog: your turn ended {min} min ago and task {task} is not done. No human reads this "
+                       "pane; do not ask or offer, act. If a push was refused for a Co-authored-by trailer, rebuild the "
+                       "commit with git commit-tree (no trailer) and push again. Then finish: factory pr create, factory "
+                       "prcheck, set in_review, factory done. If a command is still refused, run factory msg {director} "
+                       "'{task} blocked' 'the refused command and its exact output' --kind escalation, then wait.")
+
+
+def _idle_newest_mtime(paths):
+    best = None
+    for p in paths:
+        try:
+            m = p.stat().st_mtime
+        except OSError:
+            continue
+        best = m if best is None or m > best else best
+    return best
+
+
+def _claude_transcript_mtime(r):
+    """mtime of the claude session jsonl of row `r` (~/.claude/projects/<cwd, non-alphanumerics as '-'>/<session>.jsonl);
+    an unknown or missing session falls back to the newest jsonl of that project dir. None = no transcript found."""
+    if not r["cwd"]:
+        return None
+    d = Path.home() / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", r["cwd"])
+    own = d / f"{r['session_id']}.jsonl" if r["session_id"] else None
+    if own is not None and own.is_file():
+        return _idle_newest_mtime([own])
+    try:
+        return _idle_newest_mtime(list(d.glob("*.jsonl")))
+    except OSError:
+        return None
+
+
+def _cursor_project_names(ws):
+    """The ~/.cursor/projects/<dir> names the Cursor CLI uses for workspace `ws`: the absolute path with each
+    non-alphanumeric character (or each run of them) as '-', outer dashes stripped. Exact names only: two workspaces
+    that differ only in separators never share a transcript dir."""
+    ws = str(ws)
+    return {re.sub(r"[^A-Za-z0-9]", "-", ws).strip("-"), re.sub(r"[^A-Za-z0-9]+", "-", ws).strip("-")} - {""}
+
+
+def _cursor_transcript(r):
+    """(newest file, mtime) under ~/.cursor/projects/<dir>/agent-transcripts for cursor row `r`, where <dir> is the
+    agent's policy workspace (spawn_args cursor_workspace, else its cwd) named as _cursor_project_names. The layout is
+    agent-transcripts/<id>.jsonl or agent-transcripts/<id>/<id>.jsonl: at most two levels and
+    IDLE_WATCHDOG_TRANSCRIPT_FILES files are read, and no symlink (dir or file) is followed. None = no transcript."""
+    ws = _spawn_args_row(r).get("cursor_workspace") or r["cwd"]
+    root = Path.home() / ".cursor" / "projects"
+    if not ws:
+        return None
+    best, seen = None, 0
+    for nm in sorted(_cursor_project_names(ws)):
+        d = root / nm
+        top = d / "agent-transcripts"
+        if d.is_symlink() or top.is_symlink() or not top.is_dir():
+            continue
+        stack = [(top, 0)]
+        while stack and seen < IDLE_WATCHDOG_TRANSCRIPT_FILES:
+            cur, depth = stack.pop()
+            try:
+                entries = list(os.scandir(cur))
+            except OSError:
+                continue
+            for ent in entries:
+                if seen >= IDLE_WATCHDOG_TRANSCRIPT_FILES:
+                    break
+                try:
+                    if ent.is_symlink():
+                        continue
+                    if ent.is_dir(follow_symlinks=False):
+                        if depth < 1:
+                            stack.append((Path(ent.path), depth + 1))
+                        continue
+                    if not ent.is_file(follow_symlinks=False):
+                        continue
+                    seen += 1
+                    m = ent.stat(follow_symlinks=False).st_mtime
+                except OSError:
+                    continue
+                if best is None or m > best[1]:
+                    best = (Path(ent.path), m)
+    return best
+
+
+def _transcript_text(obj):
+    """The text of one transcript line (a string or a list of {type: text} parts), else ''."""
+    msg = obj.get("message", obj)
+    if isinstance(msg, dict):
+        msg = msg.get("content", msg.get("text"))
+    if isinstance(msg, str):
+        return msg
+    if isinstance(msg, list):
+        return " ".join(p["text"] for p in msg if isinstance(p, dict) and isinstance(p.get("text"), str))
+    return ""
+
+
+def _cursor_transcript_tail(path):
+    """(last JSON line object or None, the last assistant text) of a cursor transcript jsonl; unreadable = (None, '')."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - IDLE_WATCHDOG_TAIL_BYTES))
+            lines = [x for x in f.read().decode("utf-8", "replace").splitlines() if x.strip()]
+    except OSError:
+        return None, ""
+    objs = []
+    for x in lines:
+        try:
+            o = json.loads(x)
+        except ValueError:
+            continue
+        if isinstance(o, dict):
+            objs.append(o)
+    text = next((s for o in reversed(objs) if o.get("role") == "assistant" for s in [_transcript_text(o)] if s), "")
+    return (objs[-1] if objs else None), text
+
+
+def _turn_ended(o):
+    """(status, error text) when transcript line `o` is a turn_ended line, else None."""
+    if not isinstance(o, dict) or o.get("type") != "turn_ended":
+        return None
+    err = o.get("error") or o.get("message") or o.get("text") or json.dumps(o)  # the key is not documented: keep the line
+    return str(o.get("status") or o.get("subtype") or "").lower(), (err if isinstance(err, str) else json.dumps(err))[:500]
+
+
+def _worktree_progress(cwd):
+    """Latest of the HEAD commit time and the mtimes of changed or untracked files in `cwd`; None when unreadable."""
+    if not cwd or not Path(cwd).is_dir():
+        return None
+    best = None
+    rc, ct = _git_out(cwd, "log", "-1", "--format=%ct")
+    if rc == 0 and ct.strip().isdigit():
+        best = float(ct.strip())
+    rc, st = _git_out(cwd, "status", "--porcelain", "-uall")
+    if rc == 0:
+        paths = [Path(cwd) / ln[3:].split(" -> ")[-1].strip('"') for ln in st.splitlines()[:2000] if len(ln) > 3]
+        m = _idle_newest_mtime(paths)
+        if m is not None and (best is None or m > best):
+            best = m
+    return best
+
+
+def _idle_watchdog_db_marks(con):
+    """{agent: newest epoch of its own DB writes}: events it wrote and messages it sent, among the newest rows."""
+    out = {}
+    for sql in ("SELECT actor a, ts FROM events WHERE id IN (SELECT max(id) FROM events WHERE id > "
+                "(SELECT coalesce(max(id),0) FROM events) - ? GROUP BY actor)",
+                "SELECT sender a, created ts FROM messages WHERE id IN (SELECT max(id) FROM messages WHERE id > "
+                "(SELECT coalesce(max(id),0) FROM messages) - ? GROUP BY sender)"):
+        for x in con.execute(sql, (IDLE_WATCHDOG_DB_WINDOW,)).fetchall():
+            t = _ts(x["ts"])
+            if t is not None and (x["a"] not in out or t.timestamp() > out[x["a"]]):
+                out[x["a"]] = t.timestamp()
+    return out
+
+
+def idle_watchdog_progress(con, r, marks, cursor_tr=None):
+    """{signal: epoch} of live worker row `r`'s progress: the run's start, a worktree change, a transcript write and its
+    own DB write (an event, a sent message, reading mail). The watchdog's idle clock starts at the newest of these."""
+    started = _ts(r["started"])
+    if _agent_runtime(r) == "cursor":
+        transcript = cursor_tr[1] if cursor_tr else None
+    else:
+        transcript = _claude_transcript_mtime(r)
+    sig = {"started": started.timestamp() if started else None, "worktree": _worktree_progress(r["cwd"]),
+           "transcript": transcript, "db": marks.get(r["name"])}
+    rd = _ts(con.execute("SELECT max(read_at) m FROM messages WHERE recipient=?", (r["name"],)).fetchone()["m"])
+    if rd and (sig["db"] is None or rd.timestamp() > sig["db"]):
+        sig["db"] = rd.timestamp()
+    return {k: v for k, v in sig.items() if v is not None}
+
+
+def _idle_watchdog_state(con, name, key, mode="shadow"):
+    """{step: [epoch, ...]} of the watchdog steps recorded for this agent + task + attempt (`key`); events are the state.
+    In mode on only mode=on rows count: steps logged in shadow took no action, so after the flip to on they run for real."""
+    out = {a: [] for a in IDLE_WATCHDOG_STEPS}
+    for e in con.execute("SELECT action, ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action IN "
+                         f"({','.join('?' * len(out))}) ORDER BY id", (name, *out)).fetchall():
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        t = _ts(e["ts"])
+        if isinstance(d, dict) and d.get("key") == key and t is not None and (mode != "on" or d.get("mode") == "on"):
+            out[e["action"]].append(t.timestamp())
+    return out
+
+
+def _idle_watchdog_record(con, r, step, mode, detail, note=None):
+    """One watchdog step: the agent event (the state, both modes) and, in mode on, a task note."""
+    event_as(con, "tick", "agent", r["name"], step, {**detail, "mode": mode})
+    if note and mode == "on":
+        event_as(con, "tick", "task", r["task_id"], "note", f"idle watchdog: {note}")
+
+
+def _idle_watchdog_alert(con, r, mode, detail, why, orgs_to):
+    """The terminal step: one alert per org director in `orgs_to` (mode on); then the watchdog leaves the agent alone."""
+    _idle_watchdog_record(con, r, "idle-watchdog-alert", mode, {**detail, "why": why, "to": list(orgs_to)},
+                          f"alerted the director(s) {', '.join(orgs_to)}: {why}")
+    if mode != "on":
+        return
+    body = (f"{r['name']} ({r['role']}, runtime {_agent_runtime(r)}) on task {r['task_id']}: no progress for "
+            f"{detail['idle_min']} min. Actions taken: {', '.join(detail['actions']) or 'none'}. {why} "
+            f"The watchdog does nothing more for this agent on this task attempt. Look at pane {r['pane_id']}, then "
+            f"stop and respawn it (factory stop {r['name']} --now) or reassign the task.")
+    for o in orgs_to:
+        send(con, "director", f"{r['name']}: idle {detail['idle_min']} min on {r['task_id']}", body, "alert",
+             r["goal_id"], r["task_id"], sender="tick", org=o)
+
+
+def _idle_watchdog_refused(con, r, mode, key, st, org):
+    """W5: a factory done refused during this run is alerted to the org director once per task attempt."""
+    if st["idle-watchdog-refused-alert"]:
+        return
+    e = con.execute("SELECT ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action='done-refused' "
+                    "ORDER BY id DESC LIMIT 1", (r["name"],)).fetchone()
+    when, started = (_ts(e["ts"]) if e else None), _ts(r["started"])
+    if when is None or (started is not None and when < started):
+        return
+    try:
+        d = json.loads(e["detail"])
+        gname, why = d.get("gate") or "?", d.get("why") or ""
+    except (TypeError, ValueError, AttributeError):
+        gname, why = "?", ""
+    _idle_watchdog_record(con, r, "idle-watchdog-refused-alert", mode, {"key": key, "gate": gname, "why": why},
+                          f"factory done refused ({gname}); director alerted")
+    if mode == "on":
+        send(con, "director", f"{r['name']}: factory done refused ({gname})",
+             f"{r['name']} ({r['role']}, runtime {_agent_runtime(r)}) ran factory done on {r['task_id']} and the {gname} "
+             f"check refused it: {why or '(no message)'}\nIt may not get past it alone: look at pane {r['pane_id']} "
+             "and the task.", "alert", r["goal_id"], r["task_id"], sender="tick", org=org)
+
+
+def idle_watchdog(con, agents):
+    """T-1622 (G-058 SC2/SC4, docs/idle-watchdog.md): idle-progress watchdog for live workers (coder, qa, reviewer, pm;
+    claude and cursor) with an open task, run in the idle-coder tick step after reap_idle_coders. Config idle_watchdog
+    off|shadow|on (unknown = shadow: event rows only, no pane action, no msg, no task note) and idle_watchdog_min (W,
+    default 30). Progress = the newest of the run's start, a worktree change, a transcript write and the agent's own DB
+    write (idle_watchdog_progress). Every step is recorded as an idle-watchdog-* event keyed agent|task|attempts, which
+    is the only state: a relaunch keeps the key, so nothing repeats or loops across ticks or runs.
+    claude, and cursor without an ended turn: idle W -> one nudge; then W/2 without progress (and W/2 after the nudge)
+    -> one fresh relaunch (behind the same checks as spawn's gate, one per tick; a start the spawn gate queues anyway is
+    alerted to both directors); still idle W after the relaunch, its kickoff read or not -> one alert to both directors.
+    cursor whose transcript of this run ends in turn_ended (T-1621 W1-W4): status error -> alert the org director at
+    once, never a nudge; otherwise, once the turn is 10 min old -> up to 2 nudges 10 min apart, then one escalation to
+    the org director with the last 300 chars of its text. A first kickoff never read is T-1599's (tick_cursor_kickoff)
+    and skipped here; after a watchdog relaunch T-1599 resends the new kickoff but does not relaunch again. A hold (judge
+    hold or HOLD in the spec) is escalated to the org director, never nudged. A refused factory done (done-refused
+    event, W5) is alerted to the org director once. Skipped: tasks done/cancelled/blocked (blocked = a named wait in tasks.waits), goals not
+    active, rows stopping/relaunching/starting, a pane the host does not list or reports working, a claude agent with a
+    shell running (a CI wait, a test)."""
+    try:
+        mode = cfg(con, "idle_watchdog")
+        mode = mode if mode in IDLE_WATCHDOG_MODES else "shadow"
+        if mode == "off" or not agents:
+            return
+        try:
+            w = int(cfg(con, "idle_watchdog_min")) * 60
+        except (TypeError, ValueError):
+            return  # a bad threshold never acts
+        if w <= 0:
+            return
+        clock = _ts(now()).timestamp()  # $FACTORY_TEST_NOW on a test home, as tick_cursor_kickoff
+        by_name = {x.get("name"): x for x in agents if x.get("name")}
+        marks = _idle_watchdog_db_marks(con)
+        both = tuple(o for o in ("claude", "cursor") if o in orgs.ORGS)
+        relaunched = False
+        rows = con.execute(f"SELECT * FROM agents WHERE status='live' AND role IN ({','.join('?' * len(IDLE_WATCHDOG_ROLES))}) "
+                           "AND task_id IS NOT NULL AND stop_requested_at IS NULL AND relaunch_requested_at IS NULL "
+                           "AND start_pending IS NULL ORDER BY name", IDLE_WATCHDOG_ROLES).fetchall()
+        for r in rows:
+            t = con.execute("SELECT * FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+            if not t or t["status"] in ("done", "cancelled", "blocked"):
+                continue
+            g = con.execute("SELECT status FROM goals WHERE id=?", (t["goal_id"],)).fetchone()
+            if not g or g["status"] != "active":
+                continue
+            if _spawn_args_row(r).get("launch") == "subprocess":
+                continue  # no pane
+            name, runtime = r["name"], _agent_runtime(r)
+            key = f"{name}|{t['id']}|{t['attempts']}"
+            st = _idle_watchdog_state(con, name, key, mode)
+            if st["idle-watchdog-alert"]:
+                continue  # the terminal step was taken: no more automatic actions on this task attempt
+            unread = kickoff_unread(con, name)
+            if unread and not st["idle-watchdog-relaunch"]:
+                continue  # a kickoff never accepted: T-1599's tick_cursor_kickoff owns that pane
+            h = by_name.get(name)
+            if not h or h.get("agent_status") == "working":
+                continue  # unlisted (cannot decide) or mid-turn
+            org = agent_org(con, name) or orgs.DEFAULT_ORG
+            _idle_watchdog_refused(con, r, mode, key, st, org)
+            nudges, relaunches = st["idle-watchdog-nudge"], st["idle-watchdog-relaunch"]
+            hold = bool((t["judge_hold_reason"] or "").strip()) or bool(IDLE_WATCHDOG_HOLD_RE.search(t["spec"] or ""))
+            tr = _cursor_transcript(r) if runtime == "cursor" else None
+            sig = idle_watchdog_progress(con, r, marks, tr)
+            idle_s = int(clock - max(sig.values())) if sig else 0
+            detail = {"key": key, "task": t["id"], "runtime": runtime, "idle_min": idle_s // 60, "signals": sorted(sig),
+                      "actions": [f"{len(nudges)} nudge(s)"] * bool(nudges) + ["1 fresh relaunch"] * bool(relaunches)}
+
+            def nudge(minutes):
+                if runtime == "claude" and _agent_shells_busy(name):
+                    return  # a shell runs under the agent (a CI wait, a test): it is waiting on purpose
+                text = IDLE_WATCHDOG_NUDGE.format(min=minutes, task=t["id"], director=oname(con, org, "director"))
+                ok = kickoff_resend(con, r, text) if mode == "on" else None  # T-1599's submit: prompt, then Enter
+                _idle_watchdog_record(con, r, "idle-watchdog-nudge", mode, {**detail, "n": len(nudges) + 1, "prompt_ok": ok},
+                                      f"nudged {name} ({minutes} min without progress)")
+
+            started = _ts(r["started"])
+            if runtime == "cursor" and tr and not unread and (started is None or tr[1] >= started.timestamp()):
+                # an ended turn of an earlier run (before a relaunch) says nothing about this one
+                last, text = _cursor_transcript_tail(tr[0])
+                ended = _turn_ended(last)
+                if ended and ended[0] == "error":  # W4: a nudge cannot fix a usage-limit or model error
+                    if not st["idle-watchdog-error-alert"]:
+                        _idle_watchdog_record(con, r, "idle-watchdog-error-alert", mode, {**detail, "error": ended[1]},
+                                              f"turn ended with an error, director alerted: {ended[1][:200]}")
+                        if mode == "on":
+                            send(con, "director", f"{name}: turn ended with an error on {t['id']}",
+                                 f"{name} (cursor {r['role']}) on {t['id']}: its last turn ended with status error: "
+                                 f"{ended[1]}\nNo nudge is sent; it cannot help. Fix the cause (model, plan, usage) "
+                                 "and relaunch it, or reassign the task.", "alert", r["goal_id"], r["task_id"],
+                                 sender="tick", org=org)
+                    continue
+                if ended:  # W1: the turn ended, the task is open and the row is still live (no factory done)
+                    ended_s = int(clock - tr[1])
+                    if ended_s < IDLE_WATCHDOG_TURN_ENDED_S:
+                        continue
+                    detail["idle_min"] = ended_s // 60
+                    tail = f" Its final text (last 300 chars): {text[-300:]!r}" if text else ""
+                    if hold:
+                        _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged." + tail, (org,))
+                    elif nudges and clock - max(nudges) < IDLE_WATCHDOG_NUDGE_GAP_S:
+                        pass
+                    elif len(nudges) < IDLE_WATCHDOG_CURSOR_NUDGES:
+                        nudge(ended_s // 60)
+                    else:
+                        _idle_watchdog_alert(con, r, mode, detail, f"{len(nudges)} nudges did not get it going." + tail, (org,))
+                    continue
+            # after the nudge the relaunch waits W/2 without progress (not W again); the alert W after the relaunch
+            if idle_s < (w // 2 if nudges and not relaunches else w):
+                continue
+            if hold:
+                _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged.", (org,))
+            elif not nudges:
+                nudge(idle_s // 60)
+            elif not relaunches:
+                if relaunched or clock - max(nudges) < w // 2:
+                    continue
+                if runtime == "claude" and _agent_shells_busy(name):
+                    continue
+                if mode == "on":
+                    # the checks spawn() runs once the pane is closed (role reserves, the cursor pane limit, load): a
+                    # relaunch the spawn gate would queue is never started
+                    ok, why, gst = gate(con, own_slot=True, role=r["role"], runtime=runtime)
+                    if ok and gst["load1"] > gst["load_cap"]:
+                        ok, why = False, f"load1 {gst['load1']:.1f} > load cap {gst['load_cap']:.1f}"
+                    if not ok:
+                        dkey = f"idlewatch_relaunch_deferred:{name}"
+                        last = con.execute("SELECT ts FROM throttle WHERE key=?", (dkey,)).fetchone()
+                        if not last or time.time() - float(last["ts"]) >= 3600:
+                            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET "
+                                        "ts=excluded.ts", (dkey, str(time.time())))
+                            event_as(con, "tick", "agent", name, "idle-watchdog-relaunch-deferred", why)
+                        continue
+                # the event first: a crash or a failure must not repeat the relaunch every tick
+                kick = con.execute(f"SELECT id FROM messages WHERE {KICKOFF_SQL} ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+                _idle_watchdog_record(con, r, "idle-watchdog-relaunch", mode,
+                                      {**detail, "old_sid": r["session_id"], "kick": kick["id"] if kick else None},
+                                      f"relaunched {name} fresh ({idle_s // 60} min without progress after one nudge)")
+                if mode == "on":
+                    relaunched = True
+                    msg = relaunch_fresh_from_tick(con, r)
+                    if msg:
+                        event_as(con, "tick", "agent", name, "idle-watchdog-relaunch-failed", {"key": key, "error": msg})
+                        _idle_watchdog_alert(con, r, mode, {**detail, "actions": detail["actions"] + ["relaunch failed"]},
+                                             f"The fresh relaunch failed: {msg}", both)
+                        continue
+                    cur = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+                    if not cur or cur["status"] != "live":  # the spawn gate queued it after the pane closed
+                        q = con.execute("SELECT detail FROM events WHERE entity='agent' AND entity_id=? AND action='queued' "
+                                        "ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+                        _idle_watchdog_alert(con, r, mode, {**detail, "actions": detail["actions"] + ["relaunch queued"]},
+                                             f"The old pane was closed and the spawn gate queued the fresh start "
+                                             f"({q['detail'] if q else 'no reason recorded'}); it starts when the gate "
+                                             "opens.", both)
+            elif clock - max(relaunches) >= w:
+                _idle_watchdog_alert(con, r, mode, detail, "Still no progress after a nudge and a fresh relaunch; a "
+                                     "second relaunch would be needed." + (" The relaunched pane never read its kickoff."
+                                                                           if unread else ""), both)
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "idle-watchdog", "idle-watchdog-failed", str(e)[:300])
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _is_test_runner(argv):
     """True only for a local test run: python3 ci/affected.py, -m unittest, -m pytest, `factory test`, pytest/py.test."""
     if not argv:
@@ -9464,6 +10855,36 @@ def retro_tick(con):
                         "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (today,))
         except Exception:  # noqa: BLE001
             pass
+
+
+def schedule_tick(con):
+    """Tick hook (G-038 F-31): `factory-go schedule due --json` claims the due owner jobs (all decisions are Go's); this only
+    delivers each item to the director through send(), so recipient resolution stays as it is. A claim happens before the
+    send: a failed send loses that day's run, never doubles it. Any error: one schedule-tick-failed event per hour. Never raises."""
+    try:
+        go = guard_lib_dir() / CLI_GO_BIN
+        if not os.access(go, os.X_OK):
+            raise OSError(f"{CLI_GO_BIN} is missing or not executable; rebuild the Go CLI")
+        p = subprocess.run([str(go), "schedule", "due", "--json"], capture_output=True, text=True, timeout=20)
+        if p.returncode != 0:
+            raise RuntimeError(f"schedule due exit {p.returncode}: {(p.stderr or p.stdout).strip()[:300]}")
+        items = json.loads(p.stdout)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
+        _schedule_tick_failed(con, e)
+        return
+    for it in items:  # each claim is already committed: one bad send must not drop the others
+        try:
+            send(con, "director", it["subject"], it["body"], kind=it["kind"], goal=it["goal"], sender="tick")
+        except (Exception, SystemExit) as e:  # noqa: BLE001
+            _schedule_tick_failed(con, e)
+
+
+def _schedule_tick_failed(con, e):
+    try:
+        if not _util_throttled(con, "schedule-tick-failed", 3600, digest_clock().timestamp()):
+            event(con, "tick", "-", "schedule-tick-failed", (str(e) or repr(e))[:500])
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @_pt_phase("skilleval")
@@ -10065,6 +11486,36 @@ def install_pre_push_hook(repo):
         die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
 
 
+COMMIT_MSG_MARK = "# factory commit-msg Cursor trailer strip (T-1624)"
+
+
+def commit_msg_hook_body():
+    """The one commit-msg hook a cursor clone may hold: a one-line exec of bin/cursor-commit-msg-strip.sh in the factory
+    checkout, so the PR branch inside the clone cannot change what runs."""
+    script = Path(__file__).resolve().parent / "cursor-commit-msg-strip.sh"
+    return f"#!/bin/sh\n{COMMIT_MSG_MARK}\nexec sh {shlex.quote(str(script))} \"$@\"\n"
+
+
+def install_commit_msg_hook(repo):
+    """T-1624: <git-dir>/hooks/commit-msg for a runtime=cursor task clone only. The Cursor agent adds a
+    Co-authored-by: Cursor trailer in its own shells (env is not the cause); the push guard refuses that line."""
+    if not (Path(repo) / ".git").is_dir():  # a `git worktree add` checkout shares hooks/ with the main repo: never touch that
+        return False
+    p = git_run(repo, "rev-parse", "--git-common-dir", env={**os.environ, "LC_ALL": "C"})
+    if p.returncode != 0 or not p.stdout.strip():
+        die(f"spawn refused: cannot find the git dir of {repo} to install the commit-msg hook: {p.stderr.strip()}", 4)
+    dst = Path(repo, p.stdout.strip()).resolve() / "hooks" / "commit-msg"
+    body = commit_msg_hook_body()
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if not dst.is_file() or dst.is_symlink() or dst.read_text() != body:
+            dst.unlink(missing_ok=True)
+            dst.write_text(body)
+        dst.chmod(0o755)
+    except OSError as e:
+        die(f"spawn refused: cannot install the commit-msg hook at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
+
+
 def trust_task_clone(con, task, wt, add=True):
     """T-1220: pre-register (add) or drop the Claude workspace-trust entry of a per-task clone in the owner's
     ~/.claude.json, only under worktrees/. A refusal records one clone-trust-refused event and goes on (the dialog shows)."""
@@ -10096,6 +11547,8 @@ def git_hooks_refusal(clone):
             elif f.name.endswith(".sample"):
                 continue
             elif f.name == "pre-push" and f.read_text() == body:
+                continue
+            elif f.name == "commit-msg" and f.read_text() == commit_msg_hook_body():  # T-1624
                 continue
             else:
                 bad.append(f.name)
@@ -10154,7 +11607,7 @@ def prepare_qa_clone(con, t, task):
     return str(qa)
 
 
-def prepare_worktree(con, task, role):
+def prepare_worktree(con, task, role, runtime=None):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
         return None
@@ -10171,13 +11624,15 @@ def prepare_worktree(con, task, role):
         if role == "coder" and coder_git.is_dir() and not git_hooks_guard(con, t["worktree"]):
             con.commit()
             die(f"spawn refused: {t['worktree']}/.git holds {', '.join(git_hooks_refusal(t['worktree']))} "
-                "(only *.sample and the factory pre-push are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
+                "(only *.sample, the factory pre-push and the cursor commit-msg strip are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
         if role == "coder" and t["branch"]:
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
         install_pre_push_hook(t["worktree"])
+        if role == "coder" and runtime == "cursor":
+            install_commit_msg_hook(t["worktree"])
         return t["worktree"]
     if role != "coder":
         return None  # verifiers never create branches; they work from the coder's worktree or the PR
@@ -10194,6 +11649,8 @@ def prepare_worktree(con, task, role):
         make_task_clone(con, repo, wt, branch, base)
         trust_task_clone(con, task, wt)
         install_pre_push_hook(wt)
+        if runtime == "cursor":
+            install_commit_msg_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
     branch_existed = git_run(repo, "rev-parse", "--verify", "-q", f"refs/heads/{branch}", text=False).returncode == 0
@@ -10217,6 +11674,8 @@ def prepare_worktree(con, task, role):
         drop_half_made()
         die(f"worktree checkout failed: {p.stderr.strip()}")
     install_pre_push_hook(wt)
+    if runtime == "cursor":
+        install_commit_msg_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
     return str(wt)
 
@@ -10501,8 +11960,17 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     rt = org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
     if role == "researcher" and rt == "cursor":
         die("the researcher role is not supported on the Cursor runtime (docs/research-team.md); use the claude org", 3)
-    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
-                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt)
+    gate_kw = dict(load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
+                   own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt,
+                   placement_discount=_relaunch_placement_discount(con, existing) if relaunch else None,
+                   allow_remote=remote_start_ok(con, role, rt, args, sandbox_wanted(con, role, sandbox_optin)))
+    ok, why, stats = gate(con, **gate_kw)
+    _alert_unreachable_machines(con, stats)
+    placed = stats.get("machine")
+    if placed:  # recorded even on a refusal
+        event(con, "agent", name, "place", {"machine": placed, "role": role})
+    if placed and placed != _machine_hq(con) and role not in PLACEMENT_WORKER_ROLES:  # R1 belt (place_machine pins them)
+        die(f"refused: {role} never starts on worker machine {placed}", 3)
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
@@ -10513,32 +11981,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             held = judge_hold(con, task)  # the tick applies the same hold to rows it dequeues
             ok, why = (False, held) if held else (ok, why)
     if not ok:
-        if existing and existing["status"] in ("queued", "starting"):
-            # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
-            try:
-                old = json.loads(existing["spawn_args"] or "{}")
-            except ValueError:
-                old = {}
-            if not isinstance(old, dict):
-                old = {}
-            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend", "host_backend_pinned") if k in old})
-        # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
-        # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
-        # and leaves a cancelled row alone
-        cur = con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?,?,?) "
-                          "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, "
-                          # a re-queue of a queued/starting row keeps its queued_at (aging); new or terminal rows get a fresh one
-                          "queued_at=CASE WHEN agents.status IN ('queued','starting') AND agents.queued_at IS NOT NULL "
-                          "THEN agents.queued_at ELSE excluded.queued_at END, "
-                          "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL"
-                          + (" WHERE agents.status != 'cancelled'" if from_queue else ""),
-                          (name, role, goal, team, task, "queued", json.dumps(args), now()))
-        if from_queue and cur.rowcount == 0:
-            return None
-        con.execute("UPDATE agents SET org=? WHERE name=?", (org, name))
-        event(con, "agent", name, "queued", why)
-        print(f"QUEUED {name}: {why}. The tick starts it when capacity frees up.")
-        return None
+        return _spawn_queue(con, name, role, goal, team, task, org, args, existing, from_queue, why)
     claimed = False
     if from_queue and existing and existing["status"] == "queued":
         # atomic claim: from here a `factory dequeue` is refused ('starting'), so a row can never be both cancelled and
@@ -10566,8 +12009,19 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
                             "WHERE name=? AND status='starting'", (name,))
                 event(con, "agent", name, "queued", held)
                 return None
-        out = _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
-                           env_extra, plugin_dirs, fresh)
+        try:
+            out = _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
+                               env_extra, plugin_dirs, fresh)
+        except RemoteStartFailed as e:
+            # D4: never a half-started remote agent, never a failed spawn because a worker machine is down. Mark it,
+            # alert (rate-limited), and place again on the machines left under their own checks.
+            machine_unreachable(con, placed, str(e))
+            args.pop("machine", None)
+            ok, why, stats = gate(con, **{**gate_kw, "allow_remote": False})
+            if not ok:
+                return _spawn_queue(con, name, role, goal, team, task, org, args, existing, from_queue, why)
+            out = _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
+                               env_extra, plugin_dirs, fresh)
         con.execute("UPDATE agents SET org=? WHERE name=?", (org, name))
         return out
     except BaseException:
@@ -10575,6 +12029,44 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             con.execute("UPDATE agents SET status='queued', spawn_args=json_remove(spawn_args,'$.claimed_at') "
                         "WHERE name=? AND status='starting'", (name,))
         raise
+
+
+def _alert_unreachable_machines(con, stats):
+    """D4: a worker machine placement found unreachable (ssh failed) gets the mark and the rate-limited alert."""
+    per = stats.get("placement") or {}
+    for m, f in (per.get("machines") or {}).items():
+        if m != per.get("hq") and not f.get("reachable", True):
+            machine_unreachable(con, m, f.get("err") or "facts read failed")
+
+
+def _spawn_queue(con, name, role, goal, team, task, org, args, existing, from_queue, why):
+    """The gate refused: queue the row (the tick starts it later). Returns None."""
+    if existing and existing["status"] in ("queued", "starting"):
+        # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
+        try:
+            old = json.loads(existing["spawn_args"] or "{}")
+        except ValueError:
+            old = {}
+        if not isinstance(old, dict):
+            old = {}
+        args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend", "host_backend_pinned") if k in old})
+    # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
+    # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
+    # and leaves a cancelled row alone
+    cur = con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?,?,?) "
+                      "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, "
+                      # a re-queue of a queued/starting row keeps its queued_at (aging); new or terminal rows get a fresh one
+                      "queued_at=CASE WHEN agents.status IN ('queued','starting') AND agents.queued_at IS NOT NULL "
+                      "THEN agents.queued_at ELSE excluded.queued_at END, "
+                      "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL"
+                      + (" WHERE agents.status != 'cancelled'" if from_queue else ""),
+                      (name, role, goal, team, task, "queued", json.dumps(args), now()))
+    if from_queue and cur.rowcount == 0:
+        return None
+    con.execute("UPDATE agents SET org=? WHERE name=?", (org, name))
+    event(con, "agent", name, "queued", why)
+    print(f"QUEUED {name}: {why}. The tick starts it when capacity frees up.")
+    return None
 
 
 EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")  # claude 2.1.310 --effort <level>
@@ -11161,6 +12653,25 @@ def _hc_cursor_submit(con, name, row_goal=None, row_task=None, prompt_ok=True):
     return False
 
 
+def kickoff_submit(con, name, kick, runtime, use_hc, goal=None, task=None, confirm=True):
+    """Type the kickoff into a pane-hosted agent and submit it. The spawn of a herdr-kind runtime and the tick's resend
+    (tick_cursor_kickoff) both call this one function. Cursor needs Enter after the prompt (C8). On hc, confirm=True
+    (the spawn) also waits for the turn to start and alerts the director when it does not (_hc_cursor_submit);
+    confirm=False (the tick) presses Enter once and never waits: the kickoff read mark is its confirmation.
+    Returns whether the prompt call succeeded."""
+    prompt_ok = herdr("agent", "prompt", name, kick, check=False) is not None
+    if prompt_ok:
+        con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
+    if use_hc and runtime == "cursor":
+        if confirm:
+            _hc_cursor_submit(con, name, goal, task, prompt_ok)  # a timed-out hc send may still have pasted the text
+        else:
+            herdr("agent", "send-keys", name, "Enter", check=False, timeout=HC_CURSOR_KEYS_TIMEOUT_S)
+    elif prompt_ok:
+        _cursor_enter_after_prompt(name, runtime, True)
+    return prompt_ok
+
+
 CURSOR_START_LOG_MAX_S = 600  # director lost alert names logs/<name>-cursor-start.log only within this after agents.started
 _CURSOR_START_LOG_ENV_KEYS = frozenset((*GH_SCRUB_ENV, *HC_SPAWN_DROP, "CURSOR_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"))
 
@@ -11309,7 +12820,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
                  sender="factory")
         event(con, "agent", name, "spawn", {"pane": None, "model": model, "cwd": cwd, "runtime": runtime,
-                                            "launch": plan.launch, "pid": proc.pid, "live": stats["live"] + 1})
+                                            "launch": plan.launch, "pid": proc.pid, "live": stats["live"] + 1,
+                                            **({"machine": stats["machine"]} if stats.get("machine") else {})})
         print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}) pid={proc.pid} cwd={cwd} log={log_path}")
         return name
 
@@ -11365,15 +12877,10 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
              sender="factory")
         time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
-        prompt_ok = herdr("agent", "prompt", name, kick, check=False) is not None
-        if prompt_ok:
-            con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
-        if use_hc and runtime == "cursor":
-            _hc_cursor_submit(con, name, goal, task, prompt_ok)  # a timed-out hc send may still have pasted the text
-        elif prompt_ok:
-            _cursor_enter_after_prompt(name, runtime, True)
+        kickoff_submit(con, name, kick, runtime, use_hc, goal, task)
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
-                                        "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
+                                        "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1,
+                                        **({"machine": stats["machine"]} if stats.get("machine") else {})})
     print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}, kind={plan.herdr_kind}) in {pane} cwd={cwd}")
     return name
 
@@ -11447,19 +12954,32 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         if cwd and cwd != want:
             die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
         cwd = want
-    cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
+    # G-057: a worker machine placed by gate(). Absent machine (worker_machines empty, or machine_hq) = today's path.
+    remote = stats.get("machine") if stats.get("machine") and stats.get("machine") != _machine_hq(con) else None
+    if remote:
+        if role not in PLACEMENT_WORKER_ROLES:  # R1 belt: place_machine never picks a worker machine for these
+            die(f"refused: {role} never starts on worker machine {remote} (HQ, leads and judges stay on {_machine_hq(con)})", 3)
+        if not remote_start_ok(con, role, runtime, args, sandbox_wanted(con, role, optin)):
+            raise RemoteStartFailed(f"{name} cannot start on {remote} (claude on hc, unsandboxed only)")
+        remote_preflight(con, machine=remote, task=task)
+        cwd = cwd or remote_worktree(con, remote, task, role) or str(HOME)
+    cwd = cwd or (prepare_worktree(con, task, role, runtime) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
     if terms and role in SCRUB_TERMS_ROLES:  # a path only: worker-guard still refuses to read the file itself
         env["SCRUB_TERMS_FILE"] = terms
     if evaluator:
         env.update(env_extra)  # validated: FACTORY_HOME is the trial's temp home, never the live one
+    else:
+        env.update(worker_cache_env())  # T-1698: Go and pnpm scratch on disk, never the RAM-backed /tmp
     sandboxed = sandbox_wanted(con, role, optin)
-    own_wt = (con.execute("SELECT worktree FROM tasks WHERE id=?", (task,)).fetchone() or {"worktree": None})["worktree"] if task else None
-    if (not sandboxed and own_wt and role in ("coder", "qa", "reviewer")
-            and os.path.realpath(str(cwd)) == os.path.realpath(own_wt)
-            and os.path.realpath(own_wt).startswith(os.path.realpath(str(WORKTREES)) + os.sep)):
-        trust_task_clone(con, task, cwd)  # T-1328: a clone made for a sandbox_required task skipped T-1220; idempotent
+    # T-1657: the one trust point, on the final cwd of every claude launch (coder, qa clone, reused or cursor-made
+    # worktree, relaunch with a recorded --cwd). The T-1328 check required cwd == tasks.worktree, so a qa clone
+    # (<goal>-<task>-qa) or an explicit --cwd skipped it and the 'trust this folder' dialog showed. A cwd outside
+    # worktrees/ is still refused by workerbox.set_clone_trust. Sandboxed panes seed their own config instead.
+    if (not remote and not sandboxed and runtime == "claude" and cwd
+            and os.path.realpath(str(cwd)).startswith(os.path.realpath(str(WORKTREES)) + os.sep)):
+        trust_task_clone(con, task or "-", cwd)  # idempotent
     if runtime != "claude":
         if evaluator:
             die(f"runtime {runtime}: evaluator/skilleval stays on Claude", 3)
@@ -11474,9 +12994,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         for k, v in (settings_obj.get("env") or {}).items():
             env.setdefault(k, v)
         sysprompt = RUN / f"{name}.prompt.md"
-        prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1)
+        v2 = cursor_prompt_v2_on(con, runtime)
+        prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1, cursor_v2=v2)
         sysprompt.write_text(prompt_text)
-        kick = kickoff_text(role, name, goal, team, task, prompt)
+        kick = ((cursor_harness.kickoff_v2(role, name, goal, team, task, prompt) if v2 else None)
+                or kickoff_text(role, name, goal, team, task, prompt))
         return _spawn_start_external(
             con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
             env, settings, settings_obj, prompt_text, kick, runtime)
@@ -11487,7 +13009,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if ghcred_on:
         env.update(gh_cred_env(con, role, name, cwd))
     args["host_backend"] = spawn_host  # explicit: a later config flip never re-reads this row's host
-    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE
+    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE, _HC_RUN_MACHINE, _HC_RUN_SCRIPT
     _SPAWN_HOST_EXE = spawn_host
     try:
         found = find_pane(pane) if pane and spawn_host == "herdr" else None
@@ -11532,6 +13054,27 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         claude_args += ["--session-id", sid]
         if fresh:  # same role flags as a resume: the prompt file is re-read on every request
             claude_args += RESUME_PROMPT_FLAGS
+    remote_script = None
+    if remote:
+        # the worker PATH starts with the forwarder dir: `factory` there runs on machine_hq, never a second DB
+        env["PATH"] = f"{remote_forward_dir()}{os.pathsep}{env.get('PATH') or os.environ.get('PATH', '/usr/bin:/bin')}"
+        script_env = dict(env)
+        try:
+            for k, v in (json.loads(Path(settings).read_text()).get("env") or {}).items():
+                script_env.setdefault(k, v)
+        except (OSError, json.JSONDecodeError, ValueError):
+            pass
+        remote_script = _hc_write_spawn_script(name, {k: str(v) for k, v in script_env.items()}, "claude", claude_args)
+        files = [(str(settings), 0o644), (str(sysprompt), 0o600), (str(remote_script), 0o700)]
+        secrets = []
+        if ghcred_on and env.get("GIT_CONFIG_GLOBAL"):
+            files += _tree_files(os.path.dirname(env["GIT_CONFIG_GLOBAL"]))  # the per-agent ghcred dir (paths only)
+            secrets.append(env["FACTORY_GH_TOKEN_FILE"])  # the token: mode 0600, content on ssh stdin only (R4)
+        if env.get("SCRUB_TERMS_FILE") and os.path.isfile(env["SCRUB_TERMS_FILE"]):
+            secrets.append(env["SCRUB_TERMS_FILE"])
+        copied = remote_copy_agent_files(con, remote, files, secrets)  # RemoteStartFailed: no row, no terminal yet
+        args["machine"] = remote
+        event(con, "agent", name, "remote-files", {"machine": remote, "files": copied})
     spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
@@ -11546,7 +13089,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     task_auto_start(con, task, f"spawn {name}", role)
     # tick_async_start: not sandboxed (its escape check must not wait a tick), not the evaluator; the start is told
     # not to wait for the TUI and the tick's start_confirm phase finishes what follows a successful start
-    async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator
+    # a remote start waits for its own start: the tick's start_confirm lists this machine's terminals only
+    async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator and not remote
     start_args = ("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout",
                   ASYNC_START_TIMEOUT_MS if async_start else "90000", "--", *claude_args)
     try:
@@ -11556,6 +13100,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         pass
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
     _HC_RUN_PROGRAM, _HC_RUN_NAME = None, name
+    _HC_RUN_MACHINE, _HC_RUN_SCRIPT = remote, remote_script
     _SPAWN_HOST_EXE = spawn_host
     start_err = None
     try:
@@ -11565,7 +13110,14 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             r = herdr(*start_args, check=False)
     finally:
         _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
+        _HC_RUN_MACHINE = _HC_RUN_SCRIPT = None
         _SPAWN_HOST_EXE = None
+    if remote:
+        got = (r or {}).get("agent") if isinstance(r, dict) else None
+        addr = got.get("address") if isinstance(got, dict) else None
+        addr = addr if isinstance(addr, str) and addr.startswith(f"{remote}/") else f"{remote}/{name}"
+        con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.hc_address',?) WHERE name=?", (addr, name))
+        event(con, "agent", name, "remote-start", {"machine": remote, "address": addr, "started": r is not None})
     if async_start and start_err and not any(m in start_err.lower() for m in START_PENDING_ERRORS):
         # a real failure (bad args, no such pane): do not wait START_CONFIRM_S for an agent that will never be ready
         event(con, "agent", name, "start-failed", {"pane": pane, "error": start_err[:300]})
@@ -11605,7 +13157,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             if herdr("agent", "prompt", name, kick, check=False) is not None:
                 con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "live": stats["live"] + 1,
-                                        **({"sandbox": True} if sandboxed else {})})
+                                        **({"sandbox": True} if sandboxed else {}),
+                                        **({"machine": stats["machine"]} if stats.get("machine") else {})})
     print(f"SPAWNED {name} ({role}, {model}) in {pane} cwd={cwd}")
     return name
 
@@ -12093,8 +13646,25 @@ def prcheck_take_slot(con):
     return True
 
 
+def prcheck_is_factory_project(con, project_id):
+    """T-1203: True when the task's project is the factory's own repo (project id `factory`, or its gh_repo is the repo of
+    config factory_remote_url). No project, or an unknown project row, counts as the factory: the check then runs as
+    before, never silently skipped."""
+    if not project_id or project_id == "factory":
+        return True
+    r = con.execute("SELECT gh_repo FROM projects WHERE id=?", (project_id,)).fetchone()
+    if not r:
+        return True
+    mine, want = _repo_slug(r["gh_repo"]), _repo_slug(cfg(con, "factory_remote_url"))
+    return bool(mine and want and mine == want)
+
+
 def prcheck_affected(wt, base, con=None, pr_url=None, project_id=None):
-    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
+    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876).
+    Only the factory repo has ci/affected.py; any other project reports n/a (T-1203)."""
+    con = con or db()
+    if not prcheck_is_factory_project(con, project_id):
+        return True, "n/a (not the factory repo)"
     script = Path(wt) / "ci" / "affected.py"
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
@@ -12378,15 +13948,51 @@ def judge_done_refusal(con, r):
 
 
 def cmd_done(a):
-    """A worker finishes: summary goes to its lead, its pane is reaped by the next tick."""
+    """A worker finishes: summary goes to its lead, its pane is reaped by the next tick. A refusal by one of the finish
+    checks is recorded as an agent done-refused event: the check, the exit code and the refusal's last stderr line
+    (T-1622 W5: the idle watchdog alerts on it). The unread-orders refusal delivers the orders itself and is not one."""
+    stage = {"gate": None, "agent": None}
+    err = _StderrTail(sys.stderr)
+    try:
+        with contextlib.redirect_stderr(err):
+            _cmd_done(a, stage)
+    except SystemExit as e:
+        if stage["gate"] and e.code not in (0, None):
+            event(db(), "agent", stage["agent"], "done-refused", {"gate": stage["gate"], "code": e.code, "why": err.last()})
+        raise
+
+
+class _StderrTail(io.TextIOBase):
+    """A stderr that writes through and keeps the tail, so a refusal's own message can be recorded."""
+
+    def __init__(self, out):
+        super().__init__()
+        self.out, self.buf = out, ""
+
+    def write(self, s):
+        self.buf = (self.buf + s)[-4000:]
+        return self.out.write(s)
+
+    def flush(self):
+        self.out.flush()
+
+    def last(self):
+        lines = [x for x in self.buf.splitlines() if x.strip()]
+        return lines[-1][:300] if lines else ""
+
+
+def _cmd_done(a, stage):
     con = db()
     me = actor()
     r = con.execute("SELECT * FROM agents WHERE name=?", (me,)).fetchone() or die("not a factory agent")
     if r["status"] != "live":  # e.g. force-stopped meanwhile: the lead already got its report; no second one
         die(f"{me} is '{r['status']}', not live: nothing to finish (no second done/report)", 2)
+    stage["agent"] = me
     summary = read_text(a.summary)
     if r["role"] == "judge" and r["task_id"]:
+        stage["gate"] = "judge"
         judge_done_refusal(con, r)
+        stage["gate"] = None
     unread = [] if r["role"] in PERSISTENT_ROLES else con.execute(
         "SELECT * FROM messages WHERE recipient=? AND read_at IS NULL AND kind IN ('decision','request') ORDER BY id",
         (me,)).fetchall()
@@ -12409,6 +14015,7 @@ def cmd_done(a):
                         "so it is back to todo. Fix the blocker (worktree or cwd) and respawn, or cancel it.")
     unclean = ""
     if r["role"] == "coder" and r["task_id"]:
+        stage["gate"] = "coder-checks"  # unpushed work, acceptance walk, prcheck: the stderr line in "why" names which
         dirty, untracked, unpushed, ci = coder_done_findings(con, r, a.force)
         found = []
         escalated = False
@@ -12426,7 +14033,9 @@ def cmd_done(a):
             if dirty:
                 print("commit (a WIP commit is fine) and push, then run factory done again", file=sys.stderr)
             if unpushed:
-                print("push your commits (git push -u origin HEAD), then run factory done again", file=sys.stderr)
+                tb = con.execute("SELECT branch FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+                push_branch = (tb["branch"] if tb and tb["branch"] else "") or f"factory/{r['task_id'].lower()}"
+                print(f"push your commits (git push origin HEAD:{push_branch}), then run factory done again", file=sys.stderr)
                 if not dirty:
                     print(f"factory: if the push is held (spec says no merge until PR x, owner push needed), {done_exit_hint(r)}",
                           file=sys.stderr)
@@ -12456,6 +14065,7 @@ def cmd_done(a):
             summary += f"\n\nCI at done: {ci}"
         if ci_handoff_active(con) and t and t["status"] == "in_review" and t["pr_url"] and ci_not_green(t["pr_url"]):
             summary += f"\n\n{CI_HANDOFF_LINE}"  # also for an empty rollup, which checks_ok reads as green
+    stage["gate"] = None  # every finish check passed: a later exit is not a refusal
     cur = con.execute("UPDATE agents SET status=?, summary=?, ended=?, stop_requested_at=NULL, stop_attempt_at=NULL, "
                       "stop_failed_kind=NULL WHERE name=? AND status='live'",
                       ("live" if r["role"] in PERSISTENT_ROLES else "done", summary, now(), me))
@@ -12811,7 +14421,8 @@ def src_scratch_roots(con):
     """Realpaths of the caller's own scratchpad: <tmp>/claude-<uid>/<slug of the agent's registered cwd>/<its session>/scratchpad.
     The caller is FACTORY_AGENT (refused when unset) and the slug comes from its agents row, never from the cwd or an env
     var the caller can set; a cwd that is not that registered cwd is refused. With a stored session id only that session's
-    scratchpad counts. Returns (roots, error)."""
+    scratchpad counts, plus (T-1639) the sessions of the caller's claude ancestor; when none of those has a scratchpad (a
+    respawned pane whose row is stale) only the newest session dir under the slug counts. Returns (roots, error)."""
     who = os.environ.get("FACTORY_AGENT") or ""
     r = con.execute("SELECT cwd, session_id FROM agents WHERE name=?", (who,)).fetchone() if who and who != "owner" else None
     if not r or not r["cwd"]:
@@ -12829,10 +14440,22 @@ def src_scratch_roots(con):
     try:
         if base.is_symlink() or not base.is_dir():
             return roots, ""
-        for s in ([base / sid] if sid else sorted(base.iterdir())):
-            pad = s / "scratchpad"
-            if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
-                roots.append(os.path.realpath(pad))
+        def pads(dirs):
+            for s in dirs:
+                pad = s / "scratchpad"
+                if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
+                    roots.append(os.path.realpath(pad))
+        # T-1639: a respawned pane (--resume / fresh --session-id) can run under a session id the agents row does not
+        # name yet (the tick syncs it only when the pane host reports it), so the stored id alone gave "no scratchpad
+        # found" to QA panes. Try the stored id and the ids on the caller's own claude ancestor first; when none has a
+        # scratchpad: no stored id = every session dir (as before); a stale stored id = only the newest session dir
+        # under this agent's own registered-cwd slug (the respawned pane's current session), never the older ones.
+        sids = list(dict.fromkeys(([sid] if sid else []) + [x for x in (_caller_claude_sessions() or [])
+                                                            if re.fullmatch(r"[A-Za-z0-9_-]+", x)]))
+        pads(base / x for x in sids)
+        if not roots:
+            dirs = sorted(base.iterdir(), key=lambda d: d.lstat().st_mtime)
+            pads(dirs if not sid else [d for d in reversed(dirs) if (d / "scratchpad").is_dir()][:1])
     except OSError:
         pass
     return roots, ""
@@ -15241,7 +16864,7 @@ def cmd_res(a):
     if sys.platform == "darwin":
         swap = {}  # no /proc/meminfo; swap is not part of the darwin gate
     else:
-        swap = {l.split(":")[0]: int(l.split()[1]) for l in Path("/proc/meminfo").read_text().splitlines()
+        swap = {l.split(":")[0]: int(l.split()[1]) for l in _meminfo_text().splitlines()
                 if l.startswith(("SwapTotal", "SwapFree"))}
     q = con.execute("SELECT count(*) c FROM agents WHERE status='queued'").fetchone()["c"]
     print(f"spawn gate: {'OPEN' if ok else 'CLOSED — ' + why}")
@@ -15300,7 +16923,8 @@ def cmd_res(a):
     print(f"owner-only blockers: {len(ob)}" + "".join(f"\n  {b['text']} (open {b['age_min']} min)" for b in ob))
     if sys.platform == "darwin":
         print("serve unit drift check: skipped on macOS (no systemd unit)")
-        top = subprocess.run(["ps", "-axo", "rss=,command=", "-m"], capture_output=True, text=True).stdout.splitlines()[:5]
+        top = subprocess.run([DARWIN_PS, "-axo", "rss=,command=", "-m"], capture_output=True, text=True,
+                             env=dict(DARWIN_TOOL_ENV)).stdout.splitlines()[:5]
     else:
         top = subprocess.run(["ps", "-eo", "rss,args", "--sort=-rss"], capture_output=True, text=True).stdout.splitlines()[1:6]
     print("top memory:")
@@ -15815,6 +17439,47 @@ def mech_refused(con, task):
     return bool(last) and last["action"] == "mech-blocked"
 
 
+def autospawn_block_reason(con, t):
+    """T-1323: why the tick must not autospawn reviewer/qa/judge for task row t, else None. A depends_on task that is not done, or
+    status blocked, means the work is not ready for review (a done or missing dependency never blocks)."""
+    if t["status"] == "blocked":
+        return "task is blocked"
+    try:
+        deps = json.loads(t["depends_on"] or "[]")
+    except ValueError:
+        return None
+    for d in deps if isinstance(deps, list) else []:
+        r = con.execute("SELECT status FROM tasks WHERE id=?", (d,)).fetchone()
+        if r and r["status"] != "done":
+            return f"depends_on {d} is {r['status']}, not done"
+    return None
+
+
+def autospawn_blocked(con, t, kind):
+    """True when autospawn_block_reason holds for t; one `<kind>-autospawn-skip` event per task and reason per day."""
+    why = autospawn_block_reason(con, t)
+    if not why:
+        return False
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    key = f"autospawn-block:{kind}:{t['id']}:{why}"
+    if not _throttled(con, key, clock, 86400):
+        _throttle_set(con, key, clock)
+        event(con, "task", t["id"], f"{kind}-autospawn-skip", why[:300])
+    return True
+
+
+def judge_covered_by_other(con, tid):
+    """True when a live/queued/starting judge (a train judge included) names the task id in its agent name."""
+    needle = slug(tid)
+    for r in con.execute("SELECT name FROM agents WHERE role='judge' AND status IN ('live','starting','queued')"):
+        if re.search(r"(?<![a-z0-9])" + re.escape(needle) + r"(?![a-z0-9])", r["name"] or ""):
+            return True
+    return False
+
+
 def judge_autospawn_candidates(con):
     """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
     mech_ids = {t["id"] for t in mech_candidates(con) if not mech_refused(con, t["id"])} if mech_mode(con) == "on" else set()
@@ -15833,6 +17498,10 @@ def judge_autospawn_candidates(con):
                        (t["id"],)).fetchone():
             continue
         if judge_status_only_hold(con, t["id"]):
+            continue
+        if judge_covered_by_other(con, t["id"]):
+            continue  # T-1323: a train judge (or another judge) already covers it
+        if autospawn_blocked(con, t, "judge"):
             continue
         out.append(t)
     return out
@@ -16131,10 +17800,18 @@ def queue_order_key(row, at=None):
 FRESH_PERSISTENT = ("boss", "director", "lead")
 
 
-def role_prompt_text(role, org=None, multi=False):
-    """What `_spawn_start` writes to run/<name>.prompt.md for `role` (kept in step with it by hand; docs/freshness.md)."""
-    return ((ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
-            + org_prompt_section(org, multi))
+def cursor_prompt_v2_on(con, runtime):
+    """True when this agent runs on Cursor and config cursor_prompt is v2 (T-1623, docs/cursor-prompt.md)."""
+    return runtime == "cursor" and cfg(con, "cursor_prompt") == "v2"
+
+
+def role_prompt_text(role, org=None, multi=False, cursor_v2=False):
+    """What `_spawn_start` writes to run/<name>.prompt.md for `role` (kept in step with it by hand; docs/freshness.md).
+    cursor_v2: a Cursor agent under cursor_prompt=v2 gets roles/cursor/<role>.md alone when that file exists."""
+    own = cursor_harness.role_prompt_v2(ROLES_DIR, role) if cursor_v2 else None
+    if own is None:
+        own = (ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
+    return own + org_prompt_section(org, multi)
 
 
 def _newest_mtime(*paths):
@@ -16178,7 +17855,8 @@ def tick_freshness(con):
         started = _ts(r["started"])
         t0 = started.timestamp() + 1 if started else None  # `started` is whole seconds: tolerate a same-second write
         try:
-            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role, orgs.of_agent(dict(r)), len(enabled_orgs(con)) > 1):
+            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role, orgs.of_agent(dict(r)), len(enabled_orgs(con)) > 1,
+                                                                           cursor_v2=cursor_prompt_v2_on(con, agent_runtime_of(r))):
                 reasons.append("prompt")
         except FileNotFoundError:
             pass  # no prompt file recorded for this row (not started by factory spawn): nothing to compare
@@ -16324,6 +18002,7 @@ TICK_UNITS = (
     ("claude_audit", "claude_audit", "reap"),
     ("stop_fallback", "stop_fallback", "flow"),
     ("gate", "gate", "flow"),
+    ("hold_expiry", "hold_expiry", "flow"),
     ("mech_merge", "mech_merge", "flow"),
     ("ci_wake", "ci_wake", "flow"),
     ("wake_leads", "wake_leads", "flow"),
@@ -16555,6 +18234,8 @@ def cmd_tick(a, locked=False):
     refuse_worker("tick")
     phases = getattr(a, "phases", None)
     if isinstance(phases, str):
+        if _tick_deadline_at(getattr(a, "deadline", None)) is not None:
+            die("--deadline is not supported with --phases (each phase call is short); drop --deadline", 2)
         _cmd_tick_phases(phases)
         return
     lock = None if locked else tick_lock()  # noqa: F841 — held until exit
@@ -16565,6 +18246,7 @@ def cmd_tick(a, locked=False):
         if deadline is not None and con is not None and time.monotonic() >= deadline:
             event_as(con, "tick", "tick", "tick-deadline", "tick-deadline", f"stopped before phase {u}: --deadline {a.deadline} reached")
             con.commit()
+            _tick_u_emit(con, st)  # the phase timers of the phases that did run are still recorded
             return
         if u == "migrate_db":
             con = _tick_u_migrate_db(con, st)
@@ -16711,6 +18393,7 @@ def _tick_u_scout(con, st):
 
 def _tick_u_retro(con, st):
         retro_tick(con)
+        schedule_tick(con)
 
 
 def _tick_u_skilleval(con, st):
@@ -16739,9 +18422,22 @@ def _tick_u_reap_loop(con, st):
         tui_by_name, tui_by_pane = st.get("tui_by_name") or {}, st.get("tui_by_pane") or {}
         tui_list_ok = st.get("tui_list_ok", True)
         # 1. reap finished workers; detect lost agents; record session ids for resume
+        remote_terms, hq_name = None, None
         for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
             row_exe = _agent_host_exe(con, r)
-            if hc_back:
+            rm = _spawn_args_row(r).get("machine")
+            if rm:
+                hq_name = hq_name or _machine_hq(con)
+            if rm and rm != hq_name:
+                # G-057: started on a worker machine; hc lists it as <machine>/tN, never under its bare name here.
+                # A row without the key (every row while worker_machines is empty) takes the branches below unchanged.
+                if remote_terms is None:
+                    listed_remote = _hc_remote_terminals()
+                    remote_terms = False if listed_remote is None else listed_remote
+                if remote_terms is False:
+                    continue  # hc cannot be read: a later tick decides, never 'lost' on a failed read
+                h = remote_terms.get(f"{rm}/{r['name']}")
+            elif hc_back:
                 if row_exe == "herdr":
                     if not tui_list_ok:
                         continue
@@ -16858,6 +18554,7 @@ def _tick_u_exited_panes(con, st):
 
 def _tick_u_idle_coders(con, st):
         reap_idle_coders(con, st["agents"])
+        idle_watchdog(con, st["agents"])  # T-1622: after the reap, so a coder it just stopped is skipped
         _pt_lap("idle_coders")
 
 
@@ -16903,6 +18600,12 @@ def _tick_u_gate(con, st):
         except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
             event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
         _pt_lap("gate")
+
+
+def _tick_u_hold_expiry(con, st):
+        # 1c''+. judge hold expiry (G-058, docs/judge-hold-expiry.md): Go only (go/internal/tick/holdexpiry.go). The
+        # Python tick has no implementation: it keeps every hold and prints nothing; only the lap is recorded.
+        _pt_lap("hold_expiry")
 
 
 def _tick_u_mech_merge(con, st):
@@ -17252,6 +18955,10 @@ def _tick_u_recycle(con, st):
 
 def _tick_u_relaunches(con, st):
         tick_relaunches(con)
+        try:  # T-1599, after the stop fallback and the queued relaunches: those paths own their panes first
+            tick_cursor_kickoff(con)
+        except Exception as e:  # noqa: BLE001 — one bad agent row must not stop the tick
+            event(con, "tick", "cursor-kickoff", "cursor-kickoff-error", str(e)[:300])
 
 
 def _tick_u_util(con, st):
@@ -18105,6 +19812,13 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             sandbox_refuse(con, r["role"], r["name"], *bad)
     if gh_cred_wanted(con, r["role"], sandbox_wanted(con, r["role"], optin)):  # same: before the old pane is closed
         gh_cred_preflight(con, r["role"], r["name"])
+    if _worker_machine_list(con):  # placement can refuse a restart the single-machine gate would allow; do not close first
+        ok, why, _stats = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
+                               role=r["role"], own_lead=r["status"] == "live",
+                               runtime=org_runtime(con, r["role"], r["org"]),
+                               placement_discount=_relaunch_placement_discount(con, r))
+        if not ok:
+            die(f"not relaunching {r['name']}: {why}", 3)
     steps = []
     if close:
         if by_pane:
@@ -18460,7 +20174,7 @@ def dispatch_tick(con):
                            (team, *DISPATCH_ROLES, *LEAD_WAKING)).fetchone()["c"]
         if live >= team_cap:
             continue
-        if not gate(con, role=role)[0]:
+        if not gate(con, role=role, runtime=org_runtime(con, role, org_for(con, t["goal_id"], tid)))[0]:
             break
         name = f"{role}-{tid.lower()}"
         if role == "qa" and qa_without_pr_or_worktree(con, tid):  # T-0966: same refusal as cmd_spawn; surfaced once, never retried
@@ -18661,16 +20375,66 @@ def _review_repo_mismatch(con, t):
     return None
 
 
-def _branch_on_remote(branch, batch):
-    """True/False: origin has refs/heads/<branch>; None when the remote cannot be read (the caller fails closed)."""
+class _RepoBatch(list):
+    """The review tick's per-tick ls-remote batch. As a list it is the factory-origin one-item batch every caller already
+    shares; `.foreign` holds one {"remote", "batch"} per other project repo (slug -> dict), `.origin` the cached factory slugs."""
+
+    def __init__(self):
+        super().__init__()
+        self.foreign = {}
+        self.origin = None
+
+
+def _review_remote(con, t, batch):
+    """(batch, kwargs) for the ls-remote helpers of task t's PR repo. The factory origin (or no project gh_repo, or an unparsable
+    PR url) is (batch, {}): exactly today's call. A foreign project repo gets its own one-item batch per tick and
+    remote=(repo dir or None, git remote or URL): the project's repo_path checkout when its origin is that repo, else
+    https://github.com/ORG/REPO.git (T-1675)."""
+    if not isinstance(batch, _RepoBatch):
+        return batch, {}
+    proj = con.execute("SELECT p.gh_repo, p.repo_path FROM projects p JOIN goals g ON g.project_id=p.id WHERE g.id=?", (t["goal_id"],)).fetchone()
+    want = _repo_slug(proj["gh_repo"]) if proj else None
+    if not want:
+        return batch, {}
+    try:
+        have = _repo_slug(_pr_repo_num(t["pr_url"])[0])
+    except ValueError:
+        return batch, {}
+    if have != want:
+        return batch, {}
+    if batch.origin is None:
+        batch.origin = {x for x in map(_repo_slug, _origin_urls()) if x}
+    if not batch.origin or want in batch.origin:  # origin unknown: today's behaviour
+        return batch, {}
+    ent = batch.foreign.get(want)
+    if ent is None:
+        remote = (None, f"https://github.com/{want}.git")
+        rp = proj["repo_path"]
+        if rp and Path(rp).is_absolute() and Path(rp, ".git").exists():
+            rc, url, _ = _git_rc(["remote", "get-url", "origin"], repo=rp)
+            if rc == 0 and _repo_slug(url) == want:
+                remote = (rp, "origin")
+        ent = batch.foreign[want] = {"remote": remote, "batch": []}
+    return ent["batch"], {"remote": ent["remote"]}
+
+
+def _review_head(con, t, batch):
+    sub, kw = _review_remote(con, t, batch)
+    return _ci_remote_head(t["branch"], sub, **kw)
+
+
+def _branch_on_remote(branch, batch, remote=None):
+    """True/False: origin (or `remote` = (repo dir or None, git remote or URL)) has refs/heads/<branch>; None when the remote
+    cannot be read (the caller fails closed)."""
     if branch.startswith("factory/"):
         if not batch:
             _pt_count("ci_wake_ls_remote")
-            batch.append(_ci_remote_heads())
+            batch.append(_ci_remote_heads(remote=remote) if remote else _ci_remote_heads())
         return None if batch[0] is None else branch in batch[0]
     ref = f"refs/heads/{branch}"
+    repo, target = remote or (None, "origin")
     _pt_count("ci_wake_ls_remote")
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, ref], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     return None if rc != 0 else any(l.split("\t")[-1:] == [ref] for l in out.splitlines())
 
 
@@ -18695,7 +20459,8 @@ def _review_pr_problem(con, t, pr, batch, clock, head_known=False):
         _review_skip(con, t, f"PR is {pr.get('state')}", clock)
         return True
     if t["branch"] and not head_known:
-        on = _branch_on_remote(t["branch"], batch)
+        sub, kw = _review_remote(con, t, batch)
+        on = _branch_on_remote(t["branch"], sub, **kw)
         if on is None:
             event(con, "task", tid, "review-autospawn-error", f"cannot read origin to check branch {t['branch']}"[:300])
             return True
@@ -18804,7 +20569,7 @@ def review_rerun_tick(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
-    batch = []
+    batch = _RepoBatch()
     for t in review_rerun_candidates(con):
         tid, team = t["id"], t["team_id"]
         why = _review_repo_mismatch(con, t)
@@ -18813,7 +20578,9 @@ def review_rerun_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        head = _ci_remote_head(t["branch"], batch)
+        if autospawn_blocked(con, t, "review"):
+            continue
+        head = _review_head(con, t, batch)
         if head:
             _review_alert_no_verdict(con, t, head, clock)
         if head and _review_head_done(con, tid, head, clock):
@@ -18842,7 +20609,7 @@ def review_rerun_tick(con):
         gate_closed = False
         for role in _rerun_missing(con, tid, sha):
             name = _rerun_name(con, tid, role, sha)
-            g_ok, g_why = gate(con, role=role)[:2]
+            g_ok, g_why = gate(con, role=role, runtime=org_runtime(con, role, org_for(con, t["goal_id"], tid)))[:2]
             if not g_ok:
                 _review_wait(con, t, sha, "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
@@ -18884,7 +20651,7 @@ def review_autospawn_tick(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
-    batch = []
+    batch = _RepoBatch()
     for t in review_candidates(con):
         tid, team = t["id"], t["team_id"]
         why = _review_repo_mismatch(con, t)
@@ -18893,7 +20660,9 @@ def review_autospawn_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _ci_remote_head(t["branch"], batch) if t["branch"] else None)
+        if autospawn_blocked(con, t, "review"):
+            continue
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _review_head(con, t, batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
@@ -18916,7 +20685,7 @@ def review_autospawn_tick(con):
                     continue
             elif con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
                 continue
-            g_ok, g_why = gate(con, role=role)[:2]
+            g_ok, g_why = gate(con, role=role, runtime=org_runtime(con, role, _o))[:2]
             if not g_ok:
                 _review_wait(con, t, pr["headRefOid"], "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 return
@@ -19061,7 +20830,7 @@ def coder_ci_resume_tick(con):
         dropped = bool(resume) and bool(_resume_runtime_change(con, prior, "coder", org))  # spawn drops a session recorded on another runtime and starts fresh
         resumed = bool(resume) and not dropped
         kick = coder_ci_resume_kickoff(sha, _failed_runs(rollup, names), resumed, not wt_ok, t["branch"] or f"factory/{tid.lower()}")
-        if not gate(con, role="coder")[0]:
+        if not gate(con, role="coder", runtime=org_runtime(con, "coder", org))[0]:
             return
         try:
             spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume,
@@ -19173,7 +20942,9 @@ def spec_fill_tick(con):
 
 def ci_verdict(rollup):
     """('green'|'red'|'pending', [names]) of a PR's checks: green = at least one check and all completed with a
-    success/neutral/skipped conclusion; red = all completed and some failed (names = the failed ones)."""
+    success/neutral/skipped conclusion; red = all completed and some failed (names = the failed ones).
+    A CheckRun is finished when status is COMPLETED, and also: a CheckRun with a non-empty conclusion and a non-empty completedAt is finished even when status is not COMPLETED
+    (the Actions jobs API can report status in_progress with a final conclusion). An empty conclusion is never green."""
     checks = latest_checks(rollup)
     if not checks:
         return "pending", []
@@ -19187,9 +20958,11 @@ def ci_verdict(rollup):
             elif state != "SUCCESS":
                 done = False
             continue
-        if (c.get("status") or "").upper() != "COMPLETED":
+        finished = (c.get("status") or "").upper() == "COMPLETED" or bool(
+            (c.get("conclusion") or "").strip() and (c.get("completedAt") or "").strip())
+        if not finished:
             done = False
-        elif (c.get("conclusion") or "").upper() not in ("SUCCESS", "NEUTRAL", "SKIPPED"):
+        elif (c.get("conclusion") or "").strip().upper() not in ("SUCCESS", "NEUTRAL", "SKIPPED"):
             failed.append(name)  # FAILURE, CANCELLED, TIMED_OUT, ACTION_REQUIRED...; an unknown conclusion is never green
     if not done:
         return "pending", []
@@ -19200,9 +20973,11 @@ CI_WAKE_GH_TIMEOUT_S = 15  # one slow gh call must not stall the tick
 CI_WAKE_RECHECK_S = 600  # fallback only: when the remote head cannot be read, a mailed task's PR is not queried again for this long
 
 
-def _ci_remote_heads():
-    """{branch: head sha} for every origin refs/heads/factory/* from ONE `git ls-remote`, or None when it cannot be read."""
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S)
+def _ci_remote_heads(remote=None):
+    """{branch: head sha} for every origin (or `remote` = (repo dir or None, git remote or URL)) refs/heads/factory/* from ONE
+    `git ls-remote`, or None when it cannot be read."""
+    repo, target = remote or (None, "origin")
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     if rc != 0:
         return None
     heads = {}
@@ -19213,7 +20988,7 @@ def _ci_remote_heads():
     return heads
 
 
-def _ci_remote_head(branch, batch=None):
+def _ci_remote_head(branch, batch=None, remote=None):
     """Head sha of origin's refs/heads/<branch> by `git ls-remote` (no gh call), or None when it cannot be read.
     `batch` is a one-item list holding the per-tick _ci_remote_heads() result (filled on first use): a factory/* branch is
     looked up there, so a tick makes one ls-remote however many PRs it checks; any other branch gets its own call."""
@@ -19222,11 +20997,12 @@ def _ci_remote_head(branch, batch=None):
     if batch is not None and branch.startswith("factory/"):
         if not batch:
             _pt_count("ci_wake_ls_remote")
-            batch.append(_ci_remote_heads())
+            batch.append(_ci_remote_heads(remote=remote) if remote else _ci_remote_heads())
         return (batch[0] or {}).get(branch)
     ref = f"refs/heads/{branch}"
+    repo, target = remote or (None, "origin")
     _pt_count("ci_wake_ls_remote")
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, ref], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     rows = [l.split("\t") for l in out.splitlines() if l.strip()] if rc == 0 else []
     rows = [r for r in rows if len(r) == 2 and r[1] == ref and re.fullmatch(r"[0-9a-f]{40}", r[0])]
     return rows[0][0] if len(rows) == 1 else None
@@ -19636,7 +21412,13 @@ def tick_relaunches(con):
             h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue  # mid-turn, blocked or not listed: a later tick
-        ok, why, _ = gate(con, own_slot=True)  # the agent already holds its slot; never close a pane the gate would queue
+        if _worker_machine_list(con):
+            # placement can refuse a restart the single-machine gate would allow; do not close the pane first
+            ok, why, _ = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
+                              role=r["role"], own_lead=True, runtime=org_runtime(con, r["role"], r["org"]),
+                              placement_discount=_relaunch_placement_discount(con, r))
+        else:
+            ok, why, _ = gate(con, own_slot=True, runtime=_agent_runtime(r))  # feature off: the same call as before placement existed
         if not ok:
             key = f"relaunch_deferred:{r['name']}"
             last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
@@ -19664,6 +21446,160 @@ def tick_relaunches(con):
                      org=agent_org(con, r["name"]))
             except (Exception, SystemExit) as e2:  # noqa: BLE001
                 event(con, "agent", r["name"], "relaunch-alert-failed", {"to": to, "error": str(e2) or f"exit {getattr(e2, 'code', '?')}"})
+
+
+KICKOFF_WATCH_EVENTS = ("kickoff-resent", "kickoff-relaunch", "kickoff-relaunch-failed", "kickoff-escalated")
+KICKOFF_SQL = "recipient=? AND sender='factory' AND subject LIKE 'kickoff:%'"  # the message spawn sends with the kickoff
+
+
+def kickoff_unread(con, name):
+    """(latest kickoff message row, id of the one before it or None) when the agent's latest kickoff message is still
+    unread, else None. The read mark is the proof the agent accepted its kickoff: `factory inbox`, its first command,
+    sets it (runtime-neutral, no transcript or pane probing)."""
+    rows = con.execute(f"SELECT id, body, created, read_at FROM messages WHERE {KICKOFF_SQL} ORDER BY id DESC LIMIT 2",
+                       (name,)).fetchall()
+    if not rows or rows[0]["read_at"] or not rows[0]["body"]:
+        return None
+    return rows[0], (rows[1]["id"] if len(rows) > 1 else None)
+
+
+def _kickoff_watch_state(con, name):
+    """{action: {kickoff message id: event ts}} of the agent's kickoff-watch events (the check's only state)."""
+    out = {a: {} for a in KICKOFF_WATCH_EVENTS}
+    for e in con.execute("SELECT action, ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action IN (?,?,?,?) "
+                         "ORDER BY id", (name, *KICKOFF_WATCH_EVENTS)).fetchall():
+        try:
+            kick = json.loads(e["detail"])["kick"]
+        except (TypeError, ValueError, KeyError):
+            continue
+        out[e["action"]][kick] = e["ts"]
+    return out
+
+
+def _idle_watchdog_relaunch_kicks(con, name):
+    """Kickoff message ids that an idle-watchdog fresh relaunch (T-1622) replaced: after one, T-1599 resends the new
+    kickoff and escalates, never a second relaunch."""
+    out = set()
+    for e in con.execute("SELECT detail FROM events WHERE entity='agent' AND entity_id=? AND action='idle-watchdog-relaunch'",
+                         (name,)).fetchall():
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("mode") == "on" and isinstance(d.get("kick"), int):
+            out.add(d["kick"])
+    return out
+
+
+def kickoff_resend(con, r, kick):
+    """Re-submit kickoff text `kick` to live agent row `r` through the spawn's own submit function. Never waits."""
+    return kickoff_submit(con, r["name"], kick, _agent_runtime(r), _agent_host_exe(con, r) == "hc",
+                          r["goal_id"], r["task_id"], confirm=False)
+
+
+def relaunch_fresh_from_tick(con, r):
+    """Close live agent row `r`'s pane and start it fresh through relaunch_agent (the path `factory relaunch --fresh`
+    and the queued relaunches use): same slot, new session id, new kickoff message. The caller checked the gate.
+    Returns None on success, else the error text; never raises."""
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(err), contextlib.redirect_stderr(err):
+            relaunch_agent(con, r, force=True, fresh=True)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
+        return (err.getvalue().strip() or str(e) or f"exit {getattr(e, 'code', '?')}")[-500:]
+    return None
+
+
+def _kickoff_escalate(con, r, kick_id, host, idle_s, why):
+    """The one escalation per kickoff: to the agent's org director (the boss for a director)."""
+    to = "boss" if r["role"] == "director" else "director"
+    event(con, "agent", r["name"], "kickoff-escalated",
+          {"kick": kick_id, "to": to, "idle_s": idle_s, "host": host, "pane": r["pane_id"]})
+    send(con, to, f"{r['name']}: kickoff never accepted",
+         f"{r['name']} ({r['role']}, runtime cursor) has not read its kickoff message M{kick_id}: pane {r['pane_id']}, "
+         f"backend {host}, {idle_s} s idle since its first kickoff. {why} The tick does nothing more for this agent. "
+         f"Look at the pane, then stop it (factory stop {r['name']} --now) and respawn, or reassign task {r['task_id'] or '-'}.",
+         "escalation", r["goal_id"], r["task_id"], sender="tick", org=agent_org(con, r["name"]))
+
+
+def tick_cursor_kickoff(con):
+    """T-1599: catch a cursor pane whose kickoff prompt was never submitted (docs/runtimes.md). For every live cursor
+    agent whose latest kickoff message is unread more than cursor_kickoff_grace_s after the spawn:
+    1. re-submit the kickoff once per pane (event kickoff-resent);
+    2. still unread one grace after the resend: one fresh relaunch per agent, behind the spawn gate (kickoff-relaunch);
+    3. the relaunched pane unread after its own resend and grace, or the relaunch failed: one escalation
+       (kickoff-escalated), then nothing.
+    State is the events, keyed by the kickoff message id; a relaunch is recognised by an event on the kickoff before
+    the current one. Rows being stopped, queued for a relaunch or still starting belong to those paths and are skipped,
+    so a pane has one owner. A pane the host reports working, or does not list, is left alone this tick.
+    Claude agents are never looked at."""
+    try:
+        grace = int(cfg(con, "cursor_kickoff_grace_s"))
+    except (TypeError, ValueError):
+        grace = int(DEFAULT_CONFIG["cursor_kickoff_grace_s"])
+    if grace <= 0:
+        return
+    clock = _ts(now())
+    relaunched = False
+    for r in con.execute("SELECT * FROM agents WHERE status='live' AND stop_requested_at IS NULL "
+                         "AND relaunch_requested_at IS NULL AND start_pending IS NULL").fetchall():
+        if _agent_runtime(r) != "cursor" or _spawn_args_row(r).get("launch") == "subprocess":
+            continue  # a headless subprocess has no pane to prompt or close
+        found = kickoff_unread(con, r["name"])
+        started = _ts(r["started"])
+        if not found or started is None or (clock - started).total_seconds() <= grace:
+            continue
+        k, prev = found
+        name, host = r["name"], _agent_host_exe(con, r)
+        seen = _kickoff_watch_state(con, name)
+        if k["id"] in seen["kickoff-escalated"]:
+            continue
+        listed = _host_list_row(con, name)
+        if not listed or listed.get("agent_status") == "working":
+            continue  # mid-turn: it accepted a prompt and may not have read its mail yet (r1); unlisted or host down: cannot decide
+        # a failed relaunch sent no new kickoff: a later spawn under the same name is a new agent with its own budget
+        after_relaunch = prev is not None and ((prev in seen["kickoff-relaunch"]
+                                                and prev not in seen["kickoff-relaunch-failed"])
+                                               or prev in _idle_watchdog_relaunch_kicks(con, name))
+        first = con.execute("SELECT created FROM messages WHERE id=?", (prev,)).fetchone() if after_relaunch else k
+        idle_s = int((clock - (_ts(first["created"]) or started)).total_seconds())
+        detail = {"kick": k["id"], "idle_s": idle_s, "host": host, "pane": r["pane_id"]}
+        if k["id"] in seen["kickoff-relaunch"]:  # a relaunch that left the row live without a new kickoff (e.g. a crash)
+            _kickoff_escalate(con, r, k["id"], host, idle_s, "A relaunch was started for it and did not finish.")
+            continue
+        resent = _ts(seen["kickoff-resent"].get(k["id"]))
+        if resent is None:
+            event(con, "agent", name, "kickoff-resent", {**detail, "prompt_ok": kickoff_resend(con, r, k["body"])})
+            continue
+        if (clock - resent).total_seconds() < grace:
+            continue
+        if after_relaunch:
+            _kickoff_escalate(con, r, k["id"], host, idle_s,
+                              "The kickoff was re-submitted, the pane relaunched fresh once and the kickoff re-submitted again.")
+            continue
+        if relaunched:
+            continue  # one relaunch per tick: each may wait for a TUI
+        ok, why, _ = gate(con, own_slot=True)  # the agent holds its slot; never close a pane the gate would queue
+        if not ok:
+            key = f"kickoff_relaunch_deferred:{name}"
+            last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+            if not last or time.time() - float(last["ts"]) >= 3600:
+                con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                            (key, str(time.time())))
+                event(con, "agent", name, "kickoff-relaunch-deferred", why)
+            continue
+        cur = con.execute("SELECT * FROM agents WHERE name=? AND status='live' AND stop_requested_at IS NULL "
+                          "AND relaunch_requested_at IS NULL", (name,)).fetchone()
+        if not cur:
+            continue  # a stop or a relaunch claimed the pane meanwhile
+        # the event first: a crash or failure must not loop the relaunch every minute
+        event(con, "agent", name, "kickoff-relaunch", {**detail, "old_sid": cur["session_id"]})
+        con.commit()
+        relaunched = True
+        msg = relaunch_fresh_from_tick(con, cur)
+        if msg:
+            event(con, "agent", name, "kickoff-relaunch-failed", {"kick": k["id"], "error": msg})
+            _kickoff_escalate(con, cur, k["id"], host, idle_s, f"The fresh relaunch failed: {msg}")
 
 
 # ───────────────────────────── lessons ─────────────────────────────
@@ -20680,6 +22616,10 @@ def cli_shadow(binary, argv, environ):
 
 
 def main():
+    forwarded_identity_gate(sys.argv[1:])  # no-op unless FACTORY_FORWARDED=1 (bin/factory checks it first as well)
+    # `factory config set <key> <value>` is the same write as `factory config <key> <value>` (G-057 names the set form).
+    if len(sys.argv) > 3 and sys.argv[1] == "config" and sys.argv[2] == "set" and not sys.argv[3].startswith("-"):
+        del sys.argv[2]
     mode, binary = cli_dispatch_mode(sys.argv)
     if mode == "shadow" and not cli_shadow_readonly(sys.argv):
         mode = "python"  # only read-only commands are shadowed: a write would run twice
@@ -20760,7 +22700,7 @@ def main():
     x = sp.add_parser("team"); x.add_argument("action", choices=["new", "list", "close", "reopen", "wake"]); x.add_argument("id", nargs="?")
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
-    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "tier"])
+    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "block", "tier"])
     x.add_argument("--full", action="store_true")
     x.add_argument("--classify", action="store_true", help="tier: compute the tier from the task's PR branch (needs risk_tiers=on)")
     x.add_argument("--base", default="origin/main"); x.add_argument("--head")
@@ -20771,12 +22711,15 @@ def main():
     x.add_argument("--note"); x.add_argument("--all", action="store_true")
     x.add_argument("--reason"); x.add_argument("--follow-up-of", dest="follow_up_of")
     x.add_argument("--waits", choices=TASK_WAITS, help="with --status blocked: owner (the owner must act) or internal (queue/freeze; default)")
+    x.add_argument("--on", action="append", dest="on", metavar="TOKEN",
+                   help="task block: typed condition token (repeatable)")
     x.add_argument("--merged-externally", dest="merged_externally", action="store_true",
                    help="with --status done --reason: close a coder task whose PR was merged outside the judge (director/owner; verified on GitHub)")
     x.add_argument("--sandbox-required", dest="sandbox_required", choices=["0", "1"],
                    help="task must run in the worker sandbox: spawn refuses it without --sandbox; the tick starts it sandboxed")
     x.add_argument("--judge-hold", dest="judge_hold",
-                   help="hold judge spawn on this task until cleared (lead, director, or owner)")
+                   help="hold judge spawn on this task until cleared (lead, director, or owner)"
+                        " (on a reviewer+QA PASS PR it expires after judge_hold_expiry_min unless the text names a boss decision: boss-approved M<id>)")
     x.add_argument("--judge-hold-clear", dest="judge_hold_clear", action="store_true",
                    help="clear the judge hold on this task (lead, director, or owner)")
     x.add_argument("--priority", type=int); x.set_defaults(fn=cmd_task)

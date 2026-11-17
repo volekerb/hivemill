@@ -857,3 +857,162 @@ class WaitEventTests(Base):
         self.env.seed_pr(checks=[{"__typename": "CheckRun", "name": "ci", "status": "IN_PROGRESS", "conclusion": ""}])
         self.assertEqual(self.tick_step(stub_pr=False, now=1_800_000_000), [])
         self.assertEqual([w["kind"] for w in self.waits()], ["ci"])
+
+
+class DependsOnTests(Base):
+    """T-1323: no reviewer/qa autospawn while a depends_on task is not done or the task is blocked."""
+
+    def dep(self, dep_status):
+        self.task("T-0009", status=dep_status, pr_url=None)
+        self.task("T-0001")
+        self.env.sql("UPDATE tasks SET depends_on=? WHERE id='T-0001'", (json.dumps(["T-0009"]),))
+
+    def skips(self):
+        return self.env.sql("SELECT detail FROM events WHERE entity_id='T-0001' AND action='review-autospawn-skip'")
+
+    def test_not_done_dependency_blocks_and_names_it(self):
+        self.on()
+        self.dep("in_progress")
+        self.assertEqual(self.tick_step(now=1_800_000_000), [])
+        self.assertIn("T-0009", self.skips()[0]["detail"])
+
+    def test_done_dependency_lets_autospawn_happen(self):
+        self.on()
+        self.dep("done")
+        calls = self.tick_step(now=1_800_000_000)
+        self.assertEqual([c["role"] for c in calls], ["reviewer", "qa"])
+        self.assertEqual(self.skips(), [])
+
+    def test_blocked_task_is_not_autospawned(self):
+        self.on()
+        self.task("T-0001", status="blocked")
+        self.assertEqual(self.tick_step(now=1_800_000_000), [])
+
+
+FACTORY_URL = "https://github.com/acme/factory/pull/9"
+WIDGET_URL = "https://github.com/acme/widgetapp/pull/7"
+OTHER_URL = "https://github.com/acme/other/pull/8"
+
+
+class ForeignRepoTests(Base):
+    """T-1675: the head-branch check of review/qa autospawn asks the task's PR repo, not the factory origin."""
+
+    def setUp(self):
+        super().setUp()
+        self.on()
+        self.env.sql("INSERT INTO projects(id,name,gh_repo,created) VALUES('dib','dib','acme/widgetapp','t')")
+        self.env.sql("INSERT INTO projects(id,name,gh_repo,created) VALUES('oth','oth','acme/other','t')")
+        self.env.sql("INSERT INTO projects(id,name,gh_repo,created) VALUES('hm','hm','acme/factory','t')")
+        self.remotes = {}  # ls-remote target -> {branch: sha} or None (unreadable)
+        self.ls = []  # (target, repo, ref pattern) per ls-remote call
+
+    def seed(self, tid, url, project, branch=None):
+        n = int(tid.split("-")[1])
+        goal = f"G-{project}"
+        if not self.env.sql("SELECT 1 FROM goals WHERE id=?", (goal,)):
+            self.env.seed_goal(goal, project=project)
+        self.env.seed_task(tid, goal=goal, pr_url=url, team=TEAM)
+        self.env.sql("UPDATE tasks SET branch=? WHERE id=?", (branch or f"factory/t-{n:04d}", tid))
+        self.env.seed_pr(url=url)
+
+    def run_tick(self, rerun=False):
+        calls = []
+        with self.env.load_factory() as f:
+            con = f.db()
+            real = f._git_rc
+
+            def fake_git(args, timeout=60, env=None, input=None, repo=None):
+                if args[:1] == ["ls-remote"]:
+                    self.ls.append((args[2], repo, args[-1]))
+                    heads = self.remotes.get(args[2])
+                    if heads is None:
+                        return 128, "", "unreadable"
+                    pat = args[-1]
+                    out = [f"{sha}\trefs/heads/{b}" for b, sha in heads.items()
+                           if pat == f"refs/heads/{b}" or (pat.endswith("/*") and b.startswith(pat[len("refs/heads/"):-1]))]
+                    return 0, "\n".join(out), ""
+                return real(args, timeout=timeout, env=env, input=input, repo=repo)
+
+            f._git_rc = fake_git
+            f._origin_urls = lambda: ["https://github.com/acme/factory.git"]
+            f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": H1, "statusCheckRollup": GREEN}
+            f.spawn = lambda con, role, goal=None, team=None, task=None, name=None, prompt=None, **kw: (
+                calls.append((role, task)),
+                con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,started) VALUES(?,?,?,?,?,'live','t')",
+                            (name, role, goal, team, task)))
+            f.gate = lambda con, **k: (True, "", {})
+            (f.review_rerun_tick if rerun else f.review_autospawn_tick)(con)
+            con.commit()
+        return calls
+
+    def events(self, action):
+        return [r["detail"] for r in self.env.sql("SELECT detail FROM events WHERE action=?", (action,))]
+
+    DIB = "https://github.com/acme/widgetapp.git"
+
+    def test_foreign_repo_branch_found_on_project_remote_spawns_review(self):
+        self.seed("T-0001", WIDGET_URL, "dib")
+        self.remotes = {"origin": {}, self.DIB: {"factory/t-0001": H1}}
+        self.assertEqual(sorted(c[0] for c in self.run_tick()), ["qa", "reviewer"])
+        self.assertEqual(self.events("review-autospawn-skip"), [])
+        self.assertEqual(self.ls, [(self.DIB, None, "refs/heads/factory/*")])  # https form: no repo_path checkout
+
+    def test_rerun_reads_foreign_head_from_the_project_remote(self):
+        self.seed("T-0001", WIDGET_URL, "dib")
+        self.env.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", team=TEAM, task="T-0001", status="exited")
+        self.env.seed_agent("qa-t-0001", "qa", goal="G-001", team=TEAM, task="T-0001", status="exited")
+        self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
+                     "VALUES('T-0001','u',?,'reviewer','fail','s','a','t')", (H1,))
+        self.remotes = {"origin": {}, self.DIB: {"factory/t-0001": H2}}
+        self.run_tick(rerun=True)
+        self.assertEqual(self.events("review-autospawn-skip"), [])
+        self.assertEqual(self.ls[0][0], self.DIB)  # head_known: the head came from widgetapp, no origin lookup
+
+    def test_factory_repo_keeps_one_origin_ls_remote_for_several_prs(self):
+        self.seed("T-0001", FACTORY_URL, "hm")
+        self.seed("T-0002", FACTORY_URL.replace("/9", "/10"), "hm")
+        self.seed("T-0003", FACTORY_URL.replace("/9", "/11"), "hm")
+        self.remotes = {"origin": {"factory/t-0001": H1, "factory/t-0002": H1, "factory/t-0003": H1}}
+        self.assertEqual(len(self.run_tick()), 6)
+        self.assertEqual(self.ls, [("origin", None, "refs/heads/factory/*")])  # one call, origin, in HOME
+
+    def test_one_ls_remote_per_foreign_repo(self):
+        self.seed("T-0001", WIDGET_URL, "dib")
+        self.seed("T-0002", WIDGET_URL.replace("/7", "/70"), "dib")
+        self.seed("T-0003", OTHER_URL, "oth")
+        oth = "https://github.com/acme/other.git"
+        self.remotes = {self.DIB: {"factory/t-0001": H1, "factory/t-0002": H1}, oth: {"factory/t-0003": H1}}
+        self.assertEqual(len(self.run_tick()), 6)
+        self.assertEqual(sorted(c[0] for c in self.ls), sorted([self.DIB, oth]))
+
+    def test_unreadable_foreign_remote_fails_closed(self):
+        self.seed("T-0001", WIDGET_URL, "dib")
+        self.remotes = {"origin": {"factory/t-0001": H1}, self.DIB: None}
+        self.assertEqual(self.run_tick(), [])
+        self.assertEqual(self.events("review-autospawn-skip"), [])
+        self.assertEqual(len(self.events("review-autospawn-error")), 1)
+
+    def test_project_checkout_is_used_when_its_origin_is_the_pr_repo(self):
+        import tempfile
+        from pathlib import Path
+        d = Path(tempfile.mkdtemp(prefix="zz-test-proj-"))
+        (d / ".git").mkdir()
+        self.env.sql("UPDATE projects SET repo_path=? WHERE id='dib'", (str(d),))
+        self.seed("T-0001", WIDGET_URL, "dib")
+        self.remotes = {"origin": {"factory/t-0001": H1}}
+        with self.env.load_factory() as f:
+            con = f.db()
+            real = f._git_rc
+            f._git_rc = lambda args, **kw: (0, "ssh://github.com/acme/widgetapp.git", "") if args[:2] == ["remote", "get-url"] and kw.get("repo") == str(d) else real(args, **kw)
+            t = con.execute("SELECT * FROM tasks WHERE id='T-0001'").fetchone()
+            b = f._RepoBatch()
+            f._origin_urls = lambda: ["https://github.com/acme/factory.git"]
+            sub, kw = f._review_remote(con, t, b)
+        self.assertEqual(kw, {"remote": (str(d), "origin")})
+
+    def test_project_without_gh_repo_keeps_origin(self):
+        self.seed("T-0001", FACTORY_URL, "hm")
+        self.env.sql("UPDATE projects SET gh_repo=NULL WHERE id='hm'")
+        self.remotes = {"origin": {"factory/t-0001": H1}}
+        self.assertEqual(len(self.run_tick()), 2)
+        self.assertEqual(self.ls, [("origin", None, "refs/heads/factory/*")])
