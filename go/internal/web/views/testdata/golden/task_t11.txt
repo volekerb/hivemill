@@ -1,0 +1,22 @@
+# /task/T-11
+TEXT
+[SC1] é ünïcode 日本 spaced - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources [SC1] é ünïcode 日本 spaced All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Tasks / T-11 Done · G-002 · tm-c · cursor-coder-t-11 · PR · CI passed Cost: not available. The Cursor CLI reports no token counts. Verdicts CI passed · Judge merged Judge merged · <TS> Total time 2d 1h Rejections 0 Attempts 1 Lifecycle Stage Duration Share queued - unknown coding - unknown judge - unknown total 2d 1h 100% Cost and tokens Estimated at list prices as of 2026-10-25 (API-equivalent, not a bill) No tokens attributed to this task. Rework: none (no rejections) PR cycle Attempt 1 merged · 2d 0h <TS> PR opened cursor-coder-t-11 <TS> Judge merged cursor-judge @1111 +2d 0h <TS> Merged cursor-judge +0s Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-002
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-11
+a:/task/T-11?org=claude
+a:/task/T-11?org=cursor
+a:/tasks
+a:/throughput
+a:/tokens
