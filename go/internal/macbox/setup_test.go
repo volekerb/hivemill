@@ -283,3 +283,33 @@ func TestUninstallRemovesIntermediateSearch(t *testing.T) {
 		t.Error("setup does not grant search on dirs between home and factory")
 	}
 }
+
+func TestUninstallWarnsAndSkipsACLWhenFactoryResolvesOutsideOwnerHome(t *testing.T) {
+	un := mustUninstall(t)
+	warn := "not strictly inside owner home $HOME_REAL; skipping ACL undo"
+	if !strings.Contains(un, warn) {
+		t.Errorf("uninstall lacks warning %q", warn)
+	}
+	if strings.Contains(un, "not strictly inside owner home $HOME_REAL; refusing") {
+		t.Error("uninstall still aborts when factory home resolves outside owner home")
+	}
+	if !strings.Contains(un, `if [ "$ACL_OK" -eq 1 ]; then`) {
+		t.Error("uninstall does not gate ACL undo on resolved paths")
+	}
+	for _, w := range []string{
+		`echo "undo step sudoers:`,
+		`echo "undo step launcher:`,
+		`echo "undo step accounts:`,
+		"rm -f /etc/sudoers.d/hivemill",
+		`rm -f "$LAUNCHER"`,
+		`dscl . -delete "/Users/$u"`,
+	} {
+		if !strings.Contains(un, w) {
+			t.Errorf("uninstall lacks %q", w)
+		}
+	}
+	setup := mustSetup(t)
+	if !strings.Contains(setup, "not strictly inside owner home $HOME_REAL; refusing") {
+		t.Error("setup must still refuse when factory home resolves outside owner home")
+	}
+}
