@@ -1,0 +1,5 @@
+#!/bin/sh
+# Fake node: logs its arguments and exits with $FAKE_NODE_EXIT (default 0).
+[ -n "$VERIFY_TEST_LOG" ] && echo "$*" >> "$VERIFY_TEST_LOG"
+[ "${FAKE_NODE_EXIT:-0}" != 0 ] && echo "node failed" >&2
+exit "${FAKE_NODE_EXIT:-0}"
