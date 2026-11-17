@@ -19313,6 +19313,102 @@
       "note": "T-1142: T-0908 coder git runners (mirror Go guard)",
       "cmd": "git bisect run pytest -q",
       "role": "coder"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git fetch $(echo --upload-pack=x) origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git fetch `echo --upload-pack=x` origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git fetch ${X} origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git fetch $'--output=x' origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git fetch {--output=x,y} origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git show $(echo --upload-pack=x) origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git show `echo --upload-pack=x` origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git show ${X} origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git show $'--output=x' origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git show {--output=x,y} origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git log $(echo --upload-pack=x) origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git log `echo --upload-pack=x` origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git log ${X} origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git log $'--output=x' origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git log {--output=x,y} origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git diff $(echo --upload-pack=x) origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git diff `echo --upload-pack=x` origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git diff ${X} origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git diff $'--output=x' origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git diff {--output=x,y} origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git $(echo log)"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git `echo log`"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "bash -c 'git fetch $(echo --upload-pack=x) origin'"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "bash -c 'git log `echo --output=x`'"
     }
   ],
   "must_allow": [
@@ -23939,6 +24035,22 @@
       "note": "T-1142: T-0908 coder git runners (mirror Go guard)",
       "cmd": "echo x | xargs git status",
       "role": "coder"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git log --format='%h %s'"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git diff origin/main...HEAD"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git fetch origin"
+    },
+    {
+      "note": "T-0206: worker-mode git expansion options",
+      "cmd": "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\""
     }
   ]
 }
