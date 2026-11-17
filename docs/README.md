@@ -35,6 +35,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 ## Operate it
 
 - [operations.md](operations.md): recovery after a VM reboot and how an agent's identity is decided.
+- [darwin-python-branches.md](darwin-python-branches.md): the macOS branches of the Python CLI (detached runs, serve pid file, memory/tmp/ps reads) and `tick --deadline`.
 - [state-branch.md](state-branch.md): the generated `state` branch that export commits to.
 - [state-load.md](state-load.md): build a temp DB, events included, from a `state/` directory with `ci/state_load.py`.
 - [db-layout.md](db-layout.md): where the live database sits and why it has its own directory.

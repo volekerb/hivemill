@@ -22,6 +22,7 @@ import traceback
 import warnings
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import _gitenv  # hermetic git: tests/_gitenv.py
 import _slot
@@ -715,10 +716,67 @@ class FactoryEnv:
         shutil.rmtree(self.home, ignore_errors=True)
 
 
+# T-1568 (G-049 SC3): helpers for darwin platform branches in bin/factory_cli.py (patched on Linux).
+DARWIN_VM_STAT = """Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                               10000.
+Pages active:                             50000.
+Pages inactive:                           20000.
+Pages speculative:                         2000.
+Pages wired down:                         30000.
+"""
+DARWIN_PS_SAMPLE = """    1     0     0 Sat Nov 15 08:00:00 2026 /sbin/launchd
+  500     1   501 Sat Nov 15 09:30:01 2026 /opt/homebrew/bin/python3 /Users/x/factory/bin/factory serve
+  600   500   501 Sat Nov 15 09:31:02 2026 /usr/local/bin/claude --settings /h/settings/coder.json --resume abc
+  700     1   501 Sun Nov 16 10:00:00 2026 node /usr/local/bin/claude --session-id s1
+"""
+DARWIN_START_500 = "Sat Nov 15 09:30:01 2026"
+
+
+def _darwin_cp(out="", rc=0):
+    return unittest.mock.Mock(returncode=rc, stdout=out, stderr="")
+
+
+class DarwinSubprocessRunner:
+    """Fake subprocess.run for darwin branch tests; passes unknown commands to the real run."""
+
+    def __init__(self, ps=DARWIN_PS_SAMPLE, vm=DARWIN_VM_STAT, level="1", stat_t="apfs\n", top="  2048 /usr/bin/big\n"):
+        self.ps, self.vm, self.level, self.stat_t, self.top = ps, vm, level, stat_t, top
+        self.calls = []
+        self.real = subprocess.run
+
+    def __call__(self, cmd, *a, **kw):
+        self.calls.append(list(cmd) if isinstance(cmd, (list, tuple)) else cmd)
+        name = cmd[0] if isinstance(cmd, (list, tuple)) else ""
+        if name == "ps":
+            if "rss=,command=" in cmd:
+                return _darwin_cp(self.top)
+            return _darwin_cp(self.ps, 0) if self.ps is not None else _darwin_cp("", 1)
+        if name == "vm_stat":
+            return _darwin_cp(self.vm, 0) if self.vm is not None else _darwin_cp("", 1)
+        if name == "sysctl":
+            return _darwin_cp(self.level + "\n", 0) if self.level is not None else _darwin_cp("", 1)
+        if name == "stat":
+            return _darwin_cp(self.stat_t, 0)
+        if name in ("systemctl", "systemd-run"):
+            raise AssertionError(f"{name} must not run on darwin: {cmd}")
+        return self.real(cmd, *a, **kw)
+
+    def named(self, name):
+        return [c for c in self.calls if c and c[0] == name]
+
+
 class FactoryTestCase(unittest.TestCase):
     def __init_subclass__(cls, **kw):
         super().__init_subclass__(**kw)
         _slot.note_module(cls.__module__)  # a full-suite run waits here, at load time, for a host-wide test slot
+
+    @contextlib.contextmanager
+    def darwin_platform(self, runner=None, **env):
+        """Patch sys.platform to darwin and stub subprocess.run for in-process factory_cli tests."""
+        runner = runner or DarwinSubprocessRunner()
+        with mock.patch.dict(os.environ, env), self.env.load_factory() as mod:
+            with mock.patch.object(mod.sys, "platform", "darwin"), mock.patch.object(mod.subprocess, "run", runner):
+                yield mod, runner
 
     INPROC = False  # True: env.run() calls bin/factory in-process (see FactoryEnv.run_inproc); inproc=False opts one call out
 
