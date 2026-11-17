@@ -4528,10 +4528,25 @@ def sender_org_for(con, role, to, goal=None, task=None):
     return org_for(con, goal, task, actor())
 
 
+def coder_done_escalation_ok(con, role, a):
+    """T-1627: the exit of a refused `factory done`. A coder may escalate ONLY its own task (--task) and ONLY up its own
+    chain: lead:<its team>, its lead's name, or the director. Nothing else a worker sends changes."""
+    if role != "coder":
+        return False
+    me = con.execute("SELECT task_id, team_id FROM agents WHERE name=?", (actor(),)).fetchone()
+    if not me or not me["task_id"] or a.task != me["task_id"]:
+        return False
+    ups = {"director", "lead:" + (me["team_id"] or "")}
+    lead = con.execute("SELECT lead_agent FROM teams WHERE id=?", (me["team_id"],)).fetchone() if me["team_id"] else None
+    if lead and lead["lead_agent"]:
+        ups.add(lead["lead_agent"])
+    return a.to in ups
+
+
 def cmd_msg(a):
     con = db()
     role = actor_role(con)
-    if a.kind == "escalation" and role not in ("owner", "director", "boss", "lead"):
+    if a.kind == "escalation" and role not in ("owner", "director", "boss", "lead") and not coder_done_escalation_ok(con, role, a):
         die("only leads, the director and the boss escalate; message your lead instead", 3)
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
@@ -5533,7 +5548,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
     """Poll the PR while its only non-green checks are pending (`judge_ci_wait_s`). With `new_head` (just pushed by a
     refresh) it first waits for GitHub to report that head, and for its checks to appear (required ones, or any when the
     old head had some): an empty rollup right after a push is not green. Returns (pr, seconds waited)."""
-    local = gate_project_for(con, url) is not None  # T-0516: the gate is gate_runs, GitHub checks need not exist
+    proj = gate_project_for(con, url)  # T-0516: the gate is gate_runs, GitHub checks need not exist
+    local = proj is not None
 
     def waiting(pr):
         if new_head:
@@ -5541,7 +5557,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
                 return f"PR head still {pr['headRefOid'][:8]}, waiting for {new_head[:8]}"
             if not local and (missing_checks(con, pr, url) or (had_checks and not pr.get("statusCheckRollup"))):
                 return "checks of the new head not started"
-        bad = checks_ok(pr)
+        # T-1634: in local mode only the project's required_checks are waited for; other pending checks never block
+        bad = local_checks_problems(proj, pr) if local else checks_ok(pr)
         return ", ".join(bad) if _judge_pending(bad) else ""
 
     what = waiting(pr)
@@ -6486,7 +6503,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append("PR is a draft")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
-        bad = checks_ok(pr)
+        bad = local_checks_problems(proj, pr) if proj else checks_ok(pr)  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -12093,6 +12110,63 @@ def ci_green_on_head(con, head, pr_url):
     return True, "all checks SUCCESS"
 
 
+DONE_EXIT_STEPS = ("the way out: (1) `factory task update {t} --status in_review` (or `--status blocked` with a reason when the head is "
+                   "unpushed and held, e.g. 'no merge until PR x' / owner push needed); (2) `factory msg lead:{team} '<why>' "
+                   "--kind escalation --task {t}` (the director when there is no lead), sent AFTER the status change and after this refusal; (3) run `factory done` again: it is "
+                   "accepted once both exist and the message is newer than this refusal")
+
+
+def done_exit_hint(r):
+    return DONE_EXIT_STEPS.format(t=r["task_id"], team=r["team_id"] or "<team>")
+
+
+def done_head(con, r):
+    row = con.execute("SELECT worktree FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+    wt = row and row["worktree"]
+    rc, head = _git_out(wt, "rev-parse", "HEAD") if wt and Path(wt).is_dir() else (1, "")
+    return head if rc == 0 and head else None
+
+
+def done_record_refusal(con, r, why, gate):
+    """Log the refusal (task, head, why): a later escalation must be newer than it, for the same head."""
+    head = done_head(con, r)
+    if head:
+        event(con, "task", r["task_id"], "refused-done", {"head": head, "gate": gate, "why": why[:200]})
+        con.commit()
+
+
+def done_escalation_exit(con, r, gate):
+    """True when this coder already took the exit for the CURRENT head: the task is in_review or blocked and an
+    escalation from it to its lead (or a director) for this task is newer than the latest refused-done on that head."""
+    head = done_head(con, r)
+    t = con.execute("SELECT status FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+    if not head or not t or t["status"] not in ("in_review", "blocked"):
+        return False
+    refused = None
+    for e in con.execute("SELECT detail, ts FROM events WHERE entity='task' AND entity_id=? AND action='refused-done' ORDER BY id DESC",
+                         (r["task_id"],)):
+        try:
+            d = json.loads(e["detail"])
+            if d.get("head") != head or d.get("gate") != gate:
+                continue
+        except (TypeError, ValueError, AttributeError):
+            continue
+        refused = _ts(e["ts"])
+        break
+    if not refused:
+        return False
+    lead = con.execute("SELECT lead_agent FROM teams WHERE id=?", (r["team_id"],)).fetchone() if r["team_id"] else None
+    ups = {x["name"] for x in con.execute("SELECT name FROM agents WHERE role='director'")}
+    if lead and lead["lead_agent"]:
+        ups.add(lead["lead_agent"])
+    for m in con.execute("SELECT recipient, created FROM messages WHERE sender=? AND task_id=? AND kind='escalation'",
+                         (r["name"], r["task_id"])):
+        ts = _ts(m["created"])
+        if m["recipient"] in ups and ts and ts > refused:
+            return True
+    return False
+
+
 def prcheck_done_refusal(con, r, t):
     """With config prcheck_required=1, a coder's `factory done` on a task that has a PR needs a passing prcheck on the
     worktree's current HEAD. Cannot read HEAD or the record = refuse."""
@@ -12131,8 +12205,10 @@ def prcheck_done_refusal(con, r, t):
     if ok:
         print(f"factory: prcheck accepted via green CI on PR head {head[:9]} ({why})", file=sys.stderr)
         return
-    die(f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
-        "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
+    msg = (f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
+           "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)")
+    done_record_refusal(con, r, msg, "prcheck")
+    die(f"{msg}. If it cannot pass, {done_exit_hint(r)}", 3)
 
 
 JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject", "judge-reject-status-only")  # what cmd_judge records
@@ -12190,11 +12266,16 @@ def cmd_done(a):
     if r["role"] == "coder" and r["task_id"]:
         dirty, untracked, unpushed, ci = coder_done_findings(con, r, a.force)
         found = []
+        escalated = False
+        if unpushed and not dirty and done_escalation_exit(con, r, "unpushed"):
+            unpushed, escalated = None, True  # exit taken: the unpushed head is now the lead's call
         if dirty:
             found.append("uncommitted tracked changes: " + ", ".join(dirty[:10]))
         if unpushed:
             found.append(unpushed)
         if found and not a.force:
+            if unpushed and not dirty:
+                done_record_refusal(con, r, unpushed, "unpushed")
             for f in found:
                 print(f"factory: {f}", file=sys.stderr)
             if dirty:
@@ -12202,12 +12283,22 @@ def cmd_done(a):
             if unpushed:
                 print(f"push your commits (git push origin HEAD:factory/{r['task_id'].lower()}), then run factory done again",
                       file=sys.stderr)
+                if not dirty:
+                    print(f"factory: if the push is held (spec says no merge until PR x, owner push needed), {done_exit_hint(r)}",
+                          file=sys.stderr)
             sys.exit(3)
         # a fix-round coder is already in_review and never sets it again: same body gate as the in_review transition
         t = con.execute("SELECT status, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
         if t and t["status"] == "in_review" and t["pr_url"]:
             require_acceptance_walk(t["pr_url"])
-        prcheck_done_refusal(con, r, t)
+        if not escalated and done_escalation_exit(con, r, "prcheck"):
+            escalated = True  # a prcheck refusal on this head was logged, then the exit was taken
+        if not escalated:
+            prcheck_done_refusal(con, r, t)
+        else:
+            head = done_head(con, r)
+            event(con, "task", r["task_id"], "done-after-escalation", {"head": head, "status": t["status"] if t else None})
+            summary += f"\n\nNOTE: done accepted after escalation: refused on head {(head or '')[:9]}, task is {t['status'] if t else '?'}, escalation sent."
         unclean = "; ".join(found)
         if untracked:
             print("WARNING: untracked files left in the worktree: " + ", ".join(untracked[:10]), file=sys.stderr)
@@ -14794,6 +14885,33 @@ def gate_project_for(con, pr_url):
     return r if r and (r["gate_cmd"] or "").strip() else None
 
 
+def local_required_checks(proj):
+    """T-1634: the GitHub check names a local-mode project still needs green: its own projects.required_checks only (the
+    global config required_checks is not a fallback here, so '' keeps the T-0516 behaviour: no check is required)."""
+    return [n for n in dict.fromkeys(x.strip() for x in (proj["required_checks"] or "").split(",")) if n]
+
+
+def local_checks_problems(proj, pr):
+    """T-1634: checks_ok for a local-mode project. The local gate replaces the heavy GitHub jobs, so a check that is still
+    pending (queued, in progress) does not block unless it is named in the project's required_checks; a red (completed,
+    not SUCCESS/SKIPPED/NEUTRAL) check always does, and a required check absent from the head's rollup is reported missing.
+    Same `name=STATE` format as checks_ok, plus `required check <n> missing`."""
+    req = local_required_checks(proj)
+    latest = latest_checks(pr.get("statusCheckRollup"))
+    bad = []
+    for c in latest:
+        name = c.get("name") or c.get("context")
+        concl = (c.get("conclusion") or c.get("state") or "").upper()
+        if concl in ("SUCCESS", "SKIPPED", "NEUTRAL"):
+            continue
+        label = concl or c.get("status")
+        if (label or "").upper() in PENDING_CHECK_STATES and name not in req:
+            continue
+        bad.append(f"{name}={label}")
+    seen = {c.get("name") or c.get("context") for c in latest}
+    return bad + [f"required check {n} missing" for n in req if n not in seen]
+
+
 def gate_run_for_head(con, pr_url, sha):
     return con.execute("SELECT * FROM gate_runs WHERE kind='pr' AND pr_url=? AND head_sha=? ORDER BY id DESC LIMIT 1",
                        (pr_url, sha)).fetchone()
@@ -14894,7 +15012,7 @@ def tick_gate(con):
 def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     """judge_pr_ready for a local-mode project: (ready, why) from gate_runs of the PR's current head."""
     try:
-        pr = gh_json("pr", "view", pr_url, "--json", "headRefOid,mergeStateStatus,state", timeout=30)
+        pr = gh_json("pr", "view", pr_url, "--json", "headRefOid,mergeStateStatus,state,statusCheckRollup", timeout=30)
         sha = pr["headRefOid"]
     except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
         return False, f"gh check failed: {e}"
@@ -14915,6 +15033,10 @@ def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     if r["status"] != "pass":
         gate_notify_fail(con, pr_url, r)
         return False, f"local gate run #{r['id']} {r['status']} on {sha[:8]}"
+    if local_required_checks(proj):  # T-1634: the named GitHub checks (e.g. smoke) green on this head, as the judge needs
+        bad = local_checks_problems(proj, pr)
+        if bad:
+            return False, "CI not green: " + ", ".join(bad)
     if (pr.get("mergeStateStatus") or "").upper() in ("BEHIND", "DIRTY"):
         return (True, "PR is BEHIND") if behind_ok and pr["mergeStateStatus"].upper() == "BEHIND" \
             else (False, f"PR is {pr['mergeStateStatus']}")
