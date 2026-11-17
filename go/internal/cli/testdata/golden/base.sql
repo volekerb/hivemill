@@ -200,6 +200,7 @@ INSERT INTO "config"("key","value") VALUES('affected_smoke','test_db_layout.py t
 INSERT INTO "config"("key","value") VALUES('test_slots','2');
 INSERT INTO "config"("key","value") VALUES('min_mem_available_mb','1024');
 INSERT INTO "config"("key","value") VALUES('ci_wake_workers','4');
+INSERT INTO "config"("key","value") VALUES('gh_call_trace','off');
 INSERT INTO "config"("key","value") VALUES('pr_view_ttl_s','120');
 INSERT INTO "config"("key","value") VALUES('gh_quota_min','300');
 INSERT INTO "config"("key","value") VALUES('red_pr_owner_alert','0');

@@ -29,6 +29,7 @@ var DefaultConfig = []ConfigDefault{
 	{"test_slots", "2"},
 	{"min_mem_available_mb", "1024"},
 	{"ci_wake_workers", "4"},
+	{"gh_call_trace", "off"},
 	{"pr_view_ttl_s", "120"},
 	{"gh_quota_min", "300"},
 	{"red_pr_owner_alert", "0"},

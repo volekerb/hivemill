@@ -84,7 +84,7 @@ var flagNames = []string{
 	"tick_async_start", "lead_wake_debounce_s", "tick_phase_timers", "orphan_reap_mode", "scout_enabled",
 	"gate_fast_projects", "issue_intake_repos", "cursor_pilot_roles", "agent_runtimes",
 	"red_pr_owner_alert", "coder_ci_handoff", "idle_coder_reap", "idle_watchdog", "judge_wait_main_run",
-	"owner_alert_feed", "owner_alert_send",
+	"owner_alert_feed", "owner_alert_send", "gh_call_trace",
 }
 
 var baselineOn = map[string]bool{"git_push": true, "stale_policy": true, "scout_enabled": true, "gate_fast_projects": true}
