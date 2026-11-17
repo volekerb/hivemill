@@ -371,6 +371,48 @@ func runGo(t sink, c goldenCase) (goOutcome, error) {
 	return o, nil
 }
 
+// knownKeysPlaceholder stands for the live config key list in a golden stderr: "factory: unknown key K; known:
+// k1, k2, ...". The list changes with every new config key, so it is not stored; the golden keeps the exact
+// prefix and this placeholder, and the list itself is checked as a set against DefaultConfig (T-1646).
+const knownKeysPlaceholder = "<DEFAULT_CONFIG keys>"
+
+var unknownKeyStderr = regexp.MustCompile(`^(factory: unknown key [^;\n]*; known: )([^\n]*)(\n)$`)
+
+// normaliseKnownKeys replaces the key list in an unknown-key stderr by the placeholder after checking that the
+// list is exactly the set of keys (in any order, no duplicates). Any other stderr is returned unchanged.
+func normaliseKnownKeys(stderr string, keys []string) (string, error) {
+	m := unknownKeyStderr.FindStringSubmatch(stderr)
+	if m == nil {
+		return stderr, nil
+	}
+	got := strings.Split(m[2], ", ")
+	if len(got) != len(keys) {
+		return "", fmt.Errorf("unknown-key stderr lists %d keys, DEFAULT_CONFIG has %d", len(got), len(keys))
+	}
+	want := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		want[k] = true
+	}
+	for _, k := range got {
+		if !want[k] {
+			return "", fmt.Errorf("unknown-key stderr lists %q, not a DEFAULT_CONFIG key", k)
+		}
+		delete(want, k)
+	}
+	if len(want) != 0 {
+		return "", fmt.Errorf("unknown-key stderr misses DEFAULT_CONFIG keys (duplicates in the list)")
+	}
+	return m[1] + knownKeysPlaceholder + m[3], nil
+}
+
+func defaultConfigKeys() []string {
+	keys := make([]string, len(DefaultConfig))
+	for i, e := range DefaultConfig {
+		keys[i] = e.Key
+	}
+	return keys
+}
+
 func checkGoldenCase(t sink, c goldenCase) error {
 	t.Helper()
 	o, err := runGo(t, c)
@@ -403,7 +445,11 @@ func checkGoldenCase(t sink, c goldenCase) error {
 	if o.execs != 0 {
 		return fmt.Errorf("%s: handed over to python (%q), want Go to answer; create a `delegate` file if that is intended", c.name, o.exec.argv)
 	}
-	files := []struct{ file, got string }{{"stdout", o.stdout}, {"stderr", o.stderr}, {"code", strconv.Itoa(o.code) + "\n"}}
+	gotStderr, err := normaliseKnownKeys(o.stderr, defaultConfigKeys())
+	if err != nil {
+		return fmt.Errorf("%s %v: %w", c.name, c.args, err)
+	}
+	files := []struct{ file, got string }{{"stdout", o.stdout}, {"stderr", gotStderr}, {"code", strconv.Itoa(o.code) + "\n"}}
 	if o.writes {
 		files = append(files, struct{ file, got string }{"db.diff", o.dbDiff})
 	}
@@ -637,7 +683,11 @@ func updateCase(t *testing.T, root, checkout, procDir string, c goldenCase) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := map[string]string{"stdout": r.stdout, "stderr": r.stderr, "code": strconv.Itoa(r.code) + "\n"}
+	pyStderr, err := normaliseKnownKeys(r.stderr, defaultConfigKeys())
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]string{"stdout": r.stdout, "stderr": pyStderr, "code": strconv.Itoa(r.code) + "\n"}
 	if c.writes {
 		after, err := dumpDB(path)
 		if err != nil {
@@ -938,5 +988,53 @@ func TestTrace(t *testing.T) {
 	}
 	if got := parseStmt("BEGIN IMMEDIATE"); got != (Stmt{Verb: "BEGIN"}) {
 		t.Fatalf("BEGIN parsed as %v", got)
+	}
+}
+
+func unknownKeyErr(prefixKey string, keys []string) string {
+	return "factory: unknown key " + prefixKey + "; known: " + strings.Join(keys, ", ") + "\n"
+}
+
+// A new config key must not change any golden file: the stored stderr has the placeholder, and the normalised
+// output is identical whatever the key list (T-1646 acceptance 1).
+func TestGoldenKnownKeysStableWhenKeyAdded(t *testing.T) {
+	keys := defaultConfigKeys()
+	stored, err := os.ReadFile(filepath.Join(goldenDir, "s1", "config_unknown_key", "stderr"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := normaliseKnownKeys(unknownKeyErr("no_such_key", keys), keys)
+	if err != nil || before != string(stored) {
+		t.Fatalf("live output %q (%v) != stored golden %q", before, err, stored)
+	}
+	more := append(append([]string{}, keys...), "zz_fake_new_key")
+	after, err := normaliseKnownKeys(unknownKeyErr("no_such_key", more), more)
+	if err != nil || after != before {
+		t.Fatalf("adding a key changed the normalised stderr: %q (%v) vs %q", after, err, before)
+	}
+}
+
+// A changed prefix, a missing/foreign key or a non-unknown-key stderr is not hidden by the normalisation
+// (acceptance 2).
+func TestGoldenKnownKeysStillStrict(t *testing.T) {
+	keys := []string{"a", "b", "c"}
+	good, err := normaliseKnownKeys(unknownKeyErr("x", keys), keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bad, _ := normaliseKnownKeys(unknownKeyErr("y", keys), keys); bad == good {
+		t.Fatalf("a different key name in the prefix compares equal: %q", bad)
+	}
+	other, _ := normaliseKnownKeys(strings.Replace(unknownKeyErr("x", keys), "factory: unknown key", "factory: bad key", 1), keys)
+	if other == good {
+		t.Fatalf("a changed message prefix compares equal: %q", other)
+	}
+	for name, list := range map[string][]string{"missing": {"a", "b"}, "foreign": {"a", "b", "zz"}, "dup": {"a", "b", "b"}, "extra": {"a", "b", "c", "d"}} {
+		if _, err := normaliseKnownKeys(unknownKeyErr("x", list), keys); err == nil {
+			t.Errorf("%s: key list differing from DEFAULT_CONFIG was accepted", name)
+		}
+	}
+	if s, err := normaliseKnownKeys("factory: other\n", keys); err != nil || s != "factory: other\n" {
+		t.Fatalf("other stderr must pass through: %q %v", s, err)
 	}
 }

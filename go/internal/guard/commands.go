@@ -758,7 +758,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	if name == "factory" || si >= 0 || (in(Shells, name) && firstNonOptBase(rest) == "factory") {
 		a.ranFactory = true
 	}
-	if IsDynamic(w, !inLoose) {
+	tcTool, tcLook, tcOK := "", false, false
+	if in(tcRoles, a.Role) && !a.HQ {
+		tcTool, tcLook, tcOK = tcKind(w)
+	}
+	if IsDynamic(w, !inLoose) && !(tcOK && reTcHomeWord.MatchString(w)) {
 		return &DynamicBlock{Msg: "dynamic command word " + pyRepr(w) + " could expand to herdr, hc or claude"}
 	}
 	if IsHerdr(w) {
@@ -779,6 +783,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	}
 	if err := factoryInitLiveHome(name, rest); err != nil {
 		return err
+	}
+	if tcOK {
+		if err := a.goToolchain(tcTool, tcLook, rest, assigns); err != nil {
+			return err
+		}
 	}
 	if err := a.cfgWrite(name, rest); err != nil {
 		return err

@@ -588,5 +588,206 @@ class GitInitWorktreeAdd(ProtTreesCase):
         self.allowed(["git init", "git worktree add ../other-wt"], cwds=("wt",))
 
 
+class GoToolchainForWorkers(ProtTreesCase):
+    """T-1498: coder, qa and reviewer may EXECUTE ~/.local/go/bin/go and gofmt (a fixed subcommand and env-prefix list, no
+    network, no write into a protected tree); pm and judge are exactly as before. Both impls through the real hook."""
+
+    G = "~/.local/go/bin/"
+
+    def test_toolchain_runs_allowed(self):
+        cmds = [self.G + "go test ./...", self.G + "go build ./cmd/x", self.G + "go version", self.G + "go mod verify",
+                "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod " + self.G + "go vet ./...",
+                "CGO_ENABLED=0 GOCACHE=/tmp/x " + self.G + "go test ./...", self.G + "gofmt -l .", self.G + "gofmt -d -s .",
+                "$HOME/.local/go/bin/go test ./...", "PATH=~/.local/go/bin:$PATH " + self.G + "go test ./..."]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 0, f"{role}: {cmd!r}: expected allow, got {r.returncode}: {r.stderr}")
+
+    def test_bare_go_empty_subcommand_refused(self):
+        """T-1498 N11: bare `go` on PATH with an empty subcommand word (corpus must_block), not only the toolchain binary."""
+        cmds = ["go ''", 'go "" test', "go '' test ./..."]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+
+    def test_bare_go_without_subcommand_unchanged(self):
+        """T-1498 N11 follow-up: `go` on PATH with no subcommand word at all stays allowed (as on origin/main);
+        only an empty quoted word is refused. The Go port once refused these too (Python allowed them)."""
+        for role in ("coder", "qa", "pm", "judge"):
+            for cmd in ("go", "go -C .", "go -v"):
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 0, f"{role}: {cmd!r}: expected allow, got {r.returncode}: {r.stderr}")
+
+    def test_network_and_unlisted_subcommands_blocked(self):
+        cmds = [self.G + "go mod download", self.G + "go get x@v1", self.G + "go install ./...", self.G + "go mod tidy",
+                self.G + "go clean -modcache", self.G + "go work sync", self.G + "go", "GOFLAGS=-mod=mod " + self.G + "go test ./...",
+                "GOPROXY=on " + self.G + "go test", "GOROOT=/tmp/x " + self.G + "go test"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+
+    def test_writes_blocked(self):
+        cmds = ["echo x > ~/.local/go/bin/go", "cp /tmp/x ~/.local/go/bin/go",
+                self.G + "go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+                "GOBIN=~/.local/go/bin " + self.G + "go install ./...", self.G + "go env -w GOFLAGS=x",
+                self.G + "go test -coverprofile=~/.local/go/c.out ./...", "GOCACHE=~/.local/lib/factory/x " + self.G + "go test",
+                self.G + "../../go/bin/go test", self.G + "gofmt -w ../x.go", self.G + "gofmt -w",
+                self.G + "go test -exec \"git push\" ./...", self.G + "go build -toolexec=/tmp/x ./...",
+                self.G + "go vet -vettool=/tmp/x ./...", "GOFLAGS=-exec=/tmp/x " + self.G + "go test ./..."]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+
+    def test_review_gaps_b1_b2_b3_blocked(self):
+        # B1 go fmt, B2 space-form -pkgdir and every -test.* writer, B3 the implicit binary of build / test -c in a protected cwd
+        cmds = [self.G + "go fmt ~/.local/go/src/cmd/gofmt", self.G + "go fmt ~/.local/lib/factory/x",
+                "cd ~/.local/go/src/cmd/gofmt && " + self.G + "go fmt", self.G + "go fmt ../x", self.G + "go fmt /etc",
+                self.G + "go build -pkgdir ~/.local/go/pkg ./...", self.G + "go test -pkgdir=~/.local/go/pkg ./...",
+                self.G + "go test -test.coverprofile=~/.local/go/c.out ./...", self.G + "go test -test.cpuprofile ~/.local/go/c ./...",
+                self.G + "go test -test.outputdir=~/.local/go ./...", self.G + "go test -test.trace=~/.local/lib/factory/t ./...",
+                self.G + "go test ./... -args -test.coverprofile=~/.local/go/c.out", self.G + "go test -test.memprofile ~/.local/go/m ./...",
+                "cd ~/.local/go/src/cmd/gofmt && " + self.G + "go build", "cd ~/.local/go/src/cmd/gofmt && " + self.G + "go test -c",
+                "cd ~/.local/lib/factory && " + self.G + "go build ./...", self.G + "go -C ~/.local/go/src/cmd/gofmt build"] + [
+            c.replace("~/.local/go/bin/", self.G) for c in ['~/.local/go/bin/gofmt -cpuprofile ~/.local/go/x .', '~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build -o out', '~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt test -c -o t.test', '~/.local/go/bin/go test -test.blockprofile ~/.local/go/b ./...', '~/.local/go/bin/go test -test.mutexprofile=~/.local/go/m ./...', '~/.local/go/bin/go test -test.gocoverdir=~/.local/go ./...', '~/.local/go/bin/go test -test.fuzzcachedir=~/.local/go ./...', '~/.local/go/bin/go test -test.testlogfile=~/.local/go/l ./...', '~/.local/go/bin/go build -modfile ~/.local/go/m.mod ./...']]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+
+    def test_review_round2_n1_n4_blocked(self):
+        # N1 gofmt -w=1|t spellings, N2 go -C <dir> fmt with no target, N3 GOFLAGS=-c in a protected cwd, N4 GOMODCACHE in the lib without GOPROXY=off
+        cmds = [self.G + "gofmt -w=1 ../x.go", self.G + "gofmt -w=t ../x.go", self.G + "gofmt -w=TRUE ../x.go", self.G + "go -C ~/.local/go/src/cmd/gofmt fmt", self.G + "go -C /etc fmt", "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c " + self.G + "go test", "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true " + self.G + "go test", "GOMODCACHE=~/.local/lib/factory/go/mod " + self.G + "go test ./..."]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+        for cmd in (self.G + "gofmt -w=0 x.go", self.G + "gofmt -w=true x.go", self.G + "gofmt -w=1 x.go",
+                    "GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod " + self.G + "go test ./...", "GOFLAGS=-c " + self.G + "go test ./...",
+                    self.G + "go -C . fmt"):
+            for role in ("coder", "qa", "reviewer"):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
+    def test_review_gaps_still_allowed_in_the_tree(self):
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in (self.G + "go fmt ./...", self.G + "go fmt", self.G + "go build", self.G + "go test -c", self.G + "go build -o bin/x ./cmd/x",
+                        self.G + "go test -test.coverprofile=c.out ./...", self.G + "go test -c -o x.test", self.G + "go build -o /dev/null ./...",
+                        self.G + "go test -run TestX -v -count=1 -race -timeout 5m -short -cover ./...", self.G + "go test -mod=readonly ./...",
+                        self.G + "go test -mod readonly ./...", self.G + "go vet ./...", self.G + "gofmt -l -s -d ."):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
+    def test_review_round3_n5_n6_default_deny(self):
+        # N5 -C/-o after -args or as another flag's value, N6 -mod mod / --mod=mod without GOPROXY=off: blocked by the per-subcommand
+        # flag allow-list (an unknown flag, -args, a flag outside the table), not by a spelling check
+        prot = "cd ~/.local/go/src/cmd/gofmt && " + self.G
+        cmds = [prot + "go test -c -args -C /tmp", prot + "go test -c -run -o", prot + "go build -tags -o", prot + "go test -c -args -o x",
+                self.G + "go test -mod mod ./...", self.G + "go test --mod=mod ./...", "GOFLAGS='-mod mod' " + self.G + "go test ./...",
+                "GOFLAGS=--mod=mod " + self.G + "go test ./...", self.G + "go test ./... -args -test.v", self.G + "go build -pkgdir /tmp/pk ./...",
+                self.G + "gofmt -cpuprofile /tmp/p .", self.G + "go test -c -o /tmp/outside.test", self.G + "go -x build ./...",
+                self.G + "go test -overlay /tmp/o.json ./...", self.G + "go test -C /tmp -run X", self.G + "go test -run"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                r = run(cmd, "wt", role=role)
+                self.assertEqual(r.returncode, 2, f"{role}: {cmd!r}: expected a block, got {r.returncode}")
+        for cmd in (self.G + "go test -mod=readonly ./...", self.G + "go test -mod mod ./...".replace("test", "vet", 1).replace("mod ./", "readonly ./"),
+                    "GOPROXY=off GOFLAGS='-mod mod' " + self.G + "go test ./...", "GOPROXY=off " + self.G + "go test -mod=mod ./...",
+                    self.G + "go test -run '-o' ./..."):
+            for role in ("coder", "qa", "reviewer"):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
+    def test_review_round4_n7_n8_dashdash_and_profile_flags(self):
+        # N7: `--` is not dropped before the parse: a value flag consumes it, so the next word is a flag (-pkgdir/-toolexec/-exec/-o)
+        # N8: the profile flags keep pkg.test in the cwd like -c (testNeedBinary), so a protected cwd blocks them
+        prot = "cd ~/.local/go/src/cmd/gofmt && " + self.G
+        cmds = [self.G + "go build -tags -- -pkgdir ~/.local/go/pkg ./x", self.G + "go build -tags -- -toolexec=/tmp/x ./x",
+                self.G + "go test -run -- -exec /tmp/x ./x", self.G + "go test -c -run -- -o /etc/evilout ./x",
+                self.G + "go test -- -test.cpuprofile=/tmp/x", "GOFLAGS=-- " + self.G + "go test ./...",
+                prot + "go test -cpuprofile /dev/null", prot + "go test -memprofile=/dev/null .", prot + "go test -test.blockprofile /dev/null",
+                prot + "go test -mutexprofile /dev/null", prot + "go test -trace /dev/null", prot + "go test -coverprofile /dev/null",
+                self.G + "go build $'-o' ~/.local/lib/factory/factory-go ./x", self.G + "go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+                self.G + "go test $'-exec' /tmp/x ./x", self.G + "go build $'-toolexec=/tmp/x' ./x"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")
+            for cmd in (self.G + "go vet -- ./...", self.G + "go test -cpuprofile /dev/null ./...", self.G + "go build -tags x -- ./..."):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
+    def test_review_round5_n9_n10_expansions_and_globs_blocked(self):
+        # N9: an unquoted $ inside a word (positional, flag or flag value) is word-split by bash; N10: a glob such as [-]o expands to a
+        # flag after `touch ./-o`. Default deny for every word of a go/gofmt command, once in tc_parse.
+        cmds = [
+            self.G + "go test -c ./x$X",
+            "X=' -o ~/.local/lib/factory/w'; "+self.G+"go test -c ./x$X",
+            "bash -c 'X=\" -o ~/.local/lib/factory/x\"; "+self.G+"go test -c ./x$X'",
+            "X=' -exec /tmp/x'; "+self.G+"go test ./x$X",
+            self.G + "go test -c -run $X ./x",
+            self.G + "go test -c -run a$X ./x",
+            self.G + "go build -tags $X ./x",
+            self.G + "go test -c ./x [-]o ~/.local/lib/factory/x",
+            self.G + "go test -c ./x [-]exec /tmp/e",
+            self.G + "go test -c ./x [-]pkgdir ~/.local/go/pkg",
+            self.G + "go test ./x [-]toolexec=/tmp/e",
+            self.G + "go test -c ./x *o ~/.local/lib/factory/x",
+            self.G + "go test -c ./x ?o ~/.local/lib/factory/x",
+            self.G + "go test ./x a~b",
+            self.G + "go test ./x ~user/y"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")
+            self.assertEqual(run(self.G + "go build ./x ./y/...", "wt", role=role).returncode, 0, role)
+
+    def test_review_round6_metachars_in_every_position_blocked(self):
+        # the same default-deny rule in every position: prefix env value, flag, flag value, positional, after `--`; every metachar
+        pos = ["GOFLAGS=-run=%s {g}go test ./x", "GOCACHE=/tmp/%s {g}go test ./x", "GOFLAGS=%s {g}go test ./x", "{g}go test -run %s ./x",
+               "{g}go test -tags=%s ./x", "{g}go test ./x%s", "{g}go test ./x %s", "{g}go vet -- ./x%s", "{g}go vet -- %s",
+               "{g}gofmt -l %s", "{g}gofmt -r %s ."]
+        for role in ("coder", "qa", "reviewer"):
+            for p in pos:
+                for m in ("$x", "${x}", "$(id)", "`id`", "[-]o", "*", "?", "{a,b}"):
+                    cmd = p.replace("{g}", self.G) % m
+                    self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")
+
+    def test_self_review_round3_flags_and_import_paths(self):
+        # -ldflags/-gcflags values hold compiler flags (-tmpdir, -cpuprofile, -extld): not in the table; go fmt / -fuzz on an import
+        # path (std) would write into GOROOT; go list -m mod@query hits the proxy
+        cmds = [self.G + "go build -ldflags=-extld=/tmp/evil ./...", self.G + "go build -gcflags=-json=0,/x ./...",
+                self.G + "go test -ldflags=-extld=/tmp/evil ./...", self.G + "go fmt strings", self.G + "go fmt std", self.G + "go fmt cmd/...",
+                self.G + "go test -fuzz=. strings", self.G + "go test -fuzz=. ~/.local/go/src/strings", self.G + "go list -m foo@latest",
+                "cd ~/.local/go/src/strings && " + self.G + "go test -fuzz=.", "GOFLAGS=-fuzz=. " + self.G + "go test strings"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}")
+        for cmd in (self.G + "go fmt ./pkg", self.G + "go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off " + self.G + "go list -m foo@latest",
+                    self.G + "go list -m all"):
+            for role in ("coder", "qa", "reviewer"):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
+    def test_n12_module_at_version_needs_goproxy_off(self):
+        # N12: any go subcommand with a pkg@version argument downloads the module (go run x@latest also runs it)
+        cmds = [self.G + "go run golang.org/x/tools/cmd/stringer@latest", self.G + "go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+                self.G + "go run -race x@latest", self.G + "go build x@latest", self.G + "go test x@latest", self.G + "go vet x@latest",
+                self.G + "go list -m foo@latest", self.G + "go mod why x@latest", "GOPROXY=direct " + self.G + "go run x@latest",
+                "GOPROXY= " + self.G + "go run x@latest", self.G + "go -C . run x@latest"]
+        for role in ("coder", "qa", "reviewer"):
+            for cmd in cmds:
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 2, f"{role}: {cmd!r}: expected a block")
+        for cmd in ("GOPROXY=off " + self.G + "go run golang.org/x/tools/cmd/stringer@latest", "GOPROXY=off " + self.G + "go list -m foo@latest",
+                    self.G + "go run ./cmd/x", self.G + "go run ."):
+            for role in ("coder", "qa", "reviewer"):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd}")
+
+    def test_gofmt_write_inside_the_tree_allowed(self):
+        self.assertEqual(run(self.G + "gofmt -w x.go", "wt").returncode, 0)
+
+    def test_other_roles_unchanged(self):
+        # on origin/main the full-path run is not refused for these roles either: same answer, network subcommands included
+        for role in ("pm", "judge"):
+            for cmd in (self.G + "go test ./...", self.G + "go mod download"):
+                self.assertEqual(run(cmd, "wt", role=role).returncode, 0, f"{role}: {cmd!r}")
+
+
 if __name__ == "__main__":
     unittest.main()

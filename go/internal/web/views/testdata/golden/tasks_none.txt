@@ -1,0 +1,29 @@
+# /tasks?goal=G-003&status=blocked
+TEXT
+Tasks - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources Tasks All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok 0 of 1 tasks Status All 1 To do 0 In progress 0 In review 0 Blocked 0 Done 1 Cancelled 0 Filters 1 Goal All G-001 2 Filtered: goal=G-003, status=blocked · Clear filters No tasks match these filters. Clear filters Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goals
+a:/quality
+a:/resources
+a:/tasks
+a:/tasks?goal=G-003
+a:/tasks?org=claude
+a:/tasks?org=cursor
+a:/tasks?status=blocked
+a:/tasks?status=blocked&goal=G-001
+a:/tasks?status=blocked&goal=G-003
+a:/tasks?status=cancelled&goal=G-003
+a:/tasks?status=done&goal=G-003
+a:/tasks?status=in_progress&goal=G-003
+a:/tasks?status=in_review&goal=G-003
+a:/tasks?status=todo&goal=G-003
+a:/throughput
+a:/tokens
