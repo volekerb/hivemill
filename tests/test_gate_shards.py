@@ -3,6 +3,7 @@ ci/shard.py is the real one and whose tests/ holds three stub modules; the real 
 import fcntl
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -74,6 +75,7 @@ class GateShards(unittest.TestCase):
 # locally under a temp fake remote home, so these run without the remote host. The fake tree is tiny, so every real step of
 # the remote driver fails fast; the tests check the contract around the steps (refusals, count, cleanup, lock, env).
 GATE_SH = ROOT / "ci" / "remote_gate.sh"
+RUN_DIR_RE = r"(?:/var)?/tmp/fg-[A-Za-z0-9]{6}"  # <root>/fg-XXXXXX, root /var/tmp (disk) or /tmp
 SSH_STUB = """#!/bin/bash
 printf '%s\\n' "$*" >> "$STUB_LOG"
 # Optional: run $STUB_FIRST_HOOK once, before the first remote command (simulates a change after the up-front checks).
@@ -90,7 +92,9 @@ wait "$!"
 FAKE_FACTORY = """#!/usr/bin/env python3
 import json, os, time
 shipped = sorted(os.path.relpath(os.path.join(d, f)) for d, _, fs in os.walk(".") if ".git" not in d for f in fs)
-json.dump({"env": dict(os.environ), "cwd": os.getcwd(), "files": sorted(os.listdir(".")), "shipped": shipped,
+json.dump({"env": dict(os.environ), "cwd": os.getcwd(),
+           "modes": {k: oct(os.stat(p).st_mode & 0o777) for k, p in (("run", os.path.dirname(os.environ["HOME"])),
+                                                                      ("tmp", os.environ["TMPDIR"]))}, "files": sorted(os.listdir(".")), "shipped": shipped,
            "cli": open("bin/factory_cli.py").read()}, open(%r, "w"))
 time.sleep(%d)
 """
@@ -138,9 +142,13 @@ class RemoteGate(unittest.TestCase):
     def ssh_calls(self):
         return self.log.read_text().splitlines() if self.log.exists() else []
 
-    def run_dirs(self):
-        d = self.remote / "factory-gate"
-        return sorted(p.name for p in d.iterdir() if p.is_dir()) if d.exists() else []
+    def run_dirs(self, out):
+        """The run dirs (<root>/fg-XXXXXX, T-1679) a gate run printed that still exist; asserts it printed one."""
+        dirs = re.findall(rf"\bdir ({RUN_DIR_RE})\b", out)
+        self.assertTrue(dirs, f"no run dir in the output: {out}")
+        for d in dirs:
+            self.addCleanup(shutil.rmtree, d, True)
+        return [d for d in dirs if os.path.exists(d)]
 
     def test_help_and_bad_arguments(self):
         p = self.gate("--help")
@@ -162,6 +170,97 @@ class RemoteGate(unittest.TestCase):
         self.assertEqual(self.gate().returncode, 2)
         self.assertEqual(self.gate("--count").returncode, 0)  # the count needs no host
         self.assertEqual(self.ssh_calls(), [])
+
+    def test_run_dir_is_short_disk_backed_and_traversable(self):
+        # T-1679: unix sockets under the run's TMPDIR must fit 108 bytes: go/internal/sandbox binds
+        # <TMPDIR>/<subtest name>NNN/001/p.sock, up to 82 chars after TMPDIR. The run dir is on disk when the host has
+        # a disk-backed /var/tmp (a ~1 GB run must not fill a tmpfs /tmp), and go's build temp is inside it.
+        p = self.gate()
+        self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+        seen = json.loads(self.mark.read_text())
+        tmpdir = seen["env"]["TMPDIR"]
+        self.assertRegex(tmpdir, rf"^{RUN_DIR_RE}/tmp$")
+        self.assertLessEqual(len(tmpdir) + 82, 107)
+        self.assertEqual(seen["env"]["GOTMPDIR"], tmpdir)
+        disk = subprocess.run(["stat", "-f", "-c", "%T", "/var/tmp"], capture_output=True, text=True)
+        if disk.returncode == 0 and disk.stdout.strip() not in ("tmpfs", "ramfs"):
+            self.assertTrue(tmpdir.startswith("/var/tmp/fg-"), tmpdir)
+        # other-x on the run dir and TMPDIR: the subuid sandbox tests run as another uid below TMPDIR
+        self.assertEqual(seen["modes"], {"run": "0o711", "tmp": "0o711"})
+        run_dir = tmpdir[:-len("/tmp")]
+        self.assertIn(f"removed gate-host:{run_dir}", p.stdout)
+        self.assertEqual(self.run_dirs(p.stdout), [], "run dir left behind")
+
+    def test_run_root_pick_prefers_disk_and_keeps_socket_paths_short(self):
+        # the driver's --pick-root, with `stat` stubbed at the process boundary: any dir named ram* is tmpfs
+        stub = self.tmp / "stat-stub"
+        stub.mkdir()
+        (stub / "stat").write_text('#!/bin/bash\ncase "$5" in */ram*) echo tmpfs ;; *) echo ext2/ext3 ;; esac\n')
+        (stub / "stat").chmod(0o755)
+        env = {**os.environ, "PATH": f"{stub}:{os.environ['PATH']}"}
+        for d in ("ram1", "disk1", "ram2"):
+            (self.tmp / d).mkdir()
+        ram1, disk1, ram2, gone = (str(self.tmp / d) for d in ("ram1", "disk1", "ram2", "gone"))
+
+        def pick(tail, *roots):
+            return subprocess.run(["bash", str(ROOT / "ci" / "remote_gate_driver.sh"), "--pick-root", str(tail), *roots],
+                                  env=env, capture_output=True, text=True, timeout=30)
+
+        p = pick(0, gone, ram1, disk1, ram2)  # disk wins over an earlier tmpfs; a missing dir is skipped
+        self.assertEqual((p.returncode, p.stdout), (0, disk1 + "\n"), p.stderr)
+        self.assertIn(f"{ram1} skipped: tmpfs is RAM-backed", p.stderr)
+        p = pick(0, ram1, ram2)  # no disk: the last usable candidate, said out loud
+        self.assertEqual((p.returncode, p.stdout), (0, ram2 + "\n"), p.stderr)
+        self.assertIn("WARNING: no disk-backed run root", p.stderr)
+        # a disk dir whose <root>/fg-XXXXXX/tmp + 82 socket chars passes 107 bytes is not used
+        tail = 107 - len("/fg-XXXXXX/tmp") - len(disk1)
+        self.assertEqual(pick(tail, disk1, ram1).stdout, disk1 + "\n")
+        p = pick(tail + 1, disk1, ram1)
+        self.assertEqual(p.stdout, ram1 + "\n", p.stderr)
+        self.assertIn("exceeds a unix socket path", p.stderr)
+        p = pick(0, gone)
+        self.assertEqual((p.returncode, p.stdout), (2, ""))
+        self.assertIn("no usable run root", p.stderr)
+        self.assertEqual(pick("x", disk1).returncode, 2)
+        # the gate's own candidates with the real 82-char socket tail: /var/tmp fits
+        self.assertEqual(pick(82, "/var/tmp").stdout, "/var/tmp\n")
+
+    def test_passing_run_exits_zero_and_removes_the_run_dir(self):
+        # a main checkout whose driver passes: the run dir still goes (cleanup on success, not only on failure)
+        main = self.tmp / "main"
+        for f in ("ci/remote_gate.sh", "ci/test_count_gate.py", "tests/gate_shards.py"):
+            (main / f).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / f, main / f)
+        (main / "ci" / "remote_gate_driver.sh").write_text(
+            '#!/bin/bash\n[ "$1" = --pick-root ] && { echo /tmp; exit 0; }\n'
+            '[ -d "$1/head/tests" ] || exit 7\necho "stub driver: PASS in $1"\nexit 0\n')
+        p = subprocess.run(["bash", str(main / "ci" / "remote_gate.sh")], cwd=self.tree, env=self.env,
+                           capture_output=True, text=True, timeout=180)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("stub driver: PASS in /tmp/fg-", p.stdout)
+        self.assertRegex(p.stdout, rf"removed gate-host:{RUN_DIR_RE}\n")
+        self.assertEqual(self.run_dirs(p.stdout), [], "run dir left behind after a pass")
+
+    def test_job_cap_follows_free_ram_not_only_cpu(self):
+        def cap(cores, shards, avail_mib, total_mib):
+            mi = self.tmp / "meminfo"
+            mi.write_text(f"MemTotal:       {total_mib * 1024} kB\nMemFree:        1 kB\n"
+                          f"MemAvailable:   {avail_mib * 1024} kB\n")
+            p = subprocess.run(["bash", str(ROOT / "ci" / "remote_gate_driver.sh"), "--jobs", str(cores), str(shards),
+                                str(mi)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            return int(p.stdout.strip())
+        self.assertEqual(cap(8, 8, 11000, 11897), 4)   # this box: 8 CPUs, 12 GB (MemTotal 11897 MiB)
+        self.assertEqual(cap(8, 8, 5000, 11897), 2)    # other agents hold RAM: fewer jobs
+        self.assertEqual(cap(8, 8, 60000, 64000), 8)   # a big host: the CPU cap
+        self.assertEqual(cap(8, 3, 60000, 64000), 3)   # GATE_SHARDS below both
+        self.assertEqual(cap(8, 8, 900, 11897), 1)     # never 0
+        bad = self.tmp / "bad-meminfo"
+        bad.write_text("MemTotal: 1 kB\n")
+        p = subprocess.run(["bash", str(ROOT / "ci" / "remote_gate_driver.sh"), "--jobs", "8", "8", str(bad)],
+                           capture_output=True, text=True, timeout=30)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("MemAvailable", p.stderr)
 
     def test_bad_shard_count_is_refused_before_any_ssh(self):
         for v in ("abc", "0", "-1"):
@@ -219,20 +318,24 @@ class RemoteGate(unittest.TestCase):
         p = self.gate()
         self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("remote-gate-driver: FAIL", p.stdout)
-        self.assertIn("removed gate-host:~/factory-gate/", p.stdout)
-        self.assertEqual(self.run_dirs(), [], "remote run dir left behind")
+        self.assertRegex(p.stdout, rf"removed gate-host:{RUN_DIR_RE}\n")
+        self.assertEqual(self.run_dirs(p.stdout), [], "remote run dir left behind")
         calls = self.ssh_calls()
         self.assertTrue(all("SendEnv=-*" in c and "BatchMode=yes" in c for c in calls), calls)
         seen = json.loads(self.mark.read_text())
         for k in ("GH_TOKEN", "GITHUB_TOKEN", "SSH_AUTH_SOCK", "FACTORY_AGENT"):
             self.assertNotIn(k, seen["env"])
         self.assertNotIn("gh-secret-test", json.dumps(seen))
-        # 12 asked: remote_gate.sh caps at 8 (host independent), the driver then caps at the host's cpu count
+        # 12 asked: remote_gate.sh caps at 8 (host independent), the driver then caps at the host's cpu count and RAM
         self.assertIn("shards 8", p.stdout)
         ncpu = int(subprocess.run(["nproc"], capture_output=True, text=True, check=True).stdout)
-        self.assertEqual(seen["env"]["GATE_SHARDS"], str(min(8, ncpu)))
-        self.assertTrue(seen["env"]["HOME"].startswith(str(self.remote / "factory-gate")), seen["env"]["HOME"])
-        self.assertTrue(seen["env"]["FACTORY_HOME"].startswith(str(self.remote / "factory-gate")))
+        jobs = int(seen["env"]["GATE_SHARDS"])
+        self.assertTrue(1 <= jobs <= min(8, ncpu), jobs)
+        self.assertIn(f"jobs {jobs} (", p.stdout)
+        run_dir = seen["env"]["HOME"].rsplit("/", 1)[0]
+        self.assertRegex(run_dir, rf"^{RUN_DIR_RE}$")
+        for k in ("FACTORY_HOME", "TMPDIR"):
+            self.assertTrue(seen["env"][k].startswith(run_dir + "/"), seen["env"][k])
         # the head tree is the archive (plus the rebuilt history): no .ssh, .claude, db
         self.assertEqual(sorted(set(seen["files"]) - {".git"}), ["bin", "tests"])
 
@@ -250,7 +353,7 @@ class RemoteGate(unittest.TestCase):
         self.assertEqual(sorted(set(seen["files"]) - {".git"}), [".gitattributes", "bin", "tests"])
         self.assertIn("tests/test_a.py", seen["shipped"], "export-ignore hid tests/test_a.py from the gate")
         self.assertEqual(seen["cli"], "X = '$Format:%H$'\n", "export-subst rewrote a shipped file")
-        self.assertEqual(self.run_dirs(), [])
+        self.assertEqual(self.run_dirs(p.stdout), [])
 
     def test_self_ignored_force_added_file_is_in_the_remote_diff(self):
         # a PR force-adds a file plus a .gitignore rule for it: the rebuilt repo must still diff it (docs-check
@@ -272,7 +375,7 @@ class RemoteGate(unittest.TestCase):
         diffed = diff_out.read_text().split()
         self.assertIn("docs/hidden.md", diffed, "a self-ignored, force-added file is missing from the remote diff")
         self.assertIn(".gitignore", diffed)
-        self.assertEqual(self.run_dirs(), [])
+        self.assertEqual(self.run_dirs(p.stdout), [])
 
     def test_tree_changed_after_the_checks_is_refused_and_nothing_is_shipped(self):
         cases = {"modified": f"echo 'X = 3' > {self.tree}/bin/factory_cli.py",
@@ -296,19 +399,19 @@ class RemoteGate(unittest.TestCase):
                 self.assertTrue(calls, "the hook never ran")
                 self.assertEqual([c for c in calls if "tar -x" in c], [], "a tree went over ssh")
                 self.assertFalse(self.mark.exists(), "a step ran")
-                self.assertEqual(self.run_dirs(), [], "run dir left behind")
+                self.assertEqual(self.run_dirs(p.stdout), [], "run dir left behind")
 
     def test_local_host_runs_the_driver_without_ssh(self):
         self.env["GATE_REMOTE_HOST"] = "local"
-        self.env["HOME"] = str(self.remote)  # local mode uses the caller's HOME as the run root
+        self.env["HOME"] = str(self.remote)  # local mode keeps the lock under the caller's HOME
         p = self.gate()
         self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("remote-gate-driver: FAIL", p.stdout)
         self.assertEqual(self.ssh_calls(), [])
         seen = json.loads(self.mark.read_text())
         self.assertNotIn("GH_TOKEN", seen["env"])
-        self.assertTrue(seen["env"]["HOME"].startswith(str(self.remote / "factory-gate")), seen["env"]["HOME"])
-        self.assertEqual(self.run_dirs(), [])
+        self.assertRegex(seen["env"]["HOME"], rf"^{RUN_DIR_RE}/home$")
+        self.assertEqual(self.run_dirs(p.stdout), [])
 
     def test_sigterm_to_the_process_group_removes_the_remote_dir(self):
         self.commit_head(sleep=120)
@@ -320,11 +423,14 @@ class RemoteGate(unittest.TestCase):
                 break
             time.sleep(0.1)
         self.assertTrue(self.mark.exists(), "the run never reached factory-help")
-        self.assertEqual(len(self.run_dirs()), 1)
+        run_dir = json.loads(self.mark.read_text())["env"]["HOME"].rsplit("/", 1)[0]
+        self.addCleanup(shutil.rmtree, run_dir, True)
+        self.assertTrue(os.path.isdir(run_dir), run_dir)
         os.killpg(p.pid, signal.SIGTERM)
         out, _ = p.communicate(timeout=60)
         self.assertNotEqual(p.returncode, 0, out)
-        self.assertEqual(self.run_dirs(), [], out)
+        self.assertEqual(self.run_dirs(out), [], out)
+        self.assertFalse(os.path.exists(run_dir), out)
 
     def test_second_run_waits_for_the_remote_lock(self):
         (self.remote / "factory-gate").mkdir()
@@ -345,7 +451,7 @@ class RemoteGate(unittest.TestCase):
         out, _ = p.communicate(timeout=180)
         self.assertNotEqual(p.returncode, 0)
         self.assertTrue(self.mark.exists(), "the run did not continue after the lock was released")
-        self.assertEqual(self.run_dirs(), [], out)
+        self.assertEqual(self.run_dirs("".join(seen) + out), [], out)
 
 
 if __name__ == "__main__":

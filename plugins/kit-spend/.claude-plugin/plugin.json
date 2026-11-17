@@ -1,0 +1,13 @@
+{
+  "name": "hivemill-spend",
+  "displayName": "Hivemill Spend",
+  "description": "See where your Claude tokens go across agents, and cap worker context while the boss keeps the big picture.",
+  "author": {
+    "name": "volekerb",
+    "url": "https://github.com/volekerb"
+  },
+  "homepage": "https://github.com/volekerb/hivemill",
+  "repository": "https://github.com/volekerb/hivemill",
+  "license": "MIT",
+  "keywords": ["hivemill", "tokens", "cost", "context", "agents"]
+}
