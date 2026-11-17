@@ -521,7 +521,12 @@ func TestPrivGuardSettingsHqRolesRunHqMode(t *testing.T) {
 			t.Errorf("%s: %d Bash hooks, want 1: %v", role, len(cmds), cmds)
 			continue
 		}
-		if !strings.HasSuffix(cmds[0], "roles/hooks/worker-guard.py --hq") || strings.Contains(cmds[0], "--role") {
+		// T-1803: the boss hook also passes --role boss (hq_deny_hit needs the role); --hq stays
+		want := "roles/hooks/worker-guard.py --hq"
+		if role == "boss" {
+			want += " --role boss"
+		}
+		if !strings.HasSuffix(cmds[0], want) || (role != "boss" && strings.Contains(cmds[0], "--role")) {
 			t.Errorf("%s: hook command %q is not the --hq hook", role, cmds[0])
 		}
 	}
@@ -565,8 +570,19 @@ func TestPrivGuardSettingsOtherRolesUnchangedOnBranchDelete(t *testing.T) {
 			continue
 		}
 		p := all[role].Permissions
+		// M40734: the boss alone may run exactly these gh pr merge forms (both option orders); nothing else
+		bossOK := map[string]bool{}
+		if role == "boss" {
+			for _, repo := range []string{"hivemill", "hivemill-www"} {
+				bossOK["Bash(gh pr merge * --repo volekerb/"+repo+" --squash --delete-branch)"] = true
+				bossOK["Bash(gh pr merge * --squash --delete-branch --repo volekerb/"+repo+")"] = true
+			}
+		}
 		for _, a := range p.Allow {
-			if strings.Contains(a, "git branch") || strings.Contains(a, "--delete") {
+			if (strings.Contains(a, "git branch") || strings.Contains(a, "--delete")) && !bossOK[a] {
+				t.Errorf("%s: allow has %q", role, a)
+			}
+			if strings.Contains(a, "--admin") {
 				t.Errorf("%s: allow has %q", role, a)
 			}
 		}
