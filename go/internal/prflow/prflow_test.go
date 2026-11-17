@@ -634,13 +634,13 @@ func TestRedMainRepoFilter(t *testing.T) {
 }
 
 // TestRedMainSameWindowsAsStageMap: a PR that lies fully inside the red windows spends its judge time as red_main,
-// and that time equals the red_hours of the same windows (one code path: Index.RedRepos feeds both).
+// and that time equals the red_hours of the same windows (the same window data, Index.RedRepos, feeds both).
 func TestRedMainSameWindowsAsStageMap(t *testing.T) {
 	ix, err := ReadEvents(strings.NewReader(redFixture), "a/b", time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// PR opens 11-04 10:00, judge from 10:30 to merge 11-05 09:00+... use 11-06 09:00 (now): spans both windows.
+	// PR opens 11-04 10:00 in judge and stays open to now: it spans both windows.
 	created := time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)
 	ev := []TaskEvent{{At: created, Action: "judge-autospawn"}}
 	w := Stages(created, redNow, ev, ix.Red)

@@ -85,12 +85,12 @@ For the repo given in `--repo` and the `--since` window:
 |---|---|
 | `events` | `red-main` events in the window |
 | `events_per_day` | `events` / window days, 2 decimals |
-| `windows` | red windows that overlap the window: a `red-main` after a clear (or while none is open) until `red-main-clear` or now |
+| `windows` | red windows that overlap the window: the first `red-main` while none is open (later ones only add to `events`) until `red-main-clear` or now |
 | `red_hours` | the lengths of those windows clipped to the window |
 | `per_day` | list of `{"day", "events"}`, days with at least one event, oldest first |
 
 The day is the date in the event's own `ts` offset (a `+01:00` ts is bucketed by its local date), not the machine
-time zone. The windows are the ones the stage map uses for `red_main` stage hours (one code path), so a PR inside
+time zone. The windows are the ones the stage map uses for `red_main` stage hours (the same window data; the clipping is separate code), so a PR inside
 a window spends exactly its time there as `red_main`. `--red-main-all` adds `red_main_repos` (JSON) and
 `red main repo <name>` blocks (text) for every repo in the event log.
 
