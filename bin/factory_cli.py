@@ -1282,6 +1282,8 @@ _HC_RUN_ENV = None  # agent env written into the hc spawn script (never on the h
 _HC_RUN_PROGRAM = None  # resolved program for hc `run` (cursor: agent/cursor-agent, not the cursor shim)
 _HC_RUN_NAME = None  # agent name for the hc spawn script under run/
 _SPAWN_HOST_EXE = None  # override host CLI for the in-flight spawn/relaunch start (herdr|hc)
+_HC_RUN_MACHINE = None  # G-057: worker machine of the next hc `run` (adds `--on <machine>`); None = this machine
+_HC_RUN_SCRIPT = None  # G-057: spawn script already written and copied to that machine; `run` uses it as is
 # Parent hc `run` env must not reach the agent child (env -i + explicit exports only).
 HC_SPAWN_DROP = (
     "CLAUDE_CODE_MESSAGING_TOKEN", "HC_SOCKET", "HERDR_PANE_ID", "SSH_AUTH_SOCK", "HERDR_SESSION",
@@ -1471,6 +1473,54 @@ def _hc_remote_terminal(t):
     return isinstance(t, dict) and any(isinstance(t.get(k), str) and "/" in t[k] for k in ("address", "id", "terminal", "name"))
 
 
+def _hc_remote_address(t):
+    """The machine/tN address of an hc terminal on another machine, else None."""
+    if not isinstance(t, dict):
+        return None
+    return next((t[k] for k in ("address", "id", "terminal") if isinstance(t.get(k), str) and "/" in t[k]), None)
+
+
+def _hc_remote_terminals():
+    """{"<machine>/<name>": agent row} for the terminals hc lists on other machines, or None when hc cannot be read.
+    Only the tick calls it, and only for a row recorded on a worker machine (none while worker_machines is empty)."""
+    try:
+        p = subprocess.run(["hc", "ls"], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=_host_ipc_env("hc"))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if p.returncode != 0:
+        return None
+    lines = p.stdout.strip().splitlines()
+    try:
+        payload = json.loads(lines[-1]) if lines else {}
+    except json.JSONDecodeError:
+        return None
+    terminals = payload.get("terminals") if isinstance(payload, dict) else None
+    if not isinstance(terminals, list):
+        return None
+    out = {}
+    for t in terminals:
+        addr = _hc_remote_address(t)
+        name = t.get("name") if isinstance(t, dict) else None
+        if not addr or not isinstance(name, str) or not name:
+            continue
+        key = name if "/" in name else f"{addr.split('/', 1)[0]}/{name}"
+        out[key] = _normalize_agent_list_row(_hc_terminal_to_agent_row({**t, "name": key}))
+    return out
+
+
+def _hc_remote_target(con, args):
+    """agent prompt|read|send-keys <name> for a row started on a worker machine: the hc address instead of the name
+    (hc resolves a bare name on this machine only). Any other call or row: args unchanged."""
+    if len(args) < 3 or args[0] != "agent" or args[1] not in ("prompt", "read", "send-keys"):
+        return args
+    row = con.execute("SELECT spawn_args FROM agents WHERE name=?", (args[2],)).fetchone()
+    sa = _spawn_args_row(row) if row else {}
+    addr = sa.get("hc_address") if sa.get("machine") else None
+    if not isinstance(addr, str) or "/" not in addr:
+        return args
+    return (args[0], args[1], addr, *args[3:])
+
+
 def _hc_unwrap_result(ipc_argv, payload):
     """Convert herdr-core JSON stdout into the dict shape factory expects from the TUI `result` field."""
     if not isinstance(payload, dict):
@@ -1489,7 +1539,11 @@ def _hc_unwrap_result(ipc_argv, payload):
     if cmd == "run":
         if payload.get("name") is None and "state" not in payload:
             return None
-        return {"agent": _hc_terminal_to_agent_row(payload)}
+        row = _hc_terminal_to_agent_row(payload)
+        addr = _hc_remote_address(payload)
+        if addr:  # only a terminal on another machine (`run --on`) has one; a local run result is unchanged
+            row["address"] = addr
+        return {"agent": row}
     if cmd in ("send", "keys"):
         return {}
     return None
@@ -1551,6 +1605,8 @@ def _hc_run_argv_tail(program, post):
     """Tail of hc `run`: `sh <spawn script>` when spawn env is set (no env vars on the hc argv)."""
     if not _HC_RUN_ENV:
         return [program, *post]
+    if _HC_RUN_MACHINE and _HC_RUN_SCRIPT:  # the copy on the worker machine is this exact file: never rewrite it here
+        return ["sh", str(_HC_RUN_SCRIPT)]
     name = _HC_RUN_NAME or "hc-spawn"
     script = _hc_write_spawn_script(name, _HC_RUN_ENV, program, post)
     return ["sh", str(script)]
@@ -1754,6 +1810,8 @@ def _hc_translate_args(args):
                 else:
                     i += 1
             out = ["run", "--bg", "--no-parent", "--name", name]  # never the caller terminal's child (hc 0.1.21)
+            if _HC_RUN_MACHINE:  # G-057 remote start: hc runs it on that machine; its address is <machine>/tN
+                out.extend(["--on", _HC_RUN_MACHINE])
             cwd = _HC_RUN_CWD
             if not cwd:
                 for j, tok in enumerate(post):
@@ -1833,6 +1891,8 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     con = db()
     try:
         exe = _host_agent_ipc_exe(con, args)
+        if exe == "hc":
+            args = _hc_remote_target(con, args)
     finally:
         con.close()
     ipc_argv = _host_ipc_argv(exe, args)
@@ -2817,6 +2877,8 @@ def machine_facts(con, machine):
     A remote failure sets reachable=False and does not raise."""
     now_s = _facts_clock()
     ttl = _int_cfg(con, "machine_facts_ttl_s", 20)
+    if machine != _machine_hq(con) and _throttled(con, f"machine_unreachable:{machine}", _mark_clock(), ttl):
+        return _facts_row(0, 0.0, 0, False, "marked unreachable by a failed remote start")  # no ssh for the TTL
     hit = _MACHINE_FACTS_CACHE.get(machine)
     if hit is not None and ttl > 0 and now_s - hit[0] < ttl:
         return dict(hit[1])
@@ -2887,10 +2949,11 @@ def _worker_shares(budget, nprocs):
     return shares
 
 
-def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False, discount_machine=None):
+def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False, discount_machine=None, allow_remote=True):
     """(machine, reason, per_machine_stats). reason is 'ok', or a refusal that names every machine's failing check.
     Does not relax owner caps: gate() applies those first. A role other than coder, qa, reviewer, cleaner is machine_hq only.
-    discount_machine: a relaunch of a worker already counted on that machine. One seat is not counted twice."""
+    discount_machine: a relaunch of a worker already counted on that machine. One seat is not counted twice.
+    allow_remote=False: this spawn cannot start on a worker machine (not claude on hc, sandboxed): machine_hq or refuse."""
     hq = _machine_hq(con)
     remotes = []
     for name in _worker_machine_list(con):
@@ -2928,7 +2991,7 @@ def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False, discount_ma
            "machines": {m: {**facts[m], "share": share_of.get(m, 0), "workers": on_machine.get(m, 0), "fails": fails_of(m)}
                         for m in machines}}
     eligible = [m for m in machines if not per["machines"][m]["fails"]]
-    if role not in PLACEMENT_WORKER_ROLES:
+    if role not in PLACEMENT_WORKER_ROLES or not allow_remote:
         bad = per["machines"][hq]["fails"]
         if bad:
             return hq, f"{hq}: " + "; ".join(bad), per
@@ -2949,7 +3012,236 @@ def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False, discount_ma
     return chosen, "ok", per
 
 
-def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None, *, placement_discount=None):
+# ── G-057 remote start (T-1586): preflight, worktree and per-agent files on a worker machine, fallback + alert ──
+REMOTE_FORWARD_DIR = (".local", "lib", "hivemill", "forward")  # under the worker's home: `factory` -> factory-forward
+MACHINE_ALERT_WINDOW_S = 1800  # at most one "<machine> unreachable" alert per machine per 30 min
+FORWARDED_REFUSAL = "refused: forwarded call from unknown agent"
+
+
+class RemoteStartFailed(Exception):
+    """A worker machine cannot take this start (preflight, worktree or file copy). Raised before any agent row is
+    written live and before hc starts a terminal there; spawn() falls back to machine_hq."""
+
+
+def _mark_clock():
+    """Clock of the unreachable mark and the alert window: $FACTORY_FACTS_NOW when pinned (tests), else the wall clock."""
+    pinned = os.environ.get("FACTORY_FACTS_NOW")
+    return float(pinned) if pinned else time.time()
+
+
+def remote_forward_dir():
+    """The dir put first on a remote worker's PATH; its `factory` must resolve to factory-forward (docs/multi-machine.md).
+    Same user and same paths on every machine, so it is this machine's home (the temp $HOME under a test home)."""
+    return os.path.join(str(sandbox_home() or ghcred.real_home()), *REMOTE_FORWARD_DIR)
+
+
+def machine_unreachable(con, machine, reason, sender="spawn"):
+    """Mark `machine` unreachable for machine_facts_ttl_s (no ssh to it meanwhile) and alert the director at most once per
+    MACHINE_ALERT_WINDOW_S per machine (a machine-unreachable event with it). Returns True when it alerted."""
+    clock = _mark_clock()
+    mkey = f"machine_unreachable:{machine}"
+    # An active mark is never renewed (machine_facts reports "marked" without ssh, and that must not re-mark): it expires
+    # after machine_facts_ttl_s and only a failed probe after that sets it again.
+    if not _throttled(con, mkey, clock, _int_cfg(con, "machine_facts_ttl_s", 20)):
+        _throttle_set(con, mkey, clock)
+    _MACHINE_FACTS_CACHE.pop(machine, None)
+    key = f"machine_alert:{machine}"
+    if _throttled(con, key, clock, MACHINE_ALERT_WINDOW_S):
+        return False
+    _throttle_set(con, key, clock)
+    hq = _machine_hq(con)
+    why = " ".join(str(reason or "unreachable").split())[:300]
+    event(con, "machine", machine, "machine-unreachable", {"machine": machine, "fallback": hq, "reason": why})
+    send(con, "director", f"{machine} unreachable: workers fall back to {hq}",
+         f"{why}. Spawns place workers on {hq} only until {machine} answers again; further alerts for {machine} are "
+         f"silent for {MACHINE_ALERT_WINDOW_S // 60} min.", "alert", sender=sender)
+    return True
+
+
+def remote_start_ok(con, role, runtime, args, sandboxed):
+    """True when this spawn could start on a worker machine: a worker role, claude runtime, an hc terminal, unsandboxed
+    (a sandbox and the Cursor launcher are built from this machine's paths). Anything else stays on machine_hq."""
+    return (role in PLACEMENT_WORKER_ROLES and runtime == "claude" and not sandboxed and _spawn_uses_hc(con, args))
+
+
+def _ssh_machine(con, machine, script, stdin=None, timeout=120):
+    """(exit code, last stderr line) of one ssh call, argv only; the machine name is an argument, `script` runs in the
+    remote user's shell. stdin (bytes) is never logged. A local failure to run ssh is 255, like an ssh connect failure."""
+    t = max(_int_cfg(con, "machine_ssh_timeout_s", 5), 1)
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={t}", "--", machine, script]
+    try:
+        p = subprocess.run(cmd, input=stdin if stdin is not None else b"", capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return 255, f"ssh timed out after {timeout}s"
+    except OSError as e:
+        return 255, f"ssh could not run ({type(e).__name__})"
+    lines = (p.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+    return p.returncode, (lines[-1][:200] if lines else "")
+
+
+def _hc_machine_state(text, machine):
+    """(ok, why) from `hc machine ls` output: JSON {"machines": [{"name", "state"}]} or a list of those, else text lines
+    whose first word is the name. A listed machine whose state is connecting, needs_login or unreachable is not ok."""
+    state, found = "", False
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError:
+        doc = None
+    items = doc.get("machines") if isinstance(doc, dict) else doc
+    if isinstance(items, list):
+        for it in items:
+            if isinstance(it, dict) and it.get("name") == machine:
+                found = True
+                st = it.get("state") or it.get("status") or ""
+                state = st if isinstance(st, str) else ""
+    else:
+        for line in (text or "").splitlines():
+            words = line.split()
+            if words and words[0] == machine:
+                found, state = True, (words[1] if len(words) > 1 else "")
+    if not found:
+        return False, f"hc machine ls does not list {machine}"
+    if state in ("connecting", "needs_login", "unreachable"):
+        return False, f"hc machine {machine} is {state}"
+    return True, ""
+
+
+def hc_lists_machine(machine):
+    """(ok, why): hc on this machine lists `machine` and can reach it (needed for `hc run --on`)."""
+    try:
+        p = subprocess.run(["hc", "machine", "ls"], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S,
+                           env=_host_ipc_env("hc"))
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, f"hc machine ls failed ({type(e).__name__})"
+    if p.returncode != 0:
+        return False, f"hc machine ls exit {p.returncode}"
+    return _hc_machine_state(p.stdout.strip(), machine)
+
+
+def _remote_task_row(con, task):
+    if not task:
+        return None
+    return con.execute("SELECT t.*, p.repo_path, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                       "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task,)).fetchone()
+
+
+def remote_preflight(con, machine, task):
+    """RemoteStartFailed unless hc lists `machine`, the task's repo clone is a git repo at the same path there, and
+    `factory` first on the worker PATH (remote_forward_dir) is factory-forward and answers --version."""
+    ok, why = hc_lists_machine(machine)
+    if not ok:
+        raise RemoteStartFailed(why)
+    t = _remote_task_row(con, task)
+    fdir = remote_forward_dir()
+    q = shlex.quote
+    lines = ["set -e"]
+    if t and t["repo_path"]:
+        lines.append(shlex.join(git_argv(t["repo_path"], "rev-parse", "--git-dir")) + " >/dev/null")
+    lines += [f"f={q(fdir + '/factory')}", 'test -x "$f"', "ff=$(command -v factory-forward)",
+              'test "$(readlink -f "$f")" = "$(readlink -f "$ff")"',
+              f'PATH={q(fdir)}:"$PATH" factory --version >/dev/null']
+    rc, err = _ssh_machine(con, machine, "\n".join(lines))
+    if rc != 0:
+        raise RemoteStartFailed(f"preflight on {machine} failed (exit {rc}): {err or 'no message'}")
+
+
+def remote_worktree(con, machine, task, role):
+    """The worktree path on `machine` (same layout as here), created over ssh in that machine's own clone. A coder gets
+    factory/<task> (its pushed branch, else a new one from origin/<base>); qa/reviewer get a detached checkout of the
+    pushed branch at <goal>-<task>-<role>. None for a task-less spawn or another role. RemoteStartFailed on a git error."""
+    t = _remote_task_row(con, task)
+    if role not in ("coder", "qa", "reviewer") or not t or not t["repo_path"]:
+        return None
+    repo, base = t["repo_path"], t["base_branch"] or "main"
+    branch = t["branch"] or f"factory/{task.lower()}"
+    wt = str(WORKTREES / (f"{t['goal_id']}-{task}" if role == "coder" else f"{t['goal_id']}-{task}-{role}"))
+    q = shlex.quote
+
+    def g(*a):
+        return shlex.join(git_argv(repo, *a))
+
+    has_branch = g("rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}") + " >/dev/null"
+    lines = ["set -e", g("fetch", "-q", "origin")]
+    if role == "coder":
+        lines += [f"if [ -e {q(wt)}/.git ]; then {shlex.join(git_argv(wt, 'switch', '-q', branch))}",
+                  f"elif {has_branch}; then {g('worktree', 'add', '-q', '-B', branch, wt, f'origin/{branch}')}",
+                  f"else {g('worktree', 'add', '-q', '-B', branch, wt, f'origin/{base}')}", "fi"]
+    else:
+        lines += [f"if {has_branch}; then s={q(f'origin/{branch}')}; else s={q(f'origin/{base}')}; fi",
+                  f"if [ -e {q(wt)}/.git ]; then {shlex.join(git_argv(wt, 'checkout', '-q', '--detach'))} \"$s\"",
+                  f"else {g('worktree', 'add', '-q', '--detach', wt)} \"$s\"", "fi"]
+    rc, err = _ssh_machine(con, machine, "\n".join(lines), timeout=600)
+    if rc != 0:
+        raise RemoteStartFailed(f"worktree on {machine} failed (exit {rc}): {err or 'no message'}")
+    if role == "coder":
+        con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (wt, branch, task))
+    return wt
+
+
+def remote_copy_file(con, machine, path, mode):
+    """Copy one local file to the same path on `machine` with `mode` (tmp + rename; dirs made 0700). The content goes on
+    ssh stdin only. RemoteStartFailed names neither the path nor the content (a token file is copied this way, R4)."""
+    data = Path(path).read_bytes()
+    q = shlex.quote
+    tmp = f"{path}.copy-tmp"
+    script = (f"umask 077 && mkdir -p {q(os.path.dirname(str(path)))} && cat > {q(tmp)} && chmod {mode:o} {q(tmp)} "
+              f"&& mv -f {q(tmp)} {q(str(path))}")
+    rc, _err = _ssh_machine(con, machine, script, stdin=data)
+    if rc != 0:
+        raise RemoteStartFailed(f"copying the agent files to {machine} failed (exit {rc})")
+
+
+def remote_copy_agent_files(con, machine, files, secret_files=()):
+    """Copy every (path, mode) of `files`, then each secret file with mode 0600. Returns the number copied."""
+    n = 0
+    for path, mode in files:
+        remote_copy_file(con, machine, path, mode)
+        n += 1
+    for path in secret_files:
+        remote_copy_file(con, machine, path, 0o600)
+        n += 1
+    return n
+
+
+def _tree_files(root):
+    """(path, mode) of every regular file under root, modes kept (the ghcred shim must stay executable)."""
+    out = []
+    for dirpath, _dirs, names in os.walk(root):
+        for nm in sorted(names):
+            p = os.path.join(dirpath, nm)
+            if os.path.isfile(p) and not os.path.islink(p):
+                out.append((p, stat.S_IMODE(os.stat(p).st_mode) & 0o700))
+    return out
+
+
+def forwarded_identity_gate(argv):
+    """G-057 guard on machine_hq: a call the forwarder ran for a worker machine (FACTORY_FORWARDED=1, set only by
+    `factory-forward --serve`) must name a live or starting worker row recorded on a configured worker machine, with the
+    same role. Anything else exits 3. Only `--version` (no DB, no identity) passes without a row."""
+    if os.environ.get("FACTORY_FORWARDED") != "1":
+        return
+    if list(argv) == ["--version"]:
+        return
+    agent, role = os.environ.get("FACTORY_AGENT") or "", os.environ.get("FACTORY_ROLE") or ""
+    ok = False
+    try:
+        con = db()
+        try:
+            row = con.execute("SELECT role, status, spawn_args FROM agents WHERE name=?", (agent,)).fetchone() if agent else None
+            if row and row["status"] in ("live", "starting") and row["role"] in PLACEMENT_WORKER_ROLES and row["role"] == role:
+                m = _spawn_args_row(row).get("machine")
+                ok = isinstance(m, str) and m != _machine_hq(con) and m in _worker_machine_list(con)
+        finally:
+            con.close()
+    except (sqlite3.Error, OSError):
+        ok = False  # cannot decide: refuse
+    if not ok:
+        print(FORWARDED_REFUSAL, file=sys.stderr)
+        sys.exit(3)
+
+
+def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None, *, placement_discount=None,
+         allow_remote=True):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
@@ -3077,16 +3369,16 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
     if placement_on:
         machine, why, per = place_machine(con, role, runtime, _cpu_heavy_role(con, role),
                                            skip_load=bool(own_slot or load_exempt),
-                                           discount_machine=placement_discount)
+                                           discount_machine=placement_discount, allow_remote=allow_remote)
         stats["placement"] = per
         if why != "ok":
             return False, why, stats
         stats["machine"] = machine
         stats["hq_fails"] = per["machines"].get(per["hq"], {}).get("fails") or []
-        # Remote start is a later task. A caller that only checks gate()[0] (the resume tick) must see a
-        # refusal here, or it records a start while spawn queues the row.
-        if machine != per["hq"] and stats["hq_fails"]:
-            return False, f"would place on {machine} (remote start not enabled yet)", stats
+        if machine != per["hq"]:
+            # a worker machine passed its own floor, load and share (place_machine); spawn starts it there (T-1586).
+            # machine_hq's owner floor and load cap guard machine_hq's RAM and CPU, which this start does not use.
+            return True, "ok", stats
         if mem < int(cfg(con, "min_mem_available_mb")):
             return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
         if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
@@ -11036,12 +11328,17 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     rt = org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
     if role == "researcher" and rt == "cursor":
         die("the researcher role is not supported on the Cursor runtime (docs/research-team.md); use the claude org", 3)
-    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
-                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt,
-                          placement_discount=_relaunch_placement_discount(con, existing) if relaunch else None)
+    gate_kw = dict(load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
+                   own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt,
+                   placement_discount=_relaunch_placement_discount(con, existing) if relaunch else None,
+                   allow_remote=remote_start_ok(con, role, rt, args, sandbox_wanted(con, role, sandbox_optin)))
+    ok, why, stats = gate(con, **gate_kw)
+    _alert_unreachable_machines(con, stats)
     placed = stats.get("machine")
-    if placed:  # recorded even on a refusal; gate() already refused a worker machine this task cannot start
+    if placed:  # recorded even on a refusal
         event(con, "agent", name, "place", {"machine": placed, "role": role})
+    if placed and placed != _machine_hq(con) and role not in PLACEMENT_WORKER_ROLES:  # R1 belt (place_machine pins them)
+        die(f"refused: {role} never starts on worker machine {placed}", 3)
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
@@ -11052,32 +11349,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             held = judge_hold(con, task)  # the tick applies the same hold to rows it dequeues
             ok, why = (False, held) if held else (ok, why)
     if not ok:
-        if existing and existing["status"] in ("queued", "starting"):
-            # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
-            try:
-                old = json.loads(existing["spawn_args"] or "{}")
-            except ValueError:
-                old = {}
-            if not isinstance(old, dict):
-                old = {}
-            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend", "host_backend_pinned") if k in old})
-        # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
-        # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
-        # and leaves a cancelled row alone
-        cur = con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?,?,?) "
-                          "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, "
-                          # a re-queue of a queued/starting row keeps its queued_at (aging); new or terminal rows get a fresh one
-                          "queued_at=CASE WHEN agents.status IN ('queued','starting') AND agents.queued_at IS NOT NULL "
-                          "THEN agents.queued_at ELSE excluded.queued_at END, "
-                          "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL"
-                          + (" WHERE agents.status != 'cancelled'" if from_queue else ""),
-                          (name, role, goal, team, task, "queued", json.dumps(args), now()))
-        if from_queue and cur.rowcount == 0:
-            return None
-        con.execute("UPDATE agents SET org=? WHERE name=?", (org, name))
-        event(con, "agent", name, "queued", why)
-        print(f"QUEUED {name}: {why}. The tick starts it when capacity frees up.")
-        return None
+        return _spawn_queue(con, name, role, goal, team, task, org, args, existing, from_queue, why)
     claimed = False
     if from_queue and existing and existing["status"] == "queued":
         # atomic claim: from here a `factory dequeue` is refused ('starting'), so a row can never be both cancelled and
@@ -11105,8 +11377,19 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
                             "WHERE name=? AND status='starting'", (name,))
                 event(con, "agent", name, "queued", held)
                 return None
-        out = _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
-                           env_extra, plugin_dirs, fresh)
+        try:
+            out = _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
+                               env_extra, plugin_dirs, fresh)
+        except RemoteStartFailed as e:
+            # D4: never a half-started remote agent, never a failed spawn because a worker machine is down. Mark it,
+            # alert (rate-limited), and place again on the machines left under their own checks.
+            machine_unreachable(con, placed, str(e))
+            args.pop("machine", None)
+            ok, why, stats = gate(con, **{**gate_kw, "allow_remote": False})
+            if not ok:
+                return _spawn_queue(con, name, role, goal, team, task, org, args, existing, from_queue, why)
+            out = _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
+                               env_extra, plugin_dirs, fresh)
         con.execute("UPDATE agents SET org=? WHERE name=?", (org, name))
         return out
     except BaseException:
@@ -11114,6 +11397,44 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             con.execute("UPDATE agents SET status='queued', spawn_args=json_remove(spawn_args,'$.claimed_at') "
                         "WHERE name=? AND status='starting'", (name,))
         raise
+
+
+def _alert_unreachable_machines(con, stats):
+    """D4: a worker machine placement found unreachable (ssh failed) gets the mark and the rate-limited alert."""
+    per = stats.get("placement") or {}
+    for m, f in (per.get("machines") or {}).items():
+        if m != per.get("hq") and not f.get("reachable", True):
+            machine_unreachable(con, m, f.get("err") or "facts read failed")
+
+
+def _spawn_queue(con, name, role, goal, team, task, org, args, existing, from_queue, why):
+    """The gate refused: queue the row (the tick starts it later). Returns None."""
+    if existing and existing["status"] in ("queued", "starting"):
+        # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
+        try:
+            old = json.loads(existing["spawn_args"] or "{}")
+        except ValueError:
+            old = {}
+        if not isinstance(old, dict):
+            old = {}
+        args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend", "host_backend_pinned") if k in old})
+    # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
+    # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
+    # and leaves a cancelled row alone
+    cur = con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?,?,?) "
+                      "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, "
+                      # a re-queue of a queued/starting row keeps its queued_at (aging); new or terminal rows get a fresh one
+                      "queued_at=CASE WHEN agents.status IN ('queued','starting') AND agents.queued_at IS NOT NULL "
+                      "THEN agents.queued_at ELSE excluded.queued_at END, "
+                      "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL"
+                      + (" WHERE agents.status != 'cancelled'" if from_queue else ""),
+                      (name, role, goal, team, task, "queued", json.dumps(args), now()))
+    if from_queue and cur.rowcount == 0:
+        return None
+    con.execute("UPDATE agents SET org=? WHERE name=?", (org, name))
+    event(con, "agent", name, "queued", why)
+    print(f"QUEUED {name}: {why}. The tick starts it when capacity frees up.")
+    return None
 
 
 EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")  # claude 2.1.310 --effort <level>
@@ -12001,6 +12322,15 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         if cwd and cwd != want:
             die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
         cwd = want
+    # G-057: a worker machine placed by gate(). Absent machine (worker_machines empty, or machine_hq) = today's path.
+    remote = stats.get("machine") if stats.get("machine") and stats.get("machine") != _machine_hq(con) else None
+    if remote:
+        if role not in PLACEMENT_WORKER_ROLES:  # R1 belt: place_machine never picks a worker machine for these
+            die(f"refused: {role} never starts on worker machine {remote} (HQ, leads and judges stay on {_machine_hq(con)})", 3)
+        if not remote_start_ok(con, role, runtime, args, sandbox_wanted(con, role, optin)):
+            raise RemoteStartFailed(f"{name} cannot start on {remote} (claude on hc, unsandboxed only)")
+        remote_preflight(con, machine=remote, task=task)
+        cwd = cwd or remote_worktree(con, remote, task, role) or str(HOME)
     cwd = cwd or (prepare_worktree(con, task, role, runtime) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
@@ -12015,7 +12345,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     # worktree, relaunch with a recorded --cwd). The T-1328 check required cwd == tasks.worktree, so a qa clone
     # (<goal>-<task>-qa) or an explicit --cwd skipped it and the 'trust this folder' dialog showed. A cwd outside
     # worktrees/ is still refused by workerbox.set_clone_trust. Sandboxed panes seed their own config instead.
-    if (not sandboxed and runtime == "claude" and cwd
+    if (not remote and not sandboxed and runtime == "claude" and cwd
             and os.path.realpath(str(cwd)).startswith(os.path.realpath(str(WORKTREES)) + os.sep)):
         trust_task_clone(con, task or "-", cwd)  # idempotent
     if runtime != "claude":
@@ -12045,7 +12375,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if ghcred_on:
         env.update(gh_cred_env(con, role, name, cwd))
     args["host_backend"] = spawn_host  # explicit: a later config flip never re-reads this row's host
-    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE
+    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE, _HC_RUN_MACHINE, _HC_RUN_SCRIPT
     _SPAWN_HOST_EXE = spawn_host
     try:
         found = find_pane(pane) if pane and spawn_host == "herdr" else None
@@ -12090,6 +12420,27 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         claude_args += ["--session-id", sid]
         if fresh:  # same role flags as a resume: the prompt file is re-read on every request
             claude_args += RESUME_PROMPT_FLAGS
+    remote_script = None
+    if remote:
+        # the worker PATH starts with the forwarder dir: `factory` there runs on machine_hq, never a second DB
+        env["PATH"] = f"{remote_forward_dir()}{os.pathsep}{env.get('PATH') or os.environ.get('PATH', '/usr/bin:/bin')}"
+        script_env = dict(env)
+        try:
+            for k, v in (json.loads(Path(settings).read_text()).get("env") or {}).items():
+                script_env.setdefault(k, v)
+        except (OSError, json.JSONDecodeError, ValueError):
+            pass
+        remote_script = _hc_write_spawn_script(name, {k: str(v) for k, v in script_env.items()}, "claude", claude_args)
+        files = [(str(settings), 0o644), (str(sysprompt), 0o600), (str(remote_script), 0o700)]
+        secrets = []
+        if ghcred_on and env.get("GIT_CONFIG_GLOBAL"):
+            files += _tree_files(os.path.dirname(env["GIT_CONFIG_GLOBAL"]))  # the per-agent ghcred dir (paths only)
+            secrets.append(env["FACTORY_GH_TOKEN_FILE"])  # the token: mode 0600, content on ssh stdin only (R4)
+        if env.get("SCRUB_TERMS_FILE") and os.path.isfile(env["SCRUB_TERMS_FILE"]):
+            secrets.append(env["SCRUB_TERMS_FILE"])
+        copied = remote_copy_agent_files(con, remote, files, secrets)  # RemoteStartFailed: no row, no terminal yet
+        args["machine"] = remote
+        event(con, "agent", name, "remote-files", {"machine": remote, "files": copied})
     spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
@@ -12104,7 +12455,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     task_auto_start(con, task, f"spawn {name}", role)
     # tick_async_start: not sandboxed (its escape check must not wait a tick), not the evaluator; the start is told
     # not to wait for the TUI and the tick's start_confirm phase finishes what follows a successful start
-    async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator
+    # a remote start waits for its own start: the tick's start_confirm lists this machine's terminals only
+    async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator and not remote
     start_args = ("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout",
                   ASYNC_START_TIMEOUT_MS if async_start else "90000", "--", *claude_args)
     try:
@@ -12114,6 +12466,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         pass
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
     _HC_RUN_PROGRAM, _HC_RUN_NAME = None, name
+    _HC_RUN_MACHINE, _HC_RUN_SCRIPT = remote, remote_script
     _SPAWN_HOST_EXE = spawn_host
     start_err = None
     try:
@@ -12123,7 +12476,14 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             r = herdr(*start_args, check=False)
     finally:
         _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
+        _HC_RUN_MACHINE = _HC_RUN_SCRIPT = None
         _SPAWN_HOST_EXE = None
+    if remote:
+        got = (r or {}).get("agent") if isinstance(r, dict) else None
+        addr = got.get("address") if isinstance(got, dict) else None
+        addr = addr if isinstance(addr, str) and addr.startswith(f"{remote}/") else f"{remote}/{name}"
+        con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.hc_address',?) WHERE name=?", (addr, name))
+        event(con, "agent", name, "remote-start", {"machine": remote, "address": addr, "started": r is not None})
     if async_start and start_err and not any(m in start_err.lower() for m in START_PENDING_ERRORS):
         # a real failure (bad args, no such pane): do not wait START_CONFIRM_S for an agent that will never be ready
         event(con, "agent", name, "start-failed", {"pane": pane, "error": start_err[:300]})
@@ -17381,9 +17741,22 @@ def _tick_u_reap_loop(con, st):
         tui_by_name, tui_by_pane = st.get("tui_by_name") or {}, st.get("tui_by_pane") or {}
         tui_list_ok = st.get("tui_list_ok", True)
         # 1. reap finished workers; detect lost agents; record session ids for resume
+        remote_terms, hq_name = None, None
         for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
             row_exe = _agent_host_exe(con, r)
-            if hc_back:
+            rm = _spawn_args_row(r).get("machine")
+            if rm:
+                hq_name = hq_name or _machine_hq(con)
+            if rm and rm != hq_name:
+                # G-057: started on a worker machine; hc lists it as <machine>/tN, never under its bare name here.
+                # A row without the key (every row while worker_machines is empty) takes the branches below unchanged.
+                if remote_terms is None:
+                    listed_remote = _hc_remote_terminals()
+                    remote_terms = False if listed_remote is None else listed_remote
+                if remote_terms is False:
+                    continue  # hc cannot be read: a later tick decides, never 'lost' on a failed read
+                h = remote_terms.get(f"{rm}/{r['name']}")
+            elif hc_back:
                 if row_exe == "herdr":
                     if not tui_list_ok:
                         continue
@@ -21545,6 +21918,7 @@ def cli_shadow(binary, argv, environ):
 
 
 def main():
+    forwarded_identity_gate(sys.argv[1:])  # no-op unless FACTORY_FORWARDED=1 (bin/factory checks it first as well)
     # `factory config set <key> <value>` is the same write as `factory config <key> <value>` (G-057 names the set form).
     if len(sys.argv) > 3 and sys.argv[1] == "config" and sys.argv[2] == "set" and not sys.argv[3].startswith("-"):
         del sys.argv[2]
