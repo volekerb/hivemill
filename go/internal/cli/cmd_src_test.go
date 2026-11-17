@@ -309,6 +309,14 @@ func TestSrcStaleSessionHandsOver(t *testing.T) {
 			t.Errorf("%s: want a hand-over to Python, got execs %d exit %d out %q err %q", tc.name, s.execs, code, out, errs)
 		}
 	}
+	// a dest in a sibling session dir but outside its scratchpad stays a Go refusal
+	for _, rel := range []string{"live-new/foo", "live-new/scratchpad"} {
+		s := newSrcEnv(t)
+		mustNil(os.MkdirAll(filepath.Join(slugDir(s), "live-new", "scratchpad"), 0o755))
+		if _, errs, code := s.src("HEAD", filepath.Join(slugDir(s), rel)); code != 2 || s.execs != 0 || !strings.Contains(errs, "is not inside your scratchpad") {
+			t.Errorf("%s: want a Go refusal, got exit %d execs %d err %q", rel, code, s.execs, errs)
+		}
+	}
 	// the stored id that does own a scratchpad is still served by Go itself
 	s := newSrcEnv(t)
 	if _, _, code := s.src("HEAD", filepath.Join(s.scratch, "ok")); code != 0 || s.execs != 0 {
