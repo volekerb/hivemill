@@ -418,6 +418,15 @@
   "current": ""
  },
  {
+  "key": "judge_ci_gate",
+  "kind": "setting",
+  "default": "pr",
+  "summary": "pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS, clean merge-tree and no file overlap only (main push run is the gate)",
+  "goal": "G-050",
+  "doc": "docs/judge-ci-gate.md",
+  "current": "pr"
+ },
+ {
   "key": "judge_ci_wait_s",
   "kind": "setting",
   "default": "2400",
