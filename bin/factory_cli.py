@@ -287,6 +287,15 @@ DEFAULT_CONFIG = {
     # G-038 F-44: 1 = while the Claude weekly gate is closed (seven_day >= max_seven_day_pct), mail claude-boss once per goal and
     # cap window to offer moving a queued P1/P2 claude goal to cursor. It only mails; it never moves a goal. 0 = off.
     "cap_fallback_offer": "0",
+    # G-057 placement. Empty worker_machines = off: no ssh, no second machine, gate() as before (docs/multi-machine.md).
+    "worker_machines": "",       # comma list of worker machine names; HQ stays on machine_hq
+    "machine_hq": "hqhost",      # this machine's name; boss, director, leads and judges never leave it
+    "machine_mem_floor_mb": "1500",  # eligible only when mem_mb - per_agent_mb is at least this
+    "machine_mem_per_cursor_mb": "900",
+    "machine_mem_per_claude_mb": "500",
+    "machine_facts_ttl_s": "20",  # one ssh per machine per this many seconds
+    "machine_ssh_timeout_s": "5",
+    "machine_cpu_heavy_roles": "coder,qa",  # prefer the first worker machine that passes; others use RAM headroom
 }
 
 AUDIT_DDL = """
@@ -2417,11 +2426,32 @@ def claude_outside_spawn(con):
 
 # ───────────────────────────── resources ─────────────────────────────
 
+def _test_pin(var):
+    """$var for a test home only. A live home never honours it, so an agent exporting it cannot open the owner
+    MemAvailable floor or the placement checks on the live factory (same rule as FACTORY_TEST_NOW)."""
+    pinned = os.environ.get(var)
+    return pinned if pinned and not home_is_live() else None
+
+
+def _meminfo_text():
+    """/proc/meminfo. $FACTORY_MEMINFO pins a snapshot on a test home; otherwise the live file."""
+    pinned = _test_pin("FACTORY_MEMINFO")
+    return Path(pinned).read_text() if pinned else Path("/proc/meminfo").read_text()
+
+
 def mem_available_mb():
-    for line in Path("/proc/meminfo").read_text().splitlines():
+    for line in _meminfo_text().splitlines():
         if line.startswith("MemAvailable:"):
             return int(line.split()[1]) // 1024
     return 0
+
+
+def host_mem_available_mb():
+    """MemAvailable in MB. $FACTORY_MEM_MB pins it on a test home; otherwise /proc."""
+    pinned = _test_pin("FACTORY_MEM_MB")
+    if pinned:
+        return int(pinned)
+    return mem_available_mb()
 
 
 def serve_mem_available_mb():
@@ -2568,8 +2598,250 @@ def _int_cfg(con, key, default):
 
 REVIEW_RESERVE_BLOCKED = ("pm", "coder", "cleaner")  # roles that may not take the slots review_reserved_slots keeps for reviewer/qa
 
+# G-057: only these roles may be placed off machine_hq. HQ, leads, judges and the other roles stay put (R1).
+PLACEMENT_WORKER_ROLES = ("coder", "qa", "reviewer", "cleaner")
+_MACHINE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
+_MACHINE_FACTS_CACHE = {}  # machine -> (clock, facts); one ssh per machine per machine_facts_ttl_s
+_REMOTE_FACTS_CMD = "cat /proc/meminfo; echo ---; cat /proc/loadavg; echo ---; nproc"
 
-def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None):
+
+def check_machine_name(name):
+    """One machine name, or exit 2. 'factory' is refused before the shape check (R2)."""
+    if "factory" in name.lower():
+        die('refused: machine name must not contain "factory"', 2)
+    if not _MACHINE_NAME_RE.fullmatch(name):
+        die("refused: bad machine name", 2)
+    return name
+
+
+def check_worker_machines(value):
+    """The normalised comma list, or exit 2. Empty turns placement off. 'factory' is refused before the shape check (R2)."""
+    names = [x.strip() for x in value.split(",")] if value.strip() else []
+    out = []
+    for n in names:
+        n = check_machine_name(n)
+        if n not in out:
+            out.append(n)
+    return ",".join(out)
+
+
+def _worker_machine_list(con):
+    return [x.strip() for x in (cfg(con, "worker_machines") or "").split(",") if x.strip()]
+
+
+def _machine_hq(con):
+    return (cfg(con, "machine_hq") or "hqhost").strip() or "hqhost"
+
+
+def _host_nproc():
+    """CPUs for placement. $FACTORY_NPROC pins it on a test home; the single-machine load line still uses os.cpu_count()."""
+    pinned = _test_pin("FACTORY_NPROC")
+    if pinned:
+        return int(pinned)
+    return os.cpu_count() or 1
+
+
+def _facts_clock():
+    """Cache clock. $FACTORY_FACTS_NOW (a number of seconds) pins it; unset is monotonic so one tick shares one ssh."""
+    pinned = os.environ.get("FACTORY_FACTS_NOW")
+    if pinned:
+        return float(pinned)
+    return time.monotonic()
+
+
+def _facts_row(mem_mb, load, nproc, reachable, err):
+    return {"mem_mb": mem_mb, "load1": load, "nproc": nproc, "reachable": reachable, "err": err}
+
+
+def _local_machine_facts():
+    try:
+        return _facts_row(host_mem_available_mb(), load1(), _host_nproc(), True, "")
+    except (OSError, ValueError) as e:
+        return _facts_row(0, 0.0, 0, False, str(e)[:200])
+
+
+def _parse_remote_facts(text):
+    parts = (text or "").split("---")
+    if len(parts) < 3:
+        return None
+    mem = None
+    for line in parts[0].splitlines():
+        if line.startswith("MemAvailable:"):
+            try:
+                mem = int(line.split()[1]) // 1024
+            except (IndexError, ValueError):
+                return None
+            break
+    if mem is None:
+        return None
+    load_lines = [ln for ln in parts[1].splitlines() if ln.strip()]
+    nproc_lines = [ln.strip() for ln in parts[2].splitlines() if ln.strip()]
+    if not load_lines or not nproc_lines:
+        return None
+    try:
+        load = float(load_lines[0].split()[0])
+        nproc = int(nproc_lines[-1])
+    except (IndexError, ValueError):
+        return None
+    if nproc < 1:
+        return None
+    return _facts_row(mem, load, nproc, True, "")
+
+
+def _ssh_machine_facts(machine, timeout):
+    """One ssh, argv only: the machine name is an argument, never interpolated into a shell command."""
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}", "--", machine, _REMOTE_FACTS_CMD]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 2)
+    except (OSError, subprocess.SubprocessError) as e:
+        return _facts_row(0, 0.0, 0, False, str(e)[:200])
+    if p.returncode != 0:
+        err = (p.stderr or "").strip()[:200] or f"exit {p.returncode}"
+        return _facts_row(0, 0.0, 0, False, err)
+    parsed = _parse_remote_facts(p.stdout)
+    if parsed is None:
+        return _facts_row(0, 0.0, 0, False, "unreadable remote facts")
+    return parsed
+
+
+def machine_facts(con, machine):
+    """Dict mem_mb, load1, nproc, reachable, err. machine_hq is local /proc; any other name is one ssh, cached for the TTL.
+    A remote failure sets reachable=False and does not raise."""
+    now_s = _facts_clock()
+    ttl = _int_cfg(con, "machine_facts_ttl_s", 20)
+    hit = _MACHINE_FACTS_CACHE.get(machine)
+    if hit is not None and ttl > 0 and now_s - hit[0] < ttl:
+        return dict(hit[1])
+    if machine == _machine_hq(con):
+        facts = _local_machine_facts()
+    else:
+        facts = _ssh_machine_facts(machine, max(_int_cfg(con, "machine_ssh_timeout_s", 5), 1))
+    _MACHINE_FACTS_CACHE[machine] = (now_s, facts)
+    return dict(facts)
+
+
+def _per_agent_mb(con, runtime):
+    if runtime == "cursor":
+        return _int_cfg(con, "machine_mem_per_cursor_mb", 900)
+    return _int_cfg(con, "machine_mem_per_claude_mb", 500)
+
+
+def _cpu_heavy_role(con, role):
+    raw = cfg(con, "machine_cpu_heavy_roles") or ""
+    return bool(role) and role in {x.strip() for x in raw.split(",") if x.strip()}
+
+
+def _relaunch_placement_discount(con, row):
+    """The machine a live worker already occupies, so a relaunch does not spend a second share seat."""
+    if not row or row["status"] != "live" or row["role"] not in PLACEMENT_WORKER_ROLES:
+        return None
+    return _row_machine(row, _machine_hq(con))
+
+
+def _row_machine(row, hq):
+    """Machine recorded on the row. Absent (the only value this task writes for a real start) means machine_hq."""
+    try:
+        args = json.loads(row["spawn_args"] or "{}")
+    except (TypeError, ValueError):
+        args = {}
+    if isinstance(args, dict) and args.get("machine"):
+        return str(args["machine"])
+    return hq
+
+
+def _placement_census(con, hq):
+    """(hq_in_use, workers_by_machine) over live and starting rows. Non-worker roles are the HQ slots kept on machine_hq."""
+    hq_in_use, workers = 0, {}
+    for r in con.execute("SELECT role, spawn_args FROM agents WHERE status IN ('live','starting')"):
+        if r["role"] in PLACEMENT_WORKER_ROLES:
+            m = _row_machine(r, hq)
+            workers[m] = workers.get(m, 0) + 1
+        else:
+            hq_in_use += 1
+    return hq_in_use, workers
+
+
+def _worker_shares(budget, nprocs):
+    """Shares of budget by nproc that sum to budget. Leftover seats go to the largest fraction; a tie goes to the earlier machine."""
+    total = sum(nprocs)
+    if budget <= 0 or total <= 0:
+        return [0] * len(nprocs)
+    raw = [budget * n / total for n in nprocs]
+    base = [int(x) for x in raw]
+    left = budget - sum(base)
+    order = sorted(range(len(nprocs)), key=lambda i: (-(raw[i] - base[i]), i))
+    shares = base[:]
+    for i in order:
+        if left <= 0:
+            break
+        shares[i] += 1
+        left -= 1
+    return shares
+
+
+def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False, discount_machine=None):
+    """(machine, reason, per_machine_stats). reason is 'ok', or a refusal that names every machine's failing check.
+    Does not relax owner caps: gate() applies those first. A role other than coder, qa, reviewer, cleaner is machine_hq only.
+    discount_machine: a relaunch of a worker already counted on that machine. One seat is not counted twice."""
+    hq = _machine_hq(con)
+    remotes = []
+    for name in _worker_machine_list(con):
+        if name != hq and name not in remotes:
+            remotes.append(name)
+    machines = [hq, *remotes]
+    facts = {m: machine_facts(con, m) for m in machines}
+    per_mb = _per_agent_mb(con, runtime)
+    floor = _int_cfg(con, "machine_mem_floor_mb", 1500)
+    try:
+        ratio = float(cfg(con, "gate_max_load_ratio"))
+    except (TypeError, ValueError):
+        ratio = 1.25
+    hq_in_use, on_machine = _placement_census(con, hq)
+    if discount_machine and role in PLACEMENT_WORKER_ROLES:
+        on_machine[discount_machine] = max(0, on_machine.get(discount_machine, 0) - 1)
+    budget = max(0, _int_cfg(con, "max_live_agents", 6) - hq_in_use)
+    reachable = [m for m in machines if facts[m]["reachable"] and facts[m]["nproc"] > 0]
+    share_of = dict(zip(reachable, _worker_shares(budget, [facts[m]["nproc"] for m in reachable])))
+
+    def fails_of(m):
+        f = facts[m]
+        if not f["reachable"]:
+            return [f"unreachable ({f['err']})" if f["err"] else "unreachable"]
+        bad = []
+        if f["mem_mb"] - per_mb < floor:
+            bad.append(f"mem {f['mem_mb']}MB - {per_mb}MB < floor {floor}MB")
+        if not skip_load and f["load1"] > ratio * f["nproc"]:
+            bad.append(f"load1 {f['load1']:.1f} > {ratio} x {f['nproc']}")
+        if role in PLACEMENT_WORKER_ROLES and on_machine.get(m, 0) >= share_of.get(m, 0):
+            bad.append(f"workers {on_machine.get(m, 0)}/{share_of.get(m, 0)}")
+        return bad
+
+    per = {"hq": hq, "budget": budget, "hq_in_use": hq_in_use, "per_agent_mb": per_mb,
+           "machines": {m: {**facts[m], "share": share_of.get(m, 0), "workers": on_machine.get(m, 0), "fails": fails_of(m)}
+                        for m in machines}}
+    eligible = [m for m in machines if not per["machines"][m]["fails"]]
+    if role not in PLACEMENT_WORKER_ROLES:
+        bad = per["machines"][hq]["fails"]
+        if bad:
+            return hq, f"{hq}: " + "; ".join(bad), per
+        return hq, "ok", per
+    chosen = None
+    if cpu_heavy:
+        for m in remotes:
+            if m in eligible:
+                chosen = m
+                break
+    if chosen is None and eligible:
+        def headroom(m):
+            return facts[m]["mem_mb"] - per_mb - floor
+        chosen = max(eligible, key=lambda m: (headroom(m), -machines.index(m)))
+    if chosen is None:
+        parts = [f"{m}: " + "; ".join(per["machines"][m]["fails"]) for m in machines]
+        return hq, "no machine: " + "; ".join(parts), per
+    return chosen, "ok", per
+
+
+def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None, *, placement_discount=None):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
@@ -2593,7 +2865,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             live += 1
     other = sum(1 for a in (agents or []) if a.get("agent") in ("claude", "cursor")
                 and a.get("name") not in known and a.get("pane_id") not in known)
-    mem = mem_available_mb()
+    mem = host_mem_available_mb()
     u = usage()
     procs = total_claude_procs()
     total = procs["total"]
@@ -2646,7 +2918,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         return False, f"{live}/{stats['cap']} agent panes live", stats
     if stats["total"] is not None and stats["total"] - mine >= total_cap:
         return False, f"{stats['total']}/{total_cap} claude processes on host (incl. non-factory)", stats
-    if mem < int(cfg(con, "min_mem_available_mb")):
+    # Role-less calls (factory res, the tick hold) and an empty worker_machines keep this MemAvailable check.
+    # A role plus worker machines checks each machine in place_machine; a success still starts on machine_hq, so the
+    # owner floor is applied again on that return and is never replaced by machine_mem_floor_mb (M37141).
+    placement_on = bool(role) and bool(_worker_machine_list(con))
+    if not placement_on and mem < int(cfg(con, "min_mem_available_mb")):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
@@ -2662,7 +2938,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if live >= free_for_others:
             return False, (f"{live}/{stats['cap']} agent panes live; {max(_int_cfg(con, 'review_reserved_slots', 2) - held, 0)} "
                            "slots kept for reviewer/qa (review_reserved_slots)"), stats
-    if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
+    if not placement_on and not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     # Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
@@ -2684,6 +2960,24 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if hq + 1 > stats["hq_cap"]:
             return False, (f"{hq}/{stats['hq_cap']} HQ panes; {reserved} slots reserved for workers "
                            "(reserved_worker_slots)"), stats
+    if placement_on:
+        machine, why, per = place_machine(con, role, runtime, _cpu_heavy_role(con, role),
+                                           skip_load=bool(own_slot or load_exempt),
+                                           discount_machine=placement_discount)
+        stats["placement"] = per
+        if why != "ok":
+            return False, why, stats
+        stats["machine"] = machine
+        stats["hq_fails"] = per["machines"].get(per["hq"], {}).get("fails") or []
+        # Remote start is a later task. A caller that only checks gate()[0] (the resume tick) must see a
+        # refusal here, or it records a start while spawn queues the row.
+        if machine != per["hq"] and stats["hq_fails"]:
+            return False, f"would place on {machine} (remote start not enabled yet)", stats
+        if mem < int(cfg(con, "min_mem_available_mb")):
+            return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
+        if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
+            return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
+                           f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     return True, "ok", stats
 
 
@@ -3123,6 +3417,10 @@ def _config_value_rules(key, value):
             scoutvendor.resolve_root(a.value, HOME)
         except scoutvendor.VendorError as e:
             die(str(e), 2)
+    if a.key == "worker_machines":
+        a.value = check_worker_machines(a.value)
+    if a.key == "machine_hq":
+        a.value = check_machine_name(a.value.strip())
     return a.value
 
 
@@ -9912,6 +10210,36 @@ def install_pre_push_hook(repo):
         die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
 
 
+COMMIT_MSG_MARK = "# factory commit-msg Cursor trailer strip (T-1624)"
+
+
+def commit_msg_hook_body():
+    """The one commit-msg hook a cursor clone may hold: a one-line exec of bin/cursor-commit-msg-strip.sh in the factory
+    checkout, so the PR branch inside the clone cannot change what runs."""
+    script = Path(__file__).resolve().parent / "cursor-commit-msg-strip.sh"
+    return f"#!/bin/sh\n{COMMIT_MSG_MARK}\nexec sh {shlex.quote(str(script))} \"$@\"\n"
+
+
+def install_commit_msg_hook(repo):
+    """T-1624: <git-dir>/hooks/commit-msg for a runtime=cursor task clone only. The Cursor agent adds a
+    Co-authored-by: Cursor trailer in its own shells (env is not the cause); the push guard refuses that line."""
+    if not (Path(repo) / ".git").is_dir():  # a `git worktree add` checkout shares hooks/ with the main repo: never touch that
+        return False
+    p = git_run(repo, "rev-parse", "--git-common-dir", env={**os.environ, "LC_ALL": "C"})
+    if p.returncode != 0 or not p.stdout.strip():
+        die(f"spawn refused: cannot find the git dir of {repo} to install the commit-msg hook: {p.stderr.strip()}", 4)
+    dst = Path(repo, p.stdout.strip()).resolve() / "hooks" / "commit-msg"
+    body = commit_msg_hook_body()
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if not dst.is_file() or dst.is_symlink() or dst.read_text() != body:
+            dst.unlink(missing_ok=True)
+            dst.write_text(body)
+        dst.chmod(0o755)
+    except OSError as e:
+        die(f"spawn refused: cannot install the commit-msg hook at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
+
+
 def trust_task_clone(con, task, wt, add=True):
     """T-1220: pre-register (add) or drop the Claude workspace-trust entry of a per-task clone in the owner's
     ~/.claude.json, only under worktrees/. A refusal records one clone-trust-refused event and goes on (the dialog shows)."""
@@ -9943,6 +10271,8 @@ def git_hooks_refusal(clone):
             elif f.name.endswith(".sample"):
                 continue
             elif f.name == "pre-push" and f.read_text() == body:
+                continue
+            elif f.name == "commit-msg" and f.read_text() == commit_msg_hook_body():  # T-1624
                 continue
             else:
                 bad.append(f.name)
@@ -10001,7 +10331,7 @@ def prepare_qa_clone(con, t, task):
     return str(qa)
 
 
-def prepare_worktree(con, task, role):
+def prepare_worktree(con, task, role, runtime=None):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
         return None
@@ -10018,13 +10348,15 @@ def prepare_worktree(con, task, role):
         if role == "coder" and coder_git.is_dir() and not git_hooks_guard(con, t["worktree"]):
             con.commit()
             die(f"spawn refused: {t['worktree']}/.git holds {', '.join(git_hooks_refusal(t['worktree']))} "
-                "(only *.sample and the factory pre-push are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
+                "(only *.sample, the factory pre-push and the cursor commit-msg strip are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
         if role == "coder" and t["branch"]:
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
         install_pre_push_hook(t["worktree"])
+        if role == "coder" and runtime == "cursor":
+            install_commit_msg_hook(t["worktree"])
         return t["worktree"]
     if role != "coder":
         return None  # verifiers never create branches; they work from the coder's worktree or the PR
@@ -10041,6 +10373,8 @@ def prepare_worktree(con, task, role):
         make_task_clone(con, repo, wt, branch, base)
         trust_task_clone(con, task, wt)
         install_pre_push_hook(wt)
+        if runtime == "cursor":
+            install_commit_msg_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
     branch_existed = git_run(repo, "rev-parse", "--verify", "-q", f"refs/heads/{branch}", text=False).returncode == 0
@@ -10064,6 +10398,8 @@ def prepare_worktree(con, task, role):
         drop_half_made()
         die(f"worktree checkout failed: {p.stderr.strip()}")
     install_pre_push_hook(wt)
+    if runtime == "cursor":
+        install_commit_msg_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
     return str(wt)
 
@@ -10349,7 +10685,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if role == "researcher" and rt == "cursor":
         die("the researcher role is not supported on the Cursor runtime (docs/research-team.md); use the claude org", 3)
     ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
-                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt)
+                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt,
+                          placement_discount=_relaunch_placement_discount(con, existing) if relaunch else None)
+    placed = stats.get("machine")
+    if placed:  # recorded even on a refusal; gate() already refused a worker machine this task cannot start
+        event(con, "agent", name, "place", {"machine": placed, "role": role})
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
@@ -11175,7 +11515,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
                  sender="factory")
         event(con, "agent", name, "spawn", {"pane": None, "model": model, "cwd": cwd, "runtime": runtime,
-                                            "launch": plan.launch, "pid": proc.pid, "live": stats["live"] + 1})
+                                            "launch": plan.launch, "pid": proc.pid, "live": stats["live"] + 1,
+                                            **({"machine": stats["machine"]} if stats.get("machine") else {})})
         print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}) pid={proc.pid} cwd={cwd} log={log_path}")
         return name
 
@@ -11233,7 +11574,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
         kickoff_submit(con, name, kick, runtime, use_hc, goal, task)
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
-                                        "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
+                                        "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1,
+                                        **({"machine": stats["machine"]} if stats.get("machine") else {})})
     print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}, kind={plan.herdr_kind}) in {pane} cwd={cwd}")
     return name
 
@@ -11307,7 +11649,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         if cwd and cwd != want:
             die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
         cwd = want
-    cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
+    cwd = cwd or (prepare_worktree(con, task, role, runtime) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
     if terms and role in SCRUB_TERMS_ROLES:  # a path only: worker-guard still refuses to read the file itself
@@ -11315,11 +11657,13 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if evaluator:
         env.update(env_extra)  # validated: FACTORY_HOME is the trial's temp home, never the live one
     sandboxed = sandbox_wanted(con, role, optin)
-    own_wt = (con.execute("SELECT worktree FROM tasks WHERE id=?", (task,)).fetchone() or {"worktree": None})["worktree"] if task else None
-    if (not sandboxed and own_wt and role in ("coder", "qa", "reviewer")
-            and os.path.realpath(str(cwd)) == os.path.realpath(own_wt)
-            and os.path.realpath(own_wt).startswith(os.path.realpath(str(WORKTREES)) + os.sep)):
-        trust_task_clone(con, task, cwd)  # T-1328: a clone made for a sandbox_required task skipped T-1220; idempotent
+    # T-1657: the one trust point, on the final cwd of every claude launch (coder, qa clone, reused or cursor-made
+    # worktree, relaunch with a recorded --cwd). The T-1328 check required cwd == tasks.worktree, so a qa clone
+    # (<goal>-<task>-qa) or an explicit --cwd skipped it and the 'trust this folder' dialog showed. A cwd outside
+    # worktrees/ is still refused by workerbox.set_clone_trust. Sandboxed panes seed their own config instead.
+    if (not sandboxed and runtime == "claude" and cwd
+            and os.path.realpath(str(cwd)).startswith(os.path.realpath(str(WORKTREES)) + os.sep)):
+        trust_task_clone(con, task or "-", cwd)  # idempotent
     if runtime != "claude":
         if evaluator:
             die(f"runtime {runtime}: evaluator/skilleval stays on Claude", 3)
@@ -11465,7 +11809,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             if herdr("agent", "prompt", name, kick, check=False) is not None:
                 con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "live": stats["live"] + 1,
-                                        **({"sandbox": True} if sandboxed else {})})
+                                        **({"sandbox": True} if sandboxed else {}),
+                                        **({"machine": stats["machine"]} if stats.get("machine") else {})})
     print(f"SPAWNED {name} ({role}, {model}) in {pane} cwd={cwd}")
     return name
 
@@ -11953,8 +12298,25 @@ def prcheck_take_slot(con):
     return True
 
 
+def prcheck_is_factory_project(con, project_id):
+    """T-1203: True when the task's project is the factory's own repo (project id `factory`, or its gh_repo is the repo of
+    config factory_remote_url). No project, or an unknown project row, counts as the factory: the check then runs as
+    before, never silently skipped."""
+    if not project_id or project_id == "factory":
+        return True
+    r = con.execute("SELECT gh_repo FROM projects WHERE id=?", (project_id,)).fetchone()
+    if not r:
+        return True
+    mine, want = _repo_slug(r["gh_repo"]), _repo_slug(cfg(con, "factory_remote_url"))
+    return bool(mine and want and mine == want)
+
+
 def prcheck_affected(wt, base, con=None, pr_url=None, project_id=None):
-    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
+    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876).
+    Only the factory repo has ci/affected.py; any other project reports n/a (T-1203)."""
+    con = con or db()
+    if not prcheck_is_factory_project(con, project_id):
+        return True, "n/a (not the factory repo)"
     script = Path(wt) / "ci" / "affected.py"
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
@@ -12286,7 +12648,9 @@ def cmd_done(a):
             if dirty:
                 print("commit (a WIP commit is fine) and push, then run factory done again", file=sys.stderr)
             if unpushed:
-                print("push your commits (git push -u origin HEAD), then run factory done again", file=sys.stderr)
+                tb = con.execute("SELECT branch FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+                push_branch = (tb["branch"] if tb and tb["branch"] else "") or f"factory/{r['task_id'].lower()}"
+                print(f"push your commits (git push origin HEAD:{push_branch}), then run factory done again", file=sys.stderr)
                 if not dirty:
                     print(f"factory: if the push is held (spec says no merge until PR x, owner push needed), {done_exit_hint(r)}",
                           file=sys.stderr)
@@ -12671,7 +13035,8 @@ def src_scratch_roots(con):
     """Realpaths of the caller's own scratchpad: <tmp>/claude-<uid>/<slug of the agent's registered cwd>/<its session>/scratchpad.
     The caller is FACTORY_AGENT (refused when unset) and the slug comes from its agents row, never from the cwd or an env
     var the caller can set; a cwd that is not that registered cwd is refused. With a stored session id only that session's
-    scratchpad counts. Returns (roots, error)."""
+    scratchpad counts, plus (T-1639) the sessions of the caller's claude ancestor; when none of those has a scratchpad (a
+    respawned pane whose row is stale) only the newest session dir under the slug counts. Returns (roots, error)."""
     who = os.environ.get("FACTORY_AGENT") or ""
     r = con.execute("SELECT cwd, session_id FROM agents WHERE name=?", (who,)).fetchone() if who and who != "owner" else None
     if not r or not r["cwd"]:
@@ -12689,10 +13054,22 @@ def src_scratch_roots(con):
     try:
         if base.is_symlink() or not base.is_dir():
             return roots, ""
-        for s in ([base / sid] if sid else sorted(base.iterdir())):
-            pad = s / "scratchpad"
-            if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
-                roots.append(os.path.realpath(pad))
+        def pads(dirs):
+            for s in dirs:
+                pad = s / "scratchpad"
+                if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
+                    roots.append(os.path.realpath(pad))
+        # T-1639: a respawned pane (--resume / fresh --session-id) can run under a session id the agents row does not
+        # name yet (the tick syncs it only when the pane host reports it), so the stored id alone gave "no scratchpad
+        # found" to QA panes. Try the stored id and the ids on the caller's own claude ancestor first; when none has a
+        # scratchpad: no stored id = every session dir (as before); a stale stored id = only the newest session dir
+        # under this agent's own registered-cwd slug (the respawned pane's current session), never the older ones.
+        sids = list(dict.fromkeys(([sid] if sid else []) + [x for x in (_caller_claude_sessions() or [])
+                                                            if re.fullmatch(r"[A-Za-z0-9_-]+", x)]))
+        pads(base / x for x in sids)
+        if not roots:
+            dirs = sorted(base.iterdir(), key=lambda d: d.lstat().st_mtime)
+            pads(dirs if not sid else [d for d in reversed(dirs) if (d / "scratchpad").is_dir()][:1])
     except OSError:
         pass
     return roots, ""
@@ -15098,7 +15475,7 @@ def cmd_res(a):
     ok, why, s = gate(con)
     u = s["usage"]
     load = (load1(),)
-    swap = {l.split(":")[0]: int(l.split()[1]) for l in Path("/proc/meminfo").read_text().splitlines()
+    swap = {l.split(":")[0]: int(l.split()[1]) for l in _meminfo_text().splitlines()
             if l.startswith(("SwapTotal", "SwapFree"))}
     q = con.execute("SELECT count(*) c FROM agents WHERE status='queued'").fetchone()["c"]
     print(f"spawn gate: {'OPEN' if ok else 'CLOSED — ' + why}")
@@ -17954,6 +18331,13 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             sandbox_refuse(con, r["role"], r["name"], *bad)
     if gh_cred_wanted(con, r["role"], sandbox_wanted(con, r["role"], optin)):  # same: before the old pane is closed
         gh_cred_preflight(con, r["role"], r["name"])
+    if _worker_machine_list(con):  # placement can refuse a restart the single-machine gate would allow; do not close first
+        ok, why, _stats = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
+                               role=r["role"], own_lead=r["status"] == "live",
+                               runtime=org_runtime(con, r["role"], r["org"]),
+                               placement_discount=_relaunch_placement_discount(con, r))
+        if not ok:
+            die(f"not relaunching {r['name']}: {why}", 3)
     steps = []
     if close:
         if by_pane:
@@ -18510,16 +18894,66 @@ def _review_repo_mismatch(con, t):
     return None
 
 
-def _branch_on_remote(branch, batch):
-    """True/False: origin has refs/heads/<branch>; None when the remote cannot be read (the caller fails closed)."""
+class _RepoBatch(list):
+    """The review tick's per-tick ls-remote batch. As a list it is the factory-origin one-item batch every caller already
+    shares; `.foreign` holds one {"remote", "batch"} per other project repo (slug -> dict), `.origin` the cached factory slugs."""
+
+    def __init__(self):
+        super().__init__()
+        self.foreign = {}
+        self.origin = None
+
+
+def _review_remote(con, t, batch):
+    """(batch, kwargs) for the ls-remote helpers of task t's PR repo. The factory origin (or no project gh_repo, or an unparsable
+    PR url) is (batch, {}): exactly today's call. A foreign project repo gets its own one-item batch per tick and
+    remote=(repo dir or None, git remote or URL): the project's repo_path checkout when its origin is that repo, else
+    https://github.com/ORG/REPO.git (T-1675)."""
+    if not isinstance(batch, _RepoBatch):
+        return batch, {}
+    proj = con.execute("SELECT p.gh_repo, p.repo_path FROM projects p JOIN goals g ON g.project_id=p.id WHERE g.id=?", (t["goal_id"],)).fetchone()
+    want = _repo_slug(proj["gh_repo"]) if proj else None
+    if not want:
+        return batch, {}
+    try:
+        have = _repo_slug(_pr_repo_num(t["pr_url"])[0])
+    except ValueError:
+        return batch, {}
+    if have != want:
+        return batch, {}
+    if batch.origin is None:
+        batch.origin = {x for x in map(_repo_slug, _origin_urls()) if x}
+    if not batch.origin or want in batch.origin:  # origin unknown: today's behaviour
+        return batch, {}
+    ent = batch.foreign.get(want)
+    if ent is None:
+        remote = (None, f"https://github.com/{want}.git")
+        rp = proj["repo_path"]
+        if rp and Path(rp).is_absolute() and Path(rp, ".git").exists():
+            rc, url, _ = _git_rc(["remote", "get-url", "origin"], repo=rp)
+            if rc == 0 and _repo_slug(url) == want:
+                remote = (rp, "origin")
+        ent = batch.foreign[want] = {"remote": remote, "batch": []}
+    return ent["batch"], {"remote": ent["remote"]}
+
+
+def _review_head(con, t, batch):
+    sub, kw = _review_remote(con, t, batch)
+    return _ci_remote_head(t["branch"], sub, **kw)
+
+
+def _branch_on_remote(branch, batch, remote=None):
+    """True/False: origin (or `remote` = (repo dir or None, git remote or URL)) has refs/heads/<branch>; None when the remote
+    cannot be read (the caller fails closed)."""
     if branch.startswith("factory/"):
         if not batch:
             _pt_count("ci_wake_ls_remote")
-            batch.append(_ci_remote_heads())
+            batch.append(_ci_remote_heads(remote=remote) if remote else _ci_remote_heads())
         return None if batch[0] is None else branch in batch[0]
     ref = f"refs/heads/{branch}"
+    repo, target = remote or (None, "origin")
     _pt_count("ci_wake_ls_remote")
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, ref], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     return None if rc != 0 else any(l.split("\t")[-1:] == [ref] for l in out.splitlines())
 
 
@@ -18544,7 +18978,8 @@ def _review_pr_problem(con, t, pr, batch, clock, head_known=False):
         _review_skip(con, t, f"PR is {pr.get('state')}", clock)
         return True
     if t["branch"] and not head_known:
-        on = _branch_on_remote(t["branch"], batch)
+        sub, kw = _review_remote(con, t, batch)
+        on = _branch_on_remote(t["branch"], sub, **kw)
         if on is None:
             event(con, "task", tid, "review-autospawn-error", f"cannot read origin to check branch {t['branch']}"[:300])
             return True
@@ -18653,7 +19088,7 @@ def review_rerun_tick(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
-    batch = []
+    batch = _RepoBatch()
     for t in review_rerun_candidates(con):
         tid, team = t["id"], t["team_id"]
         why = _review_repo_mismatch(con, t)
@@ -18662,7 +19097,7 @@ def review_rerun_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        head = _ci_remote_head(t["branch"], batch)
+        head = _review_head(con, t, batch)
         if head:
             _review_alert_no_verdict(con, t, head, clock)
         if head and _review_head_done(con, tid, head, clock):
@@ -18733,7 +19168,7 @@ def review_autospawn_tick(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
-    batch = []
+    batch = _RepoBatch()
     for t in review_candidates(con):
         tid, team = t["id"], t["team_id"]
         why = _review_repo_mismatch(con, t)
@@ -18742,7 +19177,7 @@ def review_autospawn_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _ci_remote_head(t["branch"], batch) if t["branch"] else None)
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _review_head(con, t, batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
@@ -19022,7 +19457,9 @@ def spec_fill_tick(con):
 
 def ci_verdict(rollup):
     """('green'|'red'|'pending', [names]) of a PR's checks: green = at least one check and all completed with a
-    success/neutral/skipped conclusion; red = all completed and some failed (names = the failed ones)."""
+    success/neutral/skipped conclusion; red = all completed and some failed (names = the failed ones).
+    A CheckRun is finished when status is COMPLETED, and also: a CheckRun with a non-empty conclusion and a non-empty completedAt is finished even when status is not COMPLETED
+    (the Actions jobs API can report status in_progress with a final conclusion). An empty conclusion is never green."""
     checks = latest_checks(rollup)
     if not checks:
         return "pending", []
@@ -19036,9 +19473,11 @@ def ci_verdict(rollup):
             elif state != "SUCCESS":
                 done = False
             continue
-        if (c.get("status") or "").upper() != "COMPLETED":
+        finished = (c.get("status") or "").upper() == "COMPLETED" or bool(
+            (c.get("conclusion") or "").strip() and (c.get("completedAt") or "").strip())
+        if not finished:
             done = False
-        elif (c.get("conclusion") or "").upper() not in ("SUCCESS", "NEUTRAL", "SKIPPED"):
+        elif (c.get("conclusion") or "").strip().upper() not in ("SUCCESS", "NEUTRAL", "SKIPPED"):
             failed.append(name)  # FAILURE, CANCELLED, TIMED_OUT, ACTION_REQUIRED...; an unknown conclusion is never green
     if not done:
         return "pending", []
@@ -19049,9 +19488,11 @@ CI_WAKE_GH_TIMEOUT_S = 15  # one slow gh call must not stall the tick
 CI_WAKE_RECHECK_S = 600  # fallback only: when the remote head cannot be read, a mailed task's PR is not queried again for this long
 
 
-def _ci_remote_heads():
-    """{branch: head sha} for every origin refs/heads/factory/* from ONE `git ls-remote`, or None when it cannot be read."""
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S)
+def _ci_remote_heads(remote=None):
+    """{branch: head sha} for every origin (or `remote` = (repo dir or None, git remote or URL)) refs/heads/factory/* from ONE
+    `git ls-remote`, or None when it cannot be read."""
+    repo, target = remote or (None, "origin")
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     if rc != 0:
         return None
     heads = {}
@@ -19062,7 +19503,7 @@ def _ci_remote_heads():
     return heads
 
 
-def _ci_remote_head(branch, batch=None):
+def _ci_remote_head(branch, batch=None, remote=None):
     """Head sha of origin's refs/heads/<branch> by `git ls-remote` (no gh call), or None when it cannot be read.
     `batch` is a one-item list holding the per-tick _ci_remote_heads() result (filled on first use): a factory/* branch is
     looked up there, so a tick makes one ls-remote however many PRs it checks; any other branch gets its own call."""
@@ -19071,11 +19512,12 @@ def _ci_remote_head(branch, batch=None):
     if batch is not None and branch.startswith("factory/"):
         if not batch:
             _pt_count("ci_wake_ls_remote")
-            batch.append(_ci_remote_heads())
+            batch.append(_ci_remote_heads(remote=remote) if remote else _ci_remote_heads())
         return (batch[0] or {}).get(branch)
     ref = f"refs/heads/{branch}"
+    repo, target = remote or (None, "origin")
     _pt_count("ci_wake_ls_remote")
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, ref], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     rows = [l.split("\t") for l in out.splitlines() if l.strip()] if rc == 0 else []
     rows = [r for r in rows if len(r) == 2 and r[1] == ref and re.fullmatch(r"[0-9a-f]{40}", r[0])]
     return rows[0][0] if len(rows) == 1 else None
@@ -19485,7 +19927,13 @@ def tick_relaunches(con):
             h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue  # mid-turn, blocked or not listed: a later tick
-        ok, why, _ = gate(con, own_slot=True)  # the agent already holds its slot; never close a pane the gate would queue
+        if _worker_machine_list(con):
+            # placement can refuse a restart the single-machine gate would allow; do not close the pane first
+            ok, why, _ = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
+                              role=r["role"], own_lead=True, runtime=org_runtime(con, r["role"], r["org"]),
+                              placement_discount=_relaunch_placement_discount(con, r))
+        else:
+            ok, why, _ = gate(con, own_slot=True)  # feature off: the same call as before placement existed
         if not ok:
             key = f"relaunch_deferred:{r['name']}"
             last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
@@ -20656,6 +21104,9 @@ def cli_shadow(binary, argv, environ):
 
 
 def main():
+    # `factory config set <key> <value>` is the same write as `factory config <key> <value>` (G-057 names the set form).
+    if len(sys.argv) > 3 and sys.argv[1] == "config" and sys.argv[2] == "set" and not sys.argv[3].startswith("-"):
+        del sys.argv[2]
     mode, binary = cli_dispatch_mode(sys.argv)
     if mode == "shadow" and not cli_shadow_readonly(sys.argv):
         mode = "python"  # only read-only commands are shadowed: a write would run twice

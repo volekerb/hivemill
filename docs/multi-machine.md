@@ -50,7 +50,13 @@ Server checks (each refusal exits 2 with one `forward: ...` line and runs nothin
 - a mapped cwd that is not a directory on the HQ machine.
 
 The CLI's env on the HQ machine is: the server's own `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_ALL`,
-`LC_CTYPE`, `TZ`, `TMPDIR`, `FACTORY_HOME`; the allow-listed keys from the header; and `FACTORY_FORWARDED=1`. A
+`LC_CTYPE`, `TZ`, `TMPDIR`, `FACTORY_HOME`; the allow-listed keys from the header; and `FACTORY_FORWARDED=1`.
+
+Locale is explicit: only `LANG`, `LC_ALL` and `LC_CTYPE` are kept, from the HQ server's own env, i.e. whatever the ssh
+session on the HQ machine provides (the HQ user's login shell env, or a locale sshd accepts via `AcceptEnv LANG LC_*`
+when the client's ssh config has `SendEnv`). The forwarder itself never carries the client's locale: `LANG` and `LC_*`
+are not on the header allow-list, so a header with them is refused, and other `LC_*` keys (e.g. `LC_MESSAGES`) are
+dropped. If the CLI needs a UTF-8 locale on HQ, set it in the HQ user's shell env; do not rely on `AcceptEnv`. A
 client can never set `FACTORY_FORWARDED` (it is not on the allow-list). The identity check that uses it is on the HQ
 CLI side (T-C), not in the forwarder.
 
@@ -141,7 +147,58 @@ spawned on that worker machine is T-C.
 
 ## Placement
 
-(T-B)
+Placement runs only when `worker_machines` is a non-empty comma list. With that key empty, `gate()` is the
+single-machine gate: it reads this machine's MemAvailable and load, it makes no ssh call, and nothing is recorded
+against a worker machine.
+
+`place_machine` runs after the owner global caps (live agents, claude processes, /tmp, review reserve, usage, lead
+caps). Those caps are unchanged and are checked first. Placement can refuse a spawn they allow; it cannot allow a
+spawn they refuse.
+
+A call with no role (`factory res`, the tick's queue hold) still applies this machine's MemAvailable floor and its
+load cap when `worker_machines` is set. Placement does not run on that call. A placement success still starts on
+`machine_hq` in this task, and that success is refused when MemAvailable is under `min_mem_available_mb`. The
+per-machine floor does not replace the owner floor for a start on `machine_hq`.
+
+An idle relaunch (`relaunch --when-idle`) uses the pre-placement gate call (own slot only) while `worker_machines`
+is empty. With the key set, the tick passes the role and runtime so a restart placement would refuse does not close
+the pane.
+
+Roles other than coder, qa, reviewer and cleaner are placed on `machine_hq` only. A machine is eligible when it is
+reachable, `mem_mb - per_agent_mb >= machine_mem_floor_mb` (cursor uses `machine_mem_per_cursor_mb`, claude uses
+`machine_mem_per_claude_mb`), `load1 <= gate_max_load_ratio x` that machine's nproc, and the workers already on it
+are below its share.
+
+`machine_hq` keeps every live or starting non-worker (the HQ, lead and judge slots it holds). The rest of
+`max_live_agents` is the worker budget, split by nproc across the reachable machines:
+
+```
+hq_in_use     = live and starting agents whose role is not coder, qa, reviewer or cleaner
+worker_budget = max(0, max_live_agents - hq_in_use)
+raw_i         = worker_budget * nproc_i / sum(nproc of reachable machines)
+share_i       = floor(raw_i)
+```
+
+The leftover seats (`worker_budget - sum(share_i)`) go one each to the machines with the largest fractional part
+(`raw_i - floor(raw_i)`). A tie goes to the earlier machine (`machine_hq`, then `worker_machines` order). The shares
+sum to `worker_budget`.
+
+Worked example: `max_live_agents` 28 and 4 HQ live, so `worker_budget` is 24. hqhost has nproc 8 and workerhost has
+nproc 16 (sum 24). hqhost raw = 24 * 8 / 24 = 8, workerhost raw = 24 * 16 / 24 = 16. Both fractions are 0, so the
+shares are 8 and 16. They sum to 24, and the workerhost share is the larger one.
+
+A role in `machine_cpu_heavy_roles` (default coder,qa) takes the first worker machine that passes. Any other worker
+role takes the eligible machine with the most RAM headroom (`mem_mb - per_agent_mb - machine_mem_floor_mb`); a tie
+keeps the earlier machine. If none pass, the refusal names each machine and the check it failed.
+
+This task still starts every agent on `machine_hq`. The chosen machine is written on the spawn (`place`, and on the
+spawn event when the start proceeds). When `machine_hq` itself fails its checks, the spawn is refused with
+`would place on <machine> (remote start not enabled yet)` instead of starting on a machine that is out of room.
+
+Facts: `machine_hq` reads local MemAvailable, load and nproc. Each other machine is one
+`ssh -o BatchMode=yes -o ConnectTimeout=<machine_ssh_timeout_s> -- <machine> ...` argv (the name is an argument, not
+a shell string), cached for `machine_facts_ttl_s` seconds. A failed ssh marks that machine unreachable and does not
+raise; placement then uses the machines that remain.
 
 ## Remote spawn
 
