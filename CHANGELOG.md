@@ -11,7 +11,7 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
-- **The boss role may merge on hivemill and hivemill-www (owner fallback merge path).** By the owner's decision (M40734) the boss can run `gh pr merge <N> --squash --delete-branch`, optionally with `--repo volekerb/hivemill` or `--repo volekerb/hivemill-www`. `--admin`, `--auto`, `--merge`, `--rebase`, any other repo and every other role stay refused, in the boss settings and in both worker-guard implementations.
+- **The boss role may merge on hivemill and hivemill-www (owner fallback merge path).** By the owner's decision (M40734) the boss can run `gh pr merge <N> --squash --delete-branch`, with `--repo volekerb/hivemill` or `--repo volekerb/hivemill-www` (the repo is required). `--admin`, `--auto`, `--merge`, `--rebase`, any other repo and every other role stay refused, in the boss settings and in both worker-guard implementations.
 - **Scheduled jobs now fire from the tick.** Before, `factory schedule` only stored jobs and nothing fired them. Now the Python tick runs `factory-go schedule due --json` and mails each due job to the director, the run's token cap is applied through the goal's `token_limit`, and days the tick missed are not back-filled. See [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md#tick-claiming-due-jobs) (#777).
 
 ## [0.5.0] - Unreleased

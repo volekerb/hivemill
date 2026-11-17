@@ -106,7 +106,7 @@ func bossMergeOK(rest []string) bool {
 			args = append(args, a)
 		}
 	}
-	if len(repos) > 1 {
+	if len(repos) != 1 {
 		return false
 	}
 	for _, r := range repos {

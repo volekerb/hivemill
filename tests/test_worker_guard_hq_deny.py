@@ -130,8 +130,7 @@ class HqDenyTests(unittest.TestCase):
 
 
 BOSS_MERGE_OK = [
-    "gh pr merge 12 --squash --delete-branch",
-    "gh pr merge 12 --delete-branch --squash",
+    "gh pr merge 12 --delete-branch --squash --repo volekerb/hivemill",
     "gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill",
     "gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill-www",
     "gh pr merge 12 --squash --delete-branch --repo=volekerb/hivemill-www",
@@ -139,6 +138,8 @@ BOSS_MERGE_OK = [
     "gh pr merge --repo volekerb/hivemill 12 --squash --delete-branch",
 ]
 BOSS_MERGE_REFUSED = [
+    "gh pr merge 12 --squash --delete-branch",
+    "GH_REPO=evil/x gh pr merge 12 --squash --delete-branch",
     "gh pr merge 12 --squash --delete-branch --admin",
     "gh pr merge 12 --squash --delete-branch --auto",
     "gh pr merge 12 --merge --delete-branch",
@@ -199,13 +200,13 @@ class BossMergeTests(unittest.TestCase):
         allow, deny = cfg["permissions"]["allow"], cfg["permissions"]["deny"]
         self.assertNotIn("Bash(gh pr merge:*)", deny)
         merges = [a for a in allow if a.startswith("Bash(gh pr merge")]
-        self.assertEqual(len(merges), 5)
+        self.assertEqual(len(merges), 4)
         for a in merges:
             self.assertIn("--squash --delete-branch", a)
             self.assertNotIn("--admin", a)
-            self.assertTrue("--repo" not in a or "--repo volekerb/hivemill" in a)
+            self.assertIn("--repo volekerb/hivemill", a)
         for flag in ("--admin", "--auto", "--merge", "--rebase"):
-            self.assertIn(f"Bash(gh pr merge:*{flag}*)", deny)
+            self.assertIn(f"Bash(gh pr merge * {flag}*)", deny)
         for path in sorted(glob.glob(os.path.join(ROOT, "roles", "settings", "*.json.in"))):
             role = os.path.basename(path).split(".")[0]
             if role == "boss":

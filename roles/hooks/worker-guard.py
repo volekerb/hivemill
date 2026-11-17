@@ -1406,7 +1406,7 @@ BOSS_MERGE_REPOS = ("volekerb/hivemill", "volekerb/hivemill-www")
 
 def boss_merge_ok(rest):
     """T-1803 (owner decision M40734): the one `gh pr merge` the boss role may run: `gh pr merge <N> --squash
-    --delete-branch`, each flag once, optionally `--repo|-R|--repo=` naming hivemill or hivemill-www. Anything else
+    --delete-branch`, each flag once, with exactly one `--repo|-R|--repo=` naming hivemill or hivemill-www. Anything else
     (--admin, --auto, --merge, --rebase, another repo, a repo given twice, extra flags) stays denied."""
     args, repos, i = [], [], 0
     while i < len(rest):
@@ -1422,7 +1422,7 @@ def boss_merge_ok(rest):
         else:
             args.append(a)
         i += 1
-    if len(repos) > 1 or any(r not in BOSS_MERGE_REPOS for r in repos):
+    if len(repos) != 1 or any(r not in BOSS_MERGE_REPOS for r in repos):
         return False
     flags = sorted(a for a in args if a.startswith("-"))
     pos = [a for a in args if not a.startswith("-")]

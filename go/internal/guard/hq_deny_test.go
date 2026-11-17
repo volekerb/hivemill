@@ -120,8 +120,7 @@ func TestHqDeny(t *testing.T) {
 // T-1803 (owner decision M40734): only the boss role may run `gh pr merge <N> --squash --delete-branch` on hivemill or
 // hivemill-www. Mirrors BossMergeTests in tests/test_worker_guard_hq_deny.py.
 var bossMergeCases = []string{
-	"gh pr merge 12 --squash --delete-branch",
-	"gh pr merge 12 --delete-branch --squash",
+	"gh pr merge 12 --delete-branch --squash --repo volekerb/hivemill",
 	"gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill",
 	"gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill-www",
 	"gh pr merge 12 --squash --delete-branch --repo=volekerb/hivemill-www",
@@ -130,6 +129,8 @@ var bossMergeCases = []string{
 }
 
 var bossMergeRefused = []string{
+	"gh pr merge 12 --squash --delete-branch",
+	"GH_REPO=evil/x gh pr merge 12 --squash --delete-branch",
 	"gh pr merge 12 --squash --delete-branch --admin",
 	"gh pr merge 12 --squash --delete-branch --auto",
 	"gh pr merge 12 --merge --delete-branch",
