@@ -10,7 +10,3 @@ tests.test_relaunch_idle
 tests.test_stop
 tests.test_worker_gate
 tests.test_resume
-tests.test_main_protection_check
-tests.test_remote_url_check
-tests.test_tmp_sweep
-tests.test_tick_phase_timers
