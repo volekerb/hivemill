@@ -1,0 +1,12 @@
+{
+ "config_keys": [],
+ "events": [
+  {
+   "actor": "owner",
+   "entity": "tick",
+   "entity_id": "judge-ci-prune",
+   "action": "judge-ci-pruned",
+   "detail": "2"
+  }
+ ]
+}

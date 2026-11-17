@@ -131,6 +131,12 @@ func (d *driver) walk() int {
 			}
 		}
 		if stop {
+			if sg.goFn == nil && d.timers && d.state.AgentsNull() {
+				// herdr was unreachable and the offline row rode along in this child (its segment goes past
+				// judge_ci_prune because the next Go unit sits later): the offline branch ran inside the child
+				// and ended with _pt_emit. A second emit child would be refused ("herdr list missing", exit 2).
+				d.emitted = true
+			}
 			break
 		}
 	}

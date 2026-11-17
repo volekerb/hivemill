@@ -1,0 +1,14 @@
+{
+ "config_keys": [
+  "judge_ci:https://github.com/zz-test/repo/pull/1"
+ ],
+ "events": [
+  {
+   "actor": "owner",
+   "entity": "tick",
+   "entity_id": "judge-ci-prune",
+   "action": "judge-ci-prune-error",
+   "detail": "FACTORY_NOW must be an ISO timestamp, got bad"
+  }
+ ]
+}

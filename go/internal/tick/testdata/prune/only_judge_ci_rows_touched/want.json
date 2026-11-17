@@ -1,0 +1,19 @@
+{
+ "config_keys": [
+  "judge_ci",
+  "judge_ci_wait_s",
+  "judge_cix:https://github.com/zz-test/repo/pull/9",
+  "last_judge_gh_fail_ts",
+  "mech_merge",
+  "xjudge_ci:https://github.com/zz-test/repo/pull/9"
+ ],
+ "events": [
+  {
+   "actor": "owner",
+   "entity": "tick",
+   "entity_id": "judge-ci-prune",
+   "action": "judge-ci-pruned",
+   "detail": "1"
+  }
+ ]
+}
