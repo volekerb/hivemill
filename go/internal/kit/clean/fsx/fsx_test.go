@@ -442,3 +442,84 @@ func TestDiskFree(t *testing.T) {
 		t.Error("missing path accepted")
 	}
 }
+
+func TestDeviceRemoveRefusesMount(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	rootDir := t.TempDir()
+	write(t, filepath.Join(rootDir, "d", "mnt", "big"), "123456789")
+	write(t, filepath.Join(rootDir, "d", "f"), "1")
+	orig := devOf
+	t.Cleanup(func() { devOf = orig })
+	r := openRoot(t, rootDir)
+	devOf = func(fi fs.FileInfo) (uint64, bool) {
+		d, ok := orig(fi)
+		if fi.Name() == "mnt" {
+			return d + 1, ok
+		}
+		return d, ok
+	}
+	for _, rel := range []string{"d", "d/mnt"} {
+		id, err := r.Identity(rel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Remove(r, rel, id); !errors.Is(err, ErrMount) {
+			t.Errorf("Remove(%s) err = %v, want ErrMount", rel, err)
+		}
+	}
+	if !exists(filepath.Join(rootDir, "d", "mnt", "big")) || !exists(filepath.Join(rootDir, "d", "f")) {
+		t.Error("files under a mount point were deleted")
+	}
+}
+
+func TestLedgerOverflow(t *testing.T) {
+	l := NewLedger(100, nil)
+	if err := l.Reserve("a", 60); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Reserve("a", int64(^uint64(0)>>1)); !errors.Is(err, ErrCap) {
+		t.Errorf("huge reservation: err = %v, want ErrCap", err)
+	}
+	if l.Total() != 60 {
+		t.Errorf("Total = %d", l.Total())
+	}
+}
+
+func TestLogSymlinkedDirRefused(t *testing.T) {
+	state := t.TempDir()
+	target := t.TempDir()
+	write(t, filepath.Join(target, "old.json"), "{}")
+	old := time.Now().Add(-90 * 24 * time.Hour)
+	os.Chtimes(filepath.Join(target, "old.json"), old, old)
+	if err := os.Symlink(target, filepath.Join(state, "logs")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteJSON(state, "apply", 1); err == nil {
+		t.Error("WriteJSON followed symlinked logs/")
+	}
+	if _, err := PruneLogs(state, LogRetention); err == nil {
+		t.Error("PruneLogs followed symlinked logs/")
+	}
+	ents, _ := os.ReadDir(target)
+	if len(ents) != 1 || ents[0].Name() != "old.json" {
+		t.Errorf("target dir modified: %v", ents)
+	}
+}
+
+func TestLogSameInstantNoOverwrite(t *testing.T) {
+	state := t.TempDir()
+	orig := now
+	now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
+	t.Cleanup(func() { now = orig })
+	a, err := WriteJSON(state, "plan", "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := WriteJSON(state, "plan", "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a == b || sha(t, a) == sha(t, b) {
+		t.Errorf("second write replaced the first: %s %s", a, b)
+	}
+}

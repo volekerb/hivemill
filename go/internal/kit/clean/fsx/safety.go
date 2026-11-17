@@ -46,10 +46,10 @@ func (l *Ledger) Reserve(rule string, bytes int64) error {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.total+bytes > l.runCap {
+	if bytes > l.runCap-l.total {
 		return fmt.Errorf("%w: run cap %d", ErrCap, l.runCap)
 	}
-	if c, ok := l.ruleCaps[rule]; ok && l.rules[rule]+bytes > c {
+	if c, ok := l.ruleCaps[rule]; ok && bytes > c-l.rules[rule] {
 		return fmt.Errorf("%w: rule %q cap %d", ErrCap, rule, c)
 	}
 	l.total += bytes

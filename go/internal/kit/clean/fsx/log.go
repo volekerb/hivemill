@@ -2,7 +2,9 @@ package fsx
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +29,10 @@ func WriteJSON(stateDir, kind string, v any) (string, error) {
 		return "", err
 	}
 	dir := filepath.Join(stateDir, sub)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return "", err
+	}
+	if err := ensureRealDir(dir); err != nil {
 		return "", err
 	}
 	tmp, err := os.CreateTemp(dir, ".tmp-*")
@@ -50,12 +55,40 @@ func WriteJSON(stateDir, kind string, v any) (string, error) {
 		os.Remove(tmpName)
 		return "", err
 	}
-	final := filepath.Join(dir, now().UTC().Format("20060102T150405.000000000Z")+".json")
-	if err := os.Rename(tmpName, final); err != nil {
-		os.Remove(tmpName)
-		return "", err
+	stamp := now().UTC().Format("20060102T150405.000000000Z")
+	for i := 0; i < 1000; i++ {
+		final := filepath.Join(dir, stamp+".json")
+		if i > 0 {
+			final = filepath.Join(dir, fmt.Sprintf("%s-%d.json", stamp, i))
+		}
+		// Link never overwrites; rename would silently replace a log.
+		err := os.Link(tmpName, final)
+		if err == nil {
+			os.Remove(tmpName)
+			return final, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			os.Remove(tmpName)
+			return "", err
+		}
 	}
-	return final, nil
+	os.Remove(tmpName)
+	return "", errors.New("fsx: could not find a free log file name")
+}
+
+// ensureRealDir creates dir (0700) or checks it is a real directory, not a symlink.
+func ensureRealDir(dir string) error {
+	fi, err := os.Lstat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return os.Mkdir(dir, 0o700)
+	}
+	if err != nil {
+		return err
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("fsx: %s is not a real directory (symlink?): refusing", dir)
+	}
+	return nil
 }
 
 // PruneLogs deletes *.json regular files older than maxAge, directly in
@@ -66,6 +99,9 @@ func PruneLogs(stateDir string, maxAge time.Duration) (int, error) {
 	removed := 0
 	for _, sub := range []string{"plans", "logs"} {
 		dir := filepath.Join(stateDir, sub)
+		if fi, err := os.Lstat(dir); err == nil && !fi.IsDir() {
+			return removed, fmt.Errorf("fsx: %s is not a real directory (symlink?): refusing", dir)
+		}
 		ents, err := os.ReadDir(dir)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -82,7 +118,11 @@ func PruneLogs(stateDir string, maxAge time.Duration) (int, error) {
 				return removed, err
 			}
 			if fi.ModTime().Before(cutoff) {
-				if err := os.Remove(filepath.Join(dir, de.Name())); err != nil {
+				err := os.Remove(filepath.Join(dir, de.Name()))
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
+				if err != nil {
 					return removed, err
 				}
 				removed++
