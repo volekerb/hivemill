@@ -62,6 +62,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [lanes.md](lanes.md): `lane-check`, whether two branches or the open PR heads really conflict (git merge-tree), with exit codes.
 - [retro.md](retro.md): how the daily retro loop runs and how to turn it off.
 - [red-pr-owner-alert.md](red-pr-owner-alert.md): `red_pr_owner_alert` flag, the tick mails the lead once per red or conflicted head with no coder.
+- [stuckpr.md](stuckpr.md): the tick unit that classifies open hivemill PRs and wakes the coder or escalates once when stale.
 - [gh-quota.md](gh-quota.md): `pr_view_ttl_s` and `gh_quota_min`, the tick's PR probe cache and low GraphQL quota guard.
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
 - [judge-ci-gate.md](judge-ci-gate.md): judge_ci_gate=none merges without reading PR checks; red-main bisect + revert task (T-1772).
