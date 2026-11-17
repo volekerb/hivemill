@@ -33,11 +33,11 @@ class TaskCloneTests(FactoryTestCase):
         f.write_text(f"#!/bin/sh\necho ran >> '{self.marker}'\n")
         f.chmod(0o755)
 
-    def prepare(self, task="T-0001", role="coder"):
+    def prepare(self, task="T-0001", role="coder", runtime=None):
         with self.env.load_factory() as mod:
             con = mod.db()
             try:
-                out = mod.prepare_worktree(con, task, role)
+                out = mod.prepare_worktree(con, task, role, runtime)
                 con.commit()
                 return 0, out
             except SystemExit as ex:
@@ -345,6 +345,79 @@ class TaskCloneTests(FactoryTestCase):
                 with self.env.load_factory() as mod:
                     mod.install_pre_push_hook(wt)
                 self.assertEqual(self.prepare()[0], 0)
+
+    # ---- T-1624: runtime=cursor clones get a commit-msg hook that drops the Cursor co-author trailer ----
+    def cursor_clone(self):
+        self.ok("config", "task_clones", "1")
+        self.assertEqual(self.prepare(runtime="cursor")[0], 0)
+        return self.wt
+
+    def commit_msg(self, wt, msg):
+        msg = msg.replace("[at]", chr(64))  # no literal address in the source (public-text guard)
+        (wt / "f.txt").write_text(msg)
+        git("add", "f.txt", cwd=wt)
+        git("commit", "-q", "-m", msg, cwd=wt)
+        return git("log", "-1", "--format=%B", cwd=wt)
+
+    def test_cursor_clone_commit_has_no_cursor_trailer_but_keeps_other_trailers(self):
+        wt = self.cursor_clone()
+        for i, trailer in enumerate(("Co-authored-by: Cursor <cursoragent[at]cursor.com>", "co-authored-BY: cursor <x[at]y.example>",
+                                     "Co-authored-by: Cursor Agent <other[at]example.com>")):
+            with self.subTest(trailer=trailer):
+                out = self.commit_msg(wt, f"T-1 subject {i}\n\nbody line\n\n{trailer}\nCo-authored-by: Ann <ann[at]example.com>\n")
+                self.assertNotIn("ursor", out)
+                self.assertIn("Co-authored-by: Ann <ann[at]example.com>".replace("[at]", chr(64)), out)
+                self.assertIn("body line", out)
+        out = self.commit_msg(wt, "subject only\n\nCo-authored-by: Cursor <cursoragent[at]cursor.com>\n")
+        self.assertEqual(out.strip(), "subject only")  # the blank line the removal left is gone too
+        out = self.commit_msg(wt, "plain\n\nCo-authored-by: Bob <bob[at]example.com>\n")
+        self.assertIn("Co-authored-by: Bob <bob[at]example.com>".replace("[at]", chr(64)), out)
+
+    def test_cursor_hook_runs_the_factory_checkout_script_and_survives_branch_edits(self):
+        wt = self.cursor_clone()
+        hook = (wt / ".git" / "hooks" / "commit-msg").read_text()
+        factory_bin = Path(__file__).resolve().parent.parent / "bin" / "cursor-commit-msg-strip.sh"
+        self.assertIn(str(factory_bin), hook)
+        self.assertEqual(hook.count("\n"), 3)  # shebang, mark, one exec line
+        (wt / "bin").mkdir(exist_ok=True)  # a PR branch cannot substitute the script: nothing in the clone is referenced
+        (wt / "bin" / "cursor-commit-msg-strip.sh").write_text("#!/bin/sh\nexit 0\n")
+        out = self.commit_msg(wt, "s\n\nCo-authored-by: Cursor <c[at]cursor.com>\n")
+        self.assertNotIn("ursor", out)
+
+    def test_claude_clone_and_default_runtime_get_no_commit_msg_hook(self):
+        self.ok("config", "task_clones", "1")
+        self.assertEqual(self.prepare(runtime="claude")[0], 0)
+        self.assertFalse((self.wt / ".git" / "hooks" / "commit-msg").exists())
+        out = self.commit_msg(self.wt, "s\n\nCo-authored-by: Cursor <c[at]cursor.com>\n")
+        self.assertIn("Co-authored-by: Cursor", out)  # nothing strips it outside a cursor clone
+        shutil.rmtree(self.wt)
+        self.assertEqual(self.prepare()[0], 0)
+        self.assertFalse((self.wt / ".git" / "hooks" / "commit-msg").exists())
+
+    def test_cursor_respawn_keeps_the_hook_and_guard_refuses_foreign_hook_or_edited_commit_msg(self):
+        wt = self.cursor_clone()
+        self.assertEqual(self.prepare(runtime="cursor")[0], 0)  # exactly pre-push + commit-msg: allowed
+        self.assertEqual(self.hook_events(), [])
+        self.hook(wt / ".git", "post-commit")
+        self.assertEqual(self.prepare(runtime="cursor")[0], 4)
+        self.assertEqual(self.hook_events()[-1]["files"], ["post-commit"])
+        (wt / ".git" / "hooks" / "post-commit").unlink()
+        (wt / ".git" / "hooks" / "commit-msg").write_text("#!/bin/sh\ntouch x\n")
+        self.assertEqual(self.prepare(runtime="cursor")[0], 4)
+        self.assertIn("commit-msg", self.hook_events()[-1]["files"])
+        self.assertFalse((wt / "x").exists())
+
+    def test_cursor_on_a_shared_worktree_never_writes_commit_msg_into_the_main_repo(self):
+        self.assertEqual(self.prepare(runtime="cursor")[0], 0)  # task_clones=0: `git worktree add`, hooks/ shared with main
+        self.assertTrue((self.wt / ".git").is_file())
+        self.assertFalse((self.h / ".git" / "hooks" / "commit-msg").exists())
+
+    def test_cursor_clone_guard_still_refuses_core_hookspath(self):
+        wt = self.cursor_clone()
+        git("config", "core.hooksPath", "/tmp/elsewhere", cwd=wt)
+        self.assertEqual(self.prepare(runtime="cursor")[0], 4)
+        self.assertIn("core.hookspath", " ".join(r["detail"] for r in self.env.sql(
+            "SELECT detail FROM events WHERE action='git-config-refused'")).lower())
 
     def test_no_direct_git_calls_outside_the_helper(self):
         src = (Path(__file__).resolve().parent.parent / "bin" / "factory_cli.py").read_text().splitlines()

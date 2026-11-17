@@ -1,0 +1,23 @@
+# /task/T-1
+TEXT
+[SC1] build parser - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources [SC1] build parser All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Tasks / T-1 Done · G-001 · tm-a · claude-coder-t-1 · PR · CI passed Cost: none recorded (no tokens attributed to this task). Verdicts Reviewer passed · QA passed · CI passed · Judge merged Reviewer passed · <TS> QA passed · <TS> Judge merged · <TS> Total time 1d 1h Rejections 0 Attempts 1 Lifecycle Stage Duration Share spec 30m 00s 2% queued 1h 00m 4% coding 23h 00m 90% review 25m 00s 2% judge 35m 00s 2% other (rework, idle) 0s 0% total 1d 1h 100% Cost and tokens Estimated at list prices as of 2026-10-25 (API-equivalent, not a bill) No tokens attributed to this task. Rework: none (no rejections) PR cycle Attempt 1 merged · 1d 1h <TS> Task created claude-pm-g-001 <TS> Coder started claude-coder-t-1 +1h 00m <TS> Status -> in_progress claude-boss +0s <TS> PR opened claude-coder-t-1 +23h 00m <TS> Reviewer passed claude-reviewer-t-1 @11111111 +20m 00s <TS> QA passed claude-qa-t-1 @11111111 +5m 00s <TS> Coder finished claude-coder-t-1 +5m 00s <TS> Judge blocked: checks not green: lint claude-judge +10m 00s <TS> Judge merged claude-judge @11111111 +20m 00s <TS> Merged claude-judge @abc1234 +0s Follow-ups T-4 [SC1] loose follow Cancelled Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-001
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-1
+a:/task/T-1?org=claude
+a:/task/T-1?org=cursor
+a:/task/T-4
+a:/tasks
+a:/throughput
+a:/tokens
