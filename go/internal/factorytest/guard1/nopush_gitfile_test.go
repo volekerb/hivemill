@@ -63,3 +63,11 @@ func TestNopushGitfileUnboundedExtractionRefused(t *testing.T) {
 func TestNopushGitfileWalkBoundAndGitfileBelowRefused(t *testing.T) {
 	replay(t, "test_worker_guard_nopush_gitfile", "test_worker_guard_nopush_gitfile.NoPushGitFileTests.test_walk_bound_and_gitfile_below_refused", true)
 }
+
+func TestNopushGitfileWalkBoundUnitNotPorted(t *testing.T) {
+	notPorted(t, "test_walk_bound_unit", "unit test of the Python walk-bound constant; the bound is covered by test_walk_bound_and_gitfile_below_refused")
+}
+
+func TestNopushGitfileSymlinkWalkErrorUnitNotPorted(t *testing.T) {
+	notPorted(t, "test_symlink_walk_error_unit", "unit test of a Python-internal walk error type; symlink walks are covered by the replayed cases")
+}

@@ -4,7 +4,7 @@ tests/test_worker_guard_flags_read.py 5 -> internal/factorytest/guard1:TestFlags
 tests/test_worker_guard_gh_new_alias.py 8 -> internal/factorytest/guard1:TestGhNewAlias 8
 tests/test_worker_guard_gh_repo_groups.py 11 -> internal/factorytest/guard1:TestGhRepoGroups 11
 tests/test_worker_guard_live_remote.py 21 -> internal/factorytest/guard1:TestLiveRemote 21
-tests/test_worker_guard_nopush_archive_git.py 14 -> internal/factorytest/guard1:TestNopushArchiveGit 14
+tests/test_worker_guard_nopush_archive_git.py 15 -> internal/factorytest/guard1:TestNopushArchiveGit 15
 tests/test_worker_guard_nopush_archive_main.py 3 -> internal/factorytest/guard1:TestNopushArchiveMain 3
 tests/test_worker_guard_nopush_builtin_assign.py 3 -> internal/factorytest/guard1:TestNopushBuiltinAssign 3
 tests/test_worker_guard_nopush_env_prefix_zsh_modifiers.py 5 -> internal/factorytest/guard1:TestNopushEnvPrefixZshModifiers 5
@@ -13,7 +13,7 @@ tests/test_worker_guard_nopush_extract_flags.py 13 -> internal/factorytest/guard
 tests/test_worker_guard_nopush_gh_api_release.py 5 -> internal/factorytest/guard1:TestNopushGhApiRelease 5
 tests/test_worker_guard_nopush_gh_writes.py 7 -> internal/factorytest/guard1:TestNopushGhWrites 7
 tests/test_worker_guard_nopush_gitcfg.py 7 -> internal/factorytest/guard1:TestNopushGitcfg 7
-tests/test_worker_guard_nopush_gitfile.py 15 -> internal/factorytest/guard1:TestNopushGitfile 15
+tests/test_worker_guard_nopush_gitfile.py 17 -> internal/factorytest/guard1:TestNopushGitfile 17
 tests/test_worker_guard_nopush_interp_inline.py 5 -> internal/factorytest/guard1:TestNopushInterpInline 5
 tests/test_worker_guard_nopush_interp_stdin.py 6 -> internal/factorytest/guard1:TestNopushInterpStdin 6
 tests/test_worker_guard_nopush_zsh_path.py 4 -> internal/factorytest/guard1:TestNopushZshPath 4

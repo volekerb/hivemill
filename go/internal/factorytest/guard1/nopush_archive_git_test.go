@@ -59,3 +59,13 @@ func TestNopushArchiveGitUnlistableArchiveFailsClosed(t *testing.T) {
 func TestNopushArchiveGitUnzipZipSuffixCandidatesListed(t *testing.T) {
 	replay(t, "test_worker_guard_nopush_archive_git", "test_worker_guard_nopush_archive_git.ArchiveGitTests.test_unzip_zip_suffix_candidates_listed", true)
 }
+
+// notPorted keeps the Python case count visible: the case tests a Python-internal API with no Go counterpart.
+func notPorted(t *testing.T, pyCase, why string) {
+	t.Helper()
+	t.Skipf("not ported: %s - %s", pyCase, why)
+}
+
+func TestNopushArchiveGitParseTarGrammarNotPorted(t *testing.T) {
+	notPorted(t, "test_parse_tar_grammar", "unit test of the Python _parse_tar helper; the tar grammar is covered end to end by the replayed cases")
+}

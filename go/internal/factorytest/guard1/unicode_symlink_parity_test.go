@@ -1,4 +1,4 @@
-// Code generated from the Python recording of tests/test_worker_guard_unicode_symlink_parity.py (T-1689); DO NOT EDIT by hand.
+// Extra parity probes written for T-1689 (not a port of a committed Python module): symlink walks and Unicode whitespace/digits, recorded from the Python guard in testdata/test_worker_guard_unicode_symlink_parity.json.
 
 package guard1
 
