@@ -14,6 +14,10 @@ TOOLS = ("Edit", "Write", "NotebookEdit")
 EXTRA_ENTRIES = (".git",)  # not in git ls-tree, but live and must be denied
 # G-012 top-level OSS files and the G-025 plugins/ dir, denied ahead of their PRs so those PRs stay out of the settings files
 PLANNED_ENTRIES = ("LICENSE", "THIRD_PARTY.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CHANGELOG.md", ".editorconfig", "plugins", ".claude-plugin")
+# T-0208: untracked runtime entries of the live checkout (not in git ls-tree)
+RUNTIME_ENTRIES = ("audit.log", "run", "db", "exports", "state", "factory.db", "factory.db.migrated-x")
+RUNTIME_CHILDREN = {"audit.log": "audit.log.1", "run": "run/x.sock", "db": "db/factory.db", "exports": "exports/a.json",
+                    "state": "state/s.json", "factory.db": "factory.db-wal", "factory.db.migrated-x": "factory.db.migrated-x/y"}
 
 
 def _in_git_work_tree():
@@ -98,6 +102,23 @@ class LiveCheckoutDeny(unittest.TestCase):
                     for rule in (f"{tool}(/{LIVE}/{entry})", f"{tool}(/{LIVE}/{entry}/**)"):
                         self.assertIn(rule, deny, f"{role}: missing deny rule {rule}")
 
+    def test_runtime_entries_denied_for_coder_and_qa(self):
+        for role in ("coder", "qa"):
+            deny = settings(role)["permissions"]["deny"]
+            for entry in RUNTIME_ENTRIES:
+                for tool in TOOLS:
+                    for path in (f"{LIVE}/{entry}", f"{LIVE}/{RUNTIME_CHILDREN[entry]}"):
+                        self.assertTrue(denied(deny, tool, path), f"{role}: {tool} not denied for {path}")
+
+    def test_runtime_notebookedit_data_dirs_have_literal_rules(self):
+        # T-1659: Edit(p) is the rule Claude Code applies to Write and NotebookEdit too; the twins are gone.
+        for role in ("coder", "qa"):
+            deny = settings(role)["permissions"]["deny"]
+            for p in ("factory.db*", "db/**", "exports/**", "state/**", "run/settings/**", "run", "run/**", "audit.log", "audit.log*"):
+                self.assertIn(f"Edit(/{LIVE}/{p})", deny, f"{role}: missing Edit rule for {p}")
+                self.assertNotIn(f"NotebookEdit(/{LIVE}/{p})", deny)
+                self.assertNotIn(f"Write(/{LIVE}/{p})", deny)
+
     def test_new_top_level_entry_would_fail(self):
         deny = settings("coder")["permissions"]["deny"]
         self.assertFalse(denied(deny, "Write", f"{LIVE}/brand-new-dir/f.py"))
@@ -105,7 +126,7 @@ class LiveCheckoutDeny(unittest.TestCase):
     def test_coder_worktrees_not_denied(self):
         deny = settings("coder")["permissions"]["deny"]
         for tool in TOOLS:
-            for path in (f"{LIVE}/worktrees/G-005-T-0175/bin/factory", f"{LIVE}/worktrees/G-005-T-0175/tests/t.py"):
+            for path in (f"{LIVE}/worktrees/G-005-T-0175/bin/factory", f"{LIVE}/worktrees/G-005-T-0175/tests/t.py", f"{LIVE}/worktrees/G-1-T-1/bin/factory"):
                 self.assertFalse(denied(deny, tool, path), f"coder: {tool} wrongly denied for {path}")
 
 
