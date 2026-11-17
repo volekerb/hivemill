@@ -23,7 +23,6 @@ var WorkerKeepEnv = []string{"CLAUDE_CODE_OAUTH_TOKEN", "GH_TOKEN"}
 
 // LauncherMetaEnv are set by the shim for the launcher and stripped before exec.
 var LauncherMetaEnv = []string{
-	"MACBOX_OWNER_UID",
 	"MACBOX_AGENT_HOME",
 	"MACBOX_CLAUDE_CONFIG_DIR",
 	"MACBOX_GIT_CONFIG_GLOBAL",
