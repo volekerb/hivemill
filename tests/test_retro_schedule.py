@@ -158,6 +158,30 @@ class RetroScheduleTests(FactoryTestCase):
         self.assertEqual((run["agent"], run["status"]), ("cursor-retro", "done"))
         self.assertIsNone(run["stop_reason"])
 
+    def test_bad_org_stops_live_run_by_stored_agent_after_flip(self):
+        self.tick(at("06:01"))
+        self.ok("config", "retro_org", "banana")
+        self.tick(at("06:05"))
+        self.assertEqual(self.agent()["status"], "stopped")
+        (run,) = self.runs()
+        self.assertEqual((run["agent"], run["status"], run["stop_reason"]), ("cursor-retro", "stopped", "config"))
+
+    def test_padded_org_value_spawns(self):
+        self.ok("config", "retro_org", " claude ")
+        self.tick(at("06:01"))
+        self.claude_agent()
+
+    def test_claude_retro_live_skips_cursor_claim(self):
+        self.ok("config", "retro_org", "claude")
+        self.tick(at("06:01"))
+        self.env.sql("UPDATE retro_runs SET status='done', ended=? WHERE day=?", (at("07:00"), D))
+        self.env.sql("UPDATE agents SET status='live', started=? WHERE name='claude-retro'", (at("06:30", day="2026-10-27"),))
+        self.ok("config", "retro_org", "cursor")
+        self.tick(at("07:00", day="2026-10-27"))
+        nxt = [r for r in self.runs() if r["day"] == "2026-10-27"]
+        self.assertEqual((len(nxt), nxt[0]["status"], nxt[0]["stop_reason"]), (1, "skipped", "previous run active"))
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM agents WHERE name='cursor-retro'")[0]["c"], 0)
+
     def test_cursor_retro_live_skips_claude_claim(self):
         self.tick(at("06:01"))
         self.env.sql("UPDATE retro_runs SET status='done', ended=? WHERE day=?", (at("07:00"), D))

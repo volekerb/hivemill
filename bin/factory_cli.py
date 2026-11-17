@@ -10312,9 +10312,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if role == "researcher" and not task:
         die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
     if role == "retro":
-        org = cfg(con, "retro_org")
-        if org not in ("cursor", "claude"):
-            die(f"retro_org must be cursor or claude, got '{org}'; fix it with `factory config retro_org cursor`", 2)
+        retro_cfg = cfg(con, "retro_org")
+        if str(retro_cfg).strip() not in ("cursor", "claude"):
+            die(f"retro_org must be cursor or claude, got '{retro_cfg}'; fix it with `factory config retro_org cursor`", 2)
+        # a relaunch or dequeue of a running retro keeps its own org (the run row stores the agent name); only a new retro follows the config
+        org = org or orgs.prefix_of(name or "") or str(retro_cfg).strip()
     if task and not (goal and team):  # a team-less `spawn --task` still belongs to the task's goal/team (utilization, alerts)
         trow = con.execute("SELECT goal_id, team_id FROM tasks WHERE id=?", (task,)).fetchone()
         if trow:

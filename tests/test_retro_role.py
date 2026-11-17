@@ -43,6 +43,16 @@ class SpawnTests(FactoryTestCase):
         row = dict(self.env.sql("SELECT * FROM agents WHERE name='claude-retro'")[0])
         self.assertEqual(row["org"], "claude")
 
+    def test_retro_spawn_named_cursor_keeps_cursor_after_config_flip(self):
+        # a relaunch/dequeue of cursor-retro after the operator flipped retro_org must not rename it
+        self.ok("config", "retro_org", "claude")
+        self.assertIn("SPAWNED cursor-retro", self.ok("spawn", "retro", "--name", "cursor-retro", agent="zz-test-director").stdout)
+        self.assertEqual(self.env.sql("SELECT org FROM agents WHERE name='cursor-retro'")[0]["org"], "cursor")
+
+    def test_retro_spawn_padded_org_value_is_accepted(self):
+        self.ok("config", "retro_org", " claude ")
+        self.assertIn("SPAWNED claude-retro", self.ok("spawn", "retro", "--name", "claude-retro", agent="zz-test-director").stdout)
+
     def test_retro_spawn_bad_org_refused(self):
         self.ok("config", "retro_org", "banana")
         r = self.refused(2, "spawn", "retro", "--name", "cursor-retro-x", agent="zz-test-director")
