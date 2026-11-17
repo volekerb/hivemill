@@ -430,7 +430,7 @@ def _text(name, key, obj, field):
     return value
 
 
-def settings_rules(text, legacy=False, name="settings"):
+def settings_rules(text, legacy=False, name="settings", fold_dead_deny=False):
     """{(kind, rule)} of one settings JSON text: the allow/deny lists, every hook as
     `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field), each hook's timeout as its own
     `hook-timeout` entry `<that text>|timeout=<N>`, every permissions.ask rule, every autoMode entry as `<key>: <text>`
@@ -446,7 +446,7 @@ def settings_rules(text, legacy=False, name="settings"):
             if not isinstance(rule, str):
                 raise SettingsShapeError(f"settings {name}: permissions.{kind} entries must be strings; fix the file")
             rule = fix(rule)
-            if kind == "deny":  # T-1659: Claude Code applies Edit(p) to Write(p) and NotebookEdit(p); compare them as one deny
+            if kind == "deny" and fold_dead_deny:  # T-1659: base side only. Claude Code applies Edit(p) to Write(p)/NotebookEdit(p), so a removed Write(p) counts as Edit(p); a NEW Write(p) stays distinct and cannot stand in for a dropped Edit(p)
                 for tool in ("Write(", "NotebookEdit("):
                     if rule.startswith(tool) and rule.endswith(")"):
                         rule = "Edit(" + rule[len(tool):]
@@ -517,13 +517,13 @@ def compare_settings(repo, top, base):
             raise UsageError(f"cannot read settings template {name}: {e}")
         try:
             old, legacy = settings_rules(git(repo, "show", "--end-of-options", f"{base}:{SETTINGS_DIR}/{name}"),
-                                         name=f"{base}:{name}"), False
+                                         name=f"{base}:{name}", fold_dead_deny=True), False
         except SettingsShapeError:
             raise
         except UsageError:
             try:  # the base predates the templates: its role file holds the owner's absolute paths
                 old, legacy = settings_rules(git(repo, "show", "--end-of-options", f"{base}:{SETTINGS_DIR}/{role}.json"),
-                                             True, name=f"{base}:{role}.json"), True
+                                             True, name=f"{base}:{role}.json", fold_dead_deny=True), True
             except SettingsShapeError:
                 raise
             except (UsageError, ValueError):

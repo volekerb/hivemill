@@ -964,6 +964,14 @@ class SettingsCompareTests(GuardDiffCase):
         p = self.settings()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
+    def test_t1659_edit_deny_swapped_for_dead_write_is_loosened(self):
+        self.commit_base(lambda d: d["permissions"]["deny"].append("Edit(/x/db/**)"))
+        self.edit_tree(lambda d: d["permissions"]["deny"].__setitem__(d["permissions"]["deny"].index("Edit(/x/db/**)"),
+                                                                    "Write(/x/db/**)"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa deny removed: Edit\(/x/db/\*\*\)")
+
     def test_t1659_dropping_the_edit_twin_too_is_loosened(self):
         def twins(d):
             d["permissions"]["deny"] += ["Edit(/x/db/**)", "Write(/x/db/**)"]
