@@ -35,7 +35,8 @@ if argv[:2] == ["pr", "view"]:
     real = git("-C", st["origin"], "rev-parse", br)
     git("-C", st["origin"], "update-ref", "refs/pull/1/head", real)
     print(json.dumps({"number": 1, "state": "OPEN", "headRefName": st["branch"], "baseRefName": "main",
-                      "headRefOid": real, "mergeable": st.get("mergeable", "MERGEABLE"), "isDraft": False, "statusCheckRollup": [],
+                      "headRefOid": real, "mergeable": st.get("mergeable", "MERGEABLE"), "isDraft": False,
+                      "statusCheckRollup": st.get("rollup", []),
                       "url": st["url"]}))
 elif argv[:1] == ["api"] and argv[1].endswith("/branches/main/protection"):
     if st.get("strict") is None:
@@ -245,6 +246,41 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.write_state(strict=False)
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_policy','strict')")
         self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
+
+    # -- T-1676 no-refresh merge rule at the judge spawn pre-check ---------------------------------------------------
+    def _nr_ready(self):
+        """BEHIND clean head with green CI and reviewer+QA PASS on it, strict=false on GitHub."""
+        main = self.main_commit()
+        self.write_state(strict=False, rollup=[{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}])
+        for role in ("reviewer", "qa"):
+            self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
+                         "VALUES('T-0001',?,?,?,'pass','ok','x','t')", (PR_URL, self.head, role))
+        return main
+
+    def test_nr_judge_allowed_head_is_not_refreshed(self):
+        self._nr_ready()
+        p = self.spawn("judge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.remote_head(), self.head)
+        self.assertEqual(self.events("refreshed"), [])
+        [ev] = self.events("precheck-no-refresh")
+        self.assertTrue(ev["detail"].startswith(f"merge @ {self.head[:8]}"), ev["detail"])
+        self.assertIn("CI green on the head", ev["detail"])
+
+    def test_nr_judge_strict_main_still_refreshes(self):
+        main = self._nr_ready()
+        self.write_state(strict=True, rollup=[{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}])
+        self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
+        self.assertEqual(self.events("precheck-no-refresh"), [])
+
+    def test_nr_judge_switch_off_is_the_old_rule(self):
+        self._nr_ready()
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_no_refresh','off')")
+        p = self.spawn("judge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.pushes(), [])  # behind_ok alone already skipped the refresh before T-1676
+        self.assertEqual(self.events("precheck-no-refresh"), [])
 
     def test_b_head_contains_main_no_push(self):
         git(self.wt, "fetch", "-q", "origin", "main")
