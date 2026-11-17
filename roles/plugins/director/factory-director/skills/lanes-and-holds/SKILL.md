@@ -13,10 +13,10 @@ L1 No lane by file name. Two tasks that edit the same file run in parallel unles
 Why: the single-writer lane on bin/factory_cli.py was set by message (M33724, M35023, M37042); PR 629 sat blocked 25.8 h.
 
 L2 Before blocking a task for a file, run `lane-check plan <branch> --against-open`. CLEAN: start it. CONFLICT: order only the conflicting pair; the later task merges origin/main after the earlier PR merges.
-Why: 30 tasks and 505 task-hours waited in 3 days behind the lane, PR 629 among them, mostly on pairs git merges cleanly.
+Why: 30 tasks and 505 task-hours waited in 3 days behind the lane, PR 629 among them, decided by file name, not by a conflict check.
 
 L3 A task not yet started that will edit a large shared file starts anyway. Its coder merges origin/main before the PR and again when a conflicting PR lands first. The stuck-PR program refreshes or wakes the coder on conflict.
-Why: tasks queued behind PR 629 did not start at all; a refresh costs minutes, a queue cost a day.
+Why: tasks queued behind PR 629 did not start at all while it was blocked 25.8 h.
 
 L4 A lane block that remains must name the one PR it waits for and is re-checked with lane-check every cycle. No chains: a task never waits for a task that itself waits for a lane.
 Why: chains behind PR 629 turned one 25.8 h block into many.
@@ -36,7 +36,7 @@ H4 A hold on a reviewer+QA PASS PR expires after 2 h (tick unit hold_expiry, doc
 Why: manual holds cost 150 PR-hours; PRs 627, 630, 631 and 632 waited 22 h each with no expiry.
 
 H5 QA could not run a command (sandbox denial): do not hold the PR for a later re-QA. Decide in the same cycle: the CI job is the proof for that item, or another QA runs it.
-Why: part of the 22 h holds on PRs 627, 630, 631 and 632 was waiting for a re-QA that could not run either.
+Why: PRs 627, 630, 631 and 632 were PASS/PASS and still waited 22 h each; a later re-QA adds the same kind of wait.
 
 ## Check
 

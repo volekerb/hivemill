@@ -113,7 +113,8 @@ class StandingRulesTests(unittest.TestCase):
                        "reviewer PASS, QA PASS and green CI"):
             self.assertIn(needle, lh)
         self.assertLessEqual(len(lh.encode()), 4500)
-        self.assertIn("Lanes and judge holds: use the lanes-and-holds skill", texts["cycle-procedures"])
+        self.assertEqual(texts["cycle-procedures"].count(
+            "Lanes and judge holds: use the lanes-and-holds skill before blocking a task for a file or setting a hold."), 1)
 
 
 if __name__ == "__main__":
