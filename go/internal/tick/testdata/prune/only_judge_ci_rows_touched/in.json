@@ -1,0 +1,13 @@
+{
+ "factory_now": "2026-10-31T12:00:00+00:00",
+ "tasks": [],
+ "config": {
+  "judge_ci_wait_s": "2400",
+  "judge_cix:https://github.com/zz-test/repo/pull/9": "x",
+  "xjudge_ci:https://github.com/zz-test/repo/pull/9": "x",
+  "judge_ci": "x",
+  "last_judge_gh_fail_ts": "1.0",
+  "mech_merge": "off",
+  "judge_ci:https://github.com/zz-test/repo/pull/5": "{not json"
+ }
+}

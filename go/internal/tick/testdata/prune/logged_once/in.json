@@ -1,0 +1,8 @@
+{
+ "factory_now": "2026-10-31T12:00:00+00:00",
+ "tasks": [],
+ "config": {
+  "judge_ci:https://github.com/zz-test/repo/pull/1": "{\"at\": 1793447940, \"ready\": true, \"why\": \"CI green\"}",
+  "judge_ci:https://github.com/zz-test/repo/pull/2": "{\"at\": 1793447940, \"ready\": true, \"why\": \"CI green\"}"
+ }
+}
