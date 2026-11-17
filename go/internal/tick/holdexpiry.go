@@ -1,6 +1,8 @@
 package tick
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 
 	"factory/go/internal/holdexpiry"
@@ -23,15 +25,21 @@ func registerHoldExpiry() bool {
 	return false
 }
 
-// runHoldExpiry runs the rule once and prints one line per cleared or undecidable hold. A failure is printed and
-// does not end the tick: a task whose transaction failed keeps its hold and is tried again next tick, and the units
-// after this one (dispatch, nudges, export) must still run.
+// runHoldExpiry is the Go tick unit: it runs the rule once through RunHoldExpiryOnce.
 func runHoldExpiry(u *UnitCtx) error {
-	out := u.Stdout
+	RunHoldExpiryOnce(u.Ctx, u.DB, u.Stdout)
+	return nil
+}
+
+// RunHoldExpiryOnce runs the rule once and prints one line per cleared or undecidable hold. A failure is printed and
+// does not end the tick: a task whose transaction failed keeps its hold and is tried again next tick, and the units
+// after this one (dispatch, nudges, export) must still run. It is shared by the Go unit and by `factory-go
+// hold-expiry`, which the Python tick runs (docs/judge-hold-expiry.md). A nil out discards the lines.
+func RunHoldExpiryOnce(ctx context.Context, db *sql.DB, out func(string)) {
 	if out == nil {
 		out = func(string) {}
 	}
-	res, err := holdexpiry.Run(u.Ctx, holdexpiry.Deps{DB: u.DB})
+	res, err := holdexpiry.Run(ctx, holdexpiry.Deps{DB: db})
 	for _, e := range res.Expired {
 		out(fmt.Sprintf("judge-hold-expired %s: held %d min, set by %s, marker %s, report to %s\n",
 			e.Task, e.HeldMin, e.SetBy, e.Marker, e.To))
@@ -42,5 +50,4 @@ func runHoldExpiry(u *UnitCtx) error {
 	if err != nil {
 		out(fmt.Sprintf("judge-hold-expiry: failed, holds kept: %v\n", err))
 	}
-	return nil
 }
