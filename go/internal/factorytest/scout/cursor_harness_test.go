@@ -12,8 +12,8 @@ import (
 )
 
 // Port of tests/test_cursor_harness.py (5 cases; see ported_scout.txt).
-// not ported: none. Python's `PILOT_ROLES == CURSOR_ROLES` has one Go name (ch.CursorRoles), so the case asserts the
-// allow-list itself: the evaluator is not in it and every factory worker role but the evaluator is.
+// adapted: Python's `PILOT_ROLES == CURSOR_ROLES` has one Go name (ch.CursorRoles), so the equality cannot be asserted;
+// the case checks the allow-list itself: the evaluator is not in it and every factory worker role but the evaluator is.
 
 func TestCursorHarnessParsePilotRolesCoderAndQAAllowed(t *testing.T) {
 	for _, r := range []string{"coder", "qa"} {

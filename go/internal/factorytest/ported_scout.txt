@@ -1,5 +1,5 @@
 # <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
-# scout batch (T-1494), partial: 474 Python test lines ported (the three modules below) out of the selector's 105 modules /
+# scout batch (T-1494), partial: 474 Python file lines ported (the three modules below) out of the selector's 105 modules /
 # 31,503 lines. The not-yet-ported modules are listed under 'Remaining' in the PR body and filed as a follow-up task.
 tests/test_scout_db.py 27 -> internal/factorytest/scout:TestScout 27
 tests/test_scout_pending_order.py 5 -> internal/factorytest/scout:TestPendingOrder 5
