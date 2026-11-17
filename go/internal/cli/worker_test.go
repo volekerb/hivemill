@@ -10,9 +10,20 @@ import (
 	"testing"
 
 	"factory/go/internal/factorydb/dbtest"
+	"factory/go/internal/gate"
 	"factory/go/internal/identity"
 	"time"
 )
+
+// procsOf reads a fake /proc root into the process list ancestryWorker takes.
+func procsOf(t *testing.T, root string) []gate.Proc {
+	t.Helper()
+	procs, err := gate.ReadProcRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return procs
+}
 
 // fakeProc writes <root>/<pid>/{stat,cmdline}.
 type fakeProc struct{ root string }
@@ -101,7 +112,7 @@ func TestCallerIsWorker(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := fakeProc{t.TempDir()}
 			tc.build(t, f)
-			if got := ancestryWorker(f.root, own, parent); got != tc.want {
+			if got := ancestryWorker(procsOf(t, f.root), own, parent); got != tc.want {
 				t.Fatalf("ancestryWorker = %q, want %q", got, tc.want)
 			}
 		})
@@ -116,10 +127,10 @@ func TestCallerIsWorker(t *testing.T) {
 				f.add(t, pid, pid+1, "sh")
 			}
 		}
-		if got := ancestryWorker(f.root, 1000, 999); got != "" {
+		if got := ancestryWorker(procsOf(t, f.root), 1000, 999); got != "" {
 			t.Fatalf("claude beyond 64 hops must not count, got %q", got)
 		}
-		if got := ancestryWorker(f.root, 1007, 999); got != "coder" { // 62 hops away
+		if got := ancestryWorker(procsOf(t, f.root), 1007, 999); got != "coder" { // 62 hops away
 			t.Fatalf("claude within 64 hops must count, got %q", got)
 		}
 	})
@@ -221,8 +232,7 @@ func FuzzAncestryWorker(f *testing.F) {
 		if err := os.WriteFile(filepath.Join(d, "cmdline"), cmdline, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		procStatPPid(root, 500)
-		got := ancestryWorker(root, 500, 400)
+		got := ancestryWorker(procsOf(t, root), 500, 400)
 		if got != "" && !workerRoles[got] {
 			t.Fatalf("ancestryWorker = %q, not empty and not a worker role", got)
 		}

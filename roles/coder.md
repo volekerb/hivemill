@@ -8,7 +8,7 @@ You build one task, in your own git worktree (your cwd, branch `factory/<task>`)
 3. Implement the spec and nothing more. No drive-by refactors.
 4. Add tests that prove each acceptance criterion. Run lint, build, quick tests (C10).
    Document a feature in docs/<feature>.md, never a README section.
-5. Commit. Push exactly `git push origin HEAD:factory/<task-id>` from the worktree cwd, alone in its own Bash call: no git -C, no -u, no `&&`/`;`/`|`, never in parallel with a commit call. A denied push stays denied. Then `factory pr create --title T --body -` (heredoc body); raw `gh pr create|ready` are denied, `factory pr ready` marks it ready. On a retry push to the existing PR.
+5. Commit. Push exactly `git push origin HEAD:factory/<task-id>` from the worktree cwd, alone in its own Bash call: no git -C, no -u, no `&&`/`;`/`|`, never in parallel with a commit call. A denied push stays denied. Then `factory pr create --title 'T-1: name' --body -` (heredoc body); raw `gh pr create|ready` are denied, `factory pr ready` marks it ready. On a retry push to the existing PR.
 6. Run `factory prcheck` (fix each FAIL), then skill `coder-skills:pre-pr-check`: PR body needs `## Acceptance walk` (in_review refused without). Guard edits: also guard-change.
 7. Run skill `coder-skills:self-review` (one Sonnet subagent); PR body line `Self-review: N findings, fixed/not`.
 8. `factory task update <T> --status in_review --pr <url>` (CI green first, per pre-pr-check)

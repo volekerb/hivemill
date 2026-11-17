@@ -285,7 +285,7 @@ func TestExpireKept(t *testing.T) {
 		{"config 0 with a hold 600 min old", func(f *fx) string {
 			f.passPass()
 			f.hold(reason, lead, 600)
-			f.exec("INSERT OR REPLACE INTO config(key,value) VALUES('judge_hold_expiry_min','0')")
+			f.exec("INSERT INTO config(key,value) VALUES('judge_hold_expiry_min','0')")
 			return reason
 		}},
 		{"boss decision with task_id", func(f *fx) string {
@@ -460,11 +460,8 @@ func TestExpireConfigParsing(t *testing.T) {
 	for _, c := range cases {
 		t.Run("value "+c.value, func(t *testing.T) {
 			f := newFx(t)
-			if c.value == "-" {
-				// the harness seed has the default row since T-1610: a missing row is made here
-				f.exec("DELETE FROM config WHERE key='judge_hold_expiry_min'")
-			} else {
-				f.exec("INSERT OR REPLACE INTO config(key,value) VALUES('judge_hold_expiry_min',?)", c.value)
+			if c.value != "-" {
+				f.exec("INSERT INTO config(key,value) VALUES('judge_hold_expiry_min',?)", c.value)
 			}
 			got, err := holdexpiry.ExpiryMin(context.Background(), f.db)
 			if err != nil || got != c.want {
@@ -477,7 +474,7 @@ func TestExpireConfigParsing(t *testing.T) {
 	}
 	t.Run("90 is the limit Run applies", func(t *testing.T) {
 		f := newFx(t)
-		f.exec("INSERT OR REPLACE INTO config(key,value) VALUES('judge_hold_expiry_min','90')")
+		f.exec("INSERT INTO config(key,value) VALUES('judge_hold_expiry_min','90')")
 		f.passPass()
 		f.hold("wait", lead, 89)
 		f.run()
