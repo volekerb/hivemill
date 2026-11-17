@@ -435,7 +435,7 @@ class GuardBuildHardeningTests(FactoryTestCase):
         self.assertEqual((self.env.home_dir / "run" / "guard_impl").read_text(), f"python {h}\n")
         self.assertEqual((self.env.home_dir / "run" / "cli_impl").read_text(), "python -\n")
 
-    def test_python_python_with_hold_expiry_on_builds_both_binaries(self):  # T-1631, widened by T-1804
+    def test_python_python_with_hold_expiry_on_builds_factory_go_only(self):  # T-1631, widened by T-1804
         write_go(self.env.home_dir)
         self.fake_go(self.OK_BUILD)
         self.hold_expiry_min("120")
