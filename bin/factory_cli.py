@@ -2930,7 +2930,11 @@ def machine_unreachable(con, machine, reason, sender="spawn"):
     """Mark `machine` unreachable for machine_facts_ttl_s (no ssh to it meanwhile) and alert the director at most once per
     MACHINE_ALERT_WINDOW_S per machine (a machine-unreachable event with it). Returns True when it alerted."""
     clock = _mark_clock()
-    _throttle_set(con, f"machine_unreachable:{machine}", clock)
+    mkey = f"machine_unreachable:{machine}"
+    # An active mark is never renewed (machine_facts reports "marked" without ssh, and that must not re-mark): it expires
+    # after machine_facts_ttl_s and only a failed probe after that sets it again.
+    if not _throttled(con, mkey, clock, _int_cfg(con, "machine_facts_ttl_s", 20)):
+        _throttle_set(con, mkey, clock)
     _MACHINE_FACTS_CACHE.pop(machine, None)
     key = f"machine_alert:{machine}"
     if _throttled(con, key, clock, MACHINE_ALERT_WINDOW_S):

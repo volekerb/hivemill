@@ -526,6 +526,22 @@ class RemoteSpawnTests(FactoryTestCase):
         self.assertTrue(msgs[0]["recipient"].endswith("director"), msgs[0]["recipient"])
         self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='machine-unreachable'")), 1)
 
+    def test_remote_unreachable_mark_expires_and_is_not_renewed_by_spawns(self):
+        mark = "SELECT ts FROM throttle WHERE key='machine_unreachable:workerhost'"
+        good = dict(self.hosts["workerhost"])
+        self.hosts["workerhost"] = {"exit": 255}
+        p = self.spawn("zz-m1", FACTORY_FACTS_NOW="1000")  # failed probe: marked at t=1000
+        self.assertIn("SPAWNED zz-m1", p.stdout)
+        self.assertEqual(float(self.env.sql(mark)[0]["ts"]), 1000.0)
+        self.hosts["workerhost"] = good  # the machine has recovered
+        p = self.spawn("zz-m2", FACTORY_FACTS_NOW="1010")  # inside the 20 s TTL: still marked, no ssh, falls back
+        self.assertIn("SPAWNED zz-m2", p.stdout)
+        self.assertNotIn("machine", json.loads(self.row("zz-m2")["spawn_args"]))
+        self.assertEqual(float(self.env.sql(mark)[0]["ts"]), 1000.0)  # the spawn did not renew the mark
+        p = self.spawn("zz-m3", FACTORY_FACTS_NOW="1021")  # past the TTL measured from t=1000: probed, chosen again
+        self.assertIn("SPAWNED zz-m3", p.stdout)
+        self.assertEqual(json.loads(self.row("zz-m3")["spawn_args"])["machine"], "workerhost")
+
     def test_remote_hc_machine_missing_falls_back(self):
         self.hc_state.write_text(json.dumps({"machines": []}))
         p = self.spawn()
