@@ -167,6 +167,7 @@ DEFAULT_CONFIG = {
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
     # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
     "stale_policy": "behind_ok",
+    "stale_no_refresh": "on",    # T-1676 (owner 2026-11-17): on = a BEHIND head with CI green, reviewer+QA PASS, clean merge-tree, no shared file and MERGEABLE merges without a refresh; off = rollback (docs/stale-policy.md)
     "refresh_lane": "off",       # G-022: on = only the head of the merge queue (the oldest BEHIND judge row) is refreshed; the rest hold as 'lane: position N' (docs/refresh-lane.md)
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
@@ -5843,6 +5844,73 @@ def behind_ok_blocker(repo, sha, main_sha):
     return None
 
 
+def no_refresh_on(con):
+    """T-1676 switch: config stale_no_refresh (default on); any other value restores the behaviour before T-1676."""
+    return (cfg(con, "stale_no_refresh") or "on").strip().lower() == "on"
+
+
+def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carry=None, proj=None):
+    """T-1676 no-refresh merge rule (owner 2026-11-17, docs/stale-policy.md): may the PR's CURRENT head, BEHIND main,
+    be merged as it is, with no refresh anywhere? One decision for the judge spawn pre-check, the `factory judge` gate
+    (cmd_judge --merge) and the mechanical merger (mech_try). Returns (verdict, reasons):
+    - "merge": all hold: (1) CI green on the head, (2) reviewer and QA PASS on the head (exact or carried), (3)
+      `git merge-tree --write-tree` of main and the head is clean, (4) no file changed on main since the merge-base is
+      also changed by the PR and tests.yml is unchanged there (behind_ok_blocker), (5) GitHub mergeable == MERGEABLE;
+      and GitHub accepts a BEHIND merge (stale_behind_ok). reasons = the conditions that held.
+    - "hold": no refresh is needed, but (1) or (2) fails: nothing merges and nothing refreshes. reasons = what failed.
+    - "refresh": refresh as before T-1676 (a condition of 3-5 fails, GitHub requires an up-to-date branch, or a git/gh
+      error: fail closed). reasons = what failed.
+    - "fresh": the head already contains main; nothing to decide.
+    `main_sha`, when given, is the verified main commit of a head already known to be BEHIND (head_has_main); `carry` is
+    the caller's verdict-carry memo; `proj` the local-gate project (local_checks_problems instead of GitHub checks)."""
+    owner_repo = "/".join(t["pr_url"].split("/")[3:5])
+    if not no_refresh_on(con):
+        return "refresh", ["stale_no_refresh is off"]
+    sha = pr["headRefOid"]
+    if main_sha is None:  # staleness first: a head that contains main is "fresh" whatever the rest says
+        try:
+            repo_url = repo_url or gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+        except (SystemExit, ValueError, KeyError) as e:
+            return "refresh", [f"gh repo view failed: {e}"]
+        ok, why, main_sha = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
+        if ok:
+            return "fresh", []
+        if why != "STALE":
+            return "refresh", [f"cannot verify the head against main: {why}"]
+    if pr.get("state") != "OPEN" or pr.get("baseRefName") != "main":
+        return "refresh", [f"PR is {pr.get('state')} on base {pr.get('baseRefName')}"]
+    if pr.get("mergeable") != "MERGEABLE":
+        return "refresh", [f"GitHub mergeable is {pr.get('mergeable')}, not MERGEABLE"]
+    if not stale_behind_ok(con, owner_repo):
+        return "refresh", ["GitHub requires an up-to-date branch (strict), the protection is unreadable or stale_policy is strict"]
+    blocker = behind_ok_blocker(git_repo, sha, main_sha)
+    if blocker:
+        return "refresh", [blocker]
+    rc, _, err = _git_rc([*HARDENED_GIT_FLAGS, "merge-tree", "--write-tree", main_sha, sha], repo=git_repo, env=_carry_env())
+    if rc == 1:
+        return "refresh", ["git merge-tree of main and the head conflicts"]
+    if rc != 0:
+        return "refresh", [f"git merge-tree failed: {err or rc}"]
+    held = ["head %s behind main %s" % (sha[:8], main_sha[:8]), "merge-tree clean",
+            "no file changed by both main and the PR since the merge-base", f"{CI_WORKFLOW} unchanged on main",
+            "GitHub MERGEABLE"]
+    hold = []
+    bad = (local_checks_problems(proj, pr) if proj
+           else checks_ok(pr) + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
+    if bad:
+        hold.append("CI not green on the head: " + ", ".join(bad))
+    else:
+        held.append("CI green on the head")
+    carry = {} if carry is None else carry
+    for role in ("reviewer", "qa"):
+        kind, _ = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
+        if kind in ("holds", "carry"):
+            held.append(f"{role} PASS on the head" + (" (carried)" if kind == "carry" else ""))
+        else:
+            hold.append(f"no {role} PASS that holds on the head ({kind})")
+    return ("hold", hold) if hold else ("merge", held)
+
+
 MERGED_GO_PROOF_TIMEOUT_S = 180
 MERGED_GO_UNMERGEABLE = object()  # merge-tree conflict: not proof success; caller must drop behind_clean
 
@@ -6948,8 +7016,16 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         else:
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
         # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
-        behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
-        blocker = behind_clean and behind_ok_blocker(git_repo, sha, stale[2])
+        nr, nr_why = None, []
+        if stale[1] == "STALE" and no_refresh_on(con):
+            # T-1676: one decision (no_refresh_merge) for the judge, the mech merger and the spawn pre-check. "merge" and
+            # "hold" never refresh ("hold" is refused below: CI or a verdict); "refresh" refreshes (judge) or refuses (mech)
+            nr, nr_why = no_refresh_merge(con, t, pr, git_repo, repo_url=repo_url, main_sha=stale[2], carry=carry, proj=proj)
+            behind_clean = nr in ("merge", "hold")
+            blocker = "; ".join(nr_why) if nr == "refresh" else None
+        else:
+            behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
+            blocker = behind_clean and behind_ok_blocker(git_repo, sha, stale[2])
         if blocker:  # T-1000/T-1025: CI changed on main, or main touched a file the PR also changes: refresh (judge) or refuse (mech)
             behind_clean = False
         if behind_clean:
@@ -6989,6 +7065,8 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                         (t["goal_id"],)).fetchone()
         if g and g["auto_merge"] == 0:
             problems.append("project has auto_merge=0 — boss must get the owner's OK")
+        if nr == "hold" and not problems:  # fail closed: the rule's own CI/verdict reading refused, the gate must too
+            problems.append("no-refresh merge on hold: " + "; ".join(nr_why))
         # STALE-ONLY (a "PR has conflicts" next to it is GitHub's view of the same staleness; merge-tree decides):
         # the judge refreshes the branch itself, waits for CI on the new head and re-runs this whole gate on it
         others = [x for x in problems if not x.startswith("STALE-ONLY") and x != "PR has conflicts"]
@@ -7166,6 +7244,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             err = close_landed_pr(t["pr_url"], landed, reason)
             post_err += f"; PR not closed: {err}" if err else ""
     record_merged(con, t, a, sha, shown, reason, carried, post_err, fix_carried)
+    if nr == "merge" and behind_clean:  # T-1676: merged the BEHIND head as it was, no refresh anywhere
+        event(con, "task", a.task, "merged-no-refresh", json.dumps({"head": sha, "main": stale[2], "reasons": nr_why}))
+        con.commit()
     if _judge_is_public(con, t, owner_repo):
         judge_merge_email_check(con, t, a, owner_repo, shown if shown != sha else None)
 
@@ -7378,6 +7459,12 @@ def mech_try(con, t, mode, retry_s):
     if jhr:
         log_task_judge_hold(con, tid, jhr)
         return "skipped"
+    if no_refresh_on(con):
+        # T-1676: the shared no-refresh decision; the merger never refreshes, so a head that needs one goes to the judge
+        nr, nr_why = no_refresh_merge(con, t, pr, git_repo, proj=gate_project_for(con, url))
+        if nr == "refresh":
+            return block("STALE-ONLY: head does not contain origin/main (%s: behind_ok does not apply, refresh so CI runs "
+                         "the combined tree); the mechanical merger does not refresh, the judge does" % "; ".join(nr_why))
     reason = "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why)
     a = types.SimpleNamespace(task=tid, reason=reason, by="merger", dry_run=(mode == "shadow"), mech=True)
     mark = con.execute("SELECT COALESCE(MAX(id),0) m FROM events").fetchone()["m"]
@@ -7618,6 +7705,16 @@ def staleness_precheck(con, role, task):
     if not git_config_guard(con, repo, always_event=True):
         return skip(f"git config in {repo} would run code: {', '.join(git_config_refusal(repo))}")
     old = pr["headRefOid"]
+    if role == "judge" and no_refresh_on(con):
+        # T-1676: the same no-refresh decision as `factory judge --merge` and the mech merger. "merge"/"hold": spawn on
+        # the current head, no refresh; "fresh": nothing to do; "refresh" (incl. any git/gh error): the rule below as before
+        nr, why = no_refresh_merge(con, t, pr, repo, repo_url=repo_url, proj=gate_project_for(con, t["pr_url"]))
+        if nr == "fresh":
+            return None
+        if nr in ("merge", "hold"):
+            event(con, "task", task, "precheck-no-refresh", f"{nr} @ {old[:8]}: {'; '.join(why)}"[:900])
+            con.commit()
+            return None
     if role == "judge" and pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
         return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
     # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
@@ -9782,6 +9879,36 @@ def retro_tick(con):
                         "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (today,))
         except Exception:  # noqa: BLE001
             pass
+
+
+def schedule_tick(con):
+    """Tick hook (G-038 F-31): `factory-go schedule due --json` claims the due owner jobs (all decisions are Go's); this only
+    delivers each item to the director through send(), so recipient resolution stays as it is. A claim happens before the
+    send: a failed send loses that day's run, never doubles it. Any error: one schedule-tick-failed event per hour. Never raises."""
+    try:
+        go = guard_lib_dir() / CLI_GO_BIN
+        if not os.access(go, os.X_OK):
+            raise OSError(f"{CLI_GO_BIN} is missing or not executable; rebuild the Go CLI")
+        p = subprocess.run([str(go), "schedule", "due", "--json"], capture_output=True, text=True, timeout=20)
+        if p.returncode != 0:
+            raise RuntimeError(f"schedule due exit {p.returncode}: {(p.stderr or p.stdout).strip()[:300]}")
+        items = json.loads(p.stdout)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
+        _schedule_tick_failed(con, e)
+        return
+    for it in items:  # each claim is already committed: one bad send must not drop the others
+        try:
+            send(con, "director", it["subject"], it["body"], kind=it["kind"], goal=it["goal"], sender="tick")
+        except (Exception, SystemExit) as e:  # noqa: BLE001
+            _schedule_tick_failed(con, e)
+
+
+def _schedule_tick_failed(con, e):
+    try:
+        if not _util_throttled(con, "schedule-tick-failed", 3600, digest_clock().timestamp()):
+            event(con, "tick", "-", "schedule-tick-failed", (str(e) or repr(e))[:500])
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @_pt_phase("skilleval")
@@ -17098,6 +17225,7 @@ def _tick_u_scout(con, st):
 
 def _tick_u_retro(con, st):
         retro_tick(con)
+        schedule_tick(con)
 
 
 def _tick_u_skilleval(con, st):
