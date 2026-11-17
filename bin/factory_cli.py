@@ -424,7 +424,7 @@ CREATE TABLE IF NOT EXISTS schedules (
 # T-1336 (G-041 S1-c): PRAGMA user_version of every DB this code has migrated. The Go CLI (go/internal/factorydb
 # SchemaVersion) answers only when it reads the same number; bump it, and the Go constant, with any SCHEMA or migrate()
 # change (tests/test_db_layout.py hashes both and fails until the pinned hash is renewed together with this number).
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -452,7 +452,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
+  waits TEXT NOT NULL DEFAULT 'internal', block_on TEXT, sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
 CREATE TABLE IF NOT EXISTS agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -575,6 +575,12 @@ def migrate(con):
             con.execute("ALTER TABLE tasks ADD COLUMN waits TEXT NOT NULL DEFAULT 'internal'")
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "waits" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+                raise
+    if "block_on" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+        try:  # typed block conditions JSON, NULL = free-text block (G-040 T-1350)
+            con.execute("ALTER TABLE tasks ADD COLUMN block_on TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "block_on" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
                 raise
     if "tier" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
         try:  # risk tier T0..T3 of the task's PR, only ever raised (G-022 #1)
@@ -3780,6 +3786,74 @@ def build_cli_go(src=None, lib=None, tick=False, go=None):
     return build_guard_go(src, lib, tick=tick, go=go, name=CLI_GO_BIN, pkg="./cmd/factory")
 
 
+BLOCK_EVAL_BIN = "block-eval"
+
+
+def build_block_eval(src=None, lib=None, tick=False, go=None):
+    """Build go/cmd/block-eval into <lib>/block-eval. Same contract as build_guard_go; never raises."""
+    return build_guard_go(src, lib, tick=tick, go=go, name=BLOCK_EVAL_BIN, pkg="./cmd/block-eval")
+
+
+def block_eval_binary(lib=None):
+    """Path to block-eval for parse/eval. Honors FACTORY_BLOCK_EVAL except on the live factory home (exit 2)."""
+    override = (os.environ.get("FACTORY_BLOCK_EVAL") or "").strip()
+    if override:
+        if home_is_live():
+            die("FACTORY_BLOCK_EVAL is not allowed on the live factory home", 2)
+        return override
+    lib = Path(lib or guard_lib_dir())
+    build_block_eval(lib=lib)
+    path = lib / BLOCK_EVAL_BIN
+    if not os.access(path, os.X_OK):
+        die("block-eval binary missing or not executable; install the Go toolchain or set FACTORY_BLOCK_EVAL", 2)
+    return str(path)
+
+
+def block_eval_parse(tokens, lib=None):
+    """Run block-eval parse on tokens. Exit 2 on an unknown token. Returns the parsed condition list."""
+    if not tokens:
+        die("no block condition tokens", 2)
+    if any(not t or t != t.strip() or len(t.split()) != 1 for t in tokens):
+        die("block condition tokens must be non-empty and contain no whitespace", 2)
+    path = block_eval_binary(lib)
+    try:
+        p = subprocess.run([path, "parse"], input="\n".join(tokens) + "\n",
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        die(f"block-eval parse failed: {e}", 2)
+    if p.returncode == 2:
+        die("unknown block condition token", 2)
+    if p.returncode != 0:
+        err = (p.stderr or "").strip().splitlines()[:1]
+        die(f"block-eval parse failed: {err[0] if err else p.returncode}", 2)
+    try:
+        out = json.loads(p.stdout)
+    except json.JSONDecodeError:
+        die("block-eval parse returned invalid JSON", 2)
+    if not isinstance(out, list) or len(out) != len(tokens):
+        die("block-eval parse returned invalid JSON", 2)
+    return out
+
+
+def block_cond_token(c):
+    """One condition as a closed token string for show/events."""
+    typ, arg, form = c.get("type", ""), c.get("arg", ""), c.get("form") or ""
+    return f"{typ}:{arg}:{form}" if form else f"{typ}:{arg}"
+
+
+def block_on_show_line(raw):
+    """Tokens only for factory task show (no message body)."""
+    if not raw:
+        return None
+    try:
+        conds = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(conds, list) or not conds:
+        return None
+    return " ".join(block_cond_token(c) for c in conds)
+
+
 def fetch_cli_go_deps(lib=None, src=None, proxy=None, go=None):
     """Download and verify the modules go/cmd/factory needs into the private GOMODCACHE (<lib>/go/mod), go.sum-pinned.
     The only network step of the Go CLI: called from `factory up` / install, never from the tick (the build stays
@@ -4808,8 +4882,12 @@ def cmd_task(a):
     elif a.action == "show":
         t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
         for k in t.keys():
-            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]) and (k != "judge_hold_reason" or (t[k] or "").strip()):
+            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance", "block_on") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]) and (k != "judge_hold_reason" or (t[k] or "").strip()):
                 print(f"{k}: {t[k]}")
+        if t["block_on"]:
+            line = block_on_show_line(t["block_on"])
+            if line:
+                print(f"block_on: {line}")
         for k in ("spec", "acceptance"):
             if t[k]:
                 print(f"\n## {k}\n{t[k]}")
@@ -5044,6 +5122,22 @@ def cmd_task(a):
             die("task note text is empty; pass the note as an argument or on stdin with '-'. Nothing was written.", 2)
         event(con, "task", tid, "note", text)
         print("noted")
+    elif a.action == "block":
+        refuse_worker("task block")
+        require_role(con, "owner", "lead", "director", "boss")
+        if not a.id:
+            die("task id is required", 2)
+        tokens = a.on or []
+        if not tokens:
+            die("give at least one --on <token>", 2)
+        t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
+        conds = block_eval_parse(tokens)
+        waits = "owner" if any(c.get("type") == "owner" for c in conds) else "internal"
+        blob = json.dumps(conds, separators=(",", ":"), ensure_ascii=False)
+        con.execute("UPDATE tasks SET status='blocked', block_on=?, waits=?, updated=? WHERE id=?",
+                    (blob, waits, now(), a.id))
+        event(con, "task", a.id, "update", f"status=blocked — {' '.join(tokens)}")
+        print(f"{a.id} blocked")
     elif a.action == "tier":
         task_tier_cmd(con, a)
 
@@ -22587,7 +22681,7 @@ def main():
     x = sp.add_parser("team"); x.add_argument("action", choices=["new", "list", "close", "reopen", "wake"]); x.add_argument("id", nargs="?")
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
-    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "tier"])
+    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "block", "tier"])
     x.add_argument("--full", action="store_true")
     x.add_argument("--classify", action="store_true", help="tier: compute the tier from the task's PR branch (needs risk_tiers=on)")
     x.add_argument("--base", default="origin/main"); x.add_argument("--head")
@@ -22598,6 +22692,8 @@ def main():
     x.add_argument("--note"); x.add_argument("--all", action="store_true")
     x.add_argument("--reason"); x.add_argument("--follow-up-of", dest="follow_up_of")
     x.add_argument("--waits", choices=TASK_WAITS, help="with --status blocked: owner (the owner must act) or internal (queue/freeze; default)")
+    x.add_argument("--on", action="append", dest="on", metavar="TOKEN",
+                   help="task block: typed condition token (repeatable)")
     x.add_argument("--merged-externally", dest="merged_externally", action="store_true",
                    help="with --status done --reason: close a coder task whose PR was merged outside the judge (director/owner; verified on GitHub)")
     x.add_argument("--sandbox-required", dest="sandbox_required", choices=["0", "1"],
