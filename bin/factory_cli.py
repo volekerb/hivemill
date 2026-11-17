@@ -9238,8 +9238,9 @@ def idle_watchdog_progress(con, r, marks, cursor_tr=None):
     return {k: v for k, v in sig.items() if v is not None}
 
 
-def _idle_watchdog_state(con, name, key):
-    """{step: [epoch, ...]} of the watchdog steps recorded for this agent + task + attempt (`key`); events are the state."""
+def _idle_watchdog_state(con, name, key, mode="shadow"):
+    """{step: [epoch, ...]} of the watchdog steps recorded for this agent + task + attempt (`key`); events are the state.
+    In mode on only mode=on rows count: steps logged in shadow took no action, so after the flip to on they run for real."""
     out = {a: [] for a in IDLE_WATCHDOG_STEPS}
     for e in con.execute("SELECT action, ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action IN "
                          f"({','.join('?' * len(out))}) ORDER BY id", (name, *out)).fetchall():
@@ -9248,7 +9249,7 @@ def _idle_watchdog_state(con, name, key):
         except (TypeError, ValueError):
             continue
         t = _ts(e["ts"])
-        if isinstance(d, dict) and d.get("key") == key and t is not None:
+        if isinstance(d, dict) and d.get("key") == key and t is not None and (mode != "on" or d.get("mode") == "on"):
             out[e["action"]].append(t.timestamp())
     return out
 
@@ -9346,7 +9347,7 @@ def idle_watchdog(con, agents):
                 continue  # no pane
             name, runtime = r["name"], _agent_runtime(r)
             key = f"{name}|{t['id']}|{t['attempts']}"
-            st = _idle_watchdog_state(con, name, key)
+            st = _idle_watchdog_state(con, name, key, mode)
             if st["idle-watchdog-alert"]:
                 continue  # the terminal step was taken: no more automatic actions on this task attempt
             unread = kickoff_unread(con, name)

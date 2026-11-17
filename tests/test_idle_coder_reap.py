@@ -450,6 +450,35 @@ class WatchdogClaude(WatchdogBase):
         self.assertEqual(self.alerts(name), [])
         self.assertEqual(self.notes("T-0001"), [])
 
+    def test_shadow_steps_do_not_count_after_the_flip_to_on(self):
+        self.ok("config", "idle_watchdog", "shadow", agent="owner")
+        name = self.spawn()
+        for m in (31, 47, 78):  # the whole shadow walk: nudge, relaunch and alert rows, no action
+            self.tick(m)
+        self.assertEqual([s["mode"] for s in self.steps("idle-watchdog-alert", name)], ["shadow"])
+        self.ok("config", "idle_watchdog", "on", agent="owner")
+        self.tick(80)  # still idle since minute 0: the real nudge, not skipped for the shadow alert
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.assertEqual(self.host_calls("pane", "close"), [])  # not relaunched on the strength of the shadow nudge
+        self.tick(90)
+        self.assertEqual(self.host_calls("pane", "close"), [])
+        self.tick(96)  # 16 min after the real nudge
+        self.assertEqual(len(self.host_calls("pane", "close")), 1)
+        self.assertEqual(len(self.host_calls("agent", "start")), 1)
+        self.ok("inbox", agent=name, extra_env=self.at(96))
+        self.tick(120)
+        self.assertEqual(self.alerts(name), [])
+        self.tick(127)  # 31 min after the real relaunch
+        self.assertEqual({a["recipient"] for a in self.alerts(name)}, self.directors())
+        for m in (150, 200, 400):
+            self.tick(m)
+        self.assertEqual(len(self.nudges(name)), 1)
+        self.assertEqual(len(self.host_calls("agent", "start")), 1)
+        self.assertEqual(len(self.alerts(name)), 2)
+        self.assertEqual([s["mode"] for s in self.steps("idle-watchdog-nudge", name)], ["shadow", "on"])
+        self.assertEqual([s["mode"] for s in self.steps("idle-watchdog-relaunch", name)], ["shadow", "on"])
+        self.assertEqual([s["mode"] for s in self.steps("idle-watchdog-alert", name)], ["shadow", "on"])
+
     def test_off_does_nothing(self):
         self.ok("config", "idle_watchdog", "off", agent="owner")
         name = self.spawn()
