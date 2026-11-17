@@ -12673,7 +12673,8 @@ def src_scratch_roots(con):
     """Realpaths of the caller's own scratchpad: <tmp>/claude-<uid>/<slug of the agent's registered cwd>/<its session>/scratchpad.
     The caller is FACTORY_AGENT (refused when unset) and the slug comes from its agents row, never from the cwd or an env
     var the caller can set; a cwd that is not that registered cwd is refused. With a stored session id only that session's
-    scratchpad counts. Returns (roots, error)."""
+    scratchpad counts, plus (T-1639) the sessions of the caller's claude ancestor; when none of those has a scratchpad (a
+    respawned pane whose row is stale) only the newest session dir under the slug counts. Returns (roots, error)."""
     who = os.environ.get("FACTORY_AGENT") or ""
     r = con.execute("SELECT cwd, session_id FROM agents WHERE name=?", (who,)).fetchone() if who and who != "owner" else None
     if not r or not r["cwd"]:
@@ -12691,10 +12692,22 @@ def src_scratch_roots(con):
     try:
         if base.is_symlink() or not base.is_dir():
             return roots, ""
-        for s in ([base / sid] if sid else sorted(base.iterdir())):
-            pad = s / "scratchpad"
-            if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
-                roots.append(os.path.realpath(pad))
+        def pads(dirs):
+            for s in dirs:
+                pad = s / "scratchpad"
+                if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
+                    roots.append(os.path.realpath(pad))
+        # T-1639: a respawned pane (--resume / fresh --session-id) can run under a session id the agents row does not
+        # name yet (the tick syncs it only when the pane host reports it), so the stored id alone gave "no scratchpad
+        # found" to QA panes. Try the stored id and the ids on the caller's own claude ancestor first; when none has a
+        # scratchpad: no stored id = every session dir (as before); a stale stored id = only the newest session dir
+        # under this agent's own registered-cwd slug (the respawned pane's current session), never the older ones.
+        sids = list(dict.fromkeys(([sid] if sid else []) + [x for x in (_caller_claude_sessions() or [])
+                                                            if re.fullmatch(r"[A-Za-z0-9_-]+", x)]))
+        pads(base / x for x in sids)
+        if not roots:
+            dirs = sorted(base.iterdir(), key=lambda d: d.lstat().st_mtime)
+            pads(dirs if not sid else [d for d in reversed(dirs) if (d / "scratchpad").is_dir()][:1])
     except OSError:
         pass
     return roots, ""
