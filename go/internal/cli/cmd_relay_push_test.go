@@ -795,3 +795,25 @@ func TestRelayPushReplaceRefIgnored(t *testing.T) {
 		t.Errorf("replace ref: exit %d err %q", code, errs)
 	}
 }
+
+func FuzzParseRelayPush(f *testing.F) {
+	f.Add("T-1", "abc")
+	f.Add("", "-h")
+	f.Fuzz(func(t *testing.T, a, b string) {
+		got, ok := parseRelayPush([]string{a, b})
+		if !ok || got == nil {
+			t.Fatalf("parser must always claim the command, got ok=%v", ok)
+		}
+	})
+}
+
+func FuzzParseRelayVerify(f *testing.F) {
+	f.Add("T-1", "abc", "--reason", "why")
+	f.Add("", "", "-x", "")
+	f.Fuzz(func(t *testing.T, a, b, c, d string) {
+		got, ok := parseRelayVerify([]string{a, b, c, d})
+		if !ok || got == nil {
+			t.Fatalf("parser must always claim the command, got ok=%v", ok)
+		}
+	})
+}
