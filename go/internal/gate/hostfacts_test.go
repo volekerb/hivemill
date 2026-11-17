@@ -26,7 +26,7 @@ func fixture(t *testing.T, name string) string {
 }
 
 func TestDarwinLoad(t *testing.T) {
-	if v, err := ParseDarwinLoad(fixture(t, "loadavg")); err != nil || v != 1.23 {
+	if v, err := ParseDarwinLoad(fixture(t, "loadavg")); err != nil || v != 3.71 {
 		t.Fatalf("load = %v, %v", v, err)
 	}
 	if v, err := ParseDarwinLoad("{ 0.5 0.4 0.3 }\n"); err != nil || v != 0.5 {
@@ -35,14 +35,14 @@ func TestDarwinLoad(t *testing.T) {
 }
 
 func TestDarwinVMStat(t *testing.T) {
-	// (10000+50000+2000) pages x 16384 B = 968.75 MB (floor 968)
-	if v, err := ParseDarwinVMStat(fixture(t, "vm_stat")); err != nil || v != 968 {
-		t.Fatalf("vm_stat = %v, %v; want 968", v, err)
+	// (11361+205358+980) pages x 16384 B = 3401 MB (MacBook M0 2026-11-15)
+	if v, err := ParseDarwinVMStat(fixture(t, "vm_stat")); err != nil || v != 3401 {
+		t.Fatalf("vm_stat = %v, %v; want 3401", v, err)
 	}
 }
 
 func TestDarwinSwap(t *testing.T) {
-	if v, err := ParseDarwinSwap(fixture(t, "swapusage")); err != nil || v != 1180 {
+	if v, err := ParseDarwinSwap(fixture(t, "swapusage")); err != nil || v != 5070 {
 		t.Fatalf("swap = %v, %v", v, err)
 	}
 	if v, err := ParseDarwinSwap("used = 1.50G"); err != nil || v != 1536 {
@@ -97,7 +97,7 @@ func TestDarwinFactsReaders(t *testing.T) {
 	if errs := ApplyHostFacts(&s, h, "/tmp"); len(errs) != 0 {
 		t.Fatal(errs)
 	}
-	if s.MemMB != 968 || s.Load1 != 1.23 || s.NumCPU != 8 || s.MemPressure != 1 || s.Tmp == nil || s.TmpMinFreeMB != TmpMinFreeMB {
+	if s.MemMB != 3401 || s.Load1 != 3.71 || s.NumCPU != 8 || s.MemPressure != 1 || s.Tmp == nil || s.TmpMinFreeMB != TmpMinFreeMB {
 		t.Fatalf("snapshot = %+v", s)
 	}
 }
