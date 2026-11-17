@@ -15,6 +15,9 @@ RO, RW = "zz-fake-ro-token-7d41e", "zz-fake-rw-token-9a3b2"
 SLUG = "zz-owner/zz-repo"
 ROLES = ("coder", "qa", "reviewer", "judge", "cleaner", "pm")
 SCRUBBED = ("GIT_CONFIG_PARAMETERS", "GIT_ASKPASS", "SSH_ASKPASS", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN")
+# Flag off: the base spawn env, plus the T-1698 disk-cache vars every worker gets (worker_cache_env).
+BASE_ENV = {"FACTORY_AGENT", "FACTORY_ROLE", "FACTORY_HOME", "GOTMPDIR", "GOCACHE", "GOMODCACHE", "npm_config_store_dir"}
+
 DANGEROUS = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "credential.helper", "GIT_CONFIG_VALUE_0": "!echo pw",
              "GIT_CONFIG_PARAMETERS": "'credential.helper=!echo pw'", "GIT_ASKPASS": "/bin/echo",
              "SSH_ASKPASS": "/bin/echo", "GH_TOKEN": "zz-owner-token", "GITHUB_TOKEN": "zz-owner-token2",
@@ -280,7 +283,7 @@ class FlagOffTests(GhCredCase):
             for role in ("coder", "judge", "cleaner"):
                 p = self.spawn(role, extra_env=DANGEROUS, tag=tag)
                 self.assertEqual(p.returncode, 0, p.stderr)
-                self.assertEqual(set(self.started(role, tag)), {"FACTORY_AGENT", "FACTORY_ROLE", "FACTORY_HOME"}, role)
+                self.assertEqual(set(self.started(role, tag)), BASE_ENV, role)
         self.assertFalse(self.ghcred_dir().exists())
 
     def test_flag_off_lets_missing_tokens_spawn(self):
@@ -291,7 +294,7 @@ class FlagOffTests(GhCredCase):
     def test_a_role_not_listed_is_untouched(self):
         self.flag("reviewer")
         self.spawn("coder", extra_env=DANGEROUS)
-        self.assertEqual(set(self.started("coder")), {"FACTORY_AGENT", "FACTORY_ROLE", "FACTORY_HOME"})
+        self.assertEqual(set(self.started("coder")), BASE_ENV)
 
 
 class SandboxedTests(GhCredCase):
