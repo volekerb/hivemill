@@ -23,7 +23,7 @@ FLAGS = {
     "tick_async_start", "lead_wake_debounce_s", "tick_phase_timers", "orphan_reap_mode", "scout_enabled",
     "gate_fast_projects", "issue_intake_repos", "cursor_pilot_roles", "agent_runtimes",
     "red_pr_owner_alert", "coder_ci_handoff", "idle_coder_reap", "judge_wait_main_run",
-    "owner_alert_feed", "owner_alert_send",
+    "owner_alert_feed", "owner_alert_send", "idle_watchdog",
 }
 BASELINE_ON = {"git_push", "stale_policy", "scout_enabled", "gate_fast_projects"}
 
@@ -77,7 +77,7 @@ class Registry(unittest.TestCase):
         for k in FLAGS:
             if k in BASELINE_ON:
                 self.assertEqual((by[k]["state"], by[k]["promoted_in"]), ("on", "baseline"), k)
-            elif k == "orphan_reap_mode":
+            elif k in ("orphan_reap_mode", "idle_watchdog"):
                 self.assertEqual(by[k]["state"], "shadow")
             else:
                 self.assertEqual(by[k]["state"], "off", k)
