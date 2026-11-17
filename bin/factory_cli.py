@@ -552,7 +552,8 @@ def gh_trace_install(con):
     if _GH_TRACE["installed"]:
         return
     try:
-        if cfg(con, "gh_call_trace") != "on":
+        r = con.execute("SELECT value FROM config WHERE key='gh_call_trace'").fetchone()  # not cfg(): db() must not add a cfg call
+        if (r["value"] if r else DEFAULT_CONFIG["gh_call_trace"]) != "on":
             return
     except (sqlite3.Error, KeyError):
         return
