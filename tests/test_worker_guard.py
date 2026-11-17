@@ -728,7 +728,16 @@ class ClaudeGuardTests(unittest.TestCase):
                 added |= {f"Bash({c}:*)" for c in ("hc server stop", "herdr-core server stop", "hc kill", "hc rm", "hc run")}  # T-1446
                 added |= {f"{t}(/@FACTORY_LIVE_HOME@/run/guard-export.json*)"
                           for t in ("Edit", "Write", "MultiEdit", "NotebookEdit")}  # T-0883
-                self.assertEqual([x for x in tdeny if x not in added], [x for x in old if x not in added])
+                def norm(rules):  # T-1659: Edit(p) covers Write(p) and NotebookEdit(p); compare as one rule per path
+                    out = []
+                    for x in rules:
+                        for tool in ("Write(", "NotebookEdit("):
+                            if x.startswith(tool):
+                                x = "Edit(" + x[len(tool):]
+                        if x not in added and x not in out:
+                            out.append(x)
+                    return out
+                self.assertEqual(norm(tdeny), norm(old))
 
 if __name__ == "__main__":
     unittest.main()
