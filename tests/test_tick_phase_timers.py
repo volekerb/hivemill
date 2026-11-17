@@ -409,7 +409,8 @@ class TickHoldExpiryGo(FactoryTestCase):
     def test_off_switch_starts_no_subprocess(self):
         seed_held_task(self.env)
         calls = self.env.home_dir.parent / "fake-calls"
-        self.install(script=f'#!/bin/sh\necho x >> {calls}\nexit 0\n')
+        # other tick units (schedule due --json) also run factory-go; only a hold-expiry call counts here
+        self.install(script=f'#!/bin/sh\n[ "$1" = hold-expiry ] && echo x >> {calls}\nexit 0\n')
         self.ok("config", "judge_hold_expiry_min", "0")
         p = self.tick()
         self.assertFalse(calls.exists())
@@ -424,7 +425,7 @@ class TickHoldExpiryGo(FactoryTestCase):
         self.assertNotIn("hold-expiry", (self.env.home_dir / "run" / "cli_impl").read_text())
 
     def test_cli_build_follows_the_expiry_switch(self):
-        for value, builds in (("120", 1), ("0", 0)):
+        for value, builds in (("120", 1), ("0", 1)):  # T-1804: built whatever the expiry switch says
             with self.subTest(judge_hold_expiry_min=value), self.env.load_factory() as f:
                 self.ok("config", "judge_hold_expiry_min", value)
                 with mock.patch.object(f, "load1", return_value=0.0), \

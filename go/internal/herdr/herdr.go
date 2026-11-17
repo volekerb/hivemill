@@ -423,7 +423,7 @@ func (c *Client) HcTranslate(args []string) (out []string, ok bool) {
 					i++
 				}
 			}
-			out = []string{"run", "--bg", "--name", name}
+			out = []string{"run", "--bg", "--no-parent", "--name", name} // never the caller terminal's child (hc 0.1.21), as Python
 			cwd := c.RunCwd
 			if cwd == "" {
 				for j, tok := range post {

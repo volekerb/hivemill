@@ -9,7 +9,13 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`factory schedule` works on a box running the Python defaults.** The tick built `factory-go` and the guard binary only when `cli_impl`, `tick_impl` or `guard_impl` asked for Go, so `factory schedule add` failed with "needs the Go CLI binary". Both binaries are now built on every tick when a `go/` tree and a Go toolchain exist. Dispatch is unchanged: no command routes to Go unless its impl flag says so (T-1804).
+
 ### Added
+
+- **Opt-in `judge_review_gate = green`.** Before, the merge gate needed a reviewer PASS and a QA PASS on the head. With `factory config judge_review_gate green` a PR merges when its checks are green on the head and no reviewer or QA FAIL is on the head; the main push run is the safety net. The default stays `passpass`. See [docs/judge-ci-gate.md](https://github.com/volekerb/hivemill/blob/main/docs/judge-ci-gate.md).
 
 - **Scheduled jobs now fire from the tick.** Before, `factory schedule` only stored jobs and nothing fired them. Now the Python tick runs `factory-go schedule due --json` and mails each due job to the director, the run's token cap is applied through the goal's `token_limit`, and days the tick missed are not back-filled. See [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md#tick-claiming-due-jobs) (#777).
 

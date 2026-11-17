@@ -144,8 +144,9 @@ func TestSrcRefusals(t *testing.T) {
 		t.Errorf("owner: exit %d err %q", code, errs)
 	}
 	s.sql("UPDATE agents SET session_id='other' WHERE name='claude-coder'")
-	if _, errs, code := s.src("HEAD", filepath.Join(s.scratch, "o5")); code != 2 || !strings.HasPrefix(errs, "factory: no scratchpad found for your session") {
-		t.Errorf("no scratchpad: exit %d err %q", code, errs)
+	// T-1678: a stored id with no scratchpad is not a Go refusal: Python decides (stale-session fallback, T-1639)
+	if _, errs, code := s.src("HEAD", filepath.Join(s.scratch, "o5")); s.execs != 1 || code != 0 || errs != "" {
+		t.Errorf("stale stored id must hand over to Python: execs %d exit %d err %q", s.execs, code, errs)
 	}
 	s.sql("UPDATE agents SET session_id='bad/../id' WHERE name='claude-coder'")
 	if _, errs, code := s.src("HEAD", filepath.Join(s.scratch, "o6")); code != 2 || errs != "factory: registered session id 'bad/../id' is not a plain id\n" {
@@ -262,5 +263,63 @@ func TestSrcExtractTarFails(t *testing.T) {
 	why, rc := srcExtract(gitStub, tarStub, nil, nil, t.TempDir(), nil)
 	if rc != 1 || why != "tar failed: boom" {
 		t.Fatalf("got rc=%d why=%q", rc, why)
+	}
+}
+
+// TestSrcStaleSessionHandsOver (T-1678): PR 755 (T-1639) taught only the Python factory src to find a respawned pane's
+// scratchpad; the Go command refused with "no scratchpad found" whenever the stored id named no scratchpad dir. Each QA
+// symptom must reach Python instead: no scratchpad for the stored id, two session dirs under the slug, session-id mismatch.
+func TestSrcStaleSessionHandsOver(t *testing.T) {
+	slugDir := func(s *srcEnv) string { return filepath.Dir(filepath.Dir(s.scratch)) }
+	mustNil := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+	}
+	for _, tc := range []struct {
+		name  string
+		setup func(s *srcEnv) string // returns the dest
+	}{
+		{"no scratchpad for the stored id", func(s *srcEnv) string {
+			mustNil(os.RemoveAll(filepath.Join(slugDir(s), "sess1")))
+			s.sql("UPDATE agents SET session_id='stale-old' WHERE name='claude-coder'")
+			mustNil(os.MkdirAll(filepath.Join(slugDir(s), "live-new", "scratchpad"), 0o755))
+			return filepath.Join(s.scratch, "o")
+		}},
+		{"two session dirs, stored id in neither", func(s *srcEnv) string {
+			s.sql("UPDATE agents SET session_id='stale-old' WHERE name='claude-coder'")
+			mustNil(os.MkdirAll(filepath.Join(slugDir(s), "live-new", "scratchpad"), 0o755))
+			return filepath.Join(s.scratch, "o")
+		}},
+		{"session-id mismatch after a relaunch", func(s *srcEnv) string {
+			s.sql("UPDATE agents SET session_id='relaunched-id' WHERE name='claude-coder'")
+			return filepath.Join(s.scratch, "o")
+		}},
+		{"two session dirs, stored id's pad exists, dest in the live session's pad", func(s *srcEnv) string {
+			live := filepath.Join(slugDir(s), "live-new", "scratchpad")
+			mustNil(os.MkdirAll(live, 0o755))
+			return filepath.Join(live, "o")
+		}},
+	} {
+		s := newSrcEnv(t)
+		dest := tc.setup(s)
+		out, errs, code := s.src("HEAD", dest)
+		if s.execs != 1 || code != 0 || out != "" || errs != "" {
+			t.Errorf("%s: want a hand-over to Python, got execs %d exit %d out %q err %q", tc.name, s.execs, code, out, errs)
+		}
+	}
+	// a dest in a sibling session dir but outside its scratchpad stays a Go refusal
+	for _, rel := range []string{"live-new/foo", "live-new/scratchpad"} {
+		s := newSrcEnv(t)
+		mustNil(os.MkdirAll(filepath.Join(slugDir(s), "live-new", "scratchpad"), 0o755))
+		if _, errs, code := s.src("HEAD", filepath.Join(slugDir(s), rel)); code != 2 || s.execs != 0 || !strings.Contains(errs, "is not inside your scratchpad") {
+			t.Errorf("%s: want a Go refusal, got exit %d execs %d err %q", rel, code, s.execs, errs)
+		}
+	}
+	// the stored id that does own a scratchpad is still served by Go itself
+	s := newSrcEnv(t)
+	if _, _, code := s.src("HEAD", filepath.Join(s.scratch, "ok")); code != 0 || s.execs != 0 {
+		t.Errorf("matching id: exit %d execs %d", code, s.execs)
 	}
 }

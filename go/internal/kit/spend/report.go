@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -39,6 +40,7 @@ type Request struct {
 	Speed   string
 	Usage   tokens.Usage
 	At      time.Time
+	First   bool // the first request of its transcript file: the session's start-up
 }
 
 // Context is the prompt size of the request: everything the model read.
@@ -63,6 +65,9 @@ type Bucket struct {
 	ContextMax     int64   `json:"max_context_tokens"`
 	StartContext   int64   `json:"start_context_tokens"`
 	AvgContext     int64   `json:"avg_context_tokens"`
+	SpawnCost      float64 `json:"spawn_usd"`
+	PollingCost    float64 `json:"polling_usd"`
+	WorkCost       float64 `json:"work_usd"`
 	first          time.Time
 }
 
@@ -85,6 +90,15 @@ func (b *Bucket) add(r Request) {
 	b.CacheWrite += r.Usage.CacheWrite5m + r.Usage.CacheWrite1h
 	b.Cost += cost
 	b.CacheWriteCost += wcost
+	switch {
+	case r.First: // the cache write of the start-up context is spawn; the rest of that request is work
+		b.SpawnCost += wcost
+		b.WorkCost += cost - wcost
+	case r.Usage.Output < TinyOutput:
+		b.PollingCost += cost
+	default:
+		b.WorkCost += cost
+	}
 	b.ContextSum += ctx
 	if ctx > b.ContextMax {
 		b.ContextMax = ctx
@@ -102,14 +116,109 @@ type Finding struct {
 
 // Report is the result of one scan.
 type Report struct {
-	Since    time.Time `json:"since"`
-	Until    time.Time `json:"until"`
-	Root     string    `json:"root"`
-	Total    Bucket    `json:"total"`
-	Sessions int       `json:"sessions"`
-	ByModel  []Bucket  `json:"by_model"`
-	Top      []Bucket  `json:"top_sessions"`
-	Findings []Finding `json:"findings"`
+	Since    time.Time    `json:"since"`
+	Until    time.Time    `json:"until"`
+	Root     string       `json:"root"`
+	Total    Bucket       `json:"total"`
+	Sessions int          `json:"sessions"`
+	ByModel  []Bucket     `json:"by_model"`
+	Top      []Bucket     `json:"top_sessions"`
+	Findings []Finding    `json:"findings"`
+	ByRole   []RoleBucket `json:"by_role"`
+	// MergedPRs is the --merged-prs value; PerMergedPR is Total.Cost / MergedPRs, set only when MergedPRs > 0.
+	MergedPRs   int      `json:"merged_prs"`
+	PerMergedPR *float64 `json:"per_merged_pr_usd,omitempty"`
+}
+
+// Roles are the factory roles hm-spend recognises in a session's kickoff message.
+var Roles = []string{"boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer",
+	"researcher", "scout", "retro", "evaluator"}
+
+// RoleOther is the role of a session whose kickoff names no known role.
+const RoleOther = "other"
+
+var kickoffRe = regexp.MustCompile(`the factory ([a-z-]+)\.`)
+
+// RoleFromKickoff returns the role named in a factory kickoff ("You are `claude-pm-t-1775`, the factory pm."), or "".
+func RoleFromKickoff(text string) string {
+	for _, m := range kickoffRe.FindAllStringSubmatch(text, -1) {
+		for _, r := range Roles {
+			if m[1] == r {
+				return r
+			}
+		}
+	}
+	return ""
+}
+
+// RoleBucket sums the sessions of one role. PerMergedPR is Cost / merged PRs when --merged-prs is given.
+type RoleBucket struct {
+	Role         string   `json:"role"`
+	Sessions     int      `json:"sessions"`
+	Requests     int      `json:"requests"`
+	Cost         float64  `json:"cost_usd"`
+	SpawnCost    float64  `json:"spawn_usd"`
+	PollingCost  float64  `json:"polling_usd"`
+	WorkCost     float64  `json:"work_usd"`
+	StartContext int64    `json:"median_start_context_tokens"`
+	PerMergedPR  *float64 `json:"per_merged_pr_usd,omitempty"`
+}
+
+// SetMergedPRs adds the per-merged-PR figures for n > 0 merged PRs; n <= 0 leaves them out.
+func (r *Report) SetMergedPRs(n int) {
+	r.MergedPRs = n
+	if n <= 0 {
+		return
+	}
+	v := r.Total.Cost / float64(n)
+	r.PerMergedPR = &v
+	for i := range r.ByRole {
+		w := r.ByRole[i].Cost / float64(n)
+		r.ByRole[i].PerMergedPR = &w
+	}
+}
+
+func byRole(sessions map[string]*Bucket, role, parent map[string]string) []RoleBucket {
+	roles := map[string]*RoleBucket{}
+	starts := map[string][]int64{}
+	for key, s := range sessions {
+		r := role[key]
+		if p, ok := parent[key]; ok {
+			r = ""
+			if _, known := sessions[p]; known || role[p] != "" {
+				r = role[p]
+			}
+		}
+		if r == "" {
+			r = RoleOther
+		}
+		b := roles[r]
+		if b == nil {
+			b = &RoleBucket{Role: r}
+			roles[r] = b
+		}
+		b.Sessions++
+		b.Requests += s.Requests
+		b.Cost += s.Cost
+		b.SpawnCost += s.SpawnCost
+		b.PollingCost += s.PollingCost
+		b.WorkCost += s.WorkCost
+		starts[r] = append(starts[r], s.StartContext)
+	}
+	out := make([]RoleBucket, 0, len(roles))
+	for r, b := range roles {
+		st := starts[r]
+		sort.Slice(st, func(i, j int) bool { return st[i] < st[j] })
+		b.StartContext = st[len(st)/2]
+		out = append(out, *b)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Cost != out[j].Cost {
+			return out[i].Cost > out[j].Cost
+		}
+		return out[i].Role < out[j].Role
+	})
+	return out
 }
 
 // Scan reads every transcript under root changed since `since` and sums the requests made in [since, until).
@@ -122,6 +231,8 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 	models := map[string]*Bucket{}
 	sessions := map[string]*Bucket{}
 	seen := map[string]bool{}
+	role := map[string]string{}   // session -> role from its kickoff message
+	parent := map[string]string{} // subagent session -> parent session
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
@@ -139,7 +250,16 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 		rel, _ := filepath.Rel(root, path)
 		project := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
 		session := strings.TrimSuffix(filepath.Base(path), ".jsonl")
-		return readFile(path, func(r Request) {
+		// Subagent transcripts live in <project>/<parent session>/subagents/agent-*.jsonl.
+		if parts := strings.Split(filepath.ToSlash(rel), "/"); len(parts) == 4 && parts[2] == "subagents" {
+			parent[session] = parts[1]
+		}
+		return readFile(path, func(text string) bool {
+			if role[session] == "" {
+				role[session] = RoleFromKickoff(text)
+			}
+			return role[session] == ""
+		}, func(r Request) {
 			if r.At.Before(since) || !r.At.Before(until) {
 				return
 			}
@@ -166,6 +286,7 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 	rep.ByModel = sorted(models, 0)
 	rep.Top = sorted(sessions, top)
 	rep.Findings = findings(rep, models, sessions)
+	rep.ByRole = byRole(sessions, role, parent)
 	return rep, nil
 }
 
@@ -209,15 +330,57 @@ type line struct {
 
 var usageKey = []byte(`"usage"`)
 
-func readFile(path string, emit func(Request), seen map[string]bool) error {
+// maxKickoffLines is how many user messages are tried for a role before a session counts as "other".
+const maxKickoffLines = 10
+
+var userKey = []byte(`"type":"user"`)
+
+// userText is the text of a user line: its content string, or its text blocks joined.
+func userText(raw []byte) (string, bool) {
+	var u struct {
+		Type    string `json:"type"`
+		Message struct {
+			Content json.RawMessage `json:"content"`
+		} `json:"message"`
+	}
+	if json.Unmarshal(raw, &u) != nil || u.Type != "user" {
+		return "", false
+	}
+	var s string
+	if json.Unmarshal(u.Message.Content, &s) == nil {
+		return s, true
+	}
+	var blocks []struct {
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(u.Message.Content, &blocks) != nil {
+		return "", false
+	}
+	var parts []string
+	for _, b := range blocks {
+		parts = append(parts, b.Text)
+	}
+	return strings.Join(parts, "\n"), true
+}
+
+// readFile emits the requests of one transcript. user receives the user messages in order (up to maxKickoffLines)
+// until it returns false.
+func readFile(path string, user func(string) bool, emit func(Request), seen map[string]bool) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil // a transcript that vanished or is unreadable is skipped, not fatal
 	}
 	defer f.Close()
 	br := bufio.NewReaderSize(f, 1<<20)
+	wantUser, users, first := user != nil, 0, true
 	for {
 		raw, err := br.ReadBytes('\n')
+		if wantUser && len(raw) <= maxLineBytes && bytes.Contains(raw, userKey) {
+			if text, ok := userText(raw); ok {
+				users++
+				wantUser = user(text) && users < maxKickoffLines
+			}
+		}
 		if len(raw) > 0 && len(raw) <= maxLineBytes && bytes.Contains(raw, usageKey) {
 			var l line
 			// "<synthetic>" marks messages Claude Code writes itself (no model call, zero tokens): not a request.
@@ -226,6 +389,8 @@ func readFile(path string, emit func(Request), seen map[string]bool) error {
 				key := l.Message.ID + "\x00" + l.RequestID
 				if !seen[key] {
 					seen[key] = true
+					isFirst := first
+					first = false
 					u := l.Message.Usage
 					w1, w5 := int64(0), u.CacheCreation
 					if u.Detail != nil {
@@ -235,7 +400,7 @@ func readFile(path string, emit func(Request), seen map[string]bool) error {
 							w5 = 0
 						}
 					}
-					emit(Request{Model: l.Message.Model, Speed: u.Speed, At: l.Timestamp.UTC(), Usage: tokens.Usage{
+					emit(Request{Model: l.Message.Model, Speed: u.Speed, At: l.Timestamp.UTC(), First: isFirst, Usage: tokens.Usage{
 						Input: u.Input, Output: u.Output, CacheRead: u.CacheRead, CacheWrite5m: w5, CacheWrite1h: w1}})
 				}
 			}

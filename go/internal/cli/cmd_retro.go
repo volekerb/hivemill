@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"time"
 
 	"factory/go/internal/retro"
@@ -17,6 +19,8 @@ func init() {
 	register("retro", "packet", handler{parse: parseRetroPacket, run: runRetroPacket})
 	register("retro", "file", handler{parse: parseRetroFile, run: runRetroFile})
 	register("retro", "show", handler{parse: parseRetroShow, run: runRetroShow})
+	register("retro", "adopt", handler{parse: parseRetroAdopt, run: runRetroAdopt})
+	register("retro", "fixes", handler{parse: parseRetroFixes, run: runRetroFixes})
 }
 
 type retroShowCmd struct{ day string }
@@ -128,5 +132,92 @@ func runRetroShow(c *ctx, p any) (int, error) {
 		return 0, err
 	}
 	fmt.Fprintln(c.out, text)
+	return 0, nil
+}
+
+// retro adopt | fixes (T-1695): record which retro fixes were adopted and list them.
+
+type retroAdoptCmd struct {
+	day, task, signature string
+	fix                  int64
+}
+
+type retroFixesCmd struct{ status string }
+
+// parseRetroAdopt answers only a complete argv with a plain-digit --fix; anything else (a missing flag, --fix -1,
+// a signature starting with '-') goes to Python, which owns the usage and argparse errors.
+func parseRetroAdopt(rest []string) (any, bool) {
+	var c retroAdoptCmd
+	var fix string
+	if !(flagParser{vals: map[string]*string{"--day": &c.day, "--fix": &fix, "--task": &c.task, "--signature": &c.signature}}.parse(rest)) {
+		return nil, false
+	}
+	if c.day == "" || c.task == "" || c.signature == "" || fix == "" || len(fix) > 9 {
+		return nil, false
+	}
+	for _, r := range fix {
+		if r < '0' || r > '9' {
+			return nil, false
+		}
+	}
+	n, err := strconv.ParseInt(fix, 10, 64)
+	if err != nil {
+		return nil, false
+	}
+	c.fix = n
+	return c, true
+}
+
+func parseRetroFixes(rest []string) (any, bool) {
+	var c retroFixesCmd
+	return c, flagParser{vals: map[string]*string{"--status": &c.status}}.parse(rest)
+}
+
+func runRetroAdopt(c *ctx, p any) (int, error) {
+	a := p.(retroAdoptCmd)
+	role, err := actorRole(c)
+	if err != nil {
+		return 0, err
+	}
+	if role == "retro" {
+		return 0, dieErr(3, "role 'retro' may not adopt fixes; the retro agent only proposes")
+	}
+	if _, err := requireRole(c, "pm", "lead", "director", "boss"); err != nil {
+		return 0, err
+	}
+	clock, err := retroClock(c)
+	if err != nil {
+		return 0, err
+	}
+	msg, err := retro.Adopt(c.db, a.day, a.fix, a.task, a.signature, c.who, scout.Stamp(clock),
+		func(entity, id, action, detail string) error { return event(c, entity, id, action, strp(detail)) })
+	if err != nil {
+		var ve *retro.ValueError
+		if errors.As(err, &ve) {
+			return 0, dieErr(2, ve.Msg)
+		}
+		return 0, err
+	}
+	fmt.Fprintln(c.out, msg)
+	return 0, nil
+}
+
+func runRetroFixes(c *ctx, p any) (int, error) {
+	a := p.(retroFixesCmd)
+	if _, err := requireRole(c, "pm", "lead", "director", "boss", "retro"); err != nil {
+		return 0, err
+	}
+	if err := retro.SyncAdopted(c.db, func(entity, id, action, detail string) error { return event(c, entity, id, action, strp(detail)) }); err != nil {
+		return 0, err
+	}
+	lines, err := retro.FixesLines(c.db, a.status)
+	if err != nil {
+		var ve *retro.ValueError
+		if errors.As(err, &ve) {
+			return 0, dieErr(2, ve.Msg)
+		}
+		return 0, err
+	}
+	fmt.Fprintln(c.out, strings.Join(lines, "\n"))
 	return 0, nil
 }

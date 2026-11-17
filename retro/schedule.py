@@ -5,6 +5,7 @@ bin/factory supplies spawn, force_stop, cfg and the clock via the `api` namespac
 import datetime as dt
 import sqlite3
 
+from retro import report
 from scout import orgs
 
 TERMINAL = ("done", "stopped", "failed", "skipped")
@@ -195,6 +196,7 @@ def start(con, api, day, org):
 def tick(con, api):
     clock = api.clock()
     sync(con, api, clock)
+    report.sync_adopted(con, lambda *x: api.event(con, *x))  # T-1695: pending fixes follow their task's merge, agent on or off
     if str(api.cfg(con, "retro_enabled")) != "1":
         return
     try:

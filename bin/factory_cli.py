@@ -108,8 +108,8 @@ ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "
 # Opus for judgement-heavy roles, Sonnet for builders. Never Fable (owner rule).
 MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
-    "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-    "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
+    "pm": "claude-sonnet-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-sonnet-5-5",
+    "staff-engineer": "claude-opus-5-5", "researcher": "claude-sonnet-5-5",
     "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "retro": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
@@ -141,7 +141,20 @@ GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled
 
 DEFAULT_CONFIG = {
     "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
+    "model_boss": "",         # G-064 SC3: model_<role>, "" = the MODELS table; else opus/sonnet/haiku 5.5 (docs/model-routing.md)
+    "model_director": "",
+    "model_lead": "",
+    "model_pm": "",
+    "model_coder": "",
+    "model_qa": "",
+    "model_reviewer": "",
+    "model_judge": "",
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
+    "model_staff-engineer": "",
+    "model_researcher": "",
+    "model_scout": "",
+    "model_retro": "",
+    "model_evaluator": "",
     "cli_impl": "python",        # G-041: python | go | shadow; run/cli_impl is rewritten from this (docs/cli-go.md); director-only
     "tick_impl": "python",       # G-041: python | go; routes factory tick (docs/cli-go.md); director-only; factory up stays Python
     "cli_go_cmds": "",           # G-041: comma list of subcommands bin/factory may hand to factory-go (Go registry words; empty = none)
@@ -254,6 +267,7 @@ DEFAULT_CONFIG = {
     "opus_effort": "medium",
     "judge_max_refreshes": "4",  # refreshes one `factory judge --merge` run does before it gives up with STALE-LOOP; invalid or < 1 -> 4
     "judge_ci_gate": "pr",       # T-1772 (owner M40242): pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS + clean merge-tree + no overlap only, no PR check is read or waited on (docs/judge-ci-gate.md)
+    "judge_review_gate": "passpass",  # T-1802 (owner M40731/M40734): passpass = merge gate needs reviewer PASS + QA PASS on the head; green = no reviewer/QA FAIL on the head and PR CI green on the head (CI is read even with judge_ci_gate=none); docs/judge-ci-gate.md
     "judge_ci_wait_s": "2400",   # `factory judge --merge` waits this long for pending CI before refusing (polls every 30 s); 40 min fits the 35-min CI limit (#117)
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
@@ -374,6 +388,21 @@ CREATE TABLE IF NOT EXISTS retro_reports (
   fixes TEXT NOT NULL,
   author TEXT NOT NULL,
   created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS adopted_fixes (
+  id TEXT PRIMARY KEY,            -- F-001, F-002, ... (zero-padded 3, next = max+1)
+  report_day TEXT NOT NULL,       -- retro_reports.day the fix came from
+  fix_index INTEGER NOT NULL,     -- 1-based index into that report's fixes
+  cause TEXT NOT NULL,            -- copied from the report fix (in REJECTION_CAUSES)
+  type TEXT NOT NULL,             -- check | template | prompt_rule (copied)
+  text TEXT NOT NULL,             -- fix text (copied)
+  signature TEXT NOT NULL,        -- '|'-separated literal terms
+  task_id TEXT NOT NULL,          -- the task that implements the fix
+  pr_url TEXT,                    -- from tasks.pr_url at adopt / at merge sync
+  status TEXT NOT NULL,           -- pending | adopted | held | reopened | noise
+  adopted_at TEXT,                -- ts of the task's merged event; NULL while pending
+  checked_at TEXT, check_note TEXT, recur_incidents TEXT,  -- written by T-C, NULL here
+  author TEXT NOT NULL, created TEXT NOT NULL,
+  UNIQUE(report_day, fix_index), UNIQUE(task_id, report_day, fix_index));
 """
 
 OWNER_ALERT_DDL = """
@@ -429,7 +458,7 @@ CREATE TABLE IF NOT EXISTS schedules (
 # T-1336 (G-041 S1-c): PRAGMA user_version of every DB this code has migrated. The Go CLI (go/internal/factorydb
 # SchemaVersion) answers only when it reads the same number; bump it, and the Go constant, with any SCHEMA or migrate()
 # change (tests/test_db_layout.py hashes both and fails until the pinned hash is renewed together with this number).
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -3608,7 +3637,7 @@ CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 
     "whoami", "flags", "agents", "config",
     "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
     "verdict", "scorecard", "digest", "alerts", "gate", "schedule", "done", "prcheck", "pr", "src", "res", "tick",
-    "scout", "skilleval", "retro", "cursor-pilot", "hold-expiry", "judge",
+    "scout", "skilleval", "retro", "cursor-pilot", "hold-expiry", "spawn", "judge",
 )
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
@@ -3910,23 +3939,22 @@ def write_cli_impl(con, src=None):
 
 
 def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
-    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (only when guard_impl != python: at the
-    default no Go toolchain runs; cheap no-op when stamped; skipped under load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
+    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (factory-go and the guard binary, whatever
+    guard_impl/cli_impl say, T-1804; cheap no-op when stamped; skipped under load or without a go/ tree or toolchain), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
     (the shim uses Python) before a slow or killed build. Never raises: the guard falls back to Python on its own."""
     cap = None
     try:
         write_guard_impl(con, src)
         cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
-        if build and cfg(con, "guard_impl") != "python" and load1() <= cap \
+        if build and load1() <= cap \
                 and build_guard_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_guard_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
         print(f"guard go build: tick step failed ({e})", file=sys.stderr)
     try:  # its own step: a failing guard build must not leave run/cli_impl stale
         write_cli_impl(con, src)  # G-041: written first too, so a changed go/ makes srchash differ from the stamp
-        cli_build = cfg(con, "cli_impl") != "python" or cfg(con, "tick_impl") == "go" \
-            or cfg(con, "judge_hold_expiry_min") != "0"  # the hold_expiry unit runs factory-go (T-1631)
-        if build and cap is not None and cli_build and load1() <= cap \
+        # T-1804: built whatever cli_impl/tick_impl say (schedule and hold_expiry need the binary); dispatch is untouched
+        if build and cap is not None and load1() <= cap \
                 and build_cli_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_cli_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
@@ -3955,7 +3983,7 @@ def _config_value_rules(key, value):
         check_effort_level(a.value.strip())
     if a.key == "scout_triage_per_run":
         triage_per_run(a.value)
-    if a.key == "model_cleaner":
+    if a.key.startswith("model_") and a.key[len("model_"):] in ROLES:
         check_model_override(a.key, a.value)
         a.value = a.value.strip()
     if a.key == "guard_impl":
@@ -5149,8 +5177,69 @@ def cmd_task(a):
                     (blob, waits, now(), a.id))
         event(con, "task", a.id, "update", f"status=blocked — {' '.join(tokens)}")
         print(f"{a.id} blocked")
+    elif a.action == "block-migrate":
+        block_migrate(con, a)
     elif a.action == "tier":
         task_tier_cmd(con, a)
+
+
+_BLOCK_NOTE_SLUG = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+
+
+def block_note_text(con, tid):
+    """Text after ' — ' on the newest update event of tid whose detail has status=blocked; '' when there is none."""
+    r = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                    "AND detail LIKE '%status=blocked%' ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
+    d = (r["detail"] or "") if r else ""
+    return d.split(" — ", 1)[1].strip() if " — " in d else ""
+
+
+def block_note_token(text, factory_slug):
+    """The one block condition token a whole note text converts to, or None (keep as free text)."""
+    for m in _BLOCK_NOTE_SLUG.finditer(text):
+        if _repo_slug(m.group(0)) != factory_slug:
+            return None
+    m = re.fullmatch(r"held until #([0-9]+) merges", text)
+    if m:
+        return f"pr:#{m.group(1)}:merged"
+    m = re.fullmatch(r"until #([0-9]+) closed", text)
+    if m:
+        return f"pr:#{m.group(1)}:closed"
+    if not text or len(text.split()) != 1:
+        return None
+    try:
+        p = subprocess.run([block_eval_binary(), "parse"], input=text + "\n", capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        die(f"block-eval parse failed: {e}", 2)
+    if p.returncode == 2:
+        return None
+    if p.returncode != 0:
+        die(f"block-eval parse failed: {(p.stderr or '').strip()[:200] or p.returncode}", 2)
+    return text
+
+
+def block_migrate(con, a):
+    """factory task block-migrate [--dry-run]: typed block_on for blocked tasks whose note is one condition (T-1351)."""
+    refuse_worker("task block-migrate")
+    require_role(con, "lead", "director")
+    if cfg(con, "block_conditions") != "1" and not a.dry_run:
+        die("block_conditions is not 1; nothing was written. Use --dry-run, or turn the flag on first.", 2)
+    rc, url, _ = _git_rc(["remote", "get-url", "origin"])
+    factory_slug = _repo_slug(cfg(con, "factory_remote_url")) or (_repo_slug(url) if rc == 0 else None)
+    for t in con.execute("SELECT id FROM tasks WHERE status='blocked' ORDER BY id").fetchall():
+        tid = t["id"]
+        cond_text = block_note_token(block_note_text(con, tid), factory_slug)
+        if not cond_text:
+            print(f"keep {tid}")
+            continue
+        print(f"convert {tid} {cond_text}")
+        if a.dry_run:
+            continue
+        conds = block_eval_parse([cond_text])
+        waits = "owner" if any(c.get("type") == "owner" for c in conds) else "internal"
+        con.execute("UPDATE tasks SET block_on=?, waits=?, updated=? WHERE id=?",
+                    (json.dumps(conds, separators=(",", ":"), ensure_ascii=False), waits, now(), tid))
+        event(con, "task", tid, "block-migrate", cond_text)
 
 
 # ───────────────────────────── messages ─────────────────────────────
@@ -6245,10 +6334,39 @@ def _judge_sleep(seconds):
     time.sleep(seconds)
 
 
+def judge_review_green(con):
+    """T-1802 (owner M40731/M40734): config judge_review_gate=green merges a green PR without reviewer/QA PASS. Any other
+    value, including an unreadable one, keeps passpass."""
+    return (cfg(con, "judge_review_gate") or "passpass").strip().lower() == "green"
+
+
 def judge_ci_none(con):
     """T-1772: config judge_ci_gate=none turns the judge's GitHub PR check reading and waiting off (the main push run is
-    the gate, red_main_check). Any other value, including an unreadable one, keeps today's behaviour (pr)."""
+    the gate, red_main_check). Any other value, including an unreadable one, keeps today's behaviour (pr).
+    T-1802: never in judge_review_gate=green mode: there the PR CI is the only safety and is always read."""
+    if judge_review_green(con):
+        return False
     return (cfg(con, "judge_ci_gate") or "pr").strip().lower() == "none"
+
+
+def green_head_fail_problems(con, task_id, sha):
+    """T-1802 green mode: one problem per role whose LATEST verdict is a FAIL on exactly `sha`. A PASS, no verdict or a
+    verdict on an older head never blocks."""
+    out = []
+    for role in ("reviewer", "qa"):
+        last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                           (task_id, role)).fetchone()
+        if last and (last["verdict"] or "").lower() in ("fail", "reject") and (last["head_sha"] or "").lower() in ("", (sha or "").lower()):  # no head recorded: unverifiable, blocks
+            out.append(f"{role} FAIL on the head {sha[:8]}")
+    return out
+
+
+def green_ci_problems(pr):
+    """T-1802 green mode: [] only when ci_verdict says green (every check completed and successful) on the PR's head."""
+    bad = checks_ok(pr)
+    if bad:
+        return bad
+    return [] if ci_verdict(pr.get("statusCheckRollup"))[0] == "green" else ["checks=PENDING (no completed green check on the head)"]
 
 
 def _judge_wait_limit(con):
@@ -6401,13 +6519,17 @@ def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carr
             "GitHub MERGEABLE"]
     hold = []
     bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
-           local_checks_problems(proj, pr) if proj
-           else checks_ok(pr) + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
+           (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
+           else (green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))
+           + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
     if bad:
         hold.append("CI not green on the head: " + ", ".join(bad))
     else:
         held.append("CI green on the head")
     carry = {} if carry is None else carry
+    if judge_review_green(con):  # T-1802: only a FAIL on the head blocks
+        hold += green_head_fail_problems(con, t["id"], sha)
+        return ("hold", hold) if hold else ("merge", held + ["no reviewer/QA FAIL on the head (judge_review_gate=green)"])
     for role in ("reviewer", "qa"):
         kind, _ = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
         if kind in ("holds", "carry"):
@@ -6603,7 +6725,9 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
             if not local and (missing_checks(con, pr, url) or (had_checks and not pr.get("statusCheckRollup"))):
                 return "checks of the new head not started"
         # T-1634: in local mode only the project's required_checks are waited for; other pending checks never block
-        bad = local_checks_problems(proj, pr) if local else checks_ok(pr)
+        green = judge_review_green(con)  # T-1802: green mode also waits for a check-less or all-pending rollup (ci_verdict pending)
+        bad = ((local_checks_problems(proj, pr) if local else []) + (green_ci_problems(pr) if green else [])
+               if green or local else checks_ok(pr))
         return ", ".join(bad) if _judge_pending(bad) else ""
 
     what = waiting(pr)
@@ -6918,7 +7042,10 @@ def train_ready(con, tid, git_repo):
     except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: cannot verify, drop the task
         return sha, pr["number"], None, owner_repo, [f"cannot verify, gh repo view failed: {e}"]
     carry = {}
-    for role in ("reviewer", "qa"):
+    green = judge_review_green(con)
+    if green:  # T-1802: only a FAIL on the head blocks
+        problems += green_head_fail_problems(con, tid, sha)
+    for role in (() if green else ("reviewer", "qa")):
         kind, info = verdict_pass_holds_for_pr_head(con, tid, role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
         if kind == "missing":
             problems.append(f"no {role} PASS")
@@ -6931,7 +7058,7 @@ def train_ready(con, tid, git_repo):
         problems.append("PR is a draft")
     if pr.get("baseRefName") != "main":
         problems.append(f"PR base is {pr.get('baseRefName')}, not main")
-    bad = checks_ok(pr)
+    bad = green_ci_problems(pr) if green else checks_ok(pr)
     if bad:
         problems.append("checks not green: " + ", ".join(bad))
     problems += missing_checks(con, pr, t["pr_url"])
@@ -7512,7 +7639,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: refuse the carry instead
             repo_url = None
             carry_unavail = (False, f"cannot verify, gh repo view failed: {e}", None, [])
-        for role in ("reviewer", "qa"):
+        if judge_review_green(con):  # T-1802 (owner M40731/M40734): only a FAIL verdict on the head blocks
+            problems += green_head_fail_problems(con, a.task, sha)
+        for role in (() if judge_review_green(con) else ("reviewer", "qa")):
             kind, info = verdict_pass_holds_for_pr_head(con, a.task, role, sha, pr["number"], git_repo, repo_url,
                                                        owner_repo, carry, carry_unavailable=carry_unavail)
             if kind == "missing":
@@ -7557,7 +7686,8 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
         bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
-               local_checks_problems(proj, pr) if proj else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
+               (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
+               else green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -7823,8 +7953,9 @@ def mech_candidates(con, only=None):
             continue
         if judge_status_only_hold(con, t["id"]):
             continue
-        if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                            (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa")):
+        if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; the gate (and judge_verdicts_stale) refuse a FAIL on the head
+                any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                                 (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa"))):
             continue
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
@@ -12141,7 +12272,7 @@ def check_effort_level(level):
 
 
 def role_model(con, role, org=None):
-    """The model a role starts on. Claude org: config model_<role> when that key exists and is set (only cleaner has one),
+    """The model a role starts on. Claude org: config model_<role> when that key exists and is set (every role has one),
     else MODELS. Any other org: its model map in scout/orgs.py (cursor: Grok for judgement, Composer for building)."""
     if org and org != orgs.DEFAULT_ORG:
         return orgs.model(org, role)
@@ -17564,9 +17695,10 @@ def judge_autospawn_candidates(con, skipped=None):
             "ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
         if t["id"] in mech_ids:
             continue
-        if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                            (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
-               for role in ("reviewer", "qa")):
+        if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; judge_verdicts_stale refuses a FAIL on the head
+                any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                                 (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
+                    for role in ("reviewer", "qa"))):
             continue
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
@@ -17615,6 +17747,12 @@ def judge_verdicts_stale(con, t, clock):
     unreadable PR or an unverifiable carry is a reason. Local-gate projects (gate_cmd) are not checked here."""
     if gate_project_for(con, t["pr_url"]):
         return None
+    if judge_review_green(con):  # T-1802: no PASS needed; only a FAIL on the current head blocks
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock)
+        if isinstance(pr, BaseException) or not isinstance(pr, dict) or not pr.get("headRefOid"):
+            return "head", f"cannot read the PR head: {pr if isinstance(pr, BaseException) else 'no headRefOid'}"[:200]
+        fails = green_head_fail_problems(con, t["id"], pr["headRefOid"])
+        return (f"fail:{pr['headRefOid'][:8]}", "; ".join(fails)[:300]) if fails else None
     pair = _judge_pass_pair_head(con, t["id"])
     if pair:
         pr = _ci_wake_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
@@ -22407,6 +22545,30 @@ def cmd_retro(a):
                           "evidence": json.loads(row["evidence"]), "fixes": json.loads(row["fixes"]),
                           "author": row["author"], "created": row["created"]}, indent=2))
         return
+    if a.action == "adopt":
+        if role == "retro":
+            die("role 'retro' may not adopt fixes; the retro agent only proposes", 3)
+        require_role(con, "pm", "lead", "director", "boss")
+        if a.day is None or a.fix is None or not a.task or a.signature is None:
+            die("usage: factory retro adopt --day D --fix N --task T --signature '<terms>'", 2)
+        try:
+            msg = retroreport.adopt(con, a.day, a.fix, a.task, a.signature, actor(), digest_clock().isoformat(timespec="seconds"),
+                                    lambda *x: event(con, *x))
+        except ValueError as e:
+            die(str(e), 2)
+        con.commit()
+        print(msg)
+        return
+    if a.action == "fixes":
+        require_role(con, "pm", "lead", "director", "boss", "retro")
+        try:
+            retroreport.sync_adopted(con, lambda *x: event(con, *x))
+            lines = retroreport.fixes_lines(con, a.status)
+        except ValueError as e:
+            die(str(e), 2)
+        con.commit()
+        print("\n".join(lines))
+        return
     die(f"unknown retro action {a.action!r}", 2)
 
 
@@ -22814,7 +22976,8 @@ def main():
     x = sp.add_parser("team"); x.add_argument("action", choices=["new", "list", "close", "reopen", "wake"]); x.add_argument("id", nargs="?")
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
-    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "block", "tier"])
+    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "block", "block-migrate", "tier"])
+    x.add_argument("--dry-run", dest="dry_run", action="store_true", help="block-migrate: print keep/convert per blocked task, write nothing")
     x.add_argument("--full", action="store_true")
     x.add_argument("--classify", action="store_true", help="tier: compute the tier from the task's PR branch (needs risk_tiers=on)")
     x.add_argument("--base", default="origin/main"); x.add_argument("--head")
@@ -22844,10 +23007,14 @@ def main():
     x.add_argument("--what"); x.add_argument("--source"); x.add_argument("--status"); x.add_argument("--role")
     x.set_defaults(fn=cmd_lesson)
 
-    x = sp.add_parser("retro", help="daily rejection retro: packet, file, show")
-    x.add_argument("action", choices=["packet", "file", "show"])
+    x = sp.add_parser("retro", help="daily rejection retro: packet, file, show, adopt, fixes")
+    x.add_argument("action", choices=["packet", "file", "show", "adopt", "fixes"])
     x.add_argument("body", nargs="?", default=None, help="file: use - for stdin")
-    x.add_argument("--day", help="show: YYYY-MM-DD (default today)")
+    x.add_argument("--day", help="show: YYYY-MM-DD (default today); adopt: the report day")
+    x.add_argument("--fix", type=int, help="adopt: 1-based fix index in the report")
+    x.add_argument("--task", help="adopt: the task that implements the fix")
+    x.add_argument("--signature", help="adopt: '|'-separated literal terms (1-10, 3-80 chars each)")
+    x.add_argument("--status", help="fixes: only rows with this status")
     x.set_defaults(fn=cmd_retro)
 
     x = sp.add_parser("scout", help="skill scout candidates: fetch, pending, triage, list, show, runs, report")
