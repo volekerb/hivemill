@@ -151,10 +151,21 @@ func TestAgentContextErrorFailsClosed(t *testing.T) {
 	}
 }
 
+func TestAgentContextEmptyEnvVarCounts(t *testing.T) {
+	ps := []Process{{PID: 1, Comm: "systemd"}, {PID: 10, PPID: 1, Comm: "hm-clean"}}
+	if got, _, _ := agentContextFrom([]string{"CLAUDECODE="}, ps, 10); !got {
+		t.Error("empty but present CLAUDECODE must count")
+	}
+	ps[0].Comm = "claude" // pid 1 is checked too
+	if got, _, _ := agentContextFrom(nil, ps, 10); !got {
+		t.Error("pid 1 named claude must count")
+	}
+}
+
 func TestAgentContextScheduledJobAllowed(t *testing.T) {
 	for _, init := range []string{"systemd", "launchd"} {
 		ps := []Process{{PID: 1, PPID: 0, Comm: init}, {PID: 10, PPID: 1, Comm: "hm-clean", Argv: []string{"hm-clean"}}}
-		got, why, err := agentContextFrom([]string{"PATH=/usr/bin", "CLAUDECODE="}, ps, 10)
+		got, why, err := agentContextFrom([]string{"PATH=/usr/bin"}, ps, 10)
 		if got || err != nil {
 			t.Errorf("%s: got %v %q %v", init, got, why, err)
 		}

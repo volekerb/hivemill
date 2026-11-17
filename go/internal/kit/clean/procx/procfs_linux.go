@@ -32,6 +32,7 @@ func realProcfs() procfs {
 func CwdInside(dir string) Result { return realProcfs().scan(dir, false) }
 
 // HeldOpen is Fail if any visible process has a file open at or under path.
+// Only open file descriptors count (not mmaps or running executables).
 func HeldOpen(path string) Result { return realProcfs().scan(path, true) }
 
 // Processes lists every process from /proc.
@@ -104,8 +105,11 @@ func (p procfs) foreignUID(pid int) bool {
 	for _, l := range strings.Split(string(b), "\n") {
 		if v, ok := strings.CutPrefix(l, "Uid:"); ok {
 			f := strings.Fields(v)
+			if len(f) == 0 {
+				return false
+			}
 			n, err := strconv.Atoi(f[0])
-			return len(f) > 0 && err == nil && n != p.euid
+			return err == nil && n != p.euid
 		}
 	}
 	return false
@@ -233,8 +237,12 @@ func (p procfs) processes() ([]Process, error) {
 		uid := -1
 		for _, l := range strings.Split(string(status), "\n") {
 			if v, ok := strings.CutPrefix(l, "Uid:"); ok {
-				if f := strings.Fields(v); len(f) > 0 {
-					uid, _ = strconv.Atoi(f[0])
+				f := strings.Fields(v)
+				if len(f) == 0 {
+					return nil, fmt.Errorf("pid %d: empty Uid line", pid)
+				}
+				if uid, err = strconv.Atoi(f[0]); err != nil {
+					return nil, fmt.Errorf("pid %d: bad Uid: %w", pid, err)
 				}
 			}
 		}

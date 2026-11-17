@@ -30,9 +30,9 @@ func AgentContextNow(env []string) (bool, string, error) {
 
 func agentContextFrom(env []string, procs []Process, start int) (bool, string, error) {
 	for _, kv := range env {
-		k, v, _ := strings.Cut(kv, "=")
+		k, _, _ := strings.Cut(kv, "=")
 		for _, name := range agentEnvVars {
-			if k == name && v != "" {
+			if k == name { // presence counts, even when empty: fail closed
 				return true, "env " + name + " is set", nil
 			}
 		}
@@ -46,7 +46,7 @@ func agentContextFrom(env []string, procs []Process, start int) (bool, string, e
 		return true, "own process not in table", fmt.Errorf("pid %d missing from process table", start)
 	}
 	seen := map[int]bool{start: true}
-	for cur.PPID > 1 {
+	for cur.PPID > 0 {
 		pp, ok := byPID[cur.PPID]
 		if !ok {
 			return true, "ancestry broken", fmt.Errorf("ancestor pid %d of %d missing from process table", cur.PPID, cur.PID)
@@ -57,6 +57,9 @@ func agentContextFrom(env []string, procs []Process, start int) (bool, string, e
 		seen[pp.PID] = true
 		if why := agentProc(pp); why != "" {
 			return true, fmt.Sprintf("ancestor pid %d %s", pp.PID, why), nil
+		}
+		if pp.PID == 1 {
+			break // pid 1 is the end of the chain; it was checked above
 		}
 		cur = pp
 	}
