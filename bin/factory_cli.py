@@ -5385,6 +5385,19 @@ MERGED_GO_PROOF_TIMEOUT_S = 180
 MERGED_GO_UNMERGEABLE = object()  # merge-tree conflict: not proof success; caller must drop behind_clean
 
 
+def worker_cache_env():
+    """T-1698: disk-backed Go and pnpm caches for a spawned worker (the same dirs as merged_go_proof_env and
+    docs/go-toolchain.md), so a killed build leaves nothing in the tmpfs /tmp."""
+    cache = Path.home() / ".cache"
+    try:
+        (cache / "go" / "tmp").mkdir(parents=True, exist_ok=True)  # go refuses a missing GOTMPDIR
+    except OSError:
+        pass   # the worker's first go call then says so itself
+    return {"GOTMPDIR": str(cache / "go" / "tmp"), "GOCACHE": str(cache / "go" / "build"),
+            "GOMODCACHE": str(cache / "go" / "path" / "pkg" / "mod"),
+            "npm_config_store_dir": str(cache / "pnpm-store")}
+
+
 def merged_go_proof_env():
     """Clean environment for the merge-tree go proof: no inherited toolchain knobs, warm caches under ~/.cache/go."""
     home = Path.home()
@@ -8087,6 +8100,10 @@ _LEFTOVER_NAME = re.compile(r"(guard-diff-(seed-)?|factory-screenshots-|freshbox
                             r"|zz-test-[a-z0-9-]+-[a-z0-9_]{8}|zz-rv-[a-z0-9_]{8}|tmp[a-z0-9_]{8}|tmp\.[A-Za-z0-9]{10}")
 
 
+TMP_GOBUILD_MIN_AGE_S = 7200   # T-1698: go-build<digits> is a killed build's scratch; 2 h old and unopened is an orphan
+_GOBUILD_NAME = re.compile(r"go-build[0-9]+")
+
+
 def _sweep_leftovers(con, t):
     """(removed [(path, bytes)], locked count, blocked). A run blocked by an unreadable pid of an unlisted comm removes
     nothing and writes one tmp-sweep-blocked event. Entries of our uid directly under <tmp> whose name is in the closed list
@@ -8102,7 +8119,8 @@ def _sweep_leftovers(con, t):
     old = []
     locked = 0
     for d in sorted(base.iterdir()):
-        if not _LEFTOVER_NAME.fullmatch(d.name):
+        gobuild = bool(_GOBUILD_NAME.fullmatch(d.name))
+        if not gobuild and not _LEFTOVER_NAME.fullmatch(d.name):
             continue
         try:
             st = d.lstat()
@@ -8110,7 +8128,7 @@ def _sweep_leftovers(con, t):
             if not (isdir or stat.S_ISREG(st.st_mode)) or st.st_uid != os.getuid():
                 continue
             newest = _harness_newest_mtime(d) if isdir else st.st_mtime
-            if t - newest < TMP_LEFTOVER_MIN_AGE_S:
+            if t - newest < (TMP_GOBUILD_MIN_AGE_S if gobuild else TMP_LEFTOVER_MIN_AGE_S):
                 continue
             real = os.path.realpath(d)
             if any(c == real or c.startswith(real + os.sep) for c in cwds):
@@ -8157,6 +8175,45 @@ def _sweep_leftovers(con, t):
     return out, locked, False
 
 
+TMP_FTCACHE_MIN_AGE_S = 7200   # a factorytest-cache hash dir untouched this long is a stale build of the Go test tools
+TMP_FTCACHE_KEEP = 1           # the newest entry always stays: it is the current build
+
+
+def _sweep_factorytest_cache(t):
+    """T-1698: [(dir, bytes)] removed from <tmp>/factorytest-cache-<uid>/<hash>: entries untouched for 2 h, not held
+    (cwd, fd or running exe) by a process of ours, never the newest TMP_FTCACHE_KEEP. A rebuild costs one `go build`.
+    The parent must be a real dir of our uid; an unreadable pid keeps everything."""
+    base = tmp_dir() / f"factorytest-cache-{os.getuid()}"
+    try:
+        if base.is_symlink() or not base.is_dir() or base.stat().st_uid != os.getuid():
+            return []
+        ents = []
+        for d in base.iterdir():
+            st = d.lstat()
+            if stat.S_ISDIR(st.st_mode) and st.st_uid == os.getuid():
+                ents.append((_harness_newest_mtime(d), d))
+    except OSError:
+        return []
+    ents.sort(key=lambda e: e[0], reverse=True)
+    old = [(d, os.path.realpath(d)) for m, d in ents[TMP_FTCACHE_KEEP:] if t - m >= TMP_FTCACHE_MIN_AGE_S]
+    if not old:
+        return []
+    held = _proc_holds([r for _, r in old], TMP_LEFTOVER_IGNORE_COMMS, [])
+    if held is None:
+        return []
+    out = []
+    for d, real in old:
+        if real in held:
+            continue
+        try:
+            size = _tree_bytes(d)
+            shutil.rmtree(d)
+        except OSError:
+            continue
+        out.append((d, size))
+    return out
+
+
 def tmp_sweep(con):
     """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates)
     and stale leftovers with a listed prefix (see _sweep_leftovers),
@@ -8183,6 +8240,7 @@ def tmp_sweep(con):
             if not (last and t - float(last["ts"]) < TMP_LEFTOVER_THROTTLE_S):
                 con.execute("INSERT INTO throttle(key,ts) VALUES('tmpleftover',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
                 left, locked, blocked = _sweep_leftovers(con, t)
+                left = left + _sweep_factorytest_cache(t)
             freed += sum(sz for _, sz in left)
             if n or left or (locked and not blocked):
                 event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept",
@@ -8304,6 +8362,10 @@ def _proc_holds(roots, ignore_comms=frozenset(), blocker=None):
                 continue
             targets = [os.path.realpath(os.readlink(pdir / "cwd"))]
             targets += [os.path.realpath(f) for f in (pdir / "fd").iterdir()]
+            try:
+                targets.append(os.path.realpath(os.readlink(pdir / "exe")))  # a running built tool (T-1698)
+            except OSError:
+                pass   # kernel thread or no exe link: nothing to add
         except FileNotFoundError:
             continue   # the process exited while we looked
         except OSError:
@@ -11352,6 +11414,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         env["SCRUB_TERMS_FILE"] = terms
     if evaluator:
         env.update(env_extra)  # validated: FACTORY_HOME is the trial's temp home, never the live one
+    else:
+        env.update(worker_cache_env())  # T-1698: Go and pnpm scratch on disk, never the RAM-backed /tmp
     sandboxed = sandbox_wanted(con, role, optin)
     own_wt = (con.execute("SELECT worktree FROM tasks WHERE id=?", (task,)).fetchone() or {"worktree": None})["worktree"] if task else None
     if (not sandboxed and own_wt and role in ("coder", "qa", "reviewer")
