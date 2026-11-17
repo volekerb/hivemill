@@ -187,3 +187,86 @@ def build_digest_section(con, start, end):
     for fx in fixes:
         out.append(f"- {fx.get('type', '')} — {fx.get('text', '')}")
     return "\n".join(out) + "\n"
+
+
+# ── adopted fixes (T-1695) ──
+FIX_STATUSES = ("pending", "adopted", "held", "reopened", "noise")
+SIG_ERR = "signature needs 1-10 '|'-separated terms of 3-80 characters"
+
+
+def parse_signature(text):
+    """'|'-joined stripped terms; ValueError(SIG_ERR) when not 1-10 terms of 3-80 chars without newlines."""
+    if not isinstance(text, str) or "\n" in text or "\r" in text:
+        raise ValueError(SIG_ERR)
+    terms = [t.strip() for t in text.split("|")]
+    if not 1 <= len(terms) <= 10 or any(not 3 <= len(t) <= 80 for t in terms):
+        raise ValueError(SIG_ERR)
+    return "|".join(terms)
+
+
+def merged_at(con, task_id):
+    """ts of the earliest `merged` event of the task, or None."""
+    row = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='merged' "
+                      "ORDER BY julianday(ts), id LIMIT 1", (task_id,)).fetchone()
+    return row["ts"] if row else None
+
+
+def _next_fix_id(con):
+    n = max([int(r["id"].split("-")[1]) for r in con.execute("SELECT id FROM adopted_fixes")] or [0]) + 1
+    return f"F-{n:03d}"
+
+
+def adopt(con, day, fix_n, task_id, signature, author, created, ev):
+    """Record a retro fix as adopted (task merged) or pending; returns the stdout line. ev(entity, id, action, detail)."""
+    row = load_report(con, day)
+    if not row:
+        raise ValueError(f"no retro report for {day}")
+    fixes = json.loads(row["fixes"] or "[]")
+    if not 1 <= fix_n <= len(fixes):
+        raise ValueError(f"report {day} has {len(fixes)} fixes; --fix must be 1..{len(fixes)}")
+    task = con.execute("SELECT id, pr_url FROM tasks WHERE id=?", (task_id,)).fetchone()
+    if not task:
+        raise ValueError(f"unknown task {task_id}")
+    dup = con.execute("SELECT id FROM adopted_fixes WHERE report_day=? AND fix_index=?", (day, fix_n)).fetchone()
+    if dup:
+        raise ValueError(f"fix {day}#{fix_n} is already {dup['id']}")
+    sig = parse_signature(signature)
+    fx = fixes[fix_n - 1]
+    fid = _next_fix_id(con)
+    at = merged_at(con, task_id)
+    status = "adopted" if at else "pending"
+    con.execute("INSERT INTO adopted_fixes(id, report_day, fix_index, cause, type, text, signature, task_id, pr_url, status, "
+                "adopted_at, author, created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (fid, day, fix_n, fx["cause"], fx["type"], fx["text"], sig, task_id, task["pr_url"] if at else None,
+                 status, at, author, created))
+    ev("retro", fid, "fix-adopted" if at else "fix-linked", f"{day}#{fix_n} {task_id}")
+    if at:
+        return f"adopted {fid} ({fx['type']}, {fx['cause']}) {task_id} adopted_at {at}"
+    return f"linked {fid} ({fx['type']}, {fx['cause']}) {task_id}: pending until {task_id} merges"
+
+
+def sync_adopted(con, ev):
+    """pending -> adopted for every row whose task now has a merged event (adopted_at, pr_url set)."""
+    pend = con.execute("SELECT id, task_id, report_day, fix_index FROM adopted_fixes WHERE status='pending' ORDER BY id").fetchall()
+    for r in pend:
+        at = merged_at(con, r["task_id"])
+        if not at:
+            continue
+        t = con.execute("SELECT pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+        con.execute("UPDATE adopted_fixes SET status='adopted', adopted_at=?, pr_url=? WHERE id=?",
+                    (at, t["pr_url"] if t else None, r["id"]))
+        ev("retro", r["id"], "fix-adopted", f"{r['report_day']}#{r['fix_index']} {r['task_id']}")
+
+
+def fixes_lines(con, status=None):
+    """One line per row (by id) then the cycles line; cycles counts held/reopened/noise rows over all rows."""
+    if status is not None and status not in FIX_STATUSES:
+        raise ValueError(f"--status must be one of {', '.join(FIX_STATUSES)}")
+    rows = con.execute("SELECT * FROM adopted_fixes ORDER BY id").fetchall()
+    cyc = [r for r in rows if r["status"] in ("held", "reopened", "noise")]
+    cycles = f"cycles: {len(cyc)} (check/tool: {sum(1 for r in cyc if r['type'] == 'check')})"
+    shown = [r for r in rows if status is None or r["status"] == status]
+    if not shown:
+        return ["no adopted fixes", cycles]
+    return [f"{r['id']} {r['status']} {r['type']} {r['cause']} {r['task_id']} adopted_at={r['adopted_at'] or '-'} "
+            f"checked_at={r['checked_at'] or '-'} sig={r['signature']}" for r in shown] + [cycles]

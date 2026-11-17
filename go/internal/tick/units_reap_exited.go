@@ -51,7 +51,7 @@ func exitedPanesUnit(u *UnitCtx) error {
 	}
 	if rerr != nil {
 		// housekeeping must never stop the tick: one failure event, the tick goes on
-		if err := r.event("tick", "exited-pane-reap", "exited-pane-reap-failed", rerr.Error()); err != nil {
+		if err := r.eventTick("tick", "exited-pane-reap", "exited-pane-reap-failed", rerr.Error()); err != nil {
 			fmt.Fprintf(os.Stderr, "factory: exited-pane-reap-failed event not recorded: %v\n", err)
 		}
 	}
@@ -320,7 +320,7 @@ func reapExitedPanes(r *reapDB, c herdrCaller, agents []herdr.Agent) error {
 				return err
 			}
 			if !was {
-				if err := r.EventAs(reapActor, "agent", name, "exited-pane-would-close", detail, ""); err != nil {
+				if err := r.EventAs(tickActor, "agent", name, "exited-pane-would-close", detail, ""); err != nil {
 					return err
 				}
 			}
@@ -334,7 +334,7 @@ func reapExitedPanes(r *reapDB, c herdrCaller, agents []herdr.Agent) error {
 			return err
 		}
 		if known && gone {
-			if err := r.EventAs(reapActor, "agent", name, "exited-pane-closed", detail, ""); err != nil {
+			if err := r.EventAs(tickActor, "agent", name, "exited-pane-closed", detail, ""); err != nil {
 				return err
 			}
 			continue
@@ -344,7 +344,7 @@ func reapExitedPanes(r *reapDB, c herdrCaller, agents []herdr.Agent) error {
 			return err
 		}
 		if !was {
-			if err := r.EventAs(reapActor, "agent", name, "exited-pane-close-failed", detail, ""); err != nil {
+			if err := r.EventAs(tickActor, "agent", name, "exited-pane-close-failed", detail, ""); err != nil {
 				return err
 			}
 		}

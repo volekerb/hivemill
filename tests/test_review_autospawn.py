@@ -859,6 +859,48 @@ class WaitEventTests(Base):
         self.assertEqual([w["kind"] for w in self.waits()], ["ci"])
 
 
+class DependsOnTests(Base):
+    """T-1323: no reviewer/qa autospawn while a depends_on task is not done or the task is blocked."""
+
+    def dep(self, dep_status):
+        self.task("T-0009", status=dep_status, pr_url=None)
+        self.task("T-0001")
+        self.env.sql("UPDATE tasks SET depends_on=? WHERE id='T-0001'", (json.dumps(["T-0009"]),))
+
+    def skips(self):
+        return self.env.sql("SELECT detail FROM events WHERE entity_id='T-0001' AND action='review-autospawn-skip'")
+
+    def test_not_done_dependency_blocks_and_names_it(self):
+        self.on()
+        self.dep("in_progress")
+        self.assertEqual(self.tick_step(now=1_800_000_000), [])
+        self.assertIn("T-0009", self.skips()[0]["detail"])
+
+    def test_done_dependency_lets_autospawn_happen(self):
+        self.on()
+        self.dep("done")
+        calls = self.tick_step(now=1_800_000_000)
+        self.assertEqual([c["role"] for c in calls], ["reviewer", "qa"])
+        self.assertEqual(self.skips(), [])
+
+    def test_cancelled_dependency_lets_autospawn_happen(self):
+        # T-1692: a cancelled dep never finishes; it must not skip review forever
+        self.on()
+        self.dep("cancelled")
+        calls = self.tick_step(now=1_800_000_000)
+        self.assertEqual([c["role"] for c in calls], ["reviewer", "qa"])
+        self.assertEqual(self.skips(), [])
+
+    def test_blocked_task_is_not_a_candidate(self):
+        # T-1692: the candidates query only selects in_review, so a blocked task never reaches the tick (no dead skip branch)
+        self.on()
+        self.task("T-0001", status="blocked")
+        with self.env.load_factory() as f:
+            con = f.db()
+            self.assertEqual([r["id"] for r in f.review_candidates(con)], [])
+        self.assertEqual(self.tick_step(now=1_800_000_000), [])
+
+
 FACTORY_URL = "https://github.com/acme/factory/pull/9"
 WIDGET_URL = "https://github.com/acme/widgetapp/pull/7"
 OTHER_URL = "https://github.com/acme/other/pull/8"

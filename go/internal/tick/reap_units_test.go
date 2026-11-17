@@ -136,8 +136,8 @@ func (u *unitFix) col(q string, args ...any) string {
 	return fmt.Sprint(v)
 }
 
-// TestUnitTable: units 22 and 23 are Go units in the table, and every registered Go unit is a unit of the walk.
-func TestUnitTable(t *testing.T) {
+// TestUnitTableReap: units 22 and 23 are Go units in the table, and every registered Go unit is a unit of the walk.
+func TestUnitTableReap(t *testing.T) {
 	for _, name := range []string{"exited_panes", "idle_coders"} {
 		if _, ok := goUnits[name]; !ok {
 			t.Errorf("unit %s is not Go-capable", name)

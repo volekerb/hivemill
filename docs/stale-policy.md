@@ -106,3 +106,10 @@ Kept: `merged_go_proof` for `go/` diffs, the red-main freeze, `judge_wait_main_r
 author and every other gate check. The judge reason still carries the behind_ok note above.
 
 Rollback: `factory config stale_no_refresh off` restores the behaviour before T-1676 (the behind_ok rules above). Default `on`.
+
+## Spawn pre-check refreshes only a CONFLICTING PR (T-1788, owner M40469)
+
+`factory spawn judge` merges origin/main into the PR branch only when GitHub reports `mergeable == CONFLICTING`.
+A PR that is merely behind (MERGEABLE or UNKNOWN: BEHIND, CLEAN, UNSTABLE, BLOCKED) keeps its head sha, so the
+reviewer and QA verdicts still match it. `stale_policy` and the branch protection no longer change this. The reviewer
+and QA spawns never push (dry run). Tests: `tests/test_spawn_precheck.py` (`test_t1788_*`).

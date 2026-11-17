@@ -1,0 +1,9 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# skilleval part 1 (T-1683). The Python count is the number of cases with a Go port; the cases left on the Python side are
+# listed as "not ported" in the PR body (test_skilleval_guard_copy: 7 of 12, test_skilleval_sandbox: 13 of 45, test_skilleval_nsbox: 4 of 57).
+# Full Python case counts: collect 32, control 19, guard_copy 12, nsbox 57, sandbox 45. Skip stubs are named TestNotPorted* so they do not count.
+tests/test_skilleval_collect.py 32 -> internal/factorytest/skilleval1:TestSkillevalCollect 32
+tests/test_skilleval_control.py 19 -> internal/factorytest/skilleval1:TestSkillevalControl 19
+tests/test_skilleval_guard_copy.py 5 -> internal/factorytest/skilleval1:TestSkillevalGuardCopy 5
+tests/test_skilleval_nsbox.py 53 -> internal/factorytest/skilleval1:TestSkillevalNsbox 53
+tests/test_skilleval_sandbox.py 32 -> internal/factorytest/skilleval1:TestSkillevalSandbox 32

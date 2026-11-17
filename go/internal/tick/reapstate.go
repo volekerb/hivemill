@@ -157,9 +157,9 @@ func (s *reapStore) AgentRow(name string) *herdr.Row {
 	return &herdr.Row{Name: name, SpawnArgs: sa.String, PaneID: pane.String}
 }
 
-// Event implements herdr.Store: the detail string is stored as is (Python event() stores a str unchanged).
+// Event implements herdr.Store. Python close_named_pane/_hc_kill_terminal call event(), so the actor is "owner". The detail string is stored as is (Python event() stores a str unchanged).
 func (s *reapStore) Event(entity, id, action, detail string) {
-	s.note(s.r.event(entity, id, action, detail))
+	s.note(s.r.eventOwner(entity, id, action, detail))
 }
 
 // newHerdrClient is the herdr client the reap units share: the owner's tick is never a worker, so the socket is the

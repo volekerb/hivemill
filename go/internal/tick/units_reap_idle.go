@@ -70,7 +70,7 @@ func idleCodersUnit(u *UnitCtx) error {
 	}
 	if rerr != nil {
 		// housekeeping must never stop the tick
-		if err := r.event("tick", "idle-coder-reap", "idle-coder-reap-failed", truncRunes(rerr.Error(), idleReapErrorMax)); err != nil {
+		if err := r.eventTick("tick", "idle-coder-reap", "idle-coder-reap-failed", truncRunes(rerr.Error(), idleReapErrorMax)); err != nil {
 			fmt.Fprintf(os.Stderr, "factory: idle-coder-reap-failed event not recorded: %v\n", err)
 		}
 	}
@@ -227,7 +227,7 @@ func reapIdleCoders(r *reapDB, c herdrCaller, u *UnitCtx, agents []herdr.Agent) 
 				if _, err := r.DB.Exec("INSERT INTO throttle(key,ts) VALUES(?,?)", dkey, store.PyFloatRepr(clock)); err != nil {
 					return fmt.Errorf("write dry-run clock: %w", err)
 				}
-				if err := r.EventAs(reapActor, "agent", name, "idle-coder-would-stop", detail, ""); err != nil {
+				if err := r.EventAs(tickActor, "agent", name, "idle-coder-would-stop", detail, ""); err != nil {
 					return err
 				}
 			}
@@ -277,7 +277,7 @@ func stopIdleCoder(r *reapDB, x coderRow, reason string, detail store.Ordered) (
 		return false, nil
 	}
 	body := reason + "\nStop work now. Push any work in progress to your branch (a WIP commit is fine), then run factory done '<stopped: pushed sha|nothing; state>'"
-	msg := store.Msg{To: name, Subject: "STOP", Body: &body, Kind: "decision", Sender: reapActor}
+	msg := store.Msg{To: name, Subject: "STOP", Body: &body, Kind: "decision", Sender: tickActor}
 	if x.goal.Valid {
 		msg.Goal = strp(x.goal.String)
 	}
@@ -287,13 +287,13 @@ func stopIdleCoder(r *reapDB, x coderRow, reason string, detail store.Ordered) (
 	if _, _, err := r.Send(msg); err != nil {
 		return false, err
 	}
-	if err := r.event("agent", name, "stop-requested", store.Ordered{{K: "by", V: "tick"}, {K: "reason", V: reason}}); err != nil {
+	if err := r.eventTick("agent", name, "stop-requested", store.Ordered{{K: "by", V: "tick"}, {K: "reason", V: reason}}); err != nil {
 		return false, err
 	}
-	if err := r.event("agent", name, "idle-coder-stopped", detail); err != nil {
+	if err := r.eventTick("agent", name, "idle-coder-stopped", detail); err != nil {
 		return false, err
 	}
-	if err := r.event("task", x.task.String, "note", fmt.Sprintf("tick stopped idle coder %s: %s", name, reason)); err != nil {
+	if err := r.eventTick("task", x.task.String, "note", fmt.Sprintf("tick stopped idle coder %s: %s", name, reason)); err != nil {
 		return false, err
 	}
 	if _, err := r.DB.Exec("COMMIT"); err != nil {
@@ -341,7 +341,7 @@ func escWaitNudgeDeferred(r *reapDB, c herdrCaller, u *UnitCtx, name, nudge, wha
 	if err := r.DB.QueryRow("SELECT pane_id, started FROM agents WHERE name=?", name).Scan(&pane, &started); err != nil {
 		return fmt.Errorf("read agent %s: %w", name, err)
 	}
-	return r.event("agent", name, "nudge-pending", store.Ordered{{K: "nudge", V: nudge}, {K: "what", V: what},
+	return r.eventTick("agent", name, "nudge-pending", store.Ordered{{K: "nudge", V: nudge}, {K: "what", V: what},
 		{K: "pane_id", V: nullable(pane)}, {K: "started", V: nullable(started)}})
 }
 

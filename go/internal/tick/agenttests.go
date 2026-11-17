@@ -47,7 +47,7 @@ func agentTestsFailed(r *reapDB, name string, e error) {
 	if msg == "" {
 		msg = fmt.Sprintf("%T", e)
 	}
-	if err := r.event("agent", name, "agent-tests-reap-failed", msg); err != nil {
+	if err := r.eventTick("agent", name, "agent-tests-reap-failed", msg); err != nil {
 		fmt.Fprintf(os.Stderr, "factory: agent-tests-reap-failed event not recorded: %v\n", err)
 	}
 }
@@ -127,7 +127,7 @@ func reapAgentTests(r *reapDB, name, trigger string) error {
 			if !errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("read events: %w", err)
 			}
-			if err := r.event("agent", name, "agent-tests-would-reap", payload(j, "none", trigger)); err != nil {
+			if err := r.eventTick("agent", name, "agent-tests-would-reap", payload(j, "none", trigger)); err != nil {
 				return err
 			}
 			continue
@@ -151,7 +151,7 @@ func reapAgentTests(r *reapDB, name, trigger string) error {
 			continue
 		}
 		how := p.termKill(pid, j.ident, targets, group, grace)
-		if err := r.event("agent", name, "agent-tests-reaped", payload(j, how, trigger)); err != nil {
+		if err := r.eventTick("agent", name, "agent-tests-reaped", payload(j, how, trigger)); err != nil {
 			return err
 		}
 	}

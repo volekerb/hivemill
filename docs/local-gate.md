@@ -182,16 +182,29 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   no agent or port forwarding, and the remote side starts under `env -i` with an explicit allow-list (`HOME`, `TMPDIR`,
   `FACTORY_HOME` all inside the run dir, `GATE_SHARDS`, Go cache paths, `PATH`). A dirty tree is refused before any ssh.
   On the remote host the history is rebuilt as two commits (base, head) so `git diff <base> HEAD` works as in CI's checkout.
-- **Cores**: at most 8 of the 16: the remote driver runs under `taskset -c 0-7` and `nice -n 5`, `GATE_SHARDS` and
-  `GOMAXPROCS` are capped at 8, `go test -p 8`, at most 8 guard jobs at once (each in its own copy of the tree).
+- **Cores and RAM** (T-1679): at most 8 CPUs: the remote driver runs under `taskset -c 0-7` and `nice -n 5`, and
+  `GOMAXPROCS` is capped at 8. The job count (unittest shards via `GATE_SHARDS`, `go test -p`, guard jobs at once, each
+  in its own copy of the tree) is `min(GATE_SHARDS, CPUs, MemAvailable / 2048 MiB, MemTotal / 2560 MiB)`, at least 1,
+  read when the run starts: 4 on an 8-CPU / 12 GB host, 8 on a 16-CPU / 64 GB host. A CPU-only cap of 8 drove this
+  8-CPU / 12 GB box to load 30 with swap full. `remote_gate_driver.sh --jobs <cores> <shards> <meminfo file>` prints
+  the cap. The summary line reports peak CPU, used RAM, load1 and used swap (and swap at the start).
 - **One run at a time**: `flock` on `~/factory-gate/.lock` on the remote host; a second run prints that it waits and waits.
-- **Cleanup**: each run has its own `~/factory-gate/<sha12>-<utc ts>-<pid>` on the remote host, removed on every path: by the
+- **Run dir** (T-1679): each run has its own `<root>/fg-XXXXXX` (`mktemp -d`) on the gate host, with `HOME`, `TMPDIR`,
+  `GOTMPDIR` (go test's build temp) and `FACTORY_HOME` inside it. `<root>` is the first of `/var/tmp`, `/tmp` that is
+  on disk, not tmpfs (`remote_gate_driver.sh --pick-root`): a run writes about 1 GB, and on a host whose `/tmp` is a
+  RAM-backed tmpfs that starved the box and held all spawns. Only when neither is on disk does it use `/tmp` with a
+  warning. The path is short on purpose: unix sockets bound under `TMPDIR` must fit 108 bytes (`go/internal/sandbox`
+  binds `<TMPDIR>/<subtest name>NNN/001/p.sock`, up to 82 chars after `TMPDIR`; `/var/tmp/fg-XXXXXX/tmp` is 22 chars).
+  The old `~/factory-gate/<sha12>-<ts>-<pid>` failed those tests. The run dir and `TMPDIR` are `0711`: the subuid
+  sandbox tests run as another host uid that must traverse to its files under `TMPDIR`, as under CI's `/tmp`.
+- **Cleanup**: the run dir is removed on every path: by the
   remote driver on exit (it kills its own process group first; a lost ssh connection ends it within 5 s), and again
-  by the local script's EXIT trap (also on SIGTERM from the runner). Dirs older than 12 h are swept under the lock.
+  by the local script's EXIT trap (pass, fail, and SIGTERM from the runner). Under the lock, the driver sweeps the
+  user's own `<root>/fg-XXXXXX` dirs and old `~/factory-gate/*` run dirs that are older than 12 h.
   Only the Go module and build caches (`~/go/pkg/mod`, `~/.cache/factory-gate/go-build`) persist between runs.
 - **Local mode**: `GATE_REMOTE_HOST=local` runs the same driver on the box that runs `factory gate run`, with no ssh.
-  Use it when the runner already is on the test host. Shipping, `env -i`, the CPU cap, the lock and cleanup are the
-  same, and the run dirs live under the caller's `~/factory-gate`.
+  Use it when the runner already is on the test host. Shipping, `env -i`, the CPU and RAM cap, the lock and cleanup are
+  the same; the run dir is `<root>/fg-XXXXXX` and the lock is the caller's `~/factory-gate/.lock`.
 - **Count**: `--count` prints `ci/test_count_gate.py count .` of the gate tree as its last line, locally (no ssh).
 - **Sandbox**: the remote gate needs the network, so it needs `gate_sandbox 0` (the box has no network). The runner
   already passes what ssh needs: it strips `SSH_AUTH_SOCK` but keeps `HOME`, so ssh reads `~/.ssh/config` and the key
@@ -206,3 +219,12 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   is suspect.
 - **Measured**: the first full run (wall time, peak RAM and CPU, per-step times) is in the notes of task T-1633
   (`factory task show T-1633`), written by the director after merge.
+
+### Running on the gate host itself (T-1773)
+
+- `GATE_REMOTE_HOST` equal to this machine's `hostname -s` or `hostname` runs the gate locally (same as `local`): no ssh to
+  ourselves, no `~/.ssh/config` alias or host key needed. The log says `is this host: running locally, no ssh`.
+- `GATE_RUN_ROOTS="/var/tmp /tmp"` (space separated) overrides the run root candidates; the pick still needs a disk-backed,
+  socket-short dir.
+- The `toolchain` step log has an `nsbox:` line: user namespaces available (nsbox-dependent tests run) or unavailable with
+  the reason (those tests skip with `user namespaces unavailable`). Tests: `tests/test_gate_shards.py`.
