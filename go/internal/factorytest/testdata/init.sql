@@ -23,7 +23,7 @@ CREATE TABLE tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT, judge_hold_reason TEXT);
+  waits TEXT NOT NULL DEFAULT 'internal', block_on TEXT, sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT, judge_hold_reason TEXT);
 CREATE TABLE agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -130,6 +130,21 @@ CREATE TABLE retro_reports (
   fixes TEXT NOT NULL,
   author TEXT NOT NULL,
   created TEXT NOT NULL);
+CREATE TABLE adopted_fixes (
+  id TEXT PRIMARY KEY,            -- F-001, F-002, ... (zero-padded 3, next = max+1)
+  report_day TEXT NOT NULL,       -- retro_reports.day the fix came from
+  fix_index INTEGER NOT NULL,     -- 1-based index into that report's fixes
+  cause TEXT NOT NULL,            -- copied from the report fix (in REJECTION_CAUSES)
+  type TEXT NOT NULL,             -- check | template | prompt_rule (copied)
+  text TEXT NOT NULL,             -- fix text (copied)
+  signature TEXT NOT NULL,        -- '|'-separated literal terms
+  task_id TEXT NOT NULL,          -- the task that implements the fix
+  pr_url TEXT,                    -- from tasks.pr_url at adopt / at merge sync
+  status TEXT NOT NULL,           -- pending | adopted | held | reopened | noise
+  adopted_at TEXT,                -- ts of the task's merged event; NULL while pending
+  checked_at TEXT, check_note TEXT, recur_incidents TEXT,  -- written by T-C, NULL here
+  author TEXT NOT NULL, created TEXT NOT NULL,
+  UNIQUE(report_day, fix_index), UNIQUE(task_id, report_day, fix_index));
 CREATE TABLE scout_candidates (
   id TEXT PRIMARY KEY,            -- C-0001
   key TEXT NOT NULL UNIQUE,       -- 'gh:<owner>/<repo>[/<path>]' or 'mkt:<marketplace>/<plugin>'
@@ -166,7 +181,7 @@ CREATE TABLE skill_trials (
   skill_invoked INTEGER, check_output TEXT, author TEXT,
   void_reason TEXT, void_why TEXT,   -- set by `skilleval void`; the row keeps every other field
   UNIQUE(candidate_id, vendor_sha, task, condition));
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;
 INSERT INTO config(key,value) VALUES('affected_smoke','test_db_layout.py test_inbox.py test_judge.py');
 INSERT INTO config(key,value) VALUES('agent_runtimes','');
 INSERT INTO config(key,value) VALUES('block_conditions','0');
@@ -208,6 +223,7 @@ INSERT INTO config(key,value) VALUES('hq_unblock_s','900');
 INSERT INTO config(key,value) VALUES('idle_coder_reap','off');
 INSERT INTO config(key,value) VALUES('idle_coder_reap_s','900');
 INSERT INTO config(key,value) VALUES('issue_intake_repos','');
+INSERT INTO config(key,value) VALUES('judge_ci_gate','pr');
 INSERT INTO config(key,value) VALUES('judge_ci_wait_s','2400');
 INSERT INTO config(key,value) VALUES('judge_hold_expiry_min','120');
 INSERT INTO config(key,value) VALUES('judge_max_refreshes','4');
@@ -248,8 +264,10 @@ INSERT INTO config(key,value) VALUES('reserved_worker_slots','10');
 INSERT INTO config(key,value) VALUES('retro_enabled','0');
 INSERT INTO config(key,value) VALUES('retro_hour','6');
 INSERT INTO config(key,value) VALUES('retro_max_minutes','20');
+INSERT INTO config(key,value) VALUES('retro_org','cursor');
 INSERT INTO config(key,value) VALUES('review_autospawn','off');
 INSERT INTO config(key,value) VALUES('review_reserved_slots','2');
+INSERT INTO config(key,value) VALUES('review_verdict_timeout_min','45');
 INSERT INTO config(key,value) VALUES('risk_tiers','off');
 INSERT INTO config(key,value) VALUES('sandbox_roles','');
 INSERT INTO config(key,value) VALUES('scout_enabled','0');
@@ -288,5 +306,6 @@ INSERT INTO config(key,value) VALUES('tick_impl','python');
 INSERT INTO config(key,value) VALUES('tick_phase_timers','0');
 INSERT INTO config(key,value) VALUES('tmp_max_pct','90');
 INSERT INTO config(key,value) VALUES('tmp_sweep_pct','80');
+INSERT INTO config(key,value) VALUES('usage_reopen_samples','3');
 INSERT INTO config(key,value) VALUES('worker_gh_repos','');
 INSERT INTO config(key,value) VALUES('worker_gh_roles','');

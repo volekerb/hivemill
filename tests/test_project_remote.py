@@ -211,6 +211,48 @@ class ProjectRemoteTests(FactoryTestCase):
                 mod.prepare_worktree(con, "T-0002", "coder")
             self.assertEqual(cm.exception.code, 4)
 
+    def make_qa_clone(self, name="G-002-T-0002-qa"):
+        """A per-task qa clone as prepare_qa_clone leaves it: directly under WORKTREES, borrowing the project repo's objects."""
+        with self.env.load_factory() as mod:
+            wt_root = Path(mod.WORKTREES)
+        wt_root.mkdir(parents=True, exist_ok=True)
+        qa = wt_root.resolve() / name
+        git("clone", "-q", "--shared", "--no-checkout", str(self.clone), str(qa), cwd=self.root)
+        git("remote", "set-url", "origin", EXAMPLE_URL, cwd=qa, inert_remote=True)
+        return qa
+
+    def test_qa_clone_of_registered_project_task_is_judged_by_its_project(self):
+        """T-1800: <goal>-<task>-qa must map to the task's project like the coder clone <goal>-<task>."""
+        e = self.env
+        e.seed_goal("G-002", project="example-project")
+        e.seed_task(tid="T-0002", goal="G-002", status="in_progress")
+        qa = self.make_qa_clone()
+        self.assertEqual(self.refusal(qa), [])
+        for url in ("https://github.com/example-org/example-project", EXAMPLE_URL):
+            self.set_url(url, qa)
+            self.assertEqual(self.refusal(qa), [])
+        for url in ("https://github.com/example-org/other.git", "https://github.com/example-org/unregistered.git",
+                    f"file://{self.clone}"):
+            with self.subTest(url=url):
+                self.set_url(url, qa)
+                self.assertEqual(self.refusal(qa), [f"remote.origin.url={url}"])
+        self.set_url(EXAMPLE_URL, qa)
+        git("config", "include.path", "x", cwd=qa)
+        git("config", "includeIf.gitdir:/x.path", "y", cwd=qa)
+        self.assertEqual(self.refusal(qa), ["include.path", "includeif.gitdir:/x.path"])
+
+    def test_qa_clone_name_of_unknown_task_or_wrong_alternates_is_refused(self):
+        e = self.env
+        e.seed_goal("G-002", project="example-project")
+        e.seed_task(tid="T-0002", goal="G-002", status="in_progress")
+        qa = self.make_qa_clone("G-002-T-0099-qa")  # no such task
+        self.assertEqual(self.refusal(qa), [f"remote.origin.url={EXAMPLE_URL}"])
+        qa = self.make_qa_clone("G-002-T-0002-qax")  # not the qa suffix
+        self.assertEqual(self.refusal(qa), [f"remote.origin.url={EXAMPLE_URL}"])
+        qa = self.make_qa_clone("G-002-T-0002-qa")
+        (qa / ".git" / "objects" / "info" / "alternates").write_text(str(self.root / "other" / ".git" / "objects") + "\n")
+        self.assertEqual(self.refusal(qa), [f"remote.origin.url={EXAMPLE_URL}"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -304,7 +304,7 @@ func TestSendResolution(t *testing.T) {
 		{"lead:tm-2", "team tm-2 has no lead"}, {"lead:nope", "team nope has no lead"},
 		{"nobody-here", "unknown recipient nobody-here"},
 	} {
-		if _, _, err := r.Send(Msg{To: c.to, Subject: "s"}); err == nil || err.Error() != c.msg {
+		if _, _, err := r.Send(Msg{To: c.to, Subject: "s", Sender: "tick"}); err == nil || err.Error() != c.msg {
 			t.Errorf("send to %s: error %v, want %q", c.to, err, c.msg)
 		}
 	}
@@ -322,13 +322,13 @@ func TestSendRowAndPrefixOn(t *testing.T) {
 		t.Fatalf("send: %d %q %v (prefix off: the default org keeps the bare name)", id, rcpt, err)
 	}
 	mustExec(t, db, "INSERT INTO config(key,value) VALUES('org_prefix_default',' 1 ')")
-	_, rcpt, err = r.Send(Msg{To: "boss", Subject: "s"})
+	_, rcpt, err = r.Send(Msg{To: "boss", Subject: "s", Sender: "owner"})
 	if err != nil || rcpt != "claude-boss" {
 		t.Fatalf("prefix on (Python strips the value): %q %v", rcpt, err)
 	}
 	// prefix on and a legacy un-prefixed live boss of the default org: it is used
 	addAgent(t, db, "boss", "boss", "live", "", "", "2026-11-17T08:00:00+01:00")
-	_, rcpt, err = r.Send(Msg{To: "boss", Subject: "s"})
+	_, rcpt, err = r.Send(Msg{To: "boss", Subject: "s", Sender: "owner"})
 	if err != nil || rcpt != "boss" {
 		t.Fatalf("legacy boss: %q %v", rcpt, err)
 	}
@@ -393,4 +393,12 @@ func FuzzPyDumpsString(f *testing.F) {
 			}
 		}
 	})
+}
+
+// TestSendRequiresSender: an empty Sender is an error, never a silent "owner".
+func TestSendRequiresSender(t *testing.T) {
+	_, r := storeTestDB(t)
+	if _, _, err := r.Send(Msg{To: "boss", Subject: "s"}); err == nil || !strings.Contains(err.Error(), "Sender is required") {
+		t.Fatalf("empty Sender: %v", err)
+	}
 }

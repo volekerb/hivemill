@@ -10,10 +10,16 @@ import (
 // The reap units (20-26) share the DB helpers of internal/store (cfg, event_as, send with recipient/org resolution,
 // Python's json.dumps). This file only fixes the tick's identity and event clock.
 
-// reapActor is the actor of every row the reap units write: Python passes sender="tick" and event_as(con, "tick", ...).
-const reapActor = "tick"
+// Python's reap code writes with two actors. event_as(con, "tick", ...) and send(sender="tick") (finish_pending_nudges,
+// reap_exited_panes, reap_idle_coders, reap_agent_tests, auto_clear_dialog) use tickActor; plain event() is
+// actor(), which is "owner" because the Go tick runs only as the owner (the inline reap loop, close_named_pane,
+// _hc_kill_terminal, tick_drift, flagless_scan, claude_outside_spawn).
+const (
+	tickActor  = "tick"
+	ownerActor = pruneActor
+)
 
-// reapDB is the store with the tick as the actor of its events.
+// reapDB is the store with the tick's event clock.
 type reapDB struct{ *store.Store }
 
 // newReapDB returns the helper over db. The event clock is the S2 clock the prune unit uses: FACTORY_TEST_NOW on a
@@ -26,9 +32,14 @@ func newReapDB(db *sql.DB) (*reapDB, error) {
 	return &reapDB{&store.Store{DB: db, Clock: now}}, nil
 }
 
-// event is event_as with the tick as actor.
-func (r *reapDB) event(entity, entityID, action string, detail any) error {
-	return r.EventAs(reapActor, entity, entityID, action, detail, "")
+// eventTick is event_as(con, "tick", ...).
+func (r *reapDB) eventTick(entity, entityID, action string, detail any) error {
+	return r.EventAs(tickActor, entity, entityID, action, detail, "")
+}
+
+// eventOwner is Python's event(): the actor is actor(), "owner".
+func (r *reapDB) eventOwner(entity, entityID, action string, detail any) error {
+	return r.EventAs(ownerActor, entity, entityID, action, detail, "")
 }
 
 // strp is a *string for store.Msg fields.

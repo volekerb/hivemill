@@ -138,9 +138,9 @@ func (at *alertTest) cfgVal(k string) string {
 
 // --- unit table --------------------------------------------------------------------------------------------------
 
-// TestUnitTable: the Go-capable units are exactly the ones in testdata/go_units.txt; units 5-8 are in, every other
+// TestAlertUnitTable: the Go-capable units are exactly the ones in testdata/go_units.txt; units 5-8 are in, every other
 // unit is unchanged against origin/main (judge_ci_prune and hold_expiry stay the only other Go units).
-func TestUnitTable(t *testing.T) {
+func TestAlertUnitTable(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("testdata", "go_units.txt"))
 	if err != nil {
 		t.Fatal(err)

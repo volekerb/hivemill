@@ -249,3 +249,54 @@ class RestProbeTests(Base):
         self.assertEqual(len(ev), 1)
         self.assertIn("Not Found", ev[0]["detail"])
         self.assertNotRegex(ev[0]["detail"], r": 1$")
+
+
+class GhCallTraceTests(FactoryTestCase):
+    """T-1677: config gh_call_trace=on logs caller + gh subcommand of every gh call; off (the default) writes nothing."""
+    NOW = "2026-10-31T12:00:00+00:00"
+
+    def setUp(self):
+        super().setUp()
+        self.env.seed_goal()
+        self.env.seed_task("T-0001", status="in_review", pr_url=PR_URL)
+        self.env.set_gh(pr_list=[])
+        self.log = self.env.home_dir / "logs" / "gh-calls.jsonl"
+
+    def tick(self):
+        p = self.env.run("tick", extra_env={"FACTORY_NOW": self.NOW})
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def rows(self):
+        return [json.loads(l) for l in self.log.read_text().splitlines()] if self.log.exists() else []
+
+    def test_on_records_caller_and_subcommand(self):
+        self.ok("config", "gh_call_trace", "on")
+        self.tick()
+        rows = self.rows()
+        titles = [r for r in rows if "tick_pr_titles" in r["caller"]]
+        self.assertEqual([r["gh"] for r in titles], ["api repos/zz-test/repo/pulls"], rows)
+        self.assertEqual(titles[0]["pts"], 0)  # REST: no GraphQL points
+        self.assertTrue(titles[0]["caller"].startswith("tick>"), titles[0]["caller"])
+        self.assertEqual(len(rows), len(self.env.calls("gh")))  # one line per gh call, none missed
+
+    def test_off_writes_nothing_and_calls_the_same_gh(self):
+        self.tick()
+        off_calls = [c["argv"] for c in self.env.calls("gh")]
+        self.assertTrue(off_calls)
+        self.assertFalse(self.log.exists())
+        self.assertFalse((self.env.home_dir / "logs").exists())
+
+    def test_tick_pr_titles_makes_no_graphql_call(self):
+        """T-1677: the per-tick PR title scan was a GraphQL `gh pr list` (1+ points a minute per repo); it is one REST call now."""
+        for _ in range(3):
+            self.tick()
+        argvs = [c["argv"] for c in self.env.calls("gh")]
+        self.assertEqual([a for a in argvs if a[:2] == ["pr", "list"]], [])
+        self.assertEqual(len([a for a in argvs if a[:2] == ["api", "repos/zz-test/repo/pulls"]]), 3)
+
+    def test_rest_calls_count_no_graphql_points(self):
+        with self.env.load_factory() as f:
+            self.assertEqual(f.gh_trace_row(["gh", "api", "repos/o/r/pulls/1"], ["tick"], "a", 1.0)["pts"], 0)
+            self.assertEqual(f.gh_trace_row(["gh", "run", "list", "-R", "o/r"], ["tick"], "a", 1.0)["pts"], 0)
+            self.assertEqual(f.gh_trace_row(["gh", "pr", "view", "u", "--json", "state"], ["tick"], "a", 1.0)["pts"], 1)
+            self.assertEqual(f.gh_trace_row(["gh", "api", "graphql", "-f", "query=x"], ["tick"], "a", 1.0)["pts"], 1)

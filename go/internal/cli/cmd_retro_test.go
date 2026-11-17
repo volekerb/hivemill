@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -122,4 +123,172 @@ func TestRetroCLIRoles(t *testing.T) {
 	if code, out, _ := owner.run("", "retro", "packet"); code != 0 || !strings.Contains(out, `"cause": "old"`) || strings.Contains(out, `"cause": "scope"`) {
 		t.Fatalf("shifted window: %d %q", code, out)
 	}
+}
+
+// ── retro adopt / fixes (T-1695). The wanted lines are the ones tests/test_retro_report.py AdoptedFixesTests pins on
+// the Python side, so both implementations answer the same text.
+
+func adoptRig(t *testing.T, agent, role string) *p4cRig {
+	r := retroRig(t, agent, role)
+	r.sql("INSERT INTO retro_reports(day, causes, evidence, fixes, author, created) VALUES('2026-11-14','[]','[]',?,?,?)",
+		`[{"type": "check", "cause": "test", "text": "add a check"}, {"type": "prompt_rule", "cause": "scope", "text": "stay in scope"}]`,
+		"cursor-retro", "2026-11-14T12:00:00+01:00")
+	return r
+}
+
+func TestRetroAdoptMergedAndPending(t *testing.T) {
+	r := adoptRig(t, "claude-lead", "lead")
+	r.sql("INSERT INTO events(ts, actor, entity, entity_id, action, detail) VALUES('2026-11-14T10:00:00+01:00','judge','task','T-1','merged','')")
+	code, out, errs := r.run("", "retro", "adopt", "--day", "2026-11-14", "--fix", "1", "--task", "T-1", "--signature", " foo bar | baz qux ")
+	if code != 0 || out != "adopted F-001 (check, test) T-1 adopted_at 2026-11-14T10:00:00+01:00\n" {
+		t.Fatalf("adopt merged: %d %q %q", code, out, errs)
+	}
+	if n := r.count("SELECT COUNT(*) FROM adopted_fixes WHERE id='F-001' AND status='adopted' AND signature='foo bar|baz qux' AND pr_url='https://x/pr/1' AND author='claude-lead' AND text='add a check'"); n != 1 {
+		t.Fatalf("row F-001: %d", n)
+	}
+	if n := r.count("SELECT COUNT(*) FROM events WHERE action='fix-adopted' AND entity='retro' AND entity_id='F-001' AND detail='2026-11-14#1 T-1'"); n != 1 {
+		t.Fatalf("fix-adopted event: %d", n)
+	}
+	code, out, errs = r.run("", "retro", "adopt", "--day", "2026-11-14", "--fix", "2", "--task", "T-2", "--signature", "stay in")
+	if code != 0 || out != "linked F-002 (prompt_rule, scope) T-2: pending until T-2 merges\n" {
+		t.Fatalf("adopt pending: %d %q %q", code, out, errs)
+	}
+	if n := r.count("SELECT COUNT(*) FROM adopted_fixes WHERE id='F-002' AND status='pending' AND adopted_at IS NULL AND pr_url IS NULL"); n != 1 {
+		t.Fatalf("row F-002: %d", n)
+	}
+	// the merge lands later: `retro fixes` syncs before it lists
+	r.sql("INSERT INTO events(ts, actor, entity, entity_id, action, detail) VALUES('2026-11-14T11:00:00+01:00','judge','task','T-2','merged','')")
+	code, out, errs = r.run("", "retro", "fixes")
+	want := "F-001 adopted check test T-1 adopted_at=2026-11-14T10:00:00+01:00 checked_at=- sig=foo bar|baz qux\n" +
+		"F-002 adopted prompt_rule scope T-2 adopted_at=2026-11-14T11:00:00+01:00 checked_at=- sig=stay in\n" +
+		"cycles: 0 (check/tool: 0)\n"
+	if code != 0 || out != want {
+		t.Fatalf("fixes: %d %q %q", code, out, errs)
+	}
+	if code, out, _ := r.run("", "retro", "fixes", "--status", "held"); code != 0 || out != "no adopted fixes\ncycles: 0 (check/tool: 0)\n" {
+		t.Fatalf("fixes --status held: %d %q", code, out)
+	}
+	if code, _, errs := r.run("", "retro", "fixes", "--status", "bogus"); code != 2 || !strings.Contains(errs, "--status must be one of pending, adopted, held, reopened, noise") {
+		t.Fatalf("fixes bad status: %d %q", code, errs)
+	}
+}
+
+func TestRetroAdoptRefusals(t *testing.T) {
+	r := adoptRig(t, "claude-lead", "lead")
+	base := []string{"retro", "adopt", "--day", "2026-11-14", "--fix", "1", "--task", "T-1", "--signature", "foo bar"}
+	with := func(kv ...string) []string {
+		a := append([]string{}, base...)
+		for i := 0; i < len(kv); i += 2 {
+			for j := range a {
+				if a[j] == kv[i] {
+					a[j+1] = kv[i+1]
+				}
+			}
+		}
+		return a
+	}
+	for _, c := range []struct {
+		name string
+		argv []string
+		want string
+	}{
+		{"no report", with("--day", "2026-01-01"), "no retro report for 2026-01-01"},
+		{"fix out of range", with("--fix", "3"), "report 2026-11-14 has 2 fixes; --fix must be 1..2"},
+		{"fix zero", with("--fix", "0"), "report 2026-11-14 has 2 fixes; --fix must be 1..2"},
+		{"unknown task", with("--task", "T-99"), "unknown task T-99"},
+		{"bad signature", with("--signature", "ab"), "signature needs 1-10 '|'-separated terms of 3-80 characters"},
+		{"empty term", with("--signature", "foo bar||baz qux"), "signature needs 1-10 '|'-separated terms of 3-80 characters"},
+	} {
+		if code, out, errs := r.run("", c.argv...); code != 2 || out != "" || !strings.Contains(errs, c.want) {
+			t.Fatalf("%s: %d %q %q", c.name, code, out, errs)
+		}
+	}
+	if n := r.count("SELECT COUNT(*) FROM adopted_fixes"); n != 0 {
+		t.Fatalf("a refused adopt must write nothing: %d rows", n)
+	}
+	if code, _, errs := r.run("", base...); code != 0 {
+		t.Fatalf("adopt: %d %q", code, errs)
+	}
+	if code, _, errs := r.run("", with("--task", "T-2")...); code != 2 || !strings.Contains(errs, "fix 2026-11-14#1 is already F-001") {
+		t.Fatalf("duplicate: %d %q", code, errs)
+	}
+}
+
+func TestRetroAdoptRoles(t *testing.T) {
+	retroAgent := adoptRig(t, "cursor-retro", "retro")
+	argv := []string{"retro", "adopt", "--day", "2026-11-14", "--fix", "1", "--task", "T-1", "--signature", "foo bar"}
+	if code, _, errs := retroAgent.run("", argv...); code != 3 || !strings.Contains(errs, "role 'retro' may not adopt fixes; the retro agent only proposes") {
+		t.Fatalf("retro adopt: %d %q", code, errs)
+	}
+	if n := retroAgent.count("SELECT COUNT(*) FROM adopted_fixes"); n != 0 {
+		t.Fatalf("retro adopt wrote %d rows", n)
+	}
+	if code, out, _ := retroAgent.run("", "retro", "fixes"); code != 0 || out != "no adopted fixes\ncycles: 0 (check/tool: 0)\n" {
+		t.Fatalf("retro may list fixes: %d %q", code, out)
+	}
+	coder := adoptRig(t, "coder-1", "coder")
+	if code, _, errs := coder.run("", argv...); code != 3 || !strings.Contains(errs, "role 'coder' (coder-1) may not do this; allowed: pm, lead, director, boss") {
+		t.Fatalf("coder adopt: %d %q", code, errs)
+	}
+	if code, _, errs := coder.run("", "retro", "fixes"); code != 3 || !strings.Contains(errs, "allowed: pm, lead, director, boss, retro") {
+		t.Fatalf("coder fixes: %d %q", code, errs)
+	}
+	for _, who := range [][2]string{{"claude-pm", "pm"}, {"claude-director", "director"}, {"claude-boss", "boss"}, {"owner", ""}} {
+		r := adoptRig(t, who[0], who[1])
+		if code, _, errs := r.run("", argv...); code != 0 {
+			t.Fatalf("%s adopt: %d %q", who[0], code, errs)
+		}
+	}
+}
+
+func TestParseRetroAdoptDelegates(t *testing.T) {
+	ok := []string{"--day", "2026-11-14", "--fix", "1", "--task", "T-1", "--signature", "foo bar"}
+	if got, good := parseRetroAdopt(ok); !good || got.(retroAdoptCmd).fix != 1 {
+		t.Fatalf("complete argv: %v %v", got, good)
+	}
+	for _, bad := range [][]string{
+		{}, ok[:6], // a missing flag: Python prints the usage
+		{"--day", "d", "--fix", "-1", "--task", "T", "--signature", "foo"}, // argparse owns negative numbers
+		{"--day", "d", "--fix", "x", "--task", "T", "--signature", "foo"},
+		{"--day", "d", "--fix", "1", "--task", "T", "--signature", "-foo"},
+		{"--day", "d", "--fix", "1", "--task", "T", "--signature", "foo", "--signature", "bar"},
+	} {
+		if _, good := parseRetroAdopt(bad); good {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+}
+
+func FuzzParseRetroAdopt(f *testing.F) {
+	f.Add("2026-11-14", "1", "T-1", "foo bar")
+	f.Add("", "-1", "-x", "--signature")
+	f.Fuzz(func(t *testing.T, day, fix, task, sig string) {
+		got, ok := parseRetroAdopt([]string{"--day", day, "--fix", fix, "--task", task, "--signature", sig})
+		if !ok {
+			return
+		}
+		c := got.(retroAdoptCmd)
+		if c.day != day || c.task != task || c.signature != sig || strconv.FormatInt(c.fix, 10) != strings.TrimLeft(fix, "0") && c.fix != 0 {
+			t.Fatalf("parsed %+v from %q %q %q %q", c, day, fix, task, sig)
+		}
+		for _, x := range []string{day, task, sig, fix} {
+			if x == "" || x[0] == '-' {
+				t.Fatalf("accepted %q", x)
+			}
+		}
+	})
+}
+
+func FuzzParseRetroFixes(f *testing.F) {
+	f.Add("--status", "held")
+	f.Add("--status", "-x")
+	f.Fuzz(func(t *testing.T, a, b string) {
+		got, ok := parseRetroFixes([]string{a, b})
+		if !ok {
+			return
+		}
+		if a != "--status" || b == "" || b[0] == '-' || got.(retroFixesCmd).status != b {
+			t.Fatalf("accepted %q %q -> %+v", a, b, got)
+		}
+	})
 }

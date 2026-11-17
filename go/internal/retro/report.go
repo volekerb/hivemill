@@ -726,3 +726,223 @@ func BuildDigestSection(db *sql.DB, start, end time.Time) (string, error) {
 	}
 	return strings.Join(out, "\n") + "\n", nil
 }
+
+// ── adopted fixes (T-1695) ──
+
+// FixStatuses is FIX_STATUSES.
+var FixStatuses = []string{"pending", "adopted", "held", "reopened", "noise"}
+
+// SigErr is SIG_ERR.
+const SigErr = "signature needs 1-10 '|'-separated terms of 3-80 characters"
+
+// ParseSignature is parse_signature: '|'-joined stripped terms, 1-10 terms of 3-80 characters, no newlines.
+func ParseSignature(text string) (string, error) {
+	if strings.ContainsAny(text, "\r\n") {
+		return "", verr("%s", SigErr)
+	}
+	terms := strings.Split(text, "|")
+	if len(terms) < 1 || len(terms) > 10 {
+		return "", verr("%s", SigErr)
+	}
+	for i, t := range terms {
+		t = strings.TrimFunc(t, unicode.IsSpace)
+		if n := utf8.RuneCountInString(t); n < 3 || n > 80 {
+			return "", verr("%s", SigErr)
+		}
+		terms[i] = t
+	}
+	return strings.Join(terms, "|"), nil
+}
+
+// MergedAt is merged_at: the ts of the earliest `merged` event of the task; "" when none.
+func MergedAt(db *sql.DB, taskID string) (string, error) {
+	var ts string
+	err := db.QueryRow("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='merged' "+
+		"ORDER BY julianday(ts), id LIMIT 1", taskID).Scan(&ts)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read merged event of %s: %w", taskID, err)
+	}
+	return ts, nil
+}
+
+func nextFixID(db *sql.DB) (string, error) {
+	rows, err := db.Query("SELECT id FROM adopted_fixes")
+	if err != nil {
+		return "", fmt.Errorf("read adopted_fixes ids: %w", err)
+	}
+	defer rows.Close()
+	max := 0
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return "", err
+		}
+		if _, tail, ok := strings.Cut(id, "-"); ok {
+			if n, err := strconv.Atoi(tail); err == nil && n > max {
+				max = n
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("F-%03d", max+1), nil
+}
+
+// Adopt is adopt(): records a retro fix as adopted (its task merged) or pending; returns the stdout line.
+// ev writes one events row (entity, id, action, detail).
+func Adopt(db *sql.DB, day string, fixN int64, taskID, signature, author, created string, ev func(entity, id, action, detail string) error) (string, error) {
+	rep, ok, err := LoadReport(db, day)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", verr("no retro report for %s", day)
+	}
+	var fixes []struct{ Type, Cause, Text string }
+	if err := json.Unmarshal([]byte(rep.Fixes), &fixes); err != nil {
+		return "", fmt.Errorf("retro report %s has invalid fixes JSON stored: %w", day, err)
+	}
+	if fixN < 1 || fixN > int64(len(fixes)) {
+		return "", verr("report %s has %d fixes; --fix must be 1..%d", day, len(fixes), len(fixes))
+	}
+	var prURL sql.NullString
+	err = db.QueryRow("SELECT pr_url FROM tasks WHERE id=?", taskID).Scan(&prURL)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", verr("unknown task %s", taskID)
+	}
+	if err != nil {
+		return "", fmt.Errorf("read task %s: %w", taskID, err)
+	}
+	var dup string
+	switch err := db.QueryRow("SELECT id FROM adopted_fixes WHERE report_day=? AND fix_index=?", day, fixN).Scan(&dup); {
+	case err == nil:
+		return "", verr("fix %s#%d is already %s", day, fixN, dup)
+	case !errors.Is(err, sql.ErrNoRows):
+		return "", fmt.Errorf("read adopted_fixes: %w", err)
+	}
+	sig, err := ParseSignature(signature)
+	if err != nil {
+		return "", err
+	}
+	fx := fixes[fixN-1]
+	fid, err := nextFixID(db)
+	if err != nil {
+		return "", err
+	}
+	at, err := MergedAt(db, taskID)
+	if err != nil {
+		return "", err
+	}
+	status, evAction := "pending", "fix-linked"
+	var pr, adoptedAt any
+	if at != "" {
+		status, evAction, adoptedAt = "adopted", "fix-adopted", at
+		if prURL.Valid {
+			pr = prURL.String
+		}
+	}
+	if _, err := db.Exec("INSERT INTO adopted_fixes(id, report_day, fix_index, cause, type, text, signature, task_id, pr_url, status, "+
+		"adopted_at, author, created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+		fid, day, fixN, fx.Cause, fx.Type, fx.Text, sig, taskID, pr, status, adoptedAt, author, created); err != nil {
+		return "", fmt.Errorf("record adopted fix %s: %w", fid, err)
+	}
+	if err := ev("retro", fid, evAction, fmt.Sprintf("%s#%d %s", day, fixN, taskID)); err != nil {
+		return "", err
+	}
+	if at != "" {
+		return fmt.Sprintf("adopted %s (%s, %s) %s adopted_at %s", fid, fx.Type, fx.Cause, taskID, at), nil
+	}
+	return fmt.Sprintf("linked %s (%s, %s) %s: pending until %s merges", fid, fx.Type, fx.Cause, taskID, taskID), nil
+}
+
+// SyncAdopted is sync_adopted(): pending -> adopted for every row whose task now has a merged event.
+func SyncAdopted(db *sql.DB, ev func(entity, id, action, detail string) error) error {
+	type pend struct {
+		id, task, day string
+		idx           int64
+	}
+	rows, err := db.Query("SELECT id, task_id, report_day, fix_index FROM adopted_fixes WHERE status='pending' ORDER BY id")
+	if err != nil {
+		return fmt.Errorf("read pending adopted_fixes: %w", err)
+	}
+	var ps []pend
+	for rows.Next() {
+		var p pend
+		if err := rows.Scan(&p.id, &p.task, &p.day, &p.idx); err != nil {
+			rows.Close()
+			return err
+		}
+		ps = append(ps, p)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, p := range ps {
+		at, err := MergedAt(db, p.task)
+		if err != nil {
+			return err
+		}
+		if at == "" {
+			continue
+		}
+		var pr sql.NullString
+		if err := db.QueryRow("SELECT pr_url FROM tasks WHERE id=?", p.task).Scan(&pr); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("read task %s: %w", p.task, err)
+		}
+		var prv any
+		if pr.Valid {
+			prv = pr.String
+		}
+		if _, err := db.Exec("UPDATE adopted_fixes SET status='adopted', adopted_at=?, pr_url=? WHERE id=?", at, prv, p.id); err != nil {
+			return fmt.Errorf("sync adopted fix %s: %w", p.id, err)
+		}
+		if err := ev("retro", p.id, "fix-adopted", fmt.Sprintf("%s#%d %s", p.day, p.idx, p.task)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// FixesLines is fixes_lines(): one line per row (by id) then the cycles line. status "" lists every row.
+func FixesLines(db *sql.DB, status string) ([]string, error) {
+	if status != "" && !inList(FixStatuses, status) {
+		return nil, verr("--status must be one of %s", strings.Join(FixStatuses, ", "))
+	}
+	rows, err := db.Query("SELECT id, status, type, cause, task_id, coalesce(adopted_at,'-'), coalesce(checked_at,'-'), signature " +
+		"FROM adopted_fixes ORDER BY id")
+	if err != nil {
+		return nil, fmt.Errorf("read adopted_fixes: %w", err)
+	}
+	defer rows.Close()
+	var shown []string
+	cyc, cycCheck := 0, 0
+	for rows.Next() {
+		var id, st, typ, cause, task, at, chk, sig string
+		if err := rows.Scan(&id, &st, &typ, &cause, &task, &at, &chk, &sig); err != nil {
+			return nil, err
+		}
+		if st == "held" || st == "reopened" || st == "noise" {
+			cyc++
+			if typ == "check" {
+				cycCheck++
+			}
+		}
+		if status == "" || st == status {
+			shown = append(shown, fmt.Sprintf("%s %s %s %s %s adopted_at=%s checked_at=%s sig=%s", id, st, typ, cause, task, at, chk, sig))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	cycles := fmt.Sprintf("cycles: %d (check/tool: %d)", cyc, cycCheck)
+	if len(shown) == 0 {
+		return []string{"no adopted fixes", cycles}, nil
+	}
+	return append(shown, cycles), nil
+}
