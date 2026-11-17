@@ -226,6 +226,18 @@ func TestLiveHomeRefused(t *testing.T) {
 	}
 }
 
+func TestLiveHomeRefusedForOut(t *testing.T) {
+	h := newHarness(t)
+	out := filepath.Join(h.home, "factory", "out")
+	code, stdout, lines := h.run("mod", "--tree", h.tree(), "--out", out)
+	if code != 1 || !strings.Contains(lastLine(lines), "reason=could not run: live home") {
+		t.Fatalf("code=%d\n%s", code, stdout)
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Errorf("harness created %s", out)
+	}
+}
+
 func TestLiveHomeRefusedViaInheritedFactoryHome(t *testing.T) {
 	h := newHarness(t)
 	h.environ = append(h.environ, "FACTORY_HOME="+h.tmpdir)

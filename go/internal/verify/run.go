@@ -169,6 +169,11 @@ func (r *runState) tempdir() (string, error) {
 		return "", couldNotRun("temp home: %v", err)
 	}
 	if r.cfg.Out != "" {
+		for _, live := range r.liveHomes() {
+			if inside(real(r.cfg.Out), live) {
+				return "", couldNotRun("live home")
+			}
+		}
 		r.out = r.cfg.Out
 		err = os.MkdirAll(r.out, 0o755)
 	} else {

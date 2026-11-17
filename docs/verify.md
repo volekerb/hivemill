@@ -61,7 +61,7 @@ verify: result FAIL mode=cli steps=7 ms=419 reason=exit code 1, expected 0
 
 ## Temp-home rule
 
-Every run creates `TMP` (`verify-home-*` under `$TMPDIR`). Children get `FACTORY_HOME=TMP`, `HOME=TMP/home`, and no other inherited `FACTORY_*` variable; the inherited `FACTORY_HOME` is ignored. If the temp base is, or is inside, `$HOME/factory` or the inherited `FACTORY_HOME`, the run stops with `could not run: live home` before creating anything. TMP is removed at the end, PASS or FAIL. Children run in their own process group; the group is killed at timeout and after each command, and `cleanup` fails if any is still alive. There are no retries and no sleeps as waits.
+Every run creates `TMP` (`verify-home-*` under `$TMPDIR`). Children get `FACTORY_HOME=TMP`, `HOME=TMP/home`, and no other inherited `FACTORY_*` variable; the inherited `FACTORY_HOME` is ignored. If the temp base is, or is inside, `$HOME/factory` or the inherited `FACTORY_HOME`, the run stops with `could not run: live home` before creating anything. TMP is removed at the end, PASS or FAIL. Children run in their own process group; the group is killed at timeout and after each command, and `cleanup` fails if any is still alive. There are no retries; the only wait is the cleanup check "process group gone", bounded by a 2 s deadline.
 
 ## Examples
 

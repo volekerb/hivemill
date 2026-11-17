@@ -47,11 +47,11 @@ func (r *runState) modSteps() {
 		if err != nil {
 			return "", fmt.Errorf("read mod.json: %v", err)
 		}
-		var v map[string]any
+		var v any
 		if err := json.Unmarshal(b, &v); err != nil {
 			return "", fmt.Errorf("mod.json is not valid JSON: %v", err)
 		}
-		return fmt.Sprintf("keys=%d", len(v)), nil
+		return "json=ok", nil
 	}, false) {
 		return
 	}
