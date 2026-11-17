@@ -12271,7 +12271,9 @@ def cmd_done(a):
             if dirty:
                 print("commit (a WIP commit is fine) and push, then run factory done again", file=sys.stderr)
             if unpushed:
-                print("push your commits (git push -u origin HEAD), then run factory done again", file=sys.stderr)
+                tb = con.execute("SELECT branch FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+                push_branch = (tb["branch"] if tb and tb["branch"] else "") or f"factory/{r['task_id'].lower()}"
+                print(f"push your commits (git push origin HEAD:{push_branch}), then run factory done again", file=sys.stderr)
                 if not dirty:
                     print(f"factory: if the push is held (spec says no merge until PR x, owner push needed), {done_exit_hint(r)}",
                           file=sys.stderr)
