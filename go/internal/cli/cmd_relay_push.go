@@ -595,6 +595,7 @@ type wfEntry struct {
 	path  []string
 	text  string
 	block bool // block-scalar content (| or >): YAML decodes no escapes there
+	step  int  // 1-based number of the jobs.<id>.steps item the line sits in, 0 outside a step
 }
 
 func (e wfEntry) String() string { return strings.Join(e.path, ".") + ": " + e.text }
@@ -634,11 +635,71 @@ func wfOpenScalar(val string) bool {
 			}
 		}
 		return true
-	case strings.HasPrefix(val, "["):
-		v := strings.TrimSpace(wfCommentRE.ReplaceAllString(val, ""))
-		return strings.Count(v, "[") != strings.Count(v, "]") || !strings.HasSuffix(v, "]")
+	case strings.HasPrefix(val, "["), strings.HasPrefix(val, "{"):
+		return !wfFlowClosed(val)
 	}
 	return false
+}
+
+// wfFlowClosed: a flow sequence or mapping value closes on its own line, read with YAML's quote rules (reviewer B3:
+// a bracket inside a quoted item is not structure, and an unclosed quote folds the next lines in). A quote opens a
+// scalar only at the start of a flow token (after [ { , or ": "); inside a plain token it is plain text. Anything the
+// scanner is unsure of (a quote right after a colon, text after the closing bracket, a negative depth) is "not closed",
+// so the caller refuses it.
+func wfFlowClosed(val string) bool {
+	depth, tokenStart := 0, true
+	for i := 0; i < len(val); i++ {
+		c := val[i]
+		switch {
+		case c == ' ' || c == '\t':
+			// whitespace keeps the token state
+		case c == '#' && i > 0 && (val[i-1] == ' ' || val[i-1] == '\t'):
+			return false // a comment before the flow closed
+		case c == '[' || c == '{':
+			depth++
+			tokenStart = true
+		case c == ']' || c == '}':
+			depth--
+			tokenStart = false
+			if depth < 0 {
+				return false
+			}
+			if depth == 0 {
+				rest := strings.TrimSpace(val[i+1:])
+				return rest == "" || strings.HasPrefix(rest, "#") && (val[i+1] == ' ' || val[i+1] == '\t')
+			}
+		case c == ',':
+			tokenStart = true
+		case c == ':':
+			if i+1 < len(val) && (val[i+1] == '"' || val[i+1] == '\'') {
+				return false // "k":"v" (JSON style): unsure whether the quote opens a scalar
+			}
+			tokenStart = i+1 == len(val) || val[i+1] == ' ' || val[i+1] == '\t'
+		case (c == '"' || c == '\'') && tokenStart:
+			j := i + 1
+			for ; j < len(val); j++ {
+				if c == '"' && val[j] == '\\' {
+					j++
+					continue
+				}
+				if val[j] == c {
+					if c == '\'' && j+1 < len(val) && val[j+1] == '\'' {
+						j++
+						continue
+					}
+					break
+				}
+			}
+			if j >= len(val) {
+				return false // the quoted scalar runs past the line
+			}
+			i = j
+			tokenStart = false
+		default:
+			tokenStart = false
+		}
+	}
+	return false // the flow did not close on this line
 }
 
 // wfEntries reads a workflow into entries. A key line is an entry under its own path (text = its value); any other
@@ -650,7 +711,8 @@ func wfEntries(text string) (out []wfEntry, odd []string, multi []string) {
 		key    string
 	}
 	var stack []frame
-	scalarIndent := -1 // inside a block scalar (| or >): lines indented deeper than this are content
+	scalarIndent := -1                  // inside a block scalar (| or >): lines indented deeper than this are content
+	step, steps, stepIndent := 0, 0, -1 // the current jobs.<id>.steps item and the indent of its dash
 	keys := func() []string {
 		p := make([]string, len(stack))
 		for i, f := range stack {
@@ -666,7 +728,7 @@ func wfEntries(text string) (out []wfEntry, odd []string, multi []string) {
 		ind := len(raw) - len(strings.TrimLeft(raw, " \t"))
 		if scalarIndent >= 0 {
 			if ind > scalarIndent { // block-scalar content, a "#" line included (a script comment GitHub still expands)
-				out = append(out, wfEntry{keys(), s, true})
+				out = append(out, wfEntry{keys(), s, true, step})
 				continue
 			}
 			scalarIndent = -1
@@ -674,9 +736,12 @@ func wfEntries(text string) (out []wfEntry, odd []string, multi []string) {
 		if strings.HasPrefix(s, "#") || s == "---" || s == "..." {
 			continue
 		}
+		if step > 0 && ind <= stepIndent {
+			step, stepIndent = 0, -1 // a dedent or the next dash ends the step
+		}
 		m := wfKeyRE.FindStringSubmatch(raw)
 		if m == nil {
-			e := wfEntry{path: keys(), text: strings.TrimPrefix(s, "- ")}
+			e := wfEntry{path: keys(), text: strings.TrimPrefix(s, "- "), step: step}
 			if wfOpenScalar(e.text) {
 				multi = append(multi, e.String())
 			}
@@ -690,9 +755,13 @@ func wfEntries(text string) (out []wfEntry, odd []string, multi []string) {
 		for len(stack) > 0 && stack[len(stack)-1].indent >= kind {
 			stack = stack[:len(stack)-1]
 		}
+		if p := keys(); m[2] != "" && step == 0 && len(p) == 3 && p[0] == "jobs" && p[2] == "steps" {
+			steps++
+			step, stepIndent = steps, ind // a "- key:" item of jobs.<id>.steps starts a step
+		}
 		stack = append(stack, frame{kind, m[3]})
 		val := strings.TrimSpace(m[4])
-		out = append(out, wfEntry{path: keys(), text: val})
+		out = append(out, wfEntry{path: keys(), text: val, step: step})
 		if strings.HasPrefix(val, "{") { // a flow mapping hides keys (jobs: {x: {permissions: write-all}})
 			odd = append(odd, out[len(out)-1].String())
 		}
@@ -795,6 +864,72 @@ func wfRunner(e wfEntry) bool {
 	return false
 }
 
+// wfUnit is the scope a secrets reference reaches: its step (jobs.<id>.steps item), else its job, else the whole file.
+func wfUnit(e wfEntry) string {
+	switch {
+	case e.step > 0:
+		return fmt.Sprintf("jobs.%s.steps[%d]", e.path[1], e.step)
+	case len(e.path) >= 2 && e.path[0] == "jobs":
+		return "jobs." + e.path[1]
+	}
+	return "the file"
+}
+
+// wfSecretUnits lists each unit of newE that names secrets and whose content (its lines with their key paths, in
+// order, wherever the unit sits) matches no unit of oldE: a new step, a step or job whose code changed, or a moved
+// secrets line.
+func wfSecretUnits(oldE, newE []wfEntry) []string {
+	content := func(es []wfEntry) (map[string]string, map[string]bool) {
+		body := map[string]*strings.Builder{}
+		hasSec := map[string]bool{}
+		for _, e := range es {
+			units := []string{"the file"}
+			if len(e.path) >= 2 && e.path[0] == "jobs" {
+				units = append(units, "jobs."+e.path[1])
+			}
+			if e.step > 0 {
+				units = append(units, wfUnit(e))
+			}
+			for _, u := range units {
+				if body[u] == nil {
+					body[u] = &strings.Builder{}
+				}
+				body[u].WriteString(e.String() + "\n")
+			}
+			if wfSecretsRE.MatchString(e.String()) {
+				hasSec[wfUnit(e)] = true
+			}
+		}
+		out := map[string]string{}
+		for u, b := range body {
+			out[u] = b.String()
+		}
+		return out, hasSec
+	}
+	oldBody, _ := content(oldE)
+	seen := map[string]bool{}
+	kind := func(u string) string { // a step only matches a step, a job a job
+		switch {
+		case strings.HasSuffix(u, "]"):
+			return "step\n"
+		case strings.HasPrefix(u, "jobs."):
+			return "job\n"
+		}
+		return "file\n"
+	}
+	for u, b := range oldBody {
+		seen[kind(u)+b] = true
+	}
+	newBody, newSec := content(newE)
+	var out []string
+	for u := range newSec {
+		if !seen[kind(u)+newBody[u]] {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
 // workflowProblems compares one workflow file before and after (either may be "" for an added or deleted file).
 func workflowProblems(oldText, newText string) []string {
 	// a lone CR (YAML 1.2) or NEL/LS/PS (YAML 1.1) is a line break to a YAML parser but not to the line reader
@@ -856,6 +991,9 @@ func workflowProblems(oldText, newText string) []string {
 	// secrets: any added or changed line that names secrets (expressions, secrets: inherit)
 	sec := func(e wfEntry) bool { return wfSecretsRE.MatchString(e.String()) }
 	add("secrets reference added", wfAdded(wfSelect(oldE, sec), wfSelect(newE, sec)))
+	// a secrets line moved into another step cancels out in the line multiset (reviewer B4): every step, job or file
+	// that names secrets must also be unchanged as a whole, so no new or changed code runs where a secret is in reach
+	add("secrets in a new or changed step, job or file", wfSecretUnits(oldE, newE))
 	// self-hosted runners on a fork-reachable workflow
 	if wfForkReachable(newE) {
 		add("non-GitHub-hosted runner on a fork-reachable workflow", wfAdded(wfSelect(oldE, wfRunner), wfSelect(newE, wfRunner)))

