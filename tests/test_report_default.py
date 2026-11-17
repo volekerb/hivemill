@@ -85,5 +85,85 @@ class ReportDefaultTests(FactoryTestCase):
                 self.assertEqual(rcpt, "staff-engineer")
 
 
+class MsgNoLeadFallthroughTests(FactoryTestCase):
+    """T-1626: a worker's msg to a lead that does not exist goes to its org director as an escalation."""
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_goal()
+        e.seed_agent("claude-director", "director")
+        e.seed_agent("cursor-director", "director")
+        e.seed_agent("claude-lead-g-001-a", "lead", goal="G-001", team="g-001-a")
+        e.seed_team("g-001-a", "G-001", lead="claude-lead-g-001-a")
+        e.seed_agent("claude-coder-x", "coder", goal="G-001", team="g-001-a")
+        e.seed_agent("cursor-coder-x", "coder", team="g-001-a")
+
+    def last(self):
+        return self.env.sql("SELECT * FROM messages ORDER BY id DESC LIMIT 1")[0]
+
+    def test_missing_lead_falls_through_to_org_director(self):
+        for to in ("lead:none", "lead:cursor", "lead:claude"):
+            with self.subTest(to=to):
+                p = self.env.run("msg", to, "need help", "line one", agent="claude-coder-x")
+                self.assertEqual(p.returncode, 0, p.stderr)
+                m = self.last()
+                self.assertEqual((m["recipient"], m["kind"], m["subject"]),
+                                 ("claude-director", "escalation", "[no lead] need help"))
+                self.assertTrue(m["body"].startswith("line one\n"))
+                self.assertIn(to, m["body"].splitlines()[-1])
+                self.assertEqual(p.stdout.strip(),
+                                 f"no lead for {to}; sent to claude-director as escalation M{m['id']}")
+
+    def test_team_without_lead_falls_through(self):
+        self.env.seed_team("g-001-b", "G-001", lead=None)
+        p = self.env.run("msg", "lead:g-001-b", "s", "b", agent="claude-coder-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.last()["recipient"], "claude-director")
+
+    def test_closed_team_falls_through(self):
+        self.env.sql("UPDATE teams SET status='closed' WHERE id='g-001-a'")
+        p = self.env.run("msg", "lead:g-001-a", "s", "b", agent="claude-coder-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"]), ("claude-director", "escalation"))
+
+    def test_done_lead_on_unparked_team_falls_through(self):
+        self.env.sql("UPDATE agents SET status='done' WHERE name='claude-lead-g-001-a'")
+        p = self.env.run("msg", "lead:g-001-a", "s", "b", agent="claude-coder-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"]), ("claude-director", "escalation"))
+
+    def test_parked_team_still_routes_to_lead(self):
+        self.env.sql("UPDATE agents SET status='done' WHERE name='claude-lead-g-001-a'")
+        self.env.sql("UPDATE teams SET parked_at='2026-01-01T00:00:00+00:00' WHERE id='g-001-a'")
+        p = self.env.run("msg", "lead:g-001-a", "s", "b", agent="claude-coder-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"]), ("claude-lead-g-001-a", "msg"))
+
+    def test_unregistered_sender_falls_through_to_default_org_director(self):
+        p = self.env.run("msg", "lead:none", "s", "b", agent="zz-nobody")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"]), ("claude-director", "escalation"))
+
+    def test_existing_lead_unchanged(self):
+        p = self.env.run("msg", "lead:g-001-a", "s", "b", agent="claude-coder-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"], m["subject"], m["body"]),
+                         ("claude-lead-g-001-a", "msg", "s", "b"))
+        self.assertIn("→ claude-lead-g-001-a", p.stdout)
+
+    def test_cursor_worker_reaches_cursor_director(self):
+        p = self.env.run("msg", "lead:none", "s", "b", agent="cursor-coder-x")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = self.last()
+        self.assertEqual((m["recipient"], m["kind"]), ("cursor-director", "escalation"))
+        self.assertIn("sent to cursor-director as escalation", p.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -53,6 +53,8 @@ type Options struct {
 	Since  time.Duration
 	Now    time.Time
 	Events io.Reader
+	// RedMainAll adds the red-main numbers of every repo in the event log to the report.
+	RedMainAll bool
 }
 
 // DayRow is the merge count of one UTC day.
@@ -125,6 +127,10 @@ type Report struct {
 	Refreshes     int          `json:"refreshes"`
 	Slowest       []SlowPR     `json:"slowest"`
 	Warnings      []string     `json:"warnings"`
+	// RedMain is the red-main section of the repo; RedMainRepos (--red-main-all) lists every repo. Keys added by
+	// T-1760: the keys above are unchanged.
+	RedMain      RedMain   `json:"red_main"`
+	RedMainRepos []RedMain `json:"red_main_repos,omitempty"`
 }
 
 const prFields = "number,state,createdAt,mergedAt,headRefName,mergeStateStatus"
@@ -216,6 +222,21 @@ func Run(o Options) (*Report, error) {
 		Repo: o.Repo, Since: stamp(since), Now: stamp(now), WindowHours: round2(o.Since.Hours()),
 		PRs: len(prs), EventLines: ix.Lines, EventsSkipped: ix.Skipped,
 		OpenOver4h: []OpenPR{}, OpenOver6h: []OpenPR{}, Slowest: []SlowPR{}, Warnings: append([]string{}, warnings...),
+	}
+	rep.RedMain = redMainOf(ix.RedRepos[o.Repo], since, now)
+	rep.RedMain.setRate(o.Since)
+	if o.RedMainAll {
+		repos := make([]string, 0, len(ix.RedRepos))
+		for k := range ix.RedRepos {
+			repos = append(repos, k)
+		}
+		sort.Strings(repos)
+		for _, k := range repos {
+			rm := redMainOf(ix.RedRepos[k], since, now)
+			rm.Repo = k
+			rm.setRate(o.Since)
+			rep.RedMainRepos = append(rep.RedMainRepos, rm)
+		}
 	}
 	days := map[string]*DayRow{}
 	for d := since.Truncate(24 * time.Hour); !d.After(now); d = d.Add(24 * time.Hour) {
@@ -411,6 +432,12 @@ func (r *Report) Text() string {
 	for _, p := range r.Slowest {
 		fmt.Fprintf(&b, "  #%-5d %6.1f h  %-6s %-6s %-7s largest stage %s %.1f h\n",
 			p.Number, p.Hours, p.State, p.Org, dash(p.Task), p.LargestStage, p.LargestHours)
+	}
+	fmt.Fprintf(&b, "red main (%s, days by the ts's own UTC offset)\n", r.Repo)
+	r.RedMain.text(&b, "  ")
+	for _, rm := range r.RedMainRepos {
+		fmt.Fprintf(&b, "red main repo %s\n", rm.Repo)
+		rm.text(&b, "  ")
 	}
 	return b.String()
 }
