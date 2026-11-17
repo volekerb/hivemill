@@ -108,6 +108,8 @@ func pyRun(t *testing.T, dir string, args ...string) (string, string, int) {
 	t.Helper()
 	cmd := exec.Command("python3", args...)
 	cmd.Dir = dir
+	// Parity is with the deep run: every module, one module at a time in process (ci/shard.py scoping and --jobs are CI-only).
+	cmd.Env = append(os.Environ(), "SHARD_DEEP=true", "SHARD_JOBS=1")
 	var so, se bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &so, &se
 	err := cmd.Run()
