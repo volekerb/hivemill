@@ -319,7 +319,7 @@ func Exec(plan SpawnPlan, d ExecDeps) (string, error) {
 	case st.NeedWorktree && d.Worktree == nil:
 		return "", ErrNotPorted
 	case d.TrustClone == nil && (inList([]string{"coder", "qa", "reviewer"}, plan.Role) && plan.Task != "" || !st.NeedWorktree && d.underWorktrees(st.Cwd)):
-		return "", ErrNotPorted // trust_task_clone writes the owner's claude trust entry (T-1657: any role, any cwd under WORKTREES)
+		return "", ErrNotPorted // trust_task_clone writes the claude trust entry (T-1657: any role, any cwd under WORKTREES)
 	case d.DB == nil || d.Host == nil || d.Now == nil || d.Sleep == nil || d.Epoch == nil || d.Stdout == nil || (plan.Resume == "" && d.Send == nil):
 		return "", fmt.Errorf("exec: missing DB, host or clock")
 	}
