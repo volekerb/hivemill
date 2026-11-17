@@ -15,7 +15,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: "install-${{ github.event_name == 'push' && github.sha || github.event.pull_request.number || github.ref }}"
+  # All pushes to main share one group (install-main): a newer merge cancels an older *pending* main run; a running one is never cancelled (T-1592).
+  group: "install-${{ github.event_name == 'push' && 'main' || github.event.pull_request.number || github.ref }}"
   cancel-in-progress: "${{ github.event_name != 'push' }}"
 
 permissions:

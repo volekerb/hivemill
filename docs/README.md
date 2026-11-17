@@ -31,6 +31,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [design/g-023/readme-option-b.md](design/g-023/readme-option-b.md): README draft B, docs-first.
 - [design/g-023/readme-option-c.md](design/g-023/readme-option-c.md): README draft C, the loop.
 - [design/macos-linux-deps.md](design/macos-linux-deps.md): Linux-only dependency inventory for the macOS port.
+- [design/macos-facts-2026-11-15.md](design/macos-facts-2026-11-15.md): redacted MacBook facts for ADR 0003 stage M0.
 
 ## Operate it
 
@@ -62,6 +63,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
 - [mech-merge.md](mech-merge.md): the tick's mechanical merger for T0-T2 PRs (`mech_merge` off/shadow/on), same gate as the judge.
+- [judge-hold-expiry.md](judge-hold-expiry.md): a manual judge hold on a reviewer+QA PASS PR expires after 2 h unless it names a boss decision (`judge_hold_expiry_min`).
 - [prcheck.md](prcheck.md): `factory prcheck`, the coder's pre-PR check, and the `prcheck_required` gate on `factory done` (G-022).
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
 - [model-routing.md](model-routing.md): which model each role starts on, and the `model_cleaner` config rollback.

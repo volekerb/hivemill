@@ -1,0 +1,20 @@
+{
+ "factory_now": "2026-10-31T12:00:00+00:00",
+ "tasks": [
+  {
+   "id": "T-0001",
+   "status": "in_review",
+   "pr_url": "https://github.com/zz-test/repo/pull/1"
+  },
+  {
+   "id": "T-0002",
+   "status": "done",
+   "pr_url": "https://github.com/zz-test/repo/pull/2"
+  }
+ ],
+ "config": {
+  "prview:https://github.com/zz-test/repo/pull/1": "{\"at\": 1793447940, \"ready\": true, \"why\": \"CI green\"}",
+  "prview:https://github.com/zz-test/repo/pull/2": "{\"at\": 1793447940, \"ready\": true, \"why\": \"CI green\"}",
+  "prview:https://github.com/zz-test/repo/pull/3": "{\"at\": 1793447940, \"ready\": true, \"why\": \"CI green\"}"
+ }
+}
