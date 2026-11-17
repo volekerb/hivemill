@@ -5,14 +5,19 @@ import (
 	"sort"
 )
 
-// Routes is the part-1 slice of web/views/__init__.py ROUTES: the five keys of home, goals and tasks. The remaining
-// keys (agents, resources, throughput, quality, changelog, tokens) come with the part-2 views (T-1476).
+// Routes is web/views/__init__.py ROUTES: part 1 (T-1475) is home, goals and tasks, part 2 (T-1476) the rest.
 var Routes = map[string]View{
-	"/":          homeView{},
-	"/goals":     goalsView{},
-	"/goal/<id>": goalDetailView{},
-	"/tasks":     tasksView{},
-	"/task/<id>": taskDetailView{},
+	"/":           homeView{},
+	"/goals":      goalsView{},
+	"/goal/<id>":  goalDetailView{},
+	"/tasks":      tasksView{},
+	"/task/<id>":  taskDetailView{},
+	"/agents":     agentsView{},
+	"/resources":  resourcesView{},
+	"/throughput": throughputView{},
+	"/quality":    qualityView{},
+	"/changelog":  changelogView{},
+	"/tokens":     tokensView{},
 }
 
 // RouteKeys is the sorted list of route keys.
