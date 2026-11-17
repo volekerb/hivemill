@@ -9322,7 +9322,7 @@ def schedule_tick(con):
     try:
         go = guard_lib_dir() / CLI_GO_BIN
         if not os.access(go, os.X_OK):
-            raise OSError(f"{go} is missing or not executable; rebuild the Go CLI")
+            raise OSError(f"{CLI_GO_BIN} is missing or not executable; rebuild the Go CLI")
         p = subprocess.run([str(go), "schedule", "due", "--json"], capture_output=True, text=True, timeout=20)
         if p.returncode != 0:
             raise RuntimeError(f"schedule due exit {p.returncode}: {(p.stderr or p.stdout).strip()[:300]}")
