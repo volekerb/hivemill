@@ -1,0 +1,33 @@
+# /agents?runtime=claude&org=cursor
+TEXT
+Agents - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 3 Insights Throughput Quality Tokens Changelog System Resources Agents All Claude Cursor <TS> Gate closed · 2 queued Needs you 6 Cursor usage · 0 h · Pro · ok Cursor org: 2 running · cap 6 · 0 queued (i) Busy/idle is not tracked; last event age is shown. The chip is the agent's org (Claude or Cursor); the org implies the runtime, and a runtime chip is added only when an agent runs on another one (docs/runtimes.md). Status Running 2 Queued 0 Ended 2 Blocked 0 Filters 2 Org All 18 Claude 14 Cursor 4 Role coder 2 judge 1 evaluator 1 Runtime claude 1 cursor 3 Goal G-002 4 Showing: runtime=claude · clear Matching agents 1 status Agent Task Model Last event Running cursor-evaluator-t-24 evaluator Cursor claude Model claude-sonnet-5-5 Teams 1 Team Org Goal Lead Status Lead state Live tm-c Cursor G-002 cursor-lead-g-002 Active Parked 0 Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 3 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/#needs-you
+a:/?org=cursor
+a:/agents
+a:/agents?goal=G-002&runtime=claude&org=cursor
+a:/agents?org=claude
+a:/agents?org=cursor
+a:/agents?role=coder&runtime=claude&org=cursor
+a:/agents?role=evaluator&runtime=claude&org=cursor
+a:/agents?role=judge&runtime=claude&org=cursor
+a:/agents?runtime=claude
+a:/agents?runtime=claude&org=claude
+a:/agents?runtime=cursor&org=cursor
+a:/agents?status=blocked&runtime=claude&org=cursor
+a:/agents?status=exited%2Cstopped&runtime=claude&org=cursor
+a:/agents?status=live&runtime=claude&org=cursor
+a:/agents?status=queued&runtime=claude&org=cursor
+a:/changelog?org=cursor
+a:/goal/G-002
+a:/goals?org=cursor
+a:/quality?org=cursor
+a:/resources
+a:/resources?org=cursor
+a:/tasks?org=cursor
+a:/throughput?org=cursor
+a:/tokens?org=cursor

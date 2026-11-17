@@ -75,7 +75,8 @@ class RoutedRestSelectorTest(unittest.TestCase):
         base = {"SHARD_RESULT": "success", "GO_RESULT": "success", "GUARD_UNITTEST_RESULT": "success",
                 "GUARD_DIFF_RESULT": "success", "GUARD_SELF_COMPARE_RESULT": "success",
                 "GUARD_EVALUATOR_HOME_LOOSEN_RESULT": "success",
-                "GUARD_EQUIV_RESULT": "success", "GUARD_EQUIV_REST_RESULT": "success"}
+                "GUARD_EQUIV_RESULT": "success", "GUARD_EQUIV_REST_RESULT": "success",
+                "DEEP": "true"}  # the deep run (workflow_dispatch): every guard job must succeed
 
         def rc(**over):
             env = dict(os.environ, **base)
@@ -88,6 +89,12 @@ class RoutedRestSelectorTest(unittest.TestCase):
                 r = rc(**{key: bad})
                 self.assertNotEqual(r.returncode, 0, (key, bad))
                 self.assertIn(bad, r.stderr)
+        # outside the deep run (PR, push) the comparison jobs are skipped; guard-diff still has to succeed
+        skipped = {k: "skipped" for k in base if k.startswith("GUARD_") and k != "GUARD_DIFF_RESULT"}
+        self.assertEqual(rc(DEEP="false", **skipped).returncode, 0)
+        self.assertNotEqual(rc(DEEP="false", **dict(skipped, GUARD_DIFF_RESULT="failure")).returncode, 0)
+        self.assertNotEqual(rc(DEEP="false", **dict(skipped, SHARD_RESULT="failure")).returncode, 0)
+        self.assertNotEqual(rc(DEEP="false").returncode, 0)  # a comparison job that ran on a PR is a workflow bug
 
     def test_guard_equiv_runs_on_every_non_docs_pr(self):
         with open(WF, encoding="utf-8") as f:

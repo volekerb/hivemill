@@ -12,7 +12,7 @@ import (
 	"factory/go/internal/prflow"
 )
 
-const usage = "usage: pr-flow --repo <owner/name> [--since 72h] [--events <path>] [--json]"
+const usage = "usage: pr-flow --repo <owner/name> [--since 72h] [--events <path>] [--json] [--red-main-all]"
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, time.Now())) }
 
@@ -23,6 +23,7 @@ func run(args []string, stdout, stderr io.Writer, now time.Time) int {
 	since := fs.String("since", "72h", "window length, such as 72h or 3d")
 	events := fs.String("events", "", "events file (default $FACTORY_HOME/state/events.jsonl)")
 	asJSON := fs.Bool("json", false, "print one JSON object")
+	redAll := fs.Bool("red-main-all", false, "also list the red-main numbers of every repo in the event log")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -40,7 +41,7 @@ func run(args []string, stdout, stderr io.Writer, now time.Time) int {
 		fmt.Fprintln(stderr, "pr-flow:", err)
 		return 2
 	}
-	rep, err := prflow.Run(prflow.Options{Repo: *repo, Since: window, Now: now, Events: f})
+	rep, err := prflow.Run(prflow.Options{Repo: *repo, Since: window, Now: now, Events: f, RedMainAll: *redAll})
 	if cerr := f.Close(); cerr != nil && err == nil {
 		err = fmt.Errorf("close events file: %w", cerr)
 	}
