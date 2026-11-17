@@ -138,7 +138,7 @@ const (
 	readScript  = `if test -r "$1"; then echo ALLOWED; else echo DENIED; fi`
 	writeScript = `if touch "$1"; then rm -f "$1"; echo ALLOWED; else echo DENIED; fi`
 	viewScript  = `ctl=$1; shift; if test -r "$ctl"; then echo CONTROL-OK; fi; for p in "$@"; do if test -r "$p"; then echo "READABLE $p"; fi; done; echo PROBE-DONE`
-	aclScript   = `ctl=$1; shift; if test -r "$ctl"; then echo CONTROL-OK; fi; for d in "$@"; do f="$d/.hivemill-acl-probe"; if touch "$f"; then rm -f "$f"; echo "WROTE $d"; fi; done; echo PROBE-DONE`
+	aclScript   = `ctl=$1; name=$2; shift 2; if test -r "$ctl"; then echo CONTROL-OK; fi; for d in "$@"; do f="$d/$name"; if touch "$f"; then rm -f "$f"; echo "WROTE $d"; fi; done; echo PROBE-DONE`
 )
 
 // openProfile lets everything: a probe under it sees only the filesystem ACLs
@@ -224,7 +224,7 @@ func Preflight(spec Spec, r Runner) (err error) {
 	if err := checkView(spec, r, account, open); err != nil {
 		return err
 	}
-	if err := checkACL(spec, r, open); err != nil {
+	if err := checkACL(spec, r, open, nonce); err != nil {
 		return err
 	}
 	return checkTokens(spec, r)
@@ -328,6 +328,11 @@ func checkSeatbelt(spec Spec, r Runner, account, nonce string) error {
 
 func runSelfTestProbe(spec Spec, r Runner, account string, pr Probe) (err error) {
 	if !pr.SetupAsOwner {
+		// The probe touches and removes pr.Path itself; a file already
+		// there is not ours, so refuse rather than probe or delete it.
+		if err := mustBeAbsent(r, pr.Path); err != nil {
+			return refuse(ReasonSeatbelt, "probe %s: %v", pr.Name, err)
+		}
 		defer func() {
 			if rerr := removeIfPresent(r, pr.Path); rerr != nil && err == nil {
 				err = refuse(ReasonSeatbelt, "probe %s: remove %s: %v", pr.Name, pr.Path, rerr)
@@ -342,15 +347,22 @@ func runSelfTestProbe(spec Spec, r Runner, account string, pr Probe) (err error)
 	if werr := r.CreateExclusive(pr.Path, []byte(canaryBody), 0o644); werr != nil {
 		return refuse(ReasonSeatbelt, "probe %s: create canary %s: %v (a leftover canary must be removed by hand)", pr.Name, pr.Path, werr)
 	}
+	id, ierr := canaryID(r, pr.Path)
+	if ierr != nil {
+		// Created but unidentifiable: remove it by path (best effort; the
+		// refusal stands either way).
+		_ = removeIfPresent(r, pr.Path)
+		return refuse(ReasonSeatbelt, "probe %s: canary %s after create: %v", pr.Name, pr.Path, ierr)
+	}
 	defer func() {
+		// Remove only our own canary; a replacement is foreign and stays.
+		if cur, cerr := canaryID(r, pr.Path); cerr != nil || cur != id {
+			return
+		}
 		if rerr := removeIfPresent(r, pr.Path); rerr != nil && err == nil {
 			err = refuse(ReasonSeatbelt, "probe %s: remove %s: %v", pr.Name, pr.Path, rerr)
 		}
 	}()
-	id, ierr := canaryID(r, pr.Path)
-	if ierr != nil {
-		return refuse(ReasonSeatbelt, "probe %s: canary %s after create: %v", pr.Name, pr.Path, ierr)
-	}
 	if err := checkProbe(spec, r, account, pr, false); err != nil {
 		return err
 	}
@@ -376,6 +388,19 @@ func canaryID(r Runner, p string) ([2]uint64, error) {
 		return id, fmt.Errorf("cannot read its device and inode")
 	}
 	return id, nil
+}
+
+// mustBeAbsent errors unless p does not exist (lstat ENOENT).
+func mustBeAbsent(r Runner, p string) error {
+	_, err := r.Stat(p)
+	switch {
+	case err == nil:
+		return fmt.Errorf("%s already exists; it is not ours (remove it by hand if it is a leftover)", p)
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	default:
+		return fmt.Errorf("stat %s: %v", p, err)
+	}
 }
 
 func checkProbe(spec Spec, r Runner, account string, pr Probe, want bool) error {
@@ -436,17 +461,21 @@ func checkView(spec Spec, r Runner, account, open string) error {
 	return nil
 }
 
-func checkACL(spec Spec, r Runner, open string) error {
+func checkACL(spec Spec, r Runner, open, nonce string) error {
+	name := ".hivemill-acl-probe-" + nonce
 	targets := []string{spec.CloneDir, path.Join(spec.CloneDir, ".git", "hooks")}
 	for _, d := range targets {
 		fi, err := r.Stat(d)
 		if err != nil || !fi.IsDir() {
 			return refuse(ReasonACL, "%s is missing or not a directory (%v); the ACL probe needs it", d, err)
 		}
+		if err := mustBeAbsent(r, path.Join(d, name)); err != nil {
+			return refuse(ReasonACL, "ACL probe file: %v", err)
+		}
 	}
-	lines, err := probe(spec, r, AccountRO, open, aclScript, []string{"PROBE-DONE"}, append([]string{spec.CloneDir}, targets...)...)
+	lines, err := probe(spec, r, AccountRO, open, aclScript, []string{"PROBE-DONE"}, append([]string{spec.CloneDir, name}, targets...)...)
 	for _, d := range targets {
-		if rerr := removeIfPresent(r, path.Join(d, ".hivemill-acl-probe")); rerr != nil {
+		if rerr := removeIfPresent(r, path.Join(d, name)); rerr != nil {
 			return refuse(ReasonACL, "remove ACL probe file in %s: %v", d, rerr)
 		}
 	}

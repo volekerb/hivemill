@@ -161,7 +161,10 @@ func (f *fakeRunner) Run(name string, args ...string) (int, string, string) {
 		if !f.controlUnreadable {
 			out.WriteString("CONTROL-OK\n")
 		}
-		for _, d := range params[1:] {
+		if len(params) < 2 || !strings.HasPrefix(params[1], ".hivemill-acl-probe-") {
+			return 2, "", "acl probe needs a nonce'd probe file name"
+		}
+		for _, d := range params[2:] {
 			if f.roWritable[d] {
 				fmt.Fprintf(&out, "WROTE %s\n", d)
 			}
@@ -561,6 +564,31 @@ func TestPreflightCanaryVanishes(t *testing.T) {
 				}
 			}
 			wantReason(t, Preflight(baseSpec(), r), ReasonSeatbelt)
+			_, left := r.files[canary]
+			if left != (name == "replaced") {
+				t.Errorf("canary present=%v after run; a replacement is foreign and must stay, nothing else may", left)
+			}
+		})
+	}
+}
+
+// TestPreflightForeignProbeFiles: a file already at the clone write-probe or
+// ACL-probe path is not ours: refuse without probing or deleting it.
+func TestPreflightForeignProbeFiles(t *testing.T) {
+	for name, c := range map[string]struct {
+		path, reason string
+	}{
+		"write-probe":     {baseClone + "/.hivemill-selftest-write-" + testNonce, ReasonSeatbelt},
+		"acl-probe-clone": {baseClone + "/.hivemill-acl-probe-" + testNonce, ReasonACL},
+		"acl-probe-hooks": {baseClone + "/.git/hooks/.hivemill-acl-probe-" + testNonce, ReasonACL},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := goodRunner()
+			r.files[c.path] = &fakeNode{mode: 0o644, uid: 501, ino: 9}
+			wantReason(t, Preflight(baseSpec(), r), c.reason)
+			if n, ok := r.files[c.path]; !ok || n.ino != 9 {
+				t.Errorf("foreign %s was removed or replaced", c.path)
+			}
 		})
 	}
 }
