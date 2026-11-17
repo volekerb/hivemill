@@ -393,7 +393,9 @@ func (w *wgEnv) seedProject(pid string) {
 func (w *wgEnv) addGhRules(rules ...ft.StubRule) {
 	all := map[string][]ft.StubRule{}
 	if b, err := os.ReadFile(w.ScriptFile); err == nil {
-		_ = json.Unmarshal(b, &all)
+		if err := json.Unmarshal(b, &all); err != nil {
+			w.T.Fatalf("addGhRules: decode %s: %v", w.ScriptFile, err)
+		}
 	}
 	merged := append(append([]ft.StubRule{}, rules...), all["gh"]...)
 	w.Script("gh", merged...)
@@ -402,7 +404,9 @@ func (w *wgEnv) addGhRules(rules ...ft.StubRule) {
 func (w *wgEnv) seedPR(checks []map[string]string, body string) {
 	st := map[string]any{"prs": map[string]any{}}
 	if b, err := os.ReadFile(filepath.Join(w.Root, "gh.json")); err == nil {
-		_ = json.Unmarshal(b, &st)
+		if err := json.Unmarshal(b, &st); err != nil {
+			w.T.Fatalf("seedPR: decode gh.json: %v", err)
+		}
 	}
 	if w.RepoURL != "" {
 		st["repo_url"] = w.RepoURL
