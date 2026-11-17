@@ -121,6 +121,9 @@ func TestInboxMarksPreSpawnStopStale(t *testing.T) {
 		{"2026-11-05T08:30:00+00:00", "2026-11-05T10:00:00+01:00", true, false}, // instants, not text
 		{"2026-11-05T09:30:00+01:00", "", false, false},                         // NULL started decides nothing
 		{"2026-03-01T10:00:00", "2026-03-01T10:05:00+00:00", false, true},       // naive local time: Python decides
+		{"2026-03-01T10:00:00Z", "2026-03-01T10:05:00.5+00:00", true, false},    // Z suffix and fraction
+		{"2026-03-01T10:00:00+24:00", "2026-03-01T10:05:00+00:00", false, true},
+		{"0000-03-01T10:00:00+00:00", "2026-03-01T10:05:00+00:00", false, true},
 	}
 	for _, c := range cases {
 		got, err := stopOrderPredates(c.created, c.started)

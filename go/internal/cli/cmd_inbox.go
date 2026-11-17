@@ -287,7 +287,8 @@ func stopOrderPredates(created, started string) (bool, error) {
 	}
 	var t [2]time.Time
 	for i, v := range []string{created, started} {
-		if !inboxTS.MatchString(v) {
+		// year 0000 and an offset of 24h or more: Go's parser may accept what fromisoformat rejects
+		if !inboxTS.MatchString(v) || strings.HasPrefix(v, "0000") || inboxBadOffset(v) {
 			return false, errDelegate
 		}
 		d, err := time.Parse(time.RFC3339Nano, v)
@@ -297,6 +298,17 @@ func stopOrderPredates(created, started string) (bool, error) {
 		t[i] = d
 	}
 	return t[0].Before(t[1]), nil
+}
+
+// inboxBadOffset reports a numeric UTC offset whose hour is over 23 or minute over 59.
+func inboxBadOffset(v string) bool {
+	if strings.HasSuffix(v, "Z") {
+		return false
+	}
+	off := v[len(v)-5:]
+	h, _ := strconv.Atoi(off[:2])
+	m, _ := strconv.Atoi(off[3:])
+	return h > 23 || m > 59
 }
 
 func inboxShow(c *ctx, raw string) error {
