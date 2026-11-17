@@ -594,16 +594,45 @@ func stepTools(c *Ctx) (string, error) {
 	return strings.Join(done, "; "), nil
 }
 
+// authRounds is how many times an interactive run lets the user log in before it gives up with the exit-3 stop.
+const authRounds = 3
+
+const claudeLoginPrompt = "Log in to Claude in another terminal: run `claude`, complete /login, then /exit. Press Enter here when done."
+
+func authStop(todo []string) error {
+	return stopf(3, "not logged in. Do this, then re-run the installer with --resume:\n  %s", strings.Join(todo, "\n  "))
+}
+
 func stepAuth(c *Ctx) (string, error) {
-	var todo []string
-	if !have(c, "gh", "auth", "status") {
-		todo = append(todo, "Run this in your own terminal: gh auth login")
-	}
-	if !c.host.Exists(filepath.Join(c.home, ".claude", ".credentials.json")) {
-		todo = append(todo, "Run this in your own terminal: claude   (then complete /login and /exit)")
-	}
-	if len(todo) > 0 && !c.plan {
-		return "", stopf(3, "not logged in. Do this, then re-run the installer with --resume:\n  %s", strings.Join(todo, "\n  "))
+	// a terminal plus --yes: let the user log in and carry on; anything else keeps the exit-3 hand-off
+	interactive := c.args.Yes && !c.plan && c.host.IsTerminal()
+	for round := 0; ; round++ {
+		var todo []string
+		ghOK := have(c, "gh", "auth", "status")
+		if !ghOK {
+			todo = append(todo, "Run this in your own terminal: gh auth login")
+		}
+		claudeOK := c.host.Exists(filepath.Join(c.home, ".claude", ".credentials.json"))
+		if !claudeOK {
+			todo = append(todo, "Run this in your own terminal: claude   (then complete /login and /exit)")
+		}
+		if len(todo) == 0 || c.plan {
+			break
+		}
+		if !interactive || round >= authRounds {
+			return "", authStop(todo)
+		}
+		if !ghOK {
+			// gh's own flow on the terminal: the installer never sees, prints or stores what gh prints there
+			c.note("running `gh auth login` (gh asks the questions)")
+			_ = c.host.RunTTY([]string{"gh", "auth", "login"}) // success is judged by the `gh auth status` re-check
+		}
+		if !claudeOK {
+			c.emit(claudeLoginPrompt)
+			if err := c.host.WaitEnter(); err != nil {
+				return "", authStop(todo)
+			}
+		}
 	}
 	return "gh and Claude are logged in (the installer never reads a token)", nil
 }
