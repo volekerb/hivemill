@@ -21,11 +21,10 @@ type procfs struct {
 	readDir  func(string) ([]os.DirEntry, error)
 	readFile func(string) ([]byte, error)
 	euid     int
-	owner    func(string) (int, error) // uid owning a /proc/<pid> directory
 }
 
 func realProcfs() procfs {
-	return procfs{root: "/proc", readlink: os.Readlink, readDir: os.ReadDir, readFile: os.ReadFile, euid: os.Geteuid(), owner: dirOwner}
+	return procfs{root: "/proc", readlink: os.Readlink, readDir: os.ReadDir, readFile: os.ReadFile, euid: os.Geteuid()}
 }
 
 // CwdInside is Fail if any visible process has its cwd at or under dir.
@@ -37,18 +36,6 @@ func HeldOpen(path string) Result { return realProcfs().scan(path, true) }
 
 // Processes lists every process from /proc.
 func Processes() ([]Process, error) { return realProcfs().processes() }
-
-func dirOwner(path string) (int, error) {
-	fi, err := os.Lstat(path)
-	if err != nil {
-		return 0, err
-	}
-	st, ok := fi.Sys().(*syscall.Stat_t)
-	if !ok {
-		return 0, errors.New("no stat_t for " + path)
-	}
-	return int(st.Uid), nil
-}
 
 func gone(err error) bool {
 	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ESRCH)
@@ -82,21 +69,14 @@ func (p procfs) kernelThread(pid int) bool {
 	return err == nil && st.ppid == 2
 }
 
-// foreignUID reports whether pid is provably not ours (another uid or non-dumpable) while we are
-// not root. Such a process is outside what we can see (the kernel denies its
-// /proc links), so a permission error on it is ruled out. As root nothing is
-// foreign: every permission error stays Unknown.
+// foreignUID reports whether pid belongs to another uid while we are not root.
+// Such a process is outside what we can see (the kernel denies its /proc
+// links), so a permission error on it is ruled out. A same-uid process with
+// unreadable links (non-dumpable, root-owned links) stays Unknown, as does
+// everything when we are root.
 func (p procfs) foreignUID(pid int) bool {
 	if p.euid == 0 {
 		return false
-	}
-	// The kernel makes root-owned cwd and fd links for a non-dumpable process (e.g.
-	// a privilege-separated sshd child) even when its Uid is ours; it is just
-	// as unreadable, so that counts as foreign too.
-	for _, e := range []string{"cwd", "fd"} {
-		if o, err := p.owner(filepath.Join(p.root, strconv.Itoa(pid), e)); err == nil && o != p.euid {
-			return true
-		}
 	}
 	b, err := p.readFile(filepath.Join(p.root, strconv.Itoa(pid), "status"))
 	if err != nil {

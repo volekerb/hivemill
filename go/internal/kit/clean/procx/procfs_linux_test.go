@@ -27,7 +27,7 @@ func fakeProc(t *testing.T, cwds map[string]string) procfs {
 	for pid := range cwds {
 		os.WriteFile(filepath.Join(root, pid, "status"), []byte("Name:\tx\nUid:\t1000\t1000\t1000\t1000\n"), 0o644)
 	}
-	return procfs{root: root, readlink: os.Readlink, readDir: os.ReadDir, readFile: os.ReadFile, euid: 1000, owner: func(string) (int, error) { return 1000, nil }}
+	return procfs{root: root, readlink: os.Readlink, readDir: os.ReadDir, readFile: os.ReadFile, euid: 1000}
 }
 
 func TestUnknownReaderErrorLinux(t *testing.T) {
@@ -50,8 +50,7 @@ func TestUnknownReaderErrorLinux(t *testing.T) {
 	foreign.euid = 2000
 	want(t, foreign.scan("/scratch", false), Pass)
 	nondump := denied
-	nondump.owner = func(string) (int, error) { return 0, nil } // root-owned /proc/<pid>, our Uid
-	want(t, nondump.scan("/scratch", false), Pass)
+	want(t, nondump.scan("/scratch", false), Unknown) // same uid, unreadable: never ruled out
 	foreign.euid = 0
 	want(t, foreign.scan("/scratch", false), Unknown)
 
