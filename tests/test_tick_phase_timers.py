@@ -1,8 +1,11 @@
 """T-0664: tick per-phase wall timers (config tick_phase_timers, log-only). Runs `factory tick` as a subprocess."""
+import contextlib
 import fcntl
+import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,7 +13,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness import FactoryTestCase, PR_URL, REPO  # noqa: E402
+from unittest import mock  # noqa: E402
+from harness import FactoryTestCase, PR_URL, REPO, cli_go_bin, git  # noqa: E402
 
 LINE = re.compile(r"^tick-phases total=\d+\.\d\d( [a-z_]+=\d+(\.\d\d)?)+$")
 PHASES = ("migrate_db render_settings herdr_list digest tmp_alert remote_url_alert main_protection tmp_clean red_main "
@@ -224,14 +228,15 @@ class TickPhasesHandoff(FactoryTestCase):
         self.assertEqual(a.stdout, b.stdout)
         self.assertEqual(a.stderr, b.stderr)
 
-    def test_hold_expiry_unit_is_a_python_noop(self):
-        """T-1610: the Python child runs the Go-only hold_expiry unit as a no-op: exit 0, no output, one lap, hold kept."""
+    def test_hold_expiry_unit_without_factory_go_keeps_the_hold(self):
+        """T-1610/T-1631: no factory-go in the test home: exit 0, the one stderr line, one lap, hold kept."""
         seed_held_task(self.env)
         self.hold_lock()
         h = self.handoff({"agents": []})
         p = self.phases("hold_expiry", h)
         self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
-        self.assertEqual(p.stdout + p.stderr, "")
+        self.assertEqual(p.stdout, "")
+        self.assertEqual(p.stderr.strip(), "hold_expiry: factory-go missing; holds kept")
         self.assertEqual([x[0] for x in json.loads(h.read_text())["laps"]], ["hold_expiry"])
         self.assertEqual(held_reason(self.env), HOLD)
 
@@ -276,6 +281,7 @@ class TickHoldExpiryPython(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
         self.assertNotIn("Traceback", p.stdout + p.stderr)
         self.assertNotIn("hold-expir", p.stdout + p.stderr)
+        self.assertIn("hold_expiry: factory-go missing; holds kept", p.stderr)
         self.assertEqual(held_reason(self.env), HOLD)
         self.assertEqual(self.env.sql("SELECT COUNT(*) FROM events WHERE action='judge-hold-expired'")[0][0], 0)
 
@@ -308,6 +314,124 @@ class TickHoldExpiryPython(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(" ".join(p.stdout.split()).count("boss-approved M<id>"), 1)
         self.assertIn("judge_hold_expiry_min", p.stdout)
+
+
+FAKE_FAIL = "#!/bin/sh\necho boom >&2\nexit 1\n"
+
+
+class TickHoldExpiryGo(FactoryTestCase):
+    """T-1631: the Python tick runs `factory-go hold-expiry` in the hold_expiry unit. The real factory-go is built once
+    (harness cli_go_bin), stamped as guard_tick stamps it, and run against the temp home."""
+
+    def lib(self):
+        d = self.env.user_home / ".local" / "lib" / "factory"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def install(self, binary=None, script=None, stamp=None):
+        """Commit a go/ tree in the test home, then put factory-go (the real binary, or a script) and its stamp in the lib dir."""
+        home = self.env.home_dir
+        (home / "go").mkdir(exist_ok=True)
+        (home / "go" / "x.go").write_text("package x\n")
+        git("add", "-A", cwd=home)
+        git("-c", "user.name=zz", "-c", "user.email=zz@example.invalid", "commit", "-q", "-m", "go", cwd=home)
+        h = git("rev-parse", "HEAD:go", cwd=home)
+        dst = self.lib() / "factory-go"
+        if script is not None:
+            dst.write_text(script)
+        else:
+            shutil.copy2(binary or cli_go_bin(), dst)
+        dst.chmod(0o755)
+        (self.lib() / "factory-go.stamp").write_text((stamp or h) + "\n")
+
+    def tick(self):
+        self.ok("config", "tick_phase_timers", "1")
+        p = self.env.run("tick", inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
+        self.assertRegex(p.stdout, r"tick-phases .* hold_expiry=")
+        return p
+
+    def test_python_tick_expires_a_hold_through_go(self):
+        seed_held_task(self.env)
+        self.install()
+        self.assertEqual(self.env.sql("SELECT value FROM config WHERE key='tick_impl'")[0][0], "python")
+        p = self.tick()
+        self.assertIsNone(held_reason(self.env))
+        q = lambda a: self.env.sql("SELECT detail FROM events WHERE action=? AND entity_id='T-0001'", (a,))
+        self.assertEqual(len(q("judge-hold-expired")), 1)
+        clear = q("judge-hold-clear")
+        self.assertEqual(len(clear), 1)
+        self.assertTrue(clear[0][0].startswith("expired after"), clear)
+        msgs = self.env.sql("SELECT subject FROM messages WHERE kind='report' AND subject LIKE 'judge hold expired: T-0001 PR #%'")
+        self.assertEqual(len(msgs), 1)
+        self.assertIn("judge-hold-expired T-0001:", p.stdout)
+
+    def test_missing_and_stale_binary_keep_the_hold(self):
+        seed_held_task(self.env)
+        p = self.tick()
+        self.assertIn("hold_expiry: factory-go missing; holds kept", p.stderr)
+        self.install(stamp="0" * 40)
+        p = self.tick()
+        self.assertIn("hold_expiry: factory-go stale; holds kept", p.stderr)
+        self.assertEqual(held_reason(self.env), HOLD)
+        self.assertEqual(self.env.sql("SELECT COUNT(*) FROM events WHERE action='judge-hold-expired'")[0][0], 0)
+
+    def test_failing_binary_keeps_the_hold_and_the_tick_goes_on(self):
+        seed_held_task(self.env)
+        self.install(script=FAKE_FAIL)
+        p = self.tick()
+        self.assertIn("hold_expiry: factory-go hold-expiry failed (", p.stderr)
+        self.assertEqual(held_reason(self.env), HOLD)
+
+    def test_hanging_binary_times_out_without_raising(self):
+        sys.path.insert(0, str(REPO / "bin"))
+        import factory_cli  # noqa: E402
+        lib = Path(tempfile.mkdtemp(prefix="zz-hold-lib-"))
+        self.addCleanup(shutil.rmtree, lib, True)
+        (lib / "factory-go").write_text("#!/bin/sh\nsleep 30\n")
+        (lib / "factory-go").chmod(0o755)
+        con = mock.MagicMock()
+        err = io.StringIO()
+        with mock.patch.object(factory_cli, "cfg", return_value="120"), \
+                mock.patch.object(factory_cli, "cli_binary_state", return_value="ok"), \
+                mock.patch.object(factory_cli, "guard_lib_dir", return_value=lib), \
+                mock.patch.object(factory_cli, "HOLD_EXPIRY_TIMEOUT", 1), \
+                mock.patch.object(factory_cli, "_pt_lap"), contextlib.redirect_stderr(err):
+            factory_cli._tick_u_hold_expiry(con, {})
+        self.assertIn("hold_expiry: factory-go hold-expiry failed (", err.getvalue())
+
+    def test_off_switch_starts_no_subprocess(self):
+        seed_held_task(self.env)
+        calls = self.env.home_dir.parent / "fake-calls"
+        self.install(script=f'#!/bin/sh\necho x >> {calls}\nexit 0\n')
+        self.ok("config", "judge_hold_expiry_min", "0")
+        p = self.tick()
+        self.assertFalse(calls.exists())
+        self.assertNotIn("hold_expiry:", p.stderr)
+        self.assertEqual(held_reason(self.env), HOLD)
+
+    def test_dispatch_stub_does_not_route_hold_expiry(self):
+        self.env.run("config", "cli_impl", "python")
+        with self.env.load_factory() as f:
+            line = f.write_cli_impl(f.db())
+        self.assertEqual(line, "python -")
+        self.assertNotIn("hold-expiry", (self.env.home_dir / "run" / "cli_impl").read_text())
+
+    def test_cli_build_follows_the_expiry_switch(self):
+        for value, builds in (("120", 1), ("0", 0)):
+            with self.subTest(judge_hold_expiry_min=value), self.env.load_factory() as f:
+                self.ok("config", "judge_hold_expiry_min", value)
+                with mock.patch.object(f, "load1", return_value=0.0), \
+                        mock.patch.object(f, "build_cli_go", return_value="built") as b:
+                    f.guard_tick(f.db())
+                self.assertEqual(b.call_count, builds)
+
+    def test_python_has_no_second_rule(self):
+        src = (REPO / "bin" / "factory_cli.py").read_text()
+        a = src.index("def _tick_u_hold_expiry")
+        body = src[a:src.index("def _tick_u_mech_merge")]
+        for term in ("verdicts", "judge-hold-set", "boss-approved", "judge_hold_reason"):
+            self.assertNotIn(term, body)
 
 
 if __name__ == "__main__":

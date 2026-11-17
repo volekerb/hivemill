@@ -3022,7 +3022,8 @@ def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
         print(f"guard go build: tick step failed ({e})", file=sys.stderr)
     try:  # its own step: a failing guard build must not leave run/cli_impl stale
         write_cli_impl(con, src)  # G-041: written first too, so a changed go/ makes srchash differ from the stamp
-        cli_build = cfg(con, "cli_impl") != "python" or cfg(con, "tick_impl") == "go"
+        cli_build = cfg(con, "cli_impl") != "python" or cfg(con, "tick_impl") == "go" \
+            or cfg(con, "judge_hold_expiry_min") != "0"  # the hold_expiry unit runs factory-go (T-1631)
         if build and cap is not None and cli_build and load1() <= cap \
                 and build_cli_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_cli_impl(con, src)
@@ -16730,10 +16731,43 @@ def _tick_u_gate(con, st):
         _pt_lap("gate")
 
 
+HOLD_EXPIRY_TIMEOUT = 60  # seconds the factory-go child of the hold_expiry unit may run
+
+
 def _tick_u_hold_expiry(con, st):
-        # 1c''+. judge hold expiry (G-058, docs/judge-hold-expiry.md): Go only (go/internal/tick/holdexpiry.go). The
-        # Python tick has no implementation: it keeps every hold and prints nothing; only the lap is recorded.
+        # 1c''+. judge hold expiry (G-058, docs/judge-hold-expiry.md): the rule lives only in Go (go/internal/holdexpiry);
+        # this unit runs `factory-go hold-expiry` as a subprocess. The tick never raises from it: any problem keeps every hold.
+        try:
+            _hold_expiry_via_go(con)
+        except Exception as e:  # noqa: BLE001 — a failing unit must never stop the tick
+            print(f"hold_expiry: factory-go hold-expiry failed ({type(e).__name__}: {e}); holds kept", file=sys.stderr)
         _pt_lap("hold_expiry")
+
+
+def _hold_expiry_via_go(con):
+        if cfg(con, "judge_hold_expiry_min") == "0":
+            return
+        con.commit()  # no write transaction of ours while the Go child writes
+        state = cli_binary_state()
+        if state != "ok":
+            print(f"hold_expiry: factory-go {state}; holds kept", file=sys.stderr)
+            return
+        env = {k: v for k, v in os.environ.items() if k != "FACTORY_CLI_IMPL"}
+        try:
+            r = subprocess.run([str(Path(guard_lib_dir()) / CLI_GO_BIN), "hold-expiry"], env=env, stdin=subprocess.DEVNULL,
+                               capture_output=True, text=True, timeout=HOLD_EXPIRY_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            print(f"hold_expiry: factory-go hold-expiry failed (timeout after {HOLD_EXPIRY_TIMEOUT}s); holds kept", file=sys.stderr)
+            return
+        except OSError as e:
+            print(f"hold_expiry: factory-go hold-expiry failed ({e}); holds kept", file=sys.stderr)
+            return
+        if r.stdout:
+            sys.stdout.write(r.stdout)
+        if r.returncode != 0:
+            why = (r.stderr or "").strip().splitlines()
+            print(f"hold_expiry: factory-go hold-expiry failed (exit {r.returncode}{': ' + why[-1][:200] if why else ''}); holds kept",
+                  file=sys.stderr)
 
 
 def _tick_u_mech_merge(con, st):
