@@ -1,0 +1,1 @@
+["$HOME/.local/go/bin/go test ./...", "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./..."]
