@@ -1,6 +1,7 @@
 package macbox
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -16,6 +17,7 @@ type fakeNode struct {
 	dir  bool
 	mode os.FileMode
 	uid  int
+	ino  uint64
 }
 
 type fakeInfo struct {
@@ -33,7 +35,7 @@ func (f fakeInfo) Mode() os.FileMode {
 }
 func (f fakeInfo) ModTime() time.Time { return time.Time{} }
 func (f fakeInfo) IsDir() bool        { return f.n.dir }
-func (f fakeInfo) Sys() any           { return &syscall.Stat_t{Uid: uint32(f.n.uid)} }
+func (f fakeInfo) Sys() any           { return &syscall.Stat_t{Uid: uint32(f.n.uid), Ino: f.n.ino} }
 
 // fakeRunner models the owner's filesystem and the launch chain
 // sudo -> launcher -> /usr/bin/sandbox-exec -> /bin/sh. Probe answers depend
@@ -57,7 +59,14 @@ type fakeRunner struct {
 	roWritable map[string]bool
 	// seenCanary records canaries that existed when a probe read them.
 	seenCanary map[string]bool
-	calls      []string
+	// onReadProbe, when set, runs before a read probe of p is answered: it
+	// models whatever else touches the filesystem while the probe runs.
+	onReadProbe func(p string)
+	// probedMissing are self-test canaries a read probe found absent: the
+	// vacuous DENIED the preflight must never accept.
+	probedMissing []string
+	nextIno       uint64
+	calls         []string
 }
 
 func (f *fakeRunner) Run(name string, args ...string) (int, string, string) {
@@ -113,10 +122,15 @@ func (f *fakeRunner) Run(name string, args ...string) (int, string, string) {
 		} else {
 			allowed = f.seatbeltLeaks[p]
 		}
+		if script == readScript && f.onReadProbe != nil {
+			f.onReadProbe(p)
+		}
 		if script == readScript {
 			_, exists := f.files[p]
 			if exists {
 				f.seenCanary[p] = true
+			} else if strings.Contains(p, "/.hivemill-selftest-") {
+				f.probedMissing = append(f.probedMissing, p)
 			}
 			allowed = allowed && exists
 		}
@@ -185,6 +199,18 @@ func (f *fakeRunner) WriteFile(name string, _ []byte, perm os.FileMode) error {
 		return &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	f.files[name] = &fakeNode{mode: perm, uid: 501}
+	return nil
+}
+
+func (f *fakeRunner) CreateExclusive(name string, _ []byte, perm os.FileMode) error {
+	if n, ok := f.files[path.Dir(name)]; !ok || !n.dir {
+		return &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+	}
+	if _, ok := f.files[name]; ok {
+		return &fs.PathError{Op: "open", Path: name, Err: fs.ErrExist}
+	}
+	f.nextIno++
+	f.files[name] = &fakeNode{mode: perm, uid: 501, ino: 1000 + f.nextIno}
 	return nil
 }
 
@@ -287,10 +313,10 @@ func TestPreflight(t *testing.T) {
 		{name: "seatbelt/refused/no-sandbox-exec", reason: ReasonSeatbelt, runner: func(r *fakeRunner) { delete(r.files, SandboxExec) }},
 		{name: "seatbelt/refused/no-profile", reason: ReasonSeatbelt, runner: func(r *fakeRunner) { delete(r.files, baseAgent+"/profile.sb") }},
 		{name: "seatbelt/refused/canary-leaks", reason: ReasonSeatbelt, runner: func(r *fakeRunner) {
-			r.seatbeltLeaks = map[string]bool{baseHome + "/.hivemill-selftest-canary": true}
+			r.seatbeltLeaks = map[string]bool{baseHome + "/.hivemill-selftest-canary-" + testNonce: true}
 		}},
 		{name: "seatbelt/refused/keychain-leaks", reason: ReasonSeatbelt, runner: func(r *fakeRunner) {
-			r.seatbeltLeaks = map[string]bool{baseHome + "/Library/Keychains/.hivemill-selftest-canary": true}
+			r.seatbeltLeaks = map[string]bool{baseHome + "/Library/Keychains/.hivemill-selftest-canary-" + testNonce: true}
 		}},
 		{name: "seatbelt/refused/token-readable", reason: ReasonSeatbelt, runner: func(r *fakeRunner) {
 			r.seatbeltLeaks = map[string]bool{"/Users/o/.config/factory/cred-gh-rw": true}
@@ -369,7 +395,7 @@ func TestPreflightAcceptedRealChain(t *testing.T) {
 	if err := Preflight(baseSpec(), r); err != nil {
 		t.Fatalf("all-pass: %v", err)
 	}
-	for _, p := range SelfTestPlan(baseProfileIn()) {
+	for _, p := range SelfTestPlan(baseProfileIn(), testNonce) {
 		if p.SetupAsOwner && !r.seenCanary[p.Path] {
 			t.Errorf("canary %s did not exist when probed", p.Path)
 		}
@@ -392,7 +418,7 @@ func TestPreflightAcceptedRealChain(t *testing.T) {
 // TestPreflightCleansUpOnRefusal: a refused run removes its canaries too.
 func TestPreflightCleansUpOnRefusal(t *testing.T) {
 	r := goodRunner()
-	r.seatbeltLeaks = map[string]bool{baseHome + "/.hivemill-selftest-canary": true}
+	r.seatbeltLeaks = map[string]bool{baseHome + "/.hivemill-selftest-canary-" + testNonce: true}
 	wantReason(t, Preflight(baseSpec(), r), ReasonSeatbelt)
 	for p := range r.files {
 		if strings.Contains(p, ".hivemill-") {
@@ -414,5 +440,157 @@ func TestViewAllowed(t *testing.T) {
 		if got := viewAllowed(p, allowed); got != want {
 			t.Errorf("viewAllowed(%s) = %v, want %v", p, got, want)
 		}
+	}
+}
+
+const testNonce = "t1"
+
+func TestMain(m *testing.M) {
+	newNonce = func() (string, error) { return testNonce, nil }
+	os.Exit(m.Run())
+}
+
+// useNonces makes newNonce return each of ns in turn for the rest of t.
+func useNonces(t *testing.T, ns ...string) {
+	t.Helper()
+	prev := newNonce
+	i := 0
+	newNonce = func() (string, error) {
+		if i >= len(ns) {
+			return "", fmt.Errorf("test ran out of nonces")
+		}
+		i++
+		return ns[i-1], nil
+	}
+	t.Cleanup(func() { newNonce = prev })
+}
+
+func canaryPaths(nonce string) []string {
+	var out []string
+	for _, p := range SelfTestPlan(baseProfileIn(), nonce) {
+		if p.SetupAsOwner {
+			out = append(out, p.Path)
+		}
+	}
+	return out
+}
+
+// TestPreflightConcurrent runs a second preflight (B) for the same owner while
+// preflight A is probing its first canary. B must not touch A's canary, and
+// A's self-test must really probe an existing canary, not a deleted one.
+func TestPreflightConcurrent(t *testing.T) {
+	t.Run("distinct-nonces", func(t *testing.T) {
+		useNonces(t, "a", "b")
+		r := goodRunner()
+		before := len(r.files)
+		var errB error
+		ranB := false
+		r.onReadProbe = func(p string) {
+			if ranB || !strings.HasPrefix(path.Base(p), ".hivemill-selftest-canary") {
+				return
+			}
+			ranB = true
+			errB = Preflight(baseSpec(), r)
+		}
+		if err := Preflight(baseSpec(), r); err != nil {
+			t.Fatalf("A: %v", err)
+		}
+		if !ranB || errB != nil {
+			t.Fatalf("B ran=%v err=%v", ranB, errB)
+		}
+		if len(r.probedMissing) != 0 {
+			t.Errorf("probed canaries that did not exist: %v", r.probedMissing)
+		}
+		for _, n := range []string{"a", "b"} {
+			for _, p := range canaryPaths(n) {
+				if !r.seenCanary[p] {
+					t.Errorf("canary %s did not exist when probed", p)
+				}
+			}
+		}
+		if len(r.files) != before {
+			t.Errorf("left %d files behind", len(r.files)-before)
+		}
+	})
+	t.Run("same-nonce-collides", func(t *testing.T) {
+		// A nonce collision must make B refuse without deleting any of A's
+		// files (open profile, canaries); A then still passes for real.
+		useNonces(t, "a", "a")
+		r := goodRunner()
+		var errB error
+		ranB := false
+		r.onReadProbe = func(p string) {
+			if ranB || !strings.HasPrefix(path.Base(p), ".hivemill-selftest-canary") {
+				return
+			}
+			ranB = true
+			errB = Preflight(baseSpec(), r)
+		}
+		if err := Preflight(baseSpec(), r); err != nil {
+			t.Fatalf("A: %v", err)
+		}
+		if _, ok := AsRefusal(errB); !ok {
+			t.Fatalf("B: got %v, want a refusal", errB)
+		}
+		for _, p := range canaryPaths("a") {
+			if !r.seenCanary[p] {
+				t.Errorf("canary %s did not exist when probed", p)
+			}
+		}
+	})
+}
+
+// TestPreflightCanaryVanishes: a canary removed or replaced while its probe
+// runs makes the DENIED meaningless, so the preflight must refuse.
+func TestPreflightCanaryVanishes(t *testing.T) {
+	canary := baseHome + "/.hivemill-selftest-canary-" + testNonce
+	for name, act := range map[string]func(r *fakeRunner){
+		"removed": func(r *fakeRunner) { delete(r.files, canary) },
+		"replaced": func(r *fakeRunner) {
+			delete(r.files, canary)
+			if err := r.CreateExclusive(canary, nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := goodRunner()
+			r.onReadProbe = func(p string) {
+				if p == canary {
+					act(r)
+				}
+			}
+			wantReason(t, Preflight(baseSpec(), r), ReasonSeatbelt)
+		})
+	}
+}
+
+// TestPreflightForeignCanary: a file already at a canary path is refused and
+// left in place (it is not ours to delete).
+func TestPreflightForeignCanary(t *testing.T) {
+	r := goodRunner()
+	canary := baseHome + "/.hivemill-selftest-canary-" + testNonce
+	r.files[canary] = &fakeNode{mode: 0o644, uid: 501, ino: 7}
+	wantReason(t, Preflight(baseSpec(), r), ReasonSeatbelt)
+	if n, ok := r.files[canary]; !ok || n.ino != 7 {
+		t.Errorf("foreign canary was removed or replaced")
+	}
+}
+
+func TestPreflightNonceError(t *testing.T) {
+	useNonces(t) // no nonces: newNonce errors
+	wantReason(t, Preflight(baseSpec(), goodRunner()), ReasonSeatbelt)
+}
+
+func TestOSRunnerCreateExclusive(t *testing.T) {
+	p := path.Join(t.TempDir(), "c")
+	if err := (OSRunner{}).CreateExclusive(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := (OSRunner{}).CreateExclusive(p, []byte("y"), 0o644); !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("second create: %v, want ErrExist", err)
+	}
+	if b, err := os.ReadFile(p); err != nil || string(b) != "x" {
+		t.Fatalf("content %q %v", b, err)
 	}
 }

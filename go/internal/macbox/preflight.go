@@ -2,6 +2,8 @@ package macbox
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -64,6 +66,8 @@ type Runner interface {
 	Stat(name string) (os.FileInfo, error)
 	ReadDir(name string) ([]string, error)
 	WriteFile(name string, data []byte, perm os.FileMode) error
+	// CreateExclusive creates name and fails (fs.ErrExist) if it exists.
+	CreateExclusive(name string, data []byte, perm os.FileMode) error
 	Remove(name string) error
 }
 
@@ -108,6 +112,22 @@ func (OSRunner) WriteFile(name string, data []byte, perm os.FileMode) error {
 	return os.WriteFile(name, data, perm)
 }
 
+// CreateExclusive creates name with O_EXCL: an existing file (a foreign
+// canary, or one a concurrent preflight owns) is an error, never reused.
+func (OSRunner) CreateExclusive(name string, data []byte, perm os.FileMode) (err error) {
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+	_, err = f.Write(data)
+	return err
+}
+
 // Remove is os.Remove.
 func (OSRunner) Remove(name string) error { return os.Remove(name) }
 
@@ -126,6 +146,27 @@ const (
 const openProfile = "(version 1)\n(allow default)\n"
 
 const canaryBody = "hivemill preflight canary\n"
+
+// newNonce returns the per-run suffix of the self-test probe paths: the pid
+// plus 64 random bits, so concurrent preflights never share a canary. Tests
+// replace it.
+var newNonce = func() (string, error) {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d-%s", os.Getpid(), hex.EncodeToString(b[:])), nil
+}
+
+// fileID is the (device, inode) identity of fi; ok is false when the
+// platform stat is not available, which callers treat as undecidable.
+func fileID(fi os.FileInfo) (id [2]uint64, ok bool) {
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return id, false
+	}
+	return [2]uint64{uint64(st.Dev), st.Ino}, true // Dev is int32 on darwin, uint64 on linux
+}
 
 // Preflight returns nil or a *Refusal. Any check that cannot decide refuses;
 // there is no fallback to an unsandboxed run.
@@ -152,8 +193,15 @@ func Preflight(spec Spec, r Runner) (err error) {
 	if err := checkAccounts(r, AccountRO, AccountRW); err != nil {
 		return err
 	}
-	open := path.Join(spec.AgentDir, ".hivemill-preflight-open.sb")
-	if werr := r.WriteFile(open, []byte(openProfile), 0o644); werr != nil {
+	// Every file the run creates carries a per-run nonce and is created
+	// exclusively, so concurrent preflights never share or delete each
+	// other's files.
+	nonce, nerr := newNonce()
+	if nerr != nil || nonce == "" {
+		return refuse(ReasonSeatbelt, "self-test nonce: %v", nerr)
+	}
+	open := path.Join(spec.AgentDir, ".hivemill-preflight-open-"+nonce+".sb")
+	if werr := r.CreateExclusive(open, []byte(openProfile), 0o644); werr != nil {
 		return refuse(ReasonSudo, "write %s: %v (the agent dir must exist and be owner-writable)", open, werr)
 	}
 	defer func() {
@@ -170,7 +218,7 @@ func Preflight(spec Spec, r Runner) (err error) {
 			return err
 		}
 	}
-	if err := checkSeatbelt(spec, r, account); err != nil {
+	if err := checkSeatbelt(spec, r, account, nonce); err != nil {
 		return err
 	}
 	if err := checkView(spec, r, account, open); err != nil {
@@ -243,7 +291,7 @@ func probeOne(spec Spec, r Runner, account string, kind ProbeKind, p string) (bo
 	return lines[0] == "ALLOWED", nil
 }
 
-func checkSeatbelt(spec Spec, r Runner, account string) error {
+func checkSeatbelt(spec Spec, r Runner, account, nonce string) error {
 	for _, p := range []string{SandboxExec, spec.ProfilePath} {
 		fi, err := r.Stat(p)
 		if err != nil || !fi.Mode().IsRegular() {
@@ -259,7 +307,7 @@ func checkSeatbelt(spec Spec, r Runner, account string) error {
 	if !ok {
 		return refuse(ReasonSeatbelt, "control probe: clone %s not readable under the profile", spec.ProfileIn.CloneDir)
 	}
-	for _, pr := range SelfTestPlan(spec.ProfileIn) {
+	for _, pr := range SelfTestPlan(spec.ProfileIn, nonce) {
 		if err := runSelfTestProbe(spec, r, account, pr); err != nil {
 			return err
 		}
@@ -279,25 +327,58 @@ func checkSeatbelt(spec Spec, r Runner, account string) error {
 }
 
 func runSelfTestProbe(spec Spec, r Runner, account string, pr Probe) (err error) {
-	want := pr.WantAllowed
-	if pr.SetupAsOwner {
-		// The canary must exist (and be readable by the filesystem) so that a
-		// denial comes from the seatbelt, not from a missing file.
-		if werr := r.WriteFile(pr.Path, []byte(canaryBody), 0o644); werr != nil {
-			return refuse(ReasonSeatbelt, "probe %s: create canary %s: %v", pr.Name, pr.Path, werr)
-		}
-		want = false
+	if !pr.SetupAsOwner {
+		defer func() {
+			if rerr := removeIfPresent(r, pr.Path); rerr != nil && err == nil {
+				err = refuse(ReasonSeatbelt, "probe %s: remove %s: %v", pr.Name, pr.Path, rerr)
+			}
+		}()
+		return checkProbe(spec, r, account, pr, pr.WantAllowed)
+	}
+	// The canary must exist (and be readable by the filesystem) so that a
+	// denial comes from the seatbelt, not from a missing file. It is created
+	// exclusively: a file already at the path is foreign (or another run's),
+	// so it is neither trusted nor removed.
+	if werr := r.CreateExclusive(pr.Path, []byte(canaryBody), 0o644); werr != nil {
+		return refuse(ReasonSeatbelt, "probe %s: create canary %s: %v (a leftover canary must be removed by hand)", pr.Name, pr.Path, werr)
 	}
 	defer func() {
 		if rerr := removeIfPresent(r, pr.Path); rerr != nil && err == nil {
 			err = refuse(ReasonSeatbelt, "probe %s: remove %s: %v", pr.Name, pr.Path, rerr)
 		}
 	}()
-	if pr.SetupAsOwner {
-		if fi, serr := r.Stat(pr.Path); serr != nil || !fi.Mode().IsRegular() {
-			return refuse(ReasonSeatbelt, "probe %s: canary %s missing after create (%v)", pr.Name, pr.Path, serr)
-		}
+	id, ierr := canaryID(r, pr.Path)
+	if ierr != nil {
+		return refuse(ReasonSeatbelt, "probe %s: canary %s after create: %v", pr.Name, pr.Path, ierr)
 	}
+	if err := checkProbe(spec, r, account, pr, false); err != nil {
+		return err
+	}
+	// A denial only counts if our canary was there for the whole probe: if
+	// it vanished or was replaced, the DENIED proves nothing (fail closed).
+	after, aerr := canaryID(r, pr.Path)
+	if aerr != nil || after != id {
+		return refuse(ReasonSeatbelt, "probe %s: canary %s vanished or was replaced during the probe (%v); the self-test proves nothing", pr.Name, pr.Path, aerr)
+	}
+	return nil
+}
+
+func canaryID(r Runner, p string) ([2]uint64, error) {
+	fi, err := r.Stat(p)
+	if err != nil {
+		return [2]uint64{}, err
+	}
+	if !fi.Mode().IsRegular() {
+		return [2]uint64{}, fmt.Errorf("not a regular file")
+	}
+	id, ok := fileID(fi)
+	if !ok {
+		return id, fmt.Errorf("cannot read its device and inode")
+	}
+	return id, nil
+}
+
+func checkProbe(spec Spec, r Runner, account string, pr Probe, want bool) error {
 	got, perr := probeOne(spec, r, account, pr.Kind, pr.Path)
 	if perr != nil {
 		return refuse(ReasonSeatbelt, "probe %s: %v", pr.Name, perr)
