@@ -1,0 +1,22 @@
+# /task/T-9
+TEXT
+blocked internal [SC2] - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources blocked internal [SC2] All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Tasks / T-9 Blocked · G-001 · tm-a · coder Cost: none recorded (no tokens attributed to this task). Verdicts Reviewer failed Reviewer failed · <TS> Total time 7d 3h Rejections 1 Attempts 1 Lifecycle Stage Duration Share queued - unknown coding - unknown judge - unknown waiting: blocked (owner) inside a stage 1h 00m 1% waiting: blocked (internal) inside a stage 1h 00m 1% waiting: blocked (internal) inside a stage 1d 2h 15% total (open) 7d 3h 100% Cost and tokens Estimated at list prices as of 2026-10-25 (API-equivalent, not a bill) No tokens attributed to this task. Rework: unknown · causes: cause not recorded ×1 PR cycle Attempt 1 rejected <TS> Reviewer failed claude-reviewer-t-9 Attempt 2 in progress · 1d 2h <TS> Status -> blocked claude-boss <TS> Status -> blocked claude-boss +1h 00m <TS> Status -> todo claude-boss +1h 00m <TS> Status -> blocked claude-boss +1d 0h Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-001
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-9
+a:/task/T-9?org=claude
+a:/task/T-9?org=cursor
+a:/tasks
+a:/throughput
+a:/tokens
