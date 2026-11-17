@@ -816,6 +816,27 @@ class FixCarryTests(FactoryTestCase):
         self.vd("reviewer", "pass", y)
         self.assert_fix_refused("40 lines > 30")
 
+    def test_zz_exactly_150_lines_carries(self):
+        self.round_one("reviewer")
+        y = self.fix(lines=150)
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_merged("qa", "reviewer", y, 150)
+
+    def test_zz_151_lines_refused(self):
+        self.round_one("reviewer")
+        y = self.fix(lines=151)
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_refused("151 lines > 150")
+
+    def test_zz_non_numeric_limit_is_off(self):
+        self.ok("config", "fix_carry_max_lines", "lots")
+        self.round_one("reviewer")
+        y = self.fix(lines=5)
+        self.vd("reviewer", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertNotIn("fix-carry", p.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5186,7 +5186,7 @@ def _carry_env():
 HARDENED_GIT_FLAGS = ["-c", "core.commitGraph=false", "-c", "core.attributesFile=/dev/null"]  # verdict_carries, head_has_main, verified_main
 
 
-def _pure_main_merge_why(git, cur, p1, p2, main_sha):
+def _judge_pure_main_merge_why(git, cur, p1, p2, main_sha):
     """"" when commit `cur` (parents p1, p2) is a pure main merge: p2 is on origin/main and cur's tree is the clean
     `git merge-tree` of p1 and p2; else the refusal text. Shared by verdict_carries and the fix-carry walk."""
     rc, _, err = git("merge-base", "--is-ancestor", p2, main_sha)
@@ -5247,7 +5247,7 @@ def verdict_carries(repo, x, y, pr_number, repo_url, owner_repo):
         if len(parts) != 3:
             return False, f"not a pure main merge: {cur[:8]} is not a two-parent merge", None, []
         _, p1, p2 = parts
-        why = _pure_main_merge_why(git, cur, p1, p2, main_sha)
+        why = _judge_pure_main_merge_why(git, cur, p1, p2, main_sha)
         if why:
             return False, why, None, []
         merges.append(cur)
@@ -5260,7 +5260,7 @@ def verdict_carries(repo, x, y, pr_number, repo_url, owner_repo):
 _TEST_REMOVED_RE = re.compile(r"^-[ \t]*(?:async[ \t]+)?(?:def[ \t]+test_|func[ \t]+Test)")
 
 
-def fix_carry_limits(con):
+def judge_fix_carry_limits(con):
     """(on, max_lines): config fix_carry on|off and fix_carry_max_lines. An unreadable limit switches the rule off (never a guess)."""
     if (cfg(con, "fix_carry") or "off").strip().lower() != "on":
         return False, 0
@@ -5270,7 +5270,7 @@ def fix_carry_limits(con):
         return False, 0
 
 
-def fix_carry_walk(con, git_repo, x, y, pr_number, repo_url, owner_repo, base, max_lines):
+def judge_fix_carry_walk(con, git_repo, x, y, pr_number, repo_url, owner_repo, base, max_lines):
     """T-1611 fix-carry, conditions (4)-(7) (docs/verdict-carry-over.md "Fix carry"): is every commit on the first-parent
     path y..x a pure main merge or a small, non-sensitive, test-preserving non-merge commit? `base` is the verdict_carries
     result for x (it has fetched main and the PR head into the private refs). Returns (ok, why, info); info (set when ok) is
@@ -5305,7 +5305,7 @@ def fix_carry_walk(con, git_repo, x, y, pr_number, repo_url, owner_repo, base, m
             return False, f"cannot verify, commit {cur[:8]} unreadable: {err or rc}", None
         parts = out.split()
         if len(parts) == 3:
-            w = _pure_main_merge_why(git, cur, parts[1], parts[2], main_sha)
+            w = _judge_pure_main_merge_why(git, cur, parts[1], parts[2], main_sha)
             if w:
                 return False, w, None
         elif len(parts) == 2:
@@ -5358,13 +5358,13 @@ def fix_carry_walk(con, git_repo, x, y, pr_number, repo_url, owner_repo, base, m
     return True, "", {"lines": lines, "commits": [s for s, _ in plain], "path": path}
 
 
-def fix_carry_for(con, task_id, role, x, y, pr_number, git_repo, repo_url, owner_repo, carry, *, need_failed_pass=True):
+def judge_fix_carry_for(con, task_id, role, x, y, pr_number, git_repo, repo_url, owner_repo, carry, *, need_failed_pass=True):
     """T-1611 fix-carry (owner M37570 D3) for the PASS of `role` recorded at head x, against PR head y. The other role is the
     "failed role". need_failed_pass=False is the review rerun's question (the failed role has not re-checked y yet:
     conditions (1), (3), (4)-(7)). Returns ("carry", (x, main_sha, detail)), ("refused", why) or ("na", None) when the rule
     does not apply (switch off, the other role has no FAIL, its latest verdict is not the expected PASS/FAIL). Never raises
     for a git problem: that is "refused" with "cannot verify"."""
-    on, max_lines = fix_carry_limits(con)
+    on, max_lines = judge_fix_carry_limits(con)
     if not on or not repo_url or not x:
         return "na", None
     failed = "qa" if role == "reviewer" else "reviewer"
@@ -5391,7 +5391,7 @@ def fix_carry_for(con, task_id, role, x, y, pr_number, git_repo, repo_url, owner
         return "na", None
     if x not in carry:
         carry[x] = verdict_carries(git_repo, x, y, pr_number, repo_url, owner_repo)
-    ok, why, info = fix_carry_walk(con, git_repo, x, y, pr_number, repo_url, owner_repo, carry[x], max_lines)
+    ok, why, info = judge_fix_carry_walk(con, git_repo, x, y, pr_number, repo_url, owner_repo, carry[x], max_lines)
     if not ok:
         return "refused", why
     if not fail_heads & {p.lower() for p in info["path"]}:
@@ -5430,7 +5430,7 @@ def verdict_pass_holds_for_pr_head(con, task_id, role, pr_head, pr_number, git_r
     if repo_url and x and not why.startswith("cannot verify"):
         fkey = ("fix", role, x)  # T-1611: the other role's PASS carries across a small fix when the failed role re-passed
         if fkey not in carry:
-            carry[fkey] = fix_carry_for(con, task_id, role, x, pr_head, pr_number, git_repo, repo_url, owner_repo, carry)
+            carry[fkey] = judge_fix_carry_for(con, task_id, role, x, pr_head, pr_number, git_repo, repo_url, owner_repo, carry)
         fkind, finfo = carry[fkey]
         if fkind == "carry":
             return "fixcarry", finfo
@@ -18800,12 +18800,12 @@ FIX_CARRY_BRIEF = ("Fix-carry round (T-1611): re-check your failed findings and 
                    "your PASS is for the whole PR at {y}; the other role's PASS at {x} will carry. ")
 
 
-def _rerun_fix_plan(con, t, sha):
+def _judge_rerun_fix_plan(con, t, sha):
     """T-1611 fix-carry for the review rerun. With config fix_carry on, a head `sha` whose one role has a PASS (at x) and
     whose other role's latest verdict is a FAIL: ("only", failed_role, x) when the PASS at x would carry across the delta
     x..sha (conditions (1), (3)-(7), so only the failed role re-checks); ("carried", None, x) when the failed role has already
     PASSed on sha and the carry holds (nothing left to start); else None (reviewer + qa as before, also on any "cannot verify")."""
-    if fix_carry_limits(con)[0] is False:
+    if judge_fix_carry_limits(con)[0] is False:
         return None
     last = {r: con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                            (t["id"], r)).fetchone() for r in ("reviewer", "qa")}
@@ -18826,7 +18826,7 @@ def _rerun_fix_plan(con, t, sha):
             repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
         except (SystemExit, ValueError, KeyError):
             return None  # cannot verify: both roles
-        kind, info = fix_carry_for(con, t["id"], role, p["head_sha"], sha, m.group(1), git_repo, repo_url, owner_repo, {},
+        kind, info = judge_fix_carry_for(con, t["id"], role, p["head_sha"], sha, m.group(1), git_repo, repo_url, owner_repo, {},
                                    need_failed_pass=passed_here)
         if kind != "carry":
             return None
@@ -18880,7 +18880,7 @@ def review_rerun_tick(con):
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
         started = []
         gate_closed = False
-        plan = _rerun_fix_plan(con, t, sha)  # T-1611: after a FAIL only the failed role re-checks while the other PASS will carry
+        plan = _judge_rerun_fix_plan(con, t, sha)  # T-1611: after a FAIL only the failed role re-checks while the other PASS will carry
         if plan and plan[0] == "carried":
             continue  # the failed role already PASSed this head and the other role's PASS carries: the judge decides
         roles = _rerun_missing(con, tid, sha)

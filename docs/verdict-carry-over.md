@@ -19,7 +19,7 @@ T-1611, owner decision M37570 D3. After a FAIL only the failed role re-checks; t
 
 Terms: X is the head a PASS was recorded at, Y is the PR's current head, the "failed role" is the role (reviewer or qa) with a FAIL at X or later, the "other role" is the one whose latest verdict is a PASS at X.
 
-The other role's PASS at X counts for Y when all seven hold. Everything is evaluated by one helper (`fix_carry_for` / `fix_carry_walk`, called from `verdict_pass_holds_for_pr_head` after the pure-main-merge carry above), so `factory judge`, the mechanical merger (`factory mech-merge`), the train check and the judge autospawn agree.
+The other role's PASS at X counts for Y when all seven hold. Everything is evaluated by one helper (`judge_fix_carry_for` / `judge_fix_carry_walk`, called from `verdict_pass_holds_for_pr_head` after the pure-main-merge carry above), so `factory judge`, the mechanical merger (`factory mech-merge`), the train check and the judge autospawn agree.
 
 1. `fix_carry` is `on` (default). `off` restores the old behaviour exactly.
 2. The failed role's latest verdict is a PASS recorded at Y, or at a head from which the pure-main-merge carry reaches Y.
