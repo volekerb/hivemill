@@ -1,0 +1,15 @@
+{
+ "dict_empty": "{}",
+ "dict_order": "{\"zeta\": 1, \"alpha\": {\"b\": 2, \"a\": [true, false]}}",
+ "int": "42",
+ "list": "[1, \"a\", null, [2.5]]",
+ "list_empty": "[]",
+ "neg": "-7",
+ "none": "null",
+ "str_astral": "\"smile \\ud83d\\ude00\"",
+ "str_ctrl": "\"x\\u0001y\\u001fz\\u007f\"",
+ "str_escapes": "\"a\\\"b\\\\c\\nd\\re\\tf\\bg\\fh\"",
+ "str_plain": "\"abc\"",
+ "str_unicode": "\"caf\\u00e9 \\u0663 \\u00a0 \\u2028\"",
+ "true": "true"
+}

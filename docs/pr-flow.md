@@ -5,7 +5,7 @@ PRs open too long, and the hours spent in each stage, split by org. Built for G-
 fix is judged by the same numbers.
 
 ```
-cd go && go run ./cmd/pr-flow --repo <owner>/<repo> [--since 72h] [--events <path>] [--json]
+cd go && go run ./cmd/pr-flow --repo <owner>/<repo> [--since 72h] [--events <path>] [--json] [--red-main-all]
 ```
 
 `--since` takes `72h`, `90m` or `3d`. `--events` defaults to `$FACTORY_HOME/state/events.jsonl`. `--json` prints
@@ -66,6 +66,39 @@ org; reviewer FAIL and QA FAIL counts, PRs with 2+ review rounds and the refresh
 their largest stage. Stage hours and the review counts cover the whole life of every PR in the report (merged
 in the window, or open), including hours before the window started. `mergeStateStatus` is what the list call
 returns; GitHub often answers `UNKNOWN` there.
+
+## Red main
+
+The last section of the text output and the `red_main` object of `--json` count how often main was red in the
+window (G-063 SC4: red-main events per day before and after the quarantine). Keys and lines are only ever added; the
+lines above the section and the other JSON keys are unchanged.
+
+Where it comes from: the tick hook `red_main_check` (in the factory CLI, flag `red_main_freeze`) writes the event
+`red-main` (entity `redmain`, entity_id `<owner>/<name>`) once per failed `tests.yml` push run id on main, and
+`red-main-clear` when a green push run ends the window. The DB events table is exported to
+`$FACTORY_HOME/state/events.jsonl`, which is `--events`. `red-main-unknown` (a `gh` error) is not a red event and
+is ignored, like unknown and malformed lines.
+
+For the repo given in `--repo` and the `--since` window:
+
+| JSON key | meaning |
+|---|---|
+| `events` | `red-main` events in the window |
+| `events_per_day` | `events` / window days, 2 decimals |
+| `windows` | red windows that overlap the window: the first `red-main` while none is open (later ones only add to `events`) until `red-main-clear` or now |
+| `red_hours` | the lengths of those windows clipped to the window |
+| `per_day` | list of `{"day", "events"}`, days with at least one event, oldest first |
+
+The day is the date in the event's own `ts` offset (a `+01:00` ts is bucketed by its local date), not the machine
+time zone. The windows are the ones the stage map uses for `red_main` stage hours (the same window data; the clipping is separate code), so a PR inside
+a window spends exactly its time there as `red_main`. `--red-main-all` adds `red_main_repos` (JSON) and
+`red main repo <name>` blocks (text) for every repo in the event log.
+
+Before/after measurement:
+
+```
+cd go && go run ./cmd/pr-flow --repo volekerb/hivemill --since 7d --json
+```
 
 ## Daily run (director)
 
