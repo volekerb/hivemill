@@ -70,9 +70,9 @@ In local mode:
 
 - `factory judge --merge` (`local_gate_problems`): the latest `gate_runs` row of this exact PR head decides. No row, `queued`,
   `running`, `fail`, `error` refuse; a pass never carries across a head change. A pass is also refused when its test count is below
-  main's and the PR body has no `tests-removed: <reason>` line (same bypass line as `ci/test_count_gate.py`). A failing GitHub
-  check still refuses (`checks_ok`), but `required_checks` is not asked for. With no run yet the judge enqueues one and waits
-  (`judge_ci_wait_s`) for it, like it waits for CI.
+  main's and the PR body has no `tests-removed: <reason>` line (same bypass line as `ci/test_count_gate.py`). GitHub checks
+  are read with `local_checks_problems` (T-1634), not `checks_ok`; see "GitHub checks in local mode" below. With no run yet
+  the judge enqueues one and waits (`judge_ci_wait_s`) for it, like it waits for CI.
 - A stale head is refreshed by the judge as before; it then enqueues a gate run for the new head and exits `REQUEUED` without
   waiting (exit 0, nothing merged). The tick spawns a judge again once the run passes.
 - `judge_pr_ready` (the tick's hold on a queued judge) reads `gate_runs` of the PR's current head: pass = ready, queued/running =
@@ -80,6 +80,45 @@ In local mode:
   `gate_retry_error` times, then like fail.
 - The tick (`tick_gate`) reaps dead runners and launches queued runs that have no runner yet (`gate_runs.pid` NULL) as detached
   `factory gate run --run-id N` processes while fewer than `gate_max_parallel` are active. Enqueue is deduped per PR.
+
+### GitHub checks in local mode (T-1634)
+
+The local gate takes over the heavy jobs; a light GitHub job (e.g. `smoke`) can still be required. On the PR's exact head
+(the `statusCheckRollup` that `gh pr view` reports for it):
+
+| check | named in the project's `required_checks` | not named |
+|---|---|---|
+| green (SUCCESS, SKIPPED, NEUTRAL) | ok | ok |
+| pending (queued, in progress, ...) | refuse `smoke=IN_PROGRESS`; the judge waits for it (`judge_ci_wait_s`) | **ignored**: never refuses, never waited for |
+| red (any other completed state) | refuse `smoke=FAILURE` | refuse `unittest (1)=FAILURE` |
+| absent | refuse `required check smoke missing` | n/a |
+
+- Only `projects.required_checks` counts in local mode; the global `factory config required_checks` is not a fallback there.
+  An empty value keeps the T-0516 behaviour (no check required) except that pending checks no longer block.
+- `judge --merge` needs both: a `pass` gate row of this head and the table above clear. A pass row alone is never enough
+  when `required_checks` is set.
+- `judge_pr_ready` (`gate_pr_ready`) applies the same table after the gate pass when `required_checks` is non-empty, so the
+  tick holds the judge until the named checks are green (reason `CI not green: ...`). With empty `required_checks` it reads
+  only `gate_runs`, as before.
+- Non-local projects (empty `gate_cmd`) are unchanged: every check must be completed green and `required_checks_for` applies.
+
+### `gate_fast_projects` and turning factory local
+
+`gate_fast_projects` (default `factory`) only changes the command a gate run executes: `gate_cmd_for` uses the fast
+lint + `ci/affected.py --quick` command instead of `projects.gate_cmd`, and `factory prcheck` skips its local run. It does
+not decide local mode; `gate_cmd` does. Today project `factory` has an empty `gate_cmd`, so it is not in local mode at all:
+the judge uses the GitHub-checks path and no `gate_runs` row is read or written for its PRs.
+
+To make factory local with one GitHub smoke check (director/owner decision, not done by T-1634):
+
+```
+factory project update factory --gate-cmd 'python3 -m py_compile bin/factory bin/factory_cli.py && python3 $FACTORY_MAIN/tests/gate_shards.py'
+factory project update factory --required-checks smoke
+factory config gate_fast_projects ''   # else every gate run is the fast command, not the full suite
+```
+
+With `gate_fast_projects` still containing `factory`, the judge would merge on a pass of the fast command plus `smoke`,
+while the heavy GitHub jobs are ignored while pending: the full suite would then gate nothing. Clear it in the same change.
 
 ## Sandbox (`gate_sandbox`, T-0632)
 

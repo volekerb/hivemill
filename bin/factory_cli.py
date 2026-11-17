@@ -5816,7 +5816,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
     """Poll the PR while its only non-green checks are pending (`judge_ci_wait_s`). With `new_head` (just pushed by a
     refresh) it first waits for GitHub to report that head, and for its checks to appear (required ones, or any when the
     old head had some): an empty rollup right after a push is not green. Returns (pr, seconds waited)."""
-    local = gate_project_for(con, url) is not None  # T-0516: the gate is gate_runs, GitHub checks need not exist
+    proj = gate_project_for(con, url)  # T-0516: the gate is gate_runs, GitHub checks need not exist
+    local = proj is not None
 
     def waiting(pr):
         if new_head:
@@ -5824,7 +5825,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
                 return f"PR head still {pr['headRefOid'][:8]}, waiting for {new_head[:8]}"
             if not local and (missing_checks(con, pr, url) or (had_checks and not pr.get("statusCheckRollup"))):
                 return "checks of the new head not started"
-        bad = checks_ok(pr)
+        # T-1634: in local mode only the project's required_checks are waited for; other pending checks never block
+        bad = local_checks_problems(proj, pr) if local else checks_ok(pr)
         return ", ".join(bad) if _judge_pending(bad) else ""
 
     what = waiting(pr)
@@ -6769,7 +6771,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append("PR is a draft")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
-        bad = checks_ok(pr)
+        bad = local_checks_problems(proj, pr) if proj else checks_ok(pr)  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -15081,6 +15083,33 @@ def gate_project_for(con, pr_url):
     return r if r and (r["gate_cmd"] or "").strip() else None
 
 
+def local_required_checks(proj):
+    """T-1634: the GitHub check names a local-mode project still needs green: its own projects.required_checks only (the
+    global config required_checks is not a fallback here, so '' keeps the T-0516 behaviour: no check is required)."""
+    return [n for n in dict.fromkeys(x.strip() for x in (proj["required_checks"] or "").split(",")) if n]
+
+
+def local_checks_problems(proj, pr):
+    """T-1634: checks_ok for a local-mode project. The local gate replaces the heavy GitHub jobs, so a check that is still
+    pending (queued, in progress) does not block unless it is named in the project's required_checks; a red (completed,
+    not SUCCESS/SKIPPED/NEUTRAL) check always does, and a required check absent from the head's rollup is reported missing.
+    Same `name=STATE` format as checks_ok, plus `required check <n> missing`."""
+    req = local_required_checks(proj)
+    latest = latest_checks(pr.get("statusCheckRollup"))
+    bad = []
+    for c in latest:
+        name = c.get("name") or c.get("context")
+        concl = (c.get("conclusion") or c.get("state") or "").upper()
+        if concl in ("SUCCESS", "SKIPPED", "NEUTRAL"):
+            continue
+        label = concl or c.get("status")
+        if (label or "").upper() in PENDING_CHECK_STATES and name not in req:
+            continue
+        bad.append(f"{name}={label}")
+    seen = {c.get("name") or c.get("context") for c in latest}
+    return bad + [f"required check {n} missing" for n in req if n not in seen]
+
+
 def gate_run_for_head(con, pr_url, sha):
     return con.execute("SELECT * FROM gate_runs WHERE kind='pr' AND pr_url=? AND head_sha=? ORDER BY id DESC LIMIT 1",
                        (pr_url, sha)).fetchone()
@@ -15181,7 +15210,7 @@ def tick_gate(con):
 def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     """judge_pr_ready for a local-mode project: (ready, why) from gate_runs of the PR's current head."""
     try:
-        pr = gh_json("pr", "view", pr_url, "--json", "headRefOid,mergeStateStatus,state", timeout=30)
+        pr = gh_json("pr", "view", pr_url, "--json", "headRefOid,mergeStateStatus,state,statusCheckRollup", timeout=30)
         sha = pr["headRefOid"]
     except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
         return False, f"gh check failed: {e}"
@@ -15202,6 +15231,10 @@ def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     if r["status"] != "pass":
         gate_notify_fail(con, pr_url, r)
         return False, f"local gate run #{r['id']} {r['status']} on {sha[:8]}"
+    if local_required_checks(proj):  # T-1634: the named GitHub checks (e.g. smoke) green on this head, as the judge needs
+        bad = local_checks_problems(proj, pr)
+        if bad:
+            return False, "CI not green: " + ", ".join(bad)
     if (pr.get("mergeStateStatus") or "").upper() in ("BEHIND", "DIRTY"):
         return (True, "PR is BEHIND") if behind_ok and pr["mergeStateStatus"].upper() == "BEHIND" \
             else (False, f"PR is {pr['mergeStateStatus']}")
