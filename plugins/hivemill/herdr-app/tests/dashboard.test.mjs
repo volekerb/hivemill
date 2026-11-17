@@ -400,3 +400,22 @@ test("the example settings file declares teams, machine_labels and a remote proj
   const p = ex.projects.find((x) => x.space === "macmini/teamb");
   assert.ok(p?.boss);
 });
+
+// ---- one read per render ------------------------------------------------------------------------------------------------
+
+test("oneRead: data() reuses one copy inside a render, reads fresh outside it, and sees its own put", () => {
+  stub.setShared("hivemill.data", { mark: 1 });
+  let reads = 0;
+  const real = stub.S.shared;
+  stub.S.shared = new Proxy(real, { get: (o, k) => (k === "hivemill.data" && reads++, o[k]) });
+  const seen = D.oneRead(() => {
+    const a = D.data(), b = D.data();
+    D.config(); D.demo(); D.hidden("x"); D.clean("T-0001: y");
+    real["hivemill.data"] = { mark: 2 }; // another copy's write lands mid-render
+    return [a.mark, b.mark, D.data().mark, D.oneRead(() => D.data().mark)];
+  });
+  assert.deepEqual(seen, [1, 1, 1, 1]);
+  assert.equal(reads, 1);
+  assert.equal(D.data().mark, 2);
+  stub.S.shared = real;
+});
