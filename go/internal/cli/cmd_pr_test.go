@@ -61,11 +61,11 @@ func newPrCoder(t *testing.T) (*cliEnv, string) {
 func TestPrCreateAndReady(t *testing.T) {
 	stub := newPrStub(t)
 	e, _ := newPrCoder(t)
-	out, errs, code := e.run("claude-coder", "## Summary\nbody\n\n", "pr", "create", "--title", "T-1: x", "--body", "-")
+	out, errs, code := e.run("claude-coder", "## Summary\nbody\n\n", "pr", "create", "--title", "T-0001: x", "--body", "-")
 	if code != 0 || out != "GH_REPO=unset GH_HOST=unset\n" || errs != "" {
 		t.Fatalf("create: exit %d out %q err %q", code, out, errs)
 	}
-	if got := strings.TrimSpace(stub.read(t, "argv")); got != "pr create --repo acme/app --base main --head factory/t-0001 --title T-1: x --body-file -" {
+	if got := strings.TrimSpace(stub.read(t, "argv")); got != "pr create --repo acme/app --base main --head factory/t-0001 --title T-0001: x --body-file -" {
 		t.Errorf("gh argv %q", got)
 	}
 	if got := stub.read(t, "stdin"); got != "## Summary\nbody" {
@@ -88,6 +88,38 @@ func TestPrCreateAndReady(t *testing.T) {
 	out, errs, code = e.run("claude-coder", "", "pr", "ready")
 	if code != 4 || errs != "boom\n" || e.str("SELECT count(*) FROM events WHERE action LIKE 'pr-%'") != before {
 		t.Errorf("gh failure: exit %d out %q err %q", code, out, errs)
+	}
+}
+
+func TestPrCreateTitleRule(t *testing.T) {
+	stub := newPrStub(t)
+	e, _ := newPrCoder(t)
+	for _, tc := range []struct{ arg, db, want string }{
+		{"T-0001", "[SC4] status line; never idle", "T-0001: status line; never idle"},
+		{"missing status", "other", "T-0001: missing status"},
+		{"t-0001 - coder text", "other", "T-0001: coder text"},
+		{"T-0001: T-0001", "[SC1, SC2] two tags", "T-0001: two tags"},
+		{"T-0001:", "plain db title", "T-0001: plain db title"},
+		{"T-0001x", "other", "T-0001: T-0001x"},
+	} {
+		e.sql("UPDATE tasks SET title=? WHERE id='T-0001'", tc.db)
+		_, errs, code := e.run("claude-coder", "b\n", "pr", "create", "--title", tc.arg, "--body", "-")
+		lines := strings.Split(strings.TrimSpace(stub.read(t, "argv")), "\n")
+		want := "pr create --repo acme/app --base main --head factory/t-0001 --title " + tc.want + " --body-file -"
+		if code != 0 || lines[len(lines)-1] != want {
+			t.Errorf("%q: exit %d err %q argv %q, want %q", tc.arg, code, errs, lines[len(lines)-1], want)
+		}
+	}
+	e.sql("UPDATE tasks SET title='[SC4]' WHERE id='T-0001'")
+	before := stub.read(t, "argv")
+	_, errs, code := e.run("claude-coder", "b\n", "pr", "create", "--title", "T-0001", "--body", "-")
+	if code != 2 || !strings.Contains(errs, "title needs a description") || stub.read(t, "argv") != before {
+		t.Errorf("empty description: exit %d err %q, gh must not run", code, errs)
+	}
+	e.sql("UPDATE tasks SET title='T-0001' WHERE id='T-0001'")
+	_, errs, code = e.run("claude-coder", "b\n", "pr", "create", "--title", "T-0001 - ", "--body", "-")
+	if code != 2 || !strings.Contains(errs, "title needs a description") || stub.read(t, "argv") != before {
+		t.Errorf("db title is the id: exit %d err %q, gh must not run", code, errs)
 	}
 }
 
