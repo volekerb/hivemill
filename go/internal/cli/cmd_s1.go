@@ -314,7 +314,7 @@ func (d *Deps) cmdFlags(db *sql.DB, c flagsCmd, out io.Writer) error {
 // stored value that differs from the default is left to Python, which owns those validators.
 var ruleKeys = map[string]bool{
 	"public_text_repos": true, "frozen_repos": true, "issue_intake_repos": true, "noreply_email": true,
-	"opus_effort": true, "scout_triage_per_run": true, "model_cleaner": true, "guard_impl": true,
+	"opus_effort": true, "scout_triage_per_run": true, "model_boss": true, "model_director": true, "model_lead": true, "model_pm": true, "model_coder": true, "model_qa": true, "model_reviewer": true, "model_judge": true, "model_cleaner": true, "model_staff-engineer": true, "model_researcher": true, "model_scout": true, "model_retro": true, "model_evaluator": true, "guard_impl": true,
 	"sandbox_roles": true, "worker_gh_roles": true, "gh_rw_roles": true, "cursor_pilot_roles": true,
 	"agent_runtimes": true, "worker_gh_repos": true, "factory_remote_url": true,
 	"block_conditions": true, "task_clones": true,

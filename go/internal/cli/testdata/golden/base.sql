@@ -161,7 +161,20 @@ CREATE TABLE skill_trials (
   void_reason TEXT, void_why TEXT,   -- set by `skilleval void`; the row keeps every other field
   UNIQUE(candidate_id, vendor_sha, task, condition));
 INSERT INTO "config"("key","value") VALUES('guard_impl','python');
+INSERT INTO "config"("key","value") VALUES('model_boss','');
+INSERT INTO "config"("key","value") VALUES('model_director','');
+INSERT INTO "config"("key","value") VALUES('model_lead','');
+INSERT INTO "config"("key","value") VALUES('model_pm','');
+INSERT INTO "config"("key","value") VALUES('model_coder','');
+INSERT INTO "config"("key","value") VALUES('model_qa','');
+INSERT INTO "config"("key","value") VALUES('model_reviewer','');
+INSERT INTO "config"("key","value") VALUES('model_judge','');
 INSERT INTO "config"("key","value") VALUES('model_cleaner','');
+INSERT INTO "config"("key","value") VALUES('model_staff-engineer','');
+INSERT INTO "config"("key","value") VALUES('model_researcher','');
+INSERT INTO "config"("key","value") VALUES('model_scout','');
+INSERT INTO "config"("key","value") VALUES('model_retro','');
+INSERT INTO "config"("key","value") VALUES('model_evaluator','');
 INSERT INTO "config"("key","value") VALUES('cli_impl','python');
 INSERT INTO "config"("key","value") VALUES('tick_impl','python');
 INSERT INTO "config"("key","value") VALUES('cli_go_cmds','');

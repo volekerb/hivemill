@@ -108,8 +108,8 @@ ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "
 # Opus for judgement-heavy roles, Sonnet for builders. Never Fable (owner rule).
 MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
-    "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-    "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
+    "pm": "claude-sonnet-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-sonnet-5-5",
+    "staff-engineer": "claude-opus-5-5", "researcher": "claude-sonnet-5-5",
     "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "retro": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
@@ -141,7 +141,20 @@ GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled
 
 DEFAULT_CONFIG = {
     "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
+    "model_boss": "",         # G-064 SC3: model_<role>, "" = the MODELS table; else opus/sonnet/haiku 5.5 (docs/model-routing.md)
+    "model_director": "",
+    "model_lead": "",
+    "model_pm": "",
+    "model_coder": "",
+    "model_qa": "",
+    "model_reviewer": "",
+    "model_judge": "",
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
+    "model_staff-engineer": "",
+    "model_researcher": "",
+    "model_scout": "",
+    "model_retro": "",
+    "model_evaluator": "",
     "cli_impl": "python",        # G-041: python | go | shadow; run/cli_impl is rewritten from this (docs/cli-go.md); director-only
     "tick_impl": "python",       # G-041: python | go; routes factory tick (docs/cli-go.md); director-only; factory up stays Python
     "cli_go_cmds": "",           # G-041: comma list of subcommands bin/factory may hand to factory-go (Go registry words; empty = none)
@@ -3953,7 +3966,7 @@ def _config_value_rules(key, value):
         check_effort_level(a.value.strip())
     if a.key == "scout_triage_per_run":
         triage_per_run(a.value)
-    if a.key == "model_cleaner":
+    if a.key.startswith("model_") and a.key[len("model_"):] in ROLES:
         check_model_override(a.key, a.value)
         a.value = a.value.strip()
     if a.key == "guard_impl":
@@ -12084,7 +12097,7 @@ def check_effort_level(level):
 
 
 def role_model(con, role, org=None):
-    """The model a role starts on. Claude org: config model_<role> when that key exists and is set (only cleaner has one),
+    """The model a role starts on. Claude org: config model_<role> when that key exists and is set (every role has one),
     else MODELS. Any other org: its model map in scout/orgs.py (cursor: Grok for judgement, Composer for building)."""
     if org and org != orgs.DEFAULT_ORG:
         return orgs.model(org, role)

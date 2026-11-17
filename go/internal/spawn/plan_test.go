@@ -412,8 +412,14 @@ func TestModelChoice(t *testing.T) {
 	if got := RoleModel("cleaner", "claude", map[string]string{"model_cleaner": " claude-opus-5-5 "}); got != "claude-opus-5-5" {
 		t.Errorf("cleaner override: %q", got)
 	}
-	if got := RoleModel("coder", "claude", map[string]string{"model_coder": "x"}); got != "claude-sonnet-5-5" {
-		t.Errorf("only cleaner has an override key: %q", got)
+	if got := RoleModel("coder", "claude", map[string]string{"model_coder": " claude-opus-5-5 "}); got != "claude-opus-5-5" {
+		t.Errorf("every role has an override key: %q", got)
+	}
+	if got := RoleModel("judge", "claude", map[string]string{"model_judge": ""}); got != "claude-sonnet-5-5" {
+		t.Errorf("judge default: %q", got)
+	}
+	if got := RoleModel("judge", "cursor", map[string]string{"model_judge": "claude-opus-5-5"}); got == "claude-opus-5-5" {
+		t.Errorf("a non-claude org ignores model_<role>: %q", got)
 	}
 	if got := RoleModel("coder", "cursor", map[string]string{}); got != "composer-2.5" {
 		t.Errorf("cursor builder: %q", got)
