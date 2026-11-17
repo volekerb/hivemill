@@ -340,7 +340,13 @@ class TickHoldExpiryGo(FactoryTestCase):
         if script is not None:
             dst.write_text(script)
         else:
-            shutil.copy2(binary or cli_go_bin(), dst)
+            try:
+                src = binary or cli_go_bin()
+            except RuntimeError as e:
+                if "go not found on PATH" in str(e) or "go.mod requires go >=" in str(e):
+                    self.skipTest(str(e))  # unittest shards without setup-go cannot build factory-go
+                raise
+            shutil.copy2(src, dst)
         dst.chmod(0o755)
         (self.lib() / "factory-go.stamp").write_text((stamp or h) + "\n")
 
