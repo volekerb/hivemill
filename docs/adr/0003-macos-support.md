@@ -9,11 +9,13 @@ Written by the Fable model on the owner's explicit request, relayed as boss deci
 "For Mac I think we need to find the best way to get sandboxes running there and get fable model to design this").
 The exception covers this design only. Every build task below uses Opus or Sonnet as usual.
 
-**Nothing in this document was run on a Mac.** It was written on the Linux factory host, where no macOS mechanism
-can be tried. Every claim about macOS therefore carries one of two tags:
+**This ADR was drafted on the Linux factory host** (Fable, boss decision M36804). Nothing in sections 2–4 was measured on
+a Mac unless tagged `[fact M0]`. Every claim about macOS therefore carries one of these tags:
 
 - `[doc Dn]`: stated by a document that was read during this task. The documents, their URLs and the quoted text
   are in [Evidence](#evidence).
+- `[fact M0 Fn]`: measured on the owner's MacBook (macOS 15.6.1, arm64) in the M0 run of 2026-11-15 (T-1575). `Fn` is
+  the fact id in `docs/design/macos-facts-2026-11-15.md`. Claims it contradicts are corrected in place.
 - `[untested]`: untested on a Mac. This is the author's expectation from general knowledge, with no document read
   for it in this task. Each one must be proven or corrected by a build task (section 5) before anything depends on it.
 
@@ -30,7 +32,7 @@ goal record itself is not readable from a worker pane):
 |---|---|---|
 | G1 | The owner's Claude login is out of reach | On macOS the login is in the Keychain, not only in a file `[doc D6]`. Both must be unreachable |
 | G2 | The owner's gh token is out of reach | `gh` stores it in the system credential store, with a plain-text fallback `[doc D7]`. Both must be unreachable |
-| G3 | The owner's ssh keys and agent are out of reach | `~/.ssh`, the `SSH_AUTH_SOCK` agent socket, and key passphrases kept in the Keychain `[untested]` |
+| G3 | The owner's ssh keys and agent are out of reach | `~/.ssh`, the `SSH_AUTH_SOCK` agent socket, and key passphrases kept in the Keychain; `~/.ssh` is 0700 `[fact M0 F9]` |
 | G4 | The owner's Keychain is out of reach | New on macOS. One default keychain per user `[doc D14]`; access is decided by the `securityd` daemon, not by file permissions alone `[doc D14]` |
 | G5 | A per-role GitHub token | Among the roles that can be sandboxed: read-only PAT for reviewer, qa and researcher; read-write PAT for coder (pm, judge and cleaner are not sandboxed, as on Linux). A read-only role must not be able to read the read-write token or write into a read-write role's work tree |
 | G6 | An allow-list view of home | The worker sees only listed paths of the owner's home; everything else is denied by default |
@@ -60,25 +62,25 @@ Four mechanisms:
 
 | | A. Seatbelt | B. Separate user | C. Linux VM | D. App Sandbox |
 |---|---|---|---|---|
-| G1 Claude login | Met only if the profile denies both the credentials file and every Mach service that reaches the Keychain. A deny-default profile does that on paper; one wrong allow rule exposes the login, because the worker is still the owner's user `[untested]` | Met by the operating system: the worker user has its own keychain `[doc D14]` and cannot read the owner's 0600 file `[untested]`. The worker logs in with `CLAUDE_CODE_OAUTH_TOKEN`, which ranks above the stored login `[doc D6]` | Met: the owner's Keychain does not exist inside a Linux guest `[untested]`. Only directories shared into the guest are visible `[untested]` | Met in principle (no Keychain or home access without an entitlement) `[untested]` |
+| G1 Claude login | Met only if the profile denies both the credentials file and every Mach service that reaches the Keychain. A deny-default profile does that on paper; one wrong allow rule may expose the login `[untested]`, because the worker is still the owner's user. The Claude login is in the Keychain item "Claude Code-credentials" and there is no credentials file `[fact M0 F11]` | Met by the operating system: the worker user has its own keychain `[doc D14]` and cannot read the owner's 0600 file `[untested]`. The worker logs in with `CLAUDE_CODE_OAUTH_TOKEN`, which ranks above the stored login `[doc D6]` | Met: the owner's Keychain does not exist inside a Linux guest `[untested]`. Only directories shared into the guest are visible `[untested]` | Met in principle (no Keychain or home access without an entitlement) `[untested]` |
 | G2 gh token | As G1: same Keychain, same condition `[untested]`. Worker `gh` uses `GH_TOKEN` `[doc D7]` | Met as G1. Worker `gh` uses `GH_TOKEN` `[doc D7]` | Met as G1 | As G1 `[untested]` |
-| G3 ssh keys, agent | Deny `~/.ssh` and the agent socket path in the profile; unset `SSH_AUTH_SOCK` `[untested]` | Met: `~/.ssh` is 0700 and the agent socket belongs to the owner `[untested]` | Met: not shared into the guest `[untested]` | As G1 `[untested]` |
+| G3 ssh keys, agent | Deny `~/.ssh` and the agent socket path in the profile; unset `SSH_AUTH_SOCK` `[untested]` | Met: `~/.ssh` is 0700 `[fact M0 F9]` and the agent socket belongs to the owner `[untested]` | Met: not shared into the guest `[untested]` | As G1 `[untested]` |
 | G4 Keychain | Depends on the profile, as G1. The sandbox-runtime project warns that even its narrower Mach allowance for TLS trust "opens a potential data exfiltration vector through the trustd service" `[doc D5]` | Met by the operating system: a different user, a different keychain `[doc D14]` | Met: no Keychain in the guest `[untested]` | Met in principle `[untested]` |
 | G5 per-role token | Works (token in the environment, as on Linux), but a read-only worker runs as the same user as a read-write worker and can read its environment unless the profile denies process inspection `[untested]` | Met with one account per token class: a process cannot read the environment of another user's process `[untested]` | Met: one guest, or one Linux sandbox inside the guest, per worker; the Linux mechanism is already proven | Works through the environment `[untested]` |
-| G6 allow-list view | Met by rules: deny the home subtree, allow listed paths `[untested]`. Paths are denied, not hidden: the worker gets a permission error where Linux shows an empty directory `[untested]` | Partly: Unix permissions are deny-by-default only where the owner's files are not readable by others. Anything in the home that is world-readable stays readable unless the home directory itself is closed and the allowed paths are opened by ACL `[untested]` | Met: only the shared directories exist in the guest `[untested]` | Not usable: the view is the app's fixed container plus entitlements, not a per-worker list `[untested]` |
+| G6 allow-list view | Met by rules: deny the home subtree, allow listed paths `[untested]`. Paths are denied, not hidden: the worker gets a permission error where Linux shows an empty directory `[untested]` | Partly: Unix permissions are deny-by-default only where the owner's files are not readable by others. The home is 755 plus ACL and `~/.claude` is 755, so a second user could list both `[fact M0 F9]`. Setup must `chmod 700 ~/.claude` (or close the home and open allowed paths by ACL), or the owner must accept it: a design follow-up for the director | Met: only the shared directories exist in the guest `[untested]` | Not usable: the view is the app's fixed container plus entitlements, not a per-worker list `[untested]` |
 
 ### 2.2 Cost, risk and fit
 
 | | A. Seatbelt | B. Separate user | C. Linux VM | D. App Sandbox |
 |---|---|---|---|---|
-| Needs root | No `[untested]` | Yes, once: create the accounts and one sudoers file. Creating a user needs administrator rights `[untested]` | `container`: an administrator password at install `[doc D12]`. Lima-style tools: no `[untested]` | No root, but needs an entitlement `[doc D13]`, which is applied by code signing `[untested]` |
+| Needs root | No `[untested]`; `/usr/bin/sandbox-exec` exists and runs `(allow default)` `/usr/bin/true` with exit 0 `[fact M0 F5]` | Yes, once: create the accounts and one sudoers file. Creating a user needs administrator rights `[untested]` | `container`: an administrator password at install `[doc D12]`. Lima-style tools: no `[untested]` | No root, but needs an entitlement `[doc D13]`, which is applied by code signing `[untested]` |
 | Setup cost | Medium to high: one profile per role, written and kept working by us. The profile language has no Apple reference `[untested]`; the working examples are other projects' profiles `[doc D5]` | Medium: an owner-run script (accounts, sudoers, ACLs) plus the launcher. Standard Unix tools `[untested]` | High: guest image, Claude Code and the Go toolchain for Linux arm64 in the guest, file sharing, and a way to show a guest process in a host pane | Very high: a signed app bundle that hosts the worker; `claude` and every tool it starts would have to run as its helpers `[untested]` |
 | Deprecation | `sandbox-exec` "is DEPRECATED" `[doc D1]`, and so is `sandbox_init` `[doc D3]`. The man pages are dated 2017 `[doc D1]`. It is still what Claude Code itself uses on macOS today `[doc D4]`, so it is in wide use, but Apple can remove it | None. User accounts, `sudo` and ACLs are core system features `[untested]` | Documented by Apple as a current framework `[doc D11]`; no deprecation notice was seen `[untested]`. `container` "is designed to run on macOS 26 or later" and needs Apple silicon `[doc D12]` | Documented as current and required for the Mac App Store `[doc D13]` |
 | Performance | No measurable start cost expected; files are used in place `[untested]` | A `sudo` call per launch; files are used in place `[untested]` | A guest boot per worker or one long-lived guest; reserved guest RAM; shared-directory file access is slower for git and Go builds `[untested]` | In place `[untested]` |
-| claude and cursor CLIs inside | The CLIs run in place. Claude Code's own Bash sandbox also uses Seatbelt `[doc D4]`; whether a sandbox can be applied inside a sandbox is not known, so that feature may have to be off inside `[untested]` | The CLIs run in place as the worker user, with their own config directory. Nothing nested | The Linux builds run in the guest. Work for macOS-only tool chains (Xcode) is impossible in a Linux guest `[untested]` | Not practical |
+| claude and cursor CLIs inside | The CLIs run in place. Claude Code's own Bash sandbox also uses Seatbelt `[doc D4]`; a sandbox cannot be applied inside a sandbox: nested `sandbox-exec` fails with "sandbox_apply: Operation not permitted", exit 71 `[fact M0 F7]`. Claude Code's own Bash sandbox must therefore be off inside macbox, and the launcher applies the profile exactly once. A sandboxed worker cannot start a sandboxed child (S16) | The CLIs run in place as the worker user, with their own config directory. Nothing nested | The Linux builds run in the guest. Work for macOS-only tool chains (Xcode) is impossible in a Linux guest `[untested]` | Not practical |
 | herdr and hc | `sandbox-exec` is expected to replace itself with the command, so the pane's foreground process is still `claude` `[untested]` | `sudo` stays as the parent of `claude` `[untested]`. herdr's agent detection must be tested with that process tree. The `hc` backend reads the status the program reports itself (`docs/terminal-backends.md`), which should not depend on the tree `[untested]` | The pane's foreground process is the tool that attaches to the guest, not `claude`. Detection, pid checks and escape detection all need new code `[untested]` | Not practical |
 | Failure modes | A profile hole is silent and exposes the owner's own credentials. A macOS update can change which Mach services a tool needs and break the profile `[untested]`. Tools that start their own sandbox (browsers for UI tests) may fail inside `[untested]` | Files shared between two users: ownership, ACL inheritance, git's "dubious ownership" refusal, SQLite WAL files written by two users `[untested]`. The owner's files that are world-readable stay readable unless the preflight catches them | RAM pressure on a shared Mac mini; a second operating system to patch; results cross a VM boundary | Not practical |
-| Sandbox escape seen from outside | No supported way to ask whether a pid is sandboxed `[untested]` | The process's user id, read with `ps`. Simple and reliable `[untested]` | The process is in the guest or it is not | - |
+| Sandbox escape seen from outside | No supported way to ask whether a pid is sandboxed `[untested]` | The process's user id, read with `ps` **outside** the sandbox: `/bin/ps` fails inside Seatbelt even with `(allow default)` ("Operation not permitted", exit 126) `[fact M0 F6]`, so no check may run `ps` from a sandboxed process; read libproc or `kern.proc` from the host side | The process is in the guest or it is not | - |
 
 Other options looked at and dropped: a **macOS guest VM** per worker (several GB of RAM and tens of GB of disk
 each, and Apple's licence limits the number of macOS guests `[untested]`); **running the whole factory in one Linux
@@ -283,7 +285,7 @@ summary below is this task's own `git grep` over non-test code, grouped by depen
 | memory gate, `/proc/meminfo` | `bin/factory_cli.py:2409,14578`; `go/internal/cli/cmd_res.go:175,418`; `go/internal/gate/proc.go:74,93`; `web/views/resources.py:146`; `go/internal/install/host.go:139` | `vm_stat`, `sysctl hw.memsize`, `sysctl vm.swapusage` (4.3) |
 | load gate, `/proc/loadavg`, CPU count from `/sys` | `go/internal/cli/cmd_res.go:38,204,216`; `go/internal/gate/proc.go:113,557` (Python uses `os.getloadavg`, `bin/factory_cli.py:2527`) | `sysctl vm.loadavg`, `runtime.NumCPU` (4.3) |
 | process scan, `/proc/<pid>/stat`, `cmdline` | `bin/factory_cli.py:935-1005,2009-2093,2246,2277,8193,8370`; `go/internal/gate/proc.go:437`; `go/internal/cli/worker.go:99-104`; `web/views/agents.py:60-108`; `scout/egress.py:32`; `go/internal/sandbox/egress.go:64` | one `ps` call or the `kern.proc` sysctls (4.3) |
-| process cwd, open files, environment, comm | `bin/factory_cli.py:8063-8086,8279-8326,8385,8428` | `lsof`; arguments and cwd instead of the environment (4.3) |
+| process cwd, open files, environment, comm | `bin/factory_cli.py:8063-8086,8279-8326,8385,8428` | `lsof` (4.91, libproc, `/usr/sbin/lsof` `[fact M0 F10]`); arguments and cwd instead of the environment (4.3) |
 | user-namespace identity for escape detection | `bin/factory_cli.py:2265` | process user id (3.2) |
 | tmp gate file-system type, `/proc/mounts` | `bin/factory_cli.py:2447`; `go/internal/cli/cmd_res.go:200,1007`; `go/internal/gate/proc.go:146-173` | the type name from `statfs` (4.4) |
 | path of an open file, `/proc/self/fd` | `web/tokens.py:133`; `go/internal/tokens/index.go:275` | `fcntl` with `F_GETPATH` `[untested]` |
@@ -330,7 +332,7 @@ Differences that need code or a written limit:
 - **No tick timeout.** `TimeoutStartSec=240` has no launchd counterpart `[untested]`; the tick gets its own
   deadline.
 - **No linger.** An agent "executes only while that user is logged in" `[doc D9]`. After a reboot the factory
-  starts when the owner logs in, or at boot if the owner enables automatic login `[untested]`. The alternative, a
+  starts when the owner logs in, or at boot if the owner enables automatic login `[untested]`. `launchctl print gui/501` works `[fact M0 F15]`; `pmset` shows `sleep 1` held off by powerd `[fact M0 F13]`. The alternative, a
   system daemon with `UserName` (which only works in the privileged system domain `[doc D8]`), needs root and runs
   without the owner's unlocked Keychain, where the owner's Claude login lives `[doc D6]`; HQ agents would not be
   logged in. Decision: user agents; `--linger` prints this limit on macOS and does nothing.
@@ -348,10 +350,10 @@ reports unknown, never open".
 | fact | macOS source | notes |
 |---|---|---|
 | load1 | `sysctl -n vm.loadavg` | same formula as the Herdr app probe (`data.js:285`) `[untested]` |
-| CPU count | `runtime.NumCPU` | Apple silicon mixes fast and slow cores; whether `1.25 x all cores` is the right cap is measured in M3 `[untested]` |
-| available memory | `vm_stat` pages (free + inactive + speculative) times the page size | the formula of `data.js:284`. macOS has no `MemAvailable`; it compresses memory and swaps to dynamic files, so this number is a guess. M3 also reads the kernel's memory-pressure level and closes the gate when it is not normal `[untested]` |
-| swap used | `sysctl -n vm.swapusage` | display only `[untested]` |
-| claude and cursor process count, parents, sessions | one `ps -axo pid=,ppid=,uid=,lstart=,command=` per tick, or the `kern.proc` sysctls through `golang.org/x/sys` (already an indirect dependency, `go/go.mod:15`) | arguments of other users' processes are visible, which the count needs once workers run as another user `[untested]` |
+| CPU count | `runtime.NumCPU` | Apple silicon mixes fast and slow cores (12 CPUs: 6 performance and 6 efficiency, with load 3.7 on an idle desktop) `[fact M0 F1 F4]`; whether `1.25 x all cores` is the right cap is measured in M3 `[untested]` |
+| available memory | `vm_stat` pages (free + inactive + speculative) times the page size | the formula of `data.js:284`. macOS has no `MemAvailable`; it compresses memory and swaps to dynamic files, so this number is a guess. M3 also reads the kernel's memory-pressure level and closes the gate when it is not normal. The MacBook was already at level 2 (warn) with 5070M of 6144M swap used on 18 GiB of RAM at idle `[fact M0 F2 F3]`: a gate that closes at level 2 would stay closed on this machine, so worker caps must be low (1 to 2 workers) and the level-2 policy is an open design question for the director |
+| swap used | `sysctl -n vm.swapusage` | display only; the MacBook reports 6144M total `[fact M0 F2]` |
+| claude and cursor process count, parents, sessions | one `ps -axo pid=,ppid=,uid=,lstart=,command=` per tick, or the `kern.proc` sysctls through `golang.org/x/sys` (already an indirect dependency, `go/go.mod:15`); `ps` is unusable inside Seatbelt `[fact M0 F6]`, so sampling stays on the host side | arguments of other users' processes are visible, which the count needs once workers run as another user `[untested]` |
 | process start time | `lstart` from the same `ps` call | replaces field 22 of `/proc/<pid>/stat` `[untested]` |
 | process cwd and open files (tmp sweep, serve scan) | `lsof` | the owner cannot inspect another user's process without root `[untested]`: for worker-user processes the sweep keeps everything it cannot prove unused, as it does today for an unreadable pid |
 | process environment (job identity) | not available for another user's process `[untested]` | identify by arguments, cwd and the DB row |
@@ -359,7 +361,7 @@ reports unknown, never open".
 ### 4.4 The tmp gate on APFS
 
 - On Linux `/tmp` is a RAM-backed tmpfs, so the gate protects memory. On macOS `/tmp` is a link to `/private/tmp`
-  on the main APFS volume `[untested]`: the same code then measures how full the **disk** is. `statfs` still gives
+  on the main APFS volume `[fact M0 F8]`: the same code then measures how full the **disk** is. `statfs` still gives
   total and free space, and the file-system type name comes from the same call, so `/proc/mounts` is not needed
   `[untested]`.
 - Keep `tmp_max_pct` and `tmp_sweep_pct`, and add an absolute free-space floor for macOS: 90% of a large disk
@@ -369,7 +371,7 @@ reports unknown, never open".
 - Keep `/tmp`, not `$TMPDIR`, as the swept directory: Claude's scratch dirs are expected under `/tmp/claude-<uid>`
   as on Linux `[untested]`, and `$TMPDIR` on macOS is a per-user directory elsewhere. The sweep's ownership check
   must accept the worker accounts' entries once macbox is on.
-- macOS may delete old files from `/tmp` on its own schedule `[untested]`. A long-idle agent's scratch dir can
+- macOS may delete old files from `/tmp` on its own schedule `[untested]`. Only one local user (uid 501) exists on the MacBook `[fact M0 F12]`, so M5 creates every worker account. A long-idle agent's scratch dir can
   disappear; nothing durable may live there (it does not today).
 
 ### 4.5 herdr and hc builds
@@ -389,8 +391,8 @@ reports unknown, never open".
 - The shim (`plugins/hivemill/scripts/install`) and the release already cover `darwin-arm64`. In
   `hivemill-install`, the "pinned release is a Linux build" refusal (`install.go:438`) becomes a macOS pin table,
   and the systemd step becomes the launchd step of 4.2 (`--no-systemd` gets a neutral alias).
-- Prerequisites that differ: Python 3.11 or newer is not part of macOS `[untested]`, so until the Python removal
-  lands the owner installs it (Homebrew or python.org) and `--check` reports it; `git` comes with the Xcode
+- Prerequisites that differ: Python 3.11 or newer is not part of the macOS base install `[untested]`, but the MacBook already has python3 3.13.0 `[fact M0 F14]`; until the Python removal
+  lands the owner installs it (Homebrew or python.org) and `--check` reports it. The MacBook's `/usr/local/bin/go` is 1.23.3 darwin/**amd64** (Rosetta) `[fact M0 F14]`: the installer must pin and install darwin/arm64 go 1.27.3 and ignore it; `git` comes with the Xcode
   command-line tools `[untested]`. The installer still never uses `sudo` and never edits dotfiles.
 - Logins: `gh auth login` and `claude` `/login` in the owner's own terminal, as on Linux. On macOS both end up in
   the Keychain `[doc D6]` `[doc D7]`, which is exactly what G1, G2 and G4 protect.
@@ -420,6 +422,27 @@ themselves.
 Order: M0 first, because it turns the `[untested]` tags into facts cheaply and may change later stages. M1 to M4
 are independent of each other after M0. M5 is the only stage that changes a Mac at the machine level; it blocks
 M7. Release text claims macOS support only after M2, M3, M7 and M8 (SC5).
+
+### M0 result (2026-11-15, MacBook, T-1575)
+
+Report: `docs/design/macos-facts-2026-11-15.md` (a redacted summary of the owner's run; the raw file stays on the
+Mac). Facts that break or tighten an assumption, each a design follow-up for the director and not a silent change:
+
+1. **`ps` is denied inside Seatbelt** `[fact M0 F6]`. Any check that runs `ps` from a sandboxed process fails; escape
+   detection and process sampling must run on the host side (libproc, `kern.proc`, or `ps` from the launcher).
+2. **No nested Seatbelt** `[fact M0 F7]`. macbox applies one profile and Claude Code's own sandbox is off inside it.
+   The S16 result is: a sandboxed worker cannot start a sandboxed child.
+3. **`~/.claude` is 755 and the home is 755 plus ACL** `[fact M0 F9]`: a separate worker user could list them.
+   M5 must `chmod 700 ~/.claude` or the owner accepts it (owner question).
+4. **The installed `go` is amd64 under Rosetta and old** `[fact M0 F14]`: the installer pins darwin/arm64 go 1.27.3.
+5. **The MacBook idles at memory pressure 2 with 5 GB of swap used** `[fact M0 F2 F3]`: worker caps are low and the
+   gate policy for level 2 needs a decision.
+
+Claims still `[untested]` after M0, and why: the SBPL rule language, whether `sandbox-exec` replaces itself with the
+command, `sudo -u` terminal and process-tree behaviour and herdr detection (M0 did not run them), session-scoped
+services under another user, APFS free-space
+behaviour, `/tmp` cleaning, `F_GETPATH`, quarantine of downloads, macOS asset availability for gh, Keychain behaviour
+for a second user, VM and App Sandbox rows (not tried), and BSD `ps` flags. M2 to M7 prove them.
 
 ## 6. Consequences
 

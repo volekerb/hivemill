@@ -1,0 +1,14 @@
+{
+ "config_keys": [
+  "prview:https://github.com/zz-test/repo/pull/1"
+ ],
+ "events": [
+  {
+   "actor": "owner",
+   "entity": "tick",
+   "entity_id": "judge-ci-prune",
+   "action": "judge-ci-pruned",
+   "detail": "2"
+  }
+ ]
+}
