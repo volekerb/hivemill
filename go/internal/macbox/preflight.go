@@ -264,6 +264,17 @@ func checkSeatbelt(spec Spec, r Runner, account string) error {
 			return err
 		}
 	}
+	// The token files must be unreadable under the profile too: a macOS ACL
+	// on them would pass the POSIX mode check in checkTokens.
+	for _, p := range []string{spec.OAuthPath, spec.GhPath} {
+		got, err := probeOne(spec, r, account, ProbeRead, p)
+		if err != nil {
+			return refuse(ReasonSeatbelt, "token probe %s: %v", p, err)
+		}
+		if got {
+			return refuse(ReasonSeatbelt, "token file %s is readable by %s under the profile", p, account)
+		}
+	}
 	return nil
 }
 

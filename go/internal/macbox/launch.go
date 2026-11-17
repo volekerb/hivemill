@@ -30,15 +30,17 @@ func RefuseLauncherUID(uid, ownerUID int) error {
 }
 
 // SplitLauncherArgv splits argv at the first "--" and checks that what follows
-// is `/usr/bin/sandbox-exec -f <absolute profile> <program> [args...]`.
+// is `/usr/bin/sandbox-exec -f <absolute profile> <absolute program> [args...]`.
+// The program must be absolute so it can never be a sandbox-exec option
+// (-p, -n, -D, a second -f) that would replace or extend the profile.
 func SplitLauncherArgv(argv []string) ([]string, error) {
 	for i, a := range argv {
 		if a != "--" {
 			continue
 		}
 		rest := argv[i+1:]
-		if len(rest) < 4 || rest[0] != SandboxExec || rest[1] != "-f" || !path.IsAbs(rest[2]) || rest[3] == "" {
-			return nil, fmt.Errorf("macbox launcher: argv after -- must be %s -f <absolute profile> <program> [args...], got %q", SandboxExec, rest)
+		if len(rest) < 4 || rest[0] != SandboxExec || rest[1] != "-f" || !path.IsAbs(rest[2]) || !path.IsAbs(rest[3]) {
+			return nil, fmt.Errorf("macbox launcher: argv after -- must be %s -f <absolute profile> <absolute program> [args...], got %q", SandboxExec, rest)
 		}
 		return rest, nil
 	}

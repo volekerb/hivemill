@@ -80,6 +80,10 @@ func TestSplitLauncherArgv(t *testing.T) {
 		{"--", SandboxExec, "-p", "(allow default)", "/c"},
 		{"--", SandboxExec, "-f", "p.sb", "/c"},
 		{"--", SandboxExec, "-f", "/p.sb"},
+		{"--", SandboxExec, "-f", "/p.sb", "-p", "(version 1)(allow default)", "/c"}, // option after the profile
+		{"--", SandboxExec, "-f", "/p.sb", "-D", "K=V", "/c"},
+		{"--", SandboxExec, "-f", "/p.sb", "-f", "/open.sb", "/c"},
+		{"--", SandboxExec, "-f", "/p.sb", "claude"}, // relative program
 		{"--", "/bin/sh", "-c", "id"},
 	} {
 		if _, err := SplitLauncherArgv(bad); err == nil {

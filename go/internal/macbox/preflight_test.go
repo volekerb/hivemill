@@ -292,6 +292,9 @@ func TestPreflight(t *testing.T) {
 		{name: "seatbelt/refused/keychain-leaks", reason: ReasonSeatbelt, runner: func(r *fakeRunner) {
 			r.seatbeltLeaks = map[string]bool{baseHome + "/Library/Keychains/.hivemill-selftest-canary": true}
 		}},
+		{name: "seatbelt/refused/token-readable", reason: ReasonSeatbelt, runner: func(r *fakeRunner) {
+			r.seatbeltLeaks = map[string]bool{"/Users/o/.config/factory/cred-gh-rw": true}
+		}},
 		{name: "seatbelt/refused/clone-denied", reason: ReasonSeatbelt, runner: func(r *fakeRunner) { r.seatbeltDenyClone = true }},
 		{name: "seatbelt/refused/canary-dir-missing", reason: ReasonSeatbelt, runner: func(r *fakeRunner) { delete(r.files, baseHome+"/Library/Keychains") }},
 		{name: "seatbelt/accepted"},
