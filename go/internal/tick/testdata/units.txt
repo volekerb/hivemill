@@ -27,6 +27,7 @@ flagless	flagless	reap
 claude_audit	claude_audit	reap
 stop_fallback	stop_fallback	flow
 gate	gate	flow
+hold_expiry	hold_expiry	flow
 mech_merge	mech_merge	flow
 ci_wake	ci_wake	flow
 wake_leads	wake_leads	flow

@@ -513,7 +513,7 @@ func readOwnerJSON(home string) (ownerIdent, map[string]any, error) {
 			return ownerIdent{}, nil, fmt.Errorf("%s is not a JSON object with a projects object", path)
 		}
 	}
-	return ownerIdent{int64(st.Ino), st.Mtim.Nano(), st.Size}, cur, nil
+	return ownerIdent{int64(st.Ino), mtimeNano(&st), st.Size}, cur, nil
 }
 
 // editOwnerProjects adds (only when missing) or removes (only when present) projects[key] in <home>/.claude.json,
@@ -544,7 +544,7 @@ func editOwnerProjects(home, key string, add bool) (string, error) {
 		if err := syscall.Lstat(path, &st); err != nil {
 			return "", fmt.Errorf("%s vanished: %v", path, err)
 		}
-		if (ownerIdent{int64(st.Ino), st.Mtim.Nano(), st.Size}) != ident {
+		if (ownerIdent{int64(st.Ino), mtimeNano(&st), st.Size}) != ident {
 			continue // a live Claude process rewrote it since our read: merge onto the new content
 		}
 		if err := atomicWrite(home, ".claude.json", jsonIndent1(cur), 0o600); err != nil {
