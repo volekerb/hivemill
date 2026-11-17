@@ -1,4 +1,4 @@
-package main
+package cdp
 
 import (
 	"bufio"
@@ -50,25 +50,25 @@ func TestCDPFramingIDMatchingAndErrors(t *testing.T) {
 		}
 		return nil // Test.silent: never answered
 	})
-	c := newCDP(toBrowserW, fromBrowserR, 200*time.Millisecond)
+	c := NewClient(toBrowserW, fromBrowserR, 200*time.Millisecond)
 	ctx := context.Background()
 
-	got, err := c.call(ctx, "sess-1", "Test.ok", map[string]string{"a": "b"})
+	got, err := c.Call(ctx, "sess-1", "Test.ok", map[string]string{"a": "b"})
 	if err != nil {
 		t.Fatalf("ok call: %v", err)
 	}
 	if !strings.Contains(string(got), `"a":"b"`) || seenSession != "sess-1" {
 		t.Fatalf("reply %s, session seen by the browser %q", got, seenSession)
 	}
-	if _, err := c.call(ctx, "", "Test.fail", nil); err == nil || !strings.Contains(err.Error(), "boom") {
+	if _, err := c.Call(ctx, "", "Test.fail", nil); err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("error reply must become an error naming the message, got %v", err)
 	}
-	if _, err := c.call(ctx, "", "Test.silent", nil); err == nil || !strings.Contains(err.Error(), "no reply") {
+	if _, err := c.Call(ctx, "", "Test.silent", nil); err == nil || !strings.Contains(err.Error(), "no reply") {
 		t.Fatalf("a silent browser must time the call out, got %v", err)
 	}
 	fromBrowserW.Close()
 	time.Sleep(50 * time.Millisecond)
-	if _, err := c.call(ctx, "", "Test.ok", nil); err == nil || !strings.Contains(err.Error(), "closed") {
+	if _, err := c.Call(ctx, "", "Test.ok", nil); err == nil || !strings.Contains(err.Error(), "closed") {
 		t.Fatalf("a closed pipe must fail calls, got %v", err)
 	}
 }
@@ -80,12 +80,12 @@ func TestCDPConcurrentCallsGetTheirOwnReply(t *testing.T) {
 		b, _ := json.Marshal(map[string]any{"id": int(req["id"].(float64)), "result": map[string]any{"m": req["method"]}})
 		return b
 	})
-	c := newCDP(toBrowserW, fromBrowserR, time.Second)
+	c := NewClient(toBrowserW, fromBrowserR, time.Second)
 	errs := make(chan error, 8)
 	for i := 0; i < 8; i++ {
 		m := "M" + string(rune('a'+i))
 		go func() {
-			raw, err := c.call(context.Background(), "", m, nil)
+			raw, err := c.Call(context.Background(), "", m, nil)
 			if err == nil && !strings.Contains(string(raw), `"`+m+`"`) {
 				err = io.ErrUnexpectedEOF
 			}
@@ -104,7 +104,7 @@ func FuzzCDPReadLoop(f *testing.F) {
 	f.Add([]byte("{\"id\":2,\"error\":{\"code\":1,\"message\":\"x\"}}\x00{\"id\":"))
 	f.Add([]byte("\x00\x00not json\x00"))
 	f.Fuzz(func(t *testing.T, data []byte) {
-		c := &cdpClient{pending: map[int]chan cdpReply{}}
+		c := &Client{pending: map[int]chan cdpReply{}}
 		done := make(chan struct{})
 		go func() { c.readLoop(bytes.NewReader(data)); close(done) }()
 		select {
