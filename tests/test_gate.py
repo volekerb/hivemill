@@ -569,15 +569,14 @@ class PlacementTests(FactoryTestCase):
         with self.env.load_factory() as mod:
             os.environ.update(env)
             os.environ["FACTORY_FACTS_NOW"] = "10000"
-            ok, why, _ = mod.gate(mod.db(), role="coder", runtime="claude")
-        self.assertFalse(ok)
-        self.assertIn("would place on workerhost (remote start not enabled yet)", why)
+            ok, why, stats = mod.gate(mod.db(), role="coder", runtime="claude")
+        self.assertTrue(ok, why)  # the extra work is placed on workerhost; hqhost's own floor does not apply there
+        self.assertEqual(stats["machine"], "workerhost")
+        # a spawn that cannot start remotely (TUI host here, not hc) stays on hqhost and is refused there: queued
         p = self.ok("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-inc-on", extra_env=env)
         self.assertIn("QUEUED", p.stdout)
-        self.assertIn("would place on workerhost (remote start not enabled yet)", p.stdout)
+        self.assertIn("hqhost:", p.stdout)
         self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-inc-on'")[0]["status"], "queued")
-        detail = self.env.sql("SELECT detail FROM events WHERE action='place' AND entity_id='zz-inc-on'")[0]["detail"]
-        self.assertIn("workerhost", detail)
 
     def test_placement_shares_follow_nproc(self):
         self.ok("config", "max_live_agents", "28")
@@ -783,9 +782,10 @@ class PlacementTests(FactoryTestCase):
             os.environ.update(self.facts({"mem_mb": 11000, "load1": 0.1, "nproc": 16, "exit": 0}, mem="8000", nproc="8"))
             os.environ["FACTORY_FACTS_NOW"] = "10000"
             con = mod.db()
-            blocked, why, _ = mod.gate(con, role="coder", runtime="claude")
-            self.assertFalse(blocked, why)
-            self.assertIn("would place on workerhost", why)
+            ok, why, stats = mod.gate(con, role="coder", runtime="claude")
+            self.assertTrue(ok, why)  # hqhost's share is full, so the new coder goes to workerhost (T-1586 starts it there)
+            self.assertEqual(stats["machine"], "workerhost")
+            self.assertTrue(any(f.startswith("workers") for f in stats["placement"]["machines"]["hqhost"]["fails"]))
             os.environ["FACTORY_FACTS_NOW"] = "10001"
             ok, why, stats = mod.gate(con, role="coder", runtime="claude", placement_discount="hqhost")
         self.assertTrue(ok, why)

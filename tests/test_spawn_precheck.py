@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from harness import FactoryTestCase, PR_URL
+from harness import FACTORY as FACTORY_BIN, VALID_PR_BODY, FactoryTestCase, PR_URL
 from harness import git as harness_git
 
 BRANCH = "factory/t-0001"
@@ -399,6 +399,305 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.assertEqual(self.pushes(), [])
         self.assertEqual(self.agent("qa"), [])
         self.assertEqual(self.events("refreshed"), [])
+
+
+# ── G-057 T-1586: remote spawn on a worker machine (stub ssh + stub hc, mirror tree for the worker machine) ──
+FWD_STUB = "#!/bin/sh\n[ \"$1\" = --version ] && echo 'hivemill test (forward stub)' && exit 0\nexit 2\n"
+MARK = "zz-fixture-ghcred-7d1e"
+_FORWARD_BIN = {}
+
+
+def built_forwarder():
+    """go/cmd/factory-forward built once per process, or None when no Go toolchain can build this module (a CI shard
+    without setup-go has an older go that refuses go.mod). Any other build error raises."""
+    if "bin" in _FORWARD_BIN:
+        return _FORWARD_BIN["bin"]
+    import atexit
+    import shutil
+    go = shutil.which("go") or os.path.expanduser("~/.local/go/bin/go")
+    out = None
+    if os.access(go, os.X_OK):
+        tmp = tempfile.mkdtemp(prefix="factory-forward-")
+        atexit.register(shutil.rmtree, tmp, True)
+        out = os.path.join(tmp, "factory-forward")
+        p = subprocess.run([go, "build", "-o", out, "./cmd/factory-forward"], cwd=str(Path(__file__).resolve().parent.parent / "go"),
+                           capture_output=True, text=True, timeout=600,
+                           env=dict(os.environ, GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off"))
+        if p.returncode != 0:
+            if "requires go" not in p.stderr and "toolchain" not in p.stderr:
+                raise RuntimeError(f"go build ./cmd/factory-forward failed: {p.stderr.strip()}")
+            out = None
+    _FORWARD_BIN["bin"] = out
+    return out
+
+
+class RemoteSpawnTests(FactoryTestCase):
+    """A coder placed on worker machine workerhost (machine_hq hqhost). ssh runs remote commands in <tmp>/remote-workerhost,
+    a mirror of the test tree; hc records `run --on workerhost`. Never real ssh or hc."""
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        self.origin = e.home / "origin.git"
+        harness_git("init", "-q", "--bare", "-b", "main", str(self.origin), cwd=e.home)
+        self.repo = e.home / "repo"
+        harness_git("clone", "-q", str(self.origin), str(self.repo), cwd=e.home)
+        (self.repo / "a.txt").write_text("a\n")
+        git(self.repo, "add", "a.txt")
+        git(self.repo, "commit", "-q", "-m", "a")
+        git(self.repo, "push", "-q", "origin", "HEAD:main")
+        self.root = e.home / "remote-workerhost"  # workerhost's filesystem: <root>/<same absolute path>
+        rclone = Path(str(self.root) + str(self.repo))
+        rclone.parent.mkdir(parents=True)
+        harness_git("clone", "-q", str(self.origin), str(rclone), cwd=e.home)
+        fwd = e.stub_bin / "factory-forward"
+        fwd.write_text(FWD_STUB)
+        fwd.chmod(0o755)
+        self.fdir = Path(str(self.root) + str(e.user_home / ".local" / "lib" / "hivemill" / "forward"))
+        self.fdir.mkdir(parents=True)
+        (self.fdir / "factory").symlink_to(fwd)
+        e.seed_project("zz-proj")
+        e.sql("UPDATE projects SET repo_path=?, base_branch='main' WHERE id='zz-proj'", (str(self.repo),))
+        e.seed_goal(project="zz-proj")
+        e.seed_team(lead="zz-lead")
+        e.seed_agent("zz-lead", "lead", goal="G-001", team="g-001-a")
+        e.seed_task(status="todo", pr_url=None, team="g-001-a")
+        self.hc_state = e.home / "hc.json"
+        self.hc_state.write_text(json.dumps({"machines": ["workerhost"]}))
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+        self.ok("config", "machine_hq", "hqhost", agent="owner")
+        self.ok("config", "worker_machines", "workerhost", agent="owner")
+        self.hosts = {"workerhost": {"mem_mb": 11000, "load1": 0.1, "nproc": 16, "root": str(self.root)},
+                      "hqhost": {"root": ""}}
+
+    def xenv(self, **extra):
+        return {"FACTORY_MEM_MB": "8000", "FACTORY_NPROC": "8", "FAKE_HC_STATE": str(self.hc_state),
+                "FACTORY_SSH_FACTS": json.dumps(self.hosts), "FAKE_SSH_PREFIX": str(self.env.home), **extra}
+
+    def spawn(self, name="zz-c1", role="coder", **extra):
+        return self.env.run("spawn", role, "--goal", "G-001", "--task", "T-0001", "--name", name, extra_env=self.xenv(**extra))
+
+    def row(self, name):
+        rows = self.env.sql("SELECT status, cwd, spawn_args FROM agents WHERE name=?", (name,))
+        return rows[0] if rows else None
+
+    def hc_runs(self):
+        return [c["argv"] for c in self.env.calls("hc") if c["argv"][:1] == ["run"]]
+
+    def remote(self, path):
+        return Path(str(self.root) + str(path))
+
+    def test_remote_spawn_records_machine_and_starts_hc_on_workerhost(self):
+        p = self.spawn()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("SPAWNED zz-c1", p.stdout)
+        r = self.row("zz-c1")
+        sa = json.loads(r["spawn_args"])
+        self.assertEqual((r["status"], sa["machine"]), ("live", "workerhost"))
+        self.assertTrue(sa["hc_address"].startswith("workerhost/t"), sa)
+        runs = self.hc_runs()
+        self.assertEqual(len(runs), 1, runs)
+        self.assertEqual(runs[0][runs[0].index("--on") + 1], "workerhost")
+        wt = self.env.home_dir / "worktrees" / "G-001-T-0001"
+        self.assertEqual(r["cwd"], str(wt))
+        self.assertEqual(runs[0][runs[0].index("--cwd") + 1], str(wt))
+        self.assertFalse(wt.exists())  # the worktree is on workerhost only
+        rwt = self.remote(wt)
+        self.assertEqual(git(rwt, "rev-parse", "--abbrev-ref", "HEAD"), "factory/t-0001")
+        script = Path(runs[0][-1])
+        self.assertEqual(self.remote(script).read_text(), script.read_text())  # the copy hc runs is this exact file
+        self.assertIn(str(self.env.user_home / ".local" / "lib" / "hivemill" / "forward") + ":", script.read_text())
+        self.assertTrue(self.remote(self.env.home_dir / "run" / "zz-c1.prompt.md").is_file())
+        sends = [c["argv"] for c in self.env.calls("hc") if c["argv"][:1] == ["send"]]
+        self.assertEqual([s[1] for s in sends], [sa["hc_address"]])  # the kickoff goes to workerhost/tN, not the bare name
+        self.assertEqual(self.env.sql("SELECT worktree FROM tasks WHERE id='T-0001'")[0]["worktree"], str(wt))
+
+    def test_remote_unreachable_machine_falls_back_with_one_alert(self):
+        self.hosts["workerhost"] = {"exit": 255}
+        for name in ("zz-u1", "zz-u2"):
+            p = self.spawn(name)
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            self.assertIn(f"SPAWNED {name}", p.stdout)
+            self.assertNotIn("machine", json.loads(self.row(name)["spawn_args"]))
+        self.assertTrue(all("--on" not in a for a in self.hc_runs()))
+        msgs = self.env.sql("SELECT recipient, kind, subject FROM messages WHERE subject LIKE '%workerhost unreachable%'")
+        self.assertEqual(len(msgs), 1, msgs)  # the second spawn within 30 min adds none
+        self.assertEqual((msgs[0]["kind"], msgs[0]["subject"]), ("alert", "workerhost unreachable: workers fall back to hqhost"))
+        self.assertTrue(msgs[0]["recipient"].endswith("director"), msgs[0]["recipient"])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='machine-unreachable'")), 1)
+
+    def test_remote_hc_machine_missing_falls_back(self):
+        self.hc_state.write_text(json.dumps({"machines": []}))
+        p = self.spawn()
+        self.assertIn("SPAWNED zz-c1", p.stdout)
+        self.assertNotIn("machine", json.loads(self.row("zz-c1")["spawn_args"]))
+        self.assertTrue(all("--on" not in a for a in self.hc_runs()))
+        body = self.env.sql("SELECT body FROM messages WHERE subject LIKE 'workerhost unreachable%'")[0]["body"]
+        self.assertIn("hc machine ls does not list workerhost", body)
+
+    def test_remote_preflight_failure_after_worktree_starts_nothing_on_machine(self):
+        self.hosts["workerhost"]["fail_on"] = ["chmod 700"]  # the spawn-script copy fails, after the remote worktree
+        p = self.spawn()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("SPAWNED zz-c1", p.stdout)
+        self.assertTrue(self.remote(self.env.home_dir / "worktrees" / "G-001-T-0001").is_dir())  # the worktree step ran
+        self.assertNotIn("machine", json.loads(self.row("zz-c1")["spawn_args"]))
+        self.assertTrue(all("--on" not in a for a in self.hc_runs()))  # no terminal on workerhost
+        self.assertEqual(len(self.hc_runs()), 1)  # started once, on hqhost
+        live = [r for r in self.env.sql("SELECT spawn_args FROM agents WHERE status='live'")
+                if json.loads(r["spawn_args"] or "{}").get("machine")]
+        self.assertEqual(live, [])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='machine-unreachable'")), 1)
+
+    def test_remote_hq_roles_never_start_on_machine(self):
+        self.env.sql("UPDATE tasks SET status='in_review', pr_url=? WHERE id='T-0001'", (PR_URL,))
+        env = self.xenv(FACTORY_MEM_MB="2000")  # hqhost below the claude floor: workerhost is the only machine with room
+        for role in ("boss", "director", "lead", "judge", "pm"):
+            args = {"lead": ["--team", "g-001-a"], "judge": ["--task", "T-0001"], "pm": ["--goal", "G-001"]}.get(role, [])
+            self.env.run("spawn", role, *args, "--name", f"zz-hq-{role}", extra_env=env)
+            sa = json.loads((self.row(f"zz-hq-{role}") or {"spawn_args": "{}"})["spawn_args"] or "{}")
+            self.assertNotIn("machine", sa, role)
+        self.assertEqual([a for a in self.hc_runs() if "--on" in a], [])
+        self.assertEqual(self.env.calls("ssh") and [c for c in self.env.calls("ssh") if "factory --version" in " ".join(c["argv"])], [])
+        p = self.ok("spawn", "--help")
+        self.assertEqual(p.stdout.count("--machine"), 0)
+        with self.env.load_factory() as mod:
+            os.environ.update(env)
+            with self.assertRaises(SystemExit) as cm:  # a caller handing spawn a worker machine for a judge: refused
+                mod._spawn_start(mod.db(), "judge", "G-001", None, "T-0001", "zz-hq-x", None, None, None, None, None, None,
+                                 {"org": "claude"}, {"machine": "workerhost", "live": 0})
+            self.assertEqual(cm.exception.code, 3)
+
+    def test_remote_off_by_default_no_ssh_and_same_hc_calls_as_origin_main(self):
+        self.env.sql("DELETE FROM config WHERE key='worker_machines'")
+        p = self.spawn("zz-off")
+        self.assertIn("SPAWNED zz-off", p.stdout)
+        self.assertEqual(self.env.calls("ssh"), [])
+        self.assertNotIn("machine", json.loads(self.row("zz-off")["spawn_args"]))
+        ours = [c["argv"] for c in self.env.calls("hc")]
+        origin = Path(__file__).resolve().parent.parent / "bin" / "_factory_cli_origin_main_t1586.py"
+        self.addCleanup(origin.unlink, missing_ok=True)
+        body = subprocess.check_output(["git", "show", "origin/main:bin/factory_cli.py"], cwd=Path(__file__).resolve().parent.parent)
+        origin.write_bytes(body + b"\nmain()\n")
+        self.env.sql("DELETE FROM agents WHERE name='zz-off'")
+        self.env.sql("UPDATE tasks SET worktree=NULL, branch=NULL WHERE id='T-0001'")
+        git(self.repo, "worktree", "remove", "--force", str(self.env.home_dir / "worktrees" / "G-001-T-0001"))
+        git(self.repo, "branch", "-D", "factory/t-0001")
+        self.env.calls_file.write_text("")
+        import sys as _sys
+        q = subprocess.run([_sys.executable, str(origin), "spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-off"],
+                           capture_output=True, text=True, env=self.env.env(extra=self.xenv()), cwd=self.env.home, timeout=60)
+        self.assertEqual(q.returncode, 0, q.stderr)
+        self.assertEqual([c["argv"] for c in self.env.calls("hc")], ours)
+        self.assertEqual(self.env.calls("ssh"), [])
+
+    def test_remote_secret_token_copied_0600_and_never_logged(self):
+        e = self.env
+        tdir = e.user_home / ".config" / "factory"
+        tdir.mkdir(parents=True)
+        tok = tdir / "gh-worker-rw-token"
+        tok.write_text(MARK + "\n")
+        tok.chmod(0o600)
+        self.ok("config", "worker_gh_repos", "zz-owner/zz-repo")
+        self.ok("config", "worker_gh_roles", "coder")
+        self.ok("config", "gh_rw_roles", "coder")
+        p = self.spawn()
+        self.assertIn("SPAWNED zz-c1", p.stdout, p.stderr)
+        self.assertEqual(json.loads(self.row("zz-c1")["spawn_args"])["machine"], "workerhost")
+        rtok = self.remote(tok)
+        self.assertEqual(rtok.read_text(), MARK + "\n")
+        self.assertEqual(stat.S_IMODE(rtok.stat().st_mode), 0o600)
+        self.assertTrue(self.remote(e.user_home / ".local" / "state" / "factory" / "ghcred" / "zz-c1" / "gitconfig").is_file())
+        self.assertNotIn(MARK, p.stdout + p.stderr)
+        for table in ("events", "messages"):
+            for r in e.sql(f"SELECT * FROM {table}"):
+                self.assertNotIn(MARK, json.dumps(dict(r)), table)
+        hits = subprocess.run(["grep", "-rlF", MARK, str(e.home_dir), str(e.calls_file)], capture_output=True, text=True)
+        self.assertEqual(hits.stdout.strip(), "")  # not in run/, logs, exports or the call log (the ssh argv)
+
+    def test_remote_legacy_row_without_machine_relaunch_and_reap_unchanged(self):
+        """A row with no spawn_args.machine is on machine_hq: the tick lists it by its bare name and relaunch starts it
+        there, with worker_machines set. A remote row stays live while hc lists workerhost/<name> and is lost when not."""
+        e = self.env
+        e.seed_agent("zz-legacy", "reviewer", goal="G-001", pane_id="zz-legacy")
+        e.sql("UPDATE agents SET spawn_args=?, session_id='sess-zz-legacy' WHERE name='zz-legacy'",
+              (json.dumps({"host_backend": "hc"}),))
+        e.seed_agent("zz-remote", "coder", goal="G-001", pane_id="zz-remote")
+        e.sql("UPDATE agents SET spawn_args=? WHERE name='zz-remote'",
+              (json.dumps({"host_backend": "hc", "machine": "workerhost", "hc_address": "workerhost/t9"}),))
+        st = json.loads(self.hc_state.read_text())
+        st["agents"] = [{"name": "zz-legacy", "agent": "claude", "agent_status": "working"},
+                        {"name": "zz-remote", "agent": "claude", "agent_status": "working", "address": "workerhost/t9"}]
+        self.hc_state.write_text(json.dumps(st))
+        self.ok("tick", agent="owner", extra_env=self.xenv())
+        status = {r["name"]: r["status"] for r in e.sql("SELECT name, status FROM agents")}
+        self.assertEqual((status["zz-legacy"], status["zz-remote"]), ("live", "live"))
+        st["agents"] = st["agents"][:1]
+        self.hc_state.write_text(json.dumps(st))
+        self.ok("tick", agent="owner", extra_env=self.xenv())
+        status = {r["name"]: r["status"] for r in e.sql("SELECT name, status FROM agents")}
+        self.assertEqual((status["zz-legacy"], status["zz-remote"]), ("live", "lost"))
+        e.calls_file.write_text("")
+        p = e.run("relaunch", "zz-legacy", "--fresh", "--force", agent="owner", extra_env=self.xenv(FACTORY_MEM_MB="20000", FACTORY_NPROC="64"))
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("machine", json.loads(self.row("zz-legacy")["spawn_args"]))
+        self.assertEqual([a for a in self.hc_runs() if "--on" in a], [])
+
+    def test_remote_worker_factory_roundtrip(self):
+        """SC1: a coder placed on workerhost, then its `factory` calls go through the forwarder (the built binary in client
+        mode over the ssh stub when Go can build it, else the server's exact env) and land in this DB."""
+        e = self.env
+        p = self.spawn("zz-rc")
+        self.assertIn("SPAWNED zz-rc", p.stdout, p.stderr)
+        e.seed_agent("zz-rr", "reviewer", goal="G-001", task="T-0001")
+        e.sql("UPDATE agents SET spawn_args=? WHERE name='zz-rr'", (json.dumps({"machine": "workerhost"}),))
+        for twin, role in (("zz-lc", "coder"), ("zz-lr", "reviewer")):  # the same calls run locally, for the exit codes
+            e.seed_agent(twin, role, goal="G-001", task="T-0001")
+        e.sql("UPDATE tasks SET status='in_review', pr_url=? WHERE id='T-0001'", (PR_URL,))
+        e.seed_pr(body=VALID_PR_BODY)
+        # the forwarder server passes only its base env to the CLI: the stubs it reaches get their state paths baked in
+        import sys as _sys
+        for tool, state in (("gh", e.gh_state), ("hc", self.hc_state), ("herdr", e.herdr_state)):
+            src = e.stub_bin / f"{tool}.real"
+            (e.stub_bin / tool).rename(src)
+            var = {"gh": "FAKE_GH_STATE", "hc": "FAKE_HC_STATE", "herdr": "FAKE_HERDR_STATE"}[tool]
+            (e.stub_bin / tool).write_text(f'#!/bin/sh\n{var}={state} FAKE_HERDR_STATE={e.herdr_state} '
+                                           f'FAKE_CALLS={e.calls_file} exec {_sys.executable} {src} "$@"\n')
+            (e.stub_bin / tool).chmod(0o755)
+        fbin = built_forwarder()
+        cfg = e.home / "forward.json"
+        cfg.write_text(json.dumps({"hq_host": "hqhost", "remote_receiver": fbin or "/x", "factory_bin": str(FACTORY_BIN),
+                                   "path_map": []}))
+
+        def forwarded(agent, role, *argv, stdin=None):
+            if fbin:  # worker side: the forwarder client; ssh (stub) runs `<receiver> --serve` for hqhost
+                env = {**e.env(), **self.xenv(), "FORWARD_CONFIG": str(cfg), "FACTORY_AGENT": agent, "FACTORY_ROLE": role}
+                return subprocess.run([fbin, *argv], input=stdin, capture_output=True, text=True, env=env, cwd=e.home, timeout=120)
+            base = {k: v for k, v in e.env().items() if k in ("PATH", "HOME", "LANG", "LC_ALL", "TZ", "FACTORY_HOME")}
+            env = {**base, "FACTORY_AGENT": agent, "FACTORY_ROLE": role, "FACTORY_FORWARDED": "1"}
+            return subprocess.run([str(FACTORY_BIN), *argv], input=stdin, capture_output=True, text=True, env=env,
+                                  cwd=e.home, timeout=120)
+
+        def local(agent, role, *argv, stdin=None):
+            return e.run(*argv, agent=agent, stdin=stdin, extra_env={"FACTORY_ROLE": role, **self.xenv()})
+
+        calls = [("zz-rc", "zz-lc", "coder", ("inbox",), None),
+                 ("zz-rc", "zz-lc", "coder", ("msg", "lead:g-001-a", "zz-fwd-subject", "zz-fwd-body"), None),
+                 ("zz-rr", "zz-lr", "reviewer", ("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "zz-fwd-verdict"), None),
+                 ("zz-rc", "zz-lc", "coder", ("msg",), None),
+                 ("zz-rc", "zz-lc", "coder", ("done", "-"), "zz-fwd-done line one\nline two\n")]
+        for remote_agent, twin, role, argv, stdin in calls:
+            f = forwarded(remote_agent, role, *argv, stdin=stdin)
+            loc = local(twin, role, *argv, stdin=stdin)
+            self.assertEqual(f.returncode, loc.returncode, f"{argv}: forwarded {f.stderr} / local {loc.stderr}")
+            self.assertEqual(f.returncode, 2 if argv == ("msg",) else 0, f"{argv}: {f.stdout}{f.stderr}")
+        self.assertEqual(len(e.sql("SELECT 1 FROM messages WHERE sender='zz-rc' AND subject='zz-fwd-subject'")), 1)
+        self.assertEqual(len(e.sql("SELECT 1 FROM verdicts WHERE author='zz-rr' AND summary LIKE 'zz-fwd-verdict%'")), 1)
+        if fbin:  # the calls really went client -> ssh -> `factory-forward --serve` -> bin/factory
+            self.assertEqual(len([c for c in e.calls("ssh") if "hqhost" in c["argv"] and "--serve" in c["argv"]]), len(calls))
+        done = e.sql("SELECT status, summary FROM agents WHERE name='zz-rc'")[0]
+        self.assertEqual(done["status"], "done")
+        self.assertIn("line two", done["summary"])
 
 
 if __name__ == "__main__":
