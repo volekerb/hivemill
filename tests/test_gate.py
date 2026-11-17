@@ -629,7 +629,7 @@ class TmpGate(FactoryTestCase):
                     mock.patch.dict(os.environ, {"FACTORY_TMP_STATVFS": f"{500 * 2**30},{100 * 2**30}"}):
                 u = mod.tmp_usage()
         self.assertEqual(u["fstype"], "apfs")
-        self.assertEqual(runner.named("stat")[0], ["stat", "-f", "%T", "/private/tmp"])
+        self.assertEqual(runner.named("stat")[0], ["/usr/bin/stat", "-f", "%T", "/private/tmp"])
         self.assertEqual((u["total_mb"], u["free_mb"]), (500 * 1024, 100 * 1024))
 
     def test_r5_unreadable_stat_is_unknown_fstype_not_a_crash(self):
@@ -676,7 +676,7 @@ class ProcIdentity(FactoryTestCase):
             self.assertEqual(sorted(mod._scan_claude()), [600, 700])
             self.assertEqual(mod._scan_claude()[600][1], 500)
         ps_calls = runner.named("ps")
-        self.assertTrue(all(c == ["ps", "-axo", "pid=,ppid=,uid=,lstart=,command="] for c in ps_calls))
+        self.assertTrue(all(c == ["/bin/ps", "-axo", "pid=,ppid=,uid=,lstart=,command="] for c in ps_calls))
 
     def test_r9_ps_runs_with_lc_all_c(self):
         seen = {}
@@ -719,6 +719,52 @@ class ProcIdentity(FactoryTestCase):
             snap = mod._darwin_ps()
             self.assertIn(700, snap)
             self.assertEqual(mod._ancestry_worker(), "coder")
+
+    def test_ancestry_settings_match_is_anchored_on_the_settings_flag(self):
+        ps = f"""  {os.getpid()}   600   501 {DARWIN_START_500} python3 factory tick
+  600   1   501 {DARWIN_START_500} claude -p read /h/settings/coder.json --settings /h/settings/lead.json
+"""
+        with self.darwin_platform(DarwinSubprocessRunner(ps=ps)) as (mod, _r):
+            self.assertIsNone(mod._ancestry_worker())  # a free-form arg naming coder.json is not the settings file
+        ps = f"""  {os.getpid()}   600   501 {DARWIN_START_500} python3 factory tick
+  600   1   501 {DARWIN_START_500} claude --settings=/h/settings/qa.json --resume x
+"""
+        with self.darwin_platform(DarwinSubprocessRunner(ps=ps)) as (mod, _r):
+            self.assertEqual(mod._ancestry_worker(), "qa")
+
+    def test_darwin_tools_run_by_absolute_path_with_fixed_path_env(self):
+        r = DarwinSubprocessRunner(top="  2048 /usr/bin/big\n")
+        with self.darwin_platform(r, PATH="/evil/bin:" + os.environ.get("PATH", ""),
+                                  FACTORY_TMP_STATVFS=f"{2**30},{2**29}") as (mod, runner):
+            seen = []
+
+            def spy(cmd, *a, **kw):
+                seen.append((cmd[0], (kw.get("env") or {}).get("PATH")))
+                return runner(cmd, *a, **kw)
+            with mock.patch.object(mod.subprocess, "run", spy):
+                mod._darwin_ps()
+                mod._darwin_mem_available_mb()
+                mod.tmp_usage()
+        tools = {c: p for c, p in seen if os.path.basename(c) in ("ps", "vm_stat", "sysctl", "stat")}
+        self.assertEqual(sorted(tools), ["/bin/ps", "/usr/bin/stat", "/usr/bin/vm_stat", "/usr/sbin/sysctl"])
+        for c, p in tools.items():
+            self.assertEqual(p, "/usr/bin:/bin:/usr/sbin:/sbin", c)
+
+    def test_fake_ps_first_on_path_is_ignored(self):
+        """T-1568 S1: a worker puts a fake `ps` first on PATH to forge a non-worker ancestry; the real ps runs."""
+        if not os.access("/bin/ps", os.X_OK):
+            self.skipTest("/bin/ps not present on this host")
+        d = Path(self.env.home) / "evilbin"
+        d.mkdir()
+        marker = d / "ran"
+        (d / "ps").write_text(f"#!/bin/sh\ntouch {marker}\necho '  {os.getpid()}  1  0 Sat Nov 15 21:20:43 2026 init'\n")
+        (d / "ps").chmod(0o755)
+        with mock.patch.dict(os.environ, {"PATH": f"{d}:{os.environ.get('PATH', '')}"}), \
+                self.env.load_factory() as mod, mock.patch.object(mod.sys, "platform", "darwin"):
+            snap = mod._darwin_ps()  # the real subprocess.run: only the PATH lookup is under test
+        self.assertFalse(marker.exists(), "the PATH-resolved fake ps ran")
+        self.assertIsNotNone(snap)
+        self.assertEqual(snap[os.getpid()]["ppid"], os.getppid())  # the real tree, not the forged ppid 1
 
 
 
@@ -783,7 +829,7 @@ class ResOutput(FactoryTestCase):
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 mod.cmd_res(argparse.Namespace())
-        self.assertIn(["ps", "-axo", "rss=,command=", "-m"], runner.named("ps"))
+        self.assertIn(["/bin/ps", "-axo", "rss=,command=", "-m"], runner.named("ps"))
         self.assertNotIn("--sort=-rss", str(runner.calls))
         self.assertIn("serve unit drift check: skipped on macOS", out.getvalue())
         self.assertIn("2 MB  /usr/bin/big", out.getvalue())
@@ -823,7 +869,7 @@ class TickDeadline(FactoryTestCase):
 
     def test_deadline_aborts_remaining_phases_with_event_and_returns(self):
         ran, ev = self.run_tick("1s")
-        self.assertEqual(ran, ["slow"])  # 'after' and 'emit' were not run
+        self.assertEqual(ran, ["slow", "emit"])  # 'after' was not run; the phase timers are still emitted
         self.assertEqual(len(ev), 1)
         self.assertIn("before phase after", ev[0]["detail"])
 
@@ -841,6 +887,11 @@ class TickDeadline(FactoryTestCase):
         p = self.env.run("tick", "--deadline", "soon")
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
         self.assertIn("not a positive duration", p.stderr + p.stdout)
+
+    def test_deadline_with_phases_is_refused_exit_2(self):
+        p = self.env.run("tick", "--phases", "emit", "--deadline", "240s")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("--deadline is not supported with --phases", p.stderr + p.stdout)
 
     def test_deadline_flag_hidden_from_help_but_accepted(self):
         p = self.env.run("tick", "--help")

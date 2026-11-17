@@ -747,6 +747,9 @@ class DarwinSubprocessRunner:
     def __call__(self, cmd, *a, **kw):
         self.calls.append(list(cmd) if isinstance(cmd, (list, tuple)) else cmd)
         name = cmd[0] if isinstance(cmd, (list, tuple)) else ""
+        if name in ("ps", "vm_stat", "sysctl", "stat"):  # PATH-resolved: a worker could shadow it (T-1568 S1)
+            raise AssertionError(f"{name} must run by absolute path on darwin: {cmd}")
+        name = {"/bin/ps": "ps", "/usr/bin/vm_stat": "vm_stat", "/usr/sbin/sysctl": "sysctl", "/usr/bin/stat": "stat"}.get(name, name)
         if name == "ps":
             if "rss=,command=" in cmd:
                 return _darwin_cp(self.top)
@@ -762,7 +765,7 @@ class DarwinSubprocessRunner:
         return self.real(cmd, *a, **kw)
 
     def named(self, name):
-        return [c for c in self.calls if c and c[0] == name]
+        return [c for c in self.calls if c and os.path.basename(c[0]) == name]
 
 
 class FactoryTestCase(unittest.TestCase):

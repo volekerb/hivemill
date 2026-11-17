@@ -975,14 +975,20 @@ def _darwin_cmd_head_claude(command):
             and os.path.basename(parts[1]) == "claude")
 
 
+# macOS tools by absolute path with a fixed PATH: a worker could put a fake `ps` first on its PATH and forge the process
+# ancestry refuse_worker trusts (T-1568 reviewer S1). These are the stock, SIP-protected macOS locations.
+DARWIN_PS, DARWIN_VM_STAT, DARWIN_SYSCTL, DARWIN_STAT = "/bin/ps", "/usr/bin/vm_stat", "/usr/sbin/sysctl", "/usr/bin/stat"
+DARWIN_TOOL_ENV = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C"}
+
+
 def _darwin_ps():
     """macOS (no /proc): {pid: {"ppid","uid","lstart","command","argv"}} from ONE `ps -axo pid=,ppid=,uid=,lstart=,command=`
     (LC_ALL=C), or None when ps cannot be read (callers then keep the pid: never reaped, T-1568 ADR 0003 4.4).
     `command` is the full ps tail (spaces preserved); `argv` is shlex-split for callers that need a list — paths with
     spaces in --settings are matched on `command` via regex, not argv."""
     try:
-        r = subprocess.run(["ps", "-axo", "pid=,ppid=,uid=,lstart=,command="], capture_output=True, text=True, timeout=15,
-                           env={**os.environ, "LC_ALL": "C"})
+        r = subprocess.run([DARWIN_PS, "-axo", "pid=,ppid=,uid=,lstart=,command="], capture_output=True, text=True,
+                           timeout=15, env=dict(DARWIN_TOOL_ENV))
     except (OSError, subprocess.SubprocessError):
         return None
     if r.returncode != 0:
@@ -1033,7 +1039,8 @@ def _ancestry_worker():
         is_claude = _darwin_cmd_head_claude(cmd) if sys.platform == "darwin" else any(os.path.basename(x) == "claude" for x in argv[:3])
         if is_claude:
             if sys.platform == "darwin":
-                m = re.search(r"/settings/([\w-]+)\.json", cmd)
+                # the first --settings value (may hold spaces), ending in /settings/<role>.json: Linux matches the same
+                m = re.search(r"--settings[= ]\S.*?/settings/([\w-]+)\.json(?=\s|$)", cmd)
                 if m and m.group(1) in WORKER_ROLES:
                     return m.group(1)
                 return None
@@ -2490,8 +2497,9 @@ def _darwin_mem_available_mb():
     """macOS MemAvailable in MB, the T-1562 formula: (free + inactive + speculative pages) x page size, and any memory
     pressure level other than 1 (normal) closes the gate (returns 0). Unreadable = 0 = gate closed."""
     try:
-        vm = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=10, env={**os.environ, "LC_ALL": "C"})
-        lvl = subprocess.run(["sysctl", "-n", "kern.memorystatus_vm_pressure_level"], capture_output=True, text=True, timeout=10)
+        vm = subprocess.run([DARWIN_VM_STAT], capture_output=True, text=True, timeout=10, env=dict(DARWIN_TOOL_ENV))
+        lvl = subprocess.run([DARWIN_SYSCTL, "-n", "kern.memorystatus_vm_pressure_level"], capture_output=True, text=True,
+                             timeout=10, env=dict(DARWIN_TOOL_ENV))
         if vm.returncode != 0 or lvl.returncode != 0 or lvl.stdout.strip() != "1":
             return 0
         m = re.search(r"page size of (\d+) bytes", vm.stdout)
@@ -2544,8 +2552,8 @@ def tmp_usage():
     if sys.platform == "darwin":
         # statvfs does not name the fs type on macOS: `stat -f %T <tmp>` (apfs, hfs, tmpfs...) T-1568 R5
         try:
-            r = subprocess.run(["stat", "-f", "%T", "/private/tmp" if str(tmp_dir()) == "/tmp" else str(tmp_dir())],
-                               capture_output=True, text=True, timeout=10)
+            r = subprocess.run([DARWIN_STAT, "-f", "%T", "/private/tmp" if str(tmp_dir()) == "/tmp" else str(tmp_dir())],
+                               capture_output=True, text=True, timeout=10, env=dict(DARWIN_TOOL_ENV))
             fstype = (r.stdout.strip() or None) if r.returncode == 0 else None
         except (OSError, subprocess.SubprocessError):
             fstype = None
@@ -15368,7 +15376,8 @@ def cmd_res(a):
     print(f"owner-only blockers: {len(ob)}" + "".join(f"\n  {b['text']} (open {b['age_min']} min)" for b in ob))
     if sys.platform == "darwin":
         print("serve unit drift check: skipped on macOS (no systemd unit)")
-        top = subprocess.run(["ps", "-axo", "rss=,command=", "-m"], capture_output=True, text=True).stdout.splitlines()[:5]
+        top = subprocess.run([DARWIN_PS, "-axo", "rss=,command=", "-m"], capture_output=True, text=True,
+                             env=dict(DARWIN_TOOL_ENV)).stdout.splitlines()[:5]
     else:
         top = subprocess.run(["ps", "-eo", "rss,args", "--sort=-rss"], capture_output=True, text=True).stdout.splitlines()[1:6]
     print("top memory:")
@@ -16624,6 +16633,8 @@ def cmd_tick(a, locked=False):
     refuse_worker("tick")
     phases = getattr(a, "phases", None)
     if isinstance(phases, str):
+        if _tick_deadline_at(getattr(a, "deadline", None)) is not None:
+            die("--deadline is not supported with --phases (each phase call is short); drop --deadline", 2)
         _cmd_tick_phases(phases)
         return
     lock = None if locked else tick_lock()  # noqa: F841 — held until exit
@@ -16634,6 +16645,7 @@ def cmd_tick(a, locked=False):
         if deadline is not None and con is not None and time.monotonic() >= deadline:
             event_as(con, "tick", "tick", "tick-deadline", "tick-deadline", f"stopped before phase {u}: --deadline {a.deadline} reached")
             con.commit()
+            _tick_u_emit(con, st)  # the phase timers of the phases that did run are still recorded
             return
         if u == "migrate_db":
             con = _tick_u_migrate_db(con, st)

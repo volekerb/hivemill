@@ -18,6 +18,11 @@ Unknown means closed: a failing `vm_stat`, `sysctl` or `stat` closes the gate; a
 The serve and orphan reapers do nothing on macOS (cwd, environ and open fds are not readable without `/proc`), and
 `_proc_holds` returns "unknown" so no temp dir is deleted while it might be in use.
 
+The macOS tools run by absolute path (`/bin/ps`, `/usr/bin/vm_stat`, `/usr/sbin/sysctl`, `/usr/bin/stat`) with a fixed
+`PATH=/usr/bin:/bin:/usr/sbin:/sbin`: `refuse_worker` trusts the `ps` process tree, so a fake `ps` first on a worker's
+`PATH` must not be able to forge it. The worker role is read from the first `--settings` value in the claude command.
+
 `factory tick --deadline <duration>` (`240s`, `4m`, `1h`, bare seconds): once the deadline has passed, the tick starts no
-further phase, records event `tick-deadline` and exits 0. The launchd job passes `--deadline 240s`; without the flag nothing
-changes. Tests: `tests/test_gate.py` (T-1568 darwin sections).
+further phase, records event `tick-deadline`, still emits the phase timers of the phases that ran, and exits 0. The planned
+launchd job (T-1561) is to pass `--deadline 240s`; without the flag nothing changes. `--deadline` with `--phases` is refused
+(exit 2). Tests: `tests/test_gate.py` (T-1568 darwin sections).
