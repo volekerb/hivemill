@@ -10,6 +10,7 @@ All text here is factory-authored; nothing is copied from third parties.
 - `utilization`: measure utilization, check goal starvation, report the utilization line (G-018 rules R1-R6).
 - `cycle-procedures`: detail text moved verbatim out of director.md to fit the role budget.
 - `restriction-check`: list every automated writer before proposing a restriction (M733).
+- `lanes-and-holds`: lane rules L1-L4 (lane-check before blocking a task for a file) and judge hold rules H1-H5 (G-058).
 
 ## Adding a skill
 Add `factory-director/skills/<name>/SKILL.md` with front matter `name:` (equal to the directory name) and `description:` (what it does, plus a "Use when ..." trigger).
