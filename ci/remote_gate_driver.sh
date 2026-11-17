@@ -3,6 +3,8 @@
 #   remote_gate_driver.sh <run dir> <head sha> <base sha> <shards>
 #   remote_gate_driver.sh --plan     print the step plan (no work)
 #   remote_gate_driver.sh --jobs <cores> <shards> <meminfo file>   print the job cap (no work)
+#   remote_gate_driver.sh --pick-root <socket tail> <dir>...        print the run root (no work; remote_gate.sh pipes this
+#                                                                   file into `bash -s` before the run dir exists)
 # <run dir> holds head/ (the tracked files of HEAD), base/ (git archive of the base) and trusted/ (this file, gate_shards.py,
 # test_count_gate.py). Everything the run writes stays under <run dir>, which is removed on every exit path; only the
 # shared Go module and build caches live outside it (~/go/pkg/mod, ~/.cache/factory-gate/go-build).
@@ -33,6 +35,45 @@ job_cap() {  # job_cap CORES SHARDS MEMINFO: how many jobs run at once
   [ "$n" -lt 1 ] && n=1
   echo "$n"
 }
+# pick_root TAIL CANDIDATE...: the run root for <root>/fg-XXXXXX (T-1679). The first candidate that is a writable dir on
+# disk (not tmpfs/ramfs: a gate run writes ~1 GB, which on a RAM-backed /tmp starves the box) and short enough that
+# <root>/fg-XXXXXX/tmp plus TAIL chars of socket path under TMPDIR fits a unix socket path (107 bytes + NUL).
+# No disk-backed candidate: the last usable one, with a warning.
+pick_root() {
+  local tail=$1 c fs last=
+  shift
+  for c in "$@"; do
+    if [ ! -d "$c" ] || [ ! -w "$c" ] || [ ! -x "$c" ]; then
+      echo "remote-gate-driver: run root $c skipped: not a writable dir" >&2; continue
+    fi
+    if [ $(( ${#c} + ${#RUN_DIR_SUFFIX} + tail )) -gt 107 ]; then
+      echo "remote-gate-driver: run root $c skipped: $c$RUN_DIR_SUFFIX + $tail chars exceeds a unix socket path" >&2
+      continue
+    fi
+    if ! fs=$(stat -f -c %T -- "$c"); then
+      echo "remote-gate-driver: run root $c skipped: cannot read its file system type" >&2; continue
+    fi
+    last=$c
+    case "$fs" in
+      tmpfs|ramfs) echo "remote-gate-driver: run root $c skipped: $fs is RAM-backed" >&2 ;;
+      *) echo "$c"; return 0 ;;
+    esac
+  done
+  if [ -n "$last" ]; then
+    echo "remote-gate-driver: WARNING: no disk-backed run root among: $*; using $last (RAM-backed)" >&2
+    echo "$last"; return 0
+  fi
+  echo "remote-gate-driver: no usable run root among: $* (need a writable dir whose path fits a unix socket)" >&2
+  return 2
+}
+RUN_DIR_SUFFIX=/fg-XXXXXX/tmp
+if [ "${1-}" = --pick-root ]; then
+  [ "$#" -ge 3 ] || { echo "remote-gate-driver: usage: --pick-root <socket tail chars> <candidate dir>..." >&2; exit 2; }
+  case "$2" in ''|*[!0-9]*) echo "remote-gate-driver: --pick-root socket tail must be an integer" >&2; exit 2 ;; esac
+  shift
+  pick_root "$@"
+  exit
+fi
 if [ "${1-}" = --jobs ]; then
   [ "$#" -eq 4 ] || { echo "remote-gate-driver: usage: --jobs <cores> <shards> <meminfo file>" >&2; exit 2; }
   case "$2" in ''|*[!0-9]*) echo "remote-gate-driver: --jobs cores must be an integer" >&2; exit 2 ;; esac
@@ -114,11 +155,14 @@ go_root=
 for g in "$real_home/.local/go" /usr/local/go /usr/lib/go; do
   if [ -x "$g/bin/go" ]; then go_root=$(cd "$g" && pwd -P); break; fi
 done
-export HOME="$run/home" TMPDIR="$run/tmp" FACTORY_HOME="$run/factory-home" GATE_REPORT_DIR="$run/reports"
+export HOME="$run/home" TMPDIR="$run/tmp" GOTMPDIR="$run/tmp" FACTORY_HOME="$run/factory-home" GATE_REPORT_DIR="$run/reports"
 export FACTORY_TEST_SLOT_HELD=1 GATE_SHARDS="$shards" GOMAXPROCS="$cores" GOTOOLCHAIN=local LANG=C.UTF-8
 export GOPATH="$real_home/go" GOMODCACHE="$real_home/go/pkg/mod" GOCACHE="$real_home/.cache/factory-gate/go-build"
 export PATH="${go_root:+$go_root/bin:}/usr/local/bin:/usr/bin:/bin"
 mkdir -p "$HOME/.local" "$TMPDIR" "$FACTORY_HOME" "$GATE_REPORT_DIR" "$GOCACHE" "$run/logs"
+# Traverse-only for others (mktemp made the run dir 0700): the subuid sandbox tests (tests/test_testbox.py SubuidBox)
+# run as another host uid that must reach their temp dirs under TMPDIR by other-x, as under CI's /tmp (1777).
+chmod 0711 "$run" "$TMPDIR"
 # tests/test_guard_build.py trusts only ~/.local/go/bin/go (CI symlinks the setup-go root the same way).
 [ -n "$go_root" ] && ln -sfn "$go_root" "$HOME/.local/go"
 git_id=(-c user.name=remote-gate -c user.email=gate@example.invalid -c commit.gpgsign=false)

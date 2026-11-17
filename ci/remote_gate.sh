@@ -48,7 +48,8 @@
 #
 # Env: GATE_REMOTE_HOST (ssh host, or `local` to run here without ssh; required), GATE_SHARDS (runner; capped at 8), GATE_BASE (base rev; default the
 # merge base of HEAD with refs/factory-judge/main, else origin/main; HEAD^ when that is HEAD; none: refused).
-# Run dir: /tmp/fg-XXXXXX on the gate host (mktemp), HOME, TMPDIR and FACTORY_HOME inside it (T-1679).
+# Run dir: <root>/fg-XXXXXX on the gate host (mktemp), HOME, TMPDIR, GOTMPDIR and FACTORY_HOME inside it (T-1679);
+# <root> is the first of /var/tmp, /tmp that is on disk (not tmpfs) and short enough for unix socket paths.
 # Job cap (T-1679): the driver runs min(GATE_SHARDS, 8 CPUs, MemAvailable / 2048 MiB, MemTotal / 2560 MiB) jobs at once
 # (unittest shards, go test -p, guard jobs): 4 on an 8-CPU / 12 GB host, so the run never fills swap.
 set -euo pipefail
@@ -125,10 +126,13 @@ else
   rssh() { ssh "${ssh_opts[@]}" "$host" "$@"; }
 fi
 
-# Short run dir under /tmp (T-1679): TMPDIR is /tmp/fg-XXXXXX/tmp (18 chars). The old ~/factory-gate/<sha>-<ts>-<pid>
-# pushed unix socket paths under TMPDIR past the 108-byte limit (go/internal/sandbox binds
-# <TMPDIR>/<test name>NNN/001/p.sock, up to 82 chars after TMPDIR), and path tests expect GitHub CI's /tmp layout.
-run_root=/tmp
+# Short, disk-backed run dir (T-1679): <root>/fg-XXXXXX, <root> picked on the gate host by the driver's --pick-root
+# (this checkout's driver, piped into `bash -s`): the first of RUN_ROOTS that is on disk, not tmpfs, so a run (~1 GB with
+# go test's build temp) cannot fill a RAM-backed /tmp, and short enough that unix sockets under TMPDIR fit 108 bytes
+# (go/internal/sandbox binds <TMPDIR>/<test name>NNN/001/p.sock, up to SOCK_TAIL chars after TMPDIR): TMPDIR is
+# /var/tmp/fg-XXXXXX/tmp (22 chars). The old ~/factory-gate/<sha>-<ts>-<pid> was too long for those sockets.
+RUN_ROOTS=(/var/tmp /tmp)
+SOCK_TAIL=82
 cleaned=0
 rdir=
 cleanup() {
@@ -146,6 +150,12 @@ trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 
 t0=$(date +%s)
+run_root=$(rssh "bash -s -- --pick-root $SOCK_TAIL ${RUN_ROOTS[*]}" < "$here/remote_gate_driver.sh") || {
+  echo "remote-gate: no usable run root on $host among ${RUN_ROOTS[*]}" >&2; exit 2; }
+case " ${RUN_ROOTS[*]} " in
+  *" $run_root "*) ;;
+  *) echo "remote-gate: the run root pick on $host said '$run_root', not one of ${RUN_ROOTS[*]}" >&2; exit 2 ;;
+esac
 made=$(rssh "mktemp -d $run_root/fg-XXXXXX")
 case "$made" in
   "$run_root"/fg-??????) rdir=$made ;;
