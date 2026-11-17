@@ -129,6 +129,105 @@ class LocalJudge(FactoryTestCase):
         self.assertEqual(self.judge().returncode, 0)
 
 
+SMOKE = {"__typename": "CheckRun", "workflowName": "smoke", "name": "smoke", "status": "COMPLETED", "conclusion": "SUCCESS"}
+SMOKE_RED = {**SMOKE, "conclusion": "FAILURE"}
+SMOKE_PENDING = {**SMOKE, "status": "IN_PROGRESS", "conclusion": ""}
+HEAVY_PENDING = [{"__typename": "CheckRun", "workflowName": "tests", "name": f"unittest ({i})", "status": "QUEUED", "conclusion": ""}
+                 for i in (1, 2)] + [{"__typename": "StatusContext", "context": "ci/legacy", "state": "PENDING"}]
+HEAVY_RED = {"__typename": "CheckRun", "workflowName": "tests", "name": "unittest (1)", "status": "COMPLETED", "conclusion": "FAILURE"}
+
+
+class LocalJudgeRequiredChecks(LocalJudge):
+    """T-1634: local mode with projects.required_checks set (one light GitHub smoke job, the heavy jobs on the local gate):
+    the judge needs a pass gate_runs row of the exact head AND every named check green on it; a pending check that is not
+    named never blocks (nor is it waited for), a red one always refuses."""
+
+    def setUp(self):
+        super().setUp()
+        self.env.sql("UPDATE projects SET required_checks='smoke' WHERE id='zz-test-proj'")
+
+    def test_pass_and_smoke_green_merges(self):
+        seed_run(self.env, self.head)
+        self.env.seed_pr(checks=GREEN + [SMOKE])
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_pass_and_smoke_missing_refuses(self):
+        seed_run(self.env, self.head)
+        self.refused("checks not green: required check smoke missing")  # GREEN has unit and lint, no smoke
+
+    def test_pass_and_smoke_red_refuses(self):
+        seed_run(self.env, self.head)
+        self.env.seed_pr(checks=GREEN + [SMOKE_RED])
+        self.refused("checks not green: smoke=FAILURE")
+
+    def test_pass_and_smoke_pending_refuses(self):
+        seed_run(self.env, self.head)
+        self.env.seed_pr(checks=GREEN + [SMOKE_PENDING])
+        self.refused("checks not green: smoke=IN_PROGRESS")
+
+    def test_pass_smoke_green_and_heavy_pending_merges_without_waiting(self):
+        self.ok("config", "judge_ci_wait_s", "600")  # a wait on the queued shards would run into the test timeout
+        seed_run(self.env, self.head)
+        self.env.seed_pr(checks=GREEN + [SMOKE] + HEAVY_PENDING)
+        t0 = time.monotonic()
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertLess(time.monotonic() - t0, 60)
+        self.assertNotIn("waiting for CI", p.stdout)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_pass_smoke_green_and_heavy_red_refuses(self):
+        seed_run(self.env, self.head)
+        self.env.seed_pr(checks=GREEN + [SMOKE, HEAVY_RED] + HEAVY_PENDING[1:])
+        p = self.refused("checks not green: unittest (1)=FAILURE")
+        self.assertNotIn("unittest (2)", p.stderr)  # the still-queued shard is not a refusal reason
+
+    def test_fail_row_and_smoke_green_refuses(self):
+        seed_run(self.env, self.head, status="fail")
+        self.env.seed_pr(checks=GREEN + [SMOKE])
+        self.refused("local gate run #1 fail")
+
+    def test_pass_of_an_older_head_and_smoke_green_refuses(self):
+        seed_run(self.env, "d" * 40)
+        self.env.seed_pr(checks=GREEN + [SMOKE])
+        self.refused("local gate run #2 queued on")
+        self.assertEqual([r["status"] for r in runs(self.env)], ["pass", "queued"])
+
+    def test_empty_required_checks_pass_row_merges_with_heavy_pending(self):
+        self.env.sql("UPDATE projects SET required_checks='' WHERE id='zz-test-proj'")
+        seed_run(self.env, self.head)
+        self.env.seed_pr(checks=GREEN + HEAVY_PENDING)
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_empty_required_checks_heavy_red_still_refuses(self):
+        self.env.sql("UPDATE projects SET required_checks='' WHERE id='zz-test-proj'")
+        seed_run(self.env, self.head)
+        self.env.seed_pr(checks=GREEN + [HEAVY_RED])
+        self.refused("checks not green: unittest (1)=FAILURE")
+
+    def test_github_mode_pending_check_still_refuses(self):
+        self.env.sql("UPDATE projects SET gate_cmd='' WHERE id='zz-test-proj'")  # non-local: byte-identical path
+        self.env.seed_pr(checks=GREEN + [SMOKE] + HEAVY_PENDING)
+        self.refused("unittest (1)=QUEUED")
+
+    def test_local_checks_problems_classifies_each_state(self):
+        with self.env.load_factory() as mod:
+            proj = {"required_checks": " smoke, smoke ,"}
+            self.assertEqual(mod.local_required_checks(proj), ["smoke"])
+            self.assertEqual(mod.local_checks_problems(proj, {"statusCheckRollup": GREEN + [SMOKE] + HEAVY_PENDING}), [])
+            self.assertEqual(mod.local_checks_problems(proj, {"statusCheckRollup": HEAVY_PENDING}),
+                             ["required check smoke missing"])
+            self.assertEqual(mod.local_checks_problems(proj, {"statusCheckRollup": [SMOKE_PENDING, HEAVY_RED]}),
+                             ["smoke=IN_PROGRESS", "unittest (1)=FAILURE"])
+            red_ctx = {"__typename": "StatusContext", "context": "ci/legacy", "state": "ERROR"}
+            self.assertEqual(mod.local_checks_problems({"required_checks": ""}, {"statusCheckRollup": [SMOKE, red_ctx]}),
+                             ["ci/legacy=ERROR"])
+
+
 class LocalJudgeRefresh(tjr.JudgeRefreshTests):
     """A stale head is refreshed by the judge; in local mode it enqueues a gate run for the new head and exits requeued."""
 
@@ -237,6 +336,29 @@ class TickGate(DequeueBase):
         msgs = self.env.sql("SELECT recipient,subject FROM messages WHERE subject LIKE 'local gate fail%'")
         self.assertEqual([(m["recipient"], m["subject"]) for m in msgs], [("zz-lead", f"local gate fail: T-0002 @{self.head[:8]}")])
 
+    def test_required_smoke_missing_holds_the_judge_on_a_pass_row(self):
+        self.env.sql("UPDATE projects SET required_checks='smoke' WHERE id='zz-test-proj'")
+        seed_run(self.env, self.head, task="T-0002")
+        self.queue_judge()
+        self.tick()
+        self.assertEqual(self.status("zz-jd"), "queued")
+
+    def test_required_smoke_green_starts_the_judge_with_heavy_checks_pending(self):
+        self.env.sql("UPDATE projects SET required_checks='smoke' WHERE id='zz-test-proj'")
+        self.env.seed_pr(checks=GREEN + [SMOKE] + HEAVY_PENDING)
+        seed_run(self.env, self.head, task="T-0002")
+        self.queue_judge()
+        self.assertEqual(self.tick().returncode, 0)
+        self.assertEqual(self.status("zz-jd"), "live")
+
+    def test_required_smoke_green_heavy_red_holds_the_judge(self):
+        self.env.sql("UPDATE projects SET required_checks='smoke' WHERE id='zz-test-proj'")
+        self.env.seed_pr(checks=GREEN + [SMOKE, HEAVY_RED])
+        seed_run(self.env, self.head, task="T-0002")
+        self.queue_judge()
+        self.tick()
+        self.assertEqual(self.status("zz-jd"), "queued")
+
     def test_github_mode_project_never_touches_gate_runs(self):
         self.env.sql("UPDATE projects SET gate_cmd='' WHERE id='zz-test-proj'")
         self.queue_judge()
@@ -304,6 +426,11 @@ class TickGate(DequeueBase):
         self.env.sql("UPDATE gate_runs SET pid=99999999 WHERE id=1")
         self.tick()
         self.assertEqual(self.env.sql("SELECT status,note FROM gate_runs WHERE id=1")[0]["status"], "error")
+
+
+for _n in dir(LocalJudge):  # only the T-1634 cases: LocalJudge's own run once, under its own (empty) required_checks
+    if _n.startswith("test_") and _n not in LocalJudgeRequiredChecks.__dict__:
+        setattr(LocalJudgeRequiredChecks, _n, None)
 
 
 if __name__ == "__main__":
