@@ -33,14 +33,14 @@ type Config struct {
 	Shim     string        // path of the release installer shim
 	Name     string        // throwaway user name; empty = random hmfresh<4>
 	Password string        // empty = random; never logged
-	Ticks    int           // tick events to wait for (default 2)
+	Ticks    int           // tick runs to wait for (default 2)
 	Timeout  time.Duration // tick wait timeout (default 180 s)
 	Poll     time.Duration // poll interval (default 5 s)
 	Sleep    func(time.Duration)
 	Stop     func() bool // true once a signal arrived: no further step starts, cleanup still runs
 	Now      func() time.Time
-	// EventsLog is the user's events log path, relative to the user's home.
-	EventsLog string
+	// TickLock is the tick lock file path, relative to the user's home; its mtime moves on every tick run.
+	TickLock string
 }
 
 // Step is the outcome of one step.
@@ -59,8 +59,8 @@ type Refusal struct {
 func (r *Refusal) Error() string { return r.Msg }
 
 const (
-	prefix       = "ci-freshbox-darwin: "
-	defaultEvLog = "factory/state/events.jsonl"
+	prefix          = "ci-freshbox-darwin: "
+	defaultTickLock = "factory/run/tick.lock"
 )
 
 // Step names in order.
@@ -174,8 +174,8 @@ func Run(cfg Config) (int, error) {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	if cfg.EventsLog == "" {
-		cfg.EventsLog = defaultEvLog
+	if cfg.TickLock == "" {
+		cfg.TickLock = defaultTickLock
 	}
 	if cfg.Name != "" && !strings.HasPrefix(cfg.Name, "hmfresh") || strings.ContainsAny(cfg.Name, "/.") {
 		return 2, &Refusal{Msg: prefix + "user name must start with hmfresh and contain no / or .", Exit: 2}
@@ -278,28 +278,33 @@ func (s *runState) userStep(argv ...string) error {
 	return err
 }
 
+// waitTicks waits for Ticks distinct mtimes of the tick lock file. The tick driver reopens
+// run/tick.lock with "w" on every tick run, so its mtime moves on every run, idle or not. The events log
+// only gets conditional tick events, which an idle fresh install may never write (T-1648).
 func (s *runState) waitTicks() error {
-	log := s.home + "/" + s.cfg.EventsLog
+	lock := s.home + "/" + s.cfg.TickLock
 	deadline := s.cfg.Now().Add(s.cfg.Timeout)
+	seen := map[string]bool{}
 	for {
-		// Count lines whose actor is the tick, read as the user so file permissions are the real ones.
-		out, code, err := s.exec(s.asUser("grep", "-c", `"actor": "tick"`, log)...)
+		// BSD stat as the user, so file permissions are the real ones. A missing file means no tick yet.
+		out, code, err := s.exec(s.asUser("stat", "-f", "%m", lock)...)
 		if err != nil {
 			return err
 		}
-		n := 0
-		if code == 0 || code == 1 { // grep -c: 1 means zero matches
-			fmt.Sscanf(strings.TrimSpace(out), "%d", &n)
+		if m := strings.TrimSpace(out); code == 0 && m != "" {
+			seen[m] = true
 		}
+		n := len(seen)
 		if n >= s.cfg.Ticks {
-			s.logf("%d tick events seen (need %d)", n, s.cfg.Ticks)
+			s.logf("%d tick runs seen via %s (need %d)", n, s.cfg.TickLock, s.cfg.Ticks)
 			return nil
 		}
 		if s.cfg.Stop != nil && s.cfg.Stop() {
 			return errors.New("interrupted by signal")
 		}
 		if !s.cfg.Now().Before(deadline) {
-			return fmt.Errorf("only %d of %d tick events in %s", n, s.cfg.Ticks, s.cfg.Timeout)
+			return fmt.Errorf("no tick: only %d of %d tick runs (mtime changes of %s) in %s; check launchctl list hivemill.tick and the tick log",
+				n, s.cfg.Ticks, lock, s.cfg.Timeout)
 		}
 		s.cfg.Sleep(s.cfg.Poll)
 	}
