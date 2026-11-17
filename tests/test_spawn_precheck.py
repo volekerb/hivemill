@@ -558,7 +558,8 @@ class RemoteSpawnTests(FactoryTestCase):
             sa = json.loads((self.row(f"zz-hq-{role}") or {"spawn_args": "{}"})["spawn_args"] or "{}")
             self.assertNotIn("machine", sa, role)
         self.assertEqual([a for a in self.hc_runs() if "--on" in a], [])
-        self.assertEqual(self.env.calls("ssh") and [c for c in self.env.calls("ssh") if "factory --version" in " ".join(c["argv"])], [])
+        facts_cmd = "cat /proc/meminfo; echo ---; cat /proc/loadavg; echo ---; nproc"
+        self.assertEqual([c for c in self.env.calls("ssh") if c["argv"][-1] != facts_cmd], [])  # placement facts only
         p = self.ok("spawn", "--help")
         self.assertEqual(p.stdout.count("--machine"), 0)
         with self.env.load_factory() as mod:
