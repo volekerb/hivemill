@@ -143,7 +143,7 @@ func runSpawn(c *ctx, parsed any) (int, error) {
 		return 0, kerr
 	}
 	d := spawn.ExecDeps{DB: ctxExecer{c}, Host: host.client, Now: c.env.Now, Epoch: func() float64 { return float64(c.env.Now().UnixNano()) / 1e9 },
-		Sleep: time.Sleep, HostExe: host.exe, Home: home, Actor: c.who, Stdout: c.out, Live: plan.Stats.Live, KickoffDelay: kd, SettleDelay: time.Second,
+		Sleep: time.Sleep, HostExe: host.exe, Home: home, WorktreesDir: filepath.Join(home, "worktrees"), Actor: c.who, Stdout: c.out, Live: plan.Stats.Live, KickoffDelay: kd, SettleDelay: time.Second,
 		AsyncStart: plan.Start != nil && f.Config["tick_async_start"] == "1"}
 	d.Send = func(to, subject, body, kind, goal, task string) error {
 		rcpt, err := msgResolveRecipient(c, to, plan.Org)

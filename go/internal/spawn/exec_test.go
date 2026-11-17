@@ -730,3 +730,41 @@ func TestGitHooksRefusal(t *testing.T) {
 		t.Errorf("commondir: %q", got)
 	}
 }
+
+// TestTrustParityUnderWorktrees: T-1657, an unsandboxed claude launch whose cwd is under WORKTREES needs the trust hook
+// whatever the role or task; without it the spawn hands over to Python with no side effect. A cwd outside is untouched.
+func TestTrustParityUnderWorktrees(t *testing.T) {
+	dir := t.TempDir()
+	wts := filepath.Join(dir, "worktrees")
+	inside := filepath.Join(wts, "G-1-T-1-qa")
+	if err := os.MkdirAll(inside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, role := range []string{"qa", "pm", "judge"} {
+		pl := startPlan(t, dir)
+		pl.Role, pl.Task, pl.Start.Cwd = role, "", inside
+		db, h := newExecDB(t), &fakeHost{startRes: map[string]any{}}
+		d := deps(db, h, &bytes.Buffer{})
+		d.WorktreesDir = wts
+		if _, err := Exec(pl, d); !errors.Is(err, ErrNotPorted) || len(h.calls) != 0 || count(t, db, "SELECT count(*) FROM agents") != 0 {
+			t.Errorf("%s: err=%v calls=%v, want zero-side-effect hand-over", role, err, h.calls)
+		}
+		if _, err := os.Stat(pl.Start.SettingsPath); !os.IsNotExist(err) {
+			t.Errorf("%s: settings written before hand-over", role)
+		}
+		var trusted []string
+		d.TrustClone = func(cwd string) error { trusted = append(trusted, cwd); return nil }
+		if _, err := Exec(pl, d); err != nil || len(trusted) != 1 || trusted[0] != inside {
+			t.Errorf("%s: err=%v trusted=%v", role, err, trusted)
+		}
+	}
+	// outside WORKTREES (and a sibling sharing the prefix): no trust, no hand-over
+	pl := startPlan(t, dir)
+	pl.Start.Cwd = wts + "-evil"
+	db, h := newExecDB(t), &fakeHost{startRes: map[string]any{}}
+	d := deps(db, h, &bytes.Buffer{})
+	d.WorktreesDir = wts
+	if _, err := Exec(pl, d); err != nil {
+		t.Errorf("outside cwd: %v", err)
+	}
+}

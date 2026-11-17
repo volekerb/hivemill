@@ -89,6 +89,8 @@ type ExecDeps struct {
 	CheckStart func() error
 	// TrustClone is trust_task_clone for a coder, qa or reviewer started in its own task worktree; nil = not ported.
 	TrustClone func(cwd string) error
+	// WorktreesDir is WORKTREES: T-1657 trusts the final cwd of every unsandboxed claude launch under it. "" = none.
+	WorktreesDir string
 	// ScriptRoot is FACTORY_HC_SPAWN_SCRIPT_ROOT ("" = RunDir).
 	ScriptRoot string
 	// Live is stats["live"] of the gate decision (the spawn event's live count is Live+1).
@@ -125,6 +127,20 @@ func pyJSON(pairs ...any) string {
 	}
 	b.WriteByte('}')
 	return b.String()
+}
+
+// underWorktrees is Python's realpath(cwd).startswith(realpath(WORKTREES)+os.sep).
+func (d ExecDeps) underWorktrees(cwd string) bool {
+	if d.WorktreesDir == "" || cwd == "" {
+		return false
+	}
+	real := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return filepath.Clean(p)
+	}
+	return strings.HasPrefix(real(cwd), real(d.WorktreesDir)+string(os.PathSeparator))
 }
 
 func (d ExecDeps) stamp() string { return d.Now().Format("2006-01-02T15:04:05-07:00") }
@@ -302,8 +318,8 @@ func Exec(plan SpawnPlan, d ExecDeps) (string, error) {
 		return "", ErrNotPorted // place() of a new herdr pane
 	case st.NeedWorktree && d.Worktree == nil:
 		return "", ErrNotPorted
-	case inList([]string{"coder", "qa", "reviewer"}, plan.Role) && plan.Task != "" && d.TrustClone == nil:
-		return "", ErrNotPorted // trust_task_clone writes the owner's claude trust entry
+	case d.TrustClone == nil && (inList([]string{"coder", "qa", "reviewer"}, plan.Role) && plan.Task != "" || !st.NeedWorktree && d.underWorktrees(st.Cwd)):
+		return "", ErrNotPorted // trust_task_clone writes the owner's claude trust entry (T-1657: any role, any cwd under WORKTREES)
 	case d.DB == nil || d.Host == nil || d.Now == nil || d.Sleep == nil || d.Epoch == nil || d.Stdout == nil || (plan.Resume == "" && d.Send == nil):
 		return "", fmt.Errorf("exec: missing DB, host or clock")
 	}
@@ -346,7 +362,7 @@ func execStart(plan SpawnPlan, d ExecDeps) (string, error) {
 		}
 		cwd = wt
 	}
-	if d.TrustClone != nil && inList([]string{"coder", "qa", "reviewer"}, role) && plan.Task != "" {
+	if d.TrustClone != nil && (inList([]string{"coder", "qa", "reviewer"}, role) && plan.Task != "" || d.underWorktrees(cwd)) {
 		if err := d.TrustClone(cwd); err != nil {
 			return "", fmt.Errorf("trust task clone %s: %w", cwd, err)
 		}
