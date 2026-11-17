@@ -1,0 +1,8 @@
+{
+ "config_keys": [
+  "JUDGE_CI:x",
+  "Judge_CI:https://github.com/zz-test/repo/pull/9",
+  "judge_cix"
+ ],
+ "events": []
+}

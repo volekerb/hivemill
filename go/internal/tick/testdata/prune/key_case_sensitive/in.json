@@ -1,0 +1,9 @@
+{
+ "factory_now": "2026-10-31T12:00:00+00:00",
+ "tasks": [],
+ "config": {
+  "Judge_CI:https://github.com/zz-test/repo/pull/9": "x",
+  "JUDGE_CI:x": "x",
+  "judge_cix": "x"
+ }
+}
