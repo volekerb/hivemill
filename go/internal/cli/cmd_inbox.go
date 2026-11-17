@@ -3,8 +3,10 @@ package cli
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"factory/go/internal/identity"
@@ -193,7 +195,8 @@ func runInbox(c *ctx, p any) (int, error) {
 	}
 	hq := false
 	var role string
-	switch err := c.db.QueryRow("SELECT role FROM agents WHERE name=?", me).Scan(&role); {
+	var startedRaw any
+	switch err := c.db.QueryRow("SELECT role, started FROM agents WHERE name=?", me).Scan(&role, &startedRaw); {
 	case err == nil:
 		hq = role == "boss" || role == "director" || role == "lead"
 	case err == sql.ErrNoRows:
@@ -229,8 +232,25 @@ func runInbox(c *ctx, p any) (int, error) {
 	if hidden > 0 {
 		fmt.Fprintf(c.out, "(%d older unread not shown; run factory inbox again or --all)\n", hidden)
 	}
+	started, err := cell(startedRaw)
+	if err != nil {
+		return 0, err
+	}
 	for _, m := range rows[cut:] {
 		fmt.Fprintln(c.out, inboxHeader(m))
+		if m.unread && m.kind == "decision" && m.subject == "STOP" {
+			stale, err := stopOrderPredates(m.created, started)
+			if err != nil {
+				return 0, err
+			}
+			if stale {
+				fmt.Fprintf(c.out, "   %s %s\n", staleStopPrefix, m.subject)
+				fmt.Fprintf(c.out, "   This order was sent %s, before your pane started (%s). It was for an earlier "+
+					"pane named %s, not for you.\n   Carry on with your task. Full text: factory inbox --show M%d\n",
+					m.created, started, me, m.id)
+				continue
+			}
+		}
 		fmt.Fprintf(c.out, "   %s\n", m.subject)
 		if inboxCollapsed(m, hq, a.full) {
 			lines := pySplitlines(m.body)
@@ -251,6 +271,32 @@ func runInbox(c *ctx, p any) (int, error) {
 		}
 	}
 	return 0, nil
+}
+
+const staleStopPrefix = "[stale: sent to an earlier pane]"
+
+// inboxTS matches the one timestamp shape now() writes: ISO seconds with a numeric offset.
+var inboxTS = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$`)
+
+// stopOrderPredates is stop_order_predates(m, started): created strictly before started, compared as instants.
+// An empty started (NULL) decides nothing, like Python's None. A value Python might read differently (naive local
+// time, other ISO spellings) is handed to Python.
+func stopOrderPredates(created, started string) (bool, error) {
+	if started == "" {
+		return false, nil
+	}
+	var t [2]time.Time
+	for i, v := range []string{created, started} {
+		if !inboxTS.MatchString(v) {
+			return false, errDelegate
+		}
+		d, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			return false, errDelegate
+		}
+		t[i] = d
+	}
+	return t[0].Before(t[1]), nil
 }
 
 func inboxShow(c *ctx, raw string) error {
