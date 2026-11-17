@@ -62,7 +62,8 @@ class DriftBase(FactoryTestCase):
 
     def gh_calls(self):
         f = self.gh_dir / "drift-gh-calls.log"
-        return f.read_text().splitlines() if f.exists() else []
+        # only the drift probe (`pr view`): other tick units (T-1590 PR-title scan: `pr list`) call gh too
+        return [l for l in f.read_text().splitlines() if l.startswith("pr view")] if f.exists() else []
 
     def task(self, tid, status, updated, goal="G-001", pr_url=None, deps="[]", assignee=None):
         self.env.seed_task(tid, goal=goal, status=status, pr_url=pr_url, team="g-001-a")

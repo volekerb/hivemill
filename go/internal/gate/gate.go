@@ -198,6 +198,7 @@ type Snapshot struct {
 	// Host-facts extras. The zero values are today's Linux behaviour; only ApplyHostFacts on a strict host sets them.
 	MemPressure  int          // 0 not reported, 1 normal, 2 warn, 4 critical, PressureUnknown unreadable
 	TmpMinFreeMB int64        // >0: the tmp free-space floor (non-tmpfs only)
+	StrictProcs  bool         // an unknown process scan closes the gate instead of skipping the check
 	StrictTmp    bool         // a nil Tmp closes the gate instead of skipping the check
 	LimitedFor   *CursorLimit // the cursor_limits entry of Options.Role's model when its status is "limited"
 }
@@ -326,6 +327,9 @@ func Decide(s Snapshot, c Config, o Options) Decision {
 	}
 	if st.Total != nil && *st.Total-mine >= c.MaxTotalClaude {
 		return refuse(fmt.Sprintf("%d/%d claude processes on host (incl. non-factory)", *st.Total, c.MaxTotalClaude))
+	}
+	if !s.Procs.Known && s.StrictProcs {
+		return refuse("host processes unknown — gate closed")
 	}
 	if s.MemMB < int64(c.MinMemAvailableMB) {
 		if s.MemMB < 0 { // unreadable on a strict host (ApplyHostFacts)
