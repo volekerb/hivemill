@@ -413,11 +413,11 @@ func TestDefaultsMatchFlagsJSON(t *testing.T) {
 		t.Fatalf("DEFAULT_CONFIG literal: %v", err)
 	}
 	if len(lit) != len(DefaultConfig) {
-		t.Fatalf("defaults_gen.go has %d keys, DEFAULT_CONFIG has %d: run `go generate ./internal/cli`", len(DefaultConfig), len(lit))
+		t.Fatalf("store/defaults_gen.go has %d keys, DEFAULT_CONFIG has %d: run `go generate ./internal/store`", len(DefaultConfig), len(lit))
 	}
 	for i, e := range lit {
 		if DefaultConfig[i].Key != e.Key || DefaultConfig[i].Value != e.Value {
-			t.Fatalf("defaults_gen.go drifted at %s (%q vs %q): run `go generate ./internal/cli`", e.Key, DefaultConfig[i].Value, e.Value)
+			t.Fatalf("store/defaults_gen.go drifted at %s (%q vs %q): run `go generate ./internal/store`", e.Key, DefaultConfig[i].Value, e.Value)
 		}
 	}
 	flagsPath := repoFile(t, "bin/flags.json")

@@ -24,6 +24,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [machine-sync.md](machine-sync.md): the owner-run tool that copies allow-listed secret files to a worker machine (chmod 600, never printed).
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-flow.md](pr-flow.md): read-only PR flow report: merges per day, open-to-merge time and stage hours per org.
+- [diff-checklist.md](diff-checklist.md): the diff-checklist tool: match checklist items to a diff, render and verify the PR body block.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [researcher.md](researcher.md): the researcher role, its per-task research directory and where its findings go.
@@ -112,6 +113,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [guard-unittest-shard.md](guard-unittest-shard.md): how guard unittest ids are sharded in CI and when a shard step fails the list check.
 - [scrub-scan.md](scrub-scan.md): the scanner that catches owner-specific or sensitive data.
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
+- [size-classes.md](size-classes.md): the ci-size-class selector: small, medium and large classes, budgets and checks.
 - [worker-guard-go.md](worker-guard-go.md): the Go port of the worker-guard hook (opt-in through `guard_impl`, Python stays the default; section status, golden data, lookaround map).
 - [cli-go.md](cli-go.md): the Go CLI behind `bin/factory` (opt-in through `cli_impl`, Python stays the default; fast path, shadow mode, build and dependency fetch).
 - [schedule.md](schedule.md): owner-defined recurring jobs (`factory schedule`), Go-only dispatch, per-run token caps and overlap with digest, retro and scout.
@@ -124,6 +126,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0005-self-hosted-ci-runners.md](adr/0005-self-hosted-ci-runners.md): self-hosted CI runners for trusted PRs (proposed design, nothing installed).
 - [adr/0006-worker-sandbox-assessment.md](adr/0006-worker-sandbox-assessment.md): worker sandbox assessment (why go test fails for QA; proposed, nothing installed).
 - [adr/0007-hivemill-kit.md](adr/0007-hivemill-kit.md): Hivemill Kit design (standalone skills, three levels, evals and a catalog; proposed).
+- [adr/0008-resource-hygiene.md](adr/0008-resource-hygiene.md): deterministic resource hygiene (hm-clean; proposed, nothing installed).
 
 ## Internals
 
