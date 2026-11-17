@@ -2,7 +2,7 @@
 # Remote half of ci/remote_gate.sh (T-1633). Runs ON the remote host under `env -i`, shipped from the main checkout.
 #   remote_gate_driver.sh <run dir> <head sha> <base sha> <shards>
 #   remote_gate_driver.sh --plan     print the step plan (no work)
-# <run dir> holds head/ (git archive HEAD), base/ (git archive of the base) and trusted/ (this file, gate_shards.py,
+# <run dir> holds head/ (the tracked files of HEAD), base/ (git archive of the base) and trusted/ (this file, gate_shards.py,
 # test_count_gate.py). Everything the run writes stays under <run dir>, which is removed on every exit path; only the
 # shared Go module and build caches live outside it (~/go/pkg/mod, ~/.cache/factory-gate/go-build).
 # One run at a time: flock on ~/factory-gate/.lock (a second run waits). At most 8 CPUs: taskset -c 0-7, GOMAXPROCS,

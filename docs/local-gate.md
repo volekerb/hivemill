@@ -171,7 +171,10 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   no tier (everything runs every time, no affected-only or docs-only lane) and the guard path filters are not applied.
   Not covered: ci-tier (nothing to classify) and the test-count gate (the runner does it with `--count`).
   `--plan` prints the steps.
-- **What is shipped**: `git archive HEAD` of the gate tree, `git archive` of the base (merge base of HEAD with
+- **What is shipped**: the tracked files of the gate tree (`git ls-files -z | tar --null --no-recursion -T -`; not
+  `git archive`, which obeys the PR's own `.gitattributes`: `export-ignore` could hide a test module from the gate and
+  `export-subst` could rewrite files). Right before shipping the script re-checks that `HEAD` is still the recorded head
+  and that nothing is staged, modified or deleted, and refuses otherwise. `git archive` of the base (merge base of HEAD with
   `refs/factory-judge/main`, else `origin/main`; its parent when that is HEAD itself; no merge base is refused;
   `GATE_BASE` overrides) for the jobs that compare with the
   base, and three files of the main checkout (`ci/remote_gate_driver.sh`, `tests/gate_shards.py`, `ci/test_count_gate.py`).
@@ -197,4 +200,9 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   `GATE_REMOTE_HOST` is set in the DB `gate_cmd`, never in this repo, and is refused unless it is a plain host name.
 - **Toolchain on the remote host**: the `toolchain` step fails unless python3 is 3.13, `go env GOVERSION` equals the
   `toolchain` line of `go/go.mod`, and zsh and gcc (cgo for `-race`) exist. It never installs anything.
-- **Measured**: see the PR of T-1633 for the first full run (wall time, peak RAM and CPU, per-step times).
+- **Trust limit**: the remote side has no sandbox. PR code runs as the remote ssh user, so it can write the shared Go
+  caches (`~/go/pkg/mod`, `~/.cache/factory-gate/go-build`) and the Go toolchain under `~/.local/go` (reached through the
+  symlink), and so poison later runs. Use a dedicated remote user that owns nothing else, and wipe its caches if a run
+  is suspect.
+- **Measured**: the first full run (wall time, peak RAM and CPU, per-step times) is in the notes of task T-1633
+  (`factory task show T-1633`), written by the director after merge.

@@ -76,6 +76,8 @@ class GateShards(unittest.TestCase):
 GATE_SH = ROOT / "ci" / "remote_gate.sh"
 SSH_STUB = """#!/bin/bash
 printf '%s\\n' "$*" >> "$STUB_LOG"
+# Optional: run $STUB_FIRST_HOOK once, before the first remote command (simulates a change after the up-front checks).
+if [ -n "${STUB_FIRST_HOOK-}" ] && [ ! -e "$STUB_LOG.hooked" ]; then : > "$STUB_LOG.hooked"; bash -c "$STUB_FIRST_HOOK"; fi
 while [ $# -gt 0 ]; do case "$1" in -o) shift 2 ;; -*) shift ;; *) break ;; esac; done
 shift
 cd "$FAKE_REMOTE_HOME"
@@ -87,7 +89,9 @@ wait "$!"
 """
 FAKE_FACTORY = """#!/usr/bin/env python3
 import json, os, time
-json.dump({"env": dict(os.environ), "cwd": os.getcwd(), "files": sorted(os.listdir("."))}, open(%r, "w"))
+shipped = sorted(os.path.relpath(os.path.join(d, f)) for d, _, fs in os.walk(".") if ".git" not in d for f in fs)
+json.dump({"env": dict(os.environ), "cwd": os.getcwd(), "files": sorted(os.listdir(".")), "shipped": shipped,
+           "cli": open("bin/factory_cli.py").read()}, open(%r, "w"))
 time.sleep(%d)
 """
 
@@ -231,6 +235,46 @@ class RemoteGate(unittest.TestCase):
         self.assertTrue(seen["env"]["FACTORY_HOME"].startswith(str(self.remote / "factory-gate")))
         # the head tree is the archive (plus the rebuilt history): no .ssh, .claude, db
         self.assertEqual(sorted(set(seen["files"]) - {".git"}), ["bin", "tests"])
+
+    def test_head_ships_every_tracked_file_despite_export_attributes(self):
+        # git archive would honour the PR's own .gitattributes: drop tests/ and rewrite the export-subst file
+        cli = self.tree / "bin" / "factory_cli.py"
+        (self.tree / ".gitattributes").write_text("tests/** export-ignore\ntests export-ignore\n"
+                                                  "bin/factory_cli.py export-subst\n")
+        cli.write_text("X = '$Format:%H$'\n")
+        git(self.tree, "add", "-A")
+        git(self.tree, "commit", "-q", "-m", "hide tests")
+        p = self.gate()
+        self.assertIn("remote-gate-driver: FAIL", p.stdout, p.stdout + p.stderr)
+        seen = json.loads(self.mark.read_text())
+        self.assertEqual(sorted(set(seen["files"]) - {".git"}), [".gitattributes", "bin", "tests"])
+        self.assertIn("tests/test_a.py", seen["shipped"], "export-ignore hid tests/test_a.py from the gate")
+        self.assertEqual(seen["cli"], "X = '$Format:%H$'\n", "export-subst rewrote a shipped file")
+        self.assertEqual(self.run_dirs(), [])
+
+    def test_tree_changed_after_the_checks_is_refused_and_nothing_is_shipped(self):
+        cases = {"modified": f"echo 'X = 3' > {self.tree}/bin/factory_cli.py",
+                 "staged": f"cd {self.tree} && echo y > new.txt && git add new.txt",
+                 "deleted": f"rm {self.tree}/tests/test_a.py",
+                 "head moved": f"cd {self.tree} && git -c user.name=t -c user.email=t@example.invalid "
+                               "-c commit.gpgsign=false commit -q --allow-empty -m moved"}
+        start = git(self.tree, "rev-parse", "HEAD")
+        for name, hook in cases.items():
+            with self.subTest(name):
+                git(self.tree, "reset", "-q", "--hard", start)
+                git(self.tree, "clean", "-qfd")
+                for f in (self.log, Path(f"{self.log}.hooked")):
+                    f.unlink(missing_ok=True)
+                self.env["STUB_FIRST_HOOK"] = hook
+                p = self.gate()
+                self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+                self.assertIn("refusing", p.stderr)
+                self.assertIn("nothing shipped", p.stderr)
+                calls = self.ssh_calls()
+                self.assertTrue(calls, "the hook never ran")
+                self.assertEqual([c for c in calls if "tar -x" in c], [], "a tree went over ssh")
+                self.assertFalse(self.mark.exists(), "a step ran")
+                self.assertEqual(self.run_dirs(), [], "run dir left behind")
 
     def test_local_host_runs_the_driver_without_ssh(self):
         self.env["GATE_REMOTE_HOST"] = "local"

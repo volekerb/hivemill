@@ -12,8 +12,10 @@
 #        remote_gate.sh --plan     print the step plan and exit (no ssh)
 #        remote_gate.sh --help
 #
-# What is shipped: `git archive HEAD` (the head tree), `git archive <base>` (the base tree, for the jobs that compare
-# with the PR base) and three files of the checkout running this script (this script's ci/remote_gate_driver.sh,
+# What is shipped: the tracked files of HEAD (`git ls-files -z | tar --null --no-recursion -T -`, not `git archive`, so the
+# PR's own .gitattributes export-ignore / export-subst cannot hide or rewrite files; refused unless HEAD is still the
+# recorded head and the index and worktree are clean), `git archive <base>` (the trusted base tree, for the jobs that
+# compare with the PR base) and three files of the checkout running this script (this script's ci/remote_gate_driver.sh,
 # tests/gate_shards.py, ci/test_count_gate.py). Nothing else: no .git, no gh token, no ~/.ssh, no ~/.claude, no
 # FACTORY_HOME. The remote side runs under `env -i` with an explicit allow-list (ci/remote_gate_driver.sh).
 #
@@ -72,6 +74,7 @@ fi
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "remote-gate: $(pwd) is not a git work tree; run it from the gate worktree" >&2; exit 2
 fi
+cd "$(git rev-parse --show-toplevel)"   # ls-files and the count read the whole tree, not a subdir
 head=$(git rev-parse --verify HEAD)
 dirty=$(git status --porcelain --untracked-files=normal)
 if [ -n "$dirty" ]; then
@@ -92,7 +95,7 @@ if [ "$shards" -gt "$MAX_CORES" ]; then shards=$MAX_CORES; fi
 
 base=
 if [ -n "${GATE_BASE-}" ]; then
-  base=$(git rev-parse --verify "${GATE_BASE}^{commit}")
+  base=$(git rev-parse --verify --end-of-options "${GATE_BASE}^{commit}")
 else
   for ref in refs/factory-judge/main refs/remotes/origin/main; do
     if git rev-parse --verify -q "$ref" >/dev/null; then
@@ -138,8 +141,20 @@ trap 'exit 143' TERM HUP
 echo "remote-gate: head $head base $base host $host dir ~/$rdir shards $shards"
 t0=$(date +%s)
 rssh "mkdir -p \"\$HOME/$rdir/head\" \"\$HOME/$rdir/base\" \"\$HOME/$rdir/trusted\""
-git archive --format=tar HEAD | gzip -1 | rssh "tar -xzf - -C \"\$HOME/$rdir/head\""
-git archive --format=tar "$base" | gzip -1 | rssh "tar -xzf - -C \"\$HOME/$rdir/base\""
+# Ship the head as its tracked files, read from the worktree. Re-check right before shipping that the worktree still is
+# exactly the recorded head: HEAD unmoved, nothing staged, modified, deleted (the files tar reads are HEAD's).
+now=$(git rev-parse --verify HEAD)
+if [ "$now" != "$head" ]; then
+  echo "remote-gate: refusing: HEAD moved from $head to $now before shipping; nothing shipped" >&2; exit 2
+fi
+dirty=$(git status --porcelain --untracked-files=no)
+if [ -n "$dirty" ]; then
+  echo "remote-gate: refusing: the index or worktree changed before shipping (git status --porcelain); nothing shipped:" >&2
+  printf '%s\n' "$dirty" | head -20 >&2
+  exit 2
+fi
+git ls-files -z | tar --null --no-recursion -T - -cf - | gzip -1 | rssh "tar -xzf - -C \"\$HOME/$rdir/head\""
+git archive --format=tar --end-of-options "$base" | gzip -1 | rssh "tar -xzf - -C \"\$HOME/$rdir/base\""
 tar -C "$main_root" -czf - ci/remote_gate_driver.sh tests/gate_shards.py ci/test_count_gate.py \
   | rssh "tar -xzf - -C \"\$HOME/$rdir/trusted\""
 echo "remote-gate: shipped in $(( $(date +%s) - t0 )) s"
