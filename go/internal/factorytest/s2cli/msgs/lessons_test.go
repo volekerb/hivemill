@@ -70,6 +70,7 @@ func TestLessonsRuleAndWhatFromStdin(t *testing.T) {
 }
 
 func TestLessonsWorkersRefused(t *testing.T) {
+	needPy(t)
 	e := lessonsEnv(t)
 	lid := lessonNew(t, e)
 	for _, role := range lessonWorkers {
@@ -92,6 +93,7 @@ func TestLessonsWorkersRefused(t *testing.T) {
 }
 
 func TestLessonsWorkerProcessClaimingDirectorRefused(t *testing.T) {
+	needPy(t)
 	e := lessonsEnv(t)
 	lid := lessonNew(t, e)
 	e.FakeClaude(os.Getpid(), 1, "claude", "--settings", "/zz-tmp/factory/roles/settings/coder.json")
@@ -230,6 +232,7 @@ func TestLessonsListFilters(t *testing.T) {
 }
 
 func TestLessonsOnlyCaptureSubcommands(t *testing.T) {
+	needPy(t)
 	e := lessonsEnv(t)
 	if e.Run([]string{"lesson", "bogus"}, "").Exit != 2 {
 		t.Fatal("bogus cmd")
@@ -238,6 +241,7 @@ func TestLessonsOnlyCaptureSubcommands(t *testing.T) {
 }
 
 func TestLessonsMigrationCreatesTablesIdempotently(t *testing.T) {
+	needPy(t)
 	e := lessonsEnv(t)
 	e.SeedGoal("G-001", "", "zz-test goal")
 	e.SeedTask(ft.Task{ID: "T-0001"})

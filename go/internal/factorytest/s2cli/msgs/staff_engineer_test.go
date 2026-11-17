@@ -1,6 +1,5 @@
-// PARTIAL for P7a (T-1495): not ported: test_tick_skips_fresh_claim_but_retries_stale_one - fails under the Go harness (stale claim never goes live; Python-delegated tick timing); keep the Python module.
-// Go tests for tests/test_staff_engineer.py (23 cases). Stateful herdr (Env.HerdrStateful) for msg wake/spawn paths;
-// spawn/tick/up paths call NeedPython where the Go CLI still delegates to bin/factory.
+// Go tests for tests/test_staff_engineer.py: all 23 cases, nothing not ported. The stateful pane stub (Env.HerdrStateful) serves the
+// msg wake/spawn paths; spawn/tick/up paths call NeedPython where the Go CLI still delegates to bin/factory.
 package s2msgs
 
 import (
@@ -11,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	ft "factory/go/internal/factorytest"
 )
@@ -82,6 +82,7 @@ func TestStaffEngineerLeadSpawnsWithModelAndSettings(t *testing.T) {
 }
 
 func TestStaffEngineerCoderCannotSpawn(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	refused(t, e, "zz-test-coder", 3, nil, "spawn", "staff-engineer", "--name", "zz-test-se")
@@ -91,6 +92,7 @@ func TestStaffEngineerCoderCannotSpawn(t *testing.T) {
 }
 
 func TestStaffEngineerRefusedCommands(t *testing.T) {
+	needPy(t)
 	cases := []struct {
 		args   []string
 		reason string
@@ -155,6 +157,7 @@ func TestStaffEngineerRoleDocHasNoPRComments(t *testing.T) {
 }
 
 func TestStaffEngineerMsgWithoutAgentQueuesOneSpawn(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	ok(t, e, "zz-test-director", nil, "config", "max_live_agents", "0")
@@ -184,6 +187,7 @@ func TestStaffEngineerMsgWithoutAgentQueuesOneSpawn(t *testing.T) {
 }
 
 func TestStaffEngineerNonRequestKindsDoNotSpawn(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	for _, kind := range []string{"msg", "report", "decision", "alert", "escalation"} {
@@ -198,6 +202,7 @@ func TestStaffEngineerNonRequestKindsDoNotSpawn(t *testing.T) {
 }
 
 func TestStaffEngineerMsgWithOpenGateSpawnsFixedName(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	ok(t, e, "zz-test-lead", nil, "msg", "staff-engineer", "q", "ctx", "--kind", "request")
@@ -207,6 +212,7 @@ func TestStaffEngineerMsgWithOpenGateSpawnsFixedName(t *testing.T) {
 }
 
 func TestStaffEngineerMsgToLiveAgentDoesNotRespawn(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	before := len(e.Calls("herdr"))
 	ok(t, e, "zz-test-lead", nil, "msg", "staff-engineer", "q", "ctx", "--kind", "request")
@@ -222,6 +228,7 @@ func TestStaffEngineerMsgToLiveAgentDoesNotRespawn(t *testing.T) {
 }
 
 func TestStaffEngineerMsgAfterDoneQueuesAgain(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	ok(t, e, "staff-engineer", nil, "done", "answered")
 	if sql1(t, e, "SELECT status FROM agents WHERE name='staff-engineer'") != "done" {
@@ -235,6 +242,7 @@ func TestStaffEngineerMsgAfterDoneQueuesAgain(t *testing.T) {
 }
 
 func TestStaffEngineerMsgAfterDoneGateOpenClosesOldPaneOnce(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	sqlExec(t, e, "UPDATE agents SET pane_id='p-old' WHERE name='staff-engineer'")
@@ -253,6 +261,7 @@ func TestStaffEngineerMsgAfterDoneGateOpenClosesOldPaneOnce(t *testing.T) {
 }
 
 func TestStaffEngineerMsgAfterDoneGateClosedClosesOldPaneOnce(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	e.SeedAgent(ft.AgentRow{Name: "staff-engineer", Role: "staff-engineer", Status: "done", PaneID: "p-old"})
@@ -275,6 +284,7 @@ func TestStaffEngineerMsgAfterDoneGateClosedClosesOldPaneOnce(t *testing.T) {
 }
 
 func TestStaffEngineerRepeatMsgDoesNotLeaveTwoPanes(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	ok(t, e, "zz-test-lead", nil, "msg", "staff-engineer", "q", "ctx", "--kind", "request")
@@ -285,6 +295,7 @@ func TestStaffEngineerRepeatMsgDoesNotLeaveTwoPanes(t *testing.T) {
 }
 
 func TestStaffEngineerMsgStoredExit0WhenSpawnFails(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	roles := filepath.Join(e.Home, "roles")
@@ -304,6 +315,7 @@ func TestStaffEngineerMsgStoredExit0WhenSpawnFails(t *testing.T) {
 }
 
 func TestStaffEngineerWorkerCannotMsgStaffEngineer(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	p := refused(t, e, "zz-test-coder", 3, nil, "msg", "staff-engineer", "q", "ctx")
 	contains(t, "stderr", p.Stderr, "ask your lead")
@@ -315,6 +327,7 @@ func TestStaffEngineerWorkerCannotMsgStaffEngineer(t *testing.T) {
 }
 
 func TestStaffEngineerMsgSpawnVsTickRace(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	hook := fmt.Sprintf("python3 %s tick >/dev/null 2>&1", e.GoBin)
@@ -332,6 +345,7 @@ func TestStaffEngineerMsgSpawnVsTickRace(t *testing.T) {
 }
 
 func TestStaffEngineerTickRetriesFailedMsgSpawnOnce(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	breakSERoles(t, e)
@@ -412,6 +426,7 @@ func TestStaffEngineerNotPersistent(t *testing.T) {
 }
 
 func TestStaffEngineerClaimTTLOutlastsSpawnWindow(t *testing.T) {
+	needPy(t)
 	e := seEnv(t)
 	seClean(e)
 	e.SetHerdr(map[string]any{"workspaces": []any{}, "tabs": []any{}, "panes": []any{}, "agents": []any{}})
@@ -491,4 +506,49 @@ func copyDir(src, dst string) error {
 		}
 		return os.WriteFile(target, b, info.Mode())
 	})
+}
+
+func TestStaffEngineerTickSkipsFreshClaimButRetriesStaleOne(t *testing.T) {
+	e := seEnv(t)
+	e.NeedPython()
+	seClean(e)
+	ok(t, e, "zz-test-director", nil, "config", "max_live_agents", "0")
+	ok(t, e, "zz-test-lead", nil, "msg", "staff-engineer", "q", "ctx", "--kind", "request")
+	ok(t, e, "zz-test-director", nil, "config", "max_live_agents", "6")
+	claim := func(at float64) {
+		var args map[string]any
+		if err := json.Unmarshal([]byte(sql1(t, e, "SELECT spawn_args FROM agents WHERE name='staff-engineer'")), &args); err != nil {
+			t.Fatal(err)
+		}
+		args["claimed_at"] = at
+		b, err := json.Marshal(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sqlExec(t, e, "UPDATE agents SET spawn_args=? WHERE name='staff-engineer'", string(b))
+	}
+	// Python's tick reads the wall clock here (claimed_at is time.time()), so run it with the real clock.
+	realTick := func() {
+		e.OKWith(ft.Opts{Agent: "zz-test-director", Env: map[string]string{"FACTORY_TEST_NOW": ""}}, "tick")
+	}
+	statuses := func() []string {
+		var out []string
+		for _, r := range seRows(e) {
+			out = append(out, r[5])
+		}
+		return out
+	}
+	claim(float64(time.Now().Unix()))
+	realTick()
+	if got := statuses(); !reflect.DeepEqual(got, []string{"queued"}) {
+		t.Fatalf("fresh claim: %v", got)
+	}
+	claim(float64(time.Now().Unix() - 3600)) // the claiming msg crashed long ago
+	realTick()
+	if got := statuses(); !reflect.DeepEqual(got, []string{"live"}) {
+		t.Fatalf("stale claim: %v", got)
+	}
+	if len(herdrStarts(e)) != 1 {
+		t.Fatalf("starts %d", len(herdrStarts(e)))
+	}
 }

@@ -91,6 +91,7 @@ func (d *dirBase) card(t *testing.T, args ...string) string {
 }
 
 func TestDirectorRowExactLine(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	d.fixture(t)
 	if got := d.card(t); got != dirLine {
@@ -99,12 +100,14 @@ func TestDirectorRowExactLine(t *testing.T) {
 }
 
 func TestDirectorRowBlankLineBeforeDirector(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	out := d.e.OKWith(ft.Opts{Env: map[string]string{"FACTORY_NOW": dirNow}}, "scorecard").Stdout
 	contains(t, "out", out, "\n\ndirector (24h")
 }
 
 func TestDirectorRowTwoLowScores(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	d.fixture(t)
 	d.msg(t, "director score 2026-10-26: 2/5")
@@ -115,6 +118,7 @@ func TestDirectorRowTwoLowScores(t *testing.T) {
 }
 
 func TestDirectorRowNoScores(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	d.fixture(t)
 	sqlExec(t, d.e, "DELETE FROM messages")
@@ -124,6 +128,7 @@ func TestDirectorRowNoScores(t *testing.T) {
 }
 
 func TestDirectorRowOneScore(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	sqlExec(t, d.e, "DELETE FROM messages")
 	d.msg(t, "director score 2026-10-27: 4/5")
@@ -133,12 +138,14 @@ func TestDirectorRowOneScore(t *testing.T) {
 }
 
 func TestDirectorRowNoDaytimeSamples(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	d.sample(t, localDir(t, 27, 7, 55), 3, 20, 0, 10, nil)
 	contains(t, "card", d.card(t), "no utilization samples · cap breaches 0")
 }
 
 func TestDirectorRowGapEndsEpisode(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	for _, m := range []int{0, 1, 2} {
 		d.sample(t, localDir(t, 27, 8, m), 1, 20, 0, 10, []string{"G-1"})
@@ -152,6 +159,7 @@ func TestDirectorRowGapEndsEpisode(t *testing.T) {
 }
 
 func TestDirectorRowOwnerConfigSetNotABreach(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	sqlExec(t, d.e, "INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
 		localDir(t, 27, 8, 10), "owner", "config", "max_live_agents", "set", "8")
@@ -159,6 +167,7 @@ func TestDirectorRowOwnerConfigSetNotABreach(t *testing.T) {
 }
 
 func TestDirectorRowDays2CountsPreviousDay(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	d.sample(t, localDir(t, 26, 8, 30), 4, 20, 0, 10, nil)
 	contains(t, "card", d.card(t), "no utilization samples")
@@ -169,12 +178,14 @@ func TestDirectorRowDays2CountsPreviousDay(t *testing.T) {
 }
 
 func TestDirectorRowDaysInvalidExit2(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	d.e.Fail(2, "scorecard", "--days", "0")
 	d.e.Fail(2, "scorecard", "--days", "x")
 }
 
 func TestDirectorRowBadConfigDefaults(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	d.e.OK("config", "day_start_hour", "abc")
 	contains(t, "card", d.card(t), "daytime 08-20")
@@ -184,6 +195,7 @@ func TestDirectorRowBadConfigDefaults(t *testing.T) {
 }
 
 func TestDirectorRowDigestSection(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	d.fixture(t)
 	d.e.SeedGoal("G-001", "", "zz-test goal")
@@ -195,6 +207,7 @@ func TestDirectorRowDigestSection(t *testing.T) {
 }
 
 func TestDirectorRowPerformance35Days(t *testing.T) {
+	needPy(t)
 	d := newDirBase(t)
 	base := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
 	const n = 35 * 1440

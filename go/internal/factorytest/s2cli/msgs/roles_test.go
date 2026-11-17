@@ -40,6 +40,7 @@ func TestRolesCoderCannotGoalNew(t *testing.T) {
 }
 
 func TestRolesCoderCannotSetConfig(t *testing.T) {
+	needPy(t)
 	e := newRolesEnv(t)
 	failAs(e, "zz-test-coder", 3, "config", "max_live_agents", "99")
 	rows := e.SQL("SELECT value FROM config WHERE key='max_live_agents'")
@@ -54,6 +55,7 @@ func TestRolesCoderCanReadConfig(t *testing.T) {
 }
 
 func TestRolesDirectorCanSetConfig(t *testing.T) {
+	needPy(t)
 	e := newRolesEnv(t)
 	okAs(e, "zz-test-director", "config", "max_live_agents", "7")
 	rows := e.SQL("SELECT value FROM config WHERE key='max_live_agents'")
@@ -159,6 +161,7 @@ func TestRolesLeadCanSendEscalation(t *testing.T) {
 }
 
 func TestRolesUnknownAgentRefused(t *testing.T) {
+	needPy(t)
 	e := newRolesEnv(t)
 	cases := [][]string{
 		{"goal", "new", "--title", "zz-test"},

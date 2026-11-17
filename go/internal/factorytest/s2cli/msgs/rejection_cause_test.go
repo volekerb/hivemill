@@ -8,9 +8,8 @@ import (
 	ft "factory/go/internal/factorytest"
 )
 
-// Port of tests/test_rejection_cause.py (6 cases).
-// not ported: TestRejectionCauseCounts — uses record_rejection_incident/rejection_cause_counts in-process
-// (FactoryTestCase.INPROC); no Go counterpart until P7a.
+// Port of tests/test_rejection_cause.py: 5 of 6 cases (Python Ran 6). PARTIAL for P7a (T-1495).
+// not ported: test_rejection_cause_counts - calls record_rejection_incident/rejection_cause_counts in-process (INPROC); no CLI form, no Go counterpart
 
 func newRejectionCauseEnv(t *testing.T) *ft.Env {
 	t.Helper()

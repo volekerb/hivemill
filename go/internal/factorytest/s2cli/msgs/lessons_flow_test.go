@@ -1,4 +1,3 @@
-// PARTIAL for P7a (T-1495): see the 'not ported' lines below; keep the Python module until they have Go counterparts.
 package s2msgs
 
 import (
@@ -11,8 +10,7 @@ import (
 	ft "factory/go/internal/factorytest"
 )
 
-// Port of tests/test_lessons_flow.py (31 cases). judge merge and gh Script paths may call NeedPython.
-// not ported: CollapseTests (4 cases) — second judge --merge on PR #2 needs Python gh merge_lands / files JSON (stub parity).
+// Port of tests/test_lessons_flow.py: all 31 cases, nothing not ported (CollapseTests included). judge merge and gh Script paths may call NeedPython.
 
 const flowPR2 = "https://github.com/zz-test/zz-test/pull/2"
 
@@ -76,6 +74,7 @@ func seedPRExtra(t *testing.T, e *ft.Env, url, tid string) {
 }
 
 func TestLessonsFlowHelpListsActions(t *testing.T) {
+	needPy(t)
 	f := newFlowBase(t)
 	out := f.e.OK("lesson", "--help").Stdout
 	for _, w := range []string{"add", "list", "show", "edit", "link", "apply", "verify", "reopen"} {
@@ -84,6 +83,7 @@ func TestLessonsFlowHelpListsActions(t *testing.T) {
 }
 
 func TestLessonsFlowAmendments(t *testing.T) {
+	needPy(t)
 	f := newFlowBase(t)
 	lid := f.newLesson(t, "t")
 	p := as(f.e, "zz-test-lead", "lesson", "add", "L-009", "--title", "t", "--roles", "all", "--rule", "r")
@@ -107,6 +107,7 @@ func TestLessonsFlowAmendments(t *testing.T) {
 }
 
 func TestLessonsFlowLinkPRMergedThenApply(t *testing.T) {
+	needPy(t)
 	f := newFlowBase(t)
 	lid := f.newLesson(t, "t")
 	appendGhRules(t, f.e, prViewRule(oldPR, shaA, "MERGED", nil, nil))
@@ -229,6 +230,7 @@ func TestLessonsFlowVerifyAndReopen(t *testing.T) {
 }
 
 func TestLessonsFlowWorkersRefused(t *testing.T) {
+	needPy(t)
 	f := newFlowBase(t)
 	lid := f.newLesson(t, "t")
 	for _, role := range lessonWorkers {
@@ -492,10 +494,16 @@ type collapseBase struct {
 func (c *collapseBase) merge2(t *testing.T, files ...string) {
 	t.Helper()
 	seedPRExtra(t, c.e, flowPR2, "T-0002")
-	appendGhRules(t, c.e, prViewRule(flowPR2, c.e.HeadSHA, "OPEN", files, greenChecks()))
+	// Python's seed_pr numbers every PR 1, so the judge fetches refs/pull/1/head (the only ref UseGitHead pushes).
+	rule := prViewRule(flowPR2, c.e.HeadSHA, "OPEN", files, greenChecks())
+	rule.Out = strings.Replace(rule.Out, `"number":2`, `"number":1`, 1)
+	if !strings.Contains(rule.Out, `"number":1`) {
+		t.Fatalf("pr view rule has no number: %s", rule.Out)
+	}
+	appendGhRules(t, c.e, rule)
 	p := c.merge(t, "T-0002")
 	if p.Exit != 0 {
-		t.Fatalf("merge2 %d", p.Exit)
+		t.Fatalf("merge2 %d %s %s", p.Exit, p.Stdout, p.Stderr)
 	}
 }
 
@@ -625,4 +633,75 @@ func TestLessonsFlowLessonsSection(t *testing.T) {
 	contains(t, "verified", verSec, "- L-003 verified one — saw it work")
 	contains(t, "verified", verSec, "Open: 2 · applied, awaiting verification: 1")
 	notContains(t, "digest", flowDigest(f, "--goal", "G-001"), "## Lessons")
+}
+
+func TestLessonsFlowLeadNoticeCollapsed(t *testing.T) {
+	c := &collapseBase{newFlowBase(t)}
+	c.twoMerges(t, "roles/lead.md")
+	if n := msgsTo(c.flowBase, "lead", "role files changed: relaunch pending"); len(n) != 0 {
+		t.Fatalf("lead msgs %v", n)
+	}
+	n := msgsTo(c.flowBase, "director", "role files changed: stale agents")
+	if len(n) != 1 {
+		t.Fatalf("director notices %d", len(n))
+	}
+	if n[0][6] != "NULL" { // the harness renders SQL NULL as "NULL"
+		t.Fatalf("read_at %q", n[0][6])
+	}
+	contains(t, "body", n[0][5], ft.PRURL)
+	contains(t, "body", n[0][5], flowPR2)
+	if strings.Count(n[0][5], "- roles/lead.md") != 1 || strings.Count(n[0][5], "factory relaunch zz-test-lead --when-idle") != 1 {
+		t.Fatalf("body %q", n[0][5])
+	}
+	if got := len(flowMsgs(c.e, "role files changed")); got != 1 {
+		t.Fatalf("msgs %d", got)
+	}
+	if got := len(c.e.SQL("SELECT * FROM events WHERE action='roles-changed'")); got != 2 {
+		t.Fatalf("events %d", got)
+	}
+}
+
+func TestLessonsFlowReadNoticeNotCollapsed(t *testing.T) {
+	c := &collapseBase{newFlowBase(t)}
+	c.mergeWithFiles(t, "roles/lead.md")
+	first := msgsTo(c.flowBase, "director", "role files changed: stale agents")[0]
+	sqlExec(t, c.e, "UPDATE messages SET read_at='2026-01-01T00:00:00+00:00' WHERE id=?", first[0])
+	c.merge2(t, "roles/lead.md")
+	n := msgsTo(c.flowBase, "director", "role files changed: stale agents")
+	if len(n) != 2 {
+		t.Fatalf("notices %d", len(n))
+	}
+	if n[0][5] != first[5] || strings.Contains(n[0][5], flowPR2) {
+		t.Fatalf("first body changed: %q", n[0][5])
+	}
+	contains(t, "second body", n[1][5], flowPR2)
+}
+
+func TestLessonsFlowDirectorAndBossCollapsed(t *testing.T) {
+	c := &collapseBase{newFlowBase(t)}
+	c.twoMerges(t, "roles/director.md", "roles/lead.md")
+	d := msgsTo(c.flowBase, "director", "role files changed: stale agents")
+	if len(d) != 1 {
+		t.Fatalf("director notices %d", len(d))
+	}
+	for _, who := range []string{"zz-test-lead", "zz-test-director"} {
+		if strings.Count(d[0][5], "factory relaunch "+who+" --when-idle") != 1 {
+			t.Fatalf("body %q", d[0][5])
+		}
+	}
+	contains(t, "director body", d[0][5], flowPR2)
+	b := msgsTo(c.flowBase, "boss", "role files changed: director stale")
+	if len(b) != 1 {
+		t.Fatalf("boss notices %d", len(b))
+	}
+	contains(t, "boss body", b[0][5], ft.PRURL)
+	contains(t, "boss body", b[0][5], flowPR2)
+}
+
+func TestLessonsFlowNonPersistentRoleSendsNothing(t *testing.T) {
+	c := &collapseBase{newFlowBase(t)}
+	c.twoMerges(t, "roles/coder.md")
+	if got := flowMsgs(c.e, "role files changed"); len(got) != 0 {
+		t.Fatalf("msgs %v", got)
+	}
 }

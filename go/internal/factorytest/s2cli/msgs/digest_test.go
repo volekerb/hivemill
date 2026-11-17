@@ -1,4 +1,7 @@
-// PARTIAL for P7a (T-1495): see the 'not ported' lines below; keep the Python module until they have Go counterparts.
+// PARTIAL for P7a (T-1495): keep tests/test_digest.py until the three cases below have Go counterparts.
+// not ported: test_other_value_error_in_build_digest_propagates (test_digest.py:503) - mock.patch of mod.build_digest and mod.cmd_digest in-process, no CLI form
+// not ported: test_tick_digest_failure_isolated (test_digest.py:527) - mock.patch of mod.build_digest/mod.tick_lock and mod.cmd_tick in-process, no CLI form
+// not ported: test_tick_digest_failed_logged_once_per_day (test_digest.py:539) - same mock.patch of build_digest in-process
 package s2msgs
 
 import (
@@ -11,7 +14,7 @@ import (
 	ft "factory/go/internal/factorytest"
 )
 
-// Port of tests/test_digest.py (43 cases).
+// Port of tests/test_digest.py: 40 of 43 cases (Python Ran 43).
 
 var digestOrgLine = regexp.MustCompile(`Orgs: claude (\d+) active · cursor (\d+) active`)
 
@@ -635,6 +638,7 @@ func TestDigestScorecardUnchanged(t *testing.T) {
 }
 
 func TestDigestGroupsActiveGoalsByOrg(t *testing.T) {
+	needPy(t)
 	d := newDigestBase(t)
 	e := d.e
 	ok(t, e, "", nil, "config", "orgs_enabled", "claude,cursor")
@@ -653,6 +657,7 @@ func TestDigestGroupsActiveGoalsByOrg(t *testing.T) {
 }
 
 func TestDigestShowsDisabledOrgWhenItHasGoals(t *testing.T) {
+	needPy(t)
 	d := newDigestBase(t)
 	e := d.e
 	ok(t, e, "", nil, "config", "orgs_enabled", "claude")
@@ -669,6 +674,7 @@ func TestDigestShowsDisabledOrgWhenItHasGoals(t *testing.T) {
 }
 
 func TestDigestClaudeOnlyOmitsEmptyCursorSection(t *testing.T) {
+	needPy(t)
 	d := newDigestBase(t)
 	ok(t, d.e, "", nil, "config", "orgs_enabled", "claude")
 	out := d.digestOut(t)
@@ -761,6 +767,7 @@ func TestDigestInvalidFactoryNowDoesNotAbortTick(t *testing.T) {
 }
 
 func TestDigestFactoryNowErrorIsAValueError(t *testing.T) {
+	needPy(t)
 	// not ported: issubclass(mod.FactoryNowError, ValueError) and in-process digest_clock (tests/test_digest.py)
 	d := newDigestBase(t)
 	q := d.e.RunWith(ft.Opts{Env: map[string]string{"FACTORY_NOW": "garbage"}}, "digest")

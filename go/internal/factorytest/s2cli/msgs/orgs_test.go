@@ -1,8 +1,6 @@
-// PARTIAL for P7a (T-1495): see the 'not ported' lines below; keep the Python module until they have Go counterparts.
-// Go tests for tests/test_orgs.py (39 cases). spawn/up/tick/red-pr alert paths use NeedPython; msg routing uses the Go CLI.
-// not ported: GoalAlertRoutingTests tick-driven red/blocked/review alerts — Python tick pr_probe expects tests/stubs/gh
-//
-//	FAKE_GH_STATE behavior; the Go harness stub answers only via Env.Script (T-1522); revisit when gh stub reads gh.json.
+// Go tests for tests/test_orgs.py: all 40 cases of "Ran 40" (32 def test_ plus the 8 inherited reruns of the four RoutingTests
+// under LeadBareHqRoutingTests and OrgPrefixDefaultRoutingTests, each a top-level TestOrgsLeadBareHq*/TestOrgsOrgPrefixDefault* test).
+// Nothing is not ported. spawn/up/tick alert paths use NeedPython; msg routing uses the Go CLI.
 package s2msgs
 
 import (
@@ -144,8 +142,7 @@ func lastRcpt(t *testing.T, e *ft.Env) string {
 	return sql1(t, e, "SELECT recipient FROM messages ORDER BY id DESC LIMIT 1")
 }
 
-func TestOrgsBareRolesResolveInsideSenderOrg(t *testing.T) {
-	e := routingEnv(t)
+func bareRolesBody(t *testing.T, e *ft.Env) {
 	ok(t, e, "cursor-lead-g-002-a", nil, "msg", "director", "zz-test s", "b")
 	if lastRcpt(t, e) != "cursor-director" {
 		t.Fatal()
@@ -160,16 +157,32 @@ func TestOrgsBareRolesResolveInsideSenderOrg(t *testing.T) {
 	}
 }
 
-func TestOrgsGoalRoutesToGoalOrg(t *testing.T) {
-	e := routingEnv(t)
+func TestOrgsBareRolesResolveInsideSenderOrg(t *testing.T) { bareRolesBody(t, routingEnv(t)) }
+
+func TestOrgsLeadBareHqBareRolesResolveInsideSenderOrg(t *testing.T) { bareRolesBody(t, routingEnv(t)) }
+
+func TestOrgsOrgPrefixDefaultBareRolesResolveInsideSenderOrg(t *testing.T) {
+	needPy(t)
+	bareRolesBody(t, orgPrefixRoutingEnv(t))
+}
+
+func goalRoutesBody(t *testing.T, e *ft.Env) {
 	ok(t, e, "director", nil, "msg", "boss", "zz-test s", "b", "--goal", "G-002")
 	if lastRcpt(t, e) != "cursor-boss" {
 		t.Fatal()
 	}
 }
 
-func TestOrgsDirectorsTalkAcrossOrgs(t *testing.T) {
-	e := routingEnv(t)
+func TestOrgsGoalRoutesToGoalOrg(t *testing.T) { goalRoutesBody(t, routingEnv(t)) }
+
+func TestOrgsLeadBareHqGoalRoutesToGoalOrg(t *testing.T) { goalRoutesBody(t, routingEnv(t)) }
+
+func TestOrgsOrgPrefixDefaultGoalRoutesToGoalOrg(t *testing.T) {
+	needPy(t)
+	goalRoutesBody(t, orgPrefixRoutingEnv(t))
+}
+
+func directorsTalkBody(t *testing.T, e *ft.Env) {
 	ok(t, e, "director", nil, "msg", "cursor-director", "zz-test capacity", "b")
 	if lastRcpt(t, e) != "cursor-director" {
 		t.Fatal()
@@ -184,12 +197,29 @@ func TestOrgsDirectorsTalkAcrossOrgs(t *testing.T) {
 	}
 }
 
-func TestOrgsLeadMayNotCrossOrgs(t *testing.T) {
-	e := routingEnv(t)
+func TestOrgsDirectorsTalkAcrossOrgs(t *testing.T) { directorsTalkBody(t, routingEnv(t)) }
+
+func TestOrgsLeadBareHqDirectorsTalkAcrossOrgs(t *testing.T) { directorsTalkBody(t, routingEnv(t)) }
+
+func TestOrgsOrgPrefixDefaultDirectorsTalkAcrossOrgs(t *testing.T) {
+	needPy(t)
+	directorsTalkBody(t, orgPrefixRoutingEnv(t))
+}
+
+func leadMayNotCrossBody(t *testing.T, e *ft.Env) {
 	p := refused(t, e, "cursor-lead-g-002-a", 3, nil, "msg", "lead-g-001-a", "zz-test s", "b")
 	contains(t, "stderr", p.Stderr, "only the boss and director talk across orgs")
 	p = refused(t, e, "lead-g-001-a", 3, nil, "msg", "cursor-director", "zz-test s", "b")
 	contains(t, "stderr", p.Stderr, "across orgs")
+}
+
+func TestOrgsLeadMayNotCrossOrgs(t *testing.T) { leadMayNotCrossBody(t, routingEnv(t)) }
+
+func TestOrgsLeadBareHqLeadMayNotCrossOrgs(t *testing.T) { leadMayNotCrossBody(t, routingEnv(t)) }
+
+func TestOrgsOrgPrefixDefaultLeadMayNotCrossOrgs(t *testing.T) {
+	needPy(t)
+	leadMayNotCrossBody(t, orgPrefixRoutingEnv(t))
 }
 
 func TestOrgsClaudeLeadBareHqWithCursorGoalStaysInOwnOrg(t *testing.T) {
@@ -253,6 +283,7 @@ func orgPrefixRoutingEnv(t *testing.T) *ft.Env {
 }
 
 func TestOrgsDefaultOrgBareHQReachesLegacyRow(t *testing.T) {
+	needPy(t)
 	e := orgPrefixRoutingEnv(t)
 	sqlExec(t, e, "DELETE FROM agents WHERE name IN ('claude-director', 'claude-boss')")
 	ok(t, e, "lead-g-001-a", nil, "msg", "director", "zz-test s", "b")
@@ -266,6 +297,7 @@ func TestOrgsDefaultOrgBareHQReachesLegacyRow(t *testing.T) {
 }
 
 func TestOrgsLivePrefixedHQWinsOverLegacy(t *testing.T) {
+	needPy(t)
 	e := orgPrefixRoutingEnv(t)
 	e.SeedAgent(ft.AgentRow{Name: "claude-director", Role: "director"})
 	e.SeedAgent(ft.AgentRow{Name: "claude-boss", Role: "boss"})
@@ -276,6 +308,7 @@ func TestOrgsLivePrefixedHQWinsOverLegacy(t *testing.T) {
 }
 
 func TestOrgsStoppedPrefixedRowFallsBackToLegacy(t *testing.T) {
+	needPy(t)
 	e := orgPrefixRoutingEnv(t)
 	e.SeedAgent(ft.AgentRow{Name: "claude-director", Role: "director", Status: "stopped"})
 	ok(t, e, "lead-g-001-a", nil, "msg", "director", "zz-test s", "b")
@@ -285,6 +318,7 @@ func TestOrgsStoppedPrefixedRowFallsBackToLegacy(t *testing.T) {
 }
 
 func TestOrgsCursorHQUnchangedUnderOrgPrefixDefault(t *testing.T) {
+	needPy(t)
 	e := orgPrefixRoutingEnv(t)
 	ok(t, e, "cursor-lead-g-002-a", nil, "msg", "director", "zz-test s", "b")
 	if lastRcpt(t, e) != "cursor-director" {
@@ -418,7 +452,14 @@ func goalAlertEnv(t *testing.T) *ft.Env {
 	e.SeedTask(ft.Task{ID: "T-0001", Goal: "G-001", Status: "in_progress", Team: "g-001-a"})
 	sqlExec(t, e, "UPDATE tasks SET branch='factory/t-0001' WHERE id='T-0001'")
 	ok(t, e, "", nil, "config", "red_pr_owner_alert", "1")
-	seedPRStub(t, e, ft.PRURL, strings.Repeat("a", 40), []map[string]string{{"name": "build", "status": "COMPLETED", "conclusion": "FAILURE"}})
+	sha := strings.Repeat("a", 40)
+	seedPRStub(t, e, ft.PRURL, sha, []map[string]string{{"name": "build", "status": "COMPLETED", "conclusion": "FAILURE"}})
+	// the tick probes the PR over REST (gh api pulls/N, check-runs, status), as the Python gh stub answers from gh.json
+	appendGhRules(t, e,
+		ft.StubRule{Match: []string{"api", "repos/zz-test/repo/pulls/1"}, Out: `{"number": 1, "state": "open", "head": {"sha": "` + sha + `"}, "mergeable_state": "clean"}`},
+		ft.StubRule{Match: []string{"api", "commits/" + sha + "/check-runs"}, Out: `{"check_runs": [{"name": "build", "status": "completed", "conclusion": "failure"}], "total_count": 1}`},
+		ft.StubRule{Match: []string{"api", "commits/" + sha + "/status"}, Out: `{"state": "success", "statuses": []}`},
+		ft.StubRule{Match: []string{"pr", "list"}, Out: "[]\n"})
 	return e
 }
 
@@ -432,6 +473,7 @@ func redPrMails(t *testing.T, e *ft.Env) map[string]struct{} {
 }
 
 func TestOrgsReviewNoVerdictAlertOnCursorGoal(t *testing.T) {
+	needPy(t)
 	e := goalAlertEnv(t)
 	pyReviewAlert(t, e, "cursor", "g-001-a", strings.Repeat("a", 40))
 	want := map[string]struct{}{"cursor-director": {}}
@@ -445,6 +487,7 @@ func TestOrgsReviewNoVerdictAlertOnCursorGoal(t *testing.T) {
 }
 
 func TestOrgsReviewNoVerdictAlertOnClaudeGoal(t *testing.T) {
+	needPy(t)
 	e := goalAlertEnv(t)
 	pyReviewAlert(t, e, "claude", "g-001-a", strings.Repeat("a", 40))
 	got := map[string]struct{}{}
@@ -458,7 +501,7 @@ func TestOrgsReviewNoVerdictAlertOnClaudeGoal(t *testing.T) {
 
 func blockedMails(t *testing.T, e *ft.Env, goalOrg string, want map[string]struct{}) {
 	t.Helper()
-	e.NeedPython()
+	tickReady(t, e)
 	sqlExec(t, e, "UPDATE goals SET org=? WHERE id='G-001'", goalOrg)
 	e.SeedAgent(ft.AgentRow{Name: "coder-x", Role: "coder", Goal: "G-001", Team: "g-001-a", PaneID: "p-c"})
 	sqlExec(t, e, "UPDATE agents SET pane_id='p-lead' WHERE name='claude-lead-g-001-a'")
@@ -494,4 +537,74 @@ func reflectSetEq(a, b map[string]struct{}) bool {
 		}
 	}
 	return true
+}
+
+func TestOrgsCursorQaRunsOnJudgementModel(t *testing.T) {
+	// T-1615: QA is part of the review gate, so cursor qa uses the judgement model.
+	get := func(org, role string) string {
+		m, err := scout.Model(org, role)
+		if err != nil {
+			t.Fatalf("Model(%s,%s): %v", org, role, err)
+		}
+		return m
+	}
+	got := []string{get("cursor", "qa"), get("cursor", "reviewer"), get("cursor", "coder"), get("claude", "qa")}
+	want := []string{"grok-4.7-high", "grok-4.7-high", "composer-2.5", "claude-sonnet-5-5"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v want %v", got, want)
+		}
+	}
+	// no other cursor build role moved
+	wantBuild := map[string]string{"coder": "composer-2.5", "cleaner": "composer-2.5", "scout": "composer-2.5", "retro": "composer-2.5", "evaluator": "claude-sonnet-5-5"}
+	for _, role := range scout.BuildRoles {
+		if role == "qa" {
+			continue
+		}
+		if w, ok := wantBuild[role]; !ok || get("cursor", role) != w {
+			t.Fatalf("cursor build role %s = %s, want %q", role, get("cursor", role), w)
+		}
+		delete(wantBuild, role)
+	}
+	if len(wantBuild) != 0 {
+		t.Fatalf("build roles missing from scout.BuildRoles: %v", wantBuild)
+	}
+}
+
+func redPrAlert(t *testing.T, goalOrg string, want map[string]struct{}) {
+	e := goalAlertEnv(t)
+	tickReady(t, e)
+	sqlExec(t, e, "UPDATE goals SET org=? WHERE id='G-001'", goalOrg)
+	ok(t, e, "", nil, "tick")
+	if got := redPrMails(t, e); !reflectSetEq(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+}
+
+func TestOrgsRedPrOnACursorGoalGoesToTheCursorDirectorNotTheClaudeLead(t *testing.T) {
+	needPy(t)
+	redPrAlert(t, "cursor", map[string]struct{}{"cursor-director": {}})
+}
+
+func TestOrgsRedPrOnAClaudeGoalGoesToItsClaudeLead(t *testing.T) {
+	needPy(t)
+	redPrAlert(t, "claude", map[string]struct{}{"claude-lead-g-001-a": {}})
+}
+
+func TestOrgsBlockedAlertOnACursorGoalGoesToTheCursorDirectorNotTheClaudeLead(t *testing.T) {
+	needPy(t)
+	blockedMails(t, goalAlertEnv(t), "cursor", map[string]struct{}{"cursor-director": {}})
+}
+
+func TestOrgsBlockedAlertOnAClaudeGoalGoesToItsClaudeLead(t *testing.T) {
+	needPy(t)
+	blockedMails(t, goalAlertEnv(t), "claude", map[string]struct{}{"claude-lead-g-001-a": {}})
+}
+
+// tickReady makes `factory tick` reach its probes: the Python tick, a reachable stateful pane stub and the pane backend.
+func tickReady(t *testing.T, e *ft.Env) {
+	t.Helper()
+	e.NeedPython()
+	e.HerdrStateful()
+	sqlExec(t, e, "UPDATE config SET value='herdr' WHERE key='terminal_backend'")
 }

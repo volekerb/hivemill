@@ -405,3 +405,12 @@ func ghPRMergeCalls(e *ft.Env) int {
 func tableRows(e *ft.Env, table string) [][]string {
 	return e.SQL("SELECT * FROM " + table)
 }
+
+// needPy skips a test that drives a command the Go CLI still hands to Python (config, spawn, tick, judge, ...) when
+// python3 is not on PATH (AC6). Same message as Env.NeedPython, but usable before the Env exists.
+func needPy(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 is not on PATH: this test drives a command the Go CLI still hands to Python; it runs where python3 exists")
+	}
+}

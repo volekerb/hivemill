@@ -7,9 +7,9 @@ import (
 	ft "factory/go/internal/factorytest"
 )
 
-// Port of tests/test_verdict_gates.py (16 cases).
-// not ported: TestVerdictGatesParseEndsAtNextHeadingAndIgnoresBlank, TestVerdictGatesParseKeepsCmdWithEqualsAndSpaces —
-// parse_gates unit tests; parity in go/internal/cli/cmd_verdict_test.go TestParseGates and indirect coverage here.
+// Port of tests/test_verdict_gates.py: 14 of 16 cases (Python Ran 16). PARTIAL for P7a (T-1495).
+// not ported: test_parse_ends_at_next_heading_and_ignores_blank - parse_gates called in-process (no CLI form); Go counterpart in go/internal/cli/cmd_verdict_test.go TestParseGates
+// not ported: test_parse_keeps_cmd_with_equals_and_spaces - parse_gates called in-process (no CLI form); Go counterpart in go/internal/cli/cmd_verdict_test.go TestParseGates
 
 func newVerdictGatesEnv(t *testing.T) *ft.Env {
 	t.Helper()

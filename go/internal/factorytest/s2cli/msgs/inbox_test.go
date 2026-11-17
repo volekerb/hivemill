@@ -108,6 +108,7 @@ func TestInboxRecipientUnknownFails(t *testing.T) {
 }
 
 func TestInboxMarksRead(t *testing.T) {
+	needPy(t)
 	e := inboxBase(t)
 	ok(t, e, "zz-test-coder", nil, "msg", "zz-test-lead", "first", "body one")
 	p := ok(t, e, "zz-test-lead", nil, "inbox")
@@ -121,6 +122,7 @@ func TestInboxMarksRead(t *testing.T) {
 }
 
 func TestInboxPeekDoesNotMarkRead(t *testing.T) {
+	needPy(t)
 	e := inboxBase(t)
 	ok(t, e, "zz-test-coder", nil, "msg", "zz-test-lead", "first", "b")
 	contains(t, "stdout", ok(t, e, "zz-test-lead", nil, "inbox", "--peek").Stdout, "first")
@@ -128,6 +130,7 @@ func TestInboxPeekDoesNotMarkRead(t *testing.T) {
 }
 
 func TestInboxAllShowsRead(t *testing.T) {
+	needPy(t)
 	e := inboxBase(t)
 	ok(t, e, "zz-test-coder", nil, "msg", "zz-test-lead", "first", "b")
 	ok(t, e, "zz-test-lead", nil, "inbox")
@@ -136,6 +139,7 @@ func TestInboxAllShowsRead(t *testing.T) {
 }
 
 func TestInboxAgentFlagDoesNotMarkRead(t *testing.T) {
+	needPy(t)
 	e := inboxBase(t)
 	ok(t, e, "zz-test-coder", nil, "msg", "zz-test-lead", "first", "b")
 	p := ok(t, e, "zz-test-director", nil, "inbox", "--agent", "zz-test-lead")
@@ -147,6 +151,7 @@ func TestInboxAgentFlagDoesNotMarkRead(t *testing.T) {
 }
 
 func TestInboxOnlyOwnMessages(t *testing.T) {
+	needPy(t)
 	e := inboxBase(t)
 	ok(t, e, "zz-test-coder", nil, "msg", "zz-test-lead", "for lead", "b")
 	contains(t, "stdout", ok(t, e, "zz-test-director", nil, "inbox").Stdout, "inbox empty")
@@ -177,6 +182,7 @@ func TestInboxSingleDashReadsStdin(t *testing.T) {
 }
 
 func TestInboxMessageKindAndIdsShown(t *testing.T) {
+	needPy(t)
 	e := inboxBase(t)
 	e.SeedTask(ft.Task{ID: "T-0001", Status: "todo", PRURL: ""})
 	ok(t, e, "zz-test-coder", nil, "msg", "zz-test-lead", "s", "b", "--kind", "report", "--goal", "G-001", "--task", "T-0001")
@@ -186,6 +192,7 @@ func TestInboxMessageKindAndIdsShown(t *testing.T) {
 }
 
 func TestInboxHqReportCollapsed(t *testing.T) {
+	needPy(t)
 	e := inboxTerseBase(t)
 	mid := tereteSend(t, e, "director", "report", "subj", body10(), "zz-test-coder")
 	out := ok(t, e, "zz-test-director", nil, "inbox").Stdout
@@ -195,6 +202,7 @@ func TestInboxHqReportCollapsed(t *testing.T) {
 }
 
 func TestInboxHqOtherKindsFull(t *testing.T) {
+	needPy(t)
 	kinds := []string{"request", "decision", "escalation", "alert", "msg"}
 	for _, kind := range kinds {
 		t.Run(kind, func(t *testing.T) {
@@ -208,6 +216,7 @@ func TestInboxHqOtherKindsFull(t *testing.T) {
 }
 
 func TestInboxHqShortReportFull(t *testing.T) {
+	needPy(t)
 	e := inboxTerseBase(t)
 	tereteSend(t, e, "director", "report", "subj", "a\nb", "zz-test-coder")
 	out := ok(t, e, "zz-test-director", nil, "inbox").Stdout
@@ -216,6 +225,7 @@ func TestInboxHqShortReportFull(t *testing.T) {
 }
 
 func TestInboxHqLongSingleLineReportCollapsed(t *testing.T) {
+	needPy(t)
 	e := inboxTerseBase(t)
 	tereteSend(t, e, "lead:g-001-a", "report", "subj", strings.Repeat("x", 500), "zz-test-coder")
 	out := ok(t, e, "zz-test-lead", nil, "inbox").Stdout
@@ -225,18 +235,21 @@ func TestInboxHqLongSingleLineReportCollapsed(t *testing.T) {
 }
 
 func TestInboxDailyDigestFull(t *testing.T) {
+	needPy(t)
 	e := inboxTerseBase(t)
 	tereteSend(t, e, "boss", "report", "daily digest 2026-10-25", body10(), "zz-test-coder")
 	contains(t, "stdout", ok(t, e, "boss", nil, "inbox").Stdout, "line 10")
 }
 
 func TestInboxBossReportCollapsed(t *testing.T) {
+	needPy(t)
 	e := inboxTerseBase(t)
 	tereteSend(t, e, "boss", "report", "subj", body10(), "zz-test-coder")
 	notContains(t, "stdout", ok(t, e, "boss", nil, "inbox").Stdout, "line 5")
 }
 
 func TestInboxWorkerReportFull(t *testing.T) {
+	needPy(t)
 	e := inboxTerseBase(t)
 	ok(t, e, "zz-test-coder2", nil, "msg", "zz-test-coder", "subj", body10(), "--kind", "report")
 	out := ok(t, e, "zz-test-coder", nil, "inbox").Stdout
@@ -245,6 +258,7 @@ func TestInboxWorkerReportFull(t *testing.T) {
 }
 
 func TestInboxFullFlag(t *testing.T) {
+	needPy(t)
 	e := inboxTerseBase(t)
 	tereteSend(t, e, "director", "report", "subj", body10(), "zz-test-coder")
 	contains(t, "stdout", ok(t, e, "zz-test-director", nil, "inbox", "--full").Stdout, "line 10")
@@ -290,6 +304,7 @@ func TestInboxShowUnknownID(t *testing.T) {
 }
 
 func TestInboxLimitMarksOnlyPrinted(t *testing.T) {
+	needPy(t)
 	e := inboxTerseBase(t)
 	for i := 0; i < 60; i++ {
 		tereteSend(t, e, "zz-test-lead", "msg", fmt.Sprintf("s%d", i), "b", "zz-test-coder")
