@@ -3,11 +3,12 @@
 import fcntl
 import json
 import os
+import sqlite3
 import threading
 from pathlib import Path
 import unittest
 
-from harness import PR_URL, FactoryTestCase, git, pr_body
+from harness import FACTORY_SRC, PR_URL, FactoryTestCase, git, pr_body
 
 REPO = Path(__file__).resolve().parent.parent
 BRANCH = "factory/t-0001"
@@ -180,6 +181,31 @@ class PrcheckTests(FactoryTestCase):
     def test_affected_zero_tests_fails(self):
         p = self.prcheck(1, env={"AFF_OUT": "Ran 0 tests in 0.0s"})
         self.assertIn("reported no tests run", p.stdout)
+
+    # -- 5a affected applicability comes from origin/<base>, not the worktree (T-1409) ----------
+    def test_affected_na_when_project_has_no_script_on_origin(self):
+        git("rm", "-q", "ci/affected.py", cwd=self.main)
+        git("commit", "-q", "-m", "drop affected", cwd=self.main)
+        git("push", "-q", "origin", "main", cwd=self.main)
+        git("fetch", "-q", "origin", cwd=self.wt)
+        p = self.env.run("prcheck", agent="zz-test-coder", extra_env={"AFF_RC": "1"})
+        self.assertIn("PASS affected: n/a: project", p.stdout)
+        self.assertIn("has no ci/affected.py on origin/main", p.stdout)
+
+    def test_affected_stale_worktree_missing_script_fails_with_merge_hint(self):
+        git("rm", "-q", "ci/affected.py", cwd=self.wt)
+        git("commit", "-q", "-m", "drop affected locally", cwd=self.wt)
+        p = self.prcheck(1)
+        self.assertIn("FAIL affected: ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main", p.stdout)
+
+    def test_affected_unreadable_origin_fails_closed(self):
+        # prcheck's fresh check re-fetches origin, so call the check itself with the remote-tracking ref gone
+        git("update-ref", "-d", "refs/remotes/origin/main", cwd=self.wt)
+        ns = {"__name__": "factory_unit", "__file__": str(FACTORY_SRC), "__builtins__": __builtins__}
+        exec(compile(FACTORY_SRC.read_text(), str(FACTORY_SRC), "exec"), ns)
+        ok, note = ns["prcheck_affected"](str(self.wt), "main", con=sqlite3.connect(":memory:"))  # no project id: the factory path, no DB read
+        self.assertFalse(ok)
+        self.assertIn("cannot read origin/main to decide if ci/affected.py applies", note)
 
     def test_affected_na_for_non_factory_project_and_other_checks_still_run(self):
         self.env.sql("UPDATE projects SET gh_repo='zz-owner/other-repo' WHERE id='zz-test-proj'")

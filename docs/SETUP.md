@@ -171,8 +171,11 @@ Read the Upgrade section of that version's release notes (https://github.com/vol
 | (tick housekeeping) | — | Hourly the tick also removes stale test-harness homes `/tmp/zz-test-factory-<8 chars>`: real dirs of the factory user directly under `/tmp`, nothing in the tree touched for 1 h, no process of that user with its cwd or an fd inside (an unreadable `/proc/<pid>` keeps everything), at most 500 per pass; one `tmp-harness-swept` event. The `/tmp` percent in `factory res` and the gate text has one decimal. |
 | `max_five_hour_pct` | `92` | The gate closes above this share of the five-hour Claude usage window. |
 | `max_seven_day_pct` | `92` | Same, for the seven-day window. |
+| `usage_reopen_samples` | `3` | After a fresh 5h or 7d reading at or over its cap, a non-cursor spawn stays queued while that reading is stale or unreadable, and until this many consecutive fresh readings (one per usage-file timestamp) are under both caps. With no at-cap reading yet, a stale reading does not close the gate. Cursor spawns ignore it. |
 | `nudge_cooldown_s` | `120` | Minimum seconds between nudges to one agent about unread mail. |
 | `cursor_kickoff_grace_s` | `180` | Cursor agents only: how long a kickoff message may stay unread before the tick submits the kickoff again, and again that long before it relaunches the pane once and then escalates. `0` turns the check off. See [runtimes.md](runtimes.md). |
+| `idle_watchdog` | `shadow` | `off`, `shadow` or `on`. A live worker with no progress for `idle_watchdog_min` gets one nudge, then one fresh relaunch, then one alert to both directors. `shadow` writes event rows only. See [idle-watchdog.md](idle-watchdog.md). |
+| `idle_watchdog_min` | `30` | Minutes without progress before the watchdog nudges. The relaunch comes half that long after the nudge, and the alert that long after the relaunch. |
 | `director_cycle_s` | `900` | How often the tick gives the director a planning cycle. |
 | `blocked_alert_s` | `600` | How long an agent may sit on a dialog before it is reported blocked. |
 | `hq_unblock_s` | `900` | After this long the tick denies (Esc) a permission dialog on a boss, director or lead pane. |
@@ -196,6 +199,7 @@ Read the Upgrade section of that version's release notes (https://github.com/vol
 | `digest_hour` | `8` | Local hour from which the tick sends the daily digest (director to boss), once a day. |
 | `retro_enabled` | `1` | `1` starts the daily retro agent. `0` turns it off. Any other value does not start a new run. See docs/retro.md. |
 | `retro_hour` | `6` | Local hour from which the tick may start that day's retro. |
+| `retro_org` | `cursor` | `cursor` or `claude`: org/runtime of the daily retro agent (agent name `<org>-retro`). See docs/retro.md. |
 | `retro_max_minutes` | `20` | Wall-clock budget of one retro run. |
 | `scout_enabled` | `1` | `1` = the tick starts the skill scout at each slot; `0` = no new runs. |
 | `scout_slots` | `09,18` | Local hours at which the scout runs, comma separated. |
