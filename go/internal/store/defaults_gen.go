@@ -48,6 +48,7 @@ var DefaultConfig = []ConfigDefault{
 	{"coder_ci_handoff", "off"},
 	{"coder_ci_resume_max", "2"},
 	{"review_reserved_slots", "2"},
+	{"review_verdict_timeout_min", "45"},
 	{"retro_enabled", "1"},
 	{"retro_hour", "6"},
 	{"retro_org", "cursor"},
