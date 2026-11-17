@@ -22,11 +22,12 @@ func Realpath(p string) string {
 			p = wd + "/" + p
 		}
 	}
-	seen := map[string]bool{}
-	return realpathWalk("/", splitPath(p), seen)
+	return realpathWalk("/", splitPath(p), map[string]*string{})
 }
 
-func realpathWalk(path string, rest []string, seen map[string]bool) string {
+// realpathWalk is posixpath._joinrealpath. seen memoises every resolved link, as Python's does (nil while a link is
+// being resolved, so meeting it again is a loop), which keeps a doubling chain (l1 -> l0/l0, l2 -> l1/l1, ...) linear.
+func realpathWalk(path string, rest []string, seen map[string]*string) string {
 	for len(rest) > 0 {
 		name := rest[0]
 		rest = rest[1:]
@@ -43,17 +44,22 @@ func realpathWalk(path string, rest []string, seen map[string]bool) string {
 			path = newPath
 			continue
 		}
-		if seen[newPath] { // loop: Python keeps the path unresolved
-			path = newPath
+		if r, ok := seen[newPath]; ok {
+			if r != nil {
+				path = *r
+			} else { // loop: Python keeps the path unresolved
+				path = newPath
+			}
 			continue
 		}
-		seen[newPath] = true
+		seen[newPath] = nil
 		base := path
 		if filepath.IsAbs(target) {
 			base = "/"
 		}
 		path = realpathWalk(base, splitPath(target), seen)
-		delete(seen, newPath)
+		res := path
+		seen[newPath] = &res
 	}
 	return path
 }
