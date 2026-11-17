@@ -146,6 +146,12 @@ func srcScratchRoots(c *ctx) ([]string, string, error) {
 			roots = append(roots, identity.Realpath(pad))
 		}
 	}
+	if sid.String != "" && len(roots) == 0 {
+		// T-1678: the stored session id is stale (a respawned or relaunched pane runs under another session id, or the
+		// slug holds two session dirs). Python owns that decision (T-1639: the caller's claude ancestor's session ids,
+		// then the newest session dir only); Go knows only the stored id and used to refuse with "no scratchpad found".
+		return nil, "", errDelegate
+	}
 	return roots, "", nil
 }
 
