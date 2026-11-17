@@ -971,12 +971,62 @@ def proc_root():
     return _proc_dir_from_env("FACTORY_PROC_DIR")
 
 
+DARWIN_TMP_MIN_FREE_MB = 10240  # same floor as go/internal/gate TmpMinFreeMB (T-1562), non-tmpfs /tmp on macOS
+
+
+def _darwin_cmd_head_claude(command):
+    """True when the first tokens of a ps command line name claude (including node …/claude)."""
+    if not command:
+        return False
+    parts = command.split(None, 3)
+    if any(os.path.basename(x) == "claude" for x in parts[:3]):
+        return True
+    return (len(parts) > 1 and os.path.basename(parts[0]) in ("node", "nodejs")
+            and os.path.basename(parts[1]) == "claude")
+
+
+# macOS tools by absolute path with a fixed PATH: a worker could put a fake `ps` first on its PATH and forge the process
+# ancestry refuse_worker trusts (T-1568 reviewer S1). These are the stock, SIP-protected macOS locations.
+DARWIN_PS, DARWIN_VM_STAT, DARWIN_SYSCTL, DARWIN_STAT = "/bin/ps", "/usr/bin/vm_stat", "/usr/sbin/sysctl", "/usr/bin/stat"
+DARWIN_TOOL_ENV = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C"}
+
+
+def _darwin_ps():
+    """macOS (no /proc): {pid: {"ppid","uid","lstart","command","argv"}} from ONE `ps -axo pid=,ppid=,uid=,lstart=,command=`
+    (LC_ALL=C), or None when ps cannot be read (callers then keep the pid: never reaped, T-1568 ADR 0003 4.4).
+    `command` is the full ps tail (spaces preserved); `argv` is shlex-split for callers that need a list — paths with
+    spaces in --settings are matched on `command` via regex, not argv."""
+    try:
+        r = subprocess.run([DARWIN_PS, "-axo", "pid=,ppid=,uid=,lstart=,command="], capture_output=True, text=True,
+                           timeout=15, env=dict(DARWIN_TOOL_ENV))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    out = {}
+    for line in r.stdout.splitlines():
+        f = line.split(None, 8)  # pid ppid uid + lstart (5 words: "Sat Nov 15 21:20:43 2026") + command
+        if len(f) < 8 or not (f[0].isdigit() and f[1].isdigit() and f[2].isdigit()):
+            continue
+        cmd = f[8] if len(f) > 8 else ""
+        try:
+            argv = shlex.split(cmd) if cmd else []
+        except ValueError:  # ps prints args unquoted: an apostrophe in any process must not crash the snapshot
+            argv = cmd.split()
+        out[int(f[0])] = {"ppid": int(f[1]), "uid": int(f[2]), "lstart": " ".join(f[3:8]),
+                          "command": cmd, "argv": argv}
+    return out or None
+
+
 def _ancestry_worker():
     """Worker role from the process tree (env cannot spoof it): the first claude ancestor's --settings file.
     A claude without --settings (the flagless live HQ/leads) is not a worker. $FACTORY_PROC_DIR = fake /proc."""
     root = proc_root()
+    snap = _darwin_ps() if sys.platform == "darwin" else None
 
     def ppid_of(pid):
+        if sys.platform == "darwin":
+            return (snap or {}).get(pid, {}).get("ppid")
         try:
             stat = (root / str(pid) / "stat").read_text(errors="replace")
             return int(stat[stat.rindex(")") + 1:].split()[1])
@@ -988,10 +1038,22 @@ def _ancestry_worker():
         pid = os.getppid()
     for _ in range(64):
         try:
-            argv = [x.decode(errors="replace") for x in (root / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
+            if sys.platform == "darwin":
+                ent = (snap or {}).get(pid, {})
+                argv, cmd = ent.get("argv", []), ent.get("command", "")
+            else:
+                cmd = ""
+                argv = [x.decode(errors="replace") for x in (root / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
         except OSError:
-            argv = []
-        if any(os.path.basename(x) == "claude" for x in argv[:3]):
+            argv, cmd = [], ""
+        is_claude = _darwin_cmd_head_claude(cmd) if sys.platform == "darwin" else any(os.path.basename(x) == "claude" for x in argv[:3])
+        if is_claude:
+            if sys.platform == "darwin":
+                # the first --settings value (may hold spaces), ending in /settings/<role>.json: Linux matches the same
+                m = re.search(r"--settings[= ]\S.*?/settings/([\w-]+)\.json(?=\s|$)", cmd)
+                if m and m.group(1) in WORKER_ROLES:
+                    return m.group(1)
+                return None
             vals = [argv[i + 1] for i, x in enumerate(argv[:-1]) if x == "--settings"]
             vals += [x.split("=", 1)[1] for x in argv if x.startswith("--settings=")]
             for v in vals:
@@ -2032,6 +2094,10 @@ def export_in_shell(pane, env, cwd, host_exe=None):
 
 def _scan_claude():
     """{pid: (argv, ppid)} of every claude process under the proc dir; None when it is unreadable."""
+    if sys.platform == "darwin":
+        snap = _darwin_ps()
+        return None if snap is None else {p: (e["argv"], e["ppid"]) for p, e in snap.items()
+                                          if _darwin_cmd_head_claude(e.get("command", ""))}
     root = proc_root()
     try:
         entries = list(root.iterdir())
@@ -2095,6 +2161,11 @@ def _is_cursor_agent_argv(argv):
 
 def _scan_host_agent_procs():
     """{pid: (argv, ppid)} of every claude and cursor-agent process; None when the proc dir is unreadable."""
+    if sys.platform == "darwin":
+        snap = _darwin_ps()
+        return None if snap is None else {p: (e["argv"], e["ppid"]) for p, e in snap.items()
+                                          if _darwin_cmd_head_claude(e.get("command", ""))
+                                          or _is_cursor_agent_argv(e["argv"])}
     root = proc_root()
     try:
         entries = list(root.iterdir())
@@ -2285,6 +2356,8 @@ def _is_claude_cmd(argv):
 
 def _userns_link(pid):
     """readlink of <proc>/<pid>/ns/user, None when unreadable. $FACTORY_PROC_DIR = fake /proc."""
+    if sys.platform == "darwin":
+        return None  # no user namespaces: "not in a namespace", no /proc read (escape detection by uid comes in M6b)
     root = proc_root()
     try:
         return os.readlink(root / str(pid) / "ns" / "user")
@@ -2294,6 +2367,9 @@ def _userns_link(pid):
 
 def _proc_start(pid):
     """Start time (clock ticks since boot, field 22 of <proc>/<pid>/stat), None when unreadable."""
+    if sys.platform == "darwin":
+        e = (_darwin_ps() or {}).get(int(pid)) if str(pid).isdigit() else None
+        return e["lstart"] if e else None
     root = proc_root()
     try:
         stat = (root / str(pid) / "stat").read_text(errors="replace")
@@ -2427,6 +2503,24 @@ def claude_outside_spawn(con):
 
 # ───────────────────────────── resources ─────────────────────────────
 
+def _darwin_mem_available_mb():
+    """macOS MemAvailable in MB, the T-1562 formula: (free + inactive + speculative pages) x page size, and any memory
+    pressure level other than 1 (normal) closes the gate (returns 0). Unreadable = 0 = gate closed."""
+    try:
+        vm = subprocess.run([DARWIN_VM_STAT], capture_output=True, text=True, timeout=10, env=dict(DARWIN_TOOL_ENV))
+        lvl = subprocess.run([DARWIN_SYSCTL, "-n", "kern.memorystatus_vm_pressure_level"], capture_output=True, text=True,
+                             timeout=10, env=dict(DARWIN_TOOL_ENV))
+        if vm.returncode != 0 or lvl.returncode != 0 or lvl.stdout.strip() != "1":
+            return 0
+        m = re.search(r"page size of (\d+) bytes", vm.stdout)
+        pages = [re.search(r"^Pages " + k + r":\s+(\d+)\.", vm.stdout, re.M) for k in ("free", "inactive", "speculative")]
+        if not m or not all(pages):
+            return 0
+        return int(m.group(1)) * sum(int(v.group(1)) for v in pages) // 1048576
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return 0
+
+
 def _test_pin(var):
     """$var for a test home only. A live home never honours it, so an agent exporting it cannot open the owner
     MemAvailable floor or the placement checks on the live factory (same rule as FACTORY_TEST_NOW)."""
@@ -2441,6 +2535,8 @@ def _meminfo_text():
 
 
 def mem_available_mb():
+    if sys.platform == "darwin":
+        return _darwin_mem_available_mb()
     for line in _meminfo_text().splitlines():
         if line.startswith("MemAvailable:"):
             return int(line.split()[1]) // 1024
@@ -2484,6 +2580,17 @@ def tmp_usage():
     if total <= 0:
         return None
     fstype = None
+    if sys.platform == "darwin":
+        # statvfs does not name the fs type on macOS: `stat -f %T <tmp>` (apfs, hfs, tmpfs...) T-1568 R5
+        try:
+            r = subprocess.run([DARWIN_STAT, "-f", "%T", "/private/tmp" if str(tmp_dir()) == "/tmp" else str(tmp_dir())],
+                               capture_output=True, text=True, timeout=10, env=dict(DARWIN_TOOL_ENV))
+            fstype = (r.stdout.strip() or None) if r.returncode == 0 else None
+        except (OSError, subprocess.SubprocessError):
+            fstype = None
+        used = total - free
+        return {"used_mb": used // 1048576, "total_mb": total // 1048576, "pct": 100.0 * used / total, "fstype": fstype,
+                "free_mb": free // 1048576}
     try:
         best = ""
         target = str(tmp_dir().resolve())
@@ -2932,6 +3039,12 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if role != "cleaner":
             return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.1f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
                            " — clean finished tasks' scratchpads"), stats
+    if sys.platform == "darwin" and role != "cleaner":
+        # R5: a disk-backed /tmp also needs the T-1562 free floor; an unreadable /tmp = closed
+        if tmp is None:
+            return False, "/tmp unreadable (darwin: unknown = closed)", stats
+        if tmp.get("fstype") != "tmpfs" and tmp["free_mb"] < DARWIN_TMP_MIN_FREE_MB:
+            return False, f"/tmp has {tmp['free_mb']} MB free < {DARWIN_TMP_MIN_FREE_MB} MB floor ({tmp.get('fstype') or 'fs unknown'})", stats
     if role in REVIEW_RESERVE_BLOCKED and not own_slot and cfg(con, "review_autospawn") == "on":
         # G-022 #6: carve review_reserved_slots out of max_live_agents; slots already held by reviewer/qa count toward them
         held = con.execute("SELECT count(*) c FROM agents WHERE status IN ('live','starting') AND role IN ('reviewer','qa')").fetchone()["c"]
@@ -7445,7 +7558,7 @@ def tick_mech_merge(con):
         return
     run = [sys.executable, str(Path(__file__).resolve().with_name("factory")), "mech-merge"]
     kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={**os.environ, "FACTORY_AGENT": actor()})
-    if os.environ.get("INVOCATION_ID"):
+    if os.environ.get("INVOCATION_ID") and sys.platform != "darwin":  # darwin: no systemd, the detached fallback below
         subprocess.run(["systemd-run", "--user", "--collect", "--quiet", "--unit", MECH_UNIT, "--", *run], **kw)  # rc!=0: previous unit still active
     else:
         subprocess.Popen(run, start_new_session=True, **kw)
@@ -8734,6 +8847,12 @@ def _harness_newest_mtime(d):
 
 def _pid_comm(pdir):
     """/proc/<pid>/comm of an unreadable pid, or None when it cannot be read; FileNotFoundError when the pid has exited."""
+    if sys.platform == "darwin":
+        snap = _darwin_ps()
+        e = snap.get(int(pdir.name)) if snap and pdir.name.isdigit() else None
+        if snap is not None and e is None:
+            raise FileNotFoundError(pdir.name)  # gone from the snapshot: exited
+        return os.path.basename(e["argv"][0]) if e and e["argv"] else None
     try:
         return (pdir / "comm").read_text().strip()
     except FileNotFoundError:
@@ -8747,6 +8866,8 @@ def _proc_holds(roots, ignore_comms=frozenset(), blocker=None):
     a pid of ours cannot be read completely, so the caller keeps everything. (A non-dumpable same-uid process has an
     unreadable fd dir, which also lands in the keep-everything branch.) An unreadable pid whose comm is in `ignore_comms`
     is skipped; any other unreadable pid is appended to `blocker` as "pid:comm" (comm None if unreadable) before None."""
+    if sys.platform == "darwin":
+        return None  # open fds / cwd are not readable without /proc: keep everything (never delete what may be in use)
     held = set()
     uid = os.getuid()
     for pdir in _serve_proc_root().iterdir():
@@ -8866,6 +8987,9 @@ def _serve_proc_root():
 
 def _serve_argv(pid):
     """argv of a pid, or None when it is gone, unreadable or a zombie (empty cmdline)."""
+    if sys.platform == "darwin":
+        e = (_darwin_ps() or {}).get(int(pid))
+        return (e["argv"] or None) if e else None
     try:
         argv = [x.decode(errors="replace") for x in (_serve_proc_root() / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
     except OSError:
@@ -8906,11 +9030,38 @@ def _task_agent_ended(con, task):
     return True, rows[0]["name"]
 
 
+def _serve_pidfile():
+    return HOME / "state" / "serve.pid"
+
+
+def _serve_pidfile_write():
+    """darwin: <FACTORY_HOME>/state/serve.pid = "<pid> <start time>" (ps lstart); removed on clean exit (cmd_serve)."""
+    f = _serve_pidfile()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(f"{os.getpid()} {_proc_start(os.getpid()) or ''}\n")
+
+
+def _serve_pidfile_pid():
+    """darwin: the live serve pid from serve.pid, or None when the file is missing, unreadable, or its pid is gone or was
+    reused (the recorded start time no longer matches)."""
+    try:
+        pid_s, _, start = _serve_pidfile().read_text().strip().partition(" ")
+        pid = int(pid_s)
+    except (OSError, ValueError):
+        return None
+    if pid <= 0:
+        return None
+    now = _proc_start(pid)
+    return pid if now is not None and now == start else None
+
+
 def _serve_mainpid():
     """MainPID of the owner's factory-serve.service; None when systemd cannot say. $FACTORY_SERVE_MAINPID replaces the call (tests)."""
     fake = os.environ.get("FACTORY_SERVE_MAINPID")
     if fake is not None:
         return int(fake) if fake.isdigit() else None
+    if sys.platform == "darwin":
+        return _serve_pidfile_pid()
     try:
         out = subprocess.run(["systemctl", "--user", "show", "factory-serve.service", "-p", "MainPID", "--value"],
                              capture_output=True, text=True, timeout=10).stdout.strip()
@@ -8923,6 +9074,9 @@ def _serve_unit_pids():
     """Pids whose cgroup is factory-serve.service, read from /proc (no systemd call): the unit's process even when
     _serve_mainpid() cannot reach systemd. Unreadable entries are skipped."""
     out = set()
+    if sys.platform == "darwin":
+        pid = _serve_pidfile_pid()  # no cgroups: the pid file is the whole unit
+        return {pid} if pid else out
     for d in _serve_proc_root().iterdir():
         if not d.name.isdigit():
             continue
@@ -8979,6 +9133,8 @@ def reap_stray_serves(con):
         if last and t - float(last["ts"]) < SERVE_REAP_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('servereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        if sys.platform == "darwin":
+            return  # environ/cwd of a pid are not readable here: nothing is attributed, nothing is reaped
         root, unit_pids = _serve_proc_root(), _serve_unit_pids() | {_serve_mainpid()}
         grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
         reaped = {}
@@ -9043,6 +9199,9 @@ ORPHAN_MODES = ("dry-run", "on", "off")
 
 def _orphan_stat(pid):
     """(ppid, pgid, starttime) from /proc/<pid>/stat, or None when it is gone or unreadable."""
+    if sys.platform == "darwin":
+        e = (_darwin_ps() or {}).get(int(pid))
+        return (e["ppid"], 0, e["lstart"]) if e else None  # pgid unused on this path; lstart is the start identity
     try:
         s = (_serve_proc_root() / str(pid) / "stat").read_text(errors="replace")
         f = s[s.rindex(")") + 2:].split()
@@ -9208,6 +9367,8 @@ def reap_orphans(con):
         if last and t - float(last["ts"]) < ORPHAN_REAP_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('orphanreap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        if sys.platform == "darwin":
+            return  # cwd/environ of a pid are not readable without /proc: an unreadable pid is kept, never reaped
         skip = _orphan_skip(_serve_mainpid())
         grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
         reaped, homes = [], {}
@@ -9959,6 +10120,8 @@ def tick_serve_unit_drift(con):
     """After the main sync: tell the director once when the installed factory-serve unit differs from the one on main.
     Read-only: never runs systemctl or install.sh and never writes ~/.config. Missing installed unit = not installed, no
     alert. The same main hash is not re-sent for 6 h (throttle key serve-unit-drift holds "<hash>@<time>"); a new main hash alerts."""
+    if sys.platform == "darwin":
+        return  # B9: no systemd unit on macOS; `factory res` says so
     installed = Path.home() / ".config" / "systemd" / "user" / "factory-serve.service"
     try:
         have = installed.read_bytes()
@@ -15564,7 +15727,7 @@ def tick_gate(con):
         run = [sys.executable, str(Path(__file__).resolve().with_name("factory")), "gate", "run", "--run-id", str(r["id"])]
         kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                   env={**os.environ, "FACTORY_AGENT": actor()})  # the runner acts as the tick's own identity
-        if os.environ.get("INVOCATION_ID"):
+        if os.environ.get("INVOCATION_ID") and sys.platform != "darwin":  # darwin: no systemd-run, detached fallback below
             # under systemd the tick unit is KillMode=control-group: a child would be killed when the tick exits, so the
             # runner gets its own transient unit. It records its own pid when it starts (the run stays queued until then).
             rc = subprocess.run(["systemd-run", "--user", "--collect", "--quiet", "--unit", f"factory-gate-{r['id']}", "--", *run],
@@ -15666,8 +15829,11 @@ def cmd_res(a):
     ok, why, s = gate(con)
     u = s["usage"]
     load = (load1(),)
-    swap = {l.split(":")[0]: int(l.split()[1]) for l in _meminfo_text().splitlines()
-            if l.startswith(("SwapTotal", "SwapFree"))}
+    if sys.platform == "darwin":
+        swap = {}  # no /proc/meminfo; swap is not part of the darwin gate
+    else:
+        swap = {l.split(":")[0]: int(l.split()[1]) for l in _meminfo_text().splitlines()
+                if l.startswith(("SwapTotal", "SwapFree"))}
     q = con.execute("SELECT count(*) c FROM agents WHERE status='queued'").fetchone()["c"]
     print(f"spawn gate: {'OPEN' if ok else 'CLOSED — ' + why}")
     print(f"terminal backend: {tb_exe} (config={tb_raw}; effective={tb_eff})")
@@ -15723,7 +15889,12 @@ def cmd_res(a):
         print(f"lead-less dispatch: {mode}; last hour: {n['dispatch']} spawned, {n['dispatch-shadow']} shadow")
     ob = owner_blockers(con)
     print(f"owner-only blockers: {len(ob)}" + "".join(f"\n  {b['text']} (open {b['age_min']} min)" for b in ob))
-    top = subprocess.run(["ps", "-eo", "rss,args", "--sort=-rss"], capture_output=True, text=True).stdout.splitlines()[1:6]
+    if sys.platform == "darwin":
+        print("serve unit drift check: skipped on macOS (no systemd unit)")
+        top = subprocess.run([DARWIN_PS, "-axo", "rss=,command=", "-m"], capture_output=True, text=True,
+                             env=dict(DARWIN_TOOL_ENV)).stdout.splitlines()[:5]
+    else:
+        top = subprocess.run(["ps", "-eo", "rss,args", "--sort=-rss"], capture_output=True, text=True).stdout.splitlines()[1:6]
     print("top memory:")
     for line in top:
         rss, cmd = line.strip().split(" ", 1)
@@ -17007,17 +17178,35 @@ def _cmd_tick_phases(spec):
     _tick_handoff_write(path, doc, st, t0=t0, migrate_ran=migrate_ran, pre_reset=pre_reset)
 
 
+def _tick_deadline_at(spec):
+    """Monotonic time at which the tick stops starting phases, or None without --deadline. 240s, 4m, 1h or bare seconds."""
+    if not isinstance(spec, (str, int, float)) or isinstance(spec, bool):  # absent (None, or a bare namespace in unit tests)
+        return None
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)([smh]?)", str(spec).strip())
+    if not m or float(m.group(1)) <= 0:
+        die(f"--deadline {spec!r} is not a positive duration like 240s, 4m or 1h; the tick was not run", 2)
+    return time.monotonic() + float(m.group(1)) * {"": 1, "s": 1, "m": 60, "h": 3600}[m.group(2)]
+
+
 def cmd_tick(a, locked=False):
     """Runs every minute from systemd. No LLM tokens: reap, dequeue, nudge, publish."""
     refuse_worker("tick")
     phases = getattr(a, "phases", None)
     if isinstance(phases, str):
+        if _tick_deadline_at(getattr(a, "deadline", None)) is not None:
+            die("--deadline is not supported with --phases (each phase call is short); drop --deadline", 2)
         _cmd_tick_phases(phases)
         return
     lock = None if locked else tick_lock()  # noqa: F841 — held until exit
     st = _tick_new_state()
     con = None
+    deadline = _tick_deadline_at(getattr(a, "deadline", None))
     for u in TICK_WALK_UNITS:
+        if deadline is not None and con is not None and time.monotonic() >= deadline:
+            event_as(con, "tick", "tick", "tick-deadline", "tick-deadline", f"stopped before phase {u}: --deadline {a.deadline} reached")
+            con.commit()
+            _tick_u_emit(con, st)  # the phase timers of the phases that did run are still recorded
+            return
         if u == "migrate_db":
             con = _tick_u_migrate_db(con, st)
             continue
@@ -21157,6 +21346,17 @@ def cmd_serve(a):
     finally:
         con.close()
     g = lambda k: cfg.get(k, DEFAULT_CONFIG[k])  # noqa: E731
+    if sys.platform == "darwin":  # B8: no systemd MainPID / cgroup: the serve-protection reads this file instead
+        _serve_pidfile_write()
+        try:
+            _cmd_serve_run(a, g, server)
+        finally:
+            _serve_pidfile().unlink(missing_ok=True)
+        return
+    _cmd_serve_run(a, g, server)
+
+
+def _cmd_serve_run(a, g, server):
     server.run(db_path=resolve_db, bind=a.bind or g("serve_bind") or None, port=a.port if a.port is not None else int(g("serve_port")),
                hostnames=[n.strip() for n in g("serve_hostnames").split(",") if n.strip()],
                usage_fn=usage, mem_fn=serve_mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)))
@@ -21583,6 +21783,7 @@ def main():
     x.set_defaults(fn=cmd_serve)
     x = sp.add_parser("tick", help="heartbeat (systemd runs it every minute)")
     x.add_argument("--phases", metavar="LIST", help=argparse.SUPPRESS)
+    x.add_argument("--deadline", metavar="DURATION", help=argparse.SUPPRESS)  # 240s, 4m: stop starting phases after this long (docs/darwin-python-branches.md)
     x.set_defaults(fn=cmd_tick)
     x = sp.add_parser("clean", help="remove worktrees and branches of merged/cancelled tasks (cleaner, director); "
                                      "--dry-run still runs git fetch origin")
