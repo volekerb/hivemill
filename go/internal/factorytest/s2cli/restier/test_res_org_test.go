@@ -81,6 +81,7 @@ func indexOf(lines []string, want string) int {
 func resText(e *ft.Env) string { return e.OK("res").Stdout }
 
 func TestResOrgNoAgentsBothOrgsZeroClaudeFirst(t *testing.T) {
+	t.Parallel()
 	e := capBaseEnv(t)
 	claude, cursor := orgLines(t, resText(e))
 	if claude != "org claude: "+zeroOrg {
@@ -92,6 +93,7 @@ func TestResOrgNoAgentsBothOrgsZeroClaudeFirst(t *testing.T) {
 }
 
 func TestResOrgLiveCursorCoder(t *testing.T) {
+	t.Parallel()
 	e := capBaseEnv(t)
 	e.SeedAgent(ft.AgentRow{Name: "cursor-coder-t-1", Role: "coder", Goal: "G-001"})
 	claude, cursor := orgLines(t, resText(e))
@@ -106,6 +108,7 @@ func TestResOrgLiveCursorCoder(t *testing.T) {
 }
 
 func TestResOrgLiveCursorBoss(t *testing.T) {
+	t.Parallel()
 	e := capBaseEnv(t)
 	e.SeedAgent(ft.AgentRow{Name: "cursor-boss", Role: "boss"})
 	_, cursor := orgLines(t, resText(e))
@@ -117,6 +120,7 @@ func TestResOrgLiveCursorBoss(t *testing.T) {
 }
 
 func TestResOrgQueuedCursorLead(t *testing.T) {
+	t.Parallel()
 	e := capBaseEnv(t)
 	e.SeedAgent(ft.AgentRow{Name: "cursor-lead-g-001-a", Role: "lead", Goal: "G-001", Status: "queued"})
 	_, cursor := orgLines(t, resText(e))
@@ -128,6 +132,7 @@ func TestResOrgQueuedCursorLead(t *testing.T) {
 }
 
 func TestResOrgClaudeLeadAndCursorCoderSeparateLines(t *testing.T) {
+	t.Parallel()
 	e := capBaseEnv(t)
 	e.SeedAgent(ft.AgentRow{Name: "claude-lead-g-001-a", Role: "lead", Goal: "G-001"})
 	e.SeedAgent(ft.AgentRow{Name: "cursor-coder-t-1", Role: "coder", Goal: "G-001"})

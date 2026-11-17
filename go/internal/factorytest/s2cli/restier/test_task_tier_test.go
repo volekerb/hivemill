@@ -13,6 +13,7 @@ import (
 // Port of tests/test_task_tier.py (13 cases; see ported_s2cli_restier.txt).
 
 func TestTaskTierShowPrintsTier(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	as(e, "zz-lead", "task", "tier", "T-0001", "up", "T2")
 	show := as(e, "zz-coder", "task", "show", "T-0001").Stdout
@@ -22,6 +23,7 @@ func TestTaskTierShowPrintsTier(t *testing.T) {
 }
 
 func TestTaskTierUnsetTierReadsAsDash(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	out := as(e, "zz-coder", "task", "tier", "T-0001").Stdout
 	if strings.TrimSpace(out) != "-" {
@@ -30,6 +32,7 @@ func TestTaskTierUnsetTierReadsAsDash(t *testing.T) {
 }
 
 func TestTaskTierUpRaisesAndNeverLowers(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	as(e, "zz-rev", "task", "tier", "T-0001", "T1")
 	as(e, "zz-lead", "task", "tier", "T-0001", "up", "T3")
@@ -46,6 +49,7 @@ func TestTaskTierUpRaisesAndNeverLowers(t *testing.T) {
 }
 
 func TestTaskTierBadTierRefused(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	e.FailWith(ft.Opts{Agent: "zz-lead"}, 2, "task", "tier", "T-0001", "up", "T9")
 	if tierOf(e) != "" {
@@ -54,6 +58,7 @@ func TestTaskTierBadTierRefused(t *testing.T) {
 }
 
 func TestTaskTierCoderCannotRaise(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	e.FailWith(ft.Opts{Agent: "zz-coder"}, 3, "task", "tier", "T-0001", "up", "T3")
 	if tierOf(e) != "" {
@@ -62,11 +67,13 @@ func TestTaskTierCoderCannotRaise(t *testing.T) {
 }
 
 func TestTaskTierClassifyRefusedWhileFlagOff(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	e.FailWith(ft.Opts{Agent: "zz-lead"}, 2, "task", "tier", "T-0001", "--classify", "--head", "main")
 }
 
 func TestTaskTierEveryRaiserRoleMayRaise(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	for i, role := range []string{"qa", "judge", "director", "boss"} {
 		e.SeedAgent(ft.AgentRow{Name: fmt.Sprintf("zz-%s", role), Role: role, Goal: "G-001"})
@@ -78,11 +85,13 @@ func TestTaskTierEveryRaiserRoleMayRaise(t *testing.T) {
 }
 
 func TestTaskTierTierAndClassifyTogetherRefused(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	e.FailWith(ft.Opts{Agent: "zz-lead"}, 2, "task", "tier", "T-0001", "T2", "--classify")
 }
 
 func TestTaskTierClassifyWithoutBranchOrHeadRefused(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	riskTiersOn(t, e)
 	r := e.FailWith(ft.Opts{Agent: "zz-lead"}, 2, "task", "tier", "T-0001", "--classify")
@@ -92,12 +101,14 @@ func TestTaskTierClassifyWithoutBranchOrHeadRefused(t *testing.T) {
 }
 
 func TestTaskTierClassifyDashRefRefused(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	riskTiersOn(t, e)
 	e.FailWith(ft.Opts{Agent: "zz-lead"}, 2, "task", "tier", "T-0001", "--classify", "--base", "--output=zz-never", "--head", "main")
 }
 
 func TestTaskTierRulesComeFromMainCheckoutNotThePR(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	homeRepo(t, e)
 	riskTiersOn(t, e)
@@ -115,6 +126,7 @@ func TestTaskTierRulesComeFromMainCheckoutNotThePR(t *testing.T) {
 }
 
 func TestTaskTierNewCommitSetsMaxOfOldAndNew(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	homeRepo(t, e)
 	riskTiersOn(t, e)
@@ -142,6 +154,7 @@ func TestTaskTierNewCommitSetsMaxOfOldAndNew(t *testing.T) {
 }
 
 func TestTaskTierDoesNotChangeMergeOrSpawnState(t *testing.T) {
+	t.Parallel()
 	e := tierBaseEnv(t)
 	before := e.SQL("SELECT status, assignee, pr_url FROM tasks WHERE id='T-0001'")
 	as(e, "zz-lead", "task", "tier", "T-0001", "up", "T3")

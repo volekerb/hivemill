@@ -21,6 +21,7 @@ func workersLiveLine(text string) string {
 }
 
 func TestResHqCapResAndGateAgreeOnSmallBox(t *testing.T) {
+	t.Parallel()
 	e := capBaseEnv(t)
 	e.OK("config", "max_live_agents", "6")
 	e.OK("config", "reserved_worker_slots", "10")
@@ -43,6 +44,7 @@ func TestResHqCapResAndGateAgreeOnSmallBox(t *testing.T) {
 }
 
 func TestResHqCapResAndGateAgreeOnBigBox(t *testing.T) {
+	t.Parallel()
 	e := capBaseEnv(t)
 	gateCap := gateHQCap(t, e)
 	if gateCap != 8 {
