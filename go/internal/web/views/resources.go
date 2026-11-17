@@ -433,7 +433,7 @@ func perDay(c *data.Conn, now time.Time) ([]dayRow, error) {
 	var out []dayRow
 	idx := map[string]int{}
 	for i := 0; i < resDays; i++ {
-		d := now.Add(-time.Duration(i) * 24 * time.Hour).Format("2006-01-02")
+		d := now.In(data.Loc).Add(-time.Duration(i) * 24 * time.Hour).Format("2006-01-02")
 		idx[d] = len(out)
 		out = append(out, dayRow{Day: d})
 	}

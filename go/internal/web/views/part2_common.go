@@ -66,7 +66,10 @@ func pySumFloats(xs []float64) float64 {
 		}
 		f = t
 	}
-	return f + c
+	if !math.IsInf(c, 0) && !math.IsNaN(c) { // CPython adds the compensation only when it is finite
+		f += c
+	}
+	return f
 }
 
 // pyMedianFloats is statistics.median of numbers: the middle one, or the mean of the two middle ones.

@@ -320,7 +320,7 @@ func LoadTokens(ctx *Ctx) (*TokensData, error) {
 	for _, r := range rows {
 		modelSet[r.Model] = true
 	}
-	if m := q["model"]; modelSet[m] {
+	if m := q["model"]; m != "" && modelSet[m] {
 		d.Model = m
 		var kept []tokens.Row
 		for _, r := range rows {

@@ -148,11 +148,11 @@ func fakeProc(t *testing.T) string {
 	root := t.TempDir()
 	writeProc(t, root, "101", "/usr/bin/claude\x00--session-id\x00s1\x00", "101 (claude) S 1 101 101 0")
 	writeProc(t, root, "102", "node\x00/opt/bin/claude\x00", "102 (node (x)) S 1 102 102 0") // claude as the 2nd arg; ")" inside the name
-	writeProc(t, root, "103", "claude\x00--mcp\x00", "103 (claude) S 101 103 103 0")                   // a child of 101: not top-level
-	writeProc(t, root, "104", "bash\x00-c\x00x\x00claude\x00", "104 (bash) S 1 104 104 0")             // claude is the 4th arg: not matched
-	writeProc(t, root, "105", "", "105 (claude) S 1 1 1 0")                                            // no cmdline: skipped
-	writeProc(t, root, "106", "claude\x00", "")                                                        // no stat: the parent is unknown, counted top-level
-	writeProc(t, root, "107", "claude\x00", "garbage without a paren")                                 // unparsable stat: the same
+	writeProc(t, root, "103", "claude\x00--mcp\x00", "103 (claude) S 101 103 103 0")         // a child of 101: not top-level
+	writeProc(t, root, "104", "bash\x00-c\x00x\x00claude\x00", "104 (bash) S 1 104 104 0")   // claude is the 4th arg: not matched
+	writeProc(t, root, "105", "", "105 (claude) S 1 1 1 0")                                  // no cmdline: skipped
+	writeProc(t, root, "106", "claude\x00", "")                                              // no stat: the parent is unknown, counted top-level
+	writeProc(t, root, "107", "claude\x00", "garbage without a paren")                       // unparsable stat: the same
 	if err := os.MkdirAll(filepath.Join(root, "notapid"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -184,8 +184,8 @@ func TestProcScanBudgetAndTTL(t *testing.T) {
 	root := fakeProc(t)
 	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
 	step := time.Duration(0)
-	oldClock, oldHave := procClock, procHave
-	t.Cleanup(func() { procClock, procHave = oldClock, oldHave })
+	oldClock, oldHave, oldVal, oldAt := procClock, procHave, procValue, procAt
+	t.Cleanup(func() { procClock, procHave, procValue, procAt = oldClock, oldHave, oldVal, oldAt })
 	procClock = func() time.Time { now = now.Add(step); return now }
 	if procBudget != 80*time.Millisecond || procTTL != 30*time.Second {
 		t.Fatalf("budget %v and ttl %v must be agents.py PROC_BUDGET_S=0.08 and PROC_TTL_S=30", procBudget, procTTL)
@@ -395,7 +395,6 @@ func FuzzProcParsers(f *testing.F) {
 	f.Fuzz(func(t *testing.T, s string) {
 		parseStatPPid(s)
 		cmdlineIsClaude([]byte(s))
-		pySplitLines(s)
 		pyFields(s)
 	})
 }

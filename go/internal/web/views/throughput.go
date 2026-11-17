@@ -83,13 +83,6 @@ func throughputDaysOf(ctx *Ctx) int {
 	return defaultDays
 }
 
-func derefInt(p *int64) (int64, bool) {
-	if p == nil {
-		return 0, false
-	}
-	return *p, true
-}
-
 func ptrInt(v int64, ok bool) *int64 {
 	if !ok {
 		return nil
@@ -267,7 +260,7 @@ func LoadThroughput(ctx *Ctx) (*ThroughputData, error) {
 			}
 		}
 		m, ok := medianRounded(ts)
-		return goalRow{GoalID: gid, HasGoal: has, Title: gtitles[gid], Done: len(v), Median: ptrInt(m, ok)}
+		return goalRow{GoalID: gid, HasGoal: has && gid != "", Title: gtitles[gid], Done: len(v), Median: ptrInt(m, ok)}
 	}
 	for _, g := range gids {
 		d.Goals = append(d.Goals, rowOf(g, true, perGoal[g]))

@@ -38,13 +38,6 @@ type QualityData struct {
 	GoalCount int
 }
 
-func numF(n *data.Num) (float64, bool) {
-	if n == nil {
-		return 0, false
-	}
-	return n.V, true
-}
-
 // withUnassigned is quality._with_unassigned: the team_id-NULL tasks of a team's goal are added to that team (the way
 // bin/factory scorecard_rows attributes them); the per-team ratio is recomputed after the addition.
 func withUnassigned(c *data.Conn, q *data.QualityResult) ([]data.QualityRow, error) {

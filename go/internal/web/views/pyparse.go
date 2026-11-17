@@ -109,32 +109,5 @@ func pyFloatText(s string) (float64, bool) {
 	return f, true
 }
 
-// pySplitLines is str.splitlines() (no keepends): it splits on \n, \r, \r\n, \v, \f, \x1c-\x1e, \x85,  ,  .
-func pySplitLines(s string) []string {
-	var out []string
-	rs := []rune(s)
-	var cur []rune
-	for i := 0; i < len(rs); i++ {
-		r := rs[i]
-		switch r {
-		case '\n', '\v', '\f', 0x1c, 0x1d, 0x1e, 0x85, 0x2028, 0x2029:
-			out = append(out, string(cur))
-			cur = cur[:0]
-		case '\r':
-			out = append(out, string(cur))
-			cur = cur[:0]
-			if i+1 < len(rs) && rs[i+1] == '\n' {
-				i++
-			}
-		default:
-			cur = append(cur, r)
-		}
-	}
-	if len(cur) > 0 {
-		out = append(out, string(cur))
-	}
-	return out
-}
-
 // pyFields is str.split() with no argument: runs of Python whitespace separate the fields.
 func pyFields(s string) []string { return strings.FieldsFunc(s, pyIsSpace) }
