@@ -8178,6 +8178,13 @@ def cmd_refresh(a):
 PRECHECK_ROLES = ("reviewer", "qa", "judge")
 
 
+def refresh_only_if_conflicting(pr):
+    """Owner order M40469 (T-1788): a judge or lead never merges main into a PASS+PASS PR unless GitHub says it is
+    CONFLICTING. A merely BEHIND head (mergeable MERGEABLE/UNKNOWN, mergeStateStatus BEHIND/CLEAN/UNSTABLE/BLOCKED) is
+    left alone: a refresh moves the head, so the reviewer/QA verdicts no longer match it and the merge gate re-waits."""
+    return (pr.get("mergeable") or "").upper() == "CONFLICTING"
+
+
 def staleness_precheck(con, role, task):
     """Spawn pre-check (T-0172): a reviewer, qa or judge is not spawned on a stale head. A clean-behind head is
     refreshed with refresh_branch (the one core of `factory refresh` and the judge's refresh) and the spawn goes on;
@@ -8218,8 +8225,8 @@ def staleness_precheck(con, role, task):
             event(con, "task", task, "precheck-no-refresh", f"{nr} @ {old[:8]}: {'; '.join(why)}"[:900])
             con.commit()
             return None
-    if role == "judge" and pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
-        return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
+    if role == "judge" and not refresh_only_if_conflicting(pr):
+        return None  # M40469: the spawn pre-check merges main only into a CONFLICTING PR; a BEHIND one is left alone
     # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
     # starts, and the judge refreshes before merging anyway. Only a conflict is refused (dry run: pushes nothing).
     r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task, dry_run=role in ("reviewer", "qa"))
@@ -13704,6 +13711,15 @@ def prcheck_affected(wt, base, con=None, pr_url=None, project_id=None):
     if not prcheck_is_factory_project(con, project_id):
         return True, "n/a (not the factory repo)"
     script = Path(wt) / "ci" / "affected.py"
+    # applicability is decided by the project's origin/<base>, not the worktree state (T-1409)
+    rc, _ = _git_out(wt, "rev-parse", "--verify", "-q", f"origin/{base}^{{commit}}")
+    if rc != 0:
+        return False, (f"cannot read origin/{base} to decide if ci/affected.py applies (git rev-parse rc={rc}): "
+                       "git fetch origin, then rerun prcheck")
+    rc, _ = _git_out(wt, "cat-file", "-e", f"origin/{base}:ci/affected.py")
+    if rc != 0:
+        return True, (f"n/a: project {project_id or '?'} has no ci/affected.py on origin/{base}; "
+                      "affected-test check not applicable")
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
     con = con or db()
