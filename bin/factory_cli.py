@@ -375,6 +375,21 @@ CREATE TABLE IF NOT EXISTS retro_reports (
   fixes TEXT NOT NULL,
   author TEXT NOT NULL,
   created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS adopted_fixes (
+  id TEXT PRIMARY KEY,            -- F-001, F-002, ... (zero-padded 3, next = max+1)
+  report_day TEXT NOT NULL,       -- retro_reports.day the fix came from
+  fix_index INTEGER NOT NULL,     -- 1-based index into that report's fixes
+  cause TEXT NOT NULL,            -- copied from the report fix (in REJECTION_CAUSES)
+  type TEXT NOT NULL,             -- check | template | prompt_rule (copied)
+  text TEXT NOT NULL,             -- fix text (copied)
+  signature TEXT NOT NULL,        -- '|'-separated literal terms
+  task_id TEXT NOT NULL,          -- the task that implements the fix
+  pr_url TEXT,                    -- from tasks.pr_url at adopt / at merge sync
+  status TEXT NOT NULL,           -- pending | adopted | held | reopened | noise
+  adopted_at TEXT,                -- ts of the task's merged event; NULL while pending
+  checked_at TEXT, check_note TEXT, recur_incidents TEXT,  -- written by T-C, NULL here
+  author TEXT NOT NULL, created TEXT NOT NULL,
+  UNIQUE(report_day, fix_index), UNIQUE(task_id, report_day, fix_index));
 """
 
 OWNER_ALERT_DDL = """
@@ -430,7 +445,7 @@ CREATE TABLE IF NOT EXISTS schedules (
 # T-1336 (G-041 S1-c): PRAGMA user_version of every DB this code has migrated. The Go CLI (go/internal/factorydb
 # SchemaVersion) answers only when it reads the same number; bump it, and the Go constant, with any SCHEMA or migrate()
 # change (tests/test_db_layout.py hashes both and fails until the pinned hash is renewed together with this number).
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -22456,6 +22471,30 @@ def cmd_retro(a):
                           "evidence": json.loads(row["evidence"]), "fixes": json.loads(row["fixes"]),
                           "author": row["author"], "created": row["created"]}, indent=2))
         return
+    if a.action == "adopt":
+        if role == "retro":
+            die("role 'retro' may not adopt fixes; the retro agent only proposes", 3)
+        require_role(con, "pm", "lead", "director", "boss")
+        if a.day is None or a.fix is None or not a.task or a.signature is None:
+            die("usage: factory retro adopt --day D --fix N --task T --signature '<terms>'", 2)
+        try:
+            msg = retroreport.adopt(con, a.day, a.fix, a.task, a.signature, actor(), digest_clock().isoformat(timespec="seconds"),
+                                    lambda *x: event(con, *x))
+        except ValueError as e:
+            die(str(e), 2)
+        con.commit()
+        print(msg)
+        return
+    if a.action == "fixes":
+        require_role(con, "pm", "lead", "director", "boss", "retro")
+        try:
+            retroreport.sync_adopted(con, lambda *x: event(con, *x))
+            lines = retroreport.fixes_lines(con, a.status)
+        except ValueError as e:
+            die(str(e), 2)
+        con.commit()
+        print("\n".join(lines))
+        return
     die(f"unknown retro action {a.action!r}", 2)
 
 
@@ -22893,10 +22932,14 @@ def main():
     x.add_argument("--what"); x.add_argument("--source"); x.add_argument("--status"); x.add_argument("--role")
     x.set_defaults(fn=cmd_lesson)
 
-    x = sp.add_parser("retro", help="daily rejection retro: packet, file, show")
-    x.add_argument("action", choices=["packet", "file", "show"])
+    x = sp.add_parser("retro", help="daily rejection retro: packet, file, show, adopt, fixes")
+    x.add_argument("action", choices=["packet", "file", "show", "adopt", "fixes"])
     x.add_argument("body", nargs="?", default=None, help="file: use - for stdin")
-    x.add_argument("--day", help="show: YYYY-MM-DD (default today)")
+    x.add_argument("--day", help="show: YYYY-MM-DD (default today); adopt: the report day")
+    x.add_argument("--fix", type=int, help="adopt: 1-based fix index in the report")
+    x.add_argument("--task", help="adopt: the task that implements the fix")
+    x.add_argument("--signature", help="adopt: '|'-separated literal terms (1-10, 3-80 chars each)")
+    x.add_argument("--status", help="fixes: only rows with this status")
     x.set_defaults(fn=cmd_retro)
 
     x = sp.add_parser("scout", help="skill scout candidates: fetch, pending, triage, list, show, runs, report")
