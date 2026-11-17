@@ -268,6 +268,8 @@ INSERT INTO "config"("key","value") VALUES('orphan_reap_mode','dry-run');
 INSERT INTO "config"("key","value") VALUES('exited_pane_reap_mode','dry-run');
 INSERT INTO "config"("key","value") VALUES('idle_coder_reap','off');
 INSERT INTO "config"("key","value") VALUES('idle_coder_reap_s','900');
+INSERT INTO "config"("key","value") VALUES('idle_watchdog','shadow');
+INSERT INTO "config"("key","value") VALUES('idle_watchdog_min','30');
 INSERT INTO "config"("key","value") VALUES('digest_hour','8');
 INSERT INTO "config"("key","value") VALUES('scout_enabled','1');
 INSERT INTO "config"("key","value") VALUES('scout_slots','09,18');

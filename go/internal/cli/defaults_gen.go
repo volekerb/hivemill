@@ -112,6 +112,8 @@ var DefaultConfig = []ConfigDefault{
 	{"exited_pane_reap_mode", "dry-run"},
 	{"idle_coder_reap", "off"},
 	{"idle_coder_reap_s", "900"},
+	{"idle_watchdog", "shadow"},
+	{"idle_watchdog_min", "30"},
 	{"digest_hour", "8"},
 	{"scout_enabled", "1"},
 	{"scout_slots", "09,18"},
