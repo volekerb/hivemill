@@ -11,6 +11,7 @@ import (
 
 	"factory/go/internal/factorydb"
 	"factory/go/internal/factorydb/dbtest"
+	"factory/go/internal/sandbox"
 )
 
 type fixture struct {
@@ -252,5 +253,39 @@ func TestRealpath(t *testing.T) {
 	os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "link"))
 	if got := Realpath(filepath.Join(root, "link", "b", "..", "missing", "x")); got != filepath.Join(root, "a", "missing", "x") {
 		t.Fatalf("got %s", got)
+	}
+}
+
+// TestRealpathParity pins Python 3.13 os.path.realpath (non-strict) on the cases a lexical Clean gets wrong.
+func TestRealpathParity(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "sub", "deep"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, target := range map[string]string{"lnk": "sub/deep", "dang": "nowhere", "l": "l"} {
+		if err := os.Symlink(target, filepath.Join(root, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cases := []struct{ name, in, want string }{
+		{"link then missing", "lnk/missing/x", "sub/deep/missing/x"},
+		{"dangling", "dang", "nowhere"},
+		{"dangling then missing", "dang/x", "nowhere/x"},
+		{"loop", "l", "l"},
+		{"loop then missing", "l/x", "l/x"},
+		{"dotdot after link is physical", "lnk/../x", "sub/x"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got, want := Realpath(root+"/"+c.in), filepath.Join(root, c.want); got != want {
+				t.Errorf("Realpath(%s) = %s, want %s", c.in, got, want)
+			}
+			if got, want := Realpath(root+"/"+c.in), sandbox.Realpath(root+"/"+c.in); got != want {
+				t.Errorf("identity %s != sandbox %s", got, want)
+			}
+		})
 	}
 }
