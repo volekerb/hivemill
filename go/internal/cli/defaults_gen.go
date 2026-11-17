@@ -44,6 +44,7 @@ var DefaultConfig = []ConfigDefault{
 	{"max_seven_day_pct", "92"},
 	{"usage_reopen_samples", "3"},
 	{"nudge_cooldown_s", "120"},
+	{"cursor_kickoff_grace_s", "180"},
 	{"boss_wake_after_s", "900"},
 	{"boss_wake_cooldown_s", "1800"},
 	{"director_cycle_s", "900"},

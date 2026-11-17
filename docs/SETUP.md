@@ -173,6 +173,7 @@ Read the Upgrade section of that version's release notes (https://github.com/vol
 | `max_seven_day_pct` | `92` | Same, for the seven-day window. |
 | `usage_reopen_samples` | `3` | After a fresh 5h or 7d reading at or over its cap, a non-cursor spawn stays queued while that reading is stale or unreadable, and until this many consecutive fresh readings (one per usage-file timestamp) are under both caps. With no at-cap reading yet, a stale reading does not close the gate. Cursor spawns ignore it. |
 | `nudge_cooldown_s` | `120` | Minimum seconds between nudges to one agent about unread mail. |
+| `cursor_kickoff_grace_s` | `180` | Cursor agents only: how long a kickoff message may stay unread before the tick submits the kickoff again, and again that long before it relaunches the pane once and then escalates. `0` turns the check off. See [runtimes.md](runtimes.md). |
 | `director_cycle_s` | `900` | How often the tick gives the director a planning cycle. |
 | `blocked_alert_s` | `600` | How long an agent may sit on a dialog before it is reported blocked. |
 | `hq_unblock_s` | `900` | After this long the tick denies (Esc) a permission dialog on a boss, director or lead pane. |
