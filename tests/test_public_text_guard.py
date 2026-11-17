@@ -320,6 +320,19 @@ class PushModeTests(PushBase):
         r = self.push_check("--allowlist", allow)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "0 hits"), r.stdout + r.stderr)
 
+    def test_push_public_contact_address_allowed_other_domain_address_blocked(self):
+        hello, owner = "hello" + "@hivemill.dev", "owner" + "@hivemill.dev"
+        page = f'<a href="mailto:{hello}">Email {hello}</a>\n'
+        self.write("work-with-me/index.html", page)
+        self.commit("www: contact")
+        r = self.push_check()
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "0 hits"), r.stdout + r.stderr)
+        self.write("work-with-me/index.html", page + f'<a href="mailto:{owner}">x</a>\n')
+        self.commit("www: other address")
+        r = self.push_check()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("work-with-me/index.html:2", r.stdout)
+
     def test_push_allowlist_never_covers_owner_term_or_messages(self):
         self.write("fixtures/f.txt", f"{TERM}\n")
         self.commit("m")
