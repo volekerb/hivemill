@@ -608,10 +608,43 @@ func (e wfEntry) under(key string) bool {
 	return false
 }
 
+// wfOpenScalar: the value starts a quoted scalar or a flow sequence that does not end on its line. YAML folds the
+// next lines into it, so a later line that looks like a key or a block-scalar header (`y: |"`) is not one, and the
+// line reader would misplace every line after it (self-review): the caller refuses any workflow that has one.
+func wfOpenScalar(val string) bool {
+	switch {
+	case strings.HasPrefix(val, `"`):
+		for i := 1; i < len(val); i++ {
+			switch val[i] {
+			case '\\':
+				i++
+			case '"':
+				return false
+			}
+		}
+		return true
+	case strings.HasPrefix(val, "'"):
+		for i := 1; i < len(val); i++ {
+			if val[i] == '\'' {
+				if i+1 < len(val) && val[i+1] == '\'' {
+					i++
+					continue
+				}
+				return false
+			}
+		}
+		return true
+	case strings.HasPrefix(val, "["):
+		v := strings.TrimSpace(wfCommentRE.ReplaceAllString(val, ""))
+		return strings.Count(v, "[") != strings.Count(v, "]") || !strings.HasSuffix(v, "]")
+	}
+	return false
+}
+
 // wfEntries reads a workflow into entries. A key line is an entry under its own path (text = its value); any other
 // line (a list item, a block-scalar line) is an entry under the path of the key it belongs to. odd lists the lines
 // the reader cannot follow (wfMapLikeRE, a flow mapping value): the caller refuses any odd line the change adds.
-func wfEntries(text string) (out []wfEntry, odd []string) {
+func wfEntries(text string) (out []wfEntry, odd []string, multi []string) {
 	type frame struct {
 		indent int
 		key    string
@@ -644,6 +677,9 @@ func wfEntries(text string) (out []wfEntry, odd []string) {
 		m := wfKeyRE.FindStringSubmatch(raw)
 		if m == nil {
 			e := wfEntry{path: keys(), text: strings.TrimPrefix(s, "- ")}
+			if wfOpenScalar(e.text) {
+				multi = append(multi, e.String())
+			}
 			if wfMapLikeRE.MatchString(wfCommentRE.ReplaceAllString(e.text, "")) {
 				odd = append(odd, e.String())
 			}
@@ -660,11 +696,14 @@ func wfEntries(text string) (out []wfEntry, odd []string) {
 		if strings.HasPrefix(val, "{") { // a flow mapping hides keys (jobs: {x: {permissions: write-all}})
 			odd = append(odd, out[len(out)-1].String())
 		}
+		if wfOpenScalar(val) {
+			multi = append(multi, out[len(out)-1].String())
+		}
 		if strings.HasPrefix(val, "|") || strings.HasPrefix(val, ">") {
 			scalarIndent = kind
 		}
 	}
-	return out, odd
+	return out, odd, multi
 }
 
 var (
@@ -762,8 +801,8 @@ func workflowProblems(oldText, newText string) []string {
 	if strings.ContainsAny(strings.ReplaceAll(newText, "\r\n", "\n"), "\r\u0085\u2028\u2029") {
 		return []string{"cannot read the lines: a CR, NEL, LS or PS line break other than CRLF (refused)"}
 	}
-	oldE, oldOdd := wfEntries(oldText)
-	newE, newOdd := wfEntries(newText)
+	oldE, oldOdd, _ := wfEntries(oldText)
+	newE, newOdd, newMulti := wfEntries(newText)
 	var out []string
 	add := func(rule string, lines []string) {
 		sort.Strings(lines)
@@ -773,6 +812,9 @@ func workflowProblems(oldText, newText string) []string {
 	}
 	// fail closed on a line the reader cannot place, and on any anchor, alias or tag
 	add("cannot read the line (odd key or flow mapping)", wfAdded(oldOdd, newOdd))
+	// a multi-line quoted scalar or flow sequence anywhere in the changed file: refused even when the line itself is
+	// unchanged, since a change to its continuation lines alone can hide a key (the owner pushes those)
+	add("quoted scalar or flow sequence spans lines (refused)", newMulti)
 	add("YAML anchor, alias or tag (refused)", wfSelect(newE, func(e wfEntry) bool { return wfAnchorRE.MatchString(e.text) }))
 	// a backslash outside a block scalar may be a double-quoted escape (\x73ecrets, \u0073, an escaped line break)
 	// that YAML decodes after the line rules ran (reviewer N1): any added or changed one fails closed

