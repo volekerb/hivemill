@@ -320,8 +320,7 @@ func maskSpawn(s string, r spawnRun) string {
 }
 
 // TestSpawnParityPython: the same spawn in Python and in Go leaves the same stdout, rows, events, kickoff message,
-// hc calls and wrapper script. The hc `run` line differs by `--no-parent` only: the Go herdr client (T-1452) predates
-// that flag (follow-up outside this task's files), so the line is compared without it.
+// hc calls (including `run --no-parent`, as Python) and wrapper script.
 func TestSpawnParityPython(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 not installed")
@@ -346,7 +345,7 @@ func TestSpawnParityPython(t *testing.T) {
 		}
 		pl, _ := os.ReadFile(py.log)
 		gl, _ := os.ReadFile(goRun.log)
-		if a, b := strings.ReplaceAll(maskSpawn(string(pl), py), " --no-parent", ""), maskSpawn(string(gl), goRun); a != b {
+		if a, b := maskSpawn(string(pl), py), maskSpawn(string(gl), goRun); a != b {
 			t.Errorf("%v hc calls:\npy:\n%s\ngo:\n%s", argv, a, b)
 		}
 		ps, _ := os.ReadFile(filepath.Join(py.home, "scripts", spawnNameOf(argv)+".hc-spawn.sh"))
