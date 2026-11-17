@@ -183,7 +183,10 @@ func TestSelfTestPlan(t *testing.T) {
 	for _, r := range allRoles {
 		in, _ := ForRole(r, testPaths)
 		var canary, clone bool
-		for _, p := range SelfTestPlan(in) {
+		for _, p := range SelfTestPlan(in, "n1") {
+			if !strings.HasSuffix(p.Path, "-n1") {
+				t.Errorf("%s: probe path %s lacks the run nonce", r, p.Path)
+			}
 			if p.Name == "owner-home-canary" && p.Kind == ProbeRead && !p.WantAllowed && strings.HasPrefix(p.Path, testPaths.OwnerHome+"/") {
 				canary = true
 			}

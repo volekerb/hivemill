@@ -8,7 +8,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, theme, run, exec, spaces, panes, window, keys, notify, nextCommand } from "herdr";
-import { ROLE, data, config, tick, ago, money, dur, pipeline, alerts, usage, orgsShown, webUrl, levelColor, warn, good, demo, hidden, clean, machineRows, teamViews, barSegments, locationLabel, resolveSpace } from "./data.js";
+import { ROLE, data, oneRead, config, tick, ago, money, dur, pipeline, alerts, usage, orgsShown, webUrl, levelColor, warn, good, demo, hidden, clean, machineRows, teamViews, barSegments, locationLabel, resolveSpace } from "./data.js";
 
 const MOD = "hivemill";
 const alpha = (c, a) => (typeof c === "string" && c.length === 7 ? c + a : c);
@@ -88,7 +88,7 @@ export default class Dashboard extends View {
   }
 
   render() {
-    return this.mode === "bar" ? this.renderBar() : this.renderFull();
+    return oneRead(() => (this.mode === "bar" ? this.renderBar() : this.renderFull()));
   }
 
   // ---- the status bar --------------------------------------------------------

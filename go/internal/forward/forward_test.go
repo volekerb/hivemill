@@ -111,6 +111,25 @@ func TestForwardChildEnv(t *testing.T) {
 	}
 }
 
+func TestForwardChildEnvLocale(t *testing.T) {
+	h := Header{Env: map[string]string{"FACTORY_AGENT": "a"}}
+	server := []string{"LANG=C.UTF-8", "LC_ALL=C.UTF-8", "LC_CTYPE=C.UTF-8", "LC_MESSAGES=de_DE", "LC_TIME=de_DE"}
+	got := ChildEnv(h, server)
+	want := []string{"FACTORY_AGENT=a", "FACTORY_FORWARDED=1", "LANG=C.UTF-8", "LC_ALL=C.UTF-8", "LC_CTYPE=C.UTF-8"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("ChildEnv = %q, want %q (server locale kept, other LC_* dropped)", got, want)
+	}
+	if env := ClientEnv([]string{"LANG=ru_RU.UTF-8", "LC_ALL=ru_RU.UTF-8", "LC_CTYPE=x"}); len(env) != 0 {
+		t.Fatalf("ClientEnv forwarded locale keys: %v", env)
+	}
+	for _, k := range []string{"LANG", "LC_ALL", "LC_CTYPE", "LC_MESSAGES"} {
+		_, err := ReadHeader(bytes.NewReader(wire(`{"argv":["x"],"env":{"` + k + `":"v"},"cwd":"/"}`)))
+		if err == nil || !strings.Contains(err.Error(), "env key not allowed: "+k) {
+			t.Fatalf("header with %s: err = %v, want env key not allowed", k, err)
+		}
+	}
+}
+
 func TestForwardMapCwd(t *testing.T) {
 	pm := [][]string{{"/home/user/factory", "/srv/f"}, {"/home/user/factory/worktrees/deep", "/other"}, {"/data/", "/d"}}
 	cases := []struct{ cwd, want string }{
