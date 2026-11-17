@@ -219,6 +219,7 @@ INSERT INTO "config"("key","value") VALUES('review_autospawn','off');
 INSERT INTO "config"("key","value") VALUES('coder_ci_handoff','off');
 INSERT INTO "config"("key","value") VALUES('coder_ci_resume_max','2');
 INSERT INTO "config"("key","value") VALUES('review_reserved_slots','2');
+INSERT INTO "config"("key","value") VALUES('review_verdict_timeout_min','45');
 INSERT INTO "config"("key","value") VALUES('retro_enabled','1');
 INSERT INTO "config"("key","value") VALUES('retro_hour','6');
 INSERT INTO "config"("key","value") VALUES('retro_org','cursor');

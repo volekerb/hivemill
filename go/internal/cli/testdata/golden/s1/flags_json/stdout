@@ -1017,6 +1017,15 @@
   "current": "2"
  },
  {
+  "key": "review_verdict_timeout_min",
+  "kind": "setting",
+  "default": "45",
+  "summary": "with review_autospawn=on: a tick-started reviewer/qa live this many minutes with no verdict gets a stop request, then one replacement; 0 = off",
+  "goal": "G-058",
+  "doc": "docs/review-autospawn.md",
+  "current": "45"
+ },
+ {
   "key": "risk_tiers",
   "kind": "flag",
   "default": "off",

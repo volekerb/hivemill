@@ -190,6 +190,7 @@ DEFAULT_CONFIG = {
     "coder_ci_handoff": "off",   # off | resume | fresh: coder runs factory done at PR open without waiting for CI; the tick starts review at green (T-1003, docs/prcheck.md)
     "coder_ci_resume_max": "2",   # with coder_ci_handoff on: at most this many tick starts of a handed-off coder per task on a red head, then the lead is mailed (T-1004, docs/lead-wake.md)
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
+    "review_verdict_timeout_min": "45",  # with review_autospawn=on: a tick-started reviewer/qa live this many minutes with no verdict gets a stop request (then one replacement); 0 = off (T-1600, docs/review-autospawn.md)
     "retro_enabled": "1",        # only the exact string "1" starts a new daily retro run from retro_hour
     "retro_hour": "6",           # local hour from which the tick may claim today's retro (before digest_hour)
     "retro_org": "cursor",       # cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)
@@ -20826,8 +20827,35 @@ def _rerun_missing(con, tid, head):
     or a verdict of that role on head. A verdict of one role never marks the other done (T-1048: a reviewer verdict with a qa that ended
     without one left the head "done" and nothing started the qa)."""
     started = _rerun_agents(con, tid, head)
-    return [r for r in ("reviewer", "qa") if r not in started and not con.execute(
-        "SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, r)).fetchone()]
+    due = _respawn_due(con, tid, head)
+    return [r for r in ("reviewer", "qa") if r in due or (r not in started and not con.execute(
+        "SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, r)).fetchone())]
+
+
+def _respawn_key(tid, head, role):
+    """Throttle key set when the tick started the one replacement <role> on head (T-1600): its presence means no further respawn."""
+    return f"review-respawn:{tid}:{head}:{role}"
+
+
+def _noverdict_key(tid, head, role):
+    return f"review-noverdict:{tid}:{head}:{role}"
+
+
+def _respawn_due(con, tid, head):
+    """T-1600: the roles whose tick-started <role>-<task>-<sha8> row has ended (not queued/starting/live) with no verdict of that role
+    on head and that had no replacement yet (no review-respawn key, and no review-no-verdict alert from before this rule). The re-run
+    pass starts one replacement per (task, head, role) under the same name, through the same gates; a second ending is the alert."""
+    out = []
+    for role in ("reviewer", "qa"):
+        row = con.execute("SELECT status FROM agents WHERE name=?", (_rerun_name(con, tid, role, head),)).fetchone()
+        if not row or row["status"] in ("queued", "starting", "live"):
+            continue
+        if con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, role)).fetchone():
+            continue
+        if con.execute("SELECT 1 FROM throttle WHERE key IN (?,?)", (_respawn_key(tid, head, role), _noverdict_key(tid, head, role))).fetchone():
+            continue  # the one replacement was already started (or the lead was already told): never a third agent
+        out.append(role)
+    return out
 
 
 REVIEW_VERDICT_GRACE_S = 300  # a verdict this young may belong to a round whose other half the lead is about to start
@@ -20848,7 +20876,8 @@ def _review_verdict_fresh(con, tid, head, clock):
 
 
 def _review_alert_no_verdict(con, t, head, clock):
-    """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role: one escalation per task, head and role.
+    """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role, after its one replacement (T-1600: the first
+    ending is respawned by the re-run pass, see _respawn_due): one escalation per task, head and role.
     Goes to the lead of the goal's org, else that org's director (goal_alert_to): an unprompted alert never wakes another org's lead."""
     for role in _rerun_agents(con, t["id"], head):
         name = _rerun_name(con, t["id"], role, head)
@@ -20857,7 +20886,9 @@ def _review_alert_no_verdict(con, t, head, clock):
             continue
         if con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (t["id"], head, role)).fetchone():
             continue
-        key = f"review-noverdict:{t['id']}:{head}:{role}"
+        if role in _respawn_due(con, t["id"], head):
+            continue  # first ending: the re-run pass starts one replacement, no message
+        key = _noverdict_key(t["id"], head, role)
         if _throttled(con, key, clock, float("inf")):
             continue
         _throttle_set(con, key, clock)
@@ -20870,8 +20901,60 @@ def _review_alert_no_verdict(con, t, head, clock):
 
 def _review_head_done(con, tid, head, clock):
     """True when the tick started both halves (reviewer + qa) on head (throttle row review-head:<task>:<sha>), or no role is missing on it
-    (_rerun_missing): a half-started round gets only its missing role next tick."""
+    (_rerun_missing): a half-started round gets only its missing role next tick. Never done while a role is due its one replacement (T-1600)."""
+    if _respawn_due(con, tid, head):
+        return False
     return _throttled(con, f"review-head:{tid}:{head}", clock, float("inf")) or not _rerun_missing(con, tid, head)
+
+
+REVIEW_STOP_NUDGE = "📬 STOP from tick: run factory inbox now and follow the STOP order."
+
+
+def review_verdict_timeout_tick(con, clock):
+    """T-1600: a tick-started reviewer/qa (it has a review-autospawn event on the head it was started on, verdict_start_head) that is
+    live longer than config review_verdict_timeout_min (default 45; 0 or less = off) with no verdict of its role on that head gets one
+    stop request through the stop path of the idle-coder reaper (STOP decision message, stop_requested_at, Esc + deferred nudge; the
+    tick's stop fallback closes the pane after stop_timeout_s). Once the row has ended the re-run pass applies the respawn rule.
+    Agents a lead or director spawned (no event) are never stopped."""
+    limit = _int_cfg(con, 'review_verdict_timeout_min', 45)  # single quotes: the double-quoted name stays unique to DEFAULT_CONFIG (grep)
+    if limit <= 0:
+        return
+    rows = con.execute("SELECT a.* FROM agents a JOIN tasks t ON t.id=a.task_id WHERE a.role IN ('reviewer','qa') AND a.status='live' "
+                       "AND a.stop_requested_at IS NULL AND t.status='in_review' ORDER BY a.name").fetchall()
+    for r in rows:
+        began = _ts(r["started"])
+        if began is None:
+            continue  # an unreadable start time cannot prove the agent is overdue: never stop on a guess
+        live_min = (clock - began.timestamp()) / 60
+        if live_min <= limit:
+            continue
+        name, tid = r["name"], r["task_id"]
+        head = verdict_start_head(con, tid, name)
+        if not head:
+            continue  # not tick-started (or respawned by a lead since): the lead's own
+        roles = ("reviewer", "qa") if orgs.strip_prefix(name) == orgs.strip_prefix(combined_name(tid)) else (r["role"],)
+        if all(con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, x)).fetchone()
+               for x in roles):
+            continue  # its verdict is recorded: it is wrapping up
+        reason = (f"review_verdict_timeout_min: live {int(live_min)} min (> {limit}) with no {'/'.join(roles)} verdict on head {head[:8]}; "
+                  "the tick starts one replacement on this head")
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            if con.execute("UPDATE agents SET stop_requested_at=?, stop_attempt_at=NULL, stop_failed_kind=NULL "
+                           "WHERE name=? AND status='live' AND stop_requested_at IS NULL", (now(), name)).rowcount != 1:
+                con.execute("ROLLBACK")
+                continue
+            send(con, name, "STOP", reason + "\nStop work now, record no verdict you have not finished checking, then run "
+                 "factory done '<stopped: state>'", "decision", r["goal_id"], tid, sender="tick")
+            event_as(con, "tick", "agent", name, "stop-requested", {"by": "tick", "reason": reason})
+            event_as(con, "tick", "task", tid, "review-verdict-timeout", {"agent": name, "role": r["role"], "head": head[:8],
+                                                                         "live_min": int(live_min), "limit_min": limit})
+            con.execute("COMMIT")
+        except BaseException:
+            if con.in_transaction:
+                con.execute("ROLLBACK")
+            raise
+        esc_wait_nudge(con, name, REVIEW_STOP_NUDGE, "STOP order", defer=True)
 
 
 def review_rerun_tick(con):
@@ -20920,8 +21003,9 @@ def review_rerun_tick(con):
             continue  # a lead-run round on this head that just got its first verdict: its other half may be about to start
         boss = f"lead:{team}" if team else "director"
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
-        started = []
+        started = []  # what the fyi names; a replacement (T-1600) sends no mail, its events are review-autospawn + review-respawn
         gate_closed = False
+        due = _respawn_due(con, tid, sha)  # T-1600: roles whose agent on this head ended with no verdict: one replacement each
         for role in _rerun_missing(con, tid, sha):
             name = _rerun_name(con, tid, role, sha)
             g_ok, g_why = gate(con, role=role, runtime=org_runtime(con, role, org_for(con, t["goal_id"], tid)))[:2]
@@ -20937,7 +21021,11 @@ def review_rerun_tick(con):
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
             event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8], "sha": sha})
-            started.append(name)
+            if role in due:  # the mark only after a spawn that went through: a closed gate or a refused spawn retries next tick
+                _throttle_set(con, _respawn_key(tid, sha, role), clock)
+                event(con, "task", tid, "review-respawn", {"agent": name, "role": role, "head": sha[:8]})
+            else:
+                started.append(name)
             if status == "queued":
                 break
         if not _rerun_missing(con, tid, sha):  # the mark only when both halves are done; a queued reviewer or refused qa retries
@@ -20956,6 +21044,14 @@ def review_autospawn_tick(con):
     consulted; the gate (all global caps) is. A queued or refused spawn stops the loop; the next tick retries."""
     if cfg(con, "review_autospawn") != "on":
         return
+    try:
+        try:
+            _clock = digest_clock().timestamp()
+        except FactoryNowError:
+            _clock = time.time()
+        review_verdict_timeout_tick(con, _clock)
+    except Exception as e:  # noqa: BLE001 — the timeout pass must not stop the review passes
+        event(con, "tick", "review-autospawn", "review-autospawn-error", f"verdict timeout: {e}"[:300])
     try:
         review_rerun_tick(con)
     except Exception as e:  # noqa: BLE001 — the new-head pass must not stop the first-review pass
