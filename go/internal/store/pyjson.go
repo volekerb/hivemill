@@ -1,4 +1,4 @@
-package tick
+package store
 
 import (
 	"encoding/json"
@@ -13,18 +13,18 @@ import (
 // Python's json.dumps (default separators ", " and ": ", ensure_ascii) for the event details the reap units write. Go's
 // encoding/json sorts map keys and escapes differently, so a detail built with it would not be byte-equal to Python's.
 
-// kv is one key/value of an ordered object (a Python dict keeps insertion order).
-type kv struct {
+// KV is one key/value of an Ordered object (a Python dict keeps insertion order).
+type KV struct {
 	K string
 	V any
 }
 
-// ordered is a Python dict in insertion order.
-type ordered []kv
+// Ordered is a Python dict in insertion order.
+type Ordered []KV
 
-// pyDumps is json.dumps(v). v may be nil, bool, int, int64, float64, string, []any or ordered. Anything else (a Go map
+// PyDumps is json.dumps(v). v may be nil, bool, int, int64, float64, string, []any or Ordered. Anything else (a Go map
 // has no insertion order) is an error, never a guess.
-func pyDumps(v any) (string, error) {
+func PyDumps(v any) (string, error) {
 	var sb strings.Builder
 	if err := pyDump(&sb, v); err != nil {
 		return "", err
@@ -47,7 +47,7 @@ func pyDump(sb *strings.Builder, v any) error {
 	case int64:
 		sb.WriteString(strconv.FormatInt(x, 10))
 	case float64:
-		sb.WriteString(pyFloatRepr(x))
+		sb.WriteString(PyFloatRepr(x))
 	case string:
 		pyDumpString(sb, x)
 	case []any:
@@ -61,7 +61,7 @@ func pyDump(sb *strings.Builder, v any) error {
 			}
 		}
 		sb.WriteByte(']')
-	case ordered:
+	case Ordered:
 		sb.WriteByte('{')
 		for i, e := range x {
 			if i > 0 {
@@ -75,7 +75,7 @@ func pyDump(sb *strings.Builder, v any) error {
 		}
 		sb.WriteByte('}')
 	default:
-		return fmt.Errorf("pyDumps: unsupported type %T (use ordered for an object)", v)
+		return fmt.Errorf("PyDumps: unsupported type %T (use Ordered for an object)", v)
 	}
 	return nil
 }
@@ -117,10 +117,10 @@ func pyDumpString(sb *strings.Builder, s string) {
 	sb.WriteByte('"')
 }
 
-// pyFloatRepr is repr(float): the shortest round-trip digits, fixed notation for a decimal exponent in [-4, 16), else
+// PyFloatRepr is repr(float): the shortest round-trip digits, fixed notation for a decimal exponent in [-4, 16), else
 // d.ddde+XX with at least two exponent digits; an integral value keeps ".0". NaN and the infinities are json.dumps's
 // NaN, Infinity and -Infinity.
-func pyFloatRepr(f float64) string {
+func PyFloatRepr(f float64) string {
 	switch {
 	case math.IsNaN(f):
 		return "NaN"
@@ -146,9 +146,9 @@ func pyFloatRepr(f float64) string {
 	return fmt.Sprintf("%s%s%02d", e[:i+1], sign, exp)
 }
 
-// spawnArgsMap decodes agents.spawn_args. ok is false for text that is not a JSON object (Python: ValueError, or a
+// SpawnArgsMap decodes agents.spawn_args. ok is false for text that is not a JSON object (Python: ValueError, or a
 // non-dict whose .get would fail; the callers treat both as "no spawn args").
-func spawnArgsMap(raw string) (map[string]any, bool) {
+func SpawnArgsMap(raw string) (map[string]any, bool) {
 	if raw == "" {
 		return map[string]any{}, true
 	}

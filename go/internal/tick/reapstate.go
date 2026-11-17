@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"factory/go/internal/herdr"
+	"factory/go/internal/store"
 )
 
 // The cross-unit state the reap units read and write, in the handoff types Python writes (H2): agents list or null, t
@@ -75,7 +76,7 @@ func stateFloat(s State, key string) (float64, error) {
 // setStateFloat stores a float the way Python's json.dumps writes it (an integral value keeps ".0"), so a child that
 // reads the handoff sees a float.
 func setStateFloat(s State, key string, f float64) {
-	s[key] = json.RawMessage(pyFloatRepr(f))
+	s[key] = json.RawMessage(store.PyFloatRepr(f))
 }
 
 // stateAgentMap decodes an object of agent rows (hc_by_name, tui_by_name, tui_by_pane). An absent or null key is an
@@ -137,7 +138,7 @@ func (s *reapStore) Err() error { return s.err }
 
 // Config implements herdr.Store: the row, with no default (the client applies its own).
 func (s *reapStore) Config(key string) (string, bool) {
-	v, ok, err := s.r.cfgRow(key)
+	v, ok, err := s.r.CfgRow(key)
 	s.note(err)
 	return v, ok
 }
@@ -145,7 +146,7 @@ func (s *reapStore) Config(key string) (string, bool) {
 // AgentRow implements herdr.Store.
 func (s *reapStore) AgentRow(name string) *herdr.Row {
 	var sa, pane sql.NullString
-	err := s.r.db.QueryRow("SELECT spawn_args, pane_id FROM agents WHERE name=?", name).Scan(&sa, &pane)
+	err := s.r.DB.QueryRow("SELECT spawn_args, pane_id FROM agents WHERE name=?", name).Scan(&sa, &pane)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
