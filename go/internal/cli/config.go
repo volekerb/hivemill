@@ -1,12 +1,11 @@
 package cli
 
-// ConfigDefault is one config key with its default.
-type ConfigDefault struct{ Key, Value string }
+import "factory/go/internal/store"
 
-func defaultMap() map[string]string {
-	m := make(map[string]string, len(DefaultConfig))
-	for _, d := range DefaultConfig {
-		m[d.Key] = d.Value
-	}
-	return m
-}
+// ConfigDefault is one config key with its default (the generated table lives in internal/store).
+type ConfigDefault = store.ConfigDefault
+
+// DefaultConfig lists every config key and its default, in DEFAULT_CONFIG order.
+var DefaultConfig = store.DefaultConfig
+
+func defaultMap() map[string]string { return store.DefaultMap() }

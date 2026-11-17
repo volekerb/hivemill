@@ -7,5 +7,3 @@
 // All output is buffered and only written once the command succeeded or died on purpose, so a late decision to
 // delegate never leaves half an answer behind.
 package cli
-
-//go:generate go run ./gen
