@@ -5228,6 +5228,12 @@ def org_agent_name(con, base, goal=None, task=None, org=None):
     return oname(con, org_for(con, goal, task, org=org), slug(base))
 
 
+def team_lead(con, team):
+    """The lead_agent recorded for a team id, or None."""
+    r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (team,)).fetchone()
+    return r["lead_agent"] if r and r["lead_agent"] else None
+
+
 def resolve_recipient(con, to, org=None):
     """Accept an agent name, a role ('director'), 'lead:<team>' or 'owner'. A bare HQ role ('boss', 'director',
     'staff-engineer') and 'owner' resolve inside `org` (the message's org: see send) to <org>-<role>."""
@@ -5251,8 +5257,7 @@ def resolve_recipient(con, to, org=None):
                 return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
-        r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
-        return r["lead_agent"] if r and r["lead_agent"] else die(f"team {to[5:]} has no lead")
+        return team_lead(con, to[5:]) or die(f"team {to[5:]} has no lead")
     if con.execute("SELECT 1 FROM agents WHERE name=?", (to,)).fetchone():
         return to
     r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') ORDER BY started DESC LIMIT 1",
@@ -5467,11 +5472,37 @@ def coder_done_escalation_ok(con, role, a):
     return a.to in ups
 
 
+def lead_missing(con, to):
+    """True when 'lead:<x>' has no lead that can receive: no such team, no lead agent, a closed team, or an
+    unparked team whose lead is not live/starting/queued (a parked lead wakes on the message). T-1626."""
+    lead = team_lead(con, to[5:])
+    if not lead:
+        return True
+    t = con.execute("SELECT status, parked_at FROM teams WHERE id=?", (to[5:],)).fetchone()
+    if t["status"] == "closed":
+        return True
+    if t["parked_at"]:
+        return False
+    a = con.execute("SELECT status FROM agents WHERE name=?", (lead,)).fetchone()
+    return not a or a["status"] not in ("live", "starting", "queued")
+
+
+def msg_no_lead_fallthrough(con, a):
+    """T-1626: a worker's message to a lead that does not exist goes to its own org's director as an escalation."""
+    body = read_text(a.body)
+    org = agent_org(con, actor()) or orgs.DEFAULT_ORG
+    full = ((body or "").rstrip("\n") + "\n" if body else "") + f"(originally addressed to {a.to}: no such lead)"
+    mid, rcpt = send(con, "director", "[no lead] " + a.subject, full, "escalation", a.goal, a.task, org=org)
+    print(f"no lead for {a.to}; sent to {rcpt} as escalation M{mid}")
+
+
 def cmd_msg(a):
     con = db()
     role = actor_role(con)
     if a.kind == "escalation" and role not in ("owner", "director", "boss", "lead") and not coder_done_escalation_ok(con, role, a):
         die("only leads, the director and the boss escalate; message your lead instead", 3)
+    if role not in HQ_ROLES and role != "owner" and a.to.startswith("lead:") and lead_missing(con, a.to):
+        return msg_no_lead_fallthrough(con, a)
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
     refuse_cross_org(con, role, a.to, a.goal, a.task)
