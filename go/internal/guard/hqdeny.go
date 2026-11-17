@@ -36,7 +36,7 @@ var hqDeny = func() []hqDenyRow {
 
 // hqDenyHit is worker-guard.py:hq_deny_hit: what the HQ deny rule names, "" when the command is not denied. The basename
 // is compared exactly, no glob expansion.
-func hqDenyHit(word, name string, rest []string) string {
+func hqDenyHit(word, name string, rest []string, role string) string {
 	switch name {
 	case "herdr", "hc", "herdr-core":
 		if IsStub(word) {
@@ -73,12 +73,67 @@ func hqDenyHit(word, name string, rest []string) string {
 	case "gh":
 		pos, _, _, _, _ := ghParse(rest)
 		if len(pos) >= 2 && pos[0] == "pr" && pos[1] == "merge" {
+			if role == "boss" && bossMergeOK(rest) {
+				return ""
+			}
 			return "gh pr merge"
 		}
 	case "sqlite3":
 		return "sqlite3"
 	}
 	return ""
+}
+
+// bossMergeRepos is worker-guard.py:BOSS_MERGE_REPOS.
+var bossMergeRepos = map[string]struct{}{"volekerb/hivemill": {}, "volekerb/hivemill-www": {}}
+
+// bossMergeOK is worker-guard.py:boss_merge_ok (T-1803, owner decision M40734): `gh pr merge <N> --squash --delete-branch`,
+// each flag once, optionally --repo|-R|--repo= naming hivemill or hivemill-www; anything else stays denied.
+func bossMergeOK(rest []string) bool {
+	var args, repos []string
+	for i := 0; i < len(rest); i++ {
+		a := rest[i]
+		switch {
+		case a == "--repo" || a == "-R":
+			if i+1 >= len(rest) {
+				return false
+			}
+			repos = append(repos, rest[i+1])
+			i++
+		case strings.HasPrefix(a, "--repo="):
+			repos = append(repos, strings.TrimPrefix(a, "--repo="))
+		default:
+			args = append(args, a)
+		}
+	}
+	if len(repos) != 1 {
+		return false
+	}
+	for _, r := range repos {
+		if !in(bossMergeRepos, r) {
+			return false
+		}
+	}
+	var flags, pos []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			flags = append(flags, a)
+		} else {
+			pos = append(pos, a)
+		}
+	}
+	if len(flags) != 2 || len(pos) != 3 || pos[0] != "pr" || pos[1] != "merge" {
+		return false
+	}
+	if !((flags[0] == "--squash" && flags[1] == "--delete-branch") || (flags[0] == "--delete-branch" && flags[1] == "--squash")) {
+		return false
+	}
+	for _, c := range pos[2] {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return pos[2] != ""
 }
 
 // IsHqDenyBlock reports whether err is an HqDenyBlock.
