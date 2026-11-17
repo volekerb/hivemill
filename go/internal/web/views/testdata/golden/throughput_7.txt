@@ -1,0 +1,29 @@
+# /throughput?days=7
+TEXT
+Throughput - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 3 Insights Throughput Quality Tokens Changelog System Resources Throughput All Claude Cursor <TS> Gate closed · 2 queued Needs you 6 Cursor usage · 0 h · Pro · ok 7 days 14 days 30 days Merges i Tasks merged in the selected period. A task counts once, on the day of its last merge. 4 in 7 days Median spawn to merge i Median time from a task's first agent spawn to its merge. Tasks without a recorded spawn are left out. 7d 2h p90 spawn to merge i 90th percentile (nearest rank) of the same times: nine in ten tasks merged faster. 7d 2h Agents running now i Agents with a live pane right now: workers, team leads and HQ (boss, director, staff engineer). 6 4 workers · 0 leads · 2 HQ Unattended share i Merged tasks in the selected period with no owner involvement: no owner wait, no auto-merge block, no boss decision about the task. 3 of 4 Cost per merged PR i Average estimated API-equivalent cost of a merged PR at list prices as of 2026-10-25: the whole cost of each merged Claude-org task in the period (not cut to the period), divided by the tasks with a known cost. Tasks with no attributed tokens or no price are left out and counted. Cursor reports no tokens, so it has no cost. The figure is a list-price estimate (as of 2026-10-25). 1 left out: no tokens or no price. Cursor: 2.5 agent-hours, no cost. $0.04 1 of 2 tasks priced Counted from factory records only. It cannot see a push the owner makes by hand, or an owner wait set on a task that was already blocked. Cost and tokens per merged PR Median cost per merged PR i Median estimated cost of a merged Claude-org PR, over the same priced tasks as the average. $0.04 p90 cost per merged PR i 90th percentile (nearest rank) of the same costs. $0.04 Median tokens per merged PR i Median of input, output and cache tokens of the same priced tasks. 37,000 p90 tokens per merged PR i 90th percentile (nearest rank) of the same token counts. 37,000 1 of 2 Claude tasks priced; estimated at list prices as of 2026-10-25 (API-equivalent, not a bill). Left out (no tokens or no price): T-30. Cursor tasks, no cost or tokens reported: T-11, T-31. 2 tasks open now (in progress or in review), 3 agents working on a task. Merges per day 11-08: 0 merges 11-09: 0 merges 11-10: 0 merges 11-11: 1 merges 11-12: 1 merges 11-13: 1 merges 11-14: 1 merges 11-08 1 1 1 1 Merges per day, last 7 days Day Merges 2026-11-08 0 2026-11-09 0 2026-11-10 0 2026-11-11 1 2026-11-12 1 2026-11-13 1 2026-11-14 1 Where the time goes Coding 23h 00m · 12% of total median 23h 00m · 3 unknown Review / QA wait 1h 10m · 1% of total median 35m 00s · 2 unknown Judge 5d 2h · 63% of total median 2d 13h · 2 unknown Rework 1d 22h · 24% of total median 0s · all known Stages that could not be measured for a task are left out and counted as unknown. Per goal Goal Tasks done Median per task G-001 Claude goal 2 7d 2h G-002 Cursor goal 2 - Slowest 10 tasks Task Spawn to merge Merged T-5 plain no tag 7d 2h 2026-11-12 Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 3 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-001
+a:/goal/G-002
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-5
+a:/tasks
+a:/throughput
+a:/throughput?days=14
+a:/throughput?days=30
+a:/throughput?days=7
+a:/throughput?days=7&sort=merged&dir=desc
+a:/throughput?days=7&sort=task&dir=asc
+a:/throughput?days=7&sort=total&dir=asc
+a:/throughput?org=claude
+a:/throughput?org=cursor
+a:/tokens
