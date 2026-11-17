@@ -133,7 +133,9 @@ func RunClient(c Config, args, environ []string, cwd string, stdin io.Reader, st
 			readMu.Lock()
 			readErr = err
 			readMu.Unlock()
-			// The remote must not run on truncated input that looks complete: drop the connection.
+			// Reading our stdin failed (not EOF): kill ssh so the remote sees a dropped connection, not a clean
+			// EOF that would pass for the whole input. Bytes sent before the failure may already have been
+			// read (see docs/multi-machine.md).
 			if kerr := cmd.Process.Kill(); kerr != nil && !errors.Is(kerr, os.ErrProcessDone) {
 				fmt.Fprintf(stderr, "forward: kill ssh: %v\n", kerr)
 			}
