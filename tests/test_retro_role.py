@@ -37,6 +37,32 @@ class SpawnTests(FactoryTestCase):
         args = json.loads(row["spawn_args"])
         self.assertEqual(args.get("runtime"), "cursor")
 
+    def test_retro_spawn_follows_retro_org(self):
+        self.ok("config", "retro_org", "claude")
+        self.assertIn("SPAWNED claude-retro", self.ok("spawn", "retro", "--name", "claude-retro", agent="zz-test-director").stdout)
+        row = dict(self.env.sql("SELECT * FROM agents WHERE name='claude-retro'")[0])
+        self.assertEqual(row["org"], "claude")
+
+    def test_retro_spawn_named_cursor_keeps_cursor_after_config_flip(self):
+        # a relaunch/dequeue of cursor-retro after the operator flipped retro_org must not rename it
+        self.ok("config", "retro_org", "claude")
+        self.assertIn("SPAWNED cursor-retro", self.ok("spawn", "retro", "--name", "cursor-retro", agent="zz-test-director").stdout)
+        self.assertEqual(self.env.sql("SELECT org FROM agents WHERE name='cursor-retro'")[0]["org"], "cursor")
+
+    def test_retro_spawn_padded_org_value_is_accepted(self):
+        self.ok("config", "retro_org", " claude ")
+        self.assertIn("SPAWNED claude-retro", self.ok("spawn", "retro", "--name", "claude-retro", agent="zz-test-director").stdout)
+
+    def test_retro_spawn_bad_org_refused(self):
+        self.ok("config", "retro_org", "banana")
+        r = self.refused(2, "spawn", "retro", "--name", "cursor-retro-x", agent="zz-test-director")
+        self.assertIn("retro_org must be cursor or claude", r.stdout + r.stderr)
+
+    def test_retro_spawn_refused_for_pm(self):
+        self.env.seed_agent("zz-test-pm", "pm", goal="G-001", team="g-001-a")
+        r = self.refused(3, "spawn", "retro", "--name", "cursor-retro-x", agent="zz-test-pm")
+        self.assertIn("workers may not run `factory spawn`", r.stdout + r.stderr)
+
     def test_retro_spawn_refused_for_lead_and_boss(self):
         for who in ("zz-test-lead", "zz-test-boss"):
             self.refused(3, "spawn", "retro", "--name", "cursor-retro-x", agent=who)

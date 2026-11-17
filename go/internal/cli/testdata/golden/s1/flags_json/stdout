@@ -853,6 +853,15 @@
   "current": "20"
  },
  {
+  "key": "retro_org",
+  "kind": "setting",
+  "default": "cursor",
+  "summary": "cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)",
+  "goal": "G-036",
+  "doc": "docs/retro.md",
+  "current": "cursor"
+ },
+ {
   "key": "review_autospawn",
   "kind": "flag",
   "default": "off",
