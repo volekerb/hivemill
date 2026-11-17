@@ -23,7 +23,7 @@ CREATE TABLE tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT, judge_hold_reason TEXT);
+  waits TEXT NOT NULL DEFAULT 'internal', block_on TEXT, sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT, judge_hold_reason TEXT);
 CREATE TABLE agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -166,7 +166,7 @@ CREATE TABLE skill_trials (
   skill_invoked INTEGER, check_output TEXT, author TEXT,
   void_reason TEXT, void_why TEXT,   -- set by `skilleval void`; the row keeps every other field
   UNIQUE(candidate_id, vendor_sha, task, condition));
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;
 INSERT INTO config(key,value) VALUES('affected_smoke','test_db_layout.py test_inbox.py test_judge.py');
 INSERT INTO config(key,value) VALUES('agent_runtimes','');
 INSERT INTO config(key,value) VALUES('block_conditions','0');
@@ -289,5 +289,6 @@ INSERT INTO config(key,value) VALUES('tick_impl','python');
 INSERT INTO config(key,value) VALUES('tick_phase_timers','0');
 INSERT INTO config(key,value) VALUES('tmp_max_pct','90');
 INSERT INTO config(key,value) VALUES('tmp_sweep_pct','80');
+INSERT INTO config(key,value) VALUES('usage_reopen_samples','3');
 INSERT INTO config(key,value) VALUES('worker_gh_repos','');
 INSERT INTO config(key,value) VALUES('worker_gh_roles','');

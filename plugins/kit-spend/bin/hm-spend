@@ -1,0 +1,10 @@
+#!/bin/sh
+# Finds the hm-spend binary (ADR 0007 section D lookup order) and runs it. Until the kit release ships a pinned,
+# sha256-checked download for this plugin, a missing binary is built from a hivemill checkout (docs/token-discipline.md).
+set -eu
+for d in "${HIVEMILL_BIN_DIR:-}" "${CLAUDE_PLUGIN_ROOT:-}/bin/.cache" "$HOME/.local/share/hivemill/bin"; do
+  [ -n "$d" ] && [ -x "$d/hm-spend" ] && exec "$d/hm-spend" "$@"
+done
+echo "hm-spend is not installed. Build it from a hivemill checkout (Go 1.27):" >&2
+echo "  cd <hivemill>/go && go build -o ~/.local/share/hivemill/bin/hm-spend ./cmd/hm-spend" >&2
+exit 1

@@ -25,7 +25,7 @@ CREATE TABLE tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
+  waits TEXT NOT NULL DEFAULT 'internal', block_on TEXT, sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
 CREATE TABLE agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -181,6 +181,7 @@ INSERT INTO "config"("key","value") VALUES('owner_alert_feed','0');
 INSERT INTO "config"("key","value") VALUES('lead_parking','0');
 INSERT INTO "config"("key","value") VALUES('max_live_leads','4');
 INSERT INTO "config"("key","value") VALUES('stale_policy','behind_ok');
+INSERT INTO "config"("key","value") VALUES('stale_no_refresh','on');
 INSERT INTO "config"("key","value") VALUES('refresh_lane','off');
 INSERT INTO "config"("key","value") VALUES('max_live_judges','3');
 INSERT INTO "config"("key","value") VALUES('reserved_worker_slots','10');
@@ -199,6 +200,7 @@ INSERT INTO "config"("key","value") VALUES('tmp_sweep_pct','80');
 INSERT INTO "config"("key","value") VALUES('tmp_max_pct','90');
 INSERT INTO "config"("key","value") VALUES('max_five_hour_pct','92');
 INSERT INTO "config"("key","value") VALUES('max_seven_day_pct','92');
+INSERT INTO "config"("key","value") VALUES('usage_reopen_samples','3');
 INSERT INTO "config"("key","value") VALUES('nudge_cooldown_s','120');
 INSERT INTO "config"("key","value") VALUES('cursor_kickoff_grace_s','180');
 INSERT INTO "config"("key","value") VALUES('boss_wake_after_s','900');
@@ -267,6 +269,8 @@ INSERT INTO "config"("key","value") VALUES('orphan_reap_mode','dry-run');
 INSERT INTO "config"("key","value") VALUES('exited_pane_reap_mode','dry-run');
 INSERT INTO "config"("key","value") VALUES('idle_coder_reap','off');
 INSERT INTO "config"("key","value") VALUES('idle_coder_reap_s','900');
+INSERT INTO "config"("key","value") VALUES('idle_watchdog','shadow');
+INSERT INTO "config"("key","value") VALUES('idle_watchdog_min','30');
 INSERT INTO "config"("key","value") VALUES('digest_hour','8');
 INSERT INTO "config"("key","value") VALUES('scout_enabled','1');
 INSERT INTO "config"("key","value") VALUES('scout_slots','09,18');
@@ -285,6 +289,7 @@ INSERT INTO "config"("key","value") VALUES('cursor_pilot_roles','');
 INSERT INTO "config"("key","value") VALUES('orgs_enabled','claude');
 INSERT INTO "config"("key","value") VALUES('org_prefix_default','0');
 INSERT INTO "config"("key","value") VALUES('cap_fallback_offer','0');
+INSERT INTO "config"("key","value") VALUES('cursor_prompt','v1');
 INSERT INTO "config"("key","value") VALUES('worker_machines','');
 INSERT INTO "config"("key","value") VALUES('machine_hq','hqhost');
 INSERT INTO "config"("key","value") VALUES('machine_mem_floor_mb','1500');

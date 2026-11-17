@@ -14,7 +14,9 @@ const pw = "S3cretPassw0rdXYZ"
 type fake struct {
 	calls    []string
 	failOn   string
-	ticks    int // tick events the grep reports
+	ticks    int  // tick.lock mtime moves after the one factory up set (first poll = baseline)
+	missing  bool // the lock file never exists
+	polls    int
 	userGone bool
 }
 
@@ -27,8 +29,16 @@ func (f *fake) Run(c Cmd) (string, int, error) {
 	switch {
 	case c.Argv[0] == "id":
 		return "501\n", 0, nil
-	case strings.Contains(j, "grep -c"):
-		return strings.TrimSpace(strings.Repeat(" ", 0)) + itoa(f.ticks), 0, nil
+	case strings.Contains(j, "stat -f %m"):
+		if f.missing {
+			return "stat: No such file or directory", 1, nil // no tick ever ran
+		}
+		f.polls++
+		n := f.polls
+		if n > f.ticks+1 {
+			n = f.ticks + 1
+		}
+		return itoa(n) + "00\n", 0, nil // idle install: only the lock mtime moves, no events at all
 	case c.Argv[0] == "dscl":
 		return "", 56, nil // user is gone
 	}
@@ -69,7 +79,7 @@ func TestOrderOfSteps(t *testing.T) {
 		t.Fatalf("code %d err %v\n%s", code, err, log.String())
 	}
 	want := []string{"sysadminctl -addUser", "/shim/install --dry-run", "/shim/install --yes", "/shim/install --check",
-		"factory up", "grep -c", "factory res", "bootout", "sysadminctl -deleteUser"}
+		"factory up", "stat -f %m", "factory res", "bootout", "sysadminctl -deleteUser"}
 	last := -1
 	for _, w := range want {
 		i := index(f.calls, w)
@@ -92,10 +102,10 @@ func TestOrderOfSteps(t *testing.T) {
 }
 
 func TestCleanupOnFailureAtEachStep(t *testing.T) {
-	for _, step := range []string{"-addUser", "--dry-run", "--yes", "--check", "factory up", "grep -c", "factory res", "bootout"} {
+	for _, step := range []string{"-addUser", "--dry-run", "--yes", "--check", "factory up", "stat -f %m", "factory res", "bootout"} {
 		t.Run(step, func(t *testing.T) {
 			f := &fake{ticks: 2, failOn: step}
-			if step == "grep -c" {
+			if step == "stat -f %m" {
 				f.failOn = ""
 				f.ticks = 0 // never reaches 2: times out
 			}
@@ -309,6 +319,38 @@ func TestUnsafeUserNameRefusedBeforeAnyCommand(t *testing.T) {
 		c.Name = n
 		if code, err := Run(c); code != 2 || err == nil || len(f.calls) != 0 {
 			t.Errorf("name %q: code %d err %v calls %v", n, code, err, f.calls)
+		}
+	}
+}
+
+// An idle install writes no conditional tick events: the wait passes on tick.lock mtime moves alone.
+func TestIdleInstallPassesOnTickLockMtime(t *testing.T) {
+	f := &fake{ticks: 2}
+	var log bytes.Buffer
+	code, err := Run(cfgFor(f, &log))
+	if err != nil || code != 0 {
+		t.Fatalf("code %d err %v\n%s", code, err, log.String())
+	}
+	if index(f.calls, "factory/run/tick.lock") < 0 {
+		t.Errorf("wait must read run/tick.lock: %v", f.calls)
+	}
+	if index(f.calls, "events.jsonl") >= 0 || index(f.calls, "grep") >= 0 {
+		t.Errorf("wait must not depend on the events log: %v", f.calls)
+	}
+}
+
+// factory up sets the lock mtime and only one tick follows (or none, or no file): that is under 2 increments
+// past the baseline, so the wait times out with a message saying what to check.
+func TestNoTickTimesOutClearly(t *testing.T) {
+	for _, ticks := range []int{-1, 0, 1} {
+		f := &fake{ticks: ticks, missing: ticks < 0}
+		var log bytes.Buffer
+		code, err := Run(cfgFor(f, &log))
+		if err != nil || code != 1 {
+			t.Fatalf("ticks %d: code %d err %v", ticks, code, err)
+		}
+		if !strings.Contains(log.String(), "no tick: only") || !strings.Contains(log.String(), "launchctl list hivemill.tick") {
+			t.Errorf("ticks %d: unclear timeout message:\n%s", ticks, log.String())
 		}
 	}
 }
