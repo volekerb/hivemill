@@ -1,16 +1,28 @@
-"""Daily Cursor retro job: one run per local day from retro_hour (docs in T-1207 spec).
+"""Daily retro job (runtime from retro_org: cursor or claude): one run per local day from retro_hour (docs in T-1207 spec).
 
 bin/factory supplies spawn, force_stop, cfg and the clock via the `api` namespace; this module never imports the CLI.
 """
 import datetime as dt
 import sqlite3
 
+from retro import report
 from scout import orgs
 
 TERMINAL = ("done", "stopped", "failed", "skipped")
-NAME = "cursor-retro"
-ORG = "cursor"
 ROLE = "retro"
+ORGS = ("cursor", "claude")
+NAMES = tuple(f"{o}-{ROLE}" for o in ORGS)
+
+
+def parse_org(text):
+    org = str(text).strip()
+    if org not in ORGS:
+        raise ValueError(f"retro_org must be cursor or claude, got '{text}'; fix it with `factory config retro_org cursor`")
+    return org
+
+
+def name_of(org):
+    return f"{org}-{ROLE}"
 
 
 def parse_hour(text):
@@ -75,12 +87,12 @@ def _stop_live_retro(con, api, run_id, agent, event_kind, stop_reason):
 
 
 def _abort_live_on_config_error(con, api):
-    agent = con.execute("SELECT * FROM agents WHERE name=? AND status='live'", (NAME,)).fetchone()
-    if agent is None:
-        return
     run = con.execute("SELECT * FROM retro_runs WHERE status NOT IN ('done','stopped','failed','skipped') "
                       "ORDER BY id DESC").fetchone()
-    if run:
+    if run is None:
+        return
+    agent = con.execute("SELECT * FROM agents WHERE name=? AND status='live'", (run["agent"] or "",)).fetchone()
+    if agent is not None:
         _stop_live_retro(con, api, run["id"], agent, "retro-config", "config")
 
 
@@ -114,7 +126,7 @@ def sync(con, api, clock):
     run = runs[-1]
     for old in runs[:-1]:
         _finish(con, api, old["id"], "failed", "superseded")
-    agent = con.execute("SELECT * FROM agents WHERE name=?", (NAME,)).fetchone()
+    agent = con.execute("SELECT * FROM agents WHERE name=?", (run["agent"] or "",)).fetchone()
     if run["status"] == "claimed":
         return
     if agent is None:
@@ -139,16 +151,17 @@ def sync(con, api, clock):
         _finish(con, api, run["id"], "skipped", "dequeued")
 
 
-def claim(con, api, day):
+def claim(con, api, day, org):
     con.execute("BEGIN IMMEDIATE")
     try:
         if con.execute("SELECT 1 FROM retro_runs WHERE day=?", (day,)).fetchone():
             con.execute("ROLLBACK")
             return None
-        busy = con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (NAME,)).fetchone()
+        busy = con.execute("SELECT 1 FROM agents WHERE name IN (?,?) AND status IN ('live','starting','queued')",
+                           NAMES).fetchone()
         status, reason = ("skipped", "previous run active") if busy else ("claimed", None)
         con.execute("INSERT INTO retro_runs(day, status, agent, stop_reason, ended) VALUES(?,?,?,?,?)",
-                    (day, status, None if busy else NAME, reason, _stamp(api.clock()) if busy else None))
+                    (day, status, None if busy else name_of(org), reason, _stamp(api.clock()) if busy else None))
         api.event(con, "retro", day, "retro-day", day if status == "claimed" else f"{day} skipped: {reason}")
         con.execute("COMMIT")
         return status
@@ -162,10 +175,11 @@ def claim(con, api, day):
         raise
 
 
-def start(con, api, day):
-    model = orgs.model(ORG, ROLE)
+def start(con, api, day, org):
+    name = name_of(org)
+    model = orgs.model(org, ROLE)
     try:
-        api.spawn(con, ROLE, name=NAME, org=ORG, model=model,
+        api.spawn(con, ROLE, name=name, org=org, model=model,
                   prompt=f"Scheduled daily retro for {day}. Run factory retro packet, investigate, then factory retro file.")
     except (Exception, SystemExit) as e:  # noqa: BLE001
         why = f"exit {e.code}; see the tick's stderr" if isinstance(e, SystemExit) else str(e)
@@ -173,7 +187,7 @@ def start(con, api, day):
                     (f"spawn failed: {why}"[:300], _stamp(api.clock()), day))
         api.event(con, "retro", day, "retro-spawn-failed", why[:300])
         return
-    agent = con.execute("SELECT status FROM agents WHERE name=?", (NAME,)).fetchone()
+    agent = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
     status = "running" if agent and agent["status"] == "live" else "queued"
     con.execute("UPDATE retro_runs SET status=?, started=CASE WHEN ?='running' THEN ? END WHERE day=? AND status='claimed'",
                 (status, status, _stamp(api.clock()), day))
@@ -182,11 +196,13 @@ def start(con, api, day):
 def tick(con, api):
     clock = api.clock()
     sync(con, api, clock)
+    report.sync_adopted(con, lambda *x: api.event(con, *x))  # T-1695: pending fixes follow their task's merge, agent on or off
     if str(api.cfg(con, "retro_enabled")) != "1":
         return
     try:
         hour = parse_hour(api.cfg(con, "retro_hour"))
         parse_max_minutes(api.cfg(con, "retro_max_minutes"))
+        org = parse_org(api.cfg(con, "retro_org"))
     except ValueError as e:
         _record_config_fail(con, api, str(e))
         _abort_live_on_config_error(con, api)
@@ -199,5 +215,5 @@ def tick(con, api):
     day = clock.date().isoformat()
     if con.execute("SELECT 1 FROM retro_runs WHERE day=?", (day,)).fetchone():
         return
-    if claim(con, api, day) == "claimed":
-        start(con, api, day)
+    if claim(con, api, day, org) == "claimed":
+        start(con, api, day, org)

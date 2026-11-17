@@ -74,7 +74,7 @@ func addLive(t *testing.T, db *sql.DB, name, role, session, extra string) {
 		name, role, "live", session, "p-"+name, "T-9", "G-9", extra)
 }
 
-func TestUnitTable(t *testing.T) {
+func TestUnitTableFlaglessAudit(t *testing.T) {
 	for _, u := range []string{"flagless", "claude_audit"} {
 		if _, ok := goUnits[u]; !ok {
 			t.Errorf("unit %s is not Go-capable", u)
@@ -88,7 +88,7 @@ func TestUnitTable(t *testing.T) {
 			t.Errorf("%s lost its Go flag", u)
 		}
 	}
-	for _, u := range []string{"pending_nudges", "reap_loop", "exited_panes", "idle_coders", "drift", "stop_fallback", "dequeue"} {
+	for _, u := range []string{"pending_nudges", "reap_loop", "exited_panes", "idle_coders", "stop_fallback", "dequeue"} {
 		if _, ok := goUnits[u]; ok {
 			t.Errorf("%s must stay a Python unit in this PR", u)
 		}

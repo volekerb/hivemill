@@ -168,7 +168,7 @@ func sandboxEscapeClose(r *reapDB, root, name, pane string, pid int) error {
 	body := fmt.Sprintf("%s is a sandboxed agent but its claude (pid %d) runs in the host user namespace, outside the "+
 		"sandbox. %s Check its shell rc and multiplexer auto-resume, then relaunch.", name, pid, outcome)
 	if _, _, err := r.Send(store.Msg{To: "director", Subject: "sandbox escaped: " + name + " closed", Body: &body,
-		Kind: "alert", Sender: reapActor}); err != nil {
+		Kind: "alert", Sender: tickActor}); err != nil {
 		return fmt.Errorf("sandbox escape alert: %w", err)
 	}
 	return nil
@@ -328,7 +328,7 @@ func reportOutside(r *reapDB, pid int, argv []string, owner agentRow, reasons []
 	body := fmt.Sprintf("%s under %s (task %s): pid %d %s. %s", what, owner.Name, strOrNone(owner.Task), pid,
 		strings.Join(head, " "), tail)
 	if _, _, err := r.Send(store.Msg{To: "director", Subject: subject, Body: &body, Kind: "alert",
-		Goal: optStr(owner.Goal), Task: optStr(owner.Task), Sender: reapActor}); err != nil {
+		Goal: optStr(owner.Goal), Task: optStr(owner.Task), Sender: tickActor}); err != nil {
 		return fmt.Errorf("claude audit alert: %w", err)
 	}
 	return nil

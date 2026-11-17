@@ -82,7 +82,6 @@ func pyDump(sb *strings.Builder, v any) error {
 
 // control character below U+0020 escaped, and every character outside space..~ (so U+007F too) as \uXXXX (a
 // surrogate pair above U+FFFF). Invalid UTF-8 bytes each become U+FFFD: Python never holds them in a str.
-// control character below U+0020 escaped, every character outside space..~ (so U+007F too) as \uXXXX (a surrogate pair above U+FFFF). Invalid UTF-8 becomes U+FFFD, as Python's surrogateescape-free decode would never hand us anything else.
 func pyDumpString(sb *strings.Builder, s string) {
 	sb.WriteByte('"')
 	for i := 0; i < len(s); {

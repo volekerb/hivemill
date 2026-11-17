@@ -107,11 +107,15 @@ func TestReapStoreWithHerdr(t *testing.T) {
 	if state != "not-found" {
 		t.Fatalf("ghost: %s", state)
 	}
-	var detail string
-	if err := db.QueryRow("SELECT detail FROM events WHERE action='pane-close-skipped' AND entity_id='ghost'").Scan(&detail); err != nil {
+	var detail, actor string
+	if err := db.QueryRow("SELECT detail, actor FROM events WHERE action='pane-close-skipped' AND entity_id='ghost'").Scan(&detail, &actor); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(detail, "pane held by other") {
+	// Python close_named_pane records with event() = actor() = "owner", not event_as("tick").
+	if actor != "owner" {
+		t.Errorf("skip event actor = %q, Python writes owner", actor)
+	}
+	if detail != `{"agent":"ghost","pane":"stale","reason":"pane held by other"}` {
 		t.Errorf("skip event: %s", detail)
 	}
 	if st.Err() != nil {

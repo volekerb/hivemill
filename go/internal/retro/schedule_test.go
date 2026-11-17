@@ -22,7 +22,7 @@ type fakeAPI struct {
 
 func newAPI() *fakeAPI {
 	return &fakeAPI{clock: time.Date(2026, 11, 14, 7, 0, 0, 0, time.UTC), stopRes: "stopped",
-		cfg: map[string]string{"retro_enabled": "1", "retro_hour": "6", "retro_max_minutes": "30"}}
+		cfg: map[string]string{"retro_enabled": "1", "retro_hour": "6", "retro_max_minutes": "30", "retro_org": "cursor"}}
 }
 func (a *fakeAPI) Clock() time.Time { return a.clock }
 func (a *fakeAPI) Now() string      { return scout.Stamp(a.clock) }
@@ -86,7 +86,7 @@ func TestTickStartsOnceFromRetroHour(t *testing.T) {
 	if err := Tick(db, api); err != nil {
 		t.Fatal(err)
 	}
-	wantSpawn := "retro|cursor-retro|cursor|" + mustModel(t) + "|Scheduled daily retro for 2026-11-14. Run factory retro packet, investigate, then factory retro file."
+	wantSpawn := "retro|cursor-retro|cursor|" + mustModel(t, "cursor") + "|Scheduled daily retro for 2026-11-14. Run factory retro packet, investigate, then factory retro file."
 	if len(api.spawned) != 1 || api.spawned[0] != wantSpawn {
 		t.Fatalf("spawned %q", api.spawned)
 	}
@@ -101,9 +101,9 @@ func TestTickStartsOnceFromRetroHour(t *testing.T) {
 	}
 }
 
-func mustModel(t *testing.T) string {
+func mustModel(t *testing.T, org string) string {
 	t.Helper()
-	m, err := scout.Model(Org, Role)
+	m, err := scout.Model(org, Role)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,14 +139,14 @@ func TestTickWaitsForOtherQueuedAgents(t *testing.T) {
 func TestClaimSkipsWhileRetroAgentBusy(t *testing.T) {
 	db, api := newDB(t), newAPI()
 	mustExec(t, db, "INSERT INTO agents(name, role, status) VALUES('cursor-retro','retro','live')")
-	st, err := Claim(db, api, "2026-11-14")
+	st, err := Claim(db, api, "2026-11-14", "cursor")
 	if err != nil || st != "skipped" {
 		t.Fatalf("%q %v", st, err)
 	}
 	if s, why, _, ended := run(t, db, "2026-11-14"); s.String != "skipped" || why.String != "previous run active" || !ended.Valid {
 		t.Fatalf("%v %v %v", s, why, ended)
 	}
-	if st, err := Claim(db, api, "2026-11-14"); err != nil || st != "" {
+	if st, err := Claim(db, api, "2026-11-14", "cursor"); err != nil || st != "" {
 		t.Fatalf("a recorded day is not claimed again: %q %v", st, err)
 	}
 	if got := events(t, db); got[0] != "retro-day:2026-11-14:2026-11-14 skipped: previous run active" {
@@ -255,7 +255,7 @@ func TestClaimLeavesNoOpenTransaction(t *testing.T) {
 	// Claim must leave the connection usable (no open transaction) after every outcome
 	db, api := newDB(t), newAPI()
 	for i := 0; i < 2; i++ {
-		if _, err := Claim(db, api, "2026-11-14"); err != nil {
+		if _, err := Claim(db, api, "2026-11-14", "cursor"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -265,4 +265,113 @@ func TestClaimLeavesNoOpenTransaction(t *testing.T) {
 	if _, err := db.Exec("ROLLBACK"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestTickClaudeOrgSpawnsClaudeRetro(t *testing.T) {
+	db, api := newDB(t), newAPI()
+	api.cfg["retro_org"] = "claude"
+	if err := Tick(db, api); err != nil {
+		t.Fatal(err)
+	}
+	want := "retro|claude-retro|claude|" + mustModel(t, "claude") + "|Scheduled daily retro for 2026-11-14. Run factory retro packet, investigate, then factory retro file."
+	if len(api.spawned) != 1 || api.spawned[0] != want {
+		t.Fatalf("spawned %q", api.spawned)
+	}
+	var agent string
+	if err := db.QueryRow("SELECT agent FROM retro_runs WHERE day='2026-11-14'").Scan(&agent); err != nil || agent != "claude-retro" {
+		t.Fatalf("run agent %q %v", agent, err)
+	}
+}
+
+func TestTickBadOrgRecordsFailureAndDoesNotSpawn(t *testing.T) {
+	db, api := newDB(t), newAPI()
+	api.cfg["retro_org"] = "banana"
+	if err := Tick(db, api); err != nil {
+		t.Fatal(err)
+	}
+	if len(api.spawned) != 0 {
+		t.Fatalf("spawned %q", api.spawned)
+	}
+	var n int
+	if err := db.QueryRow("SELECT count(*) FROM retro_runs").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("runs %d %v", n, err)
+	}
+	got := events(t, db)
+	if len(got) != 1 || !strings.HasPrefix(got[0], "retro-failed:-:retro_org must be cursor or claude, got 'banana'") {
+		t.Fatalf("events %q", got)
+	}
+}
+
+func TestOpenRunSyncedByStoredAgentAfterOrgSwitch(t *testing.T) {
+	db, api := newDB(t), newAPI()
+	api.cfg["retro_org"] = "claude" // flipped after the run started as cursor-retro
+	mustExec(t, db, "INSERT INTO retro_runs(day, status, agent) VALUES('2026-11-14','running','cursor-retro')")
+	mustExec(t, db, "INSERT INTO agents(name, role, status) VALUES('cursor-retro','retro','done')")
+	if err := Tick(db, api); err != nil {
+		t.Fatal(err)
+	}
+	if st, why, _, _ := run(t, db, "2026-11-14"); st.String != "done" || why.Valid {
+		t.Fatalf("%v %v", st, why)
+	}
+}
+
+func TestClaimSkipsWhenOtherOrgRetroBusy(t *testing.T) {
+	db, api := newDB(t), newAPI()
+	mustExec(t, db, "INSERT INTO agents(name, role, status) VALUES('cursor-retro','retro','live')")
+	st, err := Claim(db, api, "2026-11-15", "claude")
+	if err != nil || st != "skipped" {
+		t.Fatalf("%q %v", st, err)
+	}
+	if s, why, _, _ := run(t, db, "2026-11-15"); s.String != "skipped" || why.String != "previous run active" {
+		t.Fatalf("%v %v", s, why)
+	}
+	if len(api.spawned) != 0 {
+		t.Fatalf("spawned %q", api.spawned)
+	}
+}
+
+func TestParseOrg(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"cursor", "cursor"},
+		{"claude", "claude"},
+		{" claude ", "claude"},
+		{"\tcursor\n", "cursor"},
+	} {
+		got, err := ParseOrg(tc.in)
+		if err != nil || got != tc.want {
+			t.Errorf("ParseOrg(%q) = %q, %v; want %q", tc.in, got, err, tc.want)
+		}
+	}
+	for _, in := range []string{"", "Claude", "banana", "cursor-retro"} {
+		got, err := ParseOrg(in)
+		if err == nil || got != "" {
+			t.Errorf("ParseOrg(%q) = %q, %v; want refusal", in, got, err)
+			continue
+		}
+		want := "retro_org must be cursor or claude, got '" + in + "'; fix it with `factory config retro_org cursor`"
+		if err.Error() != want {
+			t.Errorf("ParseOrg(%q) error = %q, want %q", in, err.Error(), want)
+		}
+	}
+}
+
+func FuzzParseOrg(f *testing.F) {
+	for _, s := range []string{"cursor", "claude", " claude ", "\tcursor\n", "", "Claude", "banana", "cursor-retro"} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		got, err := ParseOrg(s)
+		if err != nil {
+			if got != "" {
+				t.Fatalf("ParseOrg(%q) returned %q with error", s, got)
+			}
+			return
+		}
+		for _, o := range Orgs {
+			if got == o {
+				return
+			}
+		}
+		t.Fatalf("ParseOrg(%q) accepted %q, not in Orgs", s, got)
+	})
 }

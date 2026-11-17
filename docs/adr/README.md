@@ -16,3 +16,5 @@ A Proposed ADR becomes Accepted only with the approving message id recorded in i
 | [0004](0004-node-esm-hivemill-ios-release.md) | Node ESM and bash for the hivemill iOS release script | Accepted | 2026-11-14 |
 | [0005](0005-self-hosted-ci-runners.md) | Self-hosted CI runners for trusted PRs: ephemeral runner on a private CI repository, never on the public one | Proposed | 2026-11-15 |
 | [0006](0006-worker-sandbox-assessment.md) | Worker sandbox assessment: why go test fails for QA, alternatives, one recommended fix | Proposed | 2026-11-16 |
+| [0007](0007-hivemill-kit.md) | Hivemill Kit: standalone skills (marketplace + npx), three levels, evals and a catalog | Proposed | 2026-11-17 |
+| [0008](0008-resource-hygiene.md) | Deterministic resource hygiene: one Go binary (hm-clean) that measures, plans and cleans disk and memory on every Hivemill machine | Proposed | 2026-11-17 |

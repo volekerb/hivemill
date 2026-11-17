@@ -355,7 +355,7 @@ type Msg struct {
 	Body        *string
 	Kind        string // "" means "msg"
 	Goal, Task  *string
-	Sender      string // "" means the owner (what actor() is when no agent is named)
+	Sender      string // required: the caller names the actor (Python's sender or actor())
 	Org         string
 }
 
@@ -364,7 +364,7 @@ type Msg struct {
 func (r *Store) Send(m Msg) (int64, string, error) {
 	sender, kind := m.Sender, m.Kind
 	if sender == "" {
-		sender = "owner"
+		return 0, "", fmt.Errorf("send: Msg.Sender is required (pass the actor, \"owner\" for the tick)")
 	}
 	if kind == "" {
 		kind = "msg"

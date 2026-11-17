@@ -1,0 +1,24 @@
+# /goal/G-002
+TEXT
+Cursor goal - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources Cursor goal All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Goals / G-002 Active Cursor · P2 · tm-c · updated <TS> Teams 1 tm-c cursor-lead-g-002 Active port Running cursor-coder-t-6 coder Cursor T-6 1/3 tasks · 1/2 criteria Cost and time Agent-hours 0.5 agent-hours Merged PRs 1 Median wall time per merged PR - Tokens and cost: not available. The Cursor CLI reports no token counts. What's blocking 1 Request Cursor ask T-6 waiting 2 h Success criteria 1/2 Done Met SC1 first free line Done To do Open SC2 second free line Tasks 3 status ID Task Assignee PR Tries In progress 1 In progress T-6 Cursor port cursor-coder-t-6 1 To do 1 To do T-7 not json deps coder Done 1 status ID Task Assignee PR Tries Done T-11 [SC1] é ünïcode 日本 spaced cursor-coder-t-11 PR 1 Plan v1 · <TS> Created <TS> Updated <TS> Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-002
+a:/goal/G-002?org=claude
+a:/goal/G-002?org=cursor
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-11
+a:/task/T-6
+a:/task/T-7
+a:/tasks
+a:/throughput
+a:/tokens

@@ -53,3 +53,19 @@ Per tick, per open PR, before the change: CI wake 1 (parked team, CI pending), r
 `coder_ci_handoff`, or a re-run is pending), red PR alert 0.1 (once per 600 s), `judge_pr_ready` 0.5 (only with a queued judge or a mech candidate),
 drift 1 per hour. After: the first three share one call per 2 ticks. Agents add their own calls: `gh pr checks --watch` polls every 10 s
 (360 points per hour per watching coder or reviewer) and `gh pr view` once per spawn pre-check. Those are not changed here.
+
+## Per-caller trace (T-1677)
+
+`factory config gh_call_trace on` makes every factory process that opens the DB append one JSON line per `gh` call to `$FACTORY_HOME/logs/gh-calls.jsonl`:
+`{"t": epoch, "agent": "$FACTORY_AGENT", "caller": "tick>cmd_tick>_tick_u_ci_wake>tick_pr_titles", "gh": "pr view", "pts": 1}`.
+`caller` is the factory subcommand plus the three innermost factory_cli.py functions on the stack; `pts` is a lower bound of GraphQL points
+(1 per `gh pr view/checks/list/...`, `gh repo view`, `gh issue list`, `gh api graphql`; 0 for REST: `gh api repos/...`, `gh run list`, `gh pr diff`).
+Off (the default) wraps nothing and writes nothing. It covers the Python tick and CLI; raw `gh` typed by agents (for example
+`gh pr checks --watch`, 6 GraphQL calls a minute at the default 10 s interval) is not seen by it. Rollback: `factory config gh_call_trace off`.
+
+Points per hour per caller over a trace window:
+
+`jq -r '[.caller, .gh, .pts] | @tsv' logs/gh-calls.jsonl | sort | uniq -c | sort -rn` and divide by the window length in hours.
+
+The tick's PR title scan (`tick_pr_titles`, one pass per minute per repo of a live task PR) used GraphQL `gh pr list --limit 200`; it now reads
+`gh api repos/R/pulls` (REST, `--paginate`), which costs no GraphQL points.

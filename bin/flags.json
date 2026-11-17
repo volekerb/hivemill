@@ -103,7 +103,7 @@
    "key": "cursor_kickoff_grace_s",
    "kind": "setting",
    "default": "180",
-   "summary": "cursor agents: seconds a kickoff may stay unread before the tick resubmits it, then relaunches once",
+   "summary": "cursor agents: seconds a kickoff may stay unread before the tick re-submits it, then relaunches once, then escalates; 0 = off",
    "goal": "G-058",
    "doc": "docs/runtimes.md"
   },
@@ -111,10 +111,18 @@
    "key": "cursor_pilot_roles",
    "kind": "flag",
    "default": "",
-   "summary": "legacy alias for agent_runtimes (roles \u2192 role=cursor); prefer agent_runtimes",
+   "summary": "legacy alias for agent_runtimes (roles → role=cursor); prefer agent_runtimes",
    "goal": "",
    "doc": "docs/runtimes.md",
    "state": "off"
+  },
+  {
+   "key": "cursor_prompt",
+   "kind": "setting",
+   "default": "v1",
+   "summary": "v1 = Cursor agents get the Claude role prompt and kickoff; v2 = the short loop-until-done prompt (roles/cursor/<role>.md) and the Cursor worker kickoff",
+   "goal": "G-058",
+   "doc": "docs/cursor-prompt.md"
   },
   {
    "key": "day_end_hour",
@@ -249,6 +257,15 @@
    "doc": ""
   },
   {
+   "key": "gh_call_trace",
+   "kind": "flag",
+   "default": "off",
+   "summary": "on = every gh call of a factory process appends caller + gh subcommand to logs/gh-calls.jsonl (GraphQL attribution)",
+   "goal": "G-022",
+   "doc": "docs/gh-quota.md",
+   "state": "off"
+  },
+  {
    "key": "gh_quota_min",
    "kind": "setting",
    "default": "300",
@@ -340,6 +357,23 @@
    "doc": "docs/lead-wake.md"
   },
   {
+   "key": "idle_watchdog",
+   "kind": "flag",
+   "default": "shadow",
+   "summary": "off | shadow | on: the tick nudges, then relaunches fresh, then alerts both directors about a live worker with no progress for idle_watchdog_min; shadow = event rows only",
+   "goal": "G-058",
+   "doc": "docs/idle-watchdog.md",
+   "state": "shadow"
+  },
+  {
+   "key": "idle_watchdog_min",
+   "kind": "setting",
+   "default": "30",
+   "summary": "minutes without progress before idle_watchdog nudges; relaunch half that later, alert that long after the relaunch",
+   "goal": "G-058",
+   "doc": "docs/idle-watchdog.md"
+  },
+  {
    "key": "issue_intake_repos",
    "kind": "flag",
    "default": "",
@@ -347,6 +381,14 @@
    "goal": "G-026",
    "doc": "docs/ISSUES.md",
    "state": "off"
+  },
+  {
+   "key": "judge_ci_gate",
+   "kind": "setting",
+   "default": "pr",
+   "summary": "pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS, clean merge-tree and no file overlap only (main push run is the gate)",
+   "goal": "G-050",
+   "doc": "docs/judge-ci-gate.md"
   },
   {
    "key": "judge_ci_wait_s",
@@ -371,6 +413,14 @@
    "summary": "refreshes one `factory judge --merge` run does before it gives up with STALE-LOOP",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "judge_review_gate",
+   "kind": "setting",
+   "default": "passpass",
+   "summary": "passpass = merge gate needs reviewer PASS + QA PASS on the head; green = no reviewer/QA FAIL on the head and green PR CI on the head (owner M40731/M40734)",
+   "goal": "G-005",
+   "doc": "docs/judge-ci-gate.md"
   },
   {
    "key": "judge_wait_main_run",
@@ -407,6 +457,62 @@
    "goal": "",
    "doc": "",
    "state": "off"
+  },
+  {
+   "key": "machine_cpu_heavy_roles",
+   "kind": "setting",
+   "default": "coder,qa",
+   "summary": "worker roles that prefer the first worker machine which passes placement",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_facts_ttl_s",
+   "kind": "setting",
+   "default": "20",
+   "summary": "seconds one machine's MemAvailable and load sample is reused",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_hq",
+   "kind": "setting",
+   "default": "hqhost",
+   "summary": "name of this machine; HQ, leads and judges stay on it",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_mem_floor_mb",
+   "kind": "setting",
+   "default": "1500",
+   "summary": "a machine is eligible only when free RAM minus one agent stays at least this (MB)",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_mem_per_claude_mb",
+   "kind": "setting",
+   "default": "500",
+   "summary": "RAM (MB) reserved for one claude agent when placing",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_mem_per_cursor_mb",
+   "kind": "setting",
+   "default": "900",
+   "summary": "RAM (MB) reserved for one cursor agent when placing",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_ssh_timeout_s",
+   "kind": "setting",
+   "default": "5",
+   "summary": "ssh ConnectTimeout in seconds when reading a worker machine's facts",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
   },
   {
    "key": "max_five_hour_pct",
@@ -490,11 +596,115 @@
    "doc": ""
   },
   {
+   "key": "model_boss",
+   "kind": "setting",
+   "default": "",
+   "summary": "boss model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
    "key": "model_cleaner",
    "kind": "setting",
    "default": "",
    "summary": "cleaner model override; empty = the MODELS table",
    "goal": "G-011",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_coder",
+   "kind": "setting",
+   "default": "",
+   "summary": "coder model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_director",
+   "kind": "setting",
+   "default": "",
+   "summary": "director model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_evaluator",
+   "kind": "setting",
+   "default": "",
+   "summary": "evaluator model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_judge",
+   "kind": "setting",
+   "default": "",
+   "summary": "judge model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_lead",
+   "kind": "setting",
+   "default": "",
+   "summary": "lead model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_pm",
+   "kind": "setting",
+   "default": "",
+   "summary": "pm model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_qa",
+   "kind": "setting",
+   "default": "",
+   "summary": "qa model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_researcher",
+   "kind": "setting",
+   "default": "",
+   "summary": "researcher model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_retro",
+   "kind": "setting",
+   "default": "",
+   "summary": "retro model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_reviewer",
+   "kind": "setting",
+   "default": "",
+   "summary": "reviewer model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_scout",
+   "kind": "setting",
+   "default": "",
+   "summary": "scout model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_staff-engineer",
+   "kind": "setting",
+   "default": "",
+   "summary": "staff-engineer model override; empty = the MODELS table",
+   "goal": "G-064",
    "doc": "docs/model-routing.md"
   },
   {
@@ -681,6 +891,14 @@
    "doc": ""
   },
   {
+   "key": "retro_org",
+   "kind": "setting",
+   "default": "cursor",
+   "summary": "cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)",
+   "goal": "G-036",
+   "doc": "docs/retro.md"
+  },
+  {
    "key": "review_autospawn",
    "kind": "flag",
    "default": "off",
@@ -844,6 +1062,14 @@
    "summary": "wall budget of one trial",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "stale_no_refresh",
+   "kind": "setting",
+   "default": "on",
+   "summary": "on: a BEHIND PR with CI green, reviewer+QA PASS on the head, clean merge-tree, no shared file and MERGEABLE merges without a refresh; off: rollback",
+   "goal": "G-058",
+   "doc": "docs/stale-policy.md"
   },
   {
    "key": "stale_policy",
@@ -1015,6 +1241,14 @@
    "doc": ""
   },
   {
+   "key": "usage_reopen_samples",
+   "kind": "setting",
+   "default": "3",
+   "summary": "consecutive fresh below-cap readings that reopen the spawn gate after a Claude usage cap",
+   "goal": "G-058",
+   "doc": "docs/SETUP.md"
+  },
+  {
    "key": "worker_gh_repos",
    "kind": "setting",
    "default": "",
@@ -1030,6 +1264,14 @@
    "goal": "G-010",
    "doc": "",
    "state": "off"
+  },
+  {
+   "key": "worker_machines",
+   "kind": "setting",
+   "default": "",
+   "summary": "comma list of worker machine names; empty keeps every agent on this machine",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
   }
  ]
 }

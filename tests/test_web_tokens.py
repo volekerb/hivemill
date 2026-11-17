@@ -306,6 +306,7 @@ class PriceTests(unittest.TestCase):
             "claude-opus-5-5": (4.00, 5.00, 8.00, 0.20, 20.00),
             "claude-sonnet-5-5": (2.00, 2.50, 4.00, 0.10, 10.00),
             "claude-haiku-5-5": (0.10, 0.125, 0.20, 0.01, 0.50),
+            "claude-fable-5-2": (8.00, 10.00, 16.00, 0.20, 40.00),
         }
         for model, (inp, w5, w1, hit, out) in want.items():
             p = prices.PRICES[model]
@@ -313,7 +314,7 @@ class PriceTests(unittest.TestCase):
             self.assertEqual(got, (inp, w5, w1, hit, out), model)
         self.assertEqual(prices.HAIKU_LONG_PROMPT, {"input": 0.50, "cache_write_5m": 0.625, "cache_write_1h": 1.00,
                                                     "cache_read": 0.05, "output": 2.50})
-        self.assertEqual(prices.FAST_MULTIPLIER, {"claude-opus-5-5": 2.0})  # fast: $8 in / $40 out
+        self.assertEqual(prices.FAST_MULTIPLIER, {"claude-opus-5-5": 2.0, "claude-fable-5-2": 2.0})
 
     def test_each_model_cost_one_unit_per_field(self):
         for model, one_of_each in (("claude-opus-5-5", 37.2), ("claude-sonnet-5-5", 18.6), ("claude-haiku-5-5", 0.935)):

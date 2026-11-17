@@ -401,6 +401,62 @@
    "state": "off"
   },
   {
+   "key": "machine_cpu_heavy_roles",
+   "kind": "setting",
+   "default": "coder,qa",
+   "summary": "worker roles that prefer the first worker machine which passes placement",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_facts_ttl_s",
+   "kind": "setting",
+   "default": "20",
+   "summary": "seconds one machine's MemAvailable and load sample is reused",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_hq",
+   "kind": "setting",
+   "default": "hqhost",
+   "summary": "name of this machine; HQ, leads and judges stay on it",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_mem_floor_mb",
+   "kind": "setting",
+   "default": "1500",
+   "summary": "a machine is eligible only when free RAM minus one agent stays at least this (MB)",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_mem_per_claude_mb",
+   "kind": "setting",
+   "default": "500",
+   "summary": "RAM (MB) reserved for one claude agent when placing",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_mem_per_cursor_mb",
+   "kind": "setting",
+   "default": "900",
+   "summary": "RAM (MB) reserved for one cursor agent when placing",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
+   "key": "machine_ssh_timeout_s",
+   "kind": "setting",
+   "default": "5",
+   "summary": "ssh ConnectTimeout in seconds when reading a worker machine's facts",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
+  },
+  {
    "key": "max_five_hour_pct",
    "kind": "setting",
    "default": "92",
@@ -671,6 +727,14 @@
    "summary": "wall budget of one retro run",
    "goal": "G-036",
    "doc": ""
+  },
+  {
+   "key": "retro_org",
+   "kind": "setting",
+   "default": "cursor",
+   "summary": "cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)",
+   "goal": "G-036",
+   "doc": "docs/retro.md"
   },
   {
    "key": "review_autospawn",
@@ -1022,6 +1086,14 @@
    "goal": "G-010",
    "doc": "",
    "state": "off"
+  },
+  {
+   "key": "worker_machines",
+   "kind": "setting",
+   "default": "",
+   "summary": "comma list of worker machine names; empty keeps every agent on this machine",
+   "goal": "G-057",
+   "doc": "docs/multi-machine.md"
   }
  ]
 }

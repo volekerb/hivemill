@@ -154,6 +154,9 @@ func inList(l []string, s string) bool {
 }
 
 // csv is _csv(): split on commas, strip, drop empties.
+// InCSV reports whether role is in the comma list v, entries stripped as Python's csv() strips them.
+func InCSV(v, role string) bool { return inList(csv(v), role) }
+
 func csv(v string) []string {
 	var out []string
 	for _, x := range strings.Split(v, ",") {

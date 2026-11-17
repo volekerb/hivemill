@@ -312,7 +312,7 @@ func notifyFlagless(r *reapDB, found []flaglessFound) error {
 	}
 	body := "flagless agents after restore: " + strings.Join(names, ", ") + ". " +
 		"Relaunch needs owner approval: close pane + factory up (or `factory relaunch <name>`)."
-	_, _, err := r.Send(store.Msg{To: "director", Subject: "flagless agents after restore", Body: &body, Kind: "alert", Sender: reapActor})
+	_, _, err := r.Send(store.Msg{To: "director", Subject: "flagless agents after restore", Body: &body, Kind: "alert", Sender: tickActor})
 	if err != nil {
 		return fmt.Errorf("flagless alert: %w", err)
 	}
