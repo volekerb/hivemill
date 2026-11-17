@@ -313,10 +313,19 @@ def cli_go_bin():
     return out
 
 
+# tick-phases lines carry wall-clock seconds (total=1.23 lock=0.01): only those floats are masked, key names, order, count stay exact (M36748 item 1)
+_PHASES_LINE = re.compile(r"(?m)^tick-phases .*$")
+_PHASES_FLOAT = re.compile(r"=\d+\.\d\d\b")
+
+
+def _mask_phase_timing(text):
+    return _PHASES_LINE.sub(lambda m: _PHASES_FLOAT.sub("=<t>", m.group(0)), text)
+
+
 def _normalize_ts(value):
     """now() and random values differ run to run until S2 gives both impls FACTORY_TEST_NOW: ISO timestamps, epoch seconds, uuids."""
     if isinstance(value, str):
-        return _HOST.sub("<host>", _UUID.sub("<uuid>", _EPOCH.sub("<ts>", _TS.sub("<ts>", value))))
+        return _HOST.sub("<host>", _UUID.sub("<uuid>", _EPOCH.sub("<ts>", _TS.sub("<ts>", _mask_phase_timing(value)))))
     return "<ts>" if isinstance(value, float) and value > 1e9 else value
 
 
@@ -489,6 +498,11 @@ class FactoryEnv:
             os.rename(self.home, aside)
             try:
                 self._copy_tree(snaps / "pre", self.home)
+                # one flock for both runs: Go's run/tick.lock is a hardlink to the file Python's run holds (M36748 item 1)
+                py_lock, go_lock = aside / "factory" / "run" / "tick.lock", self.home_dir / "run" / "tick.lock"
+                if py_lock.exists():
+                    go_lock.unlink(missing_ok=True)
+                    os.link(py_lock, go_lock)
                 go = self._run_go(self.home, args, stdin, env)
                 db_go, calls_go = self._state()
             finally:
@@ -499,7 +513,7 @@ class FactoryEnv:
             if py.returncode != go.returncode:
                 problems.append(f"exit code: python {py.returncode}, go {go.returncode}")
             out_py, out_go = py.stdout, go.stdout
-            out_py, out_go = (_HOST.sub("<host>", o) for o in (out_py, out_go))
+            out_py, out_go = (_HOST.sub("<host>", _mask_phase_timing(o)) for o in (out_py, out_go))
             if out_py != out_go:
                 problems.append(f"stdout: python {py.stdout!r}, go {go.stdout!r}")
             if py.stderr != go_err:
