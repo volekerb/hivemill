@@ -467,6 +467,69 @@
   "current": "0"
  },
  {
+  "key": "machine_cpu_heavy_roles",
+  "kind": "setting",
+  "default": "coder,qa",
+  "summary": "worker roles that prefer the first worker machine which passes placement",
+  "goal": "G-057",
+  "doc": "docs/multi-machine.md",
+  "current": "coder,qa"
+ },
+ {
+  "key": "machine_facts_ttl_s",
+  "kind": "setting",
+  "default": "20",
+  "summary": "seconds one machine's MemAvailable and load sample is reused",
+  "goal": "G-057",
+  "doc": "docs/multi-machine.md",
+  "current": "20"
+ },
+ {
+  "key": "machine_hq",
+  "kind": "setting",
+  "default": "hqhost",
+  "summary": "name of this machine; HQ, leads and judges stay on it",
+  "goal": "G-057",
+  "doc": "docs/multi-machine.md",
+  "current": "hqhost"
+ },
+ {
+  "key": "machine_mem_floor_mb",
+  "kind": "setting",
+  "default": "1500",
+  "summary": "a machine is eligible only when free RAM minus one agent stays at least this (MB)",
+  "goal": "G-057",
+  "doc": "docs/multi-machine.md",
+  "current": "1500"
+ },
+ {
+  "key": "machine_mem_per_claude_mb",
+  "kind": "setting",
+  "default": "500",
+  "summary": "RAM (MB) reserved for one claude agent when placing",
+  "goal": "G-057",
+  "doc": "docs/multi-machine.md",
+  "current": "500"
+ },
+ {
+  "key": "machine_mem_per_cursor_mb",
+  "kind": "setting",
+  "default": "900",
+  "summary": "RAM (MB) reserved for one cursor agent when placing",
+  "goal": "G-057",
+  "doc": "docs/multi-machine.md",
+  "current": "900"
+ },
+ {
+  "key": "machine_ssh_timeout_s",
+  "kind": "setting",
+  "default": "5",
+  "summary": "ssh ConnectTimeout in seconds when reading a worker machine's facts",
+  "goal": "G-057",
+  "doc": "docs/multi-machine.md",
+  "current": "5"
+ },
+ {
   "key": "max_five_hour_pct",
   "kind": "setting",
   "default": "92",
@@ -1162,6 +1225,15 @@
   "goal": "G-010",
   "doc": "",
   "state": "off",
+  "current": ""
+ },
+ {
+  "key": "worker_machines",
+  "kind": "setting",
+  "default": "",
+  "summary": "comma list of worker machine names; empty keeps every agent on this machine",
+  "goal": "G-057",
+  "doc": "docs/multi-machine.md",
   "current": ""
  }
 ]
