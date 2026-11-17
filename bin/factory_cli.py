@@ -15677,7 +15677,7 @@ def autospawn_block_reason(con, t):
         deps = json.loads(t["depends_on"] or "[]")
     except ValueError:
         return None
-    for d in deps:
+    for d in deps if isinstance(deps, list) else []:
         r = con.execute("SELECT status FROM tasks WHERE id=?", (d,)).fetchone()
         if r and r["status"] != "done":
             return f"depends_on {d} is {r['status']}, not done"
@@ -15704,7 +15704,7 @@ def judge_covered_by_other(con, tid):
     """True when a live/queued/starting judge (a train judge included) names the task id in its agent name."""
     needle = slug(tid)
     for r in con.execute("SELECT name FROM agents WHERE role='judge' AND status IN ('live','starting','queued')"):
-        if needle in (r["name"] or ""):
+        if re.search(r"(?<![a-z0-9])" + re.escape(needle) + r"(?![a-z0-9])", r["name"] or ""):
             return True
     return False
 
