@@ -72,7 +72,7 @@ func TestRetroMirrorUnicodeSpaceRedirect(t *testing.T) {
 	run := func(cmd string) res {
 		return hookJSON(t, bashPayload(cmd), hookOpts{args: roleArgs("retro")})
 	}
-	for _, sep := range []string{"\u001c", " "} {
+	for _, sep := range []string{"\u001c", "\u00a0"} {
 		allowed := "echo x >" + sep + ` "$(printf %s /tmp/zz-retro-note.txt)"`
 		r := run(allowed)
 		wantExit(t, "allowed sep", r, 0)
