@@ -1,5 +1,6 @@
 // PARTIAL for P7a (T-1495): keep tests/test_digest.py until the three cases below have Go counterparts.
 // not ported: test_other_value_error_in_build_digest_propagates (test_digest.py:503) - mock.patch of mod.build_digest and mod.cmd_digest in-process, no CLI form
+// not ported (partly): test_factory_now_error_is_a_value_error (test_digest.py:494) - the in-process issubclass(FactoryNowError, ValueError) and digest_clock() asserts; the CLI exit 1 and message are ported
 // not ported: test_tick_digest_failure_isolated (test_digest.py:527) - mock.patch of mod.build_digest/mod.tick_lock and mod.cmd_tick in-process, no CLI form
 // not ported: test_tick_digest_failed_logged_once_per_day (test_digest.py:539) - same mock.patch of build_digest in-process
 package s2msgs

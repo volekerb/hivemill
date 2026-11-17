@@ -16,11 +16,14 @@ import (
 )
 
 func TestOrgsModelsPerOrg(t *testing.T) {
-	if m, _ := scout.Model("claude", "director"); m != "claude-opus-5-5" {
-		t.Fatal(m)
-	}
-	if m, _ := scout.Model("cursor", "coder"); m != "composer-2.5" {
-		t.Fatal(m)
+	for _, c := range [][3]string{
+		{"claude", "director", "claude-opus-5-5"}, {"claude", "coder", "claude-sonnet-5-5"},
+		{"cursor", "director", "grok-4.7-high"}, {"cursor", "coder", "composer-2.5"},
+	} {
+		m, err := scout.Model(c[0], c[1])
+		if err != nil || m != c[2] {
+			t.Fatalf("Model(%s,%s) = %q, %v; want %q", c[0], c[1], m, err, c[2])
+		}
 	}
 	for _, role := range append(append([]string{}, scout.JudgementRoles...), scout.BuildRoles...) {
 		for _, org := range []string{"cursor", "claude"} {
