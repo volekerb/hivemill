@@ -1,0 +1,37 @@
+# /goals?sort=progress
+TEXT
+Goals - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources Goals All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Active 2 Blocked 0 Proposed 1 Done 1 Filters Org All 4 Claude 3 Cursor 1 Needs you 6 6 items need you — same list as on the Overview . Blocked task docs T-3 waiting 1 d Escalation Need a call on T-2 T-2 waiting 3 h Request Please approve G-001 waiting 2 h Request Cursor ask T-6 waiting 2 h Merge needs OK wire cli T-2 waiting 1 d Proposed goal Proposed goal G-004 waiting 3 h Blocked (internal): 1 Item What State T-9 blocked internal [SC2] queued/deferred Open goals 3 Default Priority Progress Updated Active G-002 Cursor goal P2 Cursor 1/3 tasks criteria 1/2 needs you 1 last activity 2 m Active G-001 Claude goal P1 Claude 2/9 tasks criteria 1/3 1 open PR 1 owner 1 queued needs you 4 last activity 10 m Proposed G-004 Proposed goal P1 Claude 0/0 tasks needs you 1 last activity 3 h Done 1 Done G-003 Done goal P3 Claude 1/1 tasks last activity 44 d Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#done-goals
+#more
+#open-goals
+a:#content
+a:#done-goals
+a:#more
+a:#open-goals
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-001
+a:/goal/G-002
+a:/goal/G-003
+a:/goal/G-004
+a:/goals
+a:/goals?org=claude
+a:/goals?org=cursor
+a:/goals?sort=priority
+a:/goals?sort=progress
+a:/goals?sort=progress&org=claude
+a:/goals?sort=progress&org=cursor
+a:/goals?sort=updated
+a:/quality
+a:/resources
+a:/task/T-2
+a:/task/T-3
+a:/task/T-6
+a:/task/T-9
+a:/tasks
+a:/throughput
+a:/tokens
