@@ -2516,13 +2516,14 @@ def usage():
     for attempt in (0, 1):
         try:
             u = json.loads(USAGE_FILE.read_text())
-            updated = _updated_at(u.get("updated_at"))
-            age = time.time() - float(updated if updated is not None else 0)
+            raw = u.get("updated_at", 0)
+            updated = _updated_at(raw)
+            age = time.time() - float(raw)  # as on main: a non-finite stamp keeps its old freshness (Infinity is fresh)
             five, seven = _pct_field(u.get("five_hour_pct")), _pct_field(u.get("seven_day_pct"))
             if five is None and seven is None:
                 raise ValueError("neither five_hour_pct nor seven_day_pct is a number")
             return {"five_hour": five, "seven_day": seven,
-                    "fresh": age < 3 * 3600, "age_min": int(age // 60),
+                    "fresh": age < 3 * 3600, "age_min": int(age // 60) if math.isfinite(age) else 0,
                     "five_hour_resets_at": _epoch(u.get("five_hour_resets_at")),
                     "seven_day_resets_at": _epoch(u.get("seven_day_resets_at")),
                     "updated_at": updated}
@@ -18313,7 +18314,7 @@ def dispatch_tick(con):
                            (team, *DISPATCH_ROLES, *LEAD_WAKING)).fetchone()["c"]
         if live >= team_cap:
             continue
-        if not gate(con, role=role)[0]:
+        if not gate(con, role=role, runtime=org_runtime(con, role, org_for(con, t["goal_id"], tid)))[0]:
             break
         name = f"{role}-{tid.lower()}"
         if role == "qa" and qa_without_pr_or_worktree(con, tid):  # T-0966: same refusal as cmd_spawn; surfaced once, never retried
@@ -18695,7 +18696,7 @@ def review_rerun_tick(con):
         gate_closed = False
         for role in _rerun_missing(con, tid, sha):
             name = _rerun_name(con, tid, role, sha)
-            g_ok, g_why = gate(con, role=role)[:2]
+            g_ok, g_why = gate(con, role=role, runtime=org_runtime(con, role, org_for(con, t["goal_id"], tid)))[:2]
             if not g_ok:
                 _review_wait(con, t, sha, "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
@@ -18769,7 +18770,7 @@ def review_autospawn_tick(con):
                     continue
             elif con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
                 continue
-            g_ok, g_why = gate(con, role=role)[:2]
+            g_ok, g_why = gate(con, role=role, runtime=org_runtime(con, role, _o))[:2]
             if not g_ok:
                 _review_wait(con, t, pr["headRefOid"], "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 return
@@ -18914,7 +18915,7 @@ def coder_ci_resume_tick(con):
         dropped = bool(resume) and bool(_resume_runtime_change(con, prior, "coder", org))  # spawn drops a session recorded on another runtime and starts fresh
         resumed = bool(resume) and not dropped
         kick = coder_ci_resume_kickoff(sha, _failed_runs(rollup, names), resumed, not wt_ok, t["branch"] or f"factory/{tid.lower()}")
-        if not gate(con, role="coder")[0]:
+        if not gate(con, role="coder", runtime=org_runtime(con, "coder", org))[0]:
             return
         try:
             spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume,
@@ -19489,7 +19490,7 @@ def tick_relaunches(con):
             h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue  # mid-turn, blocked or not listed: a later tick
-        ok, why, _ = gate(con, own_slot=True)  # the agent already holds its slot; never close a pane the gate would queue
+        ok, why, _ = gate(con, own_slot=True, runtime=_agent_runtime(r))  # the agent already holds its slot; never close a pane the gate would queue
         if not ok:
             key = f"relaunch_deferred:{r['name']}"
             last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()

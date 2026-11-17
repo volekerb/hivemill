@@ -374,6 +374,15 @@ class UsageReopenTests(FactoryTestCase):
         self.assert_queued_row(stale, "weekly usage stale:", "zz-arm-stale")
         self.assertIn("90%", stale.stdout)
 
+    def test_infinite_updated_at_stays_fresh_and_queues_at_cap(self):
+        self.ok("config", "max_seven_day_pct", "90")
+        f = self.env.user_home / ".claude" / "usage-limits.json"
+        f.parent.mkdir(exist_ok=True)
+        f.write_text('{"five_hour_pct": 10, "seven_day_pct": 95, "updated_at": Infinity}')
+        blocked = self.spawn_pm("zz-inf")
+        self.assert_queued_row(blocked, "weekly usage 95% ≥ 90%", "zz-inf")
+        self.assertEqual(self.hold()["n"], 0)  # the at-cap reading armed the latch
+
     def test_reopen_count_follows_usage_reopen_samples(self):
         now = time.time()
         self.ok("config", "max_seven_day_pct", "90")

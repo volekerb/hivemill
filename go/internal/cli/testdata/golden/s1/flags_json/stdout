@@ -1118,6 +1118,15 @@
   "current": "80"
  },
  {
+  "key": "usage_reopen_samples",
+  "kind": "setting",
+  "default": "3",
+  "summary": "consecutive fresh below-cap readings that reopen the spawn gate after a Claude usage cap",
+  "goal": "G-058",
+  "doc": "docs/SETUP.md",
+  "current": "3"
+ },
+ {
   "key": "worker_gh_repos",
   "kind": "setting",
   "default": "",
