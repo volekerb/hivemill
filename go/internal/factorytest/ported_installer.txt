@@ -1,0 +1,12 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# installer/plugins/release-CI batch (T-1687, SC4 P6f-9). The Python count is the number of cases of the module that have a Go
+# port; the cases left on the Python side are listed as "not ported" in the header comment of each Go file.
+# Full Python "Ran N": hivemill_install 71 (69 ported, 2 not), demo_tour 46 (9 ported, 37 not: in-process mock.patch cases with no Go
+# port of ci/demo_tour.py or ci/demo_cdp.py yet), the other five are complete.
+tests/test_hivemill_install.py 69 -> internal/factorytest/installer:TestHivemillInstall 72
+tests/test_hivemill_plugin.py 27 -> internal/factorytest/installer:TestHivemillPlugin 27
+tests/test_plugins.py 9 -> internal/factorytest/installer:TestPlugins 9
+tests/test_release_check.py 42 -> internal/factorytest/installer:TestReleaseCheck 42
+tests/test_demo_tour.py 9 -> internal/factorytest/installer:TestDemoTour 9
+tests/test_ci_tier.py 32 -> internal/factorytest/installer:TestCiTier 32
+tests/test_affected.py 38 -> internal/factorytest/installer:TestAffected 38
