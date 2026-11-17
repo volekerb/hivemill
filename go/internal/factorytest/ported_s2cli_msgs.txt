@@ -1,14 +1,14 @@
 # T-1525 s2cli/msgs batch. Python counts from `python3 -m unittest -v tests.test_<m>`.
-# tests/test_orgs.py: unittest reports Ran 39 (subTests); 31 top-level Go tests use table loops (PARTIAL header).
+# PARTIAL modules (counts = ported cases, not Python Ran N; see 'not ported' lines in each Go header): orgs (Ran 40, 4 alert cases not ported), staff_engineer (23), lessons_flow (31, CollapseTests x4), digest (43), verdict_gates (16), rejection_cause (6).
 tests/test_inbox.py 31 -> internal/factorytest/s2cli/msgs:TestInbox 31
 tests/test_report_default.py 9 -> internal/factorytest/s2cli/msgs:TestReport 9
-tests/test_orgs.py 31 -> internal/factorytest/s2cli/msgs:TestOrgs 31
-tests/test_staff_engineer.py 23 -> internal/factorytest/s2cli/msgs:TestStaffEngineer 23
+tests/test_orgs.py 27 -> internal/factorytest/s2cli/msgs:TestOrgs 27
+tests/test_staff_engineer.py 22 -> internal/factorytest/s2cli/msgs:TestStaffEngineer 22
 tests/test_lessons.py 10 -> internal/factorytest/s2cli/msgs:TestLessons 10
-tests/test_lessons_flow.py 31 -> internal/factorytest/s2cli/msgs:TestLessonsFlow 31
+tests/test_lessons_flow.py 27 -> internal/factorytest/s2cli/msgs:TestLessonsFlow 27
 tests/test_lesson_checks.py 14 -> internal/factorytest/s2cli/msgs:TestLessonChecks 14
-tests/test_digest.py 43 -> internal/factorytest/s2cli/msgs:TestDigest 43
+tests/test_digest.py 40 -> internal/factorytest/s2cli/msgs:TestDigest 40
 tests/test_director_row.py 13 -> internal/factorytest/s2cli/msgs:TestDirector 13
-tests/test_verdict_gates.py 16 -> internal/factorytest/s2cli/msgs:TestVerdictGates 16
-tests/test_rejection_cause.py 6 -> internal/factorytest/s2cli/msgs:TestRejection 6
+tests/test_verdict_gates.py 14 -> internal/factorytest/s2cli/msgs:TestVerdictGates 14
+tests/test_rejection_cause.py 5 -> internal/factorytest/s2cli/msgs:TestRejection 5
 tests/test_roles.py 20 -> internal/factorytest/s2cli/msgs:TestRoles 20

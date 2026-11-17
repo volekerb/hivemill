@@ -431,41 +431,6 @@ func redPrMails(t *testing.T, e *ft.Env) map[string]struct{} {
 	return out
 }
 
-func TestOrgsRedPROnCursorGoalGoesToCursorDirector(t *testing.T) {
-	t.Skip("tick red-pr alert: Python tick pr_probe vs Go gh stub; see file header")
-	e := goalAlertEnv(t)
-	e.NeedPython()
-	sqlExec(t, e, "UPDATE goals SET org='cursor' WHERE id='G-001'")
-	ok(t, e, "", nil, "tick")
-	if !reflectSetEq(redPrMails(t, e), map[string]struct{}{"cursor-director": {}}) {
-		t.Fatal()
-	}
-}
-
-func TestOrgsRedPROnClaudeGoalGoesToClaudeLead(t *testing.T) {
-	t.Skip("tick red-pr alert: Python tick pr_probe vs Go gh stub; see file header")
-	e := goalAlertEnv(t)
-	e.NeedPython()
-	ok(t, e, "", nil, "tick")
-	if !reflectSetEq(redPrMails(t, e), map[string]struct{}{"claude-lead-g-001-a": {}}) {
-		t.Fatal()
-	}
-}
-
-func TestOrgsBlockedAlertOnCursorGoalGoesToCursorDirector(t *testing.T) {
-	t.Skip("tick blocked alert: Python tick vs Go gh/herdr stub; see file header")
-	e := goalAlertEnv(t)
-	e.HerdrStateful()
-	blockedMails(t, e, "cursor", map[string]struct{}{"cursor-director": {}})
-}
-
-func TestOrgsBlockedAlertOnClaudeGoalGoesToClaudeLead(t *testing.T) {
-	t.Skip("tick blocked alert: Python tick vs Go gh/herdr stub; see file header")
-	e := goalAlertEnv(t)
-	e.HerdrStateful()
-	blockedMails(t, e, "claude", map[string]struct{}{"claude-lead-g-001-a": {}})
-}
-
 func TestOrgsReviewNoVerdictAlertOnCursorGoal(t *testing.T) {
 	e := goalAlertEnv(t)
 	pyReviewAlert(t, e, "cursor", "g-001-a", strings.Repeat("a", 40))

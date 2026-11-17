@@ -1,3 +1,4 @@
+// PARTIAL for P7a (T-1495): not ported: test_tick_skips_fresh_claim_but_retries_stale_one - fails under the Go harness (stale claim never goes live; Python-delegated tick timing); keep the Python module.
 // Go tests for tests/test_staff_engineer.py (23 cases). Stateful herdr (Env.HerdrStateful) for msg wake/spawn paths;
 // spawn/tick/up paths call NeedPython where the Go CLI still delegates to bin/factory.
 package s2msgs
@@ -10,7 +11,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	ft "factory/go/internal/factorytest"
 )
@@ -351,27 +351,6 @@ func TestStaffEngineerTickRetriesFailedMsgSpawnOnce(t *testing.T) {
 	ok(t, e, "zz-test-director", nil, "tick")
 	if len(herdrStarts(e)) != 1 {
 		t.Fatal("double start")
-	}
-}
-
-func TestStaffEngineerTickSkipsFreshClaimButRetriesStaleOne(t *testing.T) {
-	t.Skip("Python tick staff-engineer claim timing; flaky under Go harness delegate")
-	e := seEnv(t)
-	e.NeedPython()
-	seClean(e)
-	ok(t, e, "zz-test-director", nil, "config", "max_live_agents", "0")
-	ok(t, e, "zz-test-lead", nil, "msg", "staff-engineer", "q", "ctx", "--kind", "request")
-	ok(t, e, "zz-test-director", nil, "config", "max_live_agents", "6")
-	claimAt(t, e, time.Now().Unix())
-	e.NeedPython()
-	ok(t, e, "zz-test-director", nil, "tick")
-	if seRows(e)[0][5] != "queued" {
-		t.Fatal("should stay queued")
-	}
-	claimAt(t, e, time.Now().Add(-time.Hour).Unix())
-	ok(t, e, "zz-test-director", nil, "tick")
-	if seRows(e)[0][5] != "live" {
-		t.Fatal("should go live")
 	}
 }
 

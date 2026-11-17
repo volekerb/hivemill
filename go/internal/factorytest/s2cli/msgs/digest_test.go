@@ -770,11 +770,6 @@ func TestDigestFactoryNowErrorIsAValueError(t *testing.T) {
 	contains(t, "stderr", q.Stderr, "FACTORY_NOW must be an ISO timestamp, got garbage")
 }
 
-func TestDigestOtherValueErrorInBuildDigestPropagates(t *testing.T) {
-	// not ported: mock.patch build_digest in-process (tests/test_digest.py)
-	t.Skip("not ported: in-process build_digest mock")
-}
-
 func TestDigestTickDigestNotDue(t *testing.T) {
 	d := newTickDigestBase(t)
 	day := digestFrozen.Format("2006-01-02")
@@ -803,14 +798,4 @@ func TestDigestTickDigestHerdrUnreachable(t *testing.T) {
 	if len(dailyDigests(t, d.e, "")) != 1 {
 		t.Fatal("digest count")
 	}
-}
-
-func TestDigestTickDigestFailureIsolated(t *testing.T) {
-	// not ported: mock.patch build_digest and tick_lock in-process (tests/test_digest.py)
-	t.Skip("not ported: in-process cmd_tick with mocked build_digest")
-}
-
-func TestDigestTickDigestFailedLoggedOncePerDay(t *testing.T) {
-	// not ported: in-process double cmd_tick with mocked build_digest (tests/test_digest.py)
-	t.Skip("not ported: in-process digest-failed once-per-day via mocked build_digest")
 }

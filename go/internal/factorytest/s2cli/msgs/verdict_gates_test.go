@@ -110,11 +110,3 @@ func TestVerdictGatesOwnerAsReviewerOptional(t *testing.T) {
 	okAs(e, "owner", "verdict", "T-0001", "--pass", "--summary", "ok", "--as", "reviewer")
 	assertGateRefused(t, e, "owner", "## Gates\n- x exit=2 cmd=y\n", []string{"--as", "reviewer"}, "")
 }
-
-func TestVerdictGatesParseEndsAtNextHeadingAndIgnoresBlank(t *testing.T) {
-	t.Skip("not ported: parse_gates unit case; see go/internal/cli/cmd_verdict_test.go TestParseGates")
-}
-
-func TestVerdictGatesParseKeepsCmdWithEqualsAndSpaces(t *testing.T) {
-	t.Skip("not ported: parse_gates unit case; see go/internal/cli/cmd_verdict_test.go TestParseGates")
-}

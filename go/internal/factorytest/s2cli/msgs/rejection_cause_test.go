@@ -100,7 +100,3 @@ func TestRejectionCauseGateRefusalRecordsIncident(t *testing.T) {
 	}
 	t.Fatalf("gate cause = %q, want one of missing_test, gate_refusal, stale_or_conflicting_branch", cause)
 }
-
-func TestRejectionCauseCounts(t *testing.T) {
-	t.Skip("not ported: in-process rejection_cause_counts (see tests/test_rejection_cause.py test_rejection_cause_counts)")
-}

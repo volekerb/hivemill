@@ -509,81 +509,6 @@ func (c *collapseBase) twoMerges(t *testing.T, files ...string) {
 	c.merge2(t, files...)
 }
 
-func TestLessonsFlowLeadNoticeCollapsed(t *testing.T) {
-	t.Skip("CollapseTests: judge merge2 gh stub parity; see file header")
-	c := &collapseBase{newFlowBase(t)}
-	c.twoMerges(t, "roles/lead.md")
-	if len(msgsTo(c.flowBase, "lead", "role files changed: relaunch pending")) != 0 {
-		t.Fatal("lead pending")
-	}
-	n := msgsTo(c.flowBase, "director", "role files changed: stale agents")
-	if len(n) != 1 {
-		t.Fatal("director notice")
-	}
-	if n[0][6] != "NULL" {
-		t.Fatal("read_at set")
-	}
-	contains(t, "body", n[0][5], ft.PRURL)
-	contains(t, "body", n[0][5], flowPR2)
-	if strings.Count(n[0][5], "- roles/lead.md") != 1 {
-		t.Fatal("lead.md count")
-	}
-	if strings.Count(n[0][5], "factory relaunch zz-test-lead --when-idle") != 1 {
-		t.Fatal("relaunch count")
-	}
-	if len(flowMsgs(c.e, "role files changed")) != 1 {
-		t.Fatal("total msgs")
-	}
-	if len(c.e.SQL("SELECT * FROM events WHERE action='roles-changed'")) != 2 {
-		t.Fatal("events")
-	}
-}
-
-func TestLessonsFlowReadNoticeNotCollapsed(t *testing.T) {
-	t.Skip("CollapseTests: judge merge2 gh stub parity; see file header")
-	c := &collapseBase{newFlowBase(t)}
-	installFlowGh(t, c.e, prViewRule(ft.PRURL, c.e.HeadSHA, "OPEN", []string{"roles/lead.md"}, greenChecks()))
-	p := c.merge(t, "T-0001")
-	if p.Exit != 0 {
-		t.Fatal("merge")
-	}
-	first := msgsTo(c.flowBase, "director", "role files changed: stale agents")[0]
-	sqlExec(t, c.e, "UPDATE messages SET read_at='2026-01-01T00:00:00+00:00' WHERE id=?", first[0])
-	c.merge2(t, "roles/lead.md")
-	n := msgsTo(c.flowBase, "director", "role files changed: stale agents")
-	if len(n) != 2 {
-		t.Fatalf("n = %d", len(n))
-	}
-	if n[0][5] != first[5] {
-		t.Fatal("first changed")
-	}
-	if strings.Contains(n[0][5], flowPR2) {
-		t.Fatal("pr2 in first")
-	}
-	contains(t, "body", n[1][5], flowPR2)
-}
-
-func TestLessonsFlowDirectorAndBossCollapsed(t *testing.T) {
-	t.Skip("CollapseTests: judge merge2 gh stub parity; see file header")
-	c := &collapseBase{newFlowBase(t)}
-	c.twoMerges(t, "roles/director.md", "roles/lead.md")
-	d := msgsTo(c.flowBase, "director", "role files changed: stale agents")
-	if len(d) != 1 {
-		t.Fatal("director")
-	}
-	if strings.Count(d[0][5], "factory relaunch zz-test-lead --when-idle") != 1 ||
-		strings.Count(d[0][5], "factory relaunch zz-test-director --when-idle") != 1 {
-		t.Fatal("relaunch counts")
-	}
-	contains(t, "body", d[0][5], flowPR2)
-	b := msgsTo(c.flowBase, "boss", "role files changed: director stale")
-	if len(b) != 1 {
-		t.Fatal("boss")
-	}
-	contains(t, "body", b[0][5], ft.PRURL)
-	contains(t, "body", b[0][5], flowPR2)
-}
-
 func seedNotice(e *ft.Env, who, subject, body string) {
 	sqlExec(e.T, e, "INSERT INTO messages(sender,recipient,kind,subject,body,created) VALUES('factory',?,'request',?,?,"+
 		"'2026-01-01T00:00:00+00:00')", "zz-test-"+who, subject, body)
@@ -649,15 +574,6 @@ func TestLessonsFlowOldFormatDirectorNoticeParsedOnFirstCollapse(t *testing.T) {
 		"factory relaunch zz-test-lead --when-idle", "factory relaunch zz-test-boss --when-idle",
 		"factory relaunch zz-test-director --when-idle"} {
 		contains(t, "body", d[0][5], line)
-	}
-}
-
-func TestLessonsFlowNonPersistentRoleSendsNothing(t *testing.T) {
-	t.Skip("CollapseTests: judge merge2 gh stub parity; see file header")
-	c := &collapseBase{newFlowBase(t)}
-	c.twoMerges(t, "roles/coder.md")
-	if len(flowMsgs(c.e, "role files changed")) != 0 {
-		t.Fatal("msgs")
 	}
 }
 
