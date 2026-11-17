@@ -1,0 +1,22 @@
+{
+ "comment": "Shared by tests/test_shard.py and go/internal/citools/shard (and later quarantine tasks). Python and Go must both produce expected_active and expected_warnings from entries when today is `today`.",
+ "today": "2026-11-17",
+ "entries": [
+  {"id": "test_a.TestA.test_valid", "owner": "T-0001", "added": "2026-11-10", "expires": "2026-11-20", "reason": "flaky on slow runners", "evidence": "https://example.invalid/run/1"},
+  {"id": "test_b.TestB", "owner": "T-0002", "added": "2026-11-01", "expires": "2026-11-10", "reason": "class flaky", "evidence": "https://example.invalid/run/2"},
+  {"id": "test_c.TestC.test_no_owner", "added": "2026-11-10", "expires": "2026-11-20", "reason": "r", "evidence": "https://example.invalid/run/3"},
+  {"id": "test_d.TestD.test_too_long", "owner": "T-0004", "added": "2026-11-01", "expires": "2026-11-16", "reason": "r", "evidence": "https://example.invalid/run/4"},
+  {"id": "test_e.TestE.test_bad_date", "owner": "T-0005", "added": "2026-13-01", "expires": "2026-11-20", "reason": "r", "evidence": "https://example.invalid/run/5"},
+  {"id": "test_f.TestF.test_empty_evidence", "owner": "T-0006", "added": "2026-11-10", "expires": "2026-11-20", "reason": "r", "evidence": ""},
+  {"id": "go:internal/citools/shard.TestX", "owner": "T-0007", "added": "2026-11-10", "expires": "2026-11-20", "reason": "go entry, ignored by the Python side", "evidence": "https://example.invalid/run/7"},
+  {"id": "test_g.TestG.test_unknown_key", "owner": "T-0008", "added": "2026-11-10", "expires": "2026-11-24", "reason": "extra keys are allowed", "evidence": "https://example.invalid/run/8", "note": "x"}
+ ],
+ "expected_active": ["test_a.TestA.test_valid", "test_b.TestB", "test_g.TestG.test_unknown_key"],
+ "expected_warnings": [
+  "quarantine: EXPIRED test_b.TestB owner T-0002 expired 2026-11-10",
+  "quarantine: ignored invalid entry test_c.TestC.test_no_owner: missing owner",
+  "quarantine: ignored invalid entry test_d.TestD.test_too_long: expires is more than 14 days after added",
+  "quarantine: ignored invalid entry test_e.TestE.test_bad_date: bad date added '2026-13-01' (use YYYY-MM-DD)",
+  "quarantine: ignored invalid entry test_f.TestF.test_empty_evidence: empty evidence"
+ ]
+}
