@@ -20,7 +20,9 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [film/README.md](film/README.md): storyboard for the customer film, with each claim, its source line and a re-check command.
 - [film/herdr/CAPTURE.md](film/herdr/CAPTURE.md): provenance of the Herdr app panel stills used in film scene 7.
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
+- [machine-sync.md](machine-sync.md): the owner-run tool that copies allow-listed secret files to a worker machine (chmod 600, never printed).
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
+- [pr-flow.md](pr-flow.md): read-only PR flow report: merges per day, open-to-merge time and stage hours per org.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [researcher.md](researcher.md): the researcher role, its per-task research directory and where its findings go.
@@ -29,6 +31,8 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [design/g-023/readme-option-a.md](design/g-023/readme-option-a.md): README draft A, showcase.
 - [design/g-023/readme-option-b.md](design/g-023/readme-option-b.md): README draft B, docs-first.
 - [design/g-023/readme-option-c.md](design/g-023/readme-option-c.md): README draft C, the loop.
+- [design/macos-linux-deps.md](design/macos-linux-deps.md): Linux-only dependency inventory for the macOS port.
+- [design/macos-facts-2026-11-15.md](design/macos-facts-2026-11-15.md): redacted MacBook facts for ADR 0003 stage M0.
 
 ## Operate it
 
@@ -51,6 +55,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [clean-remote-branch.md](clean-remote-branch.md): deleting stale `factory/*` branches on origin safely.
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
 - [refresh-lane.md](refresh-lane.md): `refresh_lane` flag, only the merge-queue head is refreshed.
+- [lanes.md](lanes.md): `lane-check`, whether two branches or the open PR heads really conflict (git merge-tree), with exit codes.
 - [retro.md](retro.md): how the daily retro loop runs and how to turn it off.
 - [red-pr-owner-alert.md](red-pr-owner-alert.md): `red_pr_owner_alert` flag, the tick mails the lead once per red or conflicted head with no coder.
 - [gh-quota.md](gh-quota.md): `pr_view_ttl_s` and `gh_quota_min`, the tick's PR probe cache and low GraphQL quota guard.
@@ -59,6 +64,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
 - [mech-merge.md](mech-merge.md): the tick's mechanical merger for T0-T2 PRs (`mech_merge` off/shadow/on), same gate as the judge.
+- [judge-hold-expiry.md](judge-hold-expiry.md): a manual judge hold on a reviewer+QA PASS PR expires after 2 h unless it names a boss decision (`judge_hold_expiry_min`).
 - [prcheck.md](prcheck.md): `factory prcheck`, the coder's pre-PR check, and the `prcheck_required` gate on `factory done` (G-022).
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
 - [model-routing.md](model-routing.md): which model each role starts on, and the `model_cleaner` config rollback.
@@ -75,6 +81,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [lessons.md](lessons.md): where corrections and incidents are recorded and applied.
 - [utilization.md](utilization.md): the live-agent count shown by `factory res`, the tick sample and the web home.
 - [terminal-backends.md](terminal-backends.md): Herdr TUI vs herdr-core (`hc`), how to switch `terminal_backend`, caveats.
+- [multi-machine.md](multi-machine.md): the `factory-forward` ssh forwarder (protocol, env allow-list, owner install, threat model) for workers on a second machine (G-057).
 - [utilization-alerts.md](utilization-alerts.md): tick alerts to the director and boss for low worker count, starved goals and owner-cap breaches.
 - [PUBLISHING.md](PUBLISHING.md): the one approved route to a public copy of the repository.
 - [RELEASING.md](RELEASING.md): how a release is made, who does each step, and the feature-flag lifecycle.
@@ -108,6 +115,10 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/README.md](adr/README.md): index of architecture decision records.
 - [adr/0001-language-policy.md](adr/0001-language-policy.md): the language policy (Go, Rust exceptions, Python).
 - [adr/0002-sandbox-runtime-v3.md](adr/0002-sandbox-runtime-v3.md): sandbox runtime v3 (hardened nsbox testbox, no microVMs for tests).
+- [adr/0003-macos-support.md](adr/0003-macos-support.md): macOS support (sandbox mechanism and port plan).
+- [adr/0004-node-esm-hivemill-ios-release.md](adr/0004-node-esm-hivemill-ios-release.md): Node ESM for the hivemill ios-release script.
+- [adr/0005-self-hosted-ci-runners.md](adr/0005-self-hosted-ci-runners.md): self-hosted CI runners for trusted PRs (proposed design, nothing installed).
+- [adr/0006-worker-sandbox-assessment.md](adr/0006-worker-sandbox-assessment.md): worker sandbox assessment (why go test fails for QA; proposed, nothing installed).
 
 ## Internals
 

@@ -1,0 +1,2 @@
+# real: MacBook M0 2026-11-15, sysctl -n vm.swapusage (T-1575)
+total = 6144.00M  used = 5070.19M  free = 1073.81M  (encrypted)

@@ -2098,6 +2098,13 @@ class Analyzer:
                             return
                 shown += " show"
             elif action in seconds:
+                # T-1617: a pm may list the tasks of its own goal, in exactly this spelling (same check as goal show)
+                if self.role == "pm" and sub == "task" and action == "list" and len(after) in (2, 3):
+                    gid = after[2] if len(after) == 3 and after[1] == "--goal" else (
+                        after[1][len("--goal="):] if len(after) == 2 and after[1].startswith("--goal=") else None)
+                    own = self.own_goal()
+                    if gid and own is not None and gid == own:
+                        return
                 shown += " " + action
             else:
                 return
@@ -3833,6 +3840,9 @@ class Analyzer:
         if i >= len(rest):
             return
         sub, args = rest[i], rest[i + 1:]
+        if not self.hq and sub in ("archive", "init") and self.git_any_cwd_shared_targets(sub, args, cwd, dyn):
+            shown = " ".join(["git", sub, *args])
+            raise GitBlock(f"`{shown[:80]}`: {SHARED_ADVICE}")
         if not self.git_mutates(sub, args) or not self.git_is_shared(cwd, dyn, git_dir, work_tree):
             return
         if sub == "init" and not (cfg or git_dir or work_tree) and self.git_outside_shared(args, cwd, dyn):
@@ -3842,11 +3852,10 @@ class Analyzer:
         shown = " ".join(["git", sub, *args])
         raise GitBlock(f"`{shown[:80]}`: {SHARED_ADVICE}")
 
-    def git_outside_shared(self, args, cwd, dyn):
-        """T-0303: `git init` is allowed in a shared checkout's cwd only for exactly one literal directory inside
-        the worker's own scratchpad. An option or path not understood is unsafe."""
+    def git_init_paths(self, args, cwd, dyn):
+        """Directory argument(s) for `git init`, or ['.'] when none. None when not decidable (T-0330)."""
         if dyn:
-            return False
+            return None
         out, k = [], 0
         while k < len(args):
             a = args[k]
@@ -3860,17 +3869,51 @@ class Analyzer:
             if name in ("-b", "--initial-branch"):
                 if not eq:
                     if k >= len(args):
-                        return False
+                        return None
                     k += 1
             elif a.startswith("-") and a != "-":
-                return False  # --separate-git-dir, --template, an unknown option
+                return None  # --separate-git-dir, --template, an unknown option
             else:
                 out.append(a)
-        if len(out) != 1:
+        while out and out[-1] in ("+", ";", "\\;"):
+            out.pop()
+        if len(out) > 1:
+            return None
+        return [out[0] if out else "."]
+
+    def git_path_writes_shared(self, target, cwd, dyn):
+        """True when a git archive/init write target must be refused: inside the shared checkout or not decidable."""
+        if dyn and not os.path.isabs(target):
+            return True
+        if target in ("{}", "{:}"):  # find -exec placeholder, not a shell brace expansion
             return False
-        target = out[0]
-        if not target or self.dynamic_dir(target) or target.startswith("~"):
-            return False  # quoted '~' is a literal name to git: not decidable here
+        if not target or self.dynamic_dir(target) or tilde_unres(target, cwd):
+            return True
+        resolved = tilde_expand(target, cwd)
+        path = os.path.realpath(resolved if os.path.isabs(resolved) else os.path.join(cwd, resolved))
+        if in_scratchpad(path):
+            return False
+        return self.git_top_shared(path)
+
+    def git_any_cwd_shared_targets(self, sub, args, cwd, dyn):
+        """T-0330: refuse archive -o/--output and git init that write into the shared checkout from any cwd."""
+        if sub == "archive":
+            outs = opt_values(args, "o", {"--output"})
+            return bool(outs) and any(self.git_path_writes_shared(t, cwd, dyn) for t in outs)
+        if sub == "init":
+            paths = self.git_init_paths(args, cwd, dyn)
+            if paths is None:
+                return True
+            return any(self.git_path_writes_shared(p, cwd, dyn) for p in paths)
+        return False
+
+    def git_outside_shared(self, args, cwd, dyn):
+        """T-0303: `git init` is allowed in a shared checkout's cwd only for exactly one literal directory inside
+        the worker's own scratchpad. An option or path not understood is unsafe."""
+        paths = self.git_init_paths(args, cwd, dyn)
+        if paths is None or len(paths) != 1 or paths[0] == ".":
+            return False
+        target = paths[0]
         path = os.path.realpath(target if os.path.isabs(target) else os.path.join(cwd, target))
         return in_scratchpad(path)  # M5368: only the worker's own scratchpad, never a shared home, ancestor or worktree
 
@@ -6239,9 +6282,62 @@ def terms_split(cmd):
     return segs
 
 
-TERMS_BRACE_HEADS = ("grep", "egrep", "rg", "jq", "gh")
-TERMS_BRACE_GH = {("pr", "list"), ("pr", "view"), ("pr", "checks"), ("pr", "status"), ("issue", "list"), ("issue", "view"),
-                  ("issue", "status"), ("run", "list"), ("run", "view"), ("repo", "view")}
+TERMS_BRACE_HEADS = ("grep", "egrep", "rg", "jq", "gh", "git", "awk", "sed", "sort", "head", "tail", "cut", "wc", "uniq")
+TERMS_BRACE_GH = {("pr", "list"), ("pr", "view"), ("pr", "checks"), ("pr", "status"), ("pr", "diff"), ("issue", "list"),
+                  ("issue", "view"), ("issue", "status"), ("run", "list"), ("run", "view"), ("repo", "view")}
+TERMS_BRACE_GIT = ("diff", "log", "show")  # T-1617: read-only first stages; none of their words is ever blanked
+# T-1617: an awk program is blanked only when it can neither run a command, read a file by name nor write one: no
+# system, getline, ARGV/ARGC, ENVIRON, @include/@load, no > at all (so no >=) and no single | (so no regex alternation).
+TERMS_AWK_UNSAFE = re.compile(r"system|getline|ARGV|ARGC|ENVIRON|@|>|\|")
+TERMS_SED_FLAGS = re.compile(r"-[nErsuz]+")
+TERMS_SED_PLAIN = re.compile(r"(?:[0-9]+|\$)?(?:,(?:[0-9]+|\$))?[pdq]|/(?:[^/\\\n]|\\.)*/[pd]")
+TERMS_SED_DELIMS = "/|#,:@!%+=~"
+TERMS_SED_SUBST_FLAGS = re.compile(r"[gpI0-9]*")
+# T-1617: `factory <words> <<'WORD'` + body + WORD as the whole command: the body is stdin data for the factory CLI
+TERMS_HEREDOC = re.compile(
+    r"\A[ \t]*factory((?:[ \t]+(?:[A-Za-z0-9_@%+=:,./-]+|'[^'\n]*'|\"[^\"\n$`\\]*\"))*)[ \t]*<<'([A-Za-z_][A-Za-z0-9_]*)'[ \t]*\n(.*)\Z",
+    re.S)
+
+
+def terms_awk_safe(prog):
+    """True when a single-quoted awk program has no way to run a command or to name a file (see TERMS_AWK_UNSAFE)."""
+    return not TERMS_AWK_UNSAFE.search(prog.replace("||", ""))
+
+
+def terms_sed_safe(prog):
+    """True for one sed command that only prints, deletes, quits or substitutes: N,Mp / /re/p / s<d>re<d>text<d>[gpI0-9].
+    No w, e, r, i, a, c commands or flags, no second command."""
+    if TERMS_SED_PLAIN.fullmatch(prog):
+        return True
+    if len(prog) < 4 or prog[0] != "s" or prog[1] not in TERMS_SED_DELIMS:
+        return False
+    d, seen, i = prog[1], 0, 2
+    while i < len(prog):
+        if prog[i] == "\\":
+            i += 2
+            continue
+        if prog[i] == d:
+            seen += 1
+            if seen == 2:
+                return bool(TERMS_SED_SUBST_FLAGS.fullmatch(prog[i + 1:]))
+        i += 1
+    return False
+
+
+def terms_heredoc_view(cmd):
+    """T-1617: for a command that is exactly one `factory ...` line with a quoted-delimiter heredoc and nothing after the
+    terminator, the text TERMS_BRACE is searched in is the factory line alone: the body reaches the CLI as stdin data and
+    the shell expands nothing in it. Every other check of terms_bash still reads the whole command."""
+    m = TERMS_HEREDOC.match(cmd)
+    if not m:
+        return cmd
+    lines = m.group(3).split("\n")
+    if m.group(2) not in lines:
+        return cmd
+    end = lines.index(m.group(2))
+    if any(lines[end + 1:]):
+        return cmd
+    return "factory" + m.group(1)
 TERMS_BRACE_FLAGS = {"grep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"), "egrep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"),
                      "rg": re.compile(r"-[FHILPSUchilnopqsuvwxz]+"), "jq": re.compile(r"-[CMRSaceJjnrst]+")}
 TERMS_BRACE_DOLLAR = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*(?![^ \t;&|])")
@@ -6307,6 +6403,8 @@ def terms_brace_view(cmd):
             return cmd
         if head == "gh" and (len(txt) < 3 or (txt[1], txt[2]) not in TERMS_BRACE_GH):
             return cmd
+        if head == "git" and (len(txt) < 2 or txt[1] not in TERMS_BRACE_GIT):
+            return cmd
 
         def whole(k):
             a, b, q = words[k]
@@ -6316,6 +6414,32 @@ def terms_brace_view(cmd):
             for k in range(1, len(words) - 1):
                 if txt[k] in ("--jq", "-q", "--template") and whole(k + 1):
                     blank.append(words[k + 1][:2])
+        elif head == "awk":
+            k = 1
+            while k < len(words) and t[words[k][0]] == "-":
+                if txt[k] in ("-F", "-v"):  # the value word stays in the view
+                    k += 2
+                elif t[words[k][0]:words[k][0] + 2] in ("-F", "-v"):
+                    k += 1
+                else:
+                    return cmd
+            if k < len(words) and whole(k):
+                if not terms_awk_safe(t[words[k][0] + 1:words[k][1] - 1]):
+                    return cmd
+                blank.append(words[k][:2])
+        elif head == "sed":
+            k = 1
+            while k < len(words) and txt[k] is not None and TERMS_SED_FLAGS.fullmatch(txt[k]):
+                k += 1
+            if k < len(words) and txt[k] == "-e":
+                k += 1
+            # GNU sed takes options after the script too (sed 's/a/b/' -i f): any later dash or quoted word gives up
+            if any(q or t[a] == "-" for j, (a, b, q) in enumerate(words) if j > k):
+                return cmd
+            if k < len(words) and whole(k) and terms_sed_safe(t[words[k][0] + 1:words[k][1] - 1]):
+                blank.append(words[k][:2])
+        elif head not in TERMS_BRACE_FLAGS:  # git, sort, head, tail, cut, wc, uniq: nothing is blanked
+            continue
         else:
             k = 1
             while k < len(words) and txt[k] is not None and TERMS_BRACE_FLAGS[head].fullmatch(txt[k]):
@@ -6339,7 +6463,7 @@ def terms_bash(cmd, cwd, env=None, depth=0):
     env = {} if env is None else env
     home = os.environ.get("HOME") or os.path.expanduser("~")
     names = {"scrub", "terms"} | {n.lower() for p in paths for n in (os.path.basename(p), os.path.basename(os.path.dirname(p))) if n}
-    brace_view = terms_brace_view(cmd) if depth == 0 else cmd
+    brace_view = terms_brace_view(terms_heredoc_view(cmd)) if depth == 0 else cmd
     if ("${!" in cmd or TERMS_BRACE.search(brace_view)) and any(n in cmd.lower() for n in names):
         raise PublicBlock(f"variable indirection or brace expansion next to the owner-terms file is refused: {TERMS_WHY}")
     for raw_seg in terms_split(re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
