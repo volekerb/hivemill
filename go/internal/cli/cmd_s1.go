@@ -319,7 +319,7 @@ var ruleKeys = map[string]bool{
 	"agent_runtimes": true, "worker_gh_repos": true, "factory_remote_url": true,
 	"block_conditions": true, "task_clones": true,
 	"terminal_backend": true, "skilleval_root": true, "cli_impl": true, "cli_go_cmds": true, "tick_impl": true,
-	"merged_go_proof": true, "cursor_prompt": true,
+	"merged_go_proof": true, "cursor_prompt": true, "worker_machines": true, "machine_hq": true,
 }
 
 func (d *Deps) cmdConfig(db *sql.DB, c configCmd, out io.Writer) (int, error) {
