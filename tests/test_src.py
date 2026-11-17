@@ -214,6 +214,22 @@ class SrcTests(FactoryTestCase):
         self.assertFalse((sibling / "o").exists())
         self.assertEqual(self.src("main", str(self.scratch / "o")).returncode, 0)
 
+    def test_stale_stored_session_id_still_finds_scratchpad(self):
+        """T-1639: a respawned QA pane runs under a session the agents row does not name yet: factory src must not
+        die with 'no scratchpad found'; it exports into the pane's own-cwd-slug scratchpad."""
+        self.env.sql("UPDATE agents SET session_id='stale-old-sess' WHERE name='zz-test-qa'")
+        d = self.scratch / "stale"
+        p = self.src("main", str(d))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("no scratchpad", p.stderr)
+        self.assertEqual((d / "a.txt").read_text(), "hello\n")
+        # a foreign agent's scratchpad (other cwd slug) is still refused
+        other = self.env.home / "otheragent2"
+        other.mkdir()
+        pad = self.other_scratch(other)
+        self.assertNotEqual(self.src("main", str(pad / "planted")).returncode, 0)
+        self.assertFalse((pad / "planted").exists())
+
     def test_refuses_without_agent_identity(self):
         for env in ({"FACTORY_AGENT": ""}, {"FACTORY_AGENT": "no-such-agent"}):
             p = self.src("main", str(self.scratch / "o"), extra_env=env)

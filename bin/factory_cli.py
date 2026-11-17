@@ -12585,10 +12585,20 @@ def src_scratch_roots(con):
     try:
         if base.is_symlink() or not base.is_dir():
             return roots, ""
-        for s in ([base / sid] if sid else sorted(base.iterdir())):
-            pad = s / "scratchpad"
-            if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
-                roots.append(os.path.realpath(pad))
+        def pads(dirs):
+            for s in dirs:
+                pad = s / "scratchpad"
+                if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
+                    roots.append(os.path.realpath(pad))
+        # T-1639: a respawned pane (--resume / fresh --session-id) can run under a session id the agents row does not
+        # name yet (the tick syncs it only when the pane host reports it), so the stored id alone gave "no scratchpad
+        # found" to QA panes. Try the stored id and the ids on the caller's own claude ancestor first; when none has a
+        # scratchpad, fall back to every session dir under this agent's own registered-cwd slug (the no-stored-id case).
+        sids = list(dict.fromkeys(([sid] if sid else []) + [x for x in (_caller_claude_sessions() or [])
+                                                            if re.fullmatch(r"[A-Za-z0-9_-]+", x)]))
+        pads(base / x for x in sids)
+        if not roots:
+            pads(sorted(base.iterdir()))
     except OSError:
         pass
     return roots, ""
