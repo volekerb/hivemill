@@ -18510,16 +18510,66 @@ def _review_repo_mismatch(con, t):
     return None
 
 
-def _branch_on_remote(branch, batch):
-    """True/False: origin has refs/heads/<branch>; None when the remote cannot be read (the caller fails closed)."""
+class _RepoBatch(list):
+    """The review tick's per-tick ls-remote batch. As a list it is the factory-origin one-item batch every caller already
+    shares; `.foreign` holds one {"remote", "batch"} per other project repo (slug -> dict), `.origin` the cached factory slugs."""
+
+    def __init__(self):
+        super().__init__()
+        self.foreign = {}
+        self.origin = None
+
+
+def _review_remote(con, t, batch):
+    """(batch, kwargs) for the ls-remote helpers of task t's PR repo. The factory origin (or no project gh_repo, or an unparsable
+    PR url) is (batch, {}): exactly today's call. A foreign project repo gets its own one-item batch per tick and
+    remote=(repo dir or None, git remote or URL): the project's repo_path checkout when its origin is that repo, else
+    https://github.com/ORG/REPO.git (T-1675)."""
+    if not isinstance(batch, _RepoBatch):
+        return batch, {}
+    proj = con.execute("SELECT p.gh_repo, p.repo_path FROM projects p JOIN goals g ON g.project_id=p.id WHERE g.id=?", (t["goal_id"],)).fetchone()
+    want = _repo_slug(proj["gh_repo"]) if proj else None
+    if not want:
+        return batch, {}
+    try:
+        have = _repo_slug(_pr_repo_num(t["pr_url"])[0])
+    except ValueError:
+        return batch, {}
+    if have != want:
+        return batch, {}
+    if batch.origin is None:
+        batch.origin = {x for x in map(_repo_slug, _origin_urls()) if x}
+    if not batch.origin or want in batch.origin:  # origin unknown: today's behaviour
+        return batch, {}
+    ent = batch.foreign.get(want)
+    if ent is None:
+        remote = (None, f"https://github.com/{want}.git")
+        rp = proj["repo_path"]
+        if rp and Path(rp).is_absolute() and Path(rp, ".git").exists():
+            rc, url, _ = _git_rc(["remote", "get-url", "origin"], repo=rp)
+            if rc == 0 and _repo_slug(url) == want:
+                remote = (rp, "origin")
+        ent = batch.foreign[want] = {"remote": remote, "batch": []}
+    return ent["batch"], {"remote": ent["remote"]}
+
+
+def _review_head(con, t, batch):
+    sub, kw = _review_remote(con, t, batch)
+    return _ci_remote_head(t["branch"], sub, **kw)
+
+
+def _branch_on_remote(branch, batch, remote=None):
+    """True/False: origin (or `remote` = (repo dir or None, git remote or URL)) has refs/heads/<branch>; None when the remote
+    cannot be read (the caller fails closed)."""
     if branch.startswith("factory/"):
         if not batch:
             _pt_count("ci_wake_ls_remote")
-            batch.append(_ci_remote_heads())
+            batch.append(_ci_remote_heads(remote=remote) if remote else _ci_remote_heads())
         return None if batch[0] is None else branch in batch[0]
     ref = f"refs/heads/{branch}"
+    repo, target = remote or (None, "origin")
     _pt_count("ci_wake_ls_remote")
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, ref], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     return None if rc != 0 else any(l.split("\t")[-1:] == [ref] for l in out.splitlines())
 
 
@@ -18544,7 +18594,8 @@ def _review_pr_problem(con, t, pr, batch, clock, head_known=False):
         _review_skip(con, t, f"PR is {pr.get('state')}", clock)
         return True
     if t["branch"] and not head_known:
-        on = _branch_on_remote(t["branch"], batch)
+        sub, kw = _review_remote(con, t, batch)
+        on = _branch_on_remote(t["branch"], sub, **kw)
         if on is None:
             event(con, "task", tid, "review-autospawn-error", f"cannot read origin to check branch {t['branch']}"[:300])
             return True
@@ -18653,7 +18704,7 @@ def review_rerun_tick(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
-    batch = []
+    batch = _RepoBatch()
     for t in review_rerun_candidates(con):
         tid, team = t["id"], t["team_id"]
         why = _review_repo_mismatch(con, t)
@@ -18662,7 +18713,7 @@ def review_rerun_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        head = _ci_remote_head(t["branch"], batch)
+        head = _review_head(con, t, batch)
         if head:
             _review_alert_no_verdict(con, t, head, clock)
         if head and _review_head_done(con, tid, head, clock):
@@ -18733,7 +18784,7 @@ def review_autospawn_tick(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
-    batch = []
+    batch = _RepoBatch()
     for t in review_candidates(con):
         tid, team = t["id"], t["team_id"]
         why = _review_repo_mismatch(con, t)
@@ -18742,7 +18793,7 @@ def review_autospawn_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _ci_remote_head(t["branch"], batch) if t["branch"] else None)
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _review_head(con, t, batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
@@ -19049,9 +19100,11 @@ CI_WAKE_GH_TIMEOUT_S = 15  # one slow gh call must not stall the tick
 CI_WAKE_RECHECK_S = 600  # fallback only: when the remote head cannot be read, a mailed task's PR is not queried again for this long
 
 
-def _ci_remote_heads():
-    """{branch: head sha} for every origin refs/heads/factory/* from ONE `git ls-remote`, or None when it cannot be read."""
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S)
+def _ci_remote_heads(remote=None):
+    """{branch: head sha} for every origin (or `remote` = (repo dir or None, git remote or URL)) refs/heads/factory/* from ONE
+    `git ls-remote`, or None when it cannot be read."""
+    repo, target = remote or (None, "origin")
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     if rc != 0:
         return None
     heads = {}
@@ -19062,7 +19115,7 @@ def _ci_remote_heads():
     return heads
 
 
-def _ci_remote_head(branch, batch=None):
+def _ci_remote_head(branch, batch=None, remote=None):
     """Head sha of origin's refs/heads/<branch> by `git ls-remote` (no gh call), or None when it cannot be read.
     `batch` is a one-item list holding the per-tick _ci_remote_heads() result (filled on first use): a factory/* branch is
     looked up there, so a tick makes one ls-remote however many PRs it checks; any other branch gets its own call."""
@@ -19071,11 +19124,12 @@ def _ci_remote_head(branch, batch=None):
     if batch is not None and branch.startswith("factory/"):
         if not batch:
             _pt_count("ci_wake_ls_remote")
-            batch.append(_ci_remote_heads())
+            batch.append(_ci_remote_heads(remote=remote) if remote else _ci_remote_heads())
         return (batch[0] or {}).get(branch)
     ref = f"refs/heads/{branch}"
+    repo, target = remote or (None, "origin")
     _pt_count("ci_wake_ls_remote")
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, ref], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     rows = [l.split("\t") for l in out.splitlines() if l.strip()] if rc == 0 else []
     rows = [r for r in rows if len(r) == 2 and r[1] == ref and re.fullmatch(r"[0-9a-f]{40}", r[0])]
     return rows[0][0] if len(rows) == 1 else None
