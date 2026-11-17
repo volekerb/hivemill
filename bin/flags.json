@@ -103,7 +103,7 @@
    "key": "cursor_kickoff_grace_s",
    "kind": "setting",
    "default": "180",
-   "summary": "cursor agents: seconds a kickoff may stay unread before the tick resubmits it, then relaunches once",
+   "summary": "cursor agents: seconds a kickoff may stay unread before the tick re-submits it, then relaunches once, then escalates; 0 = off",
    "goal": "G-058",
    "doc": "docs/runtimes.md"
   },
@@ -115,6 +115,14 @@
    "goal": "",
    "doc": "docs/runtimes.md",
    "state": "off"
+  },
+  {
+   "key": "cursor_prompt",
+   "kind": "setting",
+   "default": "v1",
+   "summary": "v1 = Cursor agents get the Claude role prompt and kickoff; v2 = the short loop-until-done prompt (roles/cursor/<role>.md) and the Cursor worker kickoff",
+   "goal": "G-058",
+   "doc": "docs/cursor-prompt.md"
   },
   {
    "key": "day_end_hour",
@@ -349,6 +357,23 @@
    "doc": "docs/lead-wake.md"
   },
   {
+   "key": "idle_watchdog",
+   "kind": "flag",
+   "default": "shadow",
+   "summary": "off | shadow | on: the tick nudges, then relaunches fresh, then alerts both directors about a live worker with no progress for idle_watchdog_min; shadow = event rows only",
+   "goal": "G-058",
+   "doc": "docs/idle-watchdog.md",
+   "state": "shadow"
+  },
+  {
+   "key": "idle_watchdog_min",
+   "kind": "setting",
+   "default": "30",
+   "summary": "minutes without progress before idle_watchdog nudges; relaunch half that later, alert that long after the relaunch",
+   "goal": "G-058",
+   "doc": "docs/idle-watchdog.md"
+  },
+  {
    "key": "issue_intake_repos",
    "kind": "flag",
    "default": "",
@@ -356,6 +381,14 @@
    "goal": "G-026",
    "doc": "docs/ISSUES.md",
    "state": "off"
+  },
+  {
+   "key": "judge_ci_gate",
+   "kind": "setting",
+   "default": "pr",
+   "summary": "pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS, clean merge-tree and no file overlap only (main push run is the gate)",
+   "goal": "G-050",
+   "doc": "docs/judge-ci-gate.md"
   },
   {
    "key": "judge_ci_wait_s",
@@ -746,6 +779,14 @@
    "doc": ""
   },
   {
+   "key": "retro_org",
+   "kind": "setting",
+   "default": "cursor",
+   "summary": "cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)",
+   "goal": "G-036",
+   "doc": "docs/retro.md"
+  },
+  {
    "key": "review_autospawn",
    "kind": "flag",
    "default": "off",
@@ -1086,6 +1127,14 @@
    "summary": "over this, the tick deletes scratch dirs of finished agents",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "usage_reopen_samples",
+   "kind": "setting",
+   "default": "3",
+   "summary": "consecutive fresh below-cap readings that reopen the spawn gate after a Claude usage cap",
+   "goal": "G-058",
+   "doc": "docs/SETUP.md"
   },
   {
    "key": "worker_gh_repos",
