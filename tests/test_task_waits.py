@@ -1,7 +1,11 @@
 """T-0370: tasks record who a blocked task waits on (owner | internal); task show/list, res and digest show it."""
 import datetime as dt
+import json
+import os
 import sqlite3
+import textwrap
 import unittest
+import unittest.mock
 
 from harness import FactoryTestCase
 
@@ -90,6 +94,129 @@ class MigrateWaitsTests(FactoryTestCase):
         self.ok("task", "show", "T-0001")                  # any command opens the DB through migrate()
         self.assertEqual(e.sql("SELECT waits FROM tasks WHERE id='T-0001'")[0]["waits"], "internal")
         self.assertIn("waits: internal", self.ok("task", "show", "T-0001").stdout)
+
+    def test_old_db_gets_block_on_column_null(self):
+        e = self.env
+        e.seed_goal()
+        e.seed_task("T-0001", status="todo", pr_url=None)
+        cols = [r["name"] for r in e.sql("PRAGMA table_info(tasks)")]
+        if "block_on" in cols:
+            e.sql("ALTER TABLE tasks DROP COLUMN block_on")
+        self.assertNotIn("block_on", [r["name"] for r in e.sql("PRAGMA table_info(tasks)")])
+        self.ok("task", "show", "T-0001")
+        self.assertIsNone(e.sql("SELECT block_on FROM tasks WHERE id='T-0001'")[0]["block_on"])
+
+
+BLOCK_EVAL_STUB = textwrap.dedent("""\
+#!/usr/bin/env python3
+import json, re, sys
+
+RE_TASK = re.compile(r"^T-[0-9]+$")
+RE_OWNER = re.compile(r"^M[0-9]+$")
+RE_PR = re.compile(r"^#[0-9]+$")
+RE_GOAL = re.compile(r"^G-[0-9]+$")
+ALLOWED_CHECKS = frozenset(("gh-worker-ro-token-mode-600", "gh-worker-rw-token-mode-600"))
+
+def refuse():
+    sys.exit(2)
+
+def parse_token(token):
+    idx = token.find(":")
+    if idx <= 0:
+        refuse()
+    typ, rest = token[:idx], token[idx + 1:]
+    if not rest:
+        refuse()
+    if typ == "task":
+        if not RE_TASK.match(rest):
+            refuse()
+        return {"type": "task", "arg": rest}
+    if typ == "pr":
+        j = rest.find(":")
+        if j <= 0:
+            refuse()
+        arg, form = rest[:j], rest[j + 1:]
+        if form not in ("merged", "closed") or not RE_PR.match(arg):
+            refuse()
+        return {"type": "pr", "arg": arg, "form": form}
+    if typ == "main":
+        if rest != "green":
+            refuse()
+        return {"type": "main", "arg": rest}
+    if typ == "owner":
+        if not RE_OWNER.match(rest):
+            refuse()
+        return {"type": "owner", "arg": rest}
+    if typ == "check":
+        if rest not in ALLOWED_CHECKS:
+            refuse()
+        return {"type": "check", "arg": rest}
+    if typ == "goal":
+        j = rest.find(":")
+        if j <= 0:
+            refuse()
+        arg, form = rest[:j], rest[j + 1:]
+        if form not in ("done", "released") or not RE_GOAL.match(arg):
+            refuse()
+        return {"type": "goal", "arg": arg, "form": form}
+    refuse()
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2 or sys.argv[1] != "parse":
+        refuse()
+    out = [parse_token(line.strip()) for line in sys.stdin if line.strip()]
+    json.dump(out, sys.stdout)
+    sys.stdout.write("\\n")
+""")
+
+
+class TaskBlockTests(FactoryTestCase):
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_goal()
+        e.seed_team()
+        for tid in ("T-0001", "T-0002", "T-0003"):
+            e.seed_task(tid, status="in_progress", pr_url=None)
+        stub = e.home_dir / "bin" / "block-eval-stub"
+        stub.parent.mkdir(parents=True, exist_ok=True)
+        stub.write_text(BLOCK_EVAL_STUB)
+        stub.chmod(0o755)
+        self.stub_env = {"FACTORY_BLOCK_EVAL": str(stub)}
+
+    def test_block_records_two_tokens(self):
+        self.ok("task", "block", "T-0001", "--on", "main:green", "--on", "pr:#1:merged", extra_env=self.stub_env)
+        row = self.env.sql("SELECT status, block_on, waits FROM tasks WHERE id='T-0001'")[0]
+        self.assertEqual((row["status"], row["waits"]), ("blocked", "internal"))
+        conds = json.loads(row["block_on"])
+        self.assertEqual(len(conds), 2)
+        show = self.ok("task", "show", "T-0001").stdout
+        self.assertIn("block_on: main:green pr:#1:merged", show)
+        ev = self.env.sql("SELECT detail FROM events WHERE entity_id='T-0001' AND action='update' ORDER BY id DESC")[0]
+        self.assertIn("status=blocked — main:green pr:#1:merged", ev["detail"])
+
+    def test_unknown_token_stores_nothing(self):
+        self.refused(2, "task", "block", "T-0001", "--on", "check:rm-rf", extra_env=self.stub_env)
+        row = self.env.sql("SELECT status, block_on FROM tasks WHERE id='T-0001'")[0]
+        self.assertEqual((row["status"], row["block_on"]), ("in_progress", None))
+
+    def test_depends_on_is_not_copied(self):
+        self.ok("task", "update", "T-0001", "--after", "T-0002")
+        deps = json.loads(self.env.sql("SELECT depends_on FROM tasks WHERE id='T-0001'")[0]["depends_on"])
+        self.assertEqual(deps, ["T-0002"])
+        self.ok("task", "block", "T-0001", "--on", "task:T-0999", extra_env=self.stub_env)
+        row = self.env.sql("SELECT depends_on, block_on FROM tasks WHERE id='T-0001'")[0]
+        self.assertEqual(json.loads(row["depends_on"]), ["T-0002"])
+        conds = json.loads(row["block_on"])
+        self.assertEqual([c["arg"] for c in conds], ["T-0999"])
+
+    def test_live_home_refuses_block_eval_override(self):
+        with self.env.load_factory() as f:
+            f.LIVE_HOMES = f.LIVE_HOMES | {str(self.env.home_dir.resolve())}
+            with unittest.mock.patch.dict(os.environ, {"FACTORY_BLOCK_EVAL": self.stub_env["FACTORY_BLOCK_EVAL"]}):
+                with self.assertRaises(SystemExit) as cm:
+                    f.block_eval_parse(["main:green"])
+            self.assertEqual(cm.exception.code, 2)
 
 
 if __name__ == "__main__":
