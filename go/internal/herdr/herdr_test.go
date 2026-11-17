@@ -315,8 +315,8 @@ func TestHcTranslate(t *testing.T) {
 		{"read with lines", []string{"agent", "read", "a", "--lines", "40"}, []string{"read", "a", "--lines", "40"}},
 		{"read drops other flags", []string{"agent", "read", "a", "--x", "--lines", "5"}, []string{"read", "a", "--lines", "5"}},
 		{"send-keys", []string{"agent", "send-keys", "a", "Escape", "Enter"}, []string{"keys", "a", "Escape", "Enter"}},
-		{"start default kind", []string{"agent", "start", "a", "--pane", "p1", "--timeout", "90000"}, []string{"run", "--bg", "--name", "a", "claude"}},
-		{"start kind and post", []string{"agent", "start", "a", "--kind", "cursor", "--", "--workspace", "/w", "-x"}, []string{"run", "--bg", "--name", "a", "--cwd", "/w", "cursor", "--workspace", "/w", "-x"}},
+		{"start default kind", []string{"agent", "start", "a", "--pane", "p1", "--timeout", "90000"}, []string{"run", "--bg", "--no-parent", "--name", "a", "claude"}},
+		{"start kind and post", []string{"agent", "start", "a", "--kind", "cursor", "--", "--workspace", "/w", "-x"}, []string{"run", "--bg", "--no-parent", "--name", "a", "--cwd", "/w", "cursor", "--workspace", "/w", "-x"}},
 		{"wait has none", []string{"agent", "wait", "a"}, nil},
 		{"pane close has none", []string{"pane", "close", "p1"}, nil},
 		{"workspace list has none", []string{"workspace", "list"}, nil},
@@ -339,7 +339,7 @@ func TestHcTranslate(t *testing.T) {
 	// spawn-time overrides: RunCwd beats --workspace, RunProgram beats --kind, RunTail shapes the tail.
 	c2 := &Client{RunCwd: "/spawn", RunProgram: "cursor-agent", RunTail: func(p string, post []string) []string { return []string{"sh", "/s/" + p} }}
 	got, _ := c2.HcTranslate([]string{"agent", "start", "a", "--", "--workspace", "/w"})
-	if want := []string{"run", "--bg", "--name", "a", "--cwd", "/spawn", "sh", "/s/cursor-agent"}; !reflect.DeepEqual(got, want) {
+	if want := []string{"run", "--bg", "--no-parent", "--name", "a", "--cwd", "/spawn", "sh", "/s/cursor-agent"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("overrides: %v", got)
 	}
 
