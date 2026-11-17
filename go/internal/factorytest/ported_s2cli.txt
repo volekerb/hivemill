@@ -4,8 +4,15 @@
 # test_dequeue (T-1522: 52 of 52, on the stateful herdr stub) are complete: 15 of 15, 7 of 7 and 52 of 52. Full Python
 # case counts: test_smoke 5, test_db_layout 32, test_relaunch_idle 27, test_stop 59, test_worker_gate 17, test_resume 25
 # (test methods per module).
+# Correction (T-1523): test_stop now has 63 cases on main, of which 62 are ported (see the stop_test.go header).
+# test_relaunch_idle has 33 cases, 32 ported; test_worker_gate has 20 on main, 9 ported (the 11 HerdrGateTests need a Go
+# gate in production code); both are PARTIAL for P7a, see their Go file headers.
 tests/test_flags.py 15 -> internal/factorytest/s2cli:TestFlags 15
 tests/test_smoke.py 5 -> internal/factorytest/s2cli:TestSmoke 5
 tests/test_config_check.py 7 -> internal/factorytest/s2cli:TestConfigCheck 7
 tests/test_db_layout.py 18 -> internal/factorytest/s2cli:TestDBLayout 18
 tests/test_dequeue.py 52 -> internal/factorytest/s2cli:TestDequeue 52
+tests/test_relaunch_idle.py 32 -> internal/factorytest/s2cli:TestRelaunchIdle 32
+tests/test_stop.py 62 -> internal/factorytest/s2cli:TestStop 62
+tests/test_worker_gate.py 9 -> internal/factorytest/s2cli:TestWorkerGate 9
+tests/test_resume.py 25 -> internal/factorytest/s2cli:TestResume 25
