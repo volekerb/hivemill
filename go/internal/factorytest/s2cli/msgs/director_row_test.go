@@ -198,9 +198,22 @@ func TestDirectorRowPerformance35Days(t *testing.T) {
 	d := newDirBase(t)
 	base := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
 	const n = 35 * 1440
+	db := d.e.RawDB()
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
 	for i := 0; i < n; i++ {
 		ts := base.Add(time.Duration(i) * time.Minute).Format("2006-01-02T15:04:05Z07:00")
-		sqlExec(t, d.e, dirINS, ts, 20, 5, 0, 10, "[]")
+		if _, err := tx.Exec(dirINS, ts, 20, 5, 0, 10, "[]"); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close: %v", err)
 	}
 	start := time.Now()
 	d.e.OKWith(ft.Opts{Env: map[string]string{"FACTORY_NOW": dirNow}}, "scorecard", "--days", "2")

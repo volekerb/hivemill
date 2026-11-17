@@ -266,9 +266,10 @@ var realClock = ft.Opts{Env: map[string]string{"FACTORY_TEST_NOW": ""}}
 
 func tickDigestDates(t *testing.T, e *ft.Env) map[string]struct{} {
 	t.Helper()
-	day := digestFrozen.Format("2006-01-02")
+	// Mirrors Python: the tick uses the real local date; accept before/after in case midnight passes mid-call.
+	before := time.Now().Format("2006-01-02")
 	e.OKWith(realClock, "tick")
-	return map[string]struct{}{day: {}}
+	return map[string]struct{}{before: {}, time.Now().Format("2006-01-02"): {}}
 }
 
 func dailyDigests(t *testing.T, e *ft.Env, day string) [][]string {
