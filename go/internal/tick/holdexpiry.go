@@ -6,8 +6,8 @@ import (
 	"factory/go/internal/holdexpiry"
 )
 
-// holdExpiryUnit is the unit name of the judge hold expiry (docs/judge-hold-expiry.md). The unit is inert until the
-// table has a row of that name: init registers it only then.
+// holdExpiryUnit is the unit name of the judge hold expiry (docs/judge-hold-expiry.md). init registers
+// it only when the unit table has a row of that name (it has one since T-1610).
 const holdExpiryUnit = "hold_expiry"
 
 func init() { registerHoldExpiry() }
