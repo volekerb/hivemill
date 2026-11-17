@@ -38,8 +38,10 @@ func reapTestDB(t *testing.T) (*sql.DB, *reapDB) {
 	if _, err := db.Exec(reapExtraSchema); err != nil {
 		t.Fatal(err)
 	}
-	fixed := time.Date(2026, 11, 17, 9, 30, 15, 0, time.FixedZone("", 3600))
-	return db, &reapDB{db: db, clock: func() time.Time { return fixed }}
+	// Python now() converts to the process zone (astimezone()): pin a zone so the expected stamps do not depend on it.
+	zone := time.FixedZone("", 60*60)
+	fixed := time.Date(2026, 11, 17, 9, 30, 15, 0, zone)
+	return db, &reapDB{db: db, clock: func() time.Time { return fixed }, zone: zone}
 }
 
 func mustExec(t *testing.T, db *sql.DB, q string, args ...any) {
@@ -244,8 +246,9 @@ func TestNewReapDBClock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := r.now(); got != "2026-04-01T05:06:07+02:00" {
-		t.Errorf("non-live home must honour FACTORY_TEST_NOW, got %s", got)
+	r.zone = time.FixedZone("", 60*60)
+	if got := r.now(); got != "2026-04-01T04:06:07+01:00" {
+		t.Errorf("non-live home must honour FACTORY_TEST_NOW (+02:00 input, shown in the +01:00 local zone), got %s", got)
 	}
 	withPruneIdentity(t, pruneTestEnv(pw, home, "2026-04-01T05:06:07", real))
 	if _, err := newReapDB(db); err == nil || !strings.Contains(err.Error(), "FACTORY_TEST_NOW") {
@@ -261,7 +264,8 @@ func TestNewReapDBClock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := r.now(); !strings.HasPrefix(got, "1999-01-02T03:04:05") {
+	r.zone = time.FixedZone("", 60*60)
+	if got := r.now(); got != "1999-01-02T04:04:05+01:00" {
 		t.Errorf("a live home must use the real clock, got %s", got)
 	}
 }

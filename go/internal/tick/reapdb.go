@@ -77,6 +77,7 @@ func pyStrip(s string) string { return strings.TrimFunc(s, pyIsSpace) }
 type reapDB struct {
 	db    *sql.DB
 	clock func() time.Time
+	zone  *time.Location // nil: the process zone (what astimezone() uses); tests pin one
 }
 
 // newReapDB returns the helper over db. The event clock is the S2 clock the prune unit uses: FACTORY_TEST_NOW on a
@@ -91,8 +92,14 @@ func newReapDB(db *sql.DB) (*reapDB, error) {
 
 const reapTSLayout = "2006-01-02T15:04:05-07:00"
 
-// now is Python now(): ISO seconds with the offset.
-func (r *reapDB) now() string { return r.clock().Format(reapTSLayout) }
+// now is Python now(): ISO seconds in the local zone (astimezone() converts a fixed FACTORY_TEST_NOW too).
+func (r *reapDB) now() string {
+	t := r.clock()
+	if r.zone != nil {
+		return t.In(r.zone).Format(reapTSLayout)
+	}
+	return t.In(time.Now().Location()).Format(reapTSLayout) // the process zone, as astimezone()
+}
 
 // cfg is cfg(con, key): the config row, else the default. A key with neither is an error (Python KeyError).
 func (r *reapDB) cfg(key string) (string, error) {
