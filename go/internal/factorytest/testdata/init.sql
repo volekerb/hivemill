@@ -209,6 +209,7 @@ INSERT INTO config(key,value) VALUES('idle_coder_reap','off');
 INSERT INTO config(key,value) VALUES('idle_coder_reap_s','900');
 INSERT INTO config(key,value) VALUES('issue_intake_repos','');
 INSERT INTO config(key,value) VALUES('judge_ci_wait_s','2400');
+INSERT INTO config(key,value) VALUES('judge_hold_expiry_min','120');
 INSERT INTO config(key,value) VALUES('judge_max_refreshes','4');
 INSERT INTO config(key,value) VALUES('judge_wait_main_run','0');
 INSERT INTO config(key,value) VALUES('lead_less_dispatch','0');

@@ -1,2 +1,2 @@
-# synthetic: replace with M0 output
+# real: MacBook M0 2026-11-15, kern.memorystatus_vm_pressure_level enum 1 (M0 run was 2; see pressure_warn)
 1

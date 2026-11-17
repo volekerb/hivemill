@@ -56,6 +56,7 @@ var DefaultConfig = []ConfigDefault{
 	{"state_push", "0"},
 	{"mech_merge", "off"},
 	{"mech_merge_retry_s", "600"},
+	{"judge_hold_expiry_min", "120"},
 	{"risk_tiers", "off"},
 	{"public_text_repos", ""},
 	{"noreply_email", ""},

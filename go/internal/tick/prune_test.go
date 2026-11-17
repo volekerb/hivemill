@@ -337,14 +337,16 @@ func TestTickChildrenRealPrune(t *testing.T) {
 	for _, timers := range []bool{false, true} {
 		r := newRig(t, []step{{State: map[string]any{"agents": []any{}}}, {}})
 		r.timers = timers
-		r.goFns = goUnits
+		// only the prune unit: hold_expiry (T-1610) is also registered and would split the walk again
+		only := map[string]GoFunc{pruneUnit: goUnits[pruneUnit]}
+		r.goFns = only
 		db := pruneTestDB(t)
 		pruneSetup(t, db, "2026-10-31T12:00:00+00:00")
 		self, _ := os.Executable()
 		tm := 0.0
 		code := Run(Config{Home: r.home, DB: db, Stdout: &r.out, Stderr: &r.errb, Environ: os.Environ(), Python: self,
 			Entry: "bin/factory", Clock: func() float64 { tm++; return tm }, Getpid: os.Getpid,
-			TimersOn: func() bool { return timers }, Go: goUnits})
+			TimersOn: func() bool { return timers }, Go: only})
 		if code != 0 {
 			t.Fatalf("exit %d: %s", code, r.errb.String())
 		}
