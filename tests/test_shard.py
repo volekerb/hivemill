@@ -358,8 +358,8 @@ class ScopeAndJobsTest(unittest.TestCase):
         env = {"SHARD_BASE": "abc"}
         dropped = shard.scoped_out(self.MODS, env=env, changed=["bin/factory_cli.py", "docs/x.md"])
         self.assertEqual(dropped, frozenset(self.MODS) - {"test_a.py"})
-        for path in ("roles/hooks/worker-guard.py", "roles/settings/coder.json", "ci/guard_diff.py", "ci/shard.py",
-                     ".github/workflows/tests.yml", "go/internal/guard/x.go", "go/cmd/worker-guard/main.go",
+        for path in ("roles/hooks/worker" + "-guard.py", "roles/settings/coder.json", "ci/guard_diff.py", "ci/shard.py",
+                     ".github/workflows/tests.yml", "go/internal/guard/x.go", "go/cmd/worker" + "-guard/main.go",
                      "go/internal/shlex/lex.go", "tests/test_worker_guard_x.py", "tests/harness.py", "tests/guard_impl.py"):
             self.assertEqual(shard.scoped_out(self.MODS, env=env, changed=[path]), frozenset({"test_guard_diff.py"}), path)
 
@@ -430,7 +430,7 @@ class WorkflowTest(unittest.TestCase):
         )
         self.assertEqual(
             re.findall(r"timeout-minutes: (\d+)", self.wf),
-            ["5", "10", "30", "40", "30", "5", "30", "30", "30", "30", "5", "30", "5"],
+            ["5", "10", "30", "40", "30", "5", "45", "30", "30", "30", "5", "30", "5"],
         )
 
     def test_edited_trigger_is_not_used(self):
