@@ -218,11 +218,16 @@ class SrcTests(FactoryTestCase):
         """T-1639: a respawned QA pane runs under a session the agents row does not name yet: factory src must not
         die with 'no scratchpad found'; it exports into the pane's own-cwd-slug scratchpad."""
         self.env.sql("UPDATE agents SET session_id='stale-old-sess' WHERE name='zz-test-qa'")
+        old = self.scratch.parent.parent / "older-sess" / "scratchpad"
+        old.mkdir(parents=True)
+        os.utime(old.parent, (1000, 1000))  # an older session dir of the same cwd: never trusted
         d = self.scratch / "stale"
         p = self.src("main", str(d))
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertNotIn("no scratchpad", p.stderr)
         self.assertEqual((d / "a.txt").read_text(), "hello\n")
+        self.assertEqual(self.fail("main", str(old / "planted")).returncode, 2)
+        self.assertFalse((old / "planted").exists())
         # a foreign agent's scratchpad (other cwd slug) is still refused
         other = self.env.home / "otheragent2"
         other.mkdir()
