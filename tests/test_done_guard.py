@@ -146,6 +146,13 @@ class DoneGuardTests(FactoryTestCase):
         self.assertNotIn("push -u", p.stderr)  # the worker guard refuses -u: the hint is a command it allows
         self.nothing_changed()
 
+    def test_committed_not_pushed_branch_unset_hint_falls_back(self):
+        self.env.sql("UPDATE tasks SET branch=NULL WHERE id='T-0001'")
+        self.commit()
+        p = self.refused(3, "done", "x", agent="zz-test-coder")
+        self.assertIn("git push origin HEAD:factory/t-0001", p.stderr)
+        self.nothing_changed()
+
     def test_new_commit_after_push_refused(self):
         self.commit()
         self.push()

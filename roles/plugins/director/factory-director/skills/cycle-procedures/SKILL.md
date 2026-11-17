@@ -20,6 +20,7 @@ Resources (step 2):
 Steps 4-8:
 4. **Chase status.** If a team hasn't reported in about 30 minutes, ask its lead: `factory msg lead:<team> "status?" "progress, blockers, next step, ETA" --kind request`. If a team has no movement after two requests, investigate (`factory goal show`, `herdr agent read <lead> --lines 40`) and intervene.
 5. **Unblock.** Resolve cross-team conflicts, such as two teams touching the same files, and clear resource contention. Agent health problems (blocked >10 minutes, lost panes) arrive as alerts; respawn or reassign.
+   Lanes and judge holds: use the lanes-and-holds skill before blocking a task for a file or setting a hold.
 6. **Judge the leads.** After each merged task or closed goal, score the team: `factory eval <team> --score 1-5 --notes "…"`. Score outcomes: merged and working, low rejection and retry counts (`factory scorecard`), honest reporting, low waste. Give the lead concrete feedback. A lead who scores ≤2 twice is replaced: close the team and staff a new one with a better brief.
 7. **Housekeeping.** When `factory res` shows many worktrees, when tasks were merged since the last clean, or once a day, spawn a cleaner: `factory spawn cleaner --prompt "clean merged worktrees and branches"`.
 8. **Report up.** When something meaningful changes (goal planned, task merged, goal blocked or done), send the boss one concise report: `factory msg boss "…" "…" --kind report --goal G-xxx`. Do not report on every cycle when nothing changed.

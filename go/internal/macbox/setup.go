@@ -171,6 +171,26 @@ case "$FACTORY_REAL" in
 esac
 `
 
+// resolvePathsUninstallACL resolves homes like resolvePaths but warns and sets
+// ACL_OK=0 instead of exiting when the factory tree is not under the owner home.
+const resolvePathsUninstallACL = `
+HOME_REAL=$(cd "$OWNER_HOME" && pwd -P)
+FACTORY_REAL=$(cd "$FACTORY_HOME" && pwd -P)
+ACL_OK=1
+if [ "$HOME_REAL" = / ]; then
+  echo "owner home resolves to /; skipping ACL undo" >&2
+  ACL_OK=0
+else
+  case "$FACTORY_REAL" in
+    "$HOME_REAL"/?*) ;;
+    *)
+      echo "factory home resolves to $FACTORY_REAL, not strictly inside owner home $HOME_REAL; skipping ACL undo" >&2
+      ACL_OK=0
+      ;;
+  esac
+fi
+`
+
 const setupBody = `
 LAUNCHER_SRC=${1:-}
 if [ -z "$LAUNCHER_SRC" ] || [ ! -f "$LAUNCHER_SRC" ]; then
@@ -288,7 +308,8 @@ FACTORY_HOME=@FACTORY_HOME@
 
 echo "undo step @S_ACL@: remove the group ACL entries"
 if [ -d "$OWNER_HOME" ] && [ -d "$FACTORY_HOME" ]; then
-` + resolvePaths + `
+` + resolvePathsUninstallACL + `
+  if [ "$ACL_OK" -eq 1 ]; then
   if [ -d "$FACTORY_REAL/db" ]; then chmod -R -a "@ACL_DB@" "$FACTORY_REAL/db" || echo "  db entries already absent"; fi
   chmod -R -a "@ACL_READ@" "$FACTORY_REAL" || echo "  factory entries already absent"
   d=$(dirname "$FACTORY_REAL")
@@ -297,6 +318,7 @@ if [ -d "$OWNER_HOME" ] && [ -d "$FACTORY_HOME" ]; then
     d=$(dirname "$d")
   done
   chmod -a "@ACL_HOME@" "$HOME_REAL" || echo "  home entry already absent"
+  fi
 else
   echo "  owner or factory home missing, skipping"
 fi

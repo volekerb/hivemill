@@ -31,6 +31,14 @@ class TemplateTests(unittest.TestCase):
         self.assertGreater(text.index(WALK), text.index("<details>"))
         self.assertLess(text.index(WALK), text.index("</details>"))
 
+    def test_test_evidence_forbids_placeholders_and_quotes_guard_line(self):
+        text = self.template()
+        self.assertIn("never a placeholder like <tz> or <module>", text)
+        self.assertIn("guard-diff strict line", text)
+        skill = read(SKILL)
+        self.assertIn("Never leave a placeholder", skill)
+        self.assertIn("last section of the body", skill)
+
     def test_footer_is_absent(self):
         self.assertNotIn("Generated with", self.template())
         self.assertEqual(self.template().rstrip().splitlines()[-1], "</details>")

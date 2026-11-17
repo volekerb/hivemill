@@ -199,6 +199,7 @@ INSERT INTO "config"("key","value") VALUES('tmp_max_pct','90');
 INSERT INTO "config"("key","value") VALUES('max_five_hour_pct','92');
 INSERT INTO "config"("key","value") VALUES('max_seven_day_pct','92');
 INSERT INTO "config"("key","value") VALUES('nudge_cooldown_s','120');
+INSERT INTO "config"("key","value") VALUES('cursor_kickoff_grace_s','180');
 INSERT INTO "config"("key","value") VALUES('boss_wake_after_s','900');
 INSERT INTO "config"("key","value") VALUES('boss_wake_cooldown_s','1800');
 INSERT INTO "config"("key","value") VALUES('director_cycle_s','900');
