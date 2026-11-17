@@ -1,0 +1,21 @@
+# /goal/G-999
+TEXT
+Goal - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources Goal All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Goals / G-999 No goal G-999 Back to Goals Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-999
+a:/goal/G-999?org=claude
+a:/goal/G-999?org=cursor
+a:/goals
+a:/quality
+a:/resources
+a:/tasks
+a:/throughput
+a:/tokens

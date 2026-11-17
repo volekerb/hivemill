@@ -1,0 +1,30 @@
+# /goal/G-001
+TEXT
+Claude goal - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources Claude goal All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Goals / G-001 Active Claude · P1 · tm-a · updated <TS> Intent Intent one Teams 2 tm-a claude-lead-g-001 Active core Running claude-coder-t-2 coder Claude T-2 Blocked claude-lead-g-001 lead Claude tm-b Parked 2/9 tasks · 1/3 criteria Cost and time Tokens 48,300 Estimated cost, tasks $0.06 Estimated cost, goal overhead - Estimated cost, total $0.06 Rework share 0% Merged PRs 2 Median wall time per merged PR 4d 1h Estimated at list prices as of 2026-10-25 (API-equivalent, not a bill). What's blocking 5 Blocked task docs T-3 waiting 1 d Escalation Need a call on T-2 T-2 waiting 3 h Request Please approve G-001 waiting 2 h Merge needs OK wire cli T-2 waiting 1 d Queued task blocked internal T-9 since 4 h Success criteria 1/3 Done Met SC1 Build X Done Cancelled To do Open SC2 Ship Y continued line In review Blocked Blocked To do Open SC3 Untracked item Blocked Tasks 9 status ID Task Assignee PR Tries Blocked 2 Blocked T-3 [SC2,SC3] docs blocked: owner coder Blocked T-9 blocked internal [SC2] blocked (internal) coder 1 In review 1 In review T-2 [SC2] wire cli claude-coder-t-2 PR 2 To do 3 To do T-10 pm spec task pm To do T-12 ghost team coder To do T-55 name collision coder Done 2 status ID Task Assignee PR Tries Done T-1 [SC1] build parser claude-coder-t-1 PR 1 Done T-5 plain no tag claude-coder-t-5 PR 3 Cancelled 1 status ID Task Assignee PR Tries Cancelled T-4 [SC1] loose follow coder Plan v2 · <TS> Created <TS> Updated <TS> Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goal/G-001
+a:/goal/G-001?org=claude
+a:/goal/G-001?org=cursor
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-1
+a:/task/T-10
+a:/task/T-12
+a:/task/T-2
+a:/task/T-3
+a:/task/T-4
+a:/task/T-5
+a:/task/T-55
+a:/task/T-9
+a:/tasks
+a:/throughput
+a:/tokens
