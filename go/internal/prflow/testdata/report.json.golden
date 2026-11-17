@@ -1,0 +1,221 @@
+{
+  "repo": "o/r",
+  "since": "2026-11-10T00:00:00Z",
+  "now": "2026-11-11T00:00:00Z",
+  "window_h": 24,
+  "prs": 7,
+  "event_lines": 43,
+  "event_lines_skipped": 1,
+  "merged_per_day": [
+    {
+      "day": "2026-11-10",
+      "all": 5,
+      "claude": 3,
+      "cursor": 1,
+      "other": 1
+    },
+    {
+      "day": "2026-11-11",
+      "all": 0,
+      "claude": 0,
+      "cursor": 0,
+      "other": 0
+    }
+  ],
+  "open_to_merge": [
+    {
+      "org": "all",
+      "n": 5,
+      "median_h": 6,
+      "p90_h": 8.4,
+      "max_h": 10,
+      "over_6h": 1
+    },
+    {
+      "org": "claude",
+      "n": 3,
+      "median_h": 6,
+      "p90_h": 9.2,
+      "max_h": 10,
+      "over_6h": 1
+    },
+    {
+      "org": "cursor",
+      "n": 1,
+      "median_h": 6,
+      "p90_h": 6,
+      "max_h": 6,
+      "over_6h": 0
+    },
+    {
+      "org": "other",
+      "n": 1,
+      "median_h": 2,
+      "p90_h": 2,
+      "max_h": 2,
+      "over_6h": 0
+    }
+  ],
+  "open_over_4h": [
+    {
+      "number": 4,
+      "age_h": 14,
+      "merge_state_status": "DIRTY",
+      "stage": "blocked",
+      "org": "cursor",
+      "task": "T-0004"
+    }
+  ],
+  "open_over_6h": [
+    {
+      "number": 4,
+      "age_h": 14,
+      "merge_state_status": "DIRTY",
+      "stage": "blocked",
+      "org": "cursor",
+      "task": "T-0004"
+    }
+  ],
+  "stage_hours": [
+    {
+      "stage": "ci_wait",
+      "all_h": 10,
+      "claude_h": 2.5,
+      "cursor_h": 2.5,
+      "other_h": 5
+    },
+    {
+      "stage": "review_qa",
+      "all_h": 3,
+      "claude_h": 1,
+      "cursor_h": 2,
+      "other_h": 0
+    },
+    {
+      "stage": "coder_rework",
+      "all_h": 3.5,
+      "claude_h": 2.5,
+      "cursor_h": 1,
+      "other_h": 0
+    },
+    {
+      "stage": "capacity_gate",
+      "all_h": 2,
+      "claude_h": 2,
+      "cursor_h": 0,
+      "other_h": 0
+    },
+    {
+      "stage": "judge",
+      "all_h": 2,
+      "claude_h": 1.5,
+      "cursor_h": 0.5,
+      "other_h": 0
+    },
+    {
+      "stage": "hold",
+      "all_h": 7,
+      "claude_h": 7,
+      "cursor_h": 0,
+      "other_h": 0
+    },
+    {
+      "stage": "refresh",
+      "all_h": 1,
+      "claude_h": 0,
+      "cursor_h": 1,
+      "other_h": 0
+    },
+    {
+      "stage": "red_main",
+      "all_h": 2,
+      "claude_h": 2,
+      "cursor_h": 0,
+      "other_h": 0
+    },
+    {
+      "stage": "red_pr_unowned",
+      "all_h": 0.5,
+      "claude_h": 0.5,
+      "cursor_h": 0,
+      "other_h": 0
+    },
+    {
+      "stage": "blocked",
+      "all_h": 13,
+      "claude_h": 0,
+      "cursor_h": 13,
+      "other_h": 0
+    }
+  ],
+  "reviewer_fail": 1,
+  "qa_fail": 0,
+  "prs_with_2plus_review_rounds": 1,
+  "refreshes": 1,
+  "slowest": [
+    {
+      "number": 4,
+      "state": "OPEN",
+      "hours": 14,
+      "org": "cursor",
+      "task": "T-0004",
+      "largest_stage": "blocked",
+      "largest_stage_h": 13
+    },
+    {
+      "number": 3,
+      "state": "MERGED",
+      "hours": 10,
+      "org": "claude",
+      "task": "T-0003",
+      "largest_stage": "hold",
+      "largest_stage_h": 7
+    },
+    {
+      "number": 2,
+      "state": "MERGED",
+      "hours": 6,
+      "org": "cursor",
+      "task": "T-0002",
+      "largest_stage": "review_qa",
+      "largest_stage_h": 2
+    },
+    {
+      "number": 8,
+      "state": "MERGED",
+      "hours": 6,
+      "org": "claude",
+      "task": "T-0008",
+      "largest_stage": "coder_rework",
+      "largest_stage_h": 2.5
+    },
+    {
+      "number": 1,
+      "state": "MERGED",
+      "hours": 3,
+      "org": "claude",
+      "task": "T-0001",
+      "largest_stage": "ci_wait",
+      "largest_stage_h": 1
+    },
+    {
+      "number": 6,
+      "state": "OPEN",
+      "hours": 3,
+      "org": "other",
+      "task": "T-0006",
+      "largest_stage": "ci_wait",
+      "largest_stage_h": 3
+    },
+    {
+      "number": 5,
+      "state": "MERGED",
+      "hours": 2,
+      "org": "other",
+      "task": "",
+      "largest_stage": "ci_wait",
+      "largest_stage_h": 2
+    }
+  ],
+  "warnings": []
+}
