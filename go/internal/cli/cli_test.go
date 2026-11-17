@@ -246,7 +246,7 @@ func TestConfigReads(t *testing.T) {
 	if r.out.String() != "\n" {
 		t.Fatalf("default read %q", r.out.String())
 	}
-	if code := r.run("config", "no_such_key"); code != 2 || !strings.HasPrefix(r.errb.String(), "factory: unknown key no_such_key; known: guard_impl, model_cleaner,") {
+	if code := r.run("config", "no_such_key"); code != 2 || !strings.HasPrefix(r.errb.String(), "factory: unknown key no_such_key; known: guard_impl, model_boss,") {
 		t.Fatalf("unknown key: %d %q", code, r.errb.String())
 	}
 	r.run("config", "--changed")
