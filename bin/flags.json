@@ -374,6 +374,14 @@
    "state": "off"
   },
   {
+   "key": "judge_ci_gate",
+   "kind": "setting",
+   "default": "pr",
+   "summary": "pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS, clean merge-tree and no file overlap only (main push run is the gate)",
+   "goal": "G-050",
+   "doc": "docs/judge-ci-gate.md"
+  },
+  {
    "key": "judge_ci_wait_s",
    "kind": "setting",
    "default": "2400",
@@ -760,6 +768,14 @@
    "summary": "wall budget of one retro run",
    "goal": "G-036",
    "doc": ""
+  },
+  {
+   "key": "retro_org",
+   "kind": "setting",
+   "default": "cursor",
+   "summary": "cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)",
+   "goal": "G-036",
+   "doc": "docs/retro.md"
   },
   {
    "key": "review_autospawn",

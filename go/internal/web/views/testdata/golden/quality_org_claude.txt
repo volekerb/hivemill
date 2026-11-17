@@ -1,0 +1,27 @@
+# /quality?org=claude
+TEXT
+Quality - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 3 Insights Throughput Quality Tokens Changelog System Resources Quality All Claude Cursor <TS> Gate closed · 2 queued Needs you 6 Cursor usage · 0 h · Pro · ok Rejections per merged PR i Rejections divided by merged PRs, over all time. Lower is better. The change compares the last 14 days with the 14 days before. 2.00 First-try merge rate i Merged tasks that were never rejected, as a share of merged PRs, over all time. The change compares the last 14 days with the 14 days before. 50% CI-blocked merges i Times the judge refused a merge because checks were red or still pending, over all time. The change compares the last 14 days with the 14 days before. 2 ↑ 2 vs prev 14 d Median attempts i Median number of attempts of the tasks that merged, over all time. 1 means most merged first time. The change compares the last 14 days with the 14 days before. 1.5 Bouncing now 2 In review T-2 wire cli 2 rejections attempt 2 Blocked T-9 blocked internal 1 rejection attempt 1 Per team Team Merged Rejections Rejections per merged PR tm-a Merged 3 Rejections 8 Per merged PR 2.67 tm-b Merged 0 Rejections 0 Per merged PR - tm-zz Merged 0 Rejections 0 Per merged PR - Rejections by source Reviewer 3 QA 1 Judge 4 CI counts merges the judge refused for red or pending checks (part of judge-blocked); they are not rejections. CI 2 Gate: judge-blocked 3 Gate: merge-failed 0 Per week Bars scale to the card width on desktop (weeks with more rejections are taller). 08-24: 0 rejections 08-31: 0 rejections 09-07: 0 rejections 09-14: 0 rejections 09-21: 0 rejections 09-28: 0 rejections 10-05: 0 rejections 10-12: 0 rejections 10-19: 0 rejections 10-26: 0 rejections 11-02: 4 rejections 11-09: 4 rejections 08-24 10-12 4 4 Rejections per week, last 12 weeks Week Rejections 2026-08-24 0 2026-08-31 0 2026-09-07 0 2026-09-14 0 2026-09-21 0 2026-09-28 0 2026-10-05 0 2026-10-12 0 2026-10-19 0 2026-10-26 0 2026-11-02 4 2026-11-09 4 More metrics 10 Merged PRs i Distinct tasks with a merge event. 4 Merged first try i Merged tasks that were never rejected. 2 Merged after >= 1 rejection i Merged tasks rejected at least once before they merged. 2 Rejections i Reviewer, QA and judge fail or reject verdicts, plus judge rejections without a verdict row. 8 Rejections per merged PR i Rejections divided by merged PRs. 2.00 Gate refusals i Judge-blocked and merge-failed events: stale verdict, red or pending CI, conflicts. 3 Rejections by cause i Recorded causes on reviewer, QA and judge rejections and gate refusals (counts incidents, not events). stale-verdict 2, conflict 1, lint 1. 4 Retries per merged task i Attempts beyond the first, per merged task. 1.00 CI pass rate i Merged / (merged + tasks the judge blocked for red checks). 67% Latest team scores i Newest evaluation per team. tm-a 85/5 Rejections per merged PR = rejection events / merged PRs; retries = attempts beyond the first; CI pass rate = merged / (merged + tasks the judge blocked for red checks). Rejections count failed QA/review verdicts, plus old judge rejections that left no verdict row. Merged counts tasks with a merge event. Tasks without a team are counted in every team of their goal. Rework time is 0 when a task was never sent back. Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 3 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/#needs-you
+a:/?org=claude
+a:/agents?org=claude
+a:/changelog?org=claude
+a:/goals?org=claude
+a:/quality
+a:/quality?org=claude
+a:/quality?org=cursor
+a:/quality?sort=merged&dir=desc&org=claude
+a:/quality?sort=rate&dir=desc&org=claude
+a:/quality?sort=rejections&dir=desc&org=claude
+a:/quality?sort=team&dir=desc&org=claude
+a:/resources
+a:/resources?org=claude
+a:/task/T-2
+a:/task/T-9
+a:/tasks?org=claude
+a:/throughput?org=claude
+a:/tokens?org=claude
