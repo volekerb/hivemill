@@ -9710,6 +9710,36 @@ def retro_tick(con):
             pass
 
 
+def schedule_tick(con):
+    """Tick hook (G-038 F-31): `factory-go schedule due --json` claims the due owner jobs (all decisions are Go's); this only
+    delivers each item to the director through send(), so recipient resolution stays as it is. A claim happens before the
+    send: a failed send loses that day's run, never doubles it. Any error: one schedule-tick-failed event per hour. Never raises."""
+    try:
+        go = guard_lib_dir() / CLI_GO_BIN
+        if not os.access(go, os.X_OK):
+            raise OSError(f"{CLI_GO_BIN} is missing or not executable; rebuild the Go CLI")
+        p = subprocess.run([str(go), "schedule", "due", "--json"], capture_output=True, text=True, timeout=20)
+        if p.returncode != 0:
+            raise RuntimeError(f"schedule due exit {p.returncode}: {(p.stderr or p.stdout).strip()[:300]}")
+        items = json.loads(p.stdout)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
+        _schedule_tick_failed(con, e)
+        return
+    for it in items:  # each claim is already committed: one bad send must not drop the others
+        try:
+            send(con, "director", it["subject"], it["body"], kind=it["kind"], goal=it["goal"], sender="tick")
+        except (Exception, SystemExit) as e:  # noqa: BLE001
+            _schedule_tick_failed(con, e)
+
+
+def _schedule_tick_failed(con, e):
+    try:
+        if not _util_throttled(con, "schedule-tick-failed", 3600, digest_clock().timestamp()):
+            event(con, "tick", "-", "schedule-tick-failed", (str(e) or repr(e))[:500])
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @_pt_phase("skilleval")
 def skilleval_tick(con):
     """Tick hook: collect and start skill-eval trials under the caps (scout/skilleval.py). Never breaks the tick."""
@@ -17024,6 +17054,7 @@ def _tick_u_scout(con, st):
 
 def _tick_u_retro(con, st):
         retro_tick(con)
+        schedule_tick(con)
 
 
 def _tick_u_skilleval(con, st):

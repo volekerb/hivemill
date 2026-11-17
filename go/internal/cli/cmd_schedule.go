@@ -15,6 +15,7 @@ func init() {
 	register("schedule", "add", handler{parse: parseScheduleAdd, run: runScheduleAdd})
 	register("schedule", "list", handler{parse: parseScheduleList, run: runScheduleList})
 	register("schedule", "remove", handler{parse: parseScheduleRemove, run: runScheduleRemove})
+	register("schedule", "due", handler{parse: parseScheduleDue, run: runScheduleDue})
 }
 
 type scheduleAddCmd struct {
@@ -222,4 +223,45 @@ func nullPtr(s sql.NullString) *string {
 	}
 	v := s.String
 	return &v
+}
+
+func parseScheduleDue(rest []string) (any, bool) {
+	// --json is required (checked in run) so a bare `schedule due` never claims by accident.
+	if len(rest) == 0 {
+		return scheduleDueCmd{}, true
+	}
+	return scheduleDueCmd{json: true}, len(rest) == 1 && rest[0] == "--json"
+}
+
+type scheduleDueCmd struct{ json bool }
+
+// runScheduleDue claims the due jobs (tick use only) and prints them as a JSON list.
+func runScheduleDue(c *ctx, p any) (int, error) {
+	if !p.(scheduleDueCmd).json {
+		return 0, dieErr(2, "schedule due needs --json (it claims the due jobs; the tick is its only caller)")
+	}
+	loc, err := sbLocation(c.env.Getenv)
+	if err != nil {
+		return 0, err
+	}
+	now, err := sbClock(c.env.Getenv, c.env.Now, loc)
+	if err != nil {
+		return 0, dieErr(2, "FACTORY_NOW must be an ISO timestamp")
+	}
+	raw, err := cfgText(c, "goal_token_tally_s")
+	if err != nil {
+		return 0, err
+	}
+	secs, convErr := strconv.Atoi(strings.TrimSpace(raw))
+	tallyOn := convErr == nil && secs > 0 // an unreadable value counts as off: fail closed
+	items, err := schedule.Due(c.db, now, c.who, tallyOn)
+	if err != nil {
+		return 0, err
+	}
+	b, err := json.Marshal(items)
+	if err != nil {
+		return 0, err
+	}
+	fmt.Fprintln(c.out, string(b))
+	return 0, nil
 }
