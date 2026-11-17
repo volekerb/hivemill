@@ -68,10 +68,29 @@ func TestCursorProcGateClaudeOnlyFixtureMatchesPython(t *testing.T) {
 	e.NeedPython()
 	e.OKWith(ft.Opts{Agent: director}, "config", "agent_runtimes", "")
 	e.FakeClaude(100, 1, "claude", "--session-id", "sid-live", "--settings", "/x/settings/coder.json")
-	e.FakeClaude(101, 1, "claude", "--session-id", "sid-a", "--settings", "/x/settings/coder.json")
+	e.FakeClaude(101, 1, "claude", "--session-id", "sid-flagless") // no --settings
+	e.SeedAgent(ft.AgentRow{Name: "zz-live", Role: "coder", Goal: "G-001", PaneID: "p-live"})
+	e.SeedAgent(ft.AgentRow{Name: "zz-flag", Role: "coder", Goal: "G-001", PaneID: "p-flag"})
+	sqlExec(t, e, "UPDATE agents SET session_id=? WHERE name=?", "sid-live", "zz-live")
+	sqlExec(t, e, "UPDATE agents SET session_id=? WHERE name=?", "sid-flagless", "zz-flag")
+	e.SetHerdr(map[string]any{"agents": []any{
+		map[string]any{"name": "zz-live", "agent": "claude", "pane_id": "p-live"},
+		map[string]any{"name": "zz-flag", "agent": "claude", "pane_id": "p-flag"}}})
 	got := gate.ScanProcs(e.ProcDir)
-	py := pyEval(t, e, "t = mod.total_claude_procs(); res['total'] = t['total']; res['pids'] = t['pids']")
+	py := pyEval(t, e, `t = mod.total_claude_procs(); res['total'] = t['total']; res['pids'] = t['pids']
+con = mod.db()
+rows = con.execute("SELECT * FROM agents WHERE status='live' AND name LIKE 'zz-%' AND role='coder'").fetchall()
+ok, why, stats = mod.gate(con)
+res['gate_ok'] = ok; res['gate_why'] = why; res['other'] = stats['other']; res['stats_total'] = stats['total']
+res['flagless'] = len(mod.flagless_scan(con, rows))
+con.close()`)
 	eq(t, "python total", int(py["total"].(float64)), got.Total)
+	// the gate decision over the same state: Go gate vs the Python gate()
+	d := decide(t, e, false)
+	eq(t, "gate ok", d.OK, py["gate_ok"].(bool))
+	eq(t, "gate reason", d.Reason, py["gate_why"].(string))
+	eq(t, "stats total", *d.Stats.Total, int(py["stats_total"].(float64)))
+	eq(t, "flagless agents (the one without --settings)", py["flagless"], any(1.0))
 	var pids []int
 	for _, p := range py["pids"].([]any) {
 		pids = append(pids, int(p.(float64)))

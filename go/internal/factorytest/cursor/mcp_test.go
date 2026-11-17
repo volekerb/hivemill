@@ -3,6 +3,7 @@ package cursor
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -77,6 +78,31 @@ func TestCursorMcpBossMatchesWorkerGuard(t *testing.T) {
 	guardIn := `{"tool_name": "mcp_auth", "tool_input": {}, "cwd": "/tmp"}`
 	home := t.TempDir()
 	guard := runPython(t, guardIn, map[string]string{"FACTORY_HOME": home}, filepath.Join(hooksDir(t), ch.GuardName), "--hq")
+	// the adapter must call run_guard exactly once with role boss and hq true (Python patches run_guard and checks this)
+	inv := runPython(t, "", map[string]string{"FACTORY_HOME": home}, "-c", `import sys, json, io, subprocess, importlib.util
+from unittest import mock
+spec = importlib.util.spec_from_file_location("adapter_t1686", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+real = subprocess.run([sys.executable, sys.argv[2], "--hq"], input=sys.argv[3], capture_output=True, text=True)
+calls = []
+def fake(payload, role, hq):
+    calls.append([role, hq])
+    return real
+with mock.patch.object(mod, "run_guard", side_effect=fake), mock.patch("sys.stdin", io.StringIO(sys.argv[4])):
+    rc = mod.main(["--hq", "--role", "boss", "--event", "beforeMCPExecution"])
+print(json.dumps({"calls": calls, "rc": rc, "guard_rc": real.returncode}))
+`, filepath.Join(hooksDir(t), ch.AdapterName), filepath.Join(hooksDir(t), ch.GuardName), guardIn, string(mustJSON(t, mcpPayload)))
+	eq(t, "inspect exit", inv.Code, 0)
+	got := lastJSON(t, inv.Stdout)
+	if !reflect.DeepEqual(got["calls"], []any{[]any{"boss", true}}) {
+		t.Fatalf("run_guard calls = %v, want one call (boss, true)", got["calls"])
+	}
+	wantRC := 0.0
+	if got["guard_rc"].(float64) != 0 {
+		wantRC = 2
+	}
+	eq(t, "adapter rc follows the guard", got["rc"].(float64), wantRC)
 	r := adapterEvent(t, "beforeMCPExecution", mcpPayload, "boss", true, map[string]string{"FACTORY_HOME": home})
 	if guard.Code == 0 {
 		eq(t, "permission", lastJSON(t, r.Stdout)["permission"], any("allow"))
