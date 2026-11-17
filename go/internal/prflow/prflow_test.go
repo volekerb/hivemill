@@ -543,3 +543,146 @@ func FuzzDetail(f *testing.F) {
 		coderAgent(detail)
 	})
 }
+
+// redFixture is the T-1760 red-main fixture: repo a/b has red-main 11-04 10:00 and 12:00, a clear at 14:00 and a
+// red-main on 11-05 09:00 with no clear; one red-main-unknown and one malformed line. Repo c/d has one event.
+const redFixture = `{"ts": "2026-11-04T10:00:00Z", "entity": "redmain", "entity_id": "a/b", "action": "red-main"}
+{"ts": "2026-11-04T12:00:00Z", "entity": "redmain", "entity_id": "a/b", "action": "red-main"}
+{"ts": "2026-11-04T13:00:00Z", "entity": "redmain", "entity_id": "a/b", "action": "red-main-unknown"}
+{"ts": "2026-11-04T14:00:00Z", "entity": "redmain", "entity_id": "a/b", "action": "red-main-clear"}
+this line is malformed
+{"ts": "2026-11-05T09:00:00Z", "entity": "redmain", "entity_id": "a/b", "action": "red-main"}
+{"ts": "2026-11-05T10:00:00Z", "entity": "redmain", "entity_id": "c/d", "action": "red-main"}
+`
+
+var redNow = time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)
+
+func redReport(t *testing.T, events, repo string, all bool) *Report {
+	t.Helper()
+	fakeGH(t)
+	rep, err := Run(Options{Repo: repo, Since: 72 * time.Hour, Now: redNow, Events: strings.NewReader(events), RedMainAll: all})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return rep
+}
+
+func TestRedMainCounts(t *testing.T) {
+	rm := redReport(t, redFixture, "a/b", false).RedMain
+	want := RedMain{Events: 3, EventsPerDay: 1, Windows: 2, RedHours: 28,
+		PerDay: []RedDay{{"2026-11-04", 2}, {"2026-11-05", 1}}}
+	if jsonOf(t, rm) != jsonOf(t, want) {
+		t.Errorf("red main: got %s, want %s", jsonOf(t, rm), jsonOf(t, want))
+	}
+	text := redReport(t, redFixture, "a/b", false).Text()
+	for _, line := range []string{"  events 3, events/day 1.00, windows 2, red hours 28.0", "    2026-11-04         2", "    2026-11-05         1"} {
+		if !strings.Contains(text, line+"\n") {
+			t.Errorf("text misses %q:\n%s", line, text)
+		}
+	}
+}
+
+func TestRedMainUnknownIsNotRed(t *testing.T) {
+	only := `{"ts": "2026-11-05T10:00:00Z", "entity": "redmain", "entity_id": "a/b", "action": "red-main-unknown"}` + "\n"
+	rm := redReport(t, only, "a/b", false).RedMain
+	if rm.Events != 0 || rm.Windows != 0 || rm.RedHours != 0 || len(rm.PerDay) != 0 {
+		t.Errorf("red-main-unknown counted as red: %+v", rm)
+	}
+}
+
+func TestRedMainClipsToWindow(t *testing.T) {
+	// window starts 11-03 09:00; a window opened 11-02 and cleared 11-03 12:00 counts 3 h, its event is outside.
+	ev := `{"ts": "2026-11-02T10:00:00Z", "entity": "redmain", "entity_id": "a/b", "action": "red-main"}
+{"ts": "2026-11-03T12:00:00Z", "entity": "redmain", "entity_id": "a/b", "action": "red-main-clear"}
+`
+	rm := redReport(t, ev, "a/b", false).RedMain
+	if rm.Events != 0 || rm.Windows != 1 || rm.RedHours != 3 {
+		t.Errorf("clipping: %+v, want 0 events, 1 window, 3 h", rm)
+	}
+}
+
+// TestRedMainDayBuckets: the day is the date in the ts's own offset. It does not read the machine time zone, so the
+// test passes under TZ=UTC and TZ=Asia/Tokyo.
+func TestRedMainDayBuckets(t *testing.T) {
+	ev := `{"ts": "2026-11-04T23:30:00+01:00", "entity": "redmain", "entity_id": "a/b", "action": "red-main"}
+{"ts": "2026-11-05T00:30:00+01:00", "entity": "redmain", "entity_id": "a/b", "action": "red-main-clear"}
+{"ts": "2026-11-05T00:45:00+01:00", "entity": "redmain", "entity_id": "a/b", "action": "red-main"}
+`
+	rm := redReport(t, ev, "a/b", false).RedMain
+	want := []RedDay{{"2026-11-04", 1}, {"2026-11-05", 1}}
+	if jsonOf(t, rm.PerDay) != jsonOf(t, want) {
+		t.Errorf("per_day: got %s, want %s (UTC dates would be 2026-11-04 twice)", jsonOf(t, rm.PerDay), jsonOf(t, want))
+	}
+}
+
+func TestRedMainRepoFilter(t *testing.T) {
+	rep := redReport(t, redFixture, "a/b", false)
+	if rep.RedMain.Events != 3 || len(rep.RedMainRepos) != 0 {
+		t.Errorf("--repo a/b: events %d, repos %d, want 3 and none listed", rep.RedMain.Events, len(rep.RedMainRepos))
+	}
+	if strings.Contains(rep.Text(), "c/d") {
+		t.Error("c/d shown without --red-main-all")
+	}
+	all := redReport(t, redFixture, "a/b", true)
+	if len(all.RedMainRepos) != 2 || all.RedMainRepos[0].Repo != "a/b" || all.RedMainRepos[0].Events != 3 ||
+		all.RedMainRepos[1].Repo != "c/d" || all.RedMainRepos[1].Events != 1 || all.RedMainRepos[1].Windows != 1 {
+		t.Errorf("--red-main-all: %s", jsonOf(t, all.RedMainRepos))
+	}
+	if !strings.Contains(all.Text(), "red main repo c/d\n") {
+		t.Errorf("text misses c/d:\n%s", all.Text())
+	}
+}
+
+// TestRedMainSameWindowsAsStageMap: a PR that lies fully inside the red windows spends its judge time as red_main,
+// and that time equals the red_hours of the same windows (one code path: Index.RedRepos feeds both).
+func TestRedMainSameWindowsAsStageMap(t *testing.T) {
+	ix, err := ReadEvents(strings.NewReader(redFixture), "a/b", time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// PR opens 11-04 10:00, judge from 10:30 to merge 11-05 09:00+... use 11-06 09:00 (now): spans both windows.
+	created := time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)
+	ev := []TaskEvent{{At: created, Action: "judge-autospawn"}}
+	w := Stages(created, redNow, ev, ix.Red)
+	rm := redMainOf(ix.RedRepos["a/b"], created, redNow)
+	if got := w.Hours()[StageRedMain]; math.Abs(got-rm.RedHours) > 0.001 || rm.RedHours != 28 {
+		t.Errorf("stage map red_main %.2f h, red_hours %.2f h, want both 28", got, rm.RedHours)
+	}
+}
+
+// TestExistingOutputUnchanged: the text up to the new section and every pre-T-1760 JSON key equal the golden files
+// made with the code before the change.
+func TestExistingOutputUnchanged(t *testing.T) {
+	rep := fixtureReport(t)
+	golden := string(readFixture(t, "report.text.golden"))
+	text := rep.Text()
+	if !strings.HasPrefix(text, golden) {
+		t.Errorf("existing text lines changed:\n%s\nwant prefix:\n%s", text, golden)
+	}
+	if rest := strings.TrimPrefix(text, golden); !strings.HasPrefix(rest, "red main (") {
+		t.Errorf("the added section does not follow the old text directly: %q", rest)
+	}
+	js, err := rep.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got, want map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(js), &got); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(readFixture(t, "report.json.golden"), &want); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range want {
+		var a, b any
+		if json.Unmarshal(v, &a) != nil || json.Unmarshal(got[k], &b) != nil || jsonOf(t, a) != jsonOf(t, b) {
+			t.Errorf("JSON key %q changed: got %s, want %s", k, got[k], v)
+		}
+	}
+	for _, k := range []string{"events", "events_per_day", "windows", "red_hours", "per_day"} {
+		var rm map[string]json.RawMessage
+		if json.Unmarshal(got["red_main"], &rm) != nil || rm[k] == nil {
+			t.Errorf("red_main.%s missing in %s", k, js)
+		}
+	}
+}
