@@ -8163,6 +8163,13 @@ def cmd_refresh(a):
 PRECHECK_ROLES = ("reviewer", "qa", "judge")
 
 
+def refresh_only_if_conflicting(pr):
+    """Owner order M40469 (T-1788): a judge or lead never merges main into a PASS+PASS PR unless GitHub says it is
+    CONFLICTING. A merely BEHIND head (mergeable MERGEABLE/UNKNOWN, mergeStateStatus BEHIND/CLEAN/UNSTABLE/BLOCKED) is
+    left alone: a refresh moves the head, so the reviewer/QA verdicts no longer match it and the merge gate re-waits."""
+    return (pr.get("mergeable") or "").upper() == "CONFLICTING"
+
+
 def staleness_precheck(con, role, task):
     """Spawn pre-check (T-0172): a reviewer, qa or judge is not spawned on a stale head. A clean-behind head is
     refreshed with refresh_branch (the one core of `factory refresh` and the judge's refresh) and the spawn goes on;
@@ -8203,8 +8210,8 @@ def staleness_precheck(con, role, task):
             event(con, "task", task, "precheck-no-refresh", f"{nr} @ {old[:8]}: {'; '.join(why)}"[:900])
             con.commit()
             return None
-    if role == "judge" and pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
-        return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
+    if role == "judge" and not refresh_only_if_conflicting(pr):
+        return None  # M40469: the spawn pre-check merges main only into a CONFLICTING PR; a BEHIND one is left alone
     # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
     # starts, and the judge refreshes before merging anyway. Only a conflict is refused (dry run: pushes nothing).
     r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task, dry_run=role in ("reviewer", "qa"))
