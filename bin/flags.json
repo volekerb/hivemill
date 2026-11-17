@@ -902,6 +902,14 @@
    "doc": ""
   },
   {
+   "key": "stale_no_refresh",
+   "kind": "setting",
+   "default": "on",
+   "summary": "on: a BEHIND PR with CI green, reviewer+QA PASS on the head, clean merge-tree, no shared file and MERGEABLE merges without a refresh; off: rollback",
+   "goal": "G-058",
+   "doc": "docs/stale-policy.md"
+  },
+  {
    "key": "stale_policy",
    "kind": "flag",
    "default": "behind_ok",
