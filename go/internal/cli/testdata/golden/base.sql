@@ -192,6 +192,7 @@ INSERT INTO "config"("key","value") VALUES('coder_ci_resume_max','2');
 INSERT INTO "config"("key","value") VALUES('review_reserved_slots','2');
 INSERT INTO "config"("key","value") VALUES('retro_enabled','1');
 INSERT INTO "config"("key","value") VALUES('retro_hour','6');
+INSERT INTO "config"("key","value") VALUES('retro_org','cursor');
 INSERT INTO "config"("key","value") VALUES('retro_max_minutes','20');
 INSERT INTO "config"("key","value") VALUES('dispatch_max_per_tick','2');
 INSERT INTO "config"("key","value") VALUES('dispatch_max_team_workers','2');
