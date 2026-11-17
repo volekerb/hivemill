@@ -55,6 +55,8 @@ class PrcheckTests(FactoryTestCase):
         git("worktree", "add", "-q", "-b", BRANCH, str(self.wt), "origin/main", cwd=self.main)
         commit(self.wt, "work.txt")
         e.seed_project()
+        e.sql("UPDATE projects SET gh_repo='zz-owner/factory-like' WHERE id='zz-test-proj'")
+        e.sql("INSERT OR REPLACE INTO config(key,value) VALUES('factory_remote_url','https://github.com/zz-owner/factory-like.git')")
         e.seed_goal(project="zz-test-proj")
         e.seed_team(lead="zz-test-lead")
         e.seed_task(status="in_progress", team="g-001-a")
@@ -203,6 +205,29 @@ class PrcheckTests(FactoryTestCase):
         ok, note = ns["prcheck_affected"](str(self.wt), "main", project_id="zz-test-proj")
         self.assertFalse(ok)
         self.assertIn("cannot read origin/main to decide if ci/affected.py applies", note)
+
+    def test_affected_na_for_non_factory_project_and_other_checks_still_run(self):
+        self.env.sql("UPDATE projects SET gh_repo='zz-owner/other-repo' WHERE id='zz-test-proj'")
+        commit(self.wt, "ci/affected.py", "import sys\nsys.exit(1)\n", msg="red affected")  # would FAIL if it ran
+        p = self.prcheck(0)
+        self.assertIn("PASS affected: n/a (not the factory repo)", p.stdout)
+        for name in ("fresh", "identity", "body", "public-text", "tier"):
+            self.assertIn(f"PASS {name}:", p.stdout)
+
+    def test_non_factory_project_still_fails_other_checks(self):
+        self.env.sql("UPDATE projects SET gh_repo='zz-owner/other-repo' WHERE id='zz-test-proj'")
+        self.env.seed_pr(url=PR_URL, body="")
+        p = self.prcheck(1)
+        self.assertIn("PASS affected: n/a (not the factory repo)", p.stdout)
+        self.assertIn("FAIL body:", p.stdout)
+
+    def test_factory_project_id_runs_affected_and_fails_when_red(self):
+        self.env.sql("INSERT INTO projects(id,name,auto_merge,created) VALUES('factory','factory',1,'t')")
+        self.env.sql("UPDATE goals SET project_id='factory' WHERE id='G-001'")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('gate_fast_projects','')")  # run locally, not via CI
+        commit(self.wt, "ci/affected.py", "import sys\nsys.exit(1)\n", msg="red affected")
+        p = self.prcheck(1)
+        self.assertIn("FAIL affected: ci/affected.py --run exited 1", p.stdout)
 
     # -- 5b affected holds a test slot (T-0876) ----------------------------------------
     def hold_slots(self, n):
