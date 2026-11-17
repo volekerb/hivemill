@@ -179,6 +179,7 @@ DEFAULT_CONFIG = {
     "review_verdict_timeout_min": "45",  # with review_autospawn=on: a tick-started reviewer/qa live this many minutes with no verdict gets a stop request (then one replacement); 0 = off (T-1600, docs/review-autospawn.md)
     "retro_enabled": "1",        # only the exact string "1" starts a new daily retro run from retro_hour
     "retro_hour": "6",           # local hour from which the tick may claim today's retro (before digest_hour)
+    "retro_org": "cursor",       # cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)
     "retro_max_minutes": "20",   # wall budget of one retro run; over it the tick force-stops it
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
@@ -253,6 +254,7 @@ DEFAULT_CONFIG = {
     # reasoning effort for Opus agents (`claude --effort`, owner M2741); "" = leave Claude's default. Sonnet is never touched.
     "opus_effort": "medium",
     "judge_max_refreshes": "4",  # refreshes one `factory judge --merge` run does before it gives up with STALE-LOOP; invalid or < 1 -> 4
+    "judge_ci_gate": "pr",       # T-1772 (owner M40242): pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS + clean merge-tree + no overlap only, no PR check is read or waited on (docs/judge-ci-gate.md)
     "judge_ci_wait_s": "2400",   # `factory judge --merge` waits this long for pending CI before refusing (polls every 30 s); 40 min fits the 35-min CI limit (#117)
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
@@ -6212,6 +6214,12 @@ def _judge_sleep(seconds):
     time.sleep(seconds)
 
 
+def judge_ci_none(con):
+    """T-1772: config judge_ci_gate=none turns the judge's GitHub PR check reading and waiting off (the main push run is
+    the gate, red_main_check). Any other value, including an unreadable one, keeps today's behaviour (pr)."""
+    return (cfg(con, "judge_ci_gate") or "pr").strip().lower() == "none"
+
+
 def _judge_wait_limit(con):
     try:
         return int(cfg(con, "judge_ci_wait_s"))
@@ -6361,7 +6369,8 @@ def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carr
             "no file changed by both main and the PR since the merge-base", f"{CI_WORKFLOW} unchanged on main",
             "GitHub MERGEABLE"]
     hold = []
-    bad = (local_checks_problems(proj, pr) if proj
+    bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
+           local_checks_problems(proj, pr) if proj
            else checks_ok(pr) + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
     if bad:
         hold.append("CI not green on the head: " + ", ".join(bad))
@@ -6551,6 +6560,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
     """Poll the PR while its only non-green checks are pending (`judge_ci_wait_s`). With `new_head` (just pushed by a
     refresh) it first waits for GitHub to report that head, and for its checks to appear (required ones, or any when the
     old head had some): an empty rollup right after a push is not green. Returns (pr, seconds waited)."""
+    if judge_ci_none(con):  # T-1772: the judge never waits on GitHub PR checks
+        return pr, 0
     proj = gate_project_for(con, url)  # T-0516: the gate is gate_runs, GitHub checks need not exist
     local = proj is not None
 
@@ -7514,7 +7525,8 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append("PR is a draft")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
-        bad = local_checks_problems(proj, pr) if proj else checks_ok(pr)  # T-1634: local mode, see local_checks_problems
+        bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
+               local_checks_problems(proj, pr) if proj else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -7531,7 +7543,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 problems += local_gate_problems(
                     con, proj, t["pr_url"], sha, stale[2], stale[0], behind_ok=behind_clean,
                     body=lambda: gh_json("pr", "view", t["pr_url"], "--json", "body").get("body") or "")
-        else:
+        elif not judge_ci_none(con):
             problems += missing_checks(con, pr, t["pr_url"])
         g = con.execute("SELECT p.auto_merge FROM goals g LEFT JOIN projects p ON p.id=g.project_id WHERE g.id=?",
                         (t["goal_id"],)).fetchone()
@@ -7567,6 +7579,11 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 pass  # TODO(T-0623): refuse here while the red-main freeze is active
         if not behind_clean and stale[1] == "STALE" and not others and mech:
             problems.append("STALE-ONLY: the mechanical merger does not refresh; refresh by hand (`factory refresh`) or the judge does")
+        elif not behind_clean and stale[1] == "STALE" and not others and judge_ci_none(con):
+            # T-1772: judge_ci_gate=none never refreshes (a refresh would restart CI that the judge no longer waits for);
+            # a head that cannot merge as it is (overlap with main, dirty merge-tree, strict protection) is refused
+            problems.append("judge_ci_gate=none does not refresh the branch: "
+                            + (blocker or "; ".join(nr_why) or "the head cannot merge behind main as it is"))
         elif not behind_clean and stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
@@ -8748,12 +8765,14 @@ def _red_main_revert_task(con, slug, run, since_ts):
     ev = [r for r in ev if since <= _red_main_when(r["ts"])] if since else ev[:3]
     merged = list(dict.fromkeys(r["entity_id"] for r in ev))
     tid = next_id(con, "tasks", "T", 4)
-    title = f"Red main: revert or fix {slug} run {run['databaseId']}"
+    title = f"Red main: bisect + revert {slug} run {run['databaseId']}"
     spec = (f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main failed ({run.get('url') or 'no url'}, "
-            f"head {str(run.get('headSha') or '')[:8]}). The red-main freeze holds every merge until a green push run. Merged since "
-            f"the last green main: {', '.join(merged) or 'unknown'}. Find the cause in the run log and open a PR that reverts or "
-            "fixes it; the freeze lifts by itself on the next green push run.")
-    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated) VALUES(?,?,?,?,?,'coder','[]',?,?)",
+            f"head {str(run.get('headSha') or '')[:8]}). With judge_ci_gate=none the main push run is the merge gate, so a red run "
+            f"means one of the merges since the last green main broke it: {', '.join(merged) or 'unknown'}. Bisect those merge "
+            "commits (git bisect or one revert at a time, newest first), find the culprit in the run log, and open a PR that "
+            "reverts it or fixes it; the freeze lifts by itself on the next green push run.")
+    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated,priority) "
+                "VALUES(?,?,?,?,?,'coder','[]',?,?,1)",
                 (tid, g["id"], title, spec, "main's push run of tests.yml is green again", now(), now()))
     event_as(con, "tick", "task", tid, "add", title)
     return tid, merged
@@ -11886,7 +11905,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if role == "researcher" and not task:
         die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
     if role == "retro":
-        org = "cursor"  # the daily retro job is always cursor runtime (retro/schedule.py passes the same org)
+        retro_cfg = cfg(con, "retro_org")
+        if str(retro_cfg).strip() not in ("cursor", "claude"):
+            die(f"retro_org must be cursor or claude, got '{retro_cfg}'; fix it with `factory config retro_org cursor`", 2)
+        # a relaunch or dequeue of a running retro keeps its own org (the run row stores the agent name); only a new retro follows the config
+        org = org or orgs.prefix_of(name or "") or str(retro_cfg).strip()
     if task and not (goal and team):  # a team-less `spawn --task` still belongs to the task's goal/team (utilization, alerts)
         trow = con.execute("SELECT goal_id, team_id FROM tasks WHERE id=?", (task,)).fetchone()
         if trow:
@@ -17350,6 +17373,8 @@ def judge_pr_ready(con, pr_url, behind_ok=False):
     proj = gate_project_for(con, pr_url)
     if proj:
         return gate_pr_ready(con, proj, pr_url, behind_ok)
+    if judge_ci_none(con):  # T-1772: no GitHub PR check is read or waited on; the merge gate decides on verdicts and merge-tree
+        return True, "judge_ci_gate=none: PR checks not read"
     key, t = "judge_ci:" + pr_url, time.time()
     row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
     try:
