@@ -89,7 +89,7 @@ var (
 )
 
 // srcScratchRoots is src_scratch_roots: realpaths of the caller's own scratchpad. The second result is the refusal text.
-func srcScratchRoots(c *ctx) ([]string, string, error) {
+func srcScratchRoots(c *ctx) ([]string, string, string, error) {
 	who := c.env.Getenv("FACTORY_AGENT")
 	var cwd, sid sql.NullString
 	found := false
@@ -99,31 +99,31 @@ func srcScratchRoots(c *ctx) ([]string, string, error) {
 		case err == nil:
 			found = true
 		case !errors.Is(err, sql.ErrNoRows):
-			return nil, "", fmt.Errorf("read agent %s: %w", who, err)
+			return nil, "", "", fmt.Errorf("read agent %s: %w", who, err)
 		}
 	}
 	if !found || cwd.String == "" {
-		return nil, "factory src runs as a registered agent: FACTORY_AGENT must name an agent with a registered cwd", nil
+		return nil, "factory src runs as a registered agent: FACTORY_AGENT must name an agent with a registered cwd", "", nil
 	}
 	agentCwd := identity.Realpath(cwd.String)
 	here, err := c.deps.getwd()
 	if err != nil {
-		return nil, "", errDelegate
+		return nil, "", "", errDelegate
 	}
 	if identity.Realpath(here) != agentCwd {
-		return nil, fmt.Sprintf("run factory src from your own working directory %s, not %s", agentCwd, identity.Realpath(here)), nil
+		return nil, fmt.Sprintf("run factory src from your own working directory %s, not %s", agentCwd, identity.Realpath(here)), "", nil
 	}
 	if !utf8.ValidString(agentCwd) {
-		return nil, "", errDelegate
+		return nil, "", "", errDelegate
 	}
 	base := filepath.Join(srcTmpBase, fmt.Sprintf("claude-%d", c.env.Uid), srcSlugBadRE.ReplaceAllString(agentCwd, "-"))
 	// the slug is one "-" per code point; ReplaceAllString replaces a multi-byte character once, as Python does
 	var roots []string
 	if sid.String != "" && !srcSessionRE.MatchString(sid.String) {
-		return nil, fmt.Sprintf("registered session id %s is not a plain id", verdictRepr(sid.String)), nil
+		return nil, fmt.Sprintf("registered session id %s is not a plain id", verdictRepr(sid.String)), "", nil
 	}
 	if fi, err := os.Lstat(base); err != nil || fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
-		return roots, "", nil
+		return roots, "", "", nil
 	}
 	var subs []string
 	if sid.String != "" {
@@ -131,7 +131,7 @@ func srcScratchRoots(c *ctx) ([]string, string, error) {
 	} else {
 		ents, err := os.ReadDir(base)
 		if err != nil {
-			return roots, "", nil // OSError: the roots found so far
+			return roots, "", "", nil // OSError: the roots found so far
 		}
 		for _, e := range ents {
 			subs = append(subs, e.Name())
@@ -150,9 +150,14 @@ func srcScratchRoots(c *ctx) ([]string, string, error) {
 		// T-1678: the stored session id is stale (a respawned or relaunched pane runs under another session id, or the
 		// slug holds two session dirs). Python owns that decision (T-1639: the caller's claude ancestor's session ids,
 		// then the newest session dir only); Go knows only the stored id and used to refuse with "no scratchpad found".
-		return nil, "", errDelegate
+		return nil, "", "", errDelegate
 	}
-	return roots, "", nil
+	if sid.String != "" {
+		// T-1678: the stored id owns a scratchpad but the live pane may run under another session dir of this slug; the
+		// caller (runSrc) hands a dest in a sibling session dir to Python, which adds the claude ancestor's session ids.
+		return roots, "", identity.Realpath(base), nil
+	}
+	return roots, "", "", nil
 }
 
 // srcSharedCheckouts is src_shared_checkouts: the factory home, the live homes, the running checkout and every
@@ -307,6 +312,15 @@ func lookIn(dirs []string, name string) (string, bool) {
 	return "", false
 }
 
+// inSiblingPad: dest is strictly inside <slugBase>/<session>/scratchpad for some session dir of the cwd slug.
+func inSiblingPad(dest, slugBase string) bool {
+	if !strings.HasPrefix(dest, slugBase+"/") {
+		return false
+	}
+	parts := strings.Split(strings.TrimPrefix(dest, slugBase+"/"), "/")
+	return len(parts) >= 3 && parts[1] == "scratchpad"
+}
+
 func runSrc(c *ctx, parsed any) (int, error) {
 	a := parsed.(srcCmd)
 	live, err := c.env.HomeIsLive()
@@ -321,7 +335,7 @@ func runSrc(c *ctx, parsed any) (int, error) {
 	if strings.Contains(a.ref, "\x00") || strings.Contains(a.dest, "\x00") {
 		return 0, dieErr(2, "bad ref or dest")
 	}
-	roots, msg, err := srcScratchRoots(c)
+	roots, msg, slugBase, err := srcScratchRoots(c)
 	if err != nil {
 		return 0, err
 	}
@@ -345,6 +359,9 @@ func runSrc(c *ctx, parsed any) (int, error) {
 		if dest != r && strings.HasPrefix(dest, r+"/") {
 			inside = true
 		}
+	}
+	if !inside && slugBase != "" && inSiblingPad(dest, slugBase) {
+		return 0, errDelegate // T-1678: dest lies in another session dir of this cwd slug; Python's ancestor-id rule decides
 	}
 	if !inside {
 		return 0, dieErr(2, fmt.Sprintf("dest %s is not inside your scratchpad (%s); pick a subdirectory there", dest, roots[0]))

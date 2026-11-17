@@ -271,26 +271,40 @@ func TestSrcExtractTarFails(t *testing.T) {
 // symptom must reach Python instead: no scratchpad for the stored id, two session dirs under the slug, session-id mismatch.
 func TestSrcStaleSessionHandsOver(t *testing.T) {
 	slugDir := func(s *srcEnv) string { return filepath.Dir(filepath.Dir(s.scratch)) }
+	mustNil := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+	}
 	for _, tc := range []struct {
 		name  string
-		setup func(s *srcEnv)
+		setup func(s *srcEnv) string // returns the dest
 	}{
-		{"no scratchpad for the stored id", func(s *srcEnv) {
-			os.RemoveAll(filepath.Join(slugDir(s), "sess1"))
+		{"no scratchpad for the stored id", func(s *srcEnv) string {
+			mustNil(os.RemoveAll(filepath.Join(slugDir(s), "sess1")))
 			s.sql("UPDATE agents SET session_id='stale-old' WHERE name='claude-coder'")
-			os.MkdirAll(filepath.Join(slugDir(s), "live-new", "scratchpad"), 0o755)
+			mustNil(os.MkdirAll(filepath.Join(slugDir(s), "live-new", "scratchpad"), 0o755))
+			return filepath.Join(s.scratch, "o")
 		}},
-		{"two session dirs, stored id in neither", func(s *srcEnv) {
+		{"two session dirs, stored id in neither", func(s *srcEnv) string {
 			s.sql("UPDATE agents SET session_id='stale-old' WHERE name='claude-coder'")
-			os.MkdirAll(filepath.Join(slugDir(s), "live-new", "scratchpad"), 0o755)
+			mustNil(os.MkdirAll(filepath.Join(slugDir(s), "live-new", "scratchpad"), 0o755))
+			return filepath.Join(s.scratch, "o")
 		}},
-		{"session-id mismatch after a relaunch", func(s *srcEnv) {
+		{"session-id mismatch after a relaunch", func(s *srcEnv) string {
 			s.sql("UPDATE agents SET session_id='relaunched-id' WHERE name='claude-coder'")
+			return filepath.Join(s.scratch, "o")
+		}},
+		{"two session dirs, stored id's pad exists, dest in the live session's pad", func(s *srcEnv) string {
+			live := filepath.Join(slugDir(s), "live-new", "scratchpad")
+			mustNil(os.MkdirAll(live, 0o755))
+			return filepath.Join(live, "o")
 		}},
 	} {
 		s := newSrcEnv(t)
-		tc.setup(s)
-		out, errs, code := s.src("HEAD", filepath.Join(s.scratch, "o"))
+		dest := tc.setup(s)
+		out, errs, code := s.src("HEAD", dest)
 		if s.execs != 1 || code != 0 || out != "" || errs != "" {
 			t.Errorf("%s: want a hand-over to Python, got execs %d exit %d out %q err %q", tc.name, s.execs, code, out, errs)
 		}
