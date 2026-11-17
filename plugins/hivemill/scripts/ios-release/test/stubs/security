@@ -1,0 +1,14 @@
+#!/bin/bash
+# Test stand-in for the macOS "security" tool. Logs every call's argv to $STUB_SECURITY_LOG (when set) and answers
+# "find-generic-password ... -a NAME -w" with the value of env STUB_SECURITY_<NAME>; a missing value is exit 44.
+if [ -n "${STUB_SECURITY_LOG:-}" ]; then echo "security $*" >> "$STUB_SECURITY_LOG"; fi
+name=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-a" ]; then name="$a"; fi
+  prev="$a"
+done
+var="STUB_SECURITY_${name}"
+value="${!var:-}"
+if [ -z "$value" ]; then exit 44; fi
+printf '%s\n' "$value"

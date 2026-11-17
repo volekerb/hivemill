@@ -1,0 +1,97 @@
+{
+  "attribution": {"pr": ""},
+  "permissions": {
+    "deny": [
+      "Advisor",
+      "Bash(gh pr merge:*)",
+      "Bash(sqlite3:*)",
+      "Bash(claude:*)",
+      "Bash(herdr server stop:*)",
+      "Bash(hc server stop:*)",
+      "Bash(herdr-core server stop:*)",
+      "Bash(hc kill:*)",
+      "Bash(hc rm:*)",
+      "Bash(hc run:*)",
+      "Bash(herdr workspace close:*)",
+      "Bash(herdr tab close:*)",
+      "Bash(herdr pane close:*)",
+      "Bash(herdr agent start:*)",
+      "Bash(herdr workspace create:*)",
+      "Bash(herdr tab create:*)",
+      "Bash(herdr pane split:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(rm -rf ~/factory:*)",
+      "Bash(rm -rf /w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f:*)",
+      "Edit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/factory.db*)",
+      "Write(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/factory.db*)",
+      "Edit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/db/**)",
+      "Write(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/db/**)",
+      "Edit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/exports/**)",
+      "Write(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/exports/**)",
+      "Edit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/state/**)",
+      "Write(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/state/**)",
+      "Edit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/bin/**)",
+      "Write(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/bin/**)",
+      "Edit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/roles/**)",
+      "Write(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/roles/**)",
+      "Edit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/run/settings/**)",
+      "Write(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/run/settings/**)",
+      "Edit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/run/guard-export.json*)",
+      "Write(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/run/guard-export.json*)",
+      "MultiEdit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/run/guard-export.json*)",
+      "NotebookEdit(//w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/run/guard-export.json*)",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset:*)",
+      "Bash(sudo:*)",
+      "Bash(su:*)",
+      "Bash(doas:*)",
+      "Bash(pkexec:*)",
+      "Bash(docker:*)"
+    ],
+    "allow": [
+      "Bash(factory:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "engineering@synced": false,
+    "design@synced": false,
+    "product-management@synced": false,
+    "productivity@synced": false,
+    "cowork-plugin-management@synced": false
+  },
+  "env": {
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
+    "FACTORY_ROLE": "lead",
+    "CLAUDE_CODE_DISABLE_ADVISOR_TOOL": "1",
+    "CAVEMAN_DEFAULT_MODE": "caveman"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /w/\u00fcser/fa\"c\\tory\t\ud835\udd18\u007f/roles/hooks/worker-guard.py --hq"
+          }
+        ]
+      }
+    ]
+  }
+}
