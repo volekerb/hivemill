@@ -50,7 +50,13 @@ Server checks (each refusal exits 2 with one `forward: ...` line and runs nothin
 - a mapped cwd that is not a directory on the HQ machine.
 
 The CLI's env on the HQ machine is: the server's own `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_ALL`,
-`LC_CTYPE`, `TZ`, `TMPDIR`, `FACTORY_HOME`; the allow-listed keys from the header; and `FACTORY_FORWARDED=1`. A
+`LC_CTYPE`, `TZ`, `TMPDIR`, `FACTORY_HOME`; the allow-listed keys from the header; and `FACTORY_FORWARDED=1`.
+
+Locale is explicit: only `LANG`, `LC_ALL` and `LC_CTYPE` are kept, from the HQ server's own env, i.e. whatever the ssh
+session on the HQ machine provides (the HQ user's login shell env, or a locale sshd accepts via `AcceptEnv LANG LC_*`
+when the client's ssh config has `SendEnv`). The forwarder itself never carries the client's locale: `LANG` and `LC_*`
+are not on the header allow-list, so a header with them is refused, and other `LC_*` keys (e.g. `LC_MESSAGES`) are
+dropped. If the CLI needs a UTF-8 locale on HQ, set it in the HQ user's shell env; do not rely on `AcceptEnv`. A
 client can never set `FACTORY_FORWARDED` (it is not on the allow-list). The identity check that uses it is on the HQ
 CLI side (see Remote spawn), not in the forwarder.
 

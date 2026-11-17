@@ -23,13 +23,16 @@ type Probe struct {
 }
 
 // SelfTestPlan lists the probes for the profile built from in. Pure data.
-func SelfTestPlan(in ProfileInput) []Probe {
+// nonce is unique per preflight run: every probe path carries it, so two
+// concurrent preflights for the same owner never share (or delete) a canary.
+func SelfTestPlan(in ProfileInput, nonce string) []Probe {
+	sfx := "-" + nonce
 	plan := []Probe{
-		{Name: "owner-home-canary", Kind: ProbeRead, Path: path.Join(in.OwnerHome, ".hivemill-selftest-canary"), SetupAsOwner: true},
-		{Name: "owner-keychains-denied", Kind: ProbeRead, Path: path.Join(in.OwnerHome, "Library/Keychains/.hivemill-selftest-canary"), SetupAsOwner: true},
-		{Name: "outside-allow-list-unreadable", Kind: ProbeRead, Path: path.Join(in.OwnerHome, ".hivemill-selftest-outside"), SetupAsOwner: true},
+		{Name: "owner-home-canary", Kind: ProbeRead, Path: path.Join(in.OwnerHome, ".hivemill-selftest-canary"+sfx), SetupAsOwner: true},
+		{Name: "owner-keychains-denied", Kind: ProbeRead, Path: path.Join(in.OwnerHome, "Library/Keychains/.hivemill-selftest-canary"+sfx), SetupAsOwner: true},
+		{Name: "outside-allow-list-unreadable", Kind: ProbeRead, Path: path.Join(in.OwnerHome, ".hivemill-selftest-outside"+sfx), SetupAsOwner: true},
 	}
-	clone := Probe{Name: "clone-writable", Kind: ProbeWrite, Path: path.Join(in.CloneDir, ".hivemill-selftest-write"), WantAllowed: in.CloneWritable}
+	clone := Probe{Name: "clone-writable", Kind: ProbeWrite, Path: path.Join(in.CloneDir, ".hivemill-selftest-write"+sfx), WantAllowed: in.CloneWritable}
 	if !in.CloneWritable {
 		clone.Name = "clone-read-only"
 	}

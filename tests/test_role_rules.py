@@ -77,7 +77,7 @@ class StandingRulesTests(unittest.TestCase):
         self.assertTrue((base / "README.md").is_file())
         self.assertTrue((base / "factory-director" / ".claude-plugin" / "plugin.json").is_file())
         skills = base / "factory-director" / "skills"
-        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["close-goal", "cycle-procedures", "delivery", "owner-decisions", "restriction-check", "utilization"])
+        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["close-goal", "cycle-procedures", "delivery", "lanes-and-holds", "owner-decisions", "restriction-check", "utilization"])
         texts = {}
         for d in skills.iterdir():
             text = (d / "SKILL.md").read_text()
@@ -102,6 +102,19 @@ class StandingRulesTests(unittest.TestCase):
         rc = texts["restriction-check"]
         for needle in ("tick", "judge", "cleaner", "factory-tick", "M733"):
             self.assertIn(needle, rc)
+        lh = texts["lanes-and-holds"]
+        for needle in ("L1 No lane by file name.", "L2 Before blocking a task for a file, run `lane-check plan <branch> --against-open`.",
+                       "L3 A task not yet started that will edit a large shared file starts anyway.",
+                       "L4 A lane block that remains must name the one PR it waits for",
+                       "H1 A judge hold names one unblocking event that someone is working on now, and who.",
+                       "H2 Never hold a PASS/PASS green PR for post-merge evidence", "H3 Never set one hold on many PRs.",
+                       "H4 A hold on a reviewer+QA PASS PR expires after 2 h (tick unit hold_expiry, docs/judge-hold-expiry.md).",
+                       "boss-approved M<id>", "H5 QA could not run a command (sandbox denial): do not hold the PR for a later re-QA.",
+                       "reviewer PASS, QA PASS and green CI"):
+            self.assertIn(needle, lh)
+        self.assertLessEqual(len(lh.encode()), 4500)
+        self.assertEqual(texts["cycle-procedures"].count(
+            "Lanes and judge holds: use the lanes-and-holds skill before blocking a task for a file or setting a hold."), 1)
 
 
 if __name__ == "__main__":
