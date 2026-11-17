@@ -724,3 +724,7 @@ func ghSnapshot(t testing.TB, gitDir string) string {
 
 // ghPwKey is the credential-protocol key the helper prints; spelled as a constant so fixture values are not scanned as secrets.
 const ghPwKey = "pass" + "word="
+
+// ghBaseEnv is every key a flag-off worker pane gets (sorted, as ghKeys returns): the identity keys and, since T-1698, the
+// disk Go/pnpm cache keys (tests/test_worker_ghcred.py BASE_ENV). A GH_* or token key is still a failure.
+var ghBaseEnv = []string{"FACTORY_AGENT", "FACTORY_HOME", "FACTORY_ROLE", "GOCACHE", "GOMODCACHE", "GOTMPDIR", "npm_config_store_dir"}

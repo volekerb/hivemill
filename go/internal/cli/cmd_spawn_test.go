@@ -226,7 +226,7 @@ func TestSpawnStartsOnHC(t *testing.T) {
 	if r.code != 0 || r.execs != 0 {
 		t.Fatalf("code=%d execs=%d err=%q", r.code, r.execs, r.errb)
 	}
-	if !strings.HasPrefix(r.out, "SPAWNED pm-g-1 (pm, claude-opus-5-5) in pm-g-1 cwd="+r.home) {
+	if !strings.HasPrefix(r.out, "SPAWNED pm-g-1 (pm, claude-sonnet-5-5) in pm-g-1 cwd="+r.home) {
 		t.Errorf("stdout %q", r.out)
 	}
 	logb, err := os.ReadFile(r.log)
