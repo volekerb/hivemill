@@ -952,6 +952,13 @@ BRANCH_VALUE_LONG = {"--contains", "--no-contains", "--merged", "--no-merged", "
 GIT_OPTS_ALLOWED = {"-P", "--no-pager", "--no-optional-locks", "--version", "--help"}
 GIT_ALLOW_PLAIN = (GIT_READ_ONLY - {"fetch", "ls-remote"}) | {"merge-tree"}
 GIT_FORBID_LONG = ("--ext-diff", "--output")
+# T-0206: git subcommands whose option list a shell expansion could rewrite at run time (--upload-pack, --output,
+# --ext-diff ...). Worker mode refuses an expansion in these commands' tokens; commit/tag messages etc. are untouched.
+GIT_TRANSPORT_CMDS = ("fetch", "pull", "push", "clone", "ls-remote", "remote", "send-pack", "fetch-pack", "submodule")
+GIT_DIFF_CMDS = ("diff", "show", "log", "whatchanged", "diff-tree", "diff-index", "diff-files", "format-patch", "difftool",
+                 "range-diff", "shortlog", "blame")
+# `$SUB` is the marker script() leaves where it split a command substitution out of the command (see "$SUB" below).
+GIT_EXPANSION = re.compile(r"\$SUB\b|\$\(|`|\$\{|\$'|\{[^{}]*,[^{}]*\}")
 GIT_CONFIG_READ_ONLY = {"--get", "--get-all", "--get-regexp", "--list", "-l"}
 GIT_FETCH_FLAGS = {"--all", "--prune", "-p", "--tags", "-t", "--no-tags", "-q", "--quiet", "-v", "--verbose", "-n",
                    "--dry-run", "-f", "--force", "--no-recurse-submodules", "--prune-tags", "--unshallow"}
@@ -4158,6 +4165,28 @@ class Analyzer:
                             k += 1
                         break
 
+    def git_expansion(self, rest):
+        """T-0206, worker mode: the git subcommand token and every token of a transport or diff command are refused when
+        they contain a command substitution, a backtick, a parameter expansion, an ANSI-C quote or a brace list: the shell
+        turns them into options at run time. The substitution and backtick forms are refused alike. Other subcommands
+        (commit -m with a substituted message) are not touched. Not applied in HQ mode."""
+        i = 0
+        while i < len(rest) and rest[i].startswith("-") and not GIT_EXPANSION.search(rest[i]):
+            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+        if i >= len(rest):
+            return
+        sub, args = rest[i], rest[i + 1:]
+        listed = sub in GIT_TRANSPORT_CMDS + GIT_DIFF_CMDS
+        if listed and "$'" in getattr(self, "text", ""):
+            # shlex drops the quotes, so `$'--output=x'` reaches us as the plain word `$--output=x`: read the raw text
+            raise Block(f"git {sub}: an ANSI-C quote ($'...') in the command could become an option at run time; "
+                        "write the option and its value literally")
+        for tok in ([sub, *args] if listed else [sub]):
+            if GIT_EXPANSION.search(tok):
+                raise Block(f"git {sub if listed else '<subcommand>'}: token {tok!r} contains a shell expansion "
+                            "(command substitution, backtick, ${...}, $'...' or {a,b}) that could become an option at run "
+                            "time (--upload-pack, --output, --ext-diff); write the option and its value literally")
+
     def git_deny(self, why):
         raise Block(f"{self.role} may not run git push, or any git form outside the read-only allow-list ({why}): "
                     "read-only roles only inspect (status, log, diff, show, fetch ...); report results with factory done / "
@@ -4662,6 +4691,8 @@ class Analyzer:
                 if HOST_CLI_WORD.search(a) and re.search(r"(?:^|[\s;{}\d$,])e\b|/[gIpmM]*e[gIpmM]*(?:\s|;|$)", a):
                     raise Block("herdr in a sed e command")
         elif name == "git":
+            if not self.hq:
+                self.git_expansion(rest)  # T-0206
             self.git_shared(words, assigns)  # first: its reason names the own-worktree advice
             self.git_delete(rest)
             if self.role in NO_PUSH_ROLES and not self.hq:
