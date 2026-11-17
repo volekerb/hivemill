@@ -501,3 +501,32 @@ func TestExpireLeavesOtherTasksAlone(t *testing.T) {
 		t.Errorf("hold of the task without verdicts = %q, want it kept", got)
 	}
 }
+
+func TestExpiryClockIgnoresRepeatedSet(t *testing.T) {
+	t.Run("re-set inside one hold span does not restart the clock", func(t *testing.T) {
+		f := newFx(t)
+		f.passPass()
+		f.hold("wait for PR 703", lead, 125)
+		f.hold("wait for PR 703", lead, 25)
+		f.run()
+		d := f.wantExpired(1)
+		if d["held_min"] != float64(125) {
+			t.Errorf("held_min = %v, want 125 (from the first set)", d["held_min"])
+		}
+	})
+	t.Run("set after a clear measures from the new set", func(t *testing.T) {
+		f := newFx(t)
+		f.passPass()
+		f.hold("old hold", lead, 300)
+		f.exec("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,'task',?,'judge-hold-clear','')",
+			f.ago(200), lead, taskID)
+		f.hold("new hold", lead, 60)
+		f.run()
+		if got := f.holdText(); got != "new hold" {
+			t.Errorf("hold text = %q, want it kept", got)
+		}
+		if n := f.events("judge-hold-expired"); n != 0 {
+			t.Errorf("%d judge-hold-expired events, want 0", n)
+		}
+	})
+}
