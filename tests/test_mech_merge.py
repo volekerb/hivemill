@@ -273,6 +273,44 @@ class MechMergeTests(FactoryTestCase):
         self.assertIn("main and the PR both changed base.txt", self.events("mech-blocked")[0])
         self.assertEqual(self.events("refreshed"), [])
 
+    def test_no_refresh_rule_merges_behind_head_with_event(self):
+        # T-1676 AC2 through mech_try: BEHIND, CI green, PASS on the head, clean merge-tree, no shared file, MERGEABLE
+        self._behind_ok_main_moves("main.txt")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        calls = self.merges()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][calls[0].index("--match-head-commit") + 1], self.x)
+        self.assertEqual(self.status(), "done")
+        [ev] = [json.loads(d) for d in self.events("merged-no-refresh")]
+        self.assertEqual(ev["head"], self.x)
+        self.assertIn("CI green on the head", ev["reasons"])
+        self.assertEqual(self.events("refreshed"), [])
+
+    def test_no_refresh_rule_shared_file_blocks_before_the_gate(self):
+        # the rule says refresh: the merger refuses STALE-ONLY itself (never refreshes) and the judge takes it
+        self.commit("base.txt", "base\nPR\n", "pr edits base")
+        self.x = self.publish()
+        self.stub(views=[self.pr(self.x, GREEN)])
+        for agent, summary in (("zz-test-reviewer", "ok"), ("zz-test-qa", gates_summary())):
+            self.assertEqual(self.cli("verdict", "T-0001", "--pass", "--summary", summary, agent=agent).returncode, 0)
+        self._behind_ok_main_moves("base.txt", "MAIN\nbase\n")
+        self.mech("on")
+        [blocked] = self.events("mech-blocked")
+        self.assertIn("STALE-ONLY", blocked)
+        self.assertIn("main and the PR both changed base.txt", blocked)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.events("merged-no-refresh"), [])
+        self.assertEqual(self.events("refreshed"), [])
+
+    def test_no_refresh_rule_off_merges_as_before_without_event(self):
+        self._behind_ok_main_moves("main.txt")
+        self.ok("config", "stale_no_refresh", "off")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.events("merged-no-refresh"), [])
+
     def _judge_candidates(self):
         with self.env.load_factory() as f:
             con = f.db()
@@ -638,6 +676,27 @@ class MechMergeTests(FactoryTestCase):
             self.main_run(conclusion=concl)
             self.assert_held(self.mech("on"), f"main push run 7 {concl}")
             self.env.sql("DELETE FROM events WHERE action='mech-blocked'")
+
+    def test_main_run_cancelled_latest_holds_and_green_latest_merges(self):
+        """T-1592: main push runs share one concurrency group, so an older pending run ends "cancelled". A cancelled run
+        is no information: as the latest run it holds; behind a newer pending run the pending one holds; behind a newer
+        green run for main's head the merge goes on."""
+        cancelled = {"databaseId": 6, "status": "completed", "conclusion": "cancelled", "headSha": "0" * 40}
+        green_old = {"databaseId": 5, "status": "completed", "conclusion": "success", "headSha": "1" * 40}
+        latest_cancelled = {"databaseId": 7, "status": "completed", "conclusion": "cancelled", "headSha": "MAIN"}
+        pending = {"databaseId": 8, "status": "queued", "conclusion": "", "headSha": "MAIN"}
+        for runs, text in (([latest_cancelled, green_old], "main push run 7 cancelled"),
+                           ([pending, cancelled, green_old], "main push run 8 still queued")):
+            with self.subTest(text=text):
+                self.main_run(run_list={"runs": runs})
+                self.assert_held(self.mech("on"), text)
+                self.env.sql("DELETE FROM events WHERE action='mech-blocked'")
+        green = {"databaseId": 9, "status": "completed", "conclusion": "success", "headSha": "MAIN"}
+        self.main_run(run_list={"runs": [green, cancelled, green_old]})
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.status(), "done")
 
     def test_main_run_for_another_sha_holds(self):
         self.main_run(headSha="0" * 40)

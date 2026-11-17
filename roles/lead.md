@@ -37,3 +37,4 @@ The director gave you a goal and a scope. You run a team of short-lived workers.
 - Only the tick syncs the live ~/factory checkout. Never git pull/merge/checkout there; read main with `git fetch` + `git show origin/main:<path>`, or wait for the tick. (L-025)
 - Every task title carries its `[SCn]` tag(s). (M11663)
 - Status is mechanical but drift alerts are yours: fix the status or the task the same hour. (G-013)
+- Every worker brief: on a verdict or new head, `factory msg` the next agent (reviewer, qa, judge) directly, cc you. Each loop, idle workers next to waiting PRs = dispatch now, in parallel. (D-2026-11-17 owner-reported stall)

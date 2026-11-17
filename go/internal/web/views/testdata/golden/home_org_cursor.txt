@@ -1,0 +1,36 @@
+# /?org=cursor
+TEXT
+Overview - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 2 Insights Throughput Quality Tokens Changelog System Resources Overview All Claude Cursor <TS> All normal Needs you 6 Cursor usage · 0 h · Pro · ok Cursor org Boss not running Boss: Not running Director: Not running 1 teams · 0 lead awake · 0 parked · 0 waking · 1 workers 1 Live workers 1 Active goals 0 Queued Showing the Cursor org only. System capacity is shared by both orgs; show all . Needs you 1 All 1 Request Cursor ask T-6 waiting 2 h Goals 1 All goals Active G-002 Cursor goal P2 Cursor 1/3 tasks criteria 1/2 needs you 1 last activity 2 m tm-c port lead cursor-lead-g-002 not running 1 running 1 in progress In progress T-6 Cursor port cursor-coder-t-6 1 try no team 1 to do 1 more To do T-7 not json deps System Resources Agents 3 / 6 OK · 1 queued Memory 4.0 GB free OK · floor 2.0 GB Load 1.5 / 8 CPUs OK · 1-min average Claude usage 50% · 10% OK · 5 h · week Cursor usage 0 h Pro · ok live 4: workers 1 / leads 1 / judges 1 / HQ 1 / queued 1; P1 goals without workers: G-001, G-002 (UNDER TARGET) Agents running 1 All agents 1 running · 1 worker · 0 leads · 0 HQ · 0 queued Running cursor-coder-t-6 coder Cursor T-6 Cursor port Shipped Changelog 1 in 14 days Merges per day, last 14 days Day Merges 2026-11-01 0 2026-11-02 0 2026-11-03 0 2026-11-04 0 2026-11-05 0 2026-11-06 0 2026-11-07 0 2026-11-08 0 2026-11-09 0 2026-11-10 0 2026-11-11 1 2026-11-12 0 2026-11-13 0 2026-11-14 0 per day Done é ünïcode 日本 spaced G-002 PR abc 3 d ago Quality Details Rejections per merged PR i Rejections (failed review, QA or judge) divided by merged PRs, all time. Lower is better. 1.75 First-try merge rate i Share of merged PRs that were never rejected. Higher is better. 75 % Median spawn to merge i Median time from a task's first agent start to its merge, last 14 days. 97.0 h Bouncing now Nothing is bouncing Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 2 More
+LINKS
+#agents
+#content
+#goals
+#more
+#needs-you
+#orgs
+#quality
+#shipped
+#system
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/?org=claude
+a:/?org=cursor
+a:/agents?org=cursor
+a:/agents?org=cursor&status=live
+a:/agents?org=cursor&status=queued
+a:/changelog
+a:/changelog?org=cursor
+a:/goal/G-002
+a:/goals?org=cursor
+a:/quality
+a:/quality?org=cursor
+a:/resources
+a:/resources?org=cursor
+a:/task/T-11
+a:/task/T-6
+a:/task/T-7
+a:/tasks?org=cursor
+a:/throughput?org=cursor
+a:/tokens?org=cursor

@@ -54,14 +54,19 @@ type Env struct {
 	StubBin    string // gh, herdr, hc
 	Home       string // FACTORY_HOME
 	DBPath     string
-	ProcDir    string // FACTORY_PROC_DIR, a fake /proc
-	CallsFile  string // calls.jsonl: one record per stub call
-	ScriptFile string // stub-script.json, written by Script
-	GoBin      string // the factory-go this Env runs
-	Now        string // FACTORY_TEST_NOW
-	Agent      string // default FACTORY_AGENT of Run and OK
-	HeadSHA    string // set by UseGitHead: the PR head commit on the local bare remote
-	RepoURL    string // set by UseGitHead: the local bare remote gh repo view answers with
+	ProcDir    string        // FACTORY_PROC_DIR, a fake /proc
+	CallsFile  string        // calls.jsonl: one record per stub call
+	ScriptFile string        // stub-script.json, written by Script
+	GoBin      string        // the factory-go this Env runs
+	Now        string        // FACTORY_TEST_NOW
+	Agent      string        // default FACTORY_AGENT of Run and OK
+	HeadSHA    string        // set by UseGitHead: the PR head commit on the local bare remote
+	RepoURL    string        // set by UseGitHead: the local bare remote gh repo view answers with
+	Timeout    time.Duration // 0 = 60 s: the limit after which Run kills a hung CLI run (a hook that hangs ends this way)
+
+	herdrStateful bool   // HerdrStateful: the herdr stub keeps state in HerdrStatePath
+	hook, hookAt  string // HerdrHook
+	hookSkip      int    // HerdrHookAfter
 }
 
 // New builds a fresh Env. It builds factory-go and the stub on first use in this test binary.
@@ -182,6 +187,16 @@ func (e *Env) Environ(agent string, extra map[string]string) []string {
 		k, v, _ := strings.Cut(kv, "=")
 		m[k] = v
 	}
+	if e.herdrStateful {
+		m["FAKE_HERDR_MODE"] = "stateful"
+		if e.hook != "" {
+			m["FAKE_HERDR_HOOK"] = e.hook
+			m["FAKE_HERDR_HOOK_AT"] = e.hookAt
+			if e.hookSkip > 0 {
+				m["FAKE_HERDR_HOOK_SKIP"] = strconv.Itoa(e.hookSkip)
+			}
+		}
+	}
 	for k, v := range map[string]string{
 		"FACTORY_HOME":            e.Home,
 		"FAKE_HERDR_STATE":        filepath.Join(e.Root, "herdr.json"),
@@ -228,24 +243,31 @@ func (e *Env) Run(argv []string, stdin string) Result {
 func (e *Env) RunWith(o Opts, args ...string) Result {
 	e.T.Helper()
 	cmd := exec.Command(e.GoBin, args...)
-	cmd.Dir = e.Root
 	cmd.Env = e.Environ(o.Agent, o.Env)
-	cmd.Stdin = strings.NewReader(o.Stdin)
+	return e.runLimited(cmd, o.Stdin, args)
+}
+
+// runLimited runs cmd in the env's root with stdin; after the run limit (Env.Timeout, 60 s) it is killed and the
+// result has exit -1 and a timeout line on stderr.
+func (e *Env) runLimited(cmd *exec.Cmd, stdin string, args []string) Result {
+	e.T.Helper()
+	cmd.Dir = e.Root
+	cmd.Stdin = strings.NewReader(stdin)
 	var so, se bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &so, &se
 	cmd.WaitDelay = 5 * time.Second // a grandchild that keeps the pipes open must not block Wait after the kill
 	if err := cmd.Start(); err != nil {
-		e.T.Fatalf("factorytest: start %s: %v", e.GoBin, err)
+		e.T.Fatalf("factorytest: start %s: %v", cmd.Path, err)
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	var err error
 	select {
 	case err = <-done:
-	case <-time.After(runTimeout):
+	case <-time.After(e.runTimeout()):
 		_ = cmd.Process.Kill()
 		<-done
-		return Result{Exit: -1, Stdout: so.String(), Stderr: se.String() + "factorytest: timed out after 60s\n"}
+		return Result{Exit: -1, Stdout: so.String(), Stderr: se.String() + "factorytest: timed out after " + e.runTimeout().String() + "\n"}
 	}
 	return Result{Exit: exitCode(e.T, args, err), Stdout: so.String(), Stderr: se.String()}
 }
@@ -524,17 +546,96 @@ func (e *Env) Script(tool string, rules ...StubRule) {
 	must(e.T, os.WriteFile(e.ScriptFile, b, 0o644))
 }
 
+// HerdrStatePath is the JSON state file of the stateful herdr stub ($FAKE_HERDR_STATE).
+func (e *Env) HerdrStatePath() string { return filepath.Join(e.Root, "herdr.json") }
+
+// HerdrStateful switches the herdr stub from its scripted answers (Script) to the stateful mode of
+// tests/stubs/herdr: it keeps workspaces, tabs, panes and agents in the state file, and a started agent shows up in
+// the next `agent list`. It starts from an empty state ({}), like FactoryEnv. Call it before the first CLI run of
+// the test.
+func (e *Env) HerdrStateful() {
+	e.T.Helper()
+	e.herdrStateful = true
+	must(e.T, os.WriteFile(e.HerdrStatePath(), []byte("{}"), 0o644))
+}
+
+// SetHerdr merges the knobs into the stateful stub's state file (FactoryEnv.set_herdr(**kw)): "fail" (every call
+// exits 1), "slow_list", "start_fail" (true or an error text), "start_sleep", "wait_sleep", "pane_close_fail",
+// "pane_close_noop", "fail_cmds" ([]string of two-word commands), "read_text" (map agent name -> pane text),
+// "agent_list_ok", "pane_read_text", or rows to seed ("agents", "workspaces", "tabs", "panes"). Values are JSON
+// encoded; ints stay ints.
+func (e *Env) SetHerdr(kw map[string]any) {
+	e.T.Helper()
+	if !e.herdrStateful {
+		e.T.Fatalf("factorytest: SetHerdr needs HerdrStateful first")
+	}
+	st := e.HerdrState()
+	for k, v := range kw {
+		st[k] = v
+	}
+	b, err := json.Marshal(st)
+	must(e.T, err)
+	must(e.T, os.WriteFile(e.HerdrStatePath(), b, 0o644))
+}
+
+// HerdrFail is SetHerdr(fail=...): the stub is unreachable (true) or back (false).
+func (e *Env) HerdrFail(fail bool) { e.T.Helper(); e.SetHerdr(map[string]any{"fail": fail}) }
+
+// HerdrState returns the state file as parsed JSON (numbers as json.Number); a missing or empty file is {}.
+func (e *Env) HerdrState() map[string]any {
+	e.T.Helper()
+	st := map[string]any{}
+	b, err := os.ReadFile(e.HerdrStatePath())
+	if os.IsNotExist(err) || (err == nil && strings.TrimSpace(string(b)) == "") {
+		return st
+	}
+	must(e.T, err)
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	must(e.T, dec.Decode(&st))
+	return st
+}
+
+// HerdrStarts returns the argv of every logged `herdr agent start` call.
+func (e *Env) HerdrStarts() [][]string {
+	e.T.Helper()
+	var out [][]string
+	for _, c := range e.Calls("herdr") {
+		if len(c.Argv) >= 2 && c.Argv[0] == "agent" && c.Argv[1] == "start" {
+			out = append(out, c.Argv)
+		}
+	}
+	return out
+}
+
+// HerdrHook sets FAKE_HERDR_HOOK for every later run: a shell command the stub runs once (marker file
+// <state>.hook-ran, written before the command runs, so herdr calls the hook makes do not re-run it) on the first
+// call, or on the first call whose argv starts with the words of at ("agent start"; "" = any call), before the
+// call is handled. The hook runs synchronously and has no timeout of its own; a hook that hangs is ended by the
+// 60 s limit of Run.
+func (e *Env) HerdrHook(cmd, at string) {
+	e.T.Helper()
+	if !e.herdrStateful {
+		e.T.Fatalf("factorytest: HerdrHook needs HerdrStateful first")
+	}
+	e.hook, e.hookAt, e.hookSkip = cmd, at, 0
+}
+
+// HerdrHookAfter is HerdrHook that lets the first skip calls matching at pass and runs the hook on the next one (a
+// Go-only extension: the Python stub's hook runs on the first match). It puts the hook between two herdr calls of
+// one CLI run, such as the calls of the spawn gate, where a hook on the first match would run too early.
+func (e *Env) HerdrHookAfter(cmd, at string, skip int) {
+	e.T.Helper()
+	e.HerdrHook(cmd, at)
+	e.hookSkip = skip
+}
+
 // RunStub runs the stub as tool ("gh", "herdr", "hc") the way the CLI would, for tests of the harness itself.
 func (e *Env) RunStub(tool, stdin string, extraEnv map[string]string, args ...string) Result {
 	e.T.Helper()
 	cmd := exec.Command(filepath.Join(e.StubBin, tool), args...)
-	cmd.Dir = e.Root
 	cmd.Env = e.Environ("", extraEnv)
-	cmd.Stdin = strings.NewReader(stdin)
-	var so, se bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &so, &se
-	err := cmd.Run()
-	return Result{Exit: exitCode(e.T, args, err), Stdout: so.String(), Stderr: se.String()}
+	return e.runLimited(cmd, stdin, args)
 }
 
 // ---- DB dump -----------------------------------------------------------------------------------------------------
@@ -699,4 +800,12 @@ func (e *Env) addScript(tool string, rules ...StubRule) {
 		must(e.T, json.Unmarshal(b, &all))
 	}
 	e.Script(tool, append(append([]StubRule{}, rules...), all[tool]...)...)
+}
+
+// runTimeout is the limit of one CLI run: Timeout, or the 60 s default.
+func (e *Env) runTimeout() time.Duration {
+	if e.Timeout > 0 {
+		return e.Timeout
+	}
+	return runTimeout
 }

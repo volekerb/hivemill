@@ -7,11 +7,13 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Deep run (owner 2026-11-17): the Python-vs-Go guard comparison jobs and go test -race run only on workflow_dispatch
+  # (`gh workflow run tests`, at most weekly), never per pull request or per merge.
 
 concurrency:
-  # Pushes get a group per sha: a shared main group would still cancel a *pending* run when a newer one queues.
-  group: "tests-${{ github.event_name == 'push' && github.sha || github.event.pull_request.number || github.ref }}"
-  # PR runs cancel older ones; push-to-main runs finish so every main commit gets a completed run (red-main detection)
+  # All pushes to main share one group (tests-main): a newer merge cancels an older *pending* main run, so one run may cover several merges (T-1592).
+  group: "tests-${{ github.event_name == 'push' && 'main' || github.event.pull_request.number || github.ref }}"
+  # PR runs cancel older ones; a *running* push-to-main run is never cancelled and the newest pending one still runs (red-main detection)
   cancel-in-progress: "${{ github.event_name != 'push' }}"
 
 permissions:
@@ -21,6 +23,10 @@ permissions:
 env:
   # Keep equal to the length of the unittest-shard matrix (tests/test_shard.py checks it).
   SHARDS: 10
+  # ci/shard.py scoping: the deep run (workflow_dispatch) runs every module; a PR or push leaves the Python-vs-Go
+  # corpus module to it, and runs the guard hook modules only when the diff from SHARD_BASE touches a guard path.
+  SHARD_DEEP: ${{ github.event_name == 'workflow_dispatch' }}
+  SHARD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
 
 jobs:
   # PRs: ci-tier classifies once. On a docs pull request, unittest-shard and go use a step-level skip and report success; guard jobs stay skipped by their job-level if; docs-check runs (T-1512).
@@ -44,11 +50,14 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
         run: |
           # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
           # Push to main, workflow_dispatch, or a base without the script: the full suite.
           full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
-          if [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
+          if [ "$EVENT" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            BASE_SHA="$BEFORE"  # a merge to main: what this push changed (the deep run is the whole suite)
+          elif [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
           mkdir -p "$RUNNER_TEMP/base"
           if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
             full "base commit has no ci/ci_tier.py"; exit 0
@@ -117,11 +126,14 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
         run: |
           # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
           # Push to main, workflow_dispatch, or a base without the script: the full suite.
           full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
-          if [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
+          if [ "$EVENT" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            BASE_SHA="$BEFORE"  # a merge to main: what this push changed (the deep run is the whole suite)
+          elif [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
           mkdir -p "$RUNNER_TEMP/base"
           if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
             full "base commit has no ci/ci_tier.py"; exit 0
@@ -176,11 +188,14 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
         run: |
           # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
           # Push to main, workflow_dispatch, or a base without the script: the full suite.
           full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
-          if [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
+          if [ "$EVENT" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            BASE_SHA="$BEFORE"  # a merge to main: what this push changed (the deep run is the whole suite)
+          elif [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
           mkdir -p "$RUNNER_TEMP/base"
           if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
             full "base commit has no ci/ci_tier.py"; exit 0
@@ -204,7 +219,7 @@ jobs:
           fi
       - run: go vet ./...
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
-      - run: go test -race -count=1 -timeout 30m ./...
+      - run: go test ${{ github.event_name == 'workflow_dispatch' && '-race' || '' }} -count=1 -timeout 30m ./...
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
       - run: go build ./...
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
@@ -215,7 +230,7 @@ jobs:
   guard-unittest-shard:
     name: guard-unittest-shard (${{ matrix.shard }})
     needs: ci-tier
-    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -251,7 +266,7 @@ jobs:
   guard-unittest:
     name: guard-unittest
     needs: [ci-tier, guard-unittest-shard]
-    if: ${{ always() && (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -266,13 +281,14 @@ jobs:
 
   # ci/guard_diff.py base-vs-PR on the real corpus for guard-path PRs (tool from the BASE commit), its own cap.
   # Steps skip when no guard path changed, so the job is green (not skipped) then.
-  # tests/ changes use ci/ci_tier affected/full modes like other test files; this job is not docs-gated.
+  # tests/ changes use ci/ci_tier affected/full modes like other test files. This job is docs-gated: the if below skips it when ci-tier mode is docs.
   guard-diff:
     name: guard-diff
     needs: ci-tier
     if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Two corpus passes (both modes, then evaluator) take about 32 min on a hosted runner; only guard-path PRs run them.
+    timeout-minutes: 45
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
@@ -352,7 +368,7 @@ jobs:
   guard-self-compare:
     name: guard-self-compare
     needs: ci-tier
-    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -391,7 +407,7 @@ jobs:
   guard-evaluator-home-loosen:
     name: guard-evaluator-home-loosen
     needs: ci-tier
-    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -448,7 +464,7 @@ jobs:
   guard-equiv:
     name: guard-equiv-shard (${{ matrix.shard }})
     needs: ci-tier
-    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -476,7 +492,7 @@ jobs:
             fi
             BASE_SHA="$BEFORE"
           fi
-          if [ "$EVENT" != pull_request ] && [ "$EVENT" != push ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request or push: skipped"; exit 0; fi
+          if [ "$EVENT" != pull_request ] && [ "$EVENT" != push ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "deep run (workflow_dispatch): running"; exit 0; fi
           changed=$(git diff --name-only --no-renames "$BASE_SHA" HEAD)
           # Test sources the real steps run (T-0989): the diff set + routed-rest modules, listed at runtime (no module named here).
           # A failing or empty list must not narrow the path set: fail open (run), never skip.
@@ -537,7 +553,7 @@ jobs:
   guard-equiv-fanin:
     name: guard-equiv
     needs: [ci-tier, guard-equiv]
-    if: ${{ always() && (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -555,7 +571,7 @@ jobs:
   guard-equiv-rest:
     name: guard-equiv-rest
     needs: ci-tier
-    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -579,7 +595,7 @@ jobs:
             fi
             BASE_SHA="$BEFORE"
           fi
-          if [ "$EVENT" != pull_request ] && [ "$EVENT" != push ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request or push: skipped"; exit 0; fi
+          if [ "$EVENT" != pull_request ] && [ "$EVENT" != push ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "deep run (workflow_dispatch): running"; exit 0; fi
           changed=$(git diff --name-only --no-renames "$BASE_SHA" HEAD)
           # Test sources the real steps run (T-0989): the diff set + routed-rest modules, listed at runtime (no module named here).
           # A failing or empty list must not narrow the path set: fail open (run), never skip.
@@ -656,6 +672,8 @@ jobs:
       - name: Docs lane or every shard and guard job succeeded
         env:
           MODE: ${{ needs.ci-tier.outputs.mode }}
+          EVENT: ${{ github.event_name }}
+          DEEP: ${{ github.event_name == 'workflow_dispatch' }}
           DOCS_CHECK_RESULT: ${{ needs.docs-check.result }}
           SHARD_RESULT: ${{ needs.unittest-shard.result }}
           GO_RESULT: ${{ needs.go.result }}
@@ -667,6 +685,7 @@ jobs:
           GUARD_EQUIV_REST_RESULT: ${{ needs.guard-equiv-rest.result }}
         run: |
           if [ "$MODE" = "docs" ]; then
+            if [ "$EVENT" != "pull_request" ]; then echo "docs-only push: nothing to run"; exit 0; fi
             if [ "$DOCS_CHECK_RESULT" != "success" ]; then
               echo "docs-check result: $DOCS_CHECK_RESULT (docs fast lane)" >&2
               exit 1
@@ -682,6 +701,14 @@ jobs:
           if [ "$GO_RESULT" != "success" ]; then
             echo "go result: $GO_RESULT (the go job must succeed)" >&2
             fail=1
+          fi
+          # Guard comparison jobs run only in the weekly/manual deep run; on a PR or a push they are skipped.
+          if [ "$DEEP" != "true" ]; then
+            if [ "$GUARD_DIFF_RESULT" != "success" ]; then echo "guard-diff result: $GUARD_DIFF_RESULT (the real-corpus step must succeed)" >&2; fail=1; fi
+            for r in "$GUARD_UNITTEST_RESULT" "$GUARD_SELF_COMPARE_RESULT" "$GUARD_EVALUATOR_HOME_LOOSEN_RESULT" "$GUARD_EQUIV_RESULT" "$GUARD_EQUIV_REST_RESULT"; do
+              if [ "$r" != "skipped" ]; then echo "guard job result: $r (expected skipped outside the deep run)" >&2; fail=1; fi
+            done
+            exit $fail
           fi
           if [ "$GUARD_UNITTEST_RESULT" != "success" ]; then
             echo "guard-unittest result: $GUARD_UNITTEST_RESULT (GUARD_IMPL=diff must succeed)" >&2

@@ -1,5 +1,6 @@
 INSERT INTO agents(name, role, goal_id, team_id, task_id, status, started)
 VALUES
+ ('coder-b', 'coder', 'G-9', NULL, 'T-9', 'live', '2026-11-05T10:00:00+01:00'),
  ('lead-a', 'lead', 'G-9', 'TM-1', NULL, 'live', '2026-11-01T09:00:00+01:00'),
  ('coder-a', 'coder', 'G-9', NULL, 'T-9', 'live', '2026-11-01T10:00:00+01:00'),
  ('qa-a', 'qa', 'G-9', NULL, 'T-9', 'live', '2026-11-01T10:30:00+01:00'),
@@ -21,4 +22,9 @@ INSERT INTO messages(id, sender, recipient, kind, subject, body, goal_id, task_i
  (13, 'dir-a', 'qa-a', 'msg', 'q4', 'b4', NULL, NULL, '2026-11-03T10:03:00+01:00', NULL),
  (14, 'dir-a', 'qa-a', 'msg', 'q5', 'b5', NULL, NULL, '2026-11-03T10:04:00+01:00', NULL),
  (15, 'dir-a', 'boss', 'report', 'status: for the boss', 'r1' || char(10) || 'r2' || char(10) || 'r3' || char(10) || 'r4', 'G-9', NULL, '2026-11-03T11:00:00+01:00', NULL),
- (16, 'coder-a', 'lead-a', 'report', 'status: odd ünï subject', 'α' || char(10) || 'β' || char(10) || 'γ' || char(10) || 'δ', NULL, NULL, '2026-11-03T12:00:00+01:00', NULL);
+ (16, 'coder-a', 'lead-a', 'report', 'status: odd ünï subject', 'α' || char(10) || 'β' || char(10) || 'γ' || char(10) || 'δ', NULL, NULL, '2026-11-03T12:00:00+01:00', NULL),
+ (17, 'lead-a', 'coder-b', 'decision', 'STOP', 'pane hung' || char(10) || 'Stop work now. Push, then run factory done', NULL, NULL, '2026-11-05T09:00:00+01:00', NULL),
+ (18, 'lead-a', 'coder-b', 'decision', 'STOP', 'fresh order', NULL, NULL, '2026-11-05T10:00:01+01:00', NULL),
+ (19, 'lead-a', 'coder-b', 'decision', 'STOP', 'already read old order', NULL, NULL, '2026-11-05T08:00:00+01:00', '2026-11-05T08:30:00+01:00'),
+ (20, 'lead-a', 'coder-b', 'msg', 'STOP', 'not a decision', NULL, NULL, '2026-11-05T08:00:00+01:00', NULL),
+ (21, 'lead-a', 'coder-b', 'decision', 'STOP', 'other offset, earlier instant', NULL, NULL, '2026-11-05T08:30:00+00:00', NULL);

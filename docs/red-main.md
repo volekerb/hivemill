@@ -8,6 +8,8 @@ With the flag on, the tick (at most every `red_main_interval_s`, default 120 s, 
 - **success**: the freeze clears (event `red-main-clear`).
 - Cancelled, skipped, still-running runs and `gh` errors leave the state unchanged; a failed read is logged as `red-main-unknown`.
 
+**Not every main commit gets its own run (T-1592).** All push runs of `tests.yml` (and `install.yml`) on `main` share one concurrency group (`tests-main`, `install-main`) with `cancel-in-progress` false for pushes. A running main run is never cancelled. When a newer merge lands, an older main run that is still pending is cancelled; the newest pending run still runs once the running one ends. So one main run may cover several merges: a red run names the first commit to look at, but any merge since the last green run can be the cause, which is why the revert task lists all of them. A cancelled run is no information, never red and never green: the monitor skips it, the mechanical merger (`mech_main_run_refusal`) and `judge_wait_main_run` hold on a cancelled run for main's head, and `release_check` `ci-green` does not count it (pick a sha with a completed run, or rerun the cancelled run). Only the newest 5 push runs are read, so after a burst of more than 4 superseded runs the state stays unchanged until a newer run completes.
+
 State is kept in `config` rows `red_main:<owner/name>` and `red_main_green:<owner/name>`. The refusal is `red_main_refusal(con, slugs)`; the mechanical merger (G-022 #4) calls it before merging.
 
 The revert/fix task the check files may itself merge during the freeze (matched by its task id); every other task is refused. "Merged since the last green main" counts from the start of the last green push run.
@@ -15,3 +17,7 @@ The revert/fix task the check files may itself merge during the freeze (matched 
 **Which goal gets the revert task (T-0669).** The active goal of the project whose `gh_repo` is the repo; if that project has none, the active goal with a task whose PR is in the repo (a goal can work in a repo its project row does not name). With no such goal the director is told to file the task by hand.
 
 **Naming the fix task by hand.** `factory redmain fix <OWNER/NAME> <T-id>` (director only) sets the stored fix task of a frozen repo (event `red-main-fix-task`), so that task may merge during the freeze. Use it when no revert task was filed, otherwise the fix PR cannot merge.
+
+## One bisect + revert task per red run (T-1772)
+
+The task filed for a red run is titled `Red main: bisect + revert <repo> run <id>`, has priority 1 and names the merge commits since the last green main. With `judge_ci_gate=none` this is the only CI safety net; see `docs/judge-ci-gate.md`.

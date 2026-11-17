@@ -1,0 +1,6 @@
+[
+  { "address": "t-local", "space": "s1", "status": "working", "tab_name": "local-agent" },
+  { "address": "macmini/t-boss", "space": "sp-d", "status": "working", "tab_name": "teamb-boss" },
+  { "address": "macmini/t-w1", "space": "sp-d", "status": "idle", "tab_name": "teamb-w1" },
+  { "address": "macmini/t-x", "space": "sp-o", "status": "idle", "tab_name": "other-x" }
+]

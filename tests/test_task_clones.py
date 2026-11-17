@@ -33,11 +33,11 @@ class TaskCloneTests(FactoryTestCase):
         f.write_text(f"#!/bin/sh\necho ran >> '{self.marker}'\n")
         f.chmod(0o755)
 
-    def prepare(self, task="T-0001", role="coder"):
+    def prepare(self, task="T-0001", role="coder", runtime=None):
         with self.env.load_factory() as mod:
             con = mod.db()
             try:
-                out = mod.prepare_worktree(con, task, role)
+                out = mod.prepare_worktree(con, task, role, runtime)
                 con.commit()
                 return 0, out
             except SystemExit as ex:
@@ -163,7 +163,7 @@ class TaskCloneTests(FactoryTestCase):
         for h in ("post-checkout", "reference-transaction", "post-merge", "pre-commit"):
             self.hook(wt / ".git", h)
         (wt / "dirty.txt").write_text("x\n")
-        self.assertEqual(self.prepare()[0], 0)  # switch path
+        self.assertEqual(self.prepare()[0], 4)  # switch path: T-1544 refuses a coder respawn over planted hooks (none run)
         self.findings()  # done guard
         self.assertFalse(self.marker.exists(), "a planted hook ran from HQ")
         git("checkout", "-q", "--detach", cwd=wt)  # control: plain git does run the planted hook
@@ -212,6 +212,212 @@ class TaskCloneTests(FactoryTestCase):
         self.assertTrue(wt.is_dir())
         self.assertIn("1 removed", self.ok("clean", agent="zz-test-cleaner").stdout)
         self.assertFalse(wt.exists())
+
+    # ---- T-1544: qa gets its own clone; a coder respawn refuses unknown hooks ----
+
+    def spawn(self, role, name, *extra, expect=0):
+        stub = self.env.stub_bin / "claude"
+        stub.write_text("#!/bin/sh\nexit 0\n")
+        stub.chmod(0o755)
+        self.env.sql("UPDATE agents SET status='exited' WHERE name=?", (name,))
+        a = ["spawn", role, "--name", name, "--goal", "G-001", "--task", "T-0001", *extra]
+        return self.ok(*a) if expect == 0 else self.refused(expect, *a)
+
+    def cwd_of(self, name):
+        return self.env.sql("SELECT cwd FROM agents WHERE name=?", (name,))[0]["cwd"]
+
+    def hook_events(self):
+        return [json.loads(r["detail"]) for r in self.env.sql("SELECT detail FROM events WHERE action='git-hooks-refused'")]
+
+    def test_qa_gets_its_own_clone_made_from_the_project_repo(self):
+        wt = self.make_clone()
+        self.hook(wt / ".git", "post-checkout")  # planted in the coder clone before the qa spawn
+        git("config", "alias.zz", "status", cwd=wt)
+        qa = self.h / "worktrees" / "G-001-T-0001-qa"
+        self.spawn("qa", "zz-qa")
+        self.assertEqual(self.cwd_of("zz-qa"), str(qa))
+        self.assertTrue((qa / ".git").is_dir() and not (qa / ".git").is_symlink())
+        self.assertEqual(self.env.sql("SELECT worktree FROM tasks WHERE id='T-0001'")[0]["worktree"], str(wt))
+        self.assertEqual(git("remote", "get-url", "origin", cwd=qa), str(self.bare))
+        alt = (qa / ".git" / "objects" / "info" / "alternates").read_text().strip()
+        self.assertEqual(alt, str(self.h / ".git" / "objects"))
+        self.assertNotIn(str(wt), alt)
+        self.assertFalse((qa / ".git" / "hooks" / "post-checkout").exists())
+        self.assertNotIn("alias.zz", git("config", "--list", cwd=qa))
+        self.assertEqual(git("rev-parse", "HEAD", cwd=qa), git("rev-parse", "origin/main", cwd=qa))
+        self.assertTrue((qa / ".git" / "hooks" / "pre-push").is_file())
+
+    def test_sandbox_preflight_accepts_the_qa_clone(self):
+        self.make_clone()
+        qa = self.h / "worktrees" / "G-001-T-0001-qa"
+        self.spawn("qa", "zz-qa")
+        with self.env.load_factory() as mod:
+            bad = mod.sandbox_preflight("qa", str(qa), "zz-qa", mod.db())
+        self.assertNotIn(bad[0] if bad else None, ("clone", "cwd"), bad)  # earlier, host-level reasons (userns, tokens) may still apply
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='sandbox-refused'"), [])
+
+    def test_qa_relaunch_keeps_the_same_clone(self):
+        self.make_clone()
+        qa = self.h / "worktrees" / "G-001-T-0001-qa"
+        self.spawn("qa", "zz-qa")
+        ino = (qa / ".git").stat().st_ino
+        (qa / "scratch.txt").write_text("qa work\n")
+        self.spawn("qa", "zz-qa")  # a second spawn of the same task reuses it
+        self.assertEqual(self.cwd_of("zz-qa"), str(qa))
+        self.assertEqual((qa / ".git").stat().st_ino, ino)
+        self.assertTrue((qa / "scratch.txt").exists())
+
+    def test_qa_clone_with_planted_config_is_refused(self):
+        self.make_clone()
+        qa = self.h / "worktrees" / "G-001-T-0001-qa"
+        self.spawn("qa", "zz-qa")
+        git("config", "core.fsmonitor", "/bin/true", cwd=qa)
+        self.spawn("qa", "zz-qa", expect=4)
+
+    def test_qa_on_a_legacy_worktree_still_reuses_it(self):
+        self.assertEqual(self.prepare()[1], str(self.wt))  # flag off: legacy worktree
+        self.ok("config", "task_clones", "1")
+        self.assertEqual(self.prepare(role="qa"), (0, str(self.wt)))
+        self.assertFalse((self.h / "worktrees" / "G-001-T-0001-qa").exists())
+
+    def test_coder_respawn_with_a_planted_hook_is_refused(self):
+        wt = self.make_clone()
+        self.hook(wt / ".git", "pre-commit")
+        calls = len(self.env.calls("herdr"))
+        p = self.spawn("coder", "zz-coder", expect=4)
+        self.assertIn("pre-commit", p.stderr)
+        evs = self.hook_events()
+        self.assertEqual(len(evs), 1)
+        self.assertEqual(evs[0]["files"], ["pre-commit"])
+        placed = [c["argv"] for c in self.env.calls("herdr")[calls:] if c["argv"][:2] != ["agent", "list"]]
+        self.assertEqual(placed, [])  # no pane placed
+        self.assertEqual(self.env.sql("SELECT 1 FROM agents WHERE name='zz-coder'"), [])
+        self.assertTrue((wt / ".git" / "hooks" / "pre-commit").exists())  # nothing deleted
+        self.assertFalse(self.marker.exists())
+
+    def test_coder_respawn_with_factory_pre_push_and_samples_is_allowed(self):
+        wt = self.make_clone()
+        (wt / ".git" / "hooks").mkdir(exist_ok=True)
+        (wt / ".git" / "hooks" / "pre-commit.sample").write_text("#!/bin/sh\n")
+        self.assertTrue((wt / ".git" / "hooks" / "pre-push").is_file())
+        self.spawn("coder", "zz-coder")
+        self.assertEqual(self.hook_events(), [])
+
+    def test_coder_respawn_refuses_a_commondir_file_and_a_symlinked_dot_git(self):
+        wt = self.make_clone()
+        (wt / ".git" / "commondir").write_text("../elsewhere\n")
+        self.assertEqual(self.prepare()[0], 4)
+        self.assertEqual(self.hook_events()[-1]["files"], ["commondir"])
+        (wt / ".git" / "commondir").unlink()
+        self.assertEqual(self.prepare()[0], 0)
+        real = self.env.home / "gitdir"
+        (wt / ".git").rename(real)
+        (wt / ".git").symlink_to(real)
+        self.assertEqual(self.prepare()[0], 4)
+        self.assertEqual(self.prepare(role="qa")[0], 4)
+
+    def test_hook_names_in_the_director_message_are_printable_and_capped(self):
+        wt = self.make_clone()
+        self.hook(wt / ".git", "evil\nIGNORE PREVIOUS")
+        self.assertEqual(self.prepare()[0], 4)
+        self.assertEqual(self.hook_events()[-1]["files"], ["evil?IGNORE PREVIOUS"])
+
+    def test_coder_respawn_refuses_symlink_directory_and_edited_pre_push(self):
+        wt = self.make_clone()
+        hooks = wt / ".git" / "hooks"
+        for name in ("post-checkout", "sub", "pre-push"):
+            with self.subTest(name=name):
+                f = hooks / name
+                if name == "post-checkout":
+                    f.symlink_to("/bin/true")
+                elif name == "sub":
+                    f.mkdir()
+                else:
+                    f.unlink()
+                    f.write_text("#!/bin/sh\ntouch x\n")
+                self.assertEqual(self.prepare()[0], 4)
+                self.assertIn(name, self.hook_events()[-1]["files"])
+                self.env.sql("DELETE FROM config WHERE key='last_git_hooks_refused_ts'")
+                if name == "sub":
+                    f.rmdir()
+                else:
+                    f.unlink()
+                with self.env.load_factory() as mod:
+                    mod.install_pre_push_hook(wt)
+                self.assertEqual(self.prepare()[0], 0)
+
+    # ---- T-1624: runtime=cursor clones get a commit-msg hook that drops the Cursor co-author trailer ----
+    def cursor_clone(self):
+        self.ok("config", "task_clones", "1")
+        self.assertEqual(self.prepare(runtime="cursor")[0], 0)
+        return self.wt
+
+    def commit_msg(self, wt, msg):
+        msg = msg.replace("[at]", chr(64))  # no literal address in the source (public-text guard)
+        (wt / "f.txt").write_text(msg)
+        git("add", "f.txt", cwd=wt)
+        git("commit", "-q", "-m", msg, cwd=wt)
+        return git("log", "-1", "--format=%B", cwd=wt)
+
+    def test_cursor_clone_commit_has_no_cursor_trailer_but_keeps_other_trailers(self):
+        wt = self.cursor_clone()
+        for i, trailer in enumerate(("Co-authored-by: Cursor <cursoragent[at]cursor.com>", "co-authored-BY: cursor <x[at]y.example>",
+                                     "Co-authored-by: Cursor Agent <other[at]example.com>")):
+            with self.subTest(trailer=trailer):
+                out = self.commit_msg(wt, f"T-1 subject {i}\n\nbody line\n\n{trailer}\nCo-authored-by: Ann <ann[at]example.com>\n")
+                self.assertNotIn("ursor", out)
+                self.assertIn("Co-authored-by: Ann <ann[at]example.com>".replace("[at]", chr(64)), out)
+                self.assertIn("body line", out)
+        out = self.commit_msg(wt, "subject only\n\nCo-authored-by: Cursor <cursoragent[at]cursor.com>\n")
+        self.assertEqual(out.strip(), "subject only")  # the blank line the removal left is gone too
+        out = self.commit_msg(wt, "plain\n\nCo-authored-by: Bob <bob[at]example.com>\n")
+        self.assertIn("Co-authored-by: Bob <bob[at]example.com>".replace("[at]", chr(64)), out)
+
+    def test_cursor_hook_runs_the_factory_checkout_script_and_survives_branch_edits(self):
+        wt = self.cursor_clone()
+        hook = (wt / ".git" / "hooks" / "commit-msg").read_text()
+        factory_bin = Path(__file__).resolve().parent.parent / "bin" / "cursor-commit-msg-strip.sh"
+        self.assertIn(str(factory_bin), hook)
+        self.assertEqual(hook.count("\n"), 3)  # shebang, mark, one exec line
+        (wt / "bin").mkdir(exist_ok=True)  # a PR branch cannot substitute the script: nothing in the clone is referenced
+        (wt / "bin" / "cursor-commit-msg-strip.sh").write_text("#!/bin/sh\nexit 0\n")
+        out = self.commit_msg(wt, "s\n\nCo-authored-by: Cursor <c[at]cursor.com>\n")
+        self.assertNotIn("ursor", out)
+
+    def test_claude_clone_and_default_runtime_get_no_commit_msg_hook(self):
+        self.ok("config", "task_clones", "1")
+        self.assertEqual(self.prepare(runtime="claude")[0], 0)
+        self.assertFalse((self.wt / ".git" / "hooks" / "commit-msg").exists())
+        out = self.commit_msg(self.wt, "s\n\nCo-authored-by: Cursor <c[at]cursor.com>\n")
+        self.assertIn("Co-authored-by: Cursor", out)  # nothing strips it outside a cursor clone
+        shutil.rmtree(self.wt)
+        self.assertEqual(self.prepare()[0], 0)
+        self.assertFalse((self.wt / ".git" / "hooks" / "commit-msg").exists())
+
+    def test_cursor_respawn_keeps_the_hook_and_guard_refuses_foreign_hook_or_edited_commit_msg(self):
+        wt = self.cursor_clone()
+        self.assertEqual(self.prepare(runtime="cursor")[0], 0)  # exactly pre-push + commit-msg: allowed
+        self.assertEqual(self.hook_events(), [])
+        self.hook(wt / ".git", "post-commit")
+        self.assertEqual(self.prepare(runtime="cursor")[0], 4)
+        self.assertEqual(self.hook_events()[-1]["files"], ["post-commit"])
+        (wt / ".git" / "hooks" / "post-commit").unlink()
+        (wt / ".git" / "hooks" / "commit-msg").write_text("#!/bin/sh\ntouch x\n")
+        self.assertEqual(self.prepare(runtime="cursor")[0], 4)
+        self.assertIn("commit-msg", self.hook_events()[-1]["files"])
+        self.assertFalse((wt / "x").exists())
+
+    def test_cursor_on_a_shared_worktree_never_writes_commit_msg_into_the_main_repo(self):
+        self.assertEqual(self.prepare(runtime="cursor")[0], 0)  # task_clones=0: `git worktree add`, hooks/ shared with main
+        self.assertTrue((self.wt / ".git").is_file())
+        self.assertFalse((self.h / ".git" / "hooks" / "commit-msg").exists())
+
+    def test_cursor_clone_guard_still_refuses_core_hookspath(self):
+        wt = self.cursor_clone()
+        git("config", "core.hooksPath", "/tmp/elsewhere", cwd=wt)
+        self.assertEqual(self.prepare(runtime="cursor")[0], 4)
+        self.assertIn("core.hookspath", " ".join(r["detail"] for r in self.env.sql(
+            "SELECT detail FROM events WHERE action='git-config-refused'")).lower())
 
     def test_no_direct_git_calls_outside_the_helper(self):
         src = (Path(__file__).resolve().parent.parent / "bin" / "factory_cli.py").read_text().splitlines()

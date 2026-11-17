@@ -13,24 +13,55 @@ import (
 	"strings"
 )
 
-// Realpath is Python's os.path.realpath: symlinks are resolved as far as the path exists, the rest is appended
-// unchanged (EvalSymlinks alone fails on a missing leaf).
+// Realpath is Python's os.path.realpath (non-strict): every symlink on the path is followed, including a dangling
+// one (its target is appended) and a symlinked parent of a missing path; a symlink loop is left as is.
 func Realpath(p string) string {
-	p = filepath.Clean(p)
+	// No lexical Clean: ".." after a symlink must be resolved physically, as Python does.
 	if !filepath.IsAbs(p) {
 		if wd, err := os.Getwd(); err == nil {
-			p = filepath.Join(wd, p)
+			p = wd + "/" + p
 		}
 	}
-	if r, err := filepath.EvalSymlinks(p); err == nil {
-		return r
+	return realpathWalk("/", splitPath(p), map[string]*string{})
+}
+
+// realpathWalk is posixpath._joinrealpath. seen memoises every resolved link, as Python's does (nil while a link is
+// being resolved, so meeting it again is a loop), which keeps a doubling chain (l1 -> l0/l0, l2 -> l1/l1, ...) linear.
+func realpathWalk(path string, rest []string, seen map[string]*string) string {
+	for len(rest) > 0 {
+		name := rest[0]
+		rest = rest[1:]
+		switch name {
+		case ".":
+			continue
+		case "..":
+			path = filepath.Dir(path)
+			continue
+		}
+		newPath := filepath.Join(path, name)
+		target, err := os.Readlink(newPath)
+		if err != nil {
+			path = newPath
+			continue
+		}
+		if r, ok := seen[newPath]; ok {
+			if r != nil {
+				path = *r
+			} else { // loop: Python keeps the path unresolved
+				path = newPath
+			}
+			continue
+		}
+		seen[newPath] = nil
+		base := path
+		if filepath.IsAbs(target) {
+			base = "/"
+		}
+		path = realpathWalk(base, splitPath(target), seen)
+		res := path
+		seen[newPath] = &res
 	}
-	dir, base := filepath.Split(p)
-	dir = filepath.Clean(dir)
-	if dir == p {
-		return p
-	}
-	return filepath.Join(Realpath(dir), base)
+	return path
 }
 
 // Abs is os.path.abspath.

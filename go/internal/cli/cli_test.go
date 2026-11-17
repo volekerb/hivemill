@@ -98,7 +98,7 @@ func TestDelegate(t *testing.T) {
 		{"--help", []string{"--help"}, nil},
 		{"whoami -h", []string{"whoami", "-h"}, nil},
 		{"config write", []string{"config", "k", "v"}, nil},
-		{"task tier", []string{"task", "tier", "T-1"}, nil},
+		{"task update with a flag Go does not read", []string{"task", "update", "T-1", "--follow-up-of", "T-2"}, nil},
 		{"agents --bogus", []string{"agents", "--bogus"}, nil},
 		{"no args", nil, nil},
 		{"FACTORY_CLI_IMPL=python forces python", []string{"whoami"}, func(r *rig) { r.env["FACTORY_CLI_IMPL"] = "python" }},
@@ -413,11 +413,11 @@ func TestDefaultsMatchFlagsJSON(t *testing.T) {
 		t.Fatalf("DEFAULT_CONFIG literal: %v", err)
 	}
 	if len(lit) != len(DefaultConfig) {
-		t.Fatalf("defaults_gen.go has %d keys, DEFAULT_CONFIG has %d: run `go generate ./internal/cli`", len(DefaultConfig), len(lit))
+		t.Fatalf("store/defaults_gen.go has %d keys, DEFAULT_CONFIG has %d: run `go generate ./internal/store`", len(DefaultConfig), len(lit))
 	}
 	for i, e := range lit {
 		if DefaultConfig[i].Key != e.Key || DefaultConfig[i].Value != e.Value {
-			t.Fatalf("defaults_gen.go drifted at %s (%q vs %q): run `go generate ./internal/cli`", e.Key, DefaultConfig[i].Value, e.Value)
+			t.Fatalf("store/defaults_gen.go drifted at %s (%q vs %q): run `go generate ./internal/store`", e.Key, DefaultConfig[i].Value, e.Value)
 		}
 	}
 	flagsPath := repoFile(t, "bin/flags.json")

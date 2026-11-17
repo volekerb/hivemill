@@ -4,7 +4,7 @@ import json
 import re
 import unittest
 
-from harness import FactoryTestCase
+from harness import FactoryTestCase, git
 from test_sandbox_spawn import prep, ROLE_NAMES
 
 T = "T-0001"
@@ -155,6 +155,15 @@ class ManualSpawnTests(Base):
     def test_reviewer_and_qa_on_a_flagged_coder_task_are_not_forced_or_refused(self):
         """T-1291: the flag applies to the task's own role (coder) only."""
         self.task(role="coder")
+        # T-1563: qa spawn inspects the project repo's git config (T-1544, fail-closed on an unreadable repo)
+        repo = self.env.home / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        bare = self.env.home / "origin.git"
+        git("init", "-q", "--bare", "-b", "main", str(bare), cwd=self.env.home)
+        git("init", "-q", "-b", "main", cwd=repo)
+        git("remote", "add", "origin", str(bare), cwd=repo)
+        git("commit", "-q", "--allow-empty", "-m", "base", cwd=repo)
+        git("push", "-q", "-u", "origin", "main", cwd=repo)
         for role in ("reviewer", "qa"):
             self.env.sql("UPDATE tasks SET worktree=? WHERE id=?", (str(self.env.home_dir / "worktrees" / f"w-{role}"), T))
             p = self.spawn(role, name=f"zz-{role}")
@@ -206,6 +215,36 @@ class OwnerTrustTests(Base):
         r = self.spawn("reviewer", "--cwd", str(outside), name="zz-reviewer")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(p.read_bytes(), before)
+
+    def test_qa_clone_path_is_trusted_before_a_claude_launch(self):
+        """T-1657: the <goal>-<task>-qa clone is not tasks.worktree; the old cwd == worktree check skipped it."""
+        self.task(role="coder", flag=0)
+        qa = self.env.home_dir / "worktrees" / "G-001-T-0001-qa"
+        qa.mkdir(parents=True)
+        p = self.owner_json({"theme": "dark", "projects": {}})
+        r = self.spawn("qa", "--cwd", str(qa), name="zz-qa")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(p.read_text()),
+                         {"theme": "dark", "projects": {str(qa.resolve()): self.SEED}})
+
+    def test_worktree_first_made_for_a_cursor_agent_is_trusted_for_a_later_claude_spawn(self):
+        """T-1657: a cursor spawn never trusts the dir; the later claude spawn into it must, task-less or not."""
+        self.task(role="coder", flag=0)
+        wt = self.env.home_dir / "worktrees" / "G-001-T-0001"
+        wt.mkdir(parents=True)
+        fake = self.env.stub_bin / "agent"
+        fake.write_text("#!/bin/sh\necho ok\n")
+        fake.chmod(0o755)
+        self.env.seed_agent("zz-test-director", "director", goal="G-001", team=TEAM)
+        self.ok("config", "agent_runtimes", "*=cursor", agent="zz-test-director")
+        self.ok("spawn", "coder", "--name", "zz-cursor-coder", "--goal", "G-001", "--team", TEAM,
+                "--cwd", str(wt), agent="zz-test-director")
+        p = self.owner_json({"projects": {}})
+        self.assertEqual(json.loads(p.read_text()), {"projects": {}})  # cursor did not trust it
+        self.ok("config", "agent_runtimes", "", agent="zz-test-director")
+        r = self.spawn("coder", "--cwd", str(wt), name="zz-claude-coder")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(p.read_text()), {"projects": {str(wt.resolve()): self.SEED}})
 
     def test_sandboxed_spawn_leaves_the_owner_file_unchanged(self):
         self.task(role="reviewer")

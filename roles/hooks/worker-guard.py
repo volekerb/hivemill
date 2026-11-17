@@ -1087,6 +1087,23 @@ class UnitBlock(PrivBlock):
     """Mutating systemctl (HQ mode) or systemd-run (every mode), T-0102 part D, director M2108."""
 
 
+class HqDenyBlock(PrivBlock):
+    """HQ mode only (T-1500): a command the boss/director/lead settings deny by prefix, in any spelling."""
+
+
+_HQ_HERDR_SUBS = [("server", "stop"), ("workspace", "close"), ("workspace", "create"), ("tab", "close"),
+                  ("tab", "create"), ("pane", "close"), ("pane", "split"), ("agent", "start")]
+_HQ_HC_SUBS = _HQ_HERDR_SUBS + [("kill",), ("rm",), ("run",)]
+# (command word basename, leading literal args): one row per roles/settings deny entry; the sync test in
+# tests/test_worker_guard_hq_deny.py checks the settings files against this table. herdr-core gets the hc rows.
+HQ_DENY = (
+    [("herdr", a) for a in _HQ_HERDR_SUBS]
+    + [("hc", a) for a in _HQ_HC_SUBS]
+    + [("herdr-core", a) for a in _HQ_HC_SUBS]
+    + [("claude", ()), ("gh", ("pr", "merge")), ("sqlite3", ())]
+)
+
+
 GH_VALUE_OPTS = {"-H", "--header", "-q", "--jq", "-t", "--template", "--hostname", "--cache", "-R", "--repo",
                  "-f", "--raw-field", "-F", "--field", "--input", "-X", "--method", "-p", "--preview"}
 GH_MUTATING = {"PUT", "PATCH", "POST", "DELETE"}
@@ -1384,6 +1401,35 @@ def is_herdr(word):
     return False
 
 
+def hq_deny_hit(word, name, rest):
+    """What the HQ deny rule (T-1500) names for command word `word` (basename `name`) with args `rest`, else None.
+    The basename is compared exactly, no glob expansion (a dynamic command word is a declared HQ limit)."""
+    if name in ("herdr", "hc", "herdr-core"):
+        if is_stub(word):
+            return None
+        pos = [a for a in rest if not a.startswith("-")]
+        for w, args in HQ_DENY:
+            if w == name and tuple(pos[:len(args)]) == tuple(args):
+                return " ".join([name, *args])
+        return None
+    if name == "claude":
+        return "claude"
+    if name in ("npx", "bunx", "pnpx", "pnpm", "npm", "yarn", "node", "nodejs", "bun", "deno"):
+        try:
+            Analyzer.claude_launchers(None, name, rest)
+        except ClaudeBlock:
+            return "claude"
+        return None
+    if name == "gh":
+        pos, _method, _body = gh_parse(rest)
+        if pos[:2] == ["pr", "merge"]:
+            return "gh pr merge"
+        return None
+    if name == "sqlite3":
+        return "sqlite3"
+    return None
+
+
 def is_claude(word):
     """True when the word, as a command, is `claude` or a path whose basename is `claude` (no stub exemption)."""
     return os.path.basename(word.rstrip("/")) == "claude"
@@ -1439,6 +1485,107 @@ def fold_mktemp(toks):
         out.append(t)
         i += 1
     return out
+
+
+# T-1498: the Go toolchain for workers. coder, qa and reviewer may EXECUTE ~/.local/go/bin/go and gofmt (the tree stays
+# protected: nothing here lets them write into it). A fixed subcommand list, a fixed env-prefix list, no network.
+TC_ROLES = ("coder", "qa", "reviewer")
+TC_MOD_SUBS = {"verify", "graph", "why"}
+# Strict flag allow-list per subcommand (default deny): name -> (bool flags, value flags). -C and the path flags are
+# checked for a worktree/scratchpad target; "test." spellings (-test.run) are the same flag.
+TC_PATH_FLAGS = {"o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "outputdir"}
+_B_BOOL, _B_VAL = {"race", "v", "trimpath"}, {"tags", "mod", "p", "buildvcs", "C"}
+_T_BOOL = {"short", "cover", "failfast", "json", "benchmem", "c"}
+_T_VAL = {"run", "skip", "count", "timeout", "bench", "benchtime", "cpu", "parallel", "shuffle", "coverpkg", "covermode", "list",
+          "fuzz", "fuzztime"} | TC_PATH_FLAGS
+TC_FLAGS = {
+    "build": (_B_BOOL, _B_VAL | {"o"}), "run": (_B_BOOL, _B_VAL), "vet": ({"race", "v"}, {"tags", "mod", "C"}),
+    "test": (_B_BOOL | _T_BOOL, _B_VAL | _T_VAL), "list": ({"json", "m", "deps", "e", "test", "race", "v"}, {"f", "tags", "mod", "C"}),
+    "env": ({"json", "changed"}, {"C"}), "version": ({"m", "v"}, {"C"}), "fmt": ({"n", "x"}, {"C"}), "mod": ({"m", "vendor"}, {"C"}),
+}
+TC_SUBS = set(TC_FLAGS)
+TC_FLAGS["gofmt"] = ({"l", "d", "s", "e", "w"}, {"r"})
+TC_FLAGS["GOFLAGS"] = (set().union(*(TC_FLAGS[s][0] for s in TC_SUBS)), set().union(*(TC_FLAGS[s][1] for s in TC_SUBS)) - {"C"})
+TC_ENV_NAMES = {"GOTOOLCHAIN", "GOFLAGS", "GOPROXY", "GOCACHE", "GOMODCACHE", "CGO_ENABLED", "PATH"}
+TC_MODCACHE = os.path.join(PW_DIR, ".local", "lib", "factory", "go", "mod")
+TC_PATH_VALUE = re.compile(r"^(?:~|\$HOME|\$\{HOME\}|" + re.escape(PW_DIR) + r")/\.local/go/bin:\$(?:PATH|\{PATH\})$")
+
+
+def tc_bool_on(v):
+    """Go's flag package: a bool flag is on without a value and with 1|t|T|TRUE|true|True; any other value that is not a false spelling counts as on."""
+    return v is None or v not in ("0", "f", "F", "FALSE", "false", "False")
+
+
+TC_PROFILE_FLAGS = {"cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace", "coverprofile"}
+
+
+TC_EXPANDS = re.compile(r"[$`*?\[{]")
+
+
+def tc_expands(w):
+    """N9/N10: True when the shell could expand or split word `w` into something else: a `$`, a backtick, a glob character
+    or a brace, or a `~` that is not the whole word or a `~/` prefix. Words reach the guard already dequoted, so a quoted
+    literal such as '*' cannot be told apart and is refused too (default deny)."""
+    return bool(TC_EXPANDS.search(w)) or ("~" in w and w != "~" and (not w.startswith("~/") or "~" in w[1:]))
+
+
+def tc_parse(words, tbl, dd="end"):
+    """T-1498: ([(name, value|None)], positionals) of `words` against (bool flags, value flags). ValueError(word) on any flag
+    that is not in the table, on `-args`, and on a value flag with no value. A value flag consumes the next word whatever it
+    looks like, `--` included (go's flag package does the same: `-tags -- -o x` sets tags to `--` and then parses -o), so
+    `-run -o` has no -o. A bare `--` at flag position ends the flags (dd="end": the rest are positionals, as flag.go does)
+    or is refused (dd="block": `go test` hands everything after it to the test binary, GOFLAGS refuses it). Nothing is
+    dropped before the parse."""
+    bools, vals = tbl
+    for w in words:
+        if tc_expands(w):
+            raise ValueError(w + " (an expansion or glob in a word cannot be classified)")
+    flags, pos, k = [], [], 0
+    while k < len(words):
+        w = words[k]
+        k += 1
+        if w == "--":
+            if dd != "end":
+                raise ValueError(w + " (a terminator is not allowed here)")
+            pos.extend(words[k:])
+            break
+        m = re.match(r"^--?([^=\s-][^=\s]*)(=(.*))?\Z", w, re.S)
+        if not m:
+            if w.startswith("-") and w != "-":
+                raise ValueError(w)
+            pos.append(w)
+            continue
+        name = re.sub(r"^test\.", "", m.group(1))
+        if name in bools:
+            flags.append((name, m.group(3) if m.group(2) else None))
+        elif name in vals:
+            if m.group(2):
+                flags.append((name, m.group(3)))
+            elif k < len(words):
+                flags.append((name, words[k]))
+                k += 1
+            else:
+                raise ValueError(w + " (no value)")
+        else:
+            raise ValueError(w)
+    return flags, pos
+
+
+def tc_kind(w):
+    """T-1498: ("go"|"gofmt", lookalike) when command word `w` names the toolchain binary (~, $HOME, ${HOME} or the passwd
+    home spelled out); lookalike is True when the spelling is not its own normal form (`..`, `//`, `/./`). Else None."""
+    e = w
+    for pre in ("~/", "$HOME/", "${HOME}/"):
+        if w.startswith(pre):
+            e = PW_DIR + "/" + w[len(pre):]
+            break
+    if not os.path.isabs(e) or any(c in e for c in "$`{*?["):
+        return None
+    n = os.path.normpath(e)
+    for tool in ("go", "gofmt"):
+        if n == os.path.join(PW_DIR, ".local", "go", "bin", tool):
+            return tool, e != n
+    return None
 
 
 def is_dynamic(word, strict):
@@ -1682,6 +1829,7 @@ class Analyzer:
         self.skip_priv = False
         self.shell_assigns = []  # env assignments of the shell command being analysed (T-0331)
         self.unit_rule = False  # HQ mode: block mutating systemctl (workers keep the factory unit rule)
+        self.hq_deny = False  # HQ mode: the HQ deny rule (HQ_DENY table, T-1500)
         self.text = ""
         self.ran_factory = False
         self.may_create_before = False
@@ -2051,6 +2199,13 @@ class Analyzer:
                             return
                 shown += " show"
             elif action in seconds:
+                # T-1617: a pm may list the tasks of its own goal, in exactly this spelling (same check as goal show)
+                if self.role == "pm" and sub == "task" and action == "list" and len(after) in (2, 3):
+                    gid = after[2] if len(after) == 3 and after[1] == "--goal" else (
+                        after[1][len("--goal="):] if len(after) == 2 and after[1].startswith("--goal=") else None)
+                    own = self.own_goal()
+                    if gid and own is not None and gid == own:
+                        return
                 shown += " " + action
             else:
                 return
@@ -2167,6 +2322,8 @@ class Analyzer:
                             cur, piped, hs = stack.pop()
                             if any(not (ASSIGN.match(w) or w in RESERVED) for w in cur):
                                 cur = cur + ["$SUB"]  # the substitution's value is an argument of that command
+                            elif cur and ASSIGN.match(cur[-1]) and cur[-1].split("=", 1)[0] in TC_ENV_NAMES:
+                                cur = cur[:-1] + [cur[-1] + "$SUB"]  # T-1498: a substitution in a toolchain env value (GOFLAGS=$(..)) is dynamic
                         else:
                             cmds.append((cur, piped, hs))
                             cur, piped, hs = [], "|" in piece, []
@@ -2227,6 +2384,10 @@ class Analyzer:
             verb = next((a for a in rest if not a.startswith("-") and a in UNIT_MUTATING), None)
             if verb:
                 raise UnitBlock(f"systemctl {verb}")
+        if self.hq_deny:
+            what = hq_deny_hit(w, name, rest)
+            if what:
+                raise HqDenyBlock(what)
         if name == "find":
             for j, a in enumerate(rest):
                 if a in FIND_EXEC:
@@ -2600,6 +2761,150 @@ class Analyzer:
         if self.prot_hit(target):
             raise Block(f"a redirect into a protected tree: {PROT_WHY}")
 
+    def go_toolchain(self, tc, rest, assigns):
+        """T-1498: a coder/qa/reviewer command whose word is the toolchain binary. Exec only: the subcommands that build,
+        test and inspect, an env-prefix allow-list, no network (`go mod download`, `go get`), no `go install|clean|work`.
+        Flags are a strict per-subcommand allow-list (TC_FLAGS), default deny: an unknown flag, `-args`, a flag that is not
+        spelled at flag position (a value of another flag is consumed as that value) all block. Path flags (-o, profiles,
+        -C) only name a file or directory in the caller's worktree or scratchpad."""
+        tool, lookalike = tc
+
+        def block(what):
+            raise Block(f"~/.local/go/bin/{tool}: {what}; the toolchain may be run with build, test, vet, run, list, env, version, "
+                        "fmt and mod verify|graph|why only, with the flags of its allow-list (docs/worker-guard-go.md, Go toolchain for workers)")
+
+        if lookalike:
+            block("the path is not in its normal form (`..`, `//` or `/./`)")
+        args = list(rest)  # N7: no pre-strip of `--`; tc_parse decides (a value flag consumes it)
+        root = os.path.realpath(self.ccwd) if self.ccwd else None
+
+        def parse(words, tbl, dd="end"):
+            try:
+                return tc_parse(words, tbl, dd)
+            except ValueError as e:
+                block(f"{e} is not in the flag allow-list")
+
+        def safe_dir_or_file(v, fbase, what):
+            v = self.cfg_expand(v)
+            if not v or any(c in v for c in "$`*?[{~") or fbase is None:
+                block(f"{what} needs a plain path and a known working directory")
+            real = os.path.realpath(os.path.join(fbase, v))
+            if v == "/dev/null" and what != "-C":
+                return
+            if self.prot_hit(v, base=fbase) or not (root and under(real, root) or in_scratchpad(real)):
+                block(f"{what} {v} is outside your worktree and scratchpad")
+
+        env = {}
+        for x in assigns:
+            name, _, val = x.partition("=")
+            if name not in TC_ENV_NAMES:
+                block(f"the env prefix {name}= is not allowed (GOTOOLCHAIN, GOFLAGS, GOPROXY, GOCACHE, GOMODCACHE, CGO_ENABLED, PATH)")
+            if (name == "GOTOOLCHAIN" and val != "local") or (name == "GOPROXY" and val != "off") or (
+                    name == "CGO_ENABLED" and val != "0") or (name == "PATH" and not TC_PATH_VALUE.match(val)):
+                block(f"the env prefix {name}={val} is not an allowed value")
+            if name != "PATH" and tc_expands(val):  # PATH has its exact allowed value above; every other value is default-deny like a word
+                block(f"the env prefix {name}= holds an expansion or glob that cannot be classified")
+            if name in ("GOCACHE", "GOMODCACHE") and self.prot_hit(val):
+                exp = PW_DIR + val[1:] if val.startswith("~/") else val
+                if not (name == "GOMODCACHE" and under(os.path.normpath(exp), TC_MODCACHE)):
+                    block(f"{name} names a protected tree")
+            env[name] = val
+        if "GOMODCACHE" in env and env.get("GOPROXY") != "off" and under(os.path.normpath(
+                PW_DIR + env["GOMODCACHE"][1:] if env["GOMODCACHE"].startswith("~/") else env["GOMODCACHE"]), TC_MODCACHE):
+            block("GOMODCACHE in the factory lib needs the GOPROXY=off prefix (a module download would write there)")
+        gflags, gpos = parse(env.get("GOFLAGS", "").split(), TC_FLAGS["GOFLAGS"], "block")
+        if gpos:
+            block("GOFLAGS holds a word that is not a flag")
+
+        def check_flags(flags, base):
+            """Every parsed flag: path flags stay in the worktree/scratchpad, -mod=mod needs GOPROXY=off, a value never
+            names a protected tree."""
+            for name, val in flags:
+                if name in TC_PATH_FLAGS:
+                    safe_dir_or_file(val, base, "-" + name)
+                elif name == "mod":
+                    if val not in ("readonly", "vendor") and not (val == "mod" and env.get("GOPROXY") == "off"):
+                        block("-mod needs readonly or vendor (mod only with the GOPROXY=off prefix)")
+                elif val and name != "C" and self.prot_hit(val, base=base):
+                    block(f"-{name} value names a protected tree")
+
+        if tool == "gofmt":
+            flags, targets = parse(args, TC_FLAGS["gofmt"])
+            check_flags(gflags + flags, self.ccwd)
+            if any(n == "w" and tc_bool_on(v) for n, v in flags):
+                if not targets or self.ccwd is None:
+                    block("-w needs file arguments and a known working directory")
+                for t in targets:
+                    if any(c in t for c in "$`*?[{~"):
+                        block("-w with a glob or an expansion")
+                    real = os.path.realpath(os.path.join(self.ccwd, t))
+                    if self.prot_hit(t) or not (under(real, root) or in_scratchpad(real)):
+                        block("-w outside your worktree and scratchpad")
+            return
+        sub, k, pre = None, 0, []
+        while k < len(args):
+            w = args[k]
+            if w in ("-C", "--C"):
+                if k + 1 >= len(args):
+                    block("-C needs a value")
+                pre.append(("C", args[k + 1]))
+                k += 2
+            elif re.match(r"^--?C=", w):
+                pre.append(("C", w.split("=", 1)[1]))
+                k += 1
+            elif w.startswith("-") and w != "-":
+                block(f"{w} before the subcommand (only -C may come there)")
+            else:
+                sub = w
+                break
+        if sub is None or sub not in TC_SUBS:
+            block(f"`go {sub or ''}` is not allowed")
+        flags, pos = parse(args[k + 1:], TC_FLAGS[sub], "block" if sub == "test" else "end")
+        flags = pre + flags
+        for n, v in flags:  # the working directory is decided by the parsed -C flags only (a "-C" that is another flag's value is not one)
+            if n == "C":
+                safe_dir_or_file(v, self.ccwd, "-C")
+        cdirs = [v for n, v in flags if n == "C"]
+        if not cdirs:
+            base = self.ccwd
+        else:
+            c = self.cfg_expand(cdirs[-1])
+            base = c if os.path.isabs(c) else (None if self.ccwd is None else os.path.join(self.ccwd, c))
+        check_flags(gflags + flags, base)
+        if sub == "mod":
+            if not pos or pos[0] not in TC_MOD_SUBS:
+                block(f"`go mod {pos[0] if pos else ''}` is not allowed (network or a write)")
+        if any("@" in x for x in pos) and env.get("GOPROXY") != "off":  # N12: pkg@version (go run x@latest, go list -m x@v) fetches a module
+            block(f"`go {sub}` with a module@version argument needs the GOPROXY=off prefix (it downloads the module)")
+        if (sub == "fmt" or any(n == "fuzz" for n, v in gflags + flags)) and any(not x.startswith((".", "/")) for x in pos):
+            block(f"`go {sub}` (it rewrites or creates files in the package directory) takes directory paths (./x, ../x, /x), not import paths")
+        if sub == "test" and any(n == "fuzz" for n, v in gflags + flags):  # a failing fuzz run writes testdata/ into the package directory
+            if not pos and base is not None and prot_path(base):
+                block("`go test -fuzz` in a protected tree")
+            for x in pos:
+                if self.prot_hit(x, base=base):
+                    block("`go test -fuzz` on a protected tree")
+        if sub == "fmt":  # `go fmt` rewrites files in place, like `gofmt -w`: the same worktree-or-scratchpad rule
+            if base is None:
+                block("`go fmt` needs a known working directory")
+            if prot_path(base):
+                block("`go fmt` in a protected tree")
+            if not pos and not (root and under(os.path.realpath(base), root) or in_scratchpad(os.path.realpath(base))):
+                block("`go fmt` with no package argument formats the -C directory, which is outside your worktree and scratchpad")
+            for t in pos:
+                if any(c in t for c in "$`*?[{~"):
+                    block("`go fmt` with a glob or an expansion")
+                real = os.path.realpath(os.path.join(base, t))
+                if self.prot_hit(t, base=base) or not (root and under(real, root) or in_scratchpad(real)):
+                    block("`go fmt` outside your worktree and scratchpad")
+        else:
+            allf = gflags + flags
+            # N8: go test keeps pkg.test in the cwd for -c and for testNeedBinary (the profile flags), cmd/go test.go:632,:1269
+            if (sub == "build" or (sub == "test" and any((n == "c" and tc_bool_on(v)) or n in TC_PROFILE_FLAGS for n, v in allf))) and not any(
+                    n == "o" for n, v in allf):
+                if base is not None and prot_path(base):  # the binary lands in the working directory
+                    block(f"`go {sub}` without -o would write its output into a protected tree (use -o into your worktree)")
+
     def prot_write(self, name, rest, assigns=()):
         """T-0925 (gaps a, b, c, e, f, g): Bash writes into a protected tree. The writers cfg_write knows (now also with a
         glob target and for the new trees), the writer flags curl/wget/go/cc/tar/unzip/7z/git clone have, and an extractor
@@ -2671,6 +2976,8 @@ class Analyzer:
                     sub = args[k]
                     break
                 k += 1
+            if sub == "":  # T-1498 N11: an empty quoted subcommand word must refuse (corpus + toolchain parity)
+                raise Block("`go ` is not allowed")
             if sub == "env" and any(re.match(r"^--?[wu](=|$)", a) for a in args):
                 block(None, "`go env -w|-u` (it writes ~/.config/go/env)")
             cdir = (opt_values(args, "", {"-C", "--C"}) or [None])[-1]
@@ -3782,6 +4089,9 @@ class Analyzer:
         if i >= len(rest):
             return
         sub, args = rest[i], rest[i + 1:]
+        if not self.hq and sub in ("archive", "init") and self.git_any_cwd_shared_targets(sub, args, cwd, dyn):
+            shown = " ".join(["git", sub, *args])
+            raise GitBlock(f"`{shown[:80]}`: {SHARED_ADVICE}")
         if not self.git_mutates(sub, args) or not self.git_is_shared(cwd, dyn, git_dir, work_tree):
             return
         if sub == "init" and not (cfg or git_dir or work_tree) and self.git_outside_shared(args, cwd, dyn):
@@ -3791,11 +4101,10 @@ class Analyzer:
         shown = " ".join(["git", sub, *args])
         raise GitBlock(f"`{shown[:80]}`: {SHARED_ADVICE}")
 
-    def git_outside_shared(self, args, cwd, dyn):
-        """T-0303: `git init` is allowed in a shared checkout's cwd only for exactly one literal directory inside
-        the worker's own scratchpad. An option or path not understood is unsafe."""
+    def git_init_paths(self, args, cwd, dyn):
+        """Directory argument(s) for `git init`, or ['.'] when none. None when not decidable (T-0330)."""
         if dyn:
-            return False
+            return None
         out, k = [], 0
         while k < len(args):
             a = args[k]
@@ -3809,17 +4118,51 @@ class Analyzer:
             if name in ("-b", "--initial-branch"):
                 if not eq:
                     if k >= len(args):
-                        return False
+                        return None
                     k += 1
             elif a.startswith("-") and a != "-":
-                return False  # --separate-git-dir, --template, an unknown option
+                return None  # --separate-git-dir, --template, an unknown option
             else:
                 out.append(a)
-        if len(out) != 1:
+        while out and out[-1] in ("+", ";", "\\;"):
+            out.pop()
+        if len(out) > 1:
+            return None
+        return [out[0] if out else "."]
+
+    def git_path_writes_shared(self, target, cwd, dyn):
+        """True when a git archive/init write target must be refused: inside the shared checkout or not decidable."""
+        if dyn and not os.path.isabs(target):
+            return True
+        if target in ("{}", "{:}"):  # find -exec placeholder, not a shell brace expansion
             return False
-        target = out[0]
-        if not target or self.dynamic_dir(target) or target.startswith("~"):
-            return False  # quoted '~' is a literal name to git: not decidable here
+        if not target or self.dynamic_dir(target) or tilde_unres(target, cwd):
+            return True
+        resolved = tilde_expand(target, cwd)
+        path = os.path.realpath(resolved if os.path.isabs(resolved) else os.path.join(cwd, resolved))
+        if in_scratchpad(path):
+            return False
+        return self.git_top_shared(path)
+
+    def git_any_cwd_shared_targets(self, sub, args, cwd, dyn):
+        """T-0330: refuse archive -o/--output and git init that write into the shared checkout from any cwd."""
+        if sub == "archive":
+            outs = opt_values(args, "o", {"--output"})
+            return bool(outs) and any(self.git_path_writes_shared(t, cwd, dyn) for t in outs)
+        if sub == "init":
+            paths = self.git_init_paths(args, cwd, dyn)
+            if paths is None:
+                return True
+            return any(self.git_path_writes_shared(p, cwd, dyn) for p in paths)
+        return False
+
+    def git_outside_shared(self, args, cwd, dyn):
+        """T-0303: `git init` is allowed in a shared checkout's cwd only for exactly one literal directory inside
+        the worker's own scratchpad. An option or path not understood is unsafe."""
+        paths = self.git_init_paths(args, cwd, dyn)
+        if paths is None or len(paths) != 1 or paths[0] == ".":
+            return False
+        target = paths[0]
         path = os.path.realpath(target if os.path.isabs(target) else os.path.join(cwd, target))
         return in_scratchpad(path)  # M5368: only the worker's own scratchpad, never a shared home, ancestor or worktree
 
@@ -4288,6 +4631,8 @@ class Analyzer:
         if any(GIT_CONFIG_ENV.match(x) for x in names):
             raise Block(f"{self.role} may not set GIT_CONFIG_COUNT/GIT_CONFIG_KEY_*/GIT_CONFIG_VALUE_*/GIT_CONFIG_PARAMETERS: "
                         "env-injected git config can alias a push; ask your lead")
+        if words and self.role in TC_ROLES and not self.hq and tc_kind(words[0]):  # T-1498: the one PATH prefix the toolchain line may carry
+            names = [x for x in names if not (x.startswith("PATH=") and TC_PATH_VALUE.match(x[5:]) and x in assigns)]
         if any(GIT_SENSITIVE_ENV.match(x) for x in names):
             raise Block(f"{self.role} may not set, export or unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_*: they select "
                         "the git config, helpers and pager (an alias there hides a push); ask your lead")
@@ -4502,7 +4847,8 @@ class Analyzer:
         if name == "factory" or si is not None or (
                 name in SHELLS and next((os.path.basename(x) for x in rest if not x.startswith("-")), None) == "factory"):
             self.ran_factory = True
-        if is_dynamic(w, strict=not in_loose):
+        tc = tc_kind(w) if self.role in TC_ROLES and not self.hq else None
+        if is_dynamic(w, strict=not in_loose) and not (tc and re.match(r"^\$(?:HOME|\{HOME\})/\.local/go/bin/(?:go|gofmt)$", w)):
             raise DynamicBlock(f"dynamic command word {w!r} could expand to herdr, hc or claude")
         if is_herdr(w):
             raise Block("direct herdr invocation")
@@ -4514,6 +4860,8 @@ class Analyzer:
             self.cfg_cd(name, rest)
         self.claude_launchers(name, rest)
         self.sandbox_route(name, rest)
+        if tc:
+            self.go_toolchain(tc, rest, assigns)
         self.cfg_write(name, rest)
         self.prot_write(name, rest, assigns)
         self.persist_write(name, rest)
@@ -5966,6 +6314,7 @@ def check(cmd, cwd=None, role=None, hq=False):
     try:  # PRIV pass (the whole of HQ mode): parse trouble allows
         an = Analyzer(cwd, role, True)
         an.unit_rule = hq
+        an.hq_deny = hq
         an.pt = pt if hq else None
         an.script(cmd)
     except PrivBlock:
@@ -6187,9 +6536,62 @@ def terms_split(cmd):
     return segs
 
 
-TERMS_BRACE_HEADS = ("grep", "egrep", "rg", "jq", "gh")
-TERMS_BRACE_GH = {("pr", "list"), ("pr", "view"), ("pr", "checks"), ("pr", "status"), ("issue", "list"), ("issue", "view"),
-                  ("issue", "status"), ("run", "list"), ("run", "view"), ("repo", "view")}
+TERMS_BRACE_HEADS = ("grep", "egrep", "rg", "jq", "gh", "git", "awk", "sed", "sort", "head", "tail", "cut", "wc", "uniq")
+TERMS_BRACE_GH = {("pr", "list"), ("pr", "view"), ("pr", "checks"), ("pr", "status"), ("pr", "diff"), ("issue", "list"),
+                  ("issue", "view"), ("issue", "status"), ("run", "list"), ("run", "view"), ("repo", "view")}
+TERMS_BRACE_GIT = ("diff", "log", "show")  # T-1617: read-only first stages; none of their words is ever blanked
+# T-1617: an awk program is blanked only when it can neither run a command, read a file by name nor write one: no
+# system, getline, ARGV/ARGC, ENVIRON, @include/@load, no > at all (so no >=) and no single | (so no regex alternation).
+TERMS_AWK_UNSAFE = re.compile(r"system|getline|ARGV|ARGC|ENVIRON|@|>|\|")
+TERMS_SED_FLAGS = re.compile(r"-[nErsuz]+")
+TERMS_SED_PLAIN = re.compile(r"(?:[0-9]+|\$)?(?:,(?:[0-9]+|\$))?[pdq]|/(?:[^/\\\n]|\\.)*/[pd]")
+TERMS_SED_DELIMS = "/|#,:@!%+=~"
+TERMS_SED_SUBST_FLAGS = re.compile(r"[gpI0-9]*")
+# T-1617: `factory <words> <<'WORD'` + body + WORD as the whole command: the body is stdin data for the factory CLI
+TERMS_HEREDOC = re.compile(
+    r"\A[ \t]*factory((?:[ \t]+(?:[A-Za-z0-9_@%+=:,./-]+|'[^'\n]*'|\"[^\"\n$`\\]*\"))*)[ \t]*<<'([A-Za-z_][A-Za-z0-9_]*)'[ \t]*\n(.*)\Z",
+    re.S)
+
+
+def terms_awk_safe(prog):
+    """True when a single-quoted awk program has no way to run a command or to name a file (see TERMS_AWK_UNSAFE)."""
+    return not TERMS_AWK_UNSAFE.search(prog.replace("||", ""))
+
+
+def terms_sed_safe(prog):
+    """True for one sed command that only prints, deletes, quits or substitutes: N,Mp / /re/p / s<d>re<d>text<d>[gpI0-9].
+    No w, e, r, i, a, c commands or flags, no second command."""
+    if TERMS_SED_PLAIN.fullmatch(prog):
+        return True
+    if len(prog) < 4 or prog[0] != "s" or prog[1] not in TERMS_SED_DELIMS:
+        return False
+    d, seen, i = prog[1], 0, 2
+    while i < len(prog):
+        if prog[i] == "\\":
+            i += 2
+            continue
+        if prog[i] == d:
+            seen += 1
+            if seen == 2:
+                return bool(TERMS_SED_SUBST_FLAGS.fullmatch(prog[i + 1:]))
+        i += 1
+    return False
+
+
+def terms_heredoc_view(cmd):
+    """T-1617: for a command that is exactly one `factory ...` line with a quoted-delimiter heredoc and nothing after the
+    terminator, the text TERMS_BRACE is searched in is the factory line alone: the body reaches the CLI as stdin data and
+    the shell expands nothing in it. Every other check of terms_bash still reads the whole command."""
+    m = TERMS_HEREDOC.match(cmd)
+    if not m:
+        return cmd
+    lines = m.group(3).split("\n")
+    if m.group(2) not in lines:
+        return cmd
+    end = lines.index(m.group(2))
+    if any(lines[end + 1:]):
+        return cmd
+    return "factory" + m.group(1)
 TERMS_BRACE_FLAGS = {"grep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"), "egrep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"),
                      "rg": re.compile(r"-[FHILPSUchilnopqsuvwxz]+"), "jq": re.compile(r"-[CMRSaceJjnrst]+")}
 TERMS_BRACE_DOLLAR = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*(?![^ \t;&|])")
@@ -6255,6 +6657,8 @@ def terms_brace_view(cmd):
             return cmd
         if head == "gh" and (len(txt) < 3 or (txt[1], txt[2]) not in TERMS_BRACE_GH):
             return cmd
+        if head == "git" and (len(txt) < 2 or txt[1] not in TERMS_BRACE_GIT):
+            return cmd
 
         def whole(k):
             a, b, q = words[k]
@@ -6264,6 +6668,32 @@ def terms_brace_view(cmd):
             for k in range(1, len(words) - 1):
                 if txt[k] in ("--jq", "-q", "--template") and whole(k + 1):
                     blank.append(words[k + 1][:2])
+        elif head == "awk":
+            k = 1
+            while k < len(words) and t[words[k][0]] == "-":
+                if txt[k] in ("-F", "-v"):  # the value word stays in the view
+                    k += 2
+                elif t[words[k][0]:words[k][0] + 2] in ("-F", "-v"):
+                    k += 1
+                else:
+                    return cmd
+            if k < len(words) and whole(k):
+                if not terms_awk_safe(t[words[k][0] + 1:words[k][1] - 1]):
+                    return cmd
+                blank.append(words[k][:2])
+        elif head == "sed":
+            k = 1
+            while k < len(words) and txt[k] is not None and TERMS_SED_FLAGS.fullmatch(txt[k]):
+                k += 1
+            if k < len(words) and txt[k] == "-e":
+                k += 1
+            # GNU sed takes options after the script too (sed 's/a/b/' -i f): any later dash or quoted word gives up
+            if any(q or t[a] == "-" for j, (a, b, q) in enumerate(words) if j > k):
+                return cmd
+            if k < len(words) and whole(k) and terms_sed_safe(t[words[k][0] + 1:words[k][1] - 1]):
+                blank.append(words[k][:2])
+        elif head not in TERMS_BRACE_FLAGS:  # git, sort, head, tail, cut, wc, uniq: nothing is blanked
+            continue
         else:
             k = 1
             while k < len(words) and txt[k] is not None and TERMS_BRACE_FLAGS[head].fullmatch(txt[k]):
@@ -6287,7 +6717,7 @@ def terms_bash(cmd, cwd, env=None, depth=0):
     env = {} if env is None else env
     home = os.environ.get("HOME") or os.path.expanduser("~")
     names = {"scrub", "terms"} | {n.lower() for p in paths for n in (os.path.basename(p), os.path.basename(os.path.dirname(p))) if n}
-    brace_view = terms_brace_view(cmd) if depth == 0 else cmd
+    brace_view = terms_brace_view(terms_heredoc_view(cmd)) if depth == 0 else cmd
     if ("${!" in cmd or TERMS_BRACE.search(brace_view)) and any(n in cmd.lower() for n in names):
         raise PublicBlock(f"variable indirection or brace expansion next to the owner-terms file is refused: {TERMS_WHY}")
     for raw_seg in terms_split(re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
@@ -6499,6 +6929,10 @@ def main():
     except UnitBlock as e:
         sys.stderr.write(f"worker-guard: blocked (`{e}`): mutating systemctl/systemd-run is not allowed for "
                          "factory agents; the owner manages units (M2108)\n")
+        return 2
+    except HqDenyBlock as e:
+        sys.stderr.write(f"worker-guard: blocked: HQ deny rule: {e} is denied for boss, director and lead in every "
+                         "spelling (see roles/settings; use the factory CLI)\n")
         return 2
     except RepoProtBlock as e:
         sys.stderr.write(f"worker-guard: blocked (`{e}`): branch protection and repository settings are changed only by "

@@ -22,6 +22,7 @@ import traceback
 import warnings
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import _gitenv  # hermetic git: tests/_gitenv.py
 import _slot
@@ -313,10 +314,19 @@ def cli_go_bin():
     return out
 
 
+# tick-phases lines carry wall-clock seconds (total=1.23 lock=0.01): only those floats are masked, key names, order, count stay exact (M36748 item 1)
+_PHASES_LINE = re.compile(r"(?m)^tick-phases .*$")
+_PHASES_FLOAT = re.compile(r"=\d+\.\d\d\b")
+
+
+def _mask_phase_timing(text):
+    return _PHASES_LINE.sub(lambda m: _PHASES_FLOAT.sub("=<t>", m.group(0)), text)
+
+
 def _normalize_ts(value):
     """now() and random values differ run to run until S2 gives both impls FACTORY_TEST_NOW: ISO timestamps, epoch seconds, uuids."""
     if isinstance(value, str):
-        return _HOST.sub("<host>", _UUID.sub("<uuid>", _EPOCH.sub("<ts>", _TS.sub("<ts>", value))))
+        return _HOST.sub("<host>", _UUID.sub("<uuid>", _EPOCH.sub("<ts>", _TS.sub("<ts>", _mask_phase_timing(value)))))
     return "<ts>" if isinstance(value, float) and value > 1e9 else value
 
 
@@ -371,6 +381,7 @@ class FactoryEnv:
         # herdr and hc are copies: the worker gate exempts only a real tests/stubs path (tests/test_worker_gate.py)
         shutil.copy2(STUBS / "herdr", self.stub_bin / "herdr")
         shutil.copy2(STUBS / "hc", self.stub_bin / "hc")
+        shutil.copy2(STUBS / "ssh", self.stub_bin / "ssh")
         (self.stub_bin / "gh").symlink_to(STUBS / "gh")
         self.herdr_state = self.home / "herdr.json"
         self.gh_state = self.home / "gh.json"
@@ -489,6 +500,11 @@ class FactoryEnv:
             os.rename(self.home, aside)
             try:
                 self._copy_tree(snaps / "pre", self.home)
+                # one flock for both runs: Go's run/tick.lock is a hardlink to the file Python's run holds (M36748 item 1)
+                py_lock, go_lock = aside / "factory" / "run" / "tick.lock", self.home_dir / "run" / "tick.lock"
+                if py_lock.exists():
+                    go_lock.unlink(missing_ok=True)
+                    os.link(py_lock, go_lock)
                 go = self._run_go(self.home, args, stdin, env)
                 db_go, calls_go = self._state()
             finally:
@@ -499,7 +515,7 @@ class FactoryEnv:
             if py.returncode != go.returncode:
                 problems.append(f"exit code: python {py.returncode}, go {go.returncode}")
             out_py, out_go = py.stdout, go.stdout
-            out_py, out_go = (_HOST.sub("<host>", o) for o in (out_py, out_go))
+            out_py, out_go = (_HOST.sub("<host>", _mask_phase_timing(o)) for o in (out_py, out_go))
             if out_py != out_go:
                 problems.append(f"stdout: python {py.stdout!r}, go {go.stdout!r}")
             if py.stderr != go_err:
@@ -701,10 +717,72 @@ class FactoryEnv:
         shutil.rmtree(self.home, ignore_errors=True)
 
 
+# T-1568 (G-049 SC3): helpers for darwin platform branches in bin/factory_cli.py (patched on Linux).
+DARWIN_VM_STAT = """Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                               10000.
+Pages active:                             50000.
+Pages inactive:                           20000.
+Pages speculative:                         2000.
+Pages wired down:                         30000.
+"""
+DARWIN_PS_SAMPLE = """    1     0     0 Sat Nov 15 08:00:00 2026 /sbin/launchd
+  500     1   501 Sat Nov 15 09:30:01 2026 /opt/homebrew/bin/python3 /Users/x/factory/bin/factory serve
+  600   500   501 Sat Nov 15 09:31:02 2026 /usr/local/bin/claude --settings /h/settings/coder.json --resume abc
+  700     1   501 Sun Nov 16 10:00:00 2026 node /usr/local/bin/claude --session-id s1
+"""
+DARWIN_START_500 = "Sat Nov 15 09:30:01 2026"
+
+
+def _darwin_cp(out="", rc=0):
+    return unittest.mock.Mock(returncode=rc, stdout=out, stderr="")
+
+
+class DarwinSubprocessRunner:
+    """Fake subprocess.run for darwin branch tests; passes unknown commands to the real run."""
+
+    def __init__(self, ps=DARWIN_PS_SAMPLE, vm=DARWIN_VM_STAT, level="1", stat_t="apfs\n", top="  2048 /usr/bin/big\n"):
+        self.ps, self.vm, self.level, self.stat_t, self.top = ps, vm, level, stat_t, top
+        self.calls = []
+        self.envs = []  # the env= of each call, parallel to calls
+        self.real = subprocess.run
+
+    def __call__(self, cmd, *a, **kw):
+        self.calls.append(list(cmd) if isinstance(cmd, (list, tuple)) else cmd)
+        self.envs.append(kw.get("env"))
+        name = cmd[0] if isinstance(cmd, (list, tuple)) else ""
+        if name in ("ps", "vm_stat", "sysctl", "stat"):  # PATH-resolved: a worker could shadow it (T-1568 S1)
+            raise AssertionError(f"{name} must run by absolute path on darwin: {cmd}")
+        name = {"/bin/ps": "ps", "/usr/bin/vm_stat": "vm_stat", "/usr/sbin/sysctl": "sysctl", "/usr/bin/stat": "stat"}.get(name, name)
+        if name == "ps":
+            if "rss=,command=" in cmd:
+                return _darwin_cp(self.top)
+            return _darwin_cp(self.ps, 0) if self.ps is not None else _darwin_cp("", 1)
+        if name == "vm_stat":
+            return _darwin_cp(self.vm, 0) if self.vm is not None else _darwin_cp("", 1)
+        if name == "sysctl":
+            return _darwin_cp(self.level + "\n", 0) if self.level is not None else _darwin_cp("", 1)
+        if name == "stat":
+            return _darwin_cp(self.stat_t, 0)
+        if name in ("systemctl", "systemd-run"):
+            raise AssertionError(f"{name} must not run on darwin: {cmd}")
+        return self.real(cmd, *a, **kw)
+
+    def named(self, name):
+        return [c for c in self.calls if c and os.path.basename(c[0]) == name]
+
+
 class FactoryTestCase(unittest.TestCase):
     def __init_subclass__(cls, **kw):
         super().__init_subclass__(**kw)
         _slot.note_module(cls.__module__)  # a full-suite run waits here, at load time, for a host-wide test slot
+
+    @contextlib.contextmanager
+    def darwin_platform(self, runner=None, **env):
+        """Patch sys.platform to darwin and stub subprocess.run for in-process factory_cli tests."""
+        runner = runner or DarwinSubprocessRunner()
+        with mock.patch.dict(os.environ, env), self.env.load_factory() as mod:
+            with mock.patch.object(mod.sys, "platform", "darwin"), mock.patch.object(mod.subprocess, "run", runner):
+                yield mod, runner
 
     INPROC = False  # True: env.run() calls bin/factory in-process (see FactoryEnv.run_inproc); inproc=False opts one call out
 

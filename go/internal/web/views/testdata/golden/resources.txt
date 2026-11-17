@@ -1,0 +1,21 @@
+# /resources
+TEXT
+Resources - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 3 Insights Throughput Quality Tokens Changelog System Resources Resources All Claude Cursor <TS> Gate closed · 2 queued Needs you 6 Cursor usage · 0 h · Pro · ok Spawn gate Gate closed 6 agents running, cap 6; 2 queued. Closed because: 6/6 agent panes live Derived from the database and /proc (no live pane check), so it can differ from the real gate for a moment. Capacity Agents 6 / 6 At cap · 2 queued Memory 4.0 GB free OK · floor 2.0 GB Load 1.5 / 8 CPUs OK · 1-min average Claude usage 50% · 10% OK · 5 h · week Cursor usage 0 h Pro · ok data 1 min old Agents by org Org Live Workers Leads HQ Queued Runtime Claude Live 4 Workers 2 Leads 0 HQ 2 Queued 2 Runtime claude 4 Cursor Live 2 Workers 2 Leads 0 HQ 0 Queued 0 Runtime claude 1 · cursor 1 The agent cap, memory and load are shared by both orgs. Checks Gate inputs (read-only snapshot). The Capacity gauges above are the live view. Agents 6 cap 6 At cap Workers 4 - OK Leads 0 cap 4 OK Claude processes 2 cap 10 OK Memory available 4096 MB floor 2048 MB OK Claude usage 50% 5-hour · 10% weekly cap 90% · 92% OK Per day Numbers align under each column (day labels stay left). Day Spawns Queued Merges Escalations 11-14 0 2 1 2 11-13 51 0 1 1 11-12 1 0 1 0 11-11 0 0 1 0 11-10 0 0 0 0 11-09 0 0 0 0 11-08 0 0 1 0 7-day events 40 queued <TS> claude-coder-t-10 queued: at cap again queued <TS> claude-coder-t-10 queued: at cap: 6 live set <TS> config max_live_agents = 6 decision <TS> claude-director → claude-boss: Decision <b>one</b> digest <TS> digest sent set <TS> config max_five_hour_pct = 90 <b>markup</b> eval <TS> team tm-a eval score 4/5… judge-reject <TS> task T-30 judge-reject merged <TS> task T-30 merged escalation <TS> claude-lead-g-001 → claude-director: not for boss escalation <TS> claude-lead-g-001 → claude-boss: Need a call on T-2 spawn <TS> bulk-50 spawn spawn <TS> bulk-49 spawn spawn <TS> bulk-48 spawn spawn <TS> bulk-47 spawn spawn <TS> bulk-46 spawn spawn <TS> bulk-45 spawn spawn <TS> bulk-44 spawn spawn <TS> bulk-43 spawn spawn <TS> bulk-42 spawn spawn <TS> bulk-41 spawn spawn <TS> bulk-40 spawn spawn <TS> bulk-39 spawn spawn <TS> bulk-38 spawn spawn <TS> bulk-37 spawn spawn <TS> bulk-36 spawn spawn <TS> bulk-35 spawn spawn <TS> bulk-34 spawn spawn <TS> bulk-33 spawn spawn <TS> bulk-32 spawn spawn <TS> bulk-31 spawn spawn <TS> bulk-30 spawn spawn <TS> bulk-29 spawn spawn <TS> bulk-28 spawn spawn <TS> bulk-27 spawn spawn <TS> bulk-26 spawn spawn <TS> bulk-25 spawn spawn <TS> bulk-24 spawn spawn <TS> bulk-23 spawn spawn <TS> bulk-22 spawn More Caps and config 5 Setting Value Source Max five hour pct max_five_hour_pct 90 config Max live agents max_live_agents 6 config Min mem available mb min_mem_available_mb 2048 config Note note x config Max seven day pct max_seven_day_pct 92 default Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 3 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goals
+a:/quality
+a:/resources
+a:/resources?before=1794568920-1-73
+a:/resources?org=claude
+a:/resources?org=cursor
+a:/tasks
+a:/throughput
+a:/tokens
