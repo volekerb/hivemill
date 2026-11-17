@@ -1,0 +1,29 @@
+# /tokens
+TEXT
+Tokens - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 3 Insights Throughput Quality Tokens Changelog System Resources Tokens All Claude Cursor <TS> Gate closed · 2 queued Needs you 6 Cursor usage · 0 h · Pro · ok Today 7 days 30 days All time Claude usage Claude usage 50% · 10% OK · 5 h · week data 1 min old Cursor runtime Org Model Sessions Live now Agent-hours Tokens Cursor claude-sonnet-5-5 1 0 1.0 h not reported Cursor grok-4.7-high 1 0 1.0 h not reported Cursor composer-2.5 1 1 0.5 h not reported Token usage is not reported by Cursor CLI: it leaves no token or usage counts on this machine, so Cursor runtime agents show sessions and agent-hours per model from the agents table, and no cost. Total tokens i Input, output and cache tokens (read and write) of every request in the range. 11.3k Cost estimate i Estimated API-equivalent cost at list prices as of 2026-10-25. Requests on a model without a price are left out and listed below. $0.03 Cache read share i Cache-read tokens as a share of all tokens. A high share means most context was served from the cache. 79% Requests i Model requests that carried usage counts. 4 By day 11-12: 11,330 tokens 11.3k 11-12 Tokens per day, last 1 days Day Tokens 2026-11-12 11,330 Breakdown By goal By task By agent By model By org Goal Tokens Share In / out Requests Cost G-001 Claude goal Tokens 11.3k Share 100% In / out 500 / 800 Requests 3 Cost $0.02 Not attributed i Usage from sessions that could not be matched to a factory goal, task or agent. See Attribution quality below. Tokens 30 Share 0.3% In / out 10 / 20 Requests 1 Cost $0.00 Attribution quality Matched by Sessions session 1 event 0 name 0 worktree 0 unattributed 1 Costs are estimates at list prices as of 2026-10-25; a trailing + means some tokens were on models without a price. Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 3 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goals
+a:/quality
+a:/resources
+a:/tasks
+a:/throughput
+a:/tokens
+a:/tokens?days=1
+a:/tokens?days=30
+a:/tokens?days=7
+a:/tokens?days=7&by=agent
+a:/tokens?days=7&by=model
+a:/tokens?days=7&by=org
+a:/tokens?days=7&by=task
+a:/tokens?days=7&goal=G-001
+a:/tokens?days=all
+a:/tokens?org=claude
+a:/tokens?org=cursor
