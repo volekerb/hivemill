@@ -253,6 +253,7 @@ DEFAULT_CONFIG = {
     # reasoning effort for Opus agents (`claude --effort`, owner M2741); "" = leave Claude's default. Sonnet is never touched.
     "opus_effort": "medium",
     "judge_max_refreshes": "4",  # refreshes one `factory judge --merge` run does before it gives up with STALE-LOOP; invalid or < 1 -> 4
+    "judge_ci_gate": "pr",       # T-1772 (owner M40242): pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS + clean merge-tree + no overlap only, no PR check is read or waited on (docs/judge-ci-gate.md)
     "judge_ci_wait_s": "2400",   # `factory judge --merge` waits this long for pending CI before refusing (polls every 30 s); 40 min fits the 35-min CI limit (#117)
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
@@ -5288,6 +5289,12 @@ def org_agent_name(con, base, goal=None, task=None, org=None):
     return oname(con, org_for(con, goal, task, org=org), slug(base))
 
 
+def team_lead(con, team):
+    """The lead_agent recorded for a team id, or None."""
+    r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (team,)).fetchone()
+    return r["lead_agent"] if r and r["lead_agent"] else None
+
+
 def resolve_recipient(con, to, org=None):
     """Accept an agent name, a role ('director'), 'lead:<team>' or 'owner'. A bare HQ role ('boss', 'director',
     'staff-engineer') and 'owner' resolve inside `org` (the message's org: see send) to <org>-<role>."""
@@ -5311,8 +5318,7 @@ def resolve_recipient(con, to, org=None):
                 return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
-        r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
-        return r["lead_agent"] if r and r["lead_agent"] else die(f"team {to[5:]} has no lead")
+        return team_lead(con, to[5:]) or die(f"team {to[5:]} has no lead")
     if con.execute("SELECT 1 FROM agents WHERE name=?", (to,)).fetchone():
         return to
     r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') ORDER BY started DESC LIMIT 1",
@@ -5527,11 +5533,37 @@ def coder_done_escalation_ok(con, role, a):
     return a.to in ups
 
 
+def lead_missing(con, to):
+    """True when 'lead:<x>' has no lead that can receive: no such team, no lead agent, a closed team, or an
+    unparked team whose lead is not live/starting/queued (a parked lead wakes on the message). T-1626."""
+    lead = team_lead(con, to[5:])
+    if not lead:
+        return True
+    t = con.execute("SELECT status, parked_at FROM teams WHERE id=?", (to[5:],)).fetchone()
+    if t["status"] == "closed":
+        return True
+    if t["parked_at"]:
+        return False
+    a = con.execute("SELECT status FROM agents WHERE name=?", (lead,)).fetchone()
+    return not a or a["status"] not in ("live", "starting", "queued")
+
+
+def msg_no_lead_fallthrough(con, a):
+    """T-1626: a worker's message to a lead that does not exist goes to its own org's director as an escalation."""
+    body = read_text(a.body)
+    org = agent_org(con, actor()) or orgs.DEFAULT_ORG
+    full = ((body or "").rstrip("\n") + "\n" if body else "") + f"(originally addressed to {a.to}: no such lead)"
+    mid, rcpt = send(con, "director", "[no lead] " + a.subject, full, "escalation", a.goal, a.task, org=org)
+    print(f"no lead for {a.to}; sent to {rcpt} as escalation M{mid}")
+
+
 def cmd_msg(a):
     con = db()
     role = actor_role(con)
     if a.kind == "escalation" and role not in ("owner", "director", "boss", "lead") and not coder_done_escalation_ok(con, role, a):
         die("only leads, the director and the boss escalate; message your lead instead", 3)
+    if role not in HQ_ROLES and role != "owner" and a.to.startswith("lead:") and lead_missing(con, a.to):
+        return msg_no_lead_fallthrough(con, a)
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
     refuse_cross_org(con, role, a.to, a.goal, a.task)
@@ -6273,6 +6305,12 @@ def _judge_sleep(seconds):
     time.sleep(seconds)
 
 
+def judge_ci_none(con):
+    """T-1772: config judge_ci_gate=none turns the judge's GitHub PR check reading and waiting off (the main push run is
+    the gate, red_main_check). Any other value, including an unreadable one, keeps today's behaviour (pr)."""
+    return (cfg(con, "judge_ci_gate") or "pr").strip().lower() == "none"
+
+
 def _judge_wait_limit(con):
     try:
         return int(cfg(con, "judge_ci_wait_s"))
@@ -6422,7 +6460,8 @@ def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carr
             "no file changed by both main and the PR since the merge-base", f"{CI_WORKFLOW} unchanged on main",
             "GitHub MERGEABLE"]
     hold = []
-    bad = (local_checks_problems(proj, pr) if proj
+    bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
+           local_checks_problems(proj, pr) if proj
            else checks_ok(pr) + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
     if bad:
         hold.append("CI not green on the head: " + ", ".join(bad))
@@ -6612,6 +6651,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
     """Poll the PR while its only non-green checks are pending (`judge_ci_wait_s`). With `new_head` (just pushed by a
     refresh) it first waits for GitHub to report that head, and for its checks to appear (required ones, or any when the
     old head had some): an empty rollup right after a push is not green. Returns (pr, seconds waited)."""
+    if judge_ci_none(con):  # T-1772: the judge never waits on GitHub PR checks
+        return pr, 0
     proj = gate_project_for(con, url)  # T-0516: the gate is gate_runs, GitHub checks need not exist
     local = proj is not None
 
@@ -7575,7 +7616,8 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append("PR is a draft")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
-        bad = local_checks_problems(proj, pr) if proj else checks_ok(pr)  # T-1634: local mode, see local_checks_problems
+        bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
+               local_checks_problems(proj, pr) if proj else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -7592,7 +7634,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 problems += local_gate_problems(
                     con, proj, t["pr_url"], sha, stale[2], stale[0], behind_ok=behind_clean,
                     body=lambda: gh_json("pr", "view", t["pr_url"], "--json", "body").get("body") or "")
-        else:
+        elif not judge_ci_none(con):
             problems += missing_checks(con, pr, t["pr_url"])
         g = con.execute("SELECT p.auto_merge FROM goals g LEFT JOIN projects p ON p.id=g.project_id WHERE g.id=?",
                         (t["goal_id"],)).fetchone()
@@ -7628,6 +7670,11 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 pass  # TODO(T-0623): refuse here while the red-main freeze is active
         if not behind_clean and stale[1] == "STALE" and not others and mech:
             problems.append("STALE-ONLY: the mechanical merger does not refresh; refresh by hand (`factory refresh`) or the judge does")
+        elif not behind_clean and stale[1] == "STALE" and not others and judge_ci_none(con):
+            # T-1772: judge_ci_gate=none never refreshes (a refresh would restart CI that the judge no longer waits for);
+            # a head that cannot merge as it is (overlap with main, dirty merge-tree, strict protection) is refused
+            problems.append("judge_ci_gate=none does not refresh the branch: "
+                            + (blocker or "; ".join(nr_why) or "the head cannot merge behind main as it is"))
         elif not behind_clean and stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
@@ -8208,6 +8255,13 @@ def cmd_refresh(a):
 PRECHECK_ROLES = ("reviewer", "qa", "judge")
 
 
+def refresh_only_if_conflicting(pr):
+    """Owner order M40469 (T-1788): a judge or lead never merges main into a PASS+PASS PR unless GitHub says it is
+    CONFLICTING. A merely BEHIND head (mergeable MERGEABLE/UNKNOWN, mergeStateStatus BEHIND/CLEAN/UNSTABLE/BLOCKED) is
+    left alone: a refresh moves the head, so the reviewer/QA verdicts no longer match it and the merge gate re-waits."""
+    return (pr.get("mergeable") or "").upper() == "CONFLICTING"
+
+
 def staleness_precheck(con, role, task):
     """Spawn pre-check (T-0172): a reviewer, qa or judge is not spawned on a stale head. A clean-behind head is
     refreshed with refresh_branch (the one core of `factory refresh` and the judge's refresh) and the spawn goes on;
@@ -8248,8 +8302,8 @@ def staleness_precheck(con, role, task):
             event(con, "task", task, "precheck-no-refresh", f"{nr} @ {old[:8]}: {'; '.join(why)}"[:900])
             con.commit()
             return None
-    if role == "judge" and pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
-        return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
+    if role == "judge" and not refresh_only_if_conflicting(pr):
+        return None  # M40469: the spawn pre-check merges main only into a CONFLICTING PR; a BEHIND one is left alone
     # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
     # starts, and the judge refreshes before merging anyway. Only a conflict is refused (dry run: pushes nothing).
     r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task, dry_run=role in ("reviewer", "qa"))
@@ -8809,12 +8863,14 @@ def _red_main_revert_task(con, slug, run, since_ts):
     ev = [r for r in ev if since <= _red_main_when(r["ts"])] if since else ev[:3]
     merged = list(dict.fromkeys(r["entity_id"] for r in ev))
     tid = next_id(con, "tasks", "T", 4)
-    title = f"Red main: revert or fix {slug} run {run['databaseId']}"
+    title = f"Red main: bisect + revert {slug} run {run['databaseId']}"
     spec = (f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main failed ({run.get('url') or 'no url'}, "
-            f"head {str(run.get('headSha') or '')[:8]}). The red-main freeze holds every merge until a green push run. Merged since "
-            f"the last green main: {', '.join(merged) or 'unknown'}. Find the cause in the run log and open a PR that reverts or "
-            "fixes it; the freeze lifts by itself on the next green push run.")
-    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated) VALUES(?,?,?,?,?,'coder','[]',?,?)",
+            f"head {str(run.get('headSha') or '')[:8]}). With judge_ci_gate=none the main push run is the merge gate, so a red run "
+            f"means one of the merges since the last green main broke it: {', '.join(merged) or 'unknown'}. Bisect those merge "
+            "commits (git bisect or one revert at a time, newest first), find the culprit in the run log, and open a PR that "
+            "reverts it or fixes it; the freeze lifts by itself on the next green push run.")
+    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated,priority) "
+                "VALUES(?,?,?,?,?,'coder','[]',?,?,1)",
                 (tid, g["id"], title, spec, "main's push run of tests.yml is green again", now(), now()))
     event_as(con, "tick", "task", tid, "add", title)
     return tid, merged
@@ -11325,7 +11381,7 @@ _GH_REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")  # used with fullmatch
 
 
 def _clone_source(con, common):
-    """The repo a per-task clone may be judged by: the clone sits directly under worktrees/ as <goal>-<task>, the
+    """The repo a per-task clone may be judged by: the clone sits directly under worktrees/ as <goal>-<task> (qa: <goal>-<task>-qa), the
     DB names that task's project repo, and the clone's one alternates line is exactly <repo>/.git/objects. The
     alternates file is worker-writable, so it is only compared, never trusted. None otherwise."""
     try:
@@ -11336,7 +11392,7 @@ def _clone_source(con, common):
     except OSError:
         return None
     row = con.execute("SELECT p.repo_path FROM tasks t JOIN goals g ON g.id=t.goal_id JOIN projects p ON p.id=g.project_id "
-                      "WHERE t.goal_id || '-' || t.id = ? AND p.repo_path IS NOT NULL", (wt.name,)).fetchone()
+                      "WHERE t.goal_id || '-' || t.id = ? AND p.repo_path IS NOT NULL", (wt.name.removesuffix("-qa"),)).fetchone()  # qa_clone_path: <goal>-<task>-qa
     if not row or not isinstance(row["repo_path"], str) or not Path(row["repo_path"]).is_absolute():
         return None
     repo = Path(row["repo_path"]).resolve()
@@ -13732,6 +13788,15 @@ def prcheck_affected(wt, base, con=None, pr_url=None, project_id=None):
     if not prcheck_is_factory_project(con, project_id):
         return True, "n/a (not the factory repo)"
     script = Path(wt) / "ci" / "affected.py"
+    # applicability is decided by the project's origin/<base>, not the worktree state (T-1409)
+    rc, _ = _git_out(wt, "rev-parse", "--verify", "-q", f"origin/{base}^{{commit}}")
+    if rc != 0:
+        return False, (f"cannot read origin/{base} to decide if ci/affected.py applies (git rev-parse rc={rc}): "
+                       "git fetch origin, then rerun prcheck")
+    rc, _ = _git_out(wt, "cat-file", "-e", f"origin/{base}:ci/affected.py")
+    if rc != 0:
+        return True, (f"n/a: project {project_id or '?'} has no ci/affected.py on origin/{base}; "
+                      "affected-test check not applicable")
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
     con = con or db()
@@ -17415,6 +17480,8 @@ def judge_pr_ready(con, pr_url, behind_ok=False):
     proj = gate_project_for(con, pr_url)
     if proj:
         return gate_pr_ready(con, proj, pr_url, behind_ok)
+    if judge_ci_none(con):  # T-1772: no GitHub PR check is read or waited on; the merge gate decides on verdicts and merge-tree
+        return True, "judge_ci_gate=none: PR checks not read"
     key, t = "judge_ci:" + pr_url, time.time()
     row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
     try:
@@ -17506,24 +17573,24 @@ def mech_refused(con, task):
 
 
 def autospawn_block_reason(con, t):
-    """T-1323: why the tick must not autospawn reviewer/qa/judge for task row t, else None. A depends_on task that is not done, or
-    status blocked, means the work is not ready for review (a done or missing dependency never blocks)."""
-    if t["status"] == "blocked":
-        return "task is blocked"
+    """T-1323: why the tick must not autospawn reviewer/qa/judge for task row t, else None. A depends_on task that is neither done nor
+    cancelled means the work is not ready for review. A done, cancelled (T-1692: it will never finish, so it must not block forever)
+    or missing dependency never blocks. Read-only. Callers only pass in_review rows, so there is no status check here."""
     try:
         deps = json.loads(t["depends_on"] or "[]")
     except ValueError:
         return None
     for d in deps if isinstance(deps, list) else []:
         r = con.execute("SELECT status FROM tasks WHERE id=?", (d,)).fetchone()
-        if r and r["status"] != "done":
+        if r and r["status"] not in ("done", "cancelled"):
             return f"depends_on {d} is {r['status']}, not done"
     return None
 
 
-def autospawn_blocked(con, t, kind):
-    """True when autospawn_block_reason holds for t; one `<kind>-autospawn-skip` event per task and reason per day."""
-    why = autospawn_block_reason(con, t)
+def autospawn_blocked(con, t, kind, why=None):
+    """True when autospawn_block_reason holds for t; one `<kind>-autospawn-skip` event per task and reason per day (this writes; a
+    read-only candidates query leaves it to its caller, T-1692). `why` skips the lookup when the caller already has it."""
+    why = why or autospawn_block_reason(con, t)
     if not why:
         return False
     try:
@@ -17546,8 +17613,9 @@ def judge_covered_by_other(con, tid):
     return False
 
 
-def judge_autospawn_candidates(con):
-    """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
+def judge_autospawn_candidates(con, skipped=None):
+    """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on). Read-only (T-1692):
+    a task held by autospawn_block_reason is left out and appended to `skipped` as (task, reason) for the caller to log."""
     mech_ids = {t["id"] for t in mech_candidates(con) if not mech_refused(con, t["id"])} if mech_mode(con) == "on" else set()
     out = []
     for t in con.execute(
@@ -17567,7 +17635,10 @@ def judge_autospawn_candidates(con):
             continue
         if judge_covered_by_other(con, t["id"]):
             continue  # T-1323: a train judge (or another judge) already covers it
-        if autospawn_blocked(con, t, "judge"):
+        why = autospawn_block_reason(con, t)
+        if why:
+            if skipped is not None:
+                skipped.append((t, why))
             continue
         out.append(t)
     return out
@@ -17656,7 +17727,11 @@ def judge_autospawn_tick(con):
     except FactoryNowError:
         clock = time.time()
     batch = []  # T-1153: one ls-remote per tick for the red-main wait key
-    for t in judge_autospawn_candidates(con):
+    skipped = []
+    candidates = judge_autospawn_candidates(con, skipped)
+    for t, why in skipped:
+        autospawn_blocked(con, t, "judge", why)
+    for t in candidates:
         tid = t["id"]
         jhr = task_judge_hold_reason(con, tid)
         if jhr:
