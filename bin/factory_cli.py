@@ -2991,6 +2991,8 @@ def block_eval_parse(tokens, lib=None):
     """Run block-eval parse on tokens. Exit 2 on an unknown token. Returns the parsed condition list."""
     if not tokens:
         die("no block condition tokens", 2)
+    if any(not t or t != t.strip() or len(t.split()) != 1 for t in tokens):
+        die("block condition tokens must be non-empty and contain no whitespace", 2)
     path = block_eval_binary(lib)
     try:
         p = subprocess.run([path, "parse"], input="\n".join(tokens) + "\n",
@@ -3006,7 +3008,7 @@ def block_eval_parse(tokens, lib=None):
         out = json.loads(p.stdout)
     except json.JSONDecodeError:
         die("block-eval parse returned invalid JSON", 2)
-    if not isinstance(out, list):
+    if not isinstance(out, list) or len(out) != len(tokens):
         die("block-eval parse returned invalid JSON", 2)
     return out
 

@@ -200,6 +200,12 @@ class TaskBlockTests(FactoryTestCase):
         row = self.env.sql("SELECT status, block_on FROM tasks WHERE id='T-0001'")[0]
         self.assertEqual((row["status"], row["block_on"]), ("in_progress", None))
 
+    def test_blank_or_multiline_token_stores_nothing(self):
+        for bad in ("", "   ", "main:green\ntask:T-0002"):
+            self.refused(2, "task", "block", "T-0001", "--on", bad, extra_env=self.stub_env)
+        row = self.env.sql("SELECT status, block_on FROM tasks WHERE id='T-0001'")[0]
+        self.assertEqual((row["status"], row["block_on"]), ("in_progress", None))
+
     def test_depends_on_is_not_copied(self):
         self.ok("task", "update", "T-0001", "--after", "T-0002")
         deps = json.loads(self.env.sql("SELECT depends_on FROM tasks WHERE id='T-0001'")[0]["depends_on"])
