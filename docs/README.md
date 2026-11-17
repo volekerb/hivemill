@@ -117,6 +117,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0003-macos-support.md](adr/0003-macos-support.md): macOS support (sandbox mechanism and port plan).
 - [adr/0004-node-esm-hivemill-ios-release.md](adr/0004-node-esm-hivemill-ios-release.md): Node ESM for the hivemill ios-release script.
 - [adr/0005-self-hosted-ci-runners.md](adr/0005-self-hosted-ci-runners.md): self-hosted CI runners for trusted PRs (proposed design, nothing installed).
+- [adr/0006-worker-sandbox-assessment.md](adr/0006-worker-sandbox-assessment.md): worker sandbox assessment (why go test fails for QA; proposed, nothing installed).
 
 ## Internals
 
