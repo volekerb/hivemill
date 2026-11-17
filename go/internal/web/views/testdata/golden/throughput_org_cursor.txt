@@ -1,0 +1,25 @@
+# /throughput?org=cursor
+TEXT
+Throughput - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 3 Insights Throughput Quality Tokens Changelog System Resources Throughput All Claude Cursor <TS> Gate closed · 2 queued Needs you 6 Cursor usage · 0 h · Pro · ok 7 days 14 days 30 days Merges i Tasks merged in the selected period. A task counts once, on the day of its last merge. 2 in 14 days Median spawn to merge i Median time from a task's first agent spawn to its merge. Tasks without a recorded spawn are left out. - p90 spawn to merge i 90th percentile (nearest rank) of the same times: nine in ten tasks merged faster. - Agents running now i Agents with a live pane right now: workers, team leads and HQ (boss, director, staff engineer). 2 2 workers · 0 leads · 0 HQ Unattended share i Merged tasks in the selected period with no owner involvement: no owner wait, no auto-merge block, no boss decision about the task. 2 of 2 Cost per merged PR i Average estimated API-equivalent cost of a merged PR at list prices as of 2026-10-25: the whole cost of each merged Claude-org task in the period (not cut to the period), divided by the tasks with a known cost. Tasks with no attributed tokens or no price are left out and counted. Cursor reports no tokens, so it has no cost. - Cursor: 2.5 agent-hours in 14 days, no cost or tokens reported. Counted from factory records only. It cannot see a push the owner makes by hand, or an owner wait set on a task that was already blocked. Cost and tokens per merged PR Not available for Cursor: 2.5 agent-hours, no cost or tokens reported. 1 tasks open now (in progress or in review), 1 agents working on a task. Merges per day 11-01: 0 merges 11-02: 0 merges 11-03: 0 merges 11-04: 0 merges 11-05: 0 merges 11-06: 0 merges 11-07: 0 merges 11-08: 0 merges 11-09: 0 merges 11-10: 0 merges 11-11: 1 merges 11-12: 0 merges 11-13: 1 merges 11-14: 0 merges 11-01 11-08 1 1 Merges per day, last 14 days Day Merges 2026-11-01 0 2026-11-02 0 2026-11-03 0 2026-11-04 0 2026-11-05 0 2026-11-06 0 2026-11-07 0 2026-11-08 0 2026-11-09 0 2026-11-10 0 2026-11-11 1 2026-11-12 0 2026-11-13 1 2026-11-14 0 Where the time goes Coding 0s · 0% of total median - · 2 unknown Review / QA wait 0s · 0% of total median - · 2 unknown Judge 0s · 0% of total median - · 2 unknown Rework 0s · 0% of total median 0s · all known Stages that could not be measured for a task are left out and counted as unknown. Per goal Goal Tasks done Median per task G-002 Cursor goal 2 - Slowest 10 tasks No timed tasks in this period. Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 3 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/#needs-you
+a:/?org=cursor
+a:/agents?org=cursor
+a:/changelog?org=cursor
+a:/goal/G-002
+a:/goals?org=cursor
+a:/quality?org=cursor
+a:/resources
+a:/resources?org=cursor
+a:/tasks?org=cursor
+a:/throughput
+a:/throughput?days=14&org=cursor
+a:/throughput?days=30&org=cursor
+a:/throughput?days=7&org=cursor
+a:/throughput?org=claude
+a:/throughput?org=cursor
+a:/tokens?org=cursor
