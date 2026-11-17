@@ -1401,7 +1401,36 @@ def is_herdr(word):
     return False
 
 
-def hq_deny_hit(word, name, rest):
+BOSS_MERGE_REPOS = ("volekerb/hivemill", "volekerb/hivemill-www")
+
+
+def boss_merge_ok(rest):
+    """T-1803 (owner decision M40734): the one `gh pr merge` the boss role may run: `gh pr merge <N> --squash
+    --delete-branch`, each flag once, optionally `--repo|-R|--repo=` naming hivemill or hivemill-www. Anything else
+    (--admin, --auto, --merge, --rebase, another repo, a repo given twice, extra flags) stays denied."""
+    args, repos, i = [], [], 0
+    while i < len(rest):
+        a = rest[i]
+        if a in ("--repo", "-R"):
+            if i + 1 >= len(rest):
+                return False
+            repos.append(rest[i + 1])
+            i += 2
+            continue
+        if a.startswith("--repo="):
+            repos.append(a[len("--repo="):])
+        else:
+            args.append(a)
+        i += 1
+    if len(repos) > 1 or any(r not in BOSS_MERGE_REPOS for r in repos):
+        return False
+    flags = sorted(a for a in args if a.startswith("-"))
+    pos = [a for a in args if not a.startswith("-")]
+    return flags == ["--delete-branch", "--squash"] and len(pos) == 3 and pos[:2] == ["pr", "merge"] \
+        and re.fullmatch(r"[0-9]+", pos[2]) is not None
+
+
+def hq_deny_hit(word, name, rest, role=None):
     """What the HQ deny rule (T-1500) names for command word `word` (basename `name`) with args `rest`, else None.
     The basename is compared exactly, no glob expansion (a dynamic command word is a declared HQ limit)."""
     if name in ("herdr", "hc", "herdr-core"):
@@ -1423,6 +1452,8 @@ def hq_deny_hit(word, name, rest):
     if name == "gh":
         pos, _method, _body = gh_parse(rest)
         if pos[:2] == ["pr", "merge"]:
+            if role == "boss" and boss_merge_ok(rest):
+                return None
             return "gh pr merge"
         return None
     if name == "sqlite3":
@@ -2385,7 +2416,7 @@ class Analyzer:
             if verb:
                 raise UnitBlock(f"systemctl {verb}")
         if self.hq_deny:
-            what = hq_deny_hit(w, name, rest)
+            what = hq_deny_hit(w, name, rest, self.role)
             if what:
                 raise HqDenyBlock(what)
         if name == "find":

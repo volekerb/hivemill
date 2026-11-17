@@ -3,7 +3,10 @@
   "permissions": {
     "deny": [
       "Advisor",
-      "Bash(gh pr merge:*)",
+      "Bash(gh pr merge:*--admin*)",
+      "Bash(gh pr merge:*--auto*)",
+      "Bash(gh pr merge:*--merge*)",
+      "Bash(gh pr merge:*--rebase*)",
       "Bash(sqlite3:*)",
       "Bash(claude:*)",
       "Bash(herdr server stop:*)",
@@ -62,6 +65,11 @@
       "Bash(gh pr view:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",
+      "Bash(gh pr merge * --squash --delete-branch)",
+      "Bash(gh pr merge * --squash --delete-branch --repo volekerb/hivemill)",
+      "Bash(gh pr merge * --squash --delete-branch --repo volekerb/hivemill-www)",
+      "Bash(gh pr merge * --repo volekerb/hivemill --squash --delete-branch)",
+      "Bash(gh pr merge * --repo volekerb/hivemill-www --squash --delete-branch)",
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(git diff:*)"
@@ -84,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --hq"
+            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --hq --role boss"
           }
         ]
       }
