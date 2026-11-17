@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"database/sql"
+	"factory/go/internal/factorydb"
 	"fmt"
 	"os"
 	"os/exec"
@@ -122,7 +123,7 @@ func buildJudgeDB(home string) (string, error) {
 		return "", err
 	}
 	defer d.Close()
-	for _, q := range []string{"PRAGMA journal_mode=WAL", string(base), string(seed), "PRAGMA user_version = 2"} {
+	for _, q := range []string{"PRAGMA journal_mode=WAL", string(base), string(seed), fmt.Sprintf("PRAGMA user_version = %d", factorydb.SchemaVersion)} {
 		if _, err := d.Exec(q); err != nil {
 			return "", fmt.Errorf("building %s: %w", path, err)
 		}
