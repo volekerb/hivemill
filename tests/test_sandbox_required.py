@@ -216,6 +216,36 @@ class OwnerTrustTests(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(p.read_bytes(), before)
 
+    def test_qa_clone_path_is_trusted_before_a_claude_launch(self):
+        """T-1657: the <goal>-<task>-qa clone is not tasks.worktree; the old cwd == worktree check skipped it."""
+        self.task(role="coder", flag=0)
+        qa = self.env.home_dir / "worktrees" / "G-001-T-0001-qa"
+        qa.mkdir(parents=True)
+        p = self.owner_json({"theme": "dark", "projects": {}})
+        r = self.spawn("qa", "--cwd", str(qa), name="zz-qa")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(p.read_text()),
+                         {"theme": "dark", "projects": {str(qa.resolve()): self.SEED}})
+
+    def test_worktree_first_made_for_a_cursor_agent_is_trusted_for_a_later_claude_spawn(self):
+        """T-1657: a cursor spawn never trusts the dir; the later claude spawn into it must, task-less or not."""
+        self.task(role="coder", flag=0)
+        wt = self.env.home_dir / "worktrees" / "G-001-T-0001"
+        wt.mkdir(parents=True)
+        fake = self.env.stub_bin / "agent"
+        fake.write_text("#!/bin/sh\necho ok\n")
+        fake.chmod(0o755)
+        self.env.seed_agent("zz-test-director", "director", goal="G-001", team=TEAM)
+        self.ok("config", "agent_runtimes", "*=cursor", agent="zz-test-director")
+        self.ok("spawn", "coder", "--name", "zz-cursor-coder", "--goal", "G-001", "--team", TEAM,
+                "--cwd", str(wt), agent="zz-test-director")
+        p = self.owner_json({"projects": {}})
+        self.assertEqual(json.loads(p.read_text()), {"projects": {}})  # cursor did not trust it
+        self.ok("config", "agent_runtimes", "", agent="zz-test-director")
+        r = self.spawn("coder", "--cwd", str(wt), name="zz-claude-coder")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(p.read_text()), {"projects": {str(wt.resolve()): self.SEED}})
+
     def test_sandboxed_spawn_leaves_the_owner_file_unchanged(self):
         self.task(role="reviewer")
         p = self.owner_json({"projects": {}})

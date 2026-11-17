@@ -380,6 +380,7 @@ class FactoryEnv:
         # herdr and hc are copies: the worker gate exempts only a real tests/stubs path (tests/test_worker_gate.py)
         shutil.copy2(STUBS / "herdr", self.stub_bin / "herdr")
         shutil.copy2(STUBS / "hc", self.stub_bin / "hc")
+        shutil.copy2(STUBS / "ssh", self.stub_bin / "ssh")
         (self.stub_bin / "gh").symlink_to(STUBS / "gh")
         self.herdr_state = self.home / "herdr.json"
         self.gh_state = self.home / "gh.json"
