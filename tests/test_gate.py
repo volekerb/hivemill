@@ -674,6 +674,21 @@ class PlacementTests(FactoryTestCase):
         self.ok("config", "set", "worker_machines", "workerhost")
         self.assertEqual(self.env.sql("SELECT value FROM config WHERE key='worker_machines'")[0]["value"], "workerhost")
 
+    def test_machine_mem_pins_ignored_on_a_live_home(self):
+        """FACTORY_MEM_MB / FACTORY_MEMINFO / FACTORY_NPROC pin facts on a test home only; a live home reads /proc."""
+        info = self.env.home / "meminfo-pin"
+        info.write_text("MemTotal: 99999999 kB\nMemAvailable: 99999999 kB\n")
+        pins = {"FACTORY_MEM_MB": "123456", "FACTORY_MEMINFO": str(info), "FACTORY_NPROC": "999"}
+        with self.env.load_factory() as mod, mock.patch.dict("os.environ", pins):
+            self.assertEqual(mod.host_mem_available_mb(), 123456)
+            self.assertEqual(mod.mem_available_mb(), 99999999 // 1024)
+            self.assertEqual(mod._host_nproc(), 999)
+            with mock.patch.object(mod, "LIVE_HOMES", {str(Path(mod.HOME).resolve())}):
+                live_mb = mod.host_mem_available_mb()
+                self.assertNotEqual(live_mb, 123456)
+                self.assertNotEqual(live_mb, 99999999 // 1024)
+                self.assertEqual(mod._host_nproc(), os.cpu_count() or 1)
+
     def test_machine_hq_name_guard_refuses_factory_and_accepts_hqhost(self):
         p = self.refused(2, "config", "set", "machine_hq", "factorybox")
         self.assertIn('refused: machine name must not contain "factory"', p.stderr)

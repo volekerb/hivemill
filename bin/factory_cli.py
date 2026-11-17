@@ -2424,9 +2424,16 @@ def claude_outside_spawn(con):
 
 # ───────────────────────────── resources ─────────────────────────────
 
+def _test_pin(var):
+    """$var for a test home only. A live home never honours it, so an agent exporting it cannot open the owner
+    MemAvailable floor or the placement checks on the live factory (same rule as FACTORY_TEST_NOW)."""
+    pinned = os.environ.get(var)
+    return pinned if pinned and not home_is_live() else None
+
+
 def _meminfo_text():
-    """/proc/meminfo. $FACTORY_MEMINFO pins a snapshot for tests; unset reads the live file."""
-    pinned = os.environ.get("FACTORY_MEMINFO")
+    """/proc/meminfo. $FACTORY_MEMINFO pins a snapshot on a test home; otherwise the live file."""
+    pinned = _test_pin("FACTORY_MEMINFO")
     return Path(pinned).read_text() if pinned else Path("/proc/meminfo").read_text()
 
 
@@ -2438,8 +2445,8 @@ def mem_available_mb():
 
 
 def host_mem_available_mb():
-    """MemAvailable in MB. $FACTORY_MEM_MB pins it for tests (the same idea as $FACTORY_LOADAVG); unset reads /proc."""
-    pinned = os.environ.get("FACTORY_MEM_MB")
+    """MemAvailable in MB. $FACTORY_MEM_MB pins it on a test home; otherwise /proc."""
+    pinned = _test_pin("FACTORY_MEM_MB")
     if pinned:
         return int(pinned)
     return mem_available_mb()
@@ -2625,8 +2632,8 @@ def _machine_hq(con):
 
 
 def _host_nproc():
-    """CPUs for placement. $FACTORY_NPROC pins it; the single-machine load line still uses os.cpu_count()."""
-    pinned = os.environ.get("FACTORY_NPROC")
+    """CPUs for placement. $FACTORY_NPROC pins it on a test home; the single-machine load line still uses os.cpu_count()."""
+    pinned = _test_pin("FACTORY_NPROC")
     if pinned:
         return int(pinned)
     return os.cpu_count() or 1
