@@ -710,6 +710,16 @@ class ProcIdentity(FactoryTestCase):
                 mod.refuse_worker("tick")
             self.assertEqual(ctx.exception.code, 3)
 
+    def test_ps_unbalanced_quote_does_not_crash_snapshot(self):
+        ps = f"""  {os.getpid()}   600   501 {DARWIN_START_500} python3 factory tick
+  600   1   501 {DARWIN_START_500} claude --settings /h/settings/coder.json
+  700   1   501 {DARWIN_START_500} claude -p "don't stop
+"""
+        with self.darwin_platform(DarwinSubprocessRunner(ps=ps)) as (mod, _r):
+            snap = mod._darwin_ps()
+            self.assertIn(700, snap)
+            self.assertEqual(mod._ancestry_worker(), "coder")
+
 
 
 class NoProc(FactoryTestCase):

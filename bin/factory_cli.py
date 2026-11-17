@@ -991,8 +991,12 @@ def _darwin_ps():
         if len(f) < 8 or not (f[0].isdigit() and f[1].isdigit() and f[2].isdigit()):
             continue
         cmd = f[8] if len(f) > 8 else ""
+        try:
+            argv = shlex.split(cmd) if cmd else []
+        except ValueError:  # ps prints args unquoted: an apostrophe in any process must not crash the snapshot
+            argv = cmd.split()
         out[int(f[0])] = {"ppid": int(f[1]), "uid": int(f[2]), "lstart": " ".join(f[3:8]),
-                          "command": cmd, "argv": shlex.split(cmd) if cmd else []}
+                          "command": cmd, "argv": argv}
     return out or None
 
 
