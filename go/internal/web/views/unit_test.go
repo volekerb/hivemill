@@ -13,31 +13,25 @@ import (
 	"factory/go/internal/web/data"
 )
 
-// TestRoutesMatchPython: the route keys of part 1 equal the matching keys of web/views/__init__.py ROUTES; the keys it
-// does not own are exactly the part-2 pages (T-1476), so a route added in Python without a Go owner fails here.
+// TestRoutesMatchPython: the Go route keys equal every key of web/views/__init__.py ROUTES (the real file: the merge
+// gate has it), so a route added in Python without a Go view fails here and a Go route Python lacks does too.
 func TestRoutesMatchPython(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "web", "views", "__init__.py")) // the real file: the merge gate has it
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "web", "views", "__init__.py"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	re := regexp.MustCompile(`(?m)^\s+"(/[^"]*)":\s*(\w+)`)
-	var part1, rest []string
+	re := regexp.MustCompile(`(?m)^\s+"(/[^"]*)":\s*\w+`)
+	var py []string
 	for _, m := range re.FindAllStringSubmatch(string(b), -1) {
-		switch m[2] {
-		case "home", "goals", "tasks":
-			part1 = append(part1, m[1])
-		default:
-			rest = append(rest, m[1])
-		}
+		py = append(py, m[1])
 	}
-	sort.Strings(part1)
-	sort.Strings(rest)
-	if got := RouteKeys(); !reflect.DeepEqual(got, part1) {
-		t.Errorf("Go routes %v != Python part-1 routes %v", got, part1)
+	sort.Strings(py)
+	want := []string{"/", "/agents", "/changelog", "/goal/<id>", "/goals", "/quality", "/resources", "/task/<id>", "/tasks", "/throughput", "/tokens"}
+	if !reflect.DeepEqual(py, want) {
+		t.Errorf("Python ROUTES keys are %v, want %v (a new route needs a Go view and a case here)", py, want)
 	}
-	wantRest := []string{"/agents", "/changelog", "/quality", "/resources", "/throughput", "/tokens"}
-	if !reflect.DeepEqual(rest, wantRest) {
-		t.Errorf("Python routes outside part 1 are %v, want %v (a new route needs an owner)", rest, wantRest)
+	if got := RouteKeys(); !reflect.DeepEqual(got, py) {
+		t.Errorf("Go routes %v != Python ROUTES %v", got, py)
 	}
 }
 
@@ -47,11 +41,13 @@ func TestMatch(t *testing.T) {
 		ok               bool
 	}{
 		{"/", "/", "", true}, {"/goals", "/goals", "", true}, {"/tasks", "/tasks", "", true},
+		{"/agents", "/agents", "", true}, {"/resources", "/resources", "", true}, {"/throughput", "/throughput", "", true},
+		{"/quality", "/quality", "", true}, {"/changelog", "/changelog", "", true}, {"/tokens", "/tokens", "", true},
 		{"/goal/G-048", "/goals", "G-048", true}, {"/task/T-1475", "/tasks", "T-1475", true},
 		{"/task/T-\u0663", "/tasks", "T-\u0663", true}, // Python \d matches U+0663
 		{"/task/T-1\n", "/tasks", "T-1", true},         // Python $ allows one trailing newline
 		{"/goal/<id>", "/goal/<id>", "", true},         // the literal route key resolves like ROUTES.get(path)
-		{"/task/t-1", "", "", false}, {"/task/T-", "", "", false}, {"/task/T-1/x", "", "", false}, {"/agents", "", "", false},
+		{"/task/t-1", "", "", false}, {"/task/T-", "", "", false}, {"/task/T-1/x", "", "", false}, {"/nope", "", "", false}, {"/agents/x", "", "", false},
 		{"/goal/GG-1", "", "", false}, {"", "", "", false},
 	} {
 		v, params, active, ok := Match(c.path)
