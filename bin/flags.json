@@ -382,14 +382,6 @@
    "doc": "docs/judge-ci-gate.md"
   },
   {
-   "key": "judge_review_gate",
-   "kind": "setting",
-   "default": "passpass",
-   "summary": "passpass = merge gate needs reviewer PASS + QA PASS on the head; green = no reviewer/QA FAIL on the head and green PR CI on the head (owner M40731/M40734)",
-   "goal": "G-005",
-   "doc": "docs/judge-ci-gate.md"
-  },
-  {
    "key": "judge_ci_wait_s",
    "kind": "setting",
    "default": "2400",
@@ -412,6 +404,14 @@
    "summary": "refreshes one `factory judge --merge` run does before it gives up with STALE-LOOP",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "judge_review_gate",
+   "kind": "setting",
+   "default": "passpass",
+   "summary": "passpass = merge gate needs reviewer PASS + QA PASS on the head; green = no reviewer/QA FAIL on the head and green PR CI on the head (owner M40731/M40734)",
+   "goal": "G-005",
+   "doc": "docs/judge-ci-gate.md"
   },
   {
    "key": "judge_wait_main_run",
