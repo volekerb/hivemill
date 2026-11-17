@@ -88,7 +88,7 @@ Shared rules: one binary per skill under go/cmd/hm-<name>, code under go/interna
 ### E. Evals and the catalog
 
 - Each plugin has eval/cases/*.json: argv, stdin, env, a fixture dir (fake `gh`/`herdr` on PATH), expected exit code and expected stdout/stderr substrings. `go/cmd/kit-eval` runs every case against the built binary and writes eval-results-<skill>.json (skill, version, commit, os, arch, passed, failed, case names).
-- CI (.github/workflows/kit.yml) runs kit-check, the kit Go tests and kit-eval for every plugin on ubuntu-latest, ubuntu-24.04-arm, macos-latest (arm64) and macos-13 (amd64). A red suite fails the PR.
+- CI (.github/workflows/kit.yml) runs kit-check, the kit Go tests and kit-eval for every plugin on ubuntu-latest, ubuntu-24.04-arm, macos-latest (arm64) and an Intel macOS runner (amd64; macos-15-intel at plan time). A red suite fails the PR.
 - release.yml runs the same suites on the release build; any failure stops the release. So every released skill version passed its evals; the results files are release assets.
 - Model-graded evals (does Claude follow the SKILL.md?) run locally with the factory skilleval harness, or `claude plugin eval` if adopted; they need a model key in CI and spend, so moving them into CI is an owner decision.
 - `go/cmd/kit-catalog` builds catalog.json from kit/skills.json plus the eval results: name, level, description, version, platforms, eval status per platform, install lines. hivemill.dev's skills page renders that file; a workflow in volekerb/hivemill-www fetches it from the latest tagged release, checks its sha256 against SHA256SUMS, and opens a PR.
