@@ -278,6 +278,16 @@
   "current": "4"
  },
  {
+  "key": "gh_call_trace",
+  "kind": "flag",
+  "default": "off",
+  "summary": "on = every gh call of a factory process appends caller + gh subcommand to logs/gh-calls.jsonl (GraphQL attribution)",
+  "goal": "G-022",
+  "doc": "docs/gh-quota.md",
+  "state": "off",
+  "current": "off"
+ },
+ {
   "key": "gh_quota_min",
   "kind": "setting",
   "default": "300",

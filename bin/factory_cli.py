@@ -156,6 +156,7 @@ DEFAULT_CONFIG = {
     "test_slots": "2",           # host-wide full-suite slots (tests/_slot.py); `factory res` shows how many are held
     "min_mem_available_mb": "1024",
     "ci_wake_workers": "4",      # tick_ci_wake runs its gh pr view probes in this many threads (1 = serial)
+    "gh_call_trace": "off",      # off | on: every gh call of this process appends one JSON line (caller, subcommand, GraphQL estimate) to $FACTORY_HOME/logs/gh-calls.jsonl (T-1677, docs/gh-quota.md)
     "pr_view_ttl_s": "120",      # tick probes (ci wake, red PR alert, review autospawn) reuse one `gh pr view` per PR for this long; 0 = off (T-1014, docs/gh-quota.md)
     "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
     "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
@@ -516,7 +517,57 @@ def db(create=False):
     con.execute("PRAGMA busy_timeout=30000")
     con.execute("PRAGMA foreign_keys=ON")
     migrate(con)
+    gh_trace_install(con)
     return con
+
+
+GH_GRAPHQL_SUBCMDS = {("pr", "view"), ("pr", "checks"), ("pr", "list"), ("pr", "status"), ("pr", "merge"), ("pr", "close"), ("pr", "edit"),
+                      ("pr", "ready"), ("pr", "comment"), ("pr", "review"), ("repo", "view"), ("issue", "list"), ("issue", "view")}
+_GH_TRACE = {"installed": False}
+
+
+def gh_trace_row(argv, frames, agent, now):
+    """One trace line (dict) for a gh call. `pts` is a lower bound of GraphQL points (1 per GraphQL call, 0 for REST): gh pr view/checks/
+    list/..., gh repo view, gh issue list/view and gh api graphql; gh api repos/..., gh run list and gh pr diff are REST."""
+    args = [a for a in argv[1:] if not a.startswith("-")][:2]
+    sub = " ".join(args[:2]) if args else ""
+    graphql = tuple(args[:2]) in GH_GRAPHQL_SUBCMDS or (args[:1] == ["api"] and "graphql" in argv[1:])
+    return {"t": round(now, 3), "agent": agent, "caller": ">".join(frames), "gh": sub, "pts": 1 if graphql else 0}
+
+
+def gh_trace_install(con):
+    """With config gh_call_trace=on, wrap subprocess.run once per process so that every `gh` call appends one JSON line to
+    $FACTORY_HOME/logs/gh-calls.jsonl. caller = the factory subcommand and the innermost factory_cli.py functions on the stack.
+    Off (the default): nothing is wrapped and nothing is written. A failed log write never fails the gh call."""
+    if _GH_TRACE["installed"]:
+        return
+    try:
+        if cfg(con, "gh_call_trace") != "on":
+            return
+    except (sqlite3.Error, KeyError):
+        return
+    _GH_TRACE["installed"] = True
+    real = subprocess.run
+    log = HOME / "logs" / "gh-calls.jsonl"
+
+    def traced(argv, *a, **kw):
+        try:
+            if isinstance(argv, (list, tuple)) and argv and os.path.basename(str(argv[0])) == "gh":
+                frames, f = [], sys._getframe(1)
+                while f is not None and len(frames) < 3:
+                    if f.f_code.co_filename == __file__ and f.f_code.co_name not in ("traced", "gh_json"):
+                        frames.append(f.f_code.co_name)
+                    f = f.f_back
+                cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+                row = gh_trace_row([str(x) for x in argv], [cmd, *reversed(frames)], os.environ.get("FACTORY_AGENT", ""), time.time())
+                log.parent.mkdir(parents=True, exist_ok=True)
+                with open(log, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(row) + "\n")
+        except OSError:
+            pass  # a trace that cannot be written must not change the gh call
+        return real(argv, *a, **kw)
+
+    subprocess.run = traced
 
 
 def migrate(con):
@@ -4850,6 +4901,17 @@ def gh_json(*args, timeout=120):
     return json.loads(p.stdout)
 
 
+def gh_json_lines(*args, timeout=120):
+    """gh_json for output that is one JSON value per line (gh api --paginate --jq '.[] | {...}')."""
+    p = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout)
+    if p.returncode != 0:
+        err = (p.stderr.strip().splitlines() or [""])[0]
+        msg = f"gh {' '.join(args[:3])}: {err}"
+        print(f"factory: {msg}", file=sys.stderr)
+        raise SystemExit(msg)
+    return [json.loads(l) for l in p.stdout.splitlines() if l.strip()]
+
+
 def _tick_gh_detail(e):
     """One-line detail for a tick PR probe gh failure (stderr first line when available, never a token)."""
     if isinstance(e, SystemExit):
@@ -6993,7 +7055,7 @@ def pr_title_for(task_id, task_title):
 
 def tick_pr_titles(con):
     """Tick (T-1590): rename every OPEN PR on a factory/t-* head whose title is only the task id to "T-xxxx: <task title>"
-    (gh pr edit --title) and write one `pr-title-renamed` event (old, new, PR). One `gh pr list` per repo of a live task PR;
+    (gh pr edit --title) and write one `pr-title-renamed` event (old, new, PR). One REST `gh api repos/R/pulls` per repo of a live task PR (T-1677: it was a GraphQL `gh pr list` every tick);
     each PR head is handled once (throttle key prtitle:<url> = head sha). PRs on other branches are never touched."""
     repos = {}
     for r in con.execute("SELECT pr_url FROM tasks WHERE pr_url IS NOT NULL AND pr_url!='' "
@@ -7003,8 +7065,8 @@ def tick_pr_titles(con):
             repos["/".join(parts[3:5])] = 1
     for repo in repos:
         try:
-            prs = gh_json("pr", "list", "-R", repo, "--state", "open", "--limit", "200",
-                          "--json", "number,title,headRefName,headRefOid,url")
+            prs = gh_json_lines("api", f"repos/{repo}/pulls", "--method", "GET", "-f", "state=open", "-f", "per_page=100", "--paginate",
+                                "--jq", ".[] | {number, title, headRefName: .head.ref, headRefOid: .head.sha, url: .html_url}")
         except (SystemExit, subprocess.SubprocessError, OSError, ValueError) as e:  # one repo failing must not skip the others
             event(con, "tick", "pr-titles", "pr-titles-error", f"{repo}: {_tick_gh_detail(e)}")
             continue
