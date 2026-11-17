@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -34,7 +36,11 @@ func stuckPRUnit(u *UnitCtx) error {
 		WakeCoder: stuckPRWake,
 		Escalate:  stuckpr.DefaultEscalate,
 	})
-	return err
+	if err != nil {
+		// One bad PR must not fail the whole tick: report each error and let the next tick retry.
+		fmt.Fprintf(os.Stderr, "stuck_pr: %v\n", err)
+	}
+	return nil
 }
 
 func stuckPRClock() (float64, error) {
@@ -43,7 +49,10 @@ func stuckPRClock() (float64, error) {
 
 func stuckPRView(ctx context.Context, prURL string) (*stuckpr.PRView, error) {
 	_ = ctx
-	r, err := ghx.Run(nil, "", stuckPRGhTimeout, "pr", "view", prURL, "--json", "number,state,headRefOid,mergeable,statusCheckRollup,url")
+	if !stuckpr.ValidPRURL(prURL) {
+		return nil, fmt.Errorf("pr_url %q is not a github.com/volekerb/hivemill pull URL", prURL)
+	}
+	r, err := ghx.Run(nil, "", stuckPRGhTimeout, "pr", "view", prURL, "--json", "number,state,headRefOid,mergeable,statusCheckRollup,url,commits")
 	if err != nil {
 		return nil, err
 	}
@@ -57,20 +66,34 @@ func stuckPRView(ctx context.Context, prURL string) (*stuckpr.PRView, error) {
 	return stuckpr.ParsePRView(m)
 }
 
+// stuckPRRelaunch restarts one existing agent (factory relaunch); a var so tests stay at the process boundary.
+var stuckPRRelaunch = func(name string) error {
+	out, err := exec.Command("factory", "relaunch", name).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("factory relaunch %s: %w: %s", name, err, firstLine(string(out)))
+	}
+	return nil
+}
+
+// stuckPRWake restarts the task's own earlier coder. It never starts a new coder:
+// with no coder on record it mails the team lead to decide.
 func stuckPRWake(ctx context.Context, db *sql.DB, task stuckpr.TaskRow, pr *stuckpr.PRView) error {
-	_ = ctx
 	var prior string
-	err := db.QueryRow(`SELECT name FROM agents WHERE task_id=? AND role='coder' ORDER BY started DESC LIMIT 1`, task.ID).Scan(&prior)
+	err := db.QueryRowContext(ctx, `SELECT name FROM agents WHERE task_id=? AND role='coder' ORDER BY started DESC LIMIT 1`, task.ID).Scan(&prior)
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
-	if prior == "" {
-		prior = "cursor-coder-" + strings.ToLower(task.ID)
+	if prior != "" {
+		return stuckPRRelaunch(prior)
 	}
-	subject := fmt.Sprintf("stuck PR wake: %s PR #%d", task.ID, pr.Number)
-	body := fmt.Sprintf("CI red on %s; wake %s to fix (%s).", pr.URL, prior, strings.Join(pr.FailedChecks, ", "))
-	_, err = db.Exec(`INSERT INTO messages(sender,recipient,kind,subject,body,goal_id,task_id,created) VALUES(?,?,?,?,?,?,?,?)`,
-		"tick", prior, "request", subject, body, task.GoalID, task.ID, time.Now().UTC().Format(time.RFC3339))
+	to := "director"
+	if task.TeamID != "" {
+		to = "lead:" + task.TeamID
+	}
+	subject := fmt.Sprintf("stuck PR, no coder on record: %s PR #%d", task.ID, pr.Number)
+	body := fmt.Sprintf("CI red on %s (%s); no coder agent is recorded for %s. Spawn a fix coder or block the task.", pr.URL, strings.Join(pr.FailedChecks, ", "), task.ID)
+	_, err = db.ExecContext(ctx, `INSERT INTO messages(sender,recipient,kind,subject,body,goal_id,task_id,created) VALUES(?,?,?,?,?,?,?,?)`,
+		"tick", to, "request", subject, body, task.GoalID, task.ID, time.Now().UTC().Format(time.RFC3339))
 	return err
 }
 
