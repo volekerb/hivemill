@@ -10009,6 +10009,36 @@ def install_pre_push_hook(repo):
         die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
 
 
+COMMIT_MSG_MARK = "# factory commit-msg Cursor trailer strip (T-1624)"
+
+
+def commit_msg_hook_body():
+    """The one commit-msg hook a cursor clone may hold: a one-line exec of bin/cursor-commit-msg-strip.sh in the factory
+    checkout, so the PR branch inside the clone cannot change what runs."""
+    script = Path(__file__).resolve().parent / "cursor-commit-msg-strip.sh"
+    return f"#!/bin/sh\n{COMMIT_MSG_MARK}\nexec sh {shlex.quote(str(script))} \"$@\"\n"
+
+
+def install_commit_msg_hook(repo):
+    """T-1624: <git-dir>/hooks/commit-msg for a runtime=cursor task clone only. The Cursor agent adds a
+    Co-authored-by: Cursor trailer in its own shells (env is not the cause); the push guard refuses that line."""
+    if not (Path(repo) / ".git").is_dir():  # a `git worktree add` checkout shares hooks/ with the main repo: never touch that
+        return False
+    p = git_run(repo, "rev-parse", "--git-common-dir", env={**os.environ, "LC_ALL": "C"})
+    if p.returncode != 0 or not p.stdout.strip():
+        die(f"spawn refused: cannot find the git dir of {repo} to install the commit-msg hook: {p.stderr.strip()}", 4)
+    dst = Path(repo, p.stdout.strip()).resolve() / "hooks" / "commit-msg"
+    body = commit_msg_hook_body()
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if not dst.is_file() or dst.is_symlink() or dst.read_text() != body:
+            dst.unlink(missing_ok=True)
+            dst.write_text(body)
+        dst.chmod(0o755)
+    except OSError as e:
+        die(f"spawn refused: cannot install the commit-msg hook at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
+
+
 def trust_task_clone(con, task, wt, add=True):
     """T-1220: pre-register (add) or drop the Claude workspace-trust entry of a per-task clone in the owner's
     ~/.claude.json, only under worktrees/. A refusal records one clone-trust-refused event and goes on (the dialog shows)."""
@@ -10040,6 +10070,8 @@ def git_hooks_refusal(clone):
             elif f.name.endswith(".sample"):
                 continue
             elif f.name == "pre-push" and f.read_text() == body:
+                continue
+            elif f.name == "commit-msg" and f.read_text() == commit_msg_hook_body():  # T-1624
                 continue
             else:
                 bad.append(f.name)
@@ -10098,7 +10130,7 @@ def prepare_qa_clone(con, t, task):
     return str(qa)
 
 
-def prepare_worktree(con, task, role):
+def prepare_worktree(con, task, role, runtime=None):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
         return None
@@ -10115,13 +10147,15 @@ def prepare_worktree(con, task, role):
         if role == "coder" and coder_git.is_dir() and not git_hooks_guard(con, t["worktree"]):
             con.commit()
             die(f"spawn refused: {t['worktree']}/.git holds {', '.join(git_hooks_refusal(t['worktree']))} "
-                "(only *.sample and the factory pre-push are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
+                "(only *.sample, the factory pre-push and the cursor commit-msg strip are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
         if role == "coder" and t["branch"]:
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
         install_pre_push_hook(t["worktree"])
+        if role == "coder" and runtime == "cursor":
+            install_commit_msg_hook(t["worktree"])
         return t["worktree"]
     if role != "coder":
         return None  # verifiers never create branches; they work from the coder's worktree or the PR
@@ -10138,6 +10172,8 @@ def prepare_worktree(con, task, role):
         make_task_clone(con, repo, wt, branch, base)
         trust_task_clone(con, task, wt)
         install_pre_push_hook(wt)
+        if runtime == "cursor":
+            install_commit_msg_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
     branch_existed = git_run(repo, "rev-parse", "--verify", "-q", f"refs/heads/{branch}", text=False).returncode == 0
@@ -10161,6 +10197,8 @@ def prepare_worktree(con, task, role):
         drop_half_made()
         die(f"worktree checkout failed: {p.stderr.strip()}")
     install_pre_push_hook(wt)
+    if runtime == "cursor":
+        install_commit_msg_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
     return str(wt)
 
@@ -11404,7 +11442,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         if cwd and cwd != want:
             die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
         cwd = want
-    cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
+    cwd = cwd or (prepare_worktree(con, task, role, runtime) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
     if terms and role in SCRUB_TERMS_ROLES:  # a path only: worker-guard still refuses to read the file itself
@@ -12383,7 +12421,9 @@ def cmd_done(a):
             if dirty:
                 print("commit (a WIP commit is fine) and push, then run factory done again", file=sys.stderr)
             if unpushed:
-                print("push your commits (git push -u origin HEAD), then run factory done again", file=sys.stderr)
+                tb = con.execute("SELECT branch FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+                push_branch = (tb["branch"] if tb and tb["branch"] else "") or f"factory/{r['task_id'].lower()}"
+                print(f"push your commits (git push origin HEAD:{push_branch}), then run factory done again", file=sys.stderr)
                 if not dirty:
                     print(f"factory: if the push is held (spec says no merge until PR x, owner push needed), {done_exit_hint(r)}",
                           file=sys.stderr)
@@ -12768,7 +12808,8 @@ def src_scratch_roots(con):
     """Realpaths of the caller's own scratchpad: <tmp>/claude-<uid>/<slug of the agent's registered cwd>/<its session>/scratchpad.
     The caller is FACTORY_AGENT (refused when unset) and the slug comes from its agents row, never from the cwd or an env
     var the caller can set; a cwd that is not that registered cwd is refused. With a stored session id only that session's
-    scratchpad counts. Returns (roots, error)."""
+    scratchpad counts, plus (T-1639) the sessions of the caller's claude ancestor; when none of those has a scratchpad (a
+    respawned pane whose row is stale) only the newest session dir under the slug counts. Returns (roots, error)."""
     who = os.environ.get("FACTORY_AGENT") or ""
     r = con.execute("SELECT cwd, session_id FROM agents WHERE name=?", (who,)).fetchone() if who and who != "owner" else None
     if not r or not r["cwd"]:
@@ -12786,10 +12827,22 @@ def src_scratch_roots(con):
     try:
         if base.is_symlink() or not base.is_dir():
             return roots, ""
-        for s in ([base / sid] if sid else sorted(base.iterdir())):
-            pad = s / "scratchpad"
-            if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
-                roots.append(os.path.realpath(pad))
+        def pads(dirs):
+            for s in dirs:
+                pad = s / "scratchpad"
+                if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
+                    roots.append(os.path.realpath(pad))
+        # T-1639: a respawned pane (--resume / fresh --session-id) can run under a session id the agents row does not
+        # name yet (the tick syncs it only when the pane host reports it), so the stored id alone gave "no scratchpad
+        # found" to QA panes. Try the stored id and the ids on the caller's own claude ancestor first; when none has a
+        # scratchpad: no stored id = every session dir (as before); a stale stored id = only the newest session dir
+        # under this agent's own registered-cwd slug (the respawned pane's current session), never the older ones.
+        sids = list(dict.fromkeys(([sid] if sid else []) + [x for x in (_caller_claude_sessions() or [])
+                                                            if re.fullmatch(r"[A-Za-z0-9_-]+", x)]))
+        pads(base / x for x in sids)
+        if not roots:
+            dirs = sorted(base.iterdir(), key=lambda d: d.lstat().st_mtime)
+            pads(dirs if not sid else [d for d in reversed(dirs) if (d / "scratchpad").is_dir()][:1])
     except OSError:
         pass
     return roots, ""
