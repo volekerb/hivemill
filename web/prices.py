@@ -5,6 +5,9 @@
 # Haiku rows are the <=100K prompt tier; the >100K tier is in HAIKU_LONG_PROMPT but not applied, because the
 # token index aggregates per session x model x day and does not keep per-request prompt sizes.
 PRICES = {
+    # Fable 5.2: $8 in / $40 out, cache reads $0.20 (Claude API model table, 2026-11-17). It was missing here, so a
+    # team running Fable showed its biggest cost as "n/a".
+    "claude-fable-5-2": {"input": 8.00, "output": 40.00, "cache_read": 0.20, "cache_write_5m": 10.00, "cache_write_1h": 16.00},
     "claude-opus-5-5": {"input": 4.00, "output": 20.00, "cache_read": 0.20, "cache_write_5m": 5.00, "cache_write_1h": 8.00},
     "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_read": 0.10, "cache_write_5m": 2.50, "cache_write_1h": 4.00},
     "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "cache_read": 0.01, "cache_write_5m": 0.125, "cache_write_1h": 0.20},
@@ -12,7 +15,7 @@ PRICES = {
 HAIKU_LONG_PROMPT = {"input": 0.50, "output": 2.50, "cache_read": 0.05, "cache_write_5m": 0.625, "cache_write_1h": 1.00}
 PRICES_AS_OF = "2026-10-25"
 
-FAST_MULTIPLIER = {"claude-opus-5-5": 2.0}  # usage.speed == "fast": $8 in / $40 out (2x all rates)
+FAST_MULTIPLIER = {"claude-opus-5-5": 2.0, "claude-fable-5-2": 2.0}  # usage.speed == "fast": 2x all rates
 
 FIELDS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
 
