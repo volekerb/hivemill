@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -390,8 +391,8 @@ func TestWorktreeBranch(t *testing.T) {
 	repo, wts := wtRepo(t)
 	var recorded [][2]string
 	d := WorktreeDeps{Git: gitx.Options{Env: append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null")},
-		ConfigGuard: func(string) []string { return nil }, PrePushHook: func(string) error { return nil },
-		Record: func(w, b string) error { recorded = append(recorded, [2]string{w, b}); return nil }}
+		ConfigGuard: func(string) []string { return nil }, HooksGuard: func(string) []string { return nil },
+		PrePushHook: func(string) error { return nil }, Record: func(w, b string) error { recorded = append(recorded, [2]string{w, b}); return nil }}
 	s := WorktreeSpec{Task: "T-9", Goal: "G-1", Role: "coder", Repo: repo, Base: "main", WorktreesDir: wts}
 	wt, err := PrepareWorktree(s, d)
 	if err != nil {
@@ -529,5 +530,196 @@ func TestExecReviewFindings(t *testing.T) {
 	d.Sleep = nil
 	if _, err := Exec(startPlan(t, dir), d); err == nil || errors.Is(err, ErrNotPorted) || count(t, db, "SELECT count(*) FROM agents") != 0 {
 		t.Errorf("nil Sleep: %v", err)
+	}
+}
+
+// prePushFixture stands in for the body install_pre_push_hook writes; GitHooksRefusal compares against what it is given.
+const prePushFixture = "#!/bin/sh\n# factory pre-push public-text guard (G-021 T-0696)\nexec python3 /f/ci/pre_push_public_text.py --home /f \"$@\"\n"
+
+// TestWorktreeTaskClone mirrors T-1544 / M37235 (tests/test_task_clones.py): a task clone (.git is a directory)
+// is handed to Python for qa (its own <goal>-<task>-qa clone, never the coder's), a coder respawn over hooks other
+// than *.sample and the factory pre-push is refused with exit 4 before any git call, and a symlinked .git is
+// refused for coder and qa. A legacy worktree (.git is a file) keeps today's reuse for qa.
+func TestWorktreeTaskClone(t *testing.T) {
+	repo, wts := wtRepo(t)
+	clone := filepath.Join(wts, "G-1-T-20")
+	gitT(t, filepath.Dir(repo), "clone", "-q", repo, clone)
+	gitT(t, clone, "switch", "-q", "-c", "factory/t-20")
+	hooks := filepath.Join(clone, ".git", "hooks")
+	if err := os.RemoveAll(hooks); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(hooks, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(p, body string) {
+		t.Helper()
+		if err := os.WriteFile(p, []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(hooks, "pre-push"), prePushFixture)
+	write(filepath.Join(hooks, "pre-commit.sample"), "#!/bin/sh\n")
+	var guarded []string
+	switched := 0
+	d := WorktreeDeps{Git: gitx.Options{Env: append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null")},
+		ConfigGuard: func(string) []string { switched++; return nil },
+		HooksGuard: func(c string) []string {
+			guarded = append(guarded, c)
+			return GitHooksRefusal(c, prePushFixture)
+		},
+		PrePushHook: func(string) error { return nil }, Record: func(string, string) error { return nil }}
+	coder := WorktreeSpec{Task: "T-20", Goal: "G-1", Role: "coder", Repo: repo, Worktree: clone, Branch: "factory/t-20", WorktreesDir: wts}
+	// test_coder_respawn_with_factory_pre_push_and_samples_is_allowed
+	if got, err := PrepareWorktree(coder, d); err != nil || got != clone || len(guarded) != 1 || guarded[0] != clone {
+		t.Fatalf("clean clone: %q %v guarded=%v", got, err, guarded)
+	}
+	// test_coder_respawn_with_a_planted_hook_is_refused: exit 4, the name in the message, nothing deleted, no git call
+	write(filepath.Join(hooks, "pre-commit"), "#!/bin/sh\ntouch /tmp/x\n")
+	switched = 0
+	_, err := PrepareWorktree(coder, d)
+	var r *WorktreeRefusal
+	if !errors.As(err, &r) || r.Code != 4 || !strings.Contains(r.Msg, clone+"/.git holds pre-commit (only *.sample") {
+		t.Fatalf("planted hook: %v", err)
+	}
+	if switched != 0 {
+		t.Error("the config guard / switch ran after a hooks refusal")
+	}
+	if _, err := os.Stat(filepath.Join(hooks, "pre-commit")); err != nil {
+		t.Error("the planted hook was deleted")
+	}
+	// a reviewer still reuses the coder clone (Python: only coder and qa are changed)
+	if got, err := PrepareWorktree(WorktreeSpec{Task: "T-20", Role: "reviewer", Repo: repo, Worktree: clone}, d); err != nil || got != clone {
+		t.Errorf("reviewer: %q %v", got, err)
+	}
+	if err := os.Remove(filepath.Join(hooks, "pre-commit")); err != nil {
+		t.Fatal(err)
+	}
+	// qa on a task clone: prepare_qa_clone is Python's; nothing is created
+	qa := WorktreeSpec{Task: "T-20", Goal: "G-1", Role: "qa", Repo: repo, Worktree: clone, WorktreesDir: wts}
+	if got, err := PrepareWorktree(qa, d); !errors.Is(err, ErrNotPorted) || got != "" {
+		t.Errorf("qa clone: %q %v", got, err)
+	}
+	if _, err := os.Lstat(clone + "-qa"); err == nil {
+		t.Error("a qa clone was created by Go")
+	}
+	// test_coder_respawn_refuses_a_commondir_file_and_a_symlinked_dot_git
+	write(filepath.Join(clone, ".git", "commondir"), "../elsewhere\n")
+	if _, err := PrepareWorktree(coder, d); !errors.As(err, &r) || !strings.Contains(r.Msg, "holds commondir") {
+		t.Errorf("commondir: %v", err)
+	}
+	if err := os.Remove(filepath.Join(clone, ".git", "commondir")); err != nil {
+		t.Fatal(err)
+	}
+	real := filepath.Join(t.TempDir(), "gitdir")
+	if err := os.Rename(filepath.Join(clone, ".git"), real); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, filepath.Join(clone, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	for _, role := range []string{"coder", "qa"} {
+		s := coder
+		s.Role = role
+		if _, err := PrepareWorktree(s, d); !errors.As(err, &r) || r.Code != 4 || r.Msg != "spawn refused: "+clone+"/.git is a symlink; inspect it, remove it, then spawn again" {
+			t.Errorf("%s over a symlinked .git: %v", role, err)
+		}
+	}
+	// a dangling .git symlink is refused the same way (Python: is_symlink() is true for a dangling link)
+	if err := os.Remove(filepath.Join(clone, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(real, "missing", "x"), filepath.Join(clone, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PrepareWorktree(coder, d); !errors.As(err, &r) || r.Code != 4 || !strings.Contains(r.Msg, "is a symlink") {
+		t.Errorf("dangling .git: %v", err)
+	}
+	// test_qa_on_a_legacy_worktree_still_reuses_it: .git is a file
+	legacy := filepath.Join(wts, "G-1-T-21")
+	gitT(t, repo, "worktree", "add", "-q", "-b", "factory/t-21", legacy)
+	if got, err := PrepareWorktree(WorktreeSpec{Task: "T-21", Role: "qa", Repo: repo, Worktree: legacy}, d); err != nil || got != legacy {
+		t.Errorf("qa on a legacy worktree: %q %v", got, err)
+	}
+}
+
+// TestGitHooksRefusal: git_hooks_refusal's results for each hooks/ shape (tests/test_task_clones.py cases plus
+// symlink edge cases; Python's is_symlink()/is_file() see a dangling link and a loop as a symlink, refused by name).
+func TestGitHooksRefusal(t *testing.T) {
+	type mk func(t *testing.T, hooks string)
+	file := func(name, body string) mk {
+		return func(t *testing.T, hooks string) {
+			if err := os.WriteFile(filepath.Join(hooks, name), []byte(body), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	link := func(name, target string) mk {
+		return func(t *testing.T, hooks string) {
+			if err := os.Symlink(target, filepath.Join(hooks, name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	cases := []struct {
+		name  string
+		setup []mk
+		want  []string
+	}{
+		{"empty", nil, nil},
+		{"samples and factory pre-push", []mk{file("pre-commit.sample", "x"), file("pre-push", prePushFixture)}, nil},
+		{"crlf factory pre-push (read_text universal newlines)", []mk{file("pre-push", strings.ReplaceAll(prePushFixture, "\n", "\r\n"))}, nil},
+		{"edited pre-push", []mk{file("pre-push", "#!/bin/sh\ntouch x\n")}, []string{"pre-push"}},
+		{"planted hooks sorted", []mk{file("pre-commit", "x"), file("post-checkout", "x")}, []string{"post-checkout", "pre-commit"}},
+		{"symlink to a real file", []mk{link("post-checkout", "/bin/true")}, []string{"post-checkout"}},
+		{"symlinked sample", []mk{link("a.sample", "/bin/true")}, []string{"a.sample"}},
+		{"dangling symlink", []mk{link("pre-push", "/nonexistent/hook")}, []string{"pre-push"}},
+		{"chain through a missing component", []mk{link("b", "missing/x"), link("a", "b")}, []string{"a", "b"}},
+		{"loop", []mk{link("l", "l")}, []string{"l"}},
+		{"directory", []mk{func(t *testing.T, h string) {
+			if err := os.Mkdir(filepath.Join(h, "sub"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}}, []string{"sub"}},
+		{"non-utf8 pre-push", []mk{file("pre-push", "\xff\xfe")}, []string{"hooks unreadable: pre-push is not UTF-8"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			clone := t.TempDir()
+			hooks := filepath.Join(clone, ".git", "hooks")
+			if err := os.MkdirAll(hooks, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			for _, m := range c.setup {
+				m(t, hooks)
+			}
+			if got := GitHooksRefusal(clone, prePushFixture); !reflect.DeepEqual(got, c.want) {
+				t.Errorf("got %q, want %q", got, c.want)
+			}
+		})
+	}
+	// whole-directory shapes
+	clone := t.TempDir()
+	if got := GitHooksRefusal(clone, prePushFixture); got != nil { // no .git/hooks at all
+		t.Errorf("missing hooks/: %q", got)
+	}
+	if err := os.MkdirAll(filepath.Join(clone, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []string{"/nonexistent", "hooks", t.TempDir()} { // dangling, loop, real dir
+		h := filepath.Join(clone, ".git", "hooks")
+		_ = os.Remove(h) // the previous round's link; absent on the first round
+		if err := os.Symlink(target, h); err != nil {
+			t.Fatal(err)
+		}
+		if got := GitHooksRefusal(clone, prePushFixture); !reflect.DeepEqual(got, []string{"hooks (symlink)"}) {
+			t.Errorf("hooks -> %s: %q", target, got)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(clone, ".git", "commondir"), []byte("../x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := GitHooksRefusal(clone, prePushFixture); !reflect.DeepEqual(got, []string{"commondir"}) {
+		t.Errorf("commondir: %q", got)
 	}
 }

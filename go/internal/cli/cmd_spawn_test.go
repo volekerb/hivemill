@@ -432,3 +432,35 @@ func TestSpawnSecondBossRefused(t *testing.T) {
 		t.Fatal("spawn boss hung")
 	}
 }
+
+// TestSpawnHandsOverConfigSandboxRoles: a role listed in config sandbox_roles (no --sandbox flag) is a sandboxed
+// start, so Go hands the spawn to Python (sandbox_preflight and the sandbox entry argv stay Python's, G-010 parity)
+// with no row, event, file or host call written first. A role not in the list is not handed over for it: Go starts it.
+func TestSpawnHandsOverConfigSandboxRoles(t *testing.T) {
+	argv := []string{"spawn", "pm", "--goal", "G-1", "--host-backend", "hc"}
+	for _, roles := range []string{"pm", "qa, pm", " pm ,coder"} {
+		seed := append(append([]string{}, spawnSeed...), "INSERT OR REPLACE INTO config(key,value) VALUES('sandbox_roles','"+roles+"')")
+		r := runSpawnGo(t, "owner", seed, argv...)
+		if r.code != 0 || r.execs != 1 || r.out != "" || r.errb != "" {
+			t.Errorf("sandbox_roles=%q: code=%d execs=%d out=%q err=%q", roles, r.code, r.execs, r.out, r.errb)
+		}
+		if _, err := os.Stat(r.log); err == nil {
+			t.Errorf("sandbox_roles=%q: hc was called", roles)
+		}
+		if _, err := os.Stat(r.log + ".herdr"); err == nil {
+			t.Errorf("sandbox_roles=%q: the host agent list was read before the hand-over", roles)
+		}
+		if _, err := os.Stat(filepath.Join(r.home, "run")); err == nil {
+			t.Errorf("sandbox_roles=%q: files written", roles)
+		}
+		if !strings.Contains(r.rows, "agents=0") || !strings.Contains(r.rows, "events=0") || !strings.Contains(r.rows, "messages=0") {
+			t.Errorf("sandbox_roles=%q: rows written: %s", roles, r.rows)
+		}
+	}
+	// control: the same spawn with pm not listed runs in Go (exec not called, the hc start happened)
+	seed := append(append([]string{}, spawnSeed...), "INSERT OR REPLACE INTO config(key,value) VALUES('sandbox_roles','qa,coder')")
+	r := runSpawnGo(t, "owner", seed, argv...)
+	if r.code != 0 || r.execs != 0 || !strings.HasPrefix(r.out, "SPAWNED pm-g-1 ") {
+		t.Errorf("pm not in sandbox_roles: code=%d execs=%d out=%q err=%q", r.code, r.execs, r.out, r.errb)
+	}
+}
