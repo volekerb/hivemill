@@ -8,7 +8,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from harness import PR_URL, FactoryTestCase, gates_summary
+from harness import FactoryTestCase, gates_summary
+from harness import PR_URL
 from harness import git as harness_git
 
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
