@@ -300,3 +300,15 @@ func TestExistingUserIsNeverTouched(t *testing.T) {
 		t.Fatalf("touched a pre-existing user: %v", f.calls)
 	}
 }
+
+func TestUnsafeUserNameRefusedBeforeAnyCommand(t *testing.T) {
+	for _, n := range []string{"alice", "hmfresh/../x", "../hmfresh"} {
+		f := &fake{ticks: 2}
+		var log bytes.Buffer
+		c := cfgFor(f, &log)
+		c.Name = n
+		if code, err := Run(c); code != 2 || err == nil || len(f.calls) != 0 {
+			t.Errorf("name %q: code %d err %v calls %v", n, code, err, f.calls)
+		}
+	}
+}

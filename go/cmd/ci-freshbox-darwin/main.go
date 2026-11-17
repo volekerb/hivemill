@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"sync/atomic"
 	"syscall"
@@ -45,7 +46,13 @@ func run(args []string, stdout, stderr io.Writer, goos string, euid int) int {
 		fmt.Fprintln(stderr, err)
 		return err.(*freshdarwin.Refusal).Exit
 	}
-	cfg := freshdarwin.Config{GOOS: goos, EUID: euid, Runner: execRunner{}, Log: stdout, Keep: *keep, Shim: *shim}
+	// The shim runs as the throwaway user, whose cwd is not ours: it must be absolute (and readable by that user).
+	shimPath, err := filepath.Abs(*shim)
+	if err != nil {
+		fmt.Fprintln(stderr, "ci-freshbox-darwin:", err)
+		return 2
+	}
+	cfg := freshdarwin.Config{GOOS: goos, EUID: euid, Runner: execRunner{}, Log: stdout, Keep: *keep, Shim: shimPath}
 	// A signal must not skip cleanup: it marks the run stopped (no further step starts) and Run still deletes
 	// the user before returning.
 	var stopped atomic.Bool

@@ -177,6 +177,9 @@ func Run(cfg Config) (int, error) {
 	if cfg.EventsLog == "" {
 		cfg.EventsLog = defaultEvLog
 	}
+	if cfg.Name != "" && !strings.HasPrefix(cfg.Name, "hmfresh") || strings.ContainsAny(cfg.Name, "/.") {
+		return 2, &Refusal{Msg: prefix + "user name must start with hmfresh and contain no / or .", Exit: 2}
+	}
 	s := &runState{cfg: cfg, name: cfg.Name, secret: cfg.Password}
 	var err error
 	if s.name == "" {
