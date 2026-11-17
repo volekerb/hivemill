@@ -254,6 +254,7 @@ DEFAULT_CONFIG = {
     "opus_effort": "medium",
     "judge_max_refreshes": "4",  # refreshes one `factory judge --merge` run does before it gives up with STALE-LOOP; invalid or < 1 -> 4
     "judge_ci_gate": "pr",       # T-1772 (owner M40242): pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS + clean merge-tree + no overlap only, no PR check is read or waited on (docs/judge-ci-gate.md)
+    "judge_review_gate": "passpass",  # T-1802 (owner M40731/M40734): passpass = merge gate needs reviewer PASS + QA PASS on the head; green = no reviewer/QA FAIL on the head and PR CI green on the head (CI is read even with judge_ci_gate=none); docs/judge-ci-gate.md
     "judge_ci_wait_s": "2400",   # `factory judge --merge` waits this long for pending CI before refusing (polls every 30 s); 40 min fits the 35-min CI limit (#117)
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
@@ -6244,10 +6245,39 @@ def _judge_sleep(seconds):
     time.sleep(seconds)
 
 
+def judge_review_green(con):
+    """T-1802 (owner M40731/M40734): config judge_review_gate=green merges a green PR without reviewer/QA PASS. Any other
+    value, including an unreadable one, keeps passpass."""
+    return (cfg(con, "judge_review_gate") or "passpass").strip().lower() == "green"
+
+
 def judge_ci_none(con):
     """T-1772: config judge_ci_gate=none turns the judge's GitHub PR check reading and waiting off (the main push run is
-    the gate, red_main_check). Any other value, including an unreadable one, keeps today's behaviour (pr)."""
+    the gate, red_main_check). Any other value, including an unreadable one, keeps today's behaviour (pr).
+    T-1802: never in judge_review_gate=green mode: there the PR CI is the only safety and is always read."""
+    if judge_review_green(con):
+        return False
     return (cfg(con, "judge_ci_gate") or "pr").strip().lower() == "none"
+
+
+def green_head_fail_problems(con, task_id, sha):
+    """T-1802 green mode: one problem per role whose LATEST verdict is a FAIL on exactly `sha`. A PASS, no verdict or a
+    verdict on an older head never blocks."""
+    out = []
+    for role in ("reviewer", "qa"):
+        last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                           (task_id, role)).fetchone()
+        if last and (last["verdict"] or "").lower() in ("fail", "reject") and (last["head_sha"] or "").lower() in ("", (sha or "").lower()):  # no head recorded: unverifiable, blocks
+            out.append(f"{role} FAIL on the head {sha[:8]}")
+    return out
+
+
+def green_ci_problems(pr):
+    """T-1802 green mode: [] only when ci_verdict says green (every check completed and successful) on the PR's head."""
+    bad = checks_ok(pr)
+    if bad:
+        return bad
+    return [] if ci_verdict(pr.get("statusCheckRollup"))[0] == "green" else ["checks=PENDING (no completed green check on the head)"]
 
 
 def _judge_wait_limit(con):
@@ -6400,13 +6430,17 @@ def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carr
             "GitHub MERGEABLE"]
     hold = []
     bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
-           local_checks_problems(proj, pr) if proj
-           else checks_ok(pr) + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
+           (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
+           else (green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))
+           + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
     if bad:
         hold.append("CI not green on the head: " + ", ".join(bad))
     else:
         held.append("CI green on the head")
     carry = {} if carry is None else carry
+    if judge_review_green(con):  # T-1802: only a FAIL on the head blocks
+        hold += green_head_fail_problems(con, t["id"], sha)
+        return ("hold", hold) if hold else ("merge", held + ["no reviewer/QA FAIL on the head (judge_review_gate=green)"])
     for role in ("reviewer", "qa"):
         kind, _ = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
         if kind in ("holds", "carry"):
@@ -6602,7 +6636,9 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
             if not local and (missing_checks(con, pr, url) or (had_checks and not pr.get("statusCheckRollup"))):
                 return "checks of the new head not started"
         # T-1634: in local mode only the project's required_checks are waited for; other pending checks never block
-        bad = local_checks_problems(proj, pr) if local else checks_ok(pr)
+        green = judge_review_green(con)  # T-1802: green mode also waits for a check-less or all-pending rollup (ci_verdict pending)
+        bad = ((local_checks_problems(proj, pr) if local else []) + (green_ci_problems(pr) if green else [])
+               if green or local else checks_ok(pr))
         return ", ".join(bad) if _judge_pending(bad) else ""
 
     what = waiting(pr)
@@ -6917,7 +6953,10 @@ def train_ready(con, tid, git_repo):
     except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: cannot verify, drop the task
         return sha, pr["number"], None, owner_repo, [f"cannot verify, gh repo view failed: {e}"]
     carry = {}
-    for role in ("reviewer", "qa"):
+    green = judge_review_green(con)
+    if green:  # T-1802: only a FAIL on the head blocks
+        problems += green_head_fail_problems(con, tid, sha)
+    for role in (() if green else ("reviewer", "qa")):
         kind, info = verdict_pass_holds_for_pr_head(con, tid, role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
         if kind == "missing":
             problems.append(f"no {role} PASS")
@@ -6930,7 +6969,7 @@ def train_ready(con, tid, git_repo):
         problems.append("PR is a draft")
     if pr.get("baseRefName") != "main":
         problems.append(f"PR base is {pr.get('baseRefName')}, not main")
-    bad = checks_ok(pr)
+    bad = green_ci_problems(pr) if green else checks_ok(pr)
     if bad:
         problems.append("checks not green: " + ", ".join(bad))
     problems += missing_checks(con, pr, t["pr_url"])
@@ -7511,7 +7550,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: refuse the carry instead
             repo_url = None
             carry_unavail = (False, f"cannot verify, gh repo view failed: {e}", None, [])
-        for role in ("reviewer", "qa"):
+        if judge_review_green(con):  # T-1802 (owner M40731/M40734): only a FAIL verdict on the head blocks
+            problems += green_head_fail_problems(con, a.task, sha)
+        for role in (() if judge_review_green(con) else ("reviewer", "qa")):
             kind, info = verdict_pass_holds_for_pr_head(con, a.task, role, sha, pr["number"], git_repo, repo_url,
                                                        owner_repo, carry, carry_unavailable=carry_unavail)
             if kind == "missing":
@@ -7556,7 +7597,8 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
         bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
-               local_checks_problems(proj, pr) if proj else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
+               (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
+               else green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -7822,8 +7864,9 @@ def mech_candidates(con, only=None):
             continue
         if judge_status_only_hold(con, t["id"]):
             continue
-        if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                            (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa")):
+        if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; the gate (and judge_verdicts_stale) refuse a FAIL on the head
+                any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                                 (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa"))):
             continue
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
@@ -17563,9 +17606,10 @@ def judge_autospawn_candidates(con, skipped=None):
             "ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
         if t["id"] in mech_ids:
             continue
-        if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                            (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
-               for role in ("reviewer", "qa")):
+        if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; judge_verdicts_stale refuses a FAIL on the head
+                any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                                 (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
+                    for role in ("reviewer", "qa"))):
             continue
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
@@ -17614,6 +17658,12 @@ def judge_verdicts_stale(con, t, clock):
     unreadable PR or an unverifiable carry is a reason. Local-gate projects (gate_cmd) are not checked here."""
     if gate_project_for(con, t["pr_url"]):
         return None
+    if judge_review_green(con):  # T-1802: no PASS needed; only a FAIL on the current head blocks
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock)
+        if isinstance(pr, BaseException) or not isinstance(pr, dict) or not pr.get("headRefOid"):
+            return "head", f"cannot read the PR head: {pr if isinstance(pr, BaseException) else 'no headRefOid'}"[:200]
+        fails = green_head_fail_problems(con, t["id"], pr["headRefOid"])
+        return (f"fail:{pr['headRefOid'][:8]}", "; ".join(fails)[:300]) if fails else None
     pair = _judge_pass_pair_head(con, t["id"])
     if pair:
         pr = _ci_wake_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
