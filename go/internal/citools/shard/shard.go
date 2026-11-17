@@ -1,7 +1,7 @@
 // Package shard is the Go port of ci/shard.py: pick, run and verify a deterministic slice of tests/test_*.py.
 //
 //	ci-shard list [--shard I --total N]     module file names, one per line (I is 1-based)
-//	ci-shard run --shard I --total N --out F [--only L]   run that slice, write its report (JSON) to F
+//	ci-shard run --shard I --total N --out F [--only L] [--quarantine Q] [--today D]   run that slice (tests in the quarantine list Q, default ci/quarantine.json, are left out), write its report (JSON) to F
 //	ci-shard verify --total N --dir D [--only L]          check the shard reports in D cover every module once
 //	ci-shard timings --dir D [--out F]      merge the reports' per-module seconds into a timing file
 //
@@ -15,13 +15,16 @@ package shard
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"factory/go/internal/citools/affected"
 )
@@ -254,6 +257,139 @@ func pyFloat(f float64) string {
 	return s
 }
 
+// QuarantineMaxDays is the longest allowed quarantine (expires - added), as in ci/shard.py.
+const QuarantineMaxDays = 14
+
+// QuarantineError is an unreadable or malformed quarantine file; the CLI exits 2 (never run nothing, never skip all).
+type QuarantineError struct{ Msg string }
+
+func (e *QuarantineError) Error() string { return e.Msg }
+
+// QEntry is one valid quarantine entry.
+type QEntry struct{ ID, Owner, Added, Expires string }
+
+var taskIDRe = regexp.MustCompile(`^T-[0-9]+$`)
+
+func qdate(v string) (time.Time, bool) {
+	if len(v) != 10 {
+		return time.Time{}, false
+	}
+	t, err := time.Parse("2006-01-02", v)
+	return t, err == nil
+}
+
+// quarantineProblem is why the entry is invalid, or "" (same wording as ci/shard.py).
+func quarantineProblem(e map[string]any) string {
+	str := map[string]string{}
+	for _, k := range []string{"id", "owner", "added", "expires", "reason", "evidence"} {
+		v, ok := e[k]
+		if !ok {
+			return "missing " + k
+		}
+		sv, isStr := v.(string)
+		if !isStr || strings.TrimSpace(sv) == "" {
+			return "empty " + k
+		}
+		str[k] = sv
+	}
+	if !taskIDRe.MatchString(str["owner"]) {
+		return fmt.Sprintf("owner %s is not a task id like T-0001", pyQuote(str["owner"]))
+	}
+	if !strings.HasPrefix(str["evidence"], "https://") {
+		return "evidence must be an https:// URL"
+	}
+	d := map[string]time.Time{}
+	for _, k := range []string{"added", "expires"} {
+		t, ok := qdate(str[k])
+		if !ok {
+			return fmt.Sprintf("bad date %s %s (use YYYY-MM-DD)", k, pyQuote(str[k]))
+		}
+		d[k] = t
+	}
+	if !d["expires"].After(d["added"]) {
+		return "expires must be after added"
+	}
+	if d["expires"].After(d["added"].AddDate(0, 0, QuarantineMaxDays)) {
+		return fmt.Sprintf("expires is more than %d days after added", QuarantineMaxDays)
+	}
+	return ""
+}
+
+func pyQuote(s string) string {
+	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
+		return `"` + s + `"`
+	}
+	return "'" + strings.ReplaceAll(s, "'", `\'`) + "'"
+}
+
+// LoadQuarantine is the Go twin of load_quarantine in ci/shard.py: the active entries and the warnings.
+func LoadQuarantine(path, today string) ([]QEntry, []string, error) {
+	now, ok := qdate(today)
+	if !ok {
+		return nil, nil, &QuarantineError{fmt.Sprintf("bad --today %s; use YYYY-MM-DD", pyQuote(today))}
+	}
+	raw, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, &QuarantineError{fmt.Sprintf("cannot read quarantine file %s: %v; fix it or restore it from main", path, err)}
+	}
+	var data struct {
+		Entries *[]json.RawMessage `json:"entries"`
+	}
+	if err := json.Unmarshal(raw, &data); err != nil || data.Entries == nil {
+		return nil, nil, &QuarantineError{fmt.Sprintf("quarantine file %s must be a JSON object {\"entries\": [...]}; fix it or restore it from main", path)}
+	}
+	var active []QEntry
+	var warnings []string
+	for _, r := range *data.Entries {
+		var e map[string]any
+		if json.Unmarshal(r, &e) != nil || e == nil {
+			warnings = append(warnings, "quarantine: ignored invalid entry ?: entry is not an object")
+			continue
+		}
+		id, _ := e["id"].(string)
+		if strings.HasPrefix(id, "go:") {
+			continue
+		}
+		if why := quarantineProblem(e); why != "" {
+			if id == "" {
+				id = "?"
+			}
+			warnings = append(warnings, fmt.Sprintf("quarantine: ignored invalid entry %s: %s", id, why))
+			continue
+		}
+		q := QEntry{ID: id, Owner: e["owner"].(string), Added: e["added"].(string), Expires: e["expires"].(string)}
+		active = append(active, q)
+		if exp, _ := qdate(q.Expires); exp.Before(now) {
+			warnings = append(warnings, fmt.Sprintf("quarantine: EXPIRED %s owner %s expired %s", q.ID, q.Owner, q.Expires))
+		}
+	}
+	return active, warnings, nil
+}
+
+// QuarantineMatches: an entry id names a test, a class or a module and covers everything under it.
+func QuarantineMatches(entryID, testID string) bool {
+	return testID == entryID || strings.HasPrefix(testID, entryID+".")
+}
+
+// quarantineHits is the entries covering at least one of testIDs (by entry id) and those test ids.
+func quarantineHits(entries []QEntry, testIDs []string) (map[string]QEntry, map[string]bool) {
+	hit, dropped := map[string]QEntry{}, map[string]bool{}
+	for _, t := range testIDs {
+		for _, e := range entries {
+			if QuarantineMatches(e.ID, t) {
+				if _, ok := hit[e.ID]; !ok {
+					hit[e.ID] = e
+				}
+				dropped[t] = true
+			}
+		}
+	}
+	return hit, dropped
+}
+
 // Report is the JSON a shard run writes.
 type Report struct {
 	Shard   int                 `json:"shard"`
@@ -262,6 +398,8 @@ type Report struct {
 	Tests   int                 `json:"tests"`
 	Seconds map[string]float64  `json:"seconds"`
 	TestIDs map[string][]string `json:"test_ids,omitempty"`
+	// Quarantined lists the quarantine entry ids that dropped at least one test from this shard.
+	Quarantined []string `json:"quarantined,omitempty"`
 }
 
 // pyHelper runs a python3 snippet that writes JSON to the file named by its first argument after the root.
@@ -322,10 +460,22 @@ count, ok, seconds = 0, True, {}
 for m in arg["modules"]:
     t0 = time.monotonic()
     ids = arg["ids"].get(m)
+    drop = set(arg["drop"].get(m) or [])
     if ids is not None:
         result = runner.run(unittest.TestSuite(loader.loadTestsFromName(i) for i in ids))
     else:
-        result = runner.run(loader.discover(tests, pattern=m, top_level_dir=tests))
+        suite = loader.discover(tests, pattern=m, top_level_dir=tests)
+        if drop:
+            found = []
+            def walk(st):
+                for t in st:
+                    if isinstance(t, unittest.TestSuite):
+                        walk(t)
+                    else:
+                        found.append(t)
+            walk(suite)
+            suite = unittest.TestSuite(t for t in found if t.id() not in drop)
+        result = runner.run(suite)
     seconds[m] = round(time.monotonic() - t0, 1)
     count += result.testsRun
     ok = ok and result.wasSuccessful()
@@ -344,6 +494,25 @@ func CollectTestIDs(root, testsDir string, modules []string) (map[string][]strin
 
 // Run runs the shard's modules (only those in only, if given), writes the report to out and returns the exit code.
 func Run(root string, shard, total int, out string, only map[string]bool, stderr *os.File) (int, error) {
+	return RunQuarantine(root, shard, total, out, only, "", "", os.Stdout, stderr)
+}
+
+// RunQuarantine is Run with an explicit quarantine file ("" = <root>/ci/quarantine.json) and today ("" = the real
+// date); quarantine lines go to stdout.
+func RunQuarantine(root string, shard, total int, out string, only map[string]bool, qfile, today string, stdout io.Writer, stderr *os.File) (int, error) {
+	if qfile == "" {
+		qfile = filepath.Join(root, "ci", "quarantine.json")
+	}
+	if today == "" {
+		today = time.Now().Format("2006-01-02")
+	}
+	entries, warnings, err := LoadQuarantine(qfile, today)
+	if err != nil {
+		return 2, err
+	}
+	for _, w := range warnings {
+		fmt.Fprintln(stdout, w)
+	}
 	testsDir := filepath.Join(root, "tests")
 	all, err := AllModules(testsDir)
 	if err != nil {
@@ -374,13 +543,49 @@ func Run(root string, shard, total int, out string, only map[string]bool, stderr
 		}
 	}
 	idSubsets := map[string][]string{}
-	if len(splitHere) > 0 {
-		ids, err := CollectTestIDs(root, testsDir, splitHere)
+	// modEntries: the entries whose module part is one of this shard's modules; only those need the id listing.
+	modEntries := map[string][]QEntry{}
+	for _, m := range mods {
+		for _, e := range entries {
+			if strings.Split(e.ID, ".")[0] == strings.TrimSuffix(m, ".py") {
+				modEntries[m] = append(modEntries[m], e)
+			}
+		}
+	}
+	var collectMods []string
+	for _, m := range mods {
+		if split[m] || len(modEntries[m]) > 0 {
+			collectMods = append(collectMods, m)
+		}
+	}
+	quarantined := map[string]QEntry{}
+	drop := map[string][]string{}
+	if len(collectMods) > 0 {
+		ids, err := CollectTestIDs(root, testsDir, collectMods)
 		if err != nil {
 			return 1, err
 		}
-		for _, m := range splitHere {
-			idSubsets[m] = ShardOfTestIDs(ids[m], shard, total)
+		for _, m := range collectMods {
+			hit, dropped := quarantineHits(modEntries[m], ids[m])
+			for k, v := range hit {
+				quarantined[k] = v
+			}
+			if split[m] {
+				var keep []string
+				for _, id := range ShardOfTestIDs(ids[m], shard, total) {
+					if !dropped[id] {
+						keep = append(keep, id)
+					}
+				}
+				if keep == nil {
+					keep = []string{}
+				}
+				idSubsets[m] = keep
+			} else {
+				for id := range dropped {
+					drop[m] = append(drop[m], id)
+				}
+			}
 		}
 	}
 	var res struct {
@@ -389,7 +594,7 @@ func Run(root string, shard, total int, out string, only map[string]bool, stderr
 		Seconds map[string]float64 `json:"seconds"`
 	}
 	if len(mods) > 0 {
-		if err := pyHelper(root, runSnippet, map[string]any{"tests": testsDir, "modules": mods, "ids": idSubsets}, &res); err != nil {
+		if err := pyHelper(root, runSnippet, map[string]any{"tests": testsDir, "modules": mods, "ids": idSubsets, "drop": drop}, &res); err != nil {
 			return 1, err
 		}
 	} else {
@@ -399,6 +604,15 @@ func Run(root string, shard, total int, out string, only map[string]bool, stderr
 		mods = []string{}
 	}
 	rep := Report{Shard: shard, Total: total, Modules: mods, Tests: res.Tests, Seconds: res.Seconds}
+	qids := make([]string, 0, len(quarantined))
+	for id := range quarantined {
+		qids = append(qids, id)
+	}
+	sort.Strings(qids)
+	for _, id := range qids {
+		fmt.Fprintf(stdout, "quarantine: excluded %s (owner %s, expires %s)\n", id, quarantined[id].Owner, quarantined[id].Expires)
+	}
+	rep.Quarantined = qids
 	if len(idSubsets) > 0 {
 		rep.TestIDs = idSubsets
 	}
@@ -409,7 +623,7 @@ func Run(root string, shard, total int, out string, only map[string]bool, stderr
 	if err := os.WriteFile(out, b, 0o644); err != nil {
 		return 1, errf("cannot write the report %s: %v", out, err)
 	}
-	if res.Tests == 0 && len(mods) > 0 {
+	if res.Tests == 0 && len(mods) > 0 && len(qids) == 0 {
 		fmt.Fprintf(stderr, "shard %d ran 0 tests from %d modules\n", shard, len(mods))
 		return 1, nil
 	}
@@ -426,7 +640,9 @@ type rawReport struct {
 	Tests   *int                `json:"tests"`
 	Seconds map[string]float64  `json:"seconds"`
 	TestIDs map[string][]string `json:"test_ids"`
-	name    string
+	// Quarantined entry ids; the verify rule treats the tests they cover as run on purpose (T-1742).
+	Quarantined []string `json:"quarantined"`
+	name        string
 }
 
 func readReports(dir string) (map[int]rawReport, error) {
@@ -545,8 +761,8 @@ func Verify(root, dir string, total int, only map[string]bool) (string, int, err
 			if !contains(r.Modules, m) {
 				continue
 			}
-			ids := r.TestIDs[m]
-			if len(ids) == 0 {
+			ids, hasIDs := r.TestIDs[m]
+			if !hasIDs || (len(ids) == 0 && len(r.Quarantined) == 0) {
 				return "", 0, errf("split module %s on shard %d: missing test_ids in report", m, i)
 			}
 			for _, id := range ids {
@@ -558,6 +774,21 @@ func Verify(root, dir string, total int, only map[string]bool) (string, int, err
 			ran = append(ran, id)
 			if len(s) > 1 {
 				dupIDs = append(dupIDs, id)
+			}
+		}
+		// Quarantined tests were dropped from the run on purpose: the report's "quarantined" entry ids cover them.
+		var qEntries []QEntry
+		for _, i := range sortedKeys(reports) {
+			if contains(reports[i].Modules, m) {
+				for _, q := range reports[i].Quarantined {
+					qEntries = append(qEntries, QEntry{ID: q})
+				}
+			}
+		}
+		_, droppedFull := quarantineHits(qEntries, full)
+		for id := range droppedFull {
+			if _, in := byShard[id]; !in {
+				ran = append(ran, id)
 			}
 		}
 		sort.Strings(dupIDs)
@@ -582,7 +813,17 @@ func Verify(root, dir string, total int, only map[string]bool) (string, int, err
 				continue
 			}
 			got := r.TestIDs[m]
-			exp := ShardOfTestIDs(full, i, total)
+			var rqs []QEntry
+			for _, q := range r.Quarantined {
+				rqs = append(rqs, QEntry{ID: q})
+			}
+			_, rdrop := quarantineHits(rqs, full)
+			var exp []string
+			for _, id := range ShardOfTestIDs(full, i, total) {
+				if !rdrop[id] {
+					exp = append(exp, id)
+				}
+			}
 			if !equal(got, exp) {
 				return "", 0, errf("split module %s shard %d: expected %d ids, got %d (or wrong ids)", m, i, len(exp), len(got))
 			}
