@@ -15,7 +15,7 @@ import (
 
 func as(e *ft.Env, agent string, args ...string) ft.Result {
 	e.T.Helper()
-	return e.RunWith(ft.Opts{Agent: agent}, args...)
+	return e.OKWith(ft.Opts{Agent: agent}, args...) // exit 0 asserted, like Python self.ok
 }
 
 func contains(t testing.TB, what, got, want string) {
