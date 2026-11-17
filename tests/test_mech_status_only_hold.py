@@ -94,13 +94,10 @@ class MechStatusOnlyHoldTests(Base):
         self.assertIn(T, ids)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class GreenReviewGateCandidateTests(Base):
     """T-1802: judge_review_gate=green puts a task with no reviewer/QA verdict on the mech and autospawn candidate lists;
-    a latest FAIL keeps it off; passpass (default) still needs both PASS."""
+    a FAIL on an older head does not drop it (the merge gate refuses a FAIL on the current head); passpass (default) still
+    needs both PASS."""
 
     def autospawn_ids(self):
         with self.env.load_factory() as f:
@@ -119,15 +116,12 @@ class GreenReviewGateCandidateTests(Base):
         self.assertIn(T, self.mech_ids())
         self.assertIn(T, self.autospawn_ids())
 
-    def test_green_skips_task_with_latest_fail(self):
+    def test_green_lists_task_with_fail_on_an_older_head(self):
         self.set_green()
-        self.seed_verdict("reviewer", "fail", "bug")
-        self.assertNotIn(T, self.mech_ids())
-        self.assertNotIn(T, self.autospawn_ids())
-
-    def test_green_lists_task_again_after_newer_pass(self):
-        self.set_green()
-        self.seed_verdict("reviewer", "fail", "bug")
-        self.seed_verdict("reviewer", "pass", "fixed")
+        self.seed_verdict("reviewer", "fail", "bug", sha="0" * 40)
         self.assertIn(T, self.mech_ids())
         self.assertIn(T, self.autospawn_ids())
+
+
+if __name__ == "__main__":
+    unittest.main()

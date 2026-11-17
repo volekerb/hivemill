@@ -6267,7 +6267,7 @@ def green_head_fail_problems(con, task_id, sha):
     for role in ("reviewer", "qa"):
         last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                            (task_id, role)).fetchone()
-        if last and (last["verdict"] or "").lower() in ("fail", "reject") and (last["head_sha"] or "").lower() == (sha or "").lower():
+        if last and (last["verdict"] or "").lower() in ("fail", "reject") and (last["head_sha"] or "").lower() in ("", (sha or "").lower()):  # no head recorded: unverifiable, blocks
             out.append(f"{role} FAIL on the head {sha[:8]}")
     return out
 
@@ -6430,7 +6430,7 @@ def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carr
             "GitHub MERGEABLE"]
     hold = []
     bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
-           local_checks_problems(proj, pr) if proj
+           (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
            else (green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))
            + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
     if bad:
@@ -6636,7 +6636,9 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
             if not local and (missing_checks(con, pr, url) or (had_checks and not pr.get("statusCheckRollup"))):
                 return "checks of the new head not started"
         # T-1634: in local mode only the project's required_checks are waited for; other pending checks never block
-        bad = local_checks_problems(proj, pr) if local else checks_ok(pr)
+        green = judge_review_green(con)  # T-1802: green mode also waits for a check-less or all-pending rollup (ci_verdict pending)
+        bad = ((local_checks_problems(proj, pr) if local else []) + (green_ci_problems(pr) if green else [])
+               if green or local else checks_ok(pr))
         return ", ".join(bad) if _judge_pending(bad) else ""
 
     what = waiting(pr)
@@ -7595,7 +7597,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
         bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
-               local_checks_problems(proj, pr) if proj
+               (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
                else green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
@@ -7843,14 +7845,6 @@ def mech_dispute(con, tid):
     return None
 
 
-def _green_latest_fail(con, tid):
-    """T-1802: True when the latest reviewer or QA verdict of the task is a FAIL (DB-only candidate filter; the merge gate
-    then decides on the exact head)."""
-    return any(((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                             (tid, role)).fetchone() or {"verdict": None})["verdict"] or "").lower() in ("fail", "reject")
-               for role in ("reviewer", "qa"))
-
-
 def mech_candidates(con, only=None):
     """Tasks the merger may look at, oldest first: in_review with a PR, tier not above T2 (an unset tier is classified
     later), latest reviewer and QA verdict PASS, no dispute, no judge_status_only_hold, no judge live/starting/queued on
@@ -7870,7 +7864,7 @@ def mech_candidates(con, only=None):
             continue
         if judge_status_only_hold(con, t["id"]):
             continue
-        if (_green_latest_fail(con, t["id"]) if judge_review_green(con) else  # T-1802: green mode skips only a FAIL (the gate checks its head)
+        if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; the gate (and judge_verdicts_stale) refuse a FAIL on the head
                 any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                                  (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa"))):
             continue
@@ -17612,7 +17606,7 @@ def judge_autospawn_candidates(con, skipped=None):
             "ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
         if t["id"] in mech_ids:
             continue
-        if (_green_latest_fail(con, t["id"]) if judge_review_green(con) else  # T-1802: green mode skips only a latest FAIL; the gate checks its head
+        if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; judge_verdicts_stale refuses a FAIL on the head
                 any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                                  (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
                     for role in ("reviewer", "qa"))):

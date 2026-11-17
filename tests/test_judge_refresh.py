@@ -1215,6 +1215,15 @@ class JudgeRefreshTests(FactoryTestCase):
         self.assertIn("qa FAIL on the head", p.stderr)
         self.assertNoMerge()
 
+    def test_green_refuses_fail_with_no_recorded_head(self):
+        self.green()
+        self._no_verdicts()
+        self._fail_verdict("zz-test-reviewer", head="")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("reviewer FAIL on the head", p.stderr)
+        self.assertNoMerge()
+
     def test_green_refuses_pending_ci_without_code_change(self):
         self.green()
         self._no_verdicts()
