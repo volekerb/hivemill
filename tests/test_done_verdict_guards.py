@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from harness import SHA_B, FactoryTestCase, gates_summary
@@ -31,7 +32,10 @@ class JudgeDoneTests(FactoryTestCase):
         self.assertIn("If you cannot run factory judge at all, msg your lead and wait; "
                       "the lead stops you with factory stop.", p.stderr)
         self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-test-judge'")[0]["status"], "live")
-        self.assertEqual(self.env.sql("SELECT count(*) c FROM events WHERE action LIKE 'done%'")[0]["c"], 0)
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM events WHERE action LIKE 'done%' "
+                                      "AND action != 'done-refused'")[0]["c"], 0)  # T-1622 W5 records the refusal
+        self.assertEqual([json.loads(r["detail"])["gate"] for r in self.env.sql(
+            "SELECT detail FROM events WHERE action='done-refused'")], ["judge"])
 
     def test_a_refused_without_outcome_event(self):
         self.assert_refused()
