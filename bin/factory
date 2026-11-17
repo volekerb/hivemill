@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""factory entry (factory_cli.py). G-041 cli_impl may exec factory-go; G-038 schedule is Go-only."""
+"""factory entry (factory_cli.py). G-041 cli_impl may exec factory-go; G-038 schedule and T-1618 relay-push are Go-only."""
 import os, sys
 _BIN = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, _BIN)
 if os.environ.get("FACTORY_FORWARDED") == "1": __import__("factory_cli").forwarded_identity_gate(sys.argv[1:])  # G-057 identity first
-if len(sys.argv) > 1 and sys.argv[1] == "schedule":
+if len(sys.argv) > 1 and sys.argv[1] in ("schedule", "relay-push"):
     from factory_cli import exec_schedule_go; exec_schedule_go(sys.argv)
 try:
     lib, home = os.path.expanduser("~/.local/lib/factory/"), os.environ.get("FACTORY_HOME", os.path.expanduser("~/factory"))

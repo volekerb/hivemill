@@ -3608,7 +3608,7 @@ CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 
     "whoami", "flags", "agents", "config",
     "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
     "verdict", "scorecard", "digest", "alerts", "gate", "schedule", "done", "prcheck", "pr", "src", "res", "tick",
-    "scout", "skilleval", "retro", "cursor-pilot", "hold-expiry",
+    "scout", "skilleval", "retro", "cursor-pilot", "hold-expiry", "relay-push",
 )
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
@@ -22594,9 +22594,11 @@ def cli_go_srchash(home):
 
 
 def exec_schedule_go(argv):
-    """G-038 F-31: bin/factory calls this before main(); always exec factory-go or exit 2."""
+    """G-038 F-31: bin/factory calls this before main() for the Go-only words (schedule, T-1618 relay-push); always
+    exec factory-go or exit 2."""
+    msg = _SCHEDULE_GO_MSG.replace("schedule", argv[1], 1)
     if os.environ.get("FACTORY_CLI_IMPL") == "python":
-        print(f"factory: {_SCHEDULE_GO_MSG}", file=sys.stderr)
+        print(f"factory: {msg}", file=sys.stderr)
         sys.exit(2)
     lib = guard_lib_dir()
     go_bin = lib / CLI_GO_BIN
@@ -22610,7 +22612,7 @@ def exec_schedule_go(argv):
             raise OSError("stale")
         os.execv(go_bin, [argv[0], *argv[1:]])
     except OSError:
-        print(f"factory: {_SCHEDULE_GO_MSG}", file=sys.stderr)
+        print(f"factory: {msg}", file=sys.stderr)
         sys.exit(2)
 
 
