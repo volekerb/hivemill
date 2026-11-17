@@ -3,6 +3,7 @@ echo/printf piped in) that launches `git push` or a gh write, or (python) extrac
 Out of scope by design: a piped non-literal source (`cat file | python3`). Defense in depth only; sandbox + PAT are the boundary."""
 import json
 import os
+import pwd
 import sys
 import unittest
 
@@ -106,7 +107,8 @@ DASH_WORD = [
     "git << - push origin main",
     "git << - push",
     "factory << - res",
-    "rm << - %s" % os.path.join(os.path.expanduser("~"), "factory", "run", "guard-export.json"),  # string only, never touched
+    # string only, never touched; the live home is under the real user's (passwd) home, not $HOME (a temp dir in the gate)
+    "rm << - %s" % os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory", "run", "guard-export.json"),
     "git <<- x push origin main\nbody\nx",  # a real <<- takes `x` as delimiter; `push` is still a word
 ]
 
