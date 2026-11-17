@@ -3,6 +3,7 @@
 import fcntl
 import json
 import os
+import sqlite3
 import threading
 from pathlib import Path
 import unittest
@@ -202,7 +203,7 @@ class PrcheckTests(FactoryTestCase):
         git("update-ref", "-d", "refs/remotes/origin/main", cwd=self.wt)
         ns = {"__name__": "factory_unit", "__file__": str(FACTORY_SRC), "__builtins__": __builtins__}
         exec(compile(FACTORY_SRC.read_text(), str(FACTORY_SRC), "exec"), ns)
-        ok, note = ns["prcheck_affected"](str(self.wt), "main", project_id="zz-test-proj")
+        ok, note = ns["prcheck_affected"](str(self.wt), "main", con=sqlite3.connect(":memory:"))  # no project id: the factory path, no DB read
         self.assertFalse(ok)
         self.assertIn("cannot read origin/main to decide if ci/affected.py applies", note)
 
