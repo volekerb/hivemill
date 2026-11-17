@@ -219,3 +219,12 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   is suspect.
 - **Measured**: the first full run (wall time, peak RAM and CPU, per-step times) is in the notes of task T-1633
   (`factory task show T-1633`), written by the director after merge.
+
+### Running on the gate host itself (T-1773)
+
+- `GATE_REMOTE_HOST` equal to this machine's `hostname -s` or `hostname` runs the gate locally (same as `local`): no ssh to
+  ourselves, no `~/.ssh/config` alias or host key needed. The log says `is this host: running locally, no ssh`.
+- `GATE_RUN_ROOTS="/var/tmp /tmp"` (space separated) overrides the run root candidates; the pick still needs a disk-backed,
+  socket-short dir.
+- The `toolchain` step log has an `nsbox:` line: user namespaces available (nsbox-dependent tests run) or unavailable with
+  the reason (those tests skip with `user namespaces unavailable`). Tests: `tests/test_gate_shards.py`.

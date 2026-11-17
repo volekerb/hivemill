@@ -48,6 +48,7 @@
 #
 # Env: GATE_REMOTE_HOST (ssh host, or `local` to run here without ssh; required), GATE_SHARDS (runner; capped at 8), GATE_BASE (base rev; default the
 # merge base of HEAD with refs/factory-judge/main, else origin/main; HEAD^ when that is HEAD; none: refused).
+# GATE_RUN_ROOTS: space-separated run root candidates (default "/var/tmp /tmp").
 # Run dir: <root>/fg-XXXXXX on the gate host (mktemp), HOME, TMPDIR, GOTMPDIR and FACTORY_HOME inside it (T-1679);
 # <root> is the first of /var/tmp, /tmp that is on disk (not tmpfs) and short enough for unix socket paths.
 # Job cap (T-1679): the driver runs min(GATE_SHARDS, 8 CPUs, MemAvailable / 2048 MiB, MemTotal / 2560 MiB) jobs at once
@@ -120,6 +121,14 @@ ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o Ser
           -o ForwardAgent=no -o ForwardX11=no -o ClearAllForwardings=yes -o SendEnv=-* -o RequestTTY=no)
 # GATE_REMOTE_HOST=local: the runner already is on the test host; the same steps run here without ssh (same shipping
 # into <run root>/fg-XXXXXX, same env -i, lock, CPU and RAM cap and cleanup).
+# GATE_REMOTE_HOST naming the machine this script runs on (its `hostname -s` or `hostname`) means local too: no ssh to
+# ourselves, so no ~/.ssh/config alias or host key is needed on the gate host itself (T-1773).
+this_short=$(hostname -s 2>/dev/null || :)
+this_full=$(hostname 2>/dev/null || :)
+if [ "$host" != local ] && { [ "$host" = "$this_short" ] || [ "$host" = "$this_full" ]; }; then
+  echo "remote-gate: GATE_REMOTE_HOST=$host is this host: running locally, no ssh"
+  host=local
+fi
 if [ "$host" = local ]; then
   rssh() { bash -c "$*"; }
 else
@@ -132,6 +141,11 @@ fi
 # (go/internal/sandbox binds <TMPDIR>/<test name>NNN/001/p.sock, up to SOCK_TAIL chars after TMPDIR): TMPDIR is
 # /var/tmp/fg-XXXXXX/tmp (22 chars). The old ~/factory-gate/<sha>-<ts>-<pid> was too long for those sockets.
 RUN_ROOTS=(/var/tmp /tmp)
+# GATE_RUN_ROOTS: space-separated candidate roots instead of the default (a host whose /var/tmp is not writable).
+if [ -n "${GATE_RUN_ROOTS-}" ]; then
+  case "$GATE_RUN_ROOTS" in *[!A-Za-z0-9._/\ -]*) echo "remote-gate: GATE_RUN_ROOTS has odd characters" >&2; exit 2 ;; esac
+  read -r -a RUN_ROOTS <<< "$GATE_RUN_ROOTS"
+fi
 SOCK_TAIL=82
 cleaned=0
 rdir=
