@@ -45,15 +45,26 @@ var (
 	termsWrappers  = set("env", "command", "nice", "time", "nohup", "xargs")
 	termsShells    = set("bash", "sh", "zsh", "dash", "ksh")
 
-	termsBraceHeads        = set("grep", "egrep", "rg", "jq", "gh")
+	termsBraceHeads        = set("grep", "egrep", "rg", "jq", "gh", "git", "awk", "sed", "sort", "head", "tail", "cut", "wc", "uniq")
+	termsBraceGit          = set("diff", "log", "show") // T-1617: read-only first stages; none of their words is blanked
 	reTermsBraceGrepFlags  = regexp.MustCompile(`-[EFGHIPRUZachilnoqrsvwxz]+`)
 	reTermsBraceEgrepFlags = regexp.MustCompile(`-[EFGHIPRUZachilnoqrsvwxz]+`)
 	reTermsBraceRgFlags    = regexp.MustCompile(`-[FHILPSUchilnopqsuvwxz]+`)
 	reTermsBraceJqFlags    = regexp.MustCompile(`-[CMRSaceJjnrst]+`)
+
+	// T-1617 (TERMS_AWK_UNSAFE, TERMS_SED_*, TERMS_HEREDOC in worker-guard.py)
+	reTermsAwkUnsafe     = regexp.MustCompile(`system|getline|ARGV|ARGC|ENVIRON|@|>|\|`)
+	reTermsSedFlags      = regexp.MustCompile(`\A-[nErsuz]+\z`)
+	reTermsSedPlain      = regexp.MustCompile(`\A(?:(?:[0-9]+|\$)?(?:,(?:[0-9]+|\$))?[pdq]|/(?:[^/\\\n]|\\.)*/[pd])\z`)
+	reTermsSedSubstFlags = regexp.MustCompile(`\A[gpI0-9]*\z`)
+	reTermsHeredoc       = regexp.MustCompile("(?s)\\A[ \\t]*factory((?:[ \\t]+(?:[A-Za-z0-9_@%+=:,./-]+|'[^'\\n]*'|\"[^\"\\n$`\\\\]*\"))*)" +
+		"[ \\t]*<<'([A-Za-z_][A-Za-z0-9_]*)'[ \\t]*\\n(.*)\\z")
 )
 
+const termsSedDelims = "/|#,:@!%+=~"
+
 var termsBraceGhSub = map[string]struct{}{
-	"pr|list": {}, "pr|view": {}, "pr|checks": {}, "pr|status": {},
+	"pr|list": {}, "pr|view": {}, "pr|checks": {}, "pr|status": {}, "pr|diff": {},
 	"issue|list": {}, "issue|view": {}, "issue|status": {},
 	"run|list": {}, "run|view": {}, "repo|view": {},
 }
@@ -470,6 +481,61 @@ func termsBraceFlagWord(re *regexp.Regexp, s string) bool {
 	return loc != nil && loc[0] == 0 && loc[1] == len(s)
 }
 
+// termsAwkSafe is terms_awk_safe: a single-quoted awk program with no way to run a command or to name a file.
+func termsAwkSafe(prog string) bool {
+	return !reTermsAwkUnsafe.MatchString(strings.ReplaceAll(prog, "||", ""))
+}
+
+// termsSedSafe is terms_sed_safe: one sed command that only prints, deletes, quits or substitutes.
+func termsSedSafe(prog string) bool {
+	if reTermsSedPlain.MatchString(prog) {
+		return true
+	}
+	if len(prog) < 4 || prog[0] != 's' || !strings.ContainsRune(termsSedDelims, rune(prog[1])) || prog[1] >= 0x80 {
+		return false
+	}
+	d, seen := prog[1], 0
+	for i := 2; i < len(prog); i++ {
+		if prog[i] == '\\' {
+			i++
+			continue
+		}
+		if prog[i] == d {
+			seen++
+			if seen == 2 {
+				return reTermsSedSubstFlags.MatchString(prog[i+1:])
+			}
+		}
+	}
+	return false
+}
+
+// termsHeredocView is terms_heredoc_view (T-1617): for a command that is exactly one `factory ...` line with a
+// quoted-delimiter heredoc and nothing after the terminator, the brace rule reads the factory line alone.
+func termsHeredocView(cmd string) string {
+	m := reTermsHeredoc.FindStringSubmatch(cmd)
+	if m == nil {
+		return cmd
+	}
+	lines := strings.Split(m[3], "\n")
+	end := -1
+	for i, l := range lines {
+		if l == m[2] {
+			end = i
+			break
+		}
+	}
+	if end < 0 {
+		return cmd
+	}
+	for _, l := range lines[end+1:] {
+		if l != "" {
+			return cmd
+		}
+	}
+	return "factory" + m[1]
+}
+
 // termsBraceView is a port of worker-guard.py:terms_brace_view (T-1121): the text TERMS_BRACE is searched in at depth 0.
 func termsBraceView(cmd string) string {
 	t := strings.Trim(cmd, " \t\n")
@@ -593,8 +659,57 @@ func termsBraceView(cmd string) string {
 			w := words[k]
 			return w.quoted == 1 && t[w.start] == '\'' && t[w.end-1] == '\''
 		}
+		if head == "git" {
+			if len(txt) < 2 || !in(termsBraceGit, txt[1]) {
+				return cmd
+			}
+			continue
+		}
+		if head == "awk" {
+			k := 1
+			for k < len(words) && t[words[k].start] == '-' {
+				w := words[k]
+				switch {
+				case txt[k] == "-F" || txt[k] == "-v": // the value word stays in the view
+					k += 2
+				case w.end-w.start >= 2 && (t[w.start:w.start+2] == "-F" || t[w.start:w.start+2] == "-v"):
+					k++
+				default:
+					return cmd
+				}
+			}
+			if k < len(words) && whole(k) {
+				if !termsAwkSafe(t[words[k].start+1 : words[k].end-1]) {
+					return cmd
+				}
+				blank = append(blank, [2]int{words[k].start, words[k].end})
+			}
+			continue
+		}
+		if head == "sed" {
+			k := 1
+			for k < len(words) && txt[k] != "" && reTermsSedFlags.MatchString(txt[k]) {
+				k++
+			}
+			if k < len(words) && txt[k] == "-e" {
+				k++
+			}
+			// GNU sed takes options after the script too (sed 's/a/b/' -i f): any later dash or quoted word gives up
+			for j := k + 1; j < len(words); j++ {
+				if words[j].quoted != 0 || t[words[j].start] == '-' {
+					return cmd
+				}
+			}
+			if k < len(words) && whole(k) && termsSedSafe(t[words[k].start+1:words[k].end-1]) {
+				blank = append(blank, [2]int{words[k].start, words[k].end})
+			}
+			continue
+		}
 		k := 1
 		flagRe := termsBraceFlagRe(head)
+		if flagRe == nil { // sort, head, tail, cut, wc, uniq: nothing is blanked
+			continue
+		}
 		for k < len(words) && txt[k] != "" && termsBraceFlagWord(flagRe, txt[k]) {
 			k++
 		}
@@ -646,7 +761,7 @@ func termsBash(cmd, cwd string, env map[string]string, depth int) error {
 	}
 	braceView := cmd
 	if depth == 0 {
-		braceView = termsBraceView(cmd)
+		braceView = termsBraceView(termsHeredocView(cmd))
 	}
 	if strings.Contains(cmd, "${!") || reTermsBrace.MatchString(braceView) {
 		low := strings.ToLower(cmd)

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -116,6 +117,9 @@ type Contained struct {
 
 // UsernsAvailable reports whether this box can run the stage-1 namespaces unprivileged.
 func UsernsAvailable(unshare string) (bool, string) {
+	if runtime.GOOS != "linux" {
+		return false, unsupportedOS(runtime.GOOS).Error()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	var stderr bytes.Buffer
