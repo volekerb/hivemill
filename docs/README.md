@@ -12,6 +12,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [examples/03-digest-and-scorecard.md](examples/03-digest-and-scorecard.md): the morning digest and the per-team scorecard.
 - [web-ui.md](web-ui.md): the dashboard started by `factory serve` and what each panel shows.
 - [herdr-app-dashboard.md](herdr-app-dashboard.md): the Hivemill status bar and dashboard tab for the Herdr app; install, settings, Claude/Cursor choice.
+- [token-discipline.md](token-discipline.md): what agents cost (context per turn, idle turns, spawns), the worker context limits and the boss exception, the rules, and `hm-spend`.
 - [releases/v0.4.0-announcement.md](releases/v0.4.0-announcement.md): what's new in v0.4.0, in plain English, with two screenshots.
 - [releases/v0.5.0-announcement.md](releases/v0.5.0-announcement.md): what's new in v0.5.0, in plain English.
 - [releases/v0.5.0-linkedin.md](releases/v0.5.0-linkedin.md): draft LinkedIn post for v0.5.0, to publish after the release exists.
@@ -119,6 +120,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0004-node-esm-hivemill-ios-release.md](adr/0004-node-esm-hivemill-ios-release.md): Node ESM for the hivemill ios-release script.
 - [adr/0005-self-hosted-ci-runners.md](adr/0005-self-hosted-ci-runners.md): self-hosted CI runners for trusted PRs (proposed design, nothing installed).
 - [adr/0006-worker-sandbox-assessment.md](adr/0006-worker-sandbox-assessment.md): worker sandbox assessment (why go test fails for QA; proposed, nothing installed).
+- [adr/0007-hivemill-kit.md](adr/0007-hivemill-kit.md): Hivemill Kit design (standalone skills, three levels, evals and a catalog; proposed).
 
 ## Internals
 
