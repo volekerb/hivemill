@@ -267,11 +267,12 @@ func latestVerdict(ctx context.Context, db *sql.DB, taskID, role string) (string
 
 // holdStart is the first judge-hold-set event after the task's last judge-hold-clear or judge-hold-expired event (by
 // event id), nil when there is none. Repeating --judge-hold inside one hold span writes more set events; they must
-// not restart the expiry clock.
+// not restart the expiry clock. A set with an empty reason (`--judge-hold ""`) empties the hold without a clear
+// event, so it does not count as the start of a span.
 func holdStart(ctx context.Context, db *sql.DB, taskID string) (*setEvent, error) {
 	var e setEvent
 	err := db.QueryRowContext(ctx, `SELECT ts, COALESCE(actor,'') FROM events
-		WHERE entity='task' AND entity_id=? AND action=? AND id > COALESCE((SELECT MAX(id) FROM events
+		WHERE entity='task' AND entity_id=? AND action=? AND TRIM(COALESCE(detail,'')) <> '' AND id > COALESCE((SELECT MAX(id) FROM events
 			WHERE entity='task' AND entity_id=? AND action IN (?, ?)), 0)
 		ORDER BY id ASC LIMIT 1`, taskID, ActionSet, taskID, ActionClear, ActionExpired).Scan(&e.ts, &e.actor)
 	if errors.Is(err, sql.ErrNoRows) {

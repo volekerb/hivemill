@@ -520,6 +520,23 @@ func TestExpiryClockIgnoresRepeatedSet(t *testing.T) {
 		f.hold("old hold", lead, 300)
 		f.exec("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,'task',?,'judge-hold-clear','')",
 			f.ago(200), lead, taskID)
+		f.hold("new hold", lead, 130)
+		f.hold("new hold", lead, 10)
+		f.run()
+		if n := f.events("judge-hold-expired"); n != 1 {
+			t.Fatalf("%d judge-hold-expired events, want 1", n)
+		}
+		raw := f.str("SELECT detail FROM events WHERE entity_id=? AND action='judge-hold-expired'", taskID)
+		if !strings.Contains(raw, `"held_min":130`) {
+			t.Errorf("expired detail %s, want held_min 130 (first set after the clear)", raw)
+		}
+	})
+	t.Run("set after a clear within the window is kept", func(t *testing.T) {
+		f := newFx(t)
+		f.passPass()
+		f.hold("old hold", lead, 300)
+		f.exec("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,'task',?,'judge-hold-clear','')",
+			f.ago(200), lead, taskID)
 		f.hold("new hold", lead, 60)
 		f.run()
 		if got := f.holdText(); got != "new hold" {
@@ -527,6 +544,16 @@ func TestExpiryClockIgnoresRepeatedSet(t *testing.T) {
 		}
 		if n := f.events("judge-hold-expired"); n != 0 {
 			t.Errorf("%d judge-hold-expired events, want 0", n)
+		}
+	})
+	t.Run("empty-reason set does not start the span", func(t *testing.T) {
+		f := newFx(t)
+		f.passPass()
+		f.hold("", lead, 300)
+		f.hold("real hold", lead, 60)
+		f.run()
+		if got := f.holdText(); got != "real hold" {
+			t.Errorf("hold text = %q, want it kept", got)
 		}
 	})
 }
