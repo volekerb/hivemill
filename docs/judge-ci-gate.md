@@ -19,3 +19,9 @@ Why: the merge is protected after the fact by the main push run (below), not by 
 With `red_main_freeze=1` the tick reads the latest completed `tests.yml` push run on main (`docs/red-main.md`). When it is red, the tick files **exactly one** P1 task per red run: `Red main: bisect + revert <repo> run <id>`. Its spec names the merge commits since the last green main so the coder can bisect them and revert the culprit. A repeat tick on the same red run files nothing; a new red run files a new task. The director is messaged once per run and merges freeze until main is green.
 
 Run both together: `factory config judge_ci_gate none` and `factory config red_main_freeze 1`. `none` without the freeze has no safety net.
+
+## Scope and limits
+
+- `none` covers the judge `--merge` gate and the judge spawn hold only. Projects in local-gate mode (`gate_cmd`) keep their local gate run; that is a local run, not a GitHub PR check, and is out of scope here.
+- `judge --train` and the reviewer auto-spawn/rerun ticks still require green PR checks. Under `none` a PR whose checks stay pending does not get its reviewer from the tick until a follow-up task changes that; the lead may spawn the reviewer by hand.
+- A BEHIND head merges under `none` only when it may merge unrefreshed: `stale_no_refresh=on` (default) or `stale_policy=behind_ok`, and `behind_ok_blocker` allows it (it also refuses when `tests.yml` changed on main).
