@@ -4,12 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from harness import REPO, FactoryTestCase
+from harness import REPO, FactoryTestCase, _literal
 from web.prices import cost
 from web.tokens import TokenIndex, rollup
 
 OPUS, SONNET, HAIKU = "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"
-EXPECTED = {"coder": SONNET, "qa": SONNET, "scout": SONNET, "cleaner": HAIKU, "reviewer": OPUS, "judge": OPUS}
+EXPECTED = {"coder": SONNET, "qa": SONNET, "scout": SONNET, "cleaner": HAIKU, "reviewer": OPUS, "judge": SONNET, "pm": SONNET}
 
 
 def spawn_args(role):
@@ -21,7 +21,7 @@ def spawn_args(role):
     return base
 
 
-class ModelRoutingTests(FactoryTestCase):
+class SpawnBase(FactoryTestCase):
     def setUp(self):
         super().setUp()
         self.env.seed_goal()
@@ -38,6 +38,8 @@ class ModelRoutingTests(FactoryTestCase):
         argv = self.starts()[f"zz-test-{role}"]
         return argv[argv.index("--model") + 1]
 
+
+class ModelRoutingTests(SpawnBase):
     def director(self, *args):
         return self.env.run(*args, agent="zz-test-director")
 
@@ -106,6 +108,40 @@ class ModelRoutingTests(FactoryTestCase):
                 spawned = self.model_of("cleaner")
                 self.assertEqual(spawned, want)
                 self.assertIn(f"--model {spawned} ", self.relaunch_plan())
+
+
+class EveryRoleKeyTests(SpawnBase):
+    """G-064 T-1777: a model_<role> key for every role, validated like model_cleaner, defaults per the MODELS table."""
+
+    def test_every_role_has_a_key_and_new_defaults(self):
+        cfg, models, roles = _literal("DEFAULT_CONFIG"), _literal("MODELS"), _literal("ROLES")
+        self.assertEqual(sorted(r for r in roles if "model_" + r not in cfg), [])
+        self.assertTrue(all(cfg["model_" + r] == "" for r in roles))
+        self.assertEqual((models["judge"], models["pm"], models["researcher"], models["reviewer"], models["director"]),
+                         (SONNET, SONNET, SONNET, OPUS, OPUS))
+
+    def test_every_key_refuses_fable_and_typos_and_accepts_opus(self):
+        for role in _literal("ROLES"):
+            key = "model_" + role
+            for bad in ("claude-fable-5-2", "bogus"):
+                with self.subTest(key=key, value=bad):
+                    p = self.refused(2, "config", key, bad, agent="zz-test-director")
+                    self.assertIn(key, p.stderr)
+            with self.subTest(key=key, value="ok"):
+                self.ok("config", key, OPUS, agent="zz-test-director")
+                self.assertEqual(self.env.sql("SELECT value FROM config WHERE key=?", (key,))[0][0], OPUS)
+
+    def test_pm_and_judge_override_through_spawn(self):
+        for role in ("pm", "judge"):
+            self.env.sql("DELETE FROM agents WHERE name=?", (f"zz-test-{role}",))
+            self.ok("config", "model_" + role, OPUS, agent="zz-test-director")
+            self.ok(*spawn_args(role))
+            self.assertEqual(self.model_of(role), OPUS)
+
+    def test_empty_override_uses_sonnet_default(self):
+        self.ok("config", "model_pm", "", agent="zz-test-director")
+        self.ok(*spawn_args("pm"))
+        self.assertEqual(self.model_of("pm"), SONNET)
 
 
 class WebCostTests(unittest.TestCase):

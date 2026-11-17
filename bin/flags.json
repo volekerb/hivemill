@@ -111,7 +111,7 @@
    "key": "cursor_pilot_roles",
    "kind": "flag",
    "default": "",
-   "summary": "legacy alias for agent_runtimes (roles \u2192 role=cursor); prefer agent_runtimes",
+   "summary": "legacy alias for agent_runtimes (roles → role=cursor); prefer agent_runtimes",
    "goal": "",
    "doc": "docs/runtimes.md",
    "state": "off"
@@ -587,11 +587,115 @@
    "doc": ""
   },
   {
+   "key": "model_boss",
+   "kind": "setting",
+   "default": "",
+   "summary": "boss model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
    "key": "model_cleaner",
    "kind": "setting",
    "default": "",
    "summary": "cleaner model override; empty = the MODELS table",
    "goal": "G-011",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_coder",
+   "kind": "setting",
+   "default": "",
+   "summary": "coder model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_director",
+   "kind": "setting",
+   "default": "",
+   "summary": "director model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_evaluator",
+   "kind": "setting",
+   "default": "",
+   "summary": "evaluator model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_judge",
+   "kind": "setting",
+   "default": "",
+   "summary": "judge model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_lead",
+   "kind": "setting",
+   "default": "",
+   "summary": "lead model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_pm",
+   "kind": "setting",
+   "default": "",
+   "summary": "pm model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_qa",
+   "kind": "setting",
+   "default": "",
+   "summary": "qa model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_researcher",
+   "kind": "setting",
+   "default": "",
+   "summary": "researcher model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_retro",
+   "kind": "setting",
+   "default": "",
+   "summary": "retro model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_reviewer",
+   "kind": "setting",
+   "default": "",
+   "summary": "reviewer model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_scout",
+   "kind": "setting",
+   "default": "",
+   "summary": "scout model override; empty = the MODELS table",
+   "goal": "G-064",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "model_staff-engineer",
+   "kind": "setting",
+   "default": "",
+   "summary": "staff-engineer model override; empty = the MODELS table",
+   "goal": "G-064",
    "doc": "docs/model-routing.md"
   },
   {

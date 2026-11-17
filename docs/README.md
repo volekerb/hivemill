@@ -73,7 +73,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [judge-hold-expiry.md](judge-hold-expiry.md): a manual judge hold on a reviewer+QA PASS PR expires after 2 h unless it names a boss decision (`judge_hold_expiry_min`).
 - [prcheck.md](prcheck.md): `factory prcheck`, the coder's pre-PR check, and the `prcheck_required` gate on `factory done` (G-022).
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
-- [model-routing.md](model-routing.md): which model each role starts on, and the `model_cleaner` config rollback.
+- [model-routing.md](model-routing.md): which model each role starts on, and the `model_<role>` config keys (rollback per role).
 - [freshness.md](freshness.md): the per-tick check that flags live agents running outdated role files, plugins or CLI.
 - [staleness.md](staleness.md): what to do when main moves during review and QA.
 - [verdict-carry-over.md](verdict-carry-over.md): when a PASS verdict survives a merge of main.
