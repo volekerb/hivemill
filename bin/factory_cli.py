@@ -13696,6 +13696,15 @@ def prcheck_affected(wt, base, con=None, pr_url=None, project_id=None):
     if not prcheck_is_factory_project(con, project_id):
         return True, "n/a (not the factory repo)"
     script = Path(wt) / "ci" / "affected.py"
+    # applicability is decided by the project's origin/<base>, not the worktree state (T-1409)
+    rc, _ = _git_out(wt, "rev-parse", "--verify", "-q", f"origin/{base}^{{commit}}")
+    if rc != 0:
+        return False, (f"cannot read origin/{base} to decide if ci/affected.py applies (git rev-parse rc={rc}): "
+                       "git fetch origin, then rerun prcheck")
+    rc, _ = _git_out(wt, "cat-file", "-e", f"origin/{base}:ci/affected.py")
+    if rc != 0:
+        return True, (f"n/a: project {project_id or '?'} has no ci/affected.py on origin/{base}; "
+                      "affected-test check not applicable")
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
     con = con or db()
