@@ -17481,24 +17481,24 @@ def mech_refused(con, task):
 
 
 def autospawn_block_reason(con, t):
-    """T-1323: why the tick must not autospawn reviewer/qa/judge for task row t, else None. A depends_on task that is not done, or
-    status blocked, means the work is not ready for review (a done or missing dependency never blocks)."""
-    if t["status"] == "blocked":
-        return "task is blocked"
+    """T-1323: why the tick must not autospawn reviewer/qa/judge for task row t, else None. A depends_on task that is neither done nor
+    cancelled means the work is not ready for review. A done, cancelled (T-1692: it will never finish, so it must not block forever)
+    or missing dependency never blocks. Read-only. Callers only pass in_review rows, so there is no status check here."""
     try:
         deps = json.loads(t["depends_on"] or "[]")
     except ValueError:
         return None
     for d in deps if isinstance(deps, list) else []:
         r = con.execute("SELECT status FROM tasks WHERE id=?", (d,)).fetchone()
-        if r and r["status"] != "done":
+        if r and r["status"] not in ("done", "cancelled"):
             return f"depends_on {d} is {r['status']}, not done"
     return None
 
 
-def autospawn_blocked(con, t, kind):
-    """True when autospawn_block_reason holds for t; one `<kind>-autospawn-skip` event per task and reason per day."""
-    why = autospawn_block_reason(con, t)
+def autospawn_blocked(con, t, kind, why=None):
+    """True when autospawn_block_reason holds for t; one `<kind>-autospawn-skip` event per task and reason per day (this writes; a
+    read-only candidates query leaves it to its caller, T-1692). `why` skips the lookup when the caller already has it."""
+    why = why or autospawn_block_reason(con, t)
     if not why:
         return False
     try:
@@ -17521,8 +17521,9 @@ def judge_covered_by_other(con, tid):
     return False
 
 
-def judge_autospawn_candidates(con):
-    """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
+def judge_autospawn_candidates(con, skipped=None):
+    """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on). Read-only (T-1692):
+    a task held by autospawn_block_reason is left out and appended to `skipped` as (task, reason) for the caller to log."""
     mech_ids = {t["id"] for t in mech_candidates(con) if not mech_refused(con, t["id"])} if mech_mode(con) == "on" else set()
     out = []
     for t in con.execute(
@@ -17542,7 +17543,10 @@ def judge_autospawn_candidates(con):
             continue
         if judge_covered_by_other(con, t["id"]):
             continue  # T-1323: a train judge (or another judge) already covers it
-        if autospawn_blocked(con, t, "judge"):
+        why = autospawn_block_reason(con, t)
+        if why:
+            if skipped is not None:
+                skipped.append((t, why))
             continue
         out.append(t)
     return out
@@ -17631,7 +17635,11 @@ def judge_autospawn_tick(con):
     except FactoryNowError:
         clock = time.time()
     batch = []  # T-1153: one ls-remote per tick for the red-main wait key
-    for t in judge_autospawn_candidates(con):
+    skipped = []
+    candidates = judge_autospawn_candidates(con, skipped)
+    for t, why in skipped:
+        autospawn_blocked(con, t, "judge", why)
+    for t in candidates:
         tid = t["id"]
         jhr = task_judge_hold_reason(con, tid)
         if jhr:
