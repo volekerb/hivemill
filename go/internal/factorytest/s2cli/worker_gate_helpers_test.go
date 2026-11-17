@@ -3,7 +3,6 @@ package s2cli
 import (
 	"encoding/json"
 	"os"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"testing"
@@ -188,20 +187,4 @@ func wgStubsDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return filepath.Join(repo, "tests", "stubs")
-}
-
-func wgLiveHome(t *testing.T) string {
-	t.Helper()
-	u, err := user.Current()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return filepath.Join(u.HomeDir, "factory")
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

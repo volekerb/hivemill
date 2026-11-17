@@ -716,13 +716,13 @@ func TestStopHoldsNoTransactionDuringWait(t *testing.T) {
 	cmd.Env = s.Environ("zz-lead", stopUnsetTestNow(nil))
 	var se bytes.Buffer
 	cmd.Stderr = &se
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	var so bytes.Buffer
+	cmd.Stdout = &so
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
 	deadline := time.Now().Add(20 * time.Second)
 	for {
 		if stopHasVerb(s.stopHerdrVerbs(), [2]string{"agent", "wait"}) {
@@ -738,9 +738,11 @@ func TestStopHoldsNoTransactionDuringWait(t *testing.T) {
 	if time.Since(t0) > 2*time.Second {
 		t.Fatal("blocked behind stop transaction")
 	}
-	_ = out
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		t.Fatalf("stop had already exited during the wait: %v stderr=%s", err, se.String())
+	default: // the stop was still waiting
+	}
 	select {
 	case <-time.After(30 * time.Second):
 		_ = cmd.Process.Kill()
@@ -784,7 +786,6 @@ func TestStopDequeueWaitsAfterStopSameWorktree(t *testing.T) {
 func TestStopEscalationClosesPane(t *testing.T) {
 	s := newStopEscalationEnv(t)
 	before := s.stopField(t, "zz-coder", "stop_requested_at")
-	nCalls := len(s.Calls("herdr"))
 	p := s.stop(t, []string{"zz-coder", "--now"}, "zz-director", 0, s.stopFastEnv())
 	contains(t, "stdout", p.Stdout, "stopped now")
 	if s.stopField(t, "zz-coder", "status") != "stopped" {
@@ -810,7 +811,6 @@ func TestStopEscalationClosesPane(t *testing.T) {
 	if len(s.stopEvents("stop-requested", "zz-coder")) != 1 {
 		t.Fatal("stop-requested count")
 	}
-	_ = nCalls
 }
 
 func TestStopEscalationCloseFailed(t *testing.T) {
