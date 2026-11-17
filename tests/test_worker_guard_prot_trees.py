@@ -302,14 +302,16 @@ class TildeName(ProtTreesCase):
         self.allowed(["echo x > ~nosuchuser123/y", "ls ~nosuchuser123/.local/bin"], cwds=("other",))
 
     def test_reads_look_alikes_and_scratch_allowed(self):
-        cmds = ["ls ~@U@/.local/bin", "cat ~@U@/.config/factory/x", "cp ~@U@/.local/go/go.env /tmp/x",
-                "echo x > ~@U@/.local/gox/y", "echo x > /tmp/ok"]
-        # T-1679: running an existing script makes the guard read that script's text, so the run case is decided by the
-        # host's installed ~/.local/bin/factory, not by the command: it only means "allowed by the path" without one
-        # (as on GitHub CI). The installed-wrapper verdict is host state, out of this test's scope.
-        if not os.path.exists(os.path.join(PW, ".local", "bin", "factory")):
-            cmds.append("~@U@/.local/bin/factory whoami")
-        self.allowed(cmds, cwds=("other",))
+        self.allowed(["ls ~@U@/.local/bin", "cat ~@U@/.config/factory/x", "cp ~@U@/.local/go/go.env /tmp/x",
+                      "echo x > ~@U@/.local/gox/y", "echo x > /tmp/ok"], cwds=("other",))
+
+    def test_running_tilde_login_local_bin_allowed(self):
+        # T-1679: running an existing script makes the guard read that script's text, so on a host with an installed
+        # ~/.local/bin/factory the verdict is that file's content (host state), not the path rule tested here
+        if os.path.exists(os.path.join(PW, ".local", "bin", "factory")):
+            self.skipTest("host has an installed ~/.local/bin/factory: the guard judges its text, not the path "
+                          "(runs on GitHub CI, which has none)")
+        self.allowed(["~@U@/.local/bin/factory whoami"], cwds=("other",))
 
     def test_tilde_alone_and_tilde_slash_keep_their_decisions(self):
         self.blocked(["echo x > ~/.local/bin/git", "cp /tmp/x ~/"], cwds=("other",))
