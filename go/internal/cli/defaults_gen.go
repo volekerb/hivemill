@@ -130,4 +130,12 @@ var DefaultConfig = []ConfigDefault{
 	{"orgs_enabled", "claude"},
 	{"org_prefix_default", "0"},
 	{"cap_fallback_offer", "0"},
+	{"worker_machines", ""},
+	{"machine_hq", "hqhost"},
+	{"machine_mem_floor_mb", "1500"},
+	{"machine_mem_per_cursor_mb", "900"},
+	{"machine_mem_per_claude_mb", "500"},
+	{"machine_facts_ttl_s", "20"},
+	{"machine_ssh_timeout_s", "5"},
+	{"machine_cpu_heavy_roles", "coder,qa"},
 }
