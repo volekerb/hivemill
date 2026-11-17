@@ -9,11 +9,12 @@
 <!-- 3-6 terse bullets: behaviour, not a file-by-file restatement of the diff. -->
 
 ## Test evidence
-<!-- Exact command + key output line. Test count: main N, branch M (M >= N). -->
+<!-- Real commands you ran + key output line, never a placeholder like <tz> or <module>. Test count line: main N, branch M (M >= N). Quote the CI guard-diff strict line when that check ran. -->
 
 ## Risk / rollback
 <!-- What could break. Rollback = revert this PR. Note a relaunch when role files, plugins or settings change. -->
 
+<!-- Acceptance walk is the last section, inside <details>. -->
 <details><summary>Acceptance walk</summary>
 
 ## Acceptance walk
