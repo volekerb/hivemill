@@ -66,6 +66,19 @@ var atSubs = map[string]bool{"build": true, "test": true, "vet": true, "run": tr
 // scanPaths runs the checks that resolve paths against the roots: output/path flags, gofmt -w, go fmt.
 func scanPaths(tool, sub string, rest []string, r *roots) error {
 	cwd := r.Cwd
+	// go applies -C before anything else, so later relative paths resolve against the -C target.
+	for i, el := range rest {
+		name, val, hasVal, ok := flagOf(el)
+		if !ok || name != "C" {
+			continue
+		}
+		if !hasVal && i+1 < len(rest) {
+			val = rest[i+1]
+		}
+		if rp, err := realPath(r.Cwd, val); err == nil {
+			cwd = rp
+		}
+	}
 	gofmtW := false
 	var nonFlags []string
 	for i, el := range rest {
@@ -86,7 +99,11 @@ func scanPaths(tool, sub string, rest []string, r *roots) error {
 			}
 			val = rest[i+1]
 		}
-		rp, err := realPath(cwd, val)
+		base := cwd
+		if name == "C" {
+			base = r.Cwd
+		}
+		rp, err := realPath(base, val)
 		if err != nil {
 			return refuse("flag %s: cannot resolve %q: %v", el, val, err)
 		}

@@ -103,6 +103,9 @@ func realPath(cwd, p string) (string, error) {
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return "", err
 	}
+	if _, lerr := os.Lstat(p); lerr == nil {
+		return "", fmt.Errorf("%q is a dangling symlink", p)
+	}
 	trimmed := strings.TrimRight(p, "/")
 	i := strings.LastIndex(trimmed, "/")
 	if i < 0 {

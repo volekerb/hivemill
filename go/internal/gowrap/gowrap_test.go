@@ -239,6 +239,20 @@ func TestWorktreeRoots(t *testing.T) {
 	if _, _, err := prep(t, fx, fx.WT, nil, "go", "build", "-o", "link/../../x", "."); !isRefusal(err) {
 		t.Errorf("-o through link/..: %v", err)
 	}
+	// A dangling symlink as the final component is refused: its real target is unknown.
+	if err := os.Symlink(fx.Home+"/nonexistent-target", fx.WT+"/dangling"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := prep(t, fx, fx.WT, nil, "go", "build", "-o", "dangling", "."); !isRefusal(err) {
+		t.Errorf("-o on a dangling symlink: %v", err)
+	}
+	// -C is applied first: a later relative -o resolves against the -C target, not the original cwd.
+	if _, _, err := prep(t, fx, fx.WT, nil, "go", "build", "-C", "a/b", "-o", "../../out.bin", "."); err != nil {
+		t.Errorf("-C a/b -o ../../out.bin (inside the worktree): %v", err)
+	}
+	if _, _, err := prep(t, fx, fx.WT, nil, "go", "build", "-C", "a/b", "-o", "../../../x", "."); !isRefusal(err) {
+		t.Errorf("-C a/b -o ../../../x (outside the worktree): %v", err)
+	}
 	// A worktree outside ~/factory/worktrees|run and /tmp is not a root.
 	other := fx.Home + "/elsewhere"
 	mkdirs(t, other)
