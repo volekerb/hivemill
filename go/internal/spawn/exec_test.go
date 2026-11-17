@@ -741,7 +741,7 @@ func TestTrustParityUnderWorktrees(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, role := range []string{"qa", "pm", "judge"} {
-		pl := startPlan(t, dir)
+		pl := startPlan(t, filepath.Join(dir, role)) // own dir per role: an earlier round's settings file must not leak in
 		pl.Role, pl.Task, pl.Start.Cwd = role, "", inside
 		db, h := newExecDB(t), &fakeHost{startRes: map[string]any{}}
 		d := deps(db, h, &bytes.Buffer{})

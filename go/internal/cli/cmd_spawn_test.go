@@ -105,6 +105,7 @@ func runSpawnGo(t *testing.T, who string, seed []string, argv ...string) spawnRu
 			t.Fatal(err)
 		}
 	}
+	t.Setenv("HOME", home) // worker_cache_env (T-1698) reads ~/.cache in both implementations
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	extra := []string{"FACTORY_KICKOFF_DELAY_S=0", "FACTORY_HC_SPAWN_SCRIPT_ROOT=" + filepath.Join(home, "scripts")}
 	if who != "owner" {

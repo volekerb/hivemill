@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -179,6 +180,8 @@ func planStart(req Request, f Facts, p SpawnPlan, rt string, sandboxOptin bool, 
 		for _, kv := range req.EnvExtra {
 			env = setKV(env, kv.Key, kv.Value)
 		}
+	} else {
+		env = setKVs(env, workerCacheEnv()) // T-1698: Go and pnpm scratch on disk, never the RAM-backed /tmp
 	}
 	if rt != "claude" && role == "evaluator" {
 		return nil, refuse(3, "runtime %s: evaluator/skilleval stays on Claude", rt)
@@ -237,4 +240,28 @@ func planStart(req Request, f Facts, p SpawnPlan, rt string, sandboxOptin bool, 
 	}
 	st.ClaudeArgs = a
 	return st, nil
+}
+
+// workerCacheEnv is worker_cache_env (T-1698): disk-backed Go and pnpm caches under ~/.cache. The go tmp dir is created
+// because go refuses a missing GOTMPDIR; a failure is ignored, the worker's first go call then says so itself.
+func workerCacheEnv() []KV {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+	cache := filepath.Join(home, ".cache")
+	_ = os.MkdirAll(filepath.Join(cache, "go", "tmp"), 0o755)
+	return []KV{
+		{"GOTMPDIR", filepath.Join(cache, "go", "tmp")},
+		{"GOCACHE", filepath.Join(cache, "go", "build")},
+		{"GOMODCACHE", filepath.Join(cache, "go", "path", "pkg", "mod")},
+		{"npm_config_store_dir", filepath.Join(cache, "pnpm-store")},
+	}
+}
+
+func setKVs(env []KV, kvs []KV) []KV {
+	for _, kv := range kvs {
+		env = setKV(env, kv.Key, kv.Value)
+	}
+	return env
 }
