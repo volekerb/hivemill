@@ -145,6 +145,9 @@ new file mode 100644
 +++ b/docs/файл with space.md
 @@ -0,0 +1 @@
 +строка
+diff --git "a/q\"t\tab.bin" "b/q\"t\tab.bin"
+old mode 100644
+new mode 100755
 `
 	got := ParseDiff(diff)
 	want := []struct {
@@ -156,6 +159,8 @@ new file mode 100644
 		{"x/b.txt", nil},
 		{"img.png", nil},
 		{"docs/файл with space.md", []string{"строка"}},
+		{"q\"t\tab.bin", nil},
+		{"x/a.txt", nil},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d changes: %+v", len(got), got)

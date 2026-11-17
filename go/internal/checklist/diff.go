@@ -9,7 +9,7 @@ import (
 // Added, modified, renamed-to and deleted paths are all reported; deleted files
 // carry no added lines.
 func ParseDiff(diff string) []Change {
-	var out []Change
+	var out, sources []Change
 	cur := -1
 	inHunk := false
 	setPath := func(p string) {
@@ -30,6 +30,9 @@ func ParseDiff(diff string) []Change {
 			inHunk = cur >= 0
 		case inHunk:
 			// context or removed line, or "\ No newline at end of file"
+		case strings.HasPrefix(line, "rename from "):
+			// The source path of a rename leaves its directory: it counts as a changed path too.
+			sources = append(sources, Change{Path: unquote(strings.TrimPrefix(line, "rename from "))})
 		case strings.HasPrefix(line, "rename to "):
 			setPath(unquote(strings.TrimPrefix(line, "rename to ")))
 		case strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "+++ "):
@@ -43,7 +46,7 @@ func ParseDiff(diff string) []Change {
 			kept = append(kept, c)
 		}
 	}
-	return kept
+	return append(kept, sources...)
 }
 
 // markerPath reads the path of a `--- ` or `+++ ` line body; "" for /dev/null.
@@ -62,6 +65,14 @@ func markerPath(p string) string {
 // headerPath extracts the path from `a/X b/X` (non-rename headers); "" when ambiguous.
 func headerPath(rest string) string {
 	if strings.HasPrefix(rest, `"`) {
+		// Quoted header: take the first quoted token, the a/ side.
+		for i := 1; i < len(rest); i++ {
+			if rest[i] == '\\' {
+				i++
+			} else if rest[i] == '"' {
+				return strings.TrimPrefix(unquote(rest[:i+1]), "a/")
+			}
+		}
 		return ""
 	}
 	rest = strings.TrimPrefix(rest, "a/")
