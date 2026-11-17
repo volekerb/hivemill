@@ -1,0 +1,7 @@
+{
+  "name": "a config with a newer schemaVersion is refused",
+  "argv": ["--config", "newer.json"],
+  "fixture": "newer-schema",
+  "exitCode": 1,
+  "stderrContains": ["is newer than this binary supports"]
+}

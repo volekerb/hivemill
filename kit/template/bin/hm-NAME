@@ -1,0 +1,61 @@
+#!/bin/sh
+# Verifier shim for the hm-NAME kit binary. It downloads the release build for this plugin version, checks its
+# sha256 against the value pinned below, caches it, then runs it with all arguments. A missing pin, a mismatch, a
+# missing tool or an unknown platform stops it with a non-zero exit before anything is executed.
+# The pinned values are written by the release process; 64 zeros means "not pinned yet" and the shim refuses to run.
+set -eu
+
+VERSION="@VERSION@"
+SHA_LINUX_AMD64="0000000000000000000000000000000000000000000000000000000000000000"
+SHA_LINUX_ARM64="0000000000000000000000000000000000000000000000000000000000000000"
+SHA_DARWIN_AMD64="0000000000000000000000000000000000000000000000000000000000000000"
+SHA_DARWIN_ARM64="0000000000000000000000000000000000000000000000000000000000000000"
+
+die() { echo "hm-NAME: $*" >&2; exit 1; }
+
+case "$(uname -s)-$(uname -m)" in
+  Linux-x86_64 | Linux-amd64) plat=linux-amd64; want=$SHA_LINUX_AMD64 ;;
+  Linux-aarch64 | Linux-arm64) plat=linux-arm64; want=$SHA_LINUX_ARM64 ;;
+  Darwin-x86_64) plat=darwin-amd64; want=$SHA_DARWIN_AMD64 ;;
+  Darwin-arm64) plat=darwin-arm64; want=$SHA_DARWIN_ARM64 ;;
+  *) die "no hm-NAME build for $(uname -s) $(uname -m)" ;;
+esac
+
+case "$want" in
+  *[!0]*) ;;
+  *) die "hm-NAME is not pinned yet for $plat (the sha256 is all zeros); refusing to run an unverified binary" ;;
+esac
+
+if command -v sha256sum >/dev/null 2>&1; then hasher="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then hasher="shasum -a 256"
+else die "need sha256sum or shasum to verify the download"; fi
+command -v curl >/dev/null 2>&1 || die "need curl to download hm-NAME"
+
+# HIVEMILL_KIT_BASE_URL only moves the download (tests, mirrors); the pinned sha256 still decides.
+base=${HIVEMILL_KIT_BASE_URL:-https://github.com/volekerb/hivemill/releases/download/v$VERSION}
+case "$base" in
+  https://* | file://*) ;;
+  *) die "refusing a download base that is not https:// or file://" ;;
+esac
+asset="hm-NAME-$plat"
+
+umask 077
+dir=${XDG_CACHE_HOME:-${HOME:?HOME is not set}/.cache}/hivemill-kit/$VERSION
+mkdir -p "$dir"
+bin="$dir/$asset"
+part="$bin.part.$$"
+trap 'rm -f "$part"' EXIT
+
+sum_of() { $hasher "$1" | cut -d' ' -f1; }
+if [ ! -f "$bin" ] || [ "$(sum_of "$bin")" != "$want" ]; then
+  curl -fsSL --proto '=https,file' --proto-redir '=https' --max-time 300 -o "$part" "$base/$asset" ||
+    die "cannot download $base/$asset"
+  got=$(sum_of "$part")
+  [ "$got" = "$want" ] || die "sha256 mismatch for $asset: got $got, pinned $want; nothing was run"
+  chmod 700 "$part"
+  mv -f "$part" "$bin"
+fi
+[ "$(sum_of "$bin")" = "$want" ] || die "sha256 mismatch for the cached $asset; nothing was run"
+
+trap - EXIT
+exec "$bin" "$@"
