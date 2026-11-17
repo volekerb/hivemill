@@ -388,7 +388,7 @@ class TickHoldExpiryGo(FactoryTestCase):
         import factory_cli  # noqa: E402
         lib = Path(tempfile.mkdtemp(prefix="zz-hold-lib-"))
         self.addCleanup(shutil.rmtree, lib, True)
-        (lib / "factory-go").write_text("#!/bin/sh\nsleep 30\n")
+        (lib / "factory-go").write_text("#!/bin/sh\nexec sleep 30\n")
         (lib / "factory-go").chmod(0o755)
         con = mock.MagicMock()
         err = io.StringIO()
