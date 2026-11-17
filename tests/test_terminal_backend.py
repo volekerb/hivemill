@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import pwd
 import subprocess
 import tempfile
 import unittest
@@ -133,7 +134,9 @@ class TerminalBackendTests(FactoryTestCase):
             self.assertIn("FACTORY_GH_TOKEN_FILE", body)
             self.assertNotIn("CLAUDE_CODE_MESSAGING_TOKEN", body)
             self.assertNotIn("HC_SOCKET", body)
-            live_sock = os.path.expanduser(f.DEFAULT_CONFIG["herdr_socket"])
+            # the live socket is under the real user's (passwd) home, which is not $HOME when HOME is a temp dir
+            # (the local gate, T-1679): _is_live_socket resolves against pw_dir
+            live_sock = pwd.getpwuid(os.getuid()).pw_dir + f.DEFAULT_CONFIG["herdr_socket"][1:]
             f._HC_RUN_ENV["HERDR_SOCKET_PATH"] = live_sock
             live_body = (root / "zz-coder-live-sock.hc-spawn.sh")
             f._hc_write_spawn_script("zz-coder-live-sock", f._HC_RUN_ENV, "/bin/true", [])

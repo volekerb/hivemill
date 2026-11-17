@@ -12,6 +12,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [examples/03-digest-and-scorecard.md](examples/03-digest-and-scorecard.md): the morning digest and the per-team scorecard.
 - [web-ui.md](web-ui.md): the dashboard started by `factory serve` and what each panel shows.
 - [herdr-app-dashboard.md](herdr-app-dashboard.md): the Hivemill status bar and dashboard tab for the Herdr app; install, settings, Claude/Cursor choice.
+- [token-discipline.md](token-discipline.md): what agents cost (context per turn, idle turns, spawns), the worker context limits and the boss exception, the rules, and `hm-spend`.
 - [releases/v0.4.0-announcement.md](releases/v0.4.0-announcement.md): what's new in v0.4.0, in plain English, with two screenshots.
 - [releases/v0.5.0-announcement.md](releases/v0.5.0-announcement.md): what's new in v0.5.0, in plain English.
 - [releases/v0.5.0-linkedin.md](releases/v0.5.0-linkedin.md): draft LinkedIn post for v0.5.0, to publish after the release exists.
@@ -38,6 +39,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 ## Operate it
 
 - [operations.md](operations.md): recovery after a VM reboot and how an agent's identity is decided.
+- [darwin-python-branches.md](darwin-python-branches.md): the macOS branches of the Python CLI (detached runs, serve pid file, memory/tmp/ps reads) and `tick --deadline`.
 - [state-branch.md](state-branch.md): the generated `state` branch that export commits to.
 - [state-load.md](state-load.md): build a temp DB, events included, from a `state/` directory with `ci/state_load.py`.
 - [db-layout.md](db-layout.md): where the live database sits and why it has its own directory.
@@ -52,6 +54,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [lead-wake.md](lead-wake.md): bringing a parked lead back when its team has work.
 - [lead-parking.md](lead-parking.md): parking an idle lead, its wake triggers, caps and rollback.
 - [lead-less-dispatch.md](lead-less-dispatch.md): the tick starts workers for ready tasks of parked teams and only mails the lead.
+- [idle-watchdog.md](idle-watchdog.md): the tick nudges, relaunches, then alerts both directors about a live worker with no progress.
 - [updating-persistent-agents.md](updating-persistent-agents.md): how role changes reach long-running agents.
 - [clean-remote-branch.md](clean-remote-branch.md): deleting stale `factory/*` branches on origin safely.
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
@@ -61,6 +64,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [red-pr-owner-alert.md](red-pr-owner-alert.md): `red_pr_owner_alert` flag, the tick mails the lead once per red or conflicted head with no coder.
 - [gh-quota.md](gh-quota.md): `pr_view_ttl_s` and `gh_quota_min`, the tick's PR probe cache and low GraphQL quota guard.
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
+- [judge-ci-gate.md](judge-ci-gate.md): judge_ci_gate=none merges without reading PR checks; red-main bisect + revert task (T-1772).
 - [merge-queue.md](merge-queue.md): the serial and batch-train merge path (`judge --train` without `--dry-run`).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
@@ -120,6 +124,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0004-node-esm-hivemill-ios-release.md](adr/0004-node-esm-hivemill-ios-release.md): Node ESM for the hivemill ios-release script.
 - [adr/0005-self-hosted-ci-runners.md](adr/0005-self-hosted-ci-runners.md): self-hosted CI runners for trusted PRs (proposed design, nothing installed).
 - [adr/0006-worker-sandbox-assessment.md](adr/0006-worker-sandbox-assessment.md): worker sandbox assessment (why go test fails for QA; proposed, nothing installed).
+- [adr/0007-hivemill-kit.md](adr/0007-hivemill-kit.md): Hivemill Kit design (standalone skills, three levels, evals and a catalog; proposed).
 
 ## Internals
 
@@ -134,6 +139,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [main-freeze.md](main-freeze.md): the tick freezes merging and syncing when public main gets a non-PR commit; only director/boss clears it.
 - [spawn-context.md](spawn-context.md): what a spawned agent carries, including the advisor tool.
 - [runtimes.md](runtimes.md): agent runtimes (Claude, Cursor) and the two-org model (claude-* and cursor-* side by side).
+- [cursor-prompt.md](cursor-prompt.md): `cursor_prompt` v2, the short loop-until-done prompt and kickoff for Cursor workers; the audit behind it and the A/B table.
 - [research/cursor-harness.md](research/cursor-harness.md): research behind the Cursor Agent CLI runtime.
 - [research/cursor-e2e-issues.md](research/cursor-e2e-issues.md): issues found dogfooding Cursor coder, qa, reviewer and judge.
 - [web-design.md](web-design.md): the design pass behind the web UI styling.
