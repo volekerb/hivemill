@@ -44,7 +44,7 @@ GUARD_PATH_RE = re.compile(
     r"^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|ci/(public_text_guard|scrub_scan)\.py$"
     r"|\.github/workflows/tests\.yml$|go/internal/guard/|go/cmd/worker-guard/|go/internal/shlex/"
     r"|ci/guard_impl_unittest\.py$|tests/test_guard_diff\.py$|tests/guard_impl\.py$"
-    r"|scout/(workerbox|nsbox|sandbox)\.py$|bin/factory$|bin/factory_cli\.py$|ci/shard\.py$)")
+    r"|scout/(workerbox|nsbox|sandbox)\.py$|bin/factory$|bin/factory_cli\.py$|ci/shard\.py$|tests/(harness|_gitenv)\.py$)")
 
 
 def _changed_paths(base_ref):
