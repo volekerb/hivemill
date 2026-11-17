@@ -11953,8 +11953,25 @@ def prcheck_take_slot(con):
     return True
 
 
+def prcheck_is_factory_project(con, project_id):
+    """T-1203: True when the task's project is the factory's own repo (project id `factory`, or its gh_repo is the repo of
+    config factory_remote_url). No project, or an unknown project row, counts as the factory: the check then runs as
+    before, never silently skipped."""
+    if not project_id or project_id == "factory":
+        return True
+    r = con.execute("SELECT gh_repo FROM projects WHERE id=?", (project_id,)).fetchone()
+    if not r:
+        return True
+    mine, want = _repo_slug(r["gh_repo"]), _repo_slug(cfg(con, "factory_remote_url"))
+    return bool(mine and want and mine == want)
+
+
 def prcheck_affected(wt, base, con=None, pr_url=None, project_id=None):
-    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
+    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876).
+    Only the factory repo has ci/affected.py; any other project reports n/a (T-1203)."""
+    con = con or db()
+    if not prcheck_is_factory_project(con, project_id):
+        return True, "n/a (not the factory repo)"
     script = Path(wt) / "ci" / "affected.py"
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
