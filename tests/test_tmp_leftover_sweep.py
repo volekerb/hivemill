@@ -73,7 +73,7 @@ class LeftoverSweep(FactoryTestCase):
         self.assertTrue((d / "blob").exists())
 
     def test_unlisted_prefix_kept(self):
-        keep = [self.leftover(n) for n in ("corp-abcd1234", "gd-abcd1234", "go-build123456", "claude-1000",
+        keep = [self.leftover(n) for n in ("corp-abcd1234", "gd-abcd1234", "go-buildabcdef", "claude-1000",
                                            "cursor-agent-abcd1234", "guard-diff-shared-1000", "zz-other-abcd1234",
                                            "tmpfoo-notes", "tmp.short", "tmp-abcd1234", "tmpABCD1234", "zz-rv-abcd12345")]
         self.tick()
@@ -117,6 +117,36 @@ class LeftoverSweep(FactoryTestCase):
         self.unthrottle()
         self.tick()
         self.assertFalse(d.exists())
+
+    def test_orphan_go_build_swept_after_two_hours_open_and_fresh_kept(self):
+        old = self.leftover("go-build111111111", age_h=3)
+        fresh = self.leftover("go-build222222222", age_h=1)
+        held = self.leftover("go-build333333333", age_h=3)
+        self.fake_pid(105, fd_target=held / "blob")
+        self.tick()
+        self.assertFalse(old.exists())
+        self.assertTrue(fresh.exists())
+        self.assertTrue(held.exists())
+
+    def test_factorytest_cache_old_unheld_swept_newest_and_running_kept(self):
+        base = self.tmp / f"factorytest-cache-{os.getuid()}"
+        base.mkdir()
+        made = {}
+        for name, age in (("aaaa", 5), ("bbbb", 6), ("cccc", 7), ("newest", 0)):
+            d = base / name
+            d.mkdir()
+            (d / "stub").write_text("x" * 1000)
+            t = time.time() - age * 3600
+            os.utime(d / "stub", (t, t))
+            os.utime(d, (t, t))
+            made[name] = d
+        p = self.fake_pid(106)
+        (p / "exe").symlink_to(made["bbbb"] / "stub")
+        self.tick()
+        self.assertFalse(made["aaaa"].exists())
+        self.assertFalse(made["cccc"].exists())
+        self.assertTrue(made["bbbb"].exists())   # a process runs its binary
+        self.assertTrue(made["newest"].exists())
 
     def test_under_sweep_line_nothing_removed(self):
         d = self.leftover()
