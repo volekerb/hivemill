@@ -113551,6 +113551,84 @@
 "src": "corpus"
 },
 {
+"input": "git merge origin/main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"merge",
+"origin/main"
+]
+},
+{
+"input": "git merge origin/main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"merge",
+"origin/main"
+]
+},
+{
+"input": "git merge origin/main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"merge",
+"origin/main"
+]
+},
+{
+"input": "git merge origin/main",
+"mode": "quote",
+"quoted": "'git merge origin/main'",
+"src": "corpus"
+},
+{
+"input": "S=merge; git $S x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"S=merge",
+";",
+"git",
+"$S",
+"x"
+]
+},
+{
+"input": "S=merge; git $S x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"S=merge",
+";",
+"git",
+"$",
+"S",
+"x"
+]
+},
+{
+"input": "S=merge; git $S x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"S=merge;",
+"git",
+"$S",
+"x"
+]
+},
+{
+"input": "S=merge; git $S x",
+"mode": "quote",
+"quoted": "'S=merge; git $S x'",
+"src": "corpus"
+},
+{
 "input": "~/.local/go/bin/go mod download",
 "mode": "script",
 "src": "corpus",
@@ -155288,7 +155366,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3574,
+"corpus_commands": 3576,
 "edge_inputs": 123,
 "python": "3.13"
 }
