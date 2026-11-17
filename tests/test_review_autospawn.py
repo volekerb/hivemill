@@ -1051,9 +1051,21 @@ class DependsOnTests(Base):
         self.assertEqual([c["role"] for c in calls], ["reviewer", "qa"])
         self.assertEqual(self.skips(), [])
 
-    def test_blocked_task_is_not_autospawned(self):
+    def test_cancelled_dependency_lets_autospawn_happen(self):
+        # T-1692: a cancelled dep never finishes; it must not skip review forever
+        self.on()
+        self.dep("cancelled")
+        calls = self.tick_step(now=1_800_000_000)
+        self.assertEqual([c["role"] for c in calls], ["reviewer", "qa"])
+        self.assertEqual(self.skips(), [])
+
+    def test_blocked_task_is_not_a_candidate(self):
+        # T-1692: the candidates query only selects in_review, so a blocked task never reaches the tick (no dead skip branch)
         self.on()
         self.task("T-0001", status="blocked")
+        with self.env.load_factory() as f:
+            con = f.db()
+            self.assertEqual([r["id"] for r in f.review_candidates(con)], [])
         self.assertEqual(self.tick_step(now=1_800_000_000), [])
 
 
