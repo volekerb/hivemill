@@ -256,6 +256,7 @@ INSERT INTO "config"("key","value") VALUES('task_clones','0');
 INSERT INTO "config"("key","value") VALUES('factory_remote_url','');
 INSERT INTO "config"("key","value") VALUES('opus_effort','medium');
 INSERT INTO "config"("key","value") VALUES('judge_max_refreshes','4');
+INSERT INTO "config"("key","value") VALUES('judge_ci_gate','pr');
 INSERT INTO "config"("key","value") VALUES('judge_ci_wait_s','2400');
 INSERT INTO "config"("key","value") VALUES('skilleval_root','~/.cache/factory-skilleval');
 INSERT INTO "config"("key","value") VALUES('day_start_hour','8');
