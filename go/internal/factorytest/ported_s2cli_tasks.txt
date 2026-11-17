@@ -1,0 +1,23 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# s2cli/tasks batch (T-1524, SC4 P6b-4): the task/goal/project/team command modules. The Python count is the number of
+# cases of the module that have a Go port; the cases left on the Python side are listed as "not ported" in the header
+# comment of each Go file (complete modules: acceptance_walk 6/6, compact_show 6/6, goal_close 25/25, task_merged_externally 16/16,
+# task_note_empty 5/5, task_team_update 9/9, task_update 18/18, task_update_empty_stdin 5/5, task_update_goal 6/6,
+# task_update_role 12/12). PARTIAL for P7a (T-1495): goal_audit 18 of 19, goal_tokens 7 of 19, pm_tasks 24 of 25,
+# project_update_location 5 of 8, task_waits 8 of 9, worker_escapes 6 of 15 (the Python "Ran N" is in each Go file header).
+tests/test_acceptance_walk.py 6 -> internal/factorytest/s2cli/tasks:TestAcceptanceWalk 6
+tests/test_compact_show.py 6 -> internal/factorytest/s2cli/tasks:TestCompactShow 6
+tests/test_goal_audit.py 18 -> internal/factorytest/s2cli/tasks:TestGoalAudit 18
+tests/test_goal_close.py 25 -> internal/factorytest/s2cli/tasks:TestGoalClose 25
+tests/test_goal_tokens.py 7 -> internal/factorytest/s2cli/tasks:TestGoalTokens 7
+tests/test_pm_tasks.py 24 -> internal/factorytest/s2cli/tasks:TestPmTasks 24
+tests/test_project_update_location.py 5 -> internal/factorytest/s2cli/tasks:TestProjectUpdateLocation 5
+tests/test_task_merged_externally.py 16 -> internal/factorytest/s2cli/tasks:TestMergedExt 16
+tests/test_task_note_empty.py 5 -> internal/factorytest/s2cli/tasks:TestTaskNoteEmpty 5
+tests/test_task_team_update.py 9 -> internal/factorytest/s2cli/tasks:TestUpdTeam 9
+tests/test_task_update.py 18 -> internal/factorytest/s2cli/tasks:TestUpdateCmd 18
+tests/test_task_update_empty_stdin.py 5 -> internal/factorytest/s2cli/tasks:TestUpdEmptyStdin 5
+tests/test_task_update_goal.py 6 -> internal/factorytest/s2cli/tasks:TestUpdGoal 6
+tests/test_task_update_role.py 12 -> internal/factorytest/s2cli/tasks:TestUpdRole 12
+tests/test_task_waits.py 8 -> internal/factorytest/s2cli/tasks:TestTaskWaits 8
+tests/test_worker_escapes.py 6 -> internal/factorytest/s2cli/tasks:TestWorkerEscapes 6

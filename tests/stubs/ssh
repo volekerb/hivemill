@@ -1,0 +1,69 @@
+#!/bin/sh
+# Fake ssh for placement and remote-spawn tests. Every call is appended to $FAKE_CALLS as one JSON line.
+#
+# Hosts come from $FACTORY_SSH_FACTS, a JSON object keyed by host:
+# {"workerhost": {"mem_mb": 11000, "load1": 0.5, "nproc": 16, "exit": 0, "root": "/tmp/x/remote", "fail_on": ["chmod 700"]}}.
+# A missing host, or "exit" other than 0, exits with that code (default 255) and prints nothing on stdout.
+# A host without "root" prints its facts for any command (placement). A host with "root" prints its facts for the
+# placement facts command only; any other command runs under `sh -c` (stdin passed through) with every occurrence of
+# $FAKE_SSH_PREFIX (the test's temp dir) rewritten to <root><prefix>, so that machine is a mirror tree inside the test
+# dir. "root": "" runs the command unchanged (the HQ side of the forwarder). "fail_on": the command exits 1 when it
+# contains one of these substrings (a failing preflight, worktree or copy step).
+# Needs jq (preinstalled on ubuntu-latest and on the box).
+
+if [ -n "${FAKE_CALLS:-}" ]; then
+    jq -cn '{tool: "ssh", argv: $ARGS.positional}' --args -- "$@" >>"$FAKE_CALLS" || exit 99
+fi
+
+# Host: the argument after "--", else the first non-option argument ("-o" takes a value). The rest is the command.
+host=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --) host="${2:-}"; shift; [ $# -gt 0 ] && shift; break ;;
+        -o) [ $# -ge 2 ] && shift; shift ;;
+        -*) shift ;;
+        *) host="$1"; shift; break ;;
+    esac
+done
+cmd="$*"
+FACTS_CMD='cat /proc/meminfo; echo ---; cat /proc/loadavg; echo ---; nproc'
+
+facts=${FACTORY_SSH_FACTS:-"{}"}
+# Unparseable facts count as an unknown host (exit 255), as before.
+check=$(printf '%s' "$facts" | jq -r --arg h "$host" '
+    (if type == "object" then .[$h] else null end) as $s
+    | if ($s | type) != "object" then "exit 255"
+      elif (($s.exit // 0) | tonumber) != 0 then "exit \(($s.exit // 255) | tonumber | floor)"
+      elif ($s | has("root")) then "root"
+      else "facts" end') || check="exit 255"
+
+case "$check" in
+    "exit "*)
+        echo "ssh: unreachable" >&2
+        exit "${check#exit }"
+        ;;
+esac
+
+if [ "$check" = facts ] || [ "$cmd" = "$FACTS_CMD" ]; then
+    out=$(printf '%s' "$facts" | jq -r --arg h "$host" '.[$h] as $s
+        | "MemAvailable: \(($s.mem_mb | tonumber | floor) * 1024) kB\n---\n\($s.load1 // 0) 0 0 1/1 1\n---\n\(($s.nproc // 1) | tonumber | floor)"') || exit 255
+    printf '%s\n' "$out"
+    exit 0
+fi
+
+bad=$(printf '%s' "$facts" | jq -r --arg h "$host" '(.[$h].fail_on // [])[]') || exit 99
+if [ -n "$bad" ]; then
+    while IFS= read -r b; do
+        case "$cmd" in
+            *"$b"*) echo "ssh stub: $host fails on $b" >&2; exit 1 ;;
+        esac
+    done <<EOF
+$bad
+EOF
+fi
+
+root=$(printf '%s' "$facts" | jq -r --arg h "$host" '.[$h].root') || exit 99
+if [ -n "$root" ] && [ -n "${FAKE_SSH_PREFIX:-}" ]; then
+    cmd=$(jq -rn --arg c "$cmd" --arg p "$FAKE_SSH_PREFIX" --arg r "${root%/}" '$c | split($p) | join($r + $p)') || exit 99
+fi
+exec sh -c "$cmd"

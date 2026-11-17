@@ -146,5 +146,83 @@ class IosReleaseNodeTests(unittest.TestCase):
         self.assertIn("# fail 0", out)
 
 
+class IosReleaseSkillTests(unittest.TestCase):
+    """The ios-testflight-release skill and the ios-release README."""
+
+    DIR = PLUGIN / "scripts" / "ios-release"
+    SKILL_PATH = PLUGIN / "skills" / "ios-testflight-release" / "SKILL.md"
+    SKILL_REL = "plugins/hivemill/skills/ios-testflight-release/SKILL.md"
+    RULES = [
+        "Never ask for, accept or repeat an App Store Connect key, key id or issuer id in this chat.",
+        "Never read, print or cat a credential file or a .p8 key.",
+        "Always run --dry-run first and show its result before a real upload.",
+        "Run a real upload only when the user asked for one in this conversation.",
+        "Do not run xcodebuild or call the App Store Connect API yourself. release.sh does them; "
+        "if it fails, stop and report the exit code.",
+        "Report the final JSON summary line and the exit code; do not paste the full log.",
+    ]
+    ALLOWED = "allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/ios-release/release.sh *)"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = cls.SKILL_PATH.read_text()
+        cls.readme = (cls.DIR / "README.md").read_text()
+
+    def test_lint_clean(self):
+        self.assertEqual(lint_skill(self.SKILL_REL, self.text), [])
+
+    def test_rules_lines_exactly_once(self):
+        lines = self.text.splitlines()
+        for rule in self.RULES:
+            self.assertEqual(lines.count("- " + rule), 1, rule)
+
+    def test_allowed_tools_line(self):
+        lines = [l for l in self.text.splitlines() if l.startswith("allowed-tools:")]
+        self.assertEqual(lines, [self.ALLOWED])
+
+    def test_thin_and_model_invocable(self):
+        self.assertLessEqual(len(self.text.splitlines()), 80)
+        self.assertNotIn("disable-model-invocation", self.text)
+        self.assertIn("beta app review", self.text.lower())
+
+    def test_no_secret_prefixes(self):
+        for name, text in (("SKILL.md", self.text), ("README.md", self.readme)):
+            for bad in SECRET_PREFIXES + ["-----BEGIN"]:
+                self.assertNotIn(bad, text, f"{name} contains {bad}")
+
+    def test_readme_exit_codes(self):
+        rows = re.findall(r"^\| (\d) \|", self.readme, re.M)
+        self.assertEqual(sorted(set(rows)), [str(i) for i in range(10)])
+
+    def test_readme_has_every_help_flag(self):
+        bash = shutil.which("bash")
+        if bash is None:
+            if os.environ.get("CI"):
+                self.fail("bash is not installed but CI is set")
+            self.skipTest("bash is not installed")
+        r = subprocess.run([bash, str(self.DIR / "release.sh"), "--help"], capture_output=True, text=True,
+                           timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        flags = set(re.findall(r"--[a-z][a-z-]*", r.stdout))
+        self.assertIn("--signing", flags)
+        self.assertIn("--dry-run", flags)
+        for flag in sorted(flags):
+            self.assertIn(flag, self.readme, flag)
+
+    def test_readme_required_text(self):
+        for needle in ["xcodeAccount", "apiKey", "Admin", "App Manager", "Cloud signing permission error",
+                       "/usr/bin:/bin:/usr/sbin:/sbin", "rsync", "forbiddenWorktrees", "heavySlotCommand",
+                       "{build}", "submitExternal", "hasAccessToAllBuilds", "beta app review",
+                       "An App Manager key cannot cloud-sign", "Settings > Accounts", "chmod 600",
+                       "security add-generic-password", "MISSING_EXPORT_COMPLIANCE", "--resume-build"]:
+            self.assertIn(needle, self.readme, needle)
+        self.assertNotIn('"heavySlot"', self.readme)
+
+    def test_readme_has_every_example_key(self):
+        example = json.loads((self.DIR / "ios-release.example.json").read_text())
+        for key in example:
+            self.assertIn(key, self.readme, key)
+
+
 if __name__ == "__main__":
     unittest.main()
