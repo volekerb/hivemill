@@ -280,6 +280,10 @@ class GuardBuildHardeningTests(FactoryTestCase):
             self._seeded = True
         self.assertEqual(self.env.run("config", "guard_impl", impl, agent="dir-1").returncode, 0)
 
+    def hold_expiry_min(self, v):
+        """judge_hold_expiry_min (T-1631: a nonzero value also builds factory-go); tests about cli/tick impl set it to 0."""
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('judge_hold_expiry_min',?)", (v,))
+
     def ncalls(self):
         return len(self.calls.read_text().split()) if self.calls.exists() else 0
 
@@ -421,6 +425,7 @@ class GuardBuildHardeningTests(FactoryTestCase):
     def test_gate_python_never_runs_go_and_still_writes_the_flag(self):
         h = write_go(self.env.home_dir)
         self.fake_go(self.OK_BUILD)
+        self.hold_expiry_min("0")  # about guard_impl only: the hold_expiry unit would otherwise build factory-go
         with self.factory() as f:
             for tick in (True, False):
                 f.guard_tick(f.db(), tick=tick, src=self.env.home_dir, lib=self.lib, go=self.go)
@@ -428,8 +433,19 @@ class GuardBuildHardeningTests(FactoryTestCase):
         self.assertFalse(self.lib.exists())
         self.assertEqual((self.env.home_dir / "run" / "guard_impl").read_text(), f"python {h}\n")
 
+    def test_python_python_with_hold_expiry_on_builds_factory_go_only(self):  # T-1631
+        write_go(self.env.home_dir)
+        self.fake_go(self.OK_BUILD)
+        self.hold_expiry_min("120")
+        with self.factory() as f:
+            f.guard_tick(f.db(), tick=True, src=self.env.home_dir, lib=self.lib, go=self.go)
+        self.assertEqual(self.ncalls(), 1)  # factory-go only; the guard stays python
+        self.assertTrue((self.lib / "factory-go.stamp").exists())
+        self.assertFalse((self.lib / "worker-guard.stamp").exists())
+
     def test_gate_open_for_go_and_shadow_on_both_paths(self):
         write_go(self.env.home_dir)
+        self.hold_expiry_min("0")  # about guard_impl only
         for impl, tick in (("go", True), ("shadow", False)):
             self.fake_go(self.OK_BUILD)
             lib = self.tmp / f"lib-{impl}"

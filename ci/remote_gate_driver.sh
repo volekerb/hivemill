@@ -3,6 +3,7 @@
 #   remote_gate_driver.sh <run dir> <head sha> <base sha> <shards>
 #   remote_gate_driver.sh --plan     print the step plan (no work)
 #   remote_gate_driver.sh --jobs <cores> <shards> <meminfo file>   print the job cap (no work)
+#   remote_gate_driver.sh --sandbox-note                            print whether the nsbox sandbox exists here (no work)
 #   remote_gate_driver.sh --pick-root <socket tail> <dir>...        print the run root (no work; remote_gate.sh pipes this
 #                                                                   file into `bash -s` before the run dir exists)
 # <run dir> holds head/ (the tracked files of HEAD), base/ (git archive of the base) and trusted/ (this file, gate_shards.py,
@@ -21,6 +22,18 @@ if [ "${1-}" = --plan ]; then
   for s in $PLAN; do echo "$s"; done
   exit 0
 fi
+# sandbox_note: the nsbox-dependent tests (tests/test_testbox.py etc.) skip themselves when user namespaces are absent;
+# say so in the step log with the reason, so a skip is never silent (T-1773). Probe: unshare -Ur true.
+sandbox_note() {
+  local why host
+  host=$(hostname)
+  if why=$(unshare -Ur true 2>&1); then
+    echo "nsbox: user namespaces available on $host: nsbox-dependent tests run"
+  else
+    echo "nsbox: user namespaces unavailable on $host (${why:-unshare failed}): nsbox-dependent tests skip with 'user namespaces unavailable'"
+  fi
+}
+if [ "${1-}" = --sandbox-note ]; then sandbox_note; exit 0; fi
 MEM_PER_JOB_MIB=2048 TOTAL_PER_JOB_MIB=2560
 job_cap() {  # job_cap CORES SHARDS MEMINFO: how many jobs run at once
   local cores=$1 shards=$2 avail total n
@@ -231,6 +244,7 @@ toolchain() {
   py=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')
   echo "python3 $py (CI: 3.13)"; echo "go: $(go version 2>&1) (CI: $want_go from go/go.mod)"; echo "zsh: $(zsh --version 2>&1)"
   echo "gcc: $(gcc --version 2>&1 | head -1)"; echo "git: $(git --version)"
+  sandbox_note
   [ "$py" = 3.13 ] || { echo "python3 is $py, CI uses 3.13"; return 1; }
   [ "$(go env GOVERSION)" = "$want_go" ] || { echo "go is $(go env GOVERSION), go.mod pins $want_go"; return 1; }
   command -v zsh >/dev/null || { echo "zsh missing (CI installs it)"; return 1; }
