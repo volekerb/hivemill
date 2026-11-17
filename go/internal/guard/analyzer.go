@@ -599,7 +599,7 @@ func (a *Analyzer) priv(words []string, depth int, piped bool, hstrs []string) e
 		}
 	}
 	if a.hqDeny {
-		if what := hqDenyHit(w, name, rest); what != "" {
+		if what := hqDenyHit(w, name, rest, a.Role); what != "" {
 			return &HqDenyBlock{Msg: what}
 		}
 	}

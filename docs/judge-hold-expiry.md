@@ -77,6 +77,10 @@ rule off. A value that is not a non-negative whole number means 120.
 
 The unit table (`go/internal/tick/units.go`, `TICK_UNITS` in the Python CLI) has the row `hold_expiry`, placed
 directly before `mech_merge` so a hold cleared in a tick is seen by the mechanical merger and the judge autospawn of
-the same tick. The Python tick has no implementation: it keeps every hold and only records the lap. A failure of the
+the same tick. The Python tick runs `factory-go hold-expiry` in the `hold_expiry` unit (a subprocess, 60 s timeout), so both ticks use the
+same Go rule. A missing or stale `factory-go` keeps every hold and prints one stderr line (`hold_expiry: factory-go missing; holds kept`);
+a failing or hanging child prints `hold_expiry: factory-go hold-expiry failed (...); holds kept`. The tick never stops for it.
+`guard_tick` builds `factory-go` whenever `judge_hold_expiry_min` is not 0. The command takes no arguments, runs as the owner only,
+and takes no tick lock (the Python tick that calls it already holds it); it is meant for the tick only. A failure of the
 unit is printed in the tick output (`judge-hold-expiry: failed, holds kept: ...`) and the tick goes on with the next
 unit. Rollback without a deploy: `factory config judge_hold_expiry_min 0`.

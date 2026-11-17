@@ -31,8 +31,8 @@ var OrgNames = []string{"claude", "cursor"}
 var orgTable = map[string]orgSpec{
 	"claude": {label: "Claude", runtime: "claude", models: map[string]string{
 		"boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
-		"pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-		"staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
+		"pm": "claude-sonnet-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-sonnet-5-5",
+		"staff-engineer": "claude-opus-5-5", "researcher": "claude-sonnet-5-5",
 		"coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
 		"scout": "claude-sonnet-5-5", "retro": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5"}},
 	"cursor": {label: "Cursor", runtime: "cursor", models: map[string]string{
@@ -168,15 +168,13 @@ func OrgRuntimeFor(role, org, agentRuntimes, cursorPilotRoles string) (string, e
 }
 
 // RoleModel is role_model(): a non-default org uses its own map; the claude org takes the config override model_<role>
-// when set and the role has such a key (only cleaner), else the table.
+// when set (every role has such a key), else the table.
 func RoleModel(role, org string, cfg map[string]string) string {
 	if org != "" && org != DefaultOrg {
 		return OrgModel(org, role)
 	}
-	if role == "cleaner" {
-		if v := pyStrip(cfg["model_cleaner"]); v != "" {
-			return v
-		}
+	if v := pyStrip(cfg["model_"+role]); v != "" {
+		return v
 	}
 	return orgTable[DefaultOrg].models[role]
 }

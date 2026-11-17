@@ -225,5 +225,90 @@ class TaskBlockTests(FactoryTestCase):
             self.assertEqual(cm.exception.code, 2)
 
 
+class BlockMigrateTests(FactoryTestCase):
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_goal()
+        e.seed_team()
+        e.seed_agent("zz-test-director", "director")
+        for tid in ("T-0001", "T-0002"):
+            e.seed_task(tid, status="in_progress", pr_url=None)
+        stub = e.home_dir / "bin" / "block-eval-stub"
+        stub.parent.mkdir(parents=True, exist_ok=True)
+        stub.write_text(BLOCK_EVAL_STUB)
+        stub.chmod(0o755)
+        self.stub_env = {"FACTORY_BLOCK_EVAL": str(stub)}
+
+    def flag(self, v="1"):
+        self.ok("config", "block_conditions", v, agent="zz-test-director")
+
+    def block(self, tid, note):
+        self.ok("task", "update", tid, "--status", "blocked", "--note", note)
+
+    def migrate(self, *args):
+        return self.ok("task", "block-migrate", *args, agent="zz-test-director", extra_env=self.stub_env).stdout
+
+    def row(self, tid):
+        return self.env.sql("SELECT status, block_on, waits FROM tasks WHERE id=?", (tid,))[0]
+
+    def test_held_until_merges(self):
+        self.flag()
+        self.block("T-0001", "held until #408 merges")
+        out = self.migrate()
+        self.assertIn("convert T-0001 pr:#408:merged", out)
+        r = self.row("T-0001")
+        self.assertEqual(r["status"], "blocked")
+        self.assertEqual(json.loads(r["block_on"]), [{"type": "pr", "arg": "#408", "form": "merged"}])
+
+    def test_until_closed_and_single_token(self):
+        self.flag()
+        self.block("T-0001", "until #7 closed")
+        self.block("T-0002", "owner:M12")
+        self.migrate()
+        self.assertEqual(json.loads(self.row("T-0001")["block_on"])[0]["form"], "closed")
+        r = self.row("T-0002")
+        self.assertEqual((r["status"], r["waits"]), ("blocked", "owner"))
+        self.assertIsNotNone(r["block_on"])
+
+    def test_prose_stays_blocked(self):
+        self.flag()
+        self.block("T-0001", "waiting for the owner to think about it")
+        self.assertIn("keep T-0001", self.migrate())
+        r = self.row("T-0001")
+        self.assertEqual((r["status"], r["block_on"]), ("blocked", None))
+
+    def test_foreign_slug_note_stays_text(self):
+        self.flag()
+        self.block("T-0001", "held until #1 merges in example-org/other-repo")
+        self.assertIn("keep T-0001", self.migrate())
+        r = self.row("T-0001")
+        self.assertEqual((r["status"], r["block_on"]), ("blocked", None))
+
+    def test_depends_on_is_not_a_condition(self):
+        self.flag()
+        self.ok("task", "update", "T-0001", "--after", "T-0002")
+        self.block("T-0001", "queue")
+        self.assertIn("keep T-0001", self.migrate())
+        r = self.env.sql("SELECT depends_on, block_on FROM tasks WHERE id='T-0001'")[0]
+        self.assertIsNone(r["block_on"])
+        self.assertEqual(json.loads(r["depends_on"]), ["T-0002"])
+
+    def test_dry_run_flag_off_writes_nothing(self):
+        self.block("T-0001", "held until #408 merges")
+        self.block("T-0002", "queue")
+        before = self.env.sql("SELECT COUNT(*) n FROM events")[0]["n"]
+        out = self.migrate("--dry-run")
+        self.assertIn("convert T-0001", out)
+        self.assertIn("keep T-0002", out)
+        self.assertIsNone(self.row("T-0001")["block_on"])
+        self.assertEqual(self.env.sql("SELECT COUNT(*) n FROM events")[0]["n"], before)
+
+    def test_flag_off_refuses_write(self):
+        self.block("T-0001", "held until #408 merges")
+        self.refused(2, "task", "block-migrate", agent="zz-test-director", extra_env=self.stub_env)
+        self.assertIsNone(self.row("T-0001")["block_on"])
+
+
 if __name__ == "__main__":
     unittest.main()

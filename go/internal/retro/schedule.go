@@ -414,6 +414,10 @@ func Tick(db *sql.DB, api API) error {
 	if err := Sync(db, api, clock); err != nil {
 		return err
 	}
+	// T-1695: pending fixes follow their task's merge, agent on or off.
+	if err := SyncAdopted(db, func(entity, id, action, detail string) error { return api.Event(db, entity, id, action, detail) }); err != nil {
+		return err
+	}
 	enabled, err := api.Cfg(db, "retro_enabled")
 	if err != nil {
 		return fmt.Errorf("read retro_enabled: %w", err)

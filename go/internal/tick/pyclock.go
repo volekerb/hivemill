@@ -259,6 +259,7 @@ type pyVal struct {
 	f    float64 // pyNum value; pyInt value (±Inf when beyond float range)
 	s    string
 	obj  map[string]pyVal // later duplicate keys win, as in Python
+	list []pyVal          // pyList elements
 }
 
 type pyParser struct {
@@ -426,11 +427,14 @@ func (p *pyParser) list() (pyVal, bool) {
 		p.i++
 		return pyVal{kind: pyList}, true
 	}
+	var elems []pyVal
 	for {
 		p.ws()
-		if _, ok := p.value(); !ok {
+		e, ok := p.value()
+		if !ok {
 			return pyVal{}, false
 		}
+		elems = append(elems, e)
 		p.ws()
 		if p.i >= len(p.s) {
 			return pyVal{}, false
@@ -438,7 +442,7 @@ func (p *pyParser) list() (pyVal, bool) {
 		c := p.s[p.i]
 		p.i++
 		if c == ']' {
-			return pyVal{kind: pyList}, true
+			return pyVal{kind: pyList, list: elems}, true
 		}
 		if c != ',' {
 			return pyVal{}, false

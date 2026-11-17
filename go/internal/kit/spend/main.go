@@ -21,9 +21,10 @@ const (
 
 const usage = `hm-spend: where Claude tokens go on this machine, and context limits for its agents (docs/token-discipline.md).
 
-  hm-spend report [--hours N] [--root DIR] [--top N] [--json] [--check]
+  hm-spend report [--hours N] [--root DIR] [--top N] [--merged-prs N] [--json] [--check]
       Sum the Claude Code transcripts of the last N hours (default 24): cost by model, top sessions, and findings
-      (Fable use, big contexts, chatter, cache writes). --check exits 3 when a high finding exists.
+      (Fable use, big contexts, chatter, cache writes), and cost by role split into spawn, polling and work.
+      --merged-prs N adds $ per merged PR (total and per role). --check exits 3 when a high finding exists.
 
   hm-spend limits [--settings FILE] [--boss-settings FILE] [--apply] [--check] [--json]
       Show (default), apply, or check the worker limits in FILE (default ~/.claude/settings.json) and the boss
@@ -57,9 +58,10 @@ func report(args []string, home string, stdout, stderr io.Writer) int {
 	hours := fl.Float64("hours", 24, "")
 	root := fl.String("root", filepath.Join(home, ".claude", "projects"), "")
 	top := fl.Int("top", 10, "")
+	merged := fl.Int("merged-prs", 0, "")
 	asJSON := fl.Bool("json", false, "")
 	check := fl.Bool("check", false, "")
-	if fl.Parse(args) != nil || fl.NArg() > 0 || *hours <= 0 || *hours > 24*90 || *top < 1 || *top > 1000 {
+	if fl.Parse(args) != nil || fl.NArg() > 0 || *hours <= 0 || *hours > 24*90 || *top < 1 || *top > 1000 || *merged < 0 {
 		fmt.Fprint(stderr, usage)
 		return ExitUsage
 	}
@@ -69,6 +71,7 @@ func report(args []string, home string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "hm-spend:", err)
 		return ExitError
 	}
+	rep.SetMergedPRs(*merged)
 	if *asJSON {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
@@ -99,6 +102,21 @@ func printReport(w io.Writer, r *Report, hours float64) {
 	fmt.Fprintln(w, "By model:")
 	for _, m := range r.ByModel {
 		fmt.Fprintf(w, "  %-22s $%9.2f  %6d req  avg ctx %4dk\n", m.Key, m.Cost, m.Requests, m.AvgContext/1000)
+	}
+	fmt.Fprintln(w, "\nBy role:")
+	fmt.Fprintf(w, "  %-15s %8s %8s %10s %10s %10s %10s %10s\n", "role", "sessions", "requests", "$", "spawn $", "polling $", "work $", "start ctx")
+	for _, b := range r.ByRole {
+		fmt.Fprintf(w, "  %-15s %8d %8d %10.2f %10.2f %10.2f %10.2f %9dk\n", b.Role, b.Sessions, b.Requests, b.Cost, b.SpawnCost,
+			b.PollingCost, b.WorkCost, b.StartContext/1000)
+	}
+	fmt.Fprintf(w, "  buckets: spawn $%.2f, polling $%.2f, work $%.2f\n", t.SpawnCost, t.PollingCost, t.WorkCost)
+	if r.PerMergedPR == nil {
+		fmt.Fprintln(w, "merged PRs: not given")
+	} else {
+		fmt.Fprintf(w, "merged PRs: %d, $%.2f per merged PR\n", r.MergedPRs, *r.PerMergedPR)
+		for _, b := range r.ByRole {
+			fmt.Fprintf(w, "    %-15s $%.2f per merged PR\n", b.Role, *b.PerMergedPR)
+		}
 	}
 	fmt.Fprintln(w, "\nTop sessions:")
 	for _, s := range r.Top {
