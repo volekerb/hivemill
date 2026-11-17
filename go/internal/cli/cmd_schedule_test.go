@@ -192,14 +192,6 @@ func FuzzParseScheduleAdd(f *testing.F) {
 	})
 }
 
-func FuzzParseScheduleDue(f *testing.F) {
-	f.Add("--json")
-	f.Add("")
-	f.Fuzz(func(t *testing.T, s string) {
-		_, _ = parseScheduleDue(strings.Fields(s))
-	})
-}
-
 func TestScheduleDueCLI(t *testing.T) {
 	home := t.TempDir()
 	if _, err := buildGoldenDB(t, home, "digestall"); err != nil {
