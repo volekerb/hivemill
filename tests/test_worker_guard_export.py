@@ -153,7 +153,7 @@ class SettingsDenyTest(unittest.TestCase):
             for k in ("@FACTORY_USER_CONFIG@", "@FACTORY_HOME_DIR@"):
                 text = text.replace(k, "/x")
             deny = json.loads(text)["permissions"]["deny"]
-            for tool in EDIT_TOOLS:
+            for tool in ("Edit", "MultiEdit"):  # T-1659: Edit(p) covers Write(p) and NotebookEdit(p); those twins are gone
                 # the trailing * covers guard-export.json and guard-export.json.tmp<pid>
                 self.assertIn(f"{tool}(//live/run/guard-export.json*)", deny, f"{n} {tool}")
 

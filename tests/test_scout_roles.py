@@ -17,8 +17,8 @@ BASELINE = [
     "Bash(gh pr merge:*)", "Bash(sqlite3:*)", "Bash(herdr server stop:*)", "Bash(herdr agent start:*)",
     "Bash(git push origin main:*)", "Bash(git push --force:*)", "Bash(git push -f:*)",
     "Bash(rm -rf ~/factory:*)", "Edit(/" + LIVE_HOME + "/factory.db*)",
-    "Write(/" + LIVE_HOME + "/exports/**)", "Edit(/" + LIVE_HOME + "/state/**)",
-    "Write(/" + LIVE_HOME + "/bin/**)", "Edit(/" + LIVE_HOME + "/roles/**)",
+    "Edit(/" + LIVE_HOME + "/exports/**)", "Edit(/" + LIVE_HOME + "/state/**)",
+    "Edit(/" + LIVE_HOME + "/bin/**)", "Edit(/" + LIVE_HOME + "/roles/**)",
 ]
 NEW = ("scout", "evaluator")
 
@@ -68,13 +68,23 @@ class SettingsTests(unittest.TestCase):
         self.assertIn("Bash(gh api:*)", d["allow"])
         self.assertIn("Bash(factory:*)", d["allow"])
 
+    def test_worktrees_read_only_via_edit(self):  # T-1659: qa/retro/scout deny Edit (covers Write), no dead Write twin
+        for r in ("qa", "retro", "scout"):
+            deny = settings(r)["permissions"]["deny"]
+            self.assertIn("Edit(/" + LIVE_HOME + "/worktrees/**)", deny, r)
+            self.assertNotIn("Write(/" + LIVE_HOME + "/worktrees/**)", deny, r)
+        # accept side: the roles that work in worktrees do not deny them
+        for r in ("coder", "reviewer"):
+            self.assertNotIn("Edit(/" + LIVE_HOME + "/worktrees/**)", settings(r)["permissions"]["deny"], r)
+
     def test_evaluator_rules(self):
         d = settings("evaluator")["permissions"]
         for rule in ("WebFetch", "WebSearch", "Bash(curl:*)", "Bash(wget:*)", "Bash(gh:*)", "Bash(pip:*)",
                      "Bash(npm:*)", "Bash(npx:*)", "Bash(ssh:*)", "Bash(scp:*)", "Bash(git push:*)",
-                     "Bash(herdr:*)", "Edit(/" + LIVE_HOME + "/**)", "Write(/" + LIVE_HOME + "/**)",
-                     "Edit(/" + HOME_DIR + "/.claude/**)", "Write(/" + HOME_DIR + "/.claude/**)"):
+                     "Bash(herdr:*)", "Edit(/" + LIVE_HOME + "/**)", "Edit(/" + HOME_DIR + "/.claude/**)"):
             self.assertIn(rule, d["deny"])
+        for rule in ("Write(/" + LIVE_HOME + "/**)", "Write(/" + HOME_DIR + "/.claude/**)"):  # T-1659: dead Write twins
+            self.assertNotIn(rule, d["deny"])
         for rule in ("Edit", "Write"):  # the sandbox itself stays writable
             self.assertNotIn(rule, d["deny"])
 

@@ -99,7 +99,7 @@ class TemplateFileTests(unittest.TestCase):
         n = 0
         for r in ROLES:
             d = deny(rendered_settings_dir() / f"{r}.json")
-            for tool in ("Edit", "Write"):
+            for tool in ("Edit",):  # T-1659: Edit(p) is the one deny; Write(p) twins were dead
                 self.assertIn(f"{tool}(/{LIVE_HOME}/run/settings/**)", d, r)
             n += 1
         self.assertEqual(n, len(ROLES))
@@ -109,7 +109,7 @@ class TemplateFileTests(unittest.TestCase):
         for r in WORKERS:
             d = deny(rendered_settings_dir() / f"{r}.json")
             cfg = os.path.join(PW_DIR, ".config", "factory")
-            for tool in ("Edit", "Write"):
+            for tool in ("Edit",):  # T-1659: Edit(p) is the one deny; Write(p) twins were dead
                 for tail in ("", "/**", "/live_home"):
                     self.assertIn(f"{tool}(/{cfg}{tail})", d, f"{r}: {tool} {tail}")
             n += 1

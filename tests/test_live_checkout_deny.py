@@ -44,11 +44,12 @@ def settings(role):
 def denied(deny, tool, path):
     """True if a deny rule for `tool` covers absolute `path` (exact, or X/** prefix, or bare tool name)."""
     for rule in deny:
-        if rule == tool:
+        if rule == tool or rule == "Edit":  # T-1659: Edit rules apply to Write and NotebookEdit too
             return True
-        if not rule.startswith(tool + "(") or not rule.endswith(")"):
+        head = next((h for h in (tool, "Edit") if rule.startswith(h + "(")), None)
+        if head is None or not rule.endswith(")"):
             continue
-        pat = rule[len(tool) + 1:-1]
+        pat = rule[len(head) + 1:-1]
         if pat.startswith("//"):
             pat = pat[1:]
         if pat.endswith("/**"):
@@ -95,7 +96,7 @@ class LiveCheckoutDeny(unittest.TestCase):
         for role in ("coder", "qa"):
             deny = settings(role)["permissions"]["deny"]
             for entry in PLANNED_ENTRIES:
-                for tool in TOOLS:
+                for tool in ("Edit",):  # T-1659: Edit(p) covers Write(p) and NotebookEdit(p); the twins are gone
                     if tool in deny:
                         continue
                     for rule in (f"{tool}(/{LIVE}/{entry})", f"{tool}(/{LIVE}/{entry}/**)"):
@@ -110,14 +111,13 @@ class LiveCheckoutDeny(unittest.TestCase):
                         self.assertTrue(denied(deny, tool, path), f"{role}: {tool} not denied for {path}")
 
     def test_runtime_notebookedit_data_dirs_have_literal_rules(self):
-        # qa carries a bare NotebookEdit deny, so check the literal rule text, not only denied()
+        # T-1659: Edit(p) is the rule Claude Code applies to Write and NotebookEdit too; the twins are gone.
         for role in ("coder", "qa"):
             deny = settings(role)["permissions"]["deny"]
             for p in ("factory.db*", "db/**", "exports/**", "state/**", "run/settings/**", "run", "run/**", "audit.log", "audit.log*"):
-                self.assertIn(f"NotebookEdit(/{LIVE}/{p})", deny, f"{role}: missing NotebookEdit rule for {p}")
-            for p in ("run", "run/**", "audit.log", "audit.log*"):
-                for tool in ("Edit", "Write"):
-                    self.assertIn(f"{tool}(/{LIVE}/{p})", deny, f"{role}: missing {tool} rule for {p}")
+                self.assertIn(f"Edit(/{LIVE}/{p})", deny, f"{role}: missing Edit rule for {p}")
+                self.assertNotIn(f"NotebookEdit(/{LIVE}/{p})", deny)
+                self.assertNotIn(f"Write(/{LIVE}/{p})", deny)
 
     def test_new_top_level_entry_would_fail(self):
         deny = settings("coder")["permissions"]["deny"]
