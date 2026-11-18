@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>hivemill.up</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string><HOME>/.local/bin/factory</string>
+		<string>up</string>
+		<string>--wait-herdr</string>
+		<string>60</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>FACTORY_HOME</key>
+		<string><HOME>/factory</string>
+		<key>PATH</key>
+		<string><HOME>/.local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string><HOME>/factory/logs/hivemill.up.log</string>
+	<key>StandardErrorPath</key>
+	<string><HOME>/factory/logs/hivemill.up.log</string>
+</dict>
+</plist>
