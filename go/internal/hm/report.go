@@ -19,12 +19,16 @@ func SessionCosts(userHome string, ids []string) map[string]float64 {
 	out := map[string]float64{}
 	sem := make(chan struct{}, costWorkers)
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 	for _, id := range ids {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(id string) {
 			defer func() { <-sem; wg.Done() }()
-			for k, b := range spend.SessionCosts(root, []string{id}) {
+			got := spend.SessionCosts(root, []string{id})
+			mu.Lock()
+			defer mu.Unlock()
+			for k, b := range got {
 				out[k] = math.Round(b.Cost*10000) / 10000
 			}
 		}(id)
