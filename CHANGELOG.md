@@ -15,6 +15,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **Token-spend spike alert.** The tick now runs `hm-spend report` every 15 minutes and sends the boss one escalation per clock hour when the last hour cost more than $20 or more than twice the 24 h hourly average, naming the top 3 sessions, their agents and findings. A failing hm-spend writes one event, never an alert. See [docs/spend-alert.md](https://github.com/volekerb/hivemill/blob/main/docs/spend-alert.md) (T-1824).
+
 - **The boss role may merge on hivemill and hivemill-www (owner fallback merge path).** By the owner's decision (M40734) the boss can run `gh pr merge <N> --squash --delete-branch`, with `--repo volekerb/hivemill` or `--repo volekerb/hivemill-www` (the repo is required). `--admin`, `--auto`, `--merge`, `--rebase`, any other repo and every other role stay refused, in the boss settings and in both worker-guard implementations.
 
 - **Opt-in `judge_review_gate = green`.** Before, the merge gate needed a reviewer PASS and a QA PASS on the head. With `factory config judge_review_gate green` a PR merges when its checks are green on the head and no reviewer or QA FAIL is on the head; the main push run is the safety net. The default stays `passpass`. See [docs/judge-ci-gate.md](https://github.com/volekerb/hivemill/blob/main/docs/judge-ci-gate.md).

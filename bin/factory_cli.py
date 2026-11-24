@@ -2789,9 +2789,17 @@ def usage_text(u):
     """The "claude usage ..." line of `factory res`: a missing 5h or week reading shows as n/a, the other still shows."""
     if u.get("unreadable"):
         return "claude usage unreadable"
+    if not u["fresh"]:  # a missing or old reading is never shown as a number (a missing file used to read 0%)
+        if u.get("updated_at") is None:
+            return "claude usage stale since never (no usage file)"
+        try:
+            when = dt.datetime.fromtimestamp(u["updated_at"]).astimezone().strftime("%Y-%m-%d %H:%M %Z")
+        except (OverflowError, OSError, ValueError):
+            return "claude usage stale since unknown"
+        return f"claude usage stale since {when}"
     five = "n/a" if u["five_hour"] is None else f"{u['five_hour']:.0f}%"
     week = "n/a" if u["seven_day"] is None else f"{u['seven_day']:.0f}%"
-    return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
+    return f"claude usage 5h {five} · week {week}"
 
 
 def _updated_at(v):
@@ -2823,7 +2831,7 @@ def usage():
                     "seven_day_resets_at": _epoch(u.get("seven_day_resets_at")),
                     "updated_at": updated}
         except FileNotFoundError:
-            return {"five_hour": 0.0, "seven_day": 0.0, "fresh": False, "age_min": -1,
+            return {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1,  # no data is not 0%
                     "five_hour_resets_at": None, "seven_day_resets_at": None, "updated_at": None}
         except Exception:  # noqa: BLE001 — partial JSON, IO error, bad numbers
             if attempt == 0:
@@ -3690,7 +3698,7 @@ CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 
     "whoami", "flags", "agents", "config",
     "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
     "verdict", "scorecard", "digest", "alerts", "gate", "schedule", "done", "prcheck", "pr", "src", "res", "tick",
-    "scout", "skilleval", "retro", "cursor-pilot", "hold-expiry", "spawn",
+    "scout", "skilleval", "retro", "cursor-pilot", "hold-expiry", "spawn", "spend-alert",
 )
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
@@ -19314,9 +19322,31 @@ def _tick_u_relaunches(con, st):
             event(con, "tick", "cursor-kickoff", "cursor-kickoff-error", str(e)[:300])
 
 
+SPEND_ALERT_TIMEOUT = 90  # seconds the factory-go child of the spend alert may run
+
+
+def spend_alert_tick(con):
+    """Tick hook (T-1824, owner order M41393): `factory-go spend-alert` checks hm-spend for a token-spend spike (at most every
+    15 minutes, one alert per clock hour to claude-boss; docs/spend-alert.md). Never raises."""
+    try:
+        con.commit()  # no write transaction of ours while the Go child writes
+        if cli_binary_state() != "ok":
+            return
+        env = {k: v for k, v in os.environ.items() if k != "FACTORY_CLI_IMPL"}
+        r = subprocess.run([str(Path(guard_lib_dir()) / CLI_GO_BIN), "spend-alert"], env=env, stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=SPEND_ALERT_TIMEOUT)
+        if r.stdout:
+            sys.stdout.write(r.stdout)
+        if r.returncode != 0:
+            print(f"spend_alert: factory-go spend-alert exit {r.returncode}", file=sys.stderr)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"spend_alert: factory-go spend-alert failed ({type(e).__name__}: {e})", file=sys.stderr)
+
+
 def _tick_u_util(con, st):
         util_sample(con)
         util_alerts(con)
+        spend_alert_tick(con)
         owner_blocker_alerts(con)
         owner_alert_feed_tick(con)
         owner_alert_send_tick(con)
