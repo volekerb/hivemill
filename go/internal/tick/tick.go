@@ -79,6 +79,10 @@ func Run(cfg Config) int {
 	if cfg.Go == nil {
 		cfg.Go = goUnits
 	}
+	if err := checkGoSet(cfg.Go); err != nil {
+		fmt.Fprintf(cfg.Stderr, "factory(go): %v\n", err)
+		return 1
+	}
 	if cfg.Getpid == nil {
 		cfg.Getpid = os.Getpid
 	}

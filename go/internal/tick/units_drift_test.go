@@ -1,6 +1,7 @@
 package tick
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"os"
@@ -340,6 +341,36 @@ func TestUnitTable(t *testing.T) {
 	}
 	if goUnits["drift"] == nil {
 		t.Fatal("unit drift has no Go implementation")
+	}
+	for _, n := range []string{"pending_nudges", "reap_loop"} {
+		if goUnits[n] == nil {
+			t.Fatalf("unit %s has no Go implementation", n)
+		}
+	}
+	if w[19].Name != "pending_nudges" || w[20].Name != "reap_loop" {
+		t.Fatalf("units 20/21 are %s/%s", w[19].Name, w[20].Name)
+	}
+	// Units 20 and 21 are Go-capable only together: a Go set with exactly one of them is refused.
+	fn := func(*UnitCtx) error { return nil }
+	for name, set := range map[string]map[string]GoFunc{
+		"20 only": {"pending_nudges": fn}, "21 only": {"reap_loop": fn},
+		"20 and drift": {"pending_nudges": fn, "drift": fn}, "21 and drift": {"reap_loop": fn, "drift": fn},
+	} {
+		if err := checkGoSet(set); err == nil || !strings.Contains(err.Error(), "only together") {
+			t.Errorf("%s: checkGoSet = %v, want a refusal", name, err)
+		}
+	}
+	for name, set := range map[string]map[string]GoFunc{
+		"both": {"pending_nudges": fn, "reap_loop": fn}, "neither": {"drift": fn}, "empty": {}, "nil": nil,
+	} {
+		if err := checkGoSet(set); err != nil {
+			t.Errorf("%s: checkGoSet = %v, want nil", name, err)
+		}
+	}
+	var out, errb bytes.Buffer
+	code := Run(Config{Home: t.TempDir(), Go: map[string]GoFunc{"reap_loop": fn}, Stdout: &out, Stderr: &errb})
+	if code == 0 || !strings.Contains(errb.String(), "only together") {
+		t.Errorf("Run with only unit 21: code %d, stderr %q", code, errb.String())
 	}
 }
 
