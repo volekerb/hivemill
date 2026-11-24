@@ -1062,7 +1062,7 @@ class FastLaneTests(MechMergeTests):
                 self.assertEqual(self.events("lane-classified"), [])
 
     def test_a_non_ascii_digit_in_a_fast_lane_number_is_a_usage_error_not_a_crash(self):
-        p = self.cli("config", "fast_lane_audit_every", "²")
+        p = self.env.run("config", "fast_lane_audit_every", "²")
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
         self.assertNotIn("Traceback", p.stderr)
 
@@ -1114,6 +1114,9 @@ class FastLaneTests(MechMergeTests):
         self.refused(2, "config", "ship_watch", "maybe")
         self.refused(2, "config", "ship_watch_max", "0")
         self.refused(2, "config", "ship_watch_hours", "x")
+        for key, val in (("ship_watch_max", "2"), ("ship_watch_hours", "5"), ("fast_lane_audit_every", "0"), ("fast_lane_check_timeout_s", "900")):
+            self.refused(3, "config", key, val, agent="zz-test-director")  # the limits are the owner's too
+            self.ok("config", key, val)
         self.ok("config", "ship_watch", "fast")
         self.assertEqual(self.ok("config", "ship_watch").stdout.strip().split()[-1], "fast")
 

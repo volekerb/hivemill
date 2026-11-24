@@ -4188,7 +4188,7 @@ def cmd_config(a):
         role = require_role(con, "director")
         if a.key not in DEFAULT_CONFIG:
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
-        if a.key in ("fast_lane", "ship_watch") and role != "owner":  # G-070: only the owner switches the fast lane and the ship watch (docs/fast-lane.md)
+        if a.key in ("fast_lane", "ship_watch", "ship_watch_max", "ship_watch_hours", "fast_lane_check_timeout_s", "fast_lane_audit_every") and role != "owner":  # G-070: only the owner sets the fast lane, the ship watch and their limits (docs/fast-lane.md)
             die(f"only the owner may set {a.key} ({role} may not); ask the boss to put it to the owner", 3)
         a.value, err = _config_trap(_config_value_rules, a.key, a.value)
         if err:

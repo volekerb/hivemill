@@ -343,6 +343,7 @@ class FastLaneTest(unittest.TestCase):
             "skilleval prompt": "skilleval/tasks/t1/task.md", "prompt file": "docs/fastcheck-prompt.md",
             "launchd": "launchd/hivemill.tick.plist.in", "go git env scrub": "go/internal/gitx/gitx.go",
             "go default config": "go/internal/store/defaults_gen.go",
+            "claude settings": ".claude/settings.json", "claude command": ".claude/commands/x.md", "claude memory": "CLAUDE.md", "agents file": "AGENTS.md",
         }
         for what, path in cases.items():
             with self.subTest(what=what):

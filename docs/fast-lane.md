@@ -16,7 +16,7 @@ marked fast.
 | `fast_lane_check_timeout_s` | `600` | a fast check with no PASS/FAIL after this many seconds is stopped and the task moves to the normal lane (minimum 60) |
 | `fast_lane_audit_every` | `10` | every Nth fast-lane merge gets a post-merge normal review task; `0` turns audits off |
 
-The registry entries are in `bin/flags.json`.
+Only the owner sets `fast_lane`, `ship_watch` and the limit keys (`ship_watch_max`, `ship_watch_hours`, `fast_lane_check_timeout_s`, `fast_lane_audit_every`); every other role gets exit 3. The registry entries are in `bin/flags.json`.
 
 ## Which tasks take the fast lane
 
@@ -60,7 +60,7 @@ A diff goes to the normal lane when it touches any of the following:
 | what | rule |
 |---|---|
 | guard, hooks, role settings and prompts | `roles/*`, `go/internal/guard/*`, `go/cmd/worker-guard/*`, `go/internal/identity/*`, `tests/test_*guard*`, `tests/test_*gate*`, `tests/test_*sandbox*` |
-| agent instructions | `*SKILL.md`, `plugins/*`, `skilleval/*`, `*prompt*` |
+| agent instructions | `*SKILL.md`, `plugins/*`, `skilleval/*`, `*prompt*`, `.claude/*`, `CLAUDE.md`, `AGENTS.md` |
 | Go tick, spawn, merge flow and CLI | `go/internal/tick/*`, `go/internal/spawn/*`, `go/internal/prflow/*`, `go/internal/cli/*`, `go/go.mod`, `go/go.sum` |
 | GitHub workflows | `.github/*` |
 | CI gates | `ci/*`, `go/cmd/ci-*`, `go/internal/citools/*` |

@@ -161,6 +161,7 @@ FAST_LANE_PATHS = [
     "go/internal/shlex/*",
     "tests/test_*guard*", "tests/test_*gate*", "tests/test_*sandbox*",   # the tests that pin guards and gates
     "*SKILL.md", "plugins/*", "skilleval/*", "*prompt*",             # agent instructions: .md, but not docs
+    ".claude/*", "CLAUDE.md", "AGENTS.md", "*/CLAUDE.md", "*/AGENTS.md",   # Claude Code settings, hooks, commands, agents and memory files
 ]
 FAST_LANE_DEFS = {"migrate", "SCHEMA_VERSION", "record_merged", "run_after_merge", "red_main_check", "ROLES",
                   "FASTCHECK_ROLE", "cmd_config", "cmd_verdict", "cmd_spawn", "spawn", "cmd_merge", "cmd_done",
