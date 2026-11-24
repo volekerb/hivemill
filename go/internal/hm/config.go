@@ -52,8 +52,8 @@ func ValidateCfg(key, value string) error {
 		return fmt.Errorf("%w: unknown config key %q (see `hivemill config`)", ErrRefused, key)
 	}
 	if numericKeys[key] {
-		n, _ := strconv.Atoi(strings.TrimSpace(value))
-		if n < 0 {
+		n, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || n < 0 {
 			return fmt.Errorf("%w: %s must be a non-negative integer, got %q", ErrRefused, key, value)
 		}
 	}
