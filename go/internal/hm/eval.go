@@ -97,7 +97,7 @@ func (r *Runner) EvalStart(id, mode string) error {
 	if err := r.launchTask(run, kick); err != nil {
 		return err
 	}
-	r.printf("EVAL %s full: %s (%s) in %s\n", id, run.Agent, run.Model, run.Worktree)
+	r.printf("EVAL %s %s: %s (%s) in %s\n", id, mode, run.Agent, run.Model, run.Worktree)
 	return r.Store.PutRun(run)
 }
 
