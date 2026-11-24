@@ -198,7 +198,7 @@ func optStr(s sql.NullString) *string {
 
 // claudeOutsideSpawn is claude_outside_spawn. Any error it returns becomes a claude-audit-failed event in the unit.
 func claudeOutsideSpawn(r *reapDB) error {
-	last, has, err := throttleTS(r.DB, "claude-audit")
+	last, has, err := throttleFloat(r.DB, "claude-audit")
 	if err != nil {
 		return err
 	}
@@ -209,7 +209,7 @@ func claudeOutsideSpawn(r *reapDB) error {
 	if err := setThrottle(r.DB, "claude-audit", now); err != nil {
 		return err
 	}
-	root := procRoot(r)
+	root := reapProcRoot(r)
 	if err := pruneEscapeThrottle(r.DB, root, reapTime()); err != nil {
 		return err
 	}
