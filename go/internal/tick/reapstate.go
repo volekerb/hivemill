@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"factory/go/internal/herdr"
 	"factory/go/internal/store"
@@ -162,9 +163,13 @@ func (s *reapStore) Event(entity, id, action, detail string) {
 	s.note(s.r.eventOwner(entity, id, action, detail))
 }
 
+// herdrCallTimeout is the per-call timeout of the shared client; 0 means herdr.DefaultTimeout (HERDR_TIMEOUT_S=90).
+// A var so tests can shorten it.
+var herdrCallTimeout time.Duration
+
 // newHerdrClient is the herdr client the reap units share: the owner's tick is never a worker, so the socket is the
 // configured one.
 func newHerdrClient(r *reapDB) (*herdr.Client, *reapStore) {
 	st := &reapStore{r: r}
-	return &herdr.Client{Store: st}, st
+	return &herdr.Client{Store: st, Timeout: herdrCallTimeout}, st
 }

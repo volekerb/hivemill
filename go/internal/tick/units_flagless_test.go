@@ -90,7 +90,7 @@ func TestUnitTableFlaglessAudit(t *testing.T) {
 			t.Errorf("%s lost its Go flag", u)
 		}
 	}
-	for _, u := range []string{"pending_nudges", "reap_loop", "stop_fallback", "dequeue"} {
+	for _, u := range []string{"stop_fallback", "dequeue"} {
 		if _, ok := goUnits[u]; ok {
 			t.Errorf("%s must stay a Python unit in this PR", u)
 		}
