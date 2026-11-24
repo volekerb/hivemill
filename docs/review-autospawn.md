@@ -96,3 +96,11 @@ starting or live, the re-run pass does not look at the task, so the replacement 
 ## Dependencies, blocked tasks and covered judges (T-1323)
 
 The tick starts no reviewer, qa or judge for a task whose `depends_on` lists a task that is neither `done` nor `cancelled` (T-1692: a cancelled dependency will never finish, so it counts like done and does not block review forever; a blocked task is never an in_review candidate, so there is no separate blocked check). `judge_autospawn_candidates` is read-only; `judge_autospawn_tick` logs the skip events. It logs one `review-autospawn-skip` (or `judge-autospawn-skip`) task event per task and reason per day, naming the dependency. A done or missing dependency never blocks. Judge autospawn also skips a task when a live, starting or queued judge (a train judge included) already names its id in its agent name.
+
+## Review on push when the project has a gate_cmd (T-1828, M41466)
+
+When the task's project has a non-empty `projects.gate_cmd` (local gate mode, docs/local-gate.md), the tick starts reviewer and QA as
+soon as the PR head is pushed and no coder of the task is queued, starting or live (and prcheck is ok). It does not wait for GitHub
+checks: neither the first-round pass under `coder_ci_handoff` (it used to log a `ci` wait) nor the new-head re-run pass requires green
+CI there. The test signal is the local gate run of the exact head (docs/local-gate.md, "Gate on push"). With an empty `gate_cmd`
+nothing changes: the `ci` wait stays.
