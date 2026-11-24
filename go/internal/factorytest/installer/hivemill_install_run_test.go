@@ -611,8 +611,8 @@ func TestHivemillInstallStdlibOnlyAndSelfContained(t *testing.T) {
 		for _, imp := range af.Imports {
 			p, _ := strconv.Unquote(imp.Path.Value)
 			first := strings.SplitN(p, "/", 2)[0]
-			// stdlib has no dot in its first path element; the one allowed module package is the installer itself
-			if strings.Contains(first, ".") || (strings.HasPrefix(p, "factory/") && p != "factory/go/internal/install") {
+			// stdlib has no dot in its first path element; the allowed module packages are the installer itself and the stdlib-only launchd package
+			if strings.Contains(first, ".") || (strings.HasPrefix(p, "factory/") && p != "factory/go/internal/install" && p != "factory/go/internal/launchd") {
 				t.Errorf("%s imports %s: the installer must be stdlib only and self-contained", filepath.Base(f), p)
 			}
 		}
