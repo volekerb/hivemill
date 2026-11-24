@@ -2789,9 +2789,17 @@ def usage_text(u):
     """The "claude usage ..." line of `factory res`: a missing 5h or week reading shows as n/a, the other still shows."""
     if u.get("unreadable"):
         return "claude usage unreadable"
+    if not u["fresh"]:  # a missing or old reading is never shown as a number (a missing file used to read 0%)
+        if u.get("updated_at") is None:
+            return "claude usage stale since never (no usage file)"
+        try:
+            when = dt.datetime.fromtimestamp(u["updated_at"]).astimezone().strftime("%Y-%m-%d %H:%M %Z")
+        except (OverflowError, OSError, ValueError):
+            return "claude usage stale since unknown"
+        return f"claude usage stale since {when}"
     five = "n/a" if u["five_hour"] is None else f"{u['five_hour']:.0f}%"
     week = "n/a" if u["seven_day"] is None else f"{u['seven_day']:.0f}%"
-    return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
+    return f"claude usage 5h {five} · week {week}"
 
 
 def _updated_at(v):
@@ -2823,7 +2831,7 @@ def usage():
                     "seven_day_resets_at": _epoch(u.get("seven_day_resets_at")),
                     "updated_at": updated}
         except FileNotFoundError:
-            return {"five_hour": 0.0, "seven_day": 0.0, "fresh": False, "age_min": -1,
+            return {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1,  # no data is not 0%
                     "five_hour_resets_at": None, "seven_day_resets_at": None, "updated_at": None}
         except Exception:  # noqa: BLE001 — partial JSON, IO error, bad numbers
             if attempt == 0:
@@ -3690,7 +3698,7 @@ CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 
     "whoami", "flags", "agents", "config",
     "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
     "verdict", "scorecard", "digest", "alerts", "gate", "schedule", "done", "prcheck", "pr", "src", "res", "tick",
-    "scout", "skilleval", "retro", "cursor-pilot", "hold-expiry", "spawn",
+    "scout", "skilleval", "retro", "cursor-pilot", "hold-expiry", "spawn", "spend-alert",
 )
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
@@ -17042,6 +17050,39 @@ def tick_gate(con):
     # error runs of a head that still has a judge waiting are retried by gate_pr_ready (gate_retry_error)
 
 
+def gate_push_tick(con):
+    """T-1828: tick, projects with a gate_cmd only. (1) An in_review task whose PR head on origin has no gate_runs row yet gets
+    one queued run (gate_enqueue dedupes an active run of the PR; tick_gate launches it within gate_max_parallel). (2) A finished
+    run (pass/fail/error) gets one task note: result, full head sha, log path (once per run, throttle row gate-note:<run>).
+    Projects with an empty gate_cmd are untouched."""
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    batch = _RepoBatch()
+    for t in con.execute("SELECT * FROM tasks WHERE status='in_review' AND pr_url IS NOT NULL AND pr_url!='' AND branch IS NOT NULL "
+                         "AND branch!='' ORDER BY id").fetchall():
+        proj = gate_project_for(con, t["pr_url"])
+        if not proj:
+            continue
+        head = _review_head(con, t, batch)
+        if head and not gate_run_for_head(con, t["pr_url"], head):
+            rid = gate_enqueue(con, proj, t["pr_url"], head)
+            # gate_enqueue dedupes on the PR: while an older head's run is still active it returns that run (no row for this
+            # head yet); note only when this head really got its own row, else every tick would repeat a wrong note
+            if gate_run_for_head(con, t["pr_url"], head):
+                event_as(con, "tick", "task", t["id"], "note", f"local gate run #{rid} queued for head {head} (pushed)")
+    for r in con.execute("SELECT g.* FROM gate_runs g JOIN tasks t ON t.id=g.task_id WHERE g.kind='pr' AND t.status='in_review' "
+                         "AND g.status IN ('pass','fail','error') ORDER BY g.id DESC LIMIT 50").fetchall():
+        key = f"gate-note:{r['id']}"
+        if _throttled(con, key, clock, float("inf")):
+            continue
+        _throttle_set(con, key, clock)
+        event_as(con, "tick", "task", r["task_id"], "note",
+                 f"local gate {r['status'].upper()} on head {r['head_sha'] or '?'} (run #{r['id']}); log {r['log_path'] or '-'}"
+                 + (f"; {r['note']}" if r["note"] and r["status"] != "pass" else ""))
+
+
 def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     """judge_pr_ready for a local-mode project: (ready, why) from gate_runs of the PR's current head."""
     try:
@@ -18879,6 +18920,10 @@ def _tick_u_stop_fallback(con, st):
 def _tick_u_gate(con, st):
         # 1c''. local merge gate (T-0516): launch the queued gate runs within gate_max_parallel
         try:
+            gate_push_tick(con)
+        except Exception as e:  # noqa: BLE001 — the push pass must not stop the launch pass
+            event(con, "tick", "gate", "gate-tick-error", f"push: {e}"[:300])
+        try:
             tick_gate(con)
         except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
             event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
@@ -19277,9 +19322,31 @@ def _tick_u_relaunches(con, st):
             event(con, "tick", "cursor-kickoff", "cursor-kickoff-error", str(e)[:300])
 
 
+SPEND_ALERT_TIMEOUT = 90  # seconds the factory-go child of the spend alert may run
+
+
+def spend_alert_tick(con):
+    """Tick hook (T-1824, owner order M41393): `factory-go spend-alert` checks hm-spend for a token-spend spike (at most every
+    15 minutes, one alert per clock hour to claude-boss; docs/spend-alert.md). Never raises."""
+    try:
+        con.commit()  # no write transaction of ours while the Go child writes
+        if cli_binary_state() != "ok":
+            return
+        env = {k: v for k, v in os.environ.items() if k != "FACTORY_CLI_IMPL"}
+        r = subprocess.run([str(Path(guard_lib_dir()) / CLI_GO_BIN), "spend-alert"], env=env, stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=SPEND_ALERT_TIMEOUT)
+        if r.stdout:
+            sys.stdout.write(r.stdout)
+        if r.returncode != 0:
+            print(f"spend_alert: factory-go spend-alert exit {r.returncode}", file=sys.stderr)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"spend_alert: factory-go spend-alert failed ({type(e).__name__}: {e})", file=sys.stderr)
+
+
 def _tick_u_util(con, st):
         util_sample(con)
         util_alerts(con)
+        spend_alert_tick(con)
         owner_blocker_alerts(con)
         owner_alert_feed_tick(con)
         owner_alert_send_tick(con)
@@ -20992,7 +21059,7 @@ def review_rerun_tick(con):
         sha = pr["headRefOid"]
         if _review_head_done(con, tid, sha, clock):
             continue
-        if ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        if ci_verdict(pr.get("statusCheckRollup"))[0] != "green" and not gate_project_for(con, t["pr_url"]):  # T-1828: gate_cmd set = no wait for GitHub checks
             _review_wait(con, t, sha, "ci", "CI is not green on the new head", clock)
             continue
         if _review_hold(con, t, sha, clock):
@@ -21076,7 +21143,7 @@ def review_autospawn_tick(con):
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _review_head(con, t, batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
-        if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green" and not gate_project_for(con, t["pr_url"]):  # T-1828: gate_cmd set = no wait
             _review_wait(con, t, pr["headRefOid"], "ci", "CI is not green on the head (coder_ci_handoff waits for green)", clock)
             continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
         if _review_hold(con, t, pr["headRefOid"], clock):
