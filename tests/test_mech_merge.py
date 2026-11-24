@@ -1064,6 +1064,77 @@ class FastLaneTests(MechMergeTests):
         fyi = self.env.sql("SELECT subject FROM messages WHERE subject LIKE 'fast lane:%'")
         self.assertEqual([r["subject"] for r in fyi], ["fast lane: T-0001 moved to the normal lane"])
 
+    # -- ship watch (G-070 addendum) --------------------------------------------
+    def test_ship_watch_is_off_by_default_owner_only_and_validated(self):
+        self.assertEqual(self.ok("config", "ship_watch").stdout.strip().split()[-1], "off")
+        self.refused(3, "config", "ship_watch", "fast", agent="zz-test-director")
+        self.refused(3, "config", "ship_watch", "all", agent="zz-test-boss")
+        self.refused(2, "config", "ship_watch", "maybe")
+        self.refused(2, "config", "ship_watch_max", "0")
+        self.refused(2, "config", "ship_watch_hours", "x")
+        self.ok("config", "ship_watch", "fast")
+        self.assertEqual(self.ok("config", "ship_watch").stdout.strip().split()[-1], "fast")
+
+    def test_ship_watch_code_pr_merges_with_no_fast_check(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        self.ok("config", "ship_watch", "fast")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: merged", p.stdout)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.env.sql("SELECT 1 FROM verdicts WHERE role='fastcheck'"), [])
+        self.assertEqual(len(self.events("ship-watch-start")), 1)
+        self.assertEqual(len(self.events("ship-watch-end")), 1)  # merged: the slot is released
+        self.assertEqual(self.env.sql("SELECT 1 FROM throttle WHERE key='shipwatch:T-0001'"), [])
+
+    def test_ship_watch_off_still_needs_the_fast_check(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        p = self.cli("mech-merge")
+        self.assertNotIn("T-0001: merged", p.stdout)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.events("ship-watch-start"), [])
+
+    def _auto_merge_holds(self, watch):
+        self.head({"docs/b.md": "# b\n"})
+        self.ok("config", "ship_watch", watch)
+        self.stub(views=[dict(self.pr(self.x, GREEN), autoMergeRequest={"mergeMethod": "SQUASH"})])
+        for _ in range(2):  # the first pass classifies the head, the second would merge it
+            p = self.cli("mech-merge")
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            self.assertNotIn("T-0001: merged", p.stdout)
+        self.assertEqual(self.merges(), [])
+        self.assertIn("GitHub auto-merge is enabled", self.events("mech-blocked")[0])
+
+    def test_auto_merge_enabled_on_a_fast_lane_pr_never_merges(self):
+        self._auto_merge_holds("off")
+
+    def test_auto_merge_enabled_on_a_ship_watch_pr_never_merges(self):
+        self._auto_merge_holds("fast")
+
+    def test_ship_watch_cap_sends_the_extra_task_to_the_normal_lane(self):
+        self.env.seed_task("T-0002", pr_url="https://github.com/o/r/pull/2")
+        self.env.sql("INSERT INTO throttle(key,ts) VALUES('shipwatch:T-0002','1')")
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        self.ok("config", "ship_watch", "fast")
+        self.ok("config", "ship_watch_max", "1")
+        self.ok("config", "ship_watch_hours", "999")
+        p = self.cli("mech-merge", "--task", "T-0001")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.lane(), "normal")
+        self.assertIn("ship_watch_max=1", self.events("lane-escalated")[0])
+        self.assertEqual(self.merges(), [])
+
+    def test_ship_watch_older_than_the_cap_falls_back_to_the_normal_lane(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        self.ok("config", "ship_watch", "fast")
+        self.env.sql("INSERT INTO throttle(key,ts) VALUES('shipwatch:T-0001','1')")  # started at epoch 1: far past 24 h
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.lane(), "normal")
+        self.assertIn("ship_watch_hours", self.events("lane-escalated")[0])
+        self.assertEqual(len(self.events("ship-watch-end")), 1)
+        self.assertEqual(self.merges(), [])
+
 
 def load_tests(loader, tests, pattern):
     """FastLaneTests reuses MechMergeTests' setUp and helpers; only its own test_ methods run."""

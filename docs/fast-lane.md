@@ -110,8 +110,29 @@ Outcomes:
 - **FAIL:** the coder gets one rework round, and the lead receives a request.
   - A second FAIL moves the task to the normal lane with the reason "2 fast-check FAILs".
 - **No verdict within `fast_lane_check_timeout_s`:** the tick stops the agent and moves the task to the normal lane.
+- **A fast check that ends with no verdict** (agent dead, done without a verdict, quota stop): the tick starts it once more
+  (`<name>-r2`, event `fast-check-restart`); if that one ends with no verdict too, the task moves to the normal lane.
 
 While a task is in the fast lane, the reviewer/QA autospawn, the review rerun and the judge autospawn all skip it.
+
+## Ship watch (`ship_watch`, off by default)
+
+Owner only. `ship_watch=off|fast|all` (default `off`: everything above is unchanged). `fast` and `all` act the same today,
+on fast-lane tasks only. With a watch on:
+
+- After the factory opens the PR, the fast-lane coder runs `/ship low <PR#>` in its own foreground terminal
+  (docs-only PRs: `/steward <PR#>`). The watch fixes red checks, merges `origin/main` for conflicts and answers comments.
+  It replaces the separate fast-check agent and the rework round: no fast-check agent is started and a code head needs no
+  fast-check PASS. `mech-merge` still does the merge (green CI, escalation rules, scans).
+- The coder is not recycled or moved to the background while the watch runs, and works in its per-task worktree.
+- Repo rules for the watch: `.claude/skills/steward/SKILL.md`.
+- `ship_watch_hours` (default 24): a watch older than this is dropped and the task moves to the normal lane
+  (events `ship-watch-end` why `cap`, `lane-escalated`).
+- `ship_watch_max` (default 3): the classifier grants a slot per task (event `ship-watch-start`); a task past the cap
+  moves to the normal lane.
+- A fast-lane PR with GitHub auto-merge enabled (`autoMergeRequest`) never merges: the merge gate holds it.
+- gh calls per watch-hour: `ship-watch-start` and `ship-watch-end` carry `gh_rate_remaining` (the shared 5000/h core budget).
+  Calls = start minus end, divided by the hours between the two events (read it on a quiet box).
 
 ## After the merge
 
@@ -149,6 +170,8 @@ Agent-minutes stand in for spend: the DB records tokens per goal, not per task.
 | `lane-classify-skipped` | git could not fetch or read the diff |
 | `lane-escalated` | a task moved to the normal lane |
 | `lane-label-failed` | the `lane:normal` label could not be added |
+| `fast-check-restart` | a fast check ended with no verdict and was started once more |
+| `ship-watch-start` / `ship-watch-end` | a watch slot was granted / the watch ended (`merged` or `cap`) |
 | `fast-lane-merged` | a fast-lane merge happened |
 | `fast-lane-audit` | an audit task was filed |
 | `fast-lane-reverted` / `fast-lane-revert-failed` | the red-main revert succeeded or failed |

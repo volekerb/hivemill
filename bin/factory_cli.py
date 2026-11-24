@@ -220,6 +220,9 @@ DEFAULT_CONFIG = {
     "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
     "mech_merge_retry_s": "600", # the merger looks at a PR head it already blocked on (or shadow-recorded) at most this often
     "fast_lane": "off",          # off | on: G-070 fast lane (docs/fast-lane.md); owner only; off = every task takes the normal lane
+    "ship_watch": "off",         # off | fast | all: G-070 addendum, the coder runs /ship low (docs: /steward) on its fast-lane PR instead of the fast check; owner only (docs/fast-lane.md)
+    "ship_watch_max": "3",       # G-070: at most this many ship watches at once; a task past the cap takes the normal lane
+    "ship_watch_hours": "24",    # G-070: a watch is stopped after this long and the task falls back to the normal lane
     "fast_lane_check_timeout_s": "600",  # G-070: a fast check with no PASS/FAIL after this long is stopped and the task escalates
     "fast_lane_audit_every": "10",  # G-070: every Nth fast-lane merge gets a post-merge normal review (0 = no audits)
     "judge_hold_expiry_min": "120",  # minutes a manual judge hold may stay on a reviewer+QA PASS PR without a boss decision (boss-approved M<id> in the hold text); 0 = off (G-058, owner M37547; docs/judge-hold-expiry.md)
@@ -4079,6 +4082,14 @@ def _config_value_rules(key, value):
         a.value = a.value.strip()
         if a.value not in ("off", "on"):
             die(f"fast_lane must be off or on, not {a.value!r}: fix it with `factory config fast_lane off`", 2)
+    if a.key == "ship_watch":
+        a.value = a.value.strip()
+        if a.value not in ("off", "fast", "all"):
+            die(f"ship_watch must be off, fast or all, not {a.value!r}: fix it with `factory config ship_watch off`", 2)
+    if a.key in ("ship_watch_max", "ship_watch_hours"):
+        a.value = a.value.strip()
+        if not re.fullmatch(r"[1-9][0-9]{0,3}", a.value):
+            die(f"{a.key} takes a whole number >= 1, not {a.value!r}", 2)
     if a.key in ("fast_lane_check_timeout_s", "fast_lane_audit_every"):
         a.value = a.value.strip()
         if not re.fullmatch(r"[0-9]+", a.value) or (a.key == "fast_lane_check_timeout_s" and int(a.value) < 60):
@@ -4175,8 +4186,8 @@ def cmd_config(a):
         role = require_role(con, "director")
         if a.key not in DEFAULT_CONFIG:
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
-        if a.key == "fast_lane" and role != "owner":  # G-070: only the owner switches the fast lane (docs/fast-lane.md)
-            die(f"only the owner may set fast_lane ({role} may not); ask the boss to put it to the owner", 3)
+        if a.key in ("fast_lane", "ship_watch") and role != "owner":  # G-070: only the owner switches the fast lane and the ship watch (docs/fast-lane.md)
+            die(f"only the owner may set {a.key} ({role} may not); ask the boss to put it to the owner", 3)
         a.value, err = _config_trap(_config_value_rules, a.key, a.value)
         if err:
             die(*err)
@@ -6140,7 +6151,7 @@ def require_acceptance_walk(pr_url):
 
 def pr_state(url):
     return gh_json("pr", "view", url, "--json",
-                   "number,state,headRefOid,headRefName,baseRefName,mergeable,isDraft,statusCheckRollup,url")
+                   "number,state,headRefOid,headRefName,baseRefName,mergeable,isDraft,statusCheckRollup,url,autoMergeRequest")
 
 
 def latest_checks(rollup):
@@ -6650,7 +6661,7 @@ def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carr
         held.append("CI green on the head")
     carry = {} if carry is None else carry
     if judge_review_green(con, t["id"]):  # T-1802: only a FAIL on the head blocks
-        hold += green_head_fail_problems(con, t["id"], sha) + fast_lane_gate_problems(con, t["id"], sha)
+        hold += green_head_fail_problems(con, t["id"], sha) + fast_lane_gate_problems(con, t["id"], sha, pr)
         return ("hold", hold) if hold else ("merge", held + ["no reviewer/QA FAIL on the head (judge_review_gate=green)"])
     for role in ("reviewer", "qa"):
         kind, _ = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
@@ -7763,7 +7774,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             carry_unavail = (False, f"cannot verify, gh repo view failed: {e}", None, [])
         if judge_review_green(con, a.task):  # T-1802 (owner M40731/M40734): only a FAIL verdict on the head blocks
             problems += green_head_fail_problems(con, a.task, sha)
-            problems += fast_lane_gate_problems(con, a.task, sha)  # G-070: classified head; fast-check PASS on a code head
+            problems += fast_lane_gate_problems(con, a.task, sha, pr)  # G-070: classified head; fast-check PASS on a code head
         for role in (() if judge_review_green(con, a.task) else ("reviewer", "qa")):
             kind, info = verdict_pass_holds_for_pr_head(con, a.task, role, sha, pr["number"], git_repo, repo_url,
                                                        owner_repo, carry, carry_unavailable=carry_unavail)
@@ -8131,15 +8142,65 @@ def fastcheck_verdicts(con, tid, sha=None):
     return con.execute(q, (tid, FASTCHECK_ROLE, sha) if sha else (tid, FASTCHECK_ROLE)).fetchall()
 
 
-def fast_lane_gate_problems(con, tid, sha):
+def ship_watch_effective(con, tid):
+    """True when ship_watch is fast or all and `tid` takes the fast lane: the coder's /ship (docs: /steward) watch replaces the fast check."""
+    return fast_lane_effective(con, tid) and (cfg(con, "ship_watch") or "off").strip().lower() in ("fast", "all")
+
+
+def gh_rate_remaining():
+    """gh api rate_limit remaining core calls (the shared 5000/h budget), or None when it cannot be read: the per-watch-hour
+    gh call count is the difference between the ship-watch-start and ship-watch-end events divided by the hours between them."""
+    try:
+        p = subprocess.run(["gh", "api", "rate_limit", "--jq", ".resources.core.remaining"], capture_output=True, text=True,
+                           timeout=30, env=gh_git_env())
+        return int(p.stdout.strip()) if p.returncode == 0 else None
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return None
+
+
+def ship_watch_slot(con, tid, clock=None):
+    """G-070 addendum: grant `tid` a watch slot at classification. Records throttle shipwatch:<tid> = start epoch and the gh rate
+    limit left (event ship-watch-start). Returns False when ship_watch_max watches run already."""
+    if con.execute("SELECT 1 FROM throttle WHERE key=?", (f"shipwatch:{tid}",)).fetchone():
+        return True
+    live = con.execute("SELECT COUNT(*) c FROM throttle k JOIN tasks t ON k.key='shipwatch:'||t.id WHERE t.status='in_review'").fetchone()["c"]
+    if live >= _int_cfg(con, "ship_watch_max", 3):
+        return False
+    t0 = time.time() if clock is None else clock
+    con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (f"shipwatch:{tid}", str(int(t0))))
+    event(con, "task", tid, "ship-watch-start", {"gh_rate_remaining": gh_rate_remaining()})
+    return True
+
+
+def ship_watch_expire(con, clock=None):
+    """Stop a watch older than ship_watch_hours: the task falls back to the normal lane with the reason (event ship-watch-end)."""
+    now_s = time.time() if clock is None else clock
+    limit = _int_cfg(con, "ship_watch_hours", 24) * 3600
+    for k in con.execute("SELECT k.key, k.ts, t.id FROM throttle k JOIN tasks t ON k.key='shipwatch:'||t.id "
+                         "WHERE t.status='in_review'").fetchall():
+        try:
+            began = int(k["ts"])
+        except (TypeError, ValueError):
+            continue
+        if now_s - began > limit and fast_lane_effective(con, k["id"]):
+            event(con, "task", k["id"], "ship-watch-end", {"why": "cap", "gh_rate_remaining": gh_rate_remaining()})
+            t = con.execute("SELECT * FROM tasks WHERE id=?", (k["id"],)).fetchone()
+            con.execute("DELETE FROM throttle WHERE key=?", (k["key"],))
+            fast_lane_escalate(con, t, [f"ship watch ran {limit // 3600} h (ship_watch_hours) without a merge: the normal lane reviews it"])
+
+
+def fast_lane_gate_problems(con, tid, sha, pr=None):
     """Merge-gate problems a fast-lane task adds (G-070): the head must be the one the fast-lane pass classified, and a
-    code head needs a fast-check PASS on exactly that head. A docs head needs no agent check."""
+    code head needs a fast-check PASS on exactly that head (a ship_watch task needs none). A docs head needs no agent check.
+    A fast-lane PR with GitHub auto-merge enabled never merges here: a watch could merge it past the factory's gates."""
     if not fast_lane_effective(con, tid):
         return []
+    if pr and pr.get("autoMergeRequest"):
+        return ["fast lane: GitHub auto-merge is enabled on this PR (never allowed on a fast-lane PR); disable it"]
     hsha, kind = fast_lane_head(con, tid)
     if not hsha or hsha != sha:
         return [f"fast lane: head {sha[:8]} not classified yet (the mech-merge pass reads it from main's ci_tier rules)"]
-    if kind == "docs":
+    if kind == "docs" or ship_watch_effective(con, tid):
         return []
     rows = fastcheck_verdicts(con, tid, sha)
     if not rows or rows[-1]["verdict"] != "pass":
@@ -8249,6 +8310,9 @@ def fast_lane_classify(con, t, sha):
     elif name == "normal" or (lane == "fast:docs" and name != "docs"):
         fast_lane_escalate(con, t, why if name == "normal" else [f"docs-only lane but {sha[:8]} changes code"])
         return "normal"
+    if ship_watch_effective(con, tid) and not ship_watch_slot(con, tid):
+        fast_lane_escalate(con, t, [f"ship_watch_max={_int_cfg(con, 'ship_watch_max', 3)} watches already run: the normal lane reviews it"])
+        return "normal"
     con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
                 (f"fastlane-head:{tid}", f"{sha} {'docs' if name == 'docs' else 'code'}"))
     event(con, "task", tid, "lane-classified", {"head": sha[:12], "lane": name})
@@ -8261,6 +8325,7 @@ def fast_lane_classify_pending(con, limit=MECH_MAX_EVAL):
     (fast/fast:docs lane, or no lane yet). At most `limit` gh calls per run; the rest wait for the next run."""
     if not fast_lane_on(con):
         return
+    ship_watch_expire(con)
     n = 0
     for t in con.execute("SELECT * FROM tasks WHERE status='in_review' AND pr_url IS NOT NULL AND pr_url!='' "
                          "ORDER BY updated, id").fetchall():
@@ -8293,6 +8358,8 @@ def fast_lane_after_merge(con, tid):
     post-merge normal review task (role reviewer, follow_up_of the merged task) whose findings become tasks."""
     lane = task_lane(con, tid)
     event(con, "task", tid, "fast-lane-merged", {"lane": lane})
+    if con.execute("DELETE FROM throttle WHERE key=?", (f"shipwatch:{tid}",)).rowcount:
+        event(con, "task", tid, "ship-watch-end", {"why": "merged", "gh_rate_remaining": gh_rate_remaining()})
     every = _int_cfg(con, "fast_lane_audit_every", 10)
     n = con.execute("SELECT COUNT(*) c FROM events WHERE action='fast-lane-merged'").fetchone()["c"]
     if every > 0 and n % every == 0:
@@ -21422,8 +21489,8 @@ def fast_check_start(con, t, pr, clock):
     if hsha != head:
         _review_wait(con, t, head, "lane", "fast_lane=on: the mech-merge pass has not classified this head yet", clock)
         return "next"
-    if kind == "docs" or not fast_lane_effective(con, tid):
-        return "next"  # docs: merged with no agent check; an unset lane classified as code: lane set, normal review next tick
+    if kind == "docs" or not fast_lane_effective(con, tid) or ship_watch_effective(con, tid):
+        return "next"  # ship_watch: the coder's /ship watch replaces the fast check; docs: merged with no agent check; an unset lane classified as code: lane set, normal review next tick
     if ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
         _review_wait(con, t, head, "ci", "fast lane: CI is not green on the head", clock)
         return "next"
