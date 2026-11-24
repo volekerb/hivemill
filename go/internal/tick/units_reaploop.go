@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -445,24 +446,123 @@ func (l *reapLoop) subprocessExit(a *dlgAgent, sa map[string]any, rt string) err
 	if alive {
 		return nil
 	}
-	pidText := "None"
-	var pidV any
-	if p, ok := sa["pid"]; ok && p != nil {
-		d, err := store.PyDumps(p)
-		if err != nil {
-			return fmt.Errorf("pid of %s: %w", a.name, err)
-		}
-		pidText, pidV = d, p
+	// sa decodes every number as float64; Python keeps 4242 an int, so re-read pid and log with their number types.
+	pidV, logV, err := pyPidLog(a.spawnArgs.String)
+	if err != nil {
+		return fmt.Errorf("pid of %s: %w", a.name, err)
+	}
+	if _, ok := sa["pid"]; !ok {
+		pidV = nil
 	}
 	if err := l.exec("UPDATE agents SET status='done', summary=?, ended=? WHERE name=? AND status='live'",
-		fmt.Sprintf("runtime=%s pid=%s exited", rt, pidText), l.r.Now(), a.name); err != nil {
+		fmt.Sprintf("runtime=%s pid=%s exited", rt, pyStrJSON(pidV)), l.r.Now(), a.name); err != nil {
 		return err
 	}
-	var logV any
-	if v, ok := sa["log"]; ok {
-		logV = v
-	}
 	return l.r.eventOwner("agent", a.name, "runtime-exit", store.Ordered{{K: "pid", V: pidV}, {K: "runtime", V: rt}, {K: "log", V: logV}})
+}
+
+// pyPidLog returns spawn_args["pid"] and ["log"] with Python's types: an integer literal is an int (int64), a literal
+// with a fraction or exponent a float64. An integer beyond int64 is an error: Python's os.kill raises OverflowError
+// (not an OSError) there, so the unit fails rather than reaping. Objects come back key-sorted (Python keeps insertion
+// order; accepted deviation, a pid object is not a real input).
+func pyPidLog(raw string) (pid, log any, err error) {
+	dec := json.NewDecoder(strings.NewReader(raw))
+	dec.UseNumber()
+	var m map[string]any
+	if err := dec.Decode(&m); err != nil {
+		return nil, nil, fmt.Errorf("decode spawn_args: %w", err)
+	}
+	if pid, err = pyNumbers(m["pid"]); err != nil {
+		return nil, nil, err
+	}
+	if log, err = pyNumbers(m["log"]); err != nil {
+		return nil, nil, err
+	}
+	return pid, log, nil
+}
+
+func pyNumbers(v any) (any, error) {
+	switch x := v.(type) {
+	case json.Number:
+		if strings.ContainsAny(x.String(), ".eE") {
+			f, err := x.Float64()
+			if err != nil {
+				return nil, fmt.Errorf("float %s: %w", x, err)
+			}
+			return f, nil
+		}
+		n, err := x.Int64()
+		if err != nil {
+			return nil, fmt.Errorf("integer %s out of range (Python: OverflowError): %w", x, err)
+		}
+		return n, nil
+	case map[string]any:
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		o := make(store.Ordered, 0, len(keys))
+		for _, k := range keys {
+			e, err := pyNumbers(x[k])
+			if err != nil {
+				return nil, err
+			}
+			o = append(o, store.KV{K: k, V: e})
+		}
+		return o, nil
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			c, err := pyNumbers(e)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = c
+		}
+		return out, nil
+	}
+	return v, nil
+}
+
+// pyStrJSON is Python str(v) for a decoded JSON value, as used by f"{pid}": None, True/False, int, float repr, the bare
+// string; lists and dicts as repr (strings via pyRepr).
+func pyStrJSON(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return "None"
+	case bool:
+		if x {
+			return "True"
+		}
+		return "False"
+	case int64:
+		return strconv.FormatInt(x, 10)
+	case float64:
+		return store.PyFloatRepr(x)
+	case string:
+		return x
+	case []any:
+		parts := make([]string, len(x))
+		for i, e := range x {
+			parts[i] = pyReprAny(e)
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case store.Ordered:
+		parts := make([]string, len(x))
+		for i, e := range x {
+			parts[i] = pyRepr(e.K) + ": " + pyReprAny(e.V)
+		}
+		return "{" + strings.Join(parts, ", ") + "}"
+	}
+	return fmt.Sprint(v)
+}
+
+func pyReprAny(v any) string {
+	if s, ok := v.(string); ok {
+		return pyRepr(s)
+	}
+	return pyStrJSON(v)
 }
 
 // naiveZone marks a stored timestamp without an offset: Python subtracts it from an aware now() and gets a TypeError.
