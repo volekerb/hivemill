@@ -37,7 +37,6 @@ How-to: use the delivery skill.
 - **S1** Watch stuck pull requests: long in_review, red CI with no live coder, or merge conflicts blocking checks.
 - **S2** Unblock by choosing one path: **refresh** (rebase, fix, re-run), **split** into smaller PRs, **close and rewrite**, or a **merge path** when the branch is ready.
 - **S3** Escalate to the boss only when the choice is an owner decision; otherwise decide and dispatch workers yourself.
-- **S4** A merge-ready report to the boss (project with a gate_cmd) lists three lines: reviewer PASS, QA PASS, local gate PASS on head <full sha> (the tick's `local gate PASS on head ...` task note; GitHub checks are not the test signal there). Missing any line = not merge-ready. (T-1828, M41466)
 
 ## Closing goals
 Sign-off, close, reopen: use the close-goal skill.

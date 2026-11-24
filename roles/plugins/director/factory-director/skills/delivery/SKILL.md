@@ -27,3 +27,6 @@ Research reports:
 9. A lead's research report goes to the boss unchanged: `factory msg boss "research G-xxx: <one-line answer>" - --kind report --goal G-xxx`, body = Answer, Recommendation, Proposed follow-ups and the Evidence list. Proposed follow-ups become goals only after the boss/owner decide.
 
 Stop and escalate: a goal cannot make its date inside the caps -> tell the boss with options and a recommendation.
+
+Merge-ready report (T-1828, M41466):
+9. For a project with a gate_cmd, the merge-ready report to the boss lists three lines: reviewer PASS, QA PASS, local gate PASS on head <full sha> (the tick's `local gate PASS on head ...` task note). GitHub checks are not the test signal there. Missing any line = not merge-ready.
