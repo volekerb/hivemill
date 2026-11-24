@@ -11521,13 +11521,13 @@ def _session_tokens(session):
 
 # ───────────────────────────── agents: spawn / done / list ─────────────────────────────
 
-def _hc_host(con):
+def _hc_host(con, host_exe=None):
     """True when host IPC goes through hc, which has no workspace or tab verbs (#849)."""
-    return terminal_backend_effective(con)[1] == "hc"
+    return (host_exe or terminal_backend_effective(con)[1]) == "hc"
 
 
-def ensure_hq(con):
-    if _hc_host(con):
+def ensure_hq(con, host_exe=None):
+    if _hc_host(con, host_exe):
         return None  # hc agents are named terminals: there is no HQ workspace to create
     ws = herdr_workspaces()
     hq = con.execute("SELECT value FROM config WHERE key='hq_workspace'").fetchone()
@@ -11542,9 +11542,9 @@ def ensure_hq(con):
     return wid
 
 
-def ensure_goal_ws(con, gid):
+def ensure_goal_ws(con, gid, host_exe=None):
     g = con.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone() or die(f"no goal {gid}")
-    if _hc_host(con):
+    if _hc_host(con, host_exe):
         return None  # no workspace verbs on hc (#849)
     ws = herdr_workspaces()
     if g["workspace_id"] in ws:
@@ -11578,10 +11578,10 @@ def place(con, role, goal, team, name, cwd, env, host_exe=None):
         return None, None, name
     envs = [x for k, v in env.items() for x in ("--env", f"{k}={v}")]
     if role in ("boss", "director") or not goal:
-        ws = ensure_hq(con)
+        ws = ensure_hq(con, host_exe)
         tab_label = role if role in ("boss", "director") else "ops"
     else:
-        ws = ensure_goal_ws(con, goal)
+        ws = ensure_goal_ws(con, goal, host_exe)
         tab_label = team or "team"
     tabs = [t for t in herdr_tabs(ws) if t.get("label", "").split(" ")[0] == tab_label]
     for t in tabs:
