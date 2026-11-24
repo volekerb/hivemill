@@ -61,7 +61,12 @@ func testRunner(t *testing.T, actor string) (*Runner, *SQLite) {
 			}
 			return 1, "", "no"
 		},
-		GH: func(string, ...string) (int, string, string) { return 0, "", "" },
+		GH: func(_ string, args ...string) (int, string, string) {
+			if len(args) > 1 && args[0] == "pr" && args[1] == "list" {
+				return 0, "https://github.com/zz-test/www/pull/1", ""
+			}
+			return 1, "", "no"
+		},
 		HC: func(...string) (int, string, string) { return 0, `{"terminals": []}`, "" },
 		Sh: func(string, time.Duration, []string, ...string) (int, string) { return 0, "" },
 	}
@@ -179,5 +184,33 @@ func TestFindingsAndEvidence(t *testing.T) {
 	_ = os.WriteFile(e, []byte(`{"criteria": [{"id": 1}]}`), 0o600)
 	if probs := CheckEvidence(e, Criteria(good)); len(probs) != 1 || !strings.Contains(probs[0], "2, 3") {
 		t.Errorf("%v", probs)
+	}
+}
+
+func TestAffectedFullNeededLeavesItToCI(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Tools.Git = func(string, ...string) (int, string, string) { return 0, "", "" }
+	r.Tools.Sh = func(string, time.Duration, []string, ...string) (int, string) {
+		return 0, "FULL needed: rely on CI (no test module mentions go/x.go; run the full suite)\n"
+	}
+	if ok, note := r.affected(t.TempDir(), "main"); !ok || !strings.Contains(note, "CI runs the full suite") {
+		t.Errorf("FULL needed must pass to CI: %v %q", ok, note)
+	}
+	r.Tools.Sh = func(string, time.Duration, []string, ...string) (int, string) { return 0, "nothing\n" }
+	if ok, _ := r.affected(t.TempDir(), "main"); ok {
+		t.Error("exit 0 with no tests run must fail")
+	}
+}
+
+func TestGateHookDefersWithoutAPR(t *testing.T) {
+	r, s := testRunner(t, "claude-task-t-0001")
+	r.Tools.GH = func(string, ...string) (int, string, string) { return 0, "", "" }
+	_ = s.PutRun(&Run{Task: "T-0001", Goal: "G-001", Repo: "zz-test/www", Base: "main", Worktree: t.TempDir(), Branch: "factory/t-0001",
+		Agent: "claude-task-t-0001", State: Working, Round: 1})
+	var out bytes.Buffer
+	_ = r.GateHook(strings.NewReader(`{}`), &out)
+	got, _ := s.Run("T-0001")
+	if out.Len() != 0 || got.GateBlocks != 0 || got.State != Working {
+		t.Errorf("no PR yet must not block or count: %q blocks %d %s", out.String(), got.GateBlocks, got.State)
 	}
 }

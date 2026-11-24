@@ -193,6 +193,10 @@ func (r *Runner) Start(id string) error {
 	if limit := cfgInt(r.Store, "max_concurrent"); r.activeCount() >= limit {
 		return fmt.Errorf("%w: max_concurrent=%d runs are active", ErrRefused, limit)
 	}
+	if why := r.ReadCaps(time.Now()).DispatchBlock(r.Store, t.Project); why != "" {
+		r.budgetEvent(why)
+		return fmt.Errorf("%w: %s", ErrRefused, why)
+	}
 	if live, _ := r.Store.OldPipelineLive(id); len(live) > 0 {
 		return fmt.Errorf("%w: %s has live agents of the old pipeline (%s); stop them first", ErrRefused, id, strings.Join(live, ", "))
 	}
@@ -231,6 +235,9 @@ func (r *Runner) Start(id string) error {
 	}
 	if terms := r.Store.FactoryCfg("scrub_terms_file"); terms != "" {
 		env["SCRUB_TERMS_FILE"] = terms
+	}
+	if list, ok := Terminals(r.Tools); ok && alive(list, true, name) {
+		r.Close(name) // a session left open by an earlier FAIL; its transcript stays resumable by session id
 	}
 	_, err = r.StartSession(run, Launch{Role: "task", Name: name, Cwd: wt, Model: model, Effort: effort,
 		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: Kickoff(run, t), Env: env})
@@ -345,6 +352,12 @@ func truncate(s string, n int) string {
 
 // Pass advances every active run once (at most one gh read per run), checks for a revert, then starts ready tasks.
 func (r *Runner) Pass(startNew bool) error {
+	l := r.lock("pass", false) // one pass at a time: a timer tick that finds a pass running exits at once
+	if l == nil {
+		r.printf("another pass is running; skipped\n")
+		return nil
+	}
+	defer l.Close()
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
 	if err != nil {
@@ -392,10 +405,15 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		return "", err
 	}
 	defer func() { _ = r.Store.PutRun(run) }()
+	if Active(run.State) && run.State != Merging && r.overBudget(run) {
+		return run.State, nil
+	}
 	switch run.State {
 	case Working:
 		if !alive(list, listed, run.Agent) {
 			r.fail(run, "the task session ended before its gate passed")
+		} else {
+			r.idleWatch(run, list)
 		}
 	case Gated:
 		r.gated(run)
@@ -508,4 +526,55 @@ func (r *Runner) Status() error {
 			x.CIRounds, x.PRURL, hold)
 	}
 	return nil
+}
+
+// budgetEvent emits budget.reached once per reason and day.
+func (r *Runner) budgetEvent(why string) {
+	if !strings.HasPrefix(why, "budget:") {
+		return
+	}
+	dir := filepath.Join(r.Env.StateDir(), "locks")
+	_ = os.MkdirAll(dir, 0o700)
+	mark := filepath.Join(dir, "budget-"+time.Now().Format("2006-01-02"))
+	if b, _ := os.ReadFile(mark); strings.Contains(string(b), why[:min(len(why), 40)]) {
+		return
+	}
+	f, err := os.OpenFile(mark, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err == nil {
+		fmt.Fprintln(f, why)
+		f.Close()
+	}
+	_ = r.Log.Emit("budget.reached", nil, Event{Data: map[string]any{"why": why}})
+}
+
+// idleWatch nudges a task session that sits idle with no PR for 15 minutes (it stopped mid-work, e.g. while a
+// background review was running); after a second idle spell the run is FAIL "stalled".
+func (r *Runner) idleWatch(run *Run, list []Terminal) {
+	idle := false
+	for _, t := range list {
+		if t.Name == run.Agent {
+			idle = t.Status == "idle" || t.Status == "done"
+		}
+	}
+	if !idle {
+		run.IdleSince = ""
+		return
+	}
+	if run.IdleSince == "" {
+		run.IdleSince = nowISO()
+		return
+	}
+	since, err := time.Parse(time.RFC3339, run.IdleSince)
+	if err != nil || time.Since(since) < 15*time.Minute {
+		return
+	}
+	run.IdleSince = ""
+	if run.IdleNudges >= 1 {
+		r.fail(run, "stalled: the task session stayed idle without a passing gate after a nudge")
+		return
+	}
+	run.IdleNudges++
+	_ = r.Prompt(run.Agent, "You stopped before your task was finished. Continue your role steps from where you are: finish the "+
+		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop.")
+	_ = r.Log.Emit("session.nudged", run, Event{Role: "task"})
 }

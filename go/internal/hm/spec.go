@@ -101,11 +101,17 @@ func LintProblems(acceptance string) []string {
 	return probs
 }
 
-var exitRe = regexp.MustCompile(`(?i)^(?:exit\s*|rc\s*=?\s*)?(\d+)$`)
+var exitRe = regexp.MustCompile(`(?i)^(?:exit\s*|rc\s*=\s*)(\d+)$`)
+var numRe = regexp.MustCompile(`^-?\d+$`)
 
-// ExpectOK checks a cmd: proof's result against its expectation: an exit code, "empty", or text in the output.
+// ExpectOK checks a cmd: proof's result against its expectation: `exit N` (or `rc=N`) is the exit code, `empty` is
+// no output, a bare number is the whole output (a count such as `grep -c`), anything else is text the output contains.
 func ExpectOK(expect string, rc int, out string) (bool, string) {
 	e := strings.TrimSpace(expect)
+	if numRe.MatchString(e) {
+		got := strings.TrimSpace(out)
+		return got == e, fmt.Sprintf("exit %d, output %q, want %s", rc, truncate(got, 40), e)
+	}
 	if m := exitRe.FindStringSubmatch(e); m != nil {
 		want, _ := strconv.Atoi(m[1])
 		return rc == want, fmt.Sprintf("exit %d, want %d", rc, want)

@@ -35,6 +35,8 @@ type Run struct {
 	Dispatched, Gated, Merged, Ended                          string
 	Outcome, FailReason, Kind, RevertedBy, GoalCheck          string
 	Criteria, Proven, Manual, FindingsTotal, FindingsFixed    int
+	IdleSince                                                 string
+	IdleNudges                                                int
 	Verdicts                                                  []Verdict
 	History                                                   []string
 	LastGate                                                  *GateRecord
