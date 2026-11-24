@@ -151,12 +151,12 @@ func TestAlertUnitTable(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Go units %v, testdata/go_units.txt %v", got, want)
 	}
-	for _, n := range []string{"digest", "tmp_alert", "remote_url_alert", "main_protection"} {
+	for _, n := range []string{"digest", "tmp_alert", "remote_url_alert", "main_protection", "tmp_clean", "tmp_harness"} {
 		if _, ok := goUnits[n]; !ok {
 			t.Errorf("unit %s is not Go-capable", n)
 		}
 	}
-	for _, n := range []string{"tmp_clean", "tmp_harness", "red_main", "issue_intake", "reap_serves", "reap_orphans", "test_orphans"} {
+	for _, n := range []string{"red_main", "issue_intake", "reap_serves", "reap_orphans", "test_orphans"} {
 		if _, ok := goUnits[n]; ok {
 			t.Errorf("unit %s must stay Python in this slice", n)
 		}
