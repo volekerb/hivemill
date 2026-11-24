@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"factory/go/internal/kit/spend"
@@ -14,12 +15,26 @@ import (
 
 // SessionCosts is each session's $ at API prices (subagent transcripts included), from ~/.claude/projects.
 func SessionCosts(userHome string, ids []string) map[string]float64 {
+	root := filepath.Join(userHome, ".claude", "projects")
 	out := map[string]float64{}
-	for k, b := range spend.SessionCosts(filepath.Join(userHome, ".claude", "projects"), ids) {
-		out[k] = math.Round(b.Cost*10000) / 10000
+	sem := make(chan struct{}, costWorkers)
+	var wg sync.WaitGroup
+	for _, id := range ids {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(id string) {
+			defer func() { <-sem; wg.Done() }()
+			for k, b := range spend.SessionCosts(root, []string{id}) {
+				out[k] = math.Round(b.Cost*10000) / 10000
+			}
+		}(id)
 	}
+	wg.Wait()
 	return out
 }
+
+// costWorkers bounds the transcripts read at one time.
+const costWorkers = 4
 
 // Row is one task of the scoreboard.
 type Row struct {
