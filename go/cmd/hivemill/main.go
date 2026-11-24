@@ -240,8 +240,8 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	case "config":
 		switch len(args) {
 		case 1:
-			for _, k := range hm.DefaultKeys() {
-				fmt.Fprintf(stdout, "%s=%s\n", k, r.Store.Cfg(k))
+			for _, ln := range hm.ConfigLines(r.Store.Cfg) {
+				fmt.Fprintln(stdout, ln)
 			}
 		case 2:
 			fmt.Fprintln(stdout, r.Store.Cfg(args[1]))
