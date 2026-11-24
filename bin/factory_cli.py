@@ -462,7 +462,7 @@ CREATE TABLE IF NOT EXISTS schedules (
 # T-1336 (G-041 S1-c): PRAGMA user_version of every DB this code has migrated. The Go CLI (go/internal/factorydb
 # SchemaVersion) answers only when it reads the same number; bump it, and the Go constant, with any SCHEMA or migrate()
 # change (tests/test_db_layout.py hashes both and fails until the pinned hash is renewed together with this number).
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -511,7 +511,7 @@ CREATE TABLE IF NOT EXISTS messages (
   created TEXT NOT NULL, read_at TEXT);
 CREATE TABLE IF NOT EXISTS verdicts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, pr_url TEXT, head_sha TEXT,
-  role TEXT NOT NULL, verdict TEXT NOT NULL, summary TEXT, author TEXT, created TEXT NOT NULL);
+  role TEXT NOT NULL, verdict TEXT NOT NULL, summary TEXT, author TEXT, created TEXT NOT NULL, verdict_class TEXT);
 CREATE TABLE IF NOT EXISTS evaluations (
   id INTEGER PRIMARY KEY AUTOINCREMENT, team_id TEXT NOT NULL, score INTEGER NOT NULL,
   notes TEXT, author TEXT, created TEXT NOT NULL);
@@ -652,6 +652,13 @@ def migrate(con):
             except sqlite3.OperationalError:  # a concurrent process added it first
                 if col not in {r["name"] for r in con.execute("PRAGMA table_info(agents)")}:
                     raise
+    if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='verdicts'").fetchone() and \
+            "verdict_class" not in {r["name"] for r in con.execute("PRAGMA table_info(verdicts)")}:
+        try:  # G-058 fix 1: code_defect | env_gap | evidence_missing | nit; NULL on PASS and on rows from before
+            con.execute("ALTER TABLE verdicts ADD COLUMN verdict_class TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "verdict_class" not in {r["name"] for r in con.execute("PRAGMA table_info(verdicts)")}:
+                raise
     for col, ddl in (("follow_up_of", "TEXT"), ("priority", "INTEGER")):
         if col not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
             try:
@@ -4993,12 +5000,13 @@ def cmd_task(a):
         for k in ("spec", "acceptance"):
             if t[k]:
                 print(f"\n## {k}\n{t[k]}")
-        vs = con.execute("SELECT role,verdict,head_sha,author,created,summary FROM verdicts WHERE task_id=? ORDER BY id",
+        vs = con.execute("SELECT role,verdict,head_sha,author,created,summary,verdict_class FROM verdicts WHERE task_id=? ORDER BY id",
                          (a.id,)).fetchall()
         if vs:
             print("\n## verdicts")
             for v in vs:
-                print(f"- {v['created']} {v['role']} {v['verdict'].upper()} @{(v['head_sha'] or '')[:8]} by {v['author']}: {v['summary']}")
+                vc = f" [{v['verdict_class']}]" if v["verdict_class"] else ""
+                print(f"- {v['created']} {v['role']} {v['verdict'].upper()}{vc} @{(v['head_sha'] or '')[:8]} by {v['author']}: {v['summary']}")
         notes = con.execute("SELECT ts,actor,action,detail FROM events WHERE entity='task' AND entity_id=? ORDER BY id",
                             (a.id,)).fetchall()
         print("\n## history")
@@ -6245,6 +6253,34 @@ def verdict_start_head(con, task, agent):
     return None
 
 
+def env_gap_key(summary):
+    """Dedupe key of an env_gap finding: its first line, lower-cased, whitespace squeezed."""
+    first = next((ln for ln in (summary or "").splitlines() if ln.strip()), "")
+    return re.sub(r"\s+", " ", first).strip().lower()[:200]
+
+
+def file_env_gap_task(con, t, role, summary):
+    """G-058 fix 1: an env_gap FAIL files ONE box-fix coder task (same goal as the PR's task) instead of a rework round.
+    Deduped on the finding text across the goal, so a repeat verdict files nothing. Returns the task id or None."""
+    key = env_gap_key(summary)
+    if not key:
+        return None
+    digest = hashlib.sha1(key.encode()).hexdigest()[:12]
+    title = f"Box fix: {key[:70]} [{digest}]"
+    if con.execute("SELECT 1 FROM tasks WHERE goal_id=? AND title LIKE ?", (t["goal_id"], f"%[{digest}]")).fetchone():
+        return None
+    tid = next_id(con, "tasks", "T", 4)
+    spec = (f"A {role} verdict on {t['id']} ({t['pr_url']}) is an env_gap FAIL: the box, not the code, stopped the check. Fix the box so "
+            f"the check can run (tooling, path, permission, remote gate). Do not change {t['id']}'s code.\n\n"
+            f"Finding:\n{(summary or '').strip()[:1500]}")
+    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated) VALUES(?,?,?,?,?,'coder','[]',?,?)",
+                (tid, t["goal_id"], title, spec, "The finding no longer reproduces on the box; a test or a doc line says how it is checked.", now(), now()))
+    event(con, "task", tid, "add", title)
+    event(con, "task", t["id"], "env-gap-task", tid)
+    print(f"env_gap: filed box-fix task {tid}")
+    return tid
+
+
 def cmd_verdict(a):
     con = db()
     role = require_role(con, "qa", "reviewer")
@@ -6286,11 +6322,20 @@ def cmd_verdict(a):
         sha = checked
     v = "pass" if a.passed else "fail"
     cause = require_rejection_cause(a) if not a.passed else None
-    con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
-                (a.task, t["pr_url"], sha, role, v, summary, actor(), now()))
+    vclass = (getattr(a, "verdict_class", None) or "").strip().lower() or None
+    if vclass and a.passed:
+        die("--class is for --fail only; a PASS has no class", 2)
+    if vclass and vclass not in VERDICT_CLASSES:
+        die(f"unknown verdict class {vclass!r}; use one of: {', '.join(VERDICT_CLASSES)}", 2)
+    if not a.passed:
+        vclass = vclass or "code_defect"  # old callers stay safe: an unclassified FAIL blocks
+    con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created,verdict_class) VALUES(?,?,?,?,?,?,?,?,?)",
+                (a.task, t["pr_url"], sha, role, v, summary, actor(), now(), vclass))
     if not a.passed:
         record_rejection_incident(con, cause, role, a.task,
                                   verdict_id=con.execute("SELECT last_insert_rowid()").fetchone()[0])
+    if vclass == "env_gap":
+        file_env_gap_task(con, t, role, summary)
     event(con, "task", a.task, f"{role}-{v}", f"@{sha[:8]}")
     print(f"{a.task} {role} {v.upper()} @ {sha[:8]}")
 
@@ -6524,6 +6569,53 @@ def judge_fix_carry_for(con, task_id, role, x, y, pr_number, git_repo, repo_url,
     return "carry", (x, main_sha, {**info, "failed_role": failed})
 
 
+VERDICT_CLASSES = ("code_defect", "env_gap", "evidence_missing", "nit")
+VERDICT_CLASS_HELP = ("class of a FAIL: code_defect (the change is wrong; blocks the merge, the default), env_gap (the box could not run "
+                      "the check: files one box-fix task, never blocks), evidence_missing (the PR lacks proof; blocks only on a risky "
+                      "path), nit (style or taste; never blocks)")
+RISKY_PATH_PREFIXES = ("roles/hooks/", "roles/settings/", "ci/", ".github/")
+RISKY_PATH_RE = re.compile(r"(^|/)[^/]*(judge|merge|gate|credential|secret|token)[^/]*$", re.I)
+_risky_cache = {}
+
+
+def path_is_risky(path):
+    """G-058: merge/judge/gate code, CI workflows (ci/, .github/), hooks and settings, credentials."""
+    return path.startswith(RISKY_PATH_PREFIXES) or bool(RISKY_PATH_RE.search(path))
+
+
+def pr_touches_risky(pr_url, head):
+    """True when the PR diff touches a risky path. Fails closed: a gh failure counts as risky. Cached per (pr, head)."""
+    key = (pr_url, (head or "").lower())
+    if key not in _risky_cache:
+        try:
+            out = subprocess.run(["gh", "pr", "diff", pr_url, "--name-only"], capture_output=True, text=True, timeout=60)
+        except (subprocess.SubprocessError, OSError):
+            return True
+        _risky_cache[key] = True if out.returncode != 0 else any(path_is_risky(f.strip()) for f in out.stdout.splitlines() if f.strip())
+    return _risky_cache[key]
+
+
+def verdict_fail_blocks(con, row, pr_url=None, head=None):
+    """G-058 fix 1: does this verdicts row block the merge? A PASS never does. A FAIL of class code_defect (or none, the
+    old default) always does; evidence_missing only when the PR touches a risky path (an unreadable diff counts as risky);
+    env_gap and nit never."""
+    if (row["verdict"] or "").lower() not in ("fail", "reject"):
+        return False
+    cls = ((row["verdict_class"] if "verdict_class" in row.keys() else None) or "code_defect").lower()
+    if cls in ("env_gap", "nit"):
+        return False
+    if cls == "evidence_missing":
+        return pr_touches_risky(pr_url, head) if pr_url else True
+    return True
+
+
+def verdict_role_ok(con, task_id, role):
+    """The latest verdict of `role` is a PASS or a FAIL that never blocks (env_gap, nit). DB only; evidence_missing needs
+    the diff, so it counts as not ok here and the gate decides."""
+    r = con.execute("SELECT verdict,verdict_class FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1", (task_id, role)).fetchone()
+    return bool(r) and (r["verdict"] == "pass" or (r["verdict"] == "fail" and (r["verdict_class"] or "code_defect") in ("env_gap", "nit")))
+
+
 def verdict_pass_holds_for_pr_head(con, task_id, role, pr_head, pr_number, git_repo, repo_url, owner_repo, carry,
                                  *, carry_unavailable=None):
     """Whether the latest PASS for `role` still counts at PR head `pr_head` (exact or case-folded match, else T-0095
@@ -6532,8 +6624,13 @@ def verdict_pass_holds_for_pr_head(con, task_id, role, pr_head, pr_number, git_r
     `carry_unavailable` is used when `repo_url` could not be read (gate) instead of calling verdict_carries. Returns one
     of (\"missing\", None), (\"holds\", None), (\"carry\", (verdict_head, main_sha, merges)), (\"fixcarry\", (verdict_head,
     main_sha, detail)) (T-1611 fix-carry; only when the pure-main-merge carry does not apply), (\"stale\", (verdict_head, why))."""
-    last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+    last = con.execute("SELECT verdict,head_sha,verdict_class FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                        (task_id, role)).fetchone()
+    if last and last["verdict"] == "fail" and (last["head_sha"] or "").lower() == (pr_head or "").lower():
+        # G-058: a FAIL that names no code defect does not block at the head it was recorded on
+        t = con.execute("SELECT pr_url FROM tasks WHERE id=?", (task_id,)).fetchone()
+        if not verdict_fail_blocks(con, last, t["pr_url"] if t else None, pr_head):
+            return "holds", None
     if not last or last["verdict"] != "pass":
         return "missing", None
     x = last["head_sha"] or ""
@@ -6590,9 +6687,10 @@ def green_head_fail_problems(con, task_id, sha):
     verdict on an older head never blocks."""
     out = []
     for role in ("reviewer", "qa"):
-        last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+        last = con.execute("SELECT verdict,head_sha,verdict_class FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                            (task_id, role)).fetchone()
-        if last and (last["verdict"] or "").lower() in ("fail", "reject") and (last["head_sha"] or "").lower() in ("", (sha or "").lower()):  # no head recorded: unverifiable, blocks
+        t = con.execute("SELECT pr_url FROM tasks WHERE id=?", (task_id,)).fetchone()
+        if last and verdict_fail_blocks(con, last, t["pr_url"] if t else None, sha) and (last["head_sha"] or "").lower() in ("", (sha or "").lower()):  # no head recorded: unverifiable, blocks
             out.append(f"{role} FAIL on the head {sha[:8]}")
     return out
 
@@ -8164,8 +8262,11 @@ def mech_mode(con):
 def mech_dispute(con, tid):
     """Why the LLM judge must decide this task (a dispute), or None. A dispute: reviewer and QA disagree on the same head,
     two or more FAIL verdicts so far, or a verdict text with a `judge:` line."""
-    rows = con.execute("SELECT role,verdict,head_sha,summary FROM verdicts WHERE task_id=? AND role IN ('reviewer','qa') "
+    rows = con.execute("SELECT role,verdict,head_sha,summary,verdict_class FROM verdicts WHERE task_id=? AND role IN ('reviewer','qa') "
                        "ORDER BY id", (tid,)).fetchall()
+    # G-058: a FAIL that names no code defect reads as a PASS for these rules (it is not a FAIL, nor a disagreement)
+    rows = [{**dict(r), "verdict": "pass" if r["verdict"] == "fail" and (r["verdict_class"] or "code_defect") in ("env_gap", "nit") else r["verdict"]}
+            for r in rows]
     if any(DISPUTE_REQUEST.search(r["summary"] or "") for r in rows):
         return "a verdict asks for the judge"
     if sum(1 for r in rows if r["verdict"] == "fail") >= 2:
@@ -8197,8 +8298,7 @@ def mech_candidates(con, only=None):
         if judge_status_only_hold(con, t["id"]):
             continue
         if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; the gate (and judge_verdicts_stale) refuse a FAIL on the head
-                any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                                 (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa"))):
+                any(not verdict_role_ok(con, t["id"], role) for role in ("reviewer", "qa"))):
             continue
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
@@ -17972,9 +18072,7 @@ def judge_autospawn_candidates(con, skipped=None):
         if t["id"] in mech_ids:
             continue
         if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; judge_verdicts_stale refuses a FAIL on the head
-                any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                                 (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
-                    for role in ("reviewer", "qa"))):
+                any(not verdict_role_ok(con, t["id"], role) for role in ("reviewer", "qa"))):
             continue
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
@@ -23495,6 +23593,7 @@ def main():
     x.add_argument("--summary", required=True); x.add_argument("--as", dest="as_role", choices=["qa", "reviewer"])
     x.add_argument("--sha", help="commit you checked (7-40 hex); required for --pass, must match the PR head")
     x.add_argument("--cause", help=f"with --fail: one of {_CAUSE_HELP}")
+    x.add_argument("--class", dest="verdict_class", choices=VERDICT_CLASSES, metavar="CLASS", help="with --fail: " + VERDICT_CLASS_HELP)
     x.set_defaults(fn=cmd_verdict)
     x = sp.add_parser("judge"); x.add_argument("task", nargs="?"); g = x.add_mutually_exclusive_group(required=True)
     g.add_argument("--merge", action="store_true"); g.add_argument("--reject", action="store_true")

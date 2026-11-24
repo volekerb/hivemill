@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from harness import PR_URL, SHA_B, FactoryTestCase, gates_summary
+from harness import PR_URL, SHA_A, SHA_B, FactoryTestCase, gates_summary
 
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 
@@ -359,6 +359,97 @@ class PrTitleTickTests(FactoryTestCase):
         self.prs((1, "feature/x", "T-0001"))
         self.tick()
         self.assertEqual(self.edits(), [])
+
+
+# G-058 fix 1 (T-1831): verdict classes. Only a code_defect FAIL (and evidence_missing on a risky path) blocks the
+# merge gate; env_gap files exactly one box-fix task; the class is stored and shown.
+class VerdictClassTests(FactoryTestCase):
+    INPROC = True
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_project()
+        e.seed_goal()
+        e.seed_task()
+        e.seed_pr()
+        e.seed_agent("zz-test-qa", "qa", goal="G-001", task="T-0001")
+        e.seed_agent("zz-test-reviewer", "reviewer", goal="G-001", task="T-0001")
+        self.ok("verdict", "T-0001", "--pass", "--summary", "ok", "--sha", SHA_A, agent="zz-test-reviewer")
+
+    def qa_fail(self, cls=None, summary="cannot run go here"):
+        args = ["verdict", "T-0001", "--fail", "--cause", "other", "--summary", summary]
+        return self.ok(*args, *(["--class", cls] if cls else []), agent="zz-test-qa")
+
+    def classes(self):
+        return [r["verdict_class"] for r in self.env.sql("SELECT verdict_class FROM verdicts ORDER BY id")]
+
+    def holds(self, role, risky=False):
+        with self.env.load_factory() as f:
+            con = f.db()
+            f.pr_touches_risky = lambda url, head: risky
+            return f.verdict_pass_holds_for_pr_head(con, "T-0001", role, SHA_A, 1, None, None, "zz/repo", {})[0]
+
+    def test_class_is_stored_and_shown(self):
+        self.qa_fail("env_gap")
+        self.assertEqual(self.classes(), [None, "env_gap"])
+        self.assertIn("[env_gap]", self.ok("task", "show", "T-0001").stdout)
+
+    def test_fail_without_class_is_code_defect(self):
+        self.qa_fail()
+        self.assertEqual(self.classes(), [None, "code_defect"])
+
+    def test_bad_class_and_pass_with_class_refused(self):
+        self.refused(2, "verdict", "T-0001", "--fail", "--cause", "other", "--class", "bogus", "--summary", "x", agent="zz-test-qa")
+        self.refused(2, "verdict", "T-0001", "--pass", "--class", "nit", "--summary", gates_summary(), "--sha", SHA_A, agent="zz-test-qa")
+        self.assertEqual(self.classes(), [None])
+
+    def test_env_gap_and_nit_do_not_block_the_gate(self):
+        for cls in ("env_gap", "nit"):
+            self.qa_fail(cls, summary=f"finding {cls}")
+            self.assertEqual(self.holds("qa"), "holds", cls)
+        self.assertEqual(self.holds("reviewer"), "holds")
+
+    def test_code_defect_blocks_the_gate(self):
+        self.qa_fail("code_defect")
+        self.assertEqual(self.holds("qa"), "missing")
+
+    def test_evidence_missing_blocks_only_on_a_risky_path(self):
+        self.qa_fail("evidence_missing")
+        self.assertEqual(self.holds("qa", risky=False), "holds")
+        self.assertEqual(self.holds("qa", risky=True), "missing")
+
+    def test_risky_paths(self):
+        with self.env.load_factory() as f:
+            for p in ("ci/shard.py", ".github/workflows/tests.yml", "roles/hooks/worker-guard", "go/internal/judge/gate.go",
+                      "docs/mech_merge.md", "bin/credentials.py"):
+                self.assertTrue(f.path_is_risky(p), p)
+            for p in ("docs/notes.md", "go/internal/web/views/x.go", "tests/test_x.py"):
+                self.assertFalse(f.path_is_risky(p), p)
+
+    def test_non_blocking_fail_is_not_a_dispute_and_candidate(self):
+        self.qa_fail("env_gap")
+        with self.env.load_factory() as f:
+            con = f.db()
+            self.assertIsNone(f.mech_dispute(con, "T-0001"))
+            self.assertTrue(f.verdict_role_ok(con, "T-0001", "qa"))
+        self.qa_fail("code_defect", summary="real bug")
+        with self.env.load_factory() as f:
+            self.assertFalse(f.verdict_role_ok(f.db(), "T-0001", "qa"))
+
+    def test_env_gap_files_exactly_one_task_on_repeat(self):
+        self.qa_fail("env_gap", summary="cannot run go here\nno toolchain")
+        self.qa_fail("env_gap", summary="Cannot  run go here\nother detail")
+        tasks = self.env.sql("SELECT title, role, goal_id FROM tasks WHERE title LIKE 'Box fix:%'")
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual((tasks[0]["role"], tasks[0]["goal_id"]), ("coder", "G-001"))
+        self.qa_fail("env_gap", summary="a different finding")
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM tasks WHERE title LIKE 'Box fix:%'")), 2)
+
+    def test_other_classes_file_no_task(self):
+        self.qa_fail("code_defect")
+        self.qa_fail("nit", summary="n")
+        self.assertEqual(self.env.sql("SELECT 1 FROM tasks WHERE title LIKE 'Box fix:%'"), [])
 
 
 if __name__ == "__main__":

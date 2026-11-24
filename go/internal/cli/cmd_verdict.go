@@ -490,8 +490,13 @@ func runVerdict(c *ctx, parsed any) (int, error) {
 			return 0, dieErr(2, fmt.Sprintf("rejection refused, nothing recorded: pass --cause (%s)", verdictCauseHelp))
 		}
 	}
-	res, err := c.exec("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
-		a.task, prURL.String, sha, role, v, summary, c.who, eventTS(c))
+	// G-058: a native FAIL has no --class (the parser delegates that flag to Python), so it is the default code_defect
+	var vclass any
+	if !a.passed {
+		vclass = "code_defect"
+	}
+	res, err := c.exec("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created,verdict_class) VALUES(?,?,?,?,?,?,?,?,?)",
+		a.task, prURL.String, sha, role, v, summary, c.who, eventTS(c), vclass)
 	if err != nil {
 		return 0, err
 	}

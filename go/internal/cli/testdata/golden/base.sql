@@ -54,7 +54,7 @@ CREATE TABLE messages (
   created TEXT NOT NULL, read_at TEXT);
 CREATE TABLE verdicts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, pr_url TEXT, head_sha TEXT,
-  role TEXT NOT NULL, verdict TEXT NOT NULL, summary TEXT, author TEXT, created TEXT NOT NULL);
+  role TEXT NOT NULL, verdict TEXT NOT NULL, summary TEXT, author TEXT, created TEXT NOT NULL, verdict_class TEXT);
 CREATE TABLE evaluations (
   id INTEGER PRIMARY KEY AUTOINCREMENT, team_id TEXT NOT NULL, score INTEGER NOT NULL,
   notes TEXT, author TEXT, created TEXT NOT NULL);

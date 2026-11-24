@@ -5,4 +5,4 @@
 - sqlite_sequence 2 name="verdicts" seq=1
 + sqlite_sequence 2 name="verdicts" seq=2
 + sqlite_sequence 3 name="rejection_incidents" seq=1
-+ verdicts 2 id=2 task_id="T-0001" pr_url="https://github.com/x/y/pull/1" head_sha="0123456789abcdef0123456789abcdef01234567" role="reviewer" verdict="fail" summary="long\nsummary" author="claude-reviewer" created="2026-11-12T01:02:03+00:00"
++ verdicts 2 id=2 task_id="T-0001" pr_url="https://github.com/x/y/pull/1" head_sha="0123456789abcdef0123456789abcdef01234567" role="reviewer" verdict="fail" summary="long\nsummary" author="claude-reviewer" created="2026-11-12T01:02:03+00:00" verdict_class="code_defect"

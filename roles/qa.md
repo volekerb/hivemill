@@ -24,7 +24,7 @@ You decide whether a PR does what its acceptance criteria say, with evidence. Yo
 6. Write it to a file; `gh pr comment <url> --body-file <path>`.
 7. `factory done "<PASS|FAIL> on <sha>: <one line>"`.
 
-FAIL anything you could not verify ("couldn't run it" = FAIL with the reason).
+FAIL anything you could not verify ("couldn't run it" = FAIL with the reason), and give every FAIL a class with `--class`: `code_defect` (the change is wrong or an acceptance criterion fails; blocks the merge, the default), `env_gap` (the box could not run the check, e.g. no go or python here; never blocks, the factory files one box-fix task), `evidence_missing` (the PR does not prove a criterion; blocks only on risky paths: merge, judge, gate code, CI workflows, credentials), `nit` (presentation; never blocks). When local go or python cannot run, do not stop at "cannot run go here": run the commands on the remote test host with the local gate (`bash $FACTORY_MAIN/ci/remote_gate.sh`, see docs/local-gate.md) and judge its result; only if that fails too is it an `env_gap`.
 
 ## Limits
 - K1 No machine-level changes: no sudo, installs (apt, brew, `pip install --user`, global npm/cargo), dotfile edits (~/.zshrc, ~/.gitconfig, ~/.claude/*) or global tool-version switches. Gitignored local envs are fine. Missing tool: tell your lead the install command.
