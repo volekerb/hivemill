@@ -241,6 +241,16 @@ func (r *Runner) Start(id string) error {
 	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
+	if err := r.launchTask(run, Kickoff(run, t)); err != nil {
+		return err
+	}
+	r.printf("RUN %s: %s (%s, effort %s%s) in %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], wt)
+	return nil
+}
+
+// launchTask starts the task session of a run in its clone, with the noreply identity and the scrub terms.
+func (r *Runner) launchTask(run *Run, kickoff string) error {
+	name, wt, model, effort := run.Agent, run.Worktree, run.Model, run.Effort
 	env := map[string]string{}
 	if email := r.Store.FactoryCfg("noreply_email"); email != "" {
 		env["GIT_AUTHOR_EMAIL"], env["GIT_COMMITTER_EMAIL"] = email, email
@@ -252,14 +262,13 @@ func (r *Runner) Start(id string) error {
 	if list, ok := Terminals(r.Tools); ok && alive(list, true, name) {
 		r.Close(name) // a session left open by an earlier FAIL; its transcript stays resumable by session id
 	}
-	_, err = r.StartSession(run, Launch{Role: "task", Name: name, Cwd: wt, Model: model, Effort: effort,
-		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: Kickoff(run, t), Env: env})
+	_, err := r.StartSession(run, Launch{Role: "task", Name: name, Cwd: wt, Model: model, Effort: effort,
+		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: kickoff, Env: env})
 	if err != nil {
 		r.fail(run, "the session did not start: "+err.Error())
 		_ = r.Store.PutRun(run)
 		return err
 	}
-	r.printf("RUN %s: %s (%s, effort %s%s) in %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], wt)
 	return nil
 }
 
@@ -350,6 +359,9 @@ func (r *Runner) fail(run *Run, reason string) {
 	_ = r.Store.TaskStatus(run.Task, "blocked", "owner")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-fail", truncate(reason, 900))
 	_ = r.Log.Emit("task.failed", run, Event{Data: map[string]any{"reason": truncate(reason, 900)}})
+	if run.Eval {
+		r.evalFinish(run, Failed, "failed: "+truncate(reason, 300))
+	}
 }
 
 // resume sends text to the same warm task session and starts a new round.
@@ -468,6 +480,8 @@ func (r *Runner) gated(run *Run) {
 		return
 	}
 	switch {
+	case pr.State == "MERGED" && run.Eval:
+		r.fail(run, "eval PR was merged outside the runner: eval runs are never merged")
 	case pr.State == "MERGED":
 		run.State = Merging
 	case pr.State == "CLOSED":
@@ -504,6 +518,10 @@ func (r *Runner) judged(run *Run) {
 	v := run.Verdicts[len(run.Verdicts)-1]
 	for _, j := range run.Judges {
 		r.Close(j)
+	}
+	if run.Eval {
+		r.evalFinish(run, Evaluated, "judge "+v.Verdict)
+		return
 	}
 	if v.Verdict == "MERGE" {
 		run.State = Merging

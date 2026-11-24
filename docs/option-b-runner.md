@@ -182,6 +182,16 @@ To upgrade:
 - One leader lock (an advisory lock) for the scheduling pass.
 - Workers pull work: each machine runs a worker that claims runs and hosts their sessions, instead of one host pushing work out.
 
+## Eval mode
+
+`hivemill eval T-1234 [--judge-only]` measures how well the layers catch a known defect. It runs on a task whose branch is already pushed with the change and has an open **draft** PR (the operator prepares both), and it never merges:
+- an eval run ends at its first verdict (state `evaluated`) and never enters `merging`; `Merge` refuses it, and a PR merged outside the runner fails the run;
+- the judge's verdict is kept in the run and the event log only, never as a `verdicts` row, so no other merger can read it;
+- `--judge-only` starts no task session. The runner gates the prepared head itself (the gate checks without the session's findings, review and evidence duties, and every `test:`/`cmd:` proof re-run), waits for CI to finish, green or red, and starts a fresh judge on it. It leaves the PR open and `.hivemill/` empty for a full run.
+- without `--judge-only`, a task session starts on the prepared head with a kickoff that reads like a resumed task: the change is committed, continue with the review. Then the usual gate, CI rounds and judge follow. At the end the PR gets the `eval` label, is closed and its branch deleted.
+
+Each run writes one `eval.done` event (mode, outcome, gate problems, review findings, verdict and reasons, CI rounds) and `eval.gate` for a judge-only gate. `hivemill report` lists eval runs apart and leaves them out of the totals. The expected answer for a case is kept outside the factory home, because every session can read the factory home.
+
 ## Event log and report
 
 Each step appends one line to `state/hivemill/events.jsonl`. The events are `task.dispatched`, `session.started`, `session.ended`, `gate.blocked`, `gate.passed`, `review.findings`, `ci.red`, `pr.refreshed`, `judge.verdict`, `pr.merged`, `pr.reverted`, `task.failed`, `task.cancelled` and `goal.checked`. Each line has `ts`, `task_id`, `goal_id`, `project` and `harness` (`claude-code`). Where they apply, it also has `session_id`, `role` (task, judge or review), `model`, `effort` and `cost_usd`. Run records (state, rounds, gate results, verdicts) are in the `hm_runs` table, sessions in `hm_sessions`, and gate logs and verdicts in `state/hivemill/runs/<task>/`.

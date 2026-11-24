@@ -216,6 +216,11 @@ func (r *Runner) mainRun(slug, wt, base string) string {
 
 // Merge is one merge attempt of a run in state merging.
 func (r *Runner) Merge(run *Run) {
+	if run.Eval {
+		run.MergeHold = "eval run: never merged"
+		r.fail(run, "eval run reached the merge step: refused, eval runs are never merged")
+		return
+	}
 	in, pr, err := r.gatherMerge(run)
 	if err != nil {
 		run.MergeHold = err.Error()
