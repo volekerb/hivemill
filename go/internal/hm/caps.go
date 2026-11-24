@@ -85,6 +85,8 @@ func cfgFloat(s Store, key string) (float64, bool) {
 // Caps is the state of every dispatch cap at one moment.
 type Caps struct {
 	Usage           Usage
+	Active          int  // runs holding a slot now
+	Probe           bool // set by DispatchBlock: the usage reading is stale, but one probe run may refresh it
 	MemMB, MemMin   int
 	TodayUSD        map[string]float64 // per project, sessions started today (local time)
 	WeekUSD         float64            // all projects, sessions started in the last 7 days
@@ -102,6 +104,9 @@ func (r *Runner) ReadCaps(now time.Time) Caps {
 	project := map[string]string{}
 	for _, x := range runs {
 		project[x.Task] = x.Project
+		if Active(x.State) {
+			c.Active++
+		}
 	}
 	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	week := now.Add(-7 * 24 * time.Hour)
@@ -135,9 +140,14 @@ func (r *Runner) ReadCaps(now time.Time) Caps {
 }
 
 // DispatchBlock says why no new run may start now ("" = it may). Active runs are never stopped by these caps.
-func (c Caps) DispatchBlock(s Store, project string) string {
+func (c *Caps) DispatchBlock(s Store, project string) string {
+	c.Probe = false
 	if why := c.UsageUnknown(s); why != "" {
-		return "usage unknown: " + why
+		if c.probeAllowed(s) {
+			c.Probe = true // one run may start; it renders a status line and so refreshes the reading
+		} else {
+			return "usage unknown: " + why
+		}
 	}
 	if f := c.Usage.FiveHour; f != nil && *f >= float64(cfgInt(s, "max_five_hour_pct")) {
 		return fmt.Sprintf("usage: 5h at %.0f%% (cap %s%%)", *f, s.Cfg("max_five_hour_pct"))
@@ -234,4 +244,30 @@ func (c Caps) UsageUnknown(s Store) string {
 		return "the 5-hour field is empty (the API reports no 5-hour window; usage_require_5h=off accepts that)"
 	}
 	return ""
+}
+
+// probeAllowed: the reading exists but is stale, no run is active, and its last values were under the caps. Then
+// exactly one run may start (the effective max_concurrent is 1 until a fresh reading arrives), because only a running
+// session refreshes the reading. A missing reading, an over-cap last reading or an empty required field stays closed.
+func (c Caps) probeAllowed(s Store) bool {
+	u := c.Usage
+	if !u.Found || u.AgeS <= cfgInt(s, "usage_max_age_s") || c.Active > 0 || u.SevenDay == nil ||
+		*u.SevenDay >= float64(cfgInt(s, "max_seven_day_pct")) {
+		return false
+	}
+	if u.FiveHour == nil {
+		return s.Cfg("usage_require_5h") == "off"
+	}
+	return *u.FiveHour < float64(cfgInt(s, "max_five_hour_pct"))
+}
+
+// UsageHopeless: dispatch is held on usage and waiting will not help: no reading has ever existed, or the last
+// reading is over a cap.
+func (c Caps) UsageHopeless(s Store) bool {
+	u := c.Usage
+	if !u.Found {
+		return true
+	}
+	over := func(p *float64, key string) bool { return p != nil && *p >= float64(cfgInt(s, key)) }
+	return over(u.SevenDay, "max_seven_day_pct") || over(u.FiveHour, "max_five_hour_pct")
 }
