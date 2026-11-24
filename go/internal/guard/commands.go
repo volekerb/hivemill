@@ -904,6 +904,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			}
 		}
 	case name == "git":
+		if !a.HQ && !in(noPushRoles, a.Role) { // T-0206
+			if err := a.gitExpansion(rest); err != nil {
+				return err
+			}
+		}
 		if err := a.gitShared(words, assigns); err != nil { // first: its reason names the own-worktree advice
 			return err
 		}

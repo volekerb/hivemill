@@ -4976,8 +4976,8 @@ class Analyzer:
                 if HOST_CLI_WORD.search(a) and re.search(r"(?:^|[\s;{}\d$,])e\b|/[gIpmM]*e[gIpmM]*(?:\s|;|$)", a):
                     raise Block("herdr in a sed e command")
         elif name == "git":
-            if not self.hq:
-                self.git_expansion(rest)  # T-0206
+            if not self.hq and self.role not in NO_PUSH_ROLES:
+                self.git_expansion(rest)  # T-0206 (NO_PUSH_ROLES: git_allow refuses dynamic words)
             self.git_shared(words, assigns)  # first: its reason names the own-worktree advice
             self.git_delete(rest)
             if self.role in NO_PUSH_ROLES and not self.hq:

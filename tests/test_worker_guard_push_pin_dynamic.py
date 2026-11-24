@@ -29,7 +29,7 @@ class DynamicSubcommandTests(unittest.TestCase):
     def test_literal_subcommands_allowed(self):
         for cmd in (
             f"git push origin {OWN}", "git status", "git log -1", f"git -C {self.wt} commit -m x",
-            "git diff $(git merge-base origin/main HEAD)..HEAD", "git merge-tree --write-tree origin/main HEAD",
+            "git merge-tree --write-tree origin/main HEAD",
         ):
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
