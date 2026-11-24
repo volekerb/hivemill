@@ -2,7 +2,7 @@
 // gate, a fresh judge and a mechanical merge.
 //
 //	hivemill run [T-1234]          one pass (advance every run, revert check, start ready tasks), or start one task
-//	hivemill run status|stop T-1234
+//	hivemill run status|stop T-1234 [--note TEXT]
 //	hivemill gate hook             Stop hook of a task session (reads the hook JSON on stdin)
 //	hivemill gate T-1234           run the gate checks of a run now and print them
 //	hivemill judge hook            Stop hook of a judge session
@@ -90,7 +90,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		case a == "status":
 			err = r.Status()
 		case a == "stop" && taskRe.MatchString(arg(2)):
-			err = r.Stop(strings.ToUpper(arg(2)))
+			id := strings.ToUpper(arg(2))
+			if err = r.Stop(id); err == nil && arg(3) == "--note" {
+				r.StopNote(id, strings.Join(args[4:], " "))
+			}
 		case taskRe.MatchString(a):
 			id := strings.ToUpper(a)
 			if run, _ := r.Store.Run(id); run != nil && hm.Active(run.State) {

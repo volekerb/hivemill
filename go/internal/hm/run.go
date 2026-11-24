@@ -535,6 +535,17 @@ func (r *Runner) Stop(task string) error {
 	return r.Store.PutRun(run)
 }
 
+// StopNote records why a run was stopped as a task note (`factory task note`). A failing note does not undo the stop.
+func (r *Runner) StopNote(task, note string) {
+	if strings.TrimSpace(note) == "" {
+		return
+	}
+	cmd := fmt.Sprintf("factory task note %s '%s'", task, note)
+	if rc, out := r.Tools.Sh(r.Env.Home, time.Minute, cleanEnv(), "bash", "-c", cmd); rc != 0 {
+		r.printf("warning: %s stopped, but the note was not recorded (exit %d): %s\n", task, rc, firstLine(out))
+	}
+}
+
 // Status prints one line per run.
 func (r *Runner) Status() error {
 	runs, err := r.Store.Runs()
