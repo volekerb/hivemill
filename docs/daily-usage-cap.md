@@ -12,4 +12,4 @@ Owner order M41393: cap how much of the weekly Claude usage one day may use.
   names `max_day_pct`. A stale or unreadable reading never sets a baseline and never closes this gate (the weekly gate keeps its own latch).
 - `factory res` prints `daily cap: used X% of max_day_pct Y% since <day start> (gate open|closed)`, or `daily cap: off`.
 - With the key set, the Go `res` and `spawn` hand the command to Python (it owns the throttle row).
-- The baseline is recorded by the first gate call after the day start (tick, spawn or `factory res`); usage before that call is not counted.
+- The baseline is recorded by the first gate call after the day start (tick, spawn or `factory res`), even when an earlier check (agent cap, memory, load) closes the gate; usage before that call is not counted.

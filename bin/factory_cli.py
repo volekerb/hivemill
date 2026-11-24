@@ -3541,6 +3541,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
     u = usage()
     if runtime != "cursor":
         _usage_arm(con, u)  # before the pane, memory and load returns, or a full box never latches an at-cap reading
+        day_cap = day_cap_state(con, u)  # same reason: the day-start baseline is recorded even when a full box returns early
     procs = total_claude_procs()
     total = procs["total"]
     starting = 0
@@ -3626,7 +3627,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         blocked, why = _usage_cap_gate(con, u)
         if blocked:
             return False, why, stats
-        day = day_cap_state(con, u)
+        day = day_cap
         if day and day["over"]:
             return False, (f"daily usage cap: weekly usage rose {day['used']:.0f}% since {day['start']} "
                            f"(from {day['base']:.0f}% to {day['cur']:.0f}%) > max_day_pct {day['limit']:g}%"), stats

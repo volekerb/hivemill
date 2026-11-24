@@ -1443,6 +1443,16 @@ class DailyCapTests(FactoryTestCase):
         self.assertIn("spawn gate: OPEN", out)
         self.assertIn("daily cap: used 0% of max_day_pct 10% since 2026-06-11 08:00 (gate open)", out)
 
+    def test_baseline_recorded_when_an_earlier_check_closes_the_gate(self):
+        self.ok("config", "max_day_pct", "10")
+        self.ok("config", "max_live_agents", "0")  # a full box closes the gate before the daily check at day start
+        self.env.write_usage(seven_day=30)
+        self.assertIn("QUEUED", self.spawn(self.DAY1, "zz-day-full").stdout)  # spawn stops at the agent cap, as the tick does
+        self.ok("config", "max_live_agents", "9")
+        self.env.write_usage(seven_day=41)
+        out = self.res(self.LATER)  # the day's usage must count from the 30 seen at day start, not from 41
+        self.assertIn("daily cap: used 11% of max_day_pct 10% since 2026-06-10 08:00 (gate closed)", out)
+
     def test_stale_reading_never_sets_a_baseline(self):
         self.ok("config", "max_day_pct", "10")
         self.env.write_usage(seven_day=30, age_s=99999)
