@@ -41,7 +41,7 @@ func main() { os.Exit(Main(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }
 // Main is the whole CLI; it returns the exit code.
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
-		"report [--json] | eval T-1234 [--judge-only] | task lint T-1234 | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
+		"report [--json] | eval T-1234 [--judge-only] | logs T-1234 [FILE] | task lint T-1234 | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
 		"backup | restore <snapshot> [--dry-run]"
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Fprintln(stdout, usage)
@@ -176,6 +176,23 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			mode = hm.EvalJudgeOnly
 		}
 		err = r.EvalStart(strings.ToUpper(arg(1)), mode)
+	case "logs":
+		if !taskRe.MatchString(arg(1)) {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		id := strings.ToUpper(arg(1))
+		if arg(2) == "" {
+			var files []string
+			if files, err = r.RunLogs(id); err == nil {
+				fmt.Fprintln(stdout, strings.Join(files, "\n"))
+			}
+		} else {
+			var text string
+			if text, err = r.RunLog(id, arg(2)); err == nil {
+				fmt.Fprint(stdout, text)
+			}
+		}
 	case "daemon":
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 		defer stop()

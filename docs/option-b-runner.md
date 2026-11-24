@@ -105,6 +105,7 @@ hivemill gate T-1234                # run the gate checks now, print them
 hivemill judge packet T-1234        # print what the judge reads
 hivemill merge T-1234 --dry-run     # print the merge input and decision
 hivemill report [--json]            # scoreboard
+hivemill logs T-1234 [FILE]         # list a run's log files, or print one (round-1/proof-2.log)
 hivemill daemon                     # the pass loop (systemd/launchd run it)
 hivemill health [--alert]           # dead-man check
 hivemill drain [--status] | resume  # stop / resume new dispatch
