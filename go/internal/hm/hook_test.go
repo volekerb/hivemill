@@ -81,6 +81,9 @@ func TestGateHookBlocksThenFailsAtTheCap(t *testing.T) {
 	if err := s.PutRun(run); err != nil {
 		t.Fatal(err)
 	}
+	// the session has written its findings: each stop is a gate attempt
+	_ = os.MkdirAll(filepath.Join(run.Worktree, ".hivemill"), 0o755)
+	_ = os.WriteFile(filepath.Join(run.Worktree, ".hivemill", "findings.json"), []byte(`{"findings": []}`), 0o600)
 	var outs []string
 	for i := 0; i < 3; i++ {
 		var out bytes.Buffer
@@ -213,5 +216,58 @@ func TestGateHookDefersWithoutAPR(t *testing.T) {
 	got, _ := s.Run("T-0001")
 	if out.Len() != 0 || got.GateBlocks != 0 || got.State != Working {
 		t.Errorf("no PR yet must not block or count: %q blocks %d %s", out.String(), got.GateBlocks, got.State)
+	}
+}
+
+func TestGateDefersUntilTheReviewRan(t *testing.T) {
+	// A takeover: the PR exists from an earlier branch, the session stops while still working (no review, no findings).
+	r, s := testRunner(t, "claude-task-t-0001")
+	run := &Run{Task: "T-0001", Goal: "G-001", Project: "www", Repo: "zz-test/www", Base: "main", Worktree: t.TempDir(),
+		Branch: "factory/t-0001", Agent: "claude-task-t-0001", State: Working, Round: 1}
+	_ = s.PutRun(run)
+	for i := 0; i < 5; i++ {
+		var out bytes.Buffer
+		if err := r.GateHook(strings.NewReader(`{"session_id":"s-1"}`), &out); err != nil || out.Len() != 0 {
+			t.Fatalf("stop %d: %q %v", i+1, out.String(), err)
+		}
+	}
+	got, _ := s.Run("T-0001")
+	if got.State != Working || got.GateBlocksTotal != 0 {
+		t.Errorf("run %s blocks %d: mid-work stops are not gate attempts", got.State, got.GateBlocksTotal)
+	}
+}
+
+func TestHeldRunFinishesWhenTheOwnerMerges(t *testing.T) {
+	r, s := testRunner(t, "")
+	state := "OPEN"
+	r.Tools.GH = func(_ string, args ...string) (int, string, string) {
+		if len(args) > 1 && args[0] == "pr" && args[1] == "view" {
+			return 0, `{"number":1,"state":"` + state + `","headRefOid":"a","mergedAt":"2026-11-24T19:46:00Z","mergeCommit":{"oid":"m"}}`, ""
+		}
+		return 0, "", ""
+	}
+	run := &Run{Task: "T-0001", Goal: "G-001", Project: "www", Repo: "zz-test/www", Base: "main", State: Merging,
+		PRURL: "https://github.com/zz-test/www/pull/1"}
+	r.hold(run, "tier T3 is above T2; the owner merges")
+	_ = s.PutRun(run)
+	if run.State != Held || Active(run.State) {
+		t.Fatalf("held run %s must hold no slot", run.State)
+	}
+	_ = r.Pass(false)
+	if got, _ := s.Run("T-0001"); got.State != Held {
+		t.Fatalf("an open held PR stays held, got %s", got.State)
+	}
+	state = "MERGED"
+	_ = r.Pass(false)
+	got, _ := s.Run("T-0001")
+	if got.State != Merged || got.Merged != "2026-11-24T19:46:00Z" {
+		t.Errorf("after the owner's merge: %s merged %q", got.State, got.Merged)
+	}
+	// a run failed by the older binary on the same block is picked up too
+	_ = s.PutRun(&Run{Task: "T-0001", State: Failed, FailReason: "merge blocked: tier T3 is above T2; the owner merges",
+		PRURL: "https://github.com/zz-test/www/pull/1"})
+	_ = r.Pass(false)
+	if got, _ := s.Run("T-0001"); got.State != Merged {
+		t.Errorf("legacy failed hold: %s", got.State)
 	}
 }
