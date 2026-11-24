@@ -213,6 +213,10 @@ func (r *Runner) affected(wt, base string) (bool, string) {
 		rc, text := r.Tools.Sh(wt, 30*time.Minute, cleanEnv(), "python3", "ci/affected.py", "--base", "origin/"+base, "--quick", "--run")
 		tail := lastLines(text, 8)
 		switch {
+		case rc == 4: // EXIT_BUDGET: what ran passed; slow or over-budget modules are left to CI
+			return true, "ran the fast part; slow modules left to CI (" + firstLine(lastLines(text, 1)) + ")"
+		case strings.Contains(text, "FULL needed"):
+			return true, "not run locally (" + firstLine(tail) + "); CI runs the full suite"
 		case rc == 0:
 			n := 0
 			for _, m := range ranRe.FindAllStringSubmatch(text, -1) {
@@ -223,8 +227,8 @@ func (r *Runner) affected(wt, base string) (bool, string) {
 				return false, "ci/affected.py exited 0 but reported no tests run:\n" + tail
 			}
 			return true, fmt.Sprintf("ci/affected.py ok, ran %d tests", n)
-		case rc == 5 || strings.Contains(text, "FULL needed") || strings.Contains(text, "test slot"):
-			if time.Now().After(deadline) || strings.Contains(text, "FULL needed") {
+		case rc == 5 || strings.Contains(text, "test slot"):
+			if time.Now().After(deadline) {
 				return true, "undecided (" + firstLine(tail) + "); CI decides"
 			}
 			time.Sleep(time.Minute)
@@ -431,8 +435,14 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 		return err
 	}
 	r.noteSession(run, h.SessionID, r.Env.Actor)
-	rec := r.Gate(run)
 	defer func() { _ = r.Store.PutRun(run) }()
+	// No PR yet: the session is mid-work (often waiting for a background /code-review that wakes it again). Let it
+	// stop without a block; the runner's idle watch nudges a session that stays idle with no PR.
+	if t, err := r.Store.Task(run.Task); err == nil && t.PRURL == "" && r.findPR(run, t) == "" {
+		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no PR yet"}})
+		return nil
+	}
+	rec := r.Gate(run)
 	if len(rec.Problems) == 0 {
 		run.State, run.Head, run.PRURL, run.Tier, run.Gated, run.LastGate = Gated, rec.Head, rec.PRURL, rec.Tier, nowISO(), rec
 		fixed := 0

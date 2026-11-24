@@ -25,14 +25,14 @@ hivemill run T-1234
 
 1. **Spec gate.** Every acceptance criterion names its proof. `hivemill task lint T-1234` checks this, and `hivemill run` refuses a task that fails it. A criterion is a numbered item (`1.`, `2)`, `AC3.`) and its proof is one of:
    - `test:<unittest id or tests/ file>`, for example `test:test_option_b_runner.CriteriaTests` or `test:tests/test_x.py`. Python unittest only; other projects write `cmd:` proofs.
-   - `cmd:<command> => <expected>`, where the expectation is `exit N` (or just `N`), `empty`, or text the output must contain.
+   - `cmd:<command> => <expected>`, where the expectation is `exit N` (or `rc=N`) for the exit code, a bare number for the whole output (a count such as `grep -c`), `empty`, or text the output must contain.
    - `flow:<flow>`: reported to the judge, not re-run.
    - `manual:<why only the owner can check>`: allowed; the report flags the task "needs owner check".
 2. **Dispatch.** `hivemill run T-1234` starts that task. A plain `hivemill run` advances every active run and, when `projects` names projects, starts ready tasks from them (same order as lead-less dispatch: goal priority, task priority, id) up to `max_concurrent`. The task clone is a `--shared` clone of the project checkout under `worktrees/<goal>-<task>`, with origin set to the project's GitHub remote, the public-text pre-push hook installed and workspace trust pre-registered. The session is named `claude-coder-t-NNNN-a7`, because the unchanged worker guard derives the one branch a pane may push to from that name. It starts in an hc terminal pinned to the local core (`hc run --bg --on <core>`: an hc wrapper may otherwise place worker-named terminals on another machine, where the factory DB is not local), with an `env -i` spawn script and never `claude -p`, and with `--session-id <uuid>`; the id is written to the `agents` row (role `task`) and to `hm_sessions` before the first request. A SessionStart hook records any later id (`/clear`, resume), so every dollar of the session maps to the task.
 3. **Task session.** `roles/task.md` is its whole system prompt (no `_common.md`: the lead, inbox and director rules do not apply). The worker guard runs with `--role coder`, with the coder's deny list. It opens its PR with `factory pr create`. It waits for CI with one blocking `gh pr checks --watch` and never polls in a loop. It writes two files under `.hivemill/` in the clone, which git ignores through the clone's own `.git/info/exclude`:
    - `findings.json`: the `/code-review` findings mapped to [schemas/review-findings.schema.json](schemas/review-findings.schema.json), each with a resolution. The session is the adapter that maps `/code-review` output into this schema.
    - `evidence.json`: each criterion with its proof, the command run and its exit code.
-4. **Stop-hook gate** (`hivemill gate hook`). It runs in the clone and checks:
+4. **Stop-hook gate** (`hivemill gate hook`). While no PR exists yet, a stop is allowed without a block and is not counted: the session is mid-work, often waiting for a background `/code-review` that wakes it again. A session that then stays idle for 15 minutes with no passing gate is nudged once, and after a second idle spell the run is FAIL `stalled`. Once a PR exists, the gate runs. It runs in the clone and checks:
    - the tree is committed and the PR is open, with its head equal to the local HEAD;
    - the prcheck checks: fresh against main, noreply identity, PR body per [pr-descriptions.md](pr-descriptions.md) including the test-count drop rule, public text and scrub terms, and the affected tests (skipped for a docs-only T0 diff);
    - `findings.json` is valid and every finding has a resolution;
@@ -71,6 +71,14 @@ None of these guards changes a config key.
 | `judge_rounds_max` | `2` | judge REJECT rounds before FAIL |
 | `ci_rounds_max` | `3` | red-CI rounds before FAIL |
 | `auto_revert` | `off` | `on` turns on the mechanical revert |
+| `max_five_hour_pct` | `92` | a fresh (under 3 h old) plan 5-hour usage reading at or over this holds new runs; same file and meaning as the old pipeline (`~/.claude/usage-limits.json`) |
+| `max_seven_day_pct` | `95` | the same for the 7-day usage |
+| `mem_floor_mb` | `1024` | MemAvailable below this holds new runs |
+| `task_budget_usd` | `5` | a run whose sessions cost more at API prices is stopped and marked FAIL `budget: ...`; `off` = no cap |
+| `project_daily_budget_usd` | `off` | per project, sessions started today; once reached, no new run in that project and one `budget.reached` event |
+| `weekly_budget_usd` | `off` | all runs, sessions started in the last 7 days; once reached, no new run and one `budget.reached` event |
+
+The usage, memory and budget caps only hold new runs: active runs finish, except a run over `task_budget_usd`, which is stopped. A stale or missing usage reading does not hold. `hivemill report` starts with one line that shows every cap's current state, for example `usage 5h 42% / 7d 61% (caps 92%/95%), today $3.10 (cap $20.00 per project), 7d $9.80, task cap $5, mem 2.1 GB free (floor 1.0 GB)`.
 
 The settings files set the worker context caps from [token-discipline.md](token-discipline.md), `promptCacheTtl` and `subagentPromptCacheTtl` to `5m` (Claude Code 2.1.331 accepts `5m` or `1h`), and they disable the design, product-management, productivity, cowork and caveman plugins. They load no MCP servers. Fable is refused as a model.
 
@@ -88,7 +96,15 @@ hivemill merge T-1234 --dry-run     # print the merge input and decision
 hivemill report [--json]            # scoreboard
 ```
 
-Agents other than the director and the boss may only run `task lint` and `report`; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run. To run passes every minute, install the user timer `systemd/hivemill-run.timer` with its service (`systemctl --user enable --now hivemill-run.timer`).
+Agents other than the director and the boss may only run `task lint` and `report`; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run.
+
+## Running unattended
+
+The runner needs no open client: the owner's laptop can be closed, and the runner survives a reboot.
+
+- **Passes.** On Linux, the user units `systemd/hivemill-run.service` and `systemd/hivemill-run.timer` run `hivemill run` 60 s after the previous pass ends, and 2 minutes after boot. They are modelled on `factory-tick.timer`. Install them with `install -m 644 systemd/hivemill-run.* ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now hivemill-run.timer`. User lingering must be on (`loginctl enable-linger`), so the units run without a login session. Passes never overlap: the service is a oneshot (a timer does not start it again while it runs), and `hivemill run` also takes `state/hivemill/locks/pass.lock`, so a second pass started by hand exits at once. Logs: `journalctl --user -u hivemill-run.service`. Stop with `systemctl --user disable --now hivemill-run.timer`.
+- **macOS.** `launchd/hivemill.run.plist.in` is the matching launchd agent template (`StartInterval` 60, same `FactoryHome`, `Path` and `LogDir` fields as `hivemill.tick.plist.in`). It is not installed anywhere yet.
+- **Sessions.** Task and judge sessions are hc terminals started with `--no-parent` and pinned to the local hc core, which keeps running after logout. Nothing in a session depends on the client that started it: not an ssh session, not the Herdr app. Its env comes from the spawn script, its kickoff is typed in once, and its hooks run inside the session. Each pass reaches a session through the core (`hc ls`, `hc send`, `hc kill`).
 
 ## Event log and report
 
