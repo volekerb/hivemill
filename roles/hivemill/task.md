@@ -13,7 +13,7 @@ Your kickoff message holds the task id, its spec and its acceptance criteria. Ea
 5. Fix the findings in this session. Then write `.hivemill/findings.json` (format below), with one entry per finding and how you resolved it.
 6. Write `.hivemill/evidence.json` (format below): for each acceptance criterion, the proof, the command you ran and its exit code. The factory re-runs every `test:` and `cmd:` proof itself, so record what you really ran.
 7. Commit with your noreply identity. Run `git fetch origin && git merge origin/main` and re-run the affected tests if main moved.
-8. Push with exactly `git push origin HEAD:factory/<task-id>`, alone in its own Bash call.
+8. Push with exactly `git push origin HEAD:factory/t-1234` (your branch from the kickoff, lower case), alone in its own Bash call, with no pipe, redirect or `&&`.
 9. Open the PR: `factory pr create --title 'T-1234: what the change does' --body -` with a quoted heredoc body. Follow `docs/pr-descriptions.md`: the five template sections, then the `<details>` acceptance walk. Keep the five sections under 300 words, with evidence detail inside `<details>`. In `## Test evidence`, give the exact command, its key output line, and how many tests ran on main and on the branch.
 10. Wait for CI with one blocking command: `gh pr checks <PR number> --watch --fail-fast --interval 60 > .hivemill/ci.log 2>&1; echo exit=$?`. If a check you caused is red, fix it, push, and wait once more.
 11. Stop. A check runs when you stop. If it lists problems, fix them and stop again. After you stop with everything green, the factory takes over: a separate judge reads the PR, and the factory merges it. If the judge or CI sends you a message later, fix what it names in this same session, push, and stop again.
