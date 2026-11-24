@@ -321,8 +321,8 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	}
 	for _, ln := range strings.Split(logs, "\n") {
 		f := strings.Split(ln, "\t")
-		if len(f) == 3 && (!noreply(f[1]) || !(noreply(f[2]) || f[2] == "noreply@github.com")) {
-			add("identity", false, fmt.Sprintf("commit %.9s is not authored and committed with a noreply email", f[0]))
+		if len(f) == 3 && (!r.isNoreply(f[1]) || !r.isNoreply(f[2])) {
+			add("identity", false, fmt.Sprintf("commit %.9s is not authored and committed as %s", f[0], or(r.Store.FactoryCfg("noreply_email"), "a noreply address")))
 			break
 		}
 	}
@@ -371,6 +371,15 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	b, _ := json.MarshalIndent(rec, "", " ")
 	_ = os.WriteFile(filepath.Join(logdir, "gate.json"), b, 0o600)
 	return rec
+}
+
+// isNoreply: the email is the configured noreply_email (any GitHub noreply address when none is configured).
+func (r *Runner) isNoreply(email string) bool {
+	want := strings.ToLower(strings.TrimSpace(r.Store.FactoryCfg("noreply_email")))
+	if want == "" {
+		return noreply(email)
+	}
+	return strings.ToLower(strings.TrimSpace(email)) == want
 }
 
 func noreply(email string) bool {
