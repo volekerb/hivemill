@@ -21,6 +21,13 @@ var Defaults = map[string]string{
 	"judge_rounds_max": "2",                 // judge REJECT rounds before FAIL
 	"ci_rounds_max":    "3",                 // red-CI rounds sent back to the session before FAIL
 	"auto_revert":      "off",               // on: a runner merge that turns main red is reverted through a PR
+	// dispatch caps: active runs may finish; only new runs wait
+	"max_five_hour_pct":        "92",   // plan 5-hour usage at or over this (fresh reading) holds new runs
+	"max_seven_day_pct":        "95",   // plan 7-day usage at or over this holds new runs
+	"mem_floor_mb":             "1024", // MemAvailable below this holds new runs
+	"task_budget_usd":          "5",    // a run whose sessions cost more (API prices) is stopped and marked FAIL "budget"; off = none
+	"project_daily_budget_usd": "off",  // per project, sessions started today; reached = no new run in that project
+	"weekly_budget_usd":        "off",  // all runs, sessions started in the last 7 days; reached = no new run
 }
 
 // DefaultKeys returns the config keys, sorted.

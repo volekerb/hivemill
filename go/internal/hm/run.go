@@ -193,6 +193,10 @@ func (r *Runner) Start(id string) error {
 	if limit := cfgInt(r.Store, "max_concurrent"); r.activeCount() >= limit {
 		return fmt.Errorf("%w: max_concurrent=%d runs are active", ErrRefused, limit)
 	}
+	if why := r.ReadCaps(time.Now()).DispatchBlock(r.Store, t.Project); why != "" {
+		r.budgetEvent(why)
+		return fmt.Errorf("%w: %s", ErrRefused, why)
+	}
 	if live, _ := r.Store.OldPipelineLive(id); len(live) > 0 {
 		return fmt.Errorf("%w: %s has live agents of the old pipeline (%s); stop them first", ErrRefused, id, strings.Join(live, ", "))
 	}
@@ -395,6 +399,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		return "", err
 	}
 	defer func() { _ = r.Store.PutRun(run) }()
+	if Active(run.State) && run.State != Merging && r.overBudget(run) {
+		return run.State, nil
+	}
 	switch run.State {
 	case Working:
 		if !alive(list, listed, run.Agent) {
@@ -511,4 +518,23 @@ func (r *Runner) Status() error {
 			x.CIRounds, x.PRURL, hold)
 	}
 	return nil
+}
+
+// budgetEvent emits budget.reached once per reason and day.
+func (r *Runner) budgetEvent(why string) {
+	if !strings.HasPrefix(why, "budget:") {
+		return
+	}
+	dir := filepath.Join(r.Env.StateDir(), "locks")
+	_ = os.MkdirAll(dir, 0o700)
+	mark := filepath.Join(dir, "budget-"+time.Now().Format("2006-01-02"))
+	if b, _ := os.ReadFile(mark); strings.Contains(string(b), why[:min(len(why), 40)]) {
+		return
+	}
+	f, err := os.OpenFile(mark, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err == nil {
+		fmt.Fprintln(f, why)
+		f.Close()
+	}
+	_ = r.Log.Emit("budget.reached", nil, Event{Data: map[string]any{"why": why}})
 }

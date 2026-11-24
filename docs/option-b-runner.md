@@ -71,6 +71,14 @@ None of these guards changes a config key.
 | `judge_rounds_max` | `2` | judge REJECT rounds before FAIL |
 | `ci_rounds_max` | `3` | red-CI rounds before FAIL |
 | `auto_revert` | `off` | `on` turns on the mechanical revert |
+| `max_five_hour_pct` | `92` | a fresh (under 3 h old) plan 5-hour usage reading at or over this holds new runs; same file and meaning as the old pipeline (`~/.claude/usage-limits.json`) |
+| `max_seven_day_pct` | `95` | the same for the 7-day usage |
+| `mem_floor_mb` | `1024` | MemAvailable below this holds new runs |
+| `task_budget_usd` | `5` | a run whose sessions cost more at API prices is stopped and marked FAIL `budget: ...`; `off` = no cap |
+| `project_daily_budget_usd` | `off` | per project, sessions started today; once reached, no new run in that project and one `budget.reached` event |
+| `weekly_budget_usd` | `off` | all runs, sessions started in the last 7 days; once reached, no new run and one `budget.reached` event |
+
+The usage, memory and budget caps only hold new runs: active runs finish, except a run over `task_budget_usd`, which is stopped. A stale or missing usage reading does not hold. `hivemill report` starts with one line that shows every cap's current state, for example `usage 5h 42% / 7d 61% (caps 92%/95%), today $3.10 (cap $20.00 per project), 7d $9.80, task cap $5, mem 2.1 GB free (floor 1.0 GB)`.
 
 The settings files set the worker context caps from [token-discipline.md](token-discipline.md), `promptCacheTtl` and `subagentPromptCacheTtl` to `5m` (Claude Code 2.1.331 accepts `5m` or `1h`), and they disable the design, product-management, productivity, cowork and caveman plugins. They load no MCP servers. Fable is refused as a model.
 
