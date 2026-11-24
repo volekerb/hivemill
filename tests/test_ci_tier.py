@@ -22,7 +22,7 @@ import ci_tier  # noqa: E402
 TIER = str(ROOT / "ci" / "ci_tier.py")
 BIN_SRC = "def cmd_other():\n    return 1\n\n\ndef cmd_judge():\n    return 1\n\n\ndef judge_pick():\n    return 1\n\n\ndef gate_x():\n    return 1\n"
 
-_GUARD_JOB_IF = "    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}"
+_GUARD_JOB_IF = "if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}"  # deep run only (owner 2026-11-17)
 
 
 def docs_tier_job_skip_errors(text):

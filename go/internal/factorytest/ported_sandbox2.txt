@@ -1,0 +1,9 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# sandboxes part 2 (T-1682): 7 modules, 3064 Python file lines.
+tests/test_nsbox_allow.py 46 -> internal/factorytest/sandbox2:TestNsboxAllow 46
+tests/test_nsbox_resolv_keep.py 13 -> internal/factorytest/sandbox2:TestNsboxResolvKeep 13
+tests/test_ghcred.py 31 -> internal/factorytest/sandbox2:TestGhcred 31
+tests/test_worker_ghcred.py 22 -> internal/factorytest/sandbox2:TestWorkerGhcred 22
+tests/test_sandbox_spawn.py 58 -> internal/factorytest/sandbox2:TestSandboxSpawn 58
+tests/test_researcher_sandbox.py 16 -> internal/factorytest/sandbox2:TestResearcherSandbox 16
+tests/test_git_env_hermetic.py 31 -> internal/factorytest/sandbox2:TestGitEnvHermetic 31

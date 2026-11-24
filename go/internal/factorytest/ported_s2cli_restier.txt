@@ -1,0 +1,5 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# s2cli/restier batch (T-1529): Go ports of test_res_org, test_res_hq_cap, test_task_tier.
+tests/test_res_org.py 5 -> internal/factorytest/s2cli/restier:TestResOrg 5
+tests/test_res_hq_cap.py 2 -> internal/factorytest/s2cli/restier:TestResHqCap 2
+tests/test_task_tier.py 13 -> internal/factorytest/s2cli/restier:TestTaskTier 13

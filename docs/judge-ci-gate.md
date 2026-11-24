@@ -14,6 +14,10 @@ Config key `judge_ci_gate`: `pr` (default) or `none`. Set with `factory config j
 
 Why: the merge is protected after the fact by the main push run (below), not by the PR run.
 
+## judge_review_gate=green (G-005, T-1802)
+
+Config key `judge_review_gate`: `passpass` (default, everything above) or `green`. Owner decision M40731/M40734: merge green PRs without waiting for a reviewer/QA PASS. Rollback: `factory config judge_review_gate passpass`. In `green` mode `factory judge --merge`, `--train`, the mechanical merger and the judge autospawn accept a task when there is no reviewer or QA FAIL on the current head (a PASS, a missing verdict or a FAIL on an older head do not block) and the PR checks are green on that exact head. The checks are read even when `judge_ci_gate=none`; pending checks mean "not ready" (the judge waits `judge_ci_wait_s`, then refuses, with no code change). Every other gate stays: PR open and not a draft, mergeable and merge-tree clean, freshness and refresh rules, judge hold, `red_main_freeze`, project `auto_merge`, risk tiers and `main_landing`. The main push run is the safety net: a red main means bisect and revert. The Go port (P1k) must port this flag; the flag is off by default.
+
 ## Post-merge: red main
 
 With `red_main_freeze=1` the tick reads the latest completed `tests.yml` push run on main (`docs/red-main.md`). When it is red, the tick files **exactly one** P1 task per red run: `Red main: bisect + revert <repo> run <id>`. Its spec names the merge commits since the last green main so the coder can bisect them and revert the culprit. A repeat tick on the same red run files nothing; a new red run files a new task. The director is messaged once per run and merges freeze until main is green.
