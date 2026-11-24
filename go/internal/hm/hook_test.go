@@ -271,3 +271,18 @@ func TestHeldRunFinishesWhenTheOwnerMerges(t *testing.T) {
 		t.Errorf("legacy failed hold: %s", got.State)
 	}
 }
+
+func TestResumeArchivesFindings(t *testing.T) {
+	r, _ := testRunner(t, "")
+	wt := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(wt, ".hivemill"), 0o755)
+	_ = os.WriteFile(filepath.Join(wt, ".hivemill", "findings.json"), []byte(`{"findings": []}`), 0o600)
+	run := &Run{Task: "T-0001", Worktree: wt, Round: 1, Agent: "a"}
+	r.resume(run, "CI is red")
+	if _, err := os.Stat(filepath.Join(wt, ".hivemill", "findings.json")); err == nil {
+		t.Error("the old findings stay in place")
+	}
+	if _, err := os.Stat(filepath.Join(wt, ".hivemill", "findings-r1.json")); err != nil {
+		t.Error("the old findings are not kept as findings-r1.json")
+	}
+}

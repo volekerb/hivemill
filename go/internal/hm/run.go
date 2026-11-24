@@ -369,6 +369,12 @@ func (r *Runner) fail(run *Run, reason string) {
 
 // resume sends text to the same warm task session and starts a new round.
 func (r *Runner) resume(run *Run, text string) {
+	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
+	// are deferred until the session writes fresh findings.
+	if run.Worktree != "" {
+		dir := filepath.Join(run.Worktree, ".hivemill")
+		_ = os.Rename(filepath.Join(dir, "findings.json"), filepath.Join(dir, fmt.Sprintf("findings-r%d.json", run.Round)))
+	}
 	run.State, run.Round, run.GateBlocks = Working, run.Round+1, 0
 	run.RoundStart = nowISO()
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
