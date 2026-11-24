@@ -15,7 +15,7 @@ mem available <n> MB (floor 1) · swap used <n> MB · load 0.1/<n>
 tmp used 905 MB / 953 MB (95.0%) (gate closes at 90%)
 tmp sweep (over 80%): last 2026-11-11T20:00:00+00:00 freed 512 MB in 3 dirs
 claude processes 0/10 on host (factory 0 · other 0)
-claude usage 5h 0% · week 0% (stale: -1 min old)
+claude usage stale since never (no usage file)
 owner-only blockers: 1
   spawn gate closed: /tmp 905/953 MB used (95.0%) ≥ 90% (open 62 min)
 top memory:
