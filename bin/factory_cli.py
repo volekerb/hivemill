@@ -21428,8 +21428,19 @@ def fast_check_start(con, t, pr, clock):
         _review_wait(con, t, head, "ci", "fast lane: CI is not green on the head", clock)
         return "next"
     name = fastcheck_name(con, tid, head)
-    if fastcheck_verdicts(con, tid, head) or con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
+    if fastcheck_verdicts(con, tid, head):
         return "next"
+    rows = [con.execute("SELECT status FROM agents WHERE name=?", (n,)).fetchone() for n in (name, name + "-r2")]
+    rows = [r for r in rows if r]
+    if rows and rows[-1]["status"] in ("queued", "starting", "live"):
+        return "next"  # a fast check is running: the timeout pass bounds it
+    if rows:
+        # the check ended (dead, done, quota stop) with no verdict on this head: restart it once, then drop to the normal lane (AC3)
+        if len(rows) >= 2:
+            fast_lane_escalate(con, t, [f"fast check ended without a verdict on {head[:8]} (restart used): the normal lane reviews it"])
+            return "next"
+        event(con, "task", tid, "fast-check-restart", {"head": head[:8], "ended": rows[0]["status"]})
+        name += "-r2"
     if _review_hold(con, t, head, clock):
         _review_wait(con, t, head, "coder", "a coder agent of the task is queued, starting or live", clock)
         return "next"
