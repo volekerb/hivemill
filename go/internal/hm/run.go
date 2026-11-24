@@ -390,6 +390,11 @@ func (r *Runner) Pass(startNew bool) error {
 	if !startNew || r.Draining() {
 		return nil
 	}
+	if why := r.ReadCaps(time.Now()).DispatchBlock(r.Store, ""); why != "" {
+		r.budgetEvent(why)
+		r.printf("dispatch held: %s\n", why)
+		return nil
+	}
 	cands, err := r.Candidates()
 	if err != nil {
 		return err
@@ -538,13 +543,18 @@ func (r *Runner) Status() error {
 
 // budgetEvent emits budget.reached once per reason and day.
 func (r *Runner) budgetEvent(why string) {
-	if !strings.HasPrefix(why, "budget:") {
+	kind := "budget.reached"
+	switch {
+	case strings.HasPrefix(why, "budget:"):
+	case strings.HasPrefix(why, "usage unknown:"):
+		kind = "usage.unknown"
+	default:
 		return
 	}
 	dir := filepath.Join(r.Env.StateDir(), "locks")
 	_ = os.MkdirAll(dir, 0o700)
 	mark := filepath.Join(dir, "budget-"+time.Now().Format("2006-01-02"))
-	if b, _ := os.ReadFile(mark); strings.Contains(string(b), why[:min(len(why), 40)]) {
+	if b, _ := os.ReadFile(mark); strings.Contains(string(b), why[:min(len(why), 32)]) {
 		return
 	}
 	f, err := os.OpenFile(mark, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
@@ -552,7 +562,7 @@ func (r *Runner) budgetEvent(why string) {
 		fmt.Fprintln(f, why)
 		f.Close()
 	}
-	_ = r.Log.Emit("budget.reached", nil, Event{Data: map[string]any{"why": why}})
+	_ = r.Log.Emit(kind, nil, Event{Data: map[string]any{"why": why}})
 }
 
 // idleWatch nudges a task session that sits idle with no PR for 15 minutes (it stopped mid-work, e.g. while a

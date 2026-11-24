@@ -25,6 +25,8 @@ var Defaults = map[string]string{
 	"max_five_hour_pct":        "92",   // plan 5-hour usage at or over this (fresh reading) holds new runs
 	"max_seven_day_pct":        "95",   // plan 7-day usage at or over this holds new runs
 	"mem_floor_mb":             "1024", // MemAvailable below this holds new runs
+	"usage_max_age_s":          "600",  // a usage reading older than this is unknown: dispatch is held (fail closed)
+	"usage_require_5h":         "on",   // on: an empty 5-hour field is unknown and holds dispatch
 	"task_budget_usd":          "5",    // a run whose sessions cost more (API prices) is stopped and marked FAIL "budget"; off = none
 	"project_daily_budget_usd": "off",  // per project, sessions started today; reached = no new run in that project
 	"weekly_budget_usd":        "off",  // all runs, sessions started in the last 7 days; reached = no new run

@@ -15,8 +15,8 @@ import (
 // Usage is the plan usage the old pipeline's gate reads (~/.claude/usage-limits.json, written by the status line).
 type Usage struct {
 	FiveHour, SevenDay *float64
-	Fresh              bool // updated in the last 3 hours
-	AgeMin             int
+	Found              bool // the file exists and parses
+	AgeS               int  // seconds since updated_at; -1 unknown
 }
 
 func pctField(v any) *float64 {
@@ -38,20 +38,20 @@ func pctField(v any) *float64 {
 	return &f
 }
 
-// ReadUsage parses the usage file; a missing or unreadable file is not fresh (no data is not 0%).
+// ReadUsage parses the usage file the status line writes (the old pipeline's source). Claude Code puts
+// rate_limits.five_hour in the status line input only while the API reports a 5-hour window, so the field can be empty.
 func ReadUsage(userHome string, now time.Time) Usage {
 	b, err := os.ReadFile(filepath.Join(userHome, ".claude", "usage-limits.json"))
 	if err != nil {
-		return Usage{AgeMin: -1}
+		return Usage{AgeS: -1}
 	}
 	var m map[string]any
 	if json.Unmarshal(b, &m) != nil {
-		return Usage{AgeMin: -1}
+		return Usage{AgeS: -1}
 	}
-	u := Usage{FiveHour: pctField(m["five_hour_pct"]), SevenDay: pctField(m["seven_day_pct"]), AgeMin: -1}
+	u := Usage{FiveHour: pctField(m["five_hour_pct"]), SevenDay: pctField(m["seven_day_pct"]), Found: true, AgeS: -1}
 	if ts := pctField(m["updated_at"]); ts != nil {
-		age := now.Sub(time.Unix(int64(*ts), 0))
-		u.AgeMin, u.Fresh = int(age.Minutes()), age < 3*time.Hour
+		u.AgeS = int(now.Sub(time.Unix(int64(*ts), 0)).Seconds())
 	}
 	return u
 }
@@ -136,13 +136,14 @@ func (r *Runner) ReadCaps(now time.Time) Caps {
 
 // DispatchBlock says why no new run may start now ("" = it may). Active runs are never stopped by these caps.
 func (c Caps) DispatchBlock(s Store, project string) string {
-	if c.Usage.Fresh {
-		if f := c.Usage.FiveHour; f != nil && *f >= float64(cfgInt(s, "max_five_hour_pct")) {
-			return fmt.Sprintf("usage: 5h at %.0f%% (cap %s%%)", *f, s.Cfg("max_five_hour_pct"))
-		}
-		if f := c.Usage.SevenDay; f != nil && *f >= float64(cfgInt(s, "max_seven_day_pct")) {
-			return fmt.Sprintf("usage: 7d at %.0f%% (cap %s%%)", *f, s.Cfg("max_seven_day_pct"))
-		}
+	if why := c.UsageUnknown(s); why != "" {
+		return "usage unknown: " + why
+	}
+	if f := c.Usage.FiveHour; f != nil && *f >= float64(cfgInt(s, "max_five_hour_pct")) {
+		return fmt.Sprintf("usage: 5h at %.0f%% (cap %s%%)", *f, s.Cfg("max_five_hour_pct"))
+	}
+	if f := c.Usage.SevenDay; f != nil && *f >= float64(cfgInt(s, "max_seven_day_pct")) {
+		return fmt.Sprintf("usage: 7d at %.0f%% (cap %s%%)", *f, s.Cfg("max_seven_day_pct"))
 	}
 	if c.MemMB >= 0 && c.MemMB < c.MemMin {
 		return fmt.Sprintf("memory: %d MB available, floor %d MB", c.MemMB, c.MemMin)
@@ -166,8 +167,8 @@ func (c Caps) Header(s Store) string {
 	}
 	usage := fmt.Sprintf("usage 5h %s / 7d %s (caps %s%%/%s%%", pct(c.Usage.FiveHour), pct(c.Usage.SevenDay), s.Cfg("max_five_hour_pct"),
 		s.Cfg("max_seven_day_pct"))
-	if !c.Usage.Fresh {
-		usage += ", reading stale"
+	if why := c.UsageUnknown(s); why != "" {
+		usage += ", UNKNOWN: " + why + "; dispatch held"
 	}
 	usage += ")"
 	today := 0.0
@@ -213,4 +214,24 @@ func (r *Runner) overBudget(run *Run) bool {
 	}
 	r.fail(run, fmt.Sprintf("budget: sessions cost $%.2f, over task_budget_usd $%.2f", total, limit))
 	return true
+}
+
+// UsageUnknown says why the usage reading cannot be trusted ("" = it can). The gate fails closed: no reading, a reading
+// older than usage_max_age_s, an empty 7-day field, or an empty 5-hour field (unless usage_require_5h is off) holds
+// new runs.
+func (c Caps) UsageUnknown(s Store) string {
+	u := c.Usage
+	switch {
+	case !u.Found:
+		return "no usage reading (~/.claude/usage-limits.json is missing or unreadable)"
+	case u.AgeS < 0:
+		return "the usage reading has no updated_at"
+	case u.AgeS > cfgInt(s, "usage_max_age_s"):
+		return fmt.Sprintf("the usage reading is %ds old (usage_max_age_s %s)", u.AgeS, s.Cfg("usage_max_age_s"))
+	case u.SevenDay == nil:
+		return "the 7-day field is empty"
+	case u.FiveHour == nil && s.Cfg("usage_require_5h") != "off":
+		return "the 5-hour field is empty (the API reports no 5-hour window; usage_require_5h=off accepts that)"
+	}
+	return ""
 }
