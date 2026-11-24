@@ -1135,6 +1135,8 @@ class PlacementTests(FactoryTestCase):
         meminfo.write_text("MemAvailable: 8388608 kB\nSwapTotal: 4194304 kB\nSwapFree: 3145728 kB\n")
         pinned = {"FACTORY_MEMINFO": str(meminfo)}
         ours = self.ok("res", extra_env=pinned).stdout
+        # T-1823: the one intended difference is the new "daily cap:" line (origin/main has no such line)
+        ours = "".join(ln for ln in ours.splitlines(keepends=True) if not ln.startswith("daily cap:"))
         origin = Path(__file__).resolve().parent.parent / "bin" / "_factory_cli_origin_main.py"
         self.addCleanup(origin.unlink, missing_ok=True)
         body = subprocess.check_output(["git", "show", "origin/main:bin/factory_cli.py"],
