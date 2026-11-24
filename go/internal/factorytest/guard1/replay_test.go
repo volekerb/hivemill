@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -106,8 +107,81 @@ var builtDirs []string
 
 var slots = make(chan struct{}, 4)
 
+// updateRecorded regenerates the recorded stderr of every call whose exit code still matches but whose stderr differs:
+//
+//	cd go && go test -count=1 ./internal/factorytest/guard1/ -args -update-guard1
+//
+// The replay is hermetic (FACTORY_HOME is an empty temp dir, like CI), so the new text is what a DB-less box answers.
+// A call whose exit code differs is never rewritten; it still fails.
+var updateRecorded = flag.Bool("update-guard1", false, "rewrite the recorded stderr (exit code unchanged) of mismatching calls in testdata/*.json")
+
+type stderrUpdate struct {
+	id     string
+	call   int
+	stderr string
+}
+
+var (
+	updMu   sync.Mutex
+	updates = map[string][]stderrUpdate{} // module -> updates
+)
+
+// writeUpdates rewrites testdata/<module>.json with the new stderr values (all other fields kept).
+func writeUpdates() error {
+	for module, ups := range updates {
+		p := filepath.Join("testdata", module+".json")
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		var doc map[string][]map[string]json.RawMessage
+		if err := json.Unmarshal(b, &doc); err != nil {
+			return fmt.Errorf("parse %s: %w", p, err)
+		}
+		for _, u := range ups {
+			enc, err := json.Marshal(u.stderr)
+			if err != nil {
+				return err
+			}
+			doc[u.id][u.call]["stderr"] = enc
+		}
+		var buf bytes.Buffer
+		e := json.NewEncoder(&buf)
+		e.SetEscapeHTML(false)
+		if err := e.Encode(doc); err != nil {
+			return err
+		}
+		if err := os.WriteFile(p, buf.Bytes(), 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("guard1: updated %d recorded stderr in %s\n", len(ups), p)
+	}
+	return nil
+}
+
+// unsubst turns the fixture paths in s back into the tokens subst expands.
+func (w *world) unsubst(s string) string {
+	type pair struct{ tok, path string }
+	var ps []pair
+	for i, d := range w.dirs {
+		ps = append(ps, pair{fmt.Sprintf("@T%d@", i), d})
+	}
+	ps = append(ps, pair{"@ROOT@", w.root}, pair{"@PWHOME@", w.home})
+	sort.Slice(ps, func(i, j int) bool { return len(ps[i].path) > len(ps[j].path) })
+	for _, p := range ps {
+		s = strings.ReplaceAll(s, p.path, p.tok)
+	}
+	return s
+}
+
 func TestMain(m *testing.M) {
 	code := m.Run()
+	if *updateRecorded {
+		if err := writeUpdates(); err != nil {
+			fmt.Fprintln(os.Stderr, "guard1: update failed:", err)
+			code = 1
+		}
+	}
 	for _, d := range builtDirs {
 		os.RemoveAll(d)
 	}
@@ -256,6 +330,8 @@ func (w *world) environ(c call) []string {
 	}
 	// tests/_gitenv.py: no user or system git config leaks into a fixture repo
 	m["GIT_CONFIG_GLOBAL"], m["GIT_CONFIG_SYSTEM"], m["GIT_CONFIG_NOSYSTEM"] = os.DevNull, os.DevNull, "1"
+	// hermetic: an empty FACTORY_HOME, so no live DB (and no public-text config) changes an answer; a recorded Set wins
+	m["FACTORY_HOME"] = w.dir(-1)
 	for _, k := range c.Unset {
 		delete(m, k)
 	}
@@ -370,6 +446,12 @@ func replay(t *testing.T, module, id string, needPython bool) {
 		}
 		got := run(t, c.Argv, w.subst(c.Payload), env, dir)
 		want := result{rc: c.RC, stderr: w.subst(c.Stderr)}
+		if *updateRecorded && got != want && got.rc == want.rc {
+			updMu.Lock()
+			updates[module] = append(updates[module], stderrUpdate{id: id, call: i, stderr: w.unsubst(got.stderr)})
+			updMu.Unlock()
+			continue
+		}
 		if got != want && bad < 10 {
 			bad++
 			t.Errorf("call %d of %s: go guard differs from python guard\n  argv: %v\n  payload: %s\n  python: exit %d stderr %q\n  go:     exit %d stderr %q",
