@@ -440,10 +440,10 @@ func TestProcDirIgnoredOnLiveHome(t *testing.T) {
 	t.Setenv("FACTORY_AGENT", "")
 	procDirIgnored = false
 	t.Cleanup(func() { procDirIgnored = false })
-	if got := procRoot(r); got != "/proc" {
+	if got := reapProcRoot(r); got != "/proc" {
 		t.Errorf("a live home must ignore FACTORY_PROC_DIR, got %s", got)
 	}
-	procRoot(r)
+	reapProcRoot(r)
 	if n := scalar(t, r.DB, "SELECT count(*) FROM events WHERE action='proc-dir-ignored' AND entity_id='unknown'"); n != "1" {
 		t.Errorf("proc-dir-ignored events = %s, want 1 per process", n)
 	}
