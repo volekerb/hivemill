@@ -276,14 +276,11 @@ func (r *Runner) launchTask(run *Run, kickoff string) error {
 // Kickoff is the first message of a task session: the task itself, so the session needs no lookup.
 func Kickoff(run *Run, t *Task) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "You are `%s`, the factory task. Your task is %s: %s.\n\nSpec:\n%s\n\nAcceptance criteria (number. proof):\n",
+	fmt.Fprintf(&b, "You are `%s`, the factory task. Your task is %s: %s.\n\nSpec:\n%s\n\nAcceptance criteria (number. criterion, then its proof):\n",
 		run.Agent, t.ID, t.Title, strings.TrimSpace(t.Spec))
 	for _, c := range Criteria(t.Acceptance) {
-		fmt.Fprintf(&b, "%d. %s: %s", c.ID, c.Kind, c.Proof)
-		if c.Expect != "" {
-			fmt.Fprintf(&b, " => %s", c.Expect)
-		}
-		b.WriteString("\n")
+		// The whole criterion text, not only its proof: the text says what the proof must show (fixtures, exact strings).
+		fmt.Fprintf(&b, "%d. %s\n", c.ID, c.Text)
 	}
 	fmt.Fprintf(&b, "\nBranch %s, base %s. Follow your role steps; stop when the PR is open and CI is green.", run.Branch, run.Base)
 	return b.String()
