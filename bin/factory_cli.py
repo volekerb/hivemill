@@ -11521,7 +11521,14 @@ def _session_tokens(session):
 
 # ───────────────────────────── agents: spawn / done / list ─────────────────────────────
 
+def _hc_host(con):
+    """True when host IPC goes through hc, which has no workspace or tab verbs (#849)."""
+    return terminal_backend_effective(con)[1] == "hc"
+
+
 def ensure_hq(con):
+    if _hc_host(con):
+        return None  # hc agents are named terminals: there is no HQ workspace to create
     ws = herdr_workspaces()
     hq = con.execute("SELECT value FROM config WHERE key='hq_workspace'").fetchone()
     if hq and hq["value"] in ws:
@@ -11537,6 +11544,8 @@ def ensure_hq(con):
 
 def ensure_goal_ws(con, gid):
     g = con.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone() or die(f"no goal {gid}")
+    if _hc_host(con):
+        return None  # no workspace verbs on hc (#849)
     ws = herdr_workspaces()
     if g["workspace_id"] in ws:
         return g["workspace_id"]
@@ -17423,19 +17432,25 @@ def cmd_res(a):
 
 # ───────────────────────────── tick: the deterministic heartbeat ─────────────────────────────
 
-def tick_lock(busy_exit=0):
-    """Take the tick/up lock. Busy: exit 0 "skipping" (tick, up) or, with busy_exit set, die with that code (retry later)."""
+def tick_lock(busy_exit=0, wait_s=0):
+    """Take the tick/up lock. Busy: exit 0 "skipping" (tick, up) or, with busy_exit set, die with that code (retry later).
+    wait_s > 0 retries every second for that long first (`up` at boot races the first timer tick, #849)."""
     import fcntl
     RUN.mkdir(exist_ok=True)
     f = open(RUN / "tick.lock", "w")
-    try:
-        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        if busy_exit:
-            die("tick running, retry in a minute", busy_exit)
-        print("another tick/up is running; skipping")
-        sys.exit(0)
-    return f
+    deadline = time.time() + wait_s
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return f
+        except BlockingIOError:
+            if time.time() >= deadline:
+                break
+            time.sleep(1)
+    if busy_exit:
+        die("tick running, retry in a minute", busy_exit)
+    print("another tick/up is running; skipping")
+    sys.exit(0)
 
 
 def _fsync_path(path):
@@ -20178,9 +20193,12 @@ def cmd_export(a):
 
 # ───────────────────────────── up: rebuild after reboot ─────────────────────────────
 
+UP_LOCK_WAIT_S = 90  # boot: wait out the first tick instead of skipping the HQ start (#849)
+
+
 def cmd_up(a):
     refuse_worker("up")
-    lock = tick_lock()  # noqa: F841
+    lock = tick_lock(wait_s=UP_LOCK_WAIT_S)  # noqa: F841
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started

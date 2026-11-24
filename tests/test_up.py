@@ -4,6 +4,9 @@ from harness import FactoryTestCase
 class UpTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
+        self._seed()
+
+    def _seed(self):
         e = self.env
         e.seed_goal()
         e.seed_team(lead="zz-test-lead")
@@ -64,3 +67,42 @@ class UpTests(FactoryTestCase):
     def set_agents(self, *pairs):
         self.env.set_herdr(agents=[{"name": n, "agent": "claude", "pane_id": f"px{i}", "agent_status": "idle",
                                     "agent_session": {"value": s} if s else {}} for i, (n, s) in enumerate(pairs)])
+
+
+class UpHcBackendTests(FactoryTestCase):
+    """#849: `up` on the hc backend must not call workspace/tab verbs, and must wait out a running tick."""
+
+    _seed = UpTests._seed
+
+    def setUp(self):
+        super().setUp()
+        self._seed()
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+
+    def test_up_hc_does_not_need_workspace_verbs(self):
+        p = self.ok("up")
+        self.assertNotIn("no equivalent", p.stderr)
+        self.assertEqual([c for c in self.env.calls("hc") if c["argv"][:1] in (["workspace"], ["tab"])], [])
+
+    def test_ensure_hq_and_goal_ws_skip_on_hc(self):
+        with self.env.load_factory() as f:
+            con = f.db()
+            try:
+                self.assertIsNone(f.ensure_hq(con))
+                self.assertIsNone(f.ensure_goal_ws(con, "G-001"))
+            finally:
+                con.close()
+
+    def test_up_waits_for_a_running_tick(self):
+        import fcntl
+        import threading
+        import time
+        lock_path = self.env.home_dir / "run" / "tick.lock"
+        lock_path.parent.mkdir(exist_ok=True)
+        held = open(lock_path, "w")
+        fcntl.flock(held, fcntl.LOCK_EX)
+        threading.Timer(2, lambda: (fcntl.flock(held, fcntl.LOCK_UN), held.close())).start()
+        t0 = time.time()
+        p = self.ok("up")
+        self.assertNotIn("skipping", p.stdout)
+        self.assertGreaterEqual(time.time() - t0, 1)

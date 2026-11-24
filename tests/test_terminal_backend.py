@@ -62,6 +62,21 @@ class TerminalBackendTests(FactoryTestCase):
         p = self.ok("tick", agent="owner")
         self.assertNotIn("herdr unreachable", p.stdout)
 
+    def test_hc_backend_skips_workspace_and_tab_verbs(self):
+        """#849: hc has no workspace/tab verbs; HQ and goal-team start must not call them or die."""
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+        self.env.seed_goal()
+        f = _load_factory_cli()
+        self.assertIsNone(f._hc_translate_args(("workspace", "create", "--label", "HQ")))
+        with self.env.load_factory() as f:
+            con = f.db()
+            try:
+                self.assertIsNone(f.ensure_hq(con))
+                self.assertIsNone(f.ensure_goal_ws(con, "G-001"))
+            finally:
+                con.close()
+        self.assertEqual([c for c in self.env.calls("hc") if c["argv"][:1] in (["workspace"], ["tab"])], [])
+
     def test_hc_ls_envelope_parses_to_agent_rows(self):
         f = _load_factory_cli()
         env = json.dumps({"hidden_finished": 0, "terminals": [
