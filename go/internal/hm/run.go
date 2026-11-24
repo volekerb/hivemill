@@ -540,8 +540,7 @@ func (r *Runner) StopNote(task, note string) {
 	if strings.TrimSpace(note) == "" {
 		return
 	}
-	cmd := fmt.Sprintf("factory task note %s '%s'", task, note)
-	if rc, out := r.Tools.Sh(r.Env.Home, time.Minute, cleanEnv(), "bash", "-c", cmd); rc != 0 {
+	if rc, out := r.Tools.Sh(r.Env.Home, time.Minute, cleanEnv(), "factory", "task", "note", task, note); rc != 0 {
 		r.printf("warning: %s stopped, but the note was not recorded (exit %d): %s\n", task, rc, firstLine(out))
 	}
 }
