@@ -17042,6 +17042,36 @@ def tick_gate(con):
     # error runs of a head that still has a judge waiting are retried by gate_pr_ready (gate_retry_error)
 
 
+def gate_push_tick(con):
+    """T-1828: tick, projects with a gate_cmd only. (1) An in_review task whose PR head on origin has no gate_runs row yet gets
+    one queued run (gate_enqueue dedupes an active run of the PR; tick_gate launches it within gate_max_parallel). (2) A finished
+    run (pass/fail/error) gets one task note: result, full head sha, log path (once per run, throttle row gate-note:<run>).
+    Projects with an empty gate_cmd are untouched."""
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    batch = _RepoBatch()
+    for t in con.execute("SELECT * FROM tasks WHERE status='in_review' AND pr_url IS NOT NULL AND pr_url!='' AND branch IS NOT NULL "
+                         "AND branch!='' ORDER BY id").fetchall():
+        proj = gate_project_for(con, t["pr_url"])
+        if not proj:
+            continue
+        head = _review_head(con, t, batch)
+        if head and not gate_run_for_head(con, t["pr_url"], head):
+            rid = gate_enqueue(con, proj, t["pr_url"], head)
+            event_as(con, "tick", "task", t["id"], "note", f"local gate run #{rid} queued for head {head} (pushed)")
+    for r in con.execute("SELECT * FROM gate_runs WHERE kind='pr' AND task_id IS NOT NULL AND status IN ('pass','fail','error') "
+                         "ORDER BY id DESC LIMIT 50").fetchall():
+        key = f"gate-note:{r['id']}"
+        if _throttled(con, key, clock, float("inf")):
+            continue
+        _throttle_set(con, key, clock)
+        event_as(con, "tick", "task", r["task_id"], "note",
+                 f"local gate {r['status'].upper()} on head {r['head_sha'] or '?'} (run #{r['id']}); log {r['log_path'] or '-'}"
+                 + (f"; {r['note']}" if r["note"] and r["status"] != "pass" else ""))
+
+
 def gate_pr_ready(con, proj, pr_url, behind_ok=False):
     """judge_pr_ready for a local-mode project: (ready, why) from gate_runs of the PR's current head."""
     try:
@@ -18878,6 +18908,10 @@ def _tick_u_stop_fallback(con, st):
 
 def _tick_u_gate(con, st):
         # 1c''. local merge gate (T-0516): launch the queued gate runs within gate_max_parallel
+        try:
+            gate_push_tick(con)
+        except Exception as e:  # noqa: BLE001 — the push pass must not stop the launch pass
+            event(con, "tick", "gate", "gate-tick-error", f"push: {e}"[:300])
         try:
             tick_gate(con)
         except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
@@ -20992,7 +21026,7 @@ def review_rerun_tick(con):
         sha = pr["headRefOid"]
         if _review_head_done(con, tid, sha, clock):
             continue
-        if ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        if ci_verdict(pr.get("statusCheckRollup"))[0] != "green" and not gate_project_for(con, t["pr_url"]):  # T-1828: gate_cmd set = no wait for GitHub checks
             _review_wait(con, t, sha, "ci", "CI is not green on the new head", clock)
             continue
         if _review_hold(con, t, sha, clock):
@@ -21076,7 +21110,7 @@ def review_autospawn_tick(con):
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _review_head(con, t, batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
-        if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green" and not gate_project_for(con, t["pr_url"]):  # T-1828: gate_cmd set = no wait
             _review_wait(con, t, pr["headRefOid"], "ci", "CI is not green on the head (coder_ci_handoff waits for green)", clock)
             continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
         if _review_hold(con, t, pr["headRefOid"], clock):
