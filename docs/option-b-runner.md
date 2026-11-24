@@ -23,7 +23,7 @@ hivemill run T-1234
   main red on that merge (auto_revert=on) → revert PR, named the red-main fix task, merged on green
 ```
 
-1. **Spec gate.** Every acceptance criterion names its proof. `hivemill task lint T-1234` checks this, and `hivemill run` refuses a task that fails it. A criterion is a numbered item (`1.`, `2)`, `AC3.`) and its proof is one of:
+1. **Spec gate.** Every acceptance criterion names its proof. `hivemill task lint T-1234` checks this, and `hivemill run` refuses a task that fails it. A criterion is a numbered item (`1.`, `2)`, `AC3.`). A number at the start of a line always starts one; a number inside a line starts one only when it is the next in sequence, so prose such as `(exit 3) naming` stays in its criterion. Its proof is one of:
    - `test:<unittest id or tests/ file>`, for example `test:test_option_b_runner.CriteriaTests` or `test:tests/test_x.py`. Python unittest only; other projects write `cmd:` proofs.
    - `cmd:<command> => <expected>`, where the expectation is `exit N` (or `rc=N`) for the exit code, a bare number for the whole output (a count such as `grep -c`), `empty`, or text the output must contain.
    - `flow:<flow>`: reported to the judge, not re-run.
@@ -181,6 +181,16 @@ To upgrade:
 - Runs are claimed through leases with an expiry. A worker that dies loses its lease, and another worker reconciles the run.
 - One leader lock (an advisory lock) for the scheduling pass.
 - Workers pull work: each machine runs a worker that claims runs and hosts their sessions, instead of one host pushing work out.
+
+## Eval mode
+
+`hivemill eval T-1234 [--judge-only]` measures how well the layers catch a known defect. It runs on a task whose branch is already pushed with the change and has an open **draft** PR (the operator prepares both), and it never merges:
+- an eval run ends at its first verdict (state `evaluated`) and never enters `merging`; `Merge` refuses it, and a PR merged outside the runner fails the run;
+- the judge's verdict is kept in the run and the event log only, never as a `verdicts` row, so no other merger can read it;
+- `--judge-only` starts no task session. The runner gates the prepared head itself (the gate checks without the session's findings, review and evidence duties, and every `test:`/`cmd:` proof re-run), waits for CI to finish, green or red, and starts a fresh judge on it. It leaves the PR open and `.hivemill/` empty for a full run.
+- without `--judge-only`, a task session starts on the prepared head with a kickoff that reads like a resumed task: the change is committed, continue with the review. Then the usual gate, CI rounds and judge follow. At the end the PR gets the `eval` label, is closed and its branch deleted.
+
+Each run writes one `eval.done` event (mode, outcome, gate problems, review findings, verdict and reasons, CI rounds) and `eval.gate` for a judge-only gate. `hivemill report` lists eval runs apart and leaves them out of the totals. The expected answer for a case is kept outside the factory home, because every session can read the factory home.
 
 ## Event log and report
 

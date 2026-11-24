@@ -65,5 +65,23 @@ func TestKickoffCarriesCriterionText(t *testing.T) {
 		Acceptance: "1. start ctx is 33000 for a transcript with cache read 30000 - cmd:go test -run TestStartCtx => ok"})
 	if !strings.Contains(k, "start ctx is 33000") || !strings.Contains(k, "cmd:go test -run TestStartCtx => ok") {
 		t.Errorf("kickoff lost the criterion text or its proof: %q", k)
+func TestCriteriaProseNumbers(t *testing.T) {
+	// From the pilot-2 backlog: a number in parentheses inside a criterion is prose, not a new criterion.
+	in := "5. done path - a test of `factory done` with mode enforce -> done refused (exit 3) naming checklist; " +
+		"with mode observe -> accepted cmd:true => exit 0\n6. docs - cmd:grep -c x y => 1\n" +
+		"7. start ctx (input 1000, cache read 30000, cache write 2000) gives 33000 cmd:true => exit 0"
+	c := Criteria(in)
+	if len(c) != 3 || c[0].ID != 5 || c[1].ID != 6 || c[2].ID != 7 {
+		t.Fatalf("got %+v", c)
+	}
+	if p := LintProblems(in); len(p) != 0 {
+		t.Errorf("lint %v", p)
+	}
+	if !strings.Contains(c[0].Text, "(exit 3) naming") {
+		t.Errorf("prose lost: %q", c[0].Text)
+	}
+	// A duplicate number at the start of a line is still reported.
+	if p := LintProblems("1. a cmd:true => 0\n2. b cmd:true => 0\n2. c cmd:true => 0"); len(p) == 0 {
+		t.Error("line-start duplicate not reported")
 	}
 }
