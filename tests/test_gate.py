@@ -1385,5 +1385,89 @@ class PlacementTests(FactoryTestCase):
         self.assertEqual(stats["placement"]["machines"]["hqhost"]["workers"], 0)
 
 
+class DailyCapTests(FactoryTestCase):
+    """T-1823 (owner M41393): max_day_pct closes the spawn gate when weekly usage rose more than that since day_start_hour."""
+
+    DAY1 = {"FACTORY_NOW": "2026-06-10T09:00:00"}
+    LATER = {"FACTORY_NOW": "2026-06-10T15:00:00"}
+    NEXT = {"FACTORY_NOW": "2026-06-11T08:30:00"}
+
+    def setUp(self):
+        super().setUp()
+        self.env.seed_goal()
+        self.env.seed_task(status="todo", pr_url=None)
+
+    def res(self, now):
+        return self.ok("res", extra_env=now).stdout
+
+    def spawn(self, now, name):
+        return self.env.run("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", name, extra_env=now)
+
+    def test_key_empty_gate_unaffected(self):
+        self.assertEqual(self.ok("config", "max_day_pct").stdout.strip(), "")
+        self.env.write_usage(seven_day=30)
+        self.res(self.DAY1)
+        self.env.write_usage(seven_day=80)
+        out = self.res(self.LATER)
+        self.assertIn("spawn gate: OPEN", out)
+        self.assertIn("daily cap: off", out)
+
+    def test_open_at_39_closed_at_41_with_reason(self):
+        self.ok("config", "max_day_pct", "10")
+        self.env.write_usage(seven_day=30)
+        self.assertIn("daily cap: used 0% of max_day_pct 10% since 2026-06-10 08:00 (gate open)", self.res(self.DAY1))
+        self.env.write_usage(seven_day=39)
+        out = self.res(self.LATER)
+        self.assertIn("spawn gate: OPEN", out)
+        self.assertIn("daily cap: used 9% of max_day_pct 10% since 2026-06-10 08:00 (gate open)", out)
+        self.env.write_usage(seven_day=41)
+        out = self.res(self.LATER)
+        self.assertIn("spawn gate: CLOSED — daily usage cap", out)
+        self.assertIn("max_day_pct 10%", out)
+        self.assertIn("daily cap: used 11% of max_day_pct 10% since 2026-06-10 08:00 (gate closed)", out)
+        p = self.spawn(self.LATER, "zz-day-c1")
+        self.assertIn("QUEUED", p.stdout)
+        self.assertIn("max_day_pct", p.stdout)
+
+    def test_rollover_at_day_start_resets_baseline(self):
+        self.ok("config", "max_day_pct", "10")
+        self.env.write_usage(seven_day=30)
+        self.res(self.DAY1)
+        self.env.write_usage(seven_day=41)
+        self.assertIn("CLOSED", self.res(self.LATER))
+        out = self.res({"FACTORY_NOW": "2026-06-11T07:59:00"})  # before day start: still yesterday's baseline
+        self.assertIn("since 2026-06-10 08:00 (gate closed)", out)
+        out = self.res(self.NEXT)  # 08:30 next day: new baseline 41
+        self.assertIn("spawn gate: OPEN", out)
+        self.assertIn("daily cap: used 0% of max_day_pct 10% since 2026-06-11 08:00 (gate open)", out)
+
+    def test_stale_reading_never_sets_a_baseline(self):
+        self.ok("config", "max_day_pct", "10")
+        self.env.write_usage(seven_day=30, age_s=99999)
+        out = self.res(self.DAY1)
+        self.assertIn("daily cap: used n/a of max_day_pct 10%", out)
+        self.assertEqual(self.env.sql("SELECT ts FROM throttle WHERE key='day-usage-baseline'"), [])
+
+    def test_weekly_reset_lowers_baseline(self):
+        self.ok("config", "max_day_pct", "10")
+        self.env.write_usage(seven_day=90)
+        self.res(self.DAY1)
+        self.env.write_usage(seven_day=3)  # the weekly window reset
+        self.assertIn("used 0% of max_day_pct", self.res(self.LATER))
+
+    def test_agent_cannot_set_key_owner_and_director_can(self):
+        self.env.seed_agent("zz-day-coder", "coder", goal="G-001", task="T-0001")
+        p = self.env.run("config", "max_day_pct", "50", agent="zz-day-coder")
+        self.assertNotEqual(p.returncode, 0, p.stdout)
+        self.assertEqual(self.ok("config", "max_day_pct").stdout.strip(), "")
+        self.ok("config", "max_day_pct", "10", agent="owner")
+        self.assertEqual(self.ok("config", "max_day_pct").stdout.strip(), "10")
+
+    def test_bad_value_refused(self):
+        for bad in ("abc", "0", "-5", "150", "nan"):
+            self.refused(2, "config", "max_day_pct", bad)
+        self.ok("config", "max_day_pct", "")
+
+
 if __name__ == "__main__":
     unittest.main()

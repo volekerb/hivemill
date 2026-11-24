@@ -612,6 +612,15 @@
   "current": "4"
  },
  {
+  "key": "max_day_pct",
+  "kind": "setting",
+  "default": "",
+  "summary": "owner daily usage cap: the gate closes when weekly usage rose more than this many points since day_start_hour (empty = off)",
+  "goal": "G-064",
+  "doc": "docs/daily-usage-cap.md",
+  "current": ""
+ },
+ {
   "key": "max_seven_day_pct",
   "kind": "setting",
   "default": "92",

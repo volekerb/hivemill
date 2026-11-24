@@ -20,7 +20,7 @@ import (
 // sbOwnerCapKeys is OWNER_CAP_KEYS (Python line 132).
 var sbOwnerCapKeys = []string{"max_live_agents", "max_total_claude", "min_mem_available_mb", "max_five_hour_pct",
 	"max_seven_day_pct", "gate_max_load_ratio", "tmp_max_pct", "max_live_leads", "reserved_worker_slots", "lead_parking",
-	"max_live_judges"}
+	"max_live_judges", "max_day_pct"}
 
 // sbWorkerRoles is WORKER_ROLES (Python line 729).
 var sbWorkerRoles = []string{"cleaner", "coder", "evaluator", "judge", "pm", "qa", "researcher", "retro", "reviewer",

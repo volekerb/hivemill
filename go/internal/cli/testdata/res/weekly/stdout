@@ -15,6 +15,7 @@ tmp used 95 MB / 953 MB (10.0%) (gate closes at 90%)
 tmp sweep (over 80%): never swept
 claude processes 0/10 on host (factory 0 · other 0)
 claude usage 5h 12% · week 99%
+daily cap: off (max_day_pct empty)
 owner-only blockers: 0
 top memory:
     793 MB  /usr/bin/claude --session-id s-1
