@@ -322,6 +322,17 @@ func TestRoleFromKickoff(t *testing.T) {
 	})
 }
 
+func TestRoleFromKickoffOptionB(t *testing.T) {
+	for kickoff, want := range map[string]string{
+		"You are `claude-coder-t-1841-a7`, the factory task.":       "task",
+		"You are `claude-judge-t-1841-a7`, the factory task-judge.": "task-judge",
+	} {
+		if got := RoleFromKickoff(kickoff); got != want {
+			t.Errorf("RoleFromKickoff(%q) = %q, want %q", kickoff, got, want)
+		}
+	}
+}
+
 func TestRoleSubagentTakesParent(t *testing.T) {
 	root := t.TempDir()
 	m := "claude-sonnet-5-5"
