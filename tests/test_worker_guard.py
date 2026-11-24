@@ -383,7 +383,10 @@ class WorkerGuardTests(unittest.TestCase):
             if role in NON_WORKERS:  # HQ roles run only the PRIV rule (T-0057): --hq, no --role
                 cmds = [h["command"] for g in s["hooks"]["PreToolUse"] for h in g["hooks"]]
                 self.assertEqual(len(cmds), 1, role)
-                self.assertEqual(shlex.split(cmds[0])[-2:], [LIVE_HOOK, "--hq"], role)
+                # T-1803: the boss hook adds --role boss after --hq (hq_deny_hit needs the role)
+                tail = ["--hq", "--role", "boss"] if role == "boss" else ["--hq"]
+                argv = shlex.split(cmds[0])
+                self.assertEqual(argv[-len(tail) - 1:], [LIVE_HOOK] + tail, role)
                 if role == "boss":  # boss also has the inbox UserPromptSubmit hook (T-0093)
                     self.assertIn("UserPromptSubmit", s["hooks"], role)
                 continue

@@ -169,7 +169,7 @@ func (f *fakeHost) Run(argv []string, cwd string, timeout time.Duration, mutate 
 		return 0, ""
 	case name == "herdr" && len(argv) == 3 && argv[1] == "workspace":
 		return 0, "ok"
-	case name == "factory" || name == "bash" || name == "systemctl" || name == "loginctl":
+	case name == "factory" || name == "bash" || name == "systemctl" || name == "loginctl" || name == "launchctl":
 		return 0, ""
 	}
 	return 127, "not found: " + joined

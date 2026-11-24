@@ -28,6 +28,10 @@ DOC_DIFF_BASENAMES = (
     "test_guard_diff.py",
     "test_worker_guard_public_text.py",
 )
+# Exact duplicate of the unittest-shard run: ci/guard_diff.py ignores GUARD_IMPL (T-1541 F4, G-050 R1).
+DIFF_EXCLUDED_IDS = (
+    "test_guard_diff.CorpusSanityTests.test_real_corpus_against_origin_main_hook_is_clean",
+)
 
 
 def _load_coverage():
@@ -124,12 +128,13 @@ def _is_module_skipped_placeholder(t):
     return cls.__name__ == "ModuleSkipped" and cls.__module__ == unittest.loader.__name__
 
 
-def collect_ids(names, tests_dir=TESTS):
+def collect_ids(names, tests_dir=TESTS, excluded=DIFF_EXCLUDED_IDS):
     """Load every module in `names`; return (sorted test ids, id -> test, problems).
 
     problems lists loader errors, _FailedTest ids (a module that fails to import) and modules that yield no test, so an
     import failure can never shrink the id set unnoticed (T-1039). Import-time SkipTest becomes unittest.loader.ModuleSkipped;
     that is a problem: the shard must not green with real ids missing (T-1172). Loading puts tests_dir on sys.path, as discover does.
+    `excluded` ids whose module is in `names` are dropped from the result; one that is not loaded is a problem (stale after a rename, G-050 R1).
     """
     problems, tests = [], []
     for base in names:
@@ -156,6 +161,13 @@ def collect_ids(names, tests_dir=TESTS):
         if t.id() in by_id:
             problems.append("duplicate test id %s" % t.id())
         by_id[t.id()] = t
+    for ex in excluded:
+        if ex.split(".", 1)[0] + ".py" not in names:
+            continue
+        if ex in by_id:
+            del by_id[ex]
+        else:
+            problems.append("excluded test id not found (renamed or removed? update DIFF_EXCLUDED_IDS): %s" % ex)
     return sorted(by_id), by_id, problems
 
 

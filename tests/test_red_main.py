@@ -71,9 +71,12 @@ class RedMainTests(FactoryTestCase):
         mail = self.director_mail()
         self.assertEqual(len(mail), 1, mail)
         self.assertIn("901", mail[0]["subject"])
-        tasks = self.env.sql("SELECT id, title, goal_id FROM tasks WHERE title LIKE 'Red main:%'")
+        tasks = self.env.sql("SELECT id, title, goal_id, priority FROM tasks WHERE title LIKE 'Red main:%'")
         self.assertEqual(len(tasks), 1, tasks)
         self.assertIn("run 901", tasks[0]["title"])
+        # T-1772: exactly one P1 bisect + revert task per red run
+        self.assertIn("bisect + revert", tasks[0]["title"])
+        self.assertEqual(tasks[0]["priority"], 1)
 
     def test_green_run_clears_freeze(self):
         self.ok("config", "red_main_freeze", "1")

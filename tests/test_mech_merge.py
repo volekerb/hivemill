@@ -273,6 +273,44 @@ class MechMergeTests(FactoryTestCase):
         self.assertIn("main and the PR both changed base.txt", self.events("mech-blocked")[0])
         self.assertEqual(self.events("refreshed"), [])
 
+    def test_no_refresh_rule_merges_behind_head_with_event(self):
+        # T-1676 AC2 through mech_try: BEHIND, CI green, PASS on the head, clean merge-tree, no shared file, MERGEABLE
+        self._behind_ok_main_moves("main.txt")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        calls = self.merges()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][calls[0].index("--match-head-commit") + 1], self.x)
+        self.assertEqual(self.status(), "done")
+        [ev] = [json.loads(d) for d in self.events("merged-no-refresh")]
+        self.assertEqual(ev["head"], self.x)
+        self.assertIn("CI green on the head", ev["reasons"])
+        self.assertEqual(self.events("refreshed"), [])
+
+    def test_no_refresh_rule_shared_file_blocks_before_the_gate(self):
+        # the rule says refresh: the merger refuses STALE-ONLY itself (never refreshes) and the judge takes it
+        self.commit("base.txt", "base\nPR\n", "pr edits base")
+        self.x = self.publish()
+        self.stub(views=[self.pr(self.x, GREEN)])
+        for agent, summary in (("zz-test-reviewer", "ok"), ("zz-test-qa", gates_summary())):
+            self.assertEqual(self.cli("verdict", "T-0001", "--pass", "--summary", summary, agent=agent).returncode, 0)
+        self._behind_ok_main_moves("base.txt", "MAIN\nbase\n")
+        self.mech("on")
+        [blocked] = self.events("mech-blocked")
+        self.assertIn("STALE-ONLY", blocked)
+        self.assertIn("main and the PR both changed base.txt", blocked)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.events("merged-no-refresh"), [])
+        self.assertEqual(self.events("refreshed"), [])
+
+    def test_no_refresh_rule_off_merges_as_before_without_event(self):
+        self._behind_ok_main_moves("main.txt")
+        self.ok("config", "stale_no_refresh", "off")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.events("merged-no-refresh"), [])
+
     def _judge_candidates(self):
         with self.env.load_factory() as f:
             con = f.db()
@@ -763,6 +801,68 @@ class MechMergeTests(FactoryTestCase):
         self.assertIn("MERGED-TREE:", blocked[0])
         self.assertEqual(self.env.sql("SELECT action FROM events WHERE action='refreshed'"), [])
 
+    # -- T-1611 fix-carry: the mechanical merger reads the same helper as the judge ---------------------------
+    def _fix_round(self, lines):
+        """reviewer FAIL @X, qa PASS @X, then one `lines`-line fix -> Y with a reviewer PASS @Y; returns Y."""
+        self.env.sql("DELETE FROM verdicts")
+        for role, v, sha in (("reviewer", "fail", self.x), ("qa", "pass", self.x)):
+            self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+                         ("T-0001", PR_URL, sha, role, v, "zz-test", "zz-test-" + role, "t"))
+        self.commit("fix.py", "".join(f"v{i} = {i}\n" for i in range(lines)), "fix")
+        y = self.publish()
+        self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+                     ("T-0001", PR_URL, y, "reviewer", "pass", "zz-test", "zz-test-reviewer", "t"))
+        self.stub(views=[self.pr(y, GREEN)])
+        return y
+
+    def test_fix_carry_mech_merges_a_small_fix(self):
+        y = self._fix_round(40)
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1, p.stdout)
+        self.assertEqual(self.status(), "done")
+        ev = [json.loads(d) for d in self.events("verdict-carried-fix")]
+        self.assertEqual([(e["role"], e["from"], e["to"], e["lines"], e["failed_role"]) for e in ev],
+                         [("qa", self.x, y, 40, "reviewer")])
+
+    def test_fix_carry_mech_holds_a_large_fix(self):
+        self._fix_round(300)
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertIn("fix-carry refused: 300 lines > 150", "; ".join(self.events("mech-blocked")))
+        self.assertEqual(self.events("verdict-carried-fix"), [])
+
+    def test_fix_carry_off_mech_holds_a_small_fix(self):
+        self._fix_round(40)
+        self.ok("config", "fix_carry", "off")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertNotIn("fix-carry", "; ".join(self.events("mech-blocked")))
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RunnerManagedTests(FactoryTestCase):
+    """Option B (docs/option-b-runner.md): a task owned by the Go runner (agents role task / task-judge) is skipped by the
+    old pipeline: review/judge autospawn, the tick's mechanical merger and coder CI resume."""
+
+    def test_runner_task_is_left_alone(self):
+        self.env.seed_goal()
+        self.env.seed_task("T-0001", status="in_review")
+        self.env.seed_task("T-0002", status="in_review", pr_url="https://github.com/zz-test/repo/pull/2")
+        self.env.seed_agent("claude-task-t-0001", "task", task="T-0001")
+        with self.env.load_factory() as f:
+            con = f.db()
+            t1 = con.execute("SELECT * FROM tasks WHERE id='T-0001'").fetchone()
+            t2 = con.execute("SELECT * FROM tasks WHERE id='T-0002'").fetchone()
+            self.assertTrue(f.runner_managed(con, "T-0001"))
+            self.assertFalse(f.runner_managed(con, "T-0002"))
+            self.assertIn("runner-managed", f.autospawn_block_reason(con, t1))
+            self.assertIsNone(f.autospawn_block_reason(con, t2))
+            self.assertNotIn("T-0001", [t["id"] for t in f.mech_candidates(con)])

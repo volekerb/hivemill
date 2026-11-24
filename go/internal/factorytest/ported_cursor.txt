@@ -1,0 +1,13 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# cursor harness batch (T-1686, plan P6f-8): 10 modules, 1925 Python file lines, 98 cases (counts from
+# `python3 -m unittest -v` on origin/main 2026-11-17). Python modules stay as parity oracles.
+tests/test_cursor_attribution.py 1 -> internal/factorytest/cursor:TestCursorAttribution 1
+tests/test_cursor_mcp.py 11 -> internal/factorytest/cursor:TestCursorMcp 11
+tests/test_cursor_pilot.py 18 -> internal/factorytest/cursor:TestCursorPilot 18
+tests/test_cursor_policy_outside_git.py 14 -> internal/factorytest/cursor:TestCursorOutsideGit 14
+tests/test_cursor_proc_gate.py 12 -> internal/factorytest/cursor:TestCursorProcGate 12
+tests/test_cursor_workspace.py 11 -> internal/factorytest/cursor:TestCursorWorkspace 11
+tests/test_cursor_worktree_policy.py 7 -> internal/factorytest/cursor:TestCursorWorktreePolicy 7
+tests/test_ci_cursor_guard.py 7 -> internal/factorytest/cursor:TestCiCursorGuard 7
+tests/test_spawn_strict_mcp.py 6 -> internal/factorytest/cursor:TestSpawnStrictMcp 6
+tests/test_herdr_app_dashboard.py 11 -> internal/factorytest/cursor:TestHerdrAppDashboard 11

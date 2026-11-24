@@ -108,8 +108,8 @@ ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "
 # Opus for judgement-heavy roles, Sonnet for builders. Never Fable (owner rule).
 MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
-    "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-    "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
+    "pm": "claude-sonnet-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-sonnet-5-5",
+    "staff-engineer": "claude-opus-5-5", "researcher": "claude-sonnet-5-5",
     "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "retro": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
@@ -141,7 +141,20 @@ GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled
 
 DEFAULT_CONFIG = {
     "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
+    "model_boss": "",         # G-064 SC3: model_<role>, "" = the MODELS table; else opus/sonnet/haiku 5.5 (docs/model-routing.md)
+    "model_director": "",
+    "model_lead": "",
+    "model_pm": "",
+    "model_coder": "",
+    "model_qa": "",
+    "model_reviewer": "",
+    "model_judge": "",
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
+    "model_staff-engineer": "",
+    "model_researcher": "",
+    "model_scout": "",
+    "model_retro": "",
+    "model_evaluator": "",
     "cli_impl": "python",        # G-041: python | go | shadow; run/cli_impl is rewritten from this (docs/cli-go.md); director-only
     "tick_impl": "python",       # G-041: python | go; routes factory tick (docs/cli-go.md); director-only; factory up stays Python
     "cli_go_cmds": "",           # G-041: comma list of subcommands bin/factory may hand to factory-go (Go registry words; empty = none)
@@ -156,6 +169,7 @@ DEFAULT_CONFIG = {
     "test_slots": "2",           # host-wide full-suite slots (tests/_slot.py); `factory res` shows how many are held
     "min_mem_available_mb": "1024",
     "ci_wake_workers": "4",      # tick_ci_wake runs its gh pr view probes in this many threads (1 = serial)
+    "gh_call_trace": "off",      # off | on: every gh call of this process appends one JSON line (caller, subcommand, GraphQL estimate) to $FACTORY_HOME/logs/gh-calls.jsonl (T-1677, docs/gh-quota.md)
     "pr_view_ttl_s": "120",      # tick probes (ci wake, red PR alert, review autospawn) reuse one `gh pr view` per PR for this long; 0 = off (T-1014, docs/gh-quota.md)
     "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
     "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
@@ -167,6 +181,7 @@ DEFAULT_CONFIG = {
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
     # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
     "stale_policy": "behind_ok",
+    "stale_no_refresh": "on",    # T-1676 (owner 2026-11-17): on = a BEHIND head with CI green, reviewer+QA PASS, clean merge-tree, no shared file and MERGEABLE merges without a refresh; off = rollback (docs/stale-policy.md)
     "refresh_lane": "off",       # G-022: on = only the head of the merge queue (the oldest BEHIND judge row) is refreshed; the rest hold as 'lane: position N' (docs/refresh-lane.md)
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
@@ -175,8 +190,10 @@ DEFAULT_CONFIG = {
     "coder_ci_handoff": "off",   # off | resume | fresh: coder runs factory done at PR open without waiting for CI; the tick starts review at green (T-1003, docs/prcheck.md)
     "coder_ci_resume_max": "2",   # with coder_ci_handoff on: at most this many tick starts of a handed-off coder per task on a red head, then the lead is mailed (T-1004, docs/lead-wake.md)
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
+    "review_verdict_timeout_min": "45",  # with review_autospawn=on: a tick-started reviewer/qa live this many minutes with no verdict gets a stop request (then one replacement); 0 = off (T-1600, docs/review-autospawn.md)
     "retro_enabled": "1",        # only the exact string "1" starts a new daily retro run from retro_hour
     "retro_hour": "6",           # local hour from which the tick may claim today's retro (before digest_hour)
+    "retro_org": "cursor",       # cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)
     "retro_max_minutes": "20",   # wall budget of one retro run; over it the tick force-stops it
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
@@ -184,6 +201,9 @@ DEFAULT_CONFIG = {
     "tmp_max_pct": "90",         # the gate closes when the filesystem holding /tmp is this full (it is RAM-backed tmpfs on your-box)
     "max_five_hour_pct": "92",
     "max_seven_day_pct": "92",
+    # After a fresh 5h or 7d reading at/over its cap, non-cursor spawns stay queued while the reading is stale or
+    # unreadable, and until this many consecutive fresh readings are under both caps. No at-cap reading yet: unchanged.
+    "usage_reopen_samples": "3",
     "nudge_cooldown_s": "120",
     "cursor_kickoff_grace_s": "180",  # T-1599: a live cursor agent's kickoff message unread this long after the spawn is re-submitted once, that long again later the pane is relaunched fresh once, then one escalation; 0 = off
     "boss_wake_after_s": "900",    # tick step 3: boss pane is prompted only when an unread escalation/request is at least this old (T-1199)
@@ -198,6 +218,8 @@ DEFAULT_CONFIG = {
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
     "mech_merge_retry_s": "600", # the merger looks at a PR head it already blocked on (or shadow-recorded) at most this often
+    "fix_carry": "on",           # on | off: after a FAIL only the failed role re-checks; the other role's PASS carries across a small non-sensitive fix (owner M37570 D3; docs/verdict-carry-over.md "Fix carry"). `factory config fix_carry off` restores the both-roles rule
+    "fix_carry_max_lines": "150",  # most added + deleted lines the fix commits between the carried PASS head and the PR head may total (the small_lines value of ci/tier_rules.json)
     "judge_hold_expiry_min": "120",  # minutes a manual judge hold may stay on a reviewer+QA PASS PR without a boss decision (boss-approved M<id> in the hold text); 0 = off (G-058, owner M37547; docs/judge-hold-expiry.md)
     "risk_tiers": "off",        # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
@@ -248,6 +270,8 @@ DEFAULT_CONFIG = {
     # reasoning effort for Opus agents (`claude --effort`, owner M2741); "" = leave Claude's default. Sonnet is never touched.
     "opus_effort": "medium",
     "judge_max_refreshes": "4",  # refreshes one `factory judge --merge` run does before it gives up with STALE-LOOP; invalid or < 1 -> 4
+    "judge_ci_gate": "pr",       # T-1772 (owner M40242): pr = the judge gate reads and waits on GitHub PR checks; none = reviewer+QA PASS + clean merge-tree + no overlap only, no PR check is read or waited on (docs/judge-ci-gate.md)
+    "judge_review_gate": "passpass",  # T-1802 (owner M40731/M40734): passpass = merge gate needs reviewer PASS + QA PASS on the head; green = no reviewer/QA FAIL on the head and PR CI green on the head (CI is read even with judge_ci_gate=none); docs/judge-ci-gate.md
     "judge_ci_wait_s": "2400",   # `factory judge --merge` waits this long for pending CI before refusing (polls every 30 s); 40 min fits the 35-min CI limit (#117)
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
@@ -260,6 +284,8 @@ DEFAULT_CONFIG = {
     "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
     "idle_coder_reap": "off",    # off | dry-run | on: the tick stops a coder idle past idle_coder_reap_s with a clean tree, pushed PR head, no mail, no shell (T-1028, docs/lead-wake.md)
     "idle_coder_reap_s": "900",  # seconds a coder must be idle/done before idle_coder_reap acts
+    "idle_watchdog": "shadow",   # off | shadow | on: T-1622 idle-progress watchdog for live workers; shadow = event rows only (docs/idle-watchdog.md)
+    "idle_watchdog_min": "30",   # minutes without progress before the watchdog nudges; relaunch W/2 later, alert W after the relaunch
     "digest_hour": "8",         # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -287,6 +313,18 @@ DEFAULT_CONFIG = {
     # G-038 F-44: 1 = while the Claude weekly gate is closed (seven_day >= max_seven_day_pct), mail claude-boss once per goal and
     # cap window to offer moving a queued P1/P2 claude goal to cursor. It only mails; it never moves a goal. 0 = off.
     "cap_fallback_offer": "0",
+    # T-1623: v1 = Cursor agents get the Claude role prompt and kickoff; v2 = the short loop-until-done prompt of
+    # roles/cursor/<role>.md (where one exists) and the Cursor worker kickoff (docs/cursor-prompt.md).
+    "cursor_prompt": "v1",
+    # G-057 placement. Empty worker_machines = off: no ssh, no second machine, gate() as before (docs/multi-machine.md).
+    "worker_machines": "",       # comma list of worker machine names; HQ stays on machine_hq
+    "machine_hq": "hqhost",      # this machine's name; boss, director, leads and judges never leave it
+    "machine_mem_floor_mb": "1500",  # eligible only when mem_mb - per_agent_mb is at least this
+    "machine_mem_per_cursor_mb": "900",
+    "machine_mem_per_claude_mb": "500",
+    "machine_facts_ttl_s": "20",  # one ssh per machine per this many seconds
+    "machine_ssh_timeout_s": "5",
+    "machine_cpu_heavy_roles": "coder,qa",  # prefer the first worker machine that passes; others use RAM headroom
 }
 
 AUDIT_DDL = """
@@ -354,6 +392,21 @@ CREATE TABLE IF NOT EXISTS retro_reports (
   fixes TEXT NOT NULL,
   author TEXT NOT NULL,
   created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS adopted_fixes (
+  id TEXT PRIMARY KEY,            -- F-001, F-002, ... (zero-padded 3, next = max+1)
+  report_day TEXT NOT NULL,       -- retro_reports.day the fix came from
+  fix_index INTEGER NOT NULL,     -- 1-based index into that report's fixes
+  cause TEXT NOT NULL,            -- copied from the report fix (in REJECTION_CAUSES)
+  type TEXT NOT NULL,             -- check | template | prompt_rule (copied)
+  text TEXT NOT NULL,             -- fix text (copied)
+  signature TEXT NOT NULL,        -- '|'-separated literal terms
+  task_id TEXT NOT NULL,          -- the task that implements the fix
+  pr_url TEXT,                    -- from tasks.pr_url at adopt / at merge sync
+  status TEXT NOT NULL,           -- pending | adopted | held | reopened | noise
+  adopted_at TEXT,                -- ts of the task's merged event; NULL while pending
+  checked_at TEXT, check_note TEXT, recur_incidents TEXT,  -- written by T-C, NULL here
+  author TEXT NOT NULL, created TEXT NOT NULL,
+  UNIQUE(report_day, fix_index), UNIQUE(task_id, report_day, fix_index));
 """
 
 OWNER_ALERT_DDL = """
@@ -409,7 +462,7 @@ CREATE TABLE IF NOT EXISTS schedules (
 # T-1336 (G-041 S1-c): PRAGMA user_version of every DB this code has migrated. The Go CLI (go/internal/factorydb
 # SchemaVersion) answers only when it reads the same number; bump it, and the Go constant, with any SCHEMA or migrate()
 # change (tests/test_db_layout.py hashes both and fails until the pinned hash is renewed together with this number).
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -437,7 +490,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
+  waits TEXT NOT NULL DEFAULT 'internal', block_on TEXT, sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
 CREATE TABLE IF NOT EXISTS agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -516,7 +569,58 @@ def db(create=False):
     con.execute("PRAGMA busy_timeout=30000")
     con.execute("PRAGMA foreign_keys=ON")
     migrate(con)
+    gh_trace_install(con)
     return con
+
+
+GH_GRAPHQL_SUBCMDS = {("pr", "view"), ("pr", "checks"), ("pr", "list"), ("pr", "status"), ("pr", "merge"), ("pr", "close"), ("pr", "edit"),
+                      ("pr", "ready"), ("pr", "comment"), ("pr", "review"), ("repo", "view"), ("issue", "list"), ("issue", "view")}
+_GH_TRACE = {"installed": False}
+
+
+def gh_trace_row(argv, frames, agent, now):
+    """One trace line (dict) for a gh call. `pts` is a lower bound of GraphQL points (1 per GraphQL call, 0 for REST): gh pr view/checks/
+    list/..., gh repo view, gh issue list/view and gh api graphql; gh api repos/..., gh run list and gh pr diff are REST."""
+    args = [a for a in argv[1:] if not a.startswith("-")][:2]
+    sub = " ".join(args[:2]) if args else ""
+    graphql = tuple(args[:2]) in GH_GRAPHQL_SUBCMDS or (args[:1] == ["api"] and "graphql" in argv[1:])
+    return {"t": round(now, 3), "agent": agent, "caller": ">".join(frames), "gh": sub, "pts": 1 if graphql else 0}
+
+
+def gh_trace_install(con):
+    """With config gh_call_trace=on, wrap subprocess.run once per process so that every `gh` call appends one JSON line to
+    $FACTORY_HOME/logs/gh-calls.jsonl. caller = the factory subcommand and the innermost factory_cli.py functions on the stack.
+    Off (the default): nothing is wrapped and nothing is written. A failed log write never fails the gh call."""
+    if _GH_TRACE["installed"]:
+        return
+    try:
+        r = con.execute("SELECT value FROM config WHERE key='gh_call_trace'").fetchone()  # not cfg(): db() must not add a cfg call
+        if (r["value"] if r else DEFAULT_CONFIG["gh_call_trace"]) != "on":
+            return
+    except (sqlite3.Error, KeyError):
+        return
+    _GH_TRACE["installed"] = True
+    real = subprocess.run
+    log = HOME / "logs" / "gh-calls.jsonl"
+
+    def traced(argv, *a, **kw):
+        try:
+            if isinstance(argv, (list, tuple)) and argv and os.path.basename(str(argv[0])) == "gh":
+                frames, f = [], sys._getframe(1)
+                while f is not None and len(frames) < 3:
+                    if f.f_code.co_filename == __file__ and f.f_code.co_name not in ("traced", "gh_json"):
+                        frames.append(f.f_code.co_name)
+                    f = f.f_back
+                cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+                row = gh_trace_row([str(x) for x in argv], [cmd, *reversed(frames)], os.environ.get("FACTORY_AGENT", ""), time.time())
+                log.parent.mkdir(parents=True, exist_ok=True)
+                with open(log, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(row) + "\n")
+        except OSError:
+            pass  # a trace that cannot be written must not change the gh call
+        return real(argv, *a, **kw)
+
+    subprocess.run = traced
 
 
 def migrate(con):
@@ -560,6 +664,12 @@ def migrate(con):
             con.execute("ALTER TABLE tasks ADD COLUMN waits TEXT NOT NULL DEFAULT 'internal'")
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "waits" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+                raise
+    if "block_on" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+        try:  # typed block conditions JSON, NULL = free-text block (G-040 T-1350)
+            con.execute("ALTER TABLE tasks ADD COLUMN block_on TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "block_on" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
                 raise
     if "tier" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
         try:  # risk tier T0..T3 of the task's PR, only ever raised (G-022 #1)
@@ -961,12 +1071,62 @@ def proc_root():
     return _proc_dir_from_env("FACTORY_PROC_DIR")
 
 
+DARWIN_TMP_MIN_FREE_MB = 10240  # same floor as go/internal/gate TmpMinFreeMB (T-1562), non-tmpfs /tmp on macOS
+
+
+def _darwin_cmd_head_claude(command):
+    """True when the first tokens of a ps command line name claude (including node …/claude)."""
+    if not command:
+        return False
+    parts = command.split(None, 3)
+    if any(os.path.basename(x) == "claude" for x in parts[:3]):
+        return True
+    return (len(parts) > 1 and os.path.basename(parts[0]) in ("node", "nodejs")
+            and os.path.basename(parts[1]) == "claude")
+
+
+# macOS tools by absolute path with a fixed PATH: a worker could put a fake `ps` first on its PATH and forge the process
+# ancestry refuse_worker trusts (T-1568 reviewer S1). These are the stock, SIP-protected macOS locations.
+DARWIN_PS, DARWIN_VM_STAT, DARWIN_SYSCTL, DARWIN_STAT = "/bin/ps", "/usr/bin/vm_stat", "/usr/sbin/sysctl", "/usr/bin/stat"
+DARWIN_TOOL_ENV = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C"}
+
+
+def _darwin_ps():
+    """macOS (no /proc): {pid: {"ppid","uid","lstart","command","argv"}} from ONE `ps -axo pid=,ppid=,uid=,lstart=,command=`
+    (LC_ALL=C), or None when ps cannot be read (callers then keep the pid: never reaped, T-1568 ADR 0003 4.4).
+    `command` is the full ps tail (spaces preserved); `argv` is shlex-split for callers that need a list — paths with
+    spaces in --settings are matched on `command` via regex, not argv."""
+    try:
+        r = subprocess.run([DARWIN_PS, "-axo", "pid=,ppid=,uid=,lstart=,command="], capture_output=True, text=True,
+                           timeout=15, env=dict(DARWIN_TOOL_ENV))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    out = {}
+    for line in r.stdout.splitlines():
+        f = line.split(None, 8)  # pid ppid uid + lstart (5 words: "Sat Nov 15 21:20:43 2026") + command
+        if len(f) < 8 or not (f[0].isdigit() and f[1].isdigit() and f[2].isdigit()):
+            continue
+        cmd = f[8] if len(f) > 8 else ""
+        try:
+            argv = shlex.split(cmd) if cmd else []
+        except ValueError:  # ps prints args unquoted: an apostrophe in any process must not crash the snapshot
+            argv = cmd.split()
+        out[int(f[0])] = {"ppid": int(f[1]), "uid": int(f[2]), "lstart": " ".join(f[3:8]),
+                          "command": cmd, "argv": argv}
+    return out or None
+
+
 def _ancestry_worker():
     """Worker role from the process tree (env cannot spoof it): the first claude ancestor's --settings file.
     A claude without --settings (the flagless live HQ/leads) is not a worker. $FACTORY_PROC_DIR = fake /proc."""
     root = proc_root()
+    snap = _darwin_ps() if sys.platform == "darwin" else None
 
     def ppid_of(pid):
+        if sys.platform == "darwin":
+            return (snap or {}).get(pid, {}).get("ppid")
         try:
             stat = (root / str(pid) / "stat").read_text(errors="replace")
             return int(stat[stat.rindex(")") + 1:].split()[1])
@@ -978,10 +1138,22 @@ def _ancestry_worker():
         pid = os.getppid()
     for _ in range(64):
         try:
-            argv = [x.decode(errors="replace") for x in (root / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
+            if sys.platform == "darwin":
+                ent = (snap or {}).get(pid, {})
+                argv, cmd = ent.get("argv", []), ent.get("command", "")
+            else:
+                cmd = ""
+                argv = [x.decode(errors="replace") for x in (root / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
         except OSError:
-            argv = []
-        if any(os.path.basename(x) == "claude" for x in argv[:3]):
+            argv, cmd = [], ""
+        is_claude = _darwin_cmd_head_claude(cmd) if sys.platform == "darwin" else any(os.path.basename(x) == "claude" for x in argv[:3])
+        if is_claude:
+            if sys.platform == "darwin":
+                # the first --settings value (may hold spaces), ending in /settings/<role>.json: Linux matches the same
+                m = re.search(r"--settings[= ]\S.*?/settings/([\w-]+)\.json(?=\s|$)", cmd)
+                if m and m.group(1) in WORKER_ROLES:
+                    return m.group(1)
+                return None
             vals = [argv[i + 1] for i, x in enumerate(argv[:-1]) if x == "--settings"]
             vals += [x.split("=", 1)[1] for x in argv if x.startswith("--settings=")]
             for v in vals:
@@ -1154,6 +1326,14 @@ def event(con, entity, entity_id, action, detail=None):
     event_as(con, actor(), entity, entity_id, action, detail)
 
 
+def nudge_event(con, kind, row, ok, result=None):
+    """T-1542: one events row per tick nudge: action nudge-<kind>, detail agent/backend/target pane/result
+    (sent, skipped-prompt-failed, or an explicit `result`). `row` is the agents row; the backend is the host that row lives on (herdr or hc)."""
+    event_as(con, "tick", "agent", row["name"], f"nudge-{kind}",
+             {"agent": row["name"], "backend": _agent_host_exe(con, row), "target": row["pane_id"],
+              "result": result or ("sent" if ok else "skipped-prompt-failed")})
+
+
 def next_id(con, table, prefix, width):
     rows = con.execute(f"SELECT id FROM {table} WHERE id LIKE ?", (prefix + "-%",)).fetchall()
     n = max([int(r["id"].split("-")[1]) for r in rows] or [0]) + 1
@@ -1210,6 +1390,8 @@ _HC_RUN_ENV = None  # agent env written into the hc spawn script (never on the h
 _HC_RUN_PROGRAM = None  # resolved program for hc `run` (cursor: agent/cursor-agent, not the cursor shim)
 _HC_RUN_NAME = None  # agent name for the hc spawn script under run/
 _SPAWN_HOST_EXE = None  # override host CLI for the in-flight spawn/relaunch start (herdr|hc)
+_HC_RUN_MACHINE = None  # G-057: worker machine of the next hc `run` (adds `--on <machine>`); None = this machine
+_HC_RUN_SCRIPT = None  # G-057: spawn script already written and copied to that machine; `run` uses it as is
 # Parent hc `run` env must not reach the agent child (env -i + explicit exports only).
 HC_SPAWN_DROP = (
     "CLAUDE_CODE_MESSAGING_TOKEN", "HC_SOCKET", "HERDR_PANE_ID", "SSH_AUTH_SOCK", "HERDR_SESSION",
@@ -1399,6 +1581,54 @@ def _hc_remote_terminal(t):
     return isinstance(t, dict) and any(isinstance(t.get(k), str) and "/" in t[k] for k in ("address", "id", "terminal", "name"))
 
 
+def _hc_remote_address(t):
+    """The machine/tN address of an hc terminal on another machine, else None."""
+    if not isinstance(t, dict):
+        return None
+    return next((t[k] for k in ("address", "id", "terminal") if isinstance(t.get(k), str) and "/" in t[k]), None)
+
+
+def _hc_remote_terminals():
+    """{"<machine>/<name>": agent row} for the terminals hc lists on other machines, or None when hc cannot be read.
+    Only the tick calls it, and only for a row recorded on a worker machine (none while worker_machines is empty)."""
+    try:
+        p = subprocess.run(["hc", "ls"], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=_host_ipc_env("hc"))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if p.returncode != 0:
+        return None
+    lines = p.stdout.strip().splitlines()
+    try:
+        payload = json.loads(lines[-1]) if lines else {}
+    except json.JSONDecodeError:
+        return None
+    terminals = payload.get("terminals") if isinstance(payload, dict) else None
+    if not isinstance(terminals, list):
+        return None
+    out = {}
+    for t in terminals:
+        addr = _hc_remote_address(t)
+        name = t.get("name") if isinstance(t, dict) else None
+        if not addr or not isinstance(name, str) or not name:
+            continue
+        key = name if "/" in name else f"{addr.split('/', 1)[0]}/{name}"
+        out[key] = _normalize_agent_list_row(_hc_terminal_to_agent_row({**t, "name": key}))
+    return out
+
+
+def _hc_remote_target(con, args):
+    """agent prompt|read|send-keys <name> for a row started on a worker machine: the hc address instead of the name
+    (hc resolves a bare name on this machine only). Any other call or row: args unchanged."""
+    if len(args) < 3 or args[0] != "agent" or args[1] not in ("prompt", "read", "send-keys"):
+        return args
+    row = con.execute("SELECT spawn_args FROM agents WHERE name=?", (args[2],)).fetchone()
+    sa = _spawn_args_row(row) if row else {}
+    addr = sa.get("hc_address") if sa.get("machine") else None
+    if not isinstance(addr, str) or "/" not in addr:
+        return args
+    return (args[0], args[1], addr, *args[3:])
+
+
 def _hc_unwrap_result(ipc_argv, payload):
     """Convert herdr-core JSON stdout into the dict shape factory expects from the TUI `result` field."""
     if not isinstance(payload, dict):
@@ -1417,7 +1647,11 @@ def _hc_unwrap_result(ipc_argv, payload):
     if cmd == "run":
         if payload.get("name") is None and "state" not in payload:
             return None
-        return {"agent": _hc_terminal_to_agent_row(payload)}
+        row = _hc_terminal_to_agent_row(payload)
+        addr = _hc_remote_address(payload)
+        if addr:  # only a terminal on another machine (`run --on`) has one; a local run result is unchanged
+            row["address"] = addr
+        return {"agent": row}
     if cmd in ("send", "keys"):
         return {}
     return None
@@ -1479,6 +1713,8 @@ def _hc_run_argv_tail(program, post):
     """Tail of hc `run`: `sh <spawn script>` when spawn env is set (no env vars on the hc argv)."""
     if not _HC_RUN_ENV:
         return [program, *post]
+    if _HC_RUN_MACHINE and _HC_RUN_SCRIPT:  # the copy on the worker machine is this exact file: never rewrite it here
+        return ["sh", str(_HC_RUN_SCRIPT)]
     name = _HC_RUN_NAME or "hc-spawn"
     script = _hc_write_spawn_script(name, _HC_RUN_ENV, program, post)
     return ["sh", str(script)]
@@ -1682,6 +1918,8 @@ def _hc_translate_args(args):
                 else:
                     i += 1
             out = ["run", "--bg", "--no-parent", "--name", name]  # never the caller terminal's child (hc 0.1.21)
+            if _HC_RUN_MACHINE:  # G-057 remote start: hc runs it on that machine; its address is <machine>/tN
+                out.extend(["--on", _HC_RUN_MACHINE])
             cwd = _HC_RUN_CWD
             if not cwd:
                 for j, tok in enumerate(post):
@@ -1761,6 +1999,8 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     con = db()
     try:
         exe = _host_agent_ipc_exe(con, args)
+        if exe == "hc":
+            args = _hc_remote_target(con, args)
     finally:
         con.close()
     ipc_argv = _host_ipc_argv(exe, args)
@@ -2022,6 +2262,10 @@ def export_in_shell(pane, env, cwd, host_exe=None):
 
 def _scan_claude():
     """{pid: (argv, ppid)} of every claude process under the proc dir; None when it is unreadable."""
+    if sys.platform == "darwin":
+        snap = _darwin_ps()
+        return None if snap is None else {p: (e["argv"], e["ppid"]) for p, e in snap.items()
+                                          if _darwin_cmd_head_claude(e.get("command", ""))}
     root = proc_root()
     try:
         entries = list(root.iterdir())
@@ -2085,6 +2329,11 @@ def _is_cursor_agent_argv(argv):
 
 def _scan_host_agent_procs():
     """{pid: (argv, ppid)} of every claude and cursor-agent process; None when the proc dir is unreadable."""
+    if sys.platform == "darwin":
+        snap = _darwin_ps()
+        return None if snap is None else {p: (e["argv"], e["ppid"]) for p, e in snap.items()
+                                          if _darwin_cmd_head_claude(e.get("command", ""))
+                                          or _is_cursor_agent_argv(e["argv"])}
     root = proc_root()
     try:
         entries = list(root.iterdir())
@@ -2275,6 +2524,8 @@ def _is_claude_cmd(argv):
 
 def _userns_link(pid):
     """readlink of <proc>/<pid>/ns/user, None when unreadable. $FACTORY_PROC_DIR = fake /proc."""
+    if sys.platform == "darwin":
+        return None  # no user namespaces: "not in a namespace", no /proc read (escape detection by uid comes in M6b)
     root = proc_root()
     try:
         return os.readlink(root / str(pid) / "ns" / "user")
@@ -2284,6 +2535,9 @@ def _userns_link(pid):
 
 def _proc_start(pid):
     """Start time (clock ticks since boot, field 22 of <proc>/<pid>/stat), None when unreadable."""
+    if sys.platform == "darwin":
+        e = (_darwin_ps() or {}).get(int(pid)) if str(pid).isdigit() else None
+        return e["lstart"] if e else None
     root = proc_root()
     try:
         stat = (root / str(pid) / "stat").read_text(errors="replace")
@@ -2363,6 +2617,8 @@ def claude_outside_spawn(con):
         return []
     agents = {}  # pid -> agent row, the claude process of a live agent
     for r in con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL").fetchall():
+        if r["role"] in ("task", "task-judge"):  # Option B: /code-review subagents run in-process; the runner owns the pane
+            continue
         for pid, _argv in claude_procs(r["session_id"], {p: v[0] for p, v in found.items()}):
             agents[pid] = r
     out = []
@@ -2417,11 +2673,52 @@ def claude_outside_spawn(con):
 
 # ───────────────────────────── resources ─────────────────────────────
 
+def _darwin_mem_available_mb():
+    """macOS MemAvailable in MB, the T-1562 formula: (free + inactive + speculative pages) x page size, and any memory
+    pressure level other than 1 (normal) closes the gate (returns 0). Unreadable = 0 = gate closed."""
+    try:
+        vm = subprocess.run([DARWIN_VM_STAT], capture_output=True, text=True, timeout=10, env=dict(DARWIN_TOOL_ENV))
+        lvl = subprocess.run([DARWIN_SYSCTL, "-n", "kern.memorystatus_vm_pressure_level"], capture_output=True, text=True,
+                             timeout=10, env=dict(DARWIN_TOOL_ENV))
+        if vm.returncode != 0 or lvl.returncode != 0 or lvl.stdout.strip() != "1":
+            return 0
+        m = re.search(r"page size of (\d+) bytes", vm.stdout)
+        pages = [re.search(r"^Pages " + k + r":\s+(\d+)\.", vm.stdout, re.M) for k in ("free", "inactive", "speculative")]
+        if not m or not all(pages):
+            return 0
+        return int(m.group(1)) * sum(int(v.group(1)) for v in pages) // 1048576
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return 0
+
+
+def _test_pin(var):
+    """$var for a test home only. A live home never honours it, so an agent exporting it cannot open the owner
+    MemAvailable floor or the placement checks on the live factory (same rule as FACTORY_TEST_NOW)."""
+    pinned = os.environ.get(var)
+    return pinned if pinned and not home_is_live() else None
+
+
+def _meminfo_text():
+    """/proc/meminfo. $FACTORY_MEMINFO pins a snapshot on a test home; otherwise the live file."""
+    pinned = _test_pin("FACTORY_MEMINFO")
+    return Path(pinned).read_text() if pinned else Path("/proc/meminfo").read_text()
+
+
 def mem_available_mb():
-    for line in Path("/proc/meminfo").read_text().splitlines():
+    if sys.platform == "darwin":
+        return _darwin_mem_available_mb()
+    for line in _meminfo_text().splitlines():
         if line.startswith("MemAvailable:"):
             return int(line.split()[1]) // 1024
     return 0
+
+
+def host_mem_available_mb():
+    """MemAvailable in MB. $FACTORY_MEM_MB pins it on a test home; otherwise /proc."""
+    pinned = _test_pin("FACTORY_MEM_MB")
+    if pinned:
+        return int(pinned)
+    return mem_available_mb()
 
 
 def serve_mem_available_mb():
@@ -2453,6 +2750,17 @@ def tmp_usage():
     if total <= 0:
         return None
     fstype = None
+    if sys.platform == "darwin":
+        # statvfs does not name the fs type on macOS: `stat -f %T <tmp>` (apfs, hfs, tmpfs...) T-1568 R5
+        try:
+            r = subprocess.run([DARWIN_STAT, "-f", "%T", "/private/tmp" if str(tmp_dir()) == "/tmp" else str(tmp_dir())],
+                               capture_output=True, text=True, timeout=10, env=dict(DARWIN_TOOL_ENV))
+            fstype = (r.stdout.strip() or None) if r.returncode == 0 else None
+        except (OSError, subprocess.SubprocessError):
+            fstype = None
+        used = total - free
+        return {"used_mb": used // 1048576, "total_mb": total // 1048576, "pct": 100.0 * used / total, "fstype": fstype,
+                "free_mb": free // 1048576}
     try:
         best = ""
         target = str(tmp_dir().resolve())
@@ -2493,33 +2801,55 @@ def usage_text(u):
     """The "claude usage ..." line of `factory res`: a missing 5h or week reading shows as n/a, the other still shows."""
     if u.get("unreadable"):
         return "claude usage unreadable"
+    if not u["fresh"]:  # a missing or old reading is never shown as a number (a missing file used to read 0%)
+        if u.get("updated_at") is None:
+            return "claude usage stale since never (no usage file)"
+        try:
+            when = dt.datetime.fromtimestamp(u["updated_at"]).astimezone().strftime("%Y-%m-%d %H:%M %Z")
+        except (OverflowError, OSError, ValueError):
+            return "claude usage stale since unknown"
+        return f"claude usage stale since {when}"
     five = "n/a" if u["five_hour"] is None else f"{u['five_hour']:.0f}%"
     week = "n/a" if u["seven_day"] is None else f"{u['seven_day']:.0f}%"
-    return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
+    return f"claude usage 5h {five} · week {week}"
+
+
+def _updated_at(v):
+    """The usage file's updated_at as a finite float, or None. The reopen streak counts one sample per timestamp."""
+    if isinstance(v, bool) or v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
 
 
 def usage():
     """5h/7d usage. Each field is parsed on its own: an empty or bad one is None, the other still counts. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
-    read mid-write) is "unreadable": five_hour/seven_day None, never fresh, so the gate neither opens nor closes on it."""
+    read mid-write) is "unreadable": five_hour/seven_day None, never fresh. With no prior at-cap reading the gate skips the usage caps; after one, a stale or unreadable reading keeps it closed."""
     for attempt in (0, 1):
         try:
             u = json.loads(USAGE_FILE.read_text())
-            age = time.time() - float(u.get("updated_at", 0))
+            raw = u.get("updated_at", 0)
+            updated = _updated_at(raw)
+            age = time.time() - float(raw)  # as on main: a non-finite stamp keeps its old freshness (Infinity is fresh)
             five, seven = _pct_field(u.get("five_hour_pct")), _pct_field(u.get("seven_day_pct"))
             if five is None and seven is None:
                 raise ValueError("neither five_hour_pct nor seven_day_pct is a number")
             return {"five_hour": five, "seven_day": seven,
-                    "fresh": age < 3 * 3600, "age_min": int(age // 60),
+                    "fresh": age < 3 * 3600, "age_min": int(age // 60) if math.isfinite(age) else 0,
                     "five_hour_resets_at": _epoch(u.get("five_hour_resets_at")),
-                    "seven_day_resets_at": _epoch(u.get("seven_day_resets_at"))}
+                    "seven_day_resets_at": _epoch(u.get("seven_day_resets_at")),
+                    "updated_at": updated}
         except FileNotFoundError:
-            return {"five_hour": 0.0, "seven_day": 0.0, "fresh": False, "age_min": -1,
-                    "five_hour_resets_at": None, "seven_day_resets_at": None}
+            return {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1,  # no data is not 0%
+                    "five_hour_resets_at": None, "seven_day_resets_at": None, "updated_at": None}
         except Exception:  # noqa: BLE001 — partial JSON, IO error, bad numbers
             if attempt == 0:
                 time.sleep(0.05)
     return {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1, "unreadable": True,
-            "five_hour_resets_at": None, "seven_day_resets_at": None}
+            "five_hour_resets_at": None, "seven_day_resets_at": None, "updated_at": None}
 
 
 STARTUP_GRACE_S = 180  # herdr may not list a freshly started agent yet
@@ -2567,9 +2897,582 @@ def _int_cfg(con, key, default):
 
 
 REVIEW_RESERVE_BLOCKED = ("pm", "coder", "cleaner")  # roles that may not take the slots review_reserved_slots keeps for reviewer/qa
+USAGE_REOPEN_KEY = "usage-reopen-streak"  # throttle.ts JSON {"n","sample"}: consecutive fresh below-cap readings since the last at-cap sample
 
 
-def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None):
+def _usage_sample_id(u):
+    """Identity of one usage file write. None when the file has no timestamp (unreadable or missing)."""
+    v = u.get("updated_at")
+    if v is None:
+        return None
+    return f"{float(v):.6f}"
+
+
+def _usage_hold_load(con):
+    """The reopen streak row, or None when no reading has been at/over the cap. A row that cannot be read is n=0 (fail closed)."""
+    row = con.execute("SELECT ts FROM throttle WHERE key=?", (USAGE_REOPEN_KEY,)).fetchone()
+    if not row:
+        return None
+    try:
+        data = json.loads(row["ts"])
+    except (json.JSONDecodeError, TypeError, ValueError):
+        data = None
+    if not isinstance(data, dict) or isinstance(data.get("n"), bool) or not isinstance(data.get("n"), int) or data["n"] < 0:
+        return {"n": 0, "sample": None}
+    return data
+
+
+def _usage_hold_save(con, n, sample):
+    con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                (USAGE_REOPEN_KEY, json.dumps({"n": n, "sample": sample}, separators=(",", ":"))))
+
+
+def _usage_over_reason(con, u):
+    """The fresh at-cap reason, or None when both windows are under their caps. A None field is not at the cap."""
+    if u.get("five_hour") is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
+        return f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%"
+    if u.get("seven_day") is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
+        return f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%"
+    return None
+
+
+def _usage_reopen_need(con):
+    """How many consecutive fresh below-cap readings reopen the gate. Below 1 or not an integer: the default 3."""
+    n = _int_cfg(con, "usage_reopen_samples", 3)
+    return n if n >= 1 else 3
+
+
+def _pct_text(v):
+    return "n/a" if v is None else f"{v:.0f}%"
+
+
+def _usage_arm(con, u):
+    """Record a fresh at-cap reading before any earlier cap returns, so a later stale file still holds the queue."""
+    if not (u.get("fresh") and not u.get("unreadable")) or not _usage_over_reason(con, u):
+        return
+    sample = _usage_sample_id(u)
+    hold = _usage_hold_load(con)
+    if not hold or hold.get("sample") != sample or hold.get("n") != 0:
+        _usage_hold_save(con, 0, sample)
+
+
+def _usage_cap_gate(con, u):
+    """(True, reason) when the Claude usage cap holds the queue, else (False, None).
+
+    A fresh reading at/over either cap records a streak of 0 in the throttle table. The queue stays closed while that
+    row exists and the current reading is stale, unreadable, or a run of fewer than usage_reopen_samples fresh
+    readings under both caps. The same updated_at counts once. No row yet: today's behaviour (a stale reading does
+    not close the gate). Cursor callers must not use this."""
+    fresh = bool(u.get("fresh")) and not u.get("unreadable")
+    hold = _usage_hold_load(con)
+    sample = _usage_sample_id(u)
+    if fresh:
+        over = _usage_over_reason(con, u)
+        if over:
+            if not hold or hold.get("sample") != sample or hold.get("n") != 0:
+                _usage_hold_save(con, 0, sample)
+            return True, over
+        if not hold:
+            return False, None
+        if sample is None or hold.get("sample") == sample:
+            n = int(hold["n"])
+        else:
+            n = int(hold["n"]) + 1
+            if n >= _usage_reopen_need(con):
+                con.execute("DELETE FROM throttle WHERE key=?", (USAGE_REOPEN_KEY,))
+                return False, None
+            _usage_hold_save(con, n, sample)
+        need = _usage_reopen_need(con)
+        if n >= need:
+            con.execute("DELETE FROM throttle WHERE key=?", (USAGE_REOPEN_KEY,))
+            return False, None
+        return True, (f"weekly usage 5h {_pct_text(u.get('five_hour'))} · week {_pct_text(u.get('seven_day'))} "
+                      f"below cap; {n}/{need} consecutive fresh readings")
+    if not hold:
+        return False, None
+    if hold.get("n") != 0:
+        _usage_hold_save(con, 0, sample if sample is not None else hold.get("sample"))
+    if u.get("unreadable"):
+        return True, "weekly usage unreadable; holding the queue until fresh readings are below the cap"
+    return True, (f"weekly usage stale: 5h {_pct_text(u.get('five_hour'))} · week {_pct_text(u.get('seven_day'))} "
+                  f"({u.get('age_min')} min old); holding the queue until fresh readings are below the cap")
+
+# G-057: only these roles may be placed off machine_hq. HQ, leads, judges and the other roles stay put (R1).
+PLACEMENT_WORKER_ROLES = ("coder", "qa", "reviewer", "cleaner")
+_MACHINE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
+_MACHINE_FACTS_CACHE = {}  # machine -> (clock, facts); one ssh per machine per machine_facts_ttl_s
+_REMOTE_FACTS_CMD = "cat /proc/meminfo; echo ---; cat /proc/loadavg; echo ---; nproc"
+
+
+def check_machine_name(name):
+    """One machine name, or exit 2. 'factory' is refused before the shape check (R2)."""
+    if "factory" in name.lower():
+        die('refused: machine name must not contain "factory"', 2)
+    if not _MACHINE_NAME_RE.fullmatch(name):
+        die("refused: bad machine name", 2)
+    return name
+
+
+def check_worker_machines(value):
+    """The normalised comma list, or exit 2. Empty turns placement off. 'factory' is refused before the shape check (R2)."""
+    names = [x.strip() for x in value.split(",")] if value.strip() else []
+    out = []
+    for n in names:
+        n = check_machine_name(n)
+        if n not in out:
+            out.append(n)
+    return ",".join(out)
+
+
+def _worker_machine_list(con):
+    return [x.strip() for x in (cfg(con, "worker_machines") or "").split(",") if x.strip()]
+
+
+def _machine_hq(con):
+    return (cfg(con, "machine_hq") or "hqhost").strip() or "hqhost"
+
+
+def _host_nproc():
+    """CPUs for placement. $FACTORY_NPROC pins it on a test home; the single-machine load line still uses os.cpu_count()."""
+    pinned = _test_pin("FACTORY_NPROC")
+    if pinned:
+        return int(pinned)
+    return os.cpu_count() or 1
+
+
+def _facts_clock():
+    """Cache clock. $FACTORY_FACTS_NOW (a number of seconds) pins it; unset is monotonic so one tick shares one ssh."""
+    pinned = os.environ.get("FACTORY_FACTS_NOW")
+    if pinned:
+        return float(pinned)
+    return time.monotonic()
+
+
+def _facts_row(mem_mb, load, nproc, reachable, err):
+    return {"mem_mb": mem_mb, "load1": load, "nproc": nproc, "reachable": reachable, "err": err}
+
+
+def _local_machine_facts():
+    try:
+        return _facts_row(host_mem_available_mb(), load1(), _host_nproc(), True, "")
+    except (OSError, ValueError) as e:
+        return _facts_row(0, 0.0, 0, False, str(e)[:200])
+
+
+def _parse_remote_facts(text):
+    parts = (text or "").split("---")
+    if len(parts) < 3:
+        return None
+    mem = None
+    for line in parts[0].splitlines():
+        if line.startswith("MemAvailable:"):
+            try:
+                mem = int(line.split()[1]) // 1024
+            except (IndexError, ValueError):
+                return None
+            break
+    if mem is None:
+        return None
+    load_lines = [ln for ln in parts[1].splitlines() if ln.strip()]
+    nproc_lines = [ln.strip() for ln in parts[2].splitlines() if ln.strip()]
+    if not load_lines or not nproc_lines:
+        return None
+    try:
+        load = float(load_lines[0].split()[0])
+        nproc = int(nproc_lines[-1])
+    except (IndexError, ValueError):
+        return None
+    if nproc < 1:
+        return None
+    return _facts_row(mem, load, nproc, True, "")
+
+
+def _ssh_machine_facts(machine, timeout):
+    """One ssh, argv only: the machine name is an argument, never interpolated into a shell command."""
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}", "--", machine, _REMOTE_FACTS_CMD]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 2)
+    except (OSError, subprocess.SubprocessError) as e:
+        return _facts_row(0, 0.0, 0, False, str(e)[:200])
+    if p.returncode != 0:
+        err = (p.stderr or "").strip()[:200] or f"exit {p.returncode}"
+        return _facts_row(0, 0.0, 0, False, err)
+    parsed = _parse_remote_facts(p.stdout)
+    if parsed is None:
+        return _facts_row(0, 0.0, 0, False, "unreadable remote facts")
+    return parsed
+
+
+def machine_facts(con, machine):
+    """Dict mem_mb, load1, nproc, reachable, err. machine_hq is local /proc; any other name is one ssh, cached for the TTL.
+    A remote failure sets reachable=False and does not raise."""
+    now_s = _facts_clock()
+    ttl = _int_cfg(con, "machine_facts_ttl_s", 20)
+    if machine != _machine_hq(con) and _throttled(con, f"machine_unreachable:{machine}", _mark_clock(), ttl):
+        return _facts_row(0, 0.0, 0, False, "marked unreachable by a failed remote start")  # no ssh for the TTL
+    hit = _MACHINE_FACTS_CACHE.get(machine)
+    if hit is not None and ttl > 0 and now_s - hit[0] < ttl:
+        return dict(hit[1])
+    if machine == _machine_hq(con):
+        facts = _local_machine_facts()
+    else:
+        facts = _ssh_machine_facts(machine, max(_int_cfg(con, "machine_ssh_timeout_s", 5), 1))
+    _MACHINE_FACTS_CACHE[machine] = (now_s, facts)
+    return dict(facts)
+
+
+def _per_agent_mb(con, runtime):
+    if runtime == "cursor":
+        return _int_cfg(con, "machine_mem_per_cursor_mb", 900)
+    return _int_cfg(con, "machine_mem_per_claude_mb", 500)
+
+
+def _cpu_heavy_role(con, role):
+    raw = cfg(con, "machine_cpu_heavy_roles") or ""
+    return bool(role) and role in {x.strip() for x in raw.split(",") if x.strip()}
+
+
+def _relaunch_placement_discount(con, row):
+    """The machine a live worker already occupies, so a relaunch does not spend a second share seat."""
+    if not row or row["status"] != "live" or row["role"] not in PLACEMENT_WORKER_ROLES:
+        return None
+    return _row_machine(row, _machine_hq(con))
+
+
+def _row_machine(row, hq):
+    """Machine recorded on the row. Absent (the only value this task writes for a real start) means machine_hq."""
+    try:
+        args = json.loads(row["spawn_args"] or "{}")
+    except (TypeError, ValueError):
+        args = {}
+    if isinstance(args, dict) and args.get("machine"):
+        return str(args["machine"])
+    return hq
+
+
+def _placement_census(con, hq):
+    """(hq_in_use, workers_by_machine) over live and starting rows. Non-worker roles are the HQ slots kept on machine_hq."""
+    hq_in_use, workers = 0, {}
+    for r in con.execute("SELECT role, spawn_args FROM agents WHERE status IN ('live','starting')"):
+        if r["role"] in PLACEMENT_WORKER_ROLES:
+            m = _row_machine(r, hq)
+            workers[m] = workers.get(m, 0) + 1
+        else:
+            hq_in_use += 1
+    return hq_in_use, workers
+
+
+def _worker_shares(budget, nprocs):
+    """Shares of budget by nproc that sum to budget. Leftover seats go to the largest fraction; a tie goes to the earlier machine."""
+    total = sum(nprocs)
+    if budget <= 0 or total <= 0:
+        return [0] * len(nprocs)
+    raw = [budget * n / total for n in nprocs]
+    base = [int(x) for x in raw]
+    left = budget - sum(base)
+    order = sorted(range(len(nprocs)), key=lambda i: (-(raw[i] - base[i]), i))
+    shares = base[:]
+    for i in order:
+        if left <= 0:
+            break
+        shares[i] += 1
+        left -= 1
+    return shares
+
+
+def place_machine(con, role, runtime, cpu_heavy, *, skip_load=False, discount_machine=None, allow_remote=True):
+    """(machine, reason, per_machine_stats). reason is 'ok', or a refusal that names every machine's failing check.
+    Does not relax owner caps: gate() applies those first. A role other than coder, qa, reviewer, cleaner is machine_hq only.
+    discount_machine: a relaunch of a worker already counted on that machine. One seat is not counted twice.
+    allow_remote=False: this spawn cannot start on a worker machine (not claude on hc, sandboxed): machine_hq or refuse."""
+    hq = _machine_hq(con)
+    remotes = []
+    for name in _worker_machine_list(con):
+        if name != hq and name not in remotes:
+            remotes.append(name)
+    machines = [hq, *remotes]
+    facts = {m: machine_facts(con, m) for m in machines}
+    per_mb = _per_agent_mb(con, runtime)
+    floor = _int_cfg(con, "machine_mem_floor_mb", 1500)
+    try:
+        ratio = float(cfg(con, "gate_max_load_ratio"))
+    except (TypeError, ValueError):
+        ratio = 1.25
+    hq_in_use, on_machine = _placement_census(con, hq)
+    if discount_machine and role in PLACEMENT_WORKER_ROLES:
+        on_machine[discount_machine] = max(0, on_machine.get(discount_machine, 0) - 1)
+    budget = max(0, _int_cfg(con, "max_live_agents", 6) - hq_in_use)
+    reachable = [m for m in machines if facts[m]["reachable"] and facts[m]["nproc"] > 0]
+    share_of = dict(zip(reachable, _worker_shares(budget, [facts[m]["nproc"] for m in reachable])))
+
+    def fails_of(m):
+        f = facts[m]
+        if not f["reachable"]:
+            return [f"unreachable ({f['err']})" if f["err"] else "unreachable"]
+        bad = []
+        if f["mem_mb"] - per_mb < floor:
+            bad.append(f"mem {f['mem_mb']}MB - {per_mb}MB < floor {floor}MB")
+        if not skip_load and f["load1"] > ratio * f["nproc"]:
+            bad.append(f"load1 {f['load1']:.1f} > {ratio} x {f['nproc']}")
+        if role in PLACEMENT_WORKER_ROLES and on_machine.get(m, 0) >= share_of.get(m, 0):
+            bad.append(f"workers {on_machine.get(m, 0)}/{share_of.get(m, 0)}")
+        return bad
+
+    per = {"hq": hq, "budget": budget, "hq_in_use": hq_in_use, "per_agent_mb": per_mb,
+           "machines": {m: {**facts[m], "share": share_of.get(m, 0), "workers": on_machine.get(m, 0), "fails": fails_of(m)}
+                        for m in machines}}
+    eligible = [m for m in machines if not per["machines"][m]["fails"]]
+    if role not in PLACEMENT_WORKER_ROLES or not allow_remote:
+        bad = per["machines"][hq]["fails"]
+        if bad:
+            return hq, f"{hq}: " + "; ".join(bad), per
+        return hq, "ok", per
+    chosen = None
+    if cpu_heavy:
+        for m in remotes:
+            if m in eligible:
+                chosen = m
+                break
+    if chosen is None and eligible:
+        def headroom(m):
+            return facts[m]["mem_mb"] - per_mb - floor
+        chosen = max(eligible, key=lambda m: (headroom(m), -machines.index(m)))
+    if chosen is None:
+        parts = [f"{m}: " + "; ".join(per["machines"][m]["fails"]) for m in machines]
+        return hq, "no machine: " + "; ".join(parts), per
+    return chosen, "ok", per
+
+
+# ── G-057 remote start (T-1586): preflight, worktree and per-agent files on a worker machine, fallback + alert ──
+REMOTE_FORWARD_DIR = (".local", "lib", "hivemill", "forward")  # under the worker's home: `factory` -> factory-forward
+MACHINE_ALERT_WINDOW_S = 1800  # at most one "<machine> unreachable" alert per machine per 30 min
+FORWARDED_REFUSAL = "refused: forwarded call from unknown agent"
+
+
+class RemoteStartFailed(Exception):
+    """A worker machine cannot take this start (preflight, worktree or file copy). Raised before any agent row is
+    written live and before hc starts a terminal there; spawn() falls back to machine_hq."""
+
+
+def _mark_clock():
+    """Clock of the unreachable mark and the alert window: $FACTORY_FACTS_NOW when pinned (tests), else the wall clock."""
+    pinned = os.environ.get("FACTORY_FACTS_NOW")
+    return float(pinned) if pinned else time.time()
+
+
+def remote_forward_dir():
+    """The dir put first on a remote worker's PATH; its `factory` must resolve to factory-forward (docs/multi-machine.md).
+    Same user and same paths on every machine, so it is this machine's home (the temp $HOME under a test home)."""
+    return os.path.join(str(sandbox_home() or ghcred.real_home()), *REMOTE_FORWARD_DIR)
+
+
+def machine_unreachable(con, machine, reason, sender="spawn"):
+    """Mark `machine` unreachable for machine_facts_ttl_s (no ssh to it meanwhile) and alert the director at most once per
+    MACHINE_ALERT_WINDOW_S per machine (a machine-unreachable event with it). Returns True when it alerted."""
+    clock = _mark_clock()
+    mkey = f"machine_unreachable:{machine}"
+    # An active mark is never renewed (machine_facts reports "marked" without ssh, and that must not re-mark): it expires
+    # after machine_facts_ttl_s and only a failed probe after that sets it again.
+    if not _throttled(con, mkey, clock, _int_cfg(con, "machine_facts_ttl_s", 20)):
+        _throttle_set(con, mkey, clock)
+    _MACHINE_FACTS_CACHE.pop(machine, None)
+    key = f"machine_alert:{machine}"
+    if _throttled(con, key, clock, MACHINE_ALERT_WINDOW_S):
+        return False
+    _throttle_set(con, key, clock)
+    hq = _machine_hq(con)
+    why = " ".join(str(reason or "unreachable").split())[:300]
+    event(con, "machine", machine, "machine-unreachable", {"machine": machine, "fallback": hq, "reason": why})
+    send(con, "director", f"{machine} unreachable: workers fall back to {hq}",
+         f"{why}. Spawns place workers on {hq} only until {machine} answers again; further alerts for {machine} are "
+         f"silent for {MACHINE_ALERT_WINDOW_S // 60} min.", "alert", sender=sender)
+    return True
+
+
+def remote_start_ok(con, role, runtime, args, sandboxed):
+    """True when this spawn could start on a worker machine: a worker role, claude runtime, an hc terminal, unsandboxed
+    (a sandbox and the Cursor launcher are built from this machine's paths). Anything else stays on machine_hq."""
+    return (role in PLACEMENT_WORKER_ROLES and runtime == "claude" and not sandboxed and _spawn_uses_hc(con, args))
+
+
+def _ssh_machine(con, machine, script, stdin=None, timeout=120):
+    """(exit code, last stderr line) of one ssh call, argv only; the machine name is an argument, `script` runs in the
+    remote user's shell. stdin (bytes) is never logged. A local failure to run ssh is 255, like an ssh connect failure."""
+    t = max(_int_cfg(con, "machine_ssh_timeout_s", 5), 1)
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={t}", "--", machine, script]
+    try:
+        p = subprocess.run(cmd, input=stdin if stdin is not None else b"", capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return 255, f"ssh timed out after {timeout}s"
+    except OSError as e:
+        return 255, f"ssh could not run ({type(e).__name__})"
+    lines = (p.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+    return p.returncode, (lines[-1][:200] if lines else "")
+
+
+def _hc_machine_state(text, machine):
+    """(ok, why) from `hc machine ls` output: JSON {"machines": [{"name", "state"}]} or a list of those, else text lines
+    whose first word is the name. A listed machine whose state is connecting, needs_login or unreachable is not ok."""
+    state, found = "", False
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError:
+        doc = None
+    items = doc.get("machines") if isinstance(doc, dict) else doc
+    if isinstance(items, list):
+        for it in items:
+            if isinstance(it, dict) and it.get("name") == machine:
+                found = True
+                st = it.get("state") or it.get("status") or ""
+                state = st if isinstance(st, str) else ""
+    else:
+        for line in (text or "").splitlines():
+            words = line.split()
+            if words and words[0] == machine:
+                found, state = True, (words[1] if len(words) > 1 else "")
+    if not found:
+        return False, f"hc machine ls does not list {machine}"
+    if state in ("connecting", "needs_login", "unreachable"):
+        return False, f"hc machine {machine} is {state}"
+    return True, ""
+
+
+def hc_lists_machine(machine):
+    """(ok, why): hc on this machine lists `machine` and can reach it (needed for `hc run --on`)."""
+    try:
+        p = subprocess.run(["hc", "machine", "ls"], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S,
+                           env=_host_ipc_env("hc"))
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, f"hc machine ls failed ({type(e).__name__})"
+    if p.returncode != 0:
+        return False, f"hc machine ls exit {p.returncode}"
+    return _hc_machine_state(p.stdout.strip(), machine)
+
+
+def _remote_task_row(con, task):
+    if not task:
+        return None
+    return con.execute("SELECT t.*, p.repo_path, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                       "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task,)).fetchone()
+
+
+def remote_preflight(con, machine, task):
+    """RemoteStartFailed unless hc lists `machine`, the task's repo clone is a git repo at the same path there, and
+    `factory` first on the worker PATH (remote_forward_dir) is factory-forward and answers --version."""
+    ok, why = hc_lists_machine(machine)
+    if not ok:
+        raise RemoteStartFailed(why)
+    t = _remote_task_row(con, task)
+    fdir = remote_forward_dir()
+    q = shlex.quote
+    lines = ["set -e"]
+    if t and t["repo_path"]:
+        lines.append(shlex.join(git_argv(t["repo_path"], "rev-parse", "--git-dir")) + " >/dev/null")
+    lines += [f"f={q(fdir + '/factory')}", 'test -x "$f"', "ff=$(command -v factory-forward)",
+              'test "$(readlink -f "$f")" = "$(readlink -f "$ff")"',
+              f'PATH={q(fdir)}:"$PATH" factory --version >/dev/null']
+    rc, err = _ssh_machine(con, machine, "\n".join(lines))
+    if rc != 0:
+        raise RemoteStartFailed(f"preflight on {machine} failed (exit {rc}): {err or 'no message'}")
+
+
+def remote_worktree(con, machine, task, role):
+    """The worktree path on `machine` (same layout as here), created over ssh in that machine's own clone. A coder gets
+    factory/<task> (its pushed branch, else a new one from origin/<base>); qa/reviewer get a detached checkout of the
+    pushed branch at <goal>-<task>-<role>. None for a task-less spawn or another role. RemoteStartFailed on a git error."""
+    t = _remote_task_row(con, task)
+    if role not in ("coder", "qa", "reviewer") or not t or not t["repo_path"]:
+        return None
+    repo, base = t["repo_path"], t["base_branch"] or "main"
+    branch = t["branch"] or f"factory/{task.lower()}"
+    wt = str(WORKTREES / (f"{t['goal_id']}-{task}" if role == "coder" else f"{t['goal_id']}-{task}-{role}"))
+    q = shlex.quote
+
+    def g(*a):
+        return shlex.join(git_argv(repo, *a))
+
+    has_branch = g("rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}") + " >/dev/null"
+    lines = ["set -e", g("fetch", "-q", "origin")]
+    if role == "coder":
+        lines += [f"if [ -e {q(wt)}/.git ]; then {shlex.join(git_argv(wt, 'switch', '-q', branch))}",
+                  f"elif {has_branch}; then {g('worktree', 'add', '-q', '-B', branch, wt, f'origin/{branch}')}",
+                  f"else {g('worktree', 'add', '-q', '-B', branch, wt, f'origin/{base}')}", "fi"]
+    else:
+        lines += [f"if {has_branch}; then s={q(f'origin/{branch}')}; else s={q(f'origin/{base}')}; fi",
+                  f"if [ -e {q(wt)}/.git ]; then {shlex.join(git_argv(wt, 'checkout', '-q', '--detach'))} \"$s\"",
+                  f"else {g('worktree', 'add', '-q', '--detach', wt)} \"$s\"", "fi"]
+    rc, err = _ssh_machine(con, machine, "\n".join(lines), timeout=600)
+    if rc != 0:
+        raise RemoteStartFailed(f"worktree on {machine} failed (exit {rc}): {err or 'no message'}")
+    if role == "coder":
+        con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (wt, branch, task))
+    return wt
+
+
+def remote_copy_file(con, machine, path, mode):
+    """Copy one local file to the same path on `machine` with `mode` (tmp + rename; dirs made 0700). The content goes on
+    ssh stdin only. RemoteStartFailed names neither the path nor the content (a token file is copied this way, R4)."""
+    data = Path(path).read_bytes()
+    q = shlex.quote
+    tmp = f"{path}.copy-tmp"
+    script = (f"umask 077 && mkdir -p {q(os.path.dirname(str(path)))} && cat > {q(tmp)} && chmod {mode:o} {q(tmp)} "
+              f"&& mv -f {q(tmp)} {q(str(path))}")
+    rc, _err = _ssh_machine(con, machine, script, stdin=data)
+    if rc != 0:
+        raise RemoteStartFailed(f"copying the agent files to {machine} failed (exit {rc})")
+
+
+def remote_copy_agent_files(con, machine, files, secret_files=()):
+    """Copy every (path, mode) of `files`, then each secret file with mode 0600. Returns the number copied."""
+    n = 0
+    for path, mode in files:
+        remote_copy_file(con, machine, path, mode)
+        n += 1
+    for path in secret_files:
+        remote_copy_file(con, machine, path, 0o600)
+        n += 1
+    return n
+
+
+def _tree_files(root):
+    """(path, mode) of every regular file under root, modes kept (the ghcred shim must stay executable)."""
+    out = []
+    for dirpath, _dirs, names in os.walk(root):
+        for nm in sorted(names):
+            p = os.path.join(dirpath, nm)
+            if os.path.isfile(p) and not os.path.islink(p):
+                out.append((p, stat.S_IMODE(os.stat(p).st_mode) & 0o700))
+    return out
+
+
+def forwarded_identity_gate(argv):
+    """G-057 guard on machine_hq: a call the forwarder ran for a worker machine (FACTORY_FORWARDED=1, set only by
+    `factory-forward --serve`) must name a live or starting worker row recorded on a configured worker machine, with the
+    same role. Anything else exits 3. Only `--version` (no DB, no identity) passes without a row."""
+    if os.environ.get("FACTORY_FORWARDED") != "1":
+        return
+    if list(argv) == ["--version"]:
+        return
+    agent, role = os.environ.get("FACTORY_AGENT") or "", os.environ.get("FACTORY_ROLE") or ""
+    ok = False
+    try:
+        con = db()
+        try:
+            row = con.execute("SELECT role, status, spawn_args FROM agents WHERE name=?", (agent,)).fetchone() if agent else None
+            if row and row["status"] in ("live", "starting") and row["role"] in PLACEMENT_WORKER_ROLES and row["role"] == role:
+                m = _spawn_args_row(row).get("machine")
+                ok = isinstance(m, str) and m != _machine_hq(con) and m in _worker_machine_list(con)
+        finally:
+            con.close()
+    except (sqlite3.Error, OSError):
+        ok = False  # cannot decide: refuse
+    if not ok:
+        print(FORWARDED_REFUSAL, file=sys.stderr)
+        sys.exit(3)
+
+
+def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None, *, placement_discount=None,
+         allow_remote=True):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
@@ -2579,7 +3482,10 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
     light orchestration that must not wait behind builders (T-0867); every other cap applies, including max_live_leads).
     role="lead" with config lead_parking=1 adds the lead cap (max_live_leads) and the worker reserve (HQ panes stay
     <= max_live_agents - reserved_worker_slots); own_slot or own_lead (a relaunch of a lead that holds its row) skips both.
-    Any other role, or role=None, gets exactly the checks above."""
+    Any other role, or role=None, gets exactly the checks above.
+    For runtime other than cursor, a fresh 5h or 7d reading at or over its cap latches the queue: a later stale or
+    unreadable reading stays closed, and the latch clears only after usage_reopen_samples consecutive fresh readings
+    under both caps (one count per usage-file timestamp, stored in throttle). No latch yet: a stale reading is ignored."""
     agents = herdr_agents()
     names = {x.get("name") for x in (agents or []) if x.get("name")}
     panes = {x.get("pane_id") for x in (agents or []) if x.get("pane_id")}
@@ -2593,8 +3499,10 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             live += 1
     other = sum(1 for a in (agents or []) if a.get("agent") in ("claude", "cursor")
                 and a.get("name") not in known and a.get("pane_id") not in known)
-    mem = mem_available_mb()
+    mem = host_mem_available_mb()
     u = usage()
+    if runtime != "cursor":
+        _usage_arm(con, u)  # before the pane, memory and load returns, or a full box never latches an at-cap reading
     procs = total_claude_procs()
     total = procs["total"]
     starting = 0
@@ -2646,7 +3554,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         return False, f"{live}/{stats['cap']} agent panes live", stats
     if stats["total"] is not None and stats["total"] - mine >= total_cap:
         return False, f"{stats['total']}/{total_cap} claude processes on host (incl. non-factory)", stats
-    if mem < int(cfg(con, "min_mem_available_mb")):
+    # Role-less calls (factory res, the tick hold) and an empty worker_machines keep this MemAvailable check.
+    # A role plus worker machines checks each machine in place_machine; a success still starts on machine_hq, so the
+    # owner floor is applied again on that return and is never replaced by machine_mem_floor_mb (M37141).
+    placement_on = bool(role) and bool(_worker_machine_list(con))
+    if not placement_on and mem < int(cfg(con, "min_mem_available_mb")):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
@@ -2655,6 +3567,12 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if role != "cleaner":
             return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.1f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
                            " — clean finished tasks' scratchpads"), stats
+    if sys.platform == "darwin" and role != "cleaner":
+        # R5: a disk-backed /tmp also needs the T-1562 free floor; an unreadable /tmp = closed
+        if tmp is None:
+            return False, "/tmp unreadable (darwin: unknown = closed)", stats
+        if tmp.get("fstype") != "tmpfs" and tmp["free_mb"] < DARWIN_TMP_MIN_FREE_MB:
+            return False, f"/tmp has {tmp['free_mb']} MB free < {DARWIN_TMP_MIN_FREE_MB} MB floor ({tmp.get('fstype') or 'fs unknown'})", stats
     if role in REVIEW_RESERVE_BLOCKED and not own_slot and cfg(con, "review_autospawn") == "on":
         # G-022 #6: carve review_reserved_slots out of max_live_agents; slots already held by reviewer/qa count toward them
         held = con.execute("SELECT count(*) c FROM agents WHERE status IN ('live','starting') AND role IN ('reviewer','qa')").fetchone()["c"]
@@ -2662,15 +3580,14 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if live >= free_for_others:
             return False, (f"{live}/{stats['cap']} agent panes live; {max(_int_cfg(con, 'review_reserved_slots', 2) - held, 0)} "
                            "slots kept for reviewer/qa (review_reserved_slots)"), stats
-    if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
+    if not placement_on and not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     # Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
     if runtime != "cursor":
-        if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
-            return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
-        if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
-            return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+        blocked, why = _usage_cap_gate(con, u)
+        if blocked:
+            return False, why, stats
     if runtime == "cursor" and role:
         from web import cursor_limits
         slug = role_model(con, role, org="cursor")
@@ -2684,6 +3601,24 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         if hq + 1 > stats["hq_cap"]:
             return False, (f"{hq}/{stats['hq_cap']} HQ panes; {reserved} slots reserved for workers "
                            "(reserved_worker_slots)"), stats
+    if placement_on:
+        machine, why, per = place_machine(con, role, runtime, _cpu_heavy_role(con, role),
+                                           skip_load=bool(own_slot or load_exempt),
+                                           discount_machine=placement_discount, allow_remote=allow_remote)
+        stats["placement"] = per
+        if why != "ok":
+            return False, why, stats
+        stats["machine"] = machine
+        stats["hq_fails"] = per["machines"].get(per["hq"], {}).get("fails") or []
+        if machine != per["hq"]:
+            # a worker machine passed its own floor, load and share (place_machine); spawn starts it there (T-1586).
+            # machine_hq's owner floor and load cap guard machine_hq's RAM and CPU, which this start does not use.
+            return True, "ok", stats
+        if mem < int(cfg(con, "min_mem_available_mb")):
+            return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
+        if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
+            return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
+                           f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
     return True, "ok", stats
 
 
@@ -2775,7 +3710,7 @@ CLI_GO_CMDS_KNOWN = (  # every command word register()ed in go/internal/cli (S1 
     "whoami", "flags", "agents", "config",
     "task", "goal", "inbox", "lesson", "msg", "report", "plan", "team", "project",
     "verdict", "scorecard", "digest", "alerts", "gate", "schedule", "done", "prcheck", "pr", "src", "res", "tick",
-    "scout", "skilleval", "retro", "cursor-pilot",
+    "scout", "skilleval", "retro", "cursor-pilot", "hold-expiry", "spawn", "spend-alert",
 )
 GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
 CLI_FETCH_TIMEOUT_S = 120  # each of `go mod download` / `go mod verify` in `factory up`
@@ -2958,6 +3893,74 @@ def build_cli_go(src=None, lib=None, tick=False, go=None):
     return build_guard_go(src, lib, tick=tick, go=go, name=CLI_GO_BIN, pkg="./cmd/factory")
 
 
+BLOCK_EVAL_BIN = "block-eval"
+
+
+def build_block_eval(src=None, lib=None, tick=False, go=None):
+    """Build go/cmd/block-eval into <lib>/block-eval. Same contract as build_guard_go; never raises."""
+    return build_guard_go(src, lib, tick=tick, go=go, name=BLOCK_EVAL_BIN, pkg="./cmd/block-eval")
+
+
+def block_eval_binary(lib=None):
+    """Path to block-eval for parse/eval. Honors FACTORY_BLOCK_EVAL except on the live factory home (exit 2)."""
+    override = (os.environ.get("FACTORY_BLOCK_EVAL") or "").strip()
+    if override:
+        if home_is_live():
+            die("FACTORY_BLOCK_EVAL is not allowed on the live factory home", 2)
+        return override
+    lib = Path(lib or guard_lib_dir())
+    build_block_eval(lib=lib)
+    path = lib / BLOCK_EVAL_BIN
+    if not os.access(path, os.X_OK):
+        die("block-eval binary missing or not executable; install the Go toolchain or set FACTORY_BLOCK_EVAL", 2)
+    return str(path)
+
+
+def block_eval_parse(tokens, lib=None):
+    """Run block-eval parse on tokens. Exit 2 on an unknown token. Returns the parsed condition list."""
+    if not tokens:
+        die("no block condition tokens", 2)
+    if any(not t or t != t.strip() or len(t.split()) != 1 for t in tokens):
+        die("block condition tokens must be non-empty and contain no whitespace", 2)
+    path = block_eval_binary(lib)
+    try:
+        p = subprocess.run([path, "parse"], input="\n".join(tokens) + "\n",
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        die(f"block-eval parse failed: {e}", 2)
+    if p.returncode == 2:
+        die("unknown block condition token", 2)
+    if p.returncode != 0:
+        err = (p.stderr or "").strip().splitlines()[:1]
+        die(f"block-eval parse failed: {err[0] if err else p.returncode}", 2)
+    try:
+        out = json.loads(p.stdout)
+    except json.JSONDecodeError:
+        die("block-eval parse returned invalid JSON", 2)
+    if not isinstance(out, list) or len(out) != len(tokens):
+        die("block-eval parse returned invalid JSON", 2)
+    return out
+
+
+def block_cond_token(c):
+    """One condition as a closed token string for show/events."""
+    typ, arg, form = c.get("type", ""), c.get("arg", ""), c.get("form") or ""
+    return f"{typ}:{arg}:{form}" if form else f"{typ}:{arg}"
+
+
+def block_on_show_line(raw):
+    """Tokens only for factory task show (no message body)."""
+    if not raw:
+        return None
+    try:
+        conds = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(conds, list) or not conds:
+        return None
+    return " ".join(block_cond_token(c) for c in conds)
+
+
 def fetch_cli_go_deps(lib=None, src=None, proxy=None, go=None):
     """Download and verify the modules go/cmd/factory needs into the private GOMODCACHE (<lib>/go/mod), go.sum-pinned.
     The only network step of the Go CLI: called from `factory up` / install, never from the tick (the build stays
@@ -3009,22 +4012,22 @@ def write_cli_impl(con, src=None):
 
 
 def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
-    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (only when guard_impl != python: at the
-    default no Go toolchain runs; cheap no-op when stamped; skipped under load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
+    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (factory-go and the guard binary, whatever
+    guard_impl/cli_impl say, T-1804; cheap no-op when stamped; skipped under load or without a go/ tree or toolchain), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
     (the shim uses Python) before a slow or killed build. Never raises: the guard falls back to Python on its own."""
     cap = None
     try:
         write_guard_impl(con, src)
         cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
-        if build and cfg(con, "guard_impl") != "python" and load1() <= cap \
+        if build and load1() <= cap \
                 and build_guard_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_guard_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
         print(f"guard go build: tick step failed ({e})", file=sys.stderr)
     try:  # its own step: a failing guard build must not leave run/cli_impl stale
         write_cli_impl(con, src)  # G-041: written first too, so a changed go/ makes srchash differ from the stamp
-        cli_build = cfg(con, "cli_impl") != "python" or cfg(con, "tick_impl") == "go"
-        if build and cap is not None and cli_build and load1() <= cap \
+        # T-1804: built whatever cli_impl/tick_impl say (schedule and hold_expiry need the binary); dispatch is untouched
+        if build and cap is not None and load1() <= cap \
                 and build_cli_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_cli_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
@@ -3053,7 +4056,7 @@ def _config_value_rules(key, value):
         check_effort_level(a.value.strip())
     if a.key == "scout_triage_per_run":
         triage_per_run(a.value)
-    if a.key == "model_cleaner":
+    if a.key.startswith("model_") and a.key[len("model_"):] in ROLES:
         check_model_override(a.key, a.value)
         a.value = a.value.strip()
     if a.key == "guard_impl":
@@ -3084,6 +4087,11 @@ def _config_value_rules(key, value):
         a.value = check_sandbox_roles(a.value)
     if a.key in ("worker_gh_roles", "gh_rw_roles"):
         a.value = check_gh_roles(a.key, a.value)
+    if a.key == "cursor_prompt":
+        try:
+            a.value = cursor_harness.check_prompt_version(a.value)
+        except ValueError as e:
+            die(f"{e}: fix it with `factory config cursor_prompt v1`", 2)
     if a.key == "cursor_pilot_roles":
         try:
             a.value = ",".join(cursor_harness.parse_pilot_roles(a.value))
@@ -3123,6 +4131,10 @@ def _config_value_rules(key, value):
             scoutvendor.resolve_root(a.value, HOME)
         except scoutvendor.VendorError as e:
             die(str(e), 2)
+    if a.key == "worker_machines":
+        a.value = check_worker_machines(a.value)
+    if a.key == "machine_hq":
+        a.value = check_machine_name(a.value.strip())
     return a.value
 
 
@@ -3982,8 +4994,12 @@ def cmd_task(a):
     elif a.action == "show":
         t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
         for k in t.keys():
-            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]) and (k != "judge_hold_reason" or (t[k] or "").strip()):
+            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance", "block_on") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]) and (k != "judge_hold_reason" or (t[k] or "").strip()):
                 print(f"{k}: {t[k]}")
+        if t["block_on"]:
+            line = block_on_show_line(t["block_on"])
+            if line:
+                print(f"block_on: {line}")
         for k in ("spec", "acceptance"):
             if t[k]:
                 print(f"\n## {k}\n{t[k]}")
@@ -4218,8 +5234,85 @@ def cmd_task(a):
             die("task note text is empty; pass the note as an argument or on stdin with '-'. Nothing was written.", 2)
         event(con, "task", tid, "note", text)
         print("noted")
+    elif a.action == "block":
+        refuse_worker("task block")
+        require_role(con, "owner", "lead", "director", "boss")
+        if not a.id:
+            die("task id is required", 2)
+        tokens = a.on or []
+        if not tokens:
+            die("give at least one --on <token>", 2)
+        t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
+        conds = block_eval_parse(tokens)
+        waits = "owner" if any(c.get("type") == "owner" for c in conds) else "internal"
+        blob = json.dumps(conds, separators=(",", ":"), ensure_ascii=False)
+        con.execute("UPDATE tasks SET status='blocked', block_on=?, waits=?, updated=? WHERE id=?",
+                    (blob, waits, now(), a.id))
+        event(con, "task", a.id, "update", f"status=blocked — {' '.join(tokens)}")
+        print(f"{a.id} blocked")
+    elif a.action == "block-migrate":
+        block_migrate(con, a)
     elif a.action == "tier":
         task_tier_cmd(con, a)
+
+
+_BLOCK_NOTE_SLUG = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+
+
+def block_note_text(con, tid):
+    """Text after ' — ' on the newest update event of tid whose detail has status=blocked; '' when there is none."""
+    r = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                    "AND detail LIKE '%status=blocked%' ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
+    d = (r["detail"] or "") if r else ""
+    return d.split(" — ", 1)[1].strip() if " — " in d else ""
+
+
+def block_note_token(text, factory_slug):
+    """The one block condition token a whole note text converts to, or None (keep as free text)."""
+    for m in _BLOCK_NOTE_SLUG.finditer(text):
+        if _repo_slug(m.group(0)) != factory_slug:
+            return None
+    m = re.fullmatch(r"held until #([0-9]+) merges", text)
+    if m:
+        return f"pr:#{m.group(1)}:merged"
+    m = re.fullmatch(r"until #([0-9]+) closed", text)
+    if m:
+        return f"pr:#{m.group(1)}:closed"
+    if not text or len(text.split()) != 1:
+        return None
+    try:
+        p = subprocess.run([block_eval_binary(), "parse"], input=text + "\n", capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        die(f"block-eval parse failed: {e}", 2)
+    if p.returncode == 2:
+        return None
+    if p.returncode != 0:
+        die(f"block-eval parse failed: {(p.stderr or '').strip()[:200] or p.returncode}", 2)
+    return text
+
+
+def block_migrate(con, a):
+    """factory task block-migrate [--dry-run]: typed block_on for blocked tasks whose note is one condition (T-1351)."""
+    refuse_worker("task block-migrate")
+    require_role(con, "lead", "director")
+    if cfg(con, "block_conditions") != "1" and not a.dry_run:
+        die("block_conditions is not 1; nothing was written. Use --dry-run, or turn the flag on first.", 2)
+    rc, url, _ = _git_rc(["remote", "get-url", "origin"])
+    factory_slug = _repo_slug(cfg(con, "factory_remote_url")) or (_repo_slug(url) if rc == 0 else None)
+    for t in con.execute("SELECT id FROM tasks WHERE status='blocked' ORDER BY id").fetchall():
+        tid = t["id"]
+        cond_text = block_note_token(block_note_text(con, tid), factory_slug)
+        if not cond_text:
+            print(f"keep {tid}")
+            continue
+        print(f"convert {tid} {cond_text}")
+        if a.dry_run:
+            continue
+        conds = block_eval_parse([cond_text])
+        waits = "owner" if any(c.get("type") == "owner" for c in conds) else "internal"
+        con.execute("UPDATE tasks SET block_on=?, waits=?, updated=? WHERE id=?",
+                    (json.dumps(conds, separators=(",", ":"), ensure_ascii=False), waits, now(), tid))
+        event(con, "task", tid, "block-migrate", cond_text)
 
 
 # ───────────────────────────── messages ─────────────────────────────
@@ -4298,6 +5391,12 @@ def org_agent_name(con, base, goal=None, task=None, org=None):
     return oname(con, org_for(con, goal, task, org=org), slug(base))
 
 
+def team_lead(con, team):
+    """The lead_agent recorded for a team id, or None."""
+    r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (team,)).fetchone()
+    return r["lead_agent"] if r and r["lead_agent"] else None
+
+
 def resolve_recipient(con, to, org=None):
     """Accept an agent name, a role ('director'), 'lead:<team>' or 'owner'. A bare HQ role ('boss', 'director',
     'staff-engineer') and 'owner' resolve inside `org` (the message's org: see send) to <org>-<role>."""
@@ -4321,8 +5420,7 @@ def resolve_recipient(con, to, org=None):
                 return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
-        r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
-        return r["lead_agent"] if r and r["lead_agent"] else die(f"team {to[5:]} has no lead")
+        return team_lead(con, to[5:]) or die(f"team {to[5:]} has no lead")
     if con.execute("SELECT 1 FROM agents WHERE name=?", (to,)).fetchone():
         return to
     r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') ORDER BY started DESC LIMIT 1",
@@ -4537,11 +5635,37 @@ def coder_done_escalation_ok(con, role, a):
     return a.to in ups
 
 
+def lead_missing(con, to):
+    """True when 'lead:<x>' has no lead that can receive: no such team, no lead agent, a closed team, or an
+    unparked team whose lead is not live/starting/queued (a parked lead wakes on the message). T-1626."""
+    lead = team_lead(con, to[5:])
+    if not lead:
+        return True
+    t = con.execute("SELECT status, parked_at FROM teams WHERE id=?", (to[5:],)).fetchone()
+    if t["status"] == "closed":
+        return True
+    if t["parked_at"]:
+        return False
+    a = con.execute("SELECT status FROM agents WHERE name=?", (lead,)).fetchone()
+    return not a or a["status"] not in ("live", "starting", "queued")
+
+
+def msg_no_lead_fallthrough(con, a):
+    """T-1626: a worker's message to a lead that does not exist goes to its own org's director as an escalation."""
+    body = read_text(a.body)
+    org = agent_org(con, actor()) or orgs.DEFAULT_ORG
+    full = ((body or "").rstrip("\n") + "\n" if body else "") + f"(originally addressed to {a.to}: no such lead)"
+    mid, rcpt = send(con, "director", "[no lead] " + a.subject, full, "escalation", a.goal, a.task, org=org)
+    print(f"no lead for {a.to}; sent to {rcpt} as escalation M{mid}")
+
+
 def cmd_msg(a):
     con = db()
     role = actor_role(con)
     if a.kind == "escalation" and role not in ("owner", "director", "boss", "lead") and not coder_done_escalation_ok(con, role, a):
         die("only leads, the director and the boss escalate; message your lead instead", 3)
+    if role not in HQ_ROLES and role != "owner" and a.to.startswith("lead:") and lead_missing(con, a.to):
+        return msg_no_lead_fallthrough(con, a)
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
     refuse_cross_org(con, role, a.to, a.goal, a.task)
@@ -4779,7 +5903,7 @@ def cmd_pr(a):
     redirect it. The child env drops GH_REPO and GH_HOST."""
     con = db()
     role = actor_role(con)
-    if role != "coder":
+    if role not in ("coder", "task"):  # task: the Option B session opens its own PR
         die(f"role '{role}' ({actor()}) may not do this: `factory pr` is for coders; ask your lead", 3)
     ag = con.execute("SELECT task_id FROM agents WHERE name=?", (actor(),)).fetchone()
     tid = ag["task_id"] if ag else None
@@ -4848,6 +5972,17 @@ def gh_json(*args, timeout=120):
         print(f"factory: {msg}", file=sys.stderr)
         raise SystemExit(msg)
     return json.loads(p.stdout)
+
+
+def gh_json_lines(*args, timeout=120):
+    """gh_json for output that is one JSON value per line (gh api --paginate --jq '.[] | {...}')."""
+    p = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout)
+    if p.returncode != 0:
+        err = (p.stderr.strip().splitlines() or [""])[0]
+        msg = f"gh {' '.join(args[:3])}: {err}"
+        print(f"factory: {msg}", file=sys.stderr)
+        raise SystemExit(msg)
+    return [json.loads(l) for l in p.stdout.splitlines() if l.strip()]
 
 
 def _tick_gh_detail(e):
@@ -5185,6 +6320,21 @@ def _carry_env():
 HARDENED_GIT_FLAGS = ["-c", "core.commitGraph=false", "-c", "core.attributesFile=/dev/null"]  # verdict_carries, head_has_main, verified_main
 
 
+def _judge_pure_main_merge_why(git, cur, p1, p2, main_sha):
+    """"" when commit `cur` (parents p1, p2) is a pure main merge: p2 is on origin/main and cur's tree is the clean
+    `git merge-tree` of p1 and p2; else the refusal text. Shared by verdict_carries and the fix-carry walk."""
+    rc, _, err = git("merge-base", "--is-ancestor", p2, main_sha)
+    if rc == 1:
+        return f"not a pure main merge: second parent of {cur[:8]} is not on origin/main"
+    if rc != 0:
+        return f"cannot verify, git error checking second parent of {cur[:8]}: {err or rc}"
+    rc, out, _ = git("merge-tree", "--write-tree", p1, p2)
+    rc2, tree, _ = git("rev-parse", f"{cur}^{{tree}}")
+    if rc != 0 or rc2 != 0 or not out or out.splitlines()[0] != tree:
+        return f"not a pure main merge: tree differs at {cur[:8]}"
+    return ""
+
+
 def verdict_carries(repo, x, y, pr_number, repo_url, owner_repo):
     """Does a PASS recorded at head x still count for head y? Yes when every commit on the first-parent path
     y..x is a pure main merge: two parents, second parent on origin/main, and a tree identical to a clean
@@ -5231,20 +6381,157 @@ def verdict_carries(repo, x, y, pr_number, repo_url, owner_repo):
         if len(parts) != 3:
             return False, f"not a pure main merge: {cur[:8]} is not a two-parent merge", None, []
         _, p1, p2 = parts
-        rc, _, err = git("merge-base", "--is-ancestor", p2, main_sha)
-        if rc == 1:
-            return False, f"not a pure main merge: second parent of {cur[:8]} is not on origin/main", None, []
-        if rc != 0:
-            return False, f"cannot verify, git error checking second parent of {cur[:8]}: {err or rc}", None, []
-        rc, out, _ = git("merge-tree", "--write-tree", p1, p2)
-        rc2, tree, _ = git("rev-parse", f"{cur}^{{tree}}")
-        if rc != 0 or rc2 != 0 or not out or out.splitlines()[0] != tree:
-            return False, f"not a pure main merge: tree differs at {cur[:8]}", None, []
+        why = _judge_pure_main_merge_why(git, cur, p1, p2, main_sha)
+        if why:
+            return False, why, None, []
         merges.append(cur)
         cur = p1
     if cur == x:
         return True, "", main_sha, merges
     return False, f"not a pure main merge: {x[:8]} is not a first-parent ancestor within {CARRY_MAX_COMMITS} commits", None, []
+
+
+_TEST_REMOVED_RE = re.compile(r"^-[ \t]*(?:async[ \t]+)?(?:def[ \t]+test_|func[ \t]+Test)")
+
+
+def judge_fix_carry_limits(con):
+    """(on, max_lines): config fix_carry on|off and fix_carry_max_lines. An unreadable limit switches the rule off (never a guess)."""
+    if (cfg(con, "fix_carry") or "off").strip().lower() != "on":
+        return False, 0
+    try:
+        return True, int(cfg(con, "fix_carry_max_lines"))
+    except (TypeError, ValueError):
+        return False, 0
+
+
+def judge_fix_carry_walk(con, git_repo, x, y, pr_number, repo_url, owner_repo, base, max_lines):
+    """T-1611 fix-carry, conditions (4)-(7) (docs/verdict-carry-over.md "Fix carry"): is every commit on the first-parent
+    path y..x a pure main merge or a small, non-sensitive, test-preserving non-merge commit? `base` is the verdict_carries
+    result for x (it has fetched main and the PR head into the private refs). Returns (ok, why, info); info (set when ok) is
+    {"lines": n, "commits": [non-merge shas], "path": [every sha y..x]}. Any git or load error is "cannot verify"."""
+    ok, why, _, _ = base
+    if ok:
+        return False, "a pure main merge carry applies, not a fix carry", None
+    if why.startswith("cannot verify"):
+        return False, why, None
+    env = _carry_env()
+
+    def git(*args):
+        return _git_rc([*HARDENED_GIT_FLAGS, *args], repo=git_repo, env=env)
+
+    rc, main_sha, err = git("rev-parse", "--verify", "refs/factory-judge/main")
+    if rc != 0:
+        return False, f"cannot verify, origin/main unknown: {err or rc}", None
+    try:
+        rt = _risk_tier_mod()
+    except (OSError, ImportError, SyntaxError, AttributeError) as e:
+        return False, f"cannot verify, ci/risk_tier.py unreadable: {e}", None
+    try:
+        rules = rt.load_rules()
+    except rt.TierError as e:
+        return False, f"cannot verify, tier rules unreadable: {e}", None
+    cur, path, plain = y, [y], []  # plain: (sha, first parent) of each non-merge commit
+    for _ in range(CARRY_MAX_COMMITS):
+        if cur == x:
+            break
+        rc, out, err = git("rev-list", "--parents", "-n", "1", cur)
+        if rc != 0 or not out:
+            return False, f"cannot verify, commit {cur[:8]} unreadable: {err or rc}", None
+        parts = out.split()
+        if len(parts) == 3:
+            w = _judge_pure_main_merge_why(git, cur, parts[1], parts[2], main_sha)
+            if w:
+                return False, w, None
+        elif len(parts) == 2:
+            plain.append((cur, parts[1]))
+        else:
+            return False, f"{cur[:8]} is a root or octopus commit", None
+        cur = parts[1]
+        path.append(cur)
+    if cur != x:
+        return False, f"{x[:8]} is not a first-parent ancestor of {y[:8]} within {CARRY_MAX_COMMITS} commits", None
+    lines, paths_of = 0, {}
+    for sha, parent in plain:
+        rc, out, err = git("diff", "--numstat", "--no-renames", "--no-ext-diff", "-z", parent, sha)
+        if rc != 0:
+            return False, f"cannot verify, git diff of {sha[:8]} failed: {err or rc}", None
+        changed = []
+        for rec in out.split("\0"):
+            if not rec:
+                continue
+            fields = rec.split("\t", 2)
+            if len(fields) != 3 or not (fields[0].isdigit() and fields[1].isdigit() or fields[0] == fields[1] == "-"):
+                return False, f"cannot verify, unreadable numstat line for {sha[:8]}", None
+            if fields[0] == "-":
+                return False, f"binary change in {sha[:8]}: {fields[2]}", None
+            lines += int(fields[0]) + int(fields[1])
+            changed.append(fields[2])
+        paths_of[sha] = changed
+    if lines > max_lines:
+        return False, f"{lines} lines > {max_lines}", None
+    for sha, parent in plain:
+        diff = {}
+        for p in rules["sensitive_defs"]:
+            if p in paths_of[sha]:
+                srcs = []
+                for rev in (parent, sha):
+                    rc, src, err = git("show", f"{rev}:{p}")
+                    srcs.append(src if rc == 0 else "")
+                diff[p] = tuple(srcs)
+        try:
+            hit = rt.reasons(diff, paths_of[sha], 0, rules)
+        except (OSError, ImportError, SyntaxError, ValueError, KeyError) as e:
+            return False, f"cannot verify, tier check of {sha[:8]} failed: {e}", None
+        if hit:
+            return False, f"{sha[:8]} touches {hit[0]}", None
+        rc, out, err = git("diff", "-U0", "--no-renames", "--no-ext-diff", "--no-textconv", parent, sha)
+        if rc != 0:
+            return False, f"cannot verify, git diff of {sha[:8]} failed: {err or rc}", None
+        if any(_TEST_REMOVED_RE.match(l) for l in out.splitlines()):
+            return False, f"{sha[:8]} removes or renames a test function", None
+    return True, "", {"lines": lines, "commits": [s for s, _ in plain], "path": path}
+
+
+def judge_fix_carry_for(con, task_id, role, x, y, pr_number, git_repo, repo_url, owner_repo, carry, *, need_failed_pass=True):
+    """T-1611 fix-carry (owner M37570 D3) for the PASS of `role` recorded at head x, against PR head y. The other role is the
+    "failed role". need_failed_pass=False is the review rerun's question (the failed role has not re-checked y yet:
+    conditions (1), (3), (4)-(7)). Returns ("carry", (x, main_sha, detail)), ("refused", why) or ("na", None) when the rule
+    does not apply (switch off, the other role has no FAIL, its latest verdict is not the expected PASS/FAIL). Never raises
+    for a git problem: that is "refused" with "cannot verify"."""
+    on, max_lines = judge_fix_carry_limits(con)
+    if not on or not repo_url or not x:
+        return "na", None
+    failed = "qa" if role == "reviewer" else "reviewer"
+    last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                       (task_id, failed)).fetchone()
+    mine = con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                       (task_id, role)).fetchone()
+    if not last or not mine or mine["verdict"] != "pass":  # (3) the passing role's latest verdict is the PASS: no FAIL after it
+        return "na", None
+    fail_heads = {(r["head_sha"] or "").lower() for r in con.execute(
+        "SELECT head_sha FROM verdicts WHERE task_id=? AND role=? AND verdict='fail'", (task_id, failed))}
+    if not fail_heads:
+        return "na", None
+    if need_failed_pass:
+        if last["verdict"] != "pass":
+            return "na", None
+        fh = last["head_sha"] or ""
+        if fh.lower() != y.lower():
+            if fh not in carry:
+                carry[fh] = verdict_carries(git_repo, fh, y, pr_number, repo_url, owner_repo) if fh else (False, "verdict has no head", None, [])
+            if not carry[fh][0]:
+                return "na", None  # (2) the failed role has not passed y (or a head a main merge carries to y)
+    elif last["verdict"] != "fail":
+        return "na", None
+    if x not in carry:
+        carry[x] = verdict_carries(git_repo, x, y, pr_number, repo_url, owner_repo)
+    ok, why, info = judge_fix_carry_walk(con, git_repo, x, y, pr_number, repo_url, owner_repo, carry[x], max_lines)
+    if not ok:
+        return "refused", why
+    if not fail_heads & {p.lower() for p in info["path"]}:
+        return "refused", f"{failed} has no FAIL at {x[:8]} or on a head up to {y[:8]}"  # (3)
+    main_sha = _git_rc([*HARDENED_GIT_FLAGS, "rev-parse", "--verify", "refs/factory-judge/main"], repo=git_repo, env=_carry_env())[1]
+    return "carry", (x, main_sha, {**info, "failed_role": failed})
 
 
 def verdict_pass_holds_for_pr_head(con, task_id, role, pr_head, pr_number, git_repo, repo_url, owner_repo, carry,
@@ -5253,7 +6540,8 @@ def verdict_pass_holds_for_pr_head(con, task_id, role, pr_head, pr_number, git_r
     carry-over). Shared by _judge_gate_and_merge, train_ready and judge_verdicts_stale; autospawn may be stricter in
     callers but never looser than this rule. `carry` is a memo from verdict head -> verdict_carries result.
     `carry_unavailable` is used when `repo_url` could not be read (gate) instead of calling verdict_carries. Returns one
-    of (\"missing\", None), (\"holds\", None), (\"carry\", (verdict_head, main_sha, merges)), (\"stale\", (verdict_head, why))."""
+    of (\"missing\", None), (\"holds\", None), (\"carry\", (verdict_head, main_sha, merges)), (\"fixcarry\", (verdict_head,
+    main_sha, detail)) (T-1611 fix-carry; only when the pure-main-merge carry does not apply), (\"stale\", (verdict_head, why))."""
     last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                        (task_id, role)).fetchone()
     if not last or last["verdict"] != "pass":
@@ -5273,6 +6561,15 @@ def verdict_pass_holds_for_pr_head(con, task_id, role, pr_head, pr_number, git_r
     ok, why, main_sha, merges = carry[x]
     if ok:
         return "carry", (x, main_sha, merges)
+    if repo_url and x and not why.startswith("cannot verify"):
+        fkey = ("fix", role, x)  # T-1611: the other role's PASS carries across a small fix when the failed role re-passed
+        if fkey not in carry:
+            carry[fkey] = judge_fix_carry_for(con, task_id, role, x, pr_head, pr_number, git_repo, repo_url, owner_repo, carry)
+        fkind, finfo = carry[fkey]
+        if fkind == "carry":
+            return "fixcarry", finfo
+        if fkind == "refused":
+            why = f"{why}; fix-carry refused: {finfo}"
     return "stale", (x, why)
 
 
@@ -5281,6 +6578,41 @@ JUDGE_POLL_S = 30  # seconds between pr_state polls while CI is pending; $FACTOR
 
 def _judge_sleep(seconds):
     time.sleep(seconds)
+
+
+def judge_review_green(con):
+    """T-1802 (owner M40731/M40734): config judge_review_gate=green merges a green PR without reviewer/QA PASS. Any other
+    value, including an unreadable one, keeps passpass."""
+    return (cfg(con, "judge_review_gate") or "passpass").strip().lower() == "green"
+
+
+def judge_ci_none(con):
+    """T-1772: config judge_ci_gate=none turns the judge's GitHub PR check reading and waiting off (the main push run is
+    the gate, red_main_check). Any other value, including an unreadable one, keeps today's behaviour (pr).
+    T-1802: never in judge_review_gate=green mode: there the PR CI is the only safety and is always read."""
+    if judge_review_green(con):
+        return False
+    return (cfg(con, "judge_ci_gate") or "pr").strip().lower() == "none"
+
+
+def green_head_fail_problems(con, task_id, sha):
+    """T-1802 green mode: one problem per role whose LATEST verdict is a FAIL on exactly `sha`. A PASS, no verdict or a
+    verdict on an older head never blocks."""
+    out = []
+    for role in ("reviewer", "qa"):
+        last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                           (task_id, role)).fetchone()
+        if last and (last["verdict"] or "").lower() in ("fail", "reject") and (last["head_sha"] or "").lower() in ("", (sha or "").lower()):  # no head recorded: unverifiable, blocks
+            out.append(f"{role} FAIL on the head {sha[:8]}")
+    return out
+
+
+def green_ci_problems(pr):
+    """T-1802 green mode: [] only when ci_verdict says green (every check completed and successful) on the PR's head."""
+    bad = checks_ok(pr)
+    if bad:
+        return bad
+    return [] if ci_verdict(pr.get("statusCheckRollup"))[0] == "green" else ["checks=PENDING (no completed green check on the head)"]
 
 
 def _judge_wait_limit(con):
@@ -5381,8 +6713,93 @@ def behind_ok_blocker(repo, sha, main_sha):
     return None
 
 
+def no_refresh_on(con):
+    """T-1676 switch: config stale_no_refresh (default on); any other value restores the behaviour before T-1676."""
+    return (cfg(con, "stale_no_refresh") or "on").strip().lower() == "on"
+
+
+def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carry=None, proj=None):
+    """T-1676 no-refresh merge rule (owner 2026-11-17, docs/stale-policy.md): may the PR's CURRENT head, BEHIND main,
+    be merged as it is, with no refresh anywhere? One decision for the judge spawn pre-check, the `factory judge` gate
+    (cmd_judge --merge) and the mechanical merger (mech_try). Returns (verdict, reasons):
+    - "merge": all hold: (1) CI green on the head, (2) reviewer and QA PASS on the head (exact or carried), (3)
+      `git merge-tree --write-tree` of main and the head is clean, (4) no file changed on main since the merge-base is
+      also changed by the PR and tests.yml is unchanged there (behind_ok_blocker), (5) GitHub mergeable == MERGEABLE;
+      and GitHub accepts a BEHIND merge (stale_behind_ok). reasons = the conditions that held.
+    - "hold": no refresh is needed, but (1) or (2) fails: nothing merges and nothing refreshes. reasons = what failed.
+    - "refresh": refresh as before T-1676 (a condition of 3-5 fails, GitHub requires an up-to-date branch, or a git/gh
+      error: fail closed). reasons = what failed.
+    - "fresh": the head already contains main; nothing to decide.
+    `main_sha`, when given, is the verified main commit of a head already known to be BEHIND (head_has_main); `carry` is
+    the caller's verdict-carry memo; `proj` the local-gate project (local_checks_problems instead of GitHub checks)."""
+    owner_repo = "/".join(t["pr_url"].split("/")[3:5])
+    if not no_refresh_on(con):
+        return "refresh", ["stale_no_refresh is off"]
+    sha = pr["headRefOid"]
+    if main_sha is None:  # staleness first: a head that contains main is "fresh" whatever the rest says
+        try:
+            repo_url = repo_url or gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+        except (SystemExit, ValueError, KeyError) as e:
+            return "refresh", [f"gh repo view failed: {e}"]
+        ok, why, main_sha = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
+        if ok:
+            return "fresh", []
+        if why != "STALE":
+            return "refresh", [f"cannot verify the head against main: {why}"]
+    if pr.get("state") != "OPEN" or pr.get("baseRefName") != "main":
+        return "refresh", [f"PR is {pr.get('state')} on base {pr.get('baseRefName')}"]
+    if pr.get("mergeable") != "MERGEABLE":
+        return "refresh", [f"GitHub mergeable is {pr.get('mergeable')}, not MERGEABLE"]
+    if not stale_behind_ok(con, owner_repo):
+        return "refresh", ["GitHub requires an up-to-date branch (strict), the protection is unreadable or stale_policy is strict"]
+    blocker = behind_ok_blocker(git_repo, sha, main_sha)
+    if blocker:
+        return "refresh", [blocker]
+    rc, _, err = _git_rc([*HARDENED_GIT_FLAGS, "merge-tree", "--write-tree", main_sha, sha], repo=git_repo, env=_carry_env())
+    if rc == 1:
+        return "refresh", ["git merge-tree of main and the head conflicts"]
+    if rc != 0:
+        return "refresh", [f"git merge-tree failed: {err or rc}"]
+    held = ["head %s behind main %s" % (sha[:8], main_sha[:8]), "merge-tree clean",
+            "no file changed by both main and the PR since the merge-base", f"{CI_WORKFLOW} unchanged on main",
+            "GitHub MERGEABLE"]
+    hold = []
+    bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
+           (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
+           else (green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))
+           + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
+    if bad:
+        hold.append("CI not green on the head: " + ", ".join(bad))
+    else:
+        held.append("CI green on the head")
+    carry = {} if carry is None else carry
+    if judge_review_green(con):  # T-1802: only a FAIL on the head blocks
+        hold += green_head_fail_problems(con, t["id"], sha)
+        return ("hold", hold) if hold else ("merge", held + ["no reviewer/QA FAIL on the head (judge_review_gate=green)"])
+    for role in ("reviewer", "qa"):
+        kind, _ = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
+        if kind in ("holds", "carry"):
+            held.append(f"{role} PASS on the head" + (" (carried)" if kind == "carry" else ""))
+        else:
+            hold.append(f"no {role} PASS that holds on the head ({kind})")
+    return ("hold", hold) if hold else ("merge", held)
+
+
 MERGED_GO_PROOF_TIMEOUT_S = 180
 MERGED_GO_UNMERGEABLE = object()  # merge-tree conflict: not proof success; caller must drop behind_clean
+
+
+def worker_cache_env():
+    """T-1698: disk-backed Go and pnpm caches for a spawned worker (the same dirs as merged_go_proof_env and
+    docs/go-toolchain.md), so a killed build leaves nothing in the tmpfs /tmp."""
+    cache = Path.home() / ".cache"
+    try:
+        (cache / "go" / "tmp").mkdir(parents=True, exist_ok=True)  # go refuses a missing GOTMPDIR
+    except OSError:
+        pass   # the worker's first go call then says so itself
+    return {"GOTMPDIR": str(cache / "go" / "tmp"), "GOCACHE": str(cache / "go" / "build"),
+            "GOMODCACHE": str(cache / "go" / "path" / "pkg" / "mod"),
+            "npm_config_store_dir": str(cache / "pnpm-store")}
 
 
 def merged_go_proof_env():
@@ -5542,6 +6959,8 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
     """Poll the PR while its only non-green checks are pending (`judge_ci_wait_s`). With `new_head` (just pushed by a
     refresh) it first waits for GitHub to report that head, and for its checks to appear (required ones, or any when the
     old head had some): an empty rollup right after a push is not green. Returns (pr, seconds waited)."""
+    if judge_ci_none(con):  # T-1772: the judge never waits on GitHub PR checks
+        return pr, 0
     proj = gate_project_for(con, url)  # T-0516: the gate is gate_runs, GitHub checks need not exist
     local = proj is not None
 
@@ -5552,7 +6971,9 @@ def judge_wait_ci(con, url, pr, new_head=None, had_checks=False):
             if not local and (missing_checks(con, pr, url) or (had_checks and not pr.get("statusCheckRollup"))):
                 return "checks of the new head not started"
         # T-1634: in local mode only the project's required_checks are waited for; other pending checks never block
-        bad = local_checks_problems(proj, pr) if local else checks_ok(pr)
+        green = judge_review_green(con)  # T-1802: green mode also waits for a check-less or all-pending rollup (ci_verdict pending)
+        bad = ((local_checks_problems(proj, pr) if local else []) + (green_ci_problems(pr) if green else [])
+               if green or local else checks_ok(pr))
         return ", ".join(bad) if _judge_pending(bad) else ""
 
     what = waiting(pr)
@@ -5778,13 +7199,17 @@ def close_landed_pr(pr_url, main_sha, reason):
     return "" if p.returncode == 0 else (p.stderr.strip() or f"gh pr close exit {p.returncode}")
 
 
-def record_merged(con, t, a, sha, shown, reason, carried=(), post_err=""):
+def record_merged(con, t, a, sha, shown, reason, carried=(), post_err="", fix_carried=()):
     """The tail of a merge: judge verdict at head `sha`, task done, `merged` event naming `shown` (the head, or the real
     main commit when it is known), post-merge hook. Shared by the normal merge and the already-landed paths."""
     for role, x, main_sha, merges in carried:
         event(con, "task", a.task, "verdict-carried", json.dumps(
             {"role": role, "from": x, "to": sha, "main": main_sha, "merges": merges}))
         print(f"{role} PASS carried {x[:8]} -> {sha[:8]} across {len(merges)} pure origin/main merge(s)")
+    for role, x, main_sha, d in fix_carried:  # T-1611: after the merge succeeded, next to verdict-carried
+        event(con, "task", a.task, "verdict-carried-fix", json.dumps(
+            {"role": role, "from": x, "to": sha, "lines": d["lines"], "commits": d["commits"], "failed_role": d["failed_role"]}))
+        print(f"{role} PASS carried {x[:8]} -> {sha[:8]} across a {d['lines']}-line fix re-checked by {d['failed_role']}")
     con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                 (a.task, t["pr_url"], sha, "judge", "merge", reason, actor(), now()))
     con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.task))
@@ -5867,7 +7292,10 @@ def train_ready(con, tid, git_repo):
     except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: cannot verify, drop the task
         return sha, pr["number"], None, owner_repo, [f"cannot verify, gh repo view failed: {e}"]
     carry = {}
-    for role in ("reviewer", "qa"):
+    green = judge_review_green(con)
+    if green:  # T-1802: only a FAIL on the head blocks
+        problems += green_head_fail_problems(con, tid, sha)
+    for role in (() if green else ("reviewer", "qa")):
         kind, info = verdict_pass_holds_for_pr_head(con, tid, role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
         if kind == "missing":
             problems.append(f"no {role} PASS")
@@ -5880,7 +7308,7 @@ def train_ready(con, tid, git_repo):
         problems.append("PR is a draft")
     if pr.get("baseRefName") != "main":
         problems.append(f"PR base is {pr.get('baseRefName')}, not main")
-    bad = checks_ok(pr)
+    bad = green_ci_problems(pr) if green else checks_ok(pr)
     if bad:
         problems.append("checks not green: " + ", ".join(bad))
     problems += missing_checks(con, pr, t["pr_url"])
@@ -6453,7 +7881,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
     retried, refreshes, locked = False, 0, False
     while True:
         # Gate: both verdicts must be PASS on this exact head, CI green, PR open & mergeable.
-        problems, carry, carried = [], {}, []
+        problems, carry, carried, fix_carried = [], {}, [], []
         owner_repo = "/".join(t["pr_url"].split("/")[3:5])
         try:
             repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
@@ -6461,7 +7889,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: refuse the carry instead
             repo_url = None
             carry_unavail = (False, f"cannot verify, gh repo view failed: {e}", None, [])
-        for role in ("reviewer", "qa"):
+        if judge_review_green(con):  # T-1802 (owner M40731/M40734): only a FAIL verdict on the head blocks
+            problems += green_head_fail_problems(con, a.task, sha)
+        for role in (() if judge_review_green(con) else ("reviewer", "qa")):
             kind, info = verdict_pass_holds_for_pr_head(con, a.task, role, sha, pr["number"], git_repo, repo_url,
                                                        owner_repo, carry, carry_unavailable=carry_unavail)
             if kind == "missing":
@@ -6469,6 +7899,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             elif kind == "carry":
                 x, main_sha, merges = info
                 carried.append((role, x, main_sha, merges))
+            elif kind == "fixcarry":
+                x, main_sha, detail = info
+                fix_carried.append((role, x, main_sha, detail))
             elif kind == "stale":
                 x, why = info
                 problems.append(f"{role} PASS is for {x[:8]}, head is now {sha[:8]} ({why})")
@@ -6479,8 +7912,16 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         else:
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
         # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
-        behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
-        blocker = behind_clean and behind_ok_blocker(git_repo, sha, stale[2])
+        nr, nr_why = None, []
+        if stale[1] == "STALE" and no_refresh_on(con):
+            # T-1676: one decision (no_refresh_merge) for the judge, the mech merger and the spawn pre-check. "merge" and
+            # "hold" never refresh ("hold" is refused below: CI or a verdict); "refresh" refreshes (judge) or refuses (mech)
+            nr, nr_why = no_refresh_merge(con, t, pr, git_repo, repo_url=repo_url, main_sha=stale[2], carry=carry, proj=proj)
+            behind_clean = nr in ("merge", "hold")
+            blocker = "; ".join(nr_why) if nr == "refresh" else None
+        else:
+            behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
+            blocker = behind_clean and behind_ok_blocker(git_repo, sha, stale[2])
         if blocker:  # T-1000/T-1025: CI changed on main, or main touched a file the PR also changes: refresh (judge) or refuse (mech)
             behind_clean = False
         if behind_clean:
@@ -6497,7 +7938,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append("PR is a draft")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
-        bad = local_checks_problems(proj, pr) if proj else checks_ok(pr)  # T-1634: local mode, see local_checks_problems
+        bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
+               (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
+               else green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -6514,12 +7957,14 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 problems += local_gate_problems(
                     con, proj, t["pr_url"], sha, stale[2], stale[0], behind_ok=behind_clean,
                     body=lambda: gh_json("pr", "view", t["pr_url"], "--json", "body").get("body") or "")
-        else:
+        elif not judge_ci_none(con):
             problems += missing_checks(con, pr, t["pr_url"])
         g = con.execute("SELECT p.auto_merge FROM goals g LEFT JOIN projects p ON p.id=g.project_id WHERE g.id=?",
                         (t["goal_id"],)).fetchone()
         if g and g["auto_merge"] == 0:
             problems.append("project has auto_merge=0 — boss must get the owner's OK")
+        if nr == "hold" and not problems:  # fail closed: the rule's own CI/verdict reading refused, the gate must too
+            problems.append("no-refresh merge on hold: " + "; ".join(nr_why))
         # STALE-ONLY (a "PR has conflicts" next to it is GitHub's view of the same staleness; merge-tree decides):
         # the judge refreshes the branch itself, waits for CI on the new head and re-runs this whole gate on it
         others = [x for x in problems if not x.startswith("STALE-ONLY") and x != "PR has conflicts"]
@@ -6533,7 +7978,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                     lock_and_recheck(stack, con, t, a.task)
                     locked = True
                 err = close_landed_pr(t["pr_url"], landed, reason)
-                record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "")
+                record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "", fix_carried)
                 return
         if behind_clean:
             proof = merged_go_refusal(con, git_repo, sha, stale[2])
@@ -6548,6 +7993,11 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 pass  # TODO(T-0623): refuse here while the red-main freeze is active
         if not behind_clean and stale[1] == "STALE" and not others and mech:
             problems.append("STALE-ONLY: the mechanical merger does not refresh; refresh by hand (`factory refresh`) or the judge does")
+        elif not behind_clean and stale[1] == "STALE" and not others and judge_ci_none(con):
+            # T-1772: judge_ci_gate=none never refreshes (a refresh would restart CI that the judge no longer waits for);
+            # a head that cannot merge as it is (overlap with main, dirty merge-tree, strict protection) is refused
+            problems.append("judge_ci_gate=none does not refresh the branch: "
+                            + (blocker or "; ".join(nr_why) or "the head cannot merge behind main as it is"))
         elif not behind_clean and stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
@@ -6696,7 +8146,10 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if still_open and landed:  # on main but GitHub still says OPEN: close it with the pointer, never leave it open
             err = close_landed_pr(t["pr_url"], landed, reason)
             post_err += f"; PR not closed: {err}" if err else ""
-    record_merged(con, t, a, sha, shown, reason, carried, post_err)
+    record_merged(con, t, a, sha, shown, reason, carried, post_err, fix_carried)
+    if nr == "merge" and behind_clean:  # T-1676: merged the BEHIND head as it was, no refresh anywhere
+        event(con, "task", a.task, "merged-no-refresh", json.dumps({"head": sha, "main": stale[2], "reasons": nr_why}))
+        con.commit()
     if _judge_is_public(con, t, owner_repo):
         judge_merge_email_check(con, t, a, owner_repo, shown if shown != sha else None)
 
@@ -6747,14 +8200,15 @@ def mech_candidates(con, only=None):
     for t in con.execute(q, (only,) if only else ()).fetchall():
         if t["tier"] and t["tier"] > MECH_MAX_TIER:
             continue
-        if mech_dispute(con, t["id"]):
+        if mech_dispute(con, t["id"]) or runner_managed(con, t["id"]):  # the Option B runner merges its own tasks
             continue
         if task_judge_hold_reason(con, t["id"]):  # a held task is not merged mechanically; judge_autospawn_tick logs the hold
             continue
         if judge_status_only_hold(con, t["id"]):
             continue
-        if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                            (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa")):
+        if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; the gate (and judge_verdicts_stale) refuse a FAIL on the head
+                any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                                 (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa"))):
             continue
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
@@ -6909,6 +8363,12 @@ def mech_try(con, t, mode, retry_s):
     if jhr:
         log_task_judge_hold(con, tid, jhr)
         return "skipped"
+    if no_refresh_on(con):
+        # T-1676: the shared no-refresh decision; the merger never refreshes, so a head that needs one goes to the judge
+        nr, nr_why = no_refresh_merge(con, t, pr, git_repo, proj=gate_project_for(con, url))
+        if nr == "refresh":
+            return block("STALE-ONLY: head does not contain origin/main (%s: behind_ok does not apply, refresh so CI runs "
+                         "the combined tree); the mechanical merger does not refresh, the judge does" % "; ".join(nr_why))
     reason = "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why)
     a = types.SimpleNamespace(task=tid, reason=reason, by="merger", dry_run=(mode == "shadow"), mech=True)
     mark = con.execute("SELECT COALESCE(MAX(id),0) m FROM events").fetchone()["m"]
@@ -6942,6 +8402,14 @@ def mech_try(con, t, mode, retry_s):
         return "would-merge"
     done = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] == "done"
     return "merged" if done else block("gate returned without merging")
+
+
+def runner_managed(con, tid):
+    """True when the Go Option B runner (`hivemill run`, docs/option-b-runner.md) owns this task: an agents row of role
+    task or task-judge exists for it. The old pipeline (autospawn, ci resume, dispatch, the tick's merger, red-PR mail)
+    leaves such a task alone."""
+    return bool(tid) and con.execute("SELECT 1 FROM agents WHERE task_id=? AND role IN ('task','task-judge') LIMIT 1",
+                                     (tid,)).fetchone() is not None
 
 
 def cmd_mech_merge(a):
@@ -6993,7 +8461,7 @@ def pr_title_for(task_id, task_title):
 
 def tick_pr_titles(con):
     """Tick (T-1590): rename every OPEN PR on a factory/t-* head whose title is only the task id to "T-xxxx: <task title>"
-    (gh pr edit --title) and write one `pr-title-renamed` event (old, new, PR). One `gh pr list` per repo of a live task PR;
+    (gh pr edit --title) and write one `pr-title-renamed` event (old, new, PR). One REST `gh api repos/R/pulls` per repo of a live task PR (T-1677: it was a GraphQL `gh pr list` every tick);
     each PR head is handled once (throttle key prtitle:<url> = head sha). PRs on other branches are never touched."""
     repos = {}
     for r in con.execute("SELECT pr_url FROM tasks WHERE pr_url IS NOT NULL AND pr_url!='' "
@@ -7003,8 +8471,8 @@ def tick_pr_titles(con):
             repos["/".join(parts[3:5])] = 1
     for repo in repos:
         try:
-            prs = gh_json("pr", "list", "-R", repo, "--state", "open", "--limit", "200",
-                          "--json", "number,title,headRefName,headRefOid,url")
+            prs = gh_json_lines("api", f"repos/{repo}/pulls", "--method", "GET", "-f", "state=open", "-f", "per_page=100", "--paginate",
+                                "--jq", ".[] | {number, title, headRefName: .head.ref, headRefOid: .head.sha, url: .html_url}")
         except (SystemExit, subprocess.SubprocessError, OSError, ValueError) as e:  # one repo failing must not skip the others
             event(con, "tick", "pr-titles", "pr-titles-error", f"{repo}: {_tick_gh_detail(e)}")
             continue
@@ -7047,7 +8515,7 @@ def tick_mech_merge(con):
         return
     run = [sys.executable, str(Path(__file__).resolve().with_name("factory")), "mech-merge"]
     kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={**os.environ, "FACTORY_AGENT": actor()})
-    if os.environ.get("INVOCATION_ID"):
+    if os.environ.get("INVOCATION_ID") and sys.platform != "darwin":  # darwin: no systemd, the detached fallback below
         subprocess.run(["systemd-run", "--user", "--collect", "--quiet", "--unit", MECH_UNIT, "--", *run], **kw)  # rc!=0: previous unit still active
     else:
         subprocess.Popen(run, start_new_session=True, **kw)
@@ -7119,6 +8587,13 @@ def cmd_refresh(a):
 PRECHECK_ROLES = ("reviewer", "qa", "judge")
 
 
+def refresh_only_if_conflicting(pr):
+    """Owner order M40469 (T-1788): a judge or lead never merges main into a PASS+PASS PR unless GitHub says it is
+    CONFLICTING. A merely BEHIND head (mergeable MERGEABLE/UNKNOWN, mergeStateStatus BEHIND/CLEAN/UNSTABLE/BLOCKED) is
+    left alone: a refresh moves the head, so the reviewer/QA verdicts no longer match it and the merge gate re-waits."""
+    return (pr.get("mergeable") or "").upper() == "CONFLICTING"
+
+
 def staleness_precheck(con, role, task):
     """Spawn pre-check (T-0172): a reviewer, qa or judge is not spawned on a stale head. A clean-behind head is
     refreshed with refresh_branch (the one core of `factory refresh` and the judge's refresh) and the spawn goes on;
@@ -7149,8 +8624,18 @@ def staleness_precheck(con, role, task):
     if not git_config_guard(con, repo, always_event=True):
         return skip(f"git config in {repo} would run code: {', '.join(git_config_refusal(repo))}")
     old = pr["headRefOid"]
-    if role == "judge" and pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
-        return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
+    if role == "judge" and no_refresh_on(con):
+        # T-1676: the same no-refresh decision as `factory judge --merge` and the mech merger. "merge"/"hold": spawn on
+        # the current head, no refresh; "fresh": nothing to do; "refresh" (incl. any git/gh error): the rule below as before
+        nr, why = no_refresh_merge(con, t, pr, repo, repo_url=repo_url, proj=gate_project_for(con, t["pr_url"]))
+        if nr == "fresh":
+            return None
+        if nr in ("merge", "hold"):
+            event(con, "task", task, "precheck-no-refresh", f"{nr} @ {old[:8]}: {'; '.join(why)}"[:900])
+            con.commit()
+            return None
+    if role == "judge" and not refresh_only_if_conflicting(pr):
+        return None  # M40469: the spawn pre-check merges main only into a CONFLICTING PR; a BEHIND one is left alone
     # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
     # starts, and the judge refreshes before merging anyway. Only a conflict is refused (dry run: pushes nothing).
     r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task, dry_run=role in ("reviewer", "qa"))
@@ -7710,12 +9195,14 @@ def _red_main_revert_task(con, slug, run, since_ts):
     ev = [r for r in ev if since <= _red_main_when(r["ts"])] if since else ev[:3]
     merged = list(dict.fromkeys(r["entity_id"] for r in ev))
     tid = next_id(con, "tasks", "T", 4)
-    title = f"Red main: revert or fix {slug} run {run['databaseId']}"
+    title = f"Red main: bisect + revert {slug} run {run['databaseId']}"
     spec = (f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main failed ({run.get('url') or 'no url'}, "
-            f"head {str(run.get('headSha') or '')[:8]}). The red-main freeze holds every merge until a green push run. Merged since "
-            f"the last green main: {', '.join(merged) or 'unknown'}. Find the cause in the run log and open a PR that reverts or "
-            "fixes it; the freeze lifts by itself on the next green push run.")
-    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated) VALUES(?,?,?,?,?,'coder','[]',?,?)",
+            f"head {str(run.get('headSha') or '')[:8]}). With judge_ci_gate=none the main push run is the merge gate, so a red run "
+            f"means one of the merges since the last green main broke it: {', '.join(merged) or 'unknown'}. Bisect those merge "
+            "commits (git bisect or one revert at a time, newest first), find the culprit in the run log, and open a PR that "
+            "reverts it or fixes it; the freeze lifts by itself on the next green push run.")
+    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated,priority) "
+                "VALUES(?,?,?,?,?,'coder','[]',?,?,1)",
                 (tid, g["id"], title, spec, "main's push run of tests.yml is green again", now(), now()))
     event_as(con, "tick", "task", tid, "add", title)
     return tid, merged
@@ -8087,6 +9574,10 @@ _LEFTOVER_NAME = re.compile(r"(guard-diff-(seed-)?|factory-screenshots-|freshbox
                             r"|zz-test-[a-z0-9-]+-[a-z0-9_]{8}|zz-rv-[a-z0-9_]{8}|tmp[a-z0-9_]{8}|tmp\.[A-Za-z0-9]{10}")
 
 
+TMP_GOBUILD_MIN_AGE_S = 7200   # T-1698: go-build<digits> is a killed build's scratch; 2 h old and unopened is an orphan
+_GOBUILD_NAME = re.compile(r"go-build[0-9]+")
+
+
 def _sweep_leftovers(con, t):
     """(removed [(path, bytes)], locked count, blocked). A run blocked by an unreadable pid of an unlisted comm removes
     nothing and writes one tmp-sweep-blocked event. Entries of our uid directly under <tmp> whose name is in the closed list
@@ -8102,7 +9593,8 @@ def _sweep_leftovers(con, t):
     old = []
     locked = 0
     for d in sorted(base.iterdir()):
-        if not _LEFTOVER_NAME.fullmatch(d.name):
+        gobuild = bool(_GOBUILD_NAME.fullmatch(d.name))
+        if not gobuild and not _LEFTOVER_NAME.fullmatch(d.name):
             continue
         try:
             st = d.lstat()
@@ -8110,7 +9602,7 @@ def _sweep_leftovers(con, t):
             if not (isdir or stat.S_ISREG(st.st_mode)) or st.st_uid != os.getuid():
                 continue
             newest = _harness_newest_mtime(d) if isdir else st.st_mtime
-            if t - newest < TMP_LEFTOVER_MIN_AGE_S:
+            if t - newest < (TMP_GOBUILD_MIN_AGE_S if gobuild else TMP_LEFTOVER_MIN_AGE_S):
                 continue
             real = os.path.realpath(d)
             if any(c == real or c.startswith(real + os.sep) for c in cwds):
@@ -8157,6 +9649,45 @@ def _sweep_leftovers(con, t):
     return out, locked, False
 
 
+TMP_FTCACHE_MIN_AGE_S = 7200   # a factorytest-cache hash dir untouched this long is a stale build of the Go test tools
+TMP_FTCACHE_KEEP = 1           # the newest entry always stays: it is the current build
+
+
+def _sweep_factorytest_cache(t):
+    """T-1698: [(dir, bytes)] removed from <tmp>/factorytest-cache-<uid>/<hash>: entries untouched for 2 h, not held
+    (cwd, fd or running exe) by a process of ours, never the newest TMP_FTCACHE_KEEP. A rebuild costs one `go build`.
+    The parent must be a real dir of our uid; an unreadable pid keeps everything."""
+    base = tmp_dir() / f"factorytest-cache-{os.getuid()}"
+    try:
+        if base.is_symlink() or not base.is_dir() or base.stat().st_uid != os.getuid():
+            return []
+        ents = []
+        for d in base.iterdir():
+            st = d.lstat()
+            if stat.S_ISDIR(st.st_mode) and st.st_uid == os.getuid():
+                ents.append((_harness_newest_mtime(d), d))
+    except OSError:
+        return []
+    ents.sort(key=lambda e: e[0], reverse=True)
+    old = [(d, os.path.realpath(d)) for m, d in ents[TMP_FTCACHE_KEEP:] if t - m >= TMP_FTCACHE_MIN_AGE_S]
+    if not old:
+        return []
+    held = _proc_holds([r for _, r in old], TMP_LEFTOVER_IGNORE_COMMS, [])
+    if held is None:
+        return []
+    out = []
+    for d, real in old:
+        if real in held:
+            continue
+        try:
+            size = _tree_bytes(d)
+            shutil.rmtree(d)
+        except OSError:
+            continue
+        out.append((d, size))
+    return out
+
+
 def tmp_sweep(con):
     """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates)
     and stale leftovers with a listed prefix (see _sweep_leftovers),
@@ -8183,6 +9714,7 @@ def tmp_sweep(con):
             if not (last and t - float(last["ts"]) < TMP_LEFTOVER_THROTTLE_S):
                 con.execute("INSERT INTO throttle(key,ts) VALUES('tmpleftover',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
                 left, locked, blocked = _sweep_leftovers(con, t)
+                left = left + _sweep_factorytest_cache(t)
             freed += sum(sz for _, sz in left)
             if n or left or (locked and not blocked):
                 event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept",
@@ -8281,6 +9813,12 @@ def _harness_newest_mtime(d):
 
 def _pid_comm(pdir):
     """/proc/<pid>/comm of an unreadable pid, or None when it cannot be read; FileNotFoundError when the pid has exited."""
+    if sys.platform == "darwin":
+        snap = _darwin_ps()
+        e = snap.get(int(pdir.name)) if snap and pdir.name.isdigit() else None
+        if snap is not None and e is None:
+            raise FileNotFoundError(pdir.name)  # gone from the snapshot: exited
+        return os.path.basename(e["argv"][0]) if e and e["argv"] else None
     try:
         return (pdir / "comm").read_text().strip()
     except FileNotFoundError:
@@ -8294,6 +9832,8 @@ def _proc_holds(roots, ignore_comms=frozenset(), blocker=None):
     a pid of ours cannot be read completely, so the caller keeps everything. (A non-dumpable same-uid process has an
     unreadable fd dir, which also lands in the keep-everything branch.) An unreadable pid whose comm is in `ignore_comms`
     is skipped; any other unreadable pid is appended to `blocker` as "pid:comm" (comm None if unreadable) before None."""
+    if sys.platform == "darwin":
+        return None  # open fds / cwd are not readable without /proc: keep everything (never delete what may be in use)
     held = set()
     uid = os.getuid()
     for pdir in _serve_proc_root().iterdir():
@@ -8304,6 +9844,10 @@ def _proc_holds(roots, ignore_comms=frozenset(), blocker=None):
                 continue
             targets = [os.path.realpath(os.readlink(pdir / "cwd"))]
             targets += [os.path.realpath(f) for f in (pdir / "fd").iterdir()]
+            try:
+                targets.append(os.path.realpath(os.readlink(pdir / "exe")))  # a running built tool (T-1698)
+            except OSError:
+                pass   # kernel thread or no exe link: nothing to add
         except FileNotFoundError:
             continue   # the process exited while we looked
         except OSError:
@@ -8409,6 +9953,9 @@ def _serve_proc_root():
 
 def _serve_argv(pid):
     """argv of a pid, or None when it is gone, unreadable or a zombie (empty cmdline)."""
+    if sys.platform == "darwin":
+        e = (_darwin_ps() or {}).get(int(pid))
+        return (e["argv"] or None) if e else None
     try:
         argv = [x.decode(errors="replace") for x in (_serve_proc_root() / str(pid) / "cmdline").read_bytes().split(b"\0") if x]
     except OSError:
@@ -8449,11 +9996,38 @@ def _task_agent_ended(con, task):
     return True, rows[0]["name"]
 
 
+def _serve_pidfile():
+    return HOME / "state" / "serve.pid"
+
+
+def _serve_pidfile_write():
+    """darwin: <FACTORY_HOME>/state/serve.pid = "<pid> <start time>" (ps lstart); removed on clean exit (cmd_serve)."""
+    f = _serve_pidfile()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(f"{os.getpid()} {_proc_start(os.getpid()) or ''}\n")
+
+
+def _serve_pidfile_pid():
+    """darwin: the live serve pid from serve.pid, or None when the file is missing, unreadable, or its pid is gone or was
+    reused (the recorded start time no longer matches)."""
+    try:
+        pid_s, _, start = _serve_pidfile().read_text().strip().partition(" ")
+        pid = int(pid_s)
+    except (OSError, ValueError):
+        return None
+    if pid <= 0:
+        return None
+    now = _proc_start(pid)
+    return pid if now is not None and now == start else None
+
+
 def _serve_mainpid():
     """MainPID of the owner's factory-serve.service; None when systemd cannot say. $FACTORY_SERVE_MAINPID replaces the call (tests)."""
     fake = os.environ.get("FACTORY_SERVE_MAINPID")
     if fake is not None:
         return int(fake) if fake.isdigit() else None
+    if sys.platform == "darwin":
+        return _serve_pidfile_pid()
     try:
         out = subprocess.run(["systemctl", "--user", "show", "factory-serve.service", "-p", "MainPID", "--value"],
                              capture_output=True, text=True, timeout=10).stdout.strip()
@@ -8466,6 +10040,9 @@ def _serve_unit_pids():
     """Pids whose cgroup is factory-serve.service, read from /proc (no systemd call): the unit's process even when
     _serve_mainpid() cannot reach systemd. Unreadable entries are skipped."""
     out = set()
+    if sys.platform == "darwin":
+        pid = _serve_pidfile_pid()  # no cgroups: the pid file is the whole unit
+        return {pid} if pid else out
     for d in _serve_proc_root().iterdir():
         if not d.name.isdigit():
             continue
@@ -8522,6 +10099,8 @@ def reap_stray_serves(con):
         if last and t - float(last["ts"]) < SERVE_REAP_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('servereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        if sys.platform == "darwin":
+            return  # environ/cwd of a pid are not readable here: nothing is attributed, nothing is reaped
         root, unit_pids = _serve_proc_root(), _serve_unit_pids() | {_serve_mainpid()}
         grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
         reaped = {}
@@ -8586,6 +10165,9 @@ ORPHAN_MODES = ("dry-run", "on", "off")
 
 def _orphan_stat(pid):
     """(ppid, pgid, starttime) from /proc/<pid>/stat, or None when it is gone or unreadable."""
+    if sys.platform == "darwin":
+        e = (_darwin_ps() or {}).get(int(pid))
+        return (e["ppid"], 0, e["lstart"]) if e else None  # pgid unused on this path; lstart is the start identity
     try:
         s = (_serve_proc_root() / str(pid) / "stat").read_text(errors="replace")
         f = s[s.rindex(")") + 2:].split()
@@ -8751,6 +10333,8 @@ def reap_orphans(con):
         if last and t - float(last["ts"]) < ORPHAN_REAP_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('orphanreap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        if sys.platform == "darwin":
+            return  # cwd/environ of a pid are not readable without /proc: an unreadable pid is kept, never reaped
         skip = _orphan_skip(_serve_mainpid())
         grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
         reaped, homes = [], {}
@@ -9069,6 +10653,414 @@ def reap_idle_coders(con, agents):
             pass
 
 
+IDLE_WATCHDOG_MODES = ("off", "shadow", "on")
+IDLE_WATCHDOG_ROLES = ("coder", "qa", "reviewer", "pm")
+IDLE_WATCHDOG_TURN_ENDED_S = 600  # T-1621 W1: a cursor turn that ended this long ago with the task open is a stall
+IDLE_WATCHDOG_NUDGE_GAP_S = 600   # W3: cursor nudges at least this far apart
+IDLE_WATCHDOG_CURSOR_NUDGES = 2   # W3: then one alert, never a third nudge
+IDLE_WATCHDOG_DB_WINDOW = 50000   # newest events/messages rows scanned for an agent's own DB writes
+IDLE_WATCHDOG_TAIL_BYTES = 65536
+IDLE_WATCHDOG_TRANSCRIPT_FILES = 2000  # cap on files stat'ed per cursor agent per tick
+IDLE_WATCHDOG_HOLD_RE = re.compile(r"(?im)^\s*hold\b|\bHOLD:")
+IDLE_WATCHDOG_STEPS = ("idle-watchdog-nudge", "idle-watchdog-relaunch", "idle-watchdog-alert", "idle-watchdog-error-alert",
+                       "idle-watchdog-refused-alert")
+IDLE_WATCHDOG_NUDGE = ("Factory watchdog: your turn ended {min} min ago and task {task} is not done. No human reads this "
+                       "pane; do not ask or offer, act. If a push was refused for a Co-authored-by trailer, rebuild the "
+                       "commit with git commit-tree (no trailer) and push again. Then finish: factory pr create, factory "
+                       "prcheck, set in_review, factory done. If a command is still refused, run factory msg {director} "
+                       "'{task} blocked' 'the refused command and its exact output' --kind escalation, then wait.")
+
+
+def _idle_newest_mtime(paths):
+    best = None
+    for p in paths:
+        try:
+            m = p.stat().st_mtime
+        except OSError:
+            continue
+        best = m if best is None or m > best else best
+    return best
+
+
+def _claude_transcript_mtime(r):
+    """mtime of the claude session jsonl of row `r` (~/.claude/projects/<cwd, non-alphanumerics as '-'>/<session>.jsonl);
+    an unknown or missing session falls back to the newest jsonl of that project dir. None = no transcript found."""
+    if not r["cwd"]:
+        return None
+    d = Path.home() / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", r["cwd"])
+    own = d / f"{r['session_id']}.jsonl" if r["session_id"] else None
+    if own is not None and own.is_file():
+        return _idle_newest_mtime([own])
+    try:
+        return _idle_newest_mtime(list(d.glob("*.jsonl")))
+    except OSError:
+        return None
+
+
+def _cursor_project_names(ws):
+    """The ~/.cursor/projects/<dir> names the Cursor CLI uses for workspace `ws`: the absolute path with each
+    non-alphanumeric character (or each run of them) as '-', outer dashes stripped. Exact names only: two workspaces
+    that differ only in separators never share a transcript dir."""
+    ws = str(ws)
+    return {re.sub(r"[^A-Za-z0-9]", "-", ws).strip("-"), re.sub(r"[^A-Za-z0-9]+", "-", ws).strip("-")} - {""}
+
+
+def _cursor_transcript(r):
+    """(newest file, mtime) under ~/.cursor/projects/<dir>/agent-transcripts for cursor row `r`, where <dir> is the
+    agent's policy workspace (spawn_args cursor_workspace, else its cwd) named as _cursor_project_names. The layout is
+    agent-transcripts/<id>.jsonl or agent-transcripts/<id>/<id>.jsonl: at most two levels and
+    IDLE_WATCHDOG_TRANSCRIPT_FILES files are read, and no symlink (dir or file) is followed. None = no transcript."""
+    ws = _spawn_args_row(r).get("cursor_workspace") or r["cwd"]
+    root = Path.home() / ".cursor" / "projects"
+    if not ws:
+        return None
+    best, seen = None, 0
+    for nm in sorted(_cursor_project_names(ws)):
+        d = root / nm
+        top = d / "agent-transcripts"
+        if d.is_symlink() or top.is_symlink() or not top.is_dir():
+            continue
+        stack = [(top, 0)]
+        while stack and seen < IDLE_WATCHDOG_TRANSCRIPT_FILES:
+            cur, depth = stack.pop()
+            try:
+                entries = list(os.scandir(cur))
+            except OSError:
+                continue
+            for ent in entries:
+                if seen >= IDLE_WATCHDOG_TRANSCRIPT_FILES:
+                    break
+                try:
+                    if ent.is_symlink():
+                        continue
+                    if ent.is_dir(follow_symlinks=False):
+                        if depth < 1:
+                            stack.append((Path(ent.path), depth + 1))
+                        continue
+                    if not ent.is_file(follow_symlinks=False):
+                        continue
+                    seen += 1
+                    m = ent.stat(follow_symlinks=False).st_mtime
+                except OSError:
+                    continue
+                if best is None or m > best[1]:
+                    best = (Path(ent.path), m)
+    return best
+
+
+def _transcript_text(obj):
+    """The text of one transcript line (a string or a list of {type: text} parts), else ''."""
+    msg = obj.get("message", obj)
+    if isinstance(msg, dict):
+        msg = msg.get("content", msg.get("text"))
+    if isinstance(msg, str):
+        return msg
+    if isinstance(msg, list):
+        return " ".join(p["text"] for p in msg if isinstance(p, dict) and isinstance(p.get("text"), str))
+    return ""
+
+
+def _cursor_transcript_tail(path):
+    """(last JSON line object or None, the last assistant text) of a cursor transcript jsonl; unreadable = (None, '')."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - IDLE_WATCHDOG_TAIL_BYTES))
+            lines = [x for x in f.read().decode("utf-8", "replace").splitlines() if x.strip()]
+    except OSError:
+        return None, ""
+    objs = []
+    for x in lines:
+        try:
+            o = json.loads(x)
+        except ValueError:
+            continue
+        if isinstance(o, dict):
+            objs.append(o)
+    text = next((s for o in reversed(objs) if o.get("role") == "assistant" for s in [_transcript_text(o)] if s), "")
+    return (objs[-1] if objs else None), text
+
+
+def _turn_ended(o):
+    """(status, error text) when transcript line `o` is a turn_ended line, else None."""
+    if not isinstance(o, dict) or o.get("type") != "turn_ended":
+        return None
+    err = o.get("error") or o.get("message") or o.get("text") or json.dumps(o)  # the key is not documented: keep the line
+    return str(o.get("status") or o.get("subtype") or "").lower(), (err if isinstance(err, str) else json.dumps(err))[:500]
+
+
+def _worktree_progress(cwd):
+    """Latest of the HEAD commit time and the mtimes of changed or untracked files in `cwd`; None when unreadable."""
+    if not cwd or not Path(cwd).is_dir():
+        return None
+    best = None
+    rc, ct = _git_out(cwd, "log", "-1", "--format=%ct")
+    if rc == 0 and ct.strip().isdigit():
+        best = float(ct.strip())
+    rc, st = _git_out(cwd, "status", "--porcelain", "-uall")
+    if rc == 0:
+        paths = [Path(cwd) / ln[3:].split(" -> ")[-1].strip('"') for ln in st.splitlines()[:2000] if len(ln) > 3]
+        m = _idle_newest_mtime(paths)
+        if m is not None and (best is None or m > best):
+            best = m
+    return best
+
+
+def _idle_watchdog_db_marks(con):
+    """{agent: newest epoch of its own DB writes}: events it wrote and messages it sent, among the newest rows."""
+    out = {}
+    for sql in ("SELECT actor a, ts FROM events WHERE id IN (SELECT max(id) FROM events WHERE id > "
+                "(SELECT coalesce(max(id),0) FROM events) - ? GROUP BY actor)",
+                "SELECT sender a, created ts FROM messages WHERE id IN (SELECT max(id) FROM messages WHERE id > "
+                "(SELECT coalesce(max(id),0) FROM messages) - ? GROUP BY sender)"):
+        for x in con.execute(sql, (IDLE_WATCHDOG_DB_WINDOW,)).fetchall():
+            t = _ts(x["ts"])
+            if t is not None and (x["a"] not in out or t.timestamp() > out[x["a"]]):
+                out[x["a"]] = t.timestamp()
+    return out
+
+
+def idle_watchdog_progress(con, r, marks, cursor_tr=None):
+    """{signal: epoch} of live worker row `r`'s progress: the run's start, a worktree change, a transcript write and its
+    own DB write (an event, a sent message, reading mail). The watchdog's idle clock starts at the newest of these."""
+    started = _ts(r["started"])
+    if _agent_runtime(r) == "cursor":
+        transcript = cursor_tr[1] if cursor_tr else None
+    else:
+        transcript = _claude_transcript_mtime(r)
+    sig = {"started": started.timestamp() if started else None, "worktree": _worktree_progress(r["cwd"]),
+           "transcript": transcript, "db": marks.get(r["name"])}
+    rd = _ts(con.execute("SELECT max(read_at) m FROM messages WHERE recipient=?", (r["name"],)).fetchone()["m"])
+    if rd and (sig["db"] is None or rd.timestamp() > sig["db"]):
+        sig["db"] = rd.timestamp()
+    return {k: v for k, v in sig.items() if v is not None}
+
+
+def _idle_watchdog_state(con, name, key, mode="shadow"):
+    """{step: [epoch, ...]} of the watchdog steps recorded for this agent + task + attempt (`key`); events are the state.
+    In mode on only mode=on rows count: steps logged in shadow took no action, so after the flip to on they run for real."""
+    out = {a: [] for a in IDLE_WATCHDOG_STEPS}
+    for e in con.execute("SELECT action, ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action IN "
+                         f"({','.join('?' * len(out))}) ORDER BY id", (name, *out)).fetchall():
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        t = _ts(e["ts"])
+        if isinstance(d, dict) and d.get("key") == key and t is not None and (mode != "on" or d.get("mode") == "on"):
+            out[e["action"]].append(t.timestamp())
+    return out
+
+
+def _idle_watchdog_record(con, r, step, mode, detail, note=None):
+    """One watchdog step: the agent event (the state, both modes) and, in mode on, a task note."""
+    event_as(con, "tick", "agent", r["name"], step, {**detail, "mode": mode})
+    if note and mode == "on":
+        event_as(con, "tick", "task", r["task_id"], "note", f"idle watchdog: {note}")
+
+
+def _idle_watchdog_alert(con, r, mode, detail, why, orgs_to):
+    """The terminal step: one alert per org director in `orgs_to` (mode on); then the watchdog leaves the agent alone."""
+    _idle_watchdog_record(con, r, "idle-watchdog-alert", mode, {**detail, "why": why, "to": list(orgs_to)},
+                          f"alerted the director(s) {', '.join(orgs_to)}: {why}")
+    if mode != "on":
+        return
+    body = (f"{r['name']} ({r['role']}, runtime {_agent_runtime(r)}) on task {r['task_id']}: no progress for "
+            f"{detail['idle_min']} min. Actions taken: {', '.join(detail['actions']) or 'none'}. {why} "
+            f"The watchdog does nothing more for this agent on this task attempt. Look at pane {r['pane_id']}, then "
+            f"stop and respawn it (factory stop {r['name']} --now) or reassign the task.")
+    for o in orgs_to:
+        send(con, "director", f"{r['name']}: idle {detail['idle_min']} min on {r['task_id']}", body, "alert",
+             r["goal_id"], r["task_id"], sender="tick", org=o)
+
+
+def _idle_watchdog_refused(con, r, mode, key, st, org):
+    """W5: a factory done refused during this run is alerted to the org director once per task attempt."""
+    if st["idle-watchdog-refused-alert"]:
+        return
+    e = con.execute("SELECT ts, detail FROM events WHERE entity='agent' AND entity_id=? AND action='done-refused' "
+                    "ORDER BY id DESC LIMIT 1", (r["name"],)).fetchone()
+    when, started = (_ts(e["ts"]) if e else None), _ts(r["started"])
+    if when is None or (started is not None and when < started):
+        return
+    try:
+        d = json.loads(e["detail"])
+        gname, why = d.get("gate") or "?", d.get("why") or ""
+    except (TypeError, ValueError, AttributeError):
+        gname, why = "?", ""
+    _idle_watchdog_record(con, r, "idle-watchdog-refused-alert", mode, {"key": key, "gate": gname, "why": why},
+                          f"factory done refused ({gname}); director alerted")
+    if mode == "on":
+        send(con, "director", f"{r['name']}: factory done refused ({gname})",
+             f"{r['name']} ({r['role']}, runtime {_agent_runtime(r)}) ran factory done on {r['task_id']} and the {gname} "
+             f"check refused it: {why or '(no message)'}\nIt may not get past it alone: look at pane {r['pane_id']} "
+             "and the task.", "alert", r["goal_id"], r["task_id"], sender="tick", org=org)
+
+
+def idle_watchdog(con, agents):
+    """T-1622 (G-058 SC2/SC4, docs/idle-watchdog.md): idle-progress watchdog for live workers (coder, qa, reviewer, pm;
+    claude and cursor) with an open task, run in the idle-coder tick step after reap_idle_coders. Config idle_watchdog
+    off|shadow|on (unknown = shadow: event rows only, no pane action, no msg, no task note) and idle_watchdog_min (W,
+    default 30). Progress = the newest of the run's start, a worktree change, a transcript write and the agent's own DB
+    write (idle_watchdog_progress). Every step is recorded as an idle-watchdog-* event keyed agent|task|attempts, which
+    is the only state: a relaunch keeps the key, so nothing repeats or loops across ticks or runs.
+    claude, and cursor without an ended turn: idle W -> one nudge; then W/2 without progress (and W/2 after the nudge)
+    -> one fresh relaunch (behind the same checks as spawn's gate, one per tick; a start the spawn gate queues anyway is
+    alerted to both directors); still idle W after the relaunch, its kickoff read or not -> one alert to both directors.
+    cursor whose transcript of this run ends in turn_ended (T-1621 W1-W4): status error -> alert the org director at
+    once, never a nudge; otherwise, once the turn is 10 min old -> up to 2 nudges 10 min apart, then one escalation to
+    the org director with the last 300 chars of its text. A first kickoff never read is T-1599's (tick_cursor_kickoff)
+    and skipped here; after a watchdog relaunch T-1599 resends the new kickoff but does not relaunch again. A hold (judge
+    hold or HOLD in the spec) is escalated to the org director, never nudged. A refused factory done (done-refused
+    event, W5) is alerted to the org director once. Skipped: tasks done/cancelled/blocked (blocked = a named wait in tasks.waits), goals not
+    active, rows stopping/relaunching/starting, a pane the host does not list or reports working, a claude agent with a
+    shell running (a CI wait, a test)."""
+    try:
+        mode = cfg(con, "idle_watchdog")
+        mode = mode if mode in IDLE_WATCHDOG_MODES else "shadow"
+        if mode == "off" or not agents:
+            return
+        try:
+            w = int(cfg(con, "idle_watchdog_min")) * 60
+        except (TypeError, ValueError):
+            return  # a bad threshold never acts
+        if w <= 0:
+            return
+        clock = _ts(now()).timestamp()  # $FACTORY_TEST_NOW on a test home, as tick_cursor_kickoff
+        by_name = {x.get("name"): x for x in agents if x.get("name")}
+        marks = _idle_watchdog_db_marks(con)
+        both = tuple(o for o in ("claude", "cursor") if o in orgs.ORGS)
+        relaunched = False
+        rows = con.execute(f"SELECT * FROM agents WHERE status='live' AND role IN ({','.join('?' * len(IDLE_WATCHDOG_ROLES))}) "
+                           "AND task_id IS NOT NULL AND stop_requested_at IS NULL AND relaunch_requested_at IS NULL "
+                           "AND start_pending IS NULL ORDER BY name", IDLE_WATCHDOG_ROLES).fetchall()
+        for r in rows:
+            t = con.execute("SELECT * FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+            if not t or t["status"] in ("done", "cancelled", "blocked"):
+                continue
+            g = con.execute("SELECT status FROM goals WHERE id=?", (t["goal_id"],)).fetchone()
+            if not g or g["status"] != "active":
+                continue
+            if _spawn_args_row(r).get("launch") == "subprocess":
+                continue  # no pane
+            name, runtime = r["name"], _agent_runtime(r)
+            key = f"{name}|{t['id']}|{t['attempts']}"
+            st = _idle_watchdog_state(con, name, key, mode)
+            if st["idle-watchdog-alert"]:
+                continue  # the terminal step was taken: no more automatic actions on this task attempt
+            unread = kickoff_unread(con, name)
+            if unread and not st["idle-watchdog-relaunch"]:
+                continue  # a kickoff never accepted: T-1599's tick_cursor_kickoff owns that pane
+            h = by_name.get(name)
+            if not h or h.get("agent_status") == "working":
+                continue  # unlisted (cannot decide) or mid-turn
+            org = agent_org(con, name) or orgs.DEFAULT_ORG
+            _idle_watchdog_refused(con, r, mode, key, st, org)
+            nudges, relaunches = st["idle-watchdog-nudge"], st["idle-watchdog-relaunch"]
+            hold = bool((t["judge_hold_reason"] or "").strip()) or bool(IDLE_WATCHDOG_HOLD_RE.search(t["spec"] or ""))
+            tr = _cursor_transcript(r) if runtime == "cursor" else None
+            sig = idle_watchdog_progress(con, r, marks, tr)
+            idle_s = int(clock - max(sig.values())) if sig else 0
+            detail = {"key": key, "task": t["id"], "runtime": runtime, "idle_min": idle_s // 60, "signals": sorted(sig),
+                      "actions": [f"{len(nudges)} nudge(s)"] * bool(nudges) + ["1 fresh relaunch"] * bool(relaunches)}
+
+            def nudge(minutes):
+                if runtime == "claude" and _agent_shells_busy(name):
+                    return  # a shell runs under the agent (a CI wait, a test): it is waiting on purpose
+                text = IDLE_WATCHDOG_NUDGE.format(min=minutes, task=t["id"], director=oname(con, org, "director"))
+                ok = kickoff_resend(con, r, text) if mode == "on" else None  # T-1599's submit: prompt, then Enter
+                _idle_watchdog_record(con, r, "idle-watchdog-nudge", mode, {**detail, "n": len(nudges) + 1, "prompt_ok": ok},
+                                      f"nudged {name} ({minutes} min without progress)")
+
+            started = _ts(r["started"])
+            if runtime == "cursor" and tr and not unread and (started is None or tr[1] >= started.timestamp()):
+                # an ended turn of an earlier run (before a relaunch) says nothing about this one
+                last, text = _cursor_transcript_tail(tr[0])
+                ended = _turn_ended(last)
+                if ended and ended[0] == "error":  # W4: a nudge cannot fix a usage-limit or model error
+                    if not st["idle-watchdog-error-alert"]:
+                        _idle_watchdog_record(con, r, "idle-watchdog-error-alert", mode, {**detail, "error": ended[1]},
+                                              f"turn ended with an error, director alerted: {ended[1][:200]}")
+                        if mode == "on":
+                            send(con, "director", f"{name}: turn ended with an error on {t['id']}",
+                                 f"{name} (cursor {r['role']}) on {t['id']}: its last turn ended with status error: "
+                                 f"{ended[1]}\nNo nudge is sent; it cannot help. Fix the cause (model, plan, usage) "
+                                 "and relaunch it, or reassign the task.", "alert", r["goal_id"], r["task_id"],
+                                 sender="tick", org=org)
+                    continue
+                if ended:  # W1: the turn ended, the task is open and the row is still live (no factory done)
+                    ended_s = int(clock - tr[1])
+                    if ended_s < IDLE_WATCHDOG_TURN_ENDED_S:
+                        continue
+                    detail["idle_min"] = ended_s // 60
+                    tail = f" Its final text (last 300 chars): {text[-300:]!r}" if text else ""
+                    if hold:
+                        _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged." + tail, (org,))
+                    elif nudges and clock - max(nudges) < IDLE_WATCHDOG_NUDGE_GAP_S:
+                        pass
+                    elif len(nudges) < IDLE_WATCHDOG_CURSOR_NUDGES:
+                        nudge(ended_s // 60)
+                    else:
+                        _idle_watchdog_alert(con, r, mode, detail, f"{len(nudges)} nudges did not get it going." + tail, (org,))
+                    continue
+            # after the nudge the relaunch waits W/2 without progress (not W again); the alert W after the relaunch
+            if idle_s < (w // 2 if nudges and not relaunches else w):
+                continue
+            if hold:
+                _idle_watchdog_alert(con, r, mode, detail, "The task has a named hold, so it was not nudged.", (org,))
+            elif not nudges:
+                nudge(idle_s // 60)
+            elif not relaunches:
+                if relaunched or clock - max(nudges) < w // 2:
+                    continue
+                if runtime == "claude" and _agent_shells_busy(name):
+                    continue
+                if mode == "on":
+                    # the checks spawn() runs once the pane is closed (role reserves, the cursor pane limit, load): a
+                    # relaunch the spawn gate would queue is never started
+                    ok, why, gst = gate(con, own_slot=True, role=r["role"], runtime=runtime)
+                    if ok and gst["load1"] > gst["load_cap"]:
+                        ok, why = False, f"load1 {gst['load1']:.1f} > load cap {gst['load_cap']:.1f}"
+                    if not ok:
+                        dkey = f"idlewatch_relaunch_deferred:{name}"
+                        last = con.execute("SELECT ts FROM throttle WHERE key=?", (dkey,)).fetchone()
+                        if not last or time.time() - float(last["ts"]) >= 3600:
+                            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET "
+                                        "ts=excluded.ts", (dkey, str(time.time())))
+                            event_as(con, "tick", "agent", name, "idle-watchdog-relaunch-deferred", why)
+                        continue
+                # the event first: a crash or a failure must not repeat the relaunch every tick
+                kick = con.execute(f"SELECT id FROM messages WHERE {KICKOFF_SQL} ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+                _idle_watchdog_record(con, r, "idle-watchdog-relaunch", mode,
+                                      {**detail, "old_sid": r["session_id"], "kick": kick["id"] if kick else None},
+                                      f"relaunched {name} fresh ({idle_s // 60} min without progress after one nudge)")
+                if mode == "on":
+                    relaunched = True
+                    msg = relaunch_fresh_from_tick(con, r)
+                    if msg:
+                        event_as(con, "tick", "agent", name, "idle-watchdog-relaunch-failed", {"key": key, "error": msg})
+                        _idle_watchdog_alert(con, r, mode, {**detail, "actions": detail["actions"] + ["relaunch failed"]},
+                                             f"The fresh relaunch failed: {msg}", both)
+                        continue
+                    cur = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+                    if not cur or cur["status"] != "live":  # the spawn gate queued it after the pane closed
+                        q = con.execute("SELECT detail FROM events WHERE entity='agent' AND entity_id=? AND action='queued' "
+                                        "ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+                        _idle_watchdog_alert(con, r, mode, {**detail, "actions": detail["actions"] + ["relaunch queued"]},
+                                             f"The old pane was closed and the spawn gate queued the fresh start "
+                                             f"({q['detail'] if q else 'no reason recorded'}); it starts when the gate "
+                                             "opens.", both)
+            elif clock - max(relaunches) >= w:
+                _idle_watchdog_alert(con, r, mode, detail, "Still no progress after a nudge and a fresh relaunch; a "
+                                     "second relaunch would be needed." + (" The relaunched pane never read its kickoff."
+                                                                           if unread else ""), both)
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "idle-watchdog", "idle-watchdog-failed", str(e)[:300])
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _is_test_runner(argv):
     """True only for a local test run: python3 ci/affected.py, -m unittest, -m pytest, `factory test`, pytest/py.test."""
     if not argv:
@@ -9315,6 +11307,36 @@ def retro_tick(con):
             pass
 
 
+def schedule_tick(con):
+    """Tick hook (G-038 F-31): `factory-go schedule due --json` claims the due owner jobs (all decisions are Go's); this only
+    delivers each item to the director through send(), so recipient resolution stays as it is. A claim happens before the
+    send: a failed send loses that day's run, never doubles it. Any error: one schedule-tick-failed event per hour. Never raises."""
+    try:
+        go = guard_lib_dir() / CLI_GO_BIN
+        if not os.access(go, os.X_OK):
+            raise OSError(f"{CLI_GO_BIN} is missing or not executable; rebuild the Go CLI")
+        p = subprocess.run([str(go), "schedule", "due", "--json"], capture_output=True, text=True, timeout=20)
+        if p.returncode != 0:
+            raise RuntimeError(f"schedule due exit {p.returncode}: {(p.stderr or p.stdout).strip()[:300]}")
+        items = json.loads(p.stdout)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
+        _schedule_tick_failed(con, e)
+        return
+    for it in items:  # each claim is already committed: one bad send must not drop the others
+        try:
+            send(con, "director", it["subject"], it["body"], kind=it["kind"], goal=it["goal"], sender="tick")
+        except (Exception, SystemExit) as e:  # noqa: BLE001
+            _schedule_tick_failed(con, e)
+
+
+def _schedule_tick_failed(con, e):
+    try:
+        if not _util_throttled(con, "schedule-tick-failed", 3600, digest_clock().timestamp()):
+            event(con, "tick", "-", "schedule-tick-failed", (str(e) or repr(e))[:500])
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @_pt_phase("skilleval")
 def skilleval_tick(con):
     """Tick hook: collect and start skill-eval trials under the caps (scout/skilleval.py). Never breaks the tick."""
@@ -9472,6 +11494,8 @@ def tick_serve_unit_drift(con):
     """After the main sync: tell the director once when the installed factory-serve unit differs from the one on main.
     Read-only: never runs systemctl or install.sh and never writes ~/.config. Missing installed unit = not installed, no
     alert. The same main hash is not re-sent for 6 h (throttle key serve-unit-drift holds "<hash>@<time>"); a new main hash alerts."""
+    if sys.platform == "darwin":
+        return  # B9: no systemd unit on macOS; `factory res` says so
     installed = Path.home() / ".config" / "systemd" / "user" / "factory-serve.service"
     try:
         have = installed.read_bytes()
@@ -9505,7 +11529,14 @@ def _session_tokens(session):
 
 # ───────────────────────────── agents: spawn / done / list ─────────────────────────────
 
-def ensure_hq(con):
+def _hc_host(con, host_exe=None):
+    """True when host IPC goes through hc, which has no workspace or tab verbs (#849)."""
+    return (host_exe or terminal_backend_effective(con)[1]) == "hc"
+
+
+def ensure_hq(con, host_exe=None):
+    if _hc_host(con, host_exe):
+        return None  # hc agents are named terminals: there is no HQ workspace to create
     ws = herdr_workspaces()
     hq = con.execute("SELECT value FROM config WHERE key='hq_workspace'").fetchone()
     if hq and hq["value"] in ws:
@@ -9519,8 +11550,10 @@ def ensure_hq(con):
     return wid
 
 
-def ensure_goal_ws(con, gid):
+def ensure_goal_ws(con, gid, host_exe=None):
     g = con.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone() or die(f"no goal {gid}")
+    if _hc_host(con, host_exe):
+        return None  # no workspace verbs on hc (#849)
     ws = herdr_workspaces()
     if g["workspace_id"] in ws:
         return g["workspace_id"]
@@ -9553,10 +11586,10 @@ def place(con, role, goal, team, name, cwd, env, host_exe=None):
         return None, None, name
     envs = [x for k, v in env.items() for x in ("--env", f"{k}={v}")]
     if role in ("boss", "director") or not goal:
-        ws = ensure_hq(con)
+        ws = ensure_hq(con, host_exe)
         tab_label = role if role in ("boss", "director") else "ops"
     else:
-        ws = ensure_goal_ws(con, goal)
+        ws = ensure_goal_ws(con, goal, host_exe)
         tab_label = team or "team"
     tabs = [t for t in herdr_tabs(ws) if t.get("label", "").split(" ")[0] == tab_label]
     for t in tabs:
@@ -9689,7 +11722,7 @@ _GH_REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")  # used with fullmatch
 
 
 def _clone_source(con, common):
-    """The repo a per-task clone may be judged by: the clone sits directly under worktrees/ as <goal>-<task>, the
+    """The repo a per-task clone may be judged by: the clone sits directly under worktrees/ as <goal>-<task> (qa: <goal>-<task>-qa), the
     DB names that task's project repo, and the clone's one alternates line is exactly <repo>/.git/objects. The
     alternates file is worker-writable, so it is only compared, never trusted. None otherwise."""
     try:
@@ -9700,7 +11733,7 @@ def _clone_source(con, common):
     except OSError:
         return None
     row = con.execute("SELECT p.repo_path FROM tasks t JOIN goals g ON g.id=t.goal_id JOIN projects p ON p.id=g.project_id "
-                      "WHERE t.goal_id || '-' || t.id = ? AND p.repo_path IS NOT NULL", (wt.name,)).fetchone()
+                      "WHERE t.goal_id || '-' || t.id = ? AND p.repo_path IS NOT NULL", (wt.name.removesuffix("-qa"),)).fetchone()  # qa_clone_path: <goal>-<task>-qa
     if not row or not isinstance(row["repo_path"], str) or not Path(row["repo_path"]).is_absolute():
         return None
     repo = Path(row["repo_path"]).resolve()
@@ -9912,6 +11945,36 @@ def install_pre_push_hook(repo):
         die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
 
 
+COMMIT_MSG_MARK = "# factory commit-msg Cursor trailer strip (T-1624)"
+
+
+def commit_msg_hook_body():
+    """The one commit-msg hook a cursor clone may hold: a one-line exec of bin/cursor-commit-msg-strip.sh in the factory
+    checkout, so the PR branch inside the clone cannot change what runs."""
+    script = Path(__file__).resolve().parent / "cursor-commit-msg-strip.sh"
+    return f"#!/bin/sh\n{COMMIT_MSG_MARK}\nexec sh {shlex.quote(str(script))} \"$@\"\n"
+
+
+def install_commit_msg_hook(repo):
+    """T-1624: <git-dir>/hooks/commit-msg for a runtime=cursor task clone only. The Cursor agent adds a
+    Co-authored-by: Cursor trailer in its own shells (env is not the cause); the push guard refuses that line."""
+    if not (Path(repo) / ".git").is_dir():  # a `git worktree add` checkout shares hooks/ with the main repo: never touch that
+        return False
+    p = git_run(repo, "rev-parse", "--git-common-dir", env={**os.environ, "LC_ALL": "C"})
+    if p.returncode != 0 or not p.stdout.strip():
+        die(f"spawn refused: cannot find the git dir of {repo} to install the commit-msg hook: {p.stderr.strip()}", 4)
+    dst = Path(repo, p.stdout.strip()).resolve() / "hooks" / "commit-msg"
+    body = commit_msg_hook_body()
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if not dst.is_file() or dst.is_symlink() or dst.read_text() != body:
+            dst.unlink(missing_ok=True)
+            dst.write_text(body)
+        dst.chmod(0o755)
+    except OSError as e:
+        die(f"spawn refused: cannot install the commit-msg hook at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
+
+
 def trust_task_clone(con, task, wt, add=True):
     """T-1220: pre-register (add) or drop the Claude workspace-trust entry of a per-task clone in the owner's
     ~/.claude.json, only under worktrees/. A refusal records one clone-trust-refused event and goes on (the dialog shows)."""
@@ -9943,6 +12006,8 @@ def git_hooks_refusal(clone):
             elif f.name.endswith(".sample"):
                 continue
             elif f.name == "pre-push" and f.read_text() == body:
+                continue
+            elif f.name == "commit-msg" and f.read_text() == commit_msg_hook_body():  # T-1624
                 continue
             else:
                 bad.append(f.name)
@@ -10001,7 +12066,7 @@ def prepare_qa_clone(con, t, task):
     return str(qa)
 
 
-def prepare_worktree(con, task, role):
+def prepare_worktree(con, task, role, runtime=None):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
         return None
@@ -10018,13 +12083,15 @@ def prepare_worktree(con, task, role):
         if role == "coder" and coder_git.is_dir() and not git_hooks_guard(con, t["worktree"]):
             con.commit()
             die(f"spawn refused: {t['worktree']}/.git holds {', '.join(git_hooks_refusal(t['worktree']))} "
-                "(only *.sample and the factory pre-push are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
+                "(only *.sample, the factory pre-push and the cursor commit-msg strip are allowed in hooks/). Inspect and remove them, then spawn again.", 4)
         if role == "coder" and t["branch"]:
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
         install_pre_push_hook(t["worktree"])
+        if role == "coder" and runtime == "cursor":
+            install_commit_msg_hook(t["worktree"])
         return t["worktree"]
     if role != "coder":
         return None  # verifiers never create branches; they work from the coder's worktree or the PR
@@ -10041,6 +12108,8 @@ def prepare_worktree(con, task, role):
         make_task_clone(con, repo, wt, branch, base)
         trust_task_clone(con, task, wt)
         install_pre_push_hook(wt)
+        if runtime == "cursor":
+            install_commit_msg_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
     branch_existed = git_run(repo, "rev-parse", "--verify", "-q", f"refs/heads/{branch}", text=False).returncode == 0
@@ -10064,6 +12133,8 @@ def prepare_worktree(con, task, role):
         drop_half_made()
         die(f"worktree checkout failed: {p.stderr.strip()}")
     install_pre_push_hook(wt)
+    if runtime == "cursor":
+        install_commit_msg_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
     return str(wt)
 
@@ -10273,7 +12344,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if role == "researcher" and not task:
         die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
     if role == "retro":
-        org = "cursor"  # the daily retro job is always cursor runtime (retro/schedule.py passes the same org)
+        retro_cfg = cfg(con, "retro_org")
+        if str(retro_cfg).strip() not in ("cursor", "claude"):
+            die(f"retro_org must be cursor or claude, got '{retro_cfg}'; fix it with `factory config retro_org cursor`", 2)
+        # a relaunch or dequeue of a running retro keeps its own org (the run row stores the agent name); only a new retro follows the config
+        org = org or orgs.prefix_of(name or "") or str(retro_cfg).strip()
     if task and not (goal and team):  # a team-less `spawn --task` still belongs to the task's goal/team (utilization, alerts)
         trow = con.execute("SELECT goal_id, team_id FROM tasks WHERE id=?", (task,)).fetchone()
         if trow:
@@ -10348,8 +12423,17 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     rt = org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
     if role == "researcher" and rt == "cursor":
         die("the researcher role is not supported on the Cursor runtime (docs/research-team.md); use the claude org", 3)
-    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
-                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt)
+    gate_kw = dict(load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
+                   own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt,
+                   placement_discount=_relaunch_placement_discount(con, existing) if relaunch else None,
+                   allow_remote=remote_start_ok(con, role, rt, args, sandbox_wanted(con, role, sandbox_optin)))
+    ok, why, stats = gate(con, **gate_kw)
+    _alert_unreachable_machines(con, stats)
+    placed = stats.get("machine")
+    if placed:  # recorded even on a refusal
+        event(con, "agent", name, "place", {"machine": placed, "role": role})
+    if placed and placed != _machine_hq(con) and role not in PLACEMENT_WORKER_ROLES:  # R1 belt (place_machine pins them)
+        die(f"refused: {role} never starts on worker machine {placed}", 3)
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
@@ -10360,32 +12444,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             held = judge_hold(con, task)  # the tick applies the same hold to rows it dequeues
             ok, why = (False, held) if held else (ok, why)
     if not ok:
-        if existing and existing["status"] in ("queued", "starting"):
-            # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
-            try:
-                old = json.loads(existing["spawn_args"] or "{}")
-            except ValueError:
-                old = {}
-            if not isinstance(old, dict):
-                old = {}
-            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend", "host_backend_pinned") if k in old})
-        # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
-        # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
-        # and leaves a cancelled row alone
-        cur = con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?,?,?) "
-                          "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, "
-                          # a re-queue of a queued/starting row keeps its queued_at (aging); new or terminal rows get a fresh one
-                          "queued_at=CASE WHEN agents.status IN ('queued','starting') AND agents.queued_at IS NOT NULL "
-                          "THEN agents.queued_at ELSE excluded.queued_at END, "
-                          "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL"
-                          + (" WHERE agents.status != 'cancelled'" if from_queue else ""),
-                          (name, role, goal, team, task, "queued", json.dumps(args), now()))
-        if from_queue and cur.rowcount == 0:
-            return None
-        con.execute("UPDATE agents SET org=? WHERE name=?", (org, name))
-        event(con, "agent", name, "queued", why)
-        print(f"QUEUED {name}: {why}. The tick starts it when capacity frees up.")
-        return None
+        return _spawn_queue(con, name, role, goal, team, task, org, args, existing, from_queue, why)
     claimed = False
     if from_queue and existing and existing["status"] == "queued":
         # atomic claim: from here a `factory dequeue` is refused ('starting'), so a row can never be both cancelled and
@@ -10413,8 +12472,19 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
                             "WHERE name=? AND status='starting'", (name,))
                 event(con, "agent", name, "queued", held)
                 return None
-        out = _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
-                           env_extra, plugin_dirs, fresh)
+        try:
+            out = _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
+                               env_extra, plugin_dirs, fresh)
+        except RemoteStartFailed as e:
+            # D4: never a half-started remote agent, never a failed spawn because a worker machine is down. Mark it,
+            # alert (rate-limited), and place again on the machines left under their own checks.
+            machine_unreachable(con, placed, str(e))
+            args.pop("machine", None)
+            ok, why, stats = gate(con, **{**gate_kw, "allow_remote": False})
+            if not ok:
+                return _spawn_queue(con, name, role, goal, team, task, org, args, existing, from_queue, why)
+            out = _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
+                               env_extra, plugin_dirs, fresh)
         con.execute("UPDATE agents SET org=? WHERE name=?", (org, name))
         return out
     except BaseException:
@@ -10422,6 +12492,44 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             con.execute("UPDATE agents SET status='queued', spawn_args=json_remove(spawn_args,'$.claimed_at') "
                         "WHERE name=? AND status='starting'", (name,))
         raise
+
+
+def _alert_unreachable_machines(con, stats):
+    """D4: a worker machine placement found unreachable (ssh failed) gets the mark and the rate-limited alert."""
+    per = stats.get("placement") or {}
+    for m, f in (per.get("machines") or {}).items():
+        if m != per.get("hq") and not f.get("reachable", True):
+            machine_unreachable(con, m, f.get("err") or "facts read failed")
+
+
+def _spawn_queue(con, name, role, goal, team, task, org, args, existing, from_queue, why):
+    """The gate refused: queue the row (the tick starts it later). Returns None."""
+    if existing and existing["status"] in ("queued", "starting"):
+        # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
+        try:
+            old = json.loads(existing["spawn_args"] or "{}")
+        except ValueError:
+            old = {}
+        if not isinstance(old, dict):
+            old = {}
+        args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at", "host_backend", "host_backend_pinned") if k in old})
+    # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
+    # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
+    # and leaves a cancelled row alone
+    cur = con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?,?,?) "
+                      "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, "
+                      # a re-queue of a queued/starting row keeps its queued_at (aging); new or terminal rows get a fresh one
+                      "queued_at=CASE WHEN agents.status IN ('queued','starting') AND agents.queued_at IS NOT NULL "
+                      "THEN agents.queued_at ELSE excluded.queued_at END, "
+                      "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL"
+                      + (" WHERE agents.status != 'cancelled'" if from_queue else ""),
+                      (name, role, goal, team, task, "queued", json.dumps(args), now()))
+    if from_queue and cur.rowcount == 0:
+        return None
+    con.execute("UPDATE agents SET org=? WHERE name=?", (org, name))
+    event(con, "agent", name, "queued", why)
+    print(f"QUEUED {name}: {why}. The tick starts it when capacity frees up.")
+    return None
 
 
 EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")  # claude 2.1.310 --effort <level>
@@ -10434,7 +12542,7 @@ def check_effort_level(level):
 
 
 def role_model(con, role, org=None):
-    """The model a role starts on. Claude org: config model_<role> when that key exists and is set (only cleaner has one),
+    """The model a role starts on. Claude org: config model_<role> when that key exists and is set (every role has one),
     else MODELS. Any other org: its model map in scout/orgs.py (cursor: Grok for judgement, Composer for building)."""
     if org and org != orgs.DEFAULT_ORG:
         return orgs.model(org, role)
@@ -10944,9 +13052,11 @@ def start_confirm(con, agents):
                 event(con, "agent", r["name"], "flagless-cleared", {"via": "spawn"})
             if info.get("kick"):
                 an = h.get("name") or r["name"]
-                if herdr("agent", "prompt", an, info["kick"], check=False) is not None:
+                sent = herdr("agent", "prompt", an, info["kick"], check=False) is not None
+                if sent:
                     _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
                     con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), r["name"]))
+                nudge_event(con, "start-confirm", r, sent)
             con.execute("UPDATE agents SET start_pending=NULL, start_pending_info=NULL WHERE name=?", (r["name"],))
         elif time.time() - r["start_pending"] > START_CONFIRM_S:
             event(con, "agent", r["name"], "start-uncertain", r["pane_id"])
@@ -11175,7 +13285,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
             send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
                  sender="factory")
         event(con, "agent", name, "spawn", {"pane": None, "model": model, "cwd": cwd, "runtime": runtime,
-                                            "launch": plan.launch, "pid": proc.pid, "live": stats["live"] + 1})
+                                            "launch": plan.launch, "pid": proc.pid, "live": stats["live"] + 1,
+                                            **({"machine": stats["machine"]} if stats.get("machine") else {})})
         print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}) pid={proc.pid} cwd={cwd} log={log_path}")
         return name
 
@@ -11233,7 +13344,8 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
         kickoff_submit(con, name, kick, runtime, use_hc, goal, task)
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
-                                        "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
+                                        "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1,
+                                        **({"machine": stats["machine"]} if stats.get("machine") else {})})
     print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}, kind={plan.herdr_kind}) in {pane} cwd={cwd}")
     return name
 
@@ -11307,19 +13419,32 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         if cwd and cwd != want:
             die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
         cwd = want
-    cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
+    # G-057: a worker machine placed by gate(). Absent machine (worker_machines empty, or machine_hq) = today's path.
+    remote = stats.get("machine") if stats.get("machine") and stats.get("machine") != _machine_hq(con) else None
+    if remote:
+        if role not in PLACEMENT_WORKER_ROLES:  # R1 belt: place_machine never picks a worker machine for these
+            die(f"refused: {role} never starts on worker machine {remote} (HQ, leads and judges stay on {_machine_hq(con)})", 3)
+        if not remote_start_ok(con, role, runtime, args, sandbox_wanted(con, role, optin)):
+            raise RemoteStartFailed(f"{name} cannot start on {remote} (claude on hc, unsandboxed only)")
+        remote_preflight(con, machine=remote, task=task)
+        cwd = cwd or remote_worktree(con, remote, task, role) or str(HOME)
+    cwd = cwd or (prepare_worktree(con, task, role, runtime) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
     if terms and role in SCRUB_TERMS_ROLES:  # a path only: worker-guard still refuses to read the file itself
         env["SCRUB_TERMS_FILE"] = terms
     if evaluator:
         env.update(env_extra)  # validated: FACTORY_HOME is the trial's temp home, never the live one
+    else:
+        env.update(worker_cache_env())  # T-1698: Go and pnpm scratch on disk, never the RAM-backed /tmp
     sandboxed = sandbox_wanted(con, role, optin)
-    own_wt = (con.execute("SELECT worktree FROM tasks WHERE id=?", (task,)).fetchone() or {"worktree": None})["worktree"] if task else None
-    if (not sandboxed and own_wt and role in ("coder", "qa", "reviewer")
-            and os.path.realpath(str(cwd)) == os.path.realpath(own_wt)
-            and os.path.realpath(own_wt).startswith(os.path.realpath(str(WORKTREES)) + os.sep)):
-        trust_task_clone(con, task, cwd)  # T-1328: a clone made for a sandbox_required task skipped T-1220; idempotent
+    # T-1657: the one trust point, on the final cwd of every claude launch (coder, qa clone, reused or cursor-made
+    # worktree, relaunch with a recorded --cwd). The T-1328 check required cwd == tasks.worktree, so a qa clone
+    # (<goal>-<task>-qa) or an explicit --cwd skipped it and the 'trust this folder' dialog showed. A cwd outside
+    # worktrees/ is still refused by workerbox.set_clone_trust. Sandboxed panes seed their own config instead.
+    if (not remote and not sandboxed and runtime == "claude" and cwd
+            and os.path.realpath(str(cwd)).startswith(os.path.realpath(str(WORKTREES)) + os.sep)):
+        trust_task_clone(con, task or "-", cwd)  # idempotent
     if runtime != "claude":
         if evaluator:
             die(f"runtime {runtime}: evaluator/skilleval stays on Claude", 3)
@@ -11334,9 +13459,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         for k, v in (settings_obj.get("env") or {}).items():
             env.setdefault(k, v)
         sysprompt = RUN / f"{name}.prompt.md"
-        prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1)
+        v2 = cursor_prompt_v2_on(con, runtime)
+        prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1, cursor_v2=v2)
         sysprompt.write_text(prompt_text)
-        kick = kickoff_text(role, name, goal, team, task, prompt)
+        kick = ((cursor_harness.kickoff_v2(role, name, goal, team, task, prompt) if v2 else None)
+                or kickoff_text(role, name, goal, team, task, prompt))
         return _spawn_start_external(
             con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
             env, settings, settings_obj, prompt_text, kick, runtime)
@@ -11347,7 +13474,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if ghcred_on:
         env.update(gh_cred_env(con, role, name, cwd))
     args["host_backend"] = spawn_host  # explicit: a later config flip never re-reads this row's host
-    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE
+    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME, _SPAWN_HOST_EXE, _HC_RUN_MACHINE, _HC_RUN_SCRIPT
     _SPAWN_HOST_EXE = spawn_host
     try:
         found = find_pane(pane) if pane and spawn_host == "herdr" else None
@@ -11392,6 +13519,27 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         claude_args += ["--session-id", sid]
         if fresh:  # same role flags as a resume: the prompt file is re-read on every request
             claude_args += RESUME_PROMPT_FLAGS
+    remote_script = None
+    if remote:
+        # the worker PATH starts with the forwarder dir: `factory` there runs on machine_hq, never a second DB
+        env["PATH"] = f"{remote_forward_dir()}{os.pathsep}{env.get('PATH') or os.environ.get('PATH', '/usr/bin:/bin')}"
+        script_env = dict(env)
+        try:
+            for k, v in (json.loads(Path(settings).read_text()).get("env") or {}).items():
+                script_env.setdefault(k, v)
+        except (OSError, json.JSONDecodeError, ValueError):
+            pass
+        remote_script = _hc_write_spawn_script(name, {k: str(v) for k, v in script_env.items()}, "claude", claude_args)
+        files = [(str(settings), 0o644), (str(sysprompt), 0o600), (str(remote_script), 0o700)]
+        secrets = []
+        if ghcred_on and env.get("GIT_CONFIG_GLOBAL"):
+            files += _tree_files(os.path.dirname(env["GIT_CONFIG_GLOBAL"]))  # the per-agent ghcred dir (paths only)
+            secrets.append(env["FACTORY_GH_TOKEN_FILE"])  # the token: mode 0600, content on ssh stdin only (R4)
+        if env.get("SCRUB_TERMS_FILE") and os.path.isfile(env["SCRUB_TERMS_FILE"]):
+            secrets.append(env["SCRUB_TERMS_FILE"])
+        copied = remote_copy_agent_files(con, remote, files, secrets)  # RemoteStartFailed: no row, no terminal yet
+        args["machine"] = remote
+        event(con, "agent", name, "remote-files", {"machine": remote, "files": copied})
     spawn_row_write(con, name, "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
@@ -11406,7 +13554,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     task_auto_start(con, task, f"spawn {name}", role)
     # tick_async_start: not sandboxed (its escape check must not wait a tick), not the evaluator; the start is told
     # not to wait for the TUI and the tick's start_confirm phase finishes what follows a successful start
-    async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator
+    # a remote start waits for its own start: the tick's start_confirm lists this machine's terminals only
+    async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator and not remote
     start_args = ("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout",
                   ASYNC_START_TIMEOUT_MS if async_start else "90000", "--", *claude_args)
     try:
@@ -11416,6 +13565,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         pass
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
     _HC_RUN_PROGRAM, _HC_RUN_NAME = None, name
+    _HC_RUN_MACHINE, _HC_RUN_SCRIPT = remote, remote_script
     _SPAWN_HOST_EXE = spawn_host
     start_err = None
     try:
@@ -11425,7 +13575,14 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             r = herdr(*start_args, check=False)
     finally:
         _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
+        _HC_RUN_MACHINE = _HC_RUN_SCRIPT = None
         _SPAWN_HOST_EXE = None
+    if remote:
+        got = (r or {}).get("agent") if isinstance(r, dict) else None
+        addr = got.get("address") if isinstance(got, dict) else None
+        addr = addr if isinstance(addr, str) and addr.startswith(f"{remote}/") else f"{remote}/{name}"
+        con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.hc_address',?) WHERE name=?", (addr, name))
+        event(con, "agent", name, "remote-start", {"machine": remote, "address": addr, "started": r is not None})
     if async_start and start_err and not any(m in start_err.lower() for m in START_PENDING_ERRORS):
         # a real failure (bad args, no such pane): do not wait START_CONFIRM_S for an agent that will never be ready
         event(con, "agent", name, "start-failed", {"pane": pane, "error": start_err[:300]})
@@ -11465,7 +13622,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             if herdr("agent", "prompt", name, kick, check=False) is not None:
                 con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "live": stats["live"] + 1,
-                                        **({"sandbox": True} if sandboxed else {})})
+                                        **({"sandbox": True} if sandboxed else {}),
+                                        **({"machine": stats["machine"]} if stats.get("machine") else {})})
     print(f"SPAWNED {name} ({role}, {model}) in {pane} cwd={cwd}")
     return name
 
@@ -11953,9 +14111,35 @@ def prcheck_take_slot(con):
     return True
 
 
+def prcheck_is_factory_project(con, project_id):
+    """T-1203: True when the task's project is the factory's own repo (project id `factory`, or its gh_repo is the repo of
+    config factory_remote_url). No project, or an unknown project row, counts as the factory: the check then runs as
+    before, never silently skipped."""
+    if not project_id or project_id == "factory":
+        return True
+    r = con.execute("SELECT gh_repo FROM projects WHERE id=?", (project_id,)).fetchone()
+    if not r:
+        return True
+    mine, want = _repo_slug(r["gh_repo"]), _repo_slug(cfg(con, "factory_remote_url"))
+    return bool(mine and want and mine == want)
+
+
 def prcheck_affected(wt, base, con=None, pr_url=None, project_id=None):
-    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
+    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876).
+    Only the factory repo has ci/affected.py; any other project reports n/a (T-1203)."""
+    con = con or db()
+    if not prcheck_is_factory_project(con, project_id):
+        return True, "n/a (not the factory repo)"
     script = Path(wt) / "ci" / "affected.py"
+    # applicability is decided by the project's origin/<base>, not the worktree state (T-1409)
+    rc, _ = _git_out(wt, "rev-parse", "--verify", "-q", f"origin/{base}^{{commit}}")
+    if rc != 0:
+        return False, (f"cannot read origin/{base} to decide if ci/affected.py applies (git rev-parse rc={rc}): "
+                       "git fetch origin, then rerun prcheck")
+    rc, _ = _git_out(wt, "cat-file", "-e", f"origin/{base}:ci/affected.py")
+    if rc != 0:
+        return True, (f"n/a: project {project_id or '?'} has no ci/affected.py on origin/{base}; "
+                      "affected-test check not applicable")
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
     con = con or db()
@@ -12238,15 +14422,51 @@ def judge_done_refusal(con, r):
 
 
 def cmd_done(a):
-    """A worker finishes: summary goes to its lead, its pane is reaped by the next tick."""
+    """A worker finishes: summary goes to its lead, its pane is reaped by the next tick. A refusal by one of the finish
+    checks is recorded as an agent done-refused event: the check, the exit code and the refusal's last stderr line
+    (T-1622 W5: the idle watchdog alerts on it). The unread-orders refusal delivers the orders itself and is not one."""
+    stage = {"gate": None, "agent": None}
+    err = _StderrTail(sys.stderr)
+    try:
+        with contextlib.redirect_stderr(err):
+            _cmd_done(a, stage)
+    except SystemExit as e:
+        if stage["gate"] and e.code not in (0, None):
+            event(db(), "agent", stage["agent"], "done-refused", {"gate": stage["gate"], "code": e.code, "why": err.last()})
+        raise
+
+
+class _StderrTail(io.TextIOBase):
+    """A stderr that writes through and keeps the tail, so a refusal's own message can be recorded."""
+
+    def __init__(self, out):
+        super().__init__()
+        self.out, self.buf = out, ""
+
+    def write(self, s):
+        self.buf = (self.buf + s)[-4000:]
+        return self.out.write(s)
+
+    def flush(self):
+        self.out.flush()
+
+    def last(self):
+        lines = [x for x in self.buf.splitlines() if x.strip()]
+        return lines[-1][:300] if lines else ""
+
+
+def _cmd_done(a, stage):
     con = db()
     me = actor()
     r = con.execute("SELECT * FROM agents WHERE name=?", (me,)).fetchone() or die("not a factory agent")
     if r["status"] != "live":  # e.g. force-stopped meanwhile: the lead already got its report; no second one
         die(f"{me} is '{r['status']}', not live: nothing to finish (no second done/report)", 2)
+    stage["agent"] = me
     summary = read_text(a.summary)
     if r["role"] == "judge" and r["task_id"]:
+        stage["gate"] = "judge"
         judge_done_refusal(con, r)
+        stage["gate"] = None
     unread = [] if r["role"] in PERSISTENT_ROLES else con.execute(
         "SELECT * FROM messages WHERE recipient=? AND read_at IS NULL AND kind IN ('decision','request') ORDER BY id",
         (me,)).fetchall()
@@ -12269,6 +14489,7 @@ def cmd_done(a):
                         "so it is back to todo. Fix the blocker (worktree or cwd) and respawn, or cancel it.")
     unclean = ""
     if r["role"] == "coder" and r["task_id"]:
+        stage["gate"] = "coder-checks"  # unpushed work, acceptance walk, prcheck: the stderr line in "why" names which
         dirty, untracked, unpushed, ci = coder_done_findings(con, r, a.force)
         found = []
         escalated = False
@@ -12286,7 +14507,9 @@ def cmd_done(a):
             if dirty:
                 print("commit (a WIP commit is fine) and push, then run factory done again", file=sys.stderr)
             if unpushed:
-                print("push your commits (git push -u origin HEAD), then run factory done again", file=sys.stderr)
+                tb = con.execute("SELECT branch FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+                push_branch = (tb["branch"] if tb and tb["branch"] else "") or f"factory/{r['task_id'].lower()}"
+                print(f"push your commits (git push origin HEAD:{push_branch}), then run factory done again", file=sys.stderr)
                 if not dirty:
                     print(f"factory: if the push is held (spec says no merge until PR x, owner push needed), {done_exit_hint(r)}",
                           file=sys.stderr)
@@ -12316,6 +14539,7 @@ def cmd_done(a):
             summary += f"\n\nCI at done: {ci}"
         if ci_handoff_active(con) and t and t["status"] == "in_review" and t["pr_url"] and ci_not_green(t["pr_url"]):
             summary += f"\n\n{CI_HANDOFF_LINE}"  # also for an empty rollup, which checks_ok reads as green
+    stage["gate"] = None  # every finish check passed: a later exit is not a refusal
     cur = con.execute("UPDATE agents SET status=?, summary=?, ended=?, stop_requested_at=NULL, stop_attempt_at=NULL, "
                       "stop_failed_kind=NULL WHERE name=? AND status='live'",
                       ("live" if r["role"] in PERSISTENT_ROLES else "done", summary, now(), me))
@@ -12671,7 +14895,8 @@ def src_scratch_roots(con):
     """Realpaths of the caller's own scratchpad: <tmp>/claude-<uid>/<slug of the agent's registered cwd>/<its session>/scratchpad.
     The caller is FACTORY_AGENT (refused when unset) and the slug comes from its agents row, never from the cwd or an env
     var the caller can set; a cwd that is not that registered cwd is refused. With a stored session id only that session's
-    scratchpad counts. Returns (roots, error)."""
+    scratchpad counts, plus (T-1639) the sessions of the caller's claude ancestor; when none of those has a scratchpad (a
+    respawned pane whose row is stale) only the newest session dir under the slug counts. Returns (roots, error)."""
     who = os.environ.get("FACTORY_AGENT") or ""
     r = con.execute("SELECT cwd, session_id FROM agents WHERE name=?", (who,)).fetchone() if who and who != "owner" else None
     if not r or not r["cwd"]:
@@ -12689,10 +14914,22 @@ def src_scratch_roots(con):
     try:
         if base.is_symlink() or not base.is_dir():
             return roots, ""
-        for s in ([base / sid] if sid else sorted(base.iterdir())):
-            pad = s / "scratchpad"
-            if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
-                roots.append(os.path.realpath(pad))
+        def pads(dirs):
+            for s in dirs:
+                pad = s / "scratchpad"
+                if not s.is_symlink() and s.is_dir() and not pad.is_symlink() and pad.is_dir():
+                    roots.append(os.path.realpath(pad))
+        # T-1639: a respawned pane (--resume / fresh --session-id) can run under a session id the agents row does not
+        # name yet (the tick syncs it only when the pane host reports it), so the stored id alone gave "no scratchpad
+        # found" to QA panes. Try the stored id and the ids on the caller's own claude ancestor first; when none has a
+        # scratchpad: no stored id = every session dir (as before); a stale stored id = only the newest session dir
+        # under this agent's own registered-cwd slug (the respawned pane's current session), never the older ones.
+        sids = list(dict.fromkeys(([sid] if sid else []) + [x for x in (_caller_claude_sessions() or [])
+                                                            if re.fullmatch(r"[A-Za-z0-9_-]+", x)]))
+        pads(base / x for x in sids)
+        if not roots:
+            dirs = sorted(base.iterdir(), key=lambda d: d.lstat().st_mtime)
+            pads(dirs if not sid else [d for d in reversed(dirs) if (d / "scratchpad").is_dir()][:1])
     except OSError:
         pass
     return roots, ""
@@ -14996,7 +17233,7 @@ def tick_gate(con):
         run = [sys.executable, str(Path(__file__).resolve().with_name("factory")), "gate", "run", "--run-id", str(r["id"])]
         kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                   env={**os.environ, "FACTORY_AGENT": actor()})  # the runner acts as the tick's own identity
-        if os.environ.get("INVOCATION_ID"):
+        if os.environ.get("INVOCATION_ID") and sys.platform != "darwin":  # darwin: no systemd-run, detached fallback below
             # under systemd the tick unit is KillMode=control-group: a child would be killed when the tick exits, so the
             # runner gets its own transient unit. It records its own pid when it starts (the run stays queued until then).
             rc = subprocess.run(["systemd-run", "--user", "--collect", "--quiet", "--unit", f"factory-gate-{r['id']}", "--", *run],
@@ -15011,6 +17248,39 @@ def tick_gate(con):
             event_as(con, "tick", "gate", str(r["id"]), "gate-launched", f"runner pid {p.pid}")
         active += 1
     # error runs of a head that still has a judge waiting are retried by gate_pr_ready (gate_retry_error)
+
+
+def gate_push_tick(con):
+    """T-1828: tick, projects with a gate_cmd only. (1) An in_review task whose PR head on origin has no gate_runs row yet gets
+    one queued run (gate_enqueue dedupes an active run of the PR; tick_gate launches it within gate_max_parallel). (2) A finished
+    run (pass/fail/error) gets one task note: result, full head sha, log path (once per run, throttle row gate-note:<run>).
+    Projects with an empty gate_cmd are untouched."""
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    batch = _RepoBatch()
+    for t in con.execute("SELECT * FROM tasks WHERE status='in_review' AND pr_url IS NOT NULL AND pr_url!='' AND branch IS NOT NULL "
+                         "AND branch!='' ORDER BY id").fetchall():
+        proj = gate_project_for(con, t["pr_url"])
+        if not proj:
+            continue
+        head = _review_head(con, t, batch)
+        if head and not gate_run_for_head(con, t["pr_url"], head):
+            rid = gate_enqueue(con, proj, t["pr_url"], head)
+            # gate_enqueue dedupes on the PR: while an older head's run is still active it returns that run (no row for this
+            # head yet); note only when this head really got its own row, else every tick would repeat a wrong note
+            if gate_run_for_head(con, t["pr_url"], head):
+                event_as(con, "tick", "task", t["id"], "note", f"local gate run #{rid} queued for head {head} (pushed)")
+    for r in con.execute("SELECT g.* FROM gate_runs g JOIN tasks t ON t.id=g.task_id WHERE g.kind='pr' AND t.status='in_review' "
+                         "AND g.status IN ('pass','fail','error') ORDER BY g.id DESC LIMIT 50").fetchall():
+        key = f"gate-note:{r['id']}"
+        if _throttled(con, key, clock, float("inf")):
+            continue
+        _throttle_set(con, key, clock)
+        event_as(con, "tick", "task", r["task_id"], "note",
+                 f"local gate {r['status'].upper()} on head {r['head_sha'] or '?'} (run #{r['id']}); log {r['log_path'] or '-'}"
+                 + (f"; {r['note']}" if r["note"] and r["status"] != "pass" else ""))
 
 
 def gate_pr_ready(con, proj, pr_url, behind_ok=False):
@@ -15098,8 +17368,11 @@ def cmd_res(a):
     ok, why, s = gate(con)
     u = s["usage"]
     load = (load1(),)
-    swap = {l.split(":")[0]: int(l.split()[1]) for l in Path("/proc/meminfo").read_text().splitlines()
-            if l.startswith(("SwapTotal", "SwapFree"))}
+    if sys.platform == "darwin":
+        swap = {}  # no /proc/meminfo; swap is not part of the darwin gate
+    else:
+        swap = {l.split(":")[0]: int(l.split()[1]) for l in _meminfo_text().splitlines()
+                if l.startswith(("SwapTotal", "SwapFree"))}
     q = con.execute("SELECT count(*) c FROM agents WHERE status='queued'").fetchone()["c"]
     print(f"spawn gate: {'OPEN' if ok else 'CLOSED — ' + why}")
     print(f"terminal backend: {tb_exe} (config={tb_raw}; effective={tb_eff})")
@@ -15155,7 +17428,12 @@ def cmd_res(a):
         print(f"lead-less dispatch: {mode}; last hour: {n['dispatch']} spawned, {n['dispatch-shadow']} shadow")
     ob = owner_blockers(con)
     print(f"owner-only blockers: {len(ob)}" + "".join(f"\n  {b['text']} (open {b['age_min']} min)" for b in ob))
-    top = subprocess.run(["ps", "-eo", "rss,args", "--sort=-rss"], capture_output=True, text=True).stdout.splitlines()[1:6]
+    if sys.platform == "darwin":
+        print("serve unit drift check: skipped on macOS (no systemd unit)")
+        top = subprocess.run([DARWIN_PS, "-axo", "rss=,command=", "-m"], capture_output=True, text=True,
+                             env=dict(DARWIN_TOOL_ENV)).stdout.splitlines()[:5]
+    else:
+        top = subprocess.run(["ps", "-eo", "rss,args", "--sort=-rss"], capture_output=True, text=True).stdout.splitlines()[1:6]
     print("top memory:")
     for line in top:
         rss, cmd = line.strip().split(" ", 1)
@@ -15164,19 +17442,25 @@ def cmd_res(a):
 
 # ───────────────────────────── tick: the deterministic heartbeat ─────────────────────────────
 
-def tick_lock(busy_exit=0):
-    """Take the tick/up lock. Busy: exit 0 "skipping" (tick, up) or, with busy_exit set, die with that code (retry later)."""
+def tick_lock(busy_exit=0, wait_s=0):
+    """Take the tick/up lock. Busy: exit 0 "skipping" (tick, up) or, with busy_exit set, die with that code (retry later).
+    wait_s > 0 retries every second for that long first (`up` at boot races the first timer tick, #849)."""
     import fcntl
     RUN.mkdir(exist_ok=True)
     f = open(RUN / "tick.lock", "w")
-    try:
-        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        if busy_exit:
-            die("tick running, retry in a minute", busy_exit)
-        print("another tick/up is running; skipping")
-        sys.exit(0)
-    return f
+    deadline = time.time() + wait_s
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return f
+        except BlockingIOError:
+            if time.time() >= deadline:
+                break
+            time.sleep(1)
+    if busy_exit:
+        die("tick running, retry in a minute", busy_exit)
+    print("another tick/up is running; skipping")
+    sys.exit(0)
 
 
 def _fsync_path(path):
@@ -15578,6 +17862,8 @@ def judge_pr_ready(con, pr_url, behind_ok=False):
     proj = gate_project_for(con, pr_url)
     if proj:
         return gate_pr_ready(con, proj, pr_url, behind_ok)
+    if judge_ci_none(con):  # T-1772: no GitHub PR check is read or waited on; the merge gate decides on verdicts and merge-tree
+        return True, "judge_ci_gate=none: PR checks not read"
     key, t = "judge_ci:" + pr_url, time.time()
     row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
     try:
@@ -15668,8 +17954,52 @@ def mech_refused(con, task):
     return bool(last) and last["action"] == "mech-blocked"
 
 
-def judge_autospawn_candidates(con):
-    """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
+def autospawn_block_reason(con, t):
+    """T-1323: why the tick must not autospawn reviewer/qa/judge for task row t, else None. A depends_on task that is neither done nor
+    cancelled means the work is not ready for review. A done, cancelled (T-1692: it will never finish, so it must not block forever)
+    or missing dependency never blocks. Read-only. Callers only pass in_review rows, so there is no status check here."""
+    try:
+        deps = json.loads(t["depends_on"] or "[]")
+    except ValueError:
+        return None
+    for d in deps if isinstance(deps, list) else []:
+        r = con.execute("SELECT status FROM tasks WHERE id=?", (d,)).fetchone()
+        if r and r["status"] not in ("done", "cancelled"):
+            return f"depends_on {d} is {r['status']}, not done"
+    if runner_managed(con, t["id"]):
+        return "runner-managed (Option B: its own judge)"
+    return None
+
+
+def autospawn_blocked(con, t, kind, why=None):
+    """True when autospawn_block_reason holds for t; one `<kind>-autospawn-skip` event per task and reason per day (this writes; a
+    read-only candidates query leaves it to its caller, T-1692). `why` skips the lookup when the caller already has it."""
+    why = why or autospawn_block_reason(con, t)
+    if not why:
+        return False
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    key = f"autospawn-block:{kind}:{t['id']}:{why}"
+    if not _throttled(con, key, clock, 86400):
+        _throttle_set(con, key, clock)
+        event(con, "task", t["id"], f"{kind}-autospawn-skip", why[:300])
+    return True
+
+
+def judge_covered_by_other(con, tid):
+    """True when a live/queued/starting judge (a train judge included) names the task id in its agent name."""
+    needle = slug(tid)
+    for r in con.execute("SELECT name FROM agents WHERE role='judge' AND status IN ('live','starting','queued')"):
+        if re.search(r"(?<![a-z0-9])" + re.escape(needle) + r"(?![a-z0-9])", r["name"] or ""):
+            return True
+    return False
+
+
+def judge_autospawn_candidates(con, skipped=None):
+    """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on). Read-only (T-1692):
+    a task held by autospawn_block_reason is left out and appended to `skipped` as (task, reason) for the caller to log."""
     mech_ids = {t["id"] for t in mech_candidates(con) if not mech_refused(con, t["id"])} if mech_mode(con) == "on" else set()
     out = []
     for t in con.execute(
@@ -15678,14 +18008,22 @@ def judge_autospawn_candidates(con):
             "ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
         if t["id"] in mech_ids:
             continue
-        if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                            (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
-               for role in ("reviewer", "qa")):
+        if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; judge_verdicts_stale refuses a FAIL on the head
+                any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                                 (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
+                    for role in ("reviewer", "qa"))):
             continue
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
             continue
         if judge_status_only_hold(con, t["id"]):
+            continue
+        if judge_covered_by_other(con, t["id"]):
+            continue  # T-1323: a train judge (or another judge) already covers it
+        why = autospawn_block_reason(con, t)
+        if why:
+            if skipped is not None:
+                skipped.append((t, why))
             continue
         out.append(t)
     return out
@@ -15722,6 +18060,12 @@ def judge_verdicts_stale(con, t, clock):
     unreadable PR or an unverifiable carry is a reason. Local-gate projects (gate_cmd) are not checked here."""
     if gate_project_for(con, t["pr_url"]):
         return None
+    if judge_review_green(con):  # T-1802: no PASS needed; only a FAIL on the current head blocks
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock)
+        if isinstance(pr, BaseException) or not isinstance(pr, dict) or not pr.get("headRefOid"):
+            return "head", f"cannot read the PR head: {pr if isinstance(pr, BaseException) else 'no headRefOid'}"[:200]
+        fails = green_head_fail_problems(con, t["id"], pr["headRefOid"])
+        return (f"fail:{pr['headRefOid'][:8]}", "; ".join(fails)[:300]) if fails else None
     pair = _judge_pass_pair_head(con, t["id"])
     if pair:
         pr = _ci_wake_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
@@ -15744,7 +18088,7 @@ def judge_verdicts_stale(con, t, clock):
     for role in ("reviewer", "qa"):
         kind, info = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, number, git_repo, repo_url,
                                                    owner_repo, carry)
-        if kind in ("holds", "carry"):
+        if kind in ("holds", "carry", "fixcarry"):
             continue
         if kind == "missing":
             return f"{role}:missing:{sha[:8]}", f"no {role} PASS"[:300]
@@ -15755,7 +18099,7 @@ def judge_verdicts_stale(con, t, clock):
                 carry.pop(x, None)  # the no-repo_url probe must not stick once we have a URL
                 kind, info = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, number, git_repo, repo_url,
                                                            owner_repo, carry)
-                if kind in ("holds", "carry"):
+                if kind in ("holds", "carry", "fixcarry"):
                     continue
                 if kind == "missing":
                     return f"{role}:missing:{sha[:8]}", f"no {role} PASS"[:300]
@@ -15774,7 +18118,11 @@ def judge_autospawn_tick(con):
     except FactoryNowError:
         clock = time.time()
     batch = []  # T-1153: one ls-remote per tick for the red-main wait key
-    for t in judge_autospawn_candidates(con):
+    skipped = []
+    candidates = judge_autospawn_candidates(con, skipped)
+    for t, why in skipped:
+        autospawn_blocked(con, t, "judge", why)
+    for t in candidates:
         tid = t["id"]
         jhr = task_judge_hold_reason(con, tid)
         if jhr:
@@ -15984,10 +18332,18 @@ def queue_order_key(row, at=None):
 FRESH_PERSISTENT = ("boss", "director", "lead")
 
 
-def role_prompt_text(role, org=None, multi=False):
-    """What `_spawn_start` writes to run/<name>.prompt.md for `role` (kept in step with it by hand; docs/freshness.md)."""
-    return ((ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
-            + org_prompt_section(org, multi))
+def cursor_prompt_v2_on(con, runtime):
+    """True when this agent runs on Cursor and config cursor_prompt is v2 (T-1623, docs/cursor-prompt.md)."""
+    return runtime == "cursor" and cfg(con, "cursor_prompt") == "v2"
+
+
+def role_prompt_text(role, org=None, multi=False, cursor_v2=False):
+    """What `_spawn_start` writes to run/<name>.prompt.md for `role` (kept in step with it by hand; docs/freshness.md).
+    cursor_v2: a Cursor agent under cursor_prompt=v2 gets roles/cursor/<role>.md alone when that file exists."""
+    own = cursor_harness.role_prompt_v2(ROLES_DIR, role) if cursor_v2 else None
+    if own is None:
+        own = (ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
+    return own + org_prompt_section(org, multi)
 
 
 def _newest_mtime(*paths):
@@ -16031,7 +18387,8 @@ def tick_freshness(con):
         started = _ts(r["started"])
         t0 = started.timestamp() + 1 if started else None  # `started` is whole seconds: tolerate a same-second write
         try:
-            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role, orgs.of_agent(dict(r)), len(enabled_orgs(con)) > 1):
+            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role, orgs.of_agent(dict(r)), len(enabled_orgs(con)) > 1,
+                                                                           cursor_v2=cursor_prompt_v2_on(con, agent_runtime_of(r))):
                 reasons.append("prompt")
         except FileNotFoundError:
             pass  # no prompt file recorded for this row (not started by factory spawn): nothing to compare
@@ -16394,17 +18751,35 @@ def _cmd_tick_phases(spec):
     _tick_handoff_write(path, doc, st, t0=t0, migrate_ran=migrate_ran, pre_reset=pre_reset)
 
 
+def _tick_deadline_at(spec):
+    """Monotonic time at which the tick stops starting phases, or None without --deadline. 240s, 4m, 1h or bare seconds."""
+    if not isinstance(spec, (str, int, float)) or isinstance(spec, bool):  # absent (None, or a bare namespace in unit tests)
+        return None
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)([smh]?)", str(spec).strip())
+    if not m or float(m.group(1)) <= 0:
+        die(f"--deadline {spec!r} is not a positive duration like 240s, 4m or 1h; the tick was not run", 2)
+    return time.monotonic() + float(m.group(1)) * {"": 1, "s": 1, "m": 60, "h": 3600}[m.group(2)]
+
+
 def cmd_tick(a, locked=False):
     """Runs every minute from systemd. No LLM tokens: reap, dequeue, nudge, publish."""
     refuse_worker("tick")
     phases = getattr(a, "phases", None)
     if isinstance(phases, str):
+        if _tick_deadline_at(getattr(a, "deadline", None)) is not None:
+            die("--deadline is not supported with --phases (each phase call is short); drop --deadline", 2)
         _cmd_tick_phases(phases)
         return
     lock = None if locked else tick_lock()  # noqa: F841 — held until exit
     st = _tick_new_state()
     con = None
+    deadline = _tick_deadline_at(getattr(a, "deadline", None))
     for u in TICK_WALK_UNITS:
+        if deadline is not None and con is not None and time.monotonic() >= deadline:
+            event_as(con, "tick", "tick", "tick-deadline", "tick-deadline", f"stopped before phase {u}: --deadline {a.deadline} reached")
+            con.commit()
+            _tick_u_emit(con, st)  # the phase timers of the phases that did run are still recorded
+            return
         if u == "migrate_db":
             con = _tick_u_migrate_db(con, st)
             continue
@@ -16550,6 +18925,7 @@ def _tick_u_scout(con, st):
 
 def _tick_u_retro(con, st):
         retro_tick(con)
+        schedule_tick(con)
 
 
 def _tick_u_skilleval(con, st):
@@ -16578,9 +18954,22 @@ def _tick_u_reap_loop(con, st):
         tui_by_name, tui_by_pane = st.get("tui_by_name") or {}, st.get("tui_by_pane") or {}
         tui_list_ok = st.get("tui_list_ok", True)
         # 1. reap finished workers; detect lost agents; record session ids for resume
-        for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
+        remote_terms, hq_name = None, None
+        for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done') AND role NOT IN ('task','task-judge')").fetchall():
             row_exe = _agent_host_exe(con, r)
-            if hc_back:
+            rm = _spawn_args_row(r).get("machine")
+            if rm:
+                hq_name = hq_name or _machine_hq(con)
+            if rm and rm != hq_name:
+                # G-057: started on a worker machine; hc lists it as <machine>/tN, never under its bare name here.
+                # A row without the key (every row while worker_machines is empty) takes the branches below unchanged.
+                if remote_terms is None:
+                    listed_remote = _hc_remote_terminals()
+                    remote_terms = False if listed_remote is None else listed_remote
+                if remote_terms is False:
+                    continue  # hc cannot be read: a later tick decides, never 'lost' on a failed read
+                h = remote_terms.get(f"{rm}/{r['name']}")
+            elif hc_back:
                 if row_exe == "herdr":
                     if not tui_list_ok:
                         continue
@@ -16697,6 +19086,7 @@ def _tick_u_exited_panes(con, st):
 
 def _tick_u_idle_coders(con, st):
         reap_idle_coders(con, st["agents"])
+        idle_watchdog(con, st["agents"])  # T-1622: after the reap, so a coder it just stopped is skipped
         _pt_lap("idle_coders")
 
 
@@ -16708,7 +19098,8 @@ def _tick_u_drift(con, st):
 def _tick_u_flagless(con, st):
         # 1b. flagless panes (resumed by herdr without role flags) surface even without `factory up`
         notify_flagless(con, [f for f in flagless_scan(
-            con, con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL").fetchall(),
+            con, con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL "
+                             "AND role NOT IN ('task','task-judge')").fetchall(),
             throttle=True) if f["new"]])
         _pt_lap("flagless")
 
@@ -16738,16 +19129,53 @@ def _tick_u_stop_fallback(con, st):
 def _tick_u_gate(con, st):
         # 1c''. local merge gate (T-0516): launch the queued gate runs within gate_max_parallel
         try:
+            gate_push_tick(con)
+        except Exception as e:  # noqa: BLE001 — the push pass must not stop the launch pass
+            event(con, "tick", "gate", "gate-tick-error", f"push: {e}"[:300])
+        try:
             tick_gate(con)
         except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
             event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
         _pt_lap("gate")
 
 
+HOLD_EXPIRY_TIMEOUT = 60  # seconds the factory-go child of the hold_expiry unit may run
+
+
 def _tick_u_hold_expiry(con, st):
-        # 1c''+. judge hold expiry (G-058, docs/judge-hold-expiry.md): Go only (go/internal/tick/holdexpiry.go). The
-        # Python tick has no implementation: it keeps every hold and prints nothing; only the lap is recorded.
+        # 1c''+. judge hold expiry (G-058, docs/judge-hold-expiry.md): the rule lives only in Go (go/internal/holdexpiry);
+        # this unit runs `factory-go hold-expiry` as a subprocess. The tick never raises from it: any problem keeps every hold.
+        try:
+            _hold_expiry_via_go(con)
+        except Exception as e:  # noqa: BLE001 — a failing unit must never stop the tick
+            print(f"hold_expiry: factory-go hold-expiry failed ({type(e).__name__}: {e}); holds kept", file=sys.stderr)
         _pt_lap("hold_expiry")
+
+
+def _hold_expiry_via_go(con):
+        if cfg(con, "judge_hold_expiry_min") == "0":
+            return
+        con.commit()  # no write transaction of ours while the Go child writes
+        state = cli_binary_state()
+        if state != "ok":
+            print(f"hold_expiry: factory-go {state}; holds kept", file=sys.stderr)
+            return
+        env = {k: v for k, v in os.environ.items() if k != "FACTORY_CLI_IMPL"}
+        try:
+            r = subprocess.run([str(Path(guard_lib_dir()) / CLI_GO_BIN), "hold-expiry"], env=env, stdin=subprocess.DEVNULL,
+                               capture_output=True, text=True, timeout=HOLD_EXPIRY_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            print(f"hold_expiry: factory-go hold-expiry failed (timeout after {HOLD_EXPIRY_TIMEOUT}s); holds kept", file=sys.stderr)
+            return
+        except OSError as e:
+            print(f"hold_expiry: factory-go hold-expiry failed ({e}); holds kept", file=sys.stderr)
+            return
+        if r.stdout:
+            sys.stdout.write(r.stdout)
+        if r.returncode != 0:
+            why = (r.stderr or "").strip().splitlines()
+            print(f"hold_expiry: factory-go hold-expiry failed (exit {r.returncode}{': ' + why[-1][:200] if why else ''}); holds kept",
+                  file=sys.stderr)
 
 
 def _tick_u_mech_merge(con, st):
@@ -16947,7 +19375,7 @@ def _tick_u_nudge(con, st):
             nudge_hc_list = _host_agents_list("hc") or []
             nudge_hc_by = {x["name"]: x for x in nudge_hc_list if x.get("name")}
         nudge_by_name, nudge_by_pane = _agents_index(nudge_agents)
-        for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
+        for r in con.execute("SELECT * FROM agents WHERE status='live' AND role NOT IN ('task','task-judge')").fetchall():
             if r["role"] == "boss":
                 if nudge_eff == "hc" and _agent_host_exe(con, r) == "herdr":
                     if not tui_list_ok:
@@ -16979,9 +19407,13 @@ def _tick_u_nudge(con, st):
                                 n = len(qualifying)
                                 msg = (f"📬 {n} unread factory message(s) [{kinds}], oldest {age_min} min. "
                                        "Run `factory inbox` and act on them.")
-                                if herdr("agent", "prompt", an, msg, check=False) is not None:
+                                sent = herdr("agent", "prompt", an, msg, check=False) is not None
+                                nudge_event(con, "unread", r, sent)
+                                if sent:
                                     _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
-                                    con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (st["t"], r["name"]))
+                                # a failed prompt waits out the cooldown too: one skipped row per window
+                                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (st["t"], r["name"]))
+                                if sent:
                                     event_as(con, "tick", "agent", r["name"], "boss-wake",
                                              {"count": n, "oldest": f"M{oldest['id']}", "kinds": kinds})
                 continue
@@ -17008,8 +19440,10 @@ def _tick_u_nudge(con, st):
                 text = "⏱ Director cycle: run your cycle checklist (survey, resources, unblock, report)."
             if text:
                 an = h.get("name") or r["name"]
-                if herdr("agent", "prompt", an, text, check=False) is not None:
+                sent = herdr("agent", "prompt", an, text, check=False) is not None
+                if sent:
                     _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
+                nudge_event(con, "unread" if unread["c"] else "idle", r, sent)
                 con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (st["t"], r["name"]))
         _pt_lap("nudge")
 
@@ -17103,9 +19537,31 @@ def _tick_u_relaunches(con, st):
             event(con, "tick", "cursor-kickoff", "cursor-kickoff-error", str(e)[:300])
 
 
+SPEND_ALERT_TIMEOUT = 90  # seconds the factory-go child of the spend alert may run
+
+
+def spend_alert_tick(con):
+    """Tick hook (T-1824, owner order M41393): `factory-go spend-alert` checks hm-spend for a token-spend spike (at most every
+    15 minutes, one alert per clock hour to claude-boss; docs/spend-alert.md). Never raises."""
+    try:
+        con.commit()  # no write transaction of ours while the Go child writes
+        if cli_binary_state() != "ok":
+            return
+        env = {k: v for k, v in os.environ.items() if k != "FACTORY_CLI_IMPL"}
+        r = subprocess.run([str(Path(guard_lib_dir()) / CLI_GO_BIN), "spend-alert"], env=env, stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=SPEND_ALERT_TIMEOUT)
+        if r.stdout:
+            sys.stdout.write(r.stdout)
+        if r.returncode != 0:
+            print(f"spend_alert: factory-go spend-alert exit {r.returncode}", file=sys.stderr)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"spend_alert: factory-go spend-alert failed ({type(e).__name__}: {e})", file=sys.stderr)
+
+
 def _tick_u_util(con, st):
         util_sample(con)
         util_alerts(con)
+        spend_alert_tick(con)
         owner_blocker_alerts(con)
         owner_alert_feed_tick(con)
         owner_alert_send_tick(con)
@@ -17753,9 +20209,12 @@ def cmd_export(a):
 
 # ───────────────────────────── up: rebuild after reboot ─────────────────────────────
 
+UP_LOCK_WAIT_S = 90  # boot: wait out the first tick instead of skipping the HQ start (#849)
+
+
 def cmd_up(a):
     refuse_worker("up")
-    lock = tick_lock()  # noqa: F841
+    lock = tick_lock(busy_exit=3, wait_s=UP_LOCK_WAIT_S)  # still busy: exit non-zero so systemd retries the unit  # noqa: F841
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started
@@ -17954,6 +20413,13 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             sandbox_refuse(con, r["role"], r["name"], *bad)
     if gh_cred_wanted(con, r["role"], sandbox_wanted(con, r["role"], optin)):  # same: before the old pane is closed
         gh_cred_preflight(con, r["role"], r["name"])
+    if _worker_machine_list(con):  # placement can refuse a restart the single-machine gate would allow; do not close first
+        ok, why, _stats = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
+                               role=r["role"], own_lead=r["status"] == "live",
+                               runtime=org_runtime(con, r["role"], r["org"]),
+                               placement_discount=_relaunch_placement_discount(con, r))
+        if not ok:
+            die(f"not relaunching {r['name']}: {why}", 3)
     steps = []
     if close:
         if by_pane:
@@ -18145,6 +20611,7 @@ def tick_recycle(con):
         con.execute("UPDATE agents SET relaunch_requested_at=?, relaunch_requested_by=?, relaunch_fresh=1 WHERE name=?",
                     (now(), "tick", r["name"]))
         event(con, "agent", r["name"], "recycle-queued", {"context_tokens": ctx, "limit": limit, "session": r["session_id"]})
+        nudge_event(con, "recycle", r, True, result="queued")  # the queued relaunch is the recycle prompt
 
 
 LEAD_WAKING = ("live", "starting", "queued")  # a lead row in one of these has its wake in flight
@@ -18269,7 +20736,7 @@ def dispatch_candidates(con):
     for t in rows:
         if not set(json.loads(t["depends_on"] or "[]")) <= done:
             continue
-        if not (t["spec"] or "").strip():
+        if not (t["spec"] or "").strip() or runner_managed(con, t["id"]):
             continue
         if t["role"] in ("coder", "qa") and not (t["acceptance"] or "").strip():
             continue  # cmd_spawn would refuse it
@@ -18309,7 +20776,7 @@ def dispatch_tick(con):
                            (team, *DISPATCH_ROLES, *LEAD_WAKING)).fetchone()["c"]
         if live >= team_cap:
             continue
-        if not gate(con, role=role)[0]:
+        if not gate(con, role=role, runtime=org_runtime(con, role, org_for(con, t["goal_id"], tid)))[0]:
             break
         name = f"{role}-{tid.lower()}"
         if role == "qa" and qa_without_pr_or_worktree(con, tid):  # T-0966: same refusal as cmd_spawn; surfaced once, never retried
@@ -18510,16 +20977,66 @@ def _review_repo_mismatch(con, t):
     return None
 
 
-def _branch_on_remote(branch, batch):
-    """True/False: origin has refs/heads/<branch>; None when the remote cannot be read (the caller fails closed)."""
+class _RepoBatch(list):
+    """The review tick's per-tick ls-remote batch. As a list it is the factory-origin one-item batch every caller already
+    shares; `.foreign` holds one {"remote", "batch"} per other project repo (slug -> dict), `.origin` the cached factory slugs."""
+
+    def __init__(self):
+        super().__init__()
+        self.foreign = {}
+        self.origin = None
+
+
+def _review_remote(con, t, batch):
+    """(batch, kwargs) for the ls-remote helpers of task t's PR repo. The factory origin (or no project gh_repo, or an unparsable
+    PR url) is (batch, {}): exactly today's call. A foreign project repo gets its own one-item batch per tick and
+    remote=(repo dir or None, git remote or URL): the project's repo_path checkout when its origin is that repo, else
+    https://github.com/ORG/REPO.git (T-1675)."""
+    if not isinstance(batch, _RepoBatch):
+        return batch, {}
+    proj = con.execute("SELECT p.gh_repo, p.repo_path FROM projects p JOIN goals g ON g.project_id=p.id WHERE g.id=?", (t["goal_id"],)).fetchone()
+    want = _repo_slug(proj["gh_repo"]) if proj else None
+    if not want:
+        return batch, {}
+    try:
+        have = _repo_slug(_pr_repo_num(t["pr_url"])[0])
+    except ValueError:
+        return batch, {}
+    if have != want:
+        return batch, {}
+    if batch.origin is None:
+        batch.origin = {x for x in map(_repo_slug, _origin_urls()) if x}
+    if not batch.origin or want in batch.origin:  # origin unknown: today's behaviour
+        return batch, {}
+    ent = batch.foreign.get(want)
+    if ent is None:
+        remote = (None, f"https://github.com/{want}.git")
+        rp = proj["repo_path"]
+        if rp and Path(rp).is_absolute() and Path(rp, ".git").exists():
+            rc, url, _ = _git_rc(["remote", "get-url", "origin"], repo=rp)
+            if rc == 0 and _repo_slug(url) == want:
+                remote = (rp, "origin")
+        ent = batch.foreign[want] = {"remote": remote, "batch": []}
+    return ent["batch"], {"remote": ent["remote"]}
+
+
+def _review_head(con, t, batch):
+    sub, kw = _review_remote(con, t, batch)
+    return _ci_remote_head(t["branch"], sub, **kw)
+
+
+def _branch_on_remote(branch, batch, remote=None):
+    """True/False: origin (or `remote` = (repo dir or None, git remote or URL)) has refs/heads/<branch>; None when the remote
+    cannot be read (the caller fails closed)."""
     if branch.startswith("factory/"):
         if not batch:
             _pt_count("ci_wake_ls_remote")
-            batch.append(_ci_remote_heads())
+            batch.append(_ci_remote_heads(remote=remote) if remote else _ci_remote_heads())
         return None if batch[0] is None else branch in batch[0]
     ref = f"refs/heads/{branch}"
+    repo, target = remote or (None, "origin")
     _pt_count("ci_wake_ls_remote")
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, ref], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     return None if rc != 0 else any(l.split("\t")[-1:] == [ref] for l in out.splitlines())
 
 
@@ -18544,7 +21061,8 @@ def _review_pr_problem(con, t, pr, batch, clock, head_known=False):
         _review_skip(con, t, f"PR is {pr.get('state')}", clock)
         return True
     if t["branch"] and not head_known:
-        on = _branch_on_remote(t["branch"], batch)
+        sub, kw = _review_remote(con, t, batch)
+        on = _branch_on_remote(t["branch"], sub, **kw)
         if on is None:
             event(con, "task", tid, "review-autospawn-error", f"cannot read origin to check branch {t['branch']}"[:300])
             return True
@@ -18595,8 +21113,35 @@ def _rerun_missing(con, tid, head):
     or a verdict of that role on head. A verdict of one role never marks the other done (T-1048: a reviewer verdict with a qa that ended
     without one left the head "done" and nothing started the qa)."""
     started = _rerun_agents(con, tid, head)
-    return [r for r in ("reviewer", "qa") if r not in started and not con.execute(
-        "SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, r)).fetchone()]
+    due = _respawn_due(con, tid, head)
+    return [r for r in ("reviewer", "qa") if r in due or (r not in started and not con.execute(
+        "SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, r)).fetchone())]
+
+
+def _respawn_key(tid, head, role):
+    """Throttle key set when the tick started the one replacement <role> on head (T-1600): its presence means no further respawn."""
+    return f"review-respawn:{tid}:{head}:{role}"
+
+
+def _noverdict_key(tid, head, role):
+    return f"review-noverdict:{tid}:{head}:{role}"
+
+
+def _respawn_due(con, tid, head):
+    """T-1600: the roles whose tick-started <role>-<task>-<sha8> row has ended (not queued/starting/live) with no verdict of that role
+    on head and that had no replacement yet (no review-respawn key, and no review-no-verdict alert from before this rule). The re-run
+    pass starts one replacement per (task, head, role) under the same name, through the same gates; a second ending is the alert."""
+    out = []
+    for role in ("reviewer", "qa"):
+        row = con.execute("SELECT status FROM agents WHERE name=?", (_rerun_name(con, tid, role, head),)).fetchone()
+        if not row or row["status"] in ("queued", "starting", "live"):
+            continue
+        if con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, role)).fetchone():
+            continue
+        if con.execute("SELECT 1 FROM throttle WHERE key IN (?,?)", (_respawn_key(tid, head, role), _noverdict_key(tid, head, role))).fetchone():
+            continue  # the one replacement was already started (or the lead was already told): never a third agent
+        out.append(role)
+    return out
 
 
 REVIEW_VERDICT_GRACE_S = 300  # a verdict this young may belong to a round whose other half the lead is about to start
@@ -18617,7 +21162,8 @@ def _review_verdict_fresh(con, tid, head, clock):
 
 
 def _review_alert_no_verdict(con, t, head, clock):
-    """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role: one escalation per task, head and role.
+    """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role, after its one replacement (T-1600: the first
+    ending is respawned by the re-run pass, see _respawn_due): one escalation per task, head and role.
     Goes to the lead of the goal's org, else that org's director (goal_alert_to): an unprompted alert never wakes another org's lead."""
     for role in _rerun_agents(con, t["id"], head):
         name = _rerun_name(con, t["id"], role, head)
@@ -18626,7 +21172,9 @@ def _review_alert_no_verdict(con, t, head, clock):
             continue
         if con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (t["id"], head, role)).fetchone():
             continue
-        key = f"review-noverdict:{t['id']}:{head}:{role}"
+        if role in _respawn_due(con, t["id"], head):
+            continue  # first ending: the re-run pass starts one replacement, no message
+        key = _noverdict_key(t["id"], head, role)
         if _throttled(con, key, clock, float("inf")):
             continue
         _throttle_set(con, key, clock)
@@ -18639,8 +21187,98 @@ def _review_alert_no_verdict(con, t, head, clock):
 
 def _review_head_done(con, tid, head, clock):
     """True when the tick started both halves (reviewer + qa) on head (throttle row review-head:<task>:<sha>), or no role is missing on it
-    (_rerun_missing): a half-started round gets only its missing role next tick."""
+    (_rerun_missing): a half-started round gets only its missing role next tick. Never done while a role is due its one replacement (T-1600)."""
+    if _respawn_due(con, tid, head):
+        return False
     return _throttled(con, f"review-head:{tid}:{head}", clock, float("inf")) or not _rerun_missing(con, tid, head)
+
+
+FIX_CARRY_BRIEF = ("Fix-carry round (T-1611): re-check your failed findings and review the delta `git diff {x}..{y}` (literal shas); "
+                   "your PASS is for the whole PR at {y}; the other role's PASS at {x} will carry. ")
+
+
+def _judge_rerun_fix_plan(con, t, sha):
+    """T-1611 fix-carry for the review rerun. With config fix_carry on, a head `sha` whose one role has a PASS (at x) and
+    whose other role's latest verdict is a FAIL: ("only", failed_role, x) when the PASS at x would carry across the delta
+    x..sha (conditions (1), (3)-(7), so only the failed role re-checks); ("carried", None, x) when the failed role has already
+    PASSed on sha and the carry holds (nothing left to start); else None (reviewer + qa as before, also on any "cannot verify")."""
+    if judge_fix_carry_limits(con)[0] is False:
+        return None
+    last = {r: con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                           (t["id"], r)).fetchone() for r in ("reviewer", "qa")}
+    m = re.search(r"/pull/(\d+)", t["pr_url"] or "")
+    if not m:
+        return None
+    wt = t["worktree"]
+    git_repo = wt if wt and Path(wt).is_dir() else HOME
+    owner_repo = "/".join(t["pr_url"].split("/")[3:5])
+    for role, failed in (("reviewer", "qa"), ("qa", "reviewer")):
+        p, f = last[role], last[failed]
+        if not p or not f or p["verdict"] != "pass" or not p["head_sha"] or p["head_sha"].lower() == sha.lower():
+            continue
+        passed_here = f["verdict"] == "pass" and (f["head_sha"] or "").lower() == sha.lower()
+        if f["verdict"] != "fail" and not passed_here:
+            continue
+        try:
+            repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+        except (SystemExit, ValueError, KeyError):
+            return None  # cannot verify: both roles
+        kind, info = judge_fix_carry_for(con, t["id"], role, p["head_sha"], sha, m.group(1), git_repo, repo_url, owner_repo, {},
+                                   need_failed_pass=passed_here)
+        if kind != "carry":
+            return None
+        return ("carried" if passed_here else "only"), failed, p["head_sha"]
+    return None
+
+
+REVIEW_STOP_NUDGE = "📬 STOP from tick: run factory inbox now and follow the STOP order."
+
+
+def review_verdict_timeout_tick(con, clock):
+    """T-1600: a tick-started reviewer/qa (it has a review-autospawn event on the head it was started on, verdict_start_head) that is
+    live longer than config review_verdict_timeout_min (default 45; 0 or less = off) with no verdict of its role on that head gets one
+    stop request through the stop path of the idle-coder reaper (STOP decision message, stop_requested_at, Esc + deferred nudge; the
+    tick's stop fallback closes the pane after stop_timeout_s). Once the row has ended the re-run pass applies the respawn rule.
+    Agents a lead or director spawned (no event) are never stopped."""
+    limit = _int_cfg(con, 'review_verdict_timeout_min', 45)  # single quotes: the double-quoted name stays unique to DEFAULT_CONFIG (grep)
+    if limit <= 0:
+        return
+    rows = con.execute("SELECT a.* FROM agents a JOIN tasks t ON t.id=a.task_id WHERE a.role IN ('reviewer','qa') AND a.status='live' "
+                       "AND a.stop_requested_at IS NULL AND t.status='in_review' ORDER BY a.name").fetchall()
+    for r in rows:
+        began = _ts(r["started"])
+        if began is None:
+            continue  # an unreadable start time cannot prove the agent is overdue: never stop on a guess
+        live_min = (clock - began.timestamp()) / 60
+        if live_min <= limit:
+            continue
+        name, tid = r["name"], r["task_id"]
+        head = verdict_start_head(con, tid, name)
+        if not head:
+            continue  # not tick-started (or respawned by a lead since): the lead's own
+        roles = ("reviewer", "qa") if orgs.strip_prefix(name) == orgs.strip_prefix(combined_name(tid)) else (r["role"],)
+        if all(con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, x)).fetchone()
+               for x in roles):
+            continue  # its verdict is recorded: it is wrapping up
+        reason = (f"review_verdict_timeout_min: live {int(live_min)} min (> {limit}) with no {'/'.join(roles)} verdict on head {head[:8]}; "
+                  "the tick starts one replacement on this head")
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            if con.execute("UPDATE agents SET stop_requested_at=?, stop_attempt_at=NULL, stop_failed_kind=NULL "
+                           "WHERE name=? AND status='live' AND stop_requested_at IS NULL", (now(), name)).rowcount != 1:
+                con.execute("ROLLBACK")
+                continue
+            send(con, name, "STOP", reason + "\nStop work now, record no verdict you have not finished checking, then run "
+                 "factory done '<stopped: state>'", "decision", r["goal_id"], tid, sender="tick")
+            event_as(con, "tick", "agent", name, "stop-requested", {"by": "tick", "reason": reason})
+            event_as(con, "tick", "task", tid, "review-verdict-timeout", {"agent": name, "role": r["role"], "head": head[:8],
+                                                                         "live_min": int(live_min), "limit_min": limit})
+            con.execute("COMMIT")
+        except BaseException:
+            if con.in_transaction:
+                con.execute("ROLLBACK")
+            raise
+        esc_wait_nudge(con, name, REVIEW_STOP_NUDGE, "STOP order", defer=True)
 
 
 def review_rerun_tick(con):
@@ -18653,7 +21291,7 @@ def review_rerun_tick(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
-    batch = []
+    batch = _RepoBatch()
     for t in review_rerun_candidates(con):
         tid, team = t["id"], t["team_id"]
         why = _review_repo_mismatch(con, t)
@@ -18662,7 +21300,9 @@ def review_rerun_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        head = _ci_remote_head(t["branch"], batch)
+        if autospawn_blocked(con, t, "review"):
+            continue
+        head = _review_head(con, t, batch)
         if head:
             _review_alert_no_verdict(con, t, head, clock)
         if head and _review_head_done(con, tid, head, clock):
@@ -18676,7 +21316,7 @@ def review_rerun_tick(con):
         sha = pr["headRefOid"]
         if _review_head_done(con, tid, sha, clock):
             continue
-        if ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        if ci_verdict(pr.get("statusCheckRollup"))[0] != "green" and not gate_project_for(con, t["pr_url"]):  # T-1828: gate_cmd set = no wait for GitHub checks
             _review_wait(con, t, sha, "ci", "CI is not green on the new head", clock)
             continue
         if _review_hold(con, t, sha, clock):
@@ -18687,11 +21327,19 @@ def review_rerun_tick(con):
             continue  # a lead-run round on this head that just got its first verdict: its other half may be about to start
         boss = f"lead:{team}" if team else "director"
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
-        started = []
+        started = []  # what the fyi names; a replacement (T-1600) sends no mail, its events are review-autospawn + review-respawn
         gate_closed = False
-        for role in _rerun_missing(con, tid, sha):
+        plan = _judge_rerun_fix_plan(con, t, sha)  # T-1611: after a FAIL only the failed role re-checks while the other PASS will carry
+        if plan and plan[0] == "carried":
+            continue  # the failed role already PASSed this head and the other role's PASS carries: the judge decides
+        due = _respawn_due(con, tid, sha)  # T-1600: roles whose agent on this head ended with no verdict: one replacement each
+        roles = _rerun_missing(con, tid, sha)
+        if plan:
+            roles = [r for r in roles if r == plan[1]]
+            brief = FIX_CARRY_BRIEF.format(x=plan[2], y=sha) + brief
+        for role in roles:
             name = _rerun_name(con, tid, role, sha)
-            g_ok, g_why = gate(con, role=role)[:2]
+            g_ok, g_why = gate(con, role=role, runtime=org_runtime(con, role, org_for(con, t["goal_id"], tid)))[:2]
             if not g_ok:
                 _review_wait(con, t, sha, "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
@@ -18703,8 +21351,15 @@ def review_rerun_tick(con):
                 break
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
-            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8], "sha": sha})
-            started.append(name)
+            ev = {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8], "sha": sha}
+            if plan:
+                ev["fix_carry"] = True
+            event(con, "task", tid, "review-autospawn", ev)
+            if role in due:  # the mark only after a spawn that went through: a closed gate or a refused spawn retries next tick
+                _throttle_set(con, _respawn_key(tid, sha, role), clock)
+                event(con, "task", tid, "review-respawn", {"agent": name, "role": role, "head": sha[:8]})
+            else:
+                started.append(name)
             if status == "queued":
                 break
         if not _rerun_missing(con, tid, sha):  # the mark only when both halves are done; a queued reviewer or refused qa retries
@@ -18724,6 +21379,14 @@ def review_autospawn_tick(con):
     if cfg(con, "review_autospawn") != "on":
         return
     try:
+        try:
+            _clock = digest_clock().timestamp()
+        except FactoryNowError:
+            _clock = time.time()
+        review_verdict_timeout_tick(con, _clock)
+    except Exception as e:  # noqa: BLE001 — the timeout pass must not stop the review passes
+        event(con, "tick", "review-autospawn", "review-autospawn-error", f"verdict timeout: {e}"[:300])
+    try:
         review_rerun_tick(con)
     except Exception as e:  # noqa: BLE001 — the new-head pass must not stop the first-review pass
         event(con, "tick", "review-autospawn", "review-autospawn-error", f"rerun: {e}"[:300])
@@ -18733,7 +21396,7 @@ def review_autospawn_tick(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
-    batch = []
+    batch = _RepoBatch()
     for t in review_candidates(con):
         tid, team = t["id"], t["team_id"]
         why = _review_repo_mismatch(con, t)
@@ -18742,10 +21405,12 @@ def review_autospawn_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _ci_remote_head(t["branch"], batch) if t["branch"] else None)
+        if autospawn_blocked(con, t, "review"):
+            continue
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _review_head(con, t, batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
-        if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green" and not gate_project_for(con, t["pr_url"]):  # T-1828: gate_cmd set = no wait
             _review_wait(con, t, pr["headRefOid"], "ci", "CI is not green on the head (coder_ci_handoff waits for green)", clock)
             continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
         if _review_hold(con, t, pr["headRefOid"], clock):
@@ -18765,7 +21430,7 @@ def review_autospawn_tick(con):
                     continue
             elif con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
                 continue
-            g_ok, g_why = gate(con, role=role)[:2]
+            g_ok, g_why = gate(con, role=role, runtime=org_runtime(con, role, _o))[:2]
             if not g_ok:
                 _review_wait(con, t, pr["headRefOid"], "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 return
@@ -18842,8 +21507,8 @@ def coder_ci_resume_tick(con):
     batch, starts = [], 0
     for t in con.execute(
             "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.role='coder' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
-            "AND g.status='active' AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND a.role='coder' "
-            "AND a.status NOT IN ('done','exited','lost','cancelled')) ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
+            "AND g.status='active' AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role IN ('task','task-judge') OR a.role='coder' "
+            "AND a.status NOT IN ('done','exited','lost','cancelled'))) ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
         if starts >= CODER_RESUME_MAX_STARTS:
             return
         tid, team = t["id"], t["team_id"]
@@ -18910,7 +21575,7 @@ def coder_ci_resume_tick(con):
         dropped = bool(resume) and bool(_resume_runtime_change(con, prior, "coder", org))  # spawn drops a session recorded on another runtime and starts fresh
         resumed = bool(resume) and not dropped
         kick = coder_ci_resume_kickoff(sha, _failed_runs(rollup, names), resumed, not wt_ok, t["branch"] or f"factory/{tid.lower()}")
-        if not gate(con, role="coder")[0]:
+        if not gate(con, role="coder", runtime=org_runtime(con, "coder", org))[0]:
             return
         try:
             spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume,
@@ -19022,7 +21687,9 @@ def spec_fill_tick(con):
 
 def ci_verdict(rollup):
     """('green'|'red'|'pending', [names]) of a PR's checks: green = at least one check and all completed with a
-    success/neutral/skipped conclusion; red = all completed and some failed (names = the failed ones)."""
+    success/neutral/skipped conclusion; red = all completed and some failed (names = the failed ones).
+    A CheckRun is finished when status is COMPLETED, and also: a CheckRun with a non-empty conclusion and a non-empty completedAt is finished even when status is not COMPLETED
+    (the Actions jobs API can report status in_progress with a final conclusion). An empty conclusion is never green."""
     checks = latest_checks(rollup)
     if not checks:
         return "pending", []
@@ -19036,9 +21703,11 @@ def ci_verdict(rollup):
             elif state != "SUCCESS":
                 done = False
             continue
-        if (c.get("status") or "").upper() != "COMPLETED":
+        finished = (c.get("status") or "").upper() == "COMPLETED" or bool(
+            (c.get("conclusion") or "").strip() and (c.get("completedAt") or "").strip())
+        if not finished:
             done = False
-        elif (c.get("conclusion") or "").upper() not in ("SUCCESS", "NEUTRAL", "SKIPPED"):
+        elif (c.get("conclusion") or "").strip().upper() not in ("SUCCESS", "NEUTRAL", "SKIPPED"):
             failed.append(name)  # FAILURE, CANCELLED, TIMED_OUT, ACTION_REQUIRED...; an unknown conclusion is never green
     if not done:
         return "pending", []
@@ -19049,9 +21718,11 @@ CI_WAKE_GH_TIMEOUT_S = 15  # one slow gh call must not stall the tick
 CI_WAKE_RECHECK_S = 600  # fallback only: when the remote head cannot be read, a mailed task's PR is not queried again for this long
 
 
-def _ci_remote_heads():
-    """{branch: head sha} for every origin refs/heads/factory/* from ONE `git ls-remote`, or None when it cannot be read."""
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S)
+def _ci_remote_heads(remote=None):
+    """{branch: head sha} for every origin (or `remote` = (repo dir or None, git remote or URL)) refs/heads/factory/* from ONE
+    `git ls-remote`, or None when it cannot be read."""
+    repo, target = remote or (None, "origin")
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     if rc != 0:
         return None
     heads = {}
@@ -19062,7 +21733,7 @@ def _ci_remote_heads():
     return heads
 
 
-def _ci_remote_head(branch, batch=None):
+def _ci_remote_head(branch, batch=None, remote=None):
     """Head sha of origin's refs/heads/<branch> by `git ls-remote` (no gh call), or None when it cannot be read.
     `batch` is a one-item list holding the per-tick _ci_remote_heads() result (filled on first use): a factory/* branch is
     looked up there, so a tick makes one ls-remote however many PRs it checks; any other branch gets its own call."""
@@ -19071,11 +21742,12 @@ def _ci_remote_head(branch, batch=None):
     if batch is not None and branch.startswith("factory/"):
         if not batch:
             _pt_count("ci_wake_ls_remote")
-            batch.append(_ci_remote_heads())
+            batch.append(_ci_remote_heads(remote=remote) if remote else _ci_remote_heads())
         return (batch[0] or {}).get(branch)
     ref = f"refs/heads/{branch}"
+    repo, target = remote or (None, "origin")
     _pt_count("ci_wake_ls_remote")
-    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
+    rc, out, _ = _git_rc(["ls-remote", "--refs", target, ref], timeout=CI_WAKE_GH_TIMEOUT_S, repo=repo)
     rows = [l.split("\t") for l in out.splitlines() if l.strip()] if rc == 0 else []
     rows = [r for r in rows if len(r) == 2 and r[1] == ref and re.fullmatch(r"[0-9a-f]{40}", r[0])]
     return rows[0][0] if len(rows) == 1 else None
@@ -19383,7 +22055,7 @@ def tick_red_pr_owner(con):
     for k in con.execute("SELECT t.id, t.goal_id, t.status, t.waits, t.pr_url, t.branch, tm.lead_agent FROM tasks t LEFT JOIN teams tm ON tm.id=t.team_id AND tm.status='active' "
                          "WHERE t.status IN ('in_progress','in_review','blocked') AND t.pr_url IS NOT NULL AND t.pr_url != '' ORDER BY t.id").fetchall():
         if con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('live','starting','queued')",
-                       (k["id"],)).fetchone():
+                       (k["id"],)).fetchone() or runner_managed(con, k["id"]):
             continue
         head = _ci_remote_head(k["branch"], batch)
         if head is not None and (_throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))
@@ -19485,7 +22157,13 @@ def tick_relaunches(con):
             h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue  # mid-turn, blocked or not listed: a later tick
-        ok, why, _ = gate(con, own_slot=True)  # the agent already holds its slot; never close a pane the gate would queue
+        if _worker_machine_list(con):
+            # placement can refuse a restart the single-machine gate would allow; do not close the pane first
+            ok, why, _ = gate(con, own_slot=True, load_exempt=r["role"] in ("boss", "director", "judge", "lead"),
+                              role=r["role"], own_lead=True, runtime=org_runtime(con, r["role"], r["org"]),
+                              placement_discount=_relaunch_placement_discount(con, r))
+        else:
+            ok, why, _ = gate(con, own_slot=True, runtime=_agent_runtime(r))  # feature off: the same call as before placement existed
         if not ok:
             key = f"relaunch_deferred:{r['name']}"
             last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
@@ -19540,6 +22218,21 @@ def _kickoff_watch_state(con, name):
         except (TypeError, ValueError, KeyError):
             continue
         out[e["action"]][kick] = e["ts"]
+    return out
+
+
+def _idle_watchdog_relaunch_kicks(con, name):
+    """Kickoff message ids that an idle-watchdog fresh relaunch (T-1622) replaced: after one, T-1599 resends the new
+    kickoff and escalates, never a second relaunch."""
+    out = set()
+    for e in con.execute("SELECT detail FROM events WHERE entity='agent' AND entity_id=? AND action='idle-watchdog-relaunch'",
+                         (name,)).fetchall():
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("mode") == "on" and isinstance(d.get("kick"), int):
+            out.add(d["kick"])
     return out
 
 
@@ -19610,8 +22303,9 @@ def tick_cursor_kickoff(con):
         if not listed or listed.get("agent_status") == "working":
             continue  # mid-turn: it accepted a prompt and may not have read its mail yet (r1); unlisted or host down: cannot decide
         # a failed relaunch sent no new kickoff: a later spawn under the same name is a new agent with its own budget
-        after_relaunch = (prev is not None and prev in seen["kickoff-relaunch"]
-                          and prev not in seen["kickoff-relaunch-failed"])
+        after_relaunch = prev is not None and ((prev in seen["kickoff-relaunch"]
+                                                and prev not in seen["kickoff-relaunch-failed"])
+                                               or prev in _idle_watchdog_relaunch_kicks(con, name))
         first = con.execute("SELECT created FROM messages WHERE id=?", (prev,)).fetchone() if after_relaunch else k
         idle_s = int((clock - (_ts(first["created"]) or started)).total_seconds())
         detail = {"kick": k["id"], "idle_s": idle_s, "host": host, "pane": r["pane_id"]}
@@ -20344,6 +23038,30 @@ def cmd_retro(a):
                           "evidence": json.loads(row["evidence"]), "fixes": json.loads(row["fixes"]),
                           "author": row["author"], "created": row["created"]}, indent=2))
         return
+    if a.action == "adopt":
+        if role == "retro":
+            die("role 'retro' may not adopt fixes; the retro agent only proposes", 3)
+        require_role(con, "pm", "lead", "director", "boss")
+        if a.day is None or a.fix is None or not a.task or a.signature is None:
+            die("usage: factory retro adopt --day D --fix N --task T --signature '<terms>'", 2)
+        try:
+            msg = retroreport.adopt(con, a.day, a.fix, a.task, a.signature, actor(), digest_clock().isoformat(timespec="seconds"),
+                                    lambda *x: event(con, *x))
+        except ValueError as e:
+            die(str(e), 2)
+        con.commit()
+        print(msg)
+        return
+    if a.action == "fixes":
+        require_role(con, "pm", "lead", "director", "boss", "retro")
+        try:
+            retroreport.sync_adopted(con, lambda *x: event(con, *x))
+            lines = retroreport.fixes_lines(con, a.status)
+        except ValueError as e:
+            die(str(e), 2)
+        con.commit()
+        print("\n".join(lines))
+        return
     die(f"unknown retro action {a.action!r}", 2)
 
 
@@ -20468,6 +23186,17 @@ def cmd_serve(a):
     finally:
         con.close()
     g = lambda k: cfg.get(k, DEFAULT_CONFIG[k])  # noqa: E731
+    if sys.platform == "darwin":  # B8: no systemd MainPID / cgroup: the serve-protection reads this file instead
+        _serve_pidfile_write()
+        try:
+            _cmd_serve_run(a, g, server)
+        finally:
+            _serve_pidfile().unlink(missing_ok=True)
+        return
+    _cmd_serve_run(a, g, server)
+
+
+def _cmd_serve_run(a, g, server):
     server.run(db_path=resolve_db, bind=a.bind or g("serve_bind") or None, port=a.port if a.port is not None else int(g("serve_port")),
                hostnames=[n.strip() for n in g("serve_hostnames").split(",") if n.strip()],
                usage_fn=usage, mem_fn=serve_mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)))
@@ -20656,6 +23385,10 @@ def cli_shadow(binary, argv, environ):
 
 
 def main():
+    forwarded_identity_gate(sys.argv[1:])  # no-op unless FACTORY_FORWARDED=1 (bin/factory checks it first as well)
+    # `factory config set <key> <value>` is the same write as `factory config <key> <value>` (G-057 names the set form).
+    if len(sys.argv) > 3 and sys.argv[1] == "config" and sys.argv[2] == "set" and not sys.argv[3].startswith("-"):
+        del sys.argv[2]
     mode, binary = cli_dispatch_mode(sys.argv)
     if mode == "shadow" and not cli_shadow_readonly(sys.argv):
         mode = "python"  # only read-only commands are shadowed: a write would run twice
@@ -20736,7 +23469,8 @@ def main():
     x = sp.add_parser("team"); x.add_argument("action", choices=["new", "list", "close", "reopen", "wake"]); x.add_argument("id", nargs="?")
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
-    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "tier"])
+    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "block", "block-migrate", "tier"])
+    x.add_argument("--dry-run", dest="dry_run", action="store_true", help="block-migrate: print keep/convert per blocked task, write nothing")
     x.add_argument("--full", action="store_true")
     x.add_argument("--classify", action="store_true", help="tier: compute the tier from the task's PR branch (needs risk_tiers=on)")
     x.add_argument("--base", default="origin/main"); x.add_argument("--head")
@@ -20747,6 +23481,8 @@ def main():
     x.add_argument("--note"); x.add_argument("--all", action="store_true")
     x.add_argument("--reason"); x.add_argument("--follow-up-of", dest="follow_up_of")
     x.add_argument("--waits", choices=TASK_WAITS, help="with --status blocked: owner (the owner must act) or internal (queue/freeze; default)")
+    x.add_argument("--on", action="append", dest="on", metavar="TOKEN",
+                   help="task block: typed condition token (repeatable)")
     x.add_argument("--merged-externally", dest="merged_externally", action="store_true",
                    help="with --status done --reason: close a coder task whose PR was merged outside the judge (director/owner; verified on GitHub)")
     x.add_argument("--sandbox-required", dest="sandbox_required", choices=["0", "1"],
@@ -20764,10 +23500,14 @@ def main():
     x.add_argument("--what"); x.add_argument("--source"); x.add_argument("--status"); x.add_argument("--role")
     x.set_defaults(fn=cmd_lesson)
 
-    x = sp.add_parser("retro", help="daily rejection retro: packet, file, show")
-    x.add_argument("action", choices=["packet", "file", "show"])
+    x = sp.add_parser("retro", help="daily rejection retro: packet, file, show, adopt, fixes")
+    x.add_argument("action", choices=["packet", "file", "show", "adopt", "fixes"])
     x.add_argument("body", nargs="?", default=None, help="file: use - for stdin")
-    x.add_argument("--day", help="show: YYYY-MM-DD (default today)")
+    x.add_argument("--day", help="show: YYYY-MM-DD (default today); adopt: the report day")
+    x.add_argument("--fix", type=int, help="adopt: 1-based fix index in the report")
+    x.add_argument("--task", help="adopt: the task that implements the fix")
+    x.add_argument("--signature", help="adopt: '|'-separated literal terms (1-10, 3-80 chars each)")
+    x.add_argument("--status", help="fixes: only rows with this status")
     x.set_defaults(fn=cmd_retro)
 
     x = sp.add_parser("scout", help="skill scout candidates: fetch, pending, triage, list, show, runs, report")
@@ -20891,6 +23631,7 @@ def main():
     x.set_defaults(fn=cmd_serve)
     x = sp.add_parser("tick", help="heartbeat (systemd runs it every minute)")
     x.add_argument("--phases", metavar="LIST", help=argparse.SUPPRESS)
+    x.add_argument("--deadline", metavar="DURATION", help=argparse.SUPPRESS)  # 240s, 4m: stop starting phases after this long (docs/darwin-python-branches.md)
     x.set_defaults(fn=cmd_tick)
     x = sp.add_parser("clean", help="remove worktrees and branches of merged/cancelled tasks (cleaner, director); "
                                      "--dry-run still runs git fetch origin")

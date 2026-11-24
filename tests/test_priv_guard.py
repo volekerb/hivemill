@@ -412,8 +412,11 @@ class SettingsTests(unittest.TestCase):
             with self.subTest(role=role):
                 cmds = self.hook_commands(self.load(role))
                 self.assertEqual(len(cmds), 1)
-                self.assertTrue(cmds[0].endswith("roles/hooks/worker-guard.py --hq"), cmds[0])
-                self.assertNotIn("--role", cmds[0])
+                # T-1803: the boss hook also passes --role boss (hq_deny_hit needs the role); --hq stays
+                want = "roles/hooks/worker-guard.py --hq" + (" --role boss" if role == "boss" else "")
+                self.assertTrue(cmds[0].endswith(want), cmds[0])
+                if role != "boss":
+                    self.assertNotIn("--role", cmds[0])
 
     def test_worker_roles_keep_worker_mode(self):
         for role in WORKER_ROLES:
@@ -436,7 +439,13 @@ class SettingsTests(unittest.TestCase):
     def test_other_roles_unchanged_on_branch_delete(self):
         for role in HQ_ROLES + tuple(r for r in WORKER_ROLES if r != "cleaner"):
             d = self.load(role)["permissions"]
-            self.assertFalse([a for a in d["allow"] if "git branch" in a or "--delete" in a], role)
+            # M40734: the boss alone may run exactly these gh pr merge forms (both option orders); nothing else
+            boss_ok = {f"Bash(gh pr merge * {a} --squash --delete-branch)" if o else
+                       f"Bash(gh pr merge * --squash --delete-branch {a})"
+                       for repo in ("hivemill", "hivemill-www") for o in (0, 1)
+                       for a in (f"--repo volekerb/{repo}",)} if role == "boss" else set()
+            self.assertFalse([a for a in d["allow"] if ("git branch" in a or "--delete" in a) and a not in boss_ok], role)
+            self.assertFalse([a for a in d["allow"] if "--admin" in a], role)
             if role not in ("coder",):
                 self.assertIn("Bash(git push:*)", d["deny"], role)
 

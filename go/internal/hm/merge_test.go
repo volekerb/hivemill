@@ -1,0 +1,86 @@
+package hm
+
+import (
+	"encoding/json"
+	"os"
+	"strings"
+	"testing"
+)
+
+// TestDecideFixtures runs the merge decision against the edge cases of the old merger's tests (testdata/merge_cases.json).
+func TestDecideFixtures(t *testing.T) {
+	b, err := os.ReadFile("testdata/merge_cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Cases []struct {
+			Name   string     `json:"name"`
+			Input  MergeInput `json:"input"`
+			Action string     `json:"action"`
+			WhyHas string     `json:"why_has"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Cases) < 20 {
+		t.Fatalf("only %d cases", len(doc.Cases))
+	}
+	for _, c := range doc.Cases {
+		d := Decide(c.Input)
+		if d.Action != c.Action || !strings.Contains(d.Why, c.WhyHas) {
+			t.Errorf("%s: got %s (%s), want %s (%s)", c.Name, d.Action, d.Why, c.Action, c.WhyHas)
+		}
+	}
+}
+
+func TestCIVerdict(t *testing.T) {
+	run := func(status, concl, started string) map[string]any {
+		return map[string]any{"__typename": "CheckRun", "workflowName": "tests", "name": "unit", "status": status, "conclusion": concl,
+			"startedAt": started, "completedAt": started}
+	}
+	if v, _ := CIVerdict(nil); v != "pending" {
+		t.Errorf("no checks = %s, want pending", v)
+	}
+	if v, _ := CIVerdict([]map[string]any{run("COMPLETED", "SUCCESS", "1")}); v != "green" {
+		t.Errorf("success = %s", v)
+	}
+	if v, f := CIVerdict([]map[string]any{run("COMPLETED", "FAILURE", "1")}); v != "red" || f[0] != "unit" {
+		t.Errorf("failure = %s %v", v, f)
+	}
+	// a re-run supersedes the failed attempt on the same head
+	if v, _ := CIVerdict([]map[string]any{run("COMPLETED", "FAILURE", "1"), run("COMPLETED", "SUCCESS", "2")}); v != "green" {
+		t.Errorf("rerun = %s, want green", v)
+	}
+	if v, _ := CIVerdict([]map[string]any{run("IN_PROGRESS", "", "")}); v != "pending" {
+		t.Errorf("in progress = %s", v)
+	}
+	if v, _ := CIVerdict([]map[string]any{run("COMPLETED", "CANCELLED", "1")}); v != "red" {
+		t.Errorf("cancelled = %s, want red (never green)", v)
+	}
+}
+
+func TestNoreplyBeforeAndAfterMerge(t *testing.T) {
+	r, s := testRunner(t, "")
+	_, _ = s.db.Exec(`INSERT INTO config(key,value) VALUES('noreply_email','1+me@users.noreply.github.com')`)
+	_, _ = s.db.Exec(`CREATE TABLE owner_alert_feed (id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL,
+		ref TEXT NOT NULL, since TEXT NOT NULL, link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT, sent TEXT)`)
+	if !r.isNoreply("1+ME@users.noreply.github.com") || r.isNoreply("2+other@users.noreply.github.com") || r.isNoreply("me@example.com") {
+		t.Error("only the configured noreply_email passes")
+	}
+	run := &Run{Task: "T-0001", Repo: "zz-test/www", MergeSHA: "abc"}
+	for _, c := range []struct {
+		out  string
+		want int
+	}{{"1+me@users.noreply.github.com noreply@github.com", 0}, {"me@example.com noreply@github.com", 1}} {
+		out := c.out
+		r.Tools.GH = func(string, ...string) (int, string, string) { return 0, out, "" }
+		r.checkMergeCommit(run)
+		var n int
+		_ = s.db.QueryRow(`SELECT count(*) FROM owner_alert_feed WHERE kind='hivemill-noreply'`).Scan(&n)
+		if n != c.want {
+			t.Errorf("%q: %d alerts, want %d", c.out, n, c.want)
+		}
+	}
+}

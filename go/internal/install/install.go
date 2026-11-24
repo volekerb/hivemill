@@ -26,7 +26,7 @@ const (
 	ghRelease          = "https://github.com/cli/cli/releases/download/v" + ghVersion
 	tailLines          = 15
 	xcodeHint          = "xcode-select --install"
-	darwinBootNote     = "boot units: launchd step not available yet (G-049 M2)"
+	darwinBootNote     = "boot units: launchd user agents (hivemill.*) in ~/Library/LaunchAgents"
 	darwinLingerNote   = "--linger: not applicable on macOS (launchd user agents run while you are logged in)"
 	aptHint            = "sudo apt-get install -y git python3"
 )
@@ -813,8 +813,9 @@ func stepServices(c *Ctx) (string, error) {
 		if a.Linger {
 			c.emit("    " + darwinLingerNote)
 		}
-		c.emit("    " + darwinBootNote)
-		return "skipped: launchd step not available yet (G-049 M2)", nil
+		if !a.NoSystemd {
+			return stepBootUnits(c)
+		}
 	}
 	if a.NoSystemd {
 		return servicesBackground(c)
@@ -1052,6 +1053,13 @@ func runSteps(c *Ctx) int {
 // Main runs the installer with argv (without the program name) and returns the exit code.
 func Main(argv []string, host Host, out, errw io.Writer) int {
 	a, err := ParseArgs(argv)
+	if err == nil && a.UninstallBootUnits {
+		if host.GOOS() != "darwin" {
+			_, _ = fmt.Fprintln(errw, "hivemill-install: --uninstall-boot-units is for macOS (launchd); on Linux run systemd/uninstall or systemctl --user disable")
+			return 2
+		}
+		return runUninstallBootUnits(host, a, out)
+	}
 	if err != nil {
 		var help helpRequested
 		if errors.As(err, &help) {

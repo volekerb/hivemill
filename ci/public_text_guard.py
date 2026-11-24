@@ -303,6 +303,20 @@ HUNK_RE = re.compile(rb"@@ -\d+(?:,\d+)? \+(\d+)")
 CC_HUNK_RE = re.compile(rb"(@@@+)(?: -\d+(?:,\d+)?)+ \+(\d+)")
 
 
+def _remote_default_ref(repo):
+    """The remote default branch ref (origin/HEAD, else origin/main) or None. Commits reachable from it are already
+    public, so a push that merges it publishes nothing new from them. No such ref: None (scan the whole range)."""
+    def run(*args):
+        try:
+            r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, env=scrub.git_env(),
+                               timeout=git_timeout())
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return None
+        return r.stdout.decode("utf-8", "replace").strip() if r.returncode == 0 else None
+    ref = run("symbolic-ref", "-q", "refs/remotes/origin/HEAD") or "refs/remotes/origin/main"
+    return ref if run("rev-parse", "--verify", "-q", ref + "^{commit}") else None
+
+
 def check_push(repo, base, head, terms, allowlist=None):
     """[(pattern id, location, masked)] for what pushing HEAD publishes beyond BASE: commit messages, identities,
     path names and added diff lines of every commit in BASE..HEAD. allowlist (scrub_scan.Allowlist, default the repo's
@@ -318,7 +332,9 @@ def check_push(repo, base, head, terms, allowlist=None):
     # A merge is diffed with --cc (lines new against every parent), never against its first parent alone, so what a
     # merge of main brings in from BASE is not reported as added.
     flags = [f for f in scrub.LOG_FLAGS if f not in ("--all", "-m")]
-    out = _git(repo, "log", "--cc", *flags, f"{base}..{head}", fmt, "--")
+    # T-1774: commits already on the remote default branch are public; skip them (merge commits stay scanned).
+    public = _remote_default_ref(repo)
+    out = _git(repo, "log", "--cc", *flags, f"{base}..{head}", *(["--not", public] if public else []), fmt, "--")
     hits = []
     commit, full, state, path, newline, in_header, width = "", "", "msg", b"", 0, False, 1
     skip = None  # None: not decided for this file yet; True: verified image, its added lines are not text

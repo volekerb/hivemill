@@ -5,10 +5,10 @@
 # The pinned values are written by the release process (docs/RELEASING.md); 64 zeros means "not pinned yet".
 set -eu
 
-VERSION="0.4.0"
-SHA_LINUX_AMD64="3bbb50fe0263a2b533d74241de5ca08de92ea43460a7a485c8aa91493431f0d4"
-SHA_LINUX_ARM64="4c7e088116b10d10c5c21d8c54dc5e70f098aea9ce55b2b7c5e5d755ca55f168"
-SHA_DARWIN_ARM64="7ccffb122692f2f56843bc824e9635158e180bba628526fd3f7014444cf98b19"
+VERSION="0.5.0"
+SHA_LINUX_AMD64="960eb78d08689d12339bde3de4ab587ba835fb7fae1fe2a9204196249ad04559"
+SHA_LINUX_ARM64="37537c2d1b8d9039d0b5f6da8946317c7d8b2b5a54b16922bef7378d57722bda"
+SHA_DARWIN_ARM64="f8d6e3df88ebbc696dd1ed99bf30dbf4b9f3ae73d4a9f9abc4c1140072b6329e"
 
 die() { echo "install: $*" >&2; exit 1; }
 

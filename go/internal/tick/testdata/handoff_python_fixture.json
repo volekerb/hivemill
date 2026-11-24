@@ -1,0 +1,20 @@
+{
+ "agents": [
+  {
+   "agent_status": "idle",
+   "name": "coder-x",
+   "pane_id": "p-1"
+  }
+ ],
+ "hc_back": false,
+ "keys": [
+  "agents",
+  "hc_back",
+  "t"
+ ],
+ "types": {
+  "agents": "list",
+  "hc_back": "bool",
+  "t": "float"
+ }
+}

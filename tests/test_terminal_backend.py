@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import pwd
 import subprocess
 import tempfile
 import unittest
@@ -60,6 +61,21 @@ class TerminalBackendTests(FactoryTestCase):
         self.assertFalse(herdr_calls, herdr_calls)
         p = self.ok("tick", agent="owner")
         self.assertNotIn("herdr unreachable", p.stdout)
+
+    def test_hc_backend_skips_workspace_and_tab_verbs(self):
+        """#849: hc has no workspace/tab verbs; HQ and goal-team start must not call them or die."""
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+        self.env.seed_goal()
+        f = _load_factory_cli()
+        self.assertIsNone(f._hc_translate_args(("workspace", "create", "--label", "HQ")))
+        with self.env.load_factory() as f:
+            con = f.db()
+            try:
+                self.assertIsNone(f.ensure_hq(con))
+                self.assertIsNone(f.ensure_goal_ws(con, "G-001"))
+            finally:
+                con.close()
+        self.assertEqual([c for c in self.env.calls("hc") if c["argv"][:1] in (["workspace"], ["tab"])], [])
 
     def test_hc_ls_envelope_parses_to_agent_rows(self):
         f = _load_factory_cli()
@@ -133,7 +149,9 @@ class TerminalBackendTests(FactoryTestCase):
             self.assertIn("FACTORY_GH_TOKEN_FILE", body)
             self.assertNotIn("CLAUDE_CODE_MESSAGING_TOKEN", body)
             self.assertNotIn("HC_SOCKET", body)
-            live_sock = os.path.expanduser(f.DEFAULT_CONFIG["herdr_socket"])
+            # the live socket is under the real user's (passwd) home, which is not $HOME when HOME is a temp dir
+            # (the local gate, T-1679): _is_live_socket resolves against pw_dir
+            live_sock = pwd.getpwuid(os.getuid()).pw_dir + f.DEFAULT_CONFIG["herdr_socket"][1:]
             f._HC_RUN_ENV["HERDR_SOCKET_PATH"] = live_sock
             live_body = (root / "zz-coder-live-sock.hc-spawn.sh")
             f._hc_write_spawn_script("zz-coder-live-sock", f._HC_RUN_ENV, "/bin/true", [])

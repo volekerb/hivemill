@@ -11,17 +11,32 @@ import (
 	"factory/go/internal/scout"
 )
 
-// Port of retro/schedule.py: the daily Cursor retro job, one run per local day from retro_hour. bin/factory owns
+// Port of retro/schedule.py: the daily retro job (runtime from retro_org), one run per local day from retro_hour. bin/factory owns
 // spawn, force_stop, the config and the clock; they reach this package as API. The db must be a single-connection
 // pool (factorydb.Open): Claim uses BEGIN IMMEDIATE on it.
 
 const (
-	Name = "cursor-retro"
-	Org  = "cursor"
 	Role = "retro"
 
 	nonTerminal = "status NOT IN ('done','stopped','failed','skipped')"
 )
+
+// Orgs are the runtimes retro_org may name; the agent is <org>-retro.
+var Orgs = []string{"cursor", "claude"}
+
+// NameOf is the agent name of the retro run on org.
+func NameOf(org string) string { return org + "-" + Role }
+
+// ParseOrg is parse_org: cursor or claude.
+func ParseOrg(text string) (string, error) {
+	org := strings.TrimSpace(text)
+	for _, o := range Orgs {
+		if org == o {
+			return org, nil
+		}
+	}
+	return "", fmt.Errorf("retro_org must be cursor or claude, got '%s'; fix it with `factory config retro_org cursor`", text)
+}
 
 // SpawnExit is returned by API.Spawn when the spawner exited (Python SystemExit); Code is its exit code.
 type SpawnExit struct{ Code int }
@@ -163,17 +178,18 @@ func stopLiveRetro(db *sql.DB, api API, runID int64, agent *agentRow, eventKind,
 }
 
 func abortLiveOnConfigError(db *sql.DB, api API) error {
-	agent, err := loadAgent(db, Name)
-	if err != nil || agent == nil || agent.Status != "live" {
-		return err
-	}
 	var id int64
-	err = db.QueryRow("SELECT id FROM retro_runs WHERE " + nonTerminal + " ORDER BY id DESC").Scan(&id)
+	var runAgent sql.NullString
+	err := db.QueryRow("SELECT id, agent FROM retro_runs WHERE "+nonTerminal+" ORDER BY id DESC").Scan(&id, &runAgent)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("find open retro run: %w", err)
+	}
+	agent, err := loadAgent(db, runAgent.String)
+	if err != nil || agent == nil || agent.Status != "live" {
+		return err
 	}
 	return stopLiveRetro(db, api, id, agent, "retro-config", "config")
 }
@@ -182,6 +198,7 @@ type openRun struct {
 	ID          int64
 	Day, Status string
 	StopReason  sql.NullString
+	Agent       sql.NullString
 }
 
 func budget(db *sql.DB, api API, clock time.Time, run openRun, agent *agentRow) error {
@@ -228,14 +245,14 @@ func budget(db *sql.DB, api API, clock time.Time, run openRun, agent *agentRow) 
 
 // Sync aligns the open retro run with its agent row and enforces the wall budget.
 func Sync(db *sql.DB, api API, clock time.Time) error {
-	rows, err := db.Query("SELECT id, day, status, stop_reason FROM retro_runs WHERE " + nonTerminal + " ORDER BY id")
+	rows, err := db.Query("SELECT id, day, status, stop_reason, agent FROM retro_runs WHERE " + nonTerminal + " ORDER BY id")
 	if err != nil {
 		return fmt.Errorf("list open retro runs: %w", err)
 	}
 	var runs []openRun
 	for rows.Next() {
 		var r openRun
-		if err := rows.Scan(&r.ID, &r.Day, &r.Status, &r.StopReason); err != nil {
+		if err := rows.Scan(&r.ID, &r.Day, &r.Status, &r.StopReason, &r.Agent); err != nil {
 			rows.Close()
 			return fmt.Errorf("scan retro run: %w", err)
 		}
@@ -257,7 +274,7 @@ func Sync(db *sql.DB, api API, clock time.Time) error {
 			return err
 		}
 	}
-	agent, err := loadAgent(db, Name)
+	agent, err := loadAgent(db, run.Agent.String)
 	if err != nil {
 		return err
 	}
@@ -298,7 +315,7 @@ func Sync(db *sql.DB, api API, clock time.Time) error {
 
 // Claim decides the day in one IMMEDIATE transaction: "claimed" (the caller spawns), "skipped", or "" (already
 // recorded).
-func Claim(db *sql.DB, api API, day string) (status string, err error) {
+func Claim(db *sql.DB, api API, day, org string) (status string, err error) {
 	if _, err := db.Exec("BEGIN IMMEDIATE"); err != nil {
 		return "", fmt.Errorf("begin claim of retro day %s: %w", day, err)
 	}
@@ -318,14 +335,15 @@ func Claim(db *sql.DB, api API, day string) (status string, err error) {
 		return "", fmt.Errorf("check retro day %s: %w", day, qerr)
 	}
 	busy := true
-	switch qerr := db.QueryRow("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", Name).Scan(&one); {
+	switch qerr := db.QueryRow("SELECT 1 FROM agents WHERE name IN (?,?) AND status IN ('live','starting','queued')",
+		NameOf(Orgs[0]), NameOf(Orgs[1])).Scan(&one); {
 	case errors.Is(qerr, sql.ErrNoRows):
 		busy = false
 	case qerr != nil:
 		return "", fmt.Errorf("check retro agent: %w", qerr)
 	}
 	reason := ""
-	var agent, ended any = Name, nil
+	var agent, ended any = NameOf(org), nil
 	status = "claimed"
 	if busy {
 		status, reason, agent, ended = "skipped", "previous run active", nil, stamp(api.Clock())
@@ -352,12 +370,13 @@ func Claim(db *sql.DB, api API, day string) (status string, err error) {
 }
 
 // Start spawns the claimed run: queued if the gate is closed, else running. A refused spawn fails the run (no retry).
-func Start(db *sql.DB, api API, day string) error {
-	model, err := scout.Model(Org, Role)
+func Start(db *sql.DB, api API, day, org string) error {
+	name := NameOf(org)
+	model, err := scout.Model(org, Role)
 	if err != nil {
-		return fmt.Errorf("model of %s/%s: %w", Org, Role, err)
+		return fmt.Errorf("model of %s/%s: %w", org, Role, err)
 	}
-	serr := api.Spawn(db, Role, Name, Org, model,
+	serr := api.Spawn(db, Role, name, org, model,
 		fmt.Sprintf("Scheduled daily retro for %s. Run factory retro packet, investigate, then factory retro file.", day))
 	if serr != nil {
 		why := serr.Error()
@@ -374,7 +393,7 @@ func Start(db *sql.DB, api API, day string) error {
 		}
 		return nil
 	}
-	agent, err := loadAgent(db, Name)
+	agent, err := loadAgent(db, name)
 	if err != nil {
 		return err
 	}
@@ -395,6 +414,10 @@ func Tick(db *sql.DB, api API) error {
 	if err := Sync(db, api, clock); err != nil {
 		return err
 	}
+	// T-1695: pending fixes follow their task's merge, agent on or off.
+	if err := SyncAdopted(db, func(entity, id, action, detail string) error { return api.Event(db, entity, id, action, detail) }); err != nil {
+		return err
+	}
 	enabled, err := api.Cfg(db, "retro_enabled")
 	if err != nil {
 		return fmt.Errorf("read retro_enabled: %w", err)
@@ -410,9 +433,17 @@ func Tick(db *sql.DB, api API) error {
 	if err != nil {
 		return fmt.Errorf("read retro_max_minutes: %w", err)
 	}
+	orgCfg, err := api.Cfg(db, "retro_org")
+	if err != nil {
+		return fmt.Errorf("read retro_org: %w", err)
+	}
 	hour, herr := ParseHour(hourCfg)
 	if herr == nil {
 		_, herr = ParseMaxMinutes(minCfg)
+	}
+	var org string
+	if herr == nil {
+		org, herr = ParseOrg(orgCfg)
 	}
 	if herr != nil {
 		if err := recordConfigFail(db, api, herr.Error()); err != nil {
@@ -438,12 +469,12 @@ func Tick(db *sql.DB, api API) error {
 	case !errors.Is(qerr, sql.ErrNoRows):
 		return fmt.Errorf("check retro day %s: %w", day, qerr)
 	}
-	status, err := Claim(db, api, day)
+	status, err := Claim(db, api, day, org)
 	if err != nil {
 		return err
 	}
 	if status == "claimed" {
-		return Start(db, api, day)
+		return Start(db, api, day, org)
 	}
 	return nil
 }

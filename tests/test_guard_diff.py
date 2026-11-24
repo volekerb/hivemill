@@ -38,6 +38,35 @@ import guard_diff  # noqa: E402
 HOOK_REL = "roles/hooks/worker-guard.py"
 _TESTS_YML = os.path.join(ROOT, ".github", "workflows", "tests.yml")
 
+# Source: the "Guard paths changed?" regex of the guard-diff job in .github/workflows/tests.yml, PLUS the files the
+# hook may read (T-1541 Limits) and ci/shard.py (G-050 R2, T-1701). A superset: any doubt runs the test.
+GUARD_PATH_RE = re.compile(
+    r"^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|ci/(public_text_guard|scrub_scan)\.py$"
+    r"|\.github/workflows/tests\.yml$|go/internal/guard/|go/cmd/worker-guard/|go/internal/shlex/"
+    r"|ci/guard_impl_unittest\.py$|tests/test_guard_diff\.py$|tests/guard_impl\.py$"
+    r"|scout/(workerbox|nsbox|sandbox)\.py$|bin/factory$|bin/factory_cli\.py$|ci/shard\.py$|tests/(harness|_gitenv)\.py$)")
+
+
+def _changed_paths(base_ref):
+    # harness.git raises on a non-zero exit; the caller's broad except turns that into "run the test"
+    out = harness.git("diff", "--name-only", "--no-renames", "origin/%s...HEAD" % base_ref, cwd=ROOT)
+    return [x for x in out.splitlines() if x]
+
+
+def _pr_without_guard_change():
+    """True only on a pull_request run whose diff is non-empty and touches no guard path. Fail safe: anything
+    else (push, missing env, git error, empty diff, exception) is False, so the test runs (G-050 R2)."""
+    try:
+        if os.environ.get("GITHUB_EVENT_NAME") != "pull_request":
+            return False
+        base = os.environ.get("GITHUB_BASE_REF", "")
+        if not base:
+            return False
+        paths = _changed_paths(base)
+        return bool(paths) and not any(GUARD_PATH_RE.match(x) for x in paths)
+    except Exception:  # noqa: BLE001 - fail safe: cannot decide means run the test
+        return False
+
 
 def _job_block(text, name):
     m = re.search(r"(?ms)^  %s:\n(.*?)(?=^  [a-z][a-z-]*:\n|\Z)" % re.escape(name), text)
@@ -561,6 +590,7 @@ class CorpusSanityTests(unittest.TestCase):
                 block, allow = [], []
         return out
 
+    @unittest.skipIf(_pr_without_guard_change(), "G-050 R2: no guard path changed in this pull request; runs on push to main and on guard-path PRs")
     @unittest.skipUnless(IN_GIT_WORK_TREE, "ROOT is not a git work tree (archive tree); the corpus check needs git")
     def test_real_corpus_against_origin_main_hook_is_clean(self):
         # the shipped corpus against the hook in this checkout, base = HEAD: the hook is the same file
@@ -1253,3 +1283,55 @@ class BaseCiExtractTests(GuardDiffCase):
         p = self.run_tool("--mode", "worker")
         self.assertIn(p.returncode, (0, 1), p.stderr)
         self.assertNotIn("guard-diff:", p.stderr)
+
+
+class PrWithoutGuardChangeTests(unittest.TestCase):
+    PR = {"GITHUB_EVENT_NAME": "pull_request", "GITHUB_BASE_REF": "main"}
+
+    def run_helper(self, env, paths=None, exc=None):
+        with mock.patch.dict(os.environ, env, clear=True), \
+                mock.patch.object(sys.modules[__name__], "_changed_paths", side_effect=exc, return_value=paths):
+            return _pr_without_guard_change()
+
+    def test_push_runs(self):
+        self.assertFalse(self.run_helper({"GITHUB_EVENT_NAME": "push", "GITHUB_BASE_REF": "main"}, ["bin/web/x.py"]))
+
+    def test_no_event_runs(self):
+        self.assertFalse(self.run_helper({}, ["bin/web/x.py"]))
+
+    def test_pr_non_guard_skips(self):
+        self.assertTrue(self.run_helper(self.PR, ["bin/web/x.py", "docs/a.md"]))
+
+    def test_pr_each_guard_family_runs(self):
+        for path in ["roles/hooks/worker-guard.py", "roles/settings/coder.json", "ci/guard_corpus.json",
+                     "ci/guard_diff.py", "ci/public_text_guard.py", "ci/scrub_scan.py",
+                     ".github/workflows/tests.yml", "go/internal/guard/g.go", "go/cmd/worker-guard/main.go",
+                     "go/internal/shlex/s.go", "ci/guard_impl_unittest.py", "tests/test_guard_diff.py",
+                     "tests/guard_impl.py", "scout/workerbox.py", "scout/nsbox.py", "scout/sandbox.py",
+                     "bin/factory", "bin/factory_cli.py", "ci/shard.py"]:
+            with self.subTest(path=path):
+                self.assertFalse(self.run_helper(self.PR, ["bin/web/x.py", path]))
+
+    def test_pr_git_error_runs(self):
+        self.assertFalse(self.run_helper(self.PR, exc=RuntimeError("boom")))
+
+    def test_pr_empty_diff_runs(self):
+        self.assertFalse(self.run_helper(self.PR, []))
+
+    def test_pr_missing_base_ref_runs(self):
+        self.assertFalse(self.run_helper({"GITHUB_EVENT_NAME": "pull_request"}, ["bin/web/x.py"]))
+
+    def test_pr_real_git_failure_runs(self):
+        env = {"GITHUB_EVENT_NAME": "pull_request", "GITHUB_BASE_REF": "no-such-branch-zz"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertFalse(_pr_without_guard_change())
+
+    def test_guard_regex_covers_workflow_regex(self):
+        with open(_TESTS_YML, encoding="utf-8") as f:
+            m = re.search(r"grep -E -q '(\^\(roles/hooks/[^']*)'", f.read())
+        self.assertTrue(m, "guard-diff regex not found in tests.yml")
+        body = m.group(1)[2:-1].replace("ci/(public_text_guard|scrub_scan)\\.py$", "ci/public_text_guard\\.py$|ci/scrub_scan\\.py$")
+        for alt in body.split("|"):
+            sample = alt.replace("\\.", ".").replace("$", "")
+            with self.subTest(alt=alt):
+                self.assertTrue(GUARD_PATH_RE.match(sample), sample)

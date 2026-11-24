@@ -1,0 +1,15 @@
+claude_audit
+digest
+drift
+exited_panes
+flagless
+hold_expiry
+idle_coders
+judge_ci_prune
+main_protection
+pending_nudges
+reap_loop
+remote_url_alert
+tmp_alert
+tmp_clean
+tmp_harness
