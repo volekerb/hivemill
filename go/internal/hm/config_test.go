@@ -1,14 +1,14 @@
 package hm
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestConfigLines(t *testing.T) {
 	cfg := func(k string) string {
-		if k == "max_concurrent" {
+		switch k {
+		case "max_concurrent":
 			return "4"
+		case "backup_target":
+			return "file:///x"
 		}
 		return Defaults[k]
 	}
@@ -16,8 +16,22 @@ func TestConfigLines(t *testing.T) {
 	if len(lines) != len(Defaults) {
 		t.Fatalf("%d lines for %d keys", len(lines), len(Defaults))
 	}
-	all := strings.Join(lines, "\n")
-	if !strings.Contains(all, "max_concurrent=4 (default 2)\n") || !strings.Contains(all, "model=claude-sonnet-5-5\n") {
-		t.Errorf("lines:\n%s", all)
+	want := map[string]bool{
+		"max_concurrent=4 (default " + Defaults["max_concurrent"] + ")": false,
+		`backup_target=file:///x (default "")`:                          false,
+		"model=" + Defaults["model"]:                                    false,
+	}
+	for i, ln := range lines {
+		if _, ok := want[ln]; ok {
+			want[ln] = true
+		}
+		if i > 0 && lines[i-1] >= ln {
+			t.Errorf("not sorted: %q before %q", lines[i-1], ln)
+		}
+	}
+	for ln, seen := range want {
+		if !seen {
+			t.Errorf("missing line %q", ln)
+		}
 	}
 }

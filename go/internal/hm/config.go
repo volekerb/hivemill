@@ -45,10 +45,14 @@ func ConfigLines(cfg func(string) string) []string {
 	var out []string
 	for _, k := range DefaultKeys() {
 		v := cfg(k)
-		if v == Defaults[k] {
+		d := Defaults[k]
+		switch {
+		case v == d:
 			out = append(out, k+"="+v)
-		} else {
-			out = append(out, k+"="+v+" (default "+Defaults[k]+")")
+		case d == "":
+			out = append(out, k+"="+v+` (default "")`)
+		default:
+			out = append(out, k+"="+v+" (default "+d+")")
 		}
 	}
 	return out
