@@ -102,12 +102,16 @@ func TestAuthNoSecretInOutput(t *testing.T) {
 	if !strings.Contains(f.ttyOut.String(), leakText) {
 		t.Fatal("the fake gh did not print the token on the terminal")
 	}
-	logs, _ := filepath.Glob(filepath.Join(f.HomeDir, "*", "*.log"))
+	// every file the run wrote under the home dir, the installer logs (~/.cache/hivemill-install/*.log) included
 	all := out + errb
-	for _, l := range logs {
-		b, _ := os.ReadFile(l)
-		all += string(b)
-	}
+	_ = filepath.WalkDir(f.HomeDir, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			if b, rerr := os.ReadFile(p); rerr == nil {
+				all += string(b)
+			}
+		}
+		return nil
+	})
 	if strings.Contains(all, leakText) {
 		t.Errorf("token-like text leaked into the installer output")
 	}
