@@ -14,7 +14,7 @@ func TestStopNote(t *testing.T) {
 		return 0, ""
 	}
 	r.StopNote("T-0001", "waiting for the owner on the tier")
-	if len(got) == 0 || !strings.Join(got, "|") == "factory|task|note|T-0001|waiting for the owner on the tier" {
+	if strings.Join(got, "|") != "factory|task|note|T-0001|waiting for the owner on the tier" {
 		t.Fatalf("note command %q", got)
 	}
 	r.StopNote("T-0001", "it's $(x)")
