@@ -422,7 +422,8 @@ class VerdictClassTests(FactoryTestCase):
     def test_risky_paths(self):
         with self.env.load_factory() as f:
             for p in ("ci/shard.py", ".github/workflows/tests.yml", "roles/hooks/worker-guard", "go/internal/judge/gate.go",
-                      "docs/mech_merge.md", "bin/credentials.py"):
+                      "docs/mech_merge.md", "bin/credentials.py", "bin/factory_cli.py", "go/internal/prflow/judge/x.go",
+                      "roles/judge.md"):
                 self.assertTrue(f.path_is_risky(p), p)
             for p in ("docs/notes.md", "go/internal/web/views/x.go", "tests/test_x.py"):
                 self.assertFalse(f.path_is_risky(p), p)
@@ -436,6 +437,11 @@ class VerdictClassTests(FactoryTestCase):
         self.qa_fail("code_defect", summary="real bug")
         with self.env.load_factory() as f:
             self.assertFalse(f.verdict_role_ok(f.db(), "T-0001", "qa"))
+
+    def test_evidence_missing_stays_a_candidate_for_the_gate(self):
+        self.qa_fail("evidence_missing", summary="no proof of AC2")
+        with self.env.load_factory() as f:
+            self.assertTrue(f.verdict_role_ok(f.db(), "T-0001", "qa"))
 
     def test_env_gap_files_exactly_one_task_on_repeat(self):
         self.qa_fail("env_gap", summary="cannot run go here\nno toolchain")

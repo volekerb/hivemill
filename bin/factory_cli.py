@@ -6573,8 +6573,8 @@ VERDICT_CLASSES = ("code_defect", "env_gap", "evidence_missing", "nit")
 VERDICT_CLASS_HELP = ("class of a FAIL: code_defect (the change is wrong; blocks the merge, the default), env_gap (the box could not run "
                       "the check: files one box-fix task, never blocks), evidence_missing (the PR lacks proof; blocks only on a risky "
                       "path), nit (style or taste; never blocks)")
-RISKY_PATH_PREFIXES = ("roles/hooks/", "roles/settings/", "ci/", ".github/")
-RISKY_PATH_RE = re.compile(r"(^|/)[^/]*(judge|merge|gate|credential|secret|token)[^/]*$", re.I)
+RISKY_PATH_PREFIXES = ("roles/hooks/", "roles/settings/", "ci/", ".github/", "bin/factory", "go/internal/gate/", "go/internal/judge/")
+RISKY_PATH_RE = re.compile(r"judge|merge|gate|credential|secret|token", re.I)  # anywhere in the path, directories included
 _risky_cache = {}
 
 
@@ -6611,9 +6611,9 @@ def verdict_fail_blocks(con, row, pr_url=None, head=None):
 
 def verdict_role_ok(con, task_id, role):
     """The latest verdict of `role` is a PASS or a FAIL that never blocks (env_gap, nit). DB only; evidence_missing needs
-    the diff, so it counts as not ok here and the gate decides."""
+    the diff, so it stays a candidate here and the gate (verdict_pass_holds_for_pr_head) decides on risky paths."""
     r = con.execute("SELECT verdict,verdict_class FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1", (task_id, role)).fetchone()
-    return bool(r) and (r["verdict"] == "pass" or (r["verdict"] == "fail" and (r["verdict_class"] or "code_defect") in ("env_gap", "nit")))
+    return bool(r) and (r["verdict"] == "pass" or (r["verdict"] == "fail" and (r["verdict_class"] or "code_defect") in ("env_gap", "nit", "evidence_missing")))
 
 
 def verdict_pass_holds_for_pr_head(con, task_id, role, pr_head, pr_number, git_repo, repo_url, owner_repo, carry,
