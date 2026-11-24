@@ -45,11 +45,11 @@ func (r *runState) modSteps() {
 	if !r.step("mod-json", func() (string, error) {
 		b, err := os.ReadFile(filepath.Join(r.tree, modDir, "mod.json"))
 		if err != nil {
-			return "", fmt.Errorf("read mod.json: %v", err)
+			return "", fmt.Errorf("read mod.json: %w", err)
 		}
 		var v any
 		if err := json.Unmarshal(b, &v); err != nil {
-			return "", fmt.Errorf("mod.json is not valid JSON: %v", err)
+			return "", fmt.Errorf("mod.json is not valid JSON: %w", err)
 		}
 		return "json=ok", nil
 	}, false) {

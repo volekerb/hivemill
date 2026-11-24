@@ -162,11 +162,11 @@ func (r *runState) tempdir() (string, error) {
 	}
 	var err error
 	if r.tmp, err = os.MkdirTemp(base, "verify-home-*"); err != nil {
-		return "", couldNotRun("temp home: %v", err)
+		return "", couldNotRun("temp home: %w", err)
 	}
 	r.home = filepath.Join(r.tmp, "home")
 	if err = os.Mkdir(r.home, 0o755); err != nil {
-		return "", couldNotRun("temp home: %v", err)
+		return "", couldNotRun("temp home: %w", err)
 	}
 	if r.cfg.Out != "" {
 		for _, live := range r.liveHomes() {
@@ -181,7 +181,7 @@ func (r *runState) tempdir() (string, error) {
 	}
 	if err != nil {
 		r.out = ""
-		return "", couldNotRun("out dir: %v", err)
+		return "", couldNotRun("out dir: %w", err)
 	}
 	return fmt.Sprintf("home=%s out=%s", r.tmp, r.out), nil
 }
@@ -242,7 +242,7 @@ func (r *runState) exec(bin string, args []string, dir string, env []string, std
 	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = dir, env, stdout, stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
-		return -1, couldNotRun("start %s: %v", filepath.Base(bin), err)
+		return -1, couldNotRun("start %s: %w", filepath.Base(bin), err)
 	}
 	pgid := cmd.Process.Pid
 	r.pgids = append(r.pgids, pgid)
@@ -265,13 +265,16 @@ func (r *runState) execLog(name, bin string, args []string, dir string, env []st
 	p := filepath.Join(r.out, name+".log")
 	f, err := os.Create(p)
 	if err != nil {
-		return -1, "", couldNotRun("create %s: %v", p, err)
+		return -1, "", couldNotRun("create %s: %w", p, err)
 	}
 	code, err := r.exec(bin, args, dir, env, f, f)
 	if cerr := f.Close(); cerr != nil && err == nil {
-		err = couldNotRun("close %s: %v", p, cerr)
+		err = couldNotRun("close %s: %w", p, cerr)
 	}
-	b, _ := os.ReadFile(p)
+	b, rerr := os.ReadFile(p)
+	if rerr != nil && err == nil {
+		err = couldNotRun("read %s: %w", p, rerr)
+	}
 	return code, trimTail(string(b)), err
 }
 

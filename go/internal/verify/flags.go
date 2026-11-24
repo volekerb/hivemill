@@ -45,7 +45,7 @@ func compileAll(src []string) ([]*regexp.Regexp, error) {
 	for _, s := range src {
 		re, err := regexp.Compile(s)
 		if err != nil {
-			return nil, fmt.Errorf("bad regex %q: %v", s, err)
+			return nil, fmt.Errorf("bad regex %q: %w", s, err)
 		}
 		out = append(out, re)
 	}
@@ -92,7 +92,7 @@ func ParseArgs(args []string) (Config, error) {
 		})
 	}
 	if err := fs.Parse(args[1:]); err != nil {
-		return c, fmt.Errorf("bad flags: %v", err)
+		return c, fmt.Errorf("bad flags: %w", err)
 	}
 	c.Args = fs.Args()
 	if c.Timeout <= 0 {
@@ -117,10 +117,10 @@ func ParseArgs(args []string) (Config, error) {
 		c.Setup = setup
 		var err error
 		if c.ExpectStdout, err = compileAll(so); err != nil {
-			return c, fmt.Errorf("bad flags: %v", err)
+			return c, fmt.Errorf("bad flags: %w", err)
 		}
 		if c.ExpectStderr, err = compileAll(se); err != nil {
-			return c, fmt.Errorf("bad flags: %v", err)
+			return c, fmt.Errorf("bad flags: %w", err)
 		}
 	}
 	return c, nil

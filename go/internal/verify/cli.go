@@ -30,7 +30,7 @@ func (r *runState) cliSteps() {
 		name := "setup-" + strconv.Itoa(i+1)
 		if !r.step(name, func() (string, error) {
 			if err != nil {
-				return "", fmt.Errorf("bad --setup %q: %v", s, err)
+				return "", fmt.Errorf("bad --setup %q: %w", s, err)
 			}
 			code, tail, rerr := r.execLog(name, factory, argv, r.tree, env)
 			if rerr != nil {
@@ -48,12 +48,12 @@ func (r *runState) cliSteps() {
 	if !r.step("run", func() (string, error) {
 		so, err := os.Create(filepath.Join(r.out, "stdout.txt"))
 		if err != nil {
-			return "", couldNotRun("create stdout.txt: %v", err)
+			return "", couldNotRun("create stdout.txt: %w", err)
 		}
 		defer so.Close()
 		se, err := os.Create(filepath.Join(r.out, "stderr.txt"))
 		if err != nil {
-			return "", couldNotRun("create stderr.txt: %v", err)
+			return "", couldNotRun("create stderr.txt: %w", err)
 		}
 		defer se.Close()
 		code, err = r.exec(factory, r.cfg.Args, r.tree, env, so, se)
@@ -81,7 +81,7 @@ func (r *runState) cliSteps() {
 			if !r.step(fmt.Sprintf("check-%s-%d", c.kind, i+1), func() (string, error) {
 				b, err := os.ReadFile(filepath.Join(r.out, c.file))
 				if err != nil {
-					return "", couldNotRun("read %s: %v", c.file, err)
+					return "", couldNotRun("read %s: %w", c.file, err)
 				}
 				if !re.Match(b) {
 					return "", fmt.Errorf("%s does not match /%s/", c.kind, re)
@@ -113,7 +113,7 @@ func (r *runState) seed() (string, error) {
 	}
 	script := filepath.Join(r.tree, "ci", "demo_seed.py")
 	if _, err := os.Stat(script); err != nil {
-		return "", couldNotRun("seed script: %v", err)
+		return "", couldNotRun("seed script: %w", err)
 	}
 	// demo_seed.py refuses a home that equals FACTORY_HOME, so the seed runs without FACTORY_HOME and gets --home instead.
 	var seedEnv []string
