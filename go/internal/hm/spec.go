@@ -33,7 +33,7 @@ func Criteria(acceptance string) []Criterion {
 		body string
 	}
 	var items []item
-	marks := itemRe.FindAllStringSubmatchIndex(text, -1)
+	marks := itemMarks(text)
 	if len(marks) > 0 {
 		for i, m := range marks {
 			end := len(text)
@@ -71,6 +71,24 @@ func Criteria(acceptance string) []Criterion {
 			}
 		}
 		out = append(out, c)
+	}
+	return out
+}
+
+// itemMarks finds the criterion numbers. A number at the start of a line always starts a criterion; a number inside
+// a line (the inline form `1) a 2) b`) starts one only when it is the next number in sequence, so prose such as
+// "(exit 3) naming" or "cache write 2000)" stays part of its criterion.
+func itemMarks(text string) [][]int {
+	var out [][]int
+	prev := 0
+	for _, m := range itemRe.FindAllStringSubmatchIndex(text, -1) {
+		n, _ := strconv.Atoi(text[m[2]:m[3]])
+		lead := strings.TrimSpace(text[strings.LastIndex(text[:m[2]], "\n")+1 : m[2]])
+		lineStart := lead == "" || lead == "AC"
+		if lineStart || len(out) == 0 || n == prev+1 {
+			out = append(out, m)
+			prev = n
+		}
 	}
 	return out
 }
