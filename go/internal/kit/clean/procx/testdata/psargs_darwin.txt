@@ -1,0 +1,4 @@
+    1 /sbin/launchd
+  412 /Applications/Visual Studio Code.app/Contents/MacOS/Electron --type=x
+  800 node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js
+  900 /usr/local/bin/hm-clean --dry-run
