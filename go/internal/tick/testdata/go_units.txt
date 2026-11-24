@@ -1,6 +1,8 @@
+claude_audit
 digest
 drift
 exited_panes
+flagless
 hold_expiry
 idle_coders
 judge_ci_prune

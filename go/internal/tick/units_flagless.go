@@ -71,9 +71,9 @@ func nullAny(s sql.NullString) any {
 	return s.String
 }
 
-// throttleTS is the ts of a throttle row as float(ts); has=false for no row. A value float() rejects is an error
+// throttleFloat is the ts of a throttle row as float(ts); has=false for no row. A value float() rejects is an error
 // (Python ValueError); nan and inf parse like Python.
-func throttleTS(db *sql.DB, key string) (ts float64, has bool, err error) {
+func throttleFloat(db *sql.DB, key string) (ts float64, has bool, err error) {
 	var raw sql.NullString
 	e := db.QueryRow("SELECT ts FROM throttle WHERE key=?", key).Scan(&raw)
 	if errors.Is(e, sql.ErrNoRows) {
@@ -105,19 +105,6 @@ func parsePyFloat(s string) (float64, bool) {
 		}
 	}
 	return 0, false
-}
-
-// pyRepr is repr(str) for the plain texts of an error message: single quotes unless the text holds only a single quote.
-func pyRepr(s string) string {
-	q := "'"
-	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
-		q = `"`
-	}
-	s = strings.NewReplacer(`\`, `\\`, "\n", `\n`, "\r", `\r`, "\t", `\t`).Replace(s)
-	if q == "'" {
-		s = strings.ReplaceAll(s, "'", `\'`)
-	}
-	return q + s + q
 }
 
 // ownerEvent is Python event(): the actor is the identity the Go tick runs as, the owner (the tick hands every other
@@ -261,7 +248,7 @@ func flaglessScan(r *reapDB, home string, rows []agentRow) ([]flaglessFound, err
 			continue
 		}
 		key := flaglessThrottle + ar.Name
-		last, has, err := throttleTS(r.DB, key)
+		last, has, err := throttleFloat(r.DB, key)
 		if err != nil {
 			return nil, err
 		}
@@ -273,7 +260,7 @@ func flaglessScan(r *reapDB, home string, rows []agentRow) ([]flaglessFound, err
 			return nil, err
 		}
 		if root == "" {
-			root = procRoot(r)
+			root = reapProcRoot(r)
 		}
 		state, pid := flaglessState(root, home, ar)
 		switch {
