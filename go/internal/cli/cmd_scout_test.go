@@ -24,6 +24,21 @@ CREATE TABLE IF NOT EXISTS retro_runs (id INTEGER PRIMARY KEY, day TEXT NOT NULL
   stop_reason TEXT, started TEXT, ended TEXT);
 CREATE TABLE IF NOT EXISTS retro_reports (id INTEGER PRIMARY KEY, day TEXT NOT NULL UNIQUE, causes TEXT NOT NULL,
   evidence TEXT NOT NULL, fixes TEXT NOT NULL, author TEXT NOT NULL, created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS adopted_fixes (
+  id TEXT PRIMARY KEY,            -- F-001, F-002, ... (zero-padded 3, next = max+1)
+  report_day TEXT NOT NULL,       -- retro_reports.day the fix came from
+  fix_index INTEGER NOT NULL,     -- 1-based index into that report's fixes
+  cause TEXT NOT NULL,            -- copied from the report fix (in REJECTION_CAUSES)
+  type TEXT NOT NULL,             -- check | template | prompt_rule (copied)
+  text TEXT NOT NULL,             -- fix text (copied)
+  signature TEXT NOT NULL,        -- '|'-separated literal terms
+  task_id TEXT NOT NULL,          -- the task that implements the fix
+  pr_url TEXT,                    -- from tasks.pr_url at adopt / at merge sync
+  status TEXT NOT NULL,           -- pending | adopted | held | reopened | noise
+  adopted_at TEXT,                -- ts of the task's merged event; NULL while pending
+  checked_at TEXT, check_note TEXT, recur_incidents TEXT,  -- written by T-C, NULL here
+  author TEXT NOT NULL, created TEXT NOT NULL,
+  UNIQUE(report_day, fix_index), UNIQUE(task_id, report_day, fix_index));
 CREATE TABLE IF NOT EXISTS scout_candidates (id TEXT PRIMARY KEY, key TEXT NOT NULL UNIQUE, kind TEXT, repo TEXT, path TEXT, url TEXT,
   licence TEXT, last_commit TEXT, default_branch TEXT, head_sha TEXT, stars INTEGER, stars_per_day REAL, install_risk TEXT,
   risk_detail TEXT, sources TEXT NOT NULL DEFAULT '[]', first_seen TEXT NOT NULL, last_seen TEXT NOT NULL,
@@ -115,7 +130,7 @@ func TestRegistryP4cWords(t *testing.T) {
 	want := map[string][]string{
 		"scout":        {"list", "show", "runs"},
 		"skilleval":    {"vendor", "queue", "control", "void", "list", "results"},
-		"retro":        {"packet", "file", "show"},
+		"retro":        {"packet", "file", "show", "adopt", "fixes"},
 		"cursor-pilot": {"status"},
 	}
 	for word, actions := range want {

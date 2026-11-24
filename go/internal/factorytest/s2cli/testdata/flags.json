@@ -173,6 +173,22 @@
    "doc": "docs/git-hardening.md"
   },
   {
+   "key": "fix_carry",
+   "kind": "setting",
+   "default": "on",
+   "summary": "on | off: after a FAIL only the failed role re-checks; the other role's PASS carries across a small non-sensitive fix",
+   "goal": "G-058",
+   "doc": "docs/verdict-carry-over.md"
+  },
+  {
+   "key": "fix_carry_max_lines",
+   "kind": "setting",
+   "default": "150",
+   "summary": "most lines (added + deleted) the fix commits between the carried PASS head and the PR head may total",
+   "goal": "G-058",
+   "doc": "docs/verdict-carry-over.md"
+  },
+  {
    "key": "frozen_repos",
    "kind": "setting",
    "default": "",
@@ -752,6 +768,14 @@
    "summary": "with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "review_verdict_timeout_min",
+   "kind": "setting",
+   "default": "45",
+   "summary": "with review_autospawn=on: a tick-started reviewer/qa live this many minutes with no verdict gets a stop request, then one replacement; 0 = off",
+   "goal": "G-058",
+   "doc": "docs/review-autospawn.md"
   },
   {
    "key": "risk_tiers",

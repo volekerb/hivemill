@@ -1,0 +1,18 @@
+"""Runs the real Python _tick_u_pending_nudges on a state dict and dumps the JSON types of the handoff keys.
+Usage: python3 handoff_python_fixture.gen.txt <repo-root> <out.json>"""
+import importlib.machinery, importlib.util, json, sys, time
+
+root, out = sys.argv[1], sys.argv[2]
+loader = importlib.machinery.SourceFileLoader("factory_cli", root + "/bin/factory_cli.py")
+spec = importlib.util.spec_from_loader("factory_cli", loader)
+fc = importlib.util.module_from_spec(spec)
+loader.exec_module(fc)
+fc.finish_pending_nudges = lambda con, by_name, t: None  # the nudge sweep does not touch the handoff
+fc._pt_lap = lambda *a, **k: None
+agents = [{"name": "coder-x", "pane_id": "p-1", "agent_status": "idle"}]
+st = {"agents": agents, "t": None, "hc_back": False}
+fc._tick_u_pending_nudges(None, st)
+handoff = {k: v for k, v in st.items() if k not in ("by_name", "by_pane")}
+types = {k: type(v).__name__ for k, v in handoff.items()}
+json.dump({"keys": sorted(handoff), "types": types, "agents": handoff["agents"], "hc_back": handoff["hc_back"]},
+          open(out, "w"), indent=1, sort_keys=True)

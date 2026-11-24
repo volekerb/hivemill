@@ -125,6 +125,17 @@ func runMsg(c *ctx, parsed any) (int, error) {
 	if a.kind == "escalation" && !inList([]string{"owner", "director", "boss", "lead"}, role) {
 		return 0, dieErr(3, "only leads, the director and the boss escalate; message your lead instead")
 	}
+	// T-1626: a worker's message to a missing lead falls through to its org director (cmd_msg in the Python CLI);
+	// that path stays Python.
+	if !inList([]string{"boss", "director", "lead", "owner"}, role) && strings.HasPrefix(a.to, "lead:") {
+		missing, err := msgLeadMissing(c, a.to)
+		if err != nil {
+			return 0, err
+		}
+		if missing {
+			return 0, errDelegate
+		}
+	}
 	// refuse_on_demand: the staff-engineer wake path (caller check, spawn) stays Python until S4.
 	first, err := orgFor(c, "", "", c.who, "")
 	if err != nil {
@@ -245,4 +256,32 @@ func msgScanOpt(c *ctx, q string, dst **string, args ...any) error {
 		*dst = &v.String
 	}
 	return nil
+}
+
+// msgLeadMissing is lead_missing in the Python CLI: no such team, no lead agent, a closed team, or an unparked
+// team whose lead is not live/starting/queued. A parked lead wakes on the message.
+func msgLeadMissing(c *ctx, to string) (bool, error) {
+	var lead, status, parked sql.NullString
+	err := c.db.QueryRow("SELECT lead_agent, status, parked_at FROM teams WHERE id=?", to[5:]).Scan(&lead, &status, &parked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if lead.String == "" || status.String == "closed" {
+		return true, nil
+	}
+	if parked.Valid && parked.String != "" {
+		return false, nil
+	}
+	var st sql.NullString
+	err = c.db.QueryRow("SELECT status FROM agents WHERE name=?", lead.String).Scan(&st)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return !inList([]string{"live", "starting", "queued"}, st.String), nil
 }

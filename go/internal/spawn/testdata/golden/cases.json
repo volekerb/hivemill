@@ -306,7 +306,7 @@
   [
    "pm",
    "claude",
-   "claude-opus-5-5"
+   "claude-sonnet-5-5"
   ],
   [
    "pm",
@@ -346,7 +346,7 @@
   [
    "judge",
    "claude",
-   "claude-opus-5-5"
+   "claude-sonnet-5-5"
   ],
   [
    "judge",
@@ -376,7 +376,7 @@
   [
    "researcher",
    "claude",
-   "claude-opus-5-5"
+   "claude-sonnet-5-5"
   ],
   [
    "researcher",

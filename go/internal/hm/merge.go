@@ -1,0 +1,467 @@
+package hm
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"factory/go/internal/citools/risktier"
+)
+
+// MergeInput is everything the merge decision reads. Merge decides from it alone (fixtures: testdata/merge_cases.json).
+type MergeInput struct {
+	PRState        string   `json:"pr_state"` // OPEN | MERGED | CLOSED
+	Draft          bool     `json:"draft"`
+	Mergeable      string   `json:"mergeable"` // MERGEABLE | CONFLICTING | UNKNOWN
+	Head           string   `json:"head"`
+	LaneVerdict    string   `json:"lane_verdict"` // newest task-judge verdict on Head: pass | fail | ""
+	CI             string   `json:"ci"`           // green | red | pending
+	MissingChecks  []string `json:"missing_checks"`
+	Tier           string   `json:"tier"` // T0..T3, "" = cannot classify
+	Behind         bool     `json:"behind"`
+	MergeClean     bool     `json:"merge_clean"`
+	Frozen         bool     `json:"frozen"`
+	RedMain        bool     `json:"red_main"`
+	FixTask        bool     `json:"fix_task"` // this task is the named red-main fix task
+	MainRun        string   `json:"main_run"` // newest main push run for main's head: green | red | pending | none | unknown
+	IdentityOK     bool     `json:"identity_ok"`
+	PublicTextOK   bool     `json:"public_text_ok"`
+	PublicTextNote string   `json:"public_text_note,omitempty"`
+}
+
+// MergeDecision is what to do now.
+type MergeDecision struct {
+	Action string `json:"action"` // merge | done | hold | refresh | resume | rejudge | block
+	Why    string `json:"why"`
+}
+
+// MaxMechTier is the highest risk tier the runner merges without the owner.
+const MaxMechTier = "T2"
+
+// Decide reproduces the safety checks of the old mechanical merger: open, not draft, not frozen, a judge MERGE on this
+// exact head, no conflict, fresh against main, green and complete checks, tier at most T2, main not red (unless this is
+// the fix task), main's own push run finished green, noreply identity and clean public text.
+func Decide(in MergeInput) MergeDecision {
+	switch {
+	case in.PRState == "MERGED":
+		return MergeDecision{"done", "the PR is merged"}
+	case in.PRState != "OPEN":
+		return MergeDecision{"block", "the PR is " + strings.ToLower(in.PRState)}
+	case in.Draft:
+		return MergeDecision{"block", "the PR is a draft"}
+	case in.Frozen:
+		return MergeDecision{"block", "the repo is frozen (frozen_repos)"}
+	case in.LaneVerdict == "fail":
+		return MergeDecision{"block", "the judge rejected this head"}
+	case in.LaneVerdict != "pass":
+		return MergeDecision{"rejudge", fmt.Sprintf("no judge MERGE on head %.8s (the head moved after the verdict)", in.Head)}
+	case in.Mergeable == "CONFLICTING" || (in.Behind && !in.MergeClean):
+		return MergeDecision{"resume", "the branch conflicts with the base branch"}
+	case in.Behind:
+		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
+	case in.CI == "red":
+		return MergeDecision{"resume", "CI is red on the head"}
+	case in.CI != "green":
+		return MergeDecision{"hold", "CI is pending on the head"}
+	case len(in.MissingChecks) > 0:
+		return MergeDecision{"hold", "required checks missing: " + strings.Join(in.MissingChecks, ", ")}
+	case in.Tier == "":
+		return MergeDecision{"block", "the risk tier cannot be decided; the owner merges"}
+	case tierAbove(in.Tier, MaxMechTier):
+		return MergeDecision{"block", "tier " + in.Tier + " is above " + MaxMechTier + "; the owner merges"}
+	case in.RedMain && !in.FixTask:
+		return MergeDecision{"hold", "main is red; merges wait for a green push run"}
+	case in.MainRun == "pending" || in.MainRun == "unknown":
+		return MergeDecision{"hold", "main's push run for its head is " + in.MainRun}
+	case in.MainRun == "red" && !in.FixTask:
+		return MergeDecision{"hold", "main's push run for its head failed"}
+	case !in.IdentityOK:
+		return MergeDecision{"block", "a commit is not authored and committed with the configured noreply_email"}
+	case !in.PublicTextOK:
+		return MergeDecision{"block", "public text: " + in.PublicTextNote}
+	}
+	return MergeDecision{"merge", "all checks pass"}
+}
+
+func tierAbove(t, max string) bool { return t > max } // T0 < T1 < T2 < T3 sorts as text
+
+// gatherMerge reads the PR, git and GitHub state for Decide.
+func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
+	in := MergeInput{}
+	pr, err := PRView(r.Tools, run.PRURL)
+	if err != nil {
+		return in, nil, err
+	}
+	in.PRState, in.Draft, in.Mergeable, in.Head = pr.State, pr.IsDraft, pr.Mergeable, pr.HeadRefOid
+	if pr.State != "OPEN" {
+		return in, pr, nil
+	}
+	in.LaneVerdict, _, _ = r.Store.LaneVerdict(run.Task, pr.HeadRefOid)
+	in.CI, _ = CIVerdict(pr.Checks)
+	present := map[string]bool{}
+	for _, c := range pr.Checks {
+		if n, _ := c["name"].(string); n != "" {
+			present[n] = true
+		}
+		if n, _ := c["context"].(string); n != "" {
+			present[n] = true
+		}
+	}
+	t, _ := r.Store.Task(run.Task)
+	req := r.Store.FactoryCfg("required_checks")
+	if t != nil {
+		if p := r.projectRequired(t.Project); p != "" {
+			req = p
+		}
+	}
+	for _, c := range csv(req) {
+		if !present[c] {
+			in.MissingChecks = append(in.MissingChecks, c)
+		}
+	}
+	slug := strings.ToLower(run.Repo)
+	for _, f := range csv(r.Store.FactoryCfg("frozen_repos")) {
+		in.Frozen = in.Frozen || strings.EqualFold(f, slug)
+	}
+	if st, red := r.Store.RedMain(slug); red && r.Store.FactoryCfg("red_main_freeze") == "1" {
+		in.RedMain = true
+		in.FixTask = fmt.Sprint(st["task"]) == run.Task
+	}
+	wt, base := run.Worktree, run.Base
+	r.Tools.Git(wt, "fetch", "-q", "origin", base)
+	_, local, _ := r.Tools.Git(wt, "rev-parse", "HEAD")
+	if local != pr.HeadRefOid {
+		r.Tools.Git(wt, "fetch", "-q", "origin", run.Branch)
+		r.Tools.Git(wt, "checkout", "-q", "-B", run.Branch, pr.HeadRefOid)
+	}
+	if rc, _, _ := r.Tools.Git(wt, "merge-base", "--is-ancestor", "origin/"+base, pr.HeadRefOid); rc != 0 {
+		in.Behind = true
+		rc, _, _ := r.Tools.Git(wt, "merge-tree", "--write-tree", "origin/"+base, pr.HeadRefOid)
+		in.MergeClean = rc == 0
+	}
+	if t != nil {
+		in.Tier = r.tierOf(wt, base, pr.HeadRefOid)
+	}
+	in.MainRun = r.mainRun(slug, wt, base)
+	in.IdentityOK = true
+	_, logs, _ := r.Tools.Git(wt, "log", "--format=%ae%x09%ce", "origin/"+base+".."+pr.HeadRefOid)
+	for _, ln := range strings.Split(logs, "\n") {
+		if f := strings.Split(ln, "\t"); len(f) == 2 && (!r.isNoreply(f[0]) || !r.isNoreply(f[1])) {
+			in.IdentityOK = false
+		}
+	}
+	in.PublicTextOK, in.PublicTextNote = r.publicText(wt, base, pr)
+	return in, pr, nil
+}
+
+func (r *Runner) projectRequired(project string) string {
+	if s, ok := r.Store.(*SQLite); ok {
+		var v string
+		_ = s.db.QueryRow(`SELECT required_checks FROM projects WHERE id=?`, project).Scan(&v)
+		return v
+	}
+	return ""
+}
+
+func (r *Runner) tierOf(wt, base, head string) string {
+	rules, err := risktier.LoadRules(filepath.Join(r.Env.Home, "ci", "tier_rules.json"))
+	if err != nil {
+		return "" // cannot decide: Decide blocks, never merges
+	}
+	tier, _, err := risktier.ClassifyRange(wt, "origin/"+base, head, rules)
+	if err != nil {
+		return ""
+	}
+	return tier
+}
+
+// mainRun is the newest tests.yml push run on main for main's current head: green, red, pending, none (no such
+// workflow in the repo) or unknown (gh failed).
+func (r *Runner) mainRun(slug, wt, base string) string {
+	_, head, _ := r.Tools.Git(wt, "rev-parse", "origin/"+base)
+	rc, out, errs := r.Tools.GH("", "run", "list", "-R", slug, "--workflow", "tests.yml", "--branch", base, "--event", "push",
+		"--limit", "10", "--json", "status,conclusion,headSha")
+	if rc != 0 {
+		if strings.Contains(strings.ToLower(errs), "not found") {
+			return "none"
+		}
+		return "unknown"
+	}
+	var runs []struct{ Status, Conclusion, HeadSha string }
+	if json.Unmarshal([]byte(out), &runs) != nil {
+		return "unknown"
+	}
+	for _, x := range runs {
+		if x.HeadSha != head {
+			continue
+		}
+		if x.Status != "completed" {
+			return "pending"
+		}
+		if x.Conclusion == "success" {
+			return "green"
+		}
+		if x.Conclusion == "cancelled" || x.Conclusion == "skipped" {
+			continue
+		}
+		return "red"
+	}
+	if len(runs) == 0 {
+		return "none"
+	}
+	return "pending"
+}
+
+// Merge is one merge attempt of a run in state merging.
+func (r *Runner) Merge(run *Run) {
+	in, pr, err := r.gatherMerge(run)
+	if err != nil {
+		run.MergeHold = err.Error()
+		return
+	}
+	d := Decide(in)
+	run.MergeHold = d.Action + ": " + d.Why
+	switch d.Action {
+	case "done":
+		r.finish(run, pr)
+	case "hold":
+	case "block":
+		r.fail(run, "merge blocked: "+d.Why)
+	case "rejudge":
+		run.Head, run.State = in.Head, Gated
+	case "resume":
+		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
+		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), push, wait for CI once and stop.")
+	case "refresh":
+		r.refresh(run)
+	case "merge":
+		r.mergeNow(run, in.Head)
+	}
+}
+
+// refresh merges origin/<base> into the branch (a merge commit, never a force-push), pushes it and carries the judge's
+// MERGE to the new head: the judged change is the same, and CI must go green again before the merge.
+func (r *Runner) refresh(run *Run) {
+	wt, base := run.Worktree, run.Base
+	email := r.Store.FactoryCfg("noreply_email")
+	if rc, _, errs := r.Tools.Git(wt, "-c", "user.email="+email, "-c", "user.name="+nameOf(email), "merge", "--no-edit", "origin/"+base); rc != 0 {
+		r.Tools.Git(wt, "merge", "--abort")
+		run.MergeHold = "refresh failed: " + firstLine(errs)
+		return
+	}
+	old := run.Head
+	if rc, _, errs := r.Tools.Git(wt, "push", "-q", "origin", "HEAD:"+run.Branch); rc != 0 {
+		run.MergeHold = "refresh push failed: " + firstLine(errs)
+		return
+	}
+	_, run.Head, _ = r.Tools.Git(wt, "rev-parse", "HEAD")
+	run.JudgeHead = run.Head
+	run.Refreshes++
+	_ = r.Store.Verdict(run.Task, run.PRURL, run.Head, "pass", fmt.Sprintf("carried from %.12s: clean merge of origin/%s only", old, base), "hivemill")
+	_ = r.Log.Emit("pr.refreshed", run, Event{Data: map[string]any{"head": run.Head, "from": old}})
+}
+
+func nameOf(email string) string {
+	if i, j := strings.Index(email, "+"), strings.Index(email, "@"); i >= 0 && j > i {
+		return email[i+1 : j]
+	}
+	return "hivemill"
+}
+
+// mergeNow merges under the merge lock with --match-head-commit, so a push after the checks cannot slip in.
+func (r *Runner) mergeNow(run *Run, sha string) {
+	l := r.lock("merge", true)
+	if l != nil {
+		defer l.Close()
+	}
+	rc, _, errs := r.Tools.GH("", "pr", "merge", run.PRURL, "--squash", "--match-head-commit", sha)
+	if rc != 0 {
+		run.MergeHold = "gh pr merge failed: " + firstLine(errs)
+		return
+	}
+	pr, err := PRView(r.Tools, run.PRURL)
+	if err != nil || pr.State != "MERGED" {
+		run.MergeHold = "merge not confirmed yet"
+		return
+	}
+	r.finish(run, pr)
+}
+
+func (r *Runner) finish(run *Run, pr *PR) {
+	if pr.MergeCommit != nil {
+		run.MergeSHA = pr.MergeCommit.Oid
+	}
+	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
+	_ = r.Store.TaskStatus(run.Task, "done", "")
+	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
+	_ = r.Log.Emit("pr.merged", run, Event{Data: map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL}})
+	r.checkMergeCommit(run)
+	r.Close(run.Agent)
+	for _, j := range run.Judges {
+		r.Close(j)
+	}
+	sess, _ := r.Store.Sessions(run.Task)
+	ids := make([]string, len(sess))
+	for i, s := range sess {
+		ids[i] = s.SID
+	}
+	costs := SessionCosts(r.Env.UserHome, ids)
+	for _, s := range sess {
+		c := costs[s.SID]
+		_ = r.Log.Emit("session.ended", run, Event{Session: s.SID, Role: s.Role, Model: s.Model, Effort: s.Effort, CostUSD: &c})
+	}
+	r.GoalCheck(run)
+}
+
+// GoalCheck runs the goal's cmd: checks (its success criteria, same proof format) on merged main when this was the
+// goal's last open task; a goal without one is recorded as skipped.
+func (r *Runner) GoalCheck(run *Run) {
+	open, crit, err := r.Store.GoalOpenTasks(run.Goal)
+	if err != nil || open > 0 {
+		return
+	}
+	var checks []Criterion
+	for _, c := range Criteria(crit) {
+		if c.Kind == "cmd" {
+			checks = append(checks, c)
+		}
+	}
+	if len(checks) == 0 {
+		run.GoalCheck = "skipped: the goal defines no cmd: check"
+		_ = r.Log.Emit("goal.checked", run, Event{Data: map[string]any{"result": "skipped", "why": "no cmd: check in the goal's success criteria"}})
+		return
+	}
+	r.Tools.Git(run.Worktree, "fetch", "-q", "origin", run.Base)
+	r.Tools.Git(run.Worktree, "checkout", "-q", "--detach", "origin/"+run.Base)
+	dir := filepath.Join(r.Env.StateDir(), "runs", run.Task)
+	_ = os.MkdirAll(dir, 0o700)
+	res := r.RerunProofs(run.Worktree, checks, dir)
+	ok := true
+	for _, x := range res {
+		ok = ok && x.OK != nil && *x.OK
+	}
+	run.GoalCheck = map[bool]string{true: "pass", false: "fail"}[ok]
+	_ = r.Log.Emit("goal.checked", run, Event{Data: map[string]any{"result": run.GoalCheck, "checks": res}})
+}
+
+// RevertCheck (auto_revert=on): a runner merge that is the head of a failed main push run, and the newest runner merge
+// in its repo, is reverted through a PR named the red-main fix task. Anything else stays with the bisect task the
+// factory's red-main monitor files.
+func (r *Runner) RevertCheck() error {
+	if r.Store.Cfg("auto_revert") != "on" {
+		return nil
+	}
+	runs, err := r.Store.Runs()
+	if err != nil {
+		return err
+	}
+	for i := range runs {
+		x := &runs[i]
+		if x.State != Merged || x.MergeSHA == "" || x.RevertedBy != "" {
+			continue
+		}
+		st, red := r.Store.RedMain(strings.ToLower(x.Repo))
+		if !red || fmt.Sprint(st["sha"]) != x.MergeSHA {
+			continue
+		}
+		newer := false
+		for _, y := range runs {
+			newer = newer || (y.Repo == x.Repo && y.State == Merged && y.Merged > x.Merged)
+		}
+		if newer {
+			continue
+		}
+		id, err := r.openRevert(x, st)
+		if err != nil {
+			return err
+		}
+		x.State, x.Outcome, x.RevertedBy = Reverted, "reverted", id
+		_ = r.Store.PutRun(x)
+		_ = r.Log.Emit("pr.reverted", x, Event{Data: map[string]any{"revert_task": id, "merge_sha": x.MergeSHA}})
+	}
+	return nil
+}
+
+func (r *Runner) openRevert(x *Run, st map[string]any) (string, error) {
+	title := fmt.Sprintf("Revert %s: main red after its merge", x.Task)
+	if old, _ := r.Store.TaskByTitle(x.Goal, title); old != "" {
+		return old, nil // idempotent: a pass that crashed after filing the revert task does not file a second one
+	}
+	id, err := r.Store.NewTask(x.Goal, title, fmt.Sprintf("Mechanical revert of %.12s (%s): main's push run %v failed on it.", x.MergeSHA, x.PRURL, st["run"]),
+		"1. main is green again - manual: the red-main monitor clears it")
+	if err != nil {
+		return "", err
+	}
+	t, err := r.Store.Task(id)
+	if err != nil {
+		return "", err
+	}
+	branch := "factory/" + strings.ToLower(id)
+	wt, err := r.Clone(t, branch)
+	if err != nil {
+		return "", err
+	}
+	email := r.Store.FactoryCfg("noreply_email")
+	if rc, _, errs := r.Tools.Git(wt, "-c", "user.email="+email, "-c", "user.name="+nameOf(email), "revert", "--no-edit", x.MergeSHA); rc != 0 {
+		return "", fmt.Errorf("git revert %.12s: %s", x.MergeSHA, firstLine(errs))
+	}
+	if rc, _, errs := r.Tools.Git(wt, "push", "-q", "origin", "HEAD:"+branch); rc != 0 {
+		return "", fmt.Errorf("push %s: %s", branch, firstLine(errs))
+	}
+	body := fmt.Sprintf("## Summary\nReverts %s (%s): main's push run %v failed on its merge commit.\n\n## Why\n%s: mechanical revert by "+
+		"`hivemill` (auto_revert=on).\n\n## Changes\n- `git revert %.12s`\n\n## Test evidence\n`git revert --no-edit` -> exit 0; CI on this "+
+		"PR decides.\n\n## Risk / rollback\nRe-land the original PR after a fix.\n\n<details><summary>Acceptance walk</summary>\n\n"+
+		"## Acceptance walk\n1. main green again - manual\n</details>\n", x.Task, x.PRURL, st["run"], id, x.MergeSHA)
+	rc, out, errs := r.Tools.GH(body, "pr", "create", "-R", x.Repo, "--head", branch, "--base", x.Base, "--title",
+		truncate(id+": "+title, 72), "--body-file", "-")
+	if rc != 0 {
+		return "", fmt.Errorf("gh pr create: %s", firstLine(errs))
+	}
+	url := strings.TrimSpace(out[strings.LastIndex(strings.TrimSpace(out), "\n")+1:])
+	_, head, _ := r.Tools.Git(wt, "rev-parse", "HEAD")
+	_ = r.Store.TaskPR(id, url, "")
+	_ = r.Store.TaskStatus(id, "in_review", "")
+	_ = r.Store.SetRedMainFix(strings.ToLower(x.Repo), id)
+	marker := "claude-task-judge-" + strings.ToLower(id) + "-revert" // the runner_managed marker the old pipeline respects
+	_ = r.Store.AgentLive(marker, "task-judge", id, x.Goal, "", "", "", wt, `{"lane":"option-b","kind":"revert"}`)
+	_ = r.Store.AgentEnded(marker)
+	_ = r.Store.Verdict(id, url, head, "pass", "mechanical revert of a red-main merge", "hivemill")
+	rev := &Run{Task: id, Goal: x.Goal, Project: x.Project, Repo: x.Repo, Base: x.Base, Worktree: wt, Branch: branch, State: Merging,
+		Round: 1, Kind: "revert", PRURL: url, Head: head, JudgeHead: head, Dispatched: nowISO(),
+		Verdicts: []Verdict{{Verdict: "MERGE", Reasons: []string{"mechanical revert of a red-main merge"}, TS: nowISO()}}}
+	_ = r.Store.Event(r.actor(), "redmain", strings.ToLower(x.Repo), "red-main-fix-task", "-> "+id+" (hivemill revert)")
+	return id, r.Store.PutRun(rev)
+}
+
+// MergeDecision reads the merge input of a run and decides, without acting (`hivemill merge T --dry-run`).
+func (r *Runner) MergeDecision(run *Run) (MergeInput, MergeDecision, error) {
+	in, _, err := r.gatherMerge(run)
+	if err != nil {
+		return in, MergeDecision{}, err
+	}
+	return in, Decide(in), nil
+}
+
+// checkMergeCommit verifies, once the merge commit has landed, that its author is the configured noreply_email and
+// its committer is that address or GitHub's own web-flow address (GitHub commits squash merges). A violation cannot be
+// undone by the runner: it records an event and opens an owner alert.
+func (r *Runner) checkMergeCommit(run *Run) {
+	if run.MergeSHA == "" {
+		return
+	}
+	rc, out, errs := r.Tools.GH("", "api", "repos/"+run.Repo+"/commits/"+run.MergeSHA, "--jq", `.commit.author.email + " " + .commit.committer.email`)
+	why := ""
+	if f := strings.Fields(out); rc != 0 || len(f) != 2 {
+		why = "cannot read the merge commit: " + firstLine(errs)
+	} else if !r.isNoreply(f[0]) || !(r.isNoreply(f[1]) || f[1] == "noreply@github.com") {
+		why = fmt.Sprintf("merge commit %.9s has author %s, committer %s", run.MergeSHA, f[0], f[1])
+	}
+	if why == "" {
+		return
+	}
+	_ = r.Store.Event(r.actor(), "task", run.Task, "noreply-violation", why)
+	_ = r.Store.AlertFeed("hivemill-noreply", run.Task, run.PRURL)
+	_ = r.Log.Emit("pr.noreply_violation", run, Event{Data: map[string]any{"why": why}})
+}

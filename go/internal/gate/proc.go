@@ -292,6 +292,7 @@ func ParseUsage(data []byte, now time.Time) (u Usage, ok, ambiguous bool) {
 		return Usage{}, false, false
 	}
 	age := 0.0
+	var updated *int64
 	if raw, has := m["updated_at"]; has {
 		f, st := pyNum(raw)
 		switch st {
@@ -302,6 +303,7 @@ func ParseUsage(data []byte, now time.Time) (u Usage, ok, ambiguous bool) {
 				return Usage{}, false, true // Python: age // 60 is nan and int() raises
 			}
 			age = float64(now.UnixNano())/1e9 - f
+			updated = epoch(raw)
 		default:
 			return Usage{}, false, false
 		}
@@ -327,12 +329,12 @@ func ParseUsage(data []byte, now time.Time) (u Usage, ok, ambiguous bool) {
 	if five == nil && seven == nil {
 		return Usage{}, false, false
 	}
-	return Usage{FiveHour: five, SevenDay: seven, Fresh: age < UsageFreshS, AgeMin: int(math.Floor(age / 60)),
+	return Usage{FiveHour: five, SevenDay: seven, Fresh: age < UsageFreshS, AgeMin: int(math.Floor(age / 60)), UpdatedAt: updated,
 		FiveResetsAt: epoch(m["five_hour_resets_at"]), SevenResetsAt: epoch(m["seven_day_resets_at"])}, true, false
 }
 
-// ReadUsage is usage(): up to two attempts, sleeping UsageRetryDelay between them. A missing file is a stale zero
-// reading (age -1); a file that stays unreadable is Unreadable (the gate neither opens nor closes on it).
+// ReadUsage is usage(): up to two attempts, sleeping UsageRetryDelay between them. A missing file is a stale reading with
+// no percentages (age -1); a file that stays unreadable is Unreadable (the gate neither opens nor closes on it).
 func ReadUsage(path string, now func() time.Time, sleep func(time.Duration)) (u Usage, ambiguous bool) {
 	for attempt := 0; attempt < 2; attempt++ {
 		b, err := os.ReadFile(path)
@@ -347,8 +349,7 @@ func ReadUsage(path string, now func() time.Time, sleep func(time.Duration)) (u 
 				return u, false
 			}
 		case os.IsNotExist(err):
-			z, s := 0.0, 0.0
-			return Usage{FiveHour: &z, SevenDay: &s, AgeMin: -1}, false
+			return Usage{AgeMin: -1}, false // no data is not 0%: Text says "stale since never"
 		}
 		if attempt == 0 {
 			sleep(UsageRetryDelay)

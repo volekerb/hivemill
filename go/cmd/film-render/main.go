@@ -33,6 +33,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"factory/go/internal/cdp"
 )
 
 const cleanupLine = "cleanup: work dir removed, children stopped"
@@ -99,20 +101,25 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "film-render: %s\n", ee.msg)
 		return ee.code
 	}
+	var ce *cdp.ExitError
+	if errors.As(err, &ce) {
+		fmt.Fprintf(stderr, "film-render: %s\n", ce.Msg)
+		return ce.Code
+	}
 	fmt.Fprintf(stderr, "film-render: %v\n", err)
 	return 1
 }
 
 // kids tracks everything that must be gone when the run ends.
 type kids struct {
-	procs   []*proc
+	procs   []*cdp.Proc
 	workDir string
 	dropOut string // partial output removed after the children stop
 }
 
 func (k *kids) cleanup() {
 	for i := len(k.procs) - 1; i >= 0; i-- {
-		k.procs[i].stop()
+		k.procs[i].Stop()
 	}
 	if k.dropOut != "" {
 		os.Remove(k.dropOut)
@@ -143,11 +150,10 @@ func execute(ctx context.Context, o *options, k *kids, stdout, stderr io.Writer)
 	if err := checkGuards(sb, o); err != nil {
 		return err
 	}
-	cache, err := os.UserCacheDir()
+	cache, err := cdp.DefaultCacheDir()
 	if err != nil {
-		return failf("no user cache dir: %v", err)
+		return err
 	}
-	cache = filepath.Join(cache, "hivemill-film")
 	work := o.work
 	if work == "" {
 		work = filepath.Join(cache, fmt.Sprintf("work-%d", os.Getpid()))
@@ -170,11 +176,11 @@ func execute(ctx context.Context, o *options, k *kids, stdout, stderr io.Writer)
 
 	bin := o.browser
 	if bin == "" {
-		zpath, err := ensureZip(ctx, cache)
+		zpath, err := cdp.EnsureZip(ctx, cache)
 		if err != nil {
 			return err
 		}
-		if bin, err = unzipTo(zpath, filepath.Join(work, "chrome")); err != nil {
+		if bin, err = cdp.Unzip(zpath, filepath.Join(work, "chrome")); err != nil {
 			return err
 		}
 	}
@@ -185,14 +191,14 @@ func execute(ctx context.Context, o *options, k *kids, stdout, stderr io.Writer)
 		return failf("cannot create the output directory: %v", err)
 	}
 
-	bp, w, r, err := launchBrowser(bin, filepath.Join(work, "profile"), sb.Width, sb.Height)
+	bp, w, r, err := cdp.Launch(bin, filepath.Join(work, "profile"), sb.Width, sb.Height)
 	if err != nil {
 		return err
 	}
 	k.procs = append(k.procs, bp)
 	defer w.Close()
 	defer r.Close()
-	client := newCDP(w, r, 60*time.Second)
+	client := cdp.NewClient(w, r, 60*time.Second)
 	sess, err := openSession(ctx, client, sb.Width, sb.Height)
 	if err != nil {
 		return failf("browser setup failed: %v", err)

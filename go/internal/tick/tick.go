@@ -43,7 +43,8 @@ func segments(goFns map[string]GoFunc) []segment {
 			switch {
 			case gap == 1:
 				segs[n-1].units = append(segs[n-1].units, u.Name)
-			case gap == 2 && Units[unitTableIndex(last)+1].Name == OfflineUnit:
+			case gap == 2 && Units[unitTableIndex(last)+1].Name == OfflineUnit && goFns["drift"] == nil:
+				// not when drift is a Go unit: the offline branch runs it first (see walk), so it needs its own child
 				// Python --phases forbids gaps: the offline row rides along (a no-op unless herdr_list gave None).
 				segs[n-1].units = append(segs[n-1].units, OfflineUnit, u.Name)
 			default:
@@ -77,6 +78,10 @@ func (d *driver) fail(code int, format string, a ...any) int {
 func Run(cfg Config) int {
 	if cfg.Go == nil {
 		cfg.Go = goUnits
+	}
+	if err := checkGoSet(cfg.Go); err != nil {
+		fmt.Fprintf(cfg.Stderr, "factory(go): %v\n", err)
+		return 1
 	}
 	if cfg.Getpid == nil {
 		cfg.Getpid = os.Getpid
@@ -121,6 +126,12 @@ func (d *driver) walk() int {
 		}
 		if !stop && sg.units[len(sg.units)-1] == pruneUnit && d.state.AgentsNull() {
 			// herdr was unreachable: the tick ends with the offline branch (drift, "exporting only", export)
+			if fn := d.cfg.Go["drift"]; fn != nil {
+				// _tick_u_offline's tick_drift: Go runs it first; the Python child then finds the throttle set and skips it
+				if _, code = d.runGo("drift", fn); code >= 0 {
+					return code
+				}
+			}
 			stop, code = d.runPython([]string{OfflineUnit})
 			if code >= 0 {
 				return code
@@ -218,7 +229,22 @@ func (d *driver) runPython(units []string) (stop bool, code int) {
 			d.timer.Last = s // driver setup before the first child is not migrate_db time
 		}
 	}
-	d.timer.Child(s, e, out.Laps, out.Tail)
+	d.timer.Child(s, e, newLaps(h.Laps, out.Laps), out.Tail)
 	d.timer.Ctr.Merge(out.Counters)
 	return out.Stop, -1
+}
+
+// newLaps drops from a child's returned laps the ones it was handed: the Python child loads the handoff laps into its
+// own timer and writes them all back (input first), so only what follows is its own. A child that returns just its own
+// laps (the input is not a prefix) is taken as is.
+func newLaps(input, returned []Lap) []Lap {
+	if len(input) == 0 || len(returned) < len(input) {
+		return returned
+	}
+	for i, l := range input {
+		if returned[i] != l {
+			return returned
+		}
+	}
+	return returned[len(input):]
 }

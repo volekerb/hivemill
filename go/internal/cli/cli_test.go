@@ -246,7 +246,7 @@ func TestConfigReads(t *testing.T) {
 	if r.out.String() != "\n" {
 		t.Fatalf("default read %q", r.out.String())
 	}
-	if code := r.run("config", "no_such_key"); code != 2 || !strings.HasPrefix(r.errb.String(), "factory: unknown key no_such_key; known: guard_impl, model_cleaner,") {
+	if code := r.run("config", "no_such_key"); code != 2 || !strings.HasPrefix(r.errb.String(), "factory: unknown key no_such_key; known: guard_impl, model_boss,") {
 		t.Fatalf("unknown key: %d %q", code, r.errb.String())
 	}
 	r.run("config", "--changed")
@@ -413,11 +413,11 @@ func TestDefaultsMatchFlagsJSON(t *testing.T) {
 		t.Fatalf("DEFAULT_CONFIG literal: %v", err)
 	}
 	if len(lit) != len(DefaultConfig) {
-		t.Fatalf("defaults_gen.go has %d keys, DEFAULT_CONFIG has %d: run `go generate ./internal/cli`", len(DefaultConfig), len(lit))
+		t.Fatalf("store/defaults_gen.go has %d keys, DEFAULT_CONFIG has %d: run `go generate ./internal/store`", len(DefaultConfig), len(lit))
 	}
 	for i, e := range lit {
 		if DefaultConfig[i].Key != e.Key || DefaultConfig[i].Value != e.Value {
-			t.Fatalf("defaults_gen.go drifted at %s (%q vs %q): run `go generate ./internal/cli`", e.Key, DefaultConfig[i].Value, e.Value)
+			t.Fatalf("store/defaults_gen.go drifted at %s (%q vs %q): run `go generate ./internal/store`", e.Key, DefaultConfig[i].Value, e.Value)
 		}
 	}
 	flagsPath := repoFile(t, "bin/flags.json")

@@ -1,0 +1,9 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# guardtools batch (T-1688, SC4 P6f-10): tests for the guard tooling. The Python count is the number of cases of the module
+# that have a Go port; the rest are listed as "not ported" in the PR. priv_guard is complete (45/45; the Go side adds a
+# Unicode parity case). guard_diff: the two corpus sanity checks (the rest tests ci/guard_diff.py, deleted by T-1473).
+# guard_build: the dependency-free check (the rest tests the Python build and impl-flag code in bin/factory).
+# guard_impl_coverage: nothing ported (an AST scan of the Python tests; no Go counterpart).
+tests/test_priv_guard.py 45 -> internal/factorytest/guardtools:TestPrivGuard 46
+tests/test_guard_diff.py 2 -> internal/factorytest/guardtools:TestGuardDiff 2
+tests/test_guard_build.py 1 -> internal/factorytest/guardtools:TestGuardBuild 1

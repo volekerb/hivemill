@@ -138,8 +138,8 @@ func TestViewsDOMGolden(t *testing.T) {
 	c := newTestDB(t)
 	cases := goldenCases()
 	files, _ := filepath.Glob(filepath.Join("testdata", "golden", "*.txt"))
-	if len(files) != len(cases) {
-		t.Errorf("%d golden files but %d cases: every golden must have a case and the other way round", len(files), len(cases))
+	if len(files) != len(cases)+len(part2Cases()) {
+		t.Errorf("%d golden files but %d cases: every golden must have a case and the other way round", len(files), len(cases)+len(part2Cases()))
 	}
 	for _, gc := range cases {
 		gc := gc
@@ -158,6 +158,7 @@ func TestViewsDOMGolden(t *testing.T) {
 			}
 		})
 	}
+	runPart2Golden(t) // the part-2 routes (agents, resources, throughput, quality, changelog, tokens) on the part-2 fixture
 }
 
 // firstDiff shows the first differing line (text is one long line, so a window around the first differing byte).

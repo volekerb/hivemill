@@ -1,0 +1,8 @@
+[Unit]
+Description=hivemill dead-man check every 5 minutes
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=5min
+AccuracySec=30
+[Install]
+WantedBy=timers.target

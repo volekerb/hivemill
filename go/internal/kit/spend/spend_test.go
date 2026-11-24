@@ -287,3 +287,134 @@ func TestMainUsageAndCheckExitCodes(t *testing.T) {
 		t.Fatalf("json report: %v %+v", err, rep.Total)
 	}
 }
+
+const kickoffPM = "You are `claude-pm-t-1775`, the factory pm. Run `factory whoami` first."
+
+func userLine(text string) string {
+	b, _ := json.Marshal(map[string]any{"type": "user", "timestamp": t0.Format(time.RFC3339Nano),
+		"message": map[string]any{"role": "user", "content": text}})
+	return string(b)
+}
+
+func TestRoleFromKickoff(t *testing.T) {
+	root := t.TempDir()
+	m := "claude-sonnet-5-5"
+	writeSession(t, root, "p", "with-kickoff", userLine(kickoffPM), entry(req{id: "a1", model: m, at: t0, out: 500, write: 1000}))
+	writeSession(t, root, "p", "no-kickoff", userLine("hello there"), entry(req{id: "b1", model: m, at: t0, out: 500, write: 1000}))
+	writeSession(t, root, "p", "unknown-role", userLine("You are `x-wizard-1`, the factory wizard."), entry(req{id: "c1", model: m, at: t0, out: 500}))
+	rep, err := Scan(root, t0.Add(-time.Hour), t0.Add(time.Hour), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, r := range rep.ByRole {
+		got[r.Role] = r.Sessions
+	}
+	t.Run("kickoff gives pm", func(t *testing.T) {
+		if got["pm"] != 1 {
+			t.Fatalf("roles %v", got)
+		}
+	})
+	t.Run("no kickoff gives other", func(t *testing.T) {
+		if got["other"] != 2 {
+			t.Fatalf("roles %v", got)
+		}
+	})
+}
+
+func TestRoleFromKickoffOptionB(t *testing.T) {
+	for kickoff, want := range map[string]string{
+		"You are `claude-coder-t-1841-a7`, the factory task.":       "task",
+		"You are `claude-judge-t-1841-a7`, the factory task-judge.": "task-judge",
+	} {
+		if got := RoleFromKickoff(kickoff); got != want {
+			t.Errorf("RoleFromKickoff(%q) = %q, want %q", kickoff, got, want)
+		}
+	}
+}
+
+func TestRoleSubagentTakesParent(t *testing.T) {
+	root := t.TempDir()
+	m := "claude-sonnet-5-5"
+	writeSession(t, root, "p", "parent1", userLine("You are `claude-coder-t-1`, the factory coder."), entry(req{id: "p1", model: m, at: t0, out: 500}))
+	writeSession(t, root, "p/parent1/subagents", "agent-x", userLine("review this"), entry(req{id: "s1", model: m, at: t0, out: 500}))
+	writeSession(t, root, "p/gone/subagents", "agent-y", userLine("review this"), entry(req{id: "s2", model: m, at: t0, out: 500}))
+	rep, err := Scan(root, t0.Add(-time.Hour), t0.Add(time.Hour), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, r := range rep.ByRole {
+		got[r.Role] = r.Requests
+	}
+	if got["coder"] != 2 || got["other"] != 1 {
+		t.Fatalf("roles %v", got)
+	}
+}
+
+func TestBucketSplitSumsToTotal(t *testing.T) {
+	root := t.TempDir()
+	m := "claude-sonnet-5-5"
+	first := req{id: "f", model: m, at: t0, in: 10, out: 1000, read: 1000, write: 50_000}
+	tiny := req{id: "t", model: m, at: t0.Add(time.Minute), out: 100, read: 60_000}
+	long := req{id: "l", model: m, at: t0.Add(2 * time.Minute), out: 2000, read: 60_000, write: 2000}
+	writeSession(t, root, "p", "s", userLine(kickoffPM), entry(first), entry(tiny), entry(long))
+	rep, err := Scan(root, t0.Add(-time.Hour), t0.Add(time.Hour), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tot := rep.Total
+	if math.Abs(tot.SpawnCost+tot.PollingCost+tot.WorkCost-tot.Cost) > 0.01 {
+		t.Fatalf("buckets %v+%v+%v != %v", tot.SpawnCost, tot.PollingCost, tot.WorkCost, tot.Cost)
+	}
+	// sonnet: cache write 2.5/M (5m), read 0.10/M, output 10/M (see tokens prices)
+	if !near(tot.SpawnCost, 0.125) { // first request's 50k 5m cache write at 2.5/M
+		t.Fatalf("spawn %v", tot.SpawnCost)
+	}
+	if !near(tot.PollingCost, 60_000*0.1/1e6+100*10/1e6) {
+		t.Fatalf("polling %v", tot.PollingCost)
+	}
+	if tot.WorkCost <= 0 {
+		t.Fatalf("work %v", tot.WorkCost)
+	}
+	if rep.ByRole[0].Role != "pm" || !near(rep.ByRole[0].SpawnCost, tot.SpawnCost) {
+		t.Fatalf("by role %+v", rep.ByRole)
+	}
+}
+
+func TestMergedPRsFlag(t *testing.T) {
+	root := t.TempDir()
+	writeSession(t, root, "p", "s", userLine(kickoffPM), entry(req{id: "f", model: "claude-sonnet-5-5", at: time.Now(), out: 500, write: 10_000}))
+	var out, errb bytes.Buffer
+	if c := Main([]string{"report", "--root", root, "--merged-prs", "0"}, &out, &errb); c != ExitOK || !strings.Contains(out.String(), "merged PRs: not given") {
+		t.Fatalf("exit %d out %s err %s", c, out.String(), errb.String())
+	}
+	if !strings.HasPrefix(out.String(), "Last 24h: $") || !strings.Contains(out.String(), "By role:") {
+		t.Fatalf("old output changed: %s", out.String())
+	}
+	out.Reset()
+	if c := Main([]string{"report", "--root", root, "--json", "--merged-prs", "4"}, &out, &errb); c != ExitOK {
+		t.Fatalf("exit %d %s", c, errb.String())
+	}
+	var j struct {
+		PerPR float64 `json:"per_merged_pr_usd"`
+		Total struct {
+			Cost  float64 `json:"cost_usd"`
+			Spawn float64 `json:"spawn_usd"`
+		} `json:"total"`
+		ByRole []struct {
+			PerPR float64 `json:"per_merged_pr_usd"`
+		} `json:"by_role"`
+		ByModel []any `json:"by_model"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &j); err != nil {
+		t.Fatal(err)
+	}
+	if !near(j.PerPR, j.Total.Cost/4) || len(j.ByRole) != 1 || !near(j.ByRole[0].PerPR, j.Total.Cost/4) || j.Total.Spawn <= 0 || len(j.ByModel) != 1 {
+		t.Fatalf("json %+v", j)
+	}
+	out.Reset()
+	if c := Main([]string{"report", "--root", root, "--merged-prs", "-1"}, &out, &errb); c != ExitUsage {
+		t.Fatalf("negative: exit %d", c)
+	}
+}

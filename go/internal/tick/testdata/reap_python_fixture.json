@@ -1,0 +1,77 @@
+{
+ "exited_panes_on": {
+  "agents": [
+   [
+    "qa-1",
+    "qa",
+    "exited",
+    "p-1",
+    "2026-01-01T00:00:00+00:00",
+    0
+   ]
+  ],
+  "events": [
+   [
+    "tick",
+    "agent",
+    "qa-1",
+    "exited-pane-closed",
+    "{\"agent\": \"qa-1\", \"pane\": \"p-1\", \"role\": \"qa\", \"ended\": \"2026-01-01T00:00:00+00:00\", \"branch\": \"session\"}"
+   ]
+  ],
+  "messages": []
+ },
+ "idle_coders_stop": {
+  "agents": [
+   [
+    "coder-1",
+    "coder",
+    "live",
+    "p-1",
+    null,
+    1
+   ]
+  ],
+  "events": [
+   [
+    "tick",
+    "agent",
+    "coder-1",
+    "stop-requested",
+    "{\"by\": \"tick\", \"reason\": \"idle_coder_reap: idle 1000s (> 900s), working tree clean, PR head pushed, no mail: nothing left for you to do; the tick brings the task back when it needs a coder\"}"
+   ],
+   [
+    "tick",
+    "agent",
+    "coder-1",
+    "idle-coder-stopped",
+    "{\"agent\": \"coder-1\", \"task\": \"T-5\", \"idle_s\": 1000, \"threshold_s\": 900}"
+   ],
+   [
+    "tick",
+    "task",
+    "T-5",
+    "note",
+    "tick stopped idle coder coder-1: idle_coder_reap: idle 1000s (> 900s), working tree clean, PR head pushed, no mail: nothing left for you to do; the tick brings the task back when it needs a coder"
+   ],
+   [
+    "tick",
+    "agent",
+    "coder-1",
+    "nudge-pending",
+    "{\"nudge\": \"\\ud83d\\udcec STOP from tick: run factory inbox now and follow the STOP order.\", \"what\": \"STOP order\", \"pane_id\": \"p-1\", \"started\": \"2026-01-01T00:00:00+00:00\"}"
+   ]
+  ],
+  "messages": [
+   [
+    "STOP",
+    "decision",
+    "tick",
+    "coder-1",
+    "G-1",
+    "T-5",
+    "idle_coder_reap: idle 1000s (> 900s), working tree clean, PR head pushed, no mail: nothing left for you to do; the tick brings the task back when it needs a coder\nStop work now. Push any work in progress to your branch (a WIP commit is fine), then run factory done '<stopped: pushed sha|nothing; state>'"
+   ]
+  ]
+ }
+}

@@ -681,7 +681,7 @@ func TestDarwinCheck(t *testing.T) {
 	if rc != 0 {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
-	for _, want := range []string{"ok python3>=3.11 ", "ok git ", "ok ram 16.0 GiB", "boot units: launchd step not available yet (G-049 M2)\n"} {
+	for _, want := range []string{"ok python3>=3.11 ", "ok git ", "ok ram 16.0 GiB", darwinBootNote + "\n"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("check lacks %q\n%s", want, out)
 		}
@@ -719,7 +719,7 @@ func TestDarwinDryRun(t *testing.T) {
 		"herdr-macos-aarch64",
 		"    download " + GHAssets["darwin/aarch64"].URL + " -> <tmpdir>/gh.zip, then verify size",
 		"    extract gh_2.103.3_macOS_arm64/bin/gh from the zip and install it as " + f.HomeDir + "/.local/bin/gh\n",
-		"boot units: launchd step not available yet (G-049 M2)",
+		"launchctl bootstrap gui/1000 ",
 		"--linger: not applicable on macOS (launchd user agents run while you are logged in)",
 		"plan only: nothing was changed\n",
 	} {

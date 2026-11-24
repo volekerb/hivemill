@@ -2,12 +2,14 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from harness import FactoryTestCase, gates_summary
+from harness import PR_URL
 from harness import git as harness_git
 
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
@@ -513,6 +515,327 @@ class VerdictCarryTests(FactoryTestCase):
         direct = [i + 1 for i, l in enumerate(src) if re.search(r"""[\[(]\s*["']git["']\s*,""", l)]  # an argv starting with git
         self.assertEqual(len(direct), 1, direct)  # git_argv itself
         self.assertIn("def git_argv", src[direct[0] - 2])
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CLI_SRC = "bin/" + "factory" + "_cli.py"
+
+
+class FixCarryTests(FactoryTestCase):
+    """T-1611 fix-carry (docs/verdict-carry-over.md "Fix carry"): after a FAIL only the failed role re-checks; the other
+    role's PASS at X carries across a small, non-sensitive, test-preserving fix. Real temp git repo, stubbed gh,
+    `factory judge --merge` as a subprocess."""
+
+    def commit(self, name, text, msg):
+        (self.wt / name).parent.mkdir(parents=True, exist_ok=True)
+        VerdictCarryTests.commit(self, name, text, msg)
+
+    publish = VerdictCarryTests.publish
+    main_commit = VerdictCarryTests.main_commit
+    merge_main = VerdictCarryTests.merge_main
+    judge = VerdictCarryTests.judge
+    merge_calls = VerdictCarryTests.merge_calls
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_project()
+        e.seed_goal(project="zz-test-proj")
+        e.seed_task()
+        for name, role in (("zz-test-reviewer", "reviewer"), ("zz-test-qa", "qa"), ("zz-test-judge", "judge")):
+            e.seed_agent(name, role, goal="G-001", task="T-0001")
+        (e.home_dir / "ci").mkdir(exist_ok=True)  # the main checkout carries the tier classifier and its rules
+        for f in ("risk_tier.py", "tier_rules.json", "affected.py"):
+            shutil.copy(REPO_ROOT / "ci" / f, e.home_dir / "ci" / f)
+        self.remote = e.home / "origin.git"
+        self.wt = e.home / "pr-wt"
+        git(e.home, "init", "-q", "--bare", "-b", "main", str(self.remote))
+        git(e.home, "clone", "-q", str(self.remote), str(self.wt))
+        self.commit("base.txt", "line1\n", "base")
+        self.commit("tests/test_a.py", "def test_foo():\n    pass\n", "a test")
+        self.commit("go/a_test.go", "func TestFoo(t *testing.T) {}\n", "a go test")
+        self.commit(CLI_SRC, "def judge_helper():\n    return 1\n\n\ndef other():\n    return 1\n", "a sensitive def")
+        self.commit("bin/web/x.py", "x = 0\n", "web")
+        git(self.wt, "push", "-q", "origin", "HEAD:main")
+        git(self.wt, "checkout", "-q", "-b", "feature")
+        self.commit("feature.txt", "f1\n", "feature work")
+        e.sql("UPDATE tasks SET worktree=? WHERE id='T-0001'", (str(self.wt),))
+        e.set_gh(repo_url=str(self.remote))
+        self.x = self.publish()
+
+    # -- helpers ---------------------------------------------------------
+    def vd(self, role, verdict, sha):
+        self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+                     ("T-0001", PR_URL, sha, role, verdict, "zz-test", "zz-test-" + role, "t"))
+
+    def fix(self, name="bin/web/x.py", lines=40, text=None):
+        """One non-merge commit adding `lines` lines to `name`; returns the new published head."""
+        old = (self.wt / name).read_text() if (self.wt / name).exists() else ""
+        self.commit(name, old + (text if text is not None else "".join(f"v{i} = {i}\n" for i in range(lines))), "fix")
+        return self.publish()
+
+    def events(self, action):
+        return [json.loads(r["detail"]) for r in self.env.sql("SELECT detail FROM events WHERE action=?", (action,))]
+
+    def assert_fix_refused(self, why):
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("fix-carry refused", p.stderr)
+        self.assertIn(why, p.stderr)
+        self.assertEqual(self.merge_calls(), [])
+        self.assertEqual(self.events("verdict-carried-fix"), [])
+
+    def assert_fix_merged(self, role, failed, y, lines):
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        evs = self.events("verdict-carried-fix")
+        self.assertEqual(len(evs), 1)
+        self.assertEqual((evs[0]["role"], evs[0]["from"], evs[0]["to"], evs[0]["lines"], evs[0]["failed_role"]),
+                         (role, self.x, y, lines, failed))
+        self.assertEqual(len(evs[0]["commits"]), 1)
+        self.assertEqual(len(self.merge_calls()), 1)
+        self.assertEqual(self.events("verdict-carried"), [])
+
+    def round_one(self, failed="reviewer"):
+        other = "qa" if failed == "reviewer" else "reviewer"
+        self.vd(failed, "fail", self.x)
+        self.vd(other, "pass", self.x)
+
+    # -- accepted --------------------------------------------------------
+    def test_a_reviewer_fail_qa_carries_across_40_line_fix(self):
+        self.round_one("reviewer")
+        y = self.fix(lines=40)
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_merged("qa", "reviewer", y, 40)
+
+    def test_d_qa_fail_reviewer_carries_across_20_line_fix(self):
+        self.round_one("qa")
+        y = self.fix(lines=20)
+        self.vd("qa", "pass", y)
+        self.assert_fix_merged("reviewer", "qa", y, 20)
+
+    def test_e_limit_is_cumulative_from_x(self):
+        self.round_one("reviewer")
+        self.fix(lines=60)
+        self.vd("reviewer", "fail", git(self.wt, "rev-parse", "HEAD"))
+        y = self.fix(name="bin/web/x2.py", lines=60)
+        self.vd("reviewer", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.events("verdict-carried-fix")[0]["lines"], 120)
+        self.assertEqual(len(self.events("verdict-carried-fix")[0]["commits"]), 2)
+
+    def test_e_cumulative_160_is_refused(self):
+        self.round_one("reviewer")
+        self.fix(lines=80)
+        self.fix(name="bin/web/x2.py", lines=80)
+        y = git(self.wt, "rev-parse", "HEAD")
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_refused("160 lines > 150")
+
+    def test_main_merge_between_fix_commits_is_fine(self):
+        self.round_one("reviewer")
+        self.fix(lines=10)
+        self.main_commit()
+        self.merge_main()
+        y = self.publish()
+        self.vd("reviewer", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.events("verdict-carried-fix")[0]["lines"], 10)
+
+    # -- refused ---------------------------------------------------------
+    def test_b_300_line_fix_refused(self):
+        self.round_one("reviewer")
+        y = self.fix(lines=300)
+        self.vd("reviewer", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("qa PASS is for " + self.x[:8], p.stderr)
+        self.assertIn("fix-carry refused: 300 lines > 150", p.stderr)
+        self.assertEqual(self.merge_calls(), [])
+        self.assertIn("judge-blocked", [r["action"] for r in self.env.sql("SELECT action FROM events")])
+
+    def test_c_sensitive_path_refused(self):
+        self.round_one("reviewer")
+        y = self.fix(name="roles/hooks/x", lines=3)
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_refused("sensitive path roles/hooks/x")
+
+    def test_sensitive_def_refused(self):
+        self.round_one("reviewer")
+        src = (self.wt / CLI_SRC).read_text().replace("def judge_helper():\n    return 1", "def judge_helper():\n    return 2")
+        (self.wt / CLI_SRC).write_text(src)
+        git(self.wt, "commit", "-q", "-a", "-m", "touch judge_helper")
+        y = self.publish()
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_refused("sensitive def " + CLI_SRC + ":judge_helper")
+
+    def test_other_def_in_the_same_file_is_fine(self):
+        self.round_one("reviewer")
+        src = (self.wt / CLI_SRC).read_text().replace("def other():\n    return 1", "def other():\n    return 2")
+        (self.wt / CLI_SRC).write_text(src)
+        git(self.wt, "commit", "-q", "-a", "-m", "touch other")
+        y = self.publish()
+        self.vd("reviewer", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_binary_change_refused(self):
+        self.round_one("reviewer")
+        (self.wt / "blob.bin").write_bytes(b"\0\1\2\0")
+        git(self.wt, "add", "blob.bin")
+        git(self.wt, "commit", "-q", "-m", "binary")
+        y = self.publish()
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_refused("binary change")
+
+    def test_g_removed_python_test_refused(self):
+        self.round_one("qa")
+        (self.wt / "tests/test_a.py").write_text("x = 1\n")
+        git(self.wt, "commit", "-q", "-a", "-m", "drop test")
+        y = self.publish()
+        self.vd("qa", "pass", y)
+        self.assert_fix_refused("removes or renames a test function")
+
+    def test_g_removed_go_test_refused(self):
+        self.round_one("qa")
+        (self.wt / "go/a_test.go").write_text("// gone\n")
+        git(self.wt, "commit", "-q", "-a", "-m", "drop go test")
+        y = self.publish()
+        self.vd("qa", "pass", y)
+        self.assert_fix_refused("removes or renames a test function")
+
+    def test_renamed_test_refused(self):
+        self.round_one("qa")
+        (self.wt / "tests/test_a.py").write_text("def test_bar():\n    pass\n")
+        git(self.wt, "commit", "-q", "-a", "-m", "rename test")
+        y = self.publish()
+        self.vd("qa", "pass", y)
+        self.assert_fix_refused("removes or renames a test function")
+
+    def test_added_test_is_fine(self):
+        self.round_one("qa")
+        y = self.fix(name="tests/test_a.py", text="\n\ndef test_new():\n    pass\n")
+        self.vd("qa", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_f_both_roles_failed_needs_both(self):
+        self.vd("reviewer", "fail", self.x)
+        self.vd("qa", "fail", self.x)
+        self.fix(lines=10)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("no reviewer PASS", p.stderr)
+        self.assertIn("no qa PASS", p.stderr)
+        self.assertEqual(self.events("verdict-carried-fix"), [])
+
+    def test_failed_role_has_not_passed_yet_is_plain_stale(self):
+        self.round_one("reviewer")
+        self.fix(lines=10)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("no reviewer PASS", p.stderr)
+        self.assertIn("qa PASS is for " + self.x[:8], p.stderr)
+        self.assertNotIn("fix-carry refused", p.stderr)
+
+    def test_other_role_fail_after_its_pass_refused(self):
+        self.round_one("reviewer")
+        self.vd("qa", "fail", self.x)  # a later FAIL: qa's latest verdict is no PASS any more
+        y = self.fix(lines=10)
+        self.vd("reviewer", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("no qa PASS", p.stderr)
+        self.assertEqual(self.events("verdict-carried-fix"), [])
+
+    def test_no_fail_in_the_window_is_plain_stale(self):
+        self.vd("reviewer", "pass", self.x)
+        self.vd("qa", "pass", self.x)
+        y = self.fix(lines=10)
+        self.vd("reviewer", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("qa PASS is for " + self.x[:8], p.stderr)
+        self.assertNotIn("fix-carry refused", p.stderr)
+
+    def test_merge_with_manual_edit_refused(self):
+        self.round_one("reviewer")
+        self.fix(lines=5)
+        self.main_commit()
+        self.merge_main()
+        (self.wt / "feature.txt").write_text("sneaky\n")
+        git(self.wt, "commit", "-q", "-a", "--amend", "--no-edit")
+        y = self.publish()
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_refused("not a pure main merge: tree differs at")
+
+    def test_more_than_20_commits_refused(self):
+        self.round_one("reviewer")
+        for i in range(21):
+            self.fix(name=f"bin/web/f{i}.py", lines=1)
+        y = git(self.wt, "rev-parse", "HEAD")
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_refused("within 20 commits")
+
+    def test_git_fetch_error_is_cannot_verify(self):
+        self.round_one("reviewer")
+        y = self.fix(lines=5)
+        self.vd("reviewer", "pass", y)
+        self.env.set_gh(repo_url=str(self.env.home / "gone.git"))
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("cannot verify", p.stderr)
+        self.assertEqual(self.merge_calls(), [])
+
+    def test_unreadable_tier_rules_is_cannot_verify(self):
+        self.round_one("reviewer")
+        y = self.fix(lines=5)
+        self.vd("reviewer", "pass", y)
+        (self.env.home_dir / "ci" / "tier_rules.json").write_text("{not json")
+        self.assert_fix_refused("cannot verify, tier rules unreadable")
+
+    # -- the switch ------------------------------------------------------
+    def test_fix_carry_off_restores_today(self):
+        self.ok("config", "fix_carry", "off")
+        self.round_one("reviewer")
+        y = self.fix(lines=40)
+        self.vd("reviewer", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("qa PASS is for " + self.x[:8], p.stderr)
+        self.assertIn("is not a two-parent merge", p.stderr)
+        self.assertNotIn("fix-carry", p.stderr)
+        self.assertEqual(self.merge_calls(), [])
+
+    def test_max_lines_key_is_honoured(self):
+        self.ok("config", "fix_carry_max_lines", "30")
+        self.round_one("reviewer")
+        y = self.fix(lines=40)
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_refused("40 lines > 30")
+
+    def test_zz_exactly_150_lines_carries(self):
+        self.round_one("reviewer")
+        y = self.fix(lines=150)
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_merged("qa", "reviewer", y, 150)
+
+    def test_zz_151_lines_refused(self):
+        self.round_one("reviewer")
+        y = self.fix(lines=151)
+        self.vd("reviewer", "pass", y)
+        self.assert_fix_refused("151 lines > 150")
+
+    def test_zz_non_numeric_limit_is_off(self):
+        self.ok("config", "fix_carry_max_lines", "lots")
+        self.round_one("reviewer")
+        y = self.fix(lines=5)
+        self.vd("reviewer", "pass", y)
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertNotIn("fix-carry", p.stderr)
 
 
 if __name__ == "__main__":
