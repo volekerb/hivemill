@@ -10,11 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"factory/go/internal/launchd"
 )
 
-// hostFS exposes the files of the repo clone through Host.ReadFile as an fs.FS for launchd.Templates.
+// hostFS exposes the files of the repo clone through Host.ReadFile as an fs.FS for ldTemplates.
 type hostFS struct {
 	h   Host
 	dir string
@@ -52,7 +50,7 @@ func (r hostRunner) Bootout(uid int, label string) error {
 	case rc == 0:
 		return nil
 	case rc == 3 || rc == 113: // launchctl: No such process / Could not find service
-		return fmt.Errorf("%w: %s", launchd.ErrNotLoaded, strings.TrimSpace(out))
+		return fmt.Errorf("%w: %s", errLdNotLoaded, strings.TrimSpace(out))
 	}
 	return fmt.Errorf("launchctl %s failed (rc=%d): %s", strings.Join(argv, " "), rc, strings.TrimSpace(out))
 }
@@ -69,7 +67,7 @@ func (c *Ctx) agentsDir() string { return filepath.Join(c.home, "Library", "Laun
 // bootLabels is the jobs this run manages, in bootstrap order: serve only with --with-serve.
 func (c *Ctx) bootLabels() []string {
 	var l []string
-	for _, name := range launchd.Labels {
+	for _, name := range ldLabels {
 		if name == "hivemill.serve" && !c.args.WithServe {
 			continue
 		}
@@ -78,10 +76,10 @@ func (c *Ctx) bootLabels() []string {
 	return l
 }
 
-func (c *Ctx) launchdVars() launchd.Vars {
+func (c *Ctx) launchdVars() ldVars {
 	// agent bin dirs first (the claude installer and our tools), then the Homebrew and system dirs
 	pathParts := []string{c.bindir, "/opt/homebrew/bin", "/usr/bin", "/bin"}
-	return launchd.Vars{
+	return ldVars{
 		FactoryHome: c.fh,
 		Path:        strings.Join(pathParts, ":"),
 		HerdrBin:    filepath.Join(c.bindir, "herdr"),
@@ -95,7 +93,7 @@ func stepBootUnits(c *Ctx) (string, error) {
 	dir := c.agentsDir()
 	labels := c.bootLabels()
 	tdir := filepath.Join(c.fh, "launchd")
-	tm := launchd.NewTemplates(hostFS{c.host, tdir})
+	tm := ldNewTemplates(hostFS{c.host, tdir})
 	vars := c.launchdVars()
 	plists := map[string][]byte{}
 	for _, l := range labels {
@@ -103,7 +101,7 @@ func stepBootUnits(c *Ctx) (string, error) {
 		if err != nil {
 			if c.plan && errors.Is(err, fs.ErrNotExist) {
 				// a first install has no clone yet in a dry run: show the plan without the content
-				c.emit(fmt.Sprintf("    render %s/%s.plist.in -> %s (after the clone)", tdir, l, filepath.Join(dir, launchd.PlistName(l))))
+				c.emit(fmt.Sprintf("    render %s/%s.plist.in -> %s (after the clone)", tdir, l, filepath.Join(dir, ldPlistName(l))))
 				continue
 			}
 			return "", stepWrap(err, "render "+l)
@@ -114,7 +112,7 @@ func stepBootUnits(c *Ctx) (string, error) {
 		c.emit("    $ mkdir -p " + dir)
 		c.emit("    $ mkdir -p " + vars.FactoryHome + "/logs")
 		for _, l := range labels {
-			p := filepath.Join(dir, launchd.PlistName(l))
+			p := filepath.Join(dir, ldPlistName(l))
 			if b, ok := plists[l]; ok {
 				c.emit("    write " + p + " (mode 0644):")
 				for _, ln := range strings.Split(strings.TrimRight(string(b), "\n"), "\n") {
@@ -133,7 +131,7 @@ func stepBootUnits(c *Ctx) (string, error) {
 	if err := c.host.Mkdirs(filepath.Join(c.fh, "logs")); err != nil {
 		return "", fmt.Errorf("create the log directory: %w", err)
 	}
-	if err := launchd.Install(dir, plists); err != nil {
+	if err := ldInstall(dir, plists); err != nil {
 		return "", stepWrap(err, "write plists")
 	}
 	r := hostRunner{c.host}
@@ -141,13 +139,15 @@ func stepBootUnits(c *Ctx) (string, error) {
 		// idempotent: an already-loaded job makes bootstrap fail, so boot it out first. A bootout failure is not
 		// fatal (newer macOS answers rc 5 for a job that is not loaded): bootstrap below reports a real problem.
 		_ = r.Bootout(uid, l)
-		p := filepath.Join(dir, launchd.PlistName(l))
+		p := filepath.Join(dir, ldPlistName(l))
 		var err error
 		for try := 0; try < 3; try++ { // bootout is asynchronous: the first bootstrap can lose the race
 			if err = r.Bootstrap(uid, p); err == nil {
 				break
 			}
-			c.host.Sleep(time.Second)
+			if try < 2 {
+				c.host.Sleep(time.Second)
+			}
 		}
 		if err != nil {
 			return "", stepWrap(err, "bootstrap "+l)
@@ -161,14 +161,14 @@ func runUninstallBootUnits(host Host, a *Args, out io.Writer) int {
 	c := NewCtx(host, a, out, a.DryRun)
 	uid, dir := host.Euid(), c.agentsDir()
 	if a.DryRun {
-		for _, l := range launchd.Labels {
+		for _, l := range ldLabels {
 			c.emit(fmt.Sprintf("    $ launchctl bootout gui/%d/%s", uid, l))
-			c.emit("    rm " + filepath.Join(dir, launchd.PlistName(l)))
+			c.emit("    rm " + filepath.Join(dir, ldPlistName(l)))
 		}
 		c.emit("plan only: nothing was changed")
 		return 0
 	}
-	res, err := launchd.Uninstall(dir, uid, hostRunner{host})
+	res, err := ldUninstall(dir, uid, hostRunner{host})
 	for _, r := range res {
 		c.emit(fmt.Sprintf("[ok] %s: not loaded=%t, plist removed=%t", r.Label, r.NotLoaded, r.Removed))
 	}
