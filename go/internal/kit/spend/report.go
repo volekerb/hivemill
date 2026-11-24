@@ -302,10 +302,12 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 				sessions[session] = s
 			}
 			s.add(r)
-		}, func(at time.Time, n int) {
-			if !at.Before(since) && at.Before(until) {
-				toolBytes[session] += int64(n)
+		}, func(at time.Time, n int) bool {
+			if at.Before(since) || !at.Before(until) {
+				return false
 			}
+			toolBytes[session] += int64(n)
+			return true
 		}, seen)
 	})
 	if err != nil {
@@ -395,7 +397,7 @@ func userText(raw []byte) (string, bool) {
 
 // readFile emits the requests of one transcript. user receives the user messages in order (up to maxKickoffLines)
 // until it returns false.
-func readFile(path string, user func(string) bool, emit func(Request), tool func(time.Time, int), seen map[string]bool) error {
+func readFile(path string, user func(string) bool, emit func(Request), tool func(time.Time, int) bool, seen map[string]bool) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil // a transcript that vanished or is unreadable is skipped, not fatal
@@ -418,10 +420,9 @@ func readFile(path string, user func(string) bool, emit func(Request), tool func
 					UUID      string    `json:"uuid"`
 				}
 				if json.Unmarshal(raw, &ts) == nil && !ts.Timestamp.IsZero() && (ts.UUID == "" || !seen["tr\x00"+ts.UUID]) {
-					if ts.UUID != "" {
+					if tool(ts.Timestamp.UTC(), n) && ts.UUID != "" {
 						seen["tr\x00"+ts.UUID] = true
 					}
-					tool(ts.Timestamp.UTC(), n)
 				}
 			}
 		}

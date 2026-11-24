@@ -11,7 +11,8 @@ import (
 const BytesPerToken = 4
 
 // RoleMetrics are the before/after numbers of one role (or of all sessions, in Metrics.Total).
-// Sessions counts the sessions whose first request fell in the window.
+// Sessions counts the sessions with a request in the window; the start-up median covers those whose first request
+// is in the window too. Medians of an even count are the upper middle value, as in the by-role cost table.
 type RoleMetrics struct {
 	Role                string   `json:"role,omitempty"`
 	Sessions            int      `json:"sessions"`
@@ -103,9 +104,9 @@ func summarize(role string, ss []sessionStat) RoleMetrics {
 	var starts, tools []int64
 	for _, s := range ss {
 		m.Requests += s.requests
+		m.Sessions++
 		tools = append(tools, s.toolB/BytesPerToken)
 		if s.hasStart {
-			m.Sessions++
 			starts = append(starts, s.start)
 		}
 	}

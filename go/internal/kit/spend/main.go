@@ -67,12 +67,16 @@ func report(args []string, home string, stdout, stderr io.Writer) int {
 	untilS := fl.String("until", "", "")
 	asJSON := fl.Bool("json", false, "")
 	check := fl.Bool("check", false, "")
-	if fl.Parse(args) != nil || fl.NArg() > 0 || *hours <= 0 || *hours > 1_000_000 || *top < 1 || *top > 1000 || *merged < 0 {
+	if fl.Parse(args) != nil || fl.NArg() > 0 || !(*hours > 0 && *hours <= 1_000_000) || *top < 1 || *top > 1000 || *merged < 0 {
 		fmt.Fprint(stderr, usage)
 		return ExitUsage
 	}
 	hoursSet := false
 	fl.Visit(func(f *flag.Flag) { hoursSet = hoursSet || f.Name == "hours" })
+	if *sinceS != "" && *untilS != "" && hoursSet {
+		fmt.Fprintln(stderr, "hm-spend: --hours cannot be combined with both --since and --until")
+		return ExitUsage
+	}
 	since, until, err := Window(time.Now(), *sinceS, *untilS, *hours, hoursSet)
 	if err != nil {
 		fmt.Fprintln(stderr, "hm-spend:", err)
@@ -103,8 +107,8 @@ func report(args []string, home string, stdout, stderr io.Writer) int {
 
 func printReport(w io.Writer, r *Report, hours float64) {
 	t := r.Total
-	fmt.Fprintf(w, "Last %gh: $%.2f, %d requests, %d sessions (API prices; on a subscription this is the share of your limits)\n",
-		hours, t.Cost, t.Requests, r.Sessions)
+	fmt.Fprintf(w, "%s: $%.2f, %d requests, %d sessions (API prices; on a subscription this is the share of your limits)\n",
+		windowLabel(r, hours), t.Cost, t.Requests, r.Sessions)
 	if t.Requests == 0 {
 		fmt.Fprintf(w, "No requests found under %s.\n", r.Root)
 		return
@@ -255,4 +259,12 @@ func printMetrics(w io.Writer, r *Report) {
 	} else {
 		fmt.Fprintf(w, "  requests per merged PR: %.1f (%d requests / %d merged PRs)\n", *m.Total.RequestsPerMergedPR, m.Total.Requests, r.MergedPRs)
 	}
+}
+
+// windowLabel is "Last Nh" for a window ending now, else the dates.
+func windowLabel(r *Report, hours float64) string {
+	if time.Since(r.Until) < time.Minute {
+		return fmt.Sprintf("Last %gh", hours)
+	}
+	return fmt.Sprintf("%s to %s", r.Since.Format("2006-01-02 15:04Z"), r.Until.Format("2006-01-02 15:04Z"))
 }
