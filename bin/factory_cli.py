@@ -8187,12 +8187,15 @@ def fast_lane_escalate(con, t, why):
     con.commit()
 
 
-def fast_lane_classify(con, t, sha, git_repo):
+def fast_lane_classify(con, t, sha):
     """Read the lane of task row `t` at PR head `sha` from MAIN's ci/ci_tier.py (G-070) and record it (throttle
     fastlane-head:<task> = '<sha> docs|code'). Returns 'fast', 'docs', 'normal' (escalated or auto normal) or None when it
     cannot try yet (fetch failed: retried next run). A lane rule hit, a docs-only lane whose diff is no longer docs, or a
     diff git cannot read moves a fast task to the normal lane. A task with no lane takes 'fast:docs' on a docs-only diff,
-    else 'normal' (auto, no label)."""
+    else 'normal' (auto, no label).
+    The diff is read in the main checkout (HOME), after git_config_guard, never in the task's worktree: the coder owns the
+    worktree's refs and remote.origin.fetch, so its origin/main can be stale or forged to hide a guarded change. A head
+    that is not in the factory repo (another project's PR) cannot be read there and takes the normal lane."""
     tid = t["id"]
     lane = task_lane(con, tid)
     if lane == "normal" or not fast_lane_on(con):
@@ -8202,8 +8205,10 @@ def fast_lane_classify(con, t, sha, git_repo):
         return kind if kind == "docs" else "fast"
     branch = t["branch"] or ""
     rc, err = 1, f"task branch {branch!r} cannot be fetched"
-    if branch and not branch.startswith("-"):
-        rc, _, err = _git_rc(["fetch", "-q", "origin", "main", f"refs/heads/{branch}"], timeout=120, repo=git_repo)
+    if not git_config_guard(con, HOME):
+        err = f"git config in {HOME} would run code"
+    elif branch and not branch.startswith("-"):
+        rc, _, err = _git_rc(["fetch", "-q", "origin", "main", f"refs/heads/{branch}"], timeout=120, repo=HOME)
     if rc != 0:
         if lane is None:  # an unread diff never takes the fast lane, and must not hold the normal lane's judge either
             lane_set(con, tid, "normal", f"auto: diff not readable ({err})"[:300])
@@ -8213,7 +8218,7 @@ def fast_lane_classify(con, t, sha, git_repo):
         return None
     try:
         ct = _ci_tier_mod()
-        name, why = ct.lane(str(git_repo), "origin/main", sha)
+        name, why = ct.lane(str(HOME), "origin/main", sha)
     except (OSError, ImportError, SyntaxError, AttributeError) as e:
         name, why = "normal", [f"cannot load main's {CI_TIER_FILE}: {type(e).__name__}: {e}"]
     except Exception as e:  # noqa: BLE001 - ct.affected.AffectedError lives in main's module; any other error is undecidable too
@@ -8256,8 +8261,7 @@ def fast_lane_classify_pending(con, limit=MECH_MAX_EVAL):
             continue  # gh failed: next run
         if pr.get("state") != "OPEN":
             continue
-        wt = t["worktree"]
-        out = fast_lane_classify(con, t, pr["headRefOid"], wt if wt and Path(wt).is_dir() else HOME)
+        out = fast_lane_classify(con, t, pr["headRefOid"])
         print(f"{t['id']}: lane {out or 'not read yet'}")
 
 

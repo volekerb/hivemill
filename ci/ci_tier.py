@@ -182,12 +182,35 @@ def deleted_test(path):
     return (path.startswith("tests/") and name.startswith("test_")) or name.endswith("_test.go")
 
 
+TEST_NAME_RE = {".py": re.compile(r"^[ \t]*(?:async[ \t]+)?def[ \t]+(test\w*)[ \t]*\(", re.M),
+                ".go": re.compile(r"^func[ \t]+(?:\([^)]*\)[ \t]*)?((?:Test|Fuzz|Benchmark|Example)\w*)[ \t]*\(", re.M)}
+
+
+def removed_tests(root, base, head, path):
+    """Test functions of test file `path` (present at both ends) that the diff base...head removes: a name whose count
+    drops from the merge-base to `head` (the same method name in two classes counts twice), sorted."""
+    pat = TEST_NAME_RE.get(os.path.splitext(path)[1])
+    if pat is None:
+        return []
+    mb = affected.git(root, "merge-base", base, head).strip()
+    if not affected._exists(root, mb, path):
+        return []
+    before, after = {}, {}
+    for rev, counts in ((mb, before), (head, after)):
+        for name in pat.findall(affected.git(root, "show", "%s:%s" % (rev, path))):
+            counts[name] = counts.get(name, 0) + 1
+    return sorted(n for n, c in before.items() if after.get(n, 0) < c)
+
+
 def escalations(root, base, head):
     """Reasons the diff base...head must leave the fast lane (G-070), [] when it may stay. Raises affected.AffectedError
     when git cannot answer: the caller escalates then (an undecidable diff never stays fast)."""
     changed = affected.changed_files(root, base, head)
     why = ["binary or non-text diff: %s" % p for p in sorted(numstat_non_line_paths(root, base, head))]
     why += ["deleted test %s" % p for p, exists in changed if not exists and deleted_test(p)]
+    for p, exists in changed:
+        if exists and deleted_test(p):
+            why += ["deleted test %s in %s" % (n, p) for n in removed_tests(root, base, head, p)]
     why += ["%s is a guarded path" % p for p, _ in changed if fast_lane_path(p)]
     top = new_top_level_risk(root, base, [p for p, _ in changed])
     if top:

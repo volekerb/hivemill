@@ -389,6 +389,47 @@ class FastLaneTest(unittest.TestCase):
         self.assertEqual(lane, "normal")
         self.assertIn("deleted test tests/test_alpha.py", why)
 
+    def test_removed_test_function_escalates(self):
+        """Review of #858: emptying a test file of its tests (the file stays) must leave the fast lane too."""
+        lane, why = self.lane({"tests/test_alpha.py": "import unittest\n\nclass A(unittest.TestCase):\n    pass\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertIn("deleted test test_a in tests/test_alpha.py", why)
+
+    def test_removed_go_test_function_escalates(self):
+        self.repo.write("go/pkg/x_test.go", "package pkg\n\nfunc TestOne(t *testing.T) {}\n\nfunc TestTwo(t *testing.T) {}\n")
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "go base")
+        self.repo.base = self.repo.rev()
+        lane, why = self.lane({"go/pkg/x_test.go": "package pkg\n\nfunc TestOne(t *testing.T) {}\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertIn("deleted test TestTwo in go/pkg/x_test.go", why)
+
+    def test_duplicate_test_name_removed_from_one_class_escalates(self):
+        two = "class A:\n    def test_a(self):\n        pass\n\n\nclass B:\n    def test_a(self):\n        pass\n"
+        self.repo.write("tests/test_alpha.py", two)
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "two classes")
+        self.repo.base = self.repo.rev()
+        lane, why = self.lane({"tests/test_alpha.py": "class A:\n    def test_a(self):\n        pass\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertIn("deleted test test_a in tests/test_alpha.py", why)
+
+    def test_added_or_edited_test_stays_fast(self):
+        src = ("import unittest\n\nclass A(unittest.TestCase):\n    def test_a(self):\n        self.assertTrue(1)\n\n"
+               "    def test_b(self):\n        pass\n")
+        lane, why = self.lane({"tests/test_alpha.py": src})
+        self.assertEqual(lane, "fast", why)
+
+    def test_test_added_on_main_after_the_branch_point_is_not_a_removal(self):
+        """The names compare against the merge-base: a test main gained since the branch point is not 'removed'."""
+        branch_point = self.repo.base
+        main = self.repo.change({"tests/test_alpha.py": "class A:\n    def test_a(self):\n        pass\n\n"
+                                                        "    def test_new_on_main(self):\n        pass\n"})[1]
+        git(self.repo.root, "checkout", "-q", "-b", "feature", branch_point)
+        head = self.repo.change({"web/app.py": "x = 2\n"})[1]
+        lane, why = ci_tier.lane(str(self.repo.root), main, head)
+        self.assertEqual(lane, "fast", why)
+
     def test_cli_exit_codes(self):
         base, head = self.repo.change({"web/app.py": "x = 5\n"})
         r = self.escalate(self.repo, base, head)

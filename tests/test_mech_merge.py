@@ -818,6 +818,9 @@ class FastLaneTests(MechMergeTests):
         (self.gh_dir / "gh").write_text(GH_FAST)
         for f in ("ci_tier.py", "affected.py"):
             shutil.copy(REPO / "ci" / f, self.env.home_dir / "ci" / f)
+        # the main checkout is a git repo on the same origin: the lane diff is read there, never in the task worktree
+        git(self.env.home_dir, "init", "-q", "-b", "main")
+        git(self.env.home_dir, "remote", "add", "origin", str(self.remote))
         self.env.seed_agent("zz-test-lead", "lead", goal="G-001")
         self.env.seed_agent("zz-test-pm", "pm", goal="G-001")
         self.env.seed_agent("zz-test-boss", "boss")
@@ -965,6 +968,30 @@ class FastLaneTests(MechMergeTests):
         self.assertIn("T-0001: lane normal", p.stdout)
         self.assertEqual(self.lane(), "normal")
         self.assertIn("ci/ci_tier.py is a guarded path", self.events("lane-escalated")[0])
+        self.assertEqual(self.merges(), [])
+
+    def test_a_forged_worktree_origin_main_cannot_hide_a_guarded_change(self):
+        """Review of #858: the coder points its worktree's origin/main at its own guarded commit and stops fetch from
+        moving it. Read in the worktree, the diff would be docs only and auto-merge; read in the main checkout it is not."""
+        self.head({"ci/affected.py": "# relaxed\n", "docs/a.md": "# looks harmless\n"})  # one commit per file
+        guarded = git(self.wt, "rev-parse", "HEAD~1")
+        git(self.wt, "update-ref", "refs/remotes/origin/main", guarded)
+        git(self.wt, "config", "remote.origin.fetch", "+refs/heads/nothing:refs/remotes/origin/nothing")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(git(self.wt, "rev-parse", "refs/remotes/origin/main"), guarded)  # the forge was in place
+
+    def test_a_head_missing_from_the_main_checkout_takes_the_normal_lane(self):
+        """A head the main checkout cannot fetch (not on its origin) is undecidable: never the fast or docs lane."""
+        self.head({"docs/a.md": "# better docs\n"})
+        git(self.env.home_dir, "remote", "set-url", "origin", str(self.env.home / "no-such-origin.git"))
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
         self.assertEqual(self.merges(), [])
 
     def test_fastcheck_fail_twice_escalates(self):
