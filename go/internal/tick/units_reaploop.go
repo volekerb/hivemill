@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -440,12 +441,7 @@ func sortedOrdered(v any) any {
 }
 
 func (l *reapLoop) subprocessExit(a *dlgAgent, sa map[string]any, rt string) error {
-	pid, isInt := sa["pid"].(float64)
-	alive := false
-	if isInt && pid == float64(int64(pid)) && pid > 0 {
-		err := syscall.Kill(int(pid), 0)
-		alive = err == nil || errors.Is(err, syscall.EPERM)
-	}
+	alive := pidAlive(a.spawnArgs.String)
 	if alive {
 		return nil
 	}
@@ -605,4 +601,39 @@ func hcWord(t map[string]any) string {
 		}
 	}
 	return "unknown"
+}
+
+// pidAlive mirrors Python's `isinstance(pid, int) and pid > 0` then
+// os.kill(pid, 0) with `except OSError: alive = False`: any error, EPERM
+// included, means dead, and a JSON float such as 5.0 or 1e2 is not an int.
+// A JSON true is a Python int (1).
+func pidAlive(rawSpawnArgs string) bool {
+	dec := json.NewDecoder(strings.NewReader(rawSpawnArgs))
+	dec.UseNumber()
+	var m map[string]any
+	if err := dec.Decode(&m); err != nil {
+		return false
+	}
+	var pid int64
+	switch p := m["pid"].(type) {
+	case json.Number:
+		if strings.ContainsAny(p.String(), ".eE") {
+			return false
+		}
+		n, err := p.Int64()
+		if err != nil {
+			return false
+		}
+		pid = n
+	case bool:
+		if p {
+			pid = 1
+		}
+	default:
+		return false
+	}
+	if pid <= 0 || pid > math.MaxInt32 {
+		return false
+	}
+	return syscall.Kill(int(pid), 0) == nil
 }
