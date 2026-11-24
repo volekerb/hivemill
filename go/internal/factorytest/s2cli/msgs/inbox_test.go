@@ -82,8 +82,9 @@ func TestInboxRecipientLeadTeam(t *testing.T) {
 
 func TestInboxRecipientLeadTeamWithoutLeadFails(t *testing.T) {
 	e := inboxBase(t)
+	// T-1626: a worker falls through to its director; a lead sender still gets the refusal.
 	e.SeedTeam("g-001-b", "G-001", "")
-	p := refused(t, e, "zz-test-coder", 1, nil, "msg", "lead:g-001-b", "s", "b")
+	p := refused(t, e, "zz-test-lead", 1, nil, "msg", "lead:g-001-b", "s", "b")
 	contains(t, "stderr", p.Stderr, "no lead")
 }
 
