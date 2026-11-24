@@ -19277,8 +19277,30 @@ def _tick_u_relaunches(con, st):
             event(con, "tick", "cursor-kickoff", "cursor-kickoff-error", str(e)[:300])
 
 
+SPEND_ALERT_TIMEOUT = 90  # seconds the factory-go child of the spend alert may run
+
+
+def spend_alert_tick(con):
+    """Tick hook (T-1824, owner order M41393): `factory-go spend-alert` checks hm-spend for a token-spend spike (at most every
+    15 minutes, one alert per clock hour to claude-boss; docs/spend-alert.md). Never raises."""
+    try:
+        con.commit()  # no write transaction of ours while the Go child writes
+        if cli_binary_state() != "ok":
+            return
+        env = {k: v for k, v in os.environ.items() if k != "FACTORY_CLI_IMPL"}
+        r = subprocess.run([str(Path(guard_lib_dir()) / CLI_GO_BIN), "spend-alert"], env=env, stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=SPEND_ALERT_TIMEOUT)
+        if r.stdout:
+            sys.stdout.write(r.stdout)
+        if r.returncode != 0:
+            print(f"spend_alert: factory-go spend-alert exit {r.returncode}", file=sys.stderr)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"spend_alert: factory-go spend-alert failed ({type(e).__name__}: {e})", file=sys.stderr)
+
+
 def _tick_u_util(con, st):
         util_sample(con)
+        spend_alert_tick(con)
         util_alerts(con)
         owner_blocker_alerts(con)
         owner_alert_feed_tick(con)
