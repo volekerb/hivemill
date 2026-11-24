@@ -11521,7 +11521,14 @@ def _session_tokens(session):
 
 # ───────────────────────────── agents: spawn / done / list ─────────────────────────────
 
-def ensure_hq(con):
+def _hc_host(con, host_exe=None):
+    """True when host IPC goes through hc, which has no workspace or tab verbs (#849)."""
+    return (host_exe or terminal_backend_effective(con)[1]) == "hc"
+
+
+def ensure_hq(con, host_exe=None):
+    if _hc_host(con, host_exe):
+        return None  # hc agents are named terminals: there is no HQ workspace to create
     ws = herdr_workspaces()
     hq = con.execute("SELECT value FROM config WHERE key='hq_workspace'").fetchone()
     if hq and hq["value"] in ws:
@@ -11535,8 +11542,10 @@ def ensure_hq(con):
     return wid
 
 
-def ensure_goal_ws(con, gid):
+def ensure_goal_ws(con, gid, host_exe=None):
     g = con.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone() or die(f"no goal {gid}")
+    if _hc_host(con, host_exe):
+        return None  # no workspace verbs on hc (#849)
     ws = herdr_workspaces()
     if g["workspace_id"] in ws:
         return g["workspace_id"]
@@ -11569,10 +11578,10 @@ def place(con, role, goal, team, name, cwd, env, host_exe=None):
         return None, None, name
     envs = [x for k, v in env.items() for x in ("--env", f"{k}={v}")]
     if role in ("boss", "director") or not goal:
-        ws = ensure_hq(con)
+        ws = ensure_hq(con, host_exe)
         tab_label = role if role in ("boss", "director") else "ops"
     else:
-        ws = ensure_goal_ws(con, goal)
+        ws = ensure_goal_ws(con, goal, host_exe)
         tab_label = team or "team"
     tabs = [t for t in herdr_tabs(ws) if t.get("label", "").split(" ")[0] == tab_label]
     for t in tabs:
@@ -17423,19 +17432,25 @@ def cmd_res(a):
 
 # ───────────────────────────── tick: the deterministic heartbeat ─────────────────────────────
 
-def tick_lock(busy_exit=0):
-    """Take the tick/up lock. Busy: exit 0 "skipping" (tick, up) or, with busy_exit set, die with that code (retry later)."""
+def tick_lock(busy_exit=0, wait_s=0):
+    """Take the tick/up lock. Busy: exit 0 "skipping" (tick, up) or, with busy_exit set, die with that code (retry later).
+    wait_s > 0 retries every second for that long first (`up` at boot races the first timer tick, #849)."""
     import fcntl
     RUN.mkdir(exist_ok=True)
     f = open(RUN / "tick.lock", "w")
-    try:
-        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        if busy_exit:
-            die("tick running, retry in a minute", busy_exit)
-        print("another tick/up is running; skipping")
-        sys.exit(0)
-    return f
+    deadline = time.time() + wait_s
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return f
+        except BlockingIOError:
+            if time.time() >= deadline:
+                break
+            time.sleep(1)
+    if busy_exit:
+        die("tick running, retry in a minute", busy_exit)
+    print("another tick/up is running; skipping")
+    sys.exit(0)
 
 
 def _fsync_path(path):
@@ -20178,9 +20193,12 @@ def cmd_export(a):
 
 # ───────────────────────────── up: rebuild after reboot ─────────────────────────────
 
+UP_LOCK_WAIT_S = 90  # boot: wait out the first tick instead of skipping the HQ start (#849)
+
+
 def cmd_up(a):
     refuse_worker("up")
-    lock = tick_lock()  # noqa: F841
+    lock = tick_lock(busy_exit=3, wait_s=UP_LOCK_WAIT_S)  # still busy: exit non-zero so systemd retries the unit  # noqa: F841
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started
