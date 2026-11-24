@@ -21,9 +21,13 @@ const (
 
 const usage = `hm-spend: where Claude tokens go on this machine, and context limits for its agents (docs/token-discipline.md).
 
-  hm-spend report [--hours N] [--root DIR] [--top N] [--merged-prs N] [--json] [--check]
+  hm-spend report [--hours N] [--since T] [--until T] [--root DIR] [--top N] [--merged-prs N] [--json] [--check]
       Sum the Claude Code transcripts of the last N hours (default 24): cost by model, top sessions, and findings
       (Fable use, big contexts, chatter, cache writes), and cost by role split into spawn, polling and work.
+      --since/--until T (RFC3339 or YYYY-MM-DD, a date is 00:00 UTC) set the window; --hours N alone is the last N hours,
+      with --until it is the N hours before it, with --since the N hours after it. Default: the last 24 hours.
+      "Before/after metrics": median start-up context (first request of each session) and tool-output tokens per
+      session (median, p90; tool_result bytes / 4 as the token estimate) per role, and requests per merged PR.
       --merged-prs N adds $ per merged PR (total and per role). --check exits 3 when a high finding exists.
 
   hm-spend limits [--settings FILE] [--boss-settings FILE] [--apply] [--check] [--json]
@@ -59,14 +63,22 @@ func report(args []string, home string, stdout, stderr io.Writer) int {
 	root := fl.String("root", filepath.Join(home, ".claude", "projects"), "")
 	top := fl.Int("top", 10, "")
 	merged := fl.Int("merged-prs", 0, "")
+	sinceS := fl.String("since", "", "")
+	untilS := fl.String("until", "", "")
 	asJSON := fl.Bool("json", false, "")
 	check := fl.Bool("check", false, "")
-	if fl.Parse(args) != nil || fl.NArg() > 0 || *hours <= 0 || *hours > 24*90 || *top < 1 || *top > 1000 || *merged < 0 {
+	if fl.Parse(args) != nil || fl.NArg() > 0 || *hours <= 0 || *hours > 1_000_000 || *top < 1 || *top > 1000 || *merged < 0 {
 		fmt.Fprint(stderr, usage)
 		return ExitUsage
 	}
-	now := time.Now()
-	rep, err := Scan(*root, now.Add(-time.Duration(*hours*float64(time.Hour))), now, *top)
+	hoursSet := false
+	fl.Visit(func(f *flag.Flag) { hoursSet = hoursSet || f.Name == "hours" })
+	since, until, err := Window(time.Now(), *sinceS, *untilS, *hours, hoursSet)
+	if err != nil {
+		fmt.Fprintln(stderr, "hm-spend:", err)
+		return ExitUsage
+	}
+	rep, err := Scan(*root, since, until, *top)
 	if err != nil {
 		fmt.Fprintln(stderr, "hm-spend:", err)
 		return ExitError
@@ -77,7 +89,7 @@ func report(args []string, home string, stdout, stderr io.Writer) int {
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(rep)
 	} else {
-		printReport(stdout, rep, *hours)
+		printReport(stdout, rep, until.Sub(since).Hours())
 	}
 	if *check {
 		for _, f := range rep.Findings {
@@ -118,6 +130,7 @@ func printReport(w io.Writer, r *Report, hours float64) {
 			fmt.Fprintf(w, "    %-15s $%.2f per merged PR\n", b.Role, *b.PerMergedPR)
 		}
 	}
+	printMetrics(w, r)
 	fmt.Fprintln(w, "\nTop sessions:")
 	for _, s := range r.Top {
 		fmt.Fprintf(w, "  %-8.8s $%8.2f  %5d req  avg ctx %4dk  max %4dk  start %3dk  tiny %3.0f%%  %s  %s\n", s.Key, s.Cost, s.Requests,
@@ -193,4 +206,53 @@ func limits(args []string, home string, stdout, stderr io.Writer) int {
 		return ExitRefused
 	}
 	return ExitOK
+}
+
+// Window resolves the report window. until defaults to now; since to until - hours (or, with only --since and an
+// explicit hours, until = since + hours).
+func Window(now time.Time, sinceS, untilS string, hours float64, hoursSet bool) (since, until time.Time, err error) {
+	d := time.Duration(hours * float64(time.Hour))
+	until = now
+	if untilS != "" {
+		if until, err = ParseTime(untilS); err != nil {
+			return since, until, fmt.Errorf("--until: want RFC3339 or YYYY-MM-DD, got %q", untilS)
+		}
+	}
+	switch {
+	case sinceS != "":
+		if since, err = ParseTime(sinceS); err != nil {
+			return since, until, fmt.Errorf("--since: want RFC3339 or YYYY-MM-DD, got %q", sinceS)
+		}
+		if untilS == "" && hoursSet {
+			until = since.Add(d)
+		}
+	default:
+		since = until.Add(-d)
+	}
+	if !since.Before(until) {
+		return since, until, errors.New("--since must be before --until")
+	}
+	return since, until, nil
+}
+
+func printMetrics(w io.Writer, r *Report) {
+	m := r.Metrics
+	if m == nil {
+		return
+	}
+	fmt.Fprintln(w, "\nBefore/after metrics (tool-output tokens estimated as tool_result bytes / 4):")
+	fmt.Fprintf(w, "  %-15s %8s %8s %11s %11s %11s\n", "role", "sessions", "requests", "start ctx", "tool med", "tool p90")
+	row := func(name string, x RoleMetrics) {
+		fmt.Fprintf(w, "  %-15s %8d %8d %10dk %10dk %10dk\n", name, x.Sessions, x.Requests, x.MedianStartContext/1000,
+			x.ToolOutputMedian/1000, x.ToolOutputP90/1000)
+	}
+	for _, b := range m.ByRole {
+		row(b.Role, b)
+	}
+	row("all", m.Total)
+	if m.Total.RequestsPerMergedPR == nil {
+		fmt.Fprintln(w, "  requests per merged PR: n/a")
+	} else {
+		fmt.Fprintf(w, "  requests per merged PR: %.1f (%d requests / %d merged PRs)\n", *m.Total.RequestsPerMergedPR, m.Total.Requests, r.MergedPRs)
+	}
 }

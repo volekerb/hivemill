@@ -64,6 +64,8 @@ type Bucket struct {
 	ContextSum     int64   `json:"-"`
 	ContextMax     int64   `json:"max_context_tokens"`
 	StartContext   int64   `json:"start_context_tokens"`
+	startFound     bool    // the first request of the transcript fell in the window; startCtx is its context
+	startCtx       int64
 	AvgContext     int64   `json:"avg_context_tokens"`
 	SpawnCost      float64 `json:"spawn_usd"`
 	PollingCost    float64 `json:"polling_usd"`
@@ -80,6 +82,9 @@ func (b *Bucket) add(r Request) {
 	ctx := r.Context()
 	if b.Requests == 0 || r.At.Before(b.first) {
 		b.first, b.StartContext = r.At, ctx
+	}
+	if r.First {
+		b.startFound, b.startCtx = true, ctx
 	}
 	b.Requests++
 	if r.Usage.Output < TinyOutput {
@@ -128,6 +133,7 @@ type Report struct {
 	// MergedPRs is the --merged-prs value; PerMergedPR is Total.Cost / MergedPRs, set only when MergedPRs > 0.
 	MergedPRs   int      `json:"merged_prs"`
 	PerMergedPR *float64 `json:"per_merged_pr_usd,omitempty"`
+	Metrics     *Metrics `json:"metrics,omitempty"`
 }
 
 // Roles are the factory roles hm-spend recognises in a session's kickoff message.
@@ -167,6 +173,9 @@ type RoleBucket struct {
 // SetMergedPRs adds the per-merged-PR figures for n > 0 merged PRs; n <= 0 leaves them out.
 func (r *Report) SetMergedPRs(n int) {
 	r.MergedPRs = n
+	if r.Metrics != nil {
+		r.Metrics.setMergedPRs(n)
+	}
 	if n <= 0 {
 		return
 	}
@@ -178,20 +187,35 @@ func (r *Report) SetMergedPRs(n int) {
 	}
 }
 
+// roleOf resolves a session's role: its own kickoff, or its parent's for a subagent transcript.
+func roleOf(key string, sessions map[string]*Bucket, role, parent map[string]string) string {
+	r := role[key]
+	if p, ok := parent[key]; ok {
+		r = ""
+		if _, known := sessions[p]; known || role[p] != "" {
+			r = role[p]
+		}
+	}
+	if r == "" {
+		r = RoleOther
+	}
+	return r
+}
+
+func sessionStats(sessions map[string]*Bucket, role, parent map[string]string, toolBytes map[string]int64) map[string]*sessionStat {
+	out := map[string]*sessionStat{}
+	for key, s := range sessions {
+		out[key] = &sessionStat{role: roleOf(key, sessions, role, parent), start: s.startCtx, hasStart: s.startFound,
+			toolB: toolBytes[key], requests: s.Requests}
+	}
+	return out
+}
+
 func byRole(sessions map[string]*Bucket, role, parent map[string]string) []RoleBucket {
 	roles := map[string]*RoleBucket{}
 	starts := map[string][]int64{}
 	for key, s := range sessions {
-		r := role[key]
-		if p, ok := parent[key]; ok {
-			r = ""
-			if _, known := sessions[p]; known || role[p] != "" {
-				r = role[p]
-			}
-		}
-		if r == "" {
-			r = RoleOther
-		}
+		r := roleOf(key, sessions, role, parent)
 		b := roles[r]
 		if b == nil {
 			b = &RoleBucket{Role: r}
@@ -233,6 +257,7 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 	seen := map[string]bool{}
 	role := map[string]string{}   // session -> role from its kickoff message
 	parent := map[string]string{} // subagent session -> parent session
+	toolBytes := map[string]int64{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
@@ -277,6 +302,10 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 				sessions[session] = s
 			}
 			s.add(r)
+		}, func(at time.Time, n int) {
+			if !at.Before(since) && at.Before(until) {
+				toolBytes[session] += int64(n)
+			}
 		}, seen)
 	})
 	if err != nil {
@@ -287,6 +316,7 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 	rep.Top = sorted(sessions, top)
 	rep.Findings = findings(rep, models, sessions)
 	rep.ByRole = byRole(sessions, role, parent)
+	rep.Metrics = buildMetrics(sessionStats(sessions, role, parent, toolBytes), rep.Total.Requests)
 	return rep, nil
 }
 
@@ -365,7 +395,7 @@ func userText(raw []byte) (string, bool) {
 
 // readFile emits the requests of one transcript. user receives the user messages in order (up to maxKickoffLines)
 // until it returns false.
-func readFile(path string, user func(string) bool, emit func(Request), seen map[string]bool) error {
+func readFile(path string, user func(string) bool, emit func(Request), tool func(time.Time, int), seen map[string]bool) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil // a transcript that vanished or is unreadable is skipped, not fatal
@@ -379,6 +409,20 @@ func readFile(path string, user func(string) bool, emit func(Request), seen map[
 			if text, ok := userText(raw); ok {
 				users++
 				wantUser = user(text) && users < maxKickoffLines
+			}
+		}
+		if tool != nil && len(raw) <= maxLineBytes && hasToolResult(raw) {
+			if n := toolResultBytes(raw); n > 0 {
+				var ts struct {
+					Timestamp time.Time `json:"timestamp"`
+					UUID      string    `json:"uuid"`
+				}
+				if json.Unmarshal(raw, &ts) == nil && !ts.Timestamp.IsZero() && (ts.UUID == "" || !seen["tr\x00"+ts.UUID]) {
+					if ts.UUID != "" {
+						seen["tr\x00"+ts.UUID] = true
+					}
+					tool(ts.Timestamp.UTC(), n)
+				}
 			}
 		}
 		if len(raw) > 0 && len(raw) <= maxLineBytes && bytes.Contains(raw, usageKey) {
