@@ -16,7 +16,7 @@ var Defaults = map[string]string{
 	"model":            "claude-sonnet-5-5", // task session and judge
 	"risk_model":       "claude-opus-5-5",   // when the task names a risk-tier path or is T3
 	"effort":           "medium",            // --effort of every session
-	"judge_effort":     "low",               // --effort of the judge session
+	"judge_effort":     "",                  // --effort of the judge session; empty = the same as effort
 	"gate_max_blocks":  "3",                 // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
 	"gate_wait_s":      "900",               // wait for a test slot before leaving the affected tests to CI
 	"judge_rounds_max": "2",                 // judge REJECT rounds before FAIL
