@@ -497,11 +497,12 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no PR yet"}})
 		return nil
 	}
-	// A PR exists (a takeover of an older branch, or a later round) but this round's review has not run and no
-	// findings are written: the session is still mid-work, so the stop is not a gate attempt. The idle watch nudges and
-	// then fails a session that stays idle like this.
-	if _, err := os.Stat(filepath.Join(run.Worktree, ".hivemill", "findings.json")); err != nil && !r.ReviewRan(run) {
-		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "review not run yet this round"}})
+	// A PR exists (a takeover of an older branch, or a later round) but no findings are written yet: the session is
+	// still mid-work (a background /code-review writes its run record when it starts, so that record alone does not
+	// mean the review is done). The stop is not a gate attempt; the idle watch nudges and then fails a session that
+	// stays idle like this.
+	if _, err := os.Stat(filepath.Join(run.Worktree, ".hivemill", "findings.json")); err != nil {
+		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no findings.json yet"}})
 		return nil
 	}
 	rec := r.Gate(run)
