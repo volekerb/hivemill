@@ -213,6 +213,8 @@ func (r *Runner) affected(wt, base string) (bool, string) {
 		rc, text := r.Tools.Sh(wt, 30*time.Minute, cleanEnv(), "python3", "ci/affected.py", "--base", "origin/"+base, "--quick", "--run")
 		tail := lastLines(text, 8)
 		switch {
+		case rc == 4: // EXIT_BUDGET: what ran passed; slow or over-budget modules are left to CI
+			return true, "ran the fast part; slow modules left to CI (" + firstLine(lastLines(text, 1)) + ")"
 		case strings.Contains(text, "FULL needed"):
 			return true, "not run locally (" + firstLine(tail) + "); CI runs the full suite"
 		case rc == 0:
