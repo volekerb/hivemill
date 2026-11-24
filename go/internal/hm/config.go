@@ -18,8 +18,8 @@ var Defaults = map[string]string{
 	"effort":           "medium",            // --effort of every session
 	"gate_max_blocks":  "3",                 // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
 	"gate_wait_s":      "900",               // wait for a test slot before leaving the affected tests to CI
-	"judge_rounds_max": "3",                 // judge REJECT rounds before FAIL
-	"ci_rounds_max":    "4",                 // red-CI rounds sent back to the session before FAIL
+	"judge_rounds_max": "2",                 // judge REJECT rounds before FAIL
+	"ci_rounds_max":    "3",                 // red-CI rounds sent back to the session before FAIL
 	"auto_revert":      "off",               // on: a runner merge that turns main red is reverted through a PR
 	// dispatch caps: active runs may finish; only new runs wait
 	"max_five_hour_pct":        "92",   // plan 5-hour usage at or over this (fresh reading) holds new runs
