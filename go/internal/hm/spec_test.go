@@ -60,6 +60,14 @@ func TestExpect(t *testing.T) {
 	}
 }
 
+func TestKickoffCarriesCriterionText(t *testing.T) {
+	k := Kickoff(&Run{Agent: "a", Branch: "b", Base: "main"}, &Task{ID: "T-1", Title: "t", Spec: "s",
+		Acceptance: "1. start ctx is 33000 for a transcript with cache read 30000 - cmd:go test -run TestStartCtx => ok"})
+	if !strings.Contains(k, "start ctx is 33000") || !strings.Contains(k, "cmd:go test -run TestStartCtx => ok") {
+		t.Errorf("kickoff lost the criterion text or its proof: %q", k)
+	}
+}
+
 func TestCriteriaProseNumbers(t *testing.T) {
 	// From the pilot-2 backlog: a number in parentheses inside a criterion is prose, not a new criterion.
 	in := "5. done path - a test of `factory done` with mode enforce -> done refused (exit 3) naming checklist; " +

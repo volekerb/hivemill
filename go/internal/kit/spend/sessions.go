@@ -30,7 +30,7 @@ func SessionCosts(root string, sessions []string) map[string]Bucket {
 		}
 		b := out[owner]
 		b.Key = owner
-		_ = readFile(path, func(string) bool { return false }, func(r Request) { b.add(r) }, seen)
+		_ = readFile(path, func(string) bool { return false }, func(r Request) { b.add(r) }, nil, seen)
 		out[owner] = b
 		return nil
 	})
