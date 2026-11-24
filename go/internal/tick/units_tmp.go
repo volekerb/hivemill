@@ -121,7 +121,7 @@ func tmpCleanRun(a *alertEnv) error {
 		d := filepath.Join(base, e.Name())
 		li, err := os.Lstat(d)
 		if err != nil {
-			return err
+			continue // Python's is_symlink()/is_dir() are False on error: the entry is skipped, the rest still swept
 		}
 		if li.Mode()&os.ModeSymlink != 0 || !li.IsDir() || filepath.Dir(pyRealpath(d)) != root {
 			continue
