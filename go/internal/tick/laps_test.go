@@ -57,3 +57,34 @@ func TestCountersMergeKeepsOrder(t *testing.T) {
 		t.Fatalf("a float zero must stay a float: %s", o)
 	}
 }
+
+// TestNewLapsDropsTheHandedInLaps: the real Python child writes the handoff laps back with its own after them; a fake
+// child that returns only its own laps is taken as is. Expected shapes are what bin/factory writes (_tick_handoff_write).
+func TestNewLapsDropsTheHandedInLaps(t *testing.T) {
+	in := []Lap{{"migrate_db", 0.5}, {"digest", 0.25}}
+	for _, c := range []struct {
+		name string
+		ret  []Lap
+		want []Lap
+	}{
+		{"cumulative", []Lap{{"migrate_db", 0.5}, {"digest", 0.25}, {"scout", 1}}, []Lap{{"scout", 1}}},
+		{"cumulative_nothing_new", []Lap{{"migrate_db", 0.5}, {"digest", 0.25}}, []Lap{}},
+		{"only_new", []Lap{{"scout", 1}}, []Lap{{"scout", 1}}},
+		{"only_new_longer_than_input", []Lap{{"scout", 1}, {"retro", 2}, {"skilleval", 3}}, []Lap{{"scout", 1}, {"retro", 2}, {"skilleval", 3}}},
+		{"changed_prefix", []Lap{{"migrate_db", 0.5}, {"digest", 0.3}, {"scout", 1}}, []Lap{{"migrate_db", 0.5}, {"digest", 0.3}, {"scout", 1}}},
+	} {
+		got := newLaps(in, c.ret)
+		if len(got) != len(c.want) {
+			t.Errorf("%s: got %v want %v", c.name, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%s: got %v want %v", c.name, got, c.want)
+			}
+		}
+	}
+	if got := newLaps(nil, []Lap{{"a", 1}}); len(got) != 1 {
+		t.Errorf("no input laps: %v", got)
+	}
+}
