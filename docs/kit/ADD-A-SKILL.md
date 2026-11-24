@@ -34,7 +34,7 @@ It prints one line per problem (`kit-check: <path>: <problem>`) and exits 1, or 
 
    `level` is `SOLO`, `HOMELAB` or `FULL` (each level is a superset of the one before).
 8. **List it in the marketplace.** Add to `.claude-plugin/marketplace.json` an entry with `"name": "hivemill-<name>"` and `"source": "./plugins/kit-<name>"` (plus `description` and `category`).
-9. **Check and open the PR.** Run `kit-check` as above, then the Go tests for your package. CI discovers the plugin from `kit/skills.json`; no workflow edit is needed.
+9. **Check and open the PR.** Run `kit-check` as above, then the Go tests for your package. Once the kit CI workflow (a later G-059 task) runs `kit-check`, it discovers the plugin from `kit/skills.json`; no workflow edit is needed.
 
 ## What kit-check verifies
 
