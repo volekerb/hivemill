@@ -58,7 +58,7 @@ None of these guards changes a config key.
 
 ## Config keys
 
-`hivemill config` lists them, `hivemill config KEY VALUE` sets one. They live in the `hm_config` table of the factory DB, apart from the old pipeline's keys: `max_live_agents`, `max_total_claude` and `dispatch_max_per_tick` are never read. The runner also reads the factory keys `noreply_email`, `scrub_terms_file`, `required_checks`, `frozen_repos` and `red_main_freeze`.
+`hivemill config` lists them, `hivemill config KEY VALUE` sets one. It refuses an unknown key and, for a numeric key, a value that is not a non-negative integer (exit 3, nothing stored; `ValidateCfg`). They live in the `hm_config` table of the factory DB, apart from the old pipeline's keys: `max_live_agents`, `max_total_claude` and `dispatch_max_per_tick` are never read. The runner also reads the factory keys `noreply_email`, `scrub_terms_file`, `required_checks`, `frozen_repos` and `red_main_freeze`.
 
 | key | default | meaning |
 |---|---|---|

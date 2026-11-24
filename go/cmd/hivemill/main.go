@@ -246,7 +246,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		case 2:
 			fmt.Fprintln(stdout, r.Store.Cfg(args[1]))
 		default:
-			err = r.Store.SetCfg(args[1], args[2])
+			if err = hm.ValidateCfg(args[1], args[2]); err == nil {
+				err = r.Store.SetCfg(args[1], args[2])
+			}
 		}
 	default:
 		fmt.Fprintln(stderr, usage)

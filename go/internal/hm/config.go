@@ -1,6 +1,7 @@
 package hm
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -38,6 +39,25 @@ var Defaults = map[string]string{
 	"backup_keep":              "7",    // snapshots kept (in backup_dir and in a file:// target)
 	"backup_dir":               "",     // empty = state/hivemill/backups
 	"backup_target":            "",     // file:///path (copy) | s3://bucket/path | sftp://host/path (litestream when installed)
+}
+
+// numericKeys are the config keys whose value is a non-negative integer.
+var numericKeys = map[string]bool{"max_concurrent": true, "gate_max_blocks": true, "gate_wait_s": true, "judge_rounds_max": true,
+	"ci_rounds_max": true, "pass_interval_s": true, "resume_max": true, "health_max_age_s": true, "alert_every_s": true,
+	"backup_keep": true, "mem_floor_mb": true, "usage_max_age_s": true, "max_five_hour_pct": true, "max_seven_day_pct": true}
+
+// ValidateCfg refuses an unknown key and a numeric key whose value is not a non-negative integer.
+func ValidateCfg(key, value string) error {
+	if _, ok := Defaults[key]; !ok {
+		return fmt.Errorf("%w: unknown config key %q (see `hivemill config`)", ErrRefused, key)
+	}
+	if numericKeys[key] {
+		n, _ := strconv.Atoi(strings.TrimSpace(value))
+		if n < 0 {
+			return fmt.Errorf("%w: %s must be a non-negative integer, got %q", ErrRefused, key, value)
+		}
+	}
+	return nil
 }
 
 // DefaultKeys returns the config keys, sorted.
