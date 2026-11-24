@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const good = "1. the page has a title - cmd:grep -c '<title>' index.html => 1\n" +
+const good = "1. the page has a title - cmd:grep -c '<title>' index.html => exit 0\n" +
 	"2. unit test passes - test:test_x.XTests.test_title\n" +
 	"3. looks right on a phone - manual: only the owner has the device"
 
@@ -14,7 +14,7 @@ func TestCriteria(t *testing.T) {
 	if len(c) != 3 || c[0].Kind != "cmd" || c[1].Kind != "test" || c[2].Kind != "manual" {
 		t.Fatalf("%+v", c)
 	}
-	if c[0].Proof != "grep -c '<title>' index.html" || c[0].Expect != "1" {
+	if c[0].Proof != "grep -c '<title>' index.html" || c[0].Expect != "exit 0" {
 		t.Errorf("cmd proof %q expect %q", c[0].Proof, c[0].Expect)
 	}
 	if p := LintProblems(good); len(p) != 0 {
@@ -53,7 +53,7 @@ func TestExpect(t *testing.T) {
 		rc   int
 		out  string
 		want bool
-	}{{"exit 0", 0, "", true}, {"0", 1, "", false}, {"empty", 0, " \n", true}, {"OK", 0, "Ran 3\nOK", true}, {"OK", 0, "FAILED", false}} {
+	}{{"exit 0", 0, "", true}, {"0", 1, "", false}, {"3", 0, "3\n", true}, {"2", 0, "1", false}, {"rc=1", 1, "", true}, {"empty", 0, " \n", true}, {"OK", 0, "Ran 3\nOK", true}, {"OK", 0, "FAILED", false}} {
 		if ok, _ := ExpectOK(c.exp, c.rc, c.out); ok != c.want {
 			t.Errorf("%+v: got %v", c, ok)
 		}
