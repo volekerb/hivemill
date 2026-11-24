@@ -31,8 +31,8 @@ from web import queries, server  # noqa: E402
 from web.views import ROUTES  # noqa: E402
 
 XSS = "<script>alert(1)</script>"
-PAGES = ["/", "/goals", "/goal/G-1", "/tasks", "/task/T-1", "/agents", "/resources", "/throughput", "/quality",
-         "/changelog", "/tokens"]
+PAGES = ["/", "/goals", "/goal/G-1", "/tasks", "/task/T-1", "/agents", "/resources", "/flow", "/quality",
+         "/changelog", "/spend"]   # G-069: /throughput and /tokens 301 to /flow and /spend
 APIS = ["/api/home.json", "/api/goals.json", "/api/tasks.json", "/api/agents.json", "/api/resources.json",
         "/api/throughput.json", "/api/quality.json", "/api/changelog.json", "/api/tokens.json"]
 ALL_ROUTES = PAGES + APIS + ["/healthz", "/static/app.css", "/static/favicon.svg"]
@@ -369,8 +369,8 @@ class TestVocabularyAndStubs(ServerCase):
 
     def test_every_page_has_nav_to_all_pages(self):
         want = [p for p, _ in wh.NAV]
-        self.assertEqual(want, ["/", "/goals", "/tasks", "/agents", "/throughput", "/quality",
-                                "/tokens", "/changelog", "/resources"])
+        self.assertEqual(want, ["/", "/goals", "/tasks", "/agents", "/spend", "/flow", "/quality",
+                                "/resources", "/changelog"])   # G-069 groups: Now, Analyze, (Improve: soon), System
         for path in PAGES:
             with self.subTest(path):
                 text = self.get(path)[2].decode()
@@ -391,10 +391,11 @@ class TestVocabularyAndStubs(ServerCase):
         for path in PAGES:
             text = self.get(path)[2].decode()
             self.assertNotRegex(text, r'src="(?:https?:)?//')
-            # outbound links are allowed only to GitHub pull requests (web.html.link); never to assets
-            self.assertNotRegex(text, r'href="(?:https?:)?//(?!github\.com/[\w.-]+/[\w.-]+/pull/\d+")')
+            # outbound links are allowed only to GitHub pull requests (web.html.link) and, G-069, the page's one
+            # "How this is counted" link to a repo doc (components.howto); never to assets
+            self.assertNotRegex(text, r'href="//')
             for href in re.findall(r'href="(https?://[^"]*)"', text):
-                self.assertRegex(href, r"^https://github\.com/[\w.-]+/[\w.-]+/pull/\d+$")
+                self.assertRegex(href, r"^https://github\.com/[\w.-]+/[\w.-]+/(?:pull/\d+|blob/main/docs/[\w-]+\.md)$")
             self.assertNotIn("<script", text.replace('<script src="/static/theme.js" defer></script>', ""))  # only the deferred theme toggle
 
     def test_registry_complete(self):

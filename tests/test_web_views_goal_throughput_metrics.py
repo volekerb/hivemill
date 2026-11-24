@@ -1,5 +1,6 @@
-"""/goal/<id> "Cost and time" card and /throughput median + p90 cost and tokens per merged PR (fixed fixture, fixed clock)."""
+"""/goal/<id> "Cost and time" card, and the Flow (hours per merged PR) and Spend (dollars per merged PR) pages from hm-obs fixtures."""
 import datetime as dt
+import json
 import re
 import sqlite3
 import sys
@@ -9,9 +10,11 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tests"))
 
+from test_web_views_tokens import flow_obs, obs_ctx, spend_obs  # noqa: E402
 from web import prices  # noqa: E402
-from web.views import goals, throughput  # noqa: E402
+from web.views import goals, throughput, tokens  # noqa: E402
 
 SCHEMA = (ROOT / "tests" / "fixtures" / "web" / "schema.sql").read_text()
 NOW = dt.datetime(2026, 10, 24, 12, 0).astimezone()
@@ -57,11 +60,6 @@ class Base(unittest.TestCase):
                 "sessions": {r["session"]: {"agent_name": None, "first_ts": None, "project": "", "cwd": ""} for r in self.rows}}
         return SimpleNamespace(db=self.con, now=NOW, tokens=lambda: snap, defaults={}, factory_home=None, query=query)
 
-    def throughput(self, **query):
-        c = self.ctx(**query)
-        d = throughput.data(c)
-        return d, str(throughput.render(c, d))
-
     def goal_page(self, gid):
         c = self.ctx()
         d = goals.detail.data(c, id=gid)
@@ -72,64 +70,66 @@ def cost_of(inp):
     return prices.cost(SONNET, usage_row("x", inp))
 
 
-class ThroughputSpread(Base):
-    def seed(self):
-        self.goal("G-1")
-        for n, inp in enumerate((100_000, 200_000, 300_000, 400_000, 500_000, 600_000, 700_000, 800_000, 900_000, 1_000_000), 1):
-            self.merged(f"T-{n}", "G-1", 0, 10, inp=inp)
+def render(view, **ctx_args):
+    c = obs_ctx(**ctx_args)
+    d = view.data(c)
+    json.dumps(d)
+    return c, str(view.render(c, d))
 
-    def test_median_and_p90_cost_and_tokens_are_exact(self):
-        self.seed()
-        d, html = self.throughput()
-        c = d["cost"]
-        costs = sorted(cost_of(i) for i in range(100_000, 1_000_001, 100_000))
-        self.assertEqual(c["priced"], 10)
-        self.assertEqual(c["tokens_median"], 550_000)       # (500k + 600k) / 2
-        self.assertEqual(c["tokens_p90"], 900_000)          # nearest rank: ceil(0.9 * 10) = 9th value
-        self.assertAlmostEqual(c["cost_median"], (costs[4] + costs[5]) / 2, places=4)
-        self.assertAlmostEqual(c["cost_p90"], costs[8], places=4)
-        self.assertEqual(c["left_out_ids"], [])
-        for text in ("Median cost per merged PR", "p90 cost per merged PR", "Median tokens per merged PR", "550,000", "900,000"):
-            self.assertIn(text, html)
 
-    def test_tasks_left_out_are_counted_and_named_not_zero(self):
-        self.seed()
-        self.merged("T-20", "G-1", 0, 12)                    # no tokens attributed
-        d, html = self.throughput()
-        self.assertEqual(d["cost"]["left_out_ids"], ["T-20"])
-        self.assertEqual(d["cost"]["tokens_p90"], 900_000)   # the priced set is unchanged
-        self.assertIn("Left out (no tokens or no price): T-20.", html)
-        self.assertIn("10 of 11 Claude tasks priced", html)
+def items(html):
+    return dict(re.findall(r'<dt class="strip-label">([^<]*)</dt><dd class="strip-value">([^<]*)</dd>', html))
 
-    def test_cursor_tasks_are_named_and_add_nothing(self):
-        self.seed()
-        self.goal("G-9", org="cursor")
-        self.merged("T-30", "G-9", 0, 15, agent_prefix="cursor-coder")
-        d, html = self.throughput()
-        self.assertEqual(d["cost"]["cursor_ids"], ["T-30"])
-        self.assertEqual(d["cost"]["priced"], 10)
-        self.assertIn("Cursor tasks, no cost or tokens reported: T-30.", html)
 
-    def test_cursor_org_view_says_not_available(self):
-        self.seed()
-        self.goal("G-9", org="cursor")
-        self.merged("T-30", "G-9", 0, 15, agent_prefix="cursor-coder")
-        _, html = self.throughput(org="cursor")
-        self.assertIn("Not available for Cursor", html)
-        self.assertNotIn("Median cost per merged PR", html)
+class FlowAndSpendFigures(unittest.TestCase):
+    """The per-merged-PR spread now comes from hm-obs: hours on Flow, dollars on Spend. The page only formats them."""
+
+    def test_median_and_p90_hours_are_exact_in_every_size_format(self):
+        for med, p90, want in ((4.5, 12.25, ("4.5 h", "12 h")), (0.25, 8.26, ("0.2 h", "8.3 h")),
+                               (9.96, 123.4, ("10 h", "123 h")), (1234.0, 2500.0, ("1,234 h", "2,500 h"))):
+            _, html = render(throughput, flow=flow_obs(open_to_merge_median_h=med, open_to_merge_p90_h=p90))
+            f = items(html)
+            self.assertEqual((f["Median open → merge"], f["p90 open → merge"]), want, (med, p90))
+
+    def test_unattributed_spend_is_a_named_row_and_a_share_not_dropped(self):
+        _, html = render(tokens, spend=spend_obs())
+        self.assertIn('<span class="muted">Not attributed</span>', html)
+        self.assertIn("8.0% not attributed", html)
+        row = html.split('<span class="muted">Not attributed</span>')[1].split("</tr>")[0]
+        self.assertIn('<span class="cl">$/PR</span>–', row)       # no merged PR to divide by: a dash, not $0.00
+        self.assertIn('<span class="cl">$</span>$4.00', row)
+        self.assertNotIn("$0.00</td><td class=\"num\"><span class=\"cl\">$/PR", html)
+
+    def test_rows_drill_to_the_next_group_and_keep_the_filter(self):
+        _, html = render(tokens, spend=spend_obs(filters={"role": "coder"}, group="model", drill="session"),
+                         group="model", role="coder")
+        self.assertIn("Filtered by role coder", html)
+        self.assertRegex(html, r'<a href="/spend\?[^"]*">clear</a>')
+        self.assertRegex(html, r'<a href="/spend\?[^"]*group=session[^"]*"><span class="mono">coder</span></a>')
+
+    def test_spend_asks_hm_obs_for_group_range_and_drill_filters_only(self):
+        c, _ = render(tokens, spend=spend_obs(), group="model", role="coder", range="30d")
+        self.assertEqual(c.calls, [("spend", ["--hours", "720", "--group", "model", "--role", "coder"])])
+        c, _ = render(tokens, spend=spend_obs(), group="evil", model="x y; rm", range="nope")
+        self.assertEqual(c.calls, [("spend", ["--hours", "168", "--group", "role"])])
 
     def test_empty_period_shows_dash_not_zero_dollars(self):
-        self.goal("G-1")
-        _, html = self.throughput()
-        box = html.split("Cost and tokens per merged PR")[1].split("</section>")[0]
-        self.assertNotIn("$0.00", box)
-        self.assertEqual(len(re.findall(r">-<", box)), 4)
+        empty = {"cost_usd": None, "requests": 0, "sessions": 0, "spawn_usd": None, "polling_usd": None, "work_usd": None,
+                 "cache_write_usd": None, "unpriced_requests": 0, "polling_pct": None, "cache_write_pct": None,
+                 "merged_prs": 0, "per_merged_pr_usd": None}
+        _, html = render(tokens, spend=spend_obs(current=empty, previous={}, rows=[], bins=[], banners=[],
+                                                 unattributed_usd=None, unattributed_pct=None))
+        f = items(html)
+        self.assertEqual((f["Spend"], f["Per merged PR"], f["Polling"], f["Cache writes"]), ("–", "–", "–", "–"))
+        self.assertIn("No spend in this range", html)
+        self.assertNotIn("$0.00", html)
+        self.assertNotIn("not attributed", html)
 
-    def test_not_ready_index_is_not_zero(self):
-        self.seed()
-        c = self.ctx(ready=False)
-        html = str(throughput.render(c, throughput.data(c)))
-        self.assertIn("Not ready: the token index is still warming up.", html)
+    def test_unavailable_obs_is_a_banner_and_never_zero_dollars(self):
+        _, html = render(tokens, error="hm-obs exited 3")
+        self.assertIn('<p class="banner" role="note">! Spend data unavailable: hm-obs exited 3</p>', html)
+        self.assertNotIn("$", html)
+        self.assertNotIn('class="strip"', html)
 
 
 class GoalCostTime(Base):

@@ -46,7 +46,9 @@ SURFACES = ("surface-0", "surface-1", "surface-2", "fill")
 # tokens v2 (T-0429 note 2), the 26 colour keys of mock.css
 KEYS = ("surface-0", "surface-1", "surface-2", "fill", "text-1", "text-2", "text-3", "hairline", "border", "accent",
         "accent-solid", "track", "data-1", "data-2", *(f"{t}-{k}" for t in TONES for k in ("fg", "bg", "solid")),
-        *(f"org-{o}-{k}" for o in ("claude", "cursor") for k in ("fg", "bg", "solid")))   # G-028 org colours
+        *(f"org-{o}-{k}" for o in ("claude", "cursor") for k in ("fg", "bg", "solid")),   # G-028 org colours
+        "bg", "surface", "line", "ink", "muted-ink", "bad", "warn", "good", "b-work", "b-polling", "b-spawn",
+        *(f"role-{i}" for i in range(1, 9)))   # G-069 tokens
 
 
 class Css(unittest.TestCase):

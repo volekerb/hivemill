@@ -7,7 +7,7 @@ from web import charts, queries, tokens as wtokens
 from web.prices import PRICES_AS_OF
 from scout import orgs as _orgs
 from web.components import (AGENT_COLS, COLLAPSED, agent_row, GROUP_ORDER, ago, chip, chips, ctx_org, data_table, disclosure, empty_state, filter_bar, needs_you_row,
-                            org_badge, org_href, row_status, section, segmented)
+                            org_href, row_status, section, segmented)
 from web.html import CLASSES, LABELS, badge, card, crumbs, dur, el, link, table, ts
 from web.views.home import _needs, goal_row, needs_by_goal
 
@@ -325,7 +325,7 @@ def _detail_render(ctx, d):
     tagged = any(c["tasks"] for c in cr)
     summary = f"{done}/{total} tasks" + (f" · {sum(_met(d).values())}/{len(cr)} criteria" if tagged else "")
     team = d["teams_detail"][0]["id"] if d["teams_detail"] else None
-    meta = el("p", status_badge(d["status"]), " ", org_badge(d.get("org")), " · ",
+    meta = el("p", status_badge(d["status"]), " · ",
               f"P{d['priority']}" if d["priority"] is not None else "no priority",
               " · ", team or "no team", " · updated ", ts(d["updated"]), class_="metarow")
     main = el("div", meta, _intent(d), _teams(d, ctx.now), charts.meter(done, total, summary), _cost_time_card(d), _blocking(d, ctx.now), _criteria(d), _tasks_table(d, ctx.now),

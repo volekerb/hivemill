@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from web import ci, queries
 from web.queries import parse_ts
-from web.components import (data_table, disclosure, empty_state, filter_bar, ago, chips, ctx_org, href, org_badge, org_href, pr_label, row_status,
+from web.components import (data_table, disclosure, empty_state, filter_bar, ago, chips, ctx_org, href, org_href, pr_label, row_status,
                             GROUP_ORDER, COLLAPSED)
 from web.prices import PRICES_AS_OF
 from web.tokens import attribute, rollup, task_usage
@@ -178,7 +178,7 @@ def _row(t, now):
     n = t["rejections"]
     rej = f"{n} rejection{'s' if n != 1 else ''}" + (f" · {t['attempts']} tries" if t["attempts"] and t["attempts"] > 1 else "") if n else ""
     title = el("span", el("a", t["title"], href=f"/task/{t['id']}"), " ", task_badge("blocked", t["waits"]) if t["status"] == "blocked" else None)
-    goal = el("span", link(f"/goal/{t['goal_id']}", t["goal_id"]), " ", org_badge(t.get("org")), class_="orgrow") if t["goal_id"] else ""
+    goal = el("span", link(f"/goal/{t['goal_id']}", t["goal_id"]), class_="orgrow") if t["goal_id"] else ""
     return [row_status(t["status"]), t["id"], title, goal,
             t["assignee"] or "", pr, rej, _metric_cell(t, "cost", lambda v: f"${v:,.2f}"), _metric_cell(t, "tokens", lambda v: f"{v:,}"),
             _metric_cell(t, "wall_s", dur), el("span", ago(t["updated"], now), title=t["updated"])]
@@ -247,7 +247,7 @@ def render(ctx, d):
 
 # ── detail ──
 
-from web.components import section, tile                    # noqa: E402  (the list part above is B3's and keeps its imports)
+from web.components import section, strip                   # noqa: E402  (the list part above is B3's and keeps its imports)
 from web.html import crumbs, glyph, status                  # noqa: E402
 from web.views.goals import DetailView, not_found           # noqa: E402
 
@@ -599,8 +599,8 @@ def _detail_render(ctx, d):
     crumb = crumbs(("/tasks", "Tasks"), (f"/task/{d.get('id')}", d.get("id") or "?"))
     if not d.get("found"):
         return not_found("task", d.get("id"), "/tasks", "Back to Tasks", crumb)
-    tiles = el("div", tile("Total time", dur(d["total_s"])), tile("Rejections", d["rejections"]), tile("Attempts", d["attempts"] or 0),
-               class_="tiles")
+    tiles = strip([{"label": "Total time", "value": dur(d["total_s"])}, {"label": "Rejections", "value": d["rejections"]},
+                   {"label": "Attempts", "value": d["attempts"] or 0}], key="task")
     blocks = _attempt_blocks(d["steps"])
     cycle = ([_attempt(n, b, n == len(blocks), ctx.now) for n, b in enumerate(blocks, 1)] if blocks else [empty_state("No events yet.")])
     parts = [el("div", crumb, _meta(d), el("p", _cost_line(d["cost"]), class_="muted"), class_="tblock tblock--wide"), section("Verdicts", _verdict_summary(d) or empty_state("No verdicts yet.")), tiles,

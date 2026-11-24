@@ -1,4 +1,4 @@
-"""Tests for web/views/throughput.py, quality.py and changelog.py."""
+"""Tests for web/views/throughput.py (the Flow page), quality.py and changelog.py, and the queries behind them."""
 import json
 import re
 import sqlite3
@@ -6,7 +6,6 @@ import sys
 import tempfile
 import time
 import unittest
-from html.parser import HTMLParser
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,8 +15,10 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from harness import FactoryEnv  # noqa: E402
 from test_web_queries import CANARY, NOW, make_db, ts  # noqa: E402
+from test_web_views_tokens import flow_obs, obs_ctx  # noqa: E402
 from web import db as wdb  # noqa: E402
 from web import html as wh  # noqa: E402
+from web import queries  # noqa: E402
 from web.views import ROUTES, changelog, quality, throughput  # noqa: E402
 
 XSS = "<script>alert(1)</script>"
@@ -55,66 +56,60 @@ class MetricsCase(unittest.TestCase):
         return d, str(view.render(c, d))
 
 
-class TestThroughput(MetricsCase):
+class TestMergeQueries(MetricsCase):
+    """queries.throughput and queries.merges_per_day: the factory-db side the Home and Goals pages still use."""
+
+    def tp(self, days=14, **kw):
+        con = wdb.connect(self.path)
+        self.addCleanup(con.close)
+        return queries.throughput(con, days, now=NOW, **kw)
+
     def test_rejection_rate_absent_from_json_payload(self):
         d = self.page(quality)[0]
         self.assertNotIn("rejection_rate", json.dumps(d))
 
-    def test_kpis_median_p90_and_in_progress(self):
-        d, html = self.page(throughput)
+    def test_total_seconds_per_merged_task_and_unknown_not_guessed(self):
+        d = self.tp()
         self.assertEqual(d["days"], 14)
-        self.assertEqual(d["merges"], 6)        # T-1, T-5 and the four timed tasks
-        self.assertEqual(d["timed"], 5)         # T-5 has no agent spawn: unknown, not guessed
-        # totals 600, 1200, 1800, 2400 and T-1 (10:00 -> 11:20 = 4800): median 1800, nearest-rank p90 4800
-        self.assertEqual((d["median_s"], d["p90_s"]), (1800, 4800))
-        self.assertEqual(d["open_tasks"], 2)    # one in_progress + one in_review in the fixture
-        for needle in ("30m 00s", "1h 20m", "Median spawn to merge", "in 14 days"):
-            self.assertIn(needle, html)
+        tot = {t["task_id"]: t["total_s"] for t in d["tasks"]}
+        # the four timed tasks spawn at 09:00 and merge 10/20/30/40 minutes later; T-1 is 10:00 -> 11:20
+        self.assertEqual(tot["T-71"], 600)
+        self.assertEqual((tot["T-72"], tot["T-73"], tot["T-74"]), (1200, 1800, 2400))
+        self.assertEqual(tot["T-1"], 4800)
+        self.assertIsNone(tot["T-5"])           # no agent spawn: unknown, not guessed
+        self.assertEqual(len(tot), 6)
+        self.assertEqual(sorted(v for v in tot.values() if v is not None), [600, 1200, 1800, 2400, 4800])
 
-    def test_open_tasks_counts_in_review_and_live_workers(self):
-        x = self.w.execute
-        base = self.page(throughput)[0]
-        x(T_SQL, ("T-90", "G-1", "t-a", "review one", "s", "a", "coder", "in_review", 1, ts(8, 0), ts(9, 0)))
-        x("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,started) VALUES(?,?,?,?,?,?,?)",
-          ("coder-t-90", "coder", "G-1", "t-a", "T-90", "live", ts(9, 0)))
-        x("INSERT INTO agents(name,role,goal_id,team_id,status,started) VALUES(?,?,?,?,?,?)",
-          ("lead-x", "lead", "G-1", "t-a", "live", ts(9, 0)))   # live but no task: not a worker
-        d, html = self.page(throughput)
-        want = self.w.execute("SELECT COUNT(*) FROM tasks WHERE status IN ('in_progress','in_review')").fetchone()[0]
-        self.assertEqual(d["open_tasks"], want)
-        self.assertEqual(d["open_tasks"], base["open_tasks"] + 1)    # T-90 is in_review
-        self.assertEqual(d["open_tasks"], 3)    # fixture's in_progress + in_review + T-90
-        self.assertEqual(d["live_workers"], base["live_workers"] + 1)   # the lead has no task: not counted
-        self.assertIn("3 tasks open now (in progress or in review), 2 agents working on a task.", html)
-        a, b = d["agents"], base["agents"]
-        self.assertEqual((a["workers"] - b["workers"], a["leads"] - b["leads"], a["running"] - b["running"]), (1, 1, 2))
-        self.assertIn(f"{a['workers']} workers · {a['leads']} leads · {a['hq']} HQ", html)     # the Agents running now tile
-        self.assertNotIn("In progress now", html)
+    def test_goal_filter_keeps_only_that_goals_tasks_and_merges(self):
+        d = self.tp(goals={"G-2"})
+        self.assertEqual([t["task_id"] for t in d["tasks"]], ["T-5"])
+        self.assertEqual({g["goal_id"] for g in d["tasks_per_goal"]}, {"G-2"})
+        self.assertEqual(sum(r["merges"] for r in d["merges_per_day"]), 1)
+        con = wdb.connect(self.path)
+        self.addCleanup(con.close)
+        self.assertEqual(sum(r["merges"] for r in queries.merges_per_day(con, 14, now=NOW, goals={"G-1"})), 5)
+        self.assertEqual(sum(r["merges"] for r in queries.merges_per_day(con, 14, now=NOW, goals=set())), 0)
 
-    def test_merges_chart_replaces_the_bar_table(self):
-        _, html = self.page(throughput)
-        self.assertNotIn("bar--", html)
-        self.assertRegex(html, r'<svg [^>]*role="img"[^>]*aria-label="6 merges in 14 days, peak \d on [\d-]+"[^>]*class="cols">')
-        self.assertIn('</svg><table class="sr-only">', html)
-        # the stages are meters with their share of the total, not percent-of-max bars
-        self.assertRegex(html, r'<span class="lbl">[^<]* · \d+% of total</span>')
+    def test_merges_per_day_is_dense_and_oldest_first(self):
+        con = wdb.connect(self.path)
+        self.addCleanup(con.close)
+        rows = queries.merges_per_day(con, 7, now=NOW)
+        self.assertEqual(len(rows), 7)
+        self.assertEqual([r["day"] for r in rows], sorted(r["day"] for r in rows))
+        self.assertEqual(rows[-1]["day"], NOW.astimezone().date().isoformat())   # today is the last day
+        self.assertEqual(sum(r["merges"] for r in rows), 6)
+        self.assertEqual(rows, self.tp(7)["merges_per_day"])        # one source of truth for both callers
 
-    def test_stage_sums_and_unknown(self):
-        d, html = self.page(throughput)
-        st = {s["key"]: s for s in d["stages"]}
+    def test_stage_seconds_for_one_task_and_unknown_for_the_rest(self):
+        st = {t["task_id"]: t for t in self.tp()["tasks"]}
         # T-1: coder spawn 10:00 -> first pr update 10:30; review 11:00 -> 11:15; judge 11:15 -> 11:20; rework 10:45 -> 11:00
-        self.assertEqual(st["coding_s"]["sum_s"], 1800)
-        self.assertEqual(st["review_s"]["sum_s"], 900)
-        self.assertEqual(st["judge_s"]["sum_s"], 300)
-        self.assertEqual(st["rework_s"]["sum_s"], 900)
-        # only T-1 has a coding / review / judge stage; the other five merged tasks are unknown
-        self.assertEqual((st["coding_s"]["known"], st["coding_s"]["unknown"]), (1, 5))
-        self.assertEqual(st["coding_s"]["median_s"], 1800)
-        self.assertIn("5 unknown", html)
-        self.assertIn('class="meter"', html)
+        t1 = st["T-1"]
+        self.assertEqual((t1["coding_s"], t1["review_s"], t1["judge_s"], t1["rework_s"]), (1800, 900, 300, 900))
+        for tid in ("T-5", "T-71", "T-72", "T-73", "T-74"):     # no pr update or verdict events: unknown, never 0
+            self.assertEqual((st[tid]["coding_s"], st[tid]["review_s"], st[tid]["judge_s"]), (None, None, None), tid)
 
     def test_merges_per_day_match_events(self):
-        d = self.page(throughput, days="30")[0]
+        d = self.tp(30)
         self.assertEqual(d["days"], 30)
         self.assertEqual(len(d["merges_per_day"]), 30)
         want = dict(self.w.execute("SELECT substr(ts,1,10), count(*) FROM events WHERE entity='task' AND action='merged' "
@@ -123,63 +118,170 @@ class TestThroughput(MetricsCase):
         self.assertEqual(got, want)
         self.assertEqual(sum(got.values()), 6)
 
-    def test_per_goal_and_slowest(self):
-        d, html = self.page(throughput)
-        g = {x["goal_id"]: x for x in d["goals"]}
-        self.assertEqual((g["G-1"]["done"], g["G-1"]["median_s"]), (5, 1800))
-        self.assertEqual((g["G-2"]["done"], g["G-2"]["median_s"]), (1, None))
-        self.assertEqual([s["task_id"] for s in d["slowest"]], ["T-1", "T-74", "T-73", "T-72", "T-71"])
-        self.assertRegex(html, r'href="/task/T-1"')
-        self.assertNotIn("[SC", html)
+    def test_done_tasks_per_goal(self):
+        g = {x["goal_id"]: x for x in self.tp()["tasks_per_goal"]}
+        self.assertEqual((g["G-1"]["done"], g["G-2"]["done"]), (5, 1))
+        self.assertEqual(g["G-1"]["title"], "Goal one")
+        self.assertEqual([t["task_id"] for t in self.tp()["tasks"] if t["goal_id"] == "G-1"],
+                         ["T-1", "T-71", "T-72", "T-73", "T-74"])
 
-    def test_invalid_days_fall_back(self):
-        for bad in ("abc", "0", "-3", "9999", "", "7.5", "14; DROP"):
-            self.assertEqual(self.page(throughput, days=bad)[0]["days"], 14, bad)
-        self.assertEqual(self.page(throughput, days="7")[0]["days"], 7)
+    def test_a_task_merged_before_the_window_is_not_counted(self):
+        self.w.execute("UPDATE events SET ts=? WHERE entity_id='T-71' AND action='merged'", (ts(9, 10, day=1),))
+        d = self.tp(7)
+        self.assertNotIn("T-71", [t["task_id"] for t in d["tasks"]])
+        self.assertEqual(sum(r["merges"] for r in d["merges_per_day"]), 5)
+        self.assertIn("T-71", [t["task_id"] for t in self.tp(30)["tasks"]])
+
+    def test_range_param_falls_back_to_default(self):
+        self.assertEqual(queries.range_param({"range": "24h"})[1], 24)
+        for bad in ("abc", "0", "-3", "9999", "", "7.5", "14; DROP", None):
+            self.assertEqual(queries.range_param({"range": bad})[0], "7d", bad)
+        self.assertEqual(queries.range_param(None)[0], "7d")
 
     def test_empty_db(self):
         self.w.executescript("DELETE FROM events; DELETE FROM tasks; DELETE FROM agents; DELETE FROM verdicts;")
-        d, html = self.page(throughput)
-        self.assertEqual((d["merges"], d["median_s"], d["p90_s"]), (0, None, None))
-        self.assertIn("No merges in this range", html)
-        self.assertIn("No merged tasks in this period.", html)
-        self.assertIn("No timed tasks in this period.", html)
+        d = self.tp()
+        self.assertEqual((d["tasks"], d["tasks_per_goal"]), ([], []))
+        self.assertEqual(len(d["merges_per_day"]), 14)
+        self.assertEqual(sum(r["merges"] for r in d["merges_per_day"]), 0)
 
 
-class _KpiTree(HTMLParser):
-    """Walks the first .grid: its direct children, and every <p> in it with whether a .kpi card encloses it."""
-    def __init__(self):
-        super().__init__()
-        self.stack, self.grid_at, self.done = [], None, False
-        self.children, self.paras = [], []
+def flow_page(**over):
+    """(ctx, html) of the Flow page over a flow_obs fixture."""
+    c = obs_ctx(flow=flow_obs(**over))
+    d = throughput.data(c)
+    json.dumps(d)
+    return c, str(throughput.render(c, d))
 
-    def handle_starttag(self, tag, attrs):
-        cls = (dict(attrs).get("class") or "").split()
-        if self.grid_at is not None and not self.done:
-            if len(self.stack) == self.grid_at + 1:
-                self.children.append(cls)
-            if tag == "p":
-                self.paras.append(any("tile" in c for _, c in self.stack[self.grid_at + 1:]))
-        elif "tiles--4" in cls and not self.done:
-            self.grid_at = len(self.stack)
-        self.stack.append((tag, cls))
 
-    def handle_endtag(self, tag):
-        self.stack.pop()
-        if self.grid_at is not None and len(self.stack) == self.grid_at:
-            self.done = True    # first tile row closed; ignore the rest of the page
+class TestFlowPage(unittest.TestCase):
+    def test_strip_has_five_figures_and_definitions(self):
+        _, html = flow_page()
+        strip = html.split('<dl class="strip">')[1].split("</dl>")[0]
+        self.assertEqual(re.findall(r'<dt class="strip-label">([^<]*)</dt><dd class="strip-value">([^<]*)</dd>', strip),
+                         [("Merged", "6"), ("Median open → merge", "4.5 h"), ("p90 open → merge", "12 h"),
+                          ("2+ review rounds", "38%"), ("Open &gt; 6 h", "1")])
+        self.assertIn('<dd class="strip-delta muted">7 days</dd>', strip)
+        self.assertIn('<dd class="strip-delta fg-warning">! 3 of 8</dd>', strip)
+        self.assertIn('<dd class="strip-delta fg-warning">! see Stuck now</dd>', strip)
+        self.assertIn("How these are counted", html)
+
+    def test_asked_hm_obs_for_the_default_window(self):
+        c, _ = flow_page()
+        self.assertEqual(c.calls, [("flow", ["--hours", "168"])])
+
+    def test_stage_map_lanes_and_stage_bar_aria(self):
+        _, html = flow_page()
+        main = html.split('<p class="stage-lane">Main line</p>')[1].split('<p class="stage-lane">Rework loop</p>')[0]
+        self.assertEqual(re.findall(r'<span class="stage-name">([^<]*)</span>', main), ["Coder", "CI wait", "Review + QA", "Judge", "Merge"])
+        self.assertEqual(main.count("lane-main"), 5)
+        rework = html.split("Rework loop</p>")[1].split('<p class="stage-lane">Side queues</p>')[0]
+        self.assertIn('<span class="stage-name">Rework</span>', rework)
+        self.assertIn("lane-rework", rework)
+        side = html.split("Side queues</p>")[1]
+        self.assertIn('<span class="stage-name">Hold</span>', side)
+        self.assertIn("lane-side", side)
+        self.assertRegex(html, r'<span class="stage-name">Review \+ QA</span><svg [^>]*role="img"[^>]*class="stage-bar" '
+                               r'aria-label="40% of stage hours">')
+        self.assertIn('<rect class="stage-fill" x="0" y="0" width="40.0" height="8"></rect>', html)
+
+    def test_stage_hours_and_share_are_printed_per_stage(self):
+        _, html = flow_page()
+        rows = re.findall(r'<span class="stage-name">([^<]*)</span><svg [^>]*>.*?</svg><span class="stage-h">([^<]*)</span>'
+                          r'<span class="stage-share">([^<]*)</span>', html)
+        self.assertEqual(rows, [("CI wait", "10 h", "20%"), ("Review + QA", "20 h", "40%"), ("Judge", "5.0 h", "10%"),
+                                ("Rework", "10 h", "20%"), ("Hold", "5.0 h", "10%")])
+        self.assertIn("50 h of stage time in the window.", html)
+        # Coder and Merge are the line's ends: a dash, no bar, no share
+        self.assertIn('<span class="stage-name">Coder</span><span class="stage-h">–</span></li>', html)
+
+    def test_stuck_now_table_links_the_pr_and_the_task(self):
+        _, html = flow_page()
+        row = html.split("<h2>Stuck now")[1].split("<tbody>")[1].split("</tbody>")[0]
+        self.assertIn('<a href="https://github.com/acme/factory/pull/812" rel="noopener" class="mono">acme/factory#812</a>', row)
+        self.assertIn('<a href="/task/T-7">T-7</a>', row)
+        self.assertIn("<td>Review + QA</td>", row)      # the stage's label, not its key
+        self.assertIn('<span class="cl">Age</span>9.5 h', row)
+
+    def test_nothing_stuck_says_so(self):
+        _, html = flow_page(stuck=[], open_over_6h=0)
+        self.assertIn("No open PR is older than 6 hours", html)
+        self.assertNotIn("<tbody>", html)
+        self.assertNotIn("see Stuck now", html)
+
+    def test_banners_come_from_obs_and_start_with_a_bang(self):
+        _, html = flow_page(banners=["! 38% of PRs needed 2+ review rounds (3 of 8): too many.", "no bang in the input"])
+        texts = re.findall(r'<p class="banner" role="note">([^<]*)</p>', html)
+        self.assertEqual(texts, ["! 38% of PRs needed 2+ review rounds (3 of 8): too many.", "! no bang in the input"])
+        self.assertNotIn('class="banners"', flow_page(banners=[])[1])
+
+    def test_error_state_is_one_banner_and_no_figures(self):
+        c = obs_ctx(flow=None, error="hm-obs exited 2")
+        html = str(throughput.render(c, throughput.data(c)))
+        self.assertIn('<p class="banner" role="note">! Flow data unavailable: hm-obs exited 2</p>', html)
+        self.assertNotIn('class="strip"', html)
+        self.assertNotIn("Where PRs wait", html)
+        self.assertIn("How this is counted", html)
+
+    def test_no_obs_in_the_server_is_an_error_state_not_a_crash(self):
+        c = obs_ctx(flow=flow_obs())
+        del c.obs
+        html = str(throughput.render(c, throughput.data(c)))
+        self.assertIn("! Flow data unavailable: hm-obs is not available in this server", html)
+
+    def test_empty_stage_hours_state(self):
+        _, html = flow_page(stages=[], stage_hours=0, stuck=[], merged=0, prs=0, prs_2plus_rounds=0, prs_2plus_rounds_pct=None,
+                            open_to_merge_median_h=None, open_to_merge_p90_h=None, open_over_6h=0)
+        self.assertIn("No stage hours in this range", html)
+        self.assertNotIn('class="stage lane-main"><span class="stage-name">CI wait', html)
+        self.assertIn('<span class="stage-name">Coder</span>', html)     # the line's ends stay drawn
+
+    def test_unknown_values_show_a_dash_not_zero(self):
+        _, html = flow_page(open_to_merge_median_h=None, open_to_merge_p90_h=None, prs=0, prs_2plus_rounds=0,
+                            prs_2plus_rounds_pct=None)
+        strip = html.split('<dl class="strip">')[1].split("</dl>")[0]
+        self.assertIn('<dt class="strip-label">Median open → merge</dt><dd class="strip-value">–</dd>', strip)
+        self.assertIn('<dt class="strip-label">p90 open → merge</dt><dd class="strip-value">–</dd>', strip)
+        self.assertIn('<dt class="strip-label">2+ review rounds</dt><dd class="strip-value">–</dd>', strip)
+        self.assertNotIn("0.0 h", strip)
+        self.assertNotIn("0%", strip)
+
+    def test_low_two_plus_rounds_is_not_a_warning(self):
+        _, html = flow_page(prs=10, prs_2plus_rounds=1, prs_2plus_rounds_pct=10.0)
+        self.assertIn('<dd class="strip-value">10%</dd><dd class="strip-delta muted">1 of 10</dd>', html)
+        self.assertNotIn("! 1 of 10", html)
+
+    def test_range_query_reaches_hm_obs(self):
+        c = obs_ctx(flow=flow_obs(), range="24h", project="proj-a")
+        throughput.data(c)
+        self.assertEqual(c.calls, [("flow", ["--hours", "24", "--project", "proj-a"])])
+        c = obs_ctx(flow=flow_obs(), range="bogus", project="x; rm -rf")
+        throughput.data(c)
+        self.assertEqual(c.calls, [("flow", ["--hours", "168"])])
+
+
+def figures(html):
+    """{label: value} of every strip item on the page (a label shared by two strips has one value)."""
+    return dict(re.findall(r'<dt class="strip-label">([^<]*)</dt><dd class="strip-value">([^<]*)</dd>', html))
+
+
+def definitions(html):
+    """{label: text} of every 'How these are counted' definition on the page."""
+    return dict(re.findall(r"<dt>([^<]*)</dt><dd>([^<]*)</dd>", html))
 
 
 class TestQuality(MetricsCase):
-    def test_headline_row_has_four_tiles_each_with_a_definition(self):
+    def test_headline_strip_has_four_figures_each_with_a_definition(self):
         _, html = self.page(quality)
-        t = _KpiTree()
-        t.feed(html)
-        self.assertEqual(len(t.children), 4)
-        self.assertTrue(all("tile" in c for c in t.children), t.children)
-        self.assertEqual(t.paras, [True] * 4)       # one (i) definition per tile, each a descendant of .tile
-        labels = re.findall(r'<div class="tile-label"><span>([^<]+)</span>', html)[:4]
-        self.assertEqual(labels, ["Rejections per merged PR", "First-try merge rate", "CI-blocked merges", "Median attempts"])
+        head = html.split('<dl class="strip">')[1].split("</dl>")[0]
+        self.assertEqual(re.findall(r'<dt class="strip-label">([^<]*)</dt><dd class="strip-value">([^<]*)</dd>', head),
+                         [("Rejections per merged PR", "0.50"), ("First-try merge rate", "83%"), ("CI-blocked merges", "2"),
+                          ("Median attempts", "1")])
+        self.assertEqual(head.count('class="strip-item"'), 4)
+        self.assertNotIn("tile", html)
+        defs = html.split('data-key="q-head-defs"')[1].split("</details>")[0]
+        self.assertEqual(re.findall(r"<dt>([^<]*)</dt>", defs),
+                         ["Rejections per merged PR", "First-try merge rate", "CI-blocked merges", "Median attempts"])
         self.assertNotIn("n/a, see G-013", html)
         self.assertIn("Not measured yet", html)
 
@@ -201,10 +303,11 @@ class TestQuality(MetricsCase):
         self.assertEqual((o["merged"], o["merged_first_try"], o["merged_after_rejection"]), (6, 5, 1))
         self.assertEqual(o["merged_first_try"] + o["merged_after_rejection"], o["merged"])
         self.assertEqual(o["rejections_per_merged"], 0.5)     # 3 rejection events / 6 merged
+        f = figures(html)
         for label, value in (("Merged PRs", "6"), ("Merged first try", "5"), ("Merged after &gt;= 1 rejection", "1"),
                              ("Rejections per merged PR", "0.50")):
-            self.assertRegex(html, rf'<span>{label}</span> <details[^>]*>.*?<p class="tile-def">[^<]+</p></details></div>'
-                                   rf'<div class="metric">{value}</div>', label)
+            self.assertEqual(f[label], value, label)
+        self.assertEqual(definitions(html)["Merged first try"], "Merged tasks that were never rejected.")
 
     def test_second_rejection_moves_the_numbers(self):
         x = self.w.execute
@@ -223,13 +326,14 @@ class TestQuality(MetricsCase):
         self.assertNotIn("n/a, see G-013", html)
         self.assertIn("Rejections by cause", html)
         self.assertEqual(d["windows"]["current"]["rejections_per_merged"], None)      # nothing merged: no delta, no divide by 0
-        self.assertRegex(html, r'<div class="tile-label"><span>Rejections per merged PR</span>.*?<div class="metric">-</div></div>')
+        self.assertIn('<dt class="strip-label">Rejections per merged PR</dt><dd class="strip-value">-</dd>', html)
+        self.assertEqual((figures(html)["Rejections per merged PR"], figures(html)["First-try merge rate"]), ("-", "-"))
+        self.assertNotIn("0.00", html)
 
     def test_cause_is_not_measured_yet_with_definition(self):
         _, html = self.page(quality)
-        self.assertRegex(html, r'<span>Rejections by cause</span> <details[^>]*>.*?'
-                               r'<p class="tile-def">No cause is stored yet \(counts incidents, not events\)\.</p></details></div>'
-                               r'<div class="metric">Not measured yet</div>')
+        self.assertEqual(figures(html)["Rejections by cause"], "Not measured yet")
+        self.assertEqual(definitions(html)["Rejections by cause"], "No cause is stored yet (counts incidents, not events).")
 
     def test_rejections_by_cause_shows_recorded_counts(self):
         x = self.w.execute
@@ -237,16 +341,21 @@ class TestQuality(MetricsCase):
         x("INSERT INTO rejection_incidents(cause,kind,task_id,created) VALUES('bug','reviewer','T-72',?)", (ts(9, 10),))
         x("INSERT INTO rejection_incidents(cause,kind,task_id,created) VALUES('gate_refusal','gate','T-73',?)", (ts(9, 11),))
         _, html = self.page(quality)
-        self.assertIn('Rejections by cause', html)
-        self.assertIn('<div class="metric">3</div>', html.split("Rejections by cause", 1)[1][:800])
-        self.assertIn("bug 2", html)
-        self.assertIn("gate refusal 1", html)
+        self.assertEqual(figures(html)["Rejections by cause"], "3")
+        self.assertNotIn("Not measured yet", html)
+        self.assertIn("bug 2, gate refusal 1.", definitions(html)["Rejections by cause"])
 
     def test_rejections_per_week_chart_with_table_fallback(self):
         _, html = self.page(quality)
-        self.assertRegex(html, r'aria-label="3 rejections in 12 weeks, peak 3 on 10-19"')
-        self.assertIn('<table class="sr-only"><caption>Rejections per week, last 12 weeks</caption>', html)
-        self.assertIn("<td>2026-10-19</td><td>3</td>", html)
+        box = html.split("<h2>Per week")[1].split("</section>")[0]
+        self.assertRegex(box, r'<svg [^>]*role="img"[^>]*aria-label="Rejections per week: 3 over 12 weeks, peak 3"[^>]*class="axis">')
+        self.assertEqual(re.findall(r'<text class="axis-x"[^>]*>([^<]*)</text>', box), ["08-03", "08-17", "08-31", "09-14", "09-28", "10-12"])
+        self.assertIn("<title>10-19 Rejections: 3</title>", box)
+        self.assertIn('<table class="sr-only"><caption>Rejections per week</caption>', box)
+        rows = re.findall(r"<tr><td>([^<]*)</td><td>(\d+)</td></tr>", box)
+        self.assertEqual(len(rows), 12)
+        self.assertEqual(rows[-1], ("10-19", "3"))
+        self.assertEqual(sum(int(n) for _, n in rows), 3)
 
     def test_team_table_is_sortable_and_score_is_in_more_metrics(self):
         d, html = self.page(quality)
@@ -350,9 +459,10 @@ class TestQuality(MetricsCase):
         self.assertEqual(o["rejections"] - base["rejections"], 4)    # gate refusals are not rejections
         for label in ("Reviewer", "QA", "Judge", "Gate: judge-blocked", "Gate: merge-failed", "Gate refusals"):
             self.assertIn(label, html)
+        f, defs = figures(html), definitions(html)
+        self.assertEqual((f["Gate refusals"], f["Rejections"]), (str(o["gate_refusals"]), str(o["rejections"])))
         for label in ("Gate refusals", "Rejections"):
-            self.assertRegex(html, rf'<span>{label}</span> <details[^>]*>.*?<p class="tile-def">[^<]+</p></details></div>'
-                                   r'<div class="metric">\d+</div>', label)
+            self.assertTrue(defs[label], label)
         # the source rows are meters with their counts
         total = o["rej_reviewer"] + o["rej_qa"] + o["rej_judge"]
         self.assertRegex(html, rf'<span class="ins-name">Judge</span><div class="meter"><svg [^>]*aria-label="{o["rej_judge"]} of {total} rejections done"')
@@ -361,10 +471,12 @@ class TestQuality(MetricsCase):
     def test_rejections_per_week(self):
         d, html = self.page(quality)
         self.assertEqual(d["weeks"], [{"week": "2026-10-19", "rejections": 3}])   # 2026-10-24 is a Saturday
-        self.assertIn("2026-10-19", html)
+        self.assertIn("<td>10-19</td><td>3</td>", html)
         self.w.execute("INSERT INTO verdicts(task_id,role,verdict,created) VALUES('T-2','qa','fail',?)", (ts(9, 0, day=14),))
-        d = self.page(quality)[0]
+        d, html = self.page(quality)
         self.assertEqual(d["weeks"], [{"week": "2026-10-12", "rejections": 1}, {"week": "2026-10-19", "rejections": 3}])
+        self.assertIn("<td>10-12</td><td>1</td>", html)
+        self.assertRegex(html, r'aria-label="Rejections per week: 4 over 12 weeks, peak 3"')
 
     def test_empty_db(self):
         self.w.executescript("DELETE FROM events; DELETE FROM tasks; DELETE FROM verdicts; DELETE FROM teams; "
@@ -430,49 +542,6 @@ class TestQualityPerTeamPhone(MetricsCase):
         self.assertRegex(box[:note], r'</div></div></div><p class="muted">$')
 
 
-class TestThroughputTiles(MetricsCase):
-    def cost(self, **c):
-        base = {"state": "ready", "figure": None, "priced": 0, "merged": 0, "left_out": 0, "cursor_hours": None,
-                "prices_as_of": "2026-10-25"}
-        return str(throughput._cost_tile({"days": 7, "cost": {**base, **c}}))
-
-    def delta(self, html):
-        return re.search(r'<div class="delta[^"]*">([^<]*)</div>', html).group(1)
-
-    def test_one_grid_of_six_tiles_and_the_limits_note_below_it(self):
-        _, html = self.page(throughput)
-        self.assertEqual(html.count('class="tiles '), 1)
-        self.assertEqual(html.count("tiles--4"), 0)
-        grid = html.split('<div class="tiles tiles--6">')[1].split('</div><p class="muted">Counted from factory records only')[0]
-        self.assertEqual(grid.count('<div class="tile">'), 6)
-        self.assertEqual(re.findall(r'<div class="tile-label"><span>([^<]*)</span>', grid),
-                         ["Merges", "Median spawn to merge", "p90 spawn to merge", "Agents running now", "Unattended share",
-                          "Cost per merged PR"])
-        self.assertIn(throughput.LIMITS, html)
-
-    def test_cost_tile_figure_state_has_a_short_delta_and_keeps_every_fact(self):
-        html = self.cost(figure=20.0, priced=2, merged=5, left_out=3, cursor_hours=1.5)
-        self.assertIn('<div class="metric">$20.00</div>', html)
-        self.assertEqual(self.delta(html), "2 of 5 tasks priced")
-        for fact in ("list-price estimate (as of 2026-10-25)", "3 left out: no tokens or no price", "Cursor: 1.5 agent-hours, no cost"):
-            self.assertIn(fact, html)
-
-    def test_cost_tile_no_figure_state(self):
-        html = self.cost(figure=None, priced=0, merged=2, left_out=2)
-        self.assertIn('<div class="metric">-</div>', html)
-        self.assertEqual(self.delta(html), "0 of 2 tasks priced")
-        self.assertIn("2 left out: no tokens or no price", html)
-        self.assertNotRegex(html, r"\$\d")
-
-    def test_cost_tile_not_ready_and_cursor_states(self):
-        html = self.cost(state="not_ready")
-        self.assertIn('<div class="metric">not ready</div>', html)
-        self.assertEqual(self.delta(html), "The token index is still warming up.")
-        html = self.cost(state="cursor", cursor_hours=2.0)
-        self.assertIn('<div class="metric">-</div>', html)
-        self.assertEqual(self.delta(html), "Cursor: 2.0 agent-hours in 7 days, no cost or tokens reported.")
-
-
 class TestChangelogFeedClass(MetricsCase):
     def test_both_groupings_use_the_log_modifier(self):
         for q in ({}, {"group": "goal"}):
@@ -498,7 +567,19 @@ class TestAllPages(MetricsCase):
             self.assertNotIn("<script>alert", html, path)
             self.assertNotIn(CANARY, html, path)
         self.assertIn("&lt;script&gt;", self.page(changelog)[1])
-        self.assertIn("&lt;script&gt;", self.page(throughput)[1])
+
+    def test_hostile_flow_labels_repo_task_and_error_are_escaped(self):
+        stages = flow_obs()["stages"]
+        stages[0] = {**stages[0], "label": XSS}
+        stuck = [{"repo": f"{XSS}/x", "number": 3, "task": XSS, "stage": "ci_wait", "age_h": 7.0},
+                 {"repo": "acme/factory", "number": 4, "task": "T-9", "stage": XSS, "age_h": 8.0}]
+        _, html = flow_page(stages=stages, stuck=stuck, banners=[XSS], warnings=[XSS])
+        self.assertNotIn("<script>", html)
+        self.assertGreaterEqual(html.count("&lt;script&gt;alert(1)&lt;/script&gt;"), 6)   # label, 2 stuck stage cells, repo, task, banner, warning
+        c = obs_ctx(flow=None, error=XSS)
+        err = str(throughput.render(c, throughput.data(c)))
+        self.assertNotIn("<script>", err)
+        self.assertIn("! Flow data unavailable: &lt;script&gt;", err)
 
     def test_only_known_css_classes_and_fast(self):
         for path, view in self.VIEWS:
@@ -509,6 +590,14 @@ class TestAllPages(MetricsCase):
             self.assertEqual(used - wh.CLASSES, set(), path)
             self.assertNotIn("style=", html)
             self.assertNotIn("<script", html)
+
+    def test_flow_page_from_obs_uses_only_known_css_classes_and_no_inline_style(self):
+        _, html = flow_page()
+        used = {c for m in re.findall(r'class="([^"]*)"', html) for c in m.split()}
+        self.assertIn("stage-bar", used)
+        self.assertEqual(used - wh.CLASSES, set())
+        self.assertNotIn("style=", html)
+        self.assertNotIn("<script", html)
 
 
 if __name__ == "__main__":

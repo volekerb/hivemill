@@ -1,9 +1,11 @@
-"""G-019 B6: the insights pages /quality, /throughput, /resources and /tokens (web/views/{quality,throughput,resources,tokens}.py)
-and the queries appended to web/queries.py for them. Seeded temp DBs only; time is the fixed NOW of test_web_queries."""
+"""G-019 B6 insights pages: /quality and /resources (seeded temp DBs, fixed NOW of test_web_queries) and, since G-069,
+/spend (was /tokens) and /flow (was /throughput), which take every number from ctx.obs(kind) = `hm-obs api spend|flow`.
+The obs fixtures come from test_web_views_tokens; HTTP tests mock only the process boundary with a stub hm-obs script."""
 import ast
 import datetime as dt
 import json
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -20,6 +22,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 import _gitenv  # noqa: F401,E402
 from test_web_queries import NOW, make_db, ts  # noqa: E402
 from test_web_server import ServerCase  # noqa: E402
+from test_web_views_tokens import flow_obs, obs_ctx, spend_obs  # noqa: E402
 from web import db as wdb  # noqa: E402
 from web import html as wh  # noqa: E402
 from web import queries, server  # noqa: E402
@@ -41,23 +44,57 @@ DEFINITIONS = (
     "Merged / (merged + tasks the judge blocked for red checks).",
     "Newest evaluation per team.",
 )
-# data() keys on main (acceptance 6): the JSON contract only grows
+# data() keys per page (acceptance 6); throughput and tokens are the Flow and Spend dicts since G-069
 KEYS = {
     "quality": {"overall", "teams", "weeks", "formula"},
-    "throughput": {"days", "merges", "unattended", "cost", "median_s", "p90_s", "timed", "open_tasks", "live_workers", "merges_per_day", "stages",
-                   "goals", "slowest"},
+    "throughput": {"range", "range_label", "obs", "error"},
     "resources": {"gate", "machine", "config", "timeline", "per_day", "before"},
-    "tokens": {"period", "prices_as_of", "usage", "ready", "files", "mb_read", "goal", "model", "models", "totals", "by_goal",
-               "by_task", "by_agent", "by_model", "by_day", "via", "unpriced"},
+    "tokens": {"range", "range_label", "obs", "error", "usage", "query"},
 }
 
 
-def tile_labels(html):
-    return re.findall(r'<div class="tile-label"><span>([^<]+)</span>', html)
+def strip_labels(html):
+    return [m.replace("&gt;", ">") for m in re.findall(r'<dt class="strip-label">(?:<a [^>]*>)?([^<]+)', html)]
+
+
+def strip_values(html):
+    """{label: (value, delta or None)} of the strip items on the page."""
+    out = {}
+    for item in re.findall(r'<div class="strip-item">(.*?)</div>', html):
+        label = re.search(r'<dt class="strip-label">(?:<a [^>]*>)?([^<]+)', item).group(1).replace("&gt;", ">")
+        val = re.search(r'<dd class="strip-value">([^<]*)', item).group(1)
+        delta = re.search(r'<dd class="strip-delta[^"]*">([^<]*)', item)
+        out[label] = (val, delta.group(1) if delta else None)
+    return out
+
+
+def howto_count(html):
+    return html.count("How this is counted</a>")
+
+
+def banner_texts(html):
+    return [re.sub(r"<[^>]+>", "", m) for m in re.findall(r'<p class="banner" role="note">(.*?)</p>', html)]
+
+
+def section_after(html, title):
+    """The HTML of one <section> by its h2 title."""
+    return html.split(f"<h2>{title} </h2>", 1)[1].split("</section>", 1)[0]
+
+
+def obs_render(view, spend=None, flow=None, error=None, **query):
+    """(data, html, ctx) of an obs-backed page for a fixture answer; the data dict must stay JSON-able."""
+    c = obs_ctx(spend=spend, flow=flow, error=error, **query)
+    d = view.data(c)
+    json.dumps(d)
+    return d, str(view.render(c, d)), c
 
 
 class InsightServer(ServerCase):
-    """The real server with a ready (empty) token index, so /tokens renders its controls and breakdown."""
+    """The real server with a ready (empty) token index. With OBS = True it also gets a stub `hm-obs` (a shell script that
+    logs its argv and prints the fixture JSON for `api spend|flow`): the only mock, at the process boundary."""
+    OBS = False
+    SPEND = None
+    FLOW = None
 
     def setUp(self):
         super().setUp()
@@ -70,9 +107,21 @@ class InsightServer(ServerCase):
         # stop the base class's serve_forever thread before closing: closing under a running loop leaves it spinning on a dead socket
         self.httpd.shutdown()
         self.httpd.server_close()
+        extra = {}
+        self.args_log = Path(self.tmp.name) / "obs-args.log"
+        if self.OBS:
+            home = Path(self.tmp.name) / "home"
+            home.mkdir()
+            (home / "spend.json").write_text(json.dumps(self.SPEND or spend_obs()))
+            (home / "flow.json").write_text(json.dumps(self.FLOW or flow_obs()))
+            stub = Path(self.tmp.name) / "hm-obs"
+            stub.write_text('#!/bin/sh\necho "$@" >> %s\ncase "$2" in\n  spend) cat %s;;\n  flow) cat %s;;\n  *) exit 3;;\nesac\n'
+                            % (shlex.quote(str(self.args_log)), shlex.quote(str(home / "spend.json")), shlex.quote(str(home / "flow.json"))))
+            stub.chmod(0o755)
+            extra = {"factory_home": home, "obs_bin": str(stub)}
         self.httpd = server.make_server(self.db_path, "127.0.0.1", 0, (), tokens=lambda: SNAP,
                                         usage_fn=lambda: {"five_hour": 10.0, "seven_day": 20.0, "fresh": True, "age_min": 1},
-                                        mem_fn=lambda: 2048, defaults={"max_agents": "6"})
+                                        mem_fn=lambda: 2048, defaults={"max_agents": "6"}, **extra)
         import threading
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
         self.addCleanup(lambda: (self.httpd.shutdown(), self.httpd.server_close()))
@@ -82,21 +131,28 @@ class InsightServer(ServerCase):
         self.assertEqual(code, 200, path)
         return body.decode()
 
+    def obs_calls(self):
+        """The argv tails the stub hm-obs was run with, one line per call."""
+        return self.args_log.read_text().splitlines() if self.args_log.exists() else []
+
+
+class ObsServer(InsightServer):
+    OBS = True
+
 
 class TestQualityPage(InsightServer):
-    def test_first_row_is_four_tiles_and_not_measured_is_spelled_out(self):
+    def test_first_row_is_four_strip_figures_and_not_measured_is_spelled_out(self):
         html = self.text("/quality")
-        row = html[html.index("tiles--4"):]
-        row = row[:row.index("</div></div></div>") + 18]
-        self.assertEqual(row.count('class="tile"'), 4)
-        self.assertEqual(tile_labels(html)[:4], ["Rejections per merged PR", "First-try merge rate", "CI-blocked merges", "Median attempts"])
+        self.assertEqual(strip_labels(html)[:4], ["Rejections per merged PR", "First-try merge rate", "CI-blocked merges", "Median attempts"])
+        self.assertEqual(html.count('<dl class="strip">'), 2)       # the headline strip and the one in More metrics
         self.assertNotIn("n/a, see G-013", html)
         self.assertIn("Not measured yet", html)
 
-    def test_every_definition_from_main_is_inside_an_i_details(self):
+    def test_every_definition_from_main_is_in_a_how_these_are_counted_list(self):
         html = self.text("/quality")
+        self.assertIn("How these are counted", html)
         for d in DEFINITIONS:
-            self.assertRegex(html, r'<details class="disc--i"><summary[^>]*>i</summary><p class="tile-def">' + re.escape(d) + "</p>", d)
+            self.assertRegex(html, r"<dd>[^<]*" + re.escape(d) + "</dd>", d)
 
     def test_definitions_match_the_kpi_calls_on_main_when_git_has_it(self):
         r = subprocess.run(["git", "show", "origin/main:web/views/quality.py"], cwd=ROOT, capture_output=True, text=True)
@@ -133,52 +189,383 @@ def no_org_nav(html):
     return re.sub(r'<nav class="seg seg-links orgseg".*?</nav>', "", html, flags=re.S)
 
 
-class TestThroughputPage(InsightServer):
-    def test_segmented_range_and_fallback(self):
-        for days in (7, 14, 30):
-            html = self.text(f"/throughput?days={days}")
-            self.assertRegex(html, rf'<a href="/throughput\?days={days}" aria-current="true">{days} days</a>')
-            self.assertEqual(no_org_nav(html).count('aria-current="true"'), 1)
-        self.assertRegex(self.text("/throughput?days=9"), r'<a href="/throughput\?days=14" aria-current="true">14 days</a>')
+class TestFlowServed(ObsServer):
+    """/flow through the real server with a stub hm-obs."""
 
-    def test_four_tiles_chart_and_no_bar_table(self):
-        html = self.text("/throughput")
-        self.assertEqual(tile_labels(html)[:4], ["Merges", "Median spawn to merge", "p90 spawn to merge", "Agents running now"])
-        self.assertNotIn("bar--", html)
-        self.assertRegex(html, r'<svg [^>]*role="img"[^>]*aria-label="[^"]*merges in 14 days[^"]*"[^>]*class="cols">')
-        self.assertRegex(html, r'</svg><table class="sr-only">')
-        self.assertIn("Where the time goes", html)
-        self.assertIn("Slowest 10 tasks", html)
+    def test_range_segment_marks_the_current_range_and_a_bad_range_falls_back_to_7_days(self):
+        for key in ("24h", "3d", "7d", "30d"):
+            html = self.text(f"/flow?range={key}")
+            nav = re.search(r'<nav class="seg seg-links" aria-label="Time range">.*?</nav>', html, re.S).group(0)
+            self.assertEqual(nav.count('aria-current="true"'), 1, key)
+            self.assertRegex(nav, rf'<a href="[^"]*range={key}"[^>]*aria-current="true"')
+        nav = re.search(r'<nav class="seg seg-links" aria-label="Time range">.*?</nav>', self.text("/flow?range=9d"), re.S).group(0)
+        self.assertRegex(nav, r'range=7d"[^>]*aria-current="true"')
 
-    def test_slowest_sort_whitelist_keeps_days(self):
-        self.assertEqual(self.text("/throughput?sort=evil"), self.text("/throughput"))
-        self.assertIn('/throughput?days=7&amp;sort=total&amp;dir=asc', self.text("/throughput?days=7"))
+    def test_page_renders_the_stub_answer_and_passes_the_range_as_hours(self):
+        html = self.text("/flow?range=3d&project=acme")
+        self.assertEqual(strip_labels(html), ["Merged", "Median open → merge", "p90 open → merge", "2+ review rounds", "Open > 6 h"])
+        self.assertIn("Where PRs wait", html)
+        self.assertIn("Stuck now", html)
+        self.assertEqual(self.obs_calls(), ["api flow --home " + str(Path(self.tmp.name) / "home") + " --hours 72 --project acme"])
+
+    def test_unknown_params_are_ignored_and_the_page_is_the_same(self):
+        self.assertEqual(self.text("/flow?sort=evil&dir=up&days=9"), self.text("/flow"))
+        self.assertEqual({c.split(" --hours ")[1] for c in self.obs_calls()}, {"168"})
+
+    def test_json_is_the_flow_data_dict_with_the_obs_answer(self):
+        d = json.loads(self.text("/api/throughput.json"))
+        self.assertEqual(d["obs"]["merged"], 6)
+        self.assertEqual(d["range"], "7d")
+        self.assertIsNone(d["error"])
 
 
-class TestTokensPage(InsightServer):
-    def test_by_whitelist(self):
-        for bad in ("evil", "goal%27--", "", "task%3B", "../x"):
-            html = self.text(f"/tokens?by={bad}")
-            self.assertRegex(html, r'<a href="/tokens\?days=7" aria-current="true">By goal</a>', bad)
-            self.assertEqual(no_org_nav(html).count("aria-current=\"true\""), 2, bad)    # the range and the breakdown
-        for by, label in (("task", "By task"), ("agent", "By agent"), ("model", "By model"), ("goal", "By goal")):
-            self.assertRegex(self.text(f"/tokens?by={by}"), rf'aria-current="true">{label}</a>')
+class TestFlowWithoutHmObs(InsightServer):
+    def test_flow_is_200_with_a_banner_and_the_docs_link_when_hm_obs_is_not_built(self):
+        html = self.text("/flow")
+        self.assertEqual(banner_texts(html), ["! Flow data unavailable: hm-obs is not built yet: the tick builds it from go/cmd/hm-obs within a few minutes"])
+        self.assertEqual(howto_count(html), 1)
+        self.assertEqual(json.loads(self.text("/api/throughput.json"))["obs"], None)
 
-    def test_old_urls_still_work(self):
-        for p in ("/tokens?days=30", "/tokens?days=all&goal=G-1&model=claude-sonnet-5-5", "/tokens?days=bogus", "/tokens?goal=%27"):
+    def test_api_obs_is_503_with_the_error_when_hm_obs_is_missing(self):
+        code, headers, body = self.get("/api/obs/flow")
+        self.assertEqual(code, 503)
+        self.assertIn("hm-obs is not built yet", json.loads(body)["error"])
+        self.assertEqual(headers.get("Retry-After"), "60")
+
+
+class TestOldPathsRedirect(ObsServer):
+    def test_tokens_and_throughput_301_to_spend_and_flow_keeping_the_query(self):
+        for old, new in (("/tokens", "/spend"), ("/throughput", "/flow")):
+            for q in ("", "?range=30d", "?range=24h&goal=G-1&group=model", "?days=30&by=task"):
+                code, headers, body = self.get(old + q)
+                self.assertEqual(code, 301, old + q)
+                self.assertEqual(headers["Location"], new + q, old + q)
+                self.assertEqual(body, b"")
+
+    def test_new_paths_are_200_and_the_redirect_target_renders(self):
+        self.assertIn("Where it goes", self.text("/spend?range=30d"))
+        self.assertIn("Where PRs wait", self.text("/flow?range=30d"))
+
+    def test_nav_marks_spend_and_flow_active_on_their_own_paths(self):
+        for path, name in (("/spend", "Spend"), ("/flow", "Flow")):
+            html = self.text(path)
+            self.assertIn(f'<a href="{path}" class="nav-item nav-item--active" aria-current="page">', html)
+
+
+class TestSpendServed(ObsServer):
+    """/spend through the real server with a stub hm-obs."""
+
+    def test_group_whitelist_falls_back_to_role_and_the_stub_is_asked_for_it(self):
+        for bad in ("evil", "goal%27--", "", "../x", "task"):
+            html = self.text(f"/spend?group={bad}")
+            self.assertRegex(html, r'<a href="/spend\?group=[^"]*"[^>]*aria-current="true">Role</a>|<a href="/spend[^"]*" aria-current="true">Role</a>', bad)
+        for call in self.obs_calls():
+            self.assertTrue(call.endswith("--hours 168 --group role"), call)
+        for g in ("model", "goal", "project", "agent", "session"):
+            self.text(f"/spend?group={g}")
+        self.assertTrue(self.obs_calls()[-1].endswith(f"--hours 168 --group session"))
+
+    def test_old_urls_with_junk_query_still_answer_200_and_never_reach_the_binary_unvalidated(self):
+        for p in ("/spend?range=bogus", "/spend?goal=%27", "/spend?role=a%3Bb&model=%24x", "/spend?group=evil&goal=G-1"):
             self.text(p)
-        self.assertRegex(self.text("/tokens?days=30"), r'aria-current="true">30 days</a>')
+        for call in self.obs_calls():
+            self.assertNotIn(";", call)
+            self.assertNotIn("$", call)
+            self.assertNotIn("'", call)
+        self.assertTrue(any(c.endswith("--hours 168 --group role --goal G-1") for c in self.obs_calls()))
 
-    def test_range_links_keep_the_other_filters(self):
-        html = self.text("/tokens?days=30&goal=G-1&by=task")
-        self.assertIn('href="/tokens?days=7&amp;goal=G-1&amp;by=task"', html)
-        self.assertIn("Filtered by goal G-1", html)
+    def test_range_and_group_links_keep_the_other_filters(self):
+        html = self.text("/spend?range=30d&goal=G-1&group=agent")
+        self.assertIn('href="/spend?range=30d&amp;group=model&amp;goal=G-1"', html)
+        self.assertIn('href="/spend?range=30d&amp;group=session&amp;goal=G-1"', html)
 
-    def test_usage_gauges_are_the_overview_component(self):
-        html = self.text("/tokens")
-        self.assertIn('<span class="gl">Claude usage</span>', html)
-        self.assertIn('aria-label="Claude usage 5-hour 10%, cap 92%"', html)
-        self.assertIn('aria-label="Claude usage weekly 20%, cap 92%"', html)
+    def test_usage_gauge_is_the_weekly_limit_strip_figure_from_the_server_usage(self):
+        html = self.text("/spend")
+        self.assertEqual(strip_values(html)["Weekly limit"], ("20%", None))
+
+    def test_api_obs_spend_is_the_stub_answer_for_the_validated_query(self):
+        code, headers, body = self.get("/api/obs/spend?range=24h&group=model")
+        self.assertEqual((code, headers["Content-Type"]), (200, "application/json"))
+        self.assertEqual(json.loads(body)["current"]["cost_usd"], 50.0)
+        self.assertTrue(self.obs_calls()[-1].endswith("--hours 24 --group model"))
+
+
+class TestSpendPage(unittest.TestCase):
+    """The Spend render from the obs fixture: every figure is the fixture's, nothing is recomputed from the DB."""
+
+    def test_strip_has_the_five_headline_figures_with_deltas_against_the_previous_window(self):
+        _, html, _ = obs_render(tokens, spend=spend_obs())
+        v = strip_values(html)
+        self.assertEqual(list(v), ["Spend", "Per merged PR", "Polling", "Cache writes", "Weekly limit"])
+        self.assertEqual(v["Spend"], ("$50.00", "! +$10.00 vs previous · 8.0% not attributed"))
+        self.assertEqual(v["Per merged PR"], ("$10.00", "no change vs previous"))
+        self.assertEqual(v["Polling"], ("26%", "! +5.6% vs previous"))
+        self.assertEqual(v["Cache writes"], ("20%", "−2.5% vs previous"))
+        self.assertEqual(v["Weekly limit"], ("17%", None))
+
+    def test_per_merged_pr_figure_rising_against_previous_is_a_warned_delta(self):
+        s = spend_obs()
+        s["current"]["per_merged_pr_usd"], s["previous"]["per_merged_pr_usd"] = 12.5, 10.0
+        v = strip_values(obs_render(tokens, spend=s)[1])
+        self.assertEqual(v["Per merged PR"], ("$12.50", "! +$2.50 vs previous"))
+
+    def test_per_merged_pr_falling_is_a_good_delta_without_the_warning_mark(self):
+        s = spend_obs()
+        s["current"]["per_merged_pr_usd"], s["previous"]["per_merged_pr_usd"] = 7.0, 10.0
+        html = obs_render(tokens, spend=s)[1]
+        self.assertEqual(strip_values(html)["Per merged PR"], ("$7.00", "−$3.00 vs previous"))
+        self.assertIn('<dd class="strip-delta fg-success">−$3.00 vs previous</dd>', html)
+
+    def test_zero_merges_shows_the_empty_dash_and_no_delta(self):
+        s = spend_obs()
+        s["current"].update(merged_prs=0, per_merged_pr_usd=None)
+        v = strip_values(obs_render(tokens, spend=s)[1])
+        self.assertEqual(v["Per merged PR"], ("–", None))
+
+    def test_no_previous_window_has_no_deltas_and_no_division(self):
+        v = strip_values(obs_render(tokens, spend=spend_obs(previous=None))[1])
+        self.assertEqual(v["Per merged PR"], ("$10.00", None))
+        self.assertEqual(v["Spend"][1], " · 8.0% not attributed")
+
+    def test_per_row_dollars_per_pr_come_from_the_rows_and_null_is_a_dash(self):
+        _, html, _ = obs_render(tokens, spend=spend_obs())
+        cells = {m[0]: m[1] for m in re.findall(r'<span class="cl">\$/PR</span>([^<]*)</td>', html) and
+                 zip(["coder", "lead", "Not attributed"], re.findall(r'<span class="cl">\$/PR</span>([^<]*)</td>', html))}
+        self.assertEqual(cells, {"coder": "$4.60", "lead": "$3.00", "Not attributed": "–"})
+
+    def test_table_has_the_pr_column_and_phone_labels_on_every_numeric_cell(self):
+        _, html, _ = obs_render(tokens, spend=spend_obs())
+        html = html.split("Where it goes", 1)[1]         # the chart's fallback table comes first
+        head = re.search(r"<thead>.*?</thead>", html, re.S).group(0)
+        self.assertEqual(re.findall(r"<th[^>]*>([^<]*)</th>", head),
+                         ["Role", "Sessions", "Requests", "$", "Share", "Spawn", "Polling", "Work", "$/PR", "Trend"])
+        body = re.search(r"<tbody>.*?</tbody>", html, re.S).group(0)
+        self.assertEqual(body.count('<td class="num">'), body.count('<td class="num"><span class="cl">'))
+
+    def test_warned_cells_start_with_a_bang_and_only_the_flagged_ones(self):
+        _, html, _ = obs_render(tokens, spend=spend_obs())
+        self.assertEqual(re.findall(r'<span class="warn-cell">([^<]*)</span>', html), ["! $10.29", "! $3.00"])
+
+    def test_not_attributed_row_is_pinned_text_and_drills_with_the_dash_key(self):
+        _, html, _ = obs_render(tokens, spend=spend_obs())
+        self.assertIn('<span class="muted">Not attributed</span>', html)
+        self.assertIn('href="/spend?role=-&amp;group=model"', html)
+        self.assertIn('href="/spend?role=coder&amp;group=model"', html)
+
+    def test_drill_filters_show_a_crumb_with_a_clear_link(self):
+        s = spend_obs(group="model", drill="goal", filters={"role": "coder"})
+        _, html, _ = obs_render(tokens, spend=s, role="coder", group="model")
+        self.assertIn("Filtered by role coder", html)
+        self.assertIn('<a href="/spend?group=model">clear</a>', html)
+        self.assertIn('href="/spend?group=goal&amp;role=coder&amp;model=coder"', html)     # the next drill keeps the role filter
+
+    def test_last_group_has_no_drill_links(self):
+        s = spend_obs(group="session", drill=None)
+        html = obs_render(tokens, spend=s, group="session")[1]
+        self.assertNotRegex(html, r'<td class="c-title"><a ')
+
+    def test_banner_from_hm_obs_starts_with_a_bang_and_a_plain_one_gets_it(self):
+        html = obs_render(tokens, spend=spend_obs(banners=["! Polling is high.", "Cache writes doubled."]))[1]
+        self.assertEqual(banner_texts(html), ["! Polling is high.", "! Cache writes doubled."])
+
+    def test_definitions_are_in_one_how_these_are_counted_list_word_for_word(self):
+        html = obs_render(tokens, spend=spend_obs())[1]
+        self.assertEqual(html.count("How these are counted"), 1)
+        self.assertIn("<dt>Per merged PR</dt><dd>Spend divided by the PRs merged in the window. – when none merged.</dd>", html)
+
+    def test_exactly_one_how_this_is_counted_link_on_data_and_on_error(self):
+        self.assertEqual(howto_count(obs_render(tokens, spend=spend_obs())[1]), 1)
+        self.assertEqual(howto_count(obs_render(tokens, error="boom")[1]), 1)
+        self.assertIn('href="https://github.com/volekerb/hivemill/blob/main/docs/obs.md"', obs_render(tokens, spend=spend_obs())[1])
+
+    def test_hm_obs_error_is_a_banner_and_an_empty_state_not_a_crash(self):
+        d, html, _ = obs_render(tokens, error="cannot run hm-obs (No such file)")
+        self.assertIsNone(d["obs"])
+        self.assertEqual(banner_texts(html), ["! Spend data unavailable: cannot run hm-obs (No such file)"])
+        self.assertIn("Spend appears once the tick has run hm-obs ingest.", html)
+        self.assertNotIn("strip-item", html)
+
+    def test_ctx_without_obs_says_hm_obs_is_not_available(self):
+        c = obs_ctx(spend=spend_obs())
+        del c.obs
+        d = tokens.data(c)
+        self.assertEqual(d["error"], "hm-obs is not available in this server")
+        self.assertIn("! Spend data unavailable", str(tokens.render(c, d)))
+
+    def test_empty_rows_and_bins_are_calm_empty_states(self):
+        html = obs_render(tokens, spend=spend_obs(rows=[], bins=[]))[1]
+        self.assertIn("No spend in this range", html)
+        self.assertIn("No spend in this range</", html)
+        self.assertNotIn("<table", html)
+
+    def test_chart_is_stacked_work_polling_spawn_with_a_table_fallback(self):
+        html = obs_render(tokens, spend=spend_obs())[1]
+        sec = section_after(html, "Spend by hour")
+        for cls in ("b-work", "b-polling", "b-spawn"):
+            self.assertIn(f'<rect class="{cls}"', sec)
+        self.assertIn('</svg><table class="sr-only">', sec)
+        self.assertIn("<title>11:00 Polling: $10</title>", sec) if False else self.assertRegex(sec, r"<title>\d\d:00 Polling: \$10</title>")
+
+    def test_daily_bins_title_the_chart_by_day(self):
+        s = spend_obs(bin_h=24, bins=[{"start": "2026-10-23T00:00:00Z", "work_usd": 5.0, "polling_usd": 1.0, "spawn_usd": 0.0}])
+        self.assertIn("<h2>Spend by day </h2>", obs_render(tokens, spend=s)[1])
+
+    def test_asks_hm_obs_for_the_query_range_group_and_drill_filters_only(self):
+        _, _, c = obs_render(tokens, spend=spend_obs(), range="24h", group="model", goal="G-1", role="x;y", evil="1")
+        self.assertEqual(c.calls, [("spend", ["--hours", "24", "--group", "model", "--goal", "G-1"])])
+
+    def test_no_message_text_style_attributes_or_unknown_classes(self):
+        s = spend_obs()
+        s["rows"][0]["label"] = "<script>alert(1)</script>"
+        _, html, _ = obs_render(tokens, spend=s)
+        self.assertNotIn("<script", html)
+        self.assertIn("&lt;script&gt;", html)
+        self.assertNotIn("style=", html)
+        used = {c for m in re.findall(r'class="([^"]*)"', html) for c in m.split()}
+        self.assertEqual(used - wh.CLASSES, set())
+
+    def test_usage_failures_show_on_the_weekly_limit_figure_only(self):
+        c = obs_ctx(spend=spend_obs())
+        c.usage_fn = lambda: (_ for _ in ()).throw(OSError("x"))
+        v = strip_values(str(tokens.render(c, tokens.data(c))))
+        self.assertEqual(v["Weekly limit"], ("–", None))
+        self.assertEqual(v["Spend"][0], "$50.00")
+
+    def test_stale_usage_labels_the_weekly_limit_and_a_high_value_warns(self):
+        c = obs_ctx(spend=spend_obs())
+        c.usage_fn = lambda: {"five_hour": 5.0, "seven_day": 85.0, "fresh": False, "age_min": 200}
+        v = strip_values(str(tokens.render(c, tokens.data(c))))
+        self.assertEqual(v["Weekly limit"], ("85%", "! stale: 200 min old"))
+
+    def test_obs_dict_is_passed_through_untouched_in_the_json(self):
+        s = spend_obs()
+        d, _, _ = obs_render(tokens, spend=s)
+        self.assertEqual(d["obs"], s)
+        self.assertEqual(d["range"], "7d")
+
+
+class TestFlowPage(unittest.TestCase):
+    """The Flow render from the obs fixture."""
+
+    def test_strip_figures_are_merged_median_p90_two_plus_rounds_and_open_over_six_hours(self):
+        _, html, _ = obs_render(throughput, flow=flow_obs())
+        v = strip_values(html)
+        self.assertEqual(list(v), ["Merged", "Median open → merge", "p90 open → merge", "2+ review rounds", "Open > 6 h"])
+        self.assertEqual(v["Merged"], ("6", "7 days"))
+        self.assertEqual(v["Median open → merge"], ("4.5 h", None))
+        self.assertEqual(v["p90 open → merge"], ("12 h", None))
+        self.assertEqual(v["2+ review rounds"], ("38%", "! 3 of 8"))
+        self.assertEqual(v["Open > 6 h"], ("1", "! see Stuck now"))
+
+    def test_range_label_follows_the_range_param(self):
+        v = strip_values(obs_render(throughput, flow=flow_obs(), range="24h")[1])
+        self.assertEqual(v["Merged"], ("6", "24 h"))
+
+    def test_two_plus_rounds_under_30_percent_is_neutral_with_n_of_m(self):
+        v = strip_values(obs_render(throughput, flow=flow_obs(prs=5, prs_2plus_rounds=1, prs_2plus_rounds_pct=20.0, open_over_6h=0))[1])
+        self.assertEqual(v["2+ review rounds"], ("20%", "1 of 5"))
+        self.assertEqual(v["Open > 6 h"], ("0", None))
+
+    def test_empty_window_shows_dashes_and_calm_empty_states_not_zero_of_zero(self):
+        f = flow_obs(merged=0, open_to_merge_median_h=None, open_to_merge_p90_h=None, prs=0, prs_2plus_rounds=0,
+                     prs_2plus_rounds_pct=None, open_over_6h=0, stage_hours=0, stages=[], stuck=[], banners=[])
+        html = obs_render(throughput, flow=f)[1]
+        v = strip_values(html)
+        self.assertEqual((v["Median open → merge"][0], v["p90 open → merge"][0], v["2+ review rounds"]), ("–", "–", ("–", None)))
+        self.assertNotIn("0 of 0", html)
+        self.assertIn("No stage hours in this range", html)
+        self.assertIn("No open PR is older than 6 hours", html)
+        self.assertNotIn('class="banners"', html)
+
+    def test_hours_format_one_decimal_under_ten_and_whole_hours_above(self):
+        f = flow_obs(open_to_merge_median_h=9.94, open_to_merge_p90_h=1234.4)
+        v = strip_values(obs_render(throughput, flow=f)[1])
+        self.assertEqual((v["Median open → merge"][0], v["p90 open → merge"][0]), ("9.9 h", "1,234 h"))
+
+    def test_stage_map_main_line_between_coder_and_merge_with_hours_and_share(self):
+        html = obs_render(throughput, flow=flow_obs())[1]
+        sec = section_after(html, "Where PRs wait")
+        main = sec.split('<ol class="stages">')[1].split("</ol>")[0]
+        names = re.findall(r'<span class="stage-name">([^<]+)</span>', main)
+        self.assertEqual(names, ["Coder", "CI wait", "Review + QA", "Judge", "Merge"])
+        self.assertEqual(re.findall(r'<span class="stage-h">([^<]+)</span><span class="stage-share">([^<]+)</span>', main),
+                         [("10 h", "20%"), ("20 h", "40%"), ("5.0 h", "10%")])
+        self.assertEqual(main.count('<span class="stage-h">–</span>'), 2)           # the two ends hold no queue time
+        self.assertIn('aria-label="40% of stage hours"', main)
+        self.assertIn('<rect class="stage-fill" x="0" y="0" width="40.0" height="8">', main)
+
+    def test_rework_and_side_queues_are_their_own_lanes_after_the_main_line(self):
+        sec = section_after(obs_render(throughput, flow=flow_obs())[1], "Where PRs wait")
+        self.assertEqual(re.findall(r'<p class="stage-lane">([^<]+)</p>', sec), ["Main line", "Rework loop", "Side queues"])
+        rework = sec.split("Rework loop")[1].split("Side queues")[0]
+        self.assertIn("Rework", rework)
+        self.assertIn('<span class="stage-h">10 h</span><span class="stage-share">20%</span>', rework)
+        side = sec.split("Side queues")[1]
+        self.assertIn('class="stage lane-side"', side)
+        self.assertIn("Hold", side)
+        self.assertIn("50 h of stage time in the window.", sec)
+
+    def test_a_lane_without_stages_has_no_heading(self):
+        f = flow_obs(stages=[s for s in flow_obs()["stages"] if s["lane"] == "main"], stage_hours=35.0)
+        sec = section_after(obs_render(throughput, flow=f)[1], "Where PRs wait")
+        self.assertEqual(re.findall(r'<p class="stage-lane">([^<]+)</p>', sec), ["Main line"])
+
+    def test_share_bar_is_clamped_to_the_viewbox_and_has_no_style_attribute(self):
+        stages = [{"stage": "hold", "label": "Hold", "lane": "side", "hours": 900.0, "share_pct": 250.0}]
+        html = obs_render(throughput, flow=flow_obs(stages=stages, stage_hours=900.0))[1]
+        self.assertIn('width="100.0"', html)
+        self.assertNotIn("style=", html)
+
+    def test_stuck_now_table_links_the_pr_and_task_with_stage_label_and_age(self):
+        html = obs_render(throughput, flow=flow_obs())[1]
+        sec = section_after(html, "Stuck now")
+        self.assertEqual(re.findall(r"<th[^>]*>([^<]*)</th>", sec), ["PR", "Task", "Stage", "Age"])
+        self.assertIn('<a href="https://github.com/acme/factory/pull/812" rel="noopener" class="mono">acme/factory#812</a>', sec)
+        self.assertIn('<a href="/task/T-7">T-7</a>', sec)
+        self.assertIn("<td>Review + QA</td>", sec)
+        self.assertIn('<span class="cl">Age</span>9.5 h', sec)
+
+    def test_stuck_row_without_task_or_repo_degrades_to_plain_text(self):
+        stuck = [{"repo": "", "number": 5, "task": None, "stage": "mystery", "age_h": 7.0}]
+        sec = section_after(obs_render(throughput, flow=flow_obs(stuck=stuck))[1], "Stuck now")
+        self.assertIn("#5", sec)
+        self.assertNotIn("<a ", sec)
+        self.assertIn("<td>–</td><td>mystery</td>", sec)
+
+    def test_banners_are_the_hm_obs_ones_each_starting_with_a_bang(self):
+        html = obs_render(throughput, flow=flow_obs())[1]
+        texts = banner_texts(html)
+        self.assertEqual(len(texts), 2)
+        self.assertTrue(all(t.startswith("! ") for t in texts))
+        self.assertIn("38% of PRs needed 2+ review rounds (3 of 8)", texts[0])
+        self.assertTrue(banner_texts(obs_render(throughput, flow=flow_obs(banners=["Slow CI"]))[1]) == ["! Slow CI"])
+
+    def test_banner_and_warning_text_is_escaped(self):
+        html = obs_render(throughput, flow=flow_obs(banners=["<script>alert(1)</script>"], warnings=["<b>x</b>"]))[1]
+        self.assertNotIn("<script>", html)
+        self.assertNotIn("<b>x", html)
+        self.assertIn("&lt;b&gt;x&lt;/b&gt;", html)
+
+    def test_definitions_list_and_exactly_one_how_this_is_counted_link(self):
+        html = obs_render(throughput, flow=flow_obs())[1]
+        self.assertEqual(html.count("How these are counted"), 1)
+        self.assertEqual(howto_count(html), 1)
+        self.assertIn("<dt>Open &gt; 6 h</dt><dd>Open PRs whose age is over 6 hours right now.</dd>", html)
+
+    def test_hm_obs_error_is_a_banner_and_an_empty_state(self):
+        d, html, _ = obs_render(throughput, error="hm-obs api flow took longer than 8 s")
+        self.assertIsNone(d["obs"])
+        self.assertEqual(banner_texts(html), ["! Flow data unavailable: hm-obs api flow took longer than 8 s"])
+        self.assertIn("Flow appears once the tick has run hm-obs ingest.", html)
+        self.assertEqual(howto_count(html), 1)
+
+    def test_asks_hm_obs_for_the_range_and_the_validated_project(self):
+        self.assertEqual(obs_render(throughput, flow=flow_obs(), range="30d", project="acme")[2].calls,
+                         [("flow", ["--hours", "720", "--project", "acme"])])
+        self.assertEqual(obs_render(throughput, flow=flow_obs(), project="a b;c")[2].calls, [("flow", ["--hours", "168"])])
+
+    def test_data_timestamp_is_the_obs_at_field(self):
+        self.assertIn("Data as of 2026-10-24T11:55:00Z.", obs_render(throughput, flow=flow_obs())[1])
 
 
 class TestResourcesPage(InsightServer):
@@ -193,6 +580,14 @@ class TestResourcesPage(InsightServer):
             d = json.loads(self.text(f"/api/{page}.json"))
             self.assertEqual(keys - set(d), set(), page)
         self.assertEqual(set(json.loads(self.text("/api/resources.json"))["gate"]) >= {"open", "reason", "checks", "text"}, True)
+
+    def test_flow_and_spend_json_hold_no_old_throughput_or_tokens_fields(self):
+        flow = json.loads(self.text("/api/throughput.json"))
+        spend = json.loads(self.text("/api/tokens.json"))
+        for gone in ("days", "merges", "unattended", "cost", "stages", "slowest"):
+            self.assertNotIn(gone, flow)
+        for gone in ("totals", "by_goal", "by_task", "by_agent", "by_model", "by_day", "unpriced"):
+            self.assertNotIn(gone, spend)
 
 
 class Case(unittest.TestCase):
@@ -219,10 +614,9 @@ class Case(unittest.TestCase):
         return d, str(view.render(c, d))
 
 
-class TestUnattendedShare(Case):
-    """F-06: the Unattended share tile counts merged tasks with no owner involvement, from factory records only."""
-    LIMIT = ("Counted from factory records only. It cannot see a push the owner makes by hand, "
-             "or an owner wait set on a task that was already blocked.")
+class TestAttendedTasks(Case):
+    """F-06: queries.attended_tasks(con, ids) = the merged tasks with owner involvement, from factory records only. The old
+    Unattended share tile is gone from the views (G-069); this is the logic that stays in web/queries.py."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -248,26 +642,22 @@ class TestUnattendedShare(Case):
         self.w.execute("INSERT INTO messages(sender,recipient,kind,subject,body,task_id,created) VALUES(?,?,?,?,?,?,?)",
                        (sender, "lead", kind, subject, body, task_id, ts(10, 0)))
 
-    def unattended(self, **q):
-        d, html = self.page(throughput, query=q)
-        return d, html
+    def attended(self, *ids):
+        return queries.attended_tasks(self.ctx().db, set(ids))
 
-    def test_waits_owner_makes_one_of_three_attended(self):
+    def test_waits_owner_update_makes_one_of_three_attended(self):
         for t in ("T-1", "T-2", "T-3"):
             self.merged(t)
         self.event("T-2", "update", "status=blocked waits=owner")
         self.event("T-3", "update", "status=in_progress")
-        d, html = self.unattended()
-        self.assertEqual((d["unattended"], d["merges"]), (2, 3))
-        self.assertIn("2 of 3", html)
-        self.assertIn("Unattended share", tile_labels(html))
+        self.assertEqual(self.attended("T-1", "T-2", "T-3"), {"T-2"})
 
-    def test_judge_blocked_auto_merge_zero_is_attended(self):
+    def test_judge_blocked_auto_merge_zero_is_attended_but_red_checks_are_not(self):
         self.merged("T-1")
         self.merged("T-2")
         self.event("T-1", "judge-blocked", "project has auto_merge=0 - boss must get the owner's OK")
         self.event("T-2", "judge-blocked", "checks not green: unittest")
-        self.assertEqual(self.unattended()[0]["unattended"], 1)
+        self.assertEqual(self.attended("T-1", "T-2"), {"T-1"})
 
     def test_boss_decision_by_task_id_or_whole_word_is_attended(self):
         for t in ("T-1", "T-2", "T-3", "T-4"):
@@ -275,147 +665,54 @@ class TestUnattendedShare(Case):
         self.msg("claude-boss", "decision", "go", task_id="T-1")
         self.msg("cursor-boss", "decision", "about T-2", None)
         self.msg("boss", "decision", "x", "see T-3.")
-        self.assertEqual(self.unattended()[0]["unattended"], 1)    # T-4 only
+        self.assertEqual(self.attended("T-1", "T-2", "T-3", "T-4"), {"T-1", "T-2", "T-3"})    # T-4 stays unattended
 
     def test_non_boss_decision_and_other_kinds_do_not_count(self):
         self.merged("T-1")
         self.merged("T-2")
         self.msg("claude-director", "decision", "about T-1", task_id="T-1")
         self.msg("claude-boss", "report", "about T-2", task_id="T-2")
-        self.assertEqual(self.unattended()[0]["unattended"], 2)
+        self.assertEqual(self.attended("T-1", "T-2"), set())
 
     def test_t11_in_a_message_does_not_count_for_t111(self):
         self.merged("T-111")
         self.merged("T-11")
         self.msg("claude-boss", "decision", "ok", "T-11 is fine, not T-1112x")
-        d, _ = self.unattended()
-        self.assertEqual((d["unattended"], d["merges"]), (1, 2))    # T-111 stays unattended, T-11 is attended
+        self.assertEqual(self.attended("T-111", "T-11"), {"T-11"})    # T-111 stays unattended
 
-    def test_org_filter_counts_only_that_orgs_merges(self):
+    def test_only_the_asked_ids_come_back_whatever_the_org_of_the_goal(self):
         self.merged("T-1", "G-1")
         self.merged("T-2", "G-2")
         self.merged("T-3", "G-2")
         self.event("T-3", "update", "waits=owner")
-        d, html = self.unattended(org="cursor")
-        self.assertEqual((d["unattended"], d["merges"]), (1, 2))
-        self.assertIn("1 of 2", html)
-        self.assertEqual(self.unattended(org="claude")[0]["merges"], 1)
+        self.event("T-1", "update", "waits=owner")
+        self.assertEqual(self.attended("T-2", "T-3"), {"T-3"})
+        self.assertEqual(self.attended("T-1"), {"T-1"})
 
-    def test_zero_merges_shows_the_empty_value(self):
-        d, html = self.unattended()
-        self.assertEqual((d["unattended"], d["merges"]), (0, 0))
-        self.assertIn("Unattended share", html)
-        self.assertNotIn("0 of 0", html)
+    def test_no_ids_is_the_empty_set(self):
+        self.event("T-1", "update", "waits=owner")
+        self.assertEqual(self.attended(), set())
 
-    def test_limit_sentence_is_on_the_page_once(self):
+    def test_blind_spots_empty_waits_detail_and_hand_pushes_are_not_seen(self):
         self.merged("T-1")
-        _, html = self.unattended()
-        self.assertEqual(html.count(self.LIMIT), 1)
-        src = (ROOT / "web/views/throughput.py").read_text()
-        self.assertEqual(src.count(self.LIMIT), 1)
+        self.merged("T-2")
+        self.event("T-1", "update", "")                      # `--waits owner` on an already blocked task logs an empty detail
+        self.event("T-2", "pushed", "by the owner")          # an owner push by hand leaves no attended event
+        self.assertEqual(self.attended("T-1", "T-2"), set())
 
-    def test_attended_tasks_is_one_call_per_render_and_read_only(self):
+    def test_read_only_and_no_view_calls_it_any_more(self):
         self.merged("T-1")
         c = self.ctx()
+        before = [c.db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("events", "messages", "tasks")]
         with mock.patch.object(queries, "attended_tasks", wraps=queries.attended_tasks) as m:
-            throughput.render(c, throughput.data(c))
-        self.assertEqual(m.call_count, 1)
-        self.assertEqual(self.ctx().db.execute("PRAGMA query_only").fetchone()[0], 1)
-
-
-class TestCostPerMergedPR(TestUnattendedShare):
-    """F-06 U2: the Cost per merged PR tile: by_task cost over merged Claude-org tasks with a known cost."""
-
-    def row(self, sid, model="claude-sonnet-5-5", out=1_000_000):
-        return {"session": sid, "model": model, "day": "2026-10-20", "fast": False, "input": 0, "output": out,
-                "cache_read": 0, "cache_write_5m": 0, "cache_write_1h": 0, "requests": 1}
-
-    def attach(self, tid, sid, rows, goal="G-1"):
-        self.w.execute("INSERT INTO agents(name,role,goal_id,task_id,session_id,status,started) VALUES(?,?,?,?,?,?,?)",
-                       (f"coder-{tid}", "coder", goal, tid, sid, "done", ts(9, 0)))
-        rows.append(self.row(sid))
-
-    def snap(self, rows, ready=True):
-        return {"ready": ready, "rows": rows, "sessions": {r["session"]: {} for r in rows}, "files": 1, "bytes_total": 0}
-
-    def cost_page(self, snap, **q):
-        c = self.ctx(**q)
-        c.tokens = (lambda: snap) if snap is not None else None
-        d = throughput.data(c)
-        json.dumps(d)
-        return d, str(throughput.render(c, d))
-
-    def test_figure_is_the_by_task_cost_sum_over_priced_merged_tasks(self):
-        rows = []
-        for t, sid in (("T-1", "s1"), ("T-2", "s2")):
-            self.merged(t)
-            self.attach(t, sid, rows)
-        rows[1]["output"] = 3_000_000                      # $10 and $30 at $10 per million output
-        d, html = self.cost_page(self.snap(rows))
-        self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["left_out"]), (20.0, 2, 0))
-        self.assertIn("Cost per merged PR", tile_labels(html))
-        self.assertIn("$20.00", html)
-        self.assertIn("list-price estimate", html)
-
-    def test_tasks_without_tokens_or_with_no_price_are_left_out_not_zero(self):
-        rows = []
-        self.merged("T-1")
-        self.attach("T-1", "s1", rows)
-        self.merged("T-2")                                  # merged, no attributed tokens
-        self.merged("T-3")
-        self.attach("T-3", "s3", rows)
-        rows[-1]["model"] = "unpriced-model"               # cost None
-        d, html = self.cost_page(self.snap(rows))
-        self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["left_out"]), (10.0, 1, 2))
-        self.assertIn("2 left out", html)
-
-    def test_part_priced_task_is_left_out(self):
-        rows = []
-        self.merged("T-1")
-        self.attach("T-1", "s1", rows)
-        self.merged("T-2")
-        self.attach("T-2", "s2", rows)
-        rows.append(self.row("s2", model="unpriced-model"))     # T-2 has one priced and one unpriced row
-        d, _ = self.cost_page(self.snap(rows))
-        self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["left_out"]), (10.0, 1, 1))
-
-    def test_cursor_org_task_adds_nothing_and_org_cursor_shows_hours_only(self):
-        rows = []
-        self.merged("T-1")
-        self.attach("T-1", "s1", rows)
-        self.merged("T-2", "G-2")
-        self.w.execute("INSERT INTO agents(name,role,goal_id,task_id,status,started,ended,spawn_args) VALUES(?,?,?,?,?,?,?,?)",
-                       ("cursor-coder-t-2", "coder", "G-2", "T-2", "done", ts(9, 0), ts(11, 0), '{"runtime":"cursor"}'))
-        d, html = self.cost_page(self.snap(rows))
-        self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["cursor_tasks"]), (10.0, 1, 1))
-        self.assertIn("2.0 agent-hours", html)
-        d, html = self.cost_page(self.snap(rows), org="cursor")
-        self.assertIsNone(d["cost"]["figure"])
-        self.assertIn("2.0 agent-hours", html)
-        self.assertNotRegex(html.split("Cost per merged PR", 1)[1].split("</div></div>", 1)[0], r"\$\d")
-
-    def test_org_claude_filter_ignores_cursor_tasks_and_hours(self):
-        rows = []
-        self.merged("T-1")
-        self.attach("T-1", "s1", rows)
-        self.merged("T-2", "G-2")
-        d, html = self.cost_page(self.snap(rows), org="claude")
-        self.assertEqual((d["cost"]["figure"], d["cost"]["merged"], d["cost"]["cursor_hours"]), (10.0, 1, None))
-        self.assertNotIn("agent-hours", html)
-
-    def test_index_not_ready_or_no_tokens_says_not_ready_with_200(self):
-        self.merged("T-1")
-        for snap in (self.snap([], ready=False), {}, None):
-            d, html = self.cost_page(snap)
-            self.assertEqual(d["cost"]["state"], "not_ready")
-            self.assertIn("not ready", html)
-            self.assertNotRegex(html.split("Cost per merged PR", 1)[1].split("</div></div>", 1)[0], r"\$\d")
-
-
-class TestCostPageIsServed(InsightServer):
-    def test_throughput_is_200_with_the_cost_tile_and_json_key(self):
-        self.assertIn("Cost per merged PR", tile_labels(self.text("/throughput")))
-        self.assertIn("cost", json.loads(self.text("/api/throughput.json")))
+            queries.attended_tasks(c.db, {"T-1"})
+            self.assertEqual(m.call_count, 1)
+            for view, kw in ((throughput, {"flow": flow_obs()}), (tokens, {"spend": spend_obs()})):
+                oc = obs_ctx(**kw)
+                view.render(oc, view.data(oc))
+            self.assertEqual(m.call_count, 1)                 # Spend and Flow never ask for it
+        self.assertEqual(c.db.execute("PRAGMA query_only").fetchone()[0], 1)
+        self.assertEqual(before, [c.db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("events", "messages", "tasks")])
 
 
 class TestResourcesRender(Case):
@@ -514,8 +811,8 @@ class TestResourcesOrgsCards(Case):
     def test_org_filter_keeps_one_row(self):
         html = str(resources._orgs_section(self.GATE, "cursor"))
         self.assertEqual(html.count("<tr><td"), 1)
-        self.assertIn("org-cursor", html)
-        self.assertNotIn("org-claude", html)
+        self.assertIn('<td class="c-title">Cursor</td>', html)        # G-069: rows carry the org name, no org chip class
+        self.assertNotIn("Claude</td>", html)
 
 
 class TestQueries(Case):
@@ -562,43 +859,60 @@ class TestQueries(Case):
         self.assertEqual(w["current"]["rejections_per_merged"], None)
         self.assertEqual(w["current"]["median_attempts"], None)
         _, html = self.page(quality)
-        self.assertNotRegex(html, r"[↑↓] ")                   # nothing to compare: no arrow on any tile
-        self.assertEqual(html.count('class="delta'), 1)       # only CI-blocked can say "no change" (0 and 0)
+        self.assertNotRegex(html, r"[↑↓] ")                   # nothing to compare: no arrow on any figure
+        self.assertEqual(html.count('class="strip-delta'), 1)       # only CI-blocked can say "no change" (0 and 0)
+        self.assertIn("no change vs prev 14 d", html)
 
 
 class TestSourceAndAssets(unittest.TestCase):
+    MARK = "/* == B6 insights == */"
+
     def test_no_interpolated_order_by(self):
         for f in ("quality", "throughput", "resources", "tokens"):
             src = (ROOT / "web" / "views" / f"{f}.py").read_text()
             self.assertIsNone(re.search(r"(?i)order by[^\"\n]*\{", src), f)
 
-    def test_b6_css_section_is_single_and_uses_tokens_only(self):
+    def sections(self):
         css = (ROOT / "web" / "static" / "app.css").read_text()
-        self.assertEqual(css.count("/* == B6 insights == */"), 1)
-        sec = css.split("/* == B6 insights == */")[1]
+        self.assertEqual(css.count(self.MARK), 1)
+        return css, css.split(self.MARK)[1]
+
+    def test_b6_css_section_is_single_and_uses_tokens_only(self):
+        css, tail = self.sections()
+        sec = tail.split("/* ==", 1)[0]               # G-069 appended its own section after B6: B6 ends at the next marker
+        self.assertTrue(sec.strip())
         self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(", sec))
         self.assertIsNone(re.search(r"(?<![\w-])(min-|max-)?height:\s*[0-9]+px", sec))
-        self.assertEqual(css.rstrip().rsplit("/* == B6 insights == */", 1)[1].count("/* =="), 0)    # the last section
+        self.assertEqual(tail.rstrip().count("/* =="), tail.rstrip().count("== */"))      # every later section marker is whole
+
+    def test_g069_css_section_after_b6_also_uses_tokens_only(self):
+        _, tail = self.sections()
+        self.assertIn("/* == G-069", tail)
+        sec = tail.split("/* == G-069", 1)[1]
+        self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(", sec))
 
     def test_every_class_the_pages_use_is_known(self):
         c = Case()
         c.setUp()
         try:
             used = set()
-            for view, kw in ((quality, {}), (throughput, {}), (resources, {"usage": TestResourcesRender.FRESH}), (tokens, {})):
+            for view, kw in ((quality, {}), (resources, {"usage": TestResourcesRender.FRESH})):
                 _, html = c.page(view, **kw)
                 for m in re.findall(r'class="([^"]+)"', html):
                     used |= set(m.split())
+            for view, kw in ((throughput, {"flow": flow_obs()}), (tokens, {"spend": spend_obs()}), (tokens, {"error": "x"}),
+                             (throughput, {"error": "x"})):
+                for m in re.findall(r'class="([^"]+)"', obs_render(view, **kw)[1]):
+                    used |= set(m.split())
             self.assertEqual(used - wh.CLASSES, set())
         finally:
-            c.tearDown() if hasattr(c, "tearDown") else None
             c.tmp.cleanup()
 
     def test_render_is_fast_on_the_seeded_db(self):
         c = Case()
         c.setUp()
         try:
-            for view in (quality, throughput, resources, tokens):
+            for view in (quality, resources):
                 cx = c.ctx(usage=TestResourcesRender.FRESH)
                 times = []
                 for _ in range(5):
@@ -606,15 +920,25 @@ class TestSourceAndAssets(unittest.TestCase):
                     view.render(cx, view.data(cx))
                     times.append(time.perf_counter() - t0)
                 self.assertLess(sorted(times)[2], 1.0, view.__name__)       # the 200 ms target is measured in the PR
+            for view, kw in ((throughput, {"flow": flow_obs()}), (tokens, {"spend": spend_obs()})):
+                oc = obs_ctx(**kw)
+                t0 = time.perf_counter()
+                view.render(oc, view.data(oc))
+                self.assertLess(time.perf_counter() - t0, 1.0, view.__name__)
         finally:
             c.tmp.cleanup()
 
 
 class TestBreakdownColumns(unittest.TestCase):
-    def test_only_name_tokens_and_share_stay_on_a_phone(self):
+    def test_every_spend_column_stays_on_a_phone_as_a_labelled_card_value(self):
         src = (ROOT / "web" / "views" / "tokens.py").read_text()
-        wide = re.findall(r'\{"key": "(\w+)",[^\}]*"cls": "num ins-wide"', src)
-        self.assertEqual(wide, ["req", "cs", "io", "req", "cost"])   # By org table first, then the main breakdown
+        self.assertNotIn("ins-wide", src)                      # no column is hidden on a phone any more
+        html = obs_render(tokens, spend=spend_obs())[1]
+        self.assertNotIn("ins-wide", html)
+        self.assertIn('class="dt-wrap dt-wrap--cards"', html)
+        row = re.search(r"<tbody><tr>(.*?)</tr>", html.split("Where it goes", 1)[1], re.S).group(1)
+        self.assertEqual(re.findall(r'<span class="cl">([^<]*)</span>', row),
+                         ["Sessions", "Requests", "$", "Share", "Spawn", "Polling", "Work", "$/PR"])
         css = (ROOT / "web" / "static" / "app.css").read_text()
         self.assertNotIn(".dt .ins-wide { display: none; }", css)
 

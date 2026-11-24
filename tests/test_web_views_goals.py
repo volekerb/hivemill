@@ -75,7 +75,8 @@ class TestGoalsList(ViewCase):
         shared = str(home.goal_row(g1, c.now, crit=d["criteria"].get("G-1"), last=d["last_activity"].get("G-1") or g1["updated"],
                                    needs=d["needs_by_goal"].get("G-1", 0), extra=goals._blocked_cell(g1)))
         self.assertEqual(row, shared)
-        for needle in ("G-1", "Goal one", ">P1<", "org-claude", "1/5 tasks", "criteria 1/4", "1 open PR", "needs you 2", "last activity"):
+        self.assertNotIn("org-claude", row)     # G-069: no org badges
+        for needle in ("G-1", "Goal one", ">P1<", "1/5 tasks", "criteria 1/4", "1 open PR", "needs you 2", "last activity"):
             self.assertIn(needle, row)
         self.assertNotIn("goalrow--tree", html)       # /goals does not expand levels 2 and 3
         self.assertNotIn('class="teams"', html)
@@ -185,8 +186,8 @@ class TestR3Pages(ViewCase):
         self.assertIn('class="crumbs"', m)
         self.assertIn('class="metarow"', m)
         self.assertLess(html.index("tblock"), html.index("<h2>Verdicts"))
-        self.assertLess(html.index("<h2>Verdicts"), html.index('class="tiles"'))
-        self.assertLess(html.index('class="tiles"'), html.index("<h2>PR cycle"))
+        self.assertLess(html.index("<h2>Verdicts"), html.index('class="strip"'))   # G-069: a strip, no KPI tiles
+        self.assertLess(html.index('class="strip"'), html.index("<h2>PR cycle"))
 
     def test_goal_intent_then_teams_with_agents_and_rail_keeps_plan(self):
         d, html = self.page(goals.detail, id="G-1")

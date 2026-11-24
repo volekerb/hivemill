@@ -1,39 +1,23 @@
-"""Tokens page: tokens and estimated API-equivalent cost per day and, in one table, per goal / task / agent / model, plus
-5h / weekly usage. The breakdown shows one of the four (?by=, whitelisted; anything else is "goal").
+"""Spend page (G-069, replaces Tokens; /tokens redirects here): where the budget goes.
 
-Numbers come from the TokenIndex snapshot (ctx.tokens), attributed to factory agents with web.tokens.attribute and
-priced with web.prices. A model without a price shows "n/a" and is counted separately, never as $0. Only usage
-counts, ids and names are shown: no message text, no full session ids (8-char prefixes on the agent rows only).
+Every figure comes from `hm-obs api spend` (ctx.obs), which reads state/obs.db built by the tick from the Claude Code
+session logs. Dollars are at API list prices. The page shows a strip of five headline figures with deltas against the
+previous window, a daily work / polling / spawn chart and one group-by table (role, model, goal, project, agent,
+session) whose rows drill down. Only numbers, ids and names are shown: no message text.
 """
 import datetime as dt
-import re
 
-from scout import orgs as _orgs
 from web import charts, queries
-from web.components import ctx_org, data_table, disclosure, empty_state, href, org_badge, section, segmented, tile
-from web.html import el, link, table
-from web.prices import PRICES_AS_OF
-from web.tokens import attribute, rollup
-from web.views import resources
+from web.components import banners, data_table, empty_state, howto, href, section, segmented, spark_cell, strip
+from web.html import el, link
 
-TITLE = "Tokens"
-
-PERIODS = ("1", "7", "30", "all")
-DEFAULT_PERIOD = "7"
-TOP = 20
-BY = ("goal", "task", "agent", "model", "org")
-BY_LABEL = {"goal": "By goal", "task": "By task", "agent": "By agent", "model": "By model", "org": "By org"}
+TITLE = "Spend"
+PATH = "/spend"
+DOCS = "docs/obs.md"   # the one "How this is counted" link
+GROUP_LABEL = {"role": "Role", "model": "Model", "goal": "Goal", "project": "Project", "agent": "Agent", "session": "Session"}
+SERIES = (("work_usd", "Work", "b-work"), ("polling_usd", "Polling", "b-polling"), ("spawn_usd", "Spawn", "b-spawn"))
 CURSOR_NOTE = ("Token usage is not reported by Cursor CLI: it leaves no token or usage counts on this machine, so Cursor "
                "runtime agents show sessions and agent-hours per model from the agents table, and no cost.")
-VIA = ("session", "event", "name", "worktree", "unattributed")
-GOAL_RE = re.compile(r"^(G-\d+|unattributed)$")
-
-
-_fmt = charts.compact   # one formatter for the page figures and the chart labels (views import charts, not the reverse)
-
-
-def _money(c):
-    return "n/a" if c is None else f"${c:.2f}"
 
 
 def _query(ctx):
@@ -130,285 +114,161 @@ def cursor_activity(ag, since, now, org=None):
     return rows
 
 
-def _session_org(att, name_org, gorgs):
-    """session id -> org: the attributed agent's org, else the attributed goal's org, else the default org (these
-    are Claude Code transcripts, so an unmatched session ran on the Claude runtime)."""
-    def of(sid):
-        a = att.get(sid) or {}
-        if a.get("agent") in name_org:
-            return name_org[a["agent"]]
-        return queries.org_of_goal(gorgs, a.get("goal")) if a.get("goal") else queries.DEFAULT_ORG
-    return of
-
-
 def data(ctx, **params):
     q = _query(ctx)
-    period = q.get("days") if q.get("days") in PERIODS else DEFAULT_PERIOD
-    org = ctx_org(ctx)
-    snap = ctx.tokens() if getattr(ctx, "tokens", None) else None
-    snap = snap or {}
-    usage = _usage_data(_usage(ctx))
-    by = q.get("by") if q.get("by") in BY else "goal"
-    since = _since(ctx, period)
-    ag = queries.agents(ctx.db, include_ended=True, now=ctx.now)
-    base = {"period": period, "by": by, "org": org, "prices_as_of": PRICES_AS_OF, "usage": usage, "ready": bool(snap.get("ready")),
-            "files": snap.get("files", 0), "mb_read": round(snap.get("bytes_total", 0) / 1048576, 1),
-            "cursor": cursor_activity(ag, since, ctx.now, org), "cursor_note": CURSOR_NOTE}
-    if not base["ready"]:
-        return base | {"goal": None, "model": None, "models": [], "totals": None, "by_goal": ([], 0), "by_task": ([], 0),
-                       "by_agent": ([], 0), "by_model": ([], 0), "by_org": ([], 0), "by_day": ([], 0), "via": {}, "unpriced": []}
-    rows = snap.get("rows", [])
-    if since:
-        rows = [r for r in rows if r["day"] >= since]       # an "unknown" day sorts after digits: only in "all"
-    att = attribute(snap, ctx.db)
-    org_of = _session_org(att, {a["name"]: a["org"] for a in ag}, queries.goal_orgs(ctx.db))
-    if org:
-        rows = [r for r in rows if org_of(r["session"]) == org]
-    models = sorted({r["model"] for r in rows})
-    model = q.get("model") if q.get("model") in models else None
-    goal = q.get("goal") if GOAL_RE.match(q.get("goal") or "") else None
-    if model:
-        rows = [r for r in rows if r["model"] == model]
-    if goal:
-        rows = [r for r in rows if (att.get(r["session"], {}).get("goal") or "unattributed") == goal]
-    view = {"rows": rows, "sessions": snap.get("sessions", {})}
-    roll = rollup(view, att, org_of)
-    used = {r["session"] for r in rows}
-    via = {v: 0 for v in VIA}
-    agent_info = {}
-    for sid in sorted(used):
-        a = att.get(sid) or {"via": "unattributed", "agent": None, "role": None}
-        via[a["via"]] = via.get(a["via"], 0) + 1
-        if a["agent"]:
-            info = agent_info.setdefault(a["agent"], {"role": a["role"], "sessions": []})
-            info["sessions"].append(sid[:8])
-    gt = {r["id"]: r["title"] for r in ctx.db.execute("SELECT id, title FROM goals")}
-    tt = {r["id"]: r["title"] for r in ctx.db.execute("SELECT id, title FROM tasks")}
-    extra_goal = {g: {"title": queries._strip_tags(t)} for g, t in gt.items()}
-    extra_task = {t: {"title": queries._strip_tags(n)} for t, n in tt.items()}
-    days = sorted(roll["by_day"], reverse=True)
-    by_day = ([_entry(d, roll["by_day"][d]) for d in days[:TOP]], max(0, len(days) - TOP))
-    unpriced = sorted(m for m, e in roll["by_model"].items() if e["cost_unknown"])
-    unpriced_requests = sum(r["requests"] for r in rows if r["model"] in unpriced)
-    totals = _entry("all", roll["total"]) | {"unpriced_requests": unpriced_requests}
-    return base | {"goal": goal, "model": model, "models": models, "totals": totals,
-                   "by_goal": _top(roll["by_goal"], extra_goal), "by_task": _top(roll["by_task"], extra_task),
-                   "by_agent": _top(roll["by_agent"], {k: {"role": v["role"], "sessions": v["sessions"][:3],
-                                                           "more_sessions": max(0, len(v["sessions"]) - 3)}
-                                                      for k, v in agent_info.items()}),
-                   "by_model": _top(roll["by_model"]), "by_org": _by_org(roll["by_org"], base["cursor"], org),
-                   "by_day": by_day, "via": via, "unpriced": unpriced}
+    rng = queries.range_param(q)
+    obs, err = ctx.obs("spend") if getattr(ctx, "obs", None) else (None, "hm-obs is not available in this server")
+    return {"range": rng[0], "range_label": rng[2], "obs": obs, "error": err, "usage": _usage_data(_usage(ctx)),
+            "query": _page_state(q)}
 
 
-def _by_org(buckets, cursor, org):
-    """One row per org (only the filtered one with ?org=): Claude-transcript tokens and cost, plus the Cursor-runtime
-    sessions and agent-hours that have no token counts."""
-    zero = {k: 0 for k in ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h", "requests")} | {
-        "cost": 0.0, "cost_unknown": False}
-    items = []
-    for o in _orgs.NAMES:
-        if org and o != org:
-            continue
-        cur = [c for c in cursor if c["org"] == o]
-        if o not in buckets and not cur:
-            continue
-        row = _entry(o, buckets.get(o, zero))
-        row.update(cursor_sessions=sum(c["sessions"] for c in cur), cursor_hours=round(sum(c["hours"] for c in cur), 2))
-        items.append(row)
-    return items, 0
+def _page_state(q):
+    """The query keys Spend links carry: a valid range, org, group and drill values. Nothing else is echoed."""
+    out = {"range": queries.range_param(q)[0] if q.get("range") else None, "org": queries.org_param(q),
+           "group": q.get("group") if q.get("group") in queries.OBS_GROUPS else None}
+    for g in queries.OBS_GROUPS:
+        out[g] = queries.obs_value(q.get(g))
+    return {k: v for k, v in out.items() if v}
 
 
 # ───────────────────────────── rendering ─────────────────────────────
 
-def _href(period, goal=None, model=None, by=None, org=None):
-    """/tokens link; `org` keeps the global ?org= filter."""
-    return href("/tokens", {"days": period, "goal": goal, "model": model, "by": by if by in BY[1:] else None,
-                            "org": org if org in _orgs.ORGS else None})
-
-
-def _model_href(period, goal, model, by=None, org=None):
-    return _href(period, goal, model, by, org) if re.match(r"^[\w.-]+$", model) else None
-
-
-def _controls(d):
-    labels = {"1": "Today", "7": "7 days", "30": "30 days", "all": "All time"}
-    seg = segmented("Range", [(labels[p], _href(p, d["goal"], d["model"], d["by"], d.get("org")), p == d["period"]) for p in PERIODS])
-    active = []
-    if d["goal"]:
-        active.append(f"goal {d['goal']}")
-    if d["model"]:
-        active.append(f"model {d['model']}")
-    if not active:
-        return seg
-    return el("div", seg, el("p", "Filtered by " + ", ".join(active) + " · ", link(_href(d["period"], by=d["by"], org=d.get("org")), "clear"),
-                             class_="muted"))
+def _money(v):
+    if v is None:
+        return "–"
+    return f"${v:,.0f}" if abs(v) >= 100 else f"${v:,.2f}"
 
 
 def _pct(v):
-    """A percentage as a float; anything else (the usage file is outside our control) is unknown."""
+    return "–" if v is None else f"{v:.0f}%" if abs(v) >= 10 else f"{v:.1f}%"
+
+
+def _delta(cur, prev, fmt, worse_up=True):
+    """'+$3.10 vs prev 24 h' with a tone: up is worse for cost figures. None when there is nothing to compare."""
+    if cur is None or prev is None:
+        return None, "neutral"
+    d = cur - prev
+    if abs(d) < 1e-9:
+        return "no change vs previous", "neutral"
+    sign = "+" if d > 0 else "−"
+    tone = ("warn" if worse_up else "good") if d > 0 else ("good" if worse_up else "neutral")
+    return f"{sign}{fmt(abs(d))} vs previous", tone
+
+
+def _link(d, **change):
+    """/spend with the page state (range, project, org, group, drill filters) plus `change` (None drops a key)."""
+    params = dict(d["query"])
+    params.update(change)
+    return href(PATH, {k: v for k, v in params.items() if v not in (None, "")})
+
+
+def _usage_pct(u, key):
     try:
-        return float(v)
+        return float(u.get(key))
     except (TypeError, ValueError):
         return None
 
 
-def _usage_section(ctx, d):
-    u = d["usage"]
-    if u is None:
-        return section("Claude usage", empty_state("No usage data."))
-    if u.get("unreadable"):
-        return section("Claude usage", el("p", "unreadable", class_="stale"))
-    view = {"five_hour": _pct(u["five_hour"]), "seven_day": _pct(u["seven_day"]), "stale": not u["fresh"],
-            "cap_five_hour": resources._cfg(ctx, "max_five_hour_pct", 92), "cap_seven_day": resources._cfg(ctx, "max_seven_day_pct", 92)}
-    note = {k: u.get(k) for k in ("five_hour_resets_at", "seven_day_resets_at")}
-    if u["fresh"]:
-        note["age_min"] = u.get("age_min")
-    return section("Claude usage", el("div", resources.usage_row(view), class_="ins-gauges"), resources.usage_note(note),
-                   el("p", u["label"], class_="stale") if u["label"] else None)
+def _strip(d):
+    o, cur, prev = d["obs"], d["obs"]["current"], d["obs"].get("previous") or {}
+    items = []
+    for label, key, fmt, defn in (
+            ("Spend", "cost_usd", _money, "Sum of every request in the window at API list prices (not the plan price)."),
+            ("Per merged PR", "per_merged_pr_usd", _money, "Spend divided by the PRs merged in the window. – when none merged."),
+            ("Polling", "polling_pct", _pct, "Share of spend on turns that only waited or checked status (inbox, sleep, "
+                                             "CI wait) and changed nothing."),
+            ("Cache writes", "cache_write_pct", _pct, "Share of spend on writing the prompt cache. High when sessions "
+                                                      "restart or their context churns.")):
+        delta, tone = _delta(cur.get(key), prev.get(key), fmt)
+        items.append({"label": label, "value": fmt(cur.get(key)), "delta": delta, "tone": tone, "definition": defn})
+    u = d.get("usage") or {}
+    week = _usage_pct(u, "seven_day") if not u.get("unreadable") else None
+    near = week is not None and week >= 80
+    items.append({"label": "Weekly limit", "value": _pct(week), "tone": "warn" if near else "neutral",
+                  # amber is never the only signal: a near-limit week says so in words (the strip adds "!")
+                  "delta": u.get("label") if not u.get("fresh", True) else ("near the limit" if near else None),
+                  "definition": "Claude plan weekly usage from the usage file; the plan limit, not dollars."})
+    if o.get("unattributed_pct") is not None:
+        items[0]["delta"] = (items[0]["delta"] or "") + f" · {_pct(o['unattributed_pct'])} not attributed"
+    return strip(items, key="spend-strip")
 
 
-def _cost_cell(e):
-    if e["cost"] is None:
-        return "n/a"
-    return _money(e["cost"]) + ("+" if e["cost_unknown"] else "")
+def _bin_label(start, bin_h):
+    try:
+        t = dt.datetime.fromisoformat(str(start).replace("Z", "+00:00")).astimezone()
+    except ValueError:
+        return str(start)
+    return t.strftime("%H:%M") if bin_h < 24 else t.strftime("%m-%d")
 
 
-def _all(e):
-    return e["input"] + e["output"] + e["cache_read"] + e["cache_write"]
+def _chart(d):
+    o = d["obs"]
+    bins = [(_bin_label(b.get("start"), o.get("bin_h") or 24), b) for b in o.get("bins") or []]
+    unit = "hour" if (o.get("bin_h") or 24) < 24 else "day"
+    return section("Spend by " + unit,
+                   charts.axis_chart(bins, SERIES, "spend", unit="$", x_label=unit))
 
 
-def _tiles(d):
-    t = d["totals"]
-    total = _all(t)
-    share = f"{round(100 * t['cache_read'] / total)}%" if total else "-"
-    note = ""
-    if d["unpriced"]:
-        note = el("p", f"{t['unpriced_requests']} requests on models without a price are not in the cost: ",
-                  ", ".join(d["unpriced"]), class_="muted")
-    return el("div", el("div",
-                        tile("Total tokens", _fmt(total),
-                             definition="Input, output and cache tokens (read and write) of every request in the range."),
-                        tile("Cost estimate", _money(t["cost"]),
-                             definition=f"Estimated API-equivalent cost at list prices as of {d['prices_as_of']}. "
-                                        "Requests on a model without a price are left out and listed below."),
-                        tile("Cache read share", share, definition="Cache-read tokens as a share of all tokens. A high share means "
-                             "most context was served from the cache."),
-                        tile("Requests", _fmt(t["requests"]), definition="Model requests that carried usage counts."),
-                        class_="tiles tiles--4"), note)
+def _row_name(d, group, r):
+    if r.get("key") in ("", None):
+        return el("span", "Not attributed", class_="muted")
+    lab = r.get("label") or r["key"]
+    mono = group in ("model", "session", "agent", "goal")
+    return el("span", lab, class_="mono" if mono else None)
 
 
-def _day_section(d):
-    items, more = d["by_day"]
-    points = [(e["key"], _all(e)) for e in reversed(items)]
-    return section("By day", charts.columns(points, "tokens"),
-                   el("p", f"+{more} earlier days not shown", class_="muted") if more else None)
-
-
-def _pin_last(items):
-    """The "unattributed" row goes last whatever the order was."""
-    return [e for e in items if e["key"] != "unattributed"] + [e for e in items if e["key"] == "unattributed"]
-
-
-def _unattributed():
-    return el("span", "Not attributed", " ",
-              el("details", el("summary", "i", aria_label="What is Not attributed?"),
-                 el("p", "Usage from sessions that could not be matched to a factory goal, task or agent. "
-                         "See Attribution quality below.", class_="tile-def"), class_="disc--i"))
-
-
-def _name(d, by, e):
-    k = e["key"]
-    if k == "unattributed":
-        return _unattributed()
-    if by == "goal":
-        return el("span", link(_href(d["period"], k, d["model"], d["by"], d.get("org")), k), " ", e.get("title") or "")
-    if by == "task":
-        return el("span", link(f"/task/{k}", k), " ", e.get("title") or "")
-    if by == "agent":
-        sess = ", ".join(e.get("sessions", [])) + (f" +{e['more_sessions']}" if e.get("more_sessions") else "")
-        return el("span", k, " ", el("span", e.get("role") or "", class_="muted"), title=f"sessions: {sess}" if sess else None)
-    href_ = _model_href(d["period"], d["goal"], k, d["by"], d.get("org"))
-    return link(href_, k) if href_ else k
-
-
-def _hrs(h):
-    return f"{h:.1f} h" if h >= 0.05 or not h else "<0.1 h"
-
-
-def _org_breakdown(d, seg):
-    """By org: Claude-transcript tokens and cost per org, next to the Cursor-runtime sessions and agent-hours."""
-    items, _ = d["by_org"]
-    if not items:
-        return section("Breakdown", seg, empty_state("no data yet"))
-    grand = sum(_all(e) for e in items)
-    cols = [{"key": "name", "label": "Org", "cls": "c-title"},
-            {"key": "tokens", "label": "Claude tokens", "cls": "num", "phone_label": True},
-            {"key": "share", "label": "Share", "cls": "num", "phone_label": True},
-            {"key": "req", "label": "Requests", "cls": "num ins-wide", "phone_label": True},
-            {"key": "cost", "label": "Cost", "cls": "num", "phone_label": True},
-            {"key": "cs", "label": "Cursor sessions", "cls": "num ins-wide", "phone_label": "Cursor sess."},
-            {"key": "ch", "label": "Cursor agent-hours", "cls": "num", "phone_label": "Cursor h"}]
-    rows = []
-    for e in items:
-        tot = _all(e)
-        pct = 100 * tot / grand if grand else 0
-        rows.append([org_badge(e["key"]), _fmt(tot), f"{pct:.0f}%" if grand else "-", e["requests"], _cost_cell(e),
-                     e["cursor_sessions"] or "-", _hrs(e["cursor_hours"]) if e["cursor_sessions"] else "-"])
-    return section("Breakdown", seg, data_table(cols, [{"key": "all", "label": None, "count": len(rows), "rows": rows}], key="breakdown"),
-                   el("p", "Claude tokens come from the Claude Code session logs (any agent of the org that ran on Claude). "
-                           + CURSOR_NOTE, class_="muted"))
-
-
-def _cursor_section(d):
-    """Cursor runtime activity: sessions and agent-hours per model; never tokens or $ (Cursor CLI reports none)."""
-    rows = d.get("cursor") or []
-    if not rows and d.get("org") != "cursor":
+def _drill_href(d, group, r):
+    o = d["obs"]
+    nxt = o.get("drill")
+    if not nxt:
         return None
-    body = (table(["Org", "Model", "Sessions", "Live now", "Agent-hours", "Tokens"],
-                  [(org_badge(e["org"]), el("span", e["model"], class_="mono"), (e["sessions"], "num"), (e["live"], "num"),
-                    (_hrs(e["hours"]), "num"), el("span", "not reported", class_="muted")) for e in rows],
-                  cls="table table--compact") if rows else empty_state("No Cursor runtime agents in this range."))
-    return section("Cursor runtime", body, el("p", d.get("cursor_note") or CURSOR_NOTE, class_="muted"))
+    return _link(d, **{group: r.get("key") or queries.NOT_ATTRIBUTED, "group": nxt})
 
 
-def _breakdown(d):
-    by = d["by"]
-    seg = segmented("Breakdown", [(BY_LABEL[b], _href(d["period"], d["goal"], d["model"], b, d.get("org")), b == by) for b in BY], scroll_strip=True)
-    if by == "org":
-        return _org_breakdown(d, seg)
-    items, more = d[f"by_{by}"]
-    grand = _all(d["totals"])
-    if not items:
-        return section("Breakdown", seg, empty_state("no data yet"))
-    name_lbl = BY_LABEL[by].removeprefix("By ").capitalize()
-    cols = [{"key": "name", "label": name_lbl, "cls": "c-title"},
-            {"key": "tokens", "label": "Tokens", "cls": "num", "phone_label": True},
+def _warn(text, flag):
+    return el("span", "! ", text, class_="warn-cell") if flag else text
+
+
+def _table(d):
+    o = d["obs"]
+    group = o.get("group") or "role"
+    seg = segmented("Group by", [(GROUP_LABEL[g], _link(d, group=g), g == group) for g in queries.OBS_GROUPS], scroll_strip=True)
+    filt = [(k, v) for k, v in (o.get("filters") or {}).items() if v is not None]
+    crumbs = None
+    if filt:
+        crumbs = el("p", "Filtered by ", ", ".join(f"{GROUP_LABEL.get(k, k).lower()} {v or 'Not attributed'}" for k, v in filt),
+                    # project is also the header selector: clearing the drill keeps it
+                    " · ", link(_link(d, **{g: None for g in queries.OBS_GROUPS if g != "project"}), "clear"), class_="muted drill")
+    rows = o.get("rows") or []
+    if not rows:
+        return section("Where it goes", seg, crumbs, empty_state("No spend in this range"))
+    cols = [{"key": "name", "label": GROUP_LABEL[group], "cls": "c-title"},
+            {"key": "sess", "label": "Sessions", "cls": "num", "phone_label": True},
+            {"key": "req", "label": "Requests", "cls": "num", "phone_label": True},
+            {"key": "usd", "label": "$", "cls": "num", "phone_label": True},
             {"key": "share", "label": "Share", "cls": "num", "phone_label": True},
-            {"key": "io", "label": "In / out", "cls": "num ins-wide", "phone_label": "In / out"},
-            {"key": "req", "label": "Requests", "cls": "num ins-wide", "phone_label": True},
-            {"key": "cost", "label": "Cost", "cls": "num ins-wide", "phone_label": True}]
-    rows = []
-    for e in _pin_last(items):
-        tot = _all(e)
-        pct = 100 * tot / grand if grand else 0
-        rows.append([_name(d, by, e), _fmt(tot), f"{pct:.1f}%" if pct < 10 else f"{pct:.0f}%",
-                     f"{_fmt(e['input'])} / {_fmt(e['output'])}", e["requests"], _cost_cell(e)])
-    return section("Breakdown", seg, data_table(cols, [{"key": "all", "label": None, "count": len(rows), "rows": rows}], key="breakdown"),
-                   el("p", f"+{more} more", class_="muted") if more else None)
+            {"key": "spawn", "label": "Spawn", "cls": "num", "phone_label": True},
+            {"key": "poll", "label": "Polling", "cls": "num", "phone_label": True},
+            {"key": "work", "label": "Work", "cls": "num", "phone_label": True},
+            {"key": "pr", "label": "$/PR", "cls": "num", "phone_label": True},
+            {"key": "trend", "label": "Trend", "cls": "spark-cell"}]
+    body = []
+    for r in rows:
+        name = _row_name(d, group, r)
+        dh = _drill_href(d, group, r)
+        body.append([link(dh, name) if dh else name, r.get("sessions"), r.get("requests"), _money(r.get("cost_usd")),
+                     _pct(r.get("share_pct")), _warn(_money(r.get("spawn_usd")), r.get("spawn_warn")),
+                     _warn(_money(r.get("polling_usd")), r.get("polling_warn")), _money(r.get("work_usd")),
+                     _money(r.get("per_merged_pr_usd")), spark_cell(r.get("spark_usd"), f"{r.get('label') or 'Not attributed'} spend")])
+    return section("Where it goes", seg, crumbs,
+                   data_table(cols, [{"key": "all", "label": None, "count": len(body), "rows": body}], key="spend-table"),
+                   el("p", "! marks polling over 20% or spawn over 15% of a row's spend. Click a row to drill down.", class_="muted"))
 
 
 def render(ctx, d):
-    # the 5-hour / weekly gauges are the Claude plan's; the Cursor org's view leaves them out
-    parts = [_controls(d), _usage_section(ctx, d) if d.get("org") != "cursor" else None, _cursor_section(d)]
-    if not d["ready"]:
-        parts.append(section("Token index", el("p", f"indexing… {d['files']} files / {d['mb_read']} MB read", class_="stale")))
-        return el("div", parts)
-    if d.get("org") == "cursor":
-        parts.append(el("p", "Below: Claude Code usage of Cursor-org agents that ran on the Claude runtime (e.g. evaluators).",
-                        class_="muted"))
-    parts += [_tiles(d), _day_section(d), _breakdown(d),
-              disclosure("Attribution quality", table(["Matched by", "Sessions"], [(v, (d["via"].get(v, 0), "num")) for v in VIA],
-                                                       cls="table table--compact"), key="attribution"),
-              el("p", f"Costs are estimates at list prices as of {d['prices_as_of']}; a trailing + means some tokens were on "
-                      "models without a price.", class_="muted")]
-    return el("div", parts)
+    if d.get("obs") is None:
+        return el("div", banners([f"! Spend data unavailable: {d.get('error') or 'unknown error'}"]),
+                  empty_state("Spend appears once the tick has run hm-obs ingest."), howto(DOCS))
+    o = d["obs"]
+    return el("div", banners(o.get("banners")), _strip(d), _chart(d), _table(d),
+              el("p", f"Data as of {o.get('ingested_at') or '–'}. Dollars at API list prices.", class_="muted"), howto(DOCS))

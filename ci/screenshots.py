@@ -72,7 +72,7 @@ THEMES = {"light": "1", "dark": "0"}
 # The page background per theme: `--surface-0` in web/static/app.css (the body background); a test pins these to the CSS.
 # Evidence mode measures crop and blank rows against it: the last row of a phone page cut at the window can be inside a
 # card, and `background()` would then take the card colour for the page.
-THEME_BG = {"light": (242, 242, 247), "dark": (0, 0, 0)}
+THEME_BG = {"light": (245, 246, 242), "dark": (20, 21, 19)}
 FC_LIST = "fc-list"
 FC_MATCH = "fc-match"
 FONT_HELP = ("No usable fonts: install fontconfig and fonts-dejavu-core (e.g. sudo apt install fontconfig "

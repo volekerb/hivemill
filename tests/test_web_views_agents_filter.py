@@ -146,7 +146,7 @@ class TestRuntimeFilter(FilterBase):
         self.assertEqual({a["runtime"] for a in d["matches"]}, {"cursor"})
         self.assertEqual(d["runtimes"]["cursor"], 2)
         self.assertIn("Showing: runtime=cursor", html)
-        self.assertIn("org-cursor", html)   # legacy cursor-runtime rows land in the cursor org (chip = org)
+        self.assertNotIn('class="org org-', html)   # G-069: no org chips; legacy cursor-runtime rows land in the cursor org
         self.assertEqual({a["org"] for a in d["matches"]}, {"cursor"})
         self.assertNotIn("kickoff", json.dumps(d))
 

@@ -118,7 +118,8 @@ class TestHeaderServer(ServerCase):
 
     def test_header_on_goals_page(self):
         text = self.get("/goals")[2].decode()
-        self.assertIn("Cursor usage", text)
-        self.assertIn("Pro · limited until 11-05", text)
-        self.assertIn('class="pill hide-phone tone-', text)
+        # G-069: no header pill; a limited Cursor plan is a "!" warning banner in the shell.
+        self.assertIn("! Cursor Pro · limited until 11-05", text)
+        self.assertIn('class="banner banner--warning"', text)
+        self.assertNotIn('class="pill', text)
         self.assertNotIn("cursor-hdr", text)

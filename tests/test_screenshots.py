@@ -1195,7 +1195,7 @@ class TestImageProcessing(unittest.TestCase):
         rgb = lambda h: tuple(int(h[i:i + 2], 16) for i in range(0, 6, 2))
         self.assertEqual(rgb(dark), rgb(explicit))
         self.assertEqual(screenshots.THEME_BG, {"light": rgb(light), "dark": rgb(dark)})
-        self.assertEqual(screenshots.THEME_BG, {"light": (242, 242, 247), "dark": (0, 0, 0)})
+        self.assertEqual(screenshots.THEME_BG, {"light": (245, 246, 242), "dark": (20, 21, 19)})
 
     def test_text_less_layout_scores_under_min_colours_after_downscale(self):
         # flat cards with 1 px (2x) borders at odd offsets and a 16-step shadow ramp: the most colours a page without

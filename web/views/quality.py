@@ -6,7 +6,7 @@ Formulas are the ones in the queries.quality docstring. Rejections per week use 
 import datetime as dt
 
 from web import charts, queries
-from web.components import ctx_org, data_table, disclosure, empty_state, list_row, org_href, section, tile
+from web.components import ctx_org, data_table, disclosure, empty_state, list_row, org_href, section, strip
 from web.html import el
 
 TITLE = "Quality"
@@ -127,12 +127,21 @@ def _num(x):
     return f"{x:g}"
 
 
+_STRIP_TONE = {"success": "good", "danger": "bad", "warning": "warn", "neutral": "neutral"}
+
+
+def tile(label, value, delta=None, definition=None):
+    """A strip item (G-069 replaced the tiles): `delta` is a text or a (text, tone success|warning|danger|neutral) pair."""
+    text, tone = delta if isinstance(delta, tuple) else (delta, "neutral")
+    return {"label": label, "value": value, "delta": text, "tone": _STRIP_TONE.get(tone, "neutral"), "definition": definition}
+
+
 def _headline(d):
     o, w = d["overall"], d["windows"]
     cur, prev, days = w["current"], w["previous"], w["days"]
     since = f" The change compares the last {days} days with the {days} days before."
     first = round(100 * o["merged_first_try"] / o["merged"]) if o["merged"] else None
-    return el("div", tile("Rejections per merged PR", _rpm(o["rejections_per_merged"]),
+    return strip([tile("Rejections per merged PR", _rpm(o["rejections_per_merged"]),
                           delta=_delta(cur["rejections_per_merged"], prev["rejections_per_merged"], lambda x: f"{x:.2f}", True, days),
                           definition="Rejections divided by merged PRs, over all time. Lower is better." + since),
               tile("First-try merge rate", "-" if first is None else f"{first}%",
@@ -143,8 +152,8 @@ def _headline(d):
                    definition="Times the judge refused a merge because checks were red or still pending, over all time." + since),
               tile("Median attempts", _median_attempts(d),
                    delta=_delta(cur["median_attempts"], prev["median_attempts"], _num, True, days),
-                   definition="Median number of attempts of the tasks that merged, over all time. 1 means most merged first time." + since),
-              class_="tiles tiles--4")
+                   definition="Median number of attempts of the tasks that merged, over all time. 1 means most merged first time." + since)],
+                 key="q-head")
 
 
 def _median_attempts(d):
@@ -169,7 +178,7 @@ def _more_metrics(d):
     scored = [t for t in d["teams"] if t["score"] is not None]
     scores = ", ".join(f"{t['team_id']} {t['score']}/5" for t in scored) or "-"
     retries = (o["retries"] / o["merged"]) if o["merged"] else None
-    # every definition string below is shown word for word inside the tile's (i) details (acceptance 3 of T-0478)
+    # every definition string below is shown word for word in the strip's "How these are counted" list (acceptance 3 of T-0478)
     tiles = [
         tile("Merged PRs", o["merged"], definition="Distinct tasks with a merge event."),
         tile("Merged first try", o["merged_first_try"], definition="Merged tasks that were never rejected."),
@@ -186,7 +195,7 @@ def _more_metrics(d):
         tile("CI pass rate", _pct(o["ci_pass_rate"]), definition="Merged / (merged + tasks the judge blocked for red checks)."),
         tile("Latest team scores", scores, definition="Newest evaluation per team."),
     ]
-    return disclosure("More metrics", el("div", tiles, class_="tiles"), el("p", d["formula"], class_="muted"),
+    return disclosure("More metrics", strip(tiles, key="q-more"), el("p", d["formula"], class_="muted"),
                       el("p", NOTES, class_="muted"), key="more-metrics", count=len(tiles))
 
 
@@ -245,8 +254,9 @@ def _week_points(ctx, d):
 def _weeks(ctx, d):
     if not d["weeks"]:
         return section("Per week", empty_state("No rejections recorded."))
-    note = el("p", "Bars scale to the card width on desktop (weeks with more rejections are taller).", class_="muted only-phone")
-    return section("Per week", note, charts.columns(_week_points(ctx, d), "rejections", unit="week"))
+    bins = [(w[5:], {"rejections": n}) for w, n in _week_points(ctx, d)]   # "MM-DD" of the week's Monday
+    return section("Per week", charts.axis_chart(bins, (("rejections", "Rejections", "b-work"),), "Rejections per week",
+                                                 unit="", x_label="week"))
 
 
 def render(ctx, d):

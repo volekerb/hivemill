@@ -31,6 +31,9 @@ CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src '
        "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 MAX_CONCURRENT = 8
 REQUEST_TIMEOUT_S = 10
+# Spend and Flow replaced Tokens and Throughput (G-069): the old paths redirect; ROUTES keeps its keys
+ALIASES = {"/spend": "/tokens", "/flow": "/throughput"}
+REDIRECTS = {v: k for k, v in ALIASES.items()}
 _ID_RE = re.compile(r"^/(goal|task)/([A-Z]-\d+)$")
 _STATIC_NAME_RE = re.compile(r"^(?:fonts/)?[\w][\w.-]*$")  # one level: static/fonts/
 RELOAD_INTERVAL_S = 60     # FACTORY_SERVE_RELOAD_INTERVAL overrides it (tests)
@@ -42,10 +45,15 @@ background = []
 class Ctx:
     """What a view gets: a per-request read-only connection plus injected helpers."""
 
-    def __init__(self, db, tokens, usage_fn, mem_fn, defaults, now, factory_home=None, query=None):
+    def __init__(self, db, tokens, usage_fn, mem_fn, defaults, now, factory_home=None, query=None, obs_bin=None):
         self.db, self.tokens, self.usage_fn, self.mem_fn = db, tokens, usage_fn, mem_fn
         self.defaults, self.now, self.factory_home = defaults, now, factory_home
         self.query = query or {}    # str -> first value of the query string; views validate what they use
+        self.obs_bin = obs_bin      # hm-obs binary path or None (Spend and Flow; see docs/obs.md)
+
+    def obs(self, kind):
+        """hm-obs api <kind> for this request's query: (answer, None) or (None, error text)."""
+        return queries.obs_api(self.obs_bin, self.factory_home, kind, queries.obs_args(kind, self.query))
 
 
 def _refuse(msg):
@@ -158,6 +166,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._healthz(app)
         if path.startswith("/static/"):
             return self._static(unquote(path[len("/static/"):]))
+        if path in ("/api/obs/spend", "/api/obs/flow", "/api/obs/spend.json", "/api/obs/flow.json"):
+            return self._obs_json(path[len("/api/obs/"):].removesuffix(".json"))
+        if path in REDIRECTS:
+            q = urlsplit(self.path).query
+            return self._send(301, "", "text/plain; charset=utf-8",
+                              {"Location": REDIRECTS[path] + ("?" + q if q else "")})
         if path.startswith("/api/") and path.endswith(".json"):
             name = path[len("/api/"):-len(".json")]
             route = "/" if name == "home" else f"/{name}"
@@ -165,7 +179,7 @@ class Handler(BaseHTTPRequestHandler):
             if view is None:
                 return self._error(404, "not found")
             return self._view(view, route, {}, as_json=True)
-        view, params, active = ROUTES.get(path), {}, path
+        view, params, active = ROUTES.get(ALIASES.get(path, path)), {}, path
         if view is None:
             m = _ID_RE.match(path)
             if m:
@@ -178,7 +192,7 @@ class Handler(BaseHTTPRequestHandler):
         app = self.server.app
         with wdb.reader(app.current_db()) as con:
             ctx = Ctx(con, app.tokens, app.usage_fn, app.mem_fn, app.defaults, dt.datetime.now().astimezone(), app.factory_home,
-                      getattr(self, "query", {}))
+                      getattr(self, "query", {}), app.current_obs_bin())
             data = view.data(ctx, **params)
             if as_json:
                 body, ctype = json.dumps(data, default=str), "application/json"
@@ -189,6 +203,15 @@ class Handler(BaseHTTPRequestHandler):
                             org=queries.org_param(ctx.query), path=getattr(self, "_path", None), query=ctx.query)
                 ctype = "text/html; charset=utf-8"
         self._send(200, body, ctype)  # reader is closed before the response is written
+
+    def _obs_json(self, kind):
+        """/api/obs/spend|flow: hm-obs's JSON for the request's validated query; 503 with {"error"} when it fails."""
+        app = self.server.app
+        out, err = queries.obs_api(app.current_obs_bin(), app.factory_home, kind,
+                                   queries.obs_args(kind, getattr(self, "query", {})))
+        if err:
+            return self._send(503, json.dumps({"error": err}), "application/json", {"Retry-After": "60"})
+        self._send(200, json.dumps(out), "application/json")
 
     def _healthz(self, app):
         try:
@@ -208,9 +231,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class _App:
-    def __init__(self, db_path, bind, port, hostnames, tokens, usage_fn, mem_fn, defaults, factory_home):
+    def __init__(self, db_path, bind, port, hostnames, tokens, usage_fn, mem_fn, defaults, factory_home, obs_bin=None):
         self.db_path, self.tokens, self.usage_fn, self.mem_fn = db_path, tokens, usage_fn, mem_fn
-        self.defaults, self.factory_home = defaults, factory_home
+        self.defaults, self.factory_home, self.obs_bin = defaults, factory_home, obs_bin
         self.hosts = _host_allowed(bind, port, hostnames)
         self.sem = threading.BoundedSemaphore(MAX_CONCURRENT)
 
@@ -219,15 +242,20 @@ class _App:
         picked up on the next request (never a stale, renamed file)."""
         return self.db_path() if callable(self.db_path) else self.db_path
 
+    def current_obs_bin(self):
+        """hm-obs path for this request (obs_bin may be a callable, so a binary the tick builds later is found)."""
+        return self.obs_bin() if callable(self.obs_bin) else self.obs_bin
+
 
 def make_server(db_path, bind, port, hostnames=(), tokens=None, usage_fn=None, mem_fn=None, defaults=None,
-                factory_home=None):
+                factory_home=None, obs_bin=None):
     """Bound but not serving. port 0 picks a free port; the Host allowlist uses the port actually bound."""
     cls = _Server
     if ":" in bind:
         cls = type("_Server6", (_Server,), {"address_family": socket.AF_INET6})
     httpd = cls((bind, port), Handler)
-    httpd.app = _App(db_path, bind, httpd.server_address[1], hostnames, tokens, usage_fn, mem_fn, defaults, factory_home)
+    httpd.app = _App(db_path, bind, httpd.server_address[1], hostnames, tokens, usage_fn, mem_fn, defaults, factory_home,
+                      obs_bin)
     return httpd
 
 
@@ -285,7 +313,7 @@ def watch_ttl(httpd, state, seconds, sleep=time.sleep):
 
 
 def run(db_path, bind=None, port=8765, hostnames=(), usage_fn=None, mem_fn=None, defaults=None, factory_home=None,
-        ttl_minutes=0):
+        ttl_minutes=0, obs_bin=None):
     try:
         os.nice(10)
     except OSError:
@@ -294,7 +322,8 @@ def run(db_path, bind=None, port=8765, hostnames=(), usage_fn=None, mem_fn=None,
     index = TokenIndex()
     index.start_background(60)
     try:
-        httpd = make_server(db_path, bind, port, hostnames, index.snapshot, usage_fn, mem_fn, defaults, factory_home)
+        httpd = make_server(db_path, bind, port, hostnames, index.snapshot, usage_fn, mem_fn, defaults, factory_home,
+                            obs_bin)
     except OSError as e:
         _refuse(f"cannot listen on {bind}:{port}: {e}")
     for fn in background:

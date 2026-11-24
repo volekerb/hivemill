@@ -46,7 +46,7 @@ class TestEveryRouteRenders(ServerCase):
                 self.assertEqual(code, 200)
                 self.assertIn('href="#content"', text)
                 self.assertIn('<nav aria-label="Main"', text)
-                self.assertIn("Updated ", text)
+                self.assertNotIn('class="pill', text)   # G-069: no status pills in the shell
                 self.assertEqual(text.count('aria-current="page"'), 1)
                 self.assertIn('<main id="content"', text)
 
@@ -76,11 +76,16 @@ class TestEveryRouteRenders(ServerCase):
         self.assertNotIn(">in_progress<", text)
         self.assertNotIn(">in_review<", text)
 
-    def test_header_cluster_shows_updated_time_health_and_needs_you(self):
+    def test_header_has_the_selectors_and_no_status_pills(self):
         text = self.get("/goals")[2].decode()
-        self.assertRegex(text, r'Updated <time datetime="[^"]+">\d\d:\d\d</time>')
-        self.assertIn('class="pill hide-phone tone-', text)
-        self.assertIn('href="/#needs-you"', text)   # the seed has blocked work and an unread escalation
+        header = re.search(r'<header class="shellbar.*?</header>', text, re.S).group(0)
+        self.assertIn("<h1>Goals</h1>", header)
+        for label in ("Factory", "Project", "Time range"):
+            self.assertIn(label, header)
+        self.assertNotIn("Updated ", header)
+        self.assertNotIn("Needs you", header)
+        self.assertNotIn('class="pill', header)
+        self.assertIn("count--bad", nav_item(text, "/"))   # needs-you stays on the Overview nav item
 
 
 class ShellDb(unittest.TestCase):
@@ -129,7 +134,7 @@ class ShellDb(unittest.TestCase):
         needs = queries.shell_status(self.con, None, None)["needs"]
         self.assertEqual(needs, 3)   # blocked goal + 2 owner-blocked tasks
         self.assertRegex(nav_item(text, "/"), r'class="count count--bad" aria-label="3 items need you">3<')
-        self.assertEqual(re.findall(r'aria-label="3 items need you"[^>]*>Needs you 3<', text).__len__(), 2)  # top bar + header
+        self.assertNotIn("Needs you 3", text)   # G-069: no Needs-you pill in the top bar or header
 
 
 class TestShellStatus(unittest.TestCase):
@@ -230,12 +235,18 @@ class TestHelpers(unittest.TestCase):
         self.assertIn('<nav aria-label="Main"', doc)
         self.assertNotIn('aria-current="page"', doc)
 
-    def test_updated_time_is_the_injected_now(self):
-        self.assertIn(f'<time datetime="{NOW.isoformat(timespec="minutes")}">14:52</time>', wh.page("T", "", "/", shell=SHELL))
+    def test_header_has_no_updated_time_or_needs_pill(self):
+        doc = wh.page("T", "", "/", shell={**SHELL, "needs": 4})
+        self.assertNotIn("<time", doc)
+        self.assertNotIn("Needs you", doc)
+        self.assertIn('aria-label="4 items need you">4<', doc)   # the Overview nav count
 
-    def test_zero_needs_you_hides_the_badge(self):
-        self.assertNotIn("Needs you", wh.page("T", "", "/", shell=SHELL))
-        self.assertIn("Needs you 4", wh.page("T", "", "/", shell={**SHELL, "needs": 4}))
+    def test_health_banner_only_when_it_needs_attention(self):
+        self.assertNotIn("shell-health", wh.page("T", "", "/", shell=SHELL))
+        self.assertNotIn("shell-health", wh.page("T", "", "/", shell={**SHELL, "health": {"tone": "neutral", "text": "Usage unknown"}}))
+        doc = wh.page("T", "", "/", shell={**SHELL, "health": {"tone": "warning", "text": "Gate closed · 2 queued"}})
+        self.assertIn('class="banner banner--warning" role="status">! Gate closed · 2 queued<', doc)
+        self.assertLess(doc.index("shell-health"), doc.index('<main id="content"'))
 
 
 
@@ -254,15 +265,14 @@ class TestPhoneNeedsOnce(ShellDb):
             self.con.execute("INSERT INTO tasks(id,goal_id,title,status,waits,created,updated) VALUES(?,?,?,?,?,?,?)",
                              (f"T-{n}", "G-1", "t", "blocked", "owner", "x", "x"))
 
-    def test_tab_bar_has_no_needs_you_count_but_topbar_has_one(self):
+    def test_phone_shows_needs_you_once_on_the_overview_tab(self):
         self.seed_needs()
         self.agents(2, "queued", "q")
         text = self.get("/")
         tabs = block(text, r'<nav aria-label="Primary tabs".*?</nav>')
-        self.assertNotIn("items need you", tabs)
-        self.assertNotIn("count--bad", tabs)
+        self.assertEqual(tabs.count('aria-label="3 items need you"'), 1)
         top = block(text, r'<header class="topbar".*?</header>')
-        self.assertEqual(top.count('aria-label="3 items need you"'), 1)
+        self.assertNotIn("items need you", top)
 
     def test_other_counts_are_kept(self):
         self.seed_needs()
@@ -271,7 +281,7 @@ class TestPhoneNeedsOnce(ShellDb):
         tabs = block(text, r'<nav aria-label="Primary tabs".*?</nav>')
         self.assertRegex(tabs, r'<span class="count" aria-label="2 agents queued or blocked">2</span>')
         self.assertRegex(nav_item(text, "/"), r'class="count count--bad" aria-label="3 items need you">3<')
-        self.assertIn('aria-label="3 items need you"', block(text, r'<header class="shellbar".*?</header>'))
+        self.assertNotIn('items need you', block(text, r'<header class="shellbar".*?</header>'))
 
 
 class TestR1ShellCss(unittest.TestCase):
@@ -357,8 +367,7 @@ class TestMemoryLowServed(unittest.TestCase):
 
     def test_low_memory_shows_danger_pill(self):
         text = self.page(100)
-        self.assertIn("Memory low", text)
-        self.assertIn("tone-danger", text)
+        self.assertIn('class="banner banner--danger" role="status">! Memory low<', text)
 
     def test_plenty_of_memory_does_not(self):
         self.assertNotIn("Memory low", self.page(999999))

@@ -2,7 +2,7 @@
 
 Every function returns html.Safe built with html.el(), so labels are escaped. Geometry lives in SVG attributes
 (no inline style attributes, the CSP is style-src 'self'); colours come from the app.css classes (fill-*, track, tick, spark, col),
-so dark mode and the tokens apply. Every chart has a role="img" aria-label summary; sparkline and columns are
+so dark mode and the tokens apply. Every chart has a role="img" aria-label summary; sparkline and axis_chart are
 followed by a visually hidden <table class="sr-only"> with the same data.
 
 B5 and B6 import from here; keep the signatures stable:
@@ -10,20 +10,16 @@ B5 and B6 import from here; keep the signatures stable:
   gauge(label, value_text, pct, thresholds, zone, caption)   C9 labelled threshold gauge row
   gauge_bar(pct, thresholds, tone, aria)             the bare C9 bar (stack two for 5-hour and weekly)
   sparkline(points, label, caption="per day")        C10 120 x 24 trend line
-  columns(points, label, height=96)                  C10 column chart, one bar per day
+  axis_chart(bins, series, label, unit="$")          G-069 stacked columns with a y axis, gridlines and a legend
 `points` are (day "YYYY-MM-DD", number) pairs, oldest first.
 """
+import math
+
 from web.components import empty_state
 from web.html import Safe, el, h
 
 TONES = ("success", "warning", "danger", "neutral")
 SPARK_W, SPARK_H, SPARK_PAD = 120, 24, 3
-COL_W = 24
-MAX_W = 336   # widest chart that still fits a phone card at 1:1, so its labels keep their size
-COL_TOP, COL_BOTTOM = 14, 16
-# Horizontal padding inside the SVG so 5-character date labels (middle-anchored ~±15 user units) stay inside the viewBox
-# when the chart scales to the card (see web-redesign-review finding: first col-x clipped left of viewBox 0).
-LABEL_PAD = 18.0
 
 
 def _svg(inner, view_box, **attrs):
@@ -136,39 +132,73 @@ def sparkline(points, label, caption="per day"):
               el("span", caption, class_="spark-cap"), class_="spark-wrap")
 
 
-def columns(points, label, height=96, unit="day"):
-    """C10: one <rect> per day, each with a <title> holding its exact value; value labels on non-zero bars when there
-    are 14 days or fewer; an x label every 7th day. Empty data (no points, or all zero) gives the calm C14 line
-    "No <label> in this range" instead of an empty axis. `unit` names what one bar is ("day" or "week") in the aria-label
-    and the data table."""
-    points = list(points)
-    if not points or not any(v for _, v in points):
+AXIS_H = 220                 # G-069: every chart is 220 px tall
+AXIS_W = 960                 # viewBox width; the svg scales to its column (max width 1440 minus the sidebar)
+AXIS_LEFT, AXIS_RIGHT, AXIS_TOP, AXIS_BOTTOM = 56, 8, 10, 22
+
+
+def nice_ticks(top, n=3):
+    """Gridline values 0..>=top on a 1/2/2.5/5 x 10^k step with at most n+1 lines (3-4 gridlines). top <= 0 -> [0, 1]."""
+    if not top or top <= 0:
+        return [0.0, 1.0]
+    raw = top / n
+    mag = 10 ** math.floor(math.log10(raw))
+    step = next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw)
+    k = math.ceil(top / step - 1e-9)
+    return [round(i * step, 10) for i in range(k + 1)]
+
+
+def _tick_text(v, unit, exact=False):
+    """Axis tick (whole units from 10 up) or, with exact, a data value to the cent; trailing zeros dropped."""
+    if not exact and (v >= 10 or float(v).is_integer()):
+        t = f"{v:,.0f}"
+    else:
+        t = f"{v:,.2f}".rstrip("0").rstrip(".")
+    return f"${t}" if unit == "$" else f"{t} {unit}" if unit else t
+
+
+def axis_chart(bins, series, label, unit="$", x_label=None):
+    """G-069 chart: stacked columns with a y axis (unit on the tick labels), 3-4 gridlines and a legend at the top right.
+    `bins` are (x label, {series key: value}) pairs, oldest first; `series` are (key, legend label, class) in stack order
+    from the baseline. Each column segment has a <title> with its exact value; a sr-only table repeats the data. No data
+    (no bins or all zero) gives the calm empty line."""
+    bins = list(bins)
+    if not bins or not any(v for _, vals in bins for v in vals.values() if v):
         return empty_state(f"No {label} in this range")
-    n = len(points)
-    top = max(v for _, v in points)
-    plot = height - COL_TOP - COL_BOTTOM
-    # A value label is about 6 px per character at 10 px. Longer labels (48.6M) widen the column while the chart still fits
-    # a phone (MAX_W); beyond that every k-th bar is labelled, so labels never overlap. Short labels keep COL_W.
-    label_w = 6 * max((len(compact(v)) for _, v in points if v), default=0) + 6
-    col_w = COL_W if label_w <= COL_W else min(label_w, max(COL_W, MAX_W // n))
-    stride = 1 if label_w <= col_w else -(-label_w // col_w)
-    plot_left = LABEL_PAD
-    inner_w = n * col_w
-    last_i = n - 1
-    bars, texts = [], []
-    for i, (day, v) in enumerate(points):
-        bh = max(1.0, v / top * plot) if v else 1.0
-        x = plot_left + i * col_w + 4
-        bars.append(el("rect", el("title", f"{_day(day)}: {_exact(v)} {label}"), class_="col col--zero" if not v else "col",
-                       x=x, y=_num(height - COL_BOTTOM - bh), width=col_w - 8, height=_num(bh)))
-        if v and n <= 14 and i % stride == 0:
-            texts.append(el("text", compact(v), class_="col-val", x=_num(x + (col_w - 8) / 2), y=_num(height - COL_BOTTOM - bh - 3),
-                            text_anchor="middle"))
-        if i % 7 == 0:
-            cx = x + (col_w - 8) / 2
-            ta = "start" if i == 0 else "end" if i == last_i else "middle"
-            texts.append(el("text", _day(day), class_="col-x", x=_num(cx), y=height - 3, text_anchor=ta))
-    vb_w = inner_w + 2 * LABEL_PAD
-    svg = _svg([*bars, *texts], f"0 0 {int(vb_w)} {height}", height=height, role="img", focusable="false",
-               preserveAspectRatio="xMidYMin meet", **{"aria-label": _summary(points, label, unit)}, **{"class": "cols"})
-    return el("div", svg, _data_table(points, label, f"{label.capitalize()} per {unit}, last {n} {unit}s", unit), class_="cols-wrap")
+    totals = [sum(float(vals.get(k) or 0) for k, _, _ in series) for _, vals in bins]
+    ticks = nice_ticks(max(totals))
+    top = ticks[-1]
+    plot_h = AXIS_H - AXIS_TOP - AXIS_BOTTOM
+    plot_w = AXIS_W - AXIS_LEFT - AXIS_RIGHT
+    n = len(bins)
+    slot = plot_w / n
+    bw = max(1.0, slot * 0.7)
+    y = lambda v: AXIS_TOP + plot_h - (v / top) * plot_h   # noqa: E731
+    shapes = []
+    for t in ticks:
+        shapes.append(Safe(f'<line class="axis-grid" x1="{AXIS_LEFT}" x2="{AXIS_W - AXIS_RIGHT}" y1="{_num(y(t))}" y2="{_num(y(t))}"/>'))
+        shapes.append(el("text", _tick_text(t, unit), class_="axis-y", x=AXIS_LEFT - 6, y=_num(y(t) + 4), text_anchor="end"))
+    every = max(1, math.ceil(n / 8))
+    for i, (xl, vals) in enumerate(bins):
+        x = AXIS_LEFT + i * slot + (slot - bw) / 2
+        base = 0.0
+        for k, lab, cls in series:
+            v = float(vals.get(k) or 0)
+            if v <= 0:
+                continue
+            y0, y1 = y(base), y(base + v)
+            shapes.append(el("rect", el("title", f"{xl} {lab}: {_tick_text(v, unit, True)}"), class_=cls,
+                             x=_num(x), y=_num(y1), width=_num(bw), height=_num(max(0.5, y0 - y1))))
+            base += v
+        if i % every == 0:
+            shapes.append(el("text", xl, class_="axis-x", x=_num(x + bw / 2), y=AXIS_H - 6, text_anchor="middle"))
+    total = sum(totals)
+    aria = f"{label}: {_tick_text(total, unit, True)} over {n} {x_label or 'bin'}{'' if n == 1 else 's'}, peak {_tick_text(max(totals), unit, True)}"
+    svg = _svg(shapes, f"0 0 {AXIS_W} {AXIS_H}", height=AXIS_H, width="100%", role="img", focusable="false",
+               preserveAspectRatio="none", **{"aria-label": aria}, **{"class": "axis"})
+    legend = el("ul", [el("li", el("span", class_=f"lg-sw {cls}", aria_hidden="true"), lab) for _, lab, cls in reversed(series)],
+                class_="axis-legend")
+    head = el("tr", el("th", (x_label or "bin").capitalize(), scope="col"), [el("th", lab, scope="col") for _, lab, _ in series])
+    rows = [el("tr", el("td", xl), [el("td", _tick_text(float(vals.get(k) or 0), unit, True)) for k, _, _ in series]) for xl, vals in bins]
+    table = el("table", el("caption", label), el("thead", head), el("tbody", rows), class_="sr-only")
+    return el("figure", legend, svg, table, class_="axis-wrap")

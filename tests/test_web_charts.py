@@ -1,4 +1,4 @@
-"""G-019 B4: SVG chart primitives (web/charts.py) and the tile / needs-you row components."""
+"""G-019 B4: SVG chart primitives (web/charts.py) and the strip / banner / needs-you row components."""
 import re
 import sys
 import unittest
@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from web import charts  # noqa: E402
-from web.components import needs_you_row, tile  # noqa: E402
+from web.components import banner, banners, howto, needs_you_row, spark_cell, strip  # noqa: E402
 
 DAYS = [(f"2026-10-{d:02d}", n) for d, n in zip(range(14, 28), (0, 1, 0, 3, 0, 1, 1, 0, 2, 1, 0, 1, 0, 2))]
 
@@ -70,96 +70,100 @@ class TestSparkline(unittest.TestCase):
         self.assertIn('aria-label="0 merges in 0 days"', s)
 
 
-class TestColumns(unittest.TestCase):
-    def test_every_day_has_a_rect_with_a_title_holding_the_value(self):
-        c = str(charts.columns(DAYS, "merges"))
-        rects = re.findall(r'<rect class="col[^"]*"[^>]*><title>([^<]*)</title></rect>', c)
-        self.assertEqual(len(rects), 14)
-        self.assertEqual(rects[17 - 14], "10-17: 3 merges")
-        self.assertRegex(c, r'</svg><table class="sr-only">')
+SERIES = (("work_usd", "Work", "b-work"), ("polling_usd", "Polling", "b-polling"), ("spawn_usd", "Spawn", "b-spawn"))
+BINS = [("11-20", {"work_usd": 10.0, "polling_usd": 2.5, "spawn_usd": 0.5}),
+        ("11-21", {"work_usd": 0, "polling_usd": 0, "spawn_usd": 0}),
+        ("11-22", {"work_usd": 31.25, "polling_usd": 4.0, "spawn_usd": 1.0})]
 
-    def test_value_labels_only_on_non_zero_bars_and_x_label_every_seventh(self):
-        c = str(charts.columns(DAYS, "merges"))
-        self.assertEqual(len(re.findall(r'class="col-val"', c)), 8)
-        self.assertEqual(re.findall(r'class="col-x"[^>]*>([^<]*)<', c), ["10-14", "10-21"])
 
-    def test_no_value_labels_above_fourteen_days(self):
-        pts = [(f"2026-09-{d:02d}", 1) for d in range(1, 21)]
-        self.assertNotIn("col-val", str(charts.columns(pts, "merges")))
+class TestAxisChart(unittest.TestCase):
+    """G-069 [SC5]: the daily stacked work/polling/spawn chart, 220 px, y axis with units, legend top right."""
 
-    def test_empty_data_gives_the_calm_line_and_no_axis(self):
-        for pts in ([], [("2026-10-14", 0), ("2026-10-15", 0)]):
-            c = str(charts.columns(pts, "merges"))
-            self.assertIn("No merges in this range", c)
+    def test_nice_ticks_use_a_round_step_and_cover_the_top(self):
+        self.assertEqual(charts.nice_ticks(36.25), [0, 20, 40])
+        self.assertEqual(charts.nice_ticks(7), [0, 2.5, 5, 7.5])
+        self.assertEqual(charts.nice_ticks(0), [0.0, 1.0])
+        for top in (0.3, 1, 9.99, 123, 48_000_000):
+            t = charts.nice_ticks(top)
+            self.assertGreaterEqual(t[-1], top)
+            self.assertLessEqual(len(t), 5, t)
+
+    def test_every_segment_has_a_title_with_its_value_and_zero_segments_are_skipped(self):
+        c = str(charts.axis_chart(BINS, SERIES, "Spend by day", x_label="day"))
+        self.assertIn("<title>11-22 Work: $31.25</title>", c)
+        self.assertIn("<title>11-20 Polling: $2.5</title>", c)
+        self.assertNotIn("11-21 Work", c)
+        self.assertEqual(c.count('class="b-work"'), 2)
+
+    def test_height_is_220_and_the_svg_scales_to_its_column(self):
+        c = str(charts.axis_chart(BINS, SERIES, "Spend by day"))
+        self.assertIn('viewBox="0 0 960 220"', c)
+        self.assertIn('height="220"', c)
+        self.assertIn('width="100%"', c)
+
+    def test_y_axis_labels_carry_the_unit_and_legend_lists_top_series_first(self):
+        c = str(charts.axis_chart(BINS, SERIES, "Spend by day"))
+        self.assertEqual(re.findall(r'class="axis-y"[^>]*>([^<]+)<', c), ["$0", "$20", "$40"])
+        legend = re.search(r'<ul class="axis-legend">(.*?)</ul>', c).group(1)
+        self.assertEqual(re.findall(r"</span>([^<]+)</li>", legend), ["Spawn", "Polling", "Work"])
+
+    def test_screen_reader_table_and_aria_summary(self):
+        c = str(charts.axis_chart(BINS, SERIES, "Spend by day", x_label="day"))
+        self.assertIn('aria-label="Spend by day: $49.25 over 3 days, peak $36.25"', c)
+        self.assertIn("<tr><td>11-22</td><td>$31.25</td><td>$4</td><td>$1</td></tr>", c)
+
+    def test_empty_or_all_zero_data_gives_the_calm_line(self):
+        for bins in ([], [("11-21", {"work_usd": 0})]):
+            c = str(charts.axis_chart(bins, SERIES, "spend"))
+            self.assertIn("No spend in this range", c)
             self.assertNotIn("<svg", c)
 
-    def test_token_sized_values_never_print_an_exponent_and_the_bar_label_is_formatted(self):
-        pts = [(f"2026-10-{d:02d}", v) for d, v in zip(range(21, 28), (48567200.0, 97300000.0, 4.85672e+07 / 3, 0.0, 1500.0, 999.0, 12.0))]
-        c = str(charts.columns(pts, "tokens"))
-        self.assertNotIn("e+", c)
-        labels = re.findall(r'class="col-val"[^>]*>([^<]*)<', c)
-        self.assertEqual(labels, ["48.6M", "97.3M", "16.2M", "1.5k", "999", "12"])
-        self.assertIn("<title>10-21: 48,567,200 tokens</title>", c)
-        aria = re.search(r'aria-label="([^"]*)"', c).group(1)
-        self.assertEqual(aria, "162.1M tokens in 7 days, peak 97.3M on 10-22")
-        self.assertIn("<td>48,567,200</td>", c)
-        self.assertIn("<td>97,300,000</td>", c)
-
-    def test_long_labels_widen_the_columns_or_skip_labels_so_none_overlap(self):
-        def labels(n):
-            c = str(charts.columns([(f"2026-10-{d:02d}", 48_000_000 + d) for d in range(1, n + 1)], "tokens"))
-            x = [float(v) for v in re.findall(r'class="col-val" x="([^"]+)"', c)]
-            return c, x
-        c, x = labels(7)                                  # 7 bars: 36 px columns, every bar labelled
-        self.assertIn('viewBox="0 0 288 96"', c)
-        self.assertEqual(len(x), 7)
-        self.assertTrue(all(b - a >= 36 for a, b in zip(x, x[1:])), x)
-        c, x = labels(14)                                 # 14 bars would pass 336 px: 24 px columns, every 2nd bar labelled
-        self.assertIn('viewBox="0 0 372 96"', c)
-        self.assertEqual(len(x), 7)
-        self.assertTrue(all(b - a >= 36 for a, b in zip(x, x[1:])), x)
+    def test_x_labels_thin_out_past_eight_bins(self):
+        bins = [(f"h{i:02d}", {"work_usd": 1}) for i in range(24)]
+        self.assertEqual(len(re.findall(r'class="axis-x"', str(charts.axis_chart(bins, SERIES, "s")))), 8)
 
     def test_compact_rolls_over_to_M_at_the_unit_boundary(self):
         self.assertEqual([charts.compact(n) for n in (999, 1000, 999949, 999950, 999999, 1_000_000)],
                          ["999", "1.0k", "999.9k", "1.0M", "1.0M", "1.0M"])
 
-    def test_small_integer_output_is_unchanged(self):
-        c = str(charts.columns(DAYS, "merges"))
-        self.assertIn('viewBox="0 0 372 96"', c)
-        self.assertIn("<title>10-17: 3 merges</title>", c)
-        self.assertIn('aria-label="12 merges in 14 days, peak 3 on 10-17"', c)
-        self.assertIn("<tr><td>2026-10-17</td><td>3</td></tr>", c)
-
     def test_chart_markup_is_csp_safe(self):
         for m in (charts.meter(1, 2, "x"), charts.gauge("a", "b", 1, [1], ("success", "OK")), charts.sparkline(DAYS, "m"),
-                  charts.columns(DAYS, "m")):
+                  charts.axis_chart(BINS, SERIES, "m"), spark_cell([1, 2, 3], "t")):
             self.assertNotRegex(str(m), r'style=|fill="#|stroke="#')
 
-    def test_column_svg_scales_to_container_without_fixed_pixel_width(self):
-        c = str(charts.columns(DAYS, "merges"))
-        self.assertIn('preserveAspectRatio="xMidYMin meet"', c)
-        self.assertNotRegex(c, r'<svg[^>]*\swidth="')
 
+class TestStrip(unittest.TestCase):
+    """G-069: the strip replaces KPI tiles."""
 
-class TestTile(unittest.TestCase):
-    def test_tile_has_value_unit_delta_and_definition_disclosure(self):
-        t = str(tile("First-try merge rate", "57", unit="%", delta=("up 12 pts", "success"), definition="Share never rejected."))
-        self.assertIn('<div class="metric">57<small>%</small></div>', t)
-        self.assertIn('class="delta fg-success">up 12 pts<', t)
-        self.assertIn("<details", t)
-        self.assertIn("Share never rejected.", t)
-
-    def test_tile_unit_nl_stacks_unit_under_value(self):
-        t = str(tile("Merges", "55", unit="in 14 days", unit_nl=True))
-        self.assertIn('class="metric metric--stack"', t)
-        self.assertIn('<div class="metric-val">55</div>', t)
-        self.assertIn('<small class="tile-unit">in 14 days</small>', t)
-
-    def test_tile_without_extras_and_with_href(self):
-        t = str(tile("Open PRs", 4, href="/tasks"))
-        self.assertIn('<a href="/tasks">Open PRs</a>', t)
+    def test_strip_item_has_label_value_unit_and_delta(self):
+        t = str(strip([{"label": "Spend", "value": "$62.09", "delta": "up 4% vs previous", "tone": "warn"},
+                       {"label": "Merged", "value": 12, "unit": "PRs", "href": "/tasks"}]))
+        self.assertIn('<dt class="strip-label">Spend</dt>', t)
+        self.assertIn('<dd class="strip-value">$62.09</dd>', t)
+        self.assertIn('class="strip-delta fg-warning">! up 4% vs previous<', t)
+        self.assertIn('<a href="/tasks">Merged</a>', t)
+        self.assertIn("12<small>PRs</small>", t)
         self.assertNotIn("<details", t)
-        self.assertNotIn("delta", t)
+
+    def test_unknown_value_shows_a_dash_and_definitions_go_in_one_disclosure(self):
+        t = str(strip([{"label": "Weekly limit", "value": None, "definition": "Seven-day usage."}, None]))
+        self.assertIn('<dd class="strip-value">–</dd>', t)
+        self.assertEqual(t.count("<details"), 1)
+        self.assertIn("Seven-day usage.", t)
+
+    def test_banner_always_starts_with_a_bang_and_empty_gives_none(self):
+        self.assertIn(">! Polling is 25% of spend<", str(banner("Polling is 25% of spend")))
+        self.assertIn(">! already<", str(banner("! already")))
+        self.assertIsNone(banner(""))
+        self.assertIsNone(banners([]))
+        self.assertEqual(str(banners(["a", "", "b"])).count('class="banner"'), 2)
+
+    def test_spark_cell_and_howto(self):
+        self.assertEqual(spark_cell([0, 0], "t"), "–")
+        self.assertIn('aria-label="Trend: 3 points, peak 3"', str(spark_cell([1, 2, 3], "Trend")))
+        h = str(howto("docs/obs.md"))
+        self.assertIn('href="https://github.com/volekerb/hivemill/blob/main/docs/obs.md"', h)
+        self.assertIn("How this is counted", h)
 
 
 class TestNeedsYouRow(unittest.TestCase):

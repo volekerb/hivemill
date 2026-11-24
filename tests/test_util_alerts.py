@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -273,6 +274,56 @@ class TickLevel(AlertCase):
         self.tick()
         self.assertEqual(self.env.sql("SELECT count(*) c FROM events WHERE action='util-alert-failed'")[0]["c"], 1)
 
+
+class ObsIngestTick(AlertCase):
+    """G-069 T-1826: the util tick starts `hm-obs ingest` detached, at most every 5 minutes (docs/obs.md)."""
+
+    def stub(self):
+        d = Path(self.env.home_dir) / "stubbin"
+        d.mkdir(exist_ok=True)
+        out = d / "argv"
+        b = d / "hm-obs"
+        b.write_text(f'#!/bin/sh\necho "$@" >> {out}\n')
+        b.chmod(0o755)
+        return str(b), out
+
+    def run_tick(self, minute, **kw):
+        with mock.patch.dict(os.environ, {"FACTORY_NOW": at(minute)}):
+            return self.mod.obs_ingest_tick(self.con, **kw)
+
+    def wait_lines(self, path, n):
+        for _ in range(200):
+            if path.exists() and len(path.read_text().splitlines()) >= n:
+                break
+            time.sleep(0.025)
+        return path.read_text().splitlines() if path.exists() else []
+
+    def test_starts_ingest_then_throttles(self):
+        b, out = self.stub()
+        with mock.patch.dict(os.environ, {"FACTORY_OBS_BIN": b}):
+            self.assertEqual(self.run_tick(0), "started")
+            self.assertEqual(self.wait_lines(out, 1), [f"ingest --home {self.mod.HOME}"])
+            self.assertEqual(self.run_tick(4), "throttled")
+            self.assertEqual(self.run_tick(6), "started")
+            self.assertEqual(len(self.wait_lines(out, 2)), 2)
+        self.assertTrue((Path(self.mod.HOME) / "state" / "obs-ingest.log").exists())
+
+    def test_override_refused_on_live_home(self):
+        b, out = self.stub()
+        with mock.patch.dict(os.environ, {"FACTORY_OBS_BIN": b}), mock.patch.object(self.mod, "home_is_live", lambda *a: True):
+            self.assertEqual(self.run_tick(0), "refused")
+        self.assertFalse(out.exists())
+
+    def test_no_toolchain_skips_without_raising(self):
+        lib = Path(self.env.home_dir) / "lib"
+        with mock.patch.dict(os.environ, {"FACTORY_OBS_BIN": ""}):
+            self.assertEqual(self.run_tick(0, lib=lib, go=lib / "no-go"), "skipped")
+        self.assertFalse((lib / "hm-obs").exists())
+
+    def test_wired_into_util_tick(self):
+        src = FACTORY_SRC.read_text()
+        body = src[src.index("def _tick_u_util"):src.index("def _tick_u_emit")]
+        self.assertIn("obs_ingest_tick(con)", body)
 
 if __name__ == "__main__":
     unittest.main()

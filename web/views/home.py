@@ -6,8 +6,8 @@ import statistics
 from scout import orgs as _orgs
 from web import charts, queries
 from web.db import has_column
-from web.components import (AGENT_COLS, agent_row, ago, ctx_org, empty_state, feed, feed_row, list_row, needs_you_row, org_badge,
-                            org_href, pr_label, row_status, tile)
+from web.components import (AGENT_COLS, agent_row, ago, ctx_org, empty_state, feed, feed_row, list_row, needs_you_row,
+                            org_href, pr_label, row_status, strip)
 from web.html import el, glyph, link, org_dot, status
 from web.views import resources
 
@@ -382,7 +382,7 @@ def goal_row(g, now, *, crit=None, last=None, needs=0, extra=None, body=None, op
     prs = f"{g['open_prs']} open PR" + ("s" if g["open_prs"] != 1 else "") if g["open_prs"] else None
     act = ago(last, now)
     title = el("span", el("a", g["title"], href=f"/goal/{g['id']}"),
-               el("span", f"P{g['priority']}", class_="chip-p") if g["priority"] is not None else None, " ", org_badge(g.get("org")),
+               el("span", f"P{g['priority']}", class_="chip-p") if g["priority"] is not None else None,
                class_="gtitle")
     meta = el("div", charts.meter(done, total, f"{done}/{total} tasks"),
               el("span", f"criteria {crit[0]}/{crit[1]}", class_="gprs") if crit else None,
@@ -487,13 +487,13 @@ def _quality_section(d):
     rej = "n/a" if q["rejections_per_merged"] is None else f"{q['rejections_per_merged']:.2f}"
     first = "n/a" if q["first_try_pct"] is None else str(q["first_try_pct"])
     med, med_unit = _median(q["median_spawn_to_merge_s"])
-    tiles = el("div",
-               tile("Rejections per merged PR", rej, definition="Rejections (failed review, QA or judge) divided by merged PRs, all time. Lower is better."),
-               tile("First-try merge rate", first, unit="%" if q["first_try_pct"] is not None else None,
-                    definition="Share of merged PRs that were never rejected. Higher is better."),
-               tile("Median spawn to merge", med, unit=med_unit,
-                    definition=f"Median time from a task's first agent start to its merge, last {DAYS} days."),
-               class_="tiles")
+    tiles = strip([
+        {"label": "Rejections per merged PR", "value": rej,
+         "definition": "Rejections (failed review, QA or judge) divided by merged PRs, all time. Lower is better."},
+        {"label": "First-try merge rate", "value": first, "unit": "%" if q["first_try_pct"] is not None else None,
+         "definition": "Share of merged PRs that were never rejected. Higher is better."},
+        {"label": "Median spawn to merge", "value": med, "unit": med_unit,
+         "definition": f"Median time from a task's first agent start to its merge, last {DAYS} days."}], key="ov-quality")
     bounce = q["bouncing"]
     if bounce:
         rows = [list_row("in_review", b["task_id"], b["title"], f"/task/{b['task_id']}",

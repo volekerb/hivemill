@@ -135,7 +135,8 @@ class TestSections(Base):
         q = section(page, "quality")
         for label in ("Rejections per merged PR", "First-try merge rate", "Median spawn to merge", "Bouncing now"):
             self.assertIn(label, q)
-        self.assertEqual(q.count('class="tile"'), 3)
+        self.assertEqual(q.count('class="strip-item"'), 3)   # G-069: a figure strip, no KPI tiles
+        self.assertNotIn('class="tile"', q)
         self.assertEqual([b["task_id"] for b in d["quality"]["bouncing"]], ["T-2", "T-3"])
         self.assertEqual([b["rejections"] for b in d["quality"]["bouncing"]], [1, 1])   # T-3: reject verdict + judge-reject event count once
         self.assertIn("/task/T-3", q)
@@ -245,7 +246,7 @@ class TestTree(Base):
         self.assertIn('class="mono lrow-id">G-1<', row)
         self.assertIn(">Goal one</a>", row)
         self.assertIn(">P1<", row)
-        self.assertIn("org-claude", row)
+        self.assertNotIn("org-claude", row)     # G-069: no org badges
         self.assertIn("1/5 tasks", text(row))
         self.assertIn("criteria 1/4", row)       # criteria_by_goal: SC1 met; SC2 and SC3 not done; SC4 untagged
         self.assertIn("1 open PR", row)

@@ -12,7 +12,7 @@ from pathlib import Path
 from scout import orgs as _orgs
 from web import charts, queries
 from web import cursor_limits
-from web.components import ctx_org, data_table, disclosure, empty_state, org_badge, section
+from web.components import ctx_org, data_table, disclosure, empty_state, section
 from web.html import badge, el, glyph, link, table, ts
 from web.views import agents
 
@@ -402,7 +402,7 @@ def _orgs_section(g, org):
             {"key": "hq", "label": "HQ", "cls": "num", "phone_label": True},
             {"key": "queued", "label": "Queued", "cls": "num", "phone_label": True},
             {"key": "runtime", "label": "Runtime", "phone_label": True}]
-    table_rows = [[org_badge(m["org"]), m["live"], m["workers"], m["leads"], m["hq"], m["queued"],
+    table_rows = [[_orgs.label(m["org"]) if m["org"] in _orgs.ORGS else m["org"], m["live"], m["workers"], m["leads"], m["hq"], m["queued"],
                    " · ".join(f"{rt} {n}" for rt, n in sorted(m["runtimes"].items())) or "-"] for m in rows]
     body = data_table(cols, [{"key": "all", "label": None, "count": len(table_rows), "rows": table_rows}], key="orgs")
     return section("Agents by org", body, el("p", "The agent cap, memory and load are shared by both orgs.", class_="muted"))

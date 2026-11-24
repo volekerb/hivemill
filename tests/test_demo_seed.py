@@ -559,7 +559,8 @@ class Pages(unittest.TestCase):
 
     def test_agents_page_shows_both_runtimes_and_the_cursor_filter(self):
         _, html = self.get("/agents")
-        self.assertRegex(html, r'cursor-coder-t-0205 <span class="agent-role">coder</span> <span class="org org-cursor" title="Cursor org">Cursor</span>')
+        self.assertIn('cursor-coder-t-0205 <span class="agent-role">coder</span>', html)
+        self.assertNotIn('class="org org-cursor"', html)     # G-069: no org badges; the header Factory filter splits runtimes
         self.assertIn("composer-2.5", html)
         _, cur = self.get("/agents?org=cursor")
         self.assertGreaterEqual(len(set(re.findall(r"cursor-[a-z]+(?:-[a-z0-9]+)*", cur)) & {"cursor-boss", "cursor-director", "cursor-lead-g-013-a",
@@ -571,9 +572,12 @@ class Pages(unittest.TestCase):
         self.assertNotIn("cursor-coder-t-0205", claude)
 
     def test_tokens_page_shows_only_demo_usage(self):
-        _, html = self.get("/tokens")
-        self.assertIn("38%", html)                       # the fake usage-limits.json, not the owner's
-        self.assertIn("G-002", html)
+        _, home = self.get("/")
+        self.assertIn("38%", home)                       # the fake usage-limits.json, not the owner's
+        _, html = self.get("/tokens")                    # 301 to /spend (G-069)
+        # The seeded home has no hm-obs binary or obs.db: Spend says so instead of reading the owner's data.
+        self.assertIn("Spend data unavailable", html)
+        self.assertIn("<title>Spend", html)
         self.assertNotIn(str(Path.home()), html)
 
 

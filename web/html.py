@@ -7,7 +7,9 @@ import html as _html
 import re
 
 from scout import orgs as _orgs
-from web.queries import parse_ts
+from urllib.parse import quote
+
+from web.queries import RANGES, obs_value, parse_ts, range_param
 
 _STATUSES = ("todo", "in_progress", "in_review", "blocked", "done", "cancelled", "proposed", "planning", "active",
              "live", "queued", "exited", "lost", "stopped")
@@ -37,19 +39,25 @@ CLASSES = frozenset({
     "cl", "dt-wrap--cards", "tblock", "tblock--wide", "metric-val", "metric--stack", "tile-unit", "tiles--4", "tiles--6", "feed--log", "changelog-meta", "changelog-line-note",
     "ins-list", "ins-row", "ins-name", "ins-gauges", "ins-check", "ins-check--over", "ins-key", "ins-wide",
     "only-phone", "table--id-col", "per-day-grid",
+    "nav-item--soon", "soon", "hsel", "hsel-menu", "strip", "strip-item", "strip-label", "strip-value", "strip-delta",
+    "banner", "banners", "banner--danger", "banner--warning", "shell-health", "axis", "axis-wrap", "axis-grid", "axis-y", "axis-x", "axis-legend", "lg-sw",
+    "b-work", "b-polling", "b-spawn", "warn-cell", "howto", "stages", "stage", "stage-bar", "stage-fill",
+    "stage-name", "stage-h", "stage-share", "lane-main", "lane-rework", "lane-side", "lane-other", "stage-lane",
+    "drill", "obs-err", "role-1", "role-2", "role-3", "role-4", "role-5", "role-6", "role-7", "role-8", "spark-cell",
     *(f"{p}-{t}" for p in ("fg", "gs", "tone") for t in _TONES),
     *(f"status--{s}" for s in _STATUSES),
     *(f"{p}-{o}" for p in ("org", "org-dot", "lane-") for o in _orgs.NAMES),
     *(f"bar--{n}" for n in range(0, 101, 5)),
 })
 
-# nav groups (note 4): (group label, ((path, label, icon), ...)); a flat NAV keeps the old (path, label) shape
-GROUPS = (("Work", (("/", "Overview", "grid"), ("/goals", "Goals", "target"), ("/tasks", "Tasks", "list"),
-                    ("/agents", "Agents", "user"))),
-          ("Insights", (("/throughput", "Throughput", "bars"), ("/quality", "Quality", "check"),
-                        ("/tokens", "Tokens", "db"), ("/changelog", "Changelog", "lines"))),
-          ("System", (("/resources", "Resources", "chip"),)))
-NAV = tuple((p, label) for _, items in GROUPS for p, label, _ in items)
+# nav groups (G-069): (group label, ((path, label, icon), ...)); path None = not built yet (shown as "soon", no link).
+# A flat NAV keeps the old (path, label) shape for the built pages.
+GROUPS = (("Now", (("/", "Overview", "grid"), ("/goals", "Goals", "target"), ("/tasks", "Tasks", "list"),
+                   ("/agents", "Agents", "user"))),
+          ("Analyze", (("/spend", "Spend", "coin"), ("/flow", "Flow", "flow"), ("/quality", "Quality", "check"))),
+          ("Improve", ((None, "Recommendations", "bulb"),)),
+          ("System", (("/resources", "Resources", "chip"), ("/changelog", "Changelog", "lines"))))
+NAV = tuple((p, label) for _, items in GROUPS for p, label, _ in items if p)
 TABS = ("/", "/goals", "/tasks", "/agents")
 
 # one label map for every enum shown to people (note 4 copy table)
@@ -68,6 +76,9 @@ _SVG16 = {
     "db": '<ellipse cx="8" cy="4.5" rx="5" ry="2"/><path d="M3 4.5v7c0 1.1 2.2 2 5 2s5-.9 5-2v-7M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>',
     "lines": '<path d="M3 4h10M3 8h10M3 12h6"/>',
     "chip": '<rect x="3" y="3" width="10" height="10" rx="2"/><path d="M6 1.5V3M10 1.5V3M6 13v1.5M10 13v1.5"/>',
+    "coin": '<circle cx="8" cy="8" r="6"/><path d="M10 5.8C9.6 5.2 8.9 5 8 5c-1.2 0-2 .6-2 1.5S6.8 7.7 8 8s2 .7 2 1.5S9.2 11 8 11c-.9 0-1.6-.2-2-.8M8 3.8V5M8 11v1.2"/>',
+    "flow": '<path d="M2 4h4l2 4h6M8 8l-2 4H2M11.5 5.5 14 8l-2.5 2.5"/>',
+    "bulb": '<path d="M6 12.5h4M6.5 14.5h3M8 1.5a4.5 4.5 0 0 0-2.6 8.2c.4.3.6.7.6 1.2v.1h4v-.1c0-.5.2-.9.6-1.2A4.5 4.5 0 0 0 8 1.5Z"/>',
     "more": '<circle cx="3.5" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="12.5" cy="8" r="1"/>',
 }
 _RING = '<circle cx="6" cy="6" r="4.25" fill="none" stroke="currentColor" stroke-width="1.5"/>'
@@ -88,7 +99,6 @@ _SVG12 = {  # status glyphs: shape alone tells the states apart (todo/cancelled,
 }
 _SVG12["active"] = _SVG12["in_progress"]
 _SVG12["stopped"] = _SVG12["exited"]
-_HEALTH_GLYPH = {"success": "done", "warning": "queued", "danger": "lost", "neutral": "exited"}
 
 _ATTR_RE = re.compile(r"^[a-z-]+$")
 _REL_RE = re.compile(r"^/(?!/)[\w./?=&%#:+~-]*$")
@@ -260,59 +270,81 @@ def org_dot(org):
     return el("span", class_=f"org-dot org-dot-{org}" if org in _orgs.ORGS else "org-dot", aria_hidden="true")
 
 
+def header_params(query, org=None):
+    """The validated header state carried on every header link: org (a known org), project (obs_value) and range (a
+    RANGES key). Unknown values are dropped, never echoed back."""
+    q = query or {}
+    proj = obs_value(q.get("project"))
+    rng = q.get("range") if q.get("range") in {k for k, _, _ in RANGES} else None
+    return {"org": org if org in _orgs.ORGS else None, "project": proj or None, "range": rng}
+
+
+def _hlink(path, state, **change):
+    st = {**state, **change}
+    qs = "&".join(f"{k}={quote(str(st[k]), safe='')}" for k in ("org", "project", "range") if st.get(k))
+    return f"{path}?{qs}" if qs else path
+
+
 def org_filter(path, query, current):
-    """Global org filter (G-028): segmented "All · Claude · Cursor" links to `path` with ?org= set. The other query
-    keys are not carried over (each view validates its own; an unknown value must never be echoed back); the views
-    keep ?org= on their own in-page links instead. `current` is the whitelisted org or None (= all)."""
-    items = [el("a", "All", href=path, aria_current="true" if current is None else None)]
-    items += [el("a", org_dot(o), _orgs.label(o), href=f"{path}?org={o}", aria_current="true" if current == o else None,
+    """Global factory (org) filter (G-028): segmented "All · Claude · Cursor" links to `path` with ?org= set; the
+    project and range of the header stay on the links. `current` is the whitelisted org or None (= all)."""
+    state = header_params(query, current)
+    items = [el("a", "All", href=_hlink(path, state, org=None), aria_current="true" if current is None else None)]
+    items += [el("a", org_dot(o), _orgs.label(o), href=_hlink(path, state, org=o), aria_current="true" if current == o else None,
                  class_=f"org-{o}") for o in _orgs.NAMES]
-    return el("nav", items, class_="seg seg-links orgseg", aria_label="Org")
+    return el("nav", items, class_="seg seg-links orgseg", aria_label="Factory")
+
+
+def project_filter(path, query, org, projects):
+    """Project selector: a closed <details> menu of links (no script). `projects` are (id, name) pairs."""
+    state = header_params(query, org)
+    cur = state["project"]
+    names = dict(projects or ())
+    label = "All projects" if not cur else names.get(cur, cur)
+    items = [el("li", el("a", "All projects", href=_hlink(path, state, project=None), aria_current="true" if not cur else None))]
+    items += [el("li", el("a", name, href=_hlink(path, state, project=pid), aria_current="true" if cur == pid else None))
+              for pid, name in projects or ()]
+    return el("details", el("summary", el("span", "Project", class_="sr-only"), label), el("ul", items, class_="hsel-menu"),
+              class_="hsel", data_key="hdr-project")
+
+
+def range_filter(path, query, org):
+    """Time range: segmented 24h · 3d · 7d · 30d links (default 7d), the other header state kept."""
+    state = header_params(query, org)
+    cur = range_param(query or {})[0]
+    return el("nav", [el("a", k, href=_hlink(path, state, range=k), title=lab, aria_current="true" if k == cur else None)
+                      for k, _, lab in RANGES], class_="seg seg-links", aria_label="Time range")
 
 
 def shell_header(title, shell, crumb_trail=None, org_nav=None, path=None):
-    """Global status header: breadcrumb + h1 left; org filter, Updated hh:mm, health pill and Needs-you badge right."""
-    cluster = [org_nav] if org_nav else []
-    if shell:
-        now, health, needs = shell.get("now"), shell.get("health"), shell.get("needs", 0)
-        if now is not None:
-            cluster.append(el("span", "Updated ", el("time", now.strftime("%H:%M"), datetime=now.isoformat(timespec="minutes")),
-                              class_="updated", title="refreshes every 60 s"))
-        if health:
-            cluster.append(el("a", glyph(_HEALTH_GLYPH[health["tone"]]), el("span", health["text"]), href="/resources",
-                              class_=f"pill hide-phone tone-{health['tone']}"))
-        if needs:
-            cluster.append(el("a", f"Needs you {needs}", href="/#needs-you", aria_label=f"{needs} items need you",
-                              class_="badge badge--bad hide-phone"))
-        cur = shell.get("cursor")
-        if cur:
-            from web import cursor_limits
-
-            tone = "danger" if any(m["status"] == "limited" for m in cur["models"]) else "success"
-            cluster.append(
-                el(
-                    "span",
-                    cursor_limits.header_pill(cur),
-                    class_=f"pill hide-phone tone-{tone}",
-                    title="Cursor usage today",
-                )
-            )
+    """Page header: breadcrumb + h1 on the left; the factory, project and time-range selectors on the right (G-069:
+    no status pills; health lives on Resources, Needs-you on Overview). `org_nav` is the selector cluster."""
     shell_cls = "shellbar shellbar--task" if path and str(path).startswith("/task/") else "shellbar"
-    return el("header", el("div", crumb_trail, el("h1", title), class_="titlebar"), el("div", cluster, class_="cluster"),
+    return el("header", el("div", crumb_trail, el("h1", title), class_="titlebar"), el("div", org_nav, class_="cluster"),
               class_=shell_cls)
 
 
-def _topbar(shell, org=None):
+def health_banner(shell):
+    """Box health as G-069 "!" banners (no pills): only what needs attention (warning or danger: memory low, usage
+    cap, gate closed, usage high; a Cursor model on its usage limit). All normal or unknown shows nothing."""
+    from web import cursor_limits
+
     shell = shell or {}
-    right = []
-    if shell.get("needs"):
-        right.append(el("a", f"Needs you {shell['needs']}", href="/#needs-you", aria_label=f"{shell['needs']} items need you",
-                        class_="badge badge--bad"))
-    if shell.get("health"):
-        h_ = shell["health"]
-        right.append(el("a", glyph(_HEALTH_GLYPH[h_["tone"]]), href="/resources", aria_label=h_["text"],
-                        class_=f"pill pill-dot tone-{h_['tone']}"))
-    return el("header", _wordmark(org), el("div", right, class_="topbar-right"), class_="topbar")
+    items = []
+    h = shell.get("health") or {}
+    if h.get("tone") in ("danger", "warning") and h.get("text"):
+        items.append((h["tone"], h["text"]))
+    cur = shell.get("cursor") or {}
+    if any(m.get("status") == "limited" for m in cur.get("models") or []):
+        items.append(("warning", f"Cursor {cursor_limits.plan_line(cur)}"))
+    if not items:
+        return None
+    return el("div", [el("p", f"! {text}", class_=f"banner banner--{tone}", role="status") for tone, text in items],
+              class_="banners shell-health")
+
+
+def _topbar(shell, org=None):
+    return el("header", _wordmark(org), class_="topbar")
 
 
 def _with_org(path, org):
@@ -321,12 +353,15 @@ def _with_org(path, org):
 
 
 def _item_link(path, label, icon, active, shell, cls, size=16, org=None):
-    """Nav link. Only the Main nav item (cls "nav-item") carries aria-current, so every page has exactly one.
+    """Nav link; a None `path` (a page not built yet) is a plain "soon" item with aria-disabled. Only the Main nav item (cls "nav-item") carries aria-current, so every page has exactly one.
     With an org filter on, the link keeps it (?org=), so the filter follows the owner from page to page."""
+    if path is None:
+        return el("span", _svg(_SVG16[icon], size), el("span", label), el("span", "soon", class_="soon"),
+                  class_=" ".join(c for c in (cls, "nav-item--soon") if c), aria_disabled="true")
     here = path == active
     main_nav = cls == "nav-item"
     classes = " ".join(c for c in (cls, "nav-item--active" if here and main_nav else "is-current" if here else "") if c)
-    count = None if cls == "tab" and path == "/" else _nav_count(path, shell)   # phone: the top bar badge is the one Needs-you count
+    count = _nav_count(path, shell)
     return el("a", _svg(_SVG16[icon], size), el("span", label), count,
               href=_with_org(path, org), class_=classes or None, aria_current="page" if here and main_nav else None)
 
@@ -336,7 +371,7 @@ def _shell_navs(active, shell, org=None):
                                               for p, label, ic in items]),
                  class_="navgroup") for g, items in GROUPS]
     side = el("nav", _wordmark(org), groups, el("div", data_theme_slot=True, class_="themebox"), aria_label="Main", class_="sidebar")
-    flat = {p: (label, ic) for _, items in GROUPS for p, label, ic in items}
+    flat = {p: (label, ic) for _, items in GROUPS for p, label, ic in items if p}
     tabs = [_item_link(p, flat[p][0], flat[p][1], active, shell, "tab", 20, org=org) for p in TABS]
     more_active = active not in TABS
     tabs.append(el("a", _svg(_SVG16["more"], 20), el("span", "More"), href="#more", class_="tab is-current" if more_active else "tab"))
@@ -362,8 +397,12 @@ def page(title, body, active="/", refresh=True, shell=None, crumb_trail=None, or
               el("link", rel="icon", href="/static/favicon.svg", type="image/svg+xml"),
               el("link", rel="stylesheet", href="/static/app.css"),
               el("script", src="/static/theme.js", defer=True))
-    org_nav = org_filter(path, query, org) if path and shell else None
-    main = el("div", shell_header(title, shell, crumb_trail, org_nav, path), el("main", Safe(body) if not isinstance(body, Safe) else body, id="content", class_="page"),
+    org_nav = None
+    if path and shell:
+        org_nav = [org_filter(path, query, org), project_filter(path, query, org, shell.get("projects")),
+                   range_filter(path, query, org)]
+    main = el("div", shell_header(title, shell, crumb_trail, org_nav, path), health_banner(shell),
+              el("main", Safe(body) if not isinstance(body, Safe) else body, id="content", class_="page"),
               more, class_="main")
     shell_el = el("div", _topbar(shell, org), side, main, class_="app")
     return "<!doctype html>\n" + str(el("html", head, el("body", el("a", "Skip to content", href="#content", class_="skip"), shell_el, tabs), lang="en"))

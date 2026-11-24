@@ -844,8 +844,9 @@ def shell_status(con, usage, defaults, mem=None, now=None):
     from web import cursor_limits
 
     t = _now(now)
+    projects = [(r[0], r[1] or r[0]) for r in con.execute("SELECT id, name FROM projects ORDER BY id")]
     return {"needs": needs, "agents_attention": queued + n.get("blocked", 0), "health": health,
-            "cursor": cursor_limits.display(con, t)}
+            "cursor": cursor_limits.display(con, t), "projects": projects}
 
 
 # ───────────────────────────── overview (G-019 B4) ─────────────────────────────
@@ -1036,3 +1037,73 @@ def quality_windows(con, days=14, now=None, *, goals=None):
                      "ci_blocked": sum(1 for _, e in ci if e is not None and lo <= e < hi),
                      "median_attempts": statistics.median(att) if att else None}
     return out
+
+
+# ───────────────────────────── hm-obs (Spend, Flow) ─────────────────────────────
+# The Spend and Flow pages read go/cmd/hm-obs (`hm-obs api spend|flow`), which answers from state/obs.db (built by
+# the tick's `hm-obs ingest`). Only validated values reach its argv; see docs/obs.md.
+
+RANGES = (("24h", 24, "24 h"), ("3d", 72, "3 days"), ("7d", 168, "7 days"), ("30d", 720, "30 days"))
+DEFAULT_RANGE = "7d"
+OBS_GROUPS = ("role", "model", "goal", "project", "agent", "session")
+OBS_TIMEOUT_S = 8
+NOT_ATTRIBUTED = "-"
+_OBS_VALUE_RE = re.compile(r"^[\w.:@+-]{0,160}$")
+
+
+def range_param(query):
+    """(key, hours, label) of the ?range= time range; an unknown or missing value is DEFAULT_RANGE."""
+    v = query.get("range") if isinstance(query, dict) else None
+    for r in RANGES:
+        if r[0] == v:
+            return r
+    return next(r for r in RANGES if r[0] == DEFAULT_RANGE)
+
+
+def obs_value(v):
+    """A filter value safe to pass to hm-obs (ids, names, models; "" = Not attributed), else None."""
+    return v if isinstance(v, str) and _OBS_VALUE_RE.match(v) else None
+
+
+def obs_args(kind, query):
+    """hm-obs api argv tail for a request: --hours from ?range=, --project from ?project=, and for spend --group
+    from ?group= plus one --<group> filter per drill key (?role=, ?model=, ...). Invalid and empty values are
+    dropped; NOT_ATTRIBUTED ("-") selects the "Not attributed" row (hm-obs takes it as "")."""
+    query = query if isinstance(query, dict) else {}
+    args = ["--hours", str(range_param(query)[1])]
+    if kind == "flow":
+        p = obs_value(query.get("project"))
+        return args + (["--project", p] if p and p != NOT_ATTRIBUTED else [])
+    args += ["--group", query.get("group") if query.get("group") in OBS_GROUPS else "role"]
+    for g in OBS_GROUPS:
+        v = obs_value(query.get(g))
+        if v:
+            args += [f"--{g}", "" if v == NOT_ATTRIBUTED else v]
+    return args
+
+
+def obs_api(binary, home, kind, args, run=None):
+    """(answer dict, None) from `hm-obs api <kind> --home <home> <args>`, or (None, what went wrong). Never raises."""
+    import subprocess
+
+    if kind not in ("spend", "flow"):
+        return None, f"unknown obs page {kind!r}"
+    if not binary:
+        return None, "hm-obs is not built yet: the tick builds it from go/cmd/hm-obs within a few minutes"
+    if not home:
+        return None, "no factory home: start the UI with factory serve"
+    try:
+        p = (run or subprocess.run)([str(binary), "api", kind, "--home", str(home), *args], capture_output=True,
+                                    text=True, timeout=OBS_TIMEOUT_S, stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        return None, f"hm-obs api {kind} took longer than {OBS_TIMEOUT_S} s"
+    except OSError as e:
+        return None, f"cannot run hm-obs ({e.strerror or e})"
+    if p.returncode != 0:
+        last = (p.stderr or "").strip().splitlines()
+        return None, (last[-1] if last else f"hm-obs api {kind} exited {p.returncode}")[:300]
+    try:
+        out = json.loads(p.stdout)
+    except ValueError:
+        return None, f"hm-obs api {kind} printed no JSON"
+    return (out, None) if isinstance(out, dict) else (None, f"hm-obs api {kind} printed no JSON object")

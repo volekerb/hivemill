@@ -72,8 +72,7 @@ type Bucket struct {
 }
 
 func (b *Bucket) add(r Request) {
-	cost, ok := tokens.Cost(r.Model, r.Usage, r.Speed)
-	wcost, _ := tokens.Cost(r.Model, tokens.Usage{CacheWrite5m: r.Usage.CacheWrite5m, CacheWrite1h: r.Usage.CacheWrite1h}, r.Speed)
+	cost, wcost, spawn, polling, work, ok := Buckets(r)
 	if !ok {
 		b.Unpriced++
 	}
@@ -90,15 +89,9 @@ func (b *Bucket) add(r Request) {
 	b.CacheWrite += r.Usage.CacheWrite5m + r.Usage.CacheWrite1h
 	b.Cost += cost
 	b.CacheWriteCost += wcost
-	switch {
-	case r.First: // the cache write of the start-up context is spawn; the rest of that request is work
-		b.SpawnCost += wcost
-		b.WorkCost += cost - wcost
-	case r.Usage.Output < TinyOutput:
-		b.PollingCost += cost
-	default:
-		b.WorkCost += cost
-	}
+	b.SpawnCost += spawn
+	b.PollingCost += polling
+	b.WorkCost += work
 	b.ContextSum += ctx
 	if ctx > b.ContextMax {
 		b.ContextMax = ctx
@@ -363,6 +356,59 @@ func userText(raw []byte) (string, bool) {
 	return strings.Join(parts, "\n"), true
 }
 
+// ParseRequest decodes one transcript line into a billed request and its dedup key (message id + request id).
+// ok is false for anything that is not a billed model call: no usage, no id, the "<synthetic>" model Claude Code
+// writes itself (zero tokens), or no timestamp. Session, Project and First are left for the caller.
+func ParseRequest(raw []byte) (r Request, key string, ok bool) {
+	if len(raw) == 0 || len(raw) > maxLineBytes || !bytes.Contains(raw, usageKey) {
+		return Request{}, "", false
+	}
+	var l line
+	if json.Unmarshal(raw, &l) != nil || l.Message.Usage == nil || l.Message.ID == "" || l.Message.Model == "" ||
+		l.Message.Model == "<synthetic>" || l.Timestamp.IsZero() {
+		return Request{}, "", false
+	}
+	u := l.Message.Usage
+	w1, w5 := int64(0), u.CacheCreation
+	if u.Detail != nil {
+		w1 = u.Detail.OneHour
+		w5 = u.CacheCreation - w1
+		if w5 < 0 {
+			w5 = 0
+		}
+	}
+	return Request{Model: l.Message.Model, Speed: u.Speed, At: l.Timestamp.UTC(), Usage: tokens.Usage{
+		Input: u.Input, Output: u.Output, CacheRead: u.CacheRead, CacheWrite5m: w5, CacheWrite1h: w1}}, l.Message.ID + "\x00" + l.RequestID, true
+}
+
+// UserText is the text of a user transcript line (its content string, or its text blocks joined), or ok=false.
+func UserText(raw []byte) (string, bool) {
+	if len(raw) > maxLineBytes || !bytes.Contains(raw, userKey) {
+		return "", false
+	}
+	return userText(raw)
+}
+
+// MaxKickoffLines is how many user messages are tried for a role before a session counts as "other".
+const MaxKickoffLines = maxKickoffLines
+
+// Buckets splits the cost of one request into spawn, polling and work by the same rule as a report: the cache
+// write of a file's first request is spawn and the rest of it work; a turn with output under TinyOutput is polling;
+// anything else is work. cost is the whole request at API prices; ok is false when the model has no price.
+func Buckets(r Request) (cost, cacheWrite, spawn, polling, work float64, ok bool) {
+	cost, ok = tokens.Cost(r.Model, r.Usage, r.Speed)
+	cacheWrite, _ = tokens.Cost(r.Model, tokens.Usage{CacheWrite5m: r.Usage.CacheWrite5m, CacheWrite1h: r.Usage.CacheWrite1h}, r.Speed)
+	switch {
+	case r.First:
+		spawn, work = cacheWrite, cost-cacheWrite
+	case r.Usage.Output < TinyOutput:
+		polling = cost
+	default:
+		work = cost
+	}
+	return
+}
+
 // readFile emits the requests of one transcript. user receives the user messages in order (up to maxKickoffLines)
 // until it returns false.
 func readFile(path string, user func(string) bool, emit func(Request), seen map[string]bool) error {
@@ -375,35 +421,17 @@ func readFile(path string, user func(string) bool, emit func(Request), seen map[
 	wantUser, users, first := user != nil, 0, true
 	for {
 		raw, err := br.ReadBytes('\n')
-		if wantUser && len(raw) <= maxLineBytes && bytes.Contains(raw, userKey) {
-			if text, ok := userText(raw); ok {
+		if wantUser {
+			if text, ok := UserText(raw); ok {
 				users++
 				wantUser = user(text) && users < maxKickoffLines
 			}
 		}
-		if len(raw) > 0 && len(raw) <= maxLineBytes && bytes.Contains(raw, usageKey) {
-			var l line
-			// "<synthetic>" marks messages Claude Code writes itself (no model call, zero tokens): not a request.
-			if json.Unmarshal(raw, &l) == nil && l.Message.Usage != nil && l.Message.ID != "" && l.Message.Model != "" &&
-				l.Message.Model != "<synthetic>" && !l.Timestamp.IsZero() {
-				key := l.Message.ID + "\x00" + l.RequestID
-				if !seen[key] {
-					seen[key] = true
-					isFirst := first
-					first = false
-					u := l.Message.Usage
-					w1, w5 := int64(0), u.CacheCreation
-					if u.Detail != nil {
-						w1 = u.Detail.OneHour
-						w5 = u.CacheCreation - w1
-						if w5 < 0 {
-							w5 = 0
-						}
-					}
-					emit(Request{Model: l.Message.Model, Speed: u.Speed, At: l.Timestamp.UTC(), First: isFirst, Usage: tokens.Usage{
-						Input: u.Input, Output: u.Output, CacheRead: u.CacheRead, CacheWrite5m: w5, CacheWrite1h: w1}})
-				}
-			}
+		if r, key, ok := ParseRequest(raw); ok && !seen[key] {
+			seen[key] = true
+			r.First = first
+			first = false
+			emit(r)
 		}
 		if err == io.EOF {
 			return nil

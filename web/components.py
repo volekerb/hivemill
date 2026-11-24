@@ -7,7 +7,7 @@ import re
 from urllib.parse import quote
 
 from scout import orgs as _orgs
-from web.html import LABELS, Safe, el, glyph, link, org_dot, status
+from web.html import LABELS, Safe, el, glyph, h as _h, link, org_dot, status
 from web.queries import DEFAULT_ORG, agent_org, org_param, org_runtime, parse_ts
 
 # status group order of the task list (note 4 section 4); the last two start collapsed
@@ -204,18 +204,6 @@ def runtime_badge(runtime):
     return el("span", rt, class_=f"rt rt-{rt}", title=f"Agent runtime: {rt}")
 
 
-def org_badge(org, runtime=None):
-    """Org chip (G-028): "Claude" / "Cursor" in the org's colour. The org implies the runtime, so the runtime chip is
-    added only when it differs from the org's (e.g. the cursor org's evaluator runs on Claude). Unknown → default org."""
-    o = org if org in _orgs.ORGS else DEFAULT_ORG
-    lab = _orgs.label(o)
-    chip = el("span", lab, class_=f"org org-{o}", title=f"{lab} org")
-    rt = (runtime or "").strip().lower()
-    if rt in ("claude", "cursor") and rt != org_runtime(o):
-        return Safe(f"{chip} {runtime_badge(rt)}")
-    return chip
-
-
 def org_of(a):
     """The org of an agent dict: its `org` key (queries.agents sets it), else derived from name and runtime."""
     o = a.get("org")
@@ -237,11 +225,10 @@ def ctx_org(ctx):
 
 def agent_row(a, now=None):
     """Cells for AGENT_COLS: glyph, name + role (role omitted when equal to the name), task id + title, last event age.
-    `a` needs name, role, status; task_id, task_title, last_event, runtime, org optional. Blocked → Blocked glyph.
-    The org chip sits next to the name (with a runtime chip only when the runtime is not the org's)."""
+    `a` needs name, role, status; task_id, task_title, last_event optional. Blocked → Blocked glyph. No org chip on
+    rows (G-069): the header's factory selector filters by org."""
     key = "blocked" if a.get("blocked") else a["status"]
     who = el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a.get("role") and a["role"] != a["name"] else None,
-             " ", org_badge(org_of(a), a.get("runtime")),
              class_="agent-who")
     task = el("span", el("a", a["task_id"], href=f"/task/{a['task_id']}", class_="mono"), " ",
               el("span", a.get("task_title"), title=a.get("task_title"), class_="agent-task")) if a.get("task_id") else ""
@@ -249,24 +236,74 @@ def agent_row(a, now=None):
     return [row_status(key), who, task, last or ""]
 
 
-# ── C7 metric tile, C18 needs-you row (G-019 B4) ──
+# ── G-069 strip, banner, sparkline cell; C18 needs-you row ──
 
-def tile(label, value, unit=None, delta=None, definition=None, href=None, unit_nl=False):
-    """C7 metric tile: label, big value (+ small `unit`), optional `delta` line and an (i) definition disclosure.
-    `delta` is a text or a (text, tone) pair, tone success|warning|danger|neutral (default neutral); `definition`
-    opens as a short paragraph under the label; `href` makes the label a link (to the detail page).
-    `unit_nl`: when True, `unit` renders on its own line under the value so a long unit does not touch the figure."""
-    text, tone = (delta if isinstance(delta, tuple) else (delta, "neutral"))
-    name = el("a", label, href=href) if href else el("span", label)
-    info = (el("details", el("summary", "i", aria_label=f"What is {label}?"), el("p", definition, class_="tile-def"),
-               class_="disc--i") if definition else None)
-    if unit_nl and unit:
-        metric = el("div", el("div", value, class_="metric-val"), el("small", unit, class_="tile-unit"), class_="metric metric--stack")
-    else:
-        metric = el("div", value, el("small", unit) if unit else None, class_="metric")
-    return el("div", el("div", name, " ", info, class_="tile-label"),
-              metric,
-              el("div", text, class_=f"delta fg-{tone}") if text else None, class_="tile")
+STRIP_TONES = ("good", "bad", "warn", "neutral")
+_TONE_CLASS = {"good": "fg-success", "bad": "fg-danger", "warn": "fg-warning", "neutral": "muted"}
+
+
+def _strip_item(item):
+    label, value = item["label"], item.get("value")
+    value = "–" if value in (None, "") else value
+    tone = item.get("tone") if item.get("tone") in STRIP_TONES else "neutral"
+    delta = item.get("delta")
+    if delta and tone == "warn" and not str(delta).startswith("!"):
+        delta = f"! {delta}"   # amber is never the only signal
+    name = el("a", label, href=item["href"]) if item.get("href") else label
+    return el("div", el("dt", name, class_="strip-label"),
+              el("dd", value, el("small", item["unit"]) if item.get("unit") else None, class_="strip-value"),
+              el("dd", delta, class_=f"strip-delta {_TONE_CLASS[tone]}") if delta else None, class_="strip-item")
+
+
+def strip(items, key="strip"):
+    """One row of headline figures (G-069 replaces the KPI tiles): label above a 22 px tabular value, an optional
+    delta line under it. items: dicts {label, value, unit?, delta?, tone? good|bad|warn|neutral, href?, definition?}.
+    A None or "" value shows "–". A warn delta gets a leading "!". Definitions, when any item has one, follow in one
+    closed "How these are counted" disclosure (word for word, so a figure is never left unexplained)."""
+    items = [i for i in items if i]
+    defs = [(i["label"], i["definition"]) for i in items if i.get("definition")]
+    out = [el("dl", [_strip_item(i) for i in items], class_="strip")]
+    if defs:
+        out.append(disclosure("How these are counted", el("dl", [[el("dt", lab), el("dd", d)] for lab, d in defs], class_="rail-dl"),
+                              key=f"{key}-defs"))
+    return el("div", out)
+
+
+DOCS_BASE = "https://github.com/volekerb/hivemill/blob/main/"
+
+
+def howto(doc):
+    """The page's one "How this is counted" link (G-069), to a repo doc such as docs/obs.md."""
+    return el("p", el("a", "How this is counted", href=DOCS_BASE + doc, rel="noopener"), class_="howto")
+
+
+def banner(text):
+    """One-line page warning (G-069 rules): always starts with "!", so colour is not the only signal."""
+    text = str(text or "").strip()
+    if not text:
+        return None
+    return el("p", text if text.startswith("!") else f"! {text}", class_="banner", role="note")
+
+
+def banners(texts):
+    """The page's banners in order, or None."""
+    rows = [banner(t) for t in texts or () if t]
+    return el("div", rows, class_="banners") if rows else None
+
+
+def spark_cell(values, label):
+    """Tiny 64 x 16 sparkline for a table cell (G-069), values oldest first; aria-label gives the range. Empty or all-zero
+    values give "–"."""
+    vals = [float(v or 0) for v in values or ()]
+    if not vals or not any(vals):
+        return "–"
+    w, hgt, pad = 64, 16, 2
+    top = max(vals)
+    step = (w - 2 * pad) / (len(vals) - 1) if len(vals) > 1 else 0
+    pts = " ".join(f"{pad + i * step:.1f},{hgt - pad - v / top * (hgt - 2 * pad):.1f}" for i, v in enumerate(vals))
+    aria = f"{label}: {len(vals)} points, peak {top:g}"
+    return Safe(f'<svg class="spark spark-cell" viewBox="0 0 {w} {hgt}" width="{w}" height="{hgt}" role="img" '
+                f'focusable="false" aria-label="{_h(aria)}"><polyline points="{pts}"/></svg>')
 
 
 _NEEDS_GLYPH = {"danger": "blocked", "warning": "queued", "neutral": "proposed"}

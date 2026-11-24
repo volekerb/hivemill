@@ -134,16 +134,15 @@ class TestComponents(unittest.TestCase):
         cells = wc.agent_row(a, NOW)
         self.assertEqual(len(cells), len(wc.AGENT_COLS))
         self.assertIn("agent-role", str(cells[1]))
-        self.assertIn("org-claude", str(cells[1]))  # default org chip when unset
-        self.assertNotIn('class="rt ', str(cells[1]))  # the org implies the runtime: no second chip
+        self.assertNotIn("org-", str(cells[1]))  # G-069: no org badges in the shell or tables
+        self.assertNotIn('class="rt ', str(cells[1]))
         self.assertIn("Build &lt;it&gt;", str(cells[2]))
         self.assertEqual(cells[3], "4 m")
         boss = wc.agent_row({"name": "boss", "role": "boss", "status": "live"}, NOW)
         self.assertNotIn("agent-role", str(boss[1]))
         self.assertIn("Blocked", str(wc.agent_row(dict(a, blocked=True), NOW)[0]))
         cur = wc.agent_row({"name": "pm-a", "role": "pm", "status": "live", "runtime": "cursor"}, NOW)
-        self.assertIn("org-cursor", str(cur[1]))   # a cursor runtime agent without org/prefix is in the cursor org
-        self.assertNotIn("org-claude", str(cur[1]))
+        self.assertNotIn("org-", str(cur[1]))   # G-069: the org filter lives in the header, not on each row
         self.assertNotIn('class="rt ', str(cur[1]))
 
     def test_href_and_ago_helpers(self):

@@ -3881,6 +3881,52 @@ def build_block_eval(src=None, lib=None, tick=False, go=None):
     return build_guard_go(src, lib, tick=tick, go=go, name=BLOCK_EVAL_BIN, pkg="./cmd/block-eval")
 
 
+OBS_BIN = "hm-obs"
+OBS_INGEST_EVERY_S = 300  # the web pages read state/obs.db; five minutes old is fresh enough
+
+
+def obs_ingest_tick(con, lib=None, go=None):
+    """Tick hook: at most every OBS_INGEST_EVERY_S start `hm-obs ingest --home HOME` detached (own session, log in
+    state/obs-ingest.log), building go/cmd/hm-obs into <lib> first. The ingest holds its own lock, so an overlap is
+    a no-op. FACTORY_OBS_BIN replaces the binary (tests) and is refused on the live home. Returns started | throttled |
+    skipped | refused | failed; never raises. See docs/obs.md."""
+    try:
+        if _util_throttled(con, "obs_ingest", OBS_INGEST_EVERY_S, digest_clock().timestamp()):
+            return "throttled"
+        override = (os.environ.get("FACTORY_OBS_BIN") or "").strip()
+        if override and home_is_live():
+            print("obs ingest: FACTORY_OBS_BIN is not allowed on the live factory home", file=sys.stderr)
+            return "refused"
+        binary = override
+        if not binary:
+            if build_guard_go(lib=lib, tick=True, go=go, name=OBS_BIN, pkg="./cmd/hm-obs") not in ("built", "current"):
+                return "skipped"
+            binary = str(Path(lib or guard_lib_dir()) / OBS_BIN)
+        state = HOME / "state"
+        state.mkdir(parents=True, exist_ok=True)
+        with open(state / "obs-ingest.log", "w") as lf:
+            subprocess.Popen([binary, "ingest", "--home", str(HOME)], stdin=subprocess.DEVNULL, stdout=lf,
+                             stderr=subprocess.STDOUT, start_new_session=True)
+        return "started"
+    except (OSError, subprocess.SubprocessError, sqlite3.Error) as e:
+        print(f"obs ingest: failed to start ({e}); the Spend and Flow pages show the last ingest", file=sys.stderr)
+        return "failed"
+
+
+def obs_web_binary(lib=None):
+    """hm-obs for the web UI's Spend and Flow pages: FACTORY_OBS_BIN (refused on the live home: None), else the
+    tick-built <lib>/hm-obs when it is executable, else None (the pages then say to wait for the tick)."""
+    override = (os.environ.get("FACTORY_OBS_BIN") or "").strip()
+    if override:
+        if home_is_live():
+            print("factory serve: FACTORY_OBS_BIN is not allowed on the live factory home; using the tick-built hm-obs",
+                  file=sys.stderr)
+        else:
+            return override
+    path = Path(lib or guard_lib_dir()) / OBS_BIN
+    return str(path) if os.access(path, os.X_OK) else None
+
+
 def block_eval_binary(lib=None):
     """Path to block-eval for parse/eval. Honors FACTORY_BLOCK_EVAL except on the live factory home (exit 2)."""
     override = (os.environ.get("FACTORY_BLOCK_EVAL") or "").strip()
@@ -19286,6 +19332,7 @@ def _tick_u_util(con, st):
         goal_token_tally_tick(con)
         goal_token_warn_tick(con)
         cap_fallback_offer_tick(con)
+        obs_ingest_tick(con)
         _pt_lap("util")
 
 
@@ -22865,7 +22912,8 @@ def cmd_serve(a):
 def _cmd_serve_run(a, g, server):
     server.run(db_path=resolve_db, bind=a.bind or g("serve_bind") or None, port=a.port if a.port is not None else int(g("serve_port")),
                hostnames=[n.strip() for n in g("serve_hostnames").split(",") if n.strip()],
-               usage_fn=usage, mem_fn=serve_mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)))
+               usage_fn=usage, mem_fn=serve_mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)),
+               obs_bin=obs_web_binary)
 
 
 # ───────────────────────────── cli ─────────────────────────────
