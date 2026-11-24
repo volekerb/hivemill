@@ -846,3 +846,23 @@ class MechMergeTests(FactoryTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RunnerManagedTests(FactoryTestCase):
+    """Option B (docs/option-b-runner.md): a task owned by the Go runner (agents role task / task-judge) is skipped by the
+    old pipeline: review/judge autospawn, the tick's mechanical merger and coder CI resume."""
+
+    def test_runner_task_is_left_alone(self):
+        self.env.seed_goal()
+        self.env.seed_task("T-0001", status="in_review")
+        self.env.seed_task("T-0002", status="in_review", pr_url="https://github.com/zz-test/repo/pull/2")
+        self.env.seed_agent("claude-task-t-0001", "task", task="T-0001")
+        with self.env.load_factory() as f:
+            con = f.db()
+            t1 = con.execute("SELECT * FROM tasks WHERE id='T-0001'").fetchone()
+            t2 = con.execute("SELECT * FROM tasks WHERE id='T-0002'").fetchone()
+            self.assertTrue(f.runner_managed(con, "T-0001"))
+            self.assertFalse(f.runner_managed(con, "T-0002"))
+            self.assertIn("runner-managed", f.autospawn_block_reason(con, t1))
+            self.assertIsNone(f.autospawn_block_reason(con, t2))
+            self.assertNotIn("T-0001", [t["id"] for t in f.mech_candidates(con)])
