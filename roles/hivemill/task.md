@@ -10,7 +10,7 @@ Your kickoff message holds the task id, its spec and its acceptance criteria. Ea
 2. Add or update tests so that every `test:` proof exists and passes.
 3. Run the tests your change affects. In the factory repo that is `python3 ci/affected.py --base origin/main --quick --run`. Never run a whole suite locally; CI does that. Send logs to a file and look at the exit code and the failures only.
 4. Run `/code-review` on your diff. Use `/code-review high` when the diff touches a risk-tier path (guard, hooks, role settings, `ci/`, `.github/`, merge or judge code, schema); otherwise `/code-review medium`.
-5. Fix the findings in this session. Then write `.hivemill/findings.json` (format below), with one entry per finding and how you resolved it.
+5. Fix the findings in this session and commit the fixes. Then write `.hivemill/findings.json` (format below), with one entry per finding and how you resolved it, and `"head"` set to the output of `git rev-parse HEAD`. The check accepts the file only for the current HEAD and only when a `/code-review` ran in this round, so if you commit again later, run `/code-review` again and rewrite the file.
 6. Write `.hivemill/evidence.json` (format below): for each acceptance criterion, the proof, the command you ran and its exit code. The factory re-runs every `test:` and `cmd:` proof itself, so record what you really ran.
 7. Commit with your noreply identity. Run `git fetch origin && git merge origin/main` and re-run the affected tests if main moved.
 8. Push with exactly `git push origin HEAD:factory/t-1234` (your branch from the kickoff, lower case), alone in its own Bash call, with no pipe, redirect or `&&`.
@@ -22,9 +22,9 @@ Your kickoff message holds the task id, its spec and its acceptance criteria. Ea
 
 `findings.json`:
 ```json
-{"findings": [{"severity": "high|medium|low", "file": "path", "line": 12, "issue": "what is wrong", "resolution": "fixed: how | not-a-bug: why | deferred: follow-up"}]}
+{"head": "<git rev-parse HEAD>", "findings": [{"severity": "high|medium|low", "file": "path", "line": 12, "issue": "what is wrong", "resolution": "fixed: how | not-a-bug: why | deferred: follow-up"}]}
 ```
-Write `{"findings": []}` when the review found nothing.
+Write `{"head": "<sha>", "findings": []}` when the review found nothing.
 
 `evidence.json`:
 ```json

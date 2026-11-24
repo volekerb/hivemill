@@ -225,7 +225,7 @@ func (r *Runner) Start(id string) error {
 	// claude-coder-t-NNNN(-aN); the lane's own suffix -a7 keeps the name apart from old-pipeline coders.
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
-		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(),
+		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
 		Criteria: len(Criteria(t.Acceptance))}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
@@ -347,6 +347,7 @@ func (r *Runner) fail(run *Run, reason string) {
 // resume sends text to the same warm task session and starts a new round.
 func (r *Runner) resume(run *Run, text string) {
 	run.State, run.Round, run.GateBlocks = Working, run.Round+1, 0
+	run.RoundStart = nowISO()
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	if err := r.Prompt(run.Agent, text); err != nil {
 		r.fail(run, "cannot reach the task session: "+err.Error())

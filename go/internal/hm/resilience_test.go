@@ -191,3 +191,33 @@ func TestReconcileResumesALostSessionThenFails(t *testing.T) {
 		t.Errorf("after resume_max: %s %q", got.State, got.FailReason)
 	}
 }
+
+func TestReviewEvidence(t *testing.T) {
+	r, s := testRunner(t, "")
+	run := &Run{Task: "T-0001", RoundStart: time.Now().Add(-time.Minute).Format(time.RFC3339)}
+	_ = s.AddSession(Session{SID: "sid-r", Task: "T-0001", Role: "task", Agent: "a", Started: nowISO()})
+	if r.ReviewRan(run) {
+		t.Fatal("no marker: no review")
+	}
+	dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "-x", "sid-r", "subagents")
+	_ = os.MkdirAll(dir, 0o700)
+	f := filepath.Join(dir, "agent-1.forked-skill.json")
+	_ = os.WriteFile(f, []byte(`{"skillName":"simplify"}`), 0o600)
+	if r.ReviewRan(run) {
+		t.Error("another skill is not a review")
+	}
+	_ = os.WriteFile(f, []byte(`{"skillName":"code-review","effort":"medium"}`), 0o600)
+	if !r.ReviewRan(run) {
+		t.Error("a code-review marker in this round counts")
+	}
+	old := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(f, old, old)
+	if r.ReviewRan(run) {
+		t.Error("a review from an earlier round does not count")
+	}
+	p := filepath.Join(t.TempDir(), "f.json")
+	_ = os.WriteFile(p, []byte(`{"head": "abc", "findings": []}`), 0o600)
+	if probs, _, head := checkFindings(p); len(probs) != 0 || head != "abc" {
+		t.Errorf("empty findings with a head are valid: %v %q", probs, head)
+	}
+}

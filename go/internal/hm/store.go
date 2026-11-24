@@ -37,6 +37,7 @@ type Run struct {
 	Criteria, Proven, Manual, FindingsTotal, FindingsFixed    int
 	IdleSince                                                 string
 	Resumes                                                   int
+	RoundStart                                                string // when the current round began (review evidence must be newer)
 	IdleNudges                                                int
 	Verdicts                                                  []Verdict
 	History                                                   []string

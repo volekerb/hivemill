@@ -35,7 +35,8 @@ hivemill run T-1234
 4. **Stop-hook gate** (`hivemill gate hook`). While no PR exists yet, a stop is allowed without a block and is not counted: the session is mid-work, often waiting for a background `/code-review` that wakes it again. A session that then stays idle for 15 minutes with no passing gate is nudged once, and after a second idle spell the run is FAIL `stalled`. Once a PR exists, the gate runs. It runs in the clone and checks:
    - the tree is committed and the PR is open, with its head equal to the local HEAD;
    - the prcheck checks: fresh against main, noreply identity, PR body per [pr-descriptions.md](pr-descriptions.md) including the test-count drop rule, public text and scrub terms, and the affected tests (skipped for a docs-only T0 diff);
-   - `findings.json` is valid and every finding has a resolution;
+   - `findings.json` is valid, every finding has a resolution, and its `head` is the current HEAD;
+   - a `/code-review` ran in this round. The signal is Claude Code's own record of a forked skill run, `<session>/subagents/agent-*.forked-skill.json` with `"skillName": "code-review"`, for one of the task's sessions and newer than the round start. An empty findings list is valid only with that record;
    - `evidence.json` covers every criterion.
 
    It then re-runs every `test:` and `cmd:` proof itself, from the criteria in the DB and never from the evidence file. On a failure it blocks the stop with the list of problems. After `gate_max_blocks` blocks in one round it allows the stop and marks the task FAIL: status `blocked`, `waits=owner`, a `run-fail` event and a `task.failed` line. A gate that cannot decide is not counted as a failure. When there is no test slot or the box is over the load cap, it waits up to `gate_wait_s` and then leaves the affected tests to CI. A crash of the hook itself is logged to `state/hivemill/hook-errors.log` and allows the stop, so the hook never loops.
