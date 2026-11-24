@@ -251,6 +251,8 @@ INSERT INTO "config"("key","value") VALUES('ship_watch_max','3');
 INSERT INTO "config"("key","value") VALUES('ship_watch_hours','24');
 INSERT INTO "config"("key","value") VALUES('fast_lane_check_timeout_s','600');
 INSERT INTO "config"("key","value") VALUES('fast_lane_audit_every','10');
+INSERT INTO "config"("key","value") VALUES('fix_carry','on');
+INSERT INTO "config"("key","value") VALUES('fix_carry_max_lines','150');
 INSERT INTO "config"("key","value") VALUES('judge_hold_expiry_min','120');
 INSERT INTO "config"("key","value") VALUES('risk_tiers','off');
 INSERT INTO "config"("key","value") VALUES('public_text_repos','');

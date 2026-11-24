@@ -801,6 +801,48 @@ class MechMergeTests(FactoryTestCase):
         self.assertIn("MERGED-TREE:", blocked[0])
         self.assertEqual(self.env.sql("SELECT action FROM events WHERE action='refreshed'"), [])
 
+    # -- T-1611 fix-carry: the mechanical merger reads the same helper as the judge ---------------------------
+    def _fix_round(self, lines):
+        """reviewer FAIL @X, qa PASS @X, then one `lines`-line fix -> Y with a reviewer PASS @Y; returns Y."""
+        self.env.sql("DELETE FROM verdicts")
+        for role, v, sha in (("reviewer", "fail", self.x), ("qa", "pass", self.x)):
+            self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+                         ("T-0001", PR_URL, sha, role, v, "zz-test", "zz-test-" + role, "t"))
+        self.commit("fix.py", "".join(f"v{i} = {i}\n" for i in range(lines)), "fix")
+        y = self.publish()
+        self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+                     ("T-0001", PR_URL, y, "reviewer", "pass", "zz-test", "zz-test-reviewer", "t"))
+        self.stub(views=[self.pr(y, GREEN)])
+        return y
+
+    def test_fix_carry_mech_merges_a_small_fix(self):
+        y = self._fix_round(40)
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1, p.stdout)
+        self.assertEqual(self.status(), "done")
+        ev = [json.loads(d) for d in self.events("verdict-carried-fix")]
+        self.assertEqual([(e["role"], e["from"], e["to"], e["lines"], e["failed_role"]) for e in ev],
+                         [("qa", self.x, y, 40, "reviewer")])
+
+    def test_fix_carry_mech_holds_a_large_fix(self):
+        self._fix_round(300)
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertIn("fix-carry refused: 300 lines > 150", "; ".join(self.events("mech-blocked")))
+        self.assertEqual(self.events("verdict-carried-fix"), [])
+
+    def test_fix_carry_off_mech_holds_a_small_fix(self):
+        self._fix_round(40)
+        self.ok("config", "fix_carry", "off")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertNotIn("fix-carry", "; ".join(self.events("mech-blocked")))
+
 
 # G-070: the stub also answers the lane label calls (gh pr edit --add-label, gh label create)
 GH_FAST = GH_MECH.replace('elif argv[:2] == ["repo", "view"]:',

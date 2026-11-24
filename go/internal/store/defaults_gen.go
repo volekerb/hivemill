@@ -80,6 +80,8 @@ var DefaultConfig = []ConfigDefault{
 	{"ship_watch_hours", "24"},
 	{"fast_lane_check_timeout_s", "600"},
 	{"fast_lane_audit_every", "10"},
+	{"fix_carry", "on"},
+	{"fix_carry_max_lines", "150"},
 	{"judge_hold_expiry_min", "120"},
 	{"risk_tiers", "off"},
 	{"public_text_repos", ""},
