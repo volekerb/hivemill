@@ -8231,7 +8231,8 @@ def fast_lane_classify(con, t, sha):
         return None
     try:
         ct = _ci_tier_mod()
-        name, why = ct.lane(str(HOME), "refs/factory/lane-main", sha)
+        r = con.execute("SELECT value FROM config WHERE key=?", (f"lane-revert-of:{tid}",)).fetchone()
+        name, why = ct.lane(str(HOME), "refs/factory/lane-main", sha, r["value"] if r else None)
     except (OSError, ImportError, SyntaxError, AttributeError) as e:
         name, why = "normal", [f"cannot load main's {CI_TIER_FILE}: {type(e).__name__}: {e}"]
     except Exception as e:  # noqa: BLE001 - ct.affected.AffectedError lives in main's module; any other error is undecidable too
@@ -9433,7 +9434,9 @@ def fast_lane_revert(con, culprit, fix_tid):
     if not t or not t["pr_url"]:
         return
     try:
-        node = gh_json("pr", "view", t["pr_url"], "--json", "id")["id"]
+        view = gh_json("pr", "view", t["pr_url"], "--json", "id,mergeCommit")
+        node = view["id"]
+        mc = (view.get("mergeCommit") or {}).get("oid") or ""
         p = subprocess.run(["gh", "api", "graphql", "-f", f"query={REVERT_PR_MUTATION}", "-f", f"id={node}"],
                            capture_output=True, text=True, timeout=60, env=gh_git_env())
         if p.returncode != 0:
@@ -9444,6 +9447,9 @@ def fast_lane_revert(con, culprit, fix_tid):
         event_as(con, "tick", "task", culprit, "fast-lane-revert-failed", f"{type(e).__name__}: {e}"[:600])
         return
     con.execute("UPDATE tasks SET pr_url=?, branch=?, status='in_review', updated=? WHERE id=?", (url, branch, now(), fix_tid))
+    if re.fullmatch(r"[0-9a-f]{40}", mc):  # the lane check exempts this PR's removed tests only when it inverts this commit
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (f"lane-revert-of:{fix_tid}", mc))
     lane_set(con, fix_tid, "fast", f"auto: GitHub revert PR of fast-lane {culprit}")
     lane_set(con, culprit, "normal", "reverted: main went red after its fast-lane merge")
     event_as(con, "tick", "task", culprit, "fast-lane-reverted", {"revert_pr": url, "fix_task": fix_tid})

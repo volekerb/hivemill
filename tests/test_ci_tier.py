@@ -3,6 +3,7 @@
 T-1166 (binary trigger): a changed file whose ``git diff --numstat`` added/deleted field is not a decimal line count
 (e.g. ``-`` for binary) must classify as risky with that path in the reason, before the all-docs path.
 """
+import json
 import os
 import re
 import subprocess
@@ -340,6 +341,8 @@ class FastLaneTest(unittest.TestCase):
             "go cli": "go/internal/cli/cmd_done.go", "go deps": "go/go.mod", "guard test": "tests/test_worker_guard.py",
             "skill": "roles/plugins/x/skills/y/SKILL.md", "plugin skill": "plugins/hivemill/README.md",
             "skilleval prompt": "skilleval/tasks/t1/task.md", "prompt file": "docs/fastcheck-prompt.md",
+            "launchd": "launchd/hivemill.tick.plist.in", "go git env scrub": "go/internal/gitx/gitx.go",
+            "go default config": "go/internal/store/defaults_gen.go",
         }
         for what, path in cases.items():
             with self.subTest(what=what):
@@ -429,6 +432,57 @@ class FastLaneTest(unittest.TestCase):
         head = self.repo.change({"web/app.py": "x = 2\n"})[1]
         lane, why = ci_tier.lane(str(self.repo.root), main, head)
         self.assertEqual(lane, "fast", why)
+
+    def test_every_path_of_the_existing_guard_lists_is_refused(self):
+        """G-070 round 4: the fast-lane list is derived from the repo's own guarded-path sources, not hand-picked. A path
+        in ci_tier.RISKY_PATHS, in ci/tier_rules.json sensitive_paths, or in a dir the factory keeps for service launchers
+        and the Go git/config layer must be refused; a path added to those sources without a fast-lane entry fails here."""
+        rules = json.loads((ROOT / "ci" / "tier_rules.json").read_text())["sensitive_paths"]
+        concrete = [pat.replace("**", "x/y").replace("*", "x") for pat in rules + ci_tier.RISKY_PATHS]
+        tracked = subprocess.run(["git", "-C", str(ROOT), "ls-files", "launchd", "systemd", "go/internal/gitx",
+                                  "go/internal/store", "go/internal/guard", ".github"], capture_output=True, text=True)
+        concrete += [p for p in tracked.stdout.split() if p]
+        self.assertGreater(len(concrete), 40)
+        for path in concrete:
+            with self.subTest(path=path):
+                self.assertTrue(ci_tier.fast_lane_path(path), path)
+        self.assertFalse(ci_tier.fast_lane_path("web/app.py"))  # and the lane is not simply closed
+
+    def setup_merge_of_new_tests(self):
+        """main = base + M (adds a test file and edits web/app.py); returns (M, head of a branch off M that reverts M)."""
+        merge = self.repo.change({"tests/test_new.py": "class N:\n    def test_n(self):\n        pass\n",
+                                  "web/app.py": "x = 2\n"})[1]
+        git(self.repo.root, "checkout", "-q", "-b", "revert-1", merge)
+        git(self.repo.root, "revert", "--no-edit", merge)
+        return merge, self.repo.rev()
+
+    def test_exact_revert_of_a_merge_that_added_tests_stays_fast(self):
+        merge, head = self.setup_merge_of_new_tests()
+        lane, why = ci_tier.lane(str(self.repo.root), merge, head, merge)
+        self.assertEqual(lane, "fast", why)
+
+    def test_revert_without_its_merge_recorded_escalates(self):
+        merge, head = self.setup_merge_of_new_tests()
+        lane, why = ci_tier.lane(str(self.repo.root), merge, head)
+        self.assertEqual(lane, "normal")
+        self.assertIn("deleted test tests/test_new.py", why)
+
+    def test_revert_that_also_deletes_another_test_escalates(self):
+        merge, head = self.setup_merge_of_new_tests()
+        (self.repo.root / "tests" / "test_alpha.py").unlink()
+        git(self.repo.root, "commit", "-q", "-am", "also drop alpha")
+        lane, why = ci_tier.lane(str(self.repo.root), merge, self.repo.rev(), merge)
+        self.assertEqual(lane, "normal")
+        self.assertIn("deleted test tests/test_alpha.py", why)
+
+    def test_revert_that_leaves_part_of_the_merge_in_place_escalates(self):
+        merge, _ = self.setup_merge_of_new_tests()
+        git(self.repo.root, "reset", "-q", "--hard", merge)
+        git(self.repo.root, "rm", "-q", "tests/test_new.py")   # removes the added test but keeps the web/app.py edit
+        git(self.repo.root, "commit", "-q", "-m", "partial revert")
+        lane, why = ci_tier.lane(str(self.repo.root), merge, self.repo.rev(), merge)
+        self.assertEqual(lane, "normal")
+        self.assertIn("deleted test tests/test_new.py", why)
 
     def test_cli_exit_codes(self):
         base, head = self.repo.change({"web/app.py": "x = 5\n"})

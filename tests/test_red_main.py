@@ -266,6 +266,8 @@ class RedMainTests(FactoryTestCase):
                          ("in_review", "https://github.com/acme/priv/pull/9", "revert-1-factory/t-0001"))
         self.assertEqual(self.lane(fix["id"]), "fast")  # the revert PR merges on green CI
         self.assertEqual(self.lane("T-0001"), "normal")
+        rv = self.env.sql("SELECT value FROM config WHERE key=?", ("lane-revert-of:" + fix["id"],))
+        self.assertEqual([r["value"] for r in rv], ["a" * 40])  # the lane check exempts only the exact inverse of this commit
         ev = self.env.sql("SELECT detail FROM events WHERE action='fast-lane-reverted' AND entity_id='T-0001'")
         self.assertEqual(len(ev), 1)
         redo = self.env.sql("SELECT id, role, priority, follow_up_of FROM tasks WHERE title='Redo T-0001 in the normal lane'")

@@ -156,6 +156,9 @@ FAST_LANE_PATHS = [
     "go/cmd/ci-*", "go/internal/citools/*",                          # the Go CI gates
     "go/internal/tick/*", "go/internal/spawn/*", "go/internal/prflow/*", "go/internal/cli/*",   # Go tick, spawn, merge, CLI
     "go/go.mod", "go/go.sum",                                        # Go dependencies
+    "launchd/*", "systemd/*",                                        # the service launchers
+    "go/internal/gitx/*", "go/internal/store/*", "go/internal/lanecheck/*",   # Go git env scrub, default config, lane check
+    "go/internal/shlex/*",
     "tests/test_*guard*", "tests/test_*gate*", "tests/test_*sandbox*",   # the tests that pin guards and gates
     "*SKILL.md", "plugins/*", "skilleval/*", "*prompt*",             # agent instructions: .md, but not docs
 ]
@@ -169,8 +172,20 @@ FAST_LANE_DEF_PREFIXES = ("mech_", "fast_lane", "fast_check", "lane_", "_judge",
 FAST_LANE_DEF_FILES = (BIN, "bin/factory_cli.py")
 
 
+def tier_rules_paths():
+    """The sensitive_paths globs of ci/tier_rules.json (the risk tier T3 list the judge gate already uses); the fast lane
+    guards every one of them, so a path added there is guarded here too. TierError when the file cannot be read."""
+    import risk_tier  # lazy: tests.yml archives only ci_tier.py and affected.py for the CI tiers, which never need this
+    try:
+        return list(risk_tier.load_rules()["sensitive_paths"])
+    except risk_tier.TierError as e:
+        raise TierError(str(e)) from e
+
+
 def fast_lane_path(path):
-    return risky_path(path) or any(fnmatch.fnmatchcase(path, pat) for pat in FAST_LANE_PATHS)
+    import risk_tier
+    return (risky_path(path) or any(fnmatch.fnmatchcase(path, pat) for pat in FAST_LANE_PATHS)
+            or any(risk_tier._match(path, pat) for pat in tier_rules_paths()))
 
 
 def fast_lane_def(name):
@@ -202,15 +217,34 @@ def removed_tests(root, base, head, path):
     return sorted(n for n, c in before.items() if after.get(n, 0) < c)
 
 
-def escalations(root, base, head):
+def _blob(root, rev, path):
+    """Object id of `path` at `rev`, '' when the path does not exist there."""
+    return affected.git(root, "rev-parse", "%s:%s" % (rev, path)).strip() if affected._exists(root, rev, path) else ""
+
+
+def is_exact_revert(root, base, head, merge):
+    """True when the diff base...head is the exact inverse of merge commit `merge` (G-070 auto-revert): it touches
+    precisely the paths `merge` changed against its first parent, and at each of them `head` holds the parent's content.
+    Any other change, or a path the revert leaves different, is not an exact revert."""
+    parent = "%s^1" % merge
+    names = set(affected.git(root, "diff", "--name-only", "--no-renames", parent, merge).splitlines())
+    touched = {p for p, _ in affected.changed_files(root, base, head)}
+    if not names or touched != names:
+        return False
+    return all(_blob(root, head, p) == _blob(root, parent, p) for p in names)
+
+
+def escalations(root, base, head, revert_of=None):
     """Reasons the diff base...head must leave the fast lane (G-070), [] when it may stay. Raises affected.AffectedError
     when git cannot answer: the caller escalates then (an undecidable diff never stays fast)."""
     changed = affected.changed_files(root, base, head)
     why = ["binary or non-text diff: %s" % p for p in sorted(numstat_non_line_paths(root, base, head))]
-    why += ["deleted test %s" % p for p, exists in changed if not exists and deleted_test(p)]
-    for p, exists in changed:
-        if exists and deleted_test(p):
-            why += ["deleted test %s in %s" % (n, p) for n in removed_tests(root, base, head, p)]
+    # an exact revert of a fast-lane merge (`revert_of` = its merge commit) removes the tests that merge added: not a deletion
+    if not (revert_of and is_exact_revert(root, base, head, revert_of)):
+        why += ["deleted test %s" % p for p, exists in changed if not exists and deleted_test(p)]
+        for p, exists in changed:
+            if exists and deleted_test(p):
+                why += ["deleted test %s in %s" % (n, p) for n in removed_tests(root, base, head, p)]
     why += ["%s is a guarded path" % p for p, _ in changed if fast_lane_path(p)]
     top = new_top_level_risk(root, base, [p for p, _ in changed])
     if top:
@@ -229,11 +263,14 @@ def escalations(root, base, head):
     return why
 
 
-def lane(root, base, head):
+def lane(root, base, head, revert_of=None):
     """(lane, reasons) of the diff base...head for the G-070 fast lane: ("normal", escalations) when any rule hits,
     ("docs", ...) when every file is docs (no agent check; MAX_LINES does not apply), else ("fast", ...). Raises
     affected.AffectedError like escalations()."""
-    why = escalations(root, base, head)
+    try:
+        why = escalations(root, base, head, revert_of)
+    except TierError as e:
+        return "normal", [str(e)]
     if why:
         return "normal", why
     files = [p for p, _ in affected.changed_files(root, base, head)]
