@@ -43,6 +43,7 @@ type Row struct {
 	Refreshes     int                `json:"refreshes"`
 	GoalCheck     string             `json:"goal_check,omitempty"`
 	OwnerCheck    bool               `json:"needs_owner_check"`
+	Eval          bool               `json:"eval,omitempty"` // eval runs (eval.go) are listed apart and left out of the totals
 	dispatched    string
 	merged        string
 }
@@ -70,6 +71,9 @@ func (r *Runner) ReportRows() ([]Row, error) {
 		x := get(e.TaskID)
 		switch e.Event {
 		case "task.dispatched":
+			if e.Data["eval"] == true {
+				x.Eval = true
+			}
 			if x.dispatched == "" {
 				x.dispatched = e.TS
 			}
@@ -107,6 +111,8 @@ func (r *Runner) ReportRows() ([]Row, error) {
 			x.Outcome = "FAIL: " + truncate(fmt.Sprint(e.Data["reason"]), 60)
 		case "task.cancelled":
 			x.Outcome = "cancelled"
+		case "eval.done":
+			x.Outcome = "eval: " + fmt.Sprint(e.Data["outcome"])
 		case "goal.checked":
 			x.GoalCheck = fmt.Sprint(e.Data["result"])
 		}
@@ -171,6 +177,8 @@ func round2(f float64) float64 { return math.Round(f*100) / 100 }
 type Totals struct {
 	Tasks, Merged, GateBlocks int
 	USD                       float64
+	EvalRuns                  int     `json:",omitempty"`
+	EvalUSD                   float64 `json:",omitempty"`
 	PerMergedPR, MedianHours  *float64
 	TwoPlusRoundsPct          *float64
 	Baseline                  map[string]any
@@ -178,10 +186,16 @@ type Totals struct {
 
 // Summarise computes the totals.
 func Summarise(rows []Row) Totals {
-	t := Totals{Tasks: len(rows), Baseline: Baseline}
+	t := Totals{Baseline: Baseline}
 	var hours []float64
 	multi := 0
 	for _, x := range rows {
+		if x.Eval {
+			t.EvalRuns++
+			t.EvalUSD += x.USD
+			continue
+		}
+		t.Tasks++
 		t.USD += x.USD
 		t.GateBlocks += x.GateBlocks
 		if x.Outcome == "merged" {
@@ -194,7 +208,7 @@ func Summarise(rows []Row) Totals {
 			}
 		}
 	}
-	t.USD = round2(t.USD)
+	t.USD, t.EvalUSD = round2(t.USD), round2(t.EvalUSD)
 	if t.Merged > 0 {
 		p := round2(t.USD / float64(t.Merged))
 		t.PerMergedPR = &p
@@ -260,6 +274,9 @@ func (r *Runner) Report(asJSON bool) error {
 	}
 	r.printf("\nmerged %d/%d, $%.2f total, $/merged PR %s, median h to merge %s, 2+ rounds %s%%, gate blocks %d\n", tot.Merged, tot.Tasks,
 		tot.USD, fp(tot.PerMergedPR), fp(tot.MedianHours), fp(tot.TwoPlusRoundsPct), tot.GateBlocks)
+	if tot.EvalRuns > 0 {
+		r.printf("eval (not in the totals): %d tasks, $%.2f\n", tot.EvalRuns, tot.EvalUSD)
+	}
 	r.printf("baseline: $/merged PR %v, 2+ rounds %v%%, median h open-to-merge %v\n", Baseline["usd_per_merged_pr"],
 		Baseline["two_plus_rounds_pct"], Baseline["median_hours_open_to_merge"])
 	return nil
