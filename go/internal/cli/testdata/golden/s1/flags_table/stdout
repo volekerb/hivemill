@@ -6,8 +6,10 @@ cursor_pilot_roles    off                                  docs/runtimes.md
 gate_fast_projects    on      factory    factory                                     
 gate_post_status      off     0          0                                           
 gate_sandbox          off     0          0                                           
+gh_call_trace         off     off        off        G-022  docs/gh-quota.md          
 git_push              on      1          1                                           
 idle_coder_reap       off     off        off        G-018  docs/lead-wake.md         
+idle_watchdog         shadow  shadow     shadow     G-058  docs/idle-watchdog.md     
 issue_intake_repos    off                           G-026  docs/ISSUES.md            
 judge_wait_main_run   off     0          0          G-022  docs/stale-policy.md      
 lead_less_dispatch    off     0          0          G-018                            

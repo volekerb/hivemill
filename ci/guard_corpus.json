@@ -10873,6 +10873,9 @@
     "cd ~/.local/go && echo x > go.env",
     "echo x > ~/.config/go/env",
     "go env -w GOFLAGS=-mod=mod",
+    "go ''",
+    "go \"\" test",
+    "go '' test ./...",
     "go env -u GOFLAGS",
     "mv /tmp/x ~/.local/go/go.env",
     "ln -sf /tmp/x ~/.local/go/go.env",
@@ -19315,101 +19318,1759 @@
       "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git fetch $(echo --upload-pack=x) origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git fetch `echo --upload-pack=x` origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go get x@v1",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git fetch ${X} origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go install ./...",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git fetch $'--output=x' origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod tidy",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git fetch {--output=x,y} origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go clean -modcache",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git show $(echo --upload-pack=x) origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go env -w GOFLAGS=x",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git show `echo --upload-pack=x` origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go work sync",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git show ${X} origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git show $'--output=x' origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git show {--output=x,y} origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git log $(echo --upload-pack=x) origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git log `echo --upload-pack=x` origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git log ${X} origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git log $'--output=x' origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOPROXY=on ~/.local/go/bin/go test ./...",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git log {--output=x,y} origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git diff $(echo --upload-pack=x) origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/../../go/bin/go test",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git diff `echo --upload-pack=x` origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w ../x.go",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git diff ${X} origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git diff $'--output=x' origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "echo x > ~/.local/go/bin/go",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git diff {--output=x,y} origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "cp /tmp/x ~/.local/go/bin/go",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git $(echo log)"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "qa"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git `echo log`"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go get x@v1",
+      "role": "qa"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "bash -c 'git fetch $(echo --upload-pack=x) origin'"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go install ./...",
+      "role": "qa"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "bash -c 'git log `echo --output=x`'"
-    }
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod tidy",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go clean -modcache",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go env -w GOFLAGS=x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go work sync",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOPROXY=on ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/../../go/bin/go test",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w ../x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "echo x > ~/.local/go/bin/go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "cp /tmp/x ~/.local/go/bin/go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go get x@v1",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go install ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod tidy",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go clean -modcache",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go env -w GOFLAGS=x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go work sync",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test -coverprofile=~/.local/go/c.out ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOBIN=~/.local/go/bin ~/.local/go/bin/go install ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOROOT=/tmp/x ~/.local/go/bin/go test",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOFLAGS=-mod=mod ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOPROXY=on ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOCACHE=~/.local/lib/factory/x ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/../../go/bin/go test",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w ../x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "echo x > ~/.local/go/bin/go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "cp /tmp/x ~/.local/go/bin/go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go test -exec \"git push\" ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go test -exec \"git push\" ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go test -exec \"git push\" ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go build -toolexec=/tmp/x ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "~/.local/go/bin/go vet -vettool=/tmp/x ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: toolchain flags that run another program",
+      "cmd": "GOFLAGS=-exec=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go fmt ~/.local/go/src/cmd/gofmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go fmt ~/.local/lib/factory/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go fmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go fmt ../x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go build -pkgdir ~/.local/go/pkg ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -pkgdir=~/.local/go/pkg ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -test.coverprofile=~/.local/go/c.out ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -test.cpuprofile ~/.local/go/c ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -test.outputdir=~/.local/go ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test -test.trace=~/.local/lib/factory/t ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go test ./... -args -test.coverprofile=~/.local/go/c.out",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go build",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review B1-B3: go fmt / -pkgdir / -test.* writers / implicit build output",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/gofmt -cpuprofile ~/.local/go/x .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build -o out",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt test -c -o t.test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.blockprofile ~/.local/go/b ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.mutexprofile=~/.local/go/m ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.gocoverdir=~/.local/go ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.fuzzcachedir=~/.local/go ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go test -test.testlogfile=~/.local/go/l ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: gofmt write flag, -C-relative write flags, remaining -test.* writers",
+      "cmd": "~/.local/go/bin/go build -modfile ~/.local/go/m.mod ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "~/.local/go/bin/gofmt -w=1 ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "~/.local/go/bin/gofmt -w=t ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt fmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c ~/.local/go/bin/go test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1-N4: gofmt -w=1|t, go -C fmt without targets, GOFLAGS=-c, GOMODCACHE without GOPROXY=off",
+      "cmd": "GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1/N3: other true spellings",
+      "cmd": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round-2 review N1/N3: other true spellings",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=1 ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=1 ../x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=1 ../x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=t ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=t ../x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=t ../x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -w=TRUE ../x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt fmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt fmt",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt fmt",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C /etc fmt",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C /etc fmt",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -C /etc fmt",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c ~/.local/go/bin/go test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c ~/.local/go/bin/go test",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c ~/.local/go/bin/go test",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true ~/.local/go/bin/go test",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -C /tmp",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -C /tmp",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -C /tmp",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -run -o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -run -o",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -run -o",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go build -tags -o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go build -tags -o",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go build -tags -o",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -o x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -o x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -c -args -o x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod mod ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod mod ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod mod ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test --mod=mod ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test --mod=mod ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test --mod=mod ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod=mod ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod=mod ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -mod=mod ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS='-mod mod' ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS='-mod mod' ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS='-mod mod' ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS=--mod=mod ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS=--mod=mod ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "GOFLAGS=--mod=mod ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test ./... -args -test.coverprofile=/tmp/c",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test ./... -args -test.coverprofile=/tmp/c",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test ./... -args -test.coverprofile=/tmp/c",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go build -pkgdir /tmp/pk ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go build -pkgdir /tmp/pk ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go build -pkgdir /tmp/pk ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -cpuprofile /tmp/p .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -cpuprofile /tmp/p .",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/gofmt -cpuprofile /tmp/p .",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -o /tmp/x.test -c",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -o /tmp/x.test -c",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -o /tmp/x.test -c",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -x build ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -x build ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go -x build ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -overlay /tmp/o.json ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -overlay /tmp/o.json ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -overlay /tmp/o.json ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -C ~/.local/go/src/cmd/gofmt -run X",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -C ~/.local/go/src/cmd/gofmt -run X",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N1-N6: strict per-subcommand flag allow-list, default deny",
+      "cmd": "~/.local/go/bin/go test -C ~/.local/go/src/cmd/gofmt -run X",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go build -ldflags=-extld=/tmp/evil ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go build -ldflags=-extld=/tmp/evil ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go build -ldflags=-extld=/tmp/evil ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go fmt strings",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go fmt strings",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go fmt strings",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go test -fuzz=. strings",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go test -fuzz=. strings",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go test -fuzz=. strings",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go list -m foo@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go list -m foo@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "~/.local/go/bin/go list -m foo@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "cd ~/.local/go/src/strings && ~/.local/go/bin/go test -fuzz=.",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "cd ~/.local/go/src/strings && ~/.local/go/bin/go test -fuzz=.",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: ldflags/gcflags, go fmt/-fuzz on import paths, list @query",
+      "cmd": "cd ~/.local/go/src/strings && ~/.local/go/bin/go test -fuzz=.",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -pkgdir ~/.local/go/pkg ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go build -tags -- -toolexec=/tmp/x ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -run -- -exec /tmp/x ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N7: a value flag consumes `--` (flag.go); no pre-strip",
+      "cmd": "~/.local/go/bin/go test -c -run -- -o /etc/evilout ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 review N8: profile flags keep pkg.test in the cwd like -c (testNeedBinary)",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 review N8: profile flags keep pkg.test in the cwd like -c (testNeedBinary)",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 review N8: profile flags keep pkg.test in the cwd like -c (testNeedBinary)",
+      "cmd": "cd ~/.local/go/src/cmd/gofmt && ~/.local/go/bin/go test -cpuprofile /dev/null",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go build $'-o' ~/.local/lib/factory/factory-go ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test $'-exec' /tmp/x ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test $'-exec' /tmp/x ./x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 self-review: a word the shell expands into a flag is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test $'-exec' /tmp/x ./x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x$X",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "X=' -o ~/.local/lib/factory/w'; ~/.local/go/bin/go test -c ./x$X",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "bash -c 'X=\" -o ~/.local/lib/factory/x\"; ~/.local/go/bin/go test -c ./x$X'",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "X=' -exec /tmp/x'; ~/.local/go/bin/go test ./x$X",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c -run $X ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c -run a$X ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go build -tags $X ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x [-]o ~/.local/lib/factory/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x [-]exec /tmp/e",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x [-]pkgdir ~/.local/go/pkg",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test ./x [-]toolexec=/tmp/e",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x *o ~/.local/lib/factory/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test -c ./x ?o ~/.local/lib/factory/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test ./x a~b",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5 (N9, N10): a word holding an expansion or glob is unclassifiable -> block",
+      "cmd": "~/.local/go/bin/go test ./x ~user/y",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=$x ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=${x} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=$(id) ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=`id` ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=[-]o ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=* ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run=? ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=-run={a,b} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/$x ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/${x} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/$(id) ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/`id` ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/[-]o ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/* ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/? ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOCACHE=/tmp/{a,b} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=$x ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=${x} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=$(id) ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=`id` ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=[-]o ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=* ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS=? ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "GOFLAGS={a,b} ~/.local/go/bin/go test ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run $x ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run ${x} ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run $(id) ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run `id` ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run [-]o ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run * ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run ? ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -run {a,b} ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=$x ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=${x} ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=$(id) ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=`id` ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=[-]o ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=* ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags=? ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test -tags={a,b} ./x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x$x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x$(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x`id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x[-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x*",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x{a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x $x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x ${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x $(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x `id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x [-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x *",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x ?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go test ./x {a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x$x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x$(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x`id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x[-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x*",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ./x{a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- $x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- $(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- `id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- [-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- *",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- ?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/go vet -- {a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l $x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l ${x}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l $(id)",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l `id`",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l [-]o",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l *",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l ?",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -l {a,b}",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r $x .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r ${x} .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r $(id) .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r `id` .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r [-]o .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r * .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r ? .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 6: a metachar word in any position of a go/gofmt command (env prefix, flag, value, positional, after --) -> block",
+      "cmd": "~/.local/go/bin/gofmt -r {a,b} .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run -race x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run -race x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run -race x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go build x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go build x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go build x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go test x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go test x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go test x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go vet x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go vet x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go vet x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go mod why x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go mod why x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go mod why x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=direct ~/.local/go/bin/go run x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=direct ~/.local/go/bin/go run x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=direct ~/.local/go/bin/go run x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY= ~/.local/go/bin/go run x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY= ~/.local/go/bin/go run x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY= ~/.local/go/bin/go run x@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go -C . run x@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go -C . run x@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go -C . run x@latest",
+      "role": "reviewer"
+    },
+    "git fetch $(echo --upload-pack=x) origin",
+    "git fetch `echo --upload-pack=x` origin",
+    "git fetch ${X} origin",
+    "git fetch $'--output=x' origin",
+    "git fetch {--output=x,y} origin",
+    "git show $(echo --upload-pack=x) origin",
+    "git show `echo --upload-pack=x` origin",
+    "git show ${X} origin",
+    "git show $'--output=x' origin",
+    "git show {--output=x,y} origin",
+    "git log $(echo --upload-pack=x) origin",
+    "git log `echo --upload-pack=x` origin",
+    "git log ${X} origin",
+    "git log $'--output=x' origin",
+    "git log {--output=x,y} origin",
+    "git diff $(echo --upload-pack=x) origin",
+    "git diff `echo --upload-pack=x` origin",
+    "git diff ${X} origin",
+    "git diff $'--output=x' origin",
+    "git diff {--output=x,y} origin",
+    "git $(echo log)",
+    "git `echo log`",
+    "bash -c 'git fetch $(echo --upload-pack=x) origin'",
+    "bash -c 'git log `echo --output=x`'"
   ],
   "must_allow": [
     "echo hc",
@@ -19509,6 +21170,9 @@
     "ls ~/.config/go",
     "go env GOFLAGS",
     "go env",
+    "go",
+    "go -C .",
+    "go -v",
     "go build ./...",
     "cp ~/.local/go/go.env /tmp/x",
     "echo x > ~/.local/gox/y",
@@ -24037,20 +25701,279 @@
       "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git log --format='%h %s'"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test ./...",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git diff origin/main...HEAD"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build ./cmd/x",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git fetch origin"
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go version",
+      "role": "coder"
     },
     {
-      "note": "T-0206: worker-mode git expansion options",
-      "cmd": "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\""
-    }
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod verify",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "$HOME/.local/go/bin/go test ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -l .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -d -s .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w x.go",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build ./cmd/x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go version",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod verify",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "$HOME/.local/go/bin/go test ./...",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -l .",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -d -s .",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w x.go",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go build ./cmd/x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go version",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/go mod verify",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go vet ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "CGO_ENABLED=0 GOCACHE=/tmp/x ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "PATH=~/.local/go/bin:$PATH ~/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "$HOME/.local/go/bin/go test ./...",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -l .",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -d -s .",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only)",
+      "cmd": "~/.local/go/bin/gofmt -w x.go",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only): other roles unchanged",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "pm"
+    },
+    {
+      "note": "T-1498: Go toolchain for workers (exec only): other roles unchanged",
+      "cmd": "~/.local/go/bin/go mod download",
+      "role": "judge"
+    },
+    "~/.local/go/bin/go fmt ./...",
+    "~/.local/go/bin/go build",
+    "~/.local/go/bin/go build -o bin/x ./cmd/x",
+    "~/.local/go/bin/go test -test.coverprofile=c.out ./...",
+    "~/.local/go/bin/go test -c -o bin/x.test",
+    "~/.local/go/bin/gofmt -w=0 x.go",
+    "GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...",
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -run TestX -v -count=1 -race -timeout 5m -short -cover ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go vet ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go build -o /dev/null ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -mod=readonly ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -mod readonly ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -c -o x.test",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/go test -coverprofile=c.out ./...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498: Go toolchain flag allow-list (allowed)",
+      "cmd": "~/.local/go/bin/gofmt -l -s -d .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 5: plain positionals and a ~/ path still pass the default-deny word check",
+      "cmd": "~/.local/go/bin/go build ./x ./y/...",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=off ~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=off ~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "GOPROXY=off ~/.local/go/bin/go run golang.org/x/tools/cmd/stringer@latest",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run ./cmd/x",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run ./cmd/x",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run ./cmd/x",
+      "role": "reviewer"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run .",
+      "role": "coder"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run .",
+      "role": "qa"
+    },
+    {
+      "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
+      "cmd": "~/.local/go/bin/go run .",
+      "role": "reviewer"
+    },
+    "git log --format='%h %s'",
+    "git diff origin/main...HEAD",
+    "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\""
   ]
 }

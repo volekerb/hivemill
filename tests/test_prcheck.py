@@ -3,11 +3,12 @@
 import fcntl
 import json
 import os
+import sqlite3
 import threading
 from pathlib import Path
 import unittest
 
-from harness import PR_URL, FactoryTestCase, git, pr_body
+from harness import FACTORY_SRC, PR_URL, FactoryTestCase, git, pr_body
 
 REPO = Path(__file__).resolve().parent.parent
 BRANCH = "factory/t-0001"
@@ -55,6 +56,8 @@ class PrcheckTests(FactoryTestCase):
         git("worktree", "add", "-q", "-b", BRANCH, str(self.wt), "origin/main", cwd=self.main)
         commit(self.wt, "work.txt")
         e.seed_project()
+        e.sql("UPDATE projects SET gh_repo='zz-owner/factory-like' WHERE id='zz-test-proj'")
+        e.sql("INSERT OR REPLACE INTO config(key,value) VALUES('factory_remote_url','https://github.com/zz-owner/factory-like.git')")
         e.seed_goal(project="zz-test-proj")
         e.seed_team(lead="zz-test-lead")
         e.seed_task(status="in_progress", team="g-001-a")
@@ -178,6 +181,54 @@ class PrcheckTests(FactoryTestCase):
     def test_affected_zero_tests_fails(self):
         p = self.prcheck(1, env={"AFF_OUT": "Ran 0 tests in 0.0s"})
         self.assertIn("reported no tests run", p.stdout)
+
+    # -- 5a affected applicability comes from origin/<base>, not the worktree (T-1409) ----------
+    def test_affected_na_when_project_has_no_script_on_origin(self):
+        git("rm", "-q", "ci/affected.py", cwd=self.main)
+        git("commit", "-q", "-m", "drop affected", cwd=self.main)
+        git("push", "-q", "origin", "main", cwd=self.main)
+        git("fetch", "-q", "origin", cwd=self.wt)
+        p = self.env.run("prcheck", agent="zz-test-coder", extra_env={"AFF_RC": "1"})
+        self.assertIn("PASS affected: n/a: project", p.stdout)
+        self.assertIn("has no ci/affected.py on origin/main", p.stdout)
+
+    def test_affected_stale_worktree_missing_script_fails_with_merge_hint(self):
+        git("rm", "-q", "ci/affected.py", cwd=self.wt)
+        git("commit", "-q", "-m", "drop affected locally", cwd=self.wt)
+        p = self.prcheck(1)
+        self.assertIn("FAIL affected: ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main", p.stdout)
+
+    def test_affected_unreadable_origin_fails_closed(self):
+        # prcheck's fresh check re-fetches origin, so call the check itself with the remote-tracking ref gone
+        git("update-ref", "-d", "refs/remotes/origin/main", cwd=self.wt)
+        ns = {"__name__": "factory_unit", "__file__": str(FACTORY_SRC), "__builtins__": __builtins__}
+        exec(compile(FACTORY_SRC.read_text(), str(FACTORY_SRC), "exec"), ns)
+        ok, note = ns["prcheck_affected"](str(self.wt), "main", con=sqlite3.connect(":memory:"))  # no project id: the factory path, no DB read
+        self.assertFalse(ok)
+        self.assertIn("cannot read origin/main to decide if ci/affected.py applies", note)
+
+    def test_affected_na_for_non_factory_project_and_other_checks_still_run(self):
+        self.env.sql("UPDATE projects SET gh_repo='zz-owner/other-repo' WHERE id='zz-test-proj'")
+        commit(self.wt, "ci/affected.py", "import sys\nsys.exit(1)\n", msg="red affected")  # would FAIL if it ran
+        p = self.prcheck(0)
+        self.assertIn("PASS affected: n/a (not the factory repo)", p.stdout)
+        for name in ("fresh", "identity", "body", "public-text", "tier"):
+            self.assertIn(f"PASS {name}:", p.stdout)
+
+    def test_non_factory_project_still_fails_other_checks(self):
+        self.env.sql("UPDATE projects SET gh_repo='zz-owner/other-repo' WHERE id='zz-test-proj'")
+        self.env.seed_pr(url=PR_URL, body="")
+        p = self.prcheck(1)
+        self.assertIn("PASS affected: n/a (not the factory repo)", p.stdout)
+        self.assertIn("FAIL body:", p.stdout)
+
+    def test_factory_project_id_runs_affected_and_fails_when_red(self):
+        self.env.sql("INSERT INTO projects(id,name,auto_merge,created) VALUES('factory','factory',1,'t')")
+        self.env.sql("UPDATE goals SET project_id='factory' WHERE id='G-001'")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('gate_fast_projects','')")  # run locally, not via CI
+        commit(self.wt, "ci/affected.py", "import sys\nsys.exit(1)\n", msg="red affected")
+        p = self.prcheck(1)
+        self.assertIn("FAIL affected: ci/affected.py --run exited 1", p.stdout)
 
     # -- 5b affected holds a test slot (T-0876) ----------------------------------------
     def hold_slots(self, n):

@@ -1,10 +1,12 @@
 package guard
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // T-0925: the protected trees for workers (tests/test_worker_guard_prot_trees.py is the behaviour contract; this runs
@@ -122,6 +124,144 @@ func TestOptValues(t *testing.T) {
 	for _, c := range cases {
 		if got := strings.Join(optValues(c.args, c.letters, c.longs...), " "); got != c.want {
 			t.Errorf("optValues(%q, %q, %q) = %q, want %q", c.args, c.letters, c.longs, got, c.want)
+		}
+	}
+}
+
+// T-1498: the Go toolchain for workers (tests/test_worker_guard_prot_trees.py GoToolchainForWorkers is the contract).
+func TestGoToolchainForWorkers(t *testing.T) {
+	_, wt, _ := protFixture(t)
+	g := "~/.local/go/bin/"
+	allow := []string{g + "go test ./...", g + "go build ./cmd/x", g + "go version", g + "go mod verify",
+		"GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod " + g + "go vet ./...",
+		"CGO_ENABLED=0 GOCACHE=/tmp/x " + g + "go test ./...", g + "gofmt -l .", g + "gofmt -d -s .",
+		"$HOME/.local/go/bin/go test ./...", "PATH=~/.local/go/bin:$PATH " + g + "go test ./...", g + "gofmt -w x.go"}
+	block := []string{g + "go mod download", g + "go get x@v1", g + "go install ./...", g + "go mod tidy", g + "go clean -modcache",
+		g + "go work sync", g + "go", "GOFLAGS=-mod=mod " + g + "go test ./...", "GOPROXY=on " + g + "go test", "GOROOT=/tmp/x " + g + "go test",
+		"echo x > ~/.local/go/bin/go", "cp /tmp/x ~/.local/go/bin/go", g + "go build -o ~/.local/lib/factory/factory-go ./cmd/factory",
+		"GOBIN=~/.local/go/bin " + g + "go install ./...", g + "go env -w GOFLAGS=x", g + "go test -coverprofile=~/.local/go/c.out ./...",
+		"GOCACHE=~/.local/lib/factory/x " + g + "go test", g + "../../go/bin/go test", g + "gofmt -w ../x.go", g + "gofmt -w",
+		g + "go test -exec \"git push\" ./...", g + "go build -toolexec=/tmp/x ./...", g + "go vet -vettool=/tmp/x ./...",
+		"GOFLAGS=-exec=/tmp/x " + g + "go test ./...",
+		g + "go fmt ~/.local/go/src/cmd/gofmt", g + "go fmt ~/.local/lib/factory/x", "cd ~/.local/go/src/cmd/gofmt && " + g + "go fmt",
+		g + "go fmt ../x", g + "go fmt /etc", g + "go build -pkgdir ~/.local/go/pkg ./...", g + "go test -pkgdir=~/.local/go/pkg ./...",
+		g + "go test -test.coverprofile=~/.local/go/c.out ./...", g + "go test -test.cpuprofile ~/.local/go/c ./...",
+		g + "go test -test.outputdir=~/.local/go ./...", g + "go test -test.trace=~/.local/lib/factory/t ./...",
+		g + "go test ./... -args -test.coverprofile=~/.local/go/c.out", g + "go test -test.memprofile ~/.local/go/m ./...",
+		"cd ~/.local/go/src/cmd/gofmt && " + g + "go build", "cd ~/.local/go/src/cmd/gofmt && " + g + "go test -c",
+		"cd ~/.local/lib/factory && " + g + "go build ./...", g + "go -C ~/.local/go/src/cmd/gofmt build"}
+	block = append(block, g+"gofmt -w=1 ../x.go", g+"gofmt -w=t ../x.go", g+"gofmt -w=TRUE ../x.go", g+"go -C ~/.local/go/src/cmd/gofmt fmt", g+"go -C /etc fmt",
+		"cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c "+g+"go test", "cd ~/.local/go/src/cmd/gofmt && GOFLAGS=-c=true "+g+"go test",
+		"GOMODCACHE=~/.local/lib/factory/go/mod "+g+"go test ./...")
+	allow = append(allow, g+"gofmt -w=0 x.go", g+"gofmt -w=true x.go", g+"gofmt -w=1 x.go",
+		"GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod "+g+"go test ./...", "GOFLAGS=-c "+g+"go test ./...", g+"go -C . fmt")
+	for _, c := range []string{"~/.local/go/bin/gofmt -cpuprofile ~/.local/go/x .", "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt build -o out", "~/.local/go/bin/go -C ~/.local/go/src/cmd/gofmt test -c -o t.test", "~/.local/go/bin/go test -test.blockprofile ~/.local/go/b ./...", "~/.local/go/bin/go test -test.mutexprofile=~/.local/go/m ./...", "~/.local/go/bin/go test -test.gocoverdir=~/.local/go ./...", "~/.local/go/bin/go test -test.fuzzcachedir=~/.local/go ./...", "~/.local/go/bin/go test -test.testlogfile=~/.local/go/l ./...", "~/.local/go/bin/go build -modfile ~/.local/go/m.mod ./..."} {
+		block = append(block, strings.ReplaceAll(c, "~/.local/go/bin/", g))
+	}
+	allow = append(allow, g+"go fmt ./...", g+"go fmt", g+"go build", g+"go test -c", g+"go build -o bin/x ./cmd/x",
+		g+"go test -test.coverprofile=c.out ./...", g+"go test -c -o x.test", g+"go build -o /dev/null ./...",
+		g+"go test -run TestX -v -count=1 -race -timeout 5m -short -cover ./...", g+"go test -mod=readonly ./...", g+"go test -mod readonly ./...",
+		g+"go vet ./...", g+"gofmt -l -s -d .", "GOPROXY=off GOFLAGS='-mod mod' "+g+"go test ./...", "GOPROXY=off "+g+"go test -mod=mod ./...",
+		g+"go test -run '-o' ./...")
+	// T-1498 review round 3 (N5, N6): blocked by the per-subcommand flag allow-list, default deny
+	pt := "cd ~/.local/go/src/cmd/gofmt && " + g
+	block = append(block, pt+"go test -c -args -C /tmp", pt+"go test -c -run -o", pt+"go build -tags -o", pt+"go test -c -args -o x",
+		g+"go test -mod mod ./...", g+"go test --mod=mod ./...", "GOFLAGS='-mod mod' "+g+"go test ./...", "GOFLAGS=--mod=mod "+g+"go test ./...",
+		g+"go test ./... -args -test.v", g+"go build -pkgdir /tmp/pk ./...", g+"gofmt -cpuprofile /tmp/p .", g+"go test -c -o /tmp/outside.test",
+		g+"go -x build ./...", g+"go test -overlay /tmp/o.json ./...", g+"go test -C /tmp -run X", g+"go test -run",
+		g+"go build -ldflags=-extld=/tmp/evil ./...", g+"go build -gcflags=-json=0,/x ./...", g+"go test -ldflags=-extld=/tmp/evil ./...",
+		g+"go fmt strings", g+"go fmt std", g+"go fmt cmd/...", g+"go test -fuzz=. strings", g+"go test -fuzz=. ~/.local/go/src/strings",
+		g+"go list -m foo@latest", "cd ~/.local/go/src/strings && "+g+"go test -fuzz=.", "GOFLAGS=-fuzz=. "+g+"go test strings")
+	// T-1498 review round 4 (N7, N8): `--` is not pre-stripped (a value flag consumes it); profile flags keep pkg.test in the cwd
+	block = append(block, g+"go build -tags -- -pkgdir ~/.local/go/pkg ./x", g+"go build -tags -- -toolexec=/tmp/x ./x",
+		g+"go test -run -- -exec /tmp/x ./x", g+"go test -c -run -- -o /etc/evilout ./x", g+"go test -- -test.cpuprofile=/tmp/x",
+		"GOFLAGS=-- "+g+"go test ./...", pt+"go test -cpuprofile /dev/null", pt+"go test -memprofile=/dev/null .",
+		pt+"go test -test.blockprofile /dev/null", pt+"go test -mutexprofile /dev/null", pt+"go test -trace /dev/null",
+		pt+"go test -coverprofile /dev/null", g+"go build $'-o' ~/.local/lib/factory/factory-go ./x", g+"go build ${X}-o ~/.local/lib/factory/factory-go ./x",
+		g+"go test $'-exec' /tmp/x ./x", g+"go build $'-toolexec=/tmp/x' ./x")
+	// T-1498 review round 5 (N9, N10): any word holding an expansion or glob is refused (default deny, once in tcParse)
+	block = append(block, g+"go test -c ./x$X",
+		"X=' -o ~/.local/lib/factory/w'; "+g+"go test -c ./x$X",
+		"bash -c 'X=\" -o ~/.local/lib/factory/x\"; "+g+"go test -c ./x$X'",
+		"X=' -exec /tmp/x'; "+g+"go test ./x$X",
+		g+"go test -c -run $X ./x",
+		g+"go test -c -run a$X ./x",
+		g+"go build -tags $X ./x",
+		g+"go test -c ./x [-]o ~/.local/lib/factory/x",
+		g+"go test -c ./x [-]exec /tmp/e",
+		g+"go test -c ./x [-]pkgdir ~/.local/go/pkg",
+		g+"go test ./x [-]toolexec=/tmp/e",
+		g+"go test -c ./x *o ~/.local/lib/factory/x",
+		g+"go test -c ./x ?o ~/.local/lib/factory/x",
+		g+"go test ./x a~b",
+		g+"go test ./x ~user/y")
+	// T-1498 review round 6: the same rule in every position (prefix env value, flag, flag value, positional, after --)
+	for _, p := range []string{"GOFLAGS=-run=%s {g}go test ./x", "GOCACHE=/tmp/%s {g}go test ./x", "GOFLAGS=%s {g}go test ./x", "{g}go test -run %s ./x",
+		"{g}go test -tags=%s ./x", "{g}go test ./x%s", "{g}go test ./x %s", "{g}go vet -- ./x%s", "{g}go vet -- %s", "{g}gofmt -l %s", "{g}gofmt -r %s ."} {
+		for _, m := range []string{"$x", "${x}", "$(id)", "`id`", "[-]o", "*", "?", "{a,b}"} {
+			block = append(block, fmt.Sprintf(strings.ReplaceAll(p, "{g}", g), m))
+		}
+	}
+	// T-1498 review round 8 (N12): any subcommand with a pkg@version argument downloads the module; only GOPROXY=off allows it
+	block = append(block, g+"go run golang.org/x/tools/cmd/stringer@latest", g+"go run golang.org/x/tools/cmd/stringer@v1 -type=T",
+		g+"go run -race x@latest", g+"go build x@latest", g+"go test x@latest", g+"go vet x@latest", g+"go mod why x@latest",
+		"GOPROXY=direct "+g+"go run x@latest", "GOPROXY= "+g+"go run x@latest", g+"go -C . run x@latest")
+	allow = append(allow, "GOPROXY=off "+g+"go run golang.org/x/tools/cmd/stringer@latest", g+"go run ./cmd/x", g+"go run .")
+	allow = append(allow, g+"go build ./x ./y/...", g+"go vet -- ./...", g+"go test -cpuprofile /dev/null ./...", g+"go build -tags x -- ./...")
+	allow = append(allow, g+"go fmt ./pkg", g+"go test -fuzz=. -fuzztime=5s ./pkg", "GOPROXY=off "+g+"go list -m foo@latest", g+"go list -m all")
+	for _, role := range []string{"coder", "qa", "reviewer"} {
+		for _, c := range allow {
+			if err := Check(c, wt, role, false); err != nil {
+				t.Errorf("%s: %q: expected allow, got %v", role, c, err)
+			}
+		}
+		for _, c := range block {
+			if err := Check(c, wt, role, false); err == nil {
+				t.Errorf("%s: %q: expected a block", role, c)
+			}
+		}
+	}
+	for _, role := range []string{"pm", "judge"} { // other roles: as on origin/main
+		for _, c := range []string{g + "go test ./...", g + "go mod download"} {
+			if err := Check(c, wt, role, false); err != nil {
+				t.Errorf("%s: %q: unchanged roles must still be allowed, got %v", role, c, err)
+			}
+		}
+	}
+}
+
+// T-1498 N11: an empty go subcommand word (an empty quoted word after go) once looped forever in the Go port; the refusal must come back.
+func TestGoEmptySubcommandReturns(t *testing.T) {
+	_, wt, _ := protFixture(t)
+	g := "~/.local/go/bin/"
+	for _, c := range []string{g + "go ''", g + `go ""`, g + `go "" test ./...`, g + "go '' test", g + "go -C . ''"} {
+		done := make(chan error, 1)
+		go func() { done <- Check(c, wt, "coder", false) }()
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Errorf("%q: expected a block", c)
+			} else if !strings.Contains(err.Error(), "is not allowed") {
+				t.Errorf("%q: expected the `go  is not allowed` refusal, got %v", c, err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%q: Check did not return within 2s (empty subcommand loop)", c)
+		}
+	}
+}
+
+// T-1498 N11 follow-up: `go` on PATH with no subcommand word stays allowed for every role (Python parity);
+// only an empty quoted word is refused.
+func TestGoNoSubcommandUnchanged(t *testing.T) {
+	_, wt, _ := protFixture(t)
+	for _, role := range []string{"coder", "qa", "pm", "judge"} {
+		for _, c := range []string{"go", "go -C .", "go -v"} {
+			if err := Check(c, wt, role, false); err != nil {
+				t.Errorf("%s: %q: expected allow, got %v", role, c, err)
+			}
+		}
+		if err := Check("go ''", wt, role, false); err == nil {
+			t.Errorf("%s: %q: expected a block", role, "go ''")
 		}
 	}
 }

@@ -412,8 +412,14 @@ func TestModelChoice(t *testing.T) {
 	if got := RoleModel("cleaner", "claude", map[string]string{"model_cleaner": " claude-opus-5-5 "}); got != "claude-opus-5-5" {
 		t.Errorf("cleaner override: %q", got)
 	}
-	if got := RoleModel("coder", "claude", map[string]string{"model_coder": "x"}); got != "claude-sonnet-5-5" {
-		t.Errorf("only cleaner has an override key: %q", got)
+	if got := RoleModel("coder", "claude", map[string]string{"model_coder": " claude-opus-5-5 "}); got != "claude-opus-5-5" {
+		t.Errorf("every role has an override key: %q", got)
+	}
+	if got := RoleModel("judge", "claude", map[string]string{"model_judge": ""}); got != "claude-sonnet-5-5" {
+		t.Errorf("judge default: %q", got)
+	}
+	if got := RoleModel("judge", "cursor", map[string]string{"model_judge": "claude-opus-5-5"}); got == "claude-opus-5-5" {
+		t.Errorf("a non-claude org ignores model_<role>: %q", got)
 	}
 	if got := RoleModel("coder", "cursor", map[string]string{}); got != "composer-2.5" {
 		t.Errorf("cursor builder: %q", got)
@@ -539,5 +545,25 @@ func TestPlanReviewFindings(t *testing.T) {
 	r.Cwd = "/x"
 	if p := Plan(r, fe); p.Refusal == nil || p.Refusal.Reason != ReasonEvaluator {
 		t.Errorf("evaluator refusal lacks the marker: %+v", p.Refusal)
+	}
+}
+
+// TestPlanStopAtGate: the probe stops before the gate (and reads no gate input: a zero snapshot is fine) when nothing
+// earlier refused, and still returns an earlier refusal.
+func TestPlanStopAtGate(t *testing.T) {
+	f := baseFacts()
+	f.Gate, f.GateConfig = gate.Snapshot{}, gate.Config{}
+	f.StopAtGate = true
+	if p := Plan(coderReq(), f); !p.AtGate || p.Refusal != nil || p.Start != nil || p.Queue != nil {
+		t.Fatalf("probe plan %+v", p)
+	}
+	bad := coderReq()
+	bad.Role = "nosuchrole"
+	if p := Plan(bad, f); p.AtGate || p.Refusal == nil || p.Refusal.Code != 1 {
+		t.Fatalf("refusal plan %+v", p)
+	}
+	f.StopAtGate = false
+	if p := Plan(coderReq(), f); p.AtGate {
+		t.Fatalf("AtGate set without StopAtGate")
 	}
 }
