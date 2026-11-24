@@ -42,6 +42,9 @@ type Run struct {
 	Verdicts                                                  []Verdict
 	History                                                   []string
 	LastGate                                                  *GateRecord
+	// Eval runs (eval.go) measure the review layers on a prepared branch and are never merged.
+	Eval             bool
+	EvalMode, CINote string
 }
 
 // Session is one Claude session of a run (task, judge).
