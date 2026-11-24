@@ -380,6 +380,9 @@ func procRoot(a *alertEnv) string {
 // ok=false means a pid of ours could not be read completely: keep everything. An unreadable pid outside ignore is
 // appended to blocker as "pid:comm" first.
 func procHolds(proc string, roots []string, ignore map[string]bool, blocker *[]string) (held map[string]bool, ok bool, err error) {
+	if tmpGOOS == "darwin" {
+		return nil, false, nil // no /proc: keep everything (never delete what may be in use)
+	}
 	held = map[string]bool{}
 	uid := os.Getuid()
 	ents, err := os.ReadDir(proc)
@@ -458,6 +461,9 @@ func pidTargets(pdir string, uid int) ([]string, error) {
 	}
 	for _, f := range fds {
 		out = append(out, pyRealpath(filepath.Join(pdir, "fd", f.Name())))
+	}
+	if exe, eerr := os.Readlink(filepath.Join(pdir, "exe")); eerr == nil {
+		out = append(out, pyRealpath(exe)) // a running built tool (T-1698); no exe link adds nothing
 	}
 	return out, nil
 }

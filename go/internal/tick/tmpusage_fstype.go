@@ -28,6 +28,7 @@ func darwinFsType(tmp string) string {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, darwinStat, "-f", "%T", target)
 	cmd.Env = []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL=C"}
+	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
 	if err != nil {
 		return ""

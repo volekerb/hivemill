@@ -115,3 +115,41 @@ func FuzzTmpNames(f *testing.F) {
 		}
 	})
 }
+
+// procHolds: a pid whose only link into a root is its exe is held (T-1698); darwin keeps everything.
+func TestProcHoldsExeAndDarwin(t *testing.T) {
+	root := t.TempDir()
+	other := t.TempDir()
+	proc := t.TempDir()
+	pdir := filepath.Join(proc, "4242")
+	if err := os.MkdirAll(filepath.Join(pdir, "fd"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, filepath.Join(pdir, "cwd")); err != nil {
+		t.Fatal(err)
+	}
+	exe := filepath.Join(root, "tool")
+	if err := os.WriteFile(exe, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// accept: no exe link -> nothing held
+	held, ok, err := procHolds(proc, []string{root}, nil, nil)
+	if err != nil || !ok || held[root] {
+		t.Fatalf("no exe: held=%v ok=%v err=%v", held, ok, err)
+	}
+	// reject: exe inside root -> held
+	if err := os.Symlink(exe, filepath.Join(pdir, "exe")); err != nil {
+		t.Fatal(err)
+	}
+	held, ok, err = procHolds(proc, []string{root}, nil, nil)
+	if err != nil || !ok || !held[root] {
+		t.Fatalf("exe held: held=%v ok=%v err=%v", held, ok, err)
+	}
+	old := tmpGOOS
+	tmpGOOS = "darwin"
+	defer func() { tmpGOOS = old }()
+	held, ok, err = procHolds(proc, []string{root}, nil, nil)
+	if err != nil || ok || held != nil {
+		t.Fatalf("darwin: held=%v ok=%v err=%v", held, ok, err)
+	}
+}
