@@ -30,9 +30,9 @@ type procEnt struct {
 // procDirIgnored records the once-per-process proc-dir-ignored event (_PROC_IGNORED).
 var procDirIgnored bool
 
-// procRoot is proc_root(): /proc, or $FACTORY_PROC_DIR off the live home only. On a live home a set variable is
+// reapProcRoot is proc_root(): /proc, or $FACTORY_PROC_DIR off the live home only. On a live home a set variable is
 // ignored and one proc-dir-ignored event per process records the attempt (a failed write is only reported).
-func procRoot(r *reapDB) string {
+func reapProcRoot(r *reapDB) string {
 	const v = "FACTORY_PROC_DIR"
 	fake := os.Getenv(v)
 	if fake == "" {
