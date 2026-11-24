@@ -142,7 +142,13 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	if err := r.Store.AgentLive(l.Name, l.Role, run.Task, run.Goal, "", l.Model, sid, l.Cwd, string(spawnArgs)); err != nil {
 		return "", err
 	}
-	if rc, _, errs := r.Tools.HC("run", "--bg", "--no-parent", "--name", l.Name, "--cwd", l.Cwd, "sh", script); rc != 0 {
+	// Pin the terminal to this machine: an hc wrapper may place worker-named terminals elsewhere, where the hook
+	// binary and the factory DB are not local.
+	runArgs := []string{"run", "--bg", "--no-parent", "--name", l.Name, "--cwd", l.Cwd}
+	if core := r.coreName(); core != "" {
+		runArgs = append(runArgs, "--on", core)
+	}
+	if rc, _, errs := r.Tools.HC(append(runArgs, "sh", script)...); rc != 0 {
 		return "", fmt.Errorf("hc run %s: exit %d: %s", l.Name, rc, firstLine(errs))
 	}
 	r.waitReady(l.Name, 90*time.Second)
@@ -206,4 +212,21 @@ func sessionPath(userHome string) string {
 		}
 	}
 	return local + string(os.PathListSeparator) + p
+}
+
+// coreName is the name of the local hc core ("" when hc cannot say).
+func (r *Runner) coreName() string {
+	rc, out, _ := r.Tools.HC("server", "status")
+	if rc != 0 {
+		return ""
+	}
+	var st struct {
+		Core struct {
+			Name string `json:"name"`
+		} `json:"core"`
+	}
+	if json.Unmarshal([]byte(out), &st) != nil {
+		return ""
+	}
+	return st.Core.Name
 }
