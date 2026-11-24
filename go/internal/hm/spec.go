@@ -139,7 +139,7 @@ func ExpectOK(expect string, rc int, out string) (bool, string) {
 		if err != nil {
 			return false, fmt.Sprintf("exit %d, output %q is not an integer, want >=%d", rc, truncate(got, 40), n)
 		}
-		return v > n, fmt.Sprintf("exit %d, output %d, want >=%d", rc, v, n)
+		return v >= n, fmt.Sprintf("exit %d, output %d, want >=%d", rc, v, n)
 	}
 	if m := exitRe.FindStringSubmatch(e); m != nil {
 		want, _ := strconv.Atoi(m[1])
