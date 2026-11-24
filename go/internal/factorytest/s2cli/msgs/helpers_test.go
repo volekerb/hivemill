@@ -150,6 +150,7 @@ con.execute("UPDATE goals SET org=? WHERE id='G-001'", (goal_org,))
 name = mod._rerun_name(con, "T-0001", "qa", sha)
 con.execute("INSERT OR REPLACE INTO agents(name,role,goal_id,team_id,task_id,status) VALUES(?,?,?,?,?,?)",
     (name, "qa", "G-001", team, "T-0001", "exited"))
+mod._throttle_set(con, mod._respawn_key("T-0001", sha, "qa"), 1.0)  # T-1600: the alert is the second ending, after the one replacement
 t = con.execute("SELECT * FROM tasks WHERE id='T-0001'").fetchone()
 mod._review_alert_no_verdict(con, t, sha, 1.0)
 con.commit()

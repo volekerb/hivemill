@@ -23,7 +23,7 @@ import (
 
 const tierBinSrc = "def cmd_other():\n    return 1\n\n\ndef cmd_judge():\n    return 1\n\n\ndef judge_pick():\n    return 1\n\n\ndef gate_x():\n    return 1\n"
 
-const tierGuardJobIf = "    if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}"
+const tierGuardJobIf = "    if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}"
 
 // docsTierJobSkipErrors returns errors when unittest-shard/go use job-level skip instead of step-level (T-1512).
 func docsTierJobSkipErrors(text string) []string {

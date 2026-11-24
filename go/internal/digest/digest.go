@@ -1,8 +1,12 @@
-package cli
+// Package digest builds the factory digest (build_digest, digest_goal_block and their helpers of the Python CLI) on top of
+// go/internal/store. The cli digest commands and the tick unit digest both call it; it imports neither.
+package digest
 
 import (
 	"database/sql"
 	"encoding/json"
+	"factory/go/internal/identity"
+	"factory/go/internal/store"
 	"fmt"
 	"sort"
 	"strings"
@@ -315,7 +319,7 @@ func dgEnabledOrgs(db *sql.DB) (map[string]bool, error) {
 	}
 	out := map[string]bool{}
 	for _, o := range strings.Split(s, ",") {
-		if o = pyStrip(o); dgIsOrg(o) {
+		if o = store.PyStrip(o); dgIsOrg(o) {
 			out[o] = true
 		}
 	}
@@ -388,9 +392,9 @@ func dgGoalClosedAt(db *sql.DB, id, updated string) (string, error) {
 type dgGoal struct{ id, title, status, org, updated string }
 
 // dgBuild is build_digest(con, goal=G, date, hours) for a goal id; date "" means the clock's day.
-func dgBuild(c *ctx, goal, date string, hours int) (string, error) {
-	db := c.db
-	loc, err := sbLocation(c.env.Getenv)
+func dgBuild(s *store.Store, env Env, goal, date string, hours int) (string, error) {
+	db := s.DB
+	loc, err := sbLocation(env.Getenv)
 	if err != nil {
 		return "", err
 	}
@@ -409,7 +413,7 @@ func dgBuild(c *ctx, goal, date string, hours int) (string, error) {
 		}
 		end = mid.In(time.FixedZone("", o0)).Add(24*time.Hour - time.Second)
 	} else {
-		if end, err = sbClock(c.env.Getenv, c.env.Now, loc); err != nil {
+		if end, err = sbClock(env.Getenv, env.now(), loc); err != nil {
 			return "", err
 		}
 	}
@@ -521,7 +525,7 @@ func dgBuild(c *ctx, goal, date string, hours int) (string, error) {
 			out = append(out, "_no active goals_", "")
 			continue
 		}
-		block, err := dgGoalBlock(c, w, g, events, scoreRows, !freshShown)
+		block, err := dgGoalBlock(db, w, g, events, scoreRows, !freshShown)
 		if err != nil {
 			return "", err
 		}
@@ -544,8 +548,7 @@ func dgBuild(c *ctx, goal, date string, hours int) (string, error) {
 }
 
 // dgGoalBlock is digest_goal_block(g); withFresh prints the factory-wide Freshness line (the first block only).
-func dgGoalBlock(c *ctx, w dgWindow, g dgGoal, events []dgEvent, scoreRows []ScoreRow, withFresh bool) ([]string, error) {
-	db := c.db
+func dgGoalBlock(db *sql.DB, w dgWindow, g dgGoal, events []dgEvent, scoreRows []ScoreRow, withFresh bool) ([]string, error) {
 	block := []string{fmt.Sprintf("## %s — %s (%s)", g.id, g.title, g.status), ""}
 	tasks, err := dgLoadTasks(db, g.id)
 	if err != nil {
@@ -724,7 +727,7 @@ func dgGoalBlock(c *ctx, w dgWindow, g dgGoal, events []dgEvent, scoreRows []Sco
 				return nil, errDelegate
 			}
 			d := det.String
-			if act == "note" && pyStrip(d) != "" {
+			if act == "note" && store.PyStrip(d) != "" {
 				why = d
 				break
 			}
@@ -734,7 +737,7 @@ func dgGoalBlock(c *ctx, w dgWindow, g dgGoal, events []dgEvent, scoreRows []Sco
 			}
 		}
 		er.Close()
-		why = dgCut(strings.Join(strings.FieldsFunc(why, pyIsSpace), " "), 160)
+		why = dgCut(strings.Join(strings.FieldsFunc(why, store.PyIsSpace), " "), 160)
 		tag := ""
 		if t.waits == "owner" {
 			tag = " (owner)"
@@ -896,4 +899,22 @@ func dgGoalBlock(c *ctx, w dgWindow, g dgGoal, events []dgEvent, scoreRows []Sco
 		ts = strings.TrimRight(dgMDTable(teams, cols), "\n")
 	}
 	return append(block, "### Team scores", ts, ""), nil
+}
+
+// errDelegate is what every input this port cannot reproduce byte for byte returns; the cli runs such a command in Python.
+var errDelegate = identity.ErrDelegate
+
+// pyTrunc is s[:n] on code points (a negative n drops that many from the end, like a Python slice).
+func pyTrunc(s string, n int) string {
+	r := []rune(s)
+	if n < 0 {
+		n += len(r)
+		if n < 0 {
+			n = 0
+		}
+	}
+	if n >= len(r) {
+		return s
+	}
+	return string(r[:n])
 }

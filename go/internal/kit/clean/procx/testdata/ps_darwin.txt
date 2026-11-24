@@ -1,0 +1,4 @@
+    1     0     0 Mon Nov 10 08:00:01 2026 /sbin/launchd
+  412     1   501 Mon Nov 10 08:05:12 2026 /Applications/Visual Studio Code.app/Contents/MacOS/Electron
+  800   412   501 Tue Nov 11  9:01:02 2026 /opt/homebrew/bin/claude
+  900   800   501 Tue Nov 11  9:02:03 2026 /usr/local/bin/hm-clean
