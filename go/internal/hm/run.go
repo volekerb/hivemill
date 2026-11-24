@@ -230,6 +230,11 @@ func (r *Runner) Start(id string) error {
 	if err != nil {
 		return err
 	}
+	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
+	// session's first mid-work stop as a gate attempt, and they describe another head.
+	for _, f := range []string{"findings.json", "evidence.json"} {
+		_ = os.Remove(filepath.Join(wt, ".hivemill", f))
+	}
 	// The worker guard (unchanged) lets a pane push only HEAD:factory/<task> for FACTORY_AGENT
 	// claude-coder-t-NNNN(-aN); the lane's own suffix -a7 keeps the name apart from old-pipeline coders.
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
