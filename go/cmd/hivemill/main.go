@@ -43,7 +43,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
 		"report [--json] | eval T-1234 [--judge-only] | task lint T-1234 | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
 		"backup | restore <snapshot> [--dry-run]"
-	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
+	help := len(args) == 0
+	for _, a := range args {
+		help = help || a == "-h" || a == "--help" // every subcommand: never read -h/--help as a task, key or path
+	}
+	if help {
 		fmt.Fprintln(stdout, usage)
 		return 0
 	}

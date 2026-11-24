@@ -156,10 +156,15 @@ func (r *Runner) evalJudge(run *Run) {
 // leaves the PR open for the full run and empties .hivemill/ so that session never sees the judge packet.
 func (r *Runner) evalFinish(run *Run, state, outcome string) {
 	run.State, run.Outcome, run.Ended = state, "eval: "+outcome, nowISO()
-	r.Close(run.Agent)
-	for _, j := range run.Judges {
-		r.Close(j)
-	}
+	// Close the terminals last, after the run is saved: when the task session's own Stop hook fails the run, closing
+	// its terminal ends the hook process, and an unsaved state would be resumed by the next pass.
+	defer func() {
+		_ = r.Store.PutRun(run)
+		r.Close(run.Agent)
+		for _, j := range run.Judges {
+			r.Close(j)
+		}
+	}()
 	sess, _ := r.Store.Sessions(run.Task)
 	ids := make([]string, len(sess))
 	for i, s := range sess {
