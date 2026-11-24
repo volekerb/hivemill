@@ -178,6 +178,12 @@ elif argv[:1] == ["api"]:
                                                   "core": {"remaining": 5000, "limit": 5000, "reset": 0}}}
         print(json.dumps(out))
         sys.exit(0)
+    if re.match(r"repos/[^/]+/[^/]+/pulls$", argv[1]):  # REST list of open PRs, --jq reshaped: one JSON object per line from st["pr_list"]
+        if st.get("pr_list_exit"):
+            print("gh: boom", file=sys.stderr)
+            sys.exit(st["pr_list_exit"])
+        print(st["pr_list_raw"] if "pr_list_raw" in st else "\n".join(json.dumps(x) for x in st.get("pr_list", [])))
+        sys.exit(0)
     m_pull = re.match(r"repos/([^/]+/[^/]+)/pulls/(\d+)$", argv[1])
     if m_pull:
         pr = _stub_pr_by_num(st, m_pull.group(2), m_pull.group(1))

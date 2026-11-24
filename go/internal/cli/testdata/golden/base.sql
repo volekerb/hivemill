@@ -25,7 +25,7 @@ CREATE TABLE tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
+  waits TEXT NOT NULL DEFAULT 'internal', block_on TEXT, sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
 CREATE TABLE agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -124,6 +124,21 @@ CREATE TABLE retro_reports (
   fixes TEXT NOT NULL,
   author TEXT NOT NULL,
   created TEXT NOT NULL);
+CREATE TABLE adopted_fixes (
+  id TEXT PRIMARY KEY,            -- F-001, F-002, ... (zero-padded 3, next = max+1)
+  report_day TEXT NOT NULL,       -- retro_reports.day the fix came from
+  fix_index INTEGER NOT NULL,     -- 1-based index into that report's fixes
+  cause TEXT NOT NULL,            -- copied from the report fix (in REJECTION_CAUSES)
+  type TEXT NOT NULL,             -- check | template | prompt_rule (copied)
+  text TEXT NOT NULL,             -- fix text (copied)
+  signature TEXT NOT NULL,        -- '|'-separated literal terms
+  task_id TEXT NOT NULL,          -- the task that implements the fix
+  pr_url TEXT,                    -- from tasks.pr_url at adopt / at merge sync
+  status TEXT NOT NULL,           -- pending | adopted | held | reopened | noise
+  adopted_at TEXT,                -- ts of the task's merged event; NULL while pending
+  checked_at TEXT, check_note TEXT, recur_incidents TEXT,  -- written by T-C, NULL here
+  author TEXT NOT NULL, created TEXT NOT NULL,
+  UNIQUE(report_day, fix_index), UNIQUE(task_id, report_day, fix_index));
 CREATE TABLE scout_candidates (
   id TEXT PRIMARY KEY,            -- C-0001
   key TEXT NOT NULL UNIQUE,       -- 'gh:<owner>/<repo>[/<path>]' or 'mkt:<marketplace>/<plugin>'
@@ -161,7 +176,20 @@ CREATE TABLE skill_trials (
   void_reason TEXT, void_why TEXT,   -- set by `skilleval void`; the row keeps every other field
   UNIQUE(candidate_id, vendor_sha, task, condition));
 INSERT INTO "config"("key","value") VALUES('guard_impl','python');
+INSERT INTO "config"("key","value") VALUES('model_boss','');
+INSERT INTO "config"("key","value") VALUES('model_director','');
+INSERT INTO "config"("key","value") VALUES('model_lead','');
+INSERT INTO "config"("key","value") VALUES('model_pm','');
+INSERT INTO "config"("key","value") VALUES('model_coder','');
+INSERT INTO "config"("key","value") VALUES('model_qa','');
+INSERT INTO "config"("key","value") VALUES('model_reviewer','');
+INSERT INTO "config"("key","value") VALUES('model_judge','');
 INSERT INTO "config"("key","value") VALUES('model_cleaner','');
+INSERT INTO "config"("key","value") VALUES('model_staff-engineer','');
+INSERT INTO "config"("key","value") VALUES('model_researcher','');
+INSERT INTO "config"("key","value") VALUES('model_scout','');
+INSERT INTO "config"("key","value") VALUES('model_retro','');
+INSERT INTO "config"("key","value") VALUES('model_evaluator','');
 INSERT INTO "config"("key","value") VALUES('cli_impl','python');
 INSERT INTO "config"("key","value") VALUES('tick_impl','python');
 INSERT INTO "config"("key","value") VALUES('cli_go_cmds','');
@@ -172,6 +200,7 @@ INSERT INTO "config"("key","value") VALUES('affected_smoke','test_db_layout.py t
 INSERT INTO "config"("key","value") VALUES('test_slots','2');
 INSERT INTO "config"("key","value") VALUES('min_mem_available_mb','1024');
 INSERT INTO "config"("key","value") VALUES('ci_wake_workers','4');
+INSERT INTO "config"("key","value") VALUES('gh_call_trace','off');
 INSERT INTO "config"("key","value") VALUES('pr_view_ttl_s','120');
 INSERT INTO "config"("key","value") VALUES('gh_quota_min','300');
 INSERT INTO "config"("key","value") VALUES('red_pr_owner_alert','0');
@@ -190,8 +219,10 @@ INSERT INTO "config"("key","value") VALUES('review_autospawn','off');
 INSERT INTO "config"("key","value") VALUES('coder_ci_handoff','off');
 INSERT INTO "config"("key","value") VALUES('coder_ci_resume_max','2');
 INSERT INTO "config"("key","value") VALUES('review_reserved_slots','2');
+INSERT INTO "config"("key","value") VALUES('review_verdict_timeout_min','45');
 INSERT INTO "config"("key","value") VALUES('retro_enabled','1');
 INSERT INTO "config"("key","value") VALUES('retro_hour','6');
+INSERT INTO "config"("key","value") VALUES('retro_org','cursor');
 INSERT INTO "config"("key","value") VALUES('retro_max_minutes','20');
 INSERT INTO "config"("key","value") VALUES('dispatch_max_per_tick','2');
 INSERT INTO "config"("key","value") VALUES('dispatch_max_team_workers','2');
@@ -199,6 +230,7 @@ INSERT INTO "config"("key","value") VALUES('tmp_sweep_pct','80');
 INSERT INTO "config"("key","value") VALUES('tmp_max_pct','90');
 INSERT INTO "config"("key","value") VALUES('max_five_hour_pct','92');
 INSERT INTO "config"("key","value") VALUES('max_seven_day_pct','92');
+INSERT INTO "config"("key","value") VALUES('usage_reopen_samples','3');
 INSERT INTO "config"("key","value") VALUES('nudge_cooldown_s','120');
 INSERT INTO "config"("key","value") VALUES('cursor_kickoff_grace_s','180');
 INSERT INTO "config"("key","value") VALUES('boss_wake_after_s','900');
@@ -257,6 +289,8 @@ INSERT INTO "config"("key","value") VALUES('task_clones','0');
 INSERT INTO "config"("key","value") VALUES('factory_remote_url','');
 INSERT INTO "config"("key","value") VALUES('opus_effort','medium');
 INSERT INTO "config"("key","value") VALUES('judge_max_refreshes','4');
+INSERT INTO "config"("key","value") VALUES('judge_ci_gate','pr');
+INSERT INTO "config"("key","value") VALUES('judge_review_gate','passpass');
 INSERT INTO "config"("key","value") VALUES('judge_ci_wait_s','2400');
 INSERT INTO "config"("key","value") VALUES('skilleval_root','~/.cache/factory-skilleval');
 INSERT INTO "config"("key","value") VALUES('day_start_hour','8');
@@ -269,6 +303,8 @@ INSERT INTO "config"("key","value") VALUES('orphan_reap_mode','dry-run');
 INSERT INTO "config"("key","value") VALUES('exited_pane_reap_mode','dry-run');
 INSERT INTO "config"("key","value") VALUES('idle_coder_reap','off');
 INSERT INTO "config"("key","value") VALUES('idle_coder_reap_s','900');
+INSERT INTO "config"("key","value") VALUES('idle_watchdog','shadow');
+INSERT INTO "config"("key","value") VALUES('idle_watchdog_min','30');
 INSERT INTO "config"("key","value") VALUES('digest_hour','8');
 INSERT INTO "config"("key","value") VALUES('scout_enabled','1');
 INSERT INTO "config"("key","value") VALUES('scout_slots','09,18');
@@ -287,6 +323,7 @@ INSERT INTO "config"("key","value") VALUES('cursor_pilot_roles','');
 INSERT INTO "config"("key","value") VALUES('orgs_enabled','claude');
 INSERT INTO "config"("key","value") VALUES('org_prefix_default','0');
 INSERT INTO "config"("key","value") VALUES('cap_fallback_offer','0');
+INSERT INTO "config"("key","value") VALUES('cursor_prompt','v1');
 INSERT INTO "config"("key","value") VALUES('worker_machines','');
 INSERT INTO "config"("key","value") VALUES('machine_hq','hqhost');
 INSERT INTO "config"("key","value") VALUES('machine_mem_floor_mb','1500');

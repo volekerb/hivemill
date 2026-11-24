@@ -129,5 +129,92 @@ class HqDenyTests(unittest.TestCase):
         self.assertGreater(seen, 0)
 
 
+BOSS_MERGE_OK = [
+    "gh pr merge 12 --delete-branch --squash --repo volekerb/hivemill",
+    "gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill",
+    "gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill-www",
+    "gh pr merge 12 --squash --delete-branch --repo=volekerb/hivemill-www",
+    "gh -R volekerb/hivemill pr merge 12 --squash --delete-branch",
+    "gh pr merge --repo volekerb/hivemill 12 --squash --delete-branch",
+]
+BOSS_MERGE_REFUSED = [
+    "gh pr merge 12 --squash --delete-branch",
+    "GH_REPO=evil/x gh pr merge 12 --squash --delete-branch",
+    "gh pr merge 12 --squash --delete-branch --admin",
+    "gh pr merge 12 --squash --delete-branch --auto",
+    "gh pr merge 12 --merge --delete-branch",
+    "gh pr merge 12 --rebase --delete-branch",
+    "gh pr merge 12 --squash",
+    "gh pr merge 12 --delete-branch",
+    "gh pr merge --squash --delete-branch",
+    "gh pr merge abc --squash --delete-branch",
+    "gh pr merge 12 --squash --delete-branch --repo volekerb/other",
+    "gh pr merge 12 --squash --delete-branch --repo evil/hivemill",
+    "gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill --repo volekerb/other",
+    "gh pr merge 12 13 --squash --delete-branch",
+    "gh pr merge 12 --squash --delete-branch --body x",
+    "gh pr merge 12 --squash --delete-branch --match-head-commit abc",
+    "bash -c 'gh pr merge 12 --admin --squash --delete-branch'",
+]
+OTHER_ROLES = [("director", True), ("lead", True), ("qa", False), ("reviewer", False), ("pm", False)]
+# coder, judge and cleaner are refused by their settings deny (`Bash(gh pr merge:*)`), not by the hook; checked below
+
+
+class BossMergeTests(unittest.TestCase):
+    """T-1803 (owner decision M40734): only the boss role may run `gh pr merge <N> --squash --delete-branch`, on
+    hivemill or hivemill-www; mirrored in go/internal/guard/hq_deny_test.go."""
+
+    def _run(self, role, hq, cmd):
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
+        return hook_run(payload, (["--hq"] if hq else []) + ["--role", role])
+
+    def test_boss_allowed(self):
+        for cmd in BOSS_MERGE_OK:
+            with self.subTest(cmd=cmd):
+                p = self._run("boss", True, cmd)
+                self.assertEqual(p.returncode, 0, (cmd, p.stderr))
+
+    def test_boss_refused(self):
+        for cmd in BOSS_MERGE_REFUSED:
+            with self.subTest(cmd=cmd):
+                p = self._run("boss", True, cmd)
+                self.assertEqual(p.returncode, 2, (cmd, p.stderr))
+                self.assertIn("HQ deny rule", p.stderr, cmd)
+
+    def test_hq_without_role_flag_refused(self):
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "gh pr merge 12 --squash --delete-branch"}})
+        p = hook_run(payload, ["--hq"])
+        self.assertEqual(p.returncode, 2, p.stderr)
+
+    def test_every_other_role_refused(self):
+        for role, hq in OTHER_ROLES:
+            for cmd in BOSS_MERGE_OK[:3]:
+                with self.subTest(role=role, cmd=cmd):
+                    p = self._run(role, hq, cmd)
+                    self.assertEqual(p.returncode, 2, (role, cmd, p.stderr))
+
+    def test_boss_settings_match_guard(self):
+        """The boss settings allow exactly the merge forms the guard allows and deny the other merge flags."""
+        with open(os.path.join(ROOT, "roles", "settings", "boss.json.in"), encoding="utf-8") as f:
+            cfg = json.loads(f.read().replace("@FACTORY_LIVE_HOME@", "/h"))
+        allow, deny = cfg["permissions"]["allow"], cfg["permissions"]["deny"]
+        self.assertNotIn("Bash(gh pr merge:*)", deny)
+        merges = [a for a in allow if a.startswith("Bash(gh pr merge")]
+        self.assertEqual(len(merges), 4)
+        for a in merges:
+            self.assertIn("--squash --delete-branch", a)
+            self.assertNotIn("--admin", a)
+            self.assertIn("--repo volekerb/hivemill", a)
+        for flag in ("--admin", "--auto", "--merge", "--rebase"):
+            self.assertIn(f"Bash(gh pr merge * {flag}*)", deny)
+        for path in sorted(glob.glob(os.path.join(ROOT, "roles", "settings", "*.json.in"))):
+            role = os.path.basename(path).split(".")[0]
+            if role == "boss":
+                continue
+            with open(path, encoding="utf-8") as f:
+                self.assertIn("Bash(gh pr merge:*)", f.read(), role)
+        self.assertIn("--hq --role boss", json.dumps(cfg["hooks"]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -745,6 +745,14 @@
    "doc": ""
   },
   {
+   "key": "retro_org",
+   "kind": "setting",
+   "default": "cursor",
+   "summary": "cursor | claude: org/runtime of the daily retro agent (agent name <org>-retro)",
+   "goal": "G-036",
+   "doc": "docs/retro.md"
+  },
+  {
    "key": "review_autospawn",
    "kind": "flag",
    "default": "off",
@@ -760,6 +768,14 @@
    "summary": "with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "review_verdict_timeout_min",
+   "kind": "setting",
+   "default": "45",
+   "summary": "with review_autospawn=on: a tick-started reviewer/qa live this many minutes with no verdict gets a stop request, then one replacement; 0 = off",
+   "goal": "G-058",
+   "doc": "docs/review-autospawn.md"
   },
   {
    "key": "risk_tiers",

@@ -1,0 +1,6 @@
+p1
+n/
+p800
+n/Users/o/work/proj
+p900
+n/private/var/folders/x/T/scratch/a

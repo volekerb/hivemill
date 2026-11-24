@@ -216,5 +216,53 @@ class JudgeHeadTests(FactoryTestCase):
                     self.assertEqual(kinds, ["stale", "stale"], carries)
 
 
+class JudgeCoveredTests(JudgeHeadTests):
+    """T-1323: no judge autospawn for a dependent task or one a live train judge already names."""
+
+    def ready(self):
+        self.verdict("reviewer", SHA_A)
+        self.verdict("qa", SHA_A)
+
+    def test_train_judge_naming_the_task_blocks_autospawn(self):
+        self.ready()
+        self.env.seed_agent("claude-judge-train-t-0835-t-0836", "judge", goal="G-001", task="T-0836", status="live")
+        self.assertEqual(self.tick(SHA_A)[0], [])
+
+    def test_no_other_judge_spawns_one(self):
+        self.ready()
+        self.assertEqual(len(self.tick(SHA_A)[0]), 1)
+
+    def test_not_done_dependency_blocks_then_done_releases(self):
+        self.ready()
+        self.env.seed_task("T-0900", status="in_progress", pr_url=None)
+        self.env.sql("UPDATE tasks SET depends_on='[\"T-0900\"]' WHERE id=?", (T,))
+        self.assertEqual(self.tick(SHA_A)[0], [])
+        ev = self.env.sql("SELECT detail FROM events WHERE entity_id=? AND action='judge-autospawn-skip'", (T,))
+        self.assertIn("T-0900", ev[0]["detail"])
+        self.env.sql("UPDATE tasks SET status='done' WHERE id='T-0900'")
+        self.assertEqual(len(self.tick(SHA_A)[0]), 1)
+
+    def test_cancelled_dependency_does_not_block_forever(self):
+        # T-1692: a cancelled dep will never be done; treat it like done for gating
+        self.ready()
+        self.env.seed_task("T-0900", status="cancelled", pr_url=None)
+        self.env.sql("UPDATE tasks SET depends_on='[\"T-0900\"]' WHERE id=?", (T,))
+        self.assertEqual(len(self.tick(SHA_A)[0]), 1)
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='judge-autospawn-skip'"), [])
+
+    def test_candidates_query_is_read_only_and_reports_skips(self):
+        # T-1692: judge_autospawn_candidates writes no events; the skip comes back via `skipped` for the caller to log
+        self.ready()
+        self.env.seed_task("T-0900", status="in_progress", pr_url=None)
+        self.env.sql("UPDATE tasks SET depends_on='[\"T-0900\"]' WHERE id=?", (T,))
+        before = self.env.sql("SELECT COUNT(*) AS n FROM events")[0]["n"]
+        with self.env.load_factory() as f:
+            con = f.db()
+            skipped = []
+            self.assertEqual(f.judge_autospawn_candidates(con, skipped), [])
+            self.assertEqual([(t["id"], "T-0900" in why) for t, why in skipped], [(T, True)])
+        self.assertEqual(self.env.sql("SELECT COUNT(*) AS n FROM events")[0]["n"], before)
+
+
 if __name__ == "__main__":
     unittest.main()
