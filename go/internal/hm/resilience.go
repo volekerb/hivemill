@@ -93,12 +93,12 @@ func (r *Runner) resumeSession(run *Run, name string) error {
 	return err
 }
 
-// Draining reports drain mode: no new dispatch, active runs finish.
 // HealthLine is what `hivemill health` prints: the last good pass's age, the configured limit and drain.
 func (r *Runner) HealthLine(age time.Duration) string {
 	return fmt.Sprintf("last good pass %s ago (max %ds); drain %v", age.Round(time.Second), cfgInt(r.Store, "health_max_age_s"), r.Draining())
 }
 
+// Draining reports drain mode: no new dispatch, active runs finish.
 func (r *Runner) Draining() bool { return r.Store.Meta("drain") == "on" }
 
 // SetDrain turns drain mode on or off.
