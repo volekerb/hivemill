@@ -2793,9 +2793,17 @@ def usage_text(u):
     """The "claude usage ..." line of `factory res`: a missing 5h or week reading shows as n/a, the other still shows."""
     if u.get("unreadable"):
         return "claude usage unreadable"
+    if not u["fresh"]:  # a missing or old reading is never shown as a number (a missing file used to read 0%)
+        if u.get("updated_at") is None:
+            return "claude usage stale since never (no usage file)"
+        try:
+            when = dt.datetime.fromtimestamp(u["updated_at"]).astimezone().strftime("%Y-%m-%d %H:%M %Z")
+        except (OverflowError, OSError, ValueError):
+            return "claude usage stale since unknown"
+        return f"claude usage stale since {when}"
     five = "n/a" if u["five_hour"] is None else f"{u['five_hour']:.0f}%"
     week = "n/a" if u["seven_day"] is None else f"{u['seven_day']:.0f}%"
-    return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
+    return f"claude usage 5h {five} · week {week}"
 
 
 def _updated_at(v):
@@ -2827,7 +2835,7 @@ def usage():
                     "seven_day_resets_at": _epoch(u.get("seven_day_resets_at")),
                     "updated_at": updated}
         except FileNotFoundError:
-            return {"five_hour": 0.0, "seven_day": 0.0, "fresh": False, "age_min": -1,
+            return {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1,  # no data is not 0%
                     "five_hour_resets_at": None, "seven_day_resets_at": None, "updated_at": None}
         except Exception:  # noqa: BLE001 — partial JSON, IO error, bad numbers
             if attempt == 0:

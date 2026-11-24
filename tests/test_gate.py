@@ -596,6 +596,35 @@ class UsageReadTests(FactoryTestCase):
         self.assertEqual((u["five_hour"], u["seven_day"], u["fresh"]), (41.0, 12.0, True))
         self.assertNotIn("unreadable", u)
 
+    def test_usage_recorded_payload_parses_to_its_values(self):
+        # a payload as ~/.claude/statusline-usage.sh writes it from Claude Code's rate_limits
+        self.write_raw('{"five_hour_pct":"42","five_hour_resets_at":"1793000000","seven_day_pct":"93",'
+                       '"seven_day_resets_at":"1793500000","updated_at":%d}' % int(time.time()))
+        with self.env.load_factory() as mod:
+            u = mod.usage()
+            self.assertEqual((u["five_hour"], u["seven_day"], u["fresh"]), (42.0, 93.0, True))
+            self.assertEqual(mod.usage_text(u), "claude usage 5h 42% · week 93%")
+        out = self.ok("res").stdout
+        self.assertIn("claude usage 5h 42% · week 93%", out)
+
+    def test_usage_missing_file_is_stale_never_zero(self):
+        f = self.env.user_home / ".claude" / "usage-limits.json"
+        self.assertFalse(f.exists())
+        with self.env.load_factory() as mod:
+            u = mod.usage()
+            self.assertEqual((u["five_hour"], u["seven_day"], u["fresh"]), (None, None, False))
+            self.assertEqual(mod.usage_text(u), "claude usage stale since never (no usage file)")
+        line = [l for l in self.ok("res").stdout.splitlines() if "claude usage" in l][0]
+        self.assertEqual(line.strip(), "claude usage stale since never (no usage file)")
+        self.assertNotIn("0%", line)
+
+    def test_usage_old_file_says_stale_since_time_not_numbers(self):
+        self.env.write_usage(five_hour=99, seven_day=97, age_s=5 * 3600)
+        line = [l for l in self.ok("res").stdout.splitlines() if "claude usage" in l][0]
+        self.assertRegex(line, r"claude usage stale since \d{4}-\d\d-\d\d \d\d:\d\d")
+        self.assertNotIn("99%", line)
+        self.assertNotIn("97%", line)
+
     def test_usage_info_unreadable_shown(self):
         self.write_raw('{"five_hour_pct": 4')
         out = self.ok("res").stdout
@@ -672,7 +701,7 @@ class UsageReadTests(FactoryTestCase):
 
     def test_usage_missing_file_stays_stale(self):
         with self.env.load_factory() as mod:
-            self.assertEqual(mod.usage(), {"five_hour": 0.0, "seven_day": 0.0, "fresh": False, "age_min": -1,
+            self.assertEqual(mod.usage(), {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1,
                                            "five_hour_resets_at": None, "seven_day_resets_at": None,
                                            "updated_at": None})
 
@@ -1145,7 +1174,9 @@ class PlacementTests(FactoryTestCase):
         p = subprocess.run([sys.executable, str(origin), "res"], capture_output=True, text=True,
                            env=self.env.env(extra=pinned), cwd=self.env.home, timeout=60)
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertEqual(ours, p.stdout)
+        # the "claude usage" line is the one thing this change rewrites (a missing file is stale, not 0%)
+        keep = lambda out: [l for l in out.splitlines() if "claude usage" not in l]
+        self.assertEqual(keep(ours), keep(p.stdout))
         self.assertEqual(self.env.calls("ssh"), [])
 
     def test_incident_2026_11_15_replay(self):

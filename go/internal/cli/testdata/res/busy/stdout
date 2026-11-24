@@ -15,7 +15,7 @@ mem available <n> MB (floor 1) · swap used <n> MB · load 0.1/<n>
 tmp used 95 MB / 953 MB (10.0%) (gate closes at 90%)
 tmp sweep (over 80%): never swept
 claude processes 0/10 on host (factory 0 · other 0)
-claude usage 5h 0% · week 0% (stale: -1 min old)
+claude usage stale since never (no usage file)
 lead-less dispatch: shadow; last hour: 0 spawned, 0 shadow
 owner-only blockers: 1
   M1 Owner action needed: rotate key (open 32 min)
