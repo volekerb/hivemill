@@ -1267,6 +1267,14 @@ class GateReviewOnPushTests(NewHeadTests):
         self.push_tick(H2)
         self.assertEqual([(r["head_sha"], r["status"]) for r in self.gate_rows()], [(H1, "pass"), (H2, "queued")])
 
+    def test_new_head_while_an_older_run_is_active_adds_no_row_and_no_repeated_note(self):
+        self.push_tick(H1)
+        self.env.sql("UPDATE gate_runs SET status='running' WHERE id=1")
+        for _ in range(3):
+            self.push_tick(H2)
+        self.assertEqual([(r["head_sha"], r["status"]) for r in self.gate_rows()], [(H1, "running")])
+        self.assertEqual([n for n in self.notes() if H2 in n], [])
+
     def test_no_gate_run_without_gate_cmd(self):
         self.set_gate("")
         self.push_tick()

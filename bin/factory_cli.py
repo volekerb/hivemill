@@ -17060,9 +17060,12 @@ def gate_push_tick(con):
         head = _review_head(con, t, batch)
         if head and not gate_run_for_head(con, t["pr_url"], head):
             rid = gate_enqueue(con, proj, t["pr_url"], head)
-            event_as(con, "tick", "task", t["id"], "note", f"local gate run #{rid} queued for head {head} (pushed)")
-    for r in con.execute("SELECT * FROM gate_runs WHERE kind='pr' AND task_id IS NOT NULL AND status IN ('pass','fail','error') "
-                         "ORDER BY id DESC LIMIT 50").fetchall():
+            # gate_enqueue dedupes on the PR: while an older head's run is still active it returns that run (no row for this
+            # head yet); note only when this head really got its own row, else every tick would repeat a wrong note
+            if gate_run_for_head(con, t["pr_url"], head):
+                event_as(con, "tick", "task", t["id"], "note", f"local gate run #{rid} queued for head {head} (pushed)")
+    for r in con.execute("SELECT g.* FROM gate_runs g JOIN tasks t ON t.id=g.task_id WHERE g.kind='pr' AND t.status='in_review' "
+                         "AND g.status IN ('pass','fail','error') ORDER BY g.id DESC LIMIT 50").fetchall():
         key = f"gate-note:{r['id']}"
         if _throttled(con, key, clock, float("inf")):
             continue
