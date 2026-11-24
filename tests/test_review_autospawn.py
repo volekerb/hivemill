@@ -1,11 +1,19 @@
 """T-0629 (G-022 #6): review_autospawn: the tick starts reviewer + QA (or one combined agent) when a PR opens;
 review_reserved_slots keeps slots for them (docs/review-autospawn.md)."""
 import json
+import shutil
 import unittest
+from pathlib import Path
 
 from harness import SHA_A, FactoryTestCase, gates_summary
+from harness import git as harness_git
 
 TEAM, LEAD = "g-001-a", "lead-g-001-a"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def git(cwd, *args):
+    return harness_git(*args, cwd=cwd)
 GOOD = "## Gates\n- unittest exit=0 cmd=python3 -m unittest discover -s tests\n"
 
 
@@ -877,6 +885,138 @@ class WaitEventTests(Base):
         self.assertEqual(self.tick_step(stub_pr=False, now=1_800_000_000), [])
         self.assertEqual([w["kind"] for w in self.waits()], ["ci"])
 
+
+class FixCarryRerunTests(Base):
+    """T-1611: after a FAIL the rerun starts only the failed role when the other role's PASS would carry across the fix
+    (docs/review-autospawn.md "Single-role rerun"). Real temp git repo, stubbed gh; the spawn is faked."""
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        self.on()
+        self.task()
+        e.sql("UPDATE tasks SET branch='factory/t-0001' WHERE id='T-0001'")
+        (e.home_dir / "ci").mkdir(exist_ok=True)
+        for f in ("risk_tier.py", "tier_rules.json", "affected.py"):
+            shutil.copy(REPO_ROOT / "ci" / f, e.home_dir / "ci" / f)
+        self.remote, self.wt = e.home / "origin.git", e.home / "pr-wt"
+        git(e.home, "init", "-q", "--bare", "-b", "main", str(self.remote))
+        git(e.home, "clone", "-q", str(self.remote), str(self.wt))
+        self.commit("base.txt", "base\n")
+        git(self.wt, "push", "-q", "origin", "HEAD:main")
+        git(self.wt, "checkout", "-q", "-b", "feature")
+        self.commit("feature.txt", "f\n")
+        e.sql("UPDATE tasks SET worktree=? WHERE id='T-0001'", (str(self.wt),))
+        e.set_gh(repo_url=str(self.remote))
+        self.x = self.publish()
+        e.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", team=TEAM, task="T-0001", status="exited")
+        e.seed_agent("qa-t-0001", "qa", goal="G-001", team=TEAM, task="T-0001", status="exited")
+        self.verdict(self.x, "reviewer", "fail")
+        self.verdict(self.x, "qa", "pass")
+
+    gate_open = True
+    verdict = NewHeadTests.verdict
+
+    def commit(self, name, text):
+        (self.wt / name).write_text(text)
+        git(self.wt, "add", name)
+        git(self.wt, "commit", "-q", "-m", "c " + name)
+
+    def publish(self):
+        git(self.wt, "push", "-q", "-f", "origin", "HEAD:refs/pull/1/head")
+        return git(self.wt, "rev-parse", "HEAD")
+
+    def fix(self, lines, name="fix.py"):
+        self.commit(name, "".join(f"v{i} = {i}\n" for i in range(lines)))
+        return self.publish()
+
+    def step(self, head):
+        calls = []
+        with self.env.load_factory() as f:
+            con = f.db()
+
+            def fake_spawn(con, role, goal=None, team=None, task=None, name=None, prompt=None, **kw):
+                calls.append((role, name, prompt))
+                con.execute("INSERT OR REPLACE INTO agents(name,role,goal_id,team_id,task_id,status,started) VALUES(?,?,?,?,?,?,'t')",
+                            (name, role, goal, team, task, "live"))
+
+            f.spawn = fake_spawn
+            f.gate = lambda con, **k: (True, "", {})
+            f._ci_remote_head = lambda branch, batch=None: head
+            f._ci_remote_heads = lambda: {"factory/t-0001": head}
+            f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": head, "mergeStateStatus": "CLEAN",
+                                                     "statusCheckRollup": GREEN}
+            f.review_autospawn_tick(con)
+            con.commit()
+        return calls
+
+    def spawn_events(self):
+        return [json.loads(r["detail"]) for r in self.env.sql("SELECT detail FROM events WHERE action='review-autospawn'")]
+
+    def test_only_the_failed_role_is_started_with_both_shas_in_the_brief(self):
+        y = self.fix(40)
+        calls = self.step(y)
+        self.assertEqual([(c[0], c[1]) for c in calls], [("reviewer", "reviewer-t-0001-" + y[:8])])
+        self.assertIn(self.x, calls[0][2])
+        self.assertIn(y, calls[0][2])
+        self.assertIn("the other role's PASS at", calls[0][2])
+        self.assertIn(f"git diff {self.x}..{y}", calls[0][2])
+        self.assertEqual([e.get("fix_carry") for e in self.spawn_events()], [True])
+        # the reviewer ends without a verdict: the alert names the reviewer, never a qa that was not started
+        # T-1600: the one replacement is the failed role only (never qa); a second ending is the alert
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.assertEqual([c[0] for c in self.step(y)], ["reviewer"])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.assertEqual(self.step(y), [])
+        roles = [json.loads(r["detail"])["role"] for r in self.env.sql("SELECT detail FROM events WHERE action='review-no-verdict'")]
+        self.assertEqual(roles, ["reviewer"])
+
+    def test_a_fix_that_grows_past_the_limit_starts_both_roles_on_the_next_head(self):
+        y = self.fix(40)
+        self.assertEqual([c[0] for c in self.step(y)], ["reviewer"])
+        self.env.sql("UPDATE agents SET status='exited'")
+        y2 = self.fix(300, name="fix2.py")
+        calls = self.step(y2)
+        self.assertEqual([c[0] for c in calls], ["reviewer", "qa"])
+        self.assertNotIn("the other role's PASS at", calls[0][2])
+        self.assertEqual([e.get("fix_carry") for e in self.spawn_events()], [True, None, None])
+
+    def test_qa_failed_starts_only_qa(self):
+        self.env.sql("DELETE FROM verdicts")
+        self.verdict(self.x, "qa", "fail")
+        self.verdict(self.x, "reviewer", "pass")
+        y = self.fix(20)
+        calls = self.step(y)
+        self.assertEqual([c[0] for c in calls], ["qa"])
+        self.assertIn(self.x, calls[0][2])
+
+    def test_both_roles_failed_starts_both(self):
+        self.verdict(self.x, "qa", "fail")
+        y = self.fix(20)
+        self.assertEqual([c[0] for c in self.step(y)], ["reviewer", "qa"])
+        self.assertEqual([e.get("fix_carry") for e in self.spawn_events()], [None, None])
+
+    def test_switch_off_starts_both_roles(self):
+        self.ok("config", "fix_carry", "off")
+        y = self.fix(40)
+        self.assertEqual([c[0] for c in self.step(y)], ["reviewer", "qa"])
+        self.assertEqual([e.get("fix_carry") for e in self.spawn_events()], [None, None])
+
+    def test_sensitive_fix_starts_both_roles(self):
+        (self.wt / "roles" / "hooks").mkdir(parents=True)
+        self.commit("roles/hooks/x", "x\n")
+        y = self.publish()
+        self.assertEqual([c[0] for c in self.step(y)], ["reviewer", "qa"])
+
+    def test_failed_role_already_passed_and_carry_holds_starts_nothing(self):
+        y = self.fix(40)
+        self.verdict(y, "reviewer", "pass")
+        self.assertEqual(self.step(y), [])
+
+    def test_failed_role_passed_but_carry_refused_starts_the_missing_role(self):
+        y = self.fix(300)
+        self.verdict(y, "reviewer", "pass")
+        self.assertEqual([c[0] for c in self.step(y)], ["qa"])
 
 class RespawnTests(Base):
     """T-1600 (G-058 F10): a tick-started reviewer/qa that ended with no verdict on the head gets ONE replacement through the same

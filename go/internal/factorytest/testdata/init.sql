@@ -226,6 +226,8 @@ INSERT INTO config(key,value) VALUES('issue_intake_repos','');
 INSERT INTO config(key,value) VALUES('judge_ci_gate','pr');
 INSERT INTO config(key,value) VALUES('judge_review_gate','passpass');
 INSERT INTO config(key,value) VALUES('judge_ci_wait_s','2400');
+INSERT INTO config(key,value) VALUES('fix_carry','on');
+INSERT INTO config(key,value) VALUES('fix_carry_max_lines','150');
 INSERT INTO config(key,value) VALUES('judge_hold_expiry_min','120');
 INSERT INTO config(key,value) VALUES('judge_max_refreshes','4');
 INSERT INTO config(key,value) VALUES('judge_wait_main_run','0');

@@ -74,6 +74,8 @@ var DefaultConfig = []ConfigDefault{
 	{"state_push", "0"},
 	{"mech_merge", "off"},
 	{"mech_merge_retry_s", "600"},
+	{"fix_carry", "on"},
+	{"fix_carry_max_lines", "150"},
 	{"judge_hold_expiry_min", "120"},
 	{"risk_tiers", "off"},
 	{"public_text_repos", ""},
