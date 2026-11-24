@@ -57,15 +57,21 @@ var (
 
 // CheckFindings validates .hivemill/findings.json.
 func CheckFindings(path string) ([]string, []Finding) {
+	probs, f, _ := checkFindings(path)
+	return probs, f
+}
+
+func checkFindings(path string) ([]string, []Finding, string) {
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return []string{"no .hivemill/findings.json: run /code-review, fix the findings, then write the file (see your role steps)"}, nil
+		return []string{"no .hivemill/findings.json: run /code-review, fix the findings, then write the file (see your role steps)"}, nil, ""
 	}
 	var doc struct {
+		Head     string    `json:"head"`
 		Findings []Finding `json:"findings"`
 	}
 	if err != nil || json.Unmarshal(b, &doc) != nil || doc.Findings == nil && !bytes.Contains(b, []byte(`"findings"`)) {
-		return []string{`.hivemill/findings.json must be valid JSON: {"findings": [...]}`}, nil
+		return []string{`.hivemill/findings.json must be valid JSON: {"head": "<sha>", "findings": [...]}`}, nil, ""
 	}
 	var probs []string
 	for i, f := range doc.Findings {
@@ -79,7 +85,38 @@ func CheckFindings(path string) ([]string, []Finding) {
 			probs = append(probs, fmt.Sprintf("finding %d: resolution must start with fixed, not-a-bug, deferred or duplicate", i+1))
 		}
 	}
-	return probs, doc.Findings
+	return probs, doc.Findings, doc.Head
+}
+
+// ReviewRan reports whether a /code-review ran in this round: Claude Code records a forked skill run as
+// <projects>/<dir>/<session>/subagents/agent-*.forked-skill.json with "skillName": "code-review". The file must belong
+// to one of the task's sessions and be newer than the round start.
+func (r *Runner) ReviewRan(run *Run) bool {
+	since, err := time.Parse(time.RFC3339, run.RoundStart)
+	if err != nil {
+		since = time.Time{}
+	}
+	sess, _ := r.Store.Sessions(run.Task)
+	for _, s := range sess {
+		if s.Role != "task" {
+			continue
+		}
+		m, _ := filepath.Glob(filepath.Join(r.Env.UserHome, ".claude", "projects", "*", s.SID, "subagents", "*.forked-skill.json"))
+		for _, f := range m {
+			fi, err := os.Stat(f)
+			if err != nil || fi.ModTime().Before(since) {
+				continue
+			}
+			b, _ := os.ReadFile(f)
+			var d struct {
+				SkillName string `json:"skillName"`
+			}
+			if json.Unmarshal(b, &d) == nil && d.SkillName == "code-review" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // CheckEvidence requires an evidence entry for every criterion id.
@@ -351,10 +388,19 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 		ok, note = r.affected(wt, base)
 		add("affected", ok, note)
 	}
-	probs, findings := CheckFindings(filepath.Join(wt, ".hivemill", "findings.json"))
+	probs, findings, fhead := checkFindings(filepath.Join(wt, ".hivemill", "findings.json"))
 	rec.Findings = findings
 	for _, p := range probs {
 		add("findings", false, p)
+	}
+	if len(probs) == 0 && fhead != rec.Head {
+		add("review", false, fmt.Sprintf("findings.json is for head %.9s, not HEAD %.9s: run /code-review on the current head and rewrite "+
+			"the file with \"head\": the output of `git rev-parse HEAD`", fhead, rec.Head))
+	}
+	if !r.ReviewRan(run) {
+		add("review", false, "no /code-review ran in this round: run /code-review, fix the findings, commit, then write .hivemill/findings.json")
+	} else {
+		rec.Checks["review"] = "/code-review ran in this round"
 	}
 	ev := CheckEvidence(filepath.Join(wt, ".hivemill", "evidence.json"), crit)
 	for _, p := range ev {

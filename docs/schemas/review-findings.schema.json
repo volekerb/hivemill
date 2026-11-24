@@ -4,21 +4,56 @@
   "title": "Review findings (harness-neutral)",
   "description": "What a code review found and how each finding was resolved. Written to .hivemill/findings.json by the task session; Claude Code /code-review is one adapter that produces it.",
   "type": "object",
-  "required": ["findings"],
+  "required": [
+    "head",
+    "findings"
+  ],
   "properties": {
     "findings": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["severity", "issue", "resolution"],
+        "required": [
+          "severity",
+          "issue",
+          "resolution"
+        ],
         "properties": {
-          "severity": {"enum": ["high", "medium", "low", "info"]},
-          "file": {"type": ["string", "null"]},
-          "line": {"type": ["integer", "null"]},
-          "issue": {"type": "string", "minLength": 1},
-          "resolution": {"type": "string", "pattern": "^(fixed|not-a-bug|deferred|duplicate)\\b"}
+          "severity": {
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "info"
+            ]
+          },
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "issue": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resolution": {
+            "type": "string",
+            "pattern": "^(fixed|not-a-bug|deferred|duplicate)\\b"
+          }
         }
       }
+    },
+    "head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "git rev-parse HEAD after the fixes were committed: the head the review covers"
     }
   }
 }
