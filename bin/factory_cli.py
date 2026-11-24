@@ -1326,6 +1326,14 @@ def event(con, entity, entity_id, action, detail=None):
     event_as(con, actor(), entity, entity_id, action, detail)
 
 
+def nudge_event(con, kind, row, ok, reason="prompt-failed"):
+    """T-1542: one events row per tick nudge: action nudge-<kind>, detail agent/backend/target pane/result
+    (sent, or skipped-<reason>). `row` is the agents row; the backend is the host that row lives on (herdr or hc)."""
+    event_as(con, "tick", "agent", row["name"], f"nudge-{kind}",
+             {"agent": row["name"], "backend": _agent_host_exe(con, row), "target": row["pane_id"],
+              "result": "sent" if ok else f"skipped-{reason}"})
+
+
 def next_id(con, table, prefix, width):
     rows = con.execute(f"SELECT id FROM {table} WHERE id LIKE ?", (prefix + "-%",)).fetchall()
     n = max([int(r["id"].split("-")[1]) for r in rows] or [0]) + 1
@@ -13044,9 +13052,11 @@ def start_confirm(con, agents):
                 event(con, "agent", r["name"], "flagless-cleared", {"via": "spawn"})
             if info.get("kick"):
                 an = h.get("name") or r["name"]
-                if herdr("agent", "prompt", an, info["kick"], check=False) is not None:
+                sent = herdr("agent", "prompt", an, info["kick"], check=False) is not None
+                if sent:
                     _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
                     con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), r["name"]))
+                nudge_event(con, "start-confirm", r, sent)
             con.execute("UPDATE agents SET start_pending=NULL, start_pending_info=NULL WHERE name=?", (r["name"],))
         elif time.time() - r["start_pending"] > START_CONFIRM_S:
             event(con, "agent", r["name"], "start-uncertain", r["pane_id"])
@@ -19397,7 +19407,9 @@ def _tick_u_nudge(con, st):
                                 n = len(qualifying)
                                 msg = (f"📬 {n} unread factory message(s) [{kinds}], oldest {age_min} min. "
                                        "Run `factory inbox` and act on them.")
-                                if herdr("agent", "prompt", an, msg, check=False) is not None:
+                                sent = herdr("agent", "prompt", an, msg, check=False) is not None
+                                nudge_event(con, "unread", r, sent)
+                                if sent:
                                     _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
                                     con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (st["t"], r["name"]))
                                     event_as(con, "tick", "agent", r["name"], "boss-wake",
@@ -19426,8 +19438,10 @@ def _tick_u_nudge(con, st):
                 text = "⏱ Director cycle: run your cycle checklist (survey, resources, unblock, report)."
             if text:
                 an = h.get("name") or r["name"]
-                if herdr("agent", "prompt", an, text, check=False) is not None:
+                sent = herdr("agent", "prompt", an, text, check=False) is not None
+                if sent:
                     _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
+                nudge_event(con, "unread" if unread["c"] else "idle", r, sent)
                 con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (st["t"], r["name"]))
         _pt_lap("nudge")
 
@@ -20595,6 +20609,7 @@ def tick_recycle(con):
         con.execute("UPDATE agents SET relaunch_requested_at=?, relaunch_requested_by=?, relaunch_fresh=1 WHERE name=?",
                     (now(), "tick", r["name"]))
         event(con, "agent", r["name"], "recycle-queued", {"context_tokens": ctx, "limit": limit, "session": r["session_id"]})
+        nudge_event(con, "recycle", r, True)  # the queued fresh relaunch is the recycle prompt: no pane text is typed
 
 
 LEAD_WAKING = ("live", "starting", "queued")  # a lead row in one of these has its wake in flight
