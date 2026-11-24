@@ -105,6 +105,11 @@ func (r *Runner) ReportRows() ([]Row, error) {
 			x.Refreshes++
 		case "pr.merged":
 			x.merged, x.Outcome = e.TS, "merged"
+			if at, _ := e.Data["merged_at"].(string); at != "" {
+				x.merged = at
+			}
+		case "run.held":
+			x.Outcome = "held: owner"
 		case "pr.reverted":
 			x.Outcome = "reverted"
 		case "task.failed":

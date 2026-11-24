@@ -233,6 +233,10 @@ func (r *Runner) Merge(run *Run) {
 		r.finish(run, pr)
 	case "hold":
 	case "block":
+		if OwnerMerges(d.Why) {
+			r.hold(run, d.Why)
+			return
+		}
 		r.fail(run, "merge blocked: "+d.Why)
 	case "rejudge":
 		run.Head, run.State = in.Head, Gated
@@ -243,6 +247,46 @@ func (r *Runner) Merge(run *Run) {
 		r.refresh(run)
 	case "merge":
 		r.mergeNow(run, in.Head)
+	}
+}
+
+// OwnerMerges reports whether a merge block only means the owner merges by hand (tier above the mechanical maximum
+// or an unclassifiable diff), as opposed to a defect.
+func OwnerMerges(why string) bool { return strings.HasSuffix(why, "the owner merges") }
+
+// hold parks a judged run for the owner: the terminals close, the task waits on the owner, and each pass checks the PR
+// once so a merge by hand finishes the run.
+func (r *Runner) hold(run *Run, why string) {
+	run.State, run.Outcome, run.MergeHold = Held, "held for owner", why
+	r.Close(run.Agent)
+	for _, j := range run.Judges {
+		r.Close(j)
+	}
+	_ = r.Store.TaskStatus(run.Task, "blocked", "owner")
+	_ = r.Store.Event(r.actor(), "task", run.Task, "run-held", why)
+	_ = r.Log.Emit("run.held", run, Event{Data: map[string]any{"why": why, "pr": run.PRURL}})
+}
+
+// heldForOwner: a held run, or a run failed by the older binary on an owner-only merge block.
+func heldForOwner(x *Run) bool {
+	return x.State == Held || (x.State == Failed && strings.HasPrefix(x.FailReason, "merge blocked: ") && OwnerMerges(x.FailReason))
+}
+
+// checkHeld finishes a held run whose PR the owner merged, and fails one whose PR was closed.
+func (r *Runner) checkHeld(run *Run) {
+	if run.PRURL == "" {
+		return
+	}
+	pr, err := PRView(r.Tools, run.PRURL)
+	if err != nil {
+		return
+	}
+	switch pr.State {
+	case "MERGED":
+		_ = r.Log.Emit("run.reconciled", run, Event{Data: map[string]any{"repaired": []string{"held PR merged by the owner"}}})
+		r.finish(run, pr)
+	case "CLOSED":
+		r.fail(run, "the owner closed the held PR")
 	}
 }
 
@@ -301,7 +345,7 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
-	_ = r.Log.Emit("pr.merged", run, Event{Data: map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL}})
+	_ = r.Log.Emit("pr.merged", run, Event{Data: map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL, "merged_at": run.Merged}})
 	r.checkMergeCommit(run)
 	r.Close(run.Agent)
 	for _, j := range run.Judges {
