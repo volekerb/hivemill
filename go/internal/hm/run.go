@@ -198,9 +198,17 @@ func (r *Runner) Start(id string) error {
 	if r.Draining() {
 		return fmt.Errorf("%w: drain mode is on (`hivemill resume` lifts it)", ErrRefused)
 	}
-	if why := r.ReadCaps(time.Now()).DispatchBlock(r.Store, t.Project); why != "" {
+	caps := r.ReadCaps(time.Now())
+	if why := caps.DispatchBlock(r.Store, t.Project); why != "" {
 		r.budgetEvent(why)
+		r.usageAlert(caps, why)
 		return fmt.Errorf("%w: %s", ErrRefused, why)
+	}
+	if caps.Probe {
+		_ = r.Log.Emit("usage.probe", nil, Event{TaskID: id, Data: map[string]any{"why": caps.UsageUnknown(r.Store),
+			"note": "one run starts to refresh the stale usage reading; no second run until it is fresh"}})
+	} else {
+		_ = r.Store.SetMeta("usage_alerted", "")
 	}
 	if live, _ := r.Store.OldPipelineLive(id); len(live) > 0 {
 		return fmt.Errorf("%w: %s has live agents of the old pipeline (%s); stop them first", ErrRefused, id, strings.Join(live, ", "))
@@ -391,8 +399,10 @@ func (r *Runner) Pass(startNew bool) error {
 	if !startNew || r.Draining() {
 		return nil
 	}
-	if why := r.ReadCaps(time.Now()).DispatchBlock(r.Store, ""); why != "" {
+	pre := r.ReadCaps(time.Now())
+	if why := pre.DispatchBlock(r.Store, ""); why != "" {
 		r.budgetEvent(why)
+		r.usageAlert(pre, why)
 		r.printf("dispatch held: %s\n", why)
 		return nil
 	}
@@ -596,4 +606,15 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	_ = r.Prompt(run.Agent, "You stopped before your task was finished. Continue your role steps from where you are: finish the "+
 		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop.")
 	_ = r.Log.Emit("session.nudged", run, Event{Role: "task"})
+}
+
+// usageAlert tells the owner once (until the gate opens again) that dispatch is held on usage and no probe can help:
+// no reading has ever existed, or the last reading was over a cap.
+func (r *Runner) usageAlert(c Caps, why string) {
+	if !c.UsageHopeless(r.Store) || r.Store.Meta("usage_alerted") != "" {
+		return
+	}
+	_ = r.Store.AlertFeed("hivemill-usage", "dispatch-held", "hivemill report")
+	_ = r.Log.Emit("usage.alert", nil, Event{Data: map[string]any{"why": why}})
+	_ = r.Store.SetMeta("usage_alerted", truncate(why, 200))
 }
