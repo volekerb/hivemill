@@ -132,7 +132,7 @@ type Report struct {
 
 // Roles are the factory roles hm-spend recognises in a session's kickoff message.
 var Roles = []string{"boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer",
-	"researcher", "scout", "retro", "evaluator"}
+	"researcher", "scout", "retro", "evaluator", "task", "task-judge"}
 
 // RoleOther is the role of a session whose kickoff names no known role.
 const RoleOther = "other"

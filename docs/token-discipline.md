@@ -67,7 +67,7 @@ They are in `roles/_common.md` for factory agents. For any other team, put them 
 - findings with a fix: `fable`, `big-context`, `chatter`, `cache-writes`, `unpriced`;
 - a `By role:` table (role, sessions, requests, $, spawn $, polling $, work $, median start-up context).
 
-The role comes from the session's first user message, the factory kickoff "You are `<agent>`, the factory <role>.", matched against the known roles (boss, director, lead, pm, coder, qa, reviewer, judge, cleaner, staff-engineer, researcher, scout, retro, evaluator); no match gives `other`. A subagent transcript (`<session>/subagents/agent-*.jsonl`) takes its parent session's role, or `other` when the parent is not in the scan.
+The role comes from the session's first user message, the factory kickoff "You are `<agent>`, the factory <role>.", matched against the known roles (boss, director, lead, pm, coder, qa, reviewer, judge, cleaner, staff-engineer, researcher, scout, retro, evaluator, task, task-judge); no match gives `other`. A subagent transcript (`<session>/subagents/agent-*.jsonl`) takes its parent session's role, or `other` when the parent is not in the scan.
 
 Every request falls in exactly one cost bucket, and the three add up to the total:
 - **spawn**: the cache-write cost of a session's first request, its start-up context;
