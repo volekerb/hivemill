@@ -5,6 +5,8 @@ Capture of tests/fixtures/spawn_golden_main.json (done once, on origin/main, bef
     cd <dir> && python3 tests/test_sandbox_spawn.py --capture > tests/fixtures/spawn_golden_main.json
 """
 import ast
+import contextlib
+import io
 import json
 import os
 import re
@@ -12,10 +14,13 @@ import shutil
 import stat
 import subprocess
 import sys
+import types
 import unittest
+import unittest.mock
+from unittest import mock
 from pathlib import Path
 
-from harness import FACTORY, FIXTURES, REPO, FactoryEnv, FactoryTestCase
+from harness import FACTORY, FIXTURES, REPO, DarwinSubprocessRunner, FactoryEnv, FactoryTestCase
 
 sys.path.insert(0, str(REPO))
 from scout import nsbox, workerbox  # noqa: E402
@@ -845,6 +850,176 @@ class ZshenvPathOrderTests(PathOrderBase, SandboxCase):
 
     def startup(self, text):
         (self.env.user_home / ".zshenv").write_text(text)
+
+
+class MacboxRunner(DarwinSubprocessRunner):
+    """The darwin runner plus the owner-side macbox-spawn helper. `verdicts` maps "prepare"/"preflight" to
+    (exit, ok, reason); a missing key is ok. Records every helper argv."""
+
+    def __init__(self, helper, verdicts=None, **kw):
+        super().__init__(**kw)
+        self.helper, self.verdicts, self.helper_calls = helper, verdicts or {}, []
+
+    def __call__(self, cmd, *a, **kw):
+        if isinstance(cmd, (list, tuple)) and cmd and cmd[0] == self.helper:
+            self.calls.append(list(cmd))
+            self.helper_calls.append(list(cmd))
+            code, ok, reason = self.verdicts.get(cmd[1], (0, True, ""))
+            out = json.dumps({"ok": ok, "reason": reason, "why": f"{reason} stub"}) + "\n"
+            return unittest.mock.Mock(returncode=code, stdout=out, stderr="")
+        return super().__call__(cmd, *a, **kw)
+
+
+def refuse(reason):
+    return {"preflight": (3, False, reason)}
+
+
+MACBOX_REASONS = ("os", "user", "sudo", "seatbelt", "view", "acl", "clone")
+
+
+class MacboxSpawnTests(SandboxCase):
+    """G-049 T-1573 (M6b): the macOS spawn wiring. The Go checks are tested in go/internal/macbox and
+    go/cmd/macbox-spawn; here the helper is a stub and these tests prove what the spawn does with its answer."""
+
+    def setUp(self):
+        super().setUp()
+        self.set_roles("reviewer,qa,coder")
+        wt = self.env.home_dir / "worktrees"
+        (wt / "w-coder-qa").mkdir()
+        (wt / "w-coder-qa" / ".git").mkdir()
+        self.helper = self.env.user_home / ".local" / "lib" / "factory" / "macbox-spawn"
+        self.helper.parent.mkdir(parents=True, exist_ok=True)
+        self.helper.write_text("#!/bin/sh\nexit 0\n")
+        self.helper.chmod(0o755)
+
+    def spawn_darwin(self, role, verdicts=None, name=None, cwd=None, runner=None, extra=()):
+        """Run `factory spawn` in-process with sys.platform darwin. Returns (exit code, stderr, runner)."""
+        runner = runner or MacboxRunner(str(self.helper), verdicts)
+        argv = spawn_args(self.env, role, name)
+        if cwd:
+            argv[argv.index("--cwd") + 1] = cwd
+        if extra:
+            argv = [a for i, a in enumerate(argv) if a != "--cwd" and argv[i - 1] != "--cwd"] + list(extra)
+        err = io.StringIO()
+        with self.darwin_platform(runner, FACTORY_KICKOFF_DELAY_S="0") as (mod, _r):
+            with mock.patch.object(sys, "argv", ["factory", *argv]), contextlib.redirect_stderr(err), \
+                    mock.patch.object(mod, "DARWIN_TMP_MIN_FREE_MB", 0):  # the test /tmp is not the gate's subject
+                try:
+                    mod.main()
+                    code = 0
+                except SystemExit as e:
+                    code = e.code or 0
+        return code, err.getvalue(), runner
+
+    def panes(self):
+        return [c["argv"][:2] for c in self.env.calls("herdr")
+                if c["argv"][:2] in (["pane", "split"], ["tab", "create"], ["agent", "start"], ["pane", "run"], ["workspace", "create"])]
+
+    def refusal_reasons(self, name):
+        return [json.loads(r["detail"])["reason"] for r in self.events() if r["entity_id"] == name]
+
+    def test_reason_each_refusal_exits_3_places_no_pane_and_logs_the_reason(self):
+        for reason in MACBOX_REASONS:
+            name = f"zz-r-{reason}"
+            code, err, _r = self.spawn_darwin("reviewer", refuse(reason), name)
+            self.assertEqual(code, 3, (reason, err))
+            self.assertEqual(self.panes(), [], reason)
+            self.assertEqual(self.refusal_reasons(name), [reason])
+            self.assertEqual([r for r in self.agents(name) if r["status"] == "live"], [])
+
+    def test_reason_all_pass_places_a_pane(self):
+        code, err, runner = self.spawn_darwin("reviewer")
+        self.assertEqual(code, 0, err)
+        self.assertTrue(self.panes(), "an accepted spawn must place a pane")
+        self.assertEqual(self.refusal_reasons("zz-reviewer"), [])
+        self.assertEqual([c[1] for c in runner.helper_calls][:2], ["prepare", "preflight"])
+
+    def test_a_helper_that_cannot_decide_refuses_seatbelt(self):
+        for i, verdict in enumerate([(2, False, "os"), (0, False, "acl"), (3, True, "os")]):
+            name = f"zz-weird-{i}"  # a failure exit, ok:false with exit 0, ok:true with a refusal exit: none may pass
+            code, err, _r = self.spawn_darwin("reviewer", {"preflight": verdict}, name)
+            self.assertEqual(code, 3, (verdict, err))
+            self.assertEqual(self.refusal_reasons(name), ["seatbelt"], verdict)
+            self.assertEqual(self.panes(), [])
+
+    def test_no_helper_refuses_seatbelt(self):
+        self.helper.unlink()
+        code, err, _r = self.spawn_darwin("reviewer")
+        self.assertEqual(code, 3, err)
+        self.assertEqual(self.refusal_reasons("zz-reviewer"), ["seatbelt"])
+        self.assertEqual(self.panes(), [])
+
+    def test_darwin_no_accounts_exit_3_reason_user_no_pane(self):
+        code, err, _r = self.spawn_darwin("coder", refuse("user"))
+        self.assertEqual(code, 3, err)
+        self.assertEqual(self.refusal_reasons("zz-coder"), ["user"])
+        self.assertEqual(self.panes(), [])
+
+    def test_os_researcher_is_refused_on_macos(self):
+        self.env.seed_task("T-9001", role="researcher", status="todo", pr_url=None)
+        code, err, runner = self.spawn_darwin("researcher", name="zz-researcher", extra=["--task", "T-9001"])
+        self.assertEqual(code, 3, err)
+        self.assertEqual(self.refusal_reasons("zz-researcher"), ["os"])
+        self.assertEqual(self.panes(), [])
+        self.assertEqual(runner.helper_calls, [], "the helper is not asked about a role it has no accounts for")
+
+    def test_ro_write_refused_reason_clone(self):
+        code, err, _r = self.spawn_darwin("coder", refuse("clone"))
+        self.assertEqual(code, 3, err)
+        self.assertEqual(self.refusal_reasons("zz-coder"), ["clone"])
+        self.assertEqual(self.panes(), [])
+
+    def test_qa_own_clone_is_a_sibling_and_both_clones_reach_the_helper(self):
+        wt = self.env.home_dir / "worktrees"
+        code, err, runner = self.spawn_darwin("qa", cwd=str(wt / "w-coder-qa"))
+        self.assertEqual(code, 0, err)
+        self.assertTrue(runner.helper_calls)
+        for call in runner.helper_calls:
+            a = dict(zip(call[2::2], call[3::2]))
+            self.assertEqual(a["--qa-clone"], str(wt / "w-coder-qa"))
+            self.assertEqual(a["--coder-clone"], str(wt / "w-coder"))
+
+    def test_qa_legacy_shared_dir_is_refused_clone(self):
+        shared = self.env.home_dir / "worktrees" / "w-shared"
+        (shared / ".git").mkdir(parents=True)
+        code, err, _r = self.spawn_darwin("qa", cwd=str(shared))  # not a <coder>-qa sibling clone
+        self.assertEqual(code, 3, err)
+        self.assertEqual(self.refusal_reasons("zz-qa"), ["clone"])
+        self.assertEqual(self.panes(), [])
+
+    def test_linux_never_calls_the_helper(self):
+        runner = MacboxRunner(str(self.helper))
+        with mock.patch.object(subprocess, "run", runner):
+            self.spawn("reviewer")
+        self.assertEqual(runner.helper_calls, [])
+
+    def test_unknown_reason_is_tolerated_by_the_reader(self):
+        """CONSUMERS (P5): bin/factory sandbox_refuse is the one code reader of the reason (throttle key, director
+        mail subject); a reason this build does not know goes through it. The rest are docs and tests."""
+        code, err, _r = self.spawn_darwin("reviewer", refuse("from-the-future"), "zz-unk")
+        self.assertEqual(code, 3, err)
+        self.assertEqual(self.refusal_reasons("zz-unk"), ["from-the-future"])
+        subjects = [m["subject"] for m in self.env.sql("SELECT subject FROM messages")]
+        self.assertTrue(any("from-the-future" in s for s in subjects), subjects)
+
+    def test_escaped_uid_closes_the_agent(self):
+        """A sandboxed coder whose claude runs as the owner uid, not _hivemill_rw, is closed: event sandbox-escaped."""
+        self.env.seed_agent("zz-coder", "coder")
+        fake_pwd = types.SimpleNamespace(getpwnam=lambda n: types.SimpleNamespace(
+            pw_uid={"_hivemill_rw": 901, "_hivemill_ro": 902}[n]))
+        owner_ps = "  4242     1   501 Sat Nov 15 21:20:43 2026 claude --session-id abc\n"
+        worker_ps = owner_ps.replace(" 501 ", " 901 ")
+        with self.darwin_platform(DarwinSubprocessRunner(ps=owner_ps)) as (mod, _r), \
+                mock.patch.dict(sys.modules, {"pwd": fake_pwd}):
+            con = mod.db()
+            self.assertEqual(mod.sandbox_escape_close(con, "zz-coder", None, 9999, "coder"), False)  # unknown pid
+            with mock.patch.object(mod.subprocess, "run", DarwinSubprocessRunner(ps=worker_ps)):
+                self.assertFalse(mod._darwin_escaped("coder", 4242))  # the worker account itself is fine
+            self.assertTrue(mod._darwin_escaped("coder", 4242))  # owner uid 501 is not 901
+            mod.sandbox_escape_close(con, "zz-coder", None, 4242, "coder")
+            con.commit()
+        evs = self.env.sql("SELECT detail FROM events WHERE action='sandbox-escaped' AND entity_id='zz-coder'")
+        self.assertEqual([json.loads(e["detail"])["pid"] for e in evs], [4242])
 
 
 if __name__ == "__main__":

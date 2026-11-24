@@ -2536,16 +2536,33 @@ def _proc_start(pid):
         return None
 
 
-def sandbox_escape_close(con, name, pane, pid):
+def _darwin_escaped(role, pid):
+    """macOS escape detection (M6b): the claude process must run as the role's worker account (_hivemill_rw for
+    coder, _hivemill_ro for the rest). True when its uid differs (the owner's uid: it ran outside the sandbox).
+    Anything unreadable (no snapshot, no such pid, no such account) decides nothing."""
+    try:
+        import pwd
+        want = pwd.getpwnam("_hivemill_rw" if role == "coder" else "_hivemill_ro").pw_uid
+    except (ImportError, KeyError):
+        return False
+    e = (_darwin_ps() or {}).get(int(pid)) if str(pid).isdigit() else None
+    return bool(e) and e["uid"] != want
+
+
+def sandbox_escape_close(con, name, pane, pid, role=None):
     """G-010 T-C2 (fail closed): a sandboxed agent's claude whose user ns equals the host's ran outside the
     sandbox (a shell rc reordered PATH, a multiplexer resumed a bare claude). Close its pane (the call force_stop
     and reap use), event `sandbox-escaped` and one director alert per process (pid + start time,
     read before the close). An unreadable link decides nothing.
     The host reference is <proc>/1, or this process's own ns when pid 1 is unreadable. Returns True when closed."""
-    mine = _userns_link(pid)
-    host = _userns_link(1) or _userns_link("self")
-    if mine is None or host is None or mine != host:
-        return False
+    if sys.platform == "darwin":
+        if not _darwin_escaped(role, pid):
+            return False
+    else:
+        mine = _userns_link(pid)
+        host = _userns_link(1) or _userns_link("self")
+        if mine is None or host is None or mine != host:
+            return False
     start = _proc_start(pid)  # before the close: it kills claude and /proc/<pid> goes with it
     st = close_named_pane(con, name, pane)[0] if pane else "no-pane"
     key = f"sandbox-escaped:{pid}:{start}"  # start time: a reused pid is a new process, a new alert
@@ -2616,7 +2633,7 @@ def claude_outside_spawn(con):
         except ValueError:
             sandboxed = False
         if sandboxed:
-            sandbox_escape_close(con, r["name"], r["pane_id"], pid)
+            sandbox_escape_close(con, r["name"], r["pane_id"], pid, r["role"])
     for pid, (argv, ppid) in sorted(found.items()):
         owner, reasons, cur = agents.get(pid), [], ppid
         if not owner:
@@ -12497,12 +12514,89 @@ def sandbox_path_ok(agent_dir, env, home):
     return None
 
 
+MACBOX_BIN = "macbox-spawn"
+MACBOX_REASONS = ("os", "user", "sudo", "seatbelt", "view", "acl", "clone")  # go/internal/macbox Reason*
+
+
+def macbox_helper():
+    """Path of the owner-side macbox-spawn helper (go/cmd/macbox-spawn), built from this checkout when stale or
+    missing; None when it cannot be had (no go toolchain, failed build). Callers refuse then: no helper, no sandbox."""
+    exe = guard_lib_dir() / MACBOX_BIN
+    build_guard_go(name=MACBOX_BIN, pkg="./cmd/macbox-spawn")
+    return str(exe) if os.access(exe, os.X_OK) else None
+
+
+def macbox_agent_dir(name):
+    """The per-agent dir of a macOS sandboxed agent: the same <workers>/<name> the Linux shim uses."""
+    home = sandbox_home() or workerbox.nsbox.real_home()
+    return f"{workerbox._paths(str(home))['workers']}/{workerbox.check_agent_name(name)}"
+
+
+def _macbox_clones(role, cwd):
+    """(coder clone, qa clone) of a task dir. qa works in <coder>-qa (prepare_qa_clone), its own sibling clone, so
+    its coder clone is the cwd without the suffix; a qa cwd without that suffix is the shared legacy dir: None."""
+    if role != "qa":
+        return cwd, None
+    if not cwd.endswith("-qa") or cwd == "-qa":
+        return None, None
+    return cwd[:-3], cwd
+
+
+def macbox_call(sub, role, name, cwd, con):
+    """Run `macbox-spawn <sub>` (prepare | preflight) as the owner. None when it says ok, else (reason, why). Fail
+    closed: a helper that cannot run, exits with anything but 0 or 3, or prints no JSON refuses with reason seatbelt."""
+    exe = macbox_helper()
+    if not exe:
+        return "seatbelt", ("the macbox-spawn helper is not built (needs ~/.local/go/bin/go and a clean go/ tree); "
+                            "run `factory up`, then spawn again")
+    coder, qa = _macbox_clones(role, cwd)
+    if not coder:
+        return "clone", f"{role} sandbox needs its own clone <task>-qa; {cwd} is the shared legacy dir"
+    home = str(sandbox_home() or workerbox.nsbox.real_home())
+    tokens = workerbox._paths(home)
+    try:
+        gh_path = sandbox_gh_token(con, role)[0]
+    except ValueError as e:
+        return "token", str(e)
+    argv = [exe, sub, "--role", role, "--owner-home", home, "--factory-home", str(HOME), "--agent-dir", macbox_agent_dir(name),
+            "--coder-clone", coder, "--claude", sandbox_real_claude(sandbox_home())[0] or "", "--oauth", tokens["oauth"],
+            "--gh", gh_path]
+    if qa:
+        argv += ["--qa-clone", qa]
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError) as e:
+        return "seatbelt", f"macbox-spawn {sub} could not run: {e}"
+    try:
+        res = json.loads(r.stdout.strip().splitlines()[-1]) if r.stdout.strip() else None
+    except ValueError:
+        res = None
+    if r.returncode == 0 and isinstance(res, dict) and res.get("ok") is True:
+        return None
+    if r.returncode == 3 and isinstance(res, dict) and res.get("ok") is False:
+        return str(res.get("reason") or "seatbelt"), str(res.get("why") or "refused")
+    return "seatbelt", f"macbox-spawn {sub} failed (exit {r.returncode}): {(r.stderr or r.stdout or '').strip()[:300]}"
+
+
+def _macbox_preflight(role, cwd, name, con):
+    """sandbox_preflight on macOS. Reason os: the role has no macOS account wiring (researcher). cwd None: only the
+    helper must exist. With a cwd: the helper's checks (clones, then macbox.Preflight) against the agent's profile."""
+    if role == "researcher":
+        return "os", "researcher is not sandboxed on macOS yet (no seatbelt wiring); it cannot be spawned here"
+    if cwd is None:
+        return None if macbox_helper() else (
+            "seatbelt", "the macbox-spawn helper is not built (needs ~/.local/go/bin/go); run `factory up`")
+    return macbox_call("preflight", role, name, cwd, con)
+
+
 def sandbox_preflight(role, cwd, name, con=None):
     """(reason, why) of the first failed check, or None. Pure checks: nothing is created, no token is read.
     cwd None: only the checks that do not depend on the cwd (run before a worktree is prepared).
     con: the DB whose config names the gh token file and repos; without it the role's default token file is checked."""
     if role not in workerbox.SANDBOXABLE:
         return "role", f"{role} cannot be sandboxed"
+    if sys.platform == "darwin":  # M6b: seatbelt through the owner-side helper; the Linux namespace checks do not apply
+        return _macbox_preflight(role, cwd, name, con)
     if sandbox_home() is None and not Path(workerbox.__file__).resolve().is_relative_to(HOME.resolve()):
         return "code-root", "the live factory must spawn sandboxed workers from its own checkout, not from a copy of bin/factory"
     ok, why = workerbox.nsbox.userns_available()
@@ -12689,6 +12783,12 @@ def start_failed_wait(s):
 
 def sandbox_prepare(con, role, name, cwd):
     """Preflight, then workerbox.prepare_agent; returns the agent dir. Fails closed: any problem refuses the spawn."""
+    if sys.platform == "darwin":  # profile, shim and ACLs first (preflight probes them), then the helper's checks
+        bad = _macbox_preflight(role, None, name, con) or macbox_call("prepare", role, name, cwd, con) \
+            or macbox_call("preflight", role, name, cwd, con)
+        if bad:
+            sandbox_refuse(con, role, name, *bad)
+        return macbox_agent_dir(name)
     bad = sandbox_preflight(role, cwd, name, con)
     if bad:
         sandbox_refuse(con, role, name, *bad)
@@ -13405,7 +13505,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         event(con, "agent", name, "flagless-cleared", {"via": "spawn"})
     if sandboxed and (sid or resume):  # the session's claude pid is known now: close an escape right away
         for pid, argv in claude_procs(sid or resume):
-            if _is_claude_cmd(argv) and sandbox_escape_close(con, name, pane, pid):
+            if _is_claude_cmd(argv) and sandbox_escape_close(con, name, pane, pid, role):
                 break
     if not use_hc:
         herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",

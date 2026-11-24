@@ -24,6 +24,7 @@ const (
 	ReasonSeatbelt = "seatbelt"
 	ReasonView     = "view"
 	ReasonACL      = "acl"
+	ReasonClone    = "clone"
 )
 
 // Refusal is a fail-closed preflight outcome.
