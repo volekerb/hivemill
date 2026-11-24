@@ -552,6 +552,36 @@ func (r *Runner) Status() error {
 	return nil
 }
 
+// StatusRow is one run in `hivemill run status --json`.
+type StatusRow struct {
+	Task        string `json:"task"`
+	State       string `json:"state"`
+	Round       int    `json:"round"`
+	GateBlocks  int    `json:"gate_blocks"`
+	JudgeRounds int    `json:"judge_rounds"`
+	CIRounds    int    `json:"ci_rounds"`
+	PR          string `json:"pr,omitempty"`
+}
+
+// StatusJSON prints the runs as a JSON list, one object per run.
+func (r *Runner) StatusJSON() error {
+	runs, err := r.Store.Runs()
+	if err != nil {
+		return err
+	}
+	out := make([]StatusRow, 0, len(runs))
+	for _, x := range runs {
+		out = append(out, StatusRow{Task: x.Task, State: x.State, Round: x.Round, GateBlocks: x.GateBlocksTotal,
+			JudgeRounds: len(x.Verdicts), CIRounds: x.CIRounds, PR: x.PRURL})
+	}
+	b, err := json.MarshalIndent(out, "", " ")
+	if err != nil {
+		return err
+	}
+	r.printf("%s\n", b)
+	return nil
+}
+
 // budgetEvent emits budget.reached once per reason and day.
 func (r *Runner) budgetEvent(why string) {
 	kind := "budget.reached"
