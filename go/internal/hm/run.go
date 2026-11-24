@@ -406,6 +406,8 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	case Working:
 		if !alive(list, listed, run.Agent) {
 			r.fail(run, "the task session ended before its gate passed")
+		} else {
+			r.idleWatch(run, list)
 		}
 	case Gated:
 		r.gated(run)
@@ -537,4 +539,36 @@ func (r *Runner) budgetEvent(why string) {
 		f.Close()
 	}
 	_ = r.Log.Emit("budget.reached", nil, Event{Data: map[string]any{"why": why}})
+}
+
+// idleWatch nudges a task session that sits idle with no PR for 15 minutes (it stopped mid-work, e.g. while a
+// background review was running); after a second idle spell the run is FAIL "stalled".
+func (r *Runner) idleWatch(run *Run, list []Terminal) {
+	idle := false
+	for _, t := range list {
+		if t.Name == run.Agent {
+			idle = t.Status == "idle" || t.Status == "done"
+		}
+	}
+	if !idle {
+		run.IdleSince = ""
+		return
+	}
+	if run.IdleSince == "" {
+		run.IdleSince = nowISO()
+		return
+	}
+	since, err := time.Parse(time.RFC3339, run.IdleSince)
+	if err != nil || time.Since(since) < 15*time.Minute {
+		return
+	}
+	run.IdleSince = ""
+	if run.IdleNudges >= 1 {
+		r.fail(run, "stalled: the task session stayed idle without a passing gate after a nudge")
+		return
+	}
+	run.IdleNudges++
+	_ = r.Prompt(run.Agent, "You stopped before your task was finished. Continue your role steps from where you are: finish the "+
+		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop.")
+	_ = r.Log.Emit("session.nudged", run, Event{Role: "task"})
 }

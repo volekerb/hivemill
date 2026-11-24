@@ -433,8 +433,14 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 		return err
 	}
 	r.noteSession(run, h.SessionID, r.Env.Actor)
-	rec := r.Gate(run)
 	defer func() { _ = r.Store.PutRun(run) }()
+	// No PR yet: the session is mid-work (often waiting for a background /code-review that wakes it again). Let it
+	// stop without a block; the runner's idle watch nudges a session that stays idle with no PR.
+	if t, err := r.Store.Task(run.Task); err == nil && t.PRURL == "" && r.findPR(run, t) == "" {
+		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no PR yet"}})
+		return nil
+	}
+	rec := r.Gate(run)
 	if len(rec.Problems) == 0 {
 		run.State, run.Head, run.PRURL, run.Tier, run.Gated, run.LastGate = Gated, rec.Head, rec.PRURL, rec.Tier, nowISO(), rec
 		fixed := 0
