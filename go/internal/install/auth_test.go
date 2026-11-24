@@ -57,7 +57,8 @@ func TestAuthNoTTYStopsUnchanged(t *testing.T) {
 }
 
 func TestAuthNoYesStopsUnchanged(t *testing.T) {
-	// --yes is what selects the mutating mode, so call the step with it unset, as a --resume style caller would
+	// validate() makes every real run pass --yes, --check or --dry-run, so Main never reaches here without --yes;
+	// call the step directly with Yes unset to pin that the interactive path needs it
 	f := ttyHost(t)
 	var out strings.Builder
 	c := NewCtx(f, &Args{}, &out, false)
@@ -114,5 +115,23 @@ func TestAuthNoSecretInOutput(t *testing.T) {
 	})
 	if strings.Contains(all, leakText) {
 		t.Errorf("token-like text leaked into the installer output")
+	}
+}
+
+func TestAuthRoundsGhOnlyWaitsBetweenTries(t *testing.T) {
+	// Claude is logged in, gh keeps refusing (a stale GH_TOKEN): an Enter between tries, a hint, then the exit-3 stop
+	f := ttyHost(t)
+	f.login(t)
+	f.Env["GH_TOKEN"] = "stale"
+	f.ttyRun = func(f *fakeHost, argv []string) (int, string) { return 1, "" }
+	rc, out, _ := runMain(t, f, "--yes", "--no-systemd")
+	if rc != 3 || !strings.Contains(out, authStopMsg) {
+		t.Fatalf("rc=%d\n%s", rc, out)
+	}
+	if len(f.ttyRuns) != 3 || f.waited != 2 {
+		t.Errorf("want 3 gh tries with 2 Enters between them, got runs=%d enters=%d", len(f.ttyRuns), f.waited)
+	}
+	if !strings.Contains(out, "GH_TOKEN or GITHUB_TOKEN is set") || strings.Contains(out, authPromptMsg) {
+		t.Errorf("want the token hint and no Claude prompt:\n%s", out)
 	}
 }

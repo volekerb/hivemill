@@ -622,13 +622,27 @@ func stepAuth(c *Ctx) (string, error) {
 		if !interactive || round >= authRounds {
 			return "", authStop(todo)
 		}
+		ghFailed := false
 		if !ghOK {
 			// gh's own flow on the terminal: the installer never sees, prints or stores what gh prints there
 			c.note("running `gh auth login` (gh asks the questions)")
-			_ = c.host.RunTTY([]string{"gh", "auth", "login"}) // success is judged by the `gh auth status` re-check
+			if rc := c.host.RunTTY([]string{"gh", "auth", "login"}); rc != 0 { // success is judged by the re-check
+				ghFailed = true
+				c.note(fmt.Sprintf("`gh auth login` exited %d", rc))
+				env := c.host.Environ()
+				if env["GH_TOKEN"] != "" || env["GITHUB_TOKEN"] != "" {
+					c.note("GH_TOKEN or GITHUB_TOKEN is set, and gh uses it instead of a login: unset it or replace it")
+				}
+			}
 		}
+		prompt := ""
 		if !claudeOK {
-			c.emit(claudeLoginPrompt)
+			prompt = claudeLoginPrompt
+		} else if ghFailed && round+1 < authRounds {
+			prompt = "Press Enter here to run `gh auth login` again."
+		}
+		if prompt != "" {
+			c.emit(prompt)
 			if err := c.host.WaitEnter(); err != nil {
 				return "", authStop(todo)
 			}
