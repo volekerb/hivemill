@@ -1,8 +1,9 @@
-package cli
+package digest
 
 import (
 	"database/sql"
 	"encoding/json"
+	"factory/go/internal/store"
 	"fmt"
 	"io"
 	"math"
@@ -70,7 +71,7 @@ func dgaNum(v any) (f float64, null bool, err error) {
 
 // dgaLine is scout.report._line for a text: whitespace collapsed, "-" when empty.
 func dgaLine(s string) string {
-	out := strings.Join(strings.FieldsFunc(s, pyIsSpace), " ")
+	out := strings.Join(strings.FieldsFunc(s, store.PyIsSpace), " ")
 	if out == "" {
 		return "-"
 	}
@@ -916,7 +917,7 @@ func dgaLessons(db *sql.DB, w dgWindow) ([]string, error) {
 		if ok, err := in(l.verified, l.hasVerified); err != nil {
 			return nil, err
 		} else if ok {
-			ev := pyTrunc(strings.Join(strings.FieldsFunc(l.evidence, pyIsSpace), " "), 160)
+			ev := pyTrunc(strings.Join(strings.FieldsFunc(l.evidence, store.PyIsSpace), " "), 160)
 			ver = append(ver, fmt.Sprintf("- %s %s — %s", l.id, l.title, ev))
 		}
 	}
