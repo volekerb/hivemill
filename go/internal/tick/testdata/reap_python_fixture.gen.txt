@@ -1,0 +1,48 @@
+"""Runs the Python tick on the exited-pane and idle-coder fixtures and dumps agents/events/messages rows as JSON."""
+import json, sys, unittest
+sys.path.insert(0, "tests")
+import test_exited_pane_reap as ex
+import test_idle_coder_reap as idle
+
+ACTIONS = ("exited-pane-closed", "exited-pane-would-close", "idle-coder-stopped", "stop-requested", "note", "nudge-pending")
+OUT = {}
+
+def dump(env, names):
+    ev = [list(r) for r in env.sql("SELECT actor, entity, entity_id, action, detail FROM events WHERE action IN (%s) ORDER BY id"
+                                   % ",".join("?" * len(ACTIONS)), ACTIONS)]
+    ag = [list(r) for r in env.sql("SELECT name, role, status, pane_id, ended, stop_requested_at IS NOT NULL FROM agents WHERE name IN (%s) ORDER BY name"
+                                   % ",".join("?" * len(names)), names)]
+    ms = [list(r) for r in env.sql("SELECT subject, kind, sender, recipient, goal_id, task_id, body FROM messages ORDER BY id")]
+    return {"events": ev, "agents": ag, "messages": ms}
+
+class Exited(ex.Base):
+    def setUp(self):
+        self.env_ = None
+        super().setUp()
+    def test_fixture(self):
+        self.env.seed_goal("G-1"); self.env.sql("DELETE FROM tasks"); self.env.seed_task("T-5", "G-1", status="todo", pr_url=None)
+        self.env.sql("DELETE FROM agents")
+        self.env.sql("INSERT INTO agents(name,role,status,task_id,pane_id,ended,session_id,cwd,spawn_args) VALUES('qa-1','qa','exited','T-5','p-1',?,'s-qa-1','/w/qa-1','{}')", (ex.OLD,))
+        self.host(("qa-1", "p-1"))
+        self.tick()
+        OUT["exited_panes_on"] = dump(self.env, ["qa-1"]); OUT["exited_panes_on"]["messages"] = []  # tick drift alert, not the unit
+
+class Idle(idle.Base):
+    def test_fixture(self):
+        e = self.env
+        e.sql("DELETE FROM agents WHERE name='zz-test-coder'")
+        e.seed_goal("G-1")
+        e.sql("UPDATE tasks SET id='T-5', goal_id='G-1' WHERE id='T-0001'")
+        e.sql("UPDATE pr_state SET task_id='T-5'") if False else None
+        self.coder("coder-1", "p-1", task="T-5")
+        e.sql("UPDATE agents SET goal_id='G-1' WHERE name='coder-1'")
+        self.fake_proc(300, 1, ["claude"], agent="coder-1")
+        self.host(("coder-1", "p-1", "idle"))
+        self.two_ticks()
+        OUT["idle_coders_stop"] = dump(e, ["coder-1"])
+
+if __name__ == "__main__":
+    s = unittest.TestSuite([Exited("test_fixture"), Idle("test_fixture")])
+    r = unittest.TextTestRunner(verbosity=2).run(s)
+    json.dump(OUT, open(sys.argv[1], "w"), indent=1, sort_keys=True)
+    sys.exit(0 if r.wasSuccessful() else 1)

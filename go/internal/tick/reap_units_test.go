@@ -797,3 +797,111 @@ func FuzzPaneIdle(f *testing.F) {
 type fakeHerdr struct{ v any }
 
 func (f fakeHerdr) Herdr(bool, ...string) (any, error) { return f.v, nil }
+
+// pyReapFixture is the rows a Python tick leaves for the same scenarios (testdata/reap_python_fixture.json, made by
+// the script saved beside it): agents (name, role, status, pane_id, ended, stop flag set), the reap events
+// (actor, entity, entity_id, action, detail) in order, and the messages.
+type pyReapFixture struct {
+	Agents   [][]any `json:"agents"`
+	Events   [][]any `json:"events"`
+	Messages [][]any `json:"messages"`
+}
+
+func loadPyFixture(t *testing.T, key string) pyReapFixture {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "reap_python_fixture.json"))
+	if err != nil {
+		t.Fatalf("read the Python fixture: %v", err)
+	}
+	var all map[string]pyReapFixture
+	if err := json.Unmarshal(b, &all); err != nil {
+		t.Fatalf("parse the Python fixture: %v", err)
+	}
+	fx, ok := all[key]
+	if !ok {
+		t.Fatalf("fixture %q missing", key)
+	}
+	return fx
+}
+
+// goRows reads the same shapes from the Go run's DB.
+func (u *unitFix) goRows(names ...string) pyReapFixture {
+	u.t.Helper()
+	var out pyReapFixture
+	scan := func(q string, n int, dst *[][]any, args ...any) {
+		rows, err := u.db.Query(q, args...)
+		if err != nil {
+			u.t.Fatalf("%s: %v", q, err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			vals := make([]any, n)
+			ptrs := make([]any, n)
+			for i := range vals {
+				ptrs[i] = &vals[i]
+			}
+			if err := rows.Scan(ptrs...); err != nil {
+				u.t.Fatal(err)
+			}
+			for i, v := range vals {
+				if b, ok := v.([]byte); ok {
+					vals[i] = string(b)
+				}
+				if i64, ok := vals[i].(int64); ok {
+					vals[i] = float64(i64) // JSON numbers decode as float64
+				}
+			}
+			*dst = append(*dst, vals)
+		}
+	}
+	marks := strings.TrimRight(strings.Repeat("?,", len(names)), ",")
+	args := make([]any, len(names))
+	for i, n := range names {
+		args[i] = n
+	}
+	scan("SELECT name, role, status, pane_id, ended, stop_requested_at IS NOT NULL FROM agents WHERE name IN ("+marks+") ORDER BY name", 6, &out.Agents, args...)
+	scan("SELECT actor, entity, entity_id, action, detail FROM events WHERE action IN ('exited-pane-closed','exited-pane-would-close','idle-coder-stopped','stop-requested','note','nudge-pending') ORDER BY id", 5, &out.Events)
+	scan("SELECT subject, kind, sender, recipient, goal_id, task_id, body FROM messages ORDER BY id", 7, &out.Messages)
+	return out
+}
+
+func sameJSON(t *testing.T, what string, got, want any) {
+	t.Helper()
+	g, _ := json.Marshal(got)
+	w, _ := json.Marshal(want)
+	if string(g) != string(w) {
+		t.Errorf("%s differ from the Python run:\n go:     %s\n python: %s", what, g, w)
+	}
+}
+
+// TestReapExitedPanesPythonFixture: the exited-pane close leaves the agents rows and events rows a Python tick left
+// for the same fixture (AC3).
+func TestReapExitedPanesPythonFixture(t *testing.T) {
+	fx := loadPyFixture(t, "exited_panes_on")
+	u := newUnitFix(t)
+	u.exitedMode("on")
+	u.exited("qa-1", "qa", "exited", "p-1", oldEnded)
+	u.hostPanes("p-1")
+	u.stub.set("pane_list", "after", `{"panes":[]}`)
+	if err := u.run("exited_panes", agentsState(t, hostAgent("qa-1", "p-1", "idle", "s-qa-1"))); err != nil {
+		t.Fatal(err)
+	}
+	got := u.goRows("qa-1")
+	sameJSON(t, "agents", got.Agents, fx.Agents)
+	sameJSON(t, "events", got.Events, fx.Events)
+}
+
+// TestReapIdleCodersPythonFixture: the idle stop leaves the agents, events and messages rows a Python tick left (AC3).
+func TestReapIdleCodersPythonFixture(t *testing.T) {
+	fx := loadPyFixture(t, "idle_coders_stop")
+	f := newIdleFix(t)
+	f.exec("UPDATE agents SET started='2026-01-01T00:00:00+00:00' WHERE name='coder-1'")
+	f.stopWindow()
+	if err := f.idleTick(); err != nil {
+		t.Fatal(err)
+	}
+	got := f.goRows("coder-1")
+	sameJSON(t, "agents", got.Agents, fx.Agents)
+	sameJSON(t, "events", got.Events, fx.Events)
+	sameJSON(t, "messages", got.Messages, fx.Messages)
+}
