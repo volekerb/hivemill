@@ -534,7 +534,14 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 			"round": run.Round, "reruns": rec.Reruns, "tier": rec.Tier}})
 		return nil
 	}
-	run.GateBlocks++
+	// A block counts toward the cap only when it repeats the last block's problems: a session that fixes one problem and
+	// stops again (T-1858 fixed three PR-body problems in 35 s) is making progress. BlockStops bounds a loop anyway.
+	probs := strings.Join(rec.Problems, "\n")
+	run.BlockStops++
+	if probs == run.LastBlock || run.BlockStops > 3*cfgInt(r.Store, "gate_max_blocks") || run.GateBlocks == 0 {
+		run.GateBlocks++
+	}
+	run.LastBlock = probs
 	run.GateBlocksTotal++
 	for _, x := range rec.Reruns {
 		if x.OK != nil && !*x.OK {
