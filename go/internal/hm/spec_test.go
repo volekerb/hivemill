@@ -53,7 +53,8 @@ func TestExpect(t *testing.T) {
 		rc   int
 		out  string
 		want bool
-	}{{"exit 0", 0, "", true}, {"0", 1, "", false}, {"3", 0, "3\n", true}, {"2", 0, "1", false}, {"rc=1", 1, "", true}, {"empty", 0, " \n", true}, {"OK", 0, "Ran 3\nOK", true}, {"OK", 0, "FAILED", false}} {
+	}{{"exit 0", 0, "", true}, {"0", 1, "", false}, {"3", 0, "3\n", true}, {"2", 0, "1", false}, {"rc=1", 1, "", true}, {"empty", 0, " \n", true}, {"OK", 0, "Ran 3\nOK", true}, {"OK", 0, "FAILED", false},
+		{">=6", 0, "7\n", true}, {">= 6", 0, "12", true}, {">=6", 0, "5", false}, {">=1", 0, "none", false}} {
 		if ok, _ := ExpectOK(c.exp, c.rc, c.out); ok != c.want {
 			t.Errorf("%+v: got %v", c, ok)
 		}
@@ -78,5 +79,11 @@ func TestCriteriaProseNumbers(t *testing.T) {
 	// A duplicate number at the start of a line is still reported.
 	if p := LintProblems("1. a cmd:true => 0\n2. b cmd:true => 0\n2. c cmd:true => 0"); len(p) == 0 {
 		t.Error("line-start duplicate not reported")
+	}
+}
+
+func TestLintAcceptsAtLeast(t *testing.T) {
+	if p := LintProblems("1. enough tests - cmd:grep -c 'def test_' tests/test_x.py => >=6"); len(p) != 0 {
+		t.Errorf("lint %v", p)
 	}
 }
