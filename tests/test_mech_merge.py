@@ -998,6 +998,32 @@ class FastLaneTests(MechMergeTests):
         self.assertEqual(self.merges(), [])
         self.assertEqual(git(self.env.home_dir, "for-each-ref", "refs/remotes/origin/main", "refs/factory"), before)
 
+    def test_the_auto_revert_pr_branch_is_classified_not_refused(self):
+        """Review of #858: GitHub's revert PR head is revert-<n>-factory/t-<n>; it must classify (fast lane kept) so the
+        gate can merge it. Variants that are not exactly that shape stay refused (normal lane)."""
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        git(self.wt, "push", "-q", "origin", "HEAD:refs/heads/revert-1-factory/t-0001")
+        self.env.sql("UPDATE tasks SET branch='revert-1-factory/t-0001' WHERE id='T-0001'")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.lane(), "fast")
+        self.assertEqual(len(self.events("lane-classified")), 1)
+
+    def test_hostile_revert_lookalike_branches_stay_refused(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        for bad in ("revert-1-factory/t-0001:refs/remotes/origin/main", "revert-x-factory/t-0001",
+                    "revert-1-factory/../main", "revert-\u00b2-factory/t-0001", "refs/revert-1-factory/t-0001"):
+            with self.subTest(branch=bad):
+                self.env.sql("DELETE FROM throttle WHERE key LIKE 'fastlane%'")
+                self.env.sql("UPDATE tasks SET branch=? WHERE id='T-0001'", (bad,))
+                self.assertEqual(self.cli("mech-merge").returncode, 0)
+                self.assertEqual(self.events("lane-classified"), [])
+
+    def test_a_non_ascii_digit_in_a_fast_lane_number_is_a_usage_error_not_a_crash(self):
+        p = self.cli("config", "fast_lane_audit_every", "²")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertNotIn("Traceback", p.stderr)
+
     def test_a_head_missing_from_the_main_checkout_takes_the_normal_lane(self):
         """A head the main checkout cannot fetch (not on its origin) is undecidable: never the fast or docs lane."""
         self.head({"docs/a.md": "# better docs\n"})

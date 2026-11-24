@@ -4081,7 +4081,7 @@ def _config_value_rules(key, value):
             die(f"fast_lane must be off or on, not {a.value!r}: fix it with `factory config fast_lane off`", 2)
     if a.key in ("fast_lane_check_timeout_s", "fast_lane_audit_every"):
         a.value = a.value.strip()
-        if not a.value.isdigit() or (a.key == "fast_lane_check_timeout_s" and int(a.value) < 60):
+        if not re.fullmatch(r"[0-9]+", a.value) or (a.key == "fast_lane_check_timeout_s" and int(a.value) < 60):
             die(f"{a.key} takes a whole number{' of seconds >= 60' if a.key.endswith('_s') else ' (0 = off)'}, "
                 f"not {a.value!r}", 2)
     if a.key == "sandbox_roles":
@@ -8215,7 +8215,8 @@ def fast_lane_classify(con, t, sha):
     rc, err = 1, f"task branch {branch!r} cannot be fetched"
     if not git_config_guard(con, HOME):
         err = f"git config in {HOME} would run code"
-    elif not (len(branch) <= 200 and REMOTE_BRANCH_RE.match(branch) and ":" not in branch and "+" not in branch
+    elif not (len(branch) <= 200 and (REMOTE_BRANCH_RE.match(branch) or REVERT_BRANCH_RE.match(branch))
+              and ":" not in branch and "+" not in branch
               and _git_rc(["check-ref-format", f"refs/heads/{branch}"], repo=HOME)[0] == 0):
         err = f"task branch {branch!r} is not a plain factory/* branch name"
     else:  # main and the branch go into private refs: origin/main (the diff base) is never moved by a task's branch value
@@ -16020,6 +16021,8 @@ def cmd_clean(a):
 
 
 REMOTE_BRANCH_RE = re.compile(r"^factory/[A-Za-z0-9._/-]+$")
+# GitHub's revertPullRequest head branch (G-070 auto-revert): revert-<pr number>-factory/t-<task number>, nothing else
+REVERT_BRANCH_RE = re.compile(r"^revert-[0-9]{1,9}-factory/t-[0-9]{1,9}$", re.ASCII)
 REMOTE_GIT_TIMEOUT = 60  # seconds per git/gh subprocess in `clean --remote-branch`; a timeout refuses
 
 
