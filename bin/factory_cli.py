@@ -9460,8 +9460,8 @@ def red_main_check(con):
     interval is ignored and gh is asked on every tick, so a green run clears the freeze on the first tick that sees it
     (T-0841). Red: store the freeze, message the director once per run id, file a revert task. Green: clear it. gh
     trouble or no completed run leaves the state as it is. Never breaks the tick."""
-    if cfg(con, "red_main_freeze") != "1":
-        return
+    if cfg(con, "red_main_freeze") != "1" and not fast_lane_on(con):
+        return  # G-070: fast_lane=on needs red-main detection for its auto-revert, freeze or not
     try:
         t = time.time()
         last = con.execute("SELECT ts FROM throttle WHERE key='red-main'").fetchone()

@@ -153,10 +153,19 @@ FAST_LANE_PATHS = [
     "go/internal/gate/*", "go/internal/holdexpiry/*",                # merge gate code
     "go/internal/factorydb/*", "db/*", "*.sql", "*migration*",       # DB schema and migrations
     "*secret*", "*token*", "*credential*", "*.pem", "*.key", ".env*", "*/.env*",   # secrets and tokens
+    "go/cmd/ci-*", "go/internal/citools/*",                          # the Go CI gates
+    "go/internal/tick/*", "go/internal/spawn/*", "go/internal/prflow/*", "go/internal/cli/*",   # Go tick, spawn, merge, CLI
+    "go/go.mod", "go/go.sum",                                        # Go dependencies
+    "tests/test_*guard*", "tests/test_*gate*", "tests/test_*sandbox*",   # the tests that pin guards and gates
+    "*SKILL.md", "plugins/*", "skilleval/*", "*prompt*",             # agent instructions: .md, but not docs
 ]
-FAST_LANE_DEFS = {"migrate", "SCHEMA_VERSION", "record_merged", "run_after_merge", "red_main_check"}
-FAST_LANE_DEF_PREFIXES = ("mech_", "fast_lane", "lane_", "_judge", "red_main", "_red_main", "merge_", "migrate", "verdict",
-                          "green_", "token", "_token", "secret", "settings_", "guard_")
+FAST_LANE_DEFS = {"migrate", "SCHEMA_VERSION", "record_merged", "run_after_merge", "red_main_check", "ROLES",
+                  "FASTCHECK_ROLE", "cmd_config", "cmd_verdict", "cmd_spawn", "spawn", "cmd_merge", "cmd_done",
+                  "require_role", "actor_role", "fastcheck", "_config_value_rules",
+                  "<stmt>"}                                          # module-level statements: constants, imports, tables
+FAST_LANE_DEF_PREFIXES = ("mech_", "fast_lane", "fast_check", "lane_", "_judge", "red_main", "_red_main", "merge_",
+                          "migrate", "verdict", "green_", "token", "_token", "secret", "settings_", "guard_",
+                          "is_fastcheck", "spawn_", "_spawn", "_config", "require_", "refuse")
 FAST_LANE_DEF_FILES = (BIN, "bin/factory_cli.py")
 
 
@@ -207,7 +216,7 @@ def lane(root, base, head):
     files = [p for p, _ in affected.changed_files(root, base, head)]
     if not files:
         return "normal", ["empty diff"]
-    if all(is_docs(p) for p in files):
+    if all(is_docs(p) and p.endswith(".md") for p in files):    # docs/ images or scripts still get the fast check
         return "docs", ["only docs files changed"]
     return "fast", ["%d files, no guarded path or def" % len(files)]
 

@@ -941,6 +941,32 @@ class FastLaneTests(MechMergeTests):
         rows = [(r["role"], r["verdict"]) for r in self.env.sql("SELECT role,verdict FROM verdicts ORDER BY id")]
         self.assertEqual(rows, [("fastcheck", "pass"), ("judge", "merge")])  # no reviewer or QA verdict; judge row = the merger
 
+    def test_pass_on_an_older_head_does_not_merge_the_new_head(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        self.cli("mech-merge")
+        self.assertEqual(self.fastcheck("pass").returncode, 0)
+        old = self.x
+        self.commit("web/app.py", "x = 3\n", "rework after the pass")
+        self.x = self.publish()
+        self.assertNotEqual(old, self.x)
+        self.stub(views=[self.pr(self.x, GREEN)])
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("T-0001: merged", p.stdout)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+
+    def test_a_pr_cannot_relax_its_own_lane_rules(self):
+        """The PR head ships a ci_tier.py whose lane() keeps everything fast: the merger still reads main's copy."""
+        relaxed = "def lane(root, base, head):\n    return 'fast', ['relaxed']\n\n\ndef escalations(root, base, head):\n    return []\n"
+        self.head({"web/app.py": "x = 2\n", "ci/ci_tier.py": relaxed, "ci/affected.py": "# relaxed\n"}, lane="fast")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
+        self.assertIn("ci/ci_tier.py is a guarded path", self.events("lane-escalated")[0])
+        self.assertEqual(self.merges(), [])
+
     def test_fastcheck_fail_twice_escalates(self):
         self.head({"web/app.py": "x = 2\n"}, lane="fast")
         self.cli("mech-merge")

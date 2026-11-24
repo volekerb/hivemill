@@ -335,6 +335,11 @@ class FastLaneTest(unittest.TestCase):
             "sandbox": "go/internal/sandbox/run.go", "scout sandbox": "scout/workerbox.py",
             "merge gate": "go/internal/gate/gate.go", "schema": "db/schema.sql", "migration": "web/migrations/001.py",
             "factorydb": "go/internal/factorydb/db.go",
+            "go ci gate": "go/cmd/ci-tier/main.go", "go tick": "go/internal/tick/merge.go",
+            "go spawn": "go/internal/spawn/spawn.go", "go prflow": "go/internal/prflow/flow.go",
+            "go cli": "go/internal/cli/cmd_done.go", "go deps": "go/go.mod", "guard test": "tests/test_worker_guard.py",
+            "skill": "roles/plugins/x/skills/y/SKILL.md", "plugin skill": "plugins/hivemill/README.md",
+            "skilleval prompt": "skilleval/tasks/t1/task.md", "prompt file": "docs/fastcheck-prompt.md",
         }
         for what, path in cases.items():
             with self.subTest(what=what):
@@ -343,7 +348,9 @@ class FastLaneTest(unittest.TestCase):
                 self.assertTrue(any(path in w for w in why), why)
 
     def test_merge_and_judge_defs_escalate_in_factory_cli(self):
-        for name in ("mech_try", "judge_pick", "red_main_check", "fast_lane_classify", "verdict_x", "migrate", "SCHEMA"):
+        for name in ("mech_try", "judge_pick", "red_main_check", "fast_lane_classify", "verdict_x", "migrate", "SCHEMA",
+                     "cmd_config", "require_role", "actor_role", "cmd_verdict", "is_fastcheck_agent", "fast_check_spawn",
+                     "cmd_spawn", "cmd_merge", "cmd_done", "_config_value_rules", "ROLES", "FASTCHECK_ROLE"):
             with self.subTest(name=name):
                 repo = self.fresh()
                 src = "def other():\n    return 1\n\n\n" + ("%s = 1\n" % name if name.isupper() else "def %s():\n    return 1\n" % name)
@@ -361,6 +368,20 @@ class FastLaneTest(unittest.TestCase):
         git(self.repo.root, "commit", "-q", "-m", "cli base")
         self.repo.base = self.repo.rev()
         self.assertEqual(self.lane({"bin/factory_cli.py": "def cmd_hello():\n    return 1\n"})[0], "fast")
+
+    def test_top_level_statement_in_factory_cli_escalates(self):
+        self.repo.write("bin/factory_cli.py", "import os\n\nLIMIT = 3\n")
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "cli base")
+        self.repo.base = self.repo.rev()
+        lane, why = self.lane({"bin/factory_cli.py": "import os\nimport json\n\nLIMIT = 3\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertIn("<stmt> changed in bin/factory_cli.py", why)
+
+    def test_docs_lane_is_markdown_only(self):
+        lane, why = self.lane({"docs/run.sh": "echo hi\n"})
+        self.assertEqual(lane, "fast", why)
+        self.assertEqual(self.lane({"docs/guide.md": "# g\n"}, repo=self.fresh())[0], "docs")
 
     def test_deleted_test_escalates(self):
         (self.repo.root / "tests" / "test_alpha.py").unlink()
@@ -384,7 +405,7 @@ class FastLaneTest(unittest.TestCase):
 
 
 class WorkflowTest(unittest.TestCase):
-    wf =(ROOT / ".github" / "workflows" / "tests.yml").read_text()
+    wf = (ROOT / ".github" / "workflows" / "tests.yml").read_text()
 
     def test_job_names_unchanged(self):
         self.assertEqual(re.findall(r"(?m)^    name: (.+)$", self.wf),

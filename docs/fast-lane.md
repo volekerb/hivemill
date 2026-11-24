@@ -27,7 +27,8 @@ A task gets its lane from one of three places, checked in this order:
 2. **The goal's lane.** Set with `factory goal new ... --lane fast|normal`. Every task of the goal inherits it unless
    the task has a lane of its own.
 3. **Docs-only diffs, automatically.** A task with no lane whose PR diff touches only docs files (`docs/**`, or `*.md`
-   outside `roles/`) gets the lane `fast:docs`.
+   outside `roles/`) gets the lane `fast:docs`. Only `.md` files count here: a script or image under `docs/` takes the
+   `fast` lane and gets the fast check. Agent instructions (`*SKILL.md`, `plugins/*`, `skilleval/*`, `*prompt*`) escalate.
 
 Who may set what:
 
@@ -58,12 +59,14 @@ A diff goes to the normal lane when it touches any of the following:
 
 | what | rule |
 |---|---|
-| guard, hooks, role settings and prompts | `roles/*`, `go/internal/guard/*`, `go/cmd/worker-guard/*`, `go/internal/identity/*` |
+| guard, hooks, role settings and prompts | `roles/*`, `go/internal/guard/*`, `go/cmd/worker-guard/*`, `go/internal/identity/*`, `tests/test_*guard*`, `tests/test_*gate*`, `tests/test_*sandbox*` |
+| agent instructions | `*SKILL.md`, `plugins/*`, `skilleval/*`, `*prompt*` |
+| Go tick, spawn, merge flow and CLI | `go/internal/tick/*`, `go/internal/spawn/*`, `go/internal/prflow/*`, `go/internal/cli/*`, `go/go.mod`, `go/go.sum` |
 | GitHub workflows | `.github/*` |
-| CI gates | `ci/*` |
+| CI gates | `ci/*`, `go/cmd/ci-*`, `go/internal/citools/*` |
 | secrets and tokens | `*secret*`, `*token*`, `*credential*`, `*.pem`, `*.key`, `.env*` |
 | sandboxes | `go/internal/sandbox/*`, `scout/*box*.py`, `scout/sandbox*`, plus the scout sandbox files in `RISKY_PATHS` |
-| merge and judge code | `go/internal/gate/*`, `go/internal/holdexpiry/*`; in `bin/factory` and `bin/factory_cli.py`, a changed def named in `RISKY_DEFS`, or starting with `judge_`, `gate`, `mech_`, `merge_`, `verdict`, `red_main`, `fast_lane`, `lane_`, and similar prefixes |
+| merge and judge code | `go/internal/gate/*`, `go/internal/holdexpiry/*`; in `bin/factory` and `bin/factory_cli.py`, a changed def named in `RISKY_DEFS`, or starting with `judge_`, `gate`, `mech_`, `merge_`, `verdict`, `red_main`, `fast_lane`, `fast_check`, `lane_`, `spawn_`, `_config`, `require_`, `refuse`, and similar prefixes; the defs `ROLES`, `FASTCHECK_ROLE`, `cmd_config`, `cmd_verdict`, `cmd_spawn`, `cmd_merge`, `cmd_done`, `require_role`, `actor_role`; and any changed top-level statement (`<stmt>`: imports, constants, tables) |
 | DB schema and migrations | `db/*`, `*.sql`, `*migration*`, `go/internal/factorydb/*`, and the defs `SCHEMA`, `SCHEMA_VERSION`, `migrate*` |
 | deleted tests | a removed `tests/test_*` or `*_test.go` |
 | unreviewable diffs | binary or non-text files, or a new top-level entry |
@@ -112,7 +115,8 @@ While a task is in the fast lane, the reviewer/QA autospawn, the review rerun an
 
 ## After the merge
 
-- **Red main.** When `red_main_check` finds main red and the newest merge on main was a fast-lane merge, the tick does
+- **Red main.** With `fast_lane=on`, `red_main_check` runs even while `red_main_freeze` is 0 (the freeze gate itself
+  still blocks merges only when `red_main_freeze=1`). When it finds main red and the newest merge on main was a fast-lane merge, the tick does
   four things:
   1. Opens a GitHub revert PR of that merge (`revertPullRequest`).
   2. Attaches the revert PR to the red-main task. That task goes in the fast lane, so the revert merges on green CI.

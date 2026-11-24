@@ -241,7 +241,7 @@ class RedMainTests(FactoryTestCase):
 
     def fast_merge_then_red(self, api):
         """G-070 AC4: T-0001 merged through the fast lane, then main's push run goes red."""
-        for k, v in (("red_main_freeze", "1"), ("red_main_interval_s", "0"), ("fast_lane", "on")):
+        for k, v in (("red_main_interval_s", "0"), ("fast_lane", "on")):  # red_main_freeze stays 0: fast_lane alone detects
             self.ok("config", k, v)
         prs = json.loads(self.env.gh_state.read_text())["prs"]
         self.env.set_gh(prs={u: dict(p, id="PR_node1") for u, p in prs.items()}, api=api)
