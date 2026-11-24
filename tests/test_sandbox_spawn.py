@@ -974,6 +974,7 @@ class MacboxSpawnTests(SandboxCase):
         code, err, runner = self.spawn_darwin("qa", cwd=str(wt / "w-coder-qa"))
         self.assertEqual(code, 0, err)
         self.assertTrue(runner.helper_calls)
+        self.assertTrue(self.panes(), "an accepted qa spawn must place a pane")
         for call in runner.helper_calls:
             a = dict(zip(call[2::2], call[3::2]))
             self.assertEqual(a["--qa-clone"], str(wt / "w-coder-qa"))

@@ -102,6 +102,11 @@ func run(args []string, stdout, stderr io.Writer, r macbox.Runner, ownerUID int,
 		}
 		return say(&macbox.Refusal{Reason: macbox.ReasonSeatbelt, Why: err.Error()})
 	}
+	// Check the clones before prepare rewrites their ACLs: a stale _hivemill_ro write entry on the coder clone must
+	// refuse (reason clone), not be silently wiped, and a refusal must leave the disk as it was.
+	if rf := macbox.CheckClones(r, macbox.CloneSpec{CoderClone: coder, QAClone: qa}); rf != nil {
+		return say(rf)
+	}
 	text, err := macbox.Profile(in)
 	if err != nil {
 		return fail(err)

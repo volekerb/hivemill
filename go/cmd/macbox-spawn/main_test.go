@@ -98,3 +98,34 @@ func TestPrepareWritesProfileAndShim(t *testing.T) {
 		t.Errorf("qa clone ACLs wrong:\n%s", got)
 	}
 }
+
+// lsRunner answers ls -lde with a fixed listing and records every other command.
+type lsRunner struct {
+	recRunner
+	ls string
+}
+
+func (r *lsRunner) Run(name string, a ...string) (int, string, string) {
+	if name == "/bin/ls" {
+		return 0, r.ls, ""
+	}
+	return r.recRunner.Run(name, a...)
+}
+
+func TestPrepareRefusesStaleROWriteBeforeTouchingACLs(t *testing.T) {
+	dir := t.TempDir()
+	r := &lsRunner{ls: "drwxr-xr-x+ 5 o s 160 Nov 24 10:00 /o/w/c\n 0: user:_hivemill_ro allow read,write\n"}
+	a := []string{"prepare", "--role", "coder", "--owner-home", "/o", "--factory-home", "/o/factory", "--agent-dir", dir,
+		"--coder-clone", "/o/w/c", "--claude", "/o/bin/claude", "--oauth", "/o/oauth", "--gh", "/o/gh"}
+	var out, errb bytes.Buffer
+	code := run(a, &out, &errb, r, 501, "darwin")
+	if res := decode(t, out.String()); code != 3 || res.OK || res.Reason != "clone" {
+		t.Fatalf("exit %d %+v", code, res)
+	}
+	if got := strings.Join(r.calls, "\n"); strings.Contains(got, "chmod") {
+		t.Errorf("a refused prepare must not change ACLs:\n%s", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "profile.sb")); err == nil {
+		t.Error("a refused prepare must not write the profile")
+	}
+}
