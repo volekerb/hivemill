@@ -121,3 +121,11 @@ func TestEvalKickoffReadsLikeAResumedTask(t *testing.T) {
 		t.Errorf("kickoff: %q", k)
 	}
 }
+
+func TestEvalReviewKickoffAsksOnlyForTheReview(t *testing.T) {
+	run := &Run{Agent: "claude-coder-t-0001-a7", Branch: "factory/t-0001", Base: "main", PRURL: "https://x/pull/1"}
+	k := EvalReviewKickoff(run, &Task{ID: "T-0001", Title: "t", Spec: "s", Acceptance: "1. x - cmd:true => exit 0"})
+	if strings.Contains(strings.ToLower(k), "eval") || !strings.Contains(k, "/code-review") || !strings.Contains(k, "Do not change") {
+		t.Errorf("kickoff: %q", k)
+	}
+}

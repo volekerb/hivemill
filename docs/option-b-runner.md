@@ -190,6 +190,8 @@ To upgrade:
 - `--judge-only` starts no task session. The runner gates the prepared head itself (the gate checks without the session's findings, review and evidence duties, and every `test:`/`cmd:` proof re-run), waits for CI to finish, green or red, and starts a fresh judge on it. It leaves the PR open and `.hivemill/` empty for a full run.
 - without `--judge-only`, a task session starts on the prepared head with a kickoff that reads like a resumed task: the change is committed, continue with the review. Then the usual gate, CI rounds and judge follow. At the end the PR gets the `eval` label, is closed and its branch deleted.
 
+- `--review-only` starts a task session that only runs `/code-review` on the prepared head and writes `findings.json` without changing code; the run ends when the file exists. It measures the review on its own, because in a full run the session usually fixes a defect it notices before `/code-review` runs.
+
 Each run writes one `eval.done` event (mode, outcome, gate problems, review findings, verdict and reasons, CI rounds) and `eval.gate` for a judge-only gate. `hivemill report` lists eval runs apart and leaves them out of the totals. The expected answer for a case is kept outside the factory home, because every session can read the factory home.
 
 ## Event log and report

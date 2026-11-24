@@ -9,7 +9,7 @@
 //	hivemill judge packet T-1234   print the judge packet of a run
 //	hivemill merge T-1234          one merge attempt of a run in state merging (or print its decision with --dry-run)
 //	hivemill report [--json]       scoreboard
-//	hivemill eval T-1234 [--judge-only]  eval run on a prepared branch with a draft PR: measures gate, review and judge, never merges
+//	hivemill eval T-1234 [--judge-only|--review-only]  eval run on a prepared branch with a draft PR: measures gate, review and judge, never merges
 //	hivemill task lint T-1234      spec gate: every acceptance criterion names its proof
 //	hivemill config [KEY [VALUE]]  runner settings (table hm_config)
 //	hivemill daemon                the pass loop in-process (systemd Type=notify, launchd KeepAlive)
@@ -41,7 +41,7 @@ func main() { os.Exit(Main(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }
 // Main is the whole CLI; it returns the exit code.
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
-		"report [--json] | eval T-1234 [--judge-only] | task lint T-1234 | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
+		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint T-1234 | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
 		"backup | restore <snapshot> [--dry-run]"
 	help := len(args) == 0
 	for _, a := range args {
@@ -171,13 +171,16 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		err = r.Store.PutRun(run)
 		fmt.Fprintf(stdout, "%s: %s %s\n", run.Task, run.State, run.MergeHold)
 	case "eval":
-		if !taskRe.MatchString(arg(1)) || (arg(2) != "" && arg(2) != "--judge-only") {
+		if !taskRe.MatchString(arg(1)) || (arg(2) != "" && arg(2) != "--judge-only" && arg(2) != "--review-only") {
 			fmt.Fprintln(stderr, usage)
 			return 2
 		}
 		mode := hm.EvalFull
-		if arg(2) == "--judge-only" {
+		switch arg(2) {
+		case "--judge-only":
 			mode = hm.EvalJudgeOnly
+		case "--review-only":
+			mode = hm.EvalReview
 		}
 		err = r.EvalStart(strings.ToUpper(arg(1)), mode)
 	case "daemon":
