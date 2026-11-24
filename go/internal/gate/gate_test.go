@@ -218,7 +218,10 @@ func TestProcSnapshot(t *testing.T) {
 		t.Fatalf("Text = %q", got)
 	}
 	stale, _, _ := ParseUsage(data, time.Unix(1000000+4*3600, 0))
-	if stale.Fresh || stale.Text() != "claude usage 5h 42% · week 93% (stale: 240 min old)" {
+	usageZone = time.UTC
+	defer func() { usageZone = nil }()
+	// updated_at 1000000 = 1970-01-12 13:46:40 UTC; an old reading never shows its percentages (T-1822)
+	if stale.Fresh || stale.Text() != "claude usage stale since 1970-01-12 13:46 UTC" {
 		t.Fatalf("stale = %+v %q", stale, stale.Text())
 	}
 }
@@ -249,7 +252,7 @@ func TestReadUsage(t *testing.T) {
 	var slept int
 	sleep := func(time.Duration) { slept++ }
 	u, _ := ReadUsage(filepath.Join(dir, "missing.json"), now, sleep)
-	if u.AgeMin != -1 || u.Fresh || *u.FiveHour != 0 || slept != 0 || u.Text() != "claude usage 5h 0% · week 0% (stale: -1 min old)" {
+	if u.AgeMin != -1 || u.Fresh || u.FiveHour != nil || u.SevenDay != nil || slept != 0 || u.Text() != "claude usage stale since never (no usage file)" {
 		t.Fatalf("missing file: %+v %q", u, u.Text())
 	}
 	bad := filepath.Join(dir, "bad.json")

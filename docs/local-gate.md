@@ -228,3 +228,20 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   socket-short dir.
 - The `toolchain` step log has an `nsbox:` line: user namespaces available (nsbox-dependent tests run) or unavailable with
   the reason (those tests skip with `user namespaces unavailable`). Tests: `tests/test_gate_shards.py`.
+
+## Gate on push, the merge signal (T-1828, M41466)
+
+For a project with a non-empty `gate_cmd`, the tick (`gate_push_tick`, once a minute, before `tick_gate`) does three things:
+
+- **Queue**: an `in_review` task whose PR head on origin has no `gate_runs` row gets one `queued` run (no second one while a run of
+  that PR is queued or running). `tick_gate` launches it within `gate_max_parallel` (default 1). A new push is a new head and gets
+  its own run once the earlier one finished.
+- **Note**: each finished run (pass, fail, error) is written once to the task as a note: `local gate PASS|FAIL|ERROR on head <full
+  sha> (run #N); log <path>`. A fail or error adds the run's note.
+- **Signal**: `judge_pr_ready` and the mechanical merger already read a `gate_runs` pass on the exact PR head; GitHub checks that are
+  still pending do not block, a red check or a missing/pending check named in `projects.required_checks` still does (T-1634).
+  Review does not wait for GitHub checks either (docs/review-autospawn.md). GitHub CI keeps running; the push run on main stays the
+  safety net for bisect and revert.
+
+The director's merge-ready report to the boss lists: reviewer PASS, QA PASS, local gate PASS on head <sha> (roles/director.md S4).
+A project with an empty `gate_cmd` is unchanged.

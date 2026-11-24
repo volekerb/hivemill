@@ -63,9 +63,15 @@ def derive_gate(ctx):
         usage_txt = "claude usage unknown"
     elif u.get("unreadable"):
         usage_txt = "claude usage unreadable"
+    elif not u["fresh"]:  # as `factory res`: a missing or old reading never shows percentages
+        at = u.get("updated_at")
+        try:
+            when = "never (no usage file)" if at is None else dt.datetime.fromtimestamp(at).astimezone().strftime("%Y-%m-%d %H:%M %Z")
+        except (OverflowError, OSError, ValueError, TypeError):
+            when = "unknown"
+        usage_txt = f"claude usage stale since {when}"
     else:
-        usage_txt = (f"claude usage 5h {_pct_txt(u['five_hour'])} · week {_pct_txt(u['seven_day'])}"
-                     + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)"))
+        usage_txt = f"claude usage 5h {_pct_txt(u['five_hour'])} · week {_pct_txt(u['seven_day'])}"
     mix = " · ".join(f"{m['label']} {m['live']}" for m in mix_rows if m["live"] or m["org"] == queries.DEFAULT_ORG)
     checks = [f"agents live {live}/{cap} ({mix})",
               f"workers live {workers} · leads live {leads}/{leads_cap} (parked {parked})",

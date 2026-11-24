@@ -225,7 +225,22 @@ func (d *driver) runPython(units []string) (stop bool, code int) {
 			d.timer.Last = s // driver setup before the first child is not migrate_db time
 		}
 	}
-	d.timer.Child(s, e, out.Laps, out.Tail)
+	d.timer.Child(s, e, newLaps(h.Laps, out.Laps), out.Tail)
 	d.timer.Ctr.Merge(out.Counters)
 	return out.Stop, -1
+}
+
+// newLaps drops from a child's returned laps the ones it was handed: the Python child loads the handoff laps into its
+// own timer and writes them all back (input first), so only what follows is its own. A child that returns just its own
+// laps (the input is not a prefix) is taken as is.
+func newLaps(input, returned []Lap) []Lap {
+	if len(input) == 0 || len(returned) < len(input) {
+		return returned
+	}
+	for i, l := range input {
+		if returned[i] != l {
+			return returned
+		}
+	}
+	return returned[len(input):]
 }
