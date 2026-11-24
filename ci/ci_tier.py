@@ -188,8 +188,18 @@ def fast_lane_path(path):
             or any(risk_tier._match(path, pat) for pat in tier_rules_paths()))
 
 
+def tier_rules_defs():
+    """Every def glob of ci/tier_rules.json sensitive_defs (all files), the judge gate's own list; TierError when unreadable."""
+    import risk_tier  # lazy, see tier_rules_paths
+    try:
+        return sorted({n for names in risk_tier.load_rules()["sensitive_defs"].values() for n in names})
+    except risk_tier.TierError as e:
+        raise TierError(str(e)) from e
+
+
 def fast_lane_def(name):
-    return risky_def(name) or name in FAST_LANE_DEFS or name.startswith(FAST_LANE_DEF_PREFIXES)
+    return (risky_def(name) or name in FAST_LANE_DEFS or name.startswith(FAST_LANE_DEF_PREFIXES)
+            or any(fnmatch.fnmatchcase(name, pat) for pat in tier_rules_defs()))
 
 
 def deleted_test(path):
@@ -238,7 +248,9 @@ def escalations(root, base, head, revert_of=None):
     """Reasons the diff base...head must leave the fast lane (G-070), [] when it may stay. Raises affected.AffectedError
     when git cannot answer: the caller escalates then (an undecidable diff never stays fast)."""
     changed = affected.changed_files(root, base, head)
-    why = ["binary or non-text diff: %s" % p for p in sorted(numstat_non_line_paths(root, base, head))]
+    # git quotes a path with a tab, quote, backslash or non-ASCII byte: no glob would match it, so it never stays fast
+    why = ["path git quotes (cannot be matched against the guard lists): %s" % p for p, _ in changed if p.startswith('"')]
+    why += ["binary or non-text diff: %s" % p for p in sorted(numstat_non_line_paths(root, base, head))]
     # an exact revert of a fast-lane merge (`revert_of` = its merge commit) removes the tests that merge added: not a deletion
     if not (revert_of and is_exact_revert(root, base, head, revert_of)):
         why += ["deleted test %s" % p for p, exists in changed if not exists and deleted_test(p)]

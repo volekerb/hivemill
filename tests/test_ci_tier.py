@@ -448,6 +448,22 @@ class FastLaneTest(unittest.TestCase):
                 self.assertTrue(ci_tier.fast_lane_path(path), path)
         self.assertFalse(ci_tier.fast_lane_path("web/app.py"))  # and the lane is not simply closed
 
+    def test_every_def_of_tier_rules_is_refused_in_the_cli_module(self):
+        """Self-review of #858: the def list is derived from ci/tier_rules.json sensitive_defs too (task_merge_lock, ci_verdict,
+        cmd_mech_merge, train_*, ...), so a def added there without a fast-lane rule fails here."""
+        rules = json.loads((ROOT / "ci" / "tier_rules.json").read_text())["sensitive_defs"]
+        names = {n.replace("*", "x") for pats in rules.values() for n in pats}
+        self.assertIn("task_merge_lock", names)
+        for name in sorted(names):
+            with self.subTest(name=name):
+                self.assertTrue(ci_tier.fast_lane_def(name), name)
+        self.assertFalse(ci_tier.fast_lane_def("cmd_hello"))
+
+    def test_quoted_non_ascii_guard_path_escalates(self):
+        lane, why = self.lane({"roles/hooks/\u00e9.py": "x = 1\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertTrue(any("git quotes" in w for w in why), why)
+
     def setup_merge_of_new_tests(self):
         """main = base + M (adds a test file and edits web/app.py); returns (M, head of a branch off M that reverts M)."""
         merge = self.repo.change({"tests/test_new.py": "class N:\n    def test_n(self):\n        pass\n",
