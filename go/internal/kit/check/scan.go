@@ -16,7 +16,7 @@ var sensitiveKeys = []string{"token", "password", "secret", "apikey", "api_key",
 var (
 	placeholderRe = regexp.MustCompile(`^<[^<>]+>$`)
 	// textSecretRe finds the unmistakable credential shapes in a non-JSON fixture file.
-	textSecretRe = regexp.MustCompile(`(^|[^A-Za-z0-9_])(ghp_|github_pat_|sk-)[A-Za-z0-9_-]{4,}|-----BEGIN|(?i)(token|password|secret|api[_-]?key|private[_-]?key)\s*[:=]\s*["']?[^\s<"']`)
+	textSecretRe = regexp.MustCompile(`(^|[^A-Za-z0-9_])(ghp_|github_pat_|sk-)[A-Za-z0-9_-]{4,}|-----BEGIN|(?i)(token|password|secret|api[_-]?key|private[_-]?key)[ \t]*[:=][ \t]*["']?[^\s<"']`)
 	// valueSecretRe finds a credential prefix anywhere in a string value, at a word boundary.
 	valueSecretRe = regexp.MustCompile(`(^|[^A-Za-z0-9])(ghp_|github_pat_|sk-)[A-Za-z0-9_-]{4,}`)
 )
@@ -78,6 +78,11 @@ func walk(v any, key string, sens bool, rel string, c *collector) {
 		if reason := secretReason(key, t, sens); reason != "" {
 			c.add(rel, reason)
 		}
+	case float64:
+		// a number under a credential key can be a PIN or password; counts and limits are not credentials
+		if sens && !benignNumberKey(key) {
+			c.add(rel, "key "+quote(key)+" holds a number; use an empty string or <angle-bracket placeholder>")
+		}
 	}
 }
 
@@ -92,3 +97,13 @@ func secretReason(key, val string, sens bool) string {
 }
 
 func quote(s string) string { return `"` + s + `"` }
+
+func benignNumberKey(key string) bool {
+	lk := strings.ToLower(key)
+	for _, suf := range []string{"count", "limit", "max", "min", "size", "ttl", "len", "length"} {
+		if strings.HasSuffix(lk, suf) {
+			return true
+		}
+	}
+	return false
+}

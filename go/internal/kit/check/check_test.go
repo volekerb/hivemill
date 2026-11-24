@@ -197,6 +197,14 @@ func TestSecretKeysAndShapes(t *testing.T) {
 	}
 }
 
+func TestSecretNumberUnderKey(t *testing.T) {
+	root := repoRoot(t)
+	put(t, root, "plugins/kit-demo/demo.example.json", `{"schemaVersion":1,"password":123456}`)
+	if got := lines(Run(root)); len(got) != 1 {
+		t.Fatalf("want 1 finding, got %v", got)
+	}
+}
+
 func TestSecretPlaceholdersAllowed(t *testing.T) {
 	root := repoRoot(t)
 	put(t, root, "plugins/kit-demo/demo.example.json", `{"schemaVersion":1,"token":"<your-token>","password":"","apiKey":"<key>","tokenCount":5,"tokenizer":true,"note":"a sk plan","u":"ask-me"}`)

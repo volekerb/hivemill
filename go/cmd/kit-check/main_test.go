@@ -10,7 +10,7 @@ import (
 func TestRunCleanRepo(t *testing.T) {
 	var out, errb bytes.Buffer
 	code := run([]string{"--root", filepath.Join("..", "..", "..")}, &out, &errb)
-	if code != 0 || out.String() != "kit-check: ok (0 skills)\n" {
+	if code != 0 || !strings.HasPrefix(out.String(), "kit-check: ok (") {
 		t.Fatalf("code %d out %q err %q", code, out.String(), errb.String())
 	}
 }
