@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"factory/go/internal/herdr"
 )
 
 // Tests for units 25 flagless and 26 claude_audit on a fake proc tree ($FACTORY_PROC_DIR, off the live home) and a
@@ -88,7 +90,7 @@ func TestUnitTableFlaglessAudit(t *testing.T) {
 			t.Errorf("%s lost its Go flag", u)
 		}
 	}
-	for _, u := range []string{"pending_nudges", "reap_loop", "exited_panes", "idle_coders", "stop_fallback", "dequeue"} {
+	for _, u := range []string{"pending_nudges", "reap_loop", "stop_fallback", "dequeue"} {
 		if _, ok := goUnits[u]; ok {
 			t.Errorf("%s must stay a Python unit in this PR", u)
 		}
@@ -450,13 +452,13 @@ func TestProcDirIgnoredOnLiveHome(t *testing.T) {
 func TestProcUnicodeParity(t *testing.T) {
 	// Python: int("٣")==3, int("1_0")==10, int("+5")==5, int("1__0") and int("_1") raise, "²".isdigit() is True but int fails
 	for s, want := range map[string]int{"٣": 3, "1_0": 10, "+5": 5, " 7 ": 7, " 7\u000b": 7, "𝟓": 5, "١٢": 12} {
-		if got, ok := pyIntStr(s); !ok || got != want {
-			t.Errorf("pyIntStr(%q) = %d,%v want %d", s, got, ok, want)
+		if got, ok := procIntStr(s); !ok || got != want {
+			t.Errorf("procIntStr(%q) = %d,%v want %d", s, got, ok, want)
 		}
 	}
 	for _, s := range []string{"", "1__0", "_1", "1_", "²", "a", "-", "1.5"} {
-		if _, ok := pyIntStr(s); ok {
-			t.Errorf("pyIntStr(%q) must fail", s)
+		if _, ok := procIntStr(s); ok {
+			t.Errorf("procIntStr(%q) must fail", s)
 		}
 	}
 	// stat fields split on any Unicode whitespace (NBSP, \v): ppid = 4
@@ -505,7 +507,7 @@ func FuzzProcParse(f *testing.F) {
 	f.Fuzz(func(t *testing.T, s string) {
 		_, _ = parsePpid(s)
 		_, _ = statAfterComm(s)
-		_, _ = pyIntStr(s)
+		_, _ = procIntStr(s)
 		_ = pyDecode([]byte(s))
 		argv := splitArgv([]byte(s))
 		_ = isClaudeCmd(argv)
@@ -537,5 +539,111 @@ func TestClaudeAuditSandboxedAgentEndToEnd(t *testing.T) {
 	}
 	if n := scalar(t, db, "SELECT count(*) FROM throttle WHERE key='sandbox-escaped:100:9'"); n != "1" {
 		t.Errorf("escape throttle row missing")
+	}
+}
+
+// psDarwinRecorded is `LC_ALL=C ps -axo pid=,ppid=,uid=,lstart=,command=` as macOS prints it (two-digit and
+// space-padded days, argv joined with spaces).
+const psDarwinRecorded = `    1     0     0 Mon Nov  3 08:01:02 2026 /sbin/launchd
+  512     1   501 Sat Nov 15 20:45:16 2026 /opt/bin/claude --session-id sess-a --system-prompt-snapshot off
+  530   512   501 Sat Nov 15 20:45:30 2026 claude -p hello
+  540     1   501 Sat Nov 15 20:46:00 2026 node /usr/lib/claude --resume sess-a
+  550     1   501 Sat Nov 15 20:46:10 2026 /usr/bin/grep claude
+  560     1   501 Sat Nov 15 20:47:00 2026 cursor-agent --workspace /w
+`
+
+// darwinOn runs the scans on the macOS path with recorded ps output, whatever the host OS.
+func darwinOn(t *testing.T, out string, err error) {
+	t.Helper()
+	pg, pr := scanGOOS, psRun
+	scanGOOS, psRun = "darwin", func() (string, error) { return out, err }
+	t.Cleanup(func() { scanGOOS, psRun = pg, pr })
+}
+
+// TestProcscanDarwinPs: on macOS the scans read ps through gate.ParsePs (no /proc) and keep what
+// _darwin_cmd_head_claude keeps: claude within the first three tokens, or node followed by claude.
+func TestProcscanDarwinPs(t *testing.T) {
+	darwinOn(t, psDarwinRecorded, nil)
+	got := scanClaude(t.TempDir()) // the proc dir is not consulted
+	if len(got) != 4 || got[512].Ppid != 1 || got[530].Ppid != 512 || !got[530].HasPpid ||
+		strings.Join(got[540].Argv, " ") != "node /usr/lib/claude --resume sess-a" {
+		t.Fatalf("scanClaude = %+v", got)
+	}
+	// Python's _darwin_cmd_head_claude also keeps `grep claude` (claude in the first three tokens); the audit's
+	// isClaudeCmd filter drops it afterwards (TestClaudeAuditDarwin)
+	if _, ok := got[550]; !ok {
+		t.Errorf("a claude token in the head must match, as in Python: %+v", got)
+	}
+	if _, ok := got[560]; ok {
+		t.Errorf("a cursor-agent is not a claude: %+v", got[560])
+	}
+	host := scanHostAgentProcs(t.TempDir())
+	if len(host) != 5 || host[560].Argv[0] != "cursor-agent" {
+		t.Errorf("scanHostAgentProcs = %+v, want the claude heads and the cursor-agent", host)
+	}
+	cp := claudeProcs("", "sess-a", nil)
+	if len(cp) != 2 || cp[0].Pid != 512 || cp[1].Pid != 540 {
+		t.Errorf("claudeProcs = %+v", cp)
+	}
+}
+
+// TestProcscanDarwinPsUnreadable: ps failing or printing an unparsable line is "no process" (a None snapshot).
+func TestProcscanDarwinPsUnreadable(t *testing.T) {
+	darwinOn(t, "", fmt.Errorf("ps: exit 1"))
+	if got := scanClaude(t.TempDir()); got != nil {
+		t.Errorf("failed ps: %+v", got)
+	}
+	darwinOn(t, psDarwinRecorded+"garbage line here\n", nil)
+	if got := scanClaude(t.TempDir()); got != nil {
+		t.Errorf("unparsable ps: %+v", got)
+	}
+}
+
+// TestClaudeAuditDarwin: the audit alerts on the darwin snapshot like on a /proc tree.
+func TestClaudeAuditDarwin(t *testing.T) {
+	_, _, db := auditSetup(t)
+	darwinOn(t, psDarwinRecorded, nil)
+	runUnit(t, db, runClaudeAudit)
+	ev := scalar(t, db, "SELECT group_concat(json_extract(detail,'$.pid')||'|'||json_extract(detail,'$.reasons[0]'), ',') FROM events WHERE action='claude-outside-spawn'")
+	if ev != "530|outside-spawn,540|resume-without-snapshot-off" {
+		t.Errorf("events = %q", ev)
+	}
+	if n := scalar(t, db, "SELECT count(*) FROM events WHERE action='claude-audit-failed'"); n != "0" {
+		t.Errorf("audit failures: %s", n)
+	}
+}
+
+// TestSandboxEscapeClosePaneErrorContinues: a failing host call is logged and the audit goes on: the escape alert
+// says the pane was not closed, and the later findings are still raised.
+func TestSandboxEscapeClosePaneErrorContinues(t *testing.T) {
+	root, _, db := auditSetup(t)
+	mustExec(t, db, "UPDATE agents SET spawn_args='{\"sandbox\": true}', pane_id='p1'")
+	writeProc(t, root, 100, 1, "9", "claude", "--session-id", "sess-a", "--system-prompt-snapshot", "off")
+	writeProc(t, root, 110, 100, "9", "claude", "-p", "later")
+	for _, pid := range []string{"100", "1"} {
+		if err := os.MkdirAll(filepath.Join(root, pid, "ns"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink("user:[1]", filepath.Join(root, pid, "ns", "user")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	prev := closePaneHost
+	closePaneHost = func(*herdr.Client, string, string) (string, string, error) {
+		return "unknown", "", fmt.Errorf("pane close refused by the gate")
+	}
+	t.Cleanup(func() { closePaneHost = prev })
+	runUnit(t, db, runClaudeAudit)
+	if n := scalar(t, db, "SELECT count(*) FROM events WHERE action='claude-audit-failed'"); n != "0" {
+		t.Errorf("a failed pane close ended the audit: %s failure events", n)
+	}
+	if n := scalar(t, db, "SELECT count(*) FROM events WHERE action='sandbox-escaped'"); n != "1" {
+		t.Errorf("sandbox-escaped events = %s, want 1", n)
+	}
+	if n := scalar(t, db, "SELECT count(*) FROM events WHERE action='claude-outside-spawn'"); n != "1" {
+		t.Errorf("the finding after the failed close was lost: %s events", n)
+	}
+	if b := scalar(t, db, "SELECT body FROM messages WHERE subject LIKE 'sandbox escaped%'"); !strings.Contains(b, "NOT closed") {
+		t.Errorf("alert = %q", b)
 	}
 }

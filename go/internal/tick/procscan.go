@@ -1,14 +1,19 @@
 package tick
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"factory/go/internal/gate"
 	"factory/go/internal/store"
 )
 
@@ -142,9 +147,9 @@ func pyDigitValue(r rune) int {
 	return -1
 }
 
-// pyIntStr is int(str) for the values /proc holds: optional sign, Unicode decimal digits, single underscores between
+// procIntStr is int(str) for the values /proc holds: optional sign, Unicode decimal digits, single underscores between
 // digits, Unicode whitespace around. ok is false where Python raises ValueError (or the value overflows int).
-func pyIntStr(s string) (int, bool) {
+func procIntStr(s string) (int, bool) {
 	s = strings.TrimFunc(s, unicode.IsSpace)
 	neg := false
 	if s != "" && (s[0] == '+' || s[0] == '-') {
@@ -211,7 +216,7 @@ func parsePpid(stat string) (int, bool) {
 	if !ok || len(f) < 2 {
 		return 0, false
 	}
-	return pyIntStr(f[1])
+	return procIntStr(f[1])
 }
 
 func readPpid(root string, pid string) (int, bool) {
@@ -316,7 +321,7 @@ func scanProcs(root string, match func([]string) bool) (map[int]procEnt, error) 
 		if !pyIsDigits(name) {
 			continue
 		}
-		pid, ok := pyIntStr(name)
+		pid, ok := procIntStr(name)
 		if !ok {
 			continue
 		}
@@ -335,22 +340,91 @@ func scanProcs(root string, match func([]string) bool) (map[int]procEnt, error) 
 	return found, nil
 }
 
-// scanClaude is _scan_claude; nil when the proc dir is unreadable (callers treat that as no process).
-func scanClaude(root string) map[int]procEnt {
-	m, err := scanProcs(root, func(a []string) bool { return hasBase(a, "claude") })
+// scanGOOS and psRun are seams: tests set them to run the macOS path on any host with recorded ps output.
+var (
+	scanGOOS = runtime.GOOS
+	psRun    = runDarwinPs
+)
+
+// darwinPsTimeout is _darwin_ps's subprocess timeout=15.
+const darwinPsTimeout = 15 * time.Second
+
+// runDarwinPs is the one `/bin/ps -axo pid=,ppid=,uid=,lstart=,command=` of _darwin_ps: absolute path and a fixed
+// environment (DARWIN_TOOL_ENV), so a forged ps on PATH cannot fake the process list.
+func runDarwinPs() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), darwinPsTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "/bin/ps", gate.PsArgs...)
+	cmd.Env = []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL=C"}
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("run /bin/ps: %w", err)
+	}
+	return string(out), nil
+}
+
+// darwinSnapshot is _darwin_ps through the shared gate parser (gate/psparse.go, no second parser): pid -> entry for
+// every process, or an error when ps cannot be read or its output does not parse (callers then see no process, as
+// for a None snapshot).
+func darwinSnapshot() (map[int]procEnt, error) {
+	out, err := psRun()
+	if err != nil {
+		return nil, fmt.Errorf("read ps: %w", err)
+	}
+	procs, err := gate.ParsePs(out, time.Now().Location())
+	if err != nil {
+		return nil, fmt.Errorf("parse ps: %w", err)
+	}
+	m := make(map[int]procEnt, len(procs))
+	for _, p := range procs {
+		m[p.Pid] = procEnt{Argv: p.Argv, Ppid: p.Ppid, HasPpid: true}
+	}
+	return m, nil
+}
+
+// darwinCmdHeadClaude is _darwin_cmd_head_claude on the split command: claude within the first three tokens, or
+// node/nodejs followed by claude.
+func darwinCmdHeadClaude(argv []string) bool {
+	return hasBase(argv, "claude") || isClaudeCmd(argv)
+}
+
+// scanHost is one scan of the platform's process source: ps on macOS (no /proc), the proc dir elsewhere. nil when
+// the source is unreadable.
+func scanHost(root string, match func([]string) bool) map[int]procEnt {
+	if scanGOOS != "darwin" {
+		m, err := scanProcs(root, match)
+		if err != nil {
+			return nil
+		}
+		return m
+	}
+	all, err := darwinSnapshot()
 	if err != nil {
 		return nil
+	}
+	m := map[int]procEnt{}
+	for p, e := range all {
+		if match(e.Argv) {
+			m[p] = e
+		}
 	}
 	return m
 }
 
+// claudeHead is the claude test of the platform: on macOS the ps command head (_darwin_cmd_head_claude).
+func claudeHead(a []string) bool {
+	if scanGOOS == "darwin" {
+		return darwinCmdHeadClaude(a)
+	}
+	return hasBase(a, "claude")
+}
+
+// scanClaude is _scan_claude; nil when the process source is unreadable (callers treat that as no process).
+func scanClaude(root string) map[int]procEnt { return scanHost(root, claudeHead) }
+
 // scanHostAgentProcs is _scan_host_agent_procs.
 func scanHostAgentProcs(root string) map[int]procEnt {
-	m, err := scanProcs(root, func(a []string) bool { return hasBase(a, "claude") || isCursorAgentArgv(a) })
-	if err != nil {
-		return nil
-	}
-	return m
+	return scanHost(root, func(a []string) bool { return claudeHead(a) || isCursorAgentArgv(a) })
 }
 
 type pidArgv struct {

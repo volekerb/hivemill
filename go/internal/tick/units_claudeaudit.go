@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"factory/go/internal/herdr"
 	"factory/go/internal/store"
 )
 
@@ -111,6 +112,10 @@ func pruneEscapeThrottle(db *sql.DB, root string, nowTS float64) error {
 	return nil
 }
 
+// closePaneHost is the host pane close of sandboxEscapeClose; a variable so a test can make the host call fail (the
+// client's gate refusal, unreachable through the stock client).
+var closePaneHost = func(hc *herdr.Client, name, pane string) (string, string, error) { return hc.ClosePane(name, pane) }
+
 // sandboxEscapeClose is sandbox_escape_close (fail closed): a sandboxed agent's claude whose user namespace equals the
 // host's ran outside the sandbox. Its pane is closed through the host client (the call force_stop uses), one event and
 // one director alert per process (pid + start time, read before the close). An unreadable link decides nothing.
@@ -132,9 +137,12 @@ func sandboxEscapeClose(r *reapDB, root, name, pane string, pid int) error {
 	st := "no-pane"
 	if pane != "" {
 		hc, hs := newHerdrClient(r)
-		s, _, err := hc.ClosePane(name, pane)
+		s, _, err := closePaneHost(hc, name, pane)
 		if err != nil {
-			return fmt.Errorf("close pane of %s: %w", name, err)
+			// the host could not be asked: log it and go on (the alert says the pane was not closed), so one
+			// failed close never stops the audit of the other processes
+			fmt.Fprintf(os.Stderr, "factory: claude-audit: close pane of %s: %v\n", name, err)
+			s = "unknown"
 		}
 		if err := hs.Err(); err != nil {
 			return fmt.Errorf("close pane of %s: %w", name, err)
