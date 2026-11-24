@@ -30,6 +30,7 @@ import shutil
 import signal
 import sqlite3
 import stat
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -218,6 +219,9 @@ DEFAULT_CONFIG = {
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
     "mech_merge_retry_s": "600", # the merger looks at a PR head it already blocked on (or shadow-recorded) at most this often
+    "fast_lane": "off",          # off | on: G-070 fast lane (docs/fast-lane.md); owner only; off = every task takes the normal lane
+    "fast_lane_check_timeout_s": "600",  # G-070: a fast check with no PASS/FAIL after this long is stopped and the task escalates
+    "fast_lane_audit_every": "10",  # G-070: every Nth fast-lane merge gets a post-merge normal review (0 = no audits)
     "judge_hold_expiry_min": "120",  # minutes a manual judge hold may stay on a reviewer+QA PASS PR without a boss decision (boss-approved M<id> in the hold text); 0 = off (G-058, owner M37547; docs/judge-hold-expiry.md)
     "risk_tiers": "off",        # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
@@ -4063,6 +4067,15 @@ def _config_value_rules(key, value):
         if a.value not in TICK_IMPLS:
             die(f"tick_impl must be one of python, go, not {a.value!r}: "
                 f"fix it with `factory config tick_impl python`", 2)
+    if a.key == "fast_lane":
+        a.value = a.value.strip()
+        if a.value not in ("off", "on"):
+            die(f"fast_lane must be off or on, not {a.value!r}: fix it with `factory config fast_lane off`", 2)
+    if a.key in ("fast_lane_check_timeout_s", "fast_lane_audit_every"):
+        a.value = a.value.strip()
+        if not a.value.isdigit() or (a.key == "fast_lane_check_timeout_s" and int(a.value) < 60):
+            die(f"{a.key} takes a whole number{' of seconds >= 60' if a.key.endswith('_s') else ' (0 = off)'}, "
+                f"not {a.value!r}", 2)
     if a.key == "sandbox_roles":
         a.value = check_sandbox_roles(a.value)
     if a.key in ("worker_gh_roles", "gh_rw_roles"):
@@ -4151,9 +4164,11 @@ def cmd_config(a):
             sys.exit(2)
         return
     if a.key and a.value is not None:
-        require_role(con, "director")
+        role = require_role(con, "director")
         if a.key not in DEFAULT_CONFIG:
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
+        if a.key == "fast_lane" and role != "owner":  # G-070: only the owner switches the fast lane (docs/fast-lane.md)
+            die(f"only the owner may set fast_lane ({role} may not); ask the boss to put it to the owner", 3)
         a.value, err = _config_trap(_config_value_rules, a.key, a.value)
         if err:
             die(*err)
@@ -4260,6 +4275,8 @@ def cmd_goal(a):
     if a.action == "new":
         if actor_role(con) not in ("boss", "owner"):
             die("only the boss creates goals; ask the boss (factory msg boss ...) or add a task to an open goal", 3)
+        if a.lane:
+            lane_flag_check(con, a.lane)
         if a.project and not con.execute("SELECT 1 FROM projects WHERE id=?", (a.project,)).fetchone():
             die(f"no project {a.project}")
         try:
@@ -4272,6 +4289,8 @@ def cmd_goal(a):
                     (gid, a.project, a.title, read_text(a.intent), read_text(a.success), "proposed",
                      2 if a.priority is None else a.priority, a.requested_by or actor(), now(), now(), org))
         event(con, "goal", gid, "new", f"[{org}] {a.title}")
+        if a.lane:
+            lane_set(con, gid, a.lane, f"goal new --lane by {actor()}", entity="goal")
         print(gid)
     elif a.action == "org":
         goal_move_org(con, a)
@@ -4917,6 +4936,8 @@ def cmd_task(a):
             die(f"role must be one of {ROLES}")
         if a.sandbox_required == "1":
             check_sandbox_required_role(new_role)
+        if a.lane:
+            lane_flag_check(con, a.lane)
         deps = split_after(a.after)
         tid = next_id(con, "tasks", "T", 4)
         check_after(con, tid, g["id"], deps)
@@ -4931,6 +4952,8 @@ def cmd_task(a):
             event(con, "task", tid, "sandbox-required", "1")
         if a.follow_up_of:
             event(con, "task", tid, "follow-up", f"follow-up of {a.follow_up_of}")
+        if a.lane:
+            lane_set(con, tid, a.lane, f"task add --lane by {actor()}")
         warn_file_overlap(con, tid, g["id"], spec)
         if (g["success_criteria"] or "").strip() and not re.search(SC_TAG_RE, a.title or ""):
             print(f"warning: {tid} title has no [SCn] tag but {g['id']} has success criteria; the goal page shows "
@@ -4976,6 +4999,8 @@ def cmd_task(a):
         for k in t.keys():
             if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance", "block_on") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]) and (k != "judge_hold_reason" or (t[k] or "").strip()):
                 print(f"{k}: {t[k]}")
+        if task_lane(con, t["id"]):
+            print(f"lane: {task_lane(con, t['id'])}" + ("" if fast_lane_on(con) else " (fast_lane=off: normal review)"))
         if t["block_on"]:
             line = block_on_show_line(t["block_on"])
             if line:
@@ -5047,6 +5072,8 @@ def cmd_task(a):
                 die(f"only a lead, director or the owner may set a task's sandbox_required ({role} may not use --sandbox-required)", 3)
             if a.sandbox_required == "1":
                 check_sandbox_required_role(a.role or t["role"])
+        if a.lane is not None:
+            lane_flag_check(con, a.lane)
         if a.judge_hold is not None or a.judge_hold_clear:
             if role not in ("owner", "lead", "director", "boss"):
                 die(f"only a lead, director or the owner may set a task's judge hold ({role} may not use --judge-hold)", 3)
@@ -5089,10 +5116,10 @@ def cmd_task(a):
                 die(f"{', '.join(dependents)} depend on {a.id} in {t['goal_id']}; clear their --after first", 2)
         elif not any(v is not None for v in (a.status, a.pr, a.branch, a.assignee, a.title, a.spec, a.acceptance,
                                              a.team, a.priority, a.after, a.waits, a.note, a.reason,
-                                             a.sandbox_required, a.judge_hold, a.role)) and not a.judge_hold_clear:
+                                             a.sandbox_required, a.judge_hold, a.role, a.lane)) and not a.judge_hold_clear:
             die(f"nothing to update on {a.id}: give at least one of --status --pr --branch --assignee --title --spec "
                 "--acceptance --team --priority --after --waits --note --goal --sandbox-required --judge-hold "
-                "--judge-hold-clear --role", 2)
+                "--judge-hold-clear --role --lane", 2)
         if a.waits is not None and (a.status or t["status"]) != "blocked":
             die("--waits applies to blocked tasks: use it with --status blocked", 2)
         if a.reason and a.note:
@@ -5189,6 +5216,8 @@ def cmd_task(a):
         if a.sandbox_required is not None and int(a.sandbox_required) != t["sandbox_required"]:
             con.execute("UPDATE tasks SET sandbox_required=? WHERE id=?", (int(a.sandbox_required), a.id))
             event(con, "task", a.id, "sandbox-required", a.sandbox_required)
+        if a.lane is not None and a.lane != lane_get(con, a.id):
+            lane_set(con, a.id, a.lane, f"task update --lane by {actor()}")
         if a.judge_hold is not None:
             reason = (a.judge_hold or "").strip()
             con.execute("UPDATE tasks SET judge_hold_reason=? WHERE id=?", (reason, a.id))
@@ -6242,12 +6271,14 @@ def cmd_verdict(a):
         role = a.as_role or die("owner must pass --as qa|reviewer")
     elif role == "reviewer" and a.as_role == "qa" and orgs.strip_prefix(actor()) == orgs.strip_prefix(combined_name(a.task)):
         role = "qa"  # the combined T0/T1 agent of this task records the QA verdict too (docs/review-autospawn.md)
+    elif role == "qa" and is_fastcheck_agent(actor(), a.task):
+        role = FASTCHECK_ROLE  # G-070: the one fast check of a fast-lane task (docs/fast-lane.md), never a reviewer/QA verdict
     t = con.execute("SELECT * FROM tasks WHERE id=?", (a.task,)).fetchone() or die(f"no task {a.task}")
     if not t["pr_url"]:
         die(f"{a.task} has no PR yet")
     summary = read_text(a.summary)
     if a.passed:
-        why = gates_refusal(summary, required=role == "qa")
+        why = gates_refusal(summary, required=role in ("qa", FASTCHECK_ROLE))
         if why:
             die(f"{role} PASS refused, nothing recorded: {why}\n{GATES_FORMAT}", 5)
     head = pr_state(t["pr_url"])["headRefOid"]
@@ -6283,6 +6314,22 @@ def cmd_verdict(a):
                                   verdict_id=con.execute("SELECT last_insert_rowid()").fetchone()[0])
     event(con, "task", a.task, f"{role}-{v}", f"@{sha[:8]}")
     print(f"{a.task} {role} {v.upper()} @ {sha[:8]}")
+    if role == FASTCHECK_ROLE and not a.passed and fast_lane_effective(con, a.task):
+        fast_check_failed(con, t, sha)
+
+
+def fast_check_failed(con, t, sha):
+    """G-070: a fast-check FAIL allows one rework round. The first FAIL asks the lead to send the coder back once; the
+    second moves the task to the normal lane with the reason."""
+    fails = [r for r in fastcheck_verdicts(con, t["id"]) if r["verdict"] == "fail"]
+    if len(fails) >= 2:
+        fast_lane_escalate(con, t, [f"{len(fails)} fast-check FAILs (the last at {sha[:8]}): at most 1 rework round"])
+        return
+    con.commit()
+    send(con, goal_alert_to(con, t["goal_id"], team=t["team_id"]), f"fast check FAIL: {t['id']} @{sha[:8]}, one rework round",
+         f"The fast check failed {t['id']} at {sha[:8]}: see `factory task show {t['id']}`. The coder may fix it once on the same "
+         "PR; a second fast-check FAIL moves the task to the normal lane.", "request", t["goal_id"], t["id"], sender="tick")
+    con.commit()
 
 
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
@@ -6398,17 +6445,20 @@ def _judge_sleep(seconds):
     time.sleep(seconds)
 
 
-def judge_review_green(con):
+def judge_review_green(con, tid=None):
     """T-1802 (owner M40731/M40734): config judge_review_gate=green merges a green PR without reviewer/QA PASS. Any other
-    value, including an unreadable one, keeps passpass."""
+    value, including an unreadable one, keeps passpass. G-070: a fast-lane task (`tid`, fast_lane_effective) is gated
+    like green mode too; fast_lane_gate_problems adds its fast-check PASS rule."""
+    if tid and fast_lane_effective(con, tid):
+        return True
     return (cfg(con, "judge_review_gate") or "passpass").strip().lower() == "green"
 
 
-def judge_ci_none(con):
+def judge_ci_none(con, tid=None):
     """T-1772: config judge_ci_gate=none turns the judge's GitHub PR check reading and waiting off (the main push run is
     the gate, red_main_check). Any other value, including an unreadable one, keeps today's behaviour (pr).
     T-1802: never in judge_review_gate=green mode: there the PR CI is the only safety and is always read."""
-    if judge_review_green(con):
+    if judge_review_green(con, tid):
         return False
     return (cfg(con, "judge_ci_gate") or "pr").strip().lower() == "none"
 
@@ -6582,17 +6632,17 @@ def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carr
             "no file changed by both main and the PR since the merge-base", f"{CI_WORKFLOW} unchanged on main",
             "GitHub MERGEABLE"]
     hold = []
-    bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
-           (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
-           else (green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))
+    bad = ([] if judge_ci_none(con, t["id"]) else  # T-1772: judge_ci_gate=none reads no PR check
+           (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con, t["id"]) else [])) if proj
+           else (green_ci_problems(pr) if judge_review_green(con, t["id"]) else checks_ok(pr))
            + missing_checks(con, pr, t["pr_url"]) + ([] if pr.get("statusCheckRollup") else ["no checks"]))
     if bad:
         hold.append("CI not green on the head: " + ", ".join(bad))
     else:
         held.append("CI green on the head")
     carry = {} if carry is None else carry
-    if judge_review_green(con):  # T-1802: only a FAIL on the head blocks
-        hold += green_head_fail_problems(con, t["id"], sha)
+    if judge_review_green(con, t["id"]):  # T-1802: only a FAIL on the head blocks
+        hold += green_head_fail_problems(con, t["id"], sha) + fast_lane_gate_problems(con, t["id"], sha)
         return ("hold", hold) if hold else ("merge", held + ["no reviewer/QA FAIL on the head (judge_review_gate=green)"])
     for role in ("reviewer", "qa"):
         kind, _ = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
@@ -7703,9 +7753,10 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: refuse the carry instead
             repo_url = None
             carry_unavail = (False, f"cannot verify, gh repo view failed: {e}", None, [])
-        if judge_review_green(con):  # T-1802 (owner M40731/M40734): only a FAIL verdict on the head blocks
+        if judge_review_green(con, a.task):  # T-1802 (owner M40731/M40734): only a FAIL verdict on the head blocks
             problems += green_head_fail_problems(con, a.task, sha)
-        for role in (() if judge_review_green(con) else ("reviewer", "qa")):
+            problems += fast_lane_gate_problems(con, a.task, sha)  # G-070: classified head; fast-check PASS on a code head
+        for role in (() if judge_review_green(con, a.task) else ("reviewer", "qa")):
             kind, info = verdict_pass_holds_for_pr_head(con, a.task, role, sha, pr["number"], git_repo, repo_url,
                                                        owner_repo, carry, carry_unavailable=carry_unavail)
             if kind == "missing":
@@ -7749,9 +7800,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             problems.append("PR is a draft")
         if pr["mergeable"] == "CONFLICTING":
             problems.append("PR has conflicts")
-        bad = ([] if judge_ci_none(con) else  # T-1772: judge_ci_gate=none reads no PR check
-               (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con) else [])) if proj
-               else green_ci_problems(pr) if judge_review_green(con) else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
+        bad = ([] if judge_ci_none(con, a.task) else  # T-1772: judge_ci_gate=none reads no PR check
+               (local_checks_problems(proj, pr) + (green_ci_problems(pr) if judge_review_green(con, a.task) else [])) if proj
+               else green_ci_problems(pr) if judge_review_green(con, a.task) else checks_ok(pr))  # T-1634: local mode, see local_checks_problems
         if bad:
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
@@ -7768,7 +7819,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 problems += local_gate_problems(
                     con, proj, t["pr_url"], sha, stale[2], stale[0], behind_ok=behind_clean,
                     body=lambda: gh_json("pr", "view", t["pr_url"], "--json", "body").get("body") or "")
-        elif not judge_ci_none(con):
+        elif not judge_ci_none(con, a.task):
             problems += missing_checks(con, pr, t["pr_url"])
         g = con.execute("SELECT p.auto_merge FROM goals g LEFT JOIN projects p ON p.id=g.project_id WHERE g.id=?",
                         (t["goal_id"],)).fetchone()
@@ -7804,7 +7855,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 pass  # TODO(T-0623): refuse here while the red-main freeze is active
         if not behind_clean and stale[1] == "STALE" and not others and mech:
             problems.append("STALE-ONLY: the mechanical merger does not refresh; refresh by hand (`factory refresh`) or the judge does")
-        elif not behind_clean and stale[1] == "STALE" and not others and judge_ci_none(con):
+        elif not behind_clean and stale[1] == "STALE" and not others and judge_ci_none(con, a.task):
             # T-1772: judge_ci_gate=none never refreshes (a refresh would restart CI that the judge no longer waits for);
             # a head that cannot merge as it is (overlap with main, dirty merge-tree, strict protection) is refused
             problems.append("judge_ci_gate=none does not refresh the branch: "
@@ -7998,18 +8049,270 @@ def mech_dispute(con, tid):
     return None
 
 
-def mech_candidates(con, only=None):
+LANES = ("fast", "fast:docs", "normal")  # G-070 (docs/fast-lane.md): stored in config as lane:<task-or-goal-id>
+CI_TIER_FILE = "ci/ci_tier.py"
+FASTCHECK_ROLE = "fastcheck"
+FAST_LANE_PASS_S = 120  # the tick starts the fast-lane pass (gh reads) at most this often when nothing else needs the merger
+
+
+def fast_lane_on(con):
+    """G-070: config fast_lane=on (owner only). Anything else, including an unreadable value, is off."""
+    return (cfg(con, "fast_lane") or "off").strip().lower() == "on"
+
+
+def lane_get(con, ident):
+    """The lane stored for a task or goal id ('fast' | 'fast:docs' | 'normal'), or None when none was set."""
+    r = con.execute("SELECT value FROM config WHERE key=?", (f"lane:{ident}",)).fetchone()
+    return r["value"] if r and r["value"] in LANES else None
+
+
+LANE_FLAGS = ("fast", "normal")  # what --lane accepts; 'fast:docs' is set only by the diff classifier
+
+
+def lane_flag_check(con, lane):
+    """--lane fast is for the boss, director and owner (G-070); --lane normal (opting out) is open to every role that
+    may already create or update the task."""
+    role = actor_role(con)
+    if lane == "fast" and role not in ("boss", "director", "owner"):
+        die(f"only the boss, director or owner may put work in the fast lane ({role} may not use --lane fast); "
+            "ask the director", 3)
+
+
+def lane_set(con, ident, lane, why, entity="task"):
+    """Store `lane` for a task or goal id and record a lane-set event (detail: lane and reason)."""
+    if lane not in LANES:
+        die(f"lane must be one of {', '.join(LANES)}, got {lane!r}")
+    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (f"lane:{ident}", lane))
+    event(con, entity, ident, "lane-set", f"{lane}: {why}"[:900])
+
+
+def task_lane(con, tid):
+    """The task's own lane, else its goal's lane ('fast:docs' is never inherited: it is per diff), else None."""
+    own = lane_get(con, tid)
+    if own:
+        return own
+    g = con.execute("SELECT goal_id FROM tasks WHERE id=?", (tid,)).fetchone()
+    gl = lane_get(con, g["goal_id"]) if g and g["goal_id"] else None
+    return gl if gl in ("fast", "normal") else None
+
+
+def fast_lane_effective(con, tid):
+    """True when fast_lane=on and the task takes the fast lane (set with --lane fast, or auto 'fast:docs')."""
+    return bool(tid) and fast_lane_on(con) and task_lane(con, tid) in ("fast", "fast:docs")
+
+
+def fast_lane_head(con, tid):
+    """(sha, kind) of the last head the fast-lane pass classified for `tid` (kind 'docs' or 'code'), or (None, None)."""
+    r = con.execute("SELECT ts FROM throttle WHERE key=?", (f"fastlane-head:{tid}",)).fetchone()
+    parts = (r["ts"] or "").split() if r else []
+    return (parts[0], parts[1]) if len(parts) == 2 else (None, None)
+
+
+def fast_lane_pending_class(con, tid):
+    """True while fast_lane=on and an in_review task with no lane yet has not been classified at its PR head: review
+    autospawn waits so a docs-only diff can take the fast lane before a reviewer is started."""
+    if not fast_lane_on(con) or task_lane(con, tid):
+        return False
+    return fast_lane_head(con, tid)[0] is None
+
+
+def fastcheck_verdicts(con, tid, sha=None):
+    """fastcheck verdict rows of `tid` (newest last), only those on `sha` when given."""
+    q = "SELECT * FROM verdicts WHERE task_id=? AND role=?" + (" AND head_sha=?" if sha else "") + " ORDER BY id"
+    return con.execute(q, (tid, FASTCHECK_ROLE, sha) if sha else (tid, FASTCHECK_ROLE)).fetchall()
+
+
+def fast_lane_gate_problems(con, tid, sha):
+    """Merge-gate problems a fast-lane task adds (G-070): the head must be the one the fast-lane pass classified, and a
+    code head needs a fast-check PASS on exactly that head. A docs head needs no agent check."""
+    if not fast_lane_effective(con, tid):
+        return []
+    hsha, kind = fast_lane_head(con, tid)
+    if not hsha or hsha != sha:
+        return [f"fast lane: head {sha[:8]} not classified yet (the mech-merge pass reads it from main's ci_tier rules)"]
+    if kind == "docs":
+        return []
+    rows = fastcheck_verdicts(con, tid, sha)
+    if not rows or rows[-1]["verdict"] != "pass":
+        return [f"fast lane: no fast-check PASS on {sha[:8]}"]
+    return []
+
+
+def _ci_tier_mod():
+    """ci/ci_tier.py of the MAIN checkout (HOME), never of the PR tree: a PR must not be able to edit its own lane rules."""
+    spec = importlib.util.spec_from_file_location("ci_tier_main", HOME / CI_TIER_FILE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # it imports affected.py from its own folder (main's copy)
+    return mod
+
+
+def fast_lane_escalate(con, t, why):
+    """Move task row `t` to the normal lane (G-070): lane normal, event lane-escalated with the reasons, PR label
+    lane:normal (created once when the repo lacks it; a label failure is logged as lane-label-failed, the lane move stands)
+    and a message to the goal's lead. Reviewer and QA then start through the normal review autospawn."""
+    tid, url = t["id"], t["pr_url"] or ""
+    why = [w for w in why if w] or ["no reason given"]
+    was = task_lane(con, tid)
+    lane_set(con, tid, "normal", "escalated: " + "; ".join(why))
+    event(con, "task", tid, "lane-escalated", {"from": was, "why": why[:20]})
+    con.commit()
+    if url:
+        repo = "/".join(url.split("/")[3:5])
+        err = ""
+        for attempt in (0, 1):
+            try:
+                p = subprocess.run(["gh", "pr", "edit", url, "--add-label", "lane:normal"], capture_output=True, text=True,
+                                   timeout=60, env=gh_git_env())
+            except (subprocess.SubprocessError, OSError) as e:
+                err = f"{type(e).__name__}: {e}"
+                break
+            if p.returncode == 0:
+                err = ""
+                break
+            err = p.stderr.strip()[:300]
+            if attempt == 0:  # most likely the repo has no lane:normal label yet: create it once, then retry
+                try:
+                    subprocess.run(["gh", "label", "create", "lane:normal", "-R", repo, "-f", "--color", "D93F0B",
+                                    "--description", "G-070: left the fast lane"], capture_output=True, text=True,
+                                   timeout=60, env=gh_git_env())
+                except (subprocess.SubprocessError, OSError) as e:
+                    err = f"label create: {type(e).__name__}: {e}"
+                    break
+        if err:
+            event(con, "task", tid, "lane-label-failed", {"pr": url, "err": err})
+    send(con, goal_alert_to(con, t["goal_id"], team=t["team_id"]), f"fast lane: {tid} moved to the normal lane",
+         "Reasons:\n- " + "\n- ".join(why) + "\nReviewer and QA run as usual; the judge decides.", "fyi", t["goal_id"], tid,
+         sender="tick")
+    con.commit()
+
+
+def fast_lane_classify(con, t, sha, git_repo):
+    """Read the lane of task row `t` at PR head `sha` from MAIN's ci/ci_tier.py (G-070) and record it (throttle
+    fastlane-head:<task> = '<sha> docs|code'). Returns 'fast', 'docs', 'normal' (escalated or auto normal) or None when it
+    cannot try yet (fetch failed: retried next run). A lane rule hit, a docs-only lane whose diff is no longer docs, or a
+    diff git cannot read moves a fast task to the normal lane. A task with no lane takes 'fast:docs' on a docs-only diff,
+    else 'normal' (auto, no label)."""
+    tid = t["id"]
+    lane = task_lane(con, tid)
+    if lane == "normal" or not fast_lane_on(con):
+        return "normal"
+    hsha, kind = fast_lane_head(con, tid)
+    if hsha == sha:
+        return kind if kind == "docs" else "fast"
+    branch = t["branch"] or ""
+    rc, err = 1, f"task branch {branch!r} cannot be fetched"
+    if branch and not branch.startswith("-"):
+        rc, _, err = _git_rc(["fetch", "-q", "origin", "main", f"refs/heads/{branch}"], timeout=120, repo=git_repo)
+    if rc != 0:
+        if lane is None:  # an unread diff never takes the fast lane, and must not hold the normal lane's judge either
+            lane_set(con, tid, "normal", f"auto: diff not readable ({err})"[:300])
+            con.commit()
+            return "normal"
+        event(con, "task", tid, "lane-classify-skipped", f"git fetch origin main {branch} failed: {err}"[:900])
+        return None
+    try:
+        ct = _ci_tier_mod()
+        name, why = ct.lane(str(git_repo), "origin/main", sha)
+    except (OSError, ImportError, SyntaxError, AttributeError) as e:
+        name, why = "normal", [f"cannot load main's {CI_TIER_FILE}: {type(e).__name__}: {e}"]
+    except Exception as e:  # noqa: BLE001 - ct.affected.AffectedError lives in main's module; any other error is undecidable too
+        if type(e).__name__ != "AffectedError":
+            raise
+        name, why = "normal", [f"cannot read the diff of {sha[:8]}: {e}"]
+    if lane is None:  # auto lane: only a docs-only diff takes the fast lane; nothing to escalate from
+        if name == "docs":
+            lane_set(con, tid, "fast:docs", f"auto: docs-only diff at {sha[:8]}")
+        else:
+            lane_set(con, tid, "normal", f"auto: not docs-only at {sha[:8]}")
+            con.commit()
+            return "normal"
+    elif name == "normal" or (lane == "fast:docs" and name != "docs"):
+        fast_lane_escalate(con, t, why if name == "normal" else [f"docs-only lane but {sha[:8]} changes code"])
+        return "normal"
+    con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                (f"fastlane-head:{tid}", f"{sha} {'docs' if name == 'docs' else 'code'}"))
+    event(con, "task", tid, "lane-classified", {"head": sha[:12], "lane": name})
+    con.commit()
+    return name
+
+
+def fast_lane_classify_pending(con, limit=MECH_MAX_EVAL):
+    """The mech-merge unit's first pass (G-070): classify every in_review task whose PR head the fast lane has not read yet
+    (fast/fast:docs lane, or no lane yet). At most `limit` gh calls per run; the rest wait for the next run."""
+    if not fast_lane_on(con):
+        return
+    n = 0
+    for t in con.execute("SELECT * FROM tasks WHERE status='in_review' AND pr_url IS NOT NULL AND pr_url!='' "
+                         "ORDER BY updated, id").fetchall():
+        if n >= limit:
+            break
+        if task_lane(con, t["id"]) == "normal":
+            continue
+        n += 1
+        try:
+            pr = pr_state(t["pr_url"])
+        except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
+            continue  # gh failed: next run
+        if pr.get("state") != "OPEN":
+            continue
+        wt = t["worktree"]
+        out = fast_lane_classify(con, t, pr["headRefOid"], wt if wt and Path(wt).is_dir() else HOME)
+        print(f"{t['id']}: lane {out or 'not read yet'}")
+
+
+def fast_lane_needs_pass(con):
+    """DB only, for the tick: True when fast_lane=on and an in_review task with a PR has no normal lane (it may need a
+    classification or a fast-lane merge)."""
+    if not fast_lane_on(con):
+        return False
+    return any(task_lane(con, r["id"]) != "normal" for r in con.execute(
+        "SELECT id FROM tasks WHERE status='in_review' AND pr_url IS NOT NULL AND pr_url!=''").fetchall())
+
+
+def fast_lane_after_merge(con, tid):
+    """After a fast-lane merge (G-070): event fast-lane-merged, and every fast_lane_audit_every-th fast-lane merge files a
+    post-merge normal review task (role reviewer, follow_up_of the merged task) whose findings become tasks."""
+    lane = task_lane(con, tid)
+    event(con, "task", tid, "fast-lane-merged", {"lane": lane})
+    every = _int_cfg(con, "fast_lane_audit_every", 10)
+    n = con.execute("SELECT COUNT(*) c FROM events WHERE action='fast-lane-merged'").fetchone()["c"]
+    if every > 0 and n % every == 0:
+        t = con.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+        aid = next_id(con, "tasks", "T", 4)
+        title = f"Post-merge review of fast-lane {tid}"
+        spec = (f"G-070 audit: fast-lane merge {n} (1 in {every}) gets a normal review after the merge. Review the merged PR "
+                f"{t['pr_url']} of {tid} as the reviewer would before a merge (correctness, security, fit with its spec). "
+                "File each finding as a follow-up task through your lead; no finding: say so in factory done.")
+        acc = "Every finding is a task (follow_up_of the merged task) or the done summary says there were none."
+        ts = now()
+        con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated,priority,follow_up_of) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?)", (aid, t["goal_id"], title, spec, acc, "reviewer", "[]", ts, ts, 2, tid))
+        event_as(con, "tick", "task", aid, "add", title)
+        event(con, "task", tid, "fast-lane-audit", {"task": aid, "nth": n, "every": every})
+    con.commit()
+
+
+def mech_candidates(con, only=None, fast_only=False):
     """Tasks the merger may look at, oldest first: in_review with a PR, tier not above T2 (an unset tier is classified
     later), latest reviewer and QA verdict PASS, no dispute, no judge_status_only_hold, no judge live/starting/queued on
     it, and no merger event in the last mech_merge_retry_s. DB only: the tick calls this to decide whether to launch a
-    unit."""
+    unit. G-070: a fast-lane task needs no tier and no reviewer/QA PASS, only an empty fast_lane_gate_problems on its
+    classified head; `fast_only` keeps only fast-lane tasks (mech_merge off, fast_lane on)."""
     retry = _int_cfg(con, "mech_merge_retry_s", 600)
     nowdt = dt.datetime.now().astimezone()
     out = []
     q = "SELECT * FROM tasks WHERE status='in_review' AND pr_url IS NOT NULL AND pr_url!='' " + ("AND id=? " if only else "") + \
         "ORDER BY updated, id"
     for t in con.execute(q, (only,) if only else ()).fetchall():
-        if t["tier"] and t["tier"] > MECH_MAX_TIER:
+        fast = fast_lane_effective(con, t["id"])
+        if fast_only and not fast:
+            continue
+        if fast:
+            hsha = fast_lane_head(con, t["id"])[0]
+            if not hsha or fast_lane_gate_problems(con, t["id"], hsha):
+                continue
+        elif t["tier"] and t["tier"] > MECH_MAX_TIER:
             continue
         if mech_dispute(con, t["id"]):
             continue
@@ -8017,7 +8320,7 @@ def mech_candidates(con, only=None):
             continue
         if judge_status_only_hold(con, t["id"]):
             continue
-        if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; the gate (and judge_verdicts_stale) refuse a FAIL on the head
+        if (False if judge_review_green(con, t["id"]) else  # T-1802: green mode needs no PASS; the gate (and judge_verdicts_stale) refuse a FAIL on the head
                 any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                                  (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa"))):
             continue
@@ -8162,11 +8465,20 @@ def mech_try(con, t, mode, retry_s):
 
     if not git_config_guard(con, git_repo, always_event=True):
         return block(f"git config in {git_repo} would run code")
-    tier, tier_why = mech_tier(con, t, sha, git_repo)
-    if tier is None:
-        return block(f"{tier_why}; the judge decides")
-    if tier > MECH_MAX_TIER:
-        return block(f"tier {tier} ({tier_why}); the judge decides")
+    fast = fast_lane_effective(con, tid)
+    if fast:  # G-070: main's lane rules (fast_lane_classify) replace the tier; the gate re-checks the head and the PASS
+        hsha, kind = fast_lane_head(con, tid)
+        if hsha != sha:
+            return "skipped"  # a new head: the next run classifies it first
+        mode = "on"  # fast_lane=on is the owner's switch for this lane, whatever mech_merge says
+        block_kind = "mech-blocked"
+        tier, tier_why = "fast", ("docs-only diff, no agent check" if kind == "docs" else "fast-check PASS on this head")
+    else:
+        tier, tier_why = mech_tier(con, t, sha, git_repo)
+        if tier is None:
+            return block(f"{tier_why}; the judge decides")
+        if tier > MECH_MAX_TIER:
+            return block(f"tier {tier} ({tier_why}); the judge decides")
     held = mech_main_run_refusal(con, _judge_slugs(con, t, "/".join(url.split("/")[3:5])), git_repo, tid)
     if held:
         return block(held)
@@ -8180,7 +8492,8 @@ def mech_try(con, t, mode, retry_s):
         if nr == "refresh":
             return block("STALE-ONLY: head does not contain origin/main (%s: behind_ok does not apply, refresh so CI runs "
                          "the combined tree); the mechanical merger does not refresh, the judge does" % "; ".join(nr_why))
-    reason = "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why)
+    reason = ("fast-lane merge (lane %s): %s, %s" % (task_lane(con, tid), tier_why, why) if fast else
+              "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why))
     a = types.SimpleNamespace(task=tid, reason=reason, by="merger", dry_run=(mode == "shadow"), mech=True)
     mark = con.execute("SELECT COALESCE(MAX(id),0) m FROM events").fetchone()["m"]
     err = io.StringIO()
@@ -8212,7 +8525,11 @@ def mech_try(con, t, mode, retry_s):
         con.commit()
         return "would-merge"
     done = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] == "done"
-    return "merged" if done else block("gate returned without merging")
+    if not done:
+        return block("gate returned without merging")
+    if fast:
+        fast_lane_after_merge(con, tid)
+    return "merged"
 
 
 def cmd_mech_merge(a):
@@ -8221,7 +8538,8 @@ def cmd_mech_merge(a):
     con = db()
     require_role(con, "director")
     mode = mech_mode(con)
-    if mode == "off":
+    fast_on = fast_lane_on(con)
+    if mode == "off" and not fast_on:
         print("mech_merge is off; nothing to do")
         return
     RUN.mkdir(exist_ok=True)
@@ -8234,8 +8552,10 @@ def cmd_mech_merge(a):
     if frozen:
         print(f"merge freeze ({frozen}); nothing evaluated")
         return
+    if fast_on:  # G-070: read the lane of new heads from main's ci_tier rules first (needs git fetch: here, not in the tick)
+        fast_lane_classify_pending(con)
     n = 0
-    for t in mech_candidates(con, only=a.task):
+    for t in mech_candidates(con, only=a.task, fast_only=(mode == "off")):
         if n >= MECH_MAX_EVAL:
             break
         n += 1
@@ -8313,9 +8633,17 @@ def tick_pr_titles(con):
 def tick_mech_merge(con):
     """Tick: with mech_merge shadow/on and a candidate, launch ONE detached `factory mech-merge` (own transient unit under
     systemd, fixed name: a second unit is refused while the first is active; the run lock covers the rest). The tick never
-    waits on gh."""
-    if mech_mode(con) == "off" or not mech_candidates(con):
-        return
+    waits on gh. G-070: with fast_lane=on it also launches while an in_review task may need a lane read or a fast-lane
+    merge, even with mech_merge off."""
+    if not (mech_mode(con) != "off" and mech_candidates(con)):
+        if not fast_lane_needs_pass(con):
+            return
+        last = con.execute("SELECT ts FROM throttle WHERE key='fastlane-pass'").fetchone()
+        seen = _ts(last["ts"]) if last else None
+        if seen is not None and (dt.datetime.now().astimezone() - seen).total_seconds() < FAST_LANE_PASS_S:
+            return  # the fast-lane pass reads PR heads with gh: at most once per FAST_LANE_PASS_S
+        con.execute("INSERT INTO throttle(key,ts) VALUES('fastlane-pass',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (now(),))
+        con.commit()
     run = [sys.executable, str(Path(__file__).resolve().with_name("factory")), "mech-merge"]
     kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={**os.environ, "FACTORY_AGENT": actor()})
     if os.environ.get("INVOCATION_ID") and sys.platform != "darwin":  # darwin: no systemd, the detached fallback below
@@ -8640,6 +8968,51 @@ def goal_closed_at(con, g):
     return g["updated"]
 
 
+def digest_lanes_section(con, events):
+    """G-070 digest section: fast vs normal lane over the merges in the window (`events`, already windowed): count,
+    median hours from task creation to merge, revert rate, follow-up-fix rate (a coder task follow_up_of the merged
+    one) and agent-minutes per PR (the spend proxy: no per-task token figure is recorded). Shown while fast_lane=on or
+    when the window holds a fast-lane merge; else nothing."""
+    fast_ids = {e["entity_id"] for e in events if e["entity"] == "task" and e["action"] == "fast-lane-merged"}
+    if not fast_lane_on(con) and not fast_ids:
+        return []
+    merged = {}
+    for e in events:
+        if e["entity"] == "task" and e["action"] == "merged":
+            merged.setdefault(e["entity_id"], e["ts"])
+    ever_fast = {r["entity_id"] for r in con.execute("SELECT entity_id FROM events WHERE action='fast-lane-merged'")}
+    rows = []
+    for lane in ("fast", "normal"):
+        ids = sorted(tid for tid in merged if (tid in ever_fast) == (lane == "fast"))
+        hours, mins, reverted, fixed = [], [], 0, 0
+        for tid in ids:
+            t = con.execute("SELECT created FROM tasks WHERE id=?", (tid,)).fetchone()
+            a, b = _ts(t["created"]) if t else None, _ts(merged[tid])
+            if a and b:
+                hours.append((b - a).total_seconds() / 3600)
+            m = 0.0
+            for ag in con.execute("SELECT started, ended FROM agents WHERE task_id=? AND started IS NOT NULL AND ended IS NOT NULL",
+                                  (tid,)):
+                s, f = _ts(ag["started"]), _ts(ag["ended"])
+                if s and f and f > s:
+                    m += (f - s).total_seconds() / 60
+            mins.append(m)
+            reverted += bool(con.execute("SELECT 1 FROM events WHERE entity='task' AND entity_id=? AND action='fast-lane-reverted'",
+                                         (tid,)).fetchone())
+            fixed += bool(con.execute("SELECT 1 FROM tasks WHERE follow_up_of=? AND role='coder'", (tid,)).fetchone())
+        n = len(ids)
+
+        def pct(k):
+            return f"{100 * k / n:.0f}%" if n else "n/a"
+        rows.append({"lane": lane, "merged": n,
+                     "median h to merge": f"{statistics.median(hours):.1f}" if hours else "n/a",
+                     "revert rate": pct(reverted), "follow-up-fix rate": pct(fixed),
+                     "agent-min per PR": f"{statistics.median(mins):.0f}" if mins else "n/a"})
+    cols = ["lane", "merged", "median h to merge", "revert rate", "follow-up-fix rate", "agent-min per PR"]
+    return ["## Lanes", "", f"fast_lane={'on' if fast_lane_on(con) else 'off'} (G-070, docs/fast-lane.md)", "",
+            md_table(rows, cols).rstrip("\n"), ""]
+
+
 def build_digest(con, goal=None, date=None, hours=24):
     """Markdown digest. The window ends now (or at the end of `date`, YYYY-MM-DD, local) and starts `hours` earlier."""
     if date:
@@ -8794,6 +9167,8 @@ def build_digest(con, goal=None, date=None, hours=24):
         out += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
     if closed_earlier:
         out += ["## Closed earlier", "", *closed_earlier, ""]
+    if not goal:
+        out += digest_lanes_section(con, events)
     if not goal:
         out += [scoutreport.build_skill_scout_section(con, start, end), ""]
         import retro.report as retroreport  # lazy: kept out of module import
@@ -9011,6 +9386,44 @@ def _red_main_revert_task(con, slug, run, since_ts):
     return tid, merged
 
 
+REVERT_PR_MUTATION = ("mutation($id:ID!){revertPullRequest(input:{pullRequestId:$id}){"
+                      "revertPullRequest{url headRefName}}}")
+
+
+def fast_lane_revert(con, culprit, fix_tid):
+    """G-070: main went red right after the fast-lane merge of `culprit`. Open GitHub's revert PR of that merge (GraphQL
+    revertPullRequest), hand it to the red-main fix task `fix_tid` (pr_url, branch, in_review, lane fast: the gate lets
+    the fix task merge on red main), move `culprit` to the normal lane and file a coder task to redo it there. A gh
+    failure is logged (fast-lane-revert-failed) and the fix task stays a plain coder task."""
+    t = con.execute("SELECT * FROM tasks WHERE id=?", (culprit,)).fetchone()
+    if not t or not t["pr_url"]:
+        return
+    try:
+        node = gh_json("pr", "view", t["pr_url"], "--json", "id")["id"]
+        p = subprocess.run(["gh", "api", "graphql", "-f", f"query={REVERT_PR_MUTATION}", "-f", f"id={node}"],
+                           capture_output=True, text=True, timeout=60, env=gh_git_env())
+        if p.returncode != 0:
+            raise ValueError(f"gh api graphql exit {p.returncode}: {p.stderr.strip()[:200]}")
+        rev = json.loads(p.stdout)["data"]["revertPullRequest"]["revertPullRequest"]
+        url, branch = rev["url"], rev["headRefName"]
+    except (SystemExit, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as e:
+        event_as(con, "tick", "task", culprit, "fast-lane-revert-failed", f"{type(e).__name__}: {e}"[:600])
+        return
+    con.execute("UPDATE tasks SET pr_url=?, branch=?, status='in_review', updated=? WHERE id=?", (url, branch, now(), fix_tid))
+    lane_set(con, fix_tid, "fast", f"auto: GitHub revert PR of fast-lane {culprit}")
+    lane_set(con, culprit, "normal", "reverted: main went red after its fast-lane merge")
+    event_as(con, "tick", "task", culprit, "fast-lane-reverted", {"revert_pr": url, "fix_task": fix_tid})
+    rid = next_id(con, "tasks", "T", 4)
+    title = f"Redo {culprit} in the normal lane"
+    spec = (f"{culprit} ({t['title']}) merged through the fast lane and main went red; {fix_tid} reverts it ({url}). Redo "
+            f"the change of {t['pr_url']} with the fix for the red main run, on a new branch; it goes through reviewer, QA "
+            f"and judge.\n\nOriginal spec:\n{t['spec'] or ''}")
+    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated,priority,follow_up_of) "
+                "VALUES(?,?,?,?,?,'coder','[]',?,?,1,?)", (rid, t["goal_id"], title, spec, t["acceptance"], now(), now(), culprit))
+    event_as(con, "tick", "task", rid, "add", title)
+    lane_set(con, rid, "normal", f"redo of reverted fast-lane {culprit}")
+
+
 def cmd_redmain(a):
     """`factory redmain fix <OWNER/NAME> <T-id>` (director): name the task that may merge while the repo's main is red."""
     con = db()
@@ -9074,6 +9487,10 @@ def red_main_check(con):
                 if not old:
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
                     tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
+                    if tid and merged and fast_lane_on(con) and con.execute(
+                            "SELECT 1 FROM events WHERE entity='task' AND entity_id=? AND action='fast-lane-merged'",
+                            (merged[0],)).fetchone():
+                        fast_lane_revert(con, merged[0], tid)  # G-070: the newest merge was a fast-lane one
                 kept = (old or {}).get("task") or ""
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
                                           "task": tid or kept,
@@ -17759,6 +18176,8 @@ def judge_autospawn_candidates(con, skipped=None):
             "ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
         if t["id"] in mech_ids:
             continue
+        if fast_lane_effective(con, t["id"]) or fast_lane_pending_class(con, t["id"]):
+            continue  # G-070: the fast lane merges mechanically, or the lane is not read yet; an escalation makes it normal
         if (False if judge_review_green(con) else  # T-1802: green mode needs no PASS; judge_verdicts_stale refuses a FAIL on the head
                 any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                                  (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
@@ -20565,6 +20984,14 @@ COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tie
                   "(acceptance walk, ## Gates section), record `factory verdict {task} --as qa --pass|--fail --sha <sha> "
                   "--summary -` (with --fail add --cause). Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds), a finished one `live-run: done AC<n> exit=<c>`. "
                   "Two verdicts on the same head, then factory done. ")
+FASTCHECK_BRIEF = ("You are the FAST CHECK of fast-lane task {task} (G-070, docs/fast-lane.md): one combined review + QA pass that "
+                   "replaces the reviewer, QA and judge. Time box: {minutes} minutes; past that the tick stops you and the task "
+                   "moves to the normal lane. Check head {sha8} only: read the diff and the task acceptance, confirm the diff does "
+                   "what the spec asks and nothing risky, run only `python3 ci/affected.py --base origin/main --quick --run` (or "
+                   "one test file), and walk the acceptance criteria. Record ONE verdict: `factory verdict {task} --pass|--fail "
+                   "--sha {sha8} --summary -` with a ## Gates section (with --fail add --cause: " + _CAUSE_HELP + "). PASS lets the "
+                   "mechanical merger merge on green CI; FAIL sends the PR back to the coder once (a second FAIL moves it to the "
+                   "normal lane). Then factory done. Never call the advisor tool. {boss} gets an FYI.")
 
 
 REVIEW_SKIP_EVERY_S = 86400  # one review-autospawn-skip event per task per day
@@ -20793,8 +21220,9 @@ def review_candidates(con):
     return con.execute(
         "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
         "AND g.status='active' "
-        "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role='qa' OR a.name LIKE 'combined-%')) "
-        "AND NOT EXISTS (SELECT 1 FROM verdicts v WHERE v.task_id=t.id) "
+        "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role='qa' OR a.name LIKE 'combined-%') "
+        "                AND a.name NOT LIKE '%fastcheck-%') "  # G-070: a fast check is not a review round
+        "AND NOT EXISTS (SELECT 1 FROM verdicts v WHERE v.task_id=t.id AND v.role!='fastcheck') "
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
 
 
@@ -20804,8 +21232,9 @@ def review_rerun_candidates(con):
     return con.execute(
         "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
         "AND t.branch IS NOT NULL AND t.branch != '' AND g.status='active' "
-        "AND (EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role='qa' OR a.name LIKE 'combined-%')) "
-        "     OR EXISTS (SELECT 1 FROM verdicts v WHERE v.task_id=t.id)) "
+        "AND (EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role='qa' OR a.name LIKE 'combined-%') "
+        "             AND a.name NOT LIKE '%fastcheck-%') "  # G-070: fast-check rounds are not review rounds
+        "     OR EXISTS (SELECT 1 FROM verdicts v WHERE v.task_id=t.id AND v.role!='fastcheck')) "
         "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND a.role IN ('reviewer','qa') "
         "                AND a.status IN ('queued','starting','live')) "
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
@@ -20866,6 +21295,58 @@ def _review_hold(con, t, head, clock):
     return bool(con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('queued','starting','live')", (t["id"],)).fetchone())
 
 
+def fastcheck_name(con, tid, head):
+    """Agent name of the fast check on `head` (<org>-fastcheck-<task>-<sha8>): one per head, never reused."""
+    return oname(con, org_for(con, None, tid), slug(f"fastcheck-{tid}-{head[:8]}"))
+
+
+def is_fastcheck_agent(name, tid):
+    """True when `name` (org prefix allowed) is a fast-check agent of `tid`."""
+    return orgs.strip_prefix(name or "").startswith(f"fastcheck-{tid.lower()}-")
+
+
+def fast_check_start(con, t, pr, clock):
+    """G-070 review step for a fast-lane task (fast_lane=on): wait until the mech-merge pass classified the head; a docs head
+    gets no agent; a code head with green CI and no fast-check verdict or agent on it gets ONE fast check (role qa,
+    FASTCHECK_BRIEF). Returns 'stop' when the spawn gate is closed or the agent queued, else 'next'."""
+    tid, head = t["id"], pr["headRefOid"]
+    hsha, kind = fast_lane_head(con, tid)
+    if hsha != head:
+        _review_wait(con, t, head, "lane", "fast_lane=on: the mech-merge pass has not classified this head yet", clock)
+        return "next"
+    if kind == "docs" or not fast_lane_effective(con, tid):
+        return "next"  # docs: merged with no agent check; an unset lane classified as code: lane set, normal review next tick
+    if ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        _review_wait(con, t, head, "ci", "fast lane: CI is not green on the head", clock)
+        return "next"
+    name = fastcheck_name(con, tid, head)
+    if fastcheck_verdicts(con, tid, head) or con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
+        return "next"
+    if _review_hold(con, t, head, clock):
+        _review_wait(con, t, head, "coder", "a coder agent of the task is queued, starting or live", clock)
+        return "next"
+    _o = org_for(con, t["goal_id"], tid)
+    g_ok, g_why = gate(con, role="qa", runtime=org_runtime(con, "qa", _o))[:2]
+    if not g_ok:
+        _review_wait(con, t, head, "gate", f"spawn gate closed for the fast check: {g_why}", clock)
+        return "stop"
+    boss = f"lead:{t['team_id']}" if t["team_id"] else "director"
+    brief = FASTCHECK_BRIEF.format(task=tid, sha8=head[:8], boss=boss,
+                                   minutes=max(1, _int_cfg(con, "fast_lane_check_timeout_s", 600) // 60))
+    try:
+        spawn(con, "qa", t["goal_id"], t["team_id"], tid, name, prompt=brief, host_backend=task_pinned_host_backend(con, tid))
+    except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
+        event(con, "task", tid, "review-autospawn-error", f"{name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
+        return "stop"
+    row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+    status = row["status"] if row else "unknown"
+    event(con, "task", tid, "review-autospawn", {"agent": name, "role": "qa", "lane": "fast", "status": status, "sha": head})
+    send(con, goal_alert_to(con, t["goal_id"], team=t["team_id"]), f"fast lane: fast check started on {tid}",
+         f"{t['title']}\n\nfast_lane=on: the tick started {name} (one combined check, replaces reviewer + QA + judge). "
+         "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+    return "stop" if status == "queued" else "next"
+
+
 def _review_verdict_fresh(con, tid, head, clock):
     """True when the newest verdict on head is younger than REVIEW_VERDICT_GRACE_S (an unreadable stamp counts as old)."""
     row = con.execute("SELECT created FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) ORDER BY id DESC", (tid, head)).fetchone()
@@ -20916,28 +21397,36 @@ def review_verdict_timeout_tick(con, clock):
     stop request through the stop path of the idle-coder reaper (STOP decision message, stop_requested_at, Esc + deferred nudge; the
     tick's stop fallback closes the pane after stop_timeout_s). Once the row has ended the re-run pass applies the respawn rule.
     Agents a lead or director spawned (no event) are never stopped."""
-    limit = _int_cfg(con, 'review_verdict_timeout_min', 45)  # single quotes: the double-quoted name stays unique to DEFAULT_CONFIG (grep)
-    if limit <= 0:
-        return
+    review_limit = _int_cfg(con, 'review_verdict_timeout_min', 45)  # single quotes: the double-quoted name stays unique to DEFAULT_CONFIG (grep)
+    fast_limit = _int_cfg(con, 'fast_lane_check_timeout_s', 600) / 60  # G-070: a fast check is always time boxed
     rows = con.execute("SELECT a.* FROM agents a JOIN tasks t ON t.id=a.task_id WHERE a.role IN ('reviewer','qa') AND a.status='live' "
                        "AND a.stop_requested_at IS NULL AND t.status='in_review' ORDER BY a.name").fetchall()
     for r in rows:
+        name, tid = r["name"], r["task_id"]
+        fast = is_fastcheck_agent(name, tid)
+        limit = fast_limit if fast else review_limit
+        if limit <= 0:
+            continue
         began = _ts(r["started"])
         if began is None:
             continue  # an unreadable start time cannot prove the agent is overdue: never stop on a guess
         live_min = (clock - began.timestamp()) / 60
         if live_min <= limit:
             continue
-        name, tid = r["name"], r["task_id"]
         head = verdict_start_head(con, tid, name)
         if not head:
             continue  # not tick-started (or respawned by a lead since): the lead's own
-        roles = ("reviewer", "qa") if orgs.strip_prefix(name) == orgs.strip_prefix(combined_name(tid)) else (r["role"],)
+        roles = ((FASTCHECK_ROLE,) if fast else ("reviewer", "qa") if orgs.strip_prefix(name) == orgs.strip_prefix(combined_name(tid))
+                 else (r["role"],))
         if all(con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, x)).fetchone()
                for x in roles):
             continue  # its verdict is recorded: it is wrapping up
-        reason = (f"review_verdict_timeout_min: live {int(live_min)} min (> {limit}) with no {'/'.join(roles)} verdict on head {head[:8]}; "
-                  "the tick starts one replacement on this head")
+        if fast:
+            reason = (f"fast_lane_check_timeout_s: fast check live {int(live_min * 60)} s (> {int(limit * 60)}) with no verdict on head "
+                      f"{head[:8]}; the task moves to the normal lane")
+        else:
+            reason = (f"review_verdict_timeout_min: live {int(live_min)} min (> {limit}) with no {'/'.join(roles)} verdict on head {head[:8]}; "
+                      "the tick starts one replacement on this head")
         con.execute("BEGIN IMMEDIATE")
         try:
             if con.execute("UPDATE agents SET stop_requested_at=?, stop_attempt_at=NULL, stop_failed_kind=NULL "
@@ -20955,6 +21444,10 @@ def review_verdict_timeout_tick(con, clock):
                 con.execute("ROLLBACK")
             raise
         esc_wait_nudge(con, name, REVIEW_STOP_NUDGE, "STOP order", defer=True)
+        if fast:
+            task_row = con.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+            if task_row is not None:
+                fast_lane_escalate(con, task_row, [f"fast check timed out after {int(limit * 60)} s with no verdict"])
 
 
 def review_rerun_tick(con):
@@ -20970,6 +21463,8 @@ def review_rerun_tick(con):
     batch = _RepoBatch()
     for t in review_rerun_candidates(con):
         tid, team = t["id"], t["team_id"]
+        if fast_lane_effective(con, tid):
+            continue  # G-070: the first-review pass starts the fast check on every new head
         why = _review_repo_mismatch(con, t)
         if why:
             _review_skip(con, t, why, clock)
@@ -21076,6 +21571,10 @@ def review_autospawn_tick(con):
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _review_head(con, t, batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
+        if fast_lane_on(con) and (fast_lane_pending_class(con, tid) or fast_lane_effective(con, tid)):
+            if fast_check_start(con, t, pr, clock) == "stop":
+                return  # spawn gate closed or the agent queued: the next tick retries
+            continue  # G-070: a fast-lane task gets one fast check (or none for docs), never reviewer + QA
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
             _review_wait(con, t, pr["headRefOid"], "ci", "CI is not green on the head (coder_ci_handoff waits for green)", clock)
             continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
@@ -23124,6 +23623,7 @@ def main():
     x.add_argument("--title"); x.add_argument("--project"); x.add_argument("--intent"); x.add_argument("--success")
     x.add_argument("--priority", type=int); x.add_argument("--requested-by"); x.add_argument("--note")
     x.add_argument("--token-limit", type=int, help="goal edit: token limit for the goal (director/boss/owner); 0 clears it")
+    x.add_argument("--lane", choices=LANE_FLAGS, help="goal new: lane for the goal's tasks (fast: boss/director/owner; docs/fast-lane.md)")
     x.add_argument("--all", action="store_true"); x.set_defaults(fn=cmd_goal)
 
     x = sp.add_parser("plan", help="store a new plan version: factory plan G-001 - <<'EOF' ... EOF")
@@ -23158,6 +23658,8 @@ def main():
                         " (on a reviewer+QA PASS PR it expires after judge_hold_expiry_min unless the text names a boss decision: boss-approved M<id>)")
     x.add_argument("--judge-hold-clear", dest="judge_hold_clear", action="store_true",
                    help="clear the judge hold on this task (lead, director, or owner)")
+    x.add_argument("--lane", choices=LANE_FLAGS,
+                   help="task add/update: fast (boss/director/owner) or normal lane; docs/fast-lane.md (G-070)")
     x.add_argument("--priority", type=int); x.set_defaults(fn=cmd_task)
 
     x = sp.add_parser("lesson"); x.add_argument("action", choices=["add", "list", "show", "edit", "link", "apply", "verify", "reopen"])

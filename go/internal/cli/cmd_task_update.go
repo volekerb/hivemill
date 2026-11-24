@@ -368,7 +368,7 @@ func runTaskUpdate(c *ctx, p any) (int, error) {
 		a.reason == nil && a.sandbox == nil && a.judgeHold == nil && a.role == nil && !a.holdClear {
 		return 0, dieErr(2, fmt.Sprintf("nothing to update on %s: give at least one of --status --pr --branch --assignee --title --spec "+
 			"--acceptance --team --priority --after --waits --note --goal --sandbox-required --judge-hold "+
-			"--judge-hold-clear --role", a.id))
+			"--judge-hold-clear --role --lane", a.id))
 	}
 	curStatus := tStatus
 	if taskUpdTruthy(a.status) {

@@ -189,6 +189,31 @@
    "doc": "docs/git-hardening.md"
   },
   {
+   "key": "fast_lane",
+   "kind": "flag",
+   "default": "off",
+   "summary": "off | on: fast lane (docs-only and --lane fast tasks merge on CI green + one combined fast check, risky diffs escalate); only the owner sets it",
+   "goal": "G-070",
+   "doc": "docs/fast-lane.md",
+   "state": "off"
+  },
+  {
+   "key": "fast_lane_audit_every",
+   "kind": "setting",
+   "default": "10",
+   "summary": "every Nth fast-lane merge gets a post-merge normal review task (0 = no audits)",
+   "goal": "G-070",
+   "doc": "docs/fast-lane.md"
+  },
+  {
+   "key": "fast_lane_check_timeout_s",
+   "kind": "setting",
+   "default": "600",
+   "summary": "a fast check with no PASS/FAIL after this many seconds is stopped and the task moves to the normal lane",
+   "goal": "G-070",
+   "doc": "docs/fast-lane.md"
+  },
+  {
    "key": "frozen_repos",
    "kind": "setting",
    "default": "",

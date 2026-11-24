@@ -1,6 +1,7 @@
 """G-022 T-0623: red-main monitor and merge freeze. The tick reads the latest completed tests.yml push run on main
 (stub gh `run list`); red freezes cmd_judge merges with the run id, messages the director once and files a revert task;
 green clears; red_main_freeze=0 (the default) changes nothing. Temp FACTORY_HOME, the tests/stubs gh."""
+import json
 import unittest
 
 from harness import REPO, FactoryTestCase
@@ -234,6 +235,62 @@ class RedMainTests(FactoryTestCase):
         spec = self.env.sql("SELECT spec FROM tasks WHERE title LIKE 'Red main:%'")[0]["spec"]
         self.assertIn("T-0001", spec)
         self.assertNotIn("unknown", spec)
+
+    REVERT = {"data": {"revertPullRequest": {"revertPullRequest": {"url": "https://github.com/acme/priv/pull/9",
+                                                                   "headRefName": "revert-1-factory/t-0001"}}}}
+
+    def fast_merge_then_red(self, api):
+        """G-070 AC4: T-0001 merged through the fast lane, then main's push run goes red."""
+        for k, v in (("red_main_freeze", "1"), ("red_main_interval_s", "0"), ("fast_lane", "on")):
+            self.ok("config", k, v)
+        prs = json.loads(self.env.gh_state.read_text())["prs"]
+        self.env.set_gh(prs={u: dict(p, id="PR_node1") for u, p in prs.items()}, api=api)
+        self.runs(GOOD)
+        self.tick()
+        for action in ("merged", "fast-lane-merged"):
+            self.env.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) "
+                         "VALUES('2026-06-01T12:00:00+00:00','mech','task','T-0001',?,'@abc')", (action,))
+        self.runs(RED, GOOD)
+        self.tick()
+        return self.env.sql("SELECT id, status, pr_url, branch FROM tasks WHERE title LIKE 'Red main:%'")[0]
+
+    def lane(self, tid):
+        r = self.env.sql("SELECT value FROM config WHERE key=?", (f"lane:{tid}",))
+        return r[0]["value"] if r else None
+
+    def test_red_main_after_fast_merge_reverts_and_moves_task_to_normal_lane(self):
+        fix = self.fast_merge_then_red([{"match": ["graphql", "revertPullRequest", "id=PR_node1"], "out": self.REVERT}])
+        self.assertEqual((fix["status"], fix["pr_url"], fix["branch"]),
+                         ("in_review", "https://github.com/acme/priv/pull/9", "revert-1-factory/t-0001"))
+        self.assertEqual(self.lane(fix["id"]), "fast")  # the revert PR merges on green CI
+        self.assertEqual(self.lane("T-0001"), "normal")
+        ev = self.env.sql("SELECT detail FROM events WHERE action='fast-lane-reverted' AND entity_id='T-0001'")
+        self.assertEqual(len(ev), 1)
+        redo = self.env.sql("SELECT id, role, priority, follow_up_of FROM tasks WHERE title='Redo T-0001 in the normal lane'")
+        self.assertEqual([(r["role"], r["priority"], r["follow_up_of"]) for r in redo], [("coder", 1, "T-0001")])
+        self.assertEqual(self.lane(redo[0]["id"]), "normal")
+
+    def test_red_main_revert_failure_is_logged_and_fix_task_stays_with_coder(self):
+        fix = self.fast_merge_then_red([{"match": ["graphql"], "exit": 1, "err": "no permission"}])
+        self.assertEqual((fix["status"], fix["pr_url"]), ("todo", None))  # a plain coder task: bisect + revert by hand
+        self.assertEqual(self.env.sql("SELECT 1 FROM tasks WHERE title='Redo T-0001 in the normal lane'"), [])
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='fast-lane-reverted'"), [])
+        failed = self.env.sql("SELECT detail FROM events WHERE action='fast-lane-revert-failed' AND entity_id='T-0001'")
+        self.assertEqual(len(failed), 1)
+        self.assertIn("no permission", failed[0]["detail"])
+
+    def test_red_main_after_normal_merge_does_not_revert(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        self.ok("config", "fast_lane", "on")
+        self.runs(GOOD)
+        self.tick()
+        self.env.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) "
+                     "VALUES('2026-06-01T12:00:00+00:00','judge','task','T-0001','merged','@abc')")
+        self.runs(RED, GOOD)
+        self.tick()
+        self.assertEqual([c for c in self.env.calls("gh") if "graphql" in c["argv"]], [])
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action LIKE 'fast-lane-revert%'"), [])
 
     def hive_setup(self):
         """T-0669: the repo's own project has no goal; the active goal sits under another project but its task has a PR there."""

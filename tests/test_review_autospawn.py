@@ -1021,6 +1021,37 @@ class RespawnTests(Base):
         self.at(46)
         self.assertEqual(self.stops(), [])
 
+    def fast_check_live(self):
+        """G-070: fast_lane=on, T-0001 in the fast lane, the tick's fast check started on SHA_A at T0."""
+        self.ok("config", "fast_lane", "on")
+        self.env.sql("INSERT INTO config(key,value) VALUES('lane:T-0001','fast')")
+        self.tick_started(name="fastcheck-t-0001-aaaaaaaa", role="qa")
+
+    def lane(self):
+        return self.env.sql("SELECT value FROM config WHERE key='lane:T-0001'")[0]["value"]
+
+    def test_fast_check_past_its_timeout_is_stopped_and_the_task_escalates(self):
+        self.fast_check_live()
+        self.at(11)  # fast_lane_check_timeout_s 600 by default, far under review_verdict_timeout_min 45
+        self.assertEqual(self.stops(), ["fastcheck-t-0001-aaaaaaaa"])
+        stop = self.env.sql("SELECT body FROM messages WHERE subject='STOP'")
+        self.assertIn("fast_lane_check_timeout_s: fast check live 660 s (> 600)", stop[0]["body"])
+        self.assertEqual(self.lane(), "normal")
+        esc = self.env.sql("SELECT detail FROM events WHERE action='lane-escalated' AND entity_id='T-0001'")
+        self.assertEqual(len(esc), 1)
+        self.assertIn("fast check timed out after 600 s with no verdict", esc[0]["detail"])
+
+    def test_fast_check_under_its_timeout_or_with_a_verdict_keeps_running(self):
+        self.fast_check_live()
+        self.at(9)
+        self.assertEqual(self.stops(), [])
+        self.env.seed_pr(sha=SHA_A)
+        r = self.env.run("verdict", "T-0001", "--pass", "--sha", SHA_A, "--summary", GOOD, agent="fastcheck-t-0001-aaaaaaaa")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.at(30)
+        self.assertEqual(self.stops(), [])
+        self.assertEqual(self.lane(), "fast")
+
     def test_timeout_key_default_and_not_an_owner_cap(self):
         with self.env.load_factory() as f:
             self.assertEqual(f.DEFAULT_CONFIG["review_verdict_timeout_min"], "45")

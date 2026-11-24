@@ -6,6 +6,7 @@
 
   ci_tier.py classify --base BASE [--head HEAD] [--root DIR] [--only-file F] [--github-output]
   ci_tier.py docs-check --base BASE [--head HEAD] [--root DIR]
+  ci_tier.py escalate --base BASE [--head HEAD] [--root DIR]   (G-070 fast lane: lane=fast|docs exit 0; exit 1 plus reasons = normal lane)
 
 classify reads `git diff BASE...HEAD` and prints `tier=`, `mode=`, `go=`, `reason=` (and `modules=` in affected mode):
   docs    only *.md outside roles/, or files under docs/        -> mode docs     (link check + docs index test only)
@@ -141,6 +142,76 @@ def classify(root, base, head):
     return "normal", "%d files, %d changed lines" % (len(files), n)
 
 
+# G-070 fast lane: a fast-lane PR moves to the normal lane when its diff touches any of these. The ci tier rules above are
+# reused (RISKY_PATHS, RISKY_DEFS, binary files, new top-level entries) and widened; MAX_LINES does not apply (the fast
+# lane relaxes the size limit). bin/factory_cli.py is read for risky defs too (the ci tier reads only bin/factory).
+FAST_LANE_PATHS = [
+    "ci/*",                                                          # every CI gate, not only the listed ones
+    "roles/*",                                                       # role prompts, settings and hooks
+    "go/internal/guard/*", "go/cmd/worker-guard/*", "go/internal/identity/*",   # the worker guard
+    "go/internal/sandbox/*", "scout/*box*.py", "scout/sandbox*",     # sandboxes
+    "go/internal/gate/*", "go/internal/holdexpiry/*",                # merge gate code
+    "go/internal/factorydb/*", "db/*", "*.sql", "*migration*",       # DB schema and migrations
+    "*secret*", "*token*", "*credential*", "*.pem", "*.key", ".env*", "*/.env*",   # secrets and tokens
+]
+FAST_LANE_DEFS = {"migrate", "SCHEMA_VERSION", "record_merged", "run_after_merge", "red_main_check"}
+FAST_LANE_DEF_PREFIXES = ("mech_", "fast_lane", "lane_", "_judge", "red_main", "_red_main", "merge_", "migrate", "verdict",
+                          "green_", "token", "_token", "secret", "settings_", "guard_")
+FAST_LANE_DEF_FILES = (BIN, "bin/factory_cli.py")
+
+
+def fast_lane_path(path):
+    return risky_path(path) or any(fnmatch.fnmatchcase(path, pat) for pat in FAST_LANE_PATHS)
+
+
+def fast_lane_def(name):
+    return risky_def(name) or name in FAST_LANE_DEFS or name.startswith(FAST_LANE_DEF_PREFIXES)
+
+
+def deleted_test(path):
+    name = os.path.basename(path)
+    return (path.startswith("tests/") and name.startswith("test_")) or name.endswith("_test.go")
+
+
+def escalations(root, base, head):
+    """Reasons the diff base...head must leave the fast lane (G-070), [] when it may stay. Raises affected.AffectedError
+    when git cannot answer: the caller escalates then (an undecidable diff never stays fast)."""
+    changed = affected.changed_files(root, base, head)
+    why = ["binary or non-text diff: %s" % p for p in sorted(numstat_non_line_paths(root, base, head))]
+    why += ["deleted test %s" % p for p, exists in changed if not exists and deleted_test(p)]
+    why += ["%s is a guarded path" % p for p, _ in changed if fast_lane_path(p)]
+    top = new_top_level_risk(root, base, [p for p, _ in changed])
+    if top:
+        why.append("new top-level entry %s" % top)
+    paths = {p for p, _ in changed}
+    for f in FAST_LANE_DEF_FILES:
+        if f not in paths:
+            continue
+        src = [affected.git(root, "show", "%s:%s" % (r, f)) if affected._exists(root, r, f) else "" for r in (base, head)]
+        try:
+            names = affected.changed_defs(*src)
+        except SyntaxError as e:
+            why.append("%s does not parse (%s)" % (f, e.msg))
+            continue
+        why += ["%s changed in %s" % (n, f) for n in sorted(names) if fast_lane_def(n)]
+    return why
+
+
+def lane(root, base, head):
+    """(lane, reasons) of the diff base...head for the G-070 fast lane: ("normal", escalations) when any rule hits,
+    ("docs", ...) when every file is docs (no agent check; MAX_LINES does not apply), else ("fast", ...). Raises
+    affected.AffectedError like escalations()."""
+    why = escalations(root, base, head)
+    if why:
+        return "normal", why
+    files = [p for p, _ in affected.changed_files(root, base, head)]
+    if not files:
+        return "normal", ["empty diff"]
+    if all(is_docs(p) for p in files):
+        return "docs", ["only docs files changed"]
+    return "fast", ["%d files, no guarded path or def" % len(files)]
+
+
 def plan(root, base, head):
     """Dict of outputs: tier, mode, go, reason, modules (affected mode only)."""
     tier, reason = classify(root, base, head)
@@ -200,7 +271,7 @@ def docs_problems(root, base, head):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("classify", "docs-check"):
+    for name in ("classify", "docs-check", "escalate"):
         p = sub.add_parser(name)
         p.add_argument("--base", required=True)
         p.add_argument("--head", default="HEAD")
@@ -209,6 +280,16 @@ def main(argv=None):
     cl.add_argument("--only-file", help="write the affected modules here, one per line")
     cl.add_argument("--github-output", action="store_true", help="also append the result to $GITHUB_OUTPUT")
     a = ap.parse_args(argv)
+    if a.cmd == "escalate":
+        try:
+            name, why = lane(a.root, a.base, a.head)
+        except affected.AffectedError as e:
+            print("escalate: cannot decide (%s); the PR leaves the fast lane" % e)
+            return 2
+        for w in why if name == "normal" else ():
+            print("escalate: %s" % w)
+        print("lane=%s" % name)
+        return 1 if name == "normal" else 0
     if a.cmd == "docs-check":
         try:
             probs = docs_problems(a.root, a.base, a.head)

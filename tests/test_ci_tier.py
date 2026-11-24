@@ -295,8 +295,96 @@ class CliTest(unittest.TestCase):
         self.assertIn("unbalanced code fence", r.stderr)
 
 
+class FastLaneTest(unittest.TestCase):
+    """G-070: ci_tier.lane() and the `escalate` CLI decide whether a PR may stay in the fast lane."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.repo = Repo(self._tmp.name)
+
+    def fresh(self):
+        return Repo(tempfile.mkdtemp(dir=self._tmp.name))
+
+    def lane(self, files, repo=None):
+        repo = repo or self.repo
+        base, head = repo.change(files)
+        return ci_tier.lane(str(repo.root), base, head)
+
+    def escalate(self, repo, base, head):
+        return subprocess.run([sys.executable, TIER, "escalate", "--root", str(repo.root), "--base", base, "--head", head],
+                              capture_output=True, text=True)
+
+    def test_docs_only_is_docs(self):
+        self.assertEqual(self.lane({"docs/a.md": "# b\n", "README.md": "x\n"})[0], "docs")
+
+    def test_plain_code_is_fast(self):
+        self.assertEqual(self.lane({"web/app.py": "x = 2\n"})[0], "fast")
+
+    def test_size_does_not_escalate(self):
+        big = "".join("v%d = %d\n" % (i, i) for i in range(900))
+        lane, why = self.lane({"web/big.py": big})
+        self.assertEqual(lane, "fast", why)
+        self.assertEqual(ci_tier.classify(str(self.repo.root), self.repo.base, self.repo.rev())[0], "risky")
+
+    def test_every_escalation_category(self):
+        cases = {
+            "guard": "go/internal/guard/rules.go", "hooks": "roles/hooks/x.sh", "role settings": "roles/settings/qa.json.in",
+            "role prompt": "roles/coder.md", "workflow": ".github/workflows/tests.yml", "ci gate": "ci/affected.py",
+            "secret": "web/secrets.py", "auth file": "web/token_store.py", "pem": "web/k.pem", "env": ".env",
+            "sandbox": "go/internal/sandbox/run.go", "scout sandbox": "scout/workerbox.py",
+            "merge gate": "go/internal/gate/gate.go", "schema": "db/schema.sql", "migration": "web/migrations/001.py",
+            "factorydb": "go/internal/factorydb/db.go",
+        }
+        for what, path in cases.items():
+            with self.subTest(what=what):
+                lane, why = self.lane({path: "x = 1\n"}, repo=self.fresh())
+                self.assertEqual(lane, "normal", why)
+                self.assertTrue(any(path in w for w in why), why)
+
+    def test_merge_and_judge_defs_escalate_in_factory_cli(self):
+        for name in ("mech_try", "judge_pick", "red_main_check", "fast_lane_classify", "verdict_x", "migrate", "SCHEMA"):
+            with self.subTest(name=name):
+                repo = self.fresh()
+                src = "def other():\n    return 1\n\n\n" + ("%s = 1\n" % name if name.isupper() else "def %s():\n    return 1\n" % name)
+                repo.write("bin/factory_cli.py", "def other():\n    return 0\n")
+                git(repo.root, "add", "-A")
+                git(repo.root, "commit", "-q", "-m", "cli base")
+                repo.base = repo.rev()
+                lane, why = self.lane({"bin/factory_cli.py": src}, repo=repo)
+                self.assertEqual(lane, "normal", why)
+                self.assertTrue(any(name in w for w in why), why)
+
+    def test_other_factory_cli_def_stays_fast(self):
+        self.repo.write("bin/factory_cli.py", "def cmd_hello():\n    return 0\n")
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "cli base")
+        self.repo.base = self.repo.rev()
+        self.assertEqual(self.lane({"bin/factory_cli.py": "def cmd_hello():\n    return 1\n"})[0], "fast")
+
+    def test_deleted_test_escalates(self):
+        (self.repo.root / "tests" / "test_alpha.py").unlink()
+        lane, why = self.lane({"web/app.py": "x = 2\n"})
+        self.assertEqual(lane, "normal")
+        self.assertIn("deleted test tests/test_alpha.py", why)
+
+    def test_cli_exit_codes(self):
+        base, head = self.repo.change({"web/app.py": "x = 5\n"})
+        r = self.escalate(self.repo, base, head)
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "lane=fast"), r.stderr)
+        repo = self.fresh()
+        base, head = repo.change({".github/workflows/x.yml": "on: push\n"})
+        r = self.escalate(repo, base, head)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("escalate: .github/workflows/x.yml is a guarded path", r.stdout)
+        self.assertTrue(r.stdout.rstrip().endswith("lane=normal"))
+        r = self.escalate(repo, "deadbeef" * 5, head)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("cannot decide", r.stdout)
+
+
 class WorkflowTest(unittest.TestCase):
-    wf = (ROOT / ".github" / "workflows" / "tests.yml").read_text()
+    wf =(ROOT / ".github" / "workflows" / "tests.yml").read_text()
 
     def test_job_names_unchanged(self):
         self.assertEqual(re.findall(r"(?m)^    name: (.+)$", self.wf),
