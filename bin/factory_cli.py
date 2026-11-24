@@ -19300,8 +19300,8 @@ def spend_alert_tick(con):
 
 def _tick_u_util(con, st):
         util_sample(con)
-        spend_alert_tick(con)
         util_alerts(con)
+        spend_alert_tick(con)
         owner_blocker_alerts(con)
         owner_alert_feed_tick(con)
         owner_alert_send_tick(con)
