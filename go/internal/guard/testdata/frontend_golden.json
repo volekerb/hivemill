@@ -149245,6 +149245,1650 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git fetch $(echo --upload-pack=x) origin",
+"mask_quotes_pre": "git fetch $(echo --upload-pack=x) origin",
+"mask_quotes_raw": "git fetch $(echo --upload-pack=x) origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git fetch $(echo --upload-pack=x) origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git fetch $(echo --upload-pack=x) origin"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"fetch"
+]
+],
+[
+12,
+32,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+33,
+40,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"fetch"
+]
+],
+[
+12,
+32,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+33,
+40,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"echo --upload-pack=x"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"echo --upload-pack=x"
+]
+},
+"input": "git fetch `echo --upload-pack=x` origin",
+"mask_quotes_pre": "git fetch `echo --upload-pack=x` origin",
+"mask_quotes_raw": "git fetch `echo --upload-pack=x` origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git fetch `echo --upload-pack=x` origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git fetch $(echo --upload-pack=x) origin"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"fetch"
+]
+],
+[
+11,
+31,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+32,
+39,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"fetch"
+]
+],
+[
+11,
+31,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+32,
+39,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git fetch ${X} origin",
+"mask_quotes_pre": "git fetch ${X} origin",
+"mask_quotes_raw": "git fetch ${X} origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git fetch ${X} origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git fetch ${X} origin"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"git",
+"fetch",
+"$"
+]
+],
+[
+12,
+13,
+[
+"X"
+]
+],
+[
+14,
+21,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"git",
+"fetch",
+"$"
+]
+],
+[
+12,
+13,
+[
+"X"
+]
+],
+[
+14,
+21,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git fetch $'--output=x' origin",
+"mask_quotes_pre": "git fetch $'QQQQQQQQQQ' origin",
+"mask_quotes_raw": "git fetch $'QQQQQQQQQQ' origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git fetch $'--output=x' origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git fetch $'--output=x' origin"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"git",
+"fetch",
+"$'QQQQQQQQQQ'",
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"git",
+"fetch",
+"$'QQQQQQQQQQ'",
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git fetch {--output=x,y} origin",
+"mask_quotes_pre": "git fetch {--output=x,y} origin",
+"mask_quotes_raw": "git fetch {--output=x,y} origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git fetch {--output=x,y} origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git fetch {--output=x,y} origin"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"fetch"
+]
+],
+[
+11,
+23,
+[
+"--output=x,y"
+]
+],
+[
+24,
+31,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"fetch"
+]
+],
+[
+11,
+23,
+[
+"--output=x,y"
+]
+],
+[
+24,
+31,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git show $(echo --upload-pack=x) origin",
+"mask_quotes_pre": "git show $(echo --upload-pack=x) origin",
+"mask_quotes_raw": "git show $(echo --upload-pack=x) origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git show $(echo --upload-pack=x) origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git show $(echo --upload-pack=x) origin"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"git",
+"show"
+]
+],
+[
+11,
+31,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+32,
+39,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"git",
+"show"
+]
+],
+[
+11,
+31,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+32,
+39,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"echo --upload-pack=x"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"echo --upload-pack=x"
+]
+},
+"input": "git show `echo --upload-pack=x` origin",
+"mask_quotes_pre": "git show `echo --upload-pack=x` origin",
+"mask_quotes_raw": "git show `echo --upload-pack=x` origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git show `echo --upload-pack=x` origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git show $(echo --upload-pack=x) origin"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"git",
+"show"
+]
+],
+[
+10,
+30,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+31,
+38,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"git",
+"show"
+]
+],
+[
+10,
+30,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+31,
+38,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git show ${X} origin",
+"mask_quotes_pre": "git show ${X} origin",
+"mask_quotes_raw": "git show ${X} origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git show ${X} origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git show ${X} origin"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"show",
+"$"
+]
+],
+[
+11,
+12,
+[
+"X"
+]
+],
+[
+13,
+20,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"show",
+"$"
+]
+],
+[
+11,
+12,
+[
+"X"
+]
+],
+[
+13,
+20,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git show $'--output=x' origin",
+"mask_quotes_pre": "git show $'QQQQQQQQQQ' origin",
+"mask_quotes_raw": "git show $'QQQQQQQQQQ' origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git show $'--output=x' origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git show $'--output=x' origin"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"git",
+"show",
+"$'QQQQQQQQQQ'",
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"git",
+"show",
+"$'QQQQQQQQQQ'",
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git show {--output=x,y} origin",
+"mask_quotes_pre": "git show {--output=x,y} origin",
+"mask_quotes_raw": "git show {--output=x,y} origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git show {--output=x,y} origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git show {--output=x,y} origin"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"git",
+"show"
+]
+],
+[
+10,
+22,
+[
+"--output=x,y"
+]
+],
+[
+23,
+30,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"git",
+"show"
+]
+],
+[
+10,
+22,
+[
+"--output=x,y"
+]
+],
+[
+23,
+30,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log $(echo --upload-pack=x) origin",
+"mask_quotes_pre": "git log $(echo --upload-pack=x) origin",
+"mask_quotes_raw": "git log $(echo --upload-pack=x) origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log $(echo --upload-pack=x) origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log $(echo --upload-pack=x) origin"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"git",
+"log"
+]
+],
+[
+10,
+30,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+31,
+38,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"git",
+"log"
+]
+],
+[
+10,
+30,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+31,
+38,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"echo --upload-pack=x"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"echo --upload-pack=x"
+]
+},
+"input": "git log `echo --upload-pack=x` origin",
+"mask_quotes_pre": "git log `echo --upload-pack=x` origin",
+"mask_quotes_raw": "git log `echo --upload-pack=x` origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log `echo --upload-pack=x` origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log $(echo --upload-pack=x) origin"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"git",
+"log"
+]
+],
+[
+9,
+29,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+30,
+37,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"git",
+"log"
+]
+],
+[
+9,
+29,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+30,
+37,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log ${X} origin",
+"mask_quotes_pre": "git log ${X} origin",
+"mask_quotes_raw": "git log ${X} origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log ${X} origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log ${X} origin"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"git",
+"log",
+"$"
+]
+],
+[
+10,
+11,
+[
+"X"
+]
+],
+[
+12,
+19,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"git",
+"log",
+"$"
+]
+],
+[
+10,
+11,
+[
+"X"
+]
+],
+[
+12,
+19,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log $'--output=x' origin",
+"mask_quotes_pre": "git log $'QQQQQQQQQQ' origin",
+"mask_quotes_raw": "git log $'QQQQQQQQQQ' origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log $'--output=x' origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log $'--output=x' origin"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"git",
+"log",
+"$'QQQQQQQQQQ'",
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"git",
+"log",
+"$'QQQQQQQQQQ'",
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log {--output=x,y} origin",
+"mask_quotes_pre": "git log {--output=x,y} origin",
+"mask_quotes_raw": "git log {--output=x,y} origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log {--output=x,y} origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log {--output=x,y} origin"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"git",
+"log"
+]
+],
+[
+9,
+21,
+[
+"--output=x,y"
+]
+],
+[
+22,
+29,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"git",
+"log"
+]
+],
+[
+9,
+21,
+[
+"--output=x,y"
+]
+],
+[
+22,
+29,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git diff $(echo --upload-pack=x) origin",
+"mask_quotes_pre": "git diff $(echo --upload-pack=x) origin",
+"mask_quotes_raw": "git diff $(echo --upload-pack=x) origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff $(echo --upload-pack=x) origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff $(echo --upload-pack=x) origin"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+11,
+31,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+32,
+39,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+11,
+31,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+32,
+39,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"echo --upload-pack=x"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"echo --upload-pack=x"
+]
+},
+"input": "git diff `echo --upload-pack=x` origin",
+"mask_quotes_pre": "git diff `echo --upload-pack=x` origin",
+"mask_quotes_raw": "git diff `echo --upload-pack=x` origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff `echo --upload-pack=x` origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff $(echo --upload-pack=x) origin"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+10,
+30,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+31,
+38,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+10,
+30,
+[
+"echo",
+"--upload-pack=x"
+]
+],
+[
+31,
+38,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git diff ${X} origin",
+"mask_quotes_pre": "git diff ${X} origin",
+"mask_quotes_raw": "git diff ${X} origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff ${X} origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff ${X} origin"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"diff",
+"$"
+]
+],
+[
+11,
+12,
+[
+"X"
+]
+],
+[
+13,
+20,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"diff",
+"$"
+]
+],
+[
+11,
+12,
+[
+"X"
+]
+],
+[
+13,
+20,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git diff $'--output=x' origin",
+"mask_quotes_pre": "git diff $'QQQQQQQQQQ' origin",
+"mask_quotes_raw": "git diff $'QQQQQQQQQQ' origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff $'--output=x' origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff $'--output=x' origin"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"git",
+"diff",
+"$'QQQQQQQQQQ'",
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"git",
+"diff",
+"$'QQQQQQQQQQ'",
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git diff {--output=x,y} origin",
+"mask_quotes_pre": "git diff {--output=x,y} origin",
+"mask_quotes_raw": "git diff {--output=x,y} origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff {--output=x,y} origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff {--output=x,y} origin"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+10,
+22,
+[
+"--output=x,y"
+]
+],
+[
+23,
+30,
+[
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+10,
+22,
+[
+"--output=x,y"
+]
+],
+[
+23,
+30,
+[
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git $(echo log)",
+"mask_quotes_pre": "git $(echo log)",
+"mask_quotes_raw": "git $(echo log)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git $(echo log)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git $(echo log)"
+},
+"segments_pre": [
+[
+0,
+4,
+[
+"git"
+]
+],
+[
+6,
+14,
+[
+"echo",
+"log"
+]
+],
+[
+15,
+15,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+4,
+[
+"git"
+]
+],
+[
+6,
+14,
+[
+"echo",
+"log"
+]
+],
+[
+15,
+15,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"echo log"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"echo log"
+]
+},
+"input": "git `echo log`",
+"mask_quotes_pre": "git `echo log`",
+"mask_quotes_raw": "git `echo log`",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git `echo log`"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git $(echo log)"
+},
+"segments_pre": [
+[
+0,
+4,
+[
+"git"
+]
+],
+[
+5,
+13,
+[
+"echo",
+"log"
+]
+],
+[
+14,
+14,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+4,
+[
+"git"
+]
+],
+[
+5,
+13,
+[
+"echo",
+"log"
+]
+],
+[
+14,
+14,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'git fetch $(echo --upload-pack=x) origin'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'git fetch $(echo --upload-pack=x) origin'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'git fetch $(echo --upload-pack=x) origin'"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'git log `echo --output=x`'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'git log `echo --output=x`'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'git log `echo --output=x`'"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mask_quotes_pre": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mask_quotes_raw": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff $(git merge-base origin/main HEAD)..HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff $(git merge-base origin/main HEAD)..HEAD"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+11,
+42,
+[
+"git",
+"merge-base",
+"origin/main",
+"HEAD"
+]
+],
+[
+43,
+49,
+[
+"..HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+11,
+42,
+[
+"git",
+"merge-base",
+"origin/main",
+"HEAD"
+]
+],
+[
+43,
+49,
+[
+"..HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "echo hc",
 "mask_quotes_pre": "echo hc",
 "mask_quotes_raw": "echo hc",
@@ -168729,82 +170373,6 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
-"mask_quotes_pre": "git diff $(git merge-base origin/main HEAD)..HEAD",
-"mask_quotes_raw": "git diff $(git merge-base origin/main HEAD)..HEAD",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "git diff $(git merge-base origin/main HEAD)..HEAD"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "git diff $(git merge-base origin/main HEAD)..HEAD"
-},
-"segments_pre": [
-[
-0,
-9,
-[
-"git",
-"diff"
-]
-],
-[
-11,
-42,
-[
-"git",
-"merge-base",
-"origin/main",
-"HEAD"
-]
-],
-[
-43,
-49,
-[
-"..HEAD"
-]
-]
-],
-"segments_raw": [
-[
-0,
-9,
-[
-"git",
-"diff"
-]
-],
-[
-11,
-42,
-[
-"git",
-"merge-base",
-"origin/main",
-"HEAD"
-]
-],
-[
-43,
-49,
-[
-"..HEAD"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
 "input": "tar -tf a.tar",
 "mask_quotes_pre": "tar -tf a.tar",
 "mask_quotes_raw": "tar -tf a.tar",
@@ -185632,6 +187200,186 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git log --format='%h %s'",
+"mask_quotes_pre": "git log --format='QQQQQ'",
+"mask_quotes_raw": "git log --format='QQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log --format='%h %s'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log --format='%h %s'"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"git",
+"log",
+"--format='QQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"git",
+"log",
+"--format='QQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git diff origin/main...HEAD",
+"mask_quotes_pre": "git diff origin/main...HEAD",
+"mask_quotes_raw": "git diff origin/main...HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff origin/main...HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff origin/main...HEAD"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"diff",
+"origin/main...HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"diff",
+"origin/main...HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"cat <<'EOF'\nT-1: subject\nEOF\n"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"cat <<'EOF'\nT-1: subject\nEOF\n"
+]
+},
+"input": "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\"",
+"mask_quotes_pre": "git commit -m \"QQQQQQQQQQQQQ\nQQQQQQQQQQQQ\nQQQ\nQ\"",
+"mask_quotes_raw": "git commit -m \"QQQQQQQQQQQQQ\nQQQQQQQQQQQQ\nQQQ\nQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\""
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"git",
+"commit",
+"-m",
+"\"QQQQQQQQQQQQQ"
+]
+],
+[
+29,
+41,
+[
+"QQQQQQQQQQQQ"
+]
+],
+[
+42,
+45,
+[
+"QQQ"
+]
+],
+[
+46,
+48,
+[
+"Q\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"git",
+"commit",
+"-m",
+"\"QQQQQQQQQQQQQ"
+]
+],
+[
+29,
+41,
+[
+"QQQQQQQQQQQQ"
+]
+],
+[
+42,
+45,
+[
+"QQQ"
+]
+],
+[
+46,
+48,
+[
+"Q\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -192744,7 +194492,7 @@
 ]
 }
 },
-"corpus_commands": 3574,
+"corpus_commands": 3601,
 "edge_inputs": 97,
 "python": "3.13"
 }

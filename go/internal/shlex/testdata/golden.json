@@ -121670,6 +121670,1079 @@
 "src": "corpus"
 },
 {
+"input": "git fetch $(echo --upload-pack=x) origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$",
+"(",
+"echo",
+"--upload-pack=x",
+")",
+"origin"
+]
+},
+{
+"input": "git fetch $(echo --upload-pack=x) origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$",
+"(",
+"echo",
+"--upload-pack=x",
+")",
+"origin"
+]
+},
+{
+"input": "git fetch $(echo --upload-pack=x) origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$(echo",
+"--upload-pack=x)",
+"origin"
+]
+},
+{
+"input": "git fetch $(echo --upload-pack=x) origin",
+"mode": "quote",
+"quoted": "'git fetch $(echo --upload-pack=x) origin'",
+"src": "corpus"
+},
+{
+"input": "git fetch `echo --upload-pack=x` origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"`echo",
+"--upload-pack=x`",
+"origin"
+]
+},
+{
+"input": "git fetch `echo --upload-pack=x` origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"`",
+"echo",
+"--upload-pack=x",
+"`",
+"origin"
+]
+},
+{
+"input": "git fetch `echo --upload-pack=x` origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"`echo",
+"--upload-pack=x`",
+"origin"
+]
+},
+{
+"input": "git fetch `echo --upload-pack=x` origin",
+"mode": "quote",
+"quoted": "'git fetch `echo --upload-pack=x` origin'",
+"src": "corpus"
+},
+{
+"input": "git fetch ${X} origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"${X}",
+"origin"
+]
+},
+{
+"input": "git fetch ${X} origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$",
+"{",
+"X",
+"}",
+"origin"
+]
+},
+{
+"input": "git fetch ${X} origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"${X}",
+"origin"
+]
+},
+{
+"input": "git fetch ${X} origin",
+"mode": "quote",
+"quoted": "'git fetch ${X} origin'",
+"src": "corpus"
+},
+{
+"input": "git fetch $'--output=x' origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$--output=x",
+"origin"
+]
+},
+{
+"input": "git fetch $'--output=x' origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$",
+"--output=x",
+"origin"
+]
+},
+{
+"input": "git fetch $'--output=x' origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$--output=x",
+"origin"
+]
+},
+{
+"input": "git fetch $'--output=x' origin",
+"mode": "quote",
+"quoted": "'git fetch $'\"'\"'--output=x'\"'\"' origin'",
+"src": "corpus"
+},
+{
+"input": "git fetch {--output=x,y} origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"{--output=x,y}",
+"origin"
+]
+},
+{
+"input": "git fetch {--output=x,y} origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"{",
+"--output=x",
+",",
+"y",
+"}",
+"origin"
+]
+},
+{
+"input": "git fetch {--output=x,y} origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"{--output=x,y}",
+"origin"
+]
+},
+{
+"input": "git fetch {--output=x,y} origin",
+"mode": "quote",
+"quoted": "'git fetch {--output=x,y} origin'",
+"src": "corpus"
+},
+{
+"input": "git show $(echo --upload-pack=x) origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"$",
+"(",
+"echo",
+"--upload-pack=x",
+")",
+"origin"
+]
+},
+{
+"input": "git show $(echo --upload-pack=x) origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"$",
+"(",
+"echo",
+"--upload-pack=x",
+")",
+"origin"
+]
+},
+{
+"input": "git show $(echo --upload-pack=x) origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"$(echo",
+"--upload-pack=x)",
+"origin"
+]
+},
+{
+"input": "git show $(echo --upload-pack=x) origin",
+"mode": "quote",
+"quoted": "'git show $(echo --upload-pack=x) origin'",
+"src": "corpus"
+},
+{
+"input": "git show `echo --upload-pack=x` origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"`echo",
+"--upload-pack=x`",
+"origin"
+]
+},
+{
+"input": "git show `echo --upload-pack=x` origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"`",
+"echo",
+"--upload-pack=x",
+"`",
+"origin"
+]
+},
+{
+"input": "git show `echo --upload-pack=x` origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"`echo",
+"--upload-pack=x`",
+"origin"
+]
+},
+{
+"input": "git show `echo --upload-pack=x` origin",
+"mode": "quote",
+"quoted": "'git show `echo --upload-pack=x` origin'",
+"src": "corpus"
+},
+{
+"input": "git show ${X} origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"${X}",
+"origin"
+]
+},
+{
+"input": "git show ${X} origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"$",
+"{",
+"X",
+"}",
+"origin"
+]
+},
+{
+"input": "git show ${X} origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"${X}",
+"origin"
+]
+},
+{
+"input": "git show ${X} origin",
+"mode": "quote",
+"quoted": "'git show ${X} origin'",
+"src": "corpus"
+},
+{
+"input": "git show $'--output=x' origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"$--output=x",
+"origin"
+]
+},
+{
+"input": "git show $'--output=x' origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"$",
+"--output=x",
+"origin"
+]
+},
+{
+"input": "git show $'--output=x' origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"$--output=x",
+"origin"
+]
+},
+{
+"input": "git show $'--output=x' origin",
+"mode": "quote",
+"quoted": "'git show $'\"'\"'--output=x'\"'\"' origin'",
+"src": "corpus"
+},
+{
+"input": "git show {--output=x,y} origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"{--output=x,y}",
+"origin"
+]
+},
+{
+"input": "git show {--output=x,y} origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"{",
+"--output=x",
+",",
+"y",
+"}",
+"origin"
+]
+},
+{
+"input": "git show {--output=x,y} origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"{--output=x,y}",
+"origin"
+]
+},
+{
+"input": "git show {--output=x,y} origin",
+"mode": "quote",
+"quoted": "'git show {--output=x,y} origin'",
+"src": "corpus"
+},
+{
+"input": "git log $(echo --upload-pack=x) origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"$",
+"(",
+"echo",
+"--upload-pack=x",
+")",
+"origin"
+]
+},
+{
+"input": "git log $(echo --upload-pack=x) origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"$",
+"(",
+"echo",
+"--upload-pack=x",
+")",
+"origin"
+]
+},
+{
+"input": "git log $(echo --upload-pack=x) origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"$(echo",
+"--upload-pack=x)",
+"origin"
+]
+},
+{
+"input": "git log $(echo --upload-pack=x) origin",
+"mode": "quote",
+"quoted": "'git log $(echo --upload-pack=x) origin'",
+"src": "corpus"
+},
+{
+"input": "git log `echo --upload-pack=x` origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"`echo",
+"--upload-pack=x`",
+"origin"
+]
+},
+{
+"input": "git log `echo --upload-pack=x` origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"`",
+"echo",
+"--upload-pack=x",
+"`",
+"origin"
+]
+},
+{
+"input": "git log `echo --upload-pack=x` origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"`echo",
+"--upload-pack=x`",
+"origin"
+]
+},
+{
+"input": "git log `echo --upload-pack=x` origin",
+"mode": "quote",
+"quoted": "'git log `echo --upload-pack=x` origin'",
+"src": "corpus"
+},
+{
+"input": "git log ${X} origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"${X}",
+"origin"
+]
+},
+{
+"input": "git log ${X} origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"$",
+"{",
+"X",
+"}",
+"origin"
+]
+},
+{
+"input": "git log ${X} origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"${X}",
+"origin"
+]
+},
+{
+"input": "git log ${X} origin",
+"mode": "quote",
+"quoted": "'git log ${X} origin'",
+"src": "corpus"
+},
+{
+"input": "git log $'--output=x' origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"$--output=x",
+"origin"
+]
+},
+{
+"input": "git log $'--output=x' origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"$",
+"--output=x",
+"origin"
+]
+},
+{
+"input": "git log $'--output=x' origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"$--output=x",
+"origin"
+]
+},
+{
+"input": "git log $'--output=x' origin",
+"mode": "quote",
+"quoted": "'git log $'\"'\"'--output=x'\"'\"' origin'",
+"src": "corpus"
+},
+{
+"input": "git log {--output=x,y} origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"{--output=x,y}",
+"origin"
+]
+},
+{
+"input": "git log {--output=x,y} origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"{",
+"--output=x",
+",",
+"y",
+"}",
+"origin"
+]
+},
+{
+"input": "git log {--output=x,y} origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"{--output=x,y}",
+"origin"
+]
+},
+{
+"input": "git log {--output=x,y} origin",
+"mode": "quote",
+"quoted": "'git log {--output=x,y} origin'",
+"src": "corpus"
+},
+{
+"input": "git diff $(echo --upload-pack=x) origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$",
+"(",
+"echo",
+"--upload-pack=x",
+")",
+"origin"
+]
+},
+{
+"input": "git diff $(echo --upload-pack=x) origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$",
+"(",
+"echo",
+"--upload-pack=x",
+")",
+"origin"
+]
+},
+{
+"input": "git diff $(echo --upload-pack=x) origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$(echo",
+"--upload-pack=x)",
+"origin"
+]
+},
+{
+"input": "git diff $(echo --upload-pack=x) origin",
+"mode": "quote",
+"quoted": "'git diff $(echo --upload-pack=x) origin'",
+"src": "corpus"
+},
+{
+"input": "git diff `echo --upload-pack=x` origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"`echo",
+"--upload-pack=x`",
+"origin"
+]
+},
+{
+"input": "git diff `echo --upload-pack=x` origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"`",
+"echo",
+"--upload-pack=x",
+"`",
+"origin"
+]
+},
+{
+"input": "git diff `echo --upload-pack=x` origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"`echo",
+"--upload-pack=x`",
+"origin"
+]
+},
+{
+"input": "git diff `echo --upload-pack=x` origin",
+"mode": "quote",
+"quoted": "'git diff `echo --upload-pack=x` origin'",
+"src": "corpus"
+},
+{
+"input": "git diff ${X} origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"${X}",
+"origin"
+]
+},
+{
+"input": "git diff ${X} origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$",
+"{",
+"X",
+"}",
+"origin"
+]
+},
+{
+"input": "git diff ${X} origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"${X}",
+"origin"
+]
+},
+{
+"input": "git diff ${X} origin",
+"mode": "quote",
+"quoted": "'git diff ${X} origin'",
+"src": "corpus"
+},
+{
+"input": "git diff $'--output=x' origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$--output=x",
+"origin"
+]
+},
+{
+"input": "git diff $'--output=x' origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$",
+"--output=x",
+"origin"
+]
+},
+{
+"input": "git diff $'--output=x' origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$--output=x",
+"origin"
+]
+},
+{
+"input": "git diff $'--output=x' origin",
+"mode": "quote",
+"quoted": "'git diff $'\"'\"'--output=x'\"'\"' origin'",
+"src": "corpus"
+},
+{
+"input": "git diff {--output=x,y} origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"{--output=x,y}",
+"origin"
+]
+},
+{
+"input": "git diff {--output=x,y} origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"{",
+"--output=x",
+",",
+"y",
+"}",
+"origin"
+]
+},
+{
+"input": "git diff {--output=x,y} origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"{--output=x,y}",
+"origin"
+]
+},
+{
+"input": "git diff {--output=x,y} origin",
+"mode": "quote",
+"quoted": "'git diff {--output=x,y} origin'",
+"src": "corpus"
+},
+{
+"input": "git $(echo log)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"$",
+"(",
+"echo",
+"log",
+")"
+]
+},
+{
+"input": "git $(echo log)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"$",
+"(",
+"echo",
+"log",
+")"
+]
+},
+{
+"input": "git $(echo log)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"$(echo",
+"log)"
+]
+},
+{
+"input": "git $(echo log)",
+"mode": "quote",
+"quoted": "'git $(echo log)'",
+"src": "corpus"
+},
+{
+"input": "git `echo log`",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"`echo",
+"log`"
+]
+},
+{
+"input": "git `echo log`",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"`",
+"echo",
+"log",
+"`"
+]
+},
+{
+"input": "git `echo log`",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"`echo",
+"log`"
+]
+},
+{
+"input": "git `echo log`",
+"mode": "quote",
+"quoted": "'git `echo log`'",
+"src": "corpus"
+},
+{
+"input": "bash -c 'git fetch $(echo --upload-pack=x) origin'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"git fetch $(echo --upload-pack=x) origin"
+]
+},
+{
+"input": "bash -c 'git fetch $(echo --upload-pack=x) origin'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"git fetch $(echo --upload-pack=x) origin"
+]
+},
+{
+"input": "bash -c 'git fetch $(echo --upload-pack=x) origin'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"git fetch $(echo --upload-pack=x) origin"
+]
+},
+{
+"input": "bash -c 'git fetch $(echo --upload-pack=x) origin'",
+"mode": "quote",
+"quoted": "'bash -c '\"'\"'git fetch $(echo --upload-pack=x) origin'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "bash -c 'git log `echo --output=x`'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"git log `echo --output=x`"
+]
+},
+{
+"input": "bash -c 'git log `echo --output=x`'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"git log `echo --output=x`"
+]
+},
+{
+"input": "bash -c 'git log `echo --output=x`'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"git log `echo --output=x`"
+]
+},
+{
+"input": "bash -c 'git log `echo --output=x`'",
+"mode": "quote",
+"quoted": "'bash -c '\"'\"'git log `echo --output=x`'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$",
+"(",
+"git",
+"merge-base",
+"origin/main",
+"HEAD",
+")",
+"..HEAD"
+]
+},
+{
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$",
+"(",
+"git",
+"merge-base",
+"origin/main",
+"HEAD",
+")",
+"..HEAD"
+]
+},
+{
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$(git",
+"merge-base",
+"origin/main",
+"HEAD)..HEAD"
+]
+},
+{
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mode": "quote",
+"quoted": "'git diff $(git merge-base origin/main HEAD)..HEAD'",
+"src": "corpus"
+},
+{
 "input": "echo hc",
 "mode": "script",
 "src": "corpus",
@@ -137609,59 +138682,6 @@
 "src": "corpus"
 },
 {
-"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"git",
-"diff",
-"$",
-"(",
-"git",
-"merge-base",
-"origin/main",
-"HEAD",
-")",
-"..HEAD"
-]
-},
-{
-"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"git",
-"diff",
-"$",
-"(",
-"git",
-"merge-base",
-"origin/main",
-"HEAD",
-")",
-"..HEAD"
-]
-},
-{
-"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"git",
-"diff",
-"$(git",
-"merge-base",
-"origin/main",
-"HEAD)..HEAD"
-]
-},
-{
-"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
-"mode": "quote",
-"quoted": "'git diff $(git merge-base origin/main HEAD)..HEAD'",
-"src": "corpus"
-},
-{
 "input": "tar -tf a.tar",
 "mode": "script",
 "src": "corpus",
@@ -151257,6 +152277,117 @@
 "src": "corpus"
 },
 {
+"input": "git log --format='%h %s'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--format=%h %s"
+]
+},
+{
+"input": "git log --format='%h %s'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--format=%h %s"
+]
+},
+{
+"input": "git log --format='%h %s'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--format=%h %s"
+]
+},
+{
+"input": "git log --format='%h %s'",
+"mode": "quote",
+"quoted": "'git log --format='\"'\"'%h %s'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git diff origin/main...HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"origin/main...HEAD"
+]
+},
+{
+"input": "git diff origin/main...HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"origin/main...HEAD"
+]
+},
+{
+"input": "git diff origin/main...HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"origin/main...HEAD"
+]
+},
+{
+"input": "git diff origin/main...HEAD",
+"mode": "quote",
+"quoted": "'git diff origin/main...HEAD'",
+"src": "corpus"
+},
+{
+"input": "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"commit",
+"-m",
+"$(cat <<'EOF'\nT-1: subject\nEOF\n)"
+]
+},
+{
+"input": "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"commit",
+"-m",
+"$(cat <<'EOF'\nT-1: subject\nEOF\n)"
+]
+},
+{
+"input": "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"commit",
+"-m",
+"$(cat <<'EOF'\nT-1: subject\nEOF\n)"
+]
+},
+{
+"input": "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\"",
+"mode": "quote",
+"quoted": "'git commit -m \"$(cat <<'\"'\"'EOF'\"'\"'\nT-1: subject\nEOF\n)\"'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -155288,7 +156419,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3574,
+"corpus_commands": 3601,
 "edge_inputs": 123,
 "python": "3.13"
 }

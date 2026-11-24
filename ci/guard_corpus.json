@@ -21070,7 +21070,12 @@
     "git $(echo log)",
     "git `echo log`",
     "bash -c 'git fetch $(echo --upload-pack=x) origin'",
-    "bash -c 'git log `echo --output=x`'"
+    "bash -c 'git log `echo --output=x`'",
+    {
+      "cmd": "git diff $(git merge-base origin/main HEAD)..HEAD",
+      "role": "coder",
+      "note": "T-0206: was must_allow; the spec refuses a substitution in a diff token"
+    }
   ],
   "must_allow": [
     "echo hc",
@@ -23597,10 +23602,6 @@
     },
     {
       "cmd": "git log -1",
-      "role": "coder"
-    },
-    {
-      "cmd": "git diff $(git merge-base origin/main HEAD)..HEAD",
       "role": "coder"
     },
     {
