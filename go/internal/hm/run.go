@@ -26,6 +26,7 @@ const (
 	Failed    = "failed"
 	Reverted  = "reverted"
 	Cancelled = "cancelled"
+	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, holds no slot
 )
 
 // Active reports whether a run still holds a slot.
@@ -397,6 +398,15 @@ func (r *Runner) Pass(startNew bool) error {
 		return err
 	}
 	for _, x := range runs {
+		if heldForOwner(&x) && !x.Eval {
+			if l := r.lock(x.Task, false); l != nil {
+				if run, _ := r.Store.Run(x.Task); run != nil && heldForOwner(run) {
+					r.checkHeld(run)
+					_ = r.Store.PutRun(run)
+				}
+				l.Close()
+			}
+		}
 		if Active(x.State) {
 			st, err := r.Advance(x.Task, list, ok)
 			if err != nil {
