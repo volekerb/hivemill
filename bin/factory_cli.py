@@ -1326,12 +1326,12 @@ def event(con, entity, entity_id, action, detail=None):
     event_as(con, actor(), entity, entity_id, action, detail)
 
 
-def nudge_event(con, kind, row, ok, reason="prompt-failed"):
+def nudge_event(con, kind, row, ok, result=None):
     """T-1542: one events row per tick nudge: action nudge-<kind>, detail agent/backend/target pane/result
-    (sent, or skipped-<reason>). `row` is the agents row; the backend is the host that row lives on (herdr or hc)."""
+    (sent, skipped-prompt-failed, or an explicit `result`). `row` is the agents row; the backend is the host that row lives on (herdr or hc)."""
     event_as(con, "tick", "agent", row["name"], f"nudge-{kind}",
              {"agent": row["name"], "backend": _agent_host_exe(con, row), "target": row["pane_id"],
-              "result": "sent" if ok else f"skipped-{reason}"})
+              "result": result or ("sent" if ok else "skipped-prompt-failed")})
 
 
 def next_id(con, table, prefix, width):
@@ -19411,7 +19411,9 @@ def _tick_u_nudge(con, st):
                                 nudge_event(con, "unread", r, sent)
                                 if sent:
                                     _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
-                                    con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (st["t"], r["name"]))
+                                # a failed prompt waits out the cooldown too: one skipped row per window
+                                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (st["t"], r["name"]))
+                                if sent:
                                     event_as(con, "tick", "agent", r["name"], "boss-wake",
                                              {"count": n, "oldest": f"M{oldest['id']}", "kinds": kinds})
                 continue
@@ -20609,7 +20611,7 @@ def tick_recycle(con):
         con.execute("UPDATE agents SET relaunch_requested_at=?, relaunch_requested_by=?, relaunch_fresh=1 WHERE name=?",
                     (now(), "tick", r["name"]))
         event(con, "agent", r["name"], "recycle-queued", {"context_tokens": ctx, "limit": limit, "session": r["session_id"]})
-        nudge_event(con, "recycle", r, True)  # the queued fresh relaunch is the recycle prompt: no pane text is typed
+        nudge_event(con, "recycle", r, True, result="queued")  # the queued relaunch is the recycle prompt
 
 
 LEAD_WAKING = ("live", "starting", "queued")  # a lead row in one of these has its wake in flight

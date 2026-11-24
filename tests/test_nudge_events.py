@@ -43,7 +43,6 @@ class NudgeEvents(FactoryTestCase):
         con = m.db()
         fn(con, **kw)
         con.commit()
-        mock.patch.stopall()
 
     def nudge_step(self, m, backend, **kw):
         self.run_step(m, lambda con: m._tick_u_nudge(con, {"t": time.time(), "starting": set()}), backend, **kw)
@@ -103,7 +102,7 @@ class NudgeEvents(FactoryTestCase):
                 with mock.patch.dict("sys.modules", {"web.tokens": mock.Mock(latest_context=lambda sid: 10**9),
                                                      "web": mock.Mock(tokens=mock.Mock(latest_context=lambda sid: 10**9))}):
                     self.run_step(m, lambda con: m.tick_recycle(con), b)
-                self.assertEqual(self.rows(name, "recycle"), [{"agent": name, "backend": b, "target": f"pane-{b}", "result": "sent"}])
+                self.assertEqual(self.rows(name, "recycle"), [{"agent": name, "backend": b, "target": f"pane-{b}", "result": "queued"}])
 
     def test_full_tick_writes_unread_nudge_row(self):
         """The real cmd_tick with the stub host: an idle director with unread mail gets one nudge-unread row."""
