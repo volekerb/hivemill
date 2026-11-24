@@ -937,7 +937,7 @@ class FixCarryRerunTests(Base):
 
             def fake_spawn(con, role, goal=None, team=None, task=None, name=None, prompt=None, **kw):
                 calls.append((role, name, prompt))
-                con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,started) VALUES(?,?,?,?,?,?,'t')",
+                con.execute("INSERT OR REPLACE INTO agents(name,role,goal_id,team_id,task_id,status,started) VALUES(?,?,?,?,?,?,'t')",
                             (name, role, goal, team, task, "live"))
 
             f.spawn = fake_spawn
@@ -963,8 +963,11 @@ class FixCarryRerunTests(Base):
         self.assertIn(f"git diff {self.x}..{y}", calls[0][2])
         self.assertEqual([e.get("fix_carry") for e in self.spawn_events()], [True])
         # the reviewer ends without a verdict: the alert names the reviewer, never a qa that was not started
+        # T-1600: the one replacement is the failed role only (never qa); a second ending is the alert
         self.env.sql("UPDATE agents SET status='exited'")
-        self.step(y)
+        self.assertEqual([c[0] for c in self.step(y)], ["reviewer"])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.assertEqual(self.step(y), [])
         roles = [json.loads(r["detail"])["role"] for r in self.env.sql("SELECT detail FROM events WHERE action='review-no-verdict'")]
         self.assertEqual(roles, ["reviewer"])
 
