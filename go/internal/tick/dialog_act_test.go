@@ -351,3 +351,45 @@ func TestFinishPendingNudges(t *testing.T) {
 		}
 	})
 }
+
+// TestAutoClearRecheckAndBoss: dialog_now re-checks the host status and the pane before a key, and a boss pane without
+// unsent input is not skipped (the accepting twin of the unsent-input case).
+func TestAutoClearRecheckAndBoss(t *testing.T) {
+	now := func(d *dlgFix, name, role, want string) bool {
+		t.Helper()
+		r, err := newReapDB(d.db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, _ := newHerdrClient(r)
+		ok, err := dialogNow(r, c, name, role, want)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	d := newDlgFix(t)
+	d.pane("coder-1", "coder", dlgWarn, nil)
+	if !now(d, "coder-1", "coder", "settings-warning") {
+		t.Error("blocked host and matching pane: want true")
+	}
+	if now(d, "coder-1", "coder", "permission") {
+		t.Error("the pane is a settings warning, not a permission dialog: want false")
+	}
+	d.stub.set("agent_list", "out", `{"agents":[{"name":"coder-1","agent":"claude","pane_id":"p-1","agent_status":"idle"}]}`)
+	if now(d, "coder-1", "coder", "settings-warning") {
+		t.Error("the host no longer reports blocked: want false")
+	}
+	d.pane("coder-1", "coder", dlgUnknown, nil)
+	if now(d, "coder-1", "coder", "settings-warning") {
+		t.Error("the pane changed to an unknown dialog: want false")
+	}
+	t.Run("boss pane without unsent input gets Esc", func(t *testing.T) {
+		d := newDlgFix(t)
+		d.pane("boss-1", "boss", dlgWarn, nil)
+		if !d.clear("boss-1") {
+			t.Fatal("no key sent")
+		}
+		d.onlyEsc("boss-1", 1)
+	})
+}
