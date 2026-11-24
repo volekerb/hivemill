@@ -232,25 +232,6 @@ func cfgSlugs(s *store.Store, key string) (map[string]bool, error) {
 	return out, nil
 }
 
-// pyTruthy is Python truthiness of a decoded JSON value.
-func pyTruthy(v any) bool {
-	switch x := v.(type) {
-	case nil:
-		return false
-	case bool:
-		return x
-	case float64:
-		return x != 0
-	case string:
-		return x != ""
-	case []any:
-		return len(x) > 0
-	case map[string]any:
-		return len(x) > 0
-	}
-	return true
-}
-
 // valueErr is the ValueError class of main_protection_problem (bad JSON); the alert catches it.
 type valueErr struct{ msg string }
 

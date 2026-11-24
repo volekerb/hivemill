@@ -100,7 +100,7 @@ func TestTmpSweepRefusesSymlinkedRoot(t *testing.T) {
 			}
 		})
 	}
-	if !exists(filepath.Join(d, "real", "f")) {
+	if !pathExists(filepath.Join(d, "real", "f")) {
 		t.Error("a sweep followed a link and removed the target")
 	}
 }
@@ -128,11 +128,11 @@ func TestTmpSweepKeepsLinkedLeftovers(t *testing.T) {
 		t.Fatalf("sweepLeftovers = %v %d %v %v", r, locked, blocked, err)
 	}
 	for _, n := range []string{"guard-diff-dangl001", "freshbox-chain001", "guard-diff-loop0001", "freshbox-dirlk001"} {
-		if !exists(filepath.Join(tmp, n)) {
+		if !pathExists(filepath.Join(tmp, n)) {
 			t.Errorf("link %s was removed", n)
 		}
 	}
-	if !exists(filepath.Join(target, "keep")) {
+	if !pathExists(filepath.Join(target, "keep")) {
 		t.Error("the link target was removed")
 	}
 }

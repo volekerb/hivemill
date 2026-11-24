@@ -139,7 +139,7 @@ func (at *alertTest) cfgVal(k string) string {
 // --- unit table --------------------------------------------------------------------------------------------------
 
 // TestAlertUnitTable: the Go-capable units are exactly the ones in testdata/go_units.txt; units 5-8 are in, every other
-// unit is unchanged against origin/main (judge_ci_prune and hold_expiry stay the only other Go units).
+// unit is unchanged against origin/main (the other Go units on main stay listed).
 func TestAlertUnitTable(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("testdata", "go_units.txt"))
 	if err != nil {
@@ -361,7 +361,7 @@ func (at *alertTest) mkfile(path string, size int, mtime time.Time) {
 	}
 }
 
-func exists(p string) bool { _, err := os.Lstat(p); return err == nil }
+func pathExists(p string) bool { _, err := os.Lstat(p); return err == nil }
 
 func TestTmpSweepScratchOfFinishedAgents(t *testing.T) {
 	at := newAlertTest(t)
@@ -386,12 +386,12 @@ func TestTmpSweepScratchOfFinishedAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, gone := range []string{filepath.Join(base, done), filepath.Join(base, slug+"G-1-T-13-qa"), qa} {
-		if exists(gone) {
+		if pathExists(gone) {
 			t.Errorf("%s should be swept", gone)
 		}
 	}
 	for _, kept := range []string{filepath.Join(base, live), filepath.Join(base, noAgents), filepath.Join(base, "HQ-scratch"), filepath.Join(tmp, "qa-x-T-14-y")} {
-		if !exists(kept) {
+		if !pathExists(kept) {
 			t.Errorf("%s must be kept", kept)
 		}
 	}
@@ -448,12 +448,12 @@ func TestTmpSweepLeftovers(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, n := range []string{"guard-diff-abcd1234", "freshbox-abcd1234", "zz-test-foo-abcd1234", "tmp12345678", "zz-rv-abcd1234", "tmp.AbCdEfGhIj"} {
-		if exists(filepath.Join(tmp, n)) {
+		if pathExists(filepath.Join(tmp, n)) {
 			t.Errorf("%s should be removed", n)
 		}
 	}
 	for _, n := range []string{"guard-diff-young001", "go-buildX", "freshbox-held0001"} {
-		if !exists(filepath.Join(tmp, n)) {
+		if !pathExists(filepath.Join(tmp, n)) {
 			t.Errorf("%s must be kept", n)
 		}
 	}
@@ -471,14 +471,14 @@ func TestTmpSweepLeftovers(t *testing.T) {
 	if err := remoteURLAlertUnit(at.unit()); err != nil {
 		t.Fatal(err)
 	}
-	if !exists(filepath.Join(tmp, "guard-diff-late0001")) {
+	if !pathExists(filepath.Join(tmp, "guard-diff-late0001")) {
 		t.Error("the throttle (600 s) did not hold the leftover walk back")
 	}
 	at.Now = at.Now.Add(6 * time.Minute)
 	if err := remoteURLAlertUnit(at.unit()); err != nil {
 		t.Fatal(err)
 	}
-	if exists(filepath.Join(tmp, "guard-diff-late0001")) {
+	if pathExists(filepath.Join(tmp, "guard-diff-late0001")) {
 		t.Error("after the throttle the leftover must go")
 	}
 }
@@ -525,7 +525,7 @@ func TestTmpSweepBlockedByUnreadablePid(t *testing.T) {
 	if err := remoteURLAlertUnit(at.unit()); err != nil {
 		t.Fatal(err)
 	}
-	if !exists(filepath.Join(tmp, "freshbox-blocked1")) {
+	if !pathExists(filepath.Join(tmp, "freshbox-blocked1")) {
 		t.Error("a blocked run must remove nothing")
 	}
 	ev := at.events("tmp-sweep-blocked")
@@ -557,8 +557,8 @@ func TestTmpSweepHeldByOpenFd(t *testing.T) {
 	if err := remoteURLAlertUnit(at.unit()); err != nil {
 		t.Fatal(err)
 	}
-	if !exists(filepath.Join(tmp, "freshbox-heldfd01")) || exists(filepath.Join(tmp, "freshbox-free0001")) {
-		t.Fatalf("held kept=%v free removed=%v", exists(filepath.Join(tmp, "freshbox-heldfd01")), !exists(filepath.Join(tmp, "freshbox-free0001")))
+	if !pathExists(filepath.Join(tmp, "freshbox-heldfd01")) || pathExists(filepath.Join(tmp, "freshbox-free0001")) {
+		t.Fatalf("held kept=%v free removed=%v", pathExists(filepath.Join(tmp, "freshbox-heldfd01")), !pathExists(filepath.Join(tmp, "freshbox-free0001")))
 	}
 }
 
@@ -759,7 +759,7 @@ func TestMainProtectionHourlyAndFrozen(t *testing.T) {
 	at.cfg("public_text_repos", "")
 	os.Remove(log)
 	run(200)
-	if exists(log) {
+	if pathExists(log) {
 		t.Error("gh was called with no public repo configured")
 	}
 	// an unreadable stamp is overwritten and the check runs

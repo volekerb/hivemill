@@ -35,12 +35,12 @@ func TestTmpSweepGobuildAndFactorytestCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, n := range []string{"go-build123", "factorytest-cache-" + strconv.Itoa(os.Getuid()) + "/aaa", "factorytest-cache-" + strconv.Itoa(os.Getuid()) + "/bbb", "factorytest-cache-" + strconv.Itoa(os.Getuid()) + "/ccc"} {
-		if exists(filepath.Join(tmp, n)) {
+		if pathExists(filepath.Join(tmp, n)) {
 			t.Errorf("%s should be removed", n)
 		}
 	}
 	for _, n := range []string{"go-build456", "go-build12x", "go-build٣", "factorytest-cache-" + strconv.Itoa(os.Getuid()) + "/newest"} {
-		if !exists(filepath.Join(tmp, n)) {
+		if !pathExists(filepath.Join(tmp, n)) {
 			t.Errorf("%s must be kept", n)
 		}
 	}
@@ -64,7 +64,7 @@ func TestFactorytestCacheKeepsNewestWhenOld(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer closeDB()
-	if got := sweepFactorytestCache(a, alertNow()); len(got) != 0 || !exists(filepath.Join(cache, "only")) {
+	if got := sweepFactorytestCache(a, alertNow()); len(got) != 0 || !pathExists(filepath.Join(cache, "only")) {
 		t.Fatalf("newest entry removed: %v", got)
 	}
 }
