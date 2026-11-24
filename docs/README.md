@@ -130,6 +130,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0006-worker-sandbox-assessment.md](adr/0006-worker-sandbox-assessment.md): worker sandbox assessment (why go test fails for QA; proposed, nothing installed).
 - [adr/0007-hivemill-kit.md](adr/0007-hivemill-kit.md): Hivemill Kit design (standalone skills, three levels, evals and a catalog; proposed).
 - [adr/0008-resource-hygiene.md](adr/0008-resource-hygiene.md): deterministic resource hygiene (hm-clean; proposed, nothing installed).
+- [adr/0009-option-b-runner.md](adr/0009-option-b-runner.md): ADR 0009, Option B runner: one session per task, Stop-hook gate, fresh judge, mechanical merge (Go core `hivemill`).
 
 ## Internals
 

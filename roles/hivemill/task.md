@@ -14,7 +14,7 @@ Your kickoff message holds the task id, its spec and its acceptance criteria. Ea
 6. Write `.hivemill/evidence.json` (format below): for each acceptance criterion, the proof, the command you ran and its exit code. The factory re-runs every `test:` and `cmd:` proof itself, so record what you really ran.
 7. Commit with your noreply identity. Run `git fetch origin && git merge origin/main` and re-run the affected tests if main moved.
 8. Push with exactly `git push origin HEAD:factory/<task-id>`, alone in its own Bash call.
-9. Open the PR: `factory pr create --title 'T-1234: what the change does' --body -` with a quoted heredoc body. Follow `docs/pr-descriptions.md`: the five template sections, then the `<details>` acceptance walk. In `## Test evidence`, give the exact command, its key output line, and the test count on main and on the branch.
+9. Open the PR: `factory pr create --title 'T-1234: what the change does' --body -` with a quoted heredoc body. Follow `docs/pr-descriptions.md`: the five template sections, then the `<details>` acceptance walk. Keep the five sections under 300 words, with evidence detail inside `<details>`. In `## Test evidence`, give the exact command, its key output line, and how many tests ran on main and on the branch.
 10. Wait for CI with one blocking command: `gh pr checks <PR number> --watch --fail-fast --interval 60 > .hivemill/ci.log 2>&1; echo exit=$?`. If a check you caused is red, fix it, push, and wait once more.
 11. Stop. A check runs when you stop. If it lists problems, fix them and stop again. After you stop with everything green, the factory takes over: a separate judge reads the PR, and the factory merges it. If the judge or CI sends you a message later, fix what it names in this same session, push, and stop again.
 
@@ -36,6 +36,6 @@ Use the criterion numbers from the kickoff. A `manual:` criterion gets `"command
 
 - Never poll `gh` in a loop. One blocking wait per CI round. The API limit is shared across the whole factory.
 - Logs go to files. Show yourself the exit code and the failing lines only.
-- A test count lower than on main fails the check unless the PR body has a `Tests removed: <what and why>` line.
+- Removing tests fails the check unless the PR body has a `Tests removed: <what and why>` line.
 - The repo is public. Write no hostnames, IP addresses, personal names or private terms in code, commits or the PR.
 - If the spec is wrong or impossible, say so in one short final message and stop. The check will mark the task for the owner after a few blocked stops.
