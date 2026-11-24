@@ -213,7 +213,7 @@ func setThrottle(ctx context.Context, db *sql.DB, key string, t time.Time) error
 	return err
 }
 
-// ExecSpend runs the real hm-spend (HIVEMILL_BIN_DIR, ~/.local/share/hivemill/bin, then PATH) with a 60 s limit.
+// ExecSpend runs the real hm-spend (HIVEMILL_BIN_DIR, ~/.local/share/hivemill/bin, then PATH) with a 30 s limit (two calls stay under the 90 s tick limit).
 func ExecSpend(ctx context.Context, hours int) ([]byte, error) {
 	bin := ""
 	home, _ := os.UserHomeDir()
@@ -233,7 +233,7 @@ func ExecSpend(ctx context.Context, hours int) ([]byte, error) {
 		}
 		bin = p
 	}
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, bin, "report", "--hours", fmt.Sprint(hours), "--json").Output()
 	if err != nil {
