@@ -267,6 +267,9 @@ func checkShim(root, rel, version string, c *collector) {
 		return
 	}
 	text := string(b)
+	if fi, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); err == nil && fi.Mode()&0o111 == 0 {
+		c.add(rel, "not executable; run chmod +x")
+	}
 	if m := versRe.FindStringSubmatch(text); m == nil {
 		c.add(rel, "no VERSION=\"...\" line")
 	} else if version != "" && m[1] != version {
@@ -322,7 +325,11 @@ func checkTemplate(root, version string, c *collector) {
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(target, []byte(repl.Replace(string(b))), 0o644)
+		perm := os.FileMode(0o644)
+		if fi, ierr := d.Info(); ierr == nil {
+			perm = fi.Mode().Perm()
+		}
+		return os.WriteFile(target, []byte(repl.Replace(string(b))), perm)
 	})
 	if err != nil {
 		c.add(templateDir, "cannot copy the template: "+err.Error())

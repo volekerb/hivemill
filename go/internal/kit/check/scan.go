@@ -100,7 +100,7 @@ func quote(s string) string { return `"` + s + `"` }
 
 func benignNumberKey(key string) bool {
 	lk := strings.ToLower(key)
-	for _, suf := range []string{"count", "limit", "max", "min", "size", "ttl", "len", "length"} {
+	for _, suf := range []string{"count", "limit", "max", "min", "size", "ttl", "len", "length", "tokens", "budget", "timeout", "seconds"} {
 		if strings.HasSuffix(lk, suf) {
 			return true
 		}

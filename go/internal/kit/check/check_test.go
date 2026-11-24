@@ -25,7 +25,12 @@ func put(t *testing.T, root, rel, body string) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+	_ = os.Remove(p) // WriteFile keeps an existing file's mode
+	mode := os.FileMode(0o644)
+	if strings.Contains(rel, "/bin/") {
+		mode = 0o755 // shims must be executable
+	}
+	if err := os.WriteFile(p, []byte(body), mode); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -194,6 +199,17 @@ func TestSecretKeysAndShapes(t *testing.T) {
 	put(t, root, "plugins/kit-demo/eval/fixtures/x.txt", "key = ghp_"+"abcdefghijklmnop\n")
 	if got := lines(Run(root)); len(got) != 1 {
 		t.Fatalf("text fixture: want 1 finding, got %v", got)
+	}
+}
+
+func TestShimNotExecutable(t *testing.T) {
+	root := repoRoot(t)
+	if err := os.Chmod(filepath.Join(root, "plugins/kit-demo/bin/hm-demo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := lines(Run(root))
+	if len(got) != 1 || !strings.Contains(got[0], "plugins/kit-demo/bin/hm-demo: not executable") {
+		t.Fatalf("got %v", got)
 	}
 }
 
