@@ -319,6 +319,11 @@ _PHASES_LINE = re.compile(r"(?m)^tick-phases .*$")
 _PHASES_FLOAT = re.compile(r"=\d+\.\d\d\b")
 
 
+# The Python tick runs hold_expiry through ~/.local/lib/factory/factory-go and, when a test home has none, prints this line;
+# the Go tick runs the unit in-process and has no such branch (T-1821). Only this exact line is dropped from Python's stderr.
+_HOLD_EXPIRY_MISSING = "hold_expiry: factory-go missing; holds kept\n"
+
+
 def _mask_phase_timing(text):
     return _PHASES_LINE.sub(lambda m: _PHASES_FLOAT.sub("=<t>", m.group(0)), text)
 
@@ -511,6 +516,7 @@ class FactoryEnv:
                 shutil.rmtree(self.home, ignore_errors=True)
                 os.rename(aside, self.home)
             go_err = re.sub(r"(?m)^factory\(go\):", "factory:", go.stderr)
+            py_err = py.stderr.replace(_HOLD_EXPIRY_MISSING, "") if args[:1] == ("tick",) else py.stderr
             problems = []
             if py.returncode != go.returncode:
                 problems.append(f"exit code: python {py.returncode}, go {go.returncode}")
@@ -518,7 +524,7 @@ class FactoryEnv:
             out_py, out_go = (_HOST.sub("<host>", _mask_phase_timing(o)) for o in (out_py, out_go))
             if out_py != out_go:
                 problems.append(f"stdout: python {py.stdout!r}, go {go.stdout!r}")
-            if py.stderr != go_err:
+            if py_err != go_err:
                 problems.append(f"stderr: python {py.stderr!r}, go {go_err!r}")
             if (db_py is None) != (db_go is None):
                 problems.append("DB: exists on one side only")
