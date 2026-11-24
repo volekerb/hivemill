@@ -221,3 +221,15 @@ func TestReviewEvidence(t *testing.T) {
 		t.Errorf("empty findings with a head are valid: %v %q", probs, head)
 	}
 }
+
+func TestHealthLine(t *testing.T) {
+	r, s := testRunner(t, "")
+	_ = s.SetCfg("health_max_age_s", "300")
+	if got := r.HealthLine(7*time.Minute + 400*time.Millisecond); got != "last good pass 7m0s ago (max 300s); drain false" {
+		t.Errorf("%q", got)
+	}
+	_ = r.SetDrain(true)
+	if got := r.HealthLine(time.Second); !strings.HasSuffix(got, "(max 300s); drain true") {
+		t.Errorf("%q", got)
+	}
+}

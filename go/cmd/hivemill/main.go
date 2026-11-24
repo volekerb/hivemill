@@ -171,7 +171,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		err = r.Daemon(ctx)
 	case "health":
 		ok, age := r.Health(time.Now())
-		fmt.Fprintf(stdout, "last good pass %s ago; drain %v\n", age.Round(time.Second), r.Draining())
+		fmt.Fprintln(stdout, r.HealthLine(age))
 		if !ok {
 			if arg(1) == "--alert" {
 				if sent, e := r.HealthAlert(time.Now(), age); e != nil {
