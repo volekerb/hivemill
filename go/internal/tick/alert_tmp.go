@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -25,6 +26,9 @@ const (
 	tmpLeftoverCap       = 500   // TMP_LEFTOVER_CAP
 	tmpLeftoverThrottleS = 600   // TMP_LEFTOVER_THROTTLE_S
 	tmpMB                = 1048576
+	tmpGobuildMinAgeS    = 7200 // TMP_GOBUILD_MIN_AGE_S (T-1698)
+	tmpFtcacheMinAgeS    = 7200 // TMP_FTCACHE_MIN_AGE_S (T-1698)
+	tmpFtcacheKeep       = 1    // TMP_FTCACHE_KEEP: the newest entry always stays
 )
 
 var (
@@ -32,6 +36,8 @@ var (
 	// TMP_LEFTOVER_IGNORE_COMMS: same-uid daemons that are non-dumpable and never hold /tmp entries.
 	tmpIgnoreComms = map[string]bool{"systemd": true, "(sd-pam)": true, "ssh-agent": true, "sshd-session": true}
 	// _LEFTOVER_NAME, used with fullmatch. The classes are ASCII in Python too.
+	// _GOBUILD_NAME (fullmatch, ASCII digits).
+	tmpGobuildName  = regexp.MustCompile(`^go-build[0-9]+$`)
 	tmpLeftoverName = regexp.MustCompile(`^(?:(?:guard-diff-(?:seed-)?|factory-screenshots-|freshbox-)[a-z0-9_]{8}` +
 		`|zz-test-[a-z0-9-]+-[a-z0-9_]{8}|zz-rv-[a-z0-9_]{8}|tmp[a-z0-9_]{8}|tmp\.[A-Za-z0-9]{10})$`)
 )
@@ -82,6 +88,11 @@ func tmpUsage() *tmpUsageInfo {
 	fstype := ""
 	best := ""
 	target := pyRealpath(tmpDir())
+	if tmpGOOS == "darwin" {
+		// statvfs does not name the fs type on macOS (T-1568 R5)
+		used := total - free
+		return &tmpUsageInfo{UsedMB: used / tmpMB, TotalMB: total / tmpMB, Pct: 100.0 * float64(used) / float64(total), FSType: darwinFsType(tmpDir())}
+	}
 	if raw, err := os.ReadFile("/proc/mounts"); err == nil {
 		for _, line := range strings.Split(string(raw), "\n") { // splitlines: /proc/mounts has only \n
 			f := strings.FieldsFunc(line, store.PyIsSpace)
@@ -508,7 +519,8 @@ func sweepLeftovers(a *alertEnv, t float64) (removed []leftover, locked int, blo
 	}
 	uid := os.Getuid()
 	for _, e := range ents {
-		if !tmpLeftoverName.MatchString(e.Name()) {
+		gobuild := tmpGobuildName.MatchString(e.Name())
+		if !gobuild && !tmpLeftoverName.MatchString(e.Name()) {
 			continue
 		}
 		d := filepath.Join(base, e.Name())
@@ -537,7 +549,11 @@ func sweepLeftovers(a *alertEnv, t float64) (removed []leftover, locked int, blo
 			}
 			newest = n
 		}
-		if t-newest < tmpLeftoverMinAgeS {
+		minAge := float64(tmpLeftoverMinAgeS)
+		if gobuild {
+			minAge = tmpGobuildMinAgeS
+		}
+		if t-newest < minAge {
 			continue
 		}
 		real := pyRealpath(d)
@@ -621,6 +637,81 @@ func sweepLeftovers(a *alertEnv, t float64) (removed []leftover, locked int, blo
 	return removed, locked, false, nil
 }
 
+// sweepFactorytestCache is the T-1698 factorytest-cache sweep: entries of <tmp>/factorytest-cache-<uid>/ untouched
+// for 2 h, not held by a process of ours, never the newest tmpFtcacheKeep. Any error keeps everything.
+func sweepFactorytestCache(a *alertEnv, t float64) []leftover {
+	uid := os.Getuid()
+	base := filepath.Join(tmpDir(), fmt.Sprintf("factorytest-cache-%d", uid))
+	li, err := os.Lstat(base)
+	if err != nil || li.Mode()&os.ModeSymlink != 0 {
+		return nil
+	}
+	fi, err := os.Stat(base)
+	if err != nil || !fi.IsDir() {
+		return nil
+	}
+	if sys, ok := fi.Sys().(*syscall.Stat_t); !ok || int(sys.Uid) != uid {
+		return nil
+	}
+	dirents, err := os.ReadDir(base)
+	if err != nil {
+		return nil
+	}
+	type ent struct {
+		m float64
+		d string
+	}
+	var ents []ent
+	for _, e := range dirents {
+		d := filepath.Join(base, e.Name())
+		st, err := os.Lstat(d)
+		if err != nil {
+			return nil // Python: any OSError in the scan returns []
+		}
+		sys, _ := st.Sys().(*syscall.Stat_t)
+		if st.IsDir() && sys != nil && int(sys.Uid) == uid {
+			m, err := harnessNewestMTime(d)
+			if err != nil {
+				return nil
+			}
+			ents = append(ents, ent{m, d})
+		}
+	}
+	sort.SliceStable(ents, func(i, j int) bool { return ents[i].m > ents[j].m })
+	type oldEnt struct{ d, real string }
+	var old []oldEnt
+	if len(ents) > tmpFtcacheKeep {
+		for _, e := range ents[tmpFtcacheKeep:] {
+			if t-e.m >= tmpFtcacheMinAgeS {
+				old = append(old, oldEnt{e.d, pyRealpath(e.d)})
+			}
+		}
+	}
+	if len(old) == 0 {
+		return nil
+	}
+	roots := make([]string, len(old))
+	for i, o := range old {
+		roots[i] = o.real
+	}
+	held, ok, herr := procHolds(procRoot(a), roots, tmpIgnoreComms, new([]string))
+	if herr != nil || !ok {
+		return nil
+	}
+	var out []leftover
+	for _, o := range old {
+		if held[o.real] {
+			continue
+		}
+		size := tmpTreeBytes(o.d)
+		if os.RemoveAll(o.d) != nil {
+			continue // Python: OSError keeps going
+		}
+		out = append(out, leftover{o.d, size})
+	}
+	return out
+}
+
 func firstOr(l []string, d string) string {
 	if len(l) > 0 {
 		return l[0]
@@ -691,6 +782,7 @@ func tmpSweepRun(a *alertEnv) error {
 			if left, locked, blocked, err = sweepLeftovers(a, t); err != nil {
 				return err
 			}
+			left = append(left, sweepFactorytestCache(a, t)...)
 		}
 		for _, l := range left {
 			freed += l.Size

@@ -439,7 +439,7 @@ func TestTmpSweepLeftovers(t *testing.T) {
 	at.mkfile(filepath.Join(tmp, "tmp.AbCdEfGhIj"), 10, old) // a plain file of the listed shape
 	// kept: too young, a name outside the list, held by an agent cwd
 	at.mkfile(filepath.Join(tmp, "guard-diff-young001", "x"), 1, at.Now.Add(-time.Hour))
-	at.mkfile(filepath.Join(tmp, "go-build123", "x"), 1, old)
+	at.mkfile(filepath.Join(tmp, "go-buildX", "x"), 1, old)
 	at.mkfile(filepath.Join(tmp, "freshbox-held0001", "x"), 1, old)
 	os.Chtimes(filepath.Join(tmp, "freshbox-held0001"), old, old)
 	at.agent("a-cwd", "coder", "live", "T-5", filepath.Join(tmp, "freshbox-held0001"), "")
@@ -452,7 +452,7 @@ func TestTmpSweepLeftovers(t *testing.T) {
 			t.Errorf("%s should be removed", n)
 		}
 	}
-	for _, n := range []string{"guard-diff-young001", "go-build123", "freshbox-held0001"} {
+	for _, n := range []string{"guard-diff-young001", "go-buildX", "freshbox-held0001"} {
 		if !exists(filepath.Join(tmp, n)) {
 			t.Errorf("%s must be kept", n)
 		}
