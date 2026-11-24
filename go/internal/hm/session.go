@@ -113,7 +113,7 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	args := []string{"--model", l.Model, "--effort", l.Effort, "--permission-mode", "auto", "--settings", settings,
 		"--append-system-prompt-file", sysprompt, "--add-dir", r.Env.Home, "-n", l.Name,
 		"--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`, "--session-id", sid}
-	env := map[string]string{"PATH": os.Getenv("PATH"), "LANG": "C.UTF-8", "TERM": "xterm-256color", "HOME": r.Env.UserHome,
+	env := map[string]string{"PATH": sessionPath(r.Env.UserHome), "LANG": "C.UTF-8", "TERM": "xterm-256color", "HOME": r.Env.UserHome,
 		"FACTORY_AGENT": l.Name, "FACTORY_ROLE": l.Role, "FACTORY_HOME": r.Env.Home}
 	for k, v := range l.Env {
 		env[k] = v
@@ -191,3 +191,19 @@ func (r *Runner) Close(name string) {
 }
 
 func nowISO() string { return time.Now().Format(time.RFC3339) }
+
+// sessionPath is the caller's PATH with ~/.local/bin first (claude, hc, factory and hivemill live there; a non-login
+// shell such as ssh or systemd may not have it).
+func sessionPath(userHome string) string {
+	p := os.Getenv("PATH")
+	if p == "" {
+		p = "/usr/local/bin:/usr/bin:/bin"
+	}
+	local := filepath.Join(userHome, ".local", "bin")
+	for _, d := range filepath.SplitList(p) {
+		if d == local {
+			return p
+		}
+	}
+	return local + string(os.PathListSeparator) + p
+}
