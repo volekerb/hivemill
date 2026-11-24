@@ -158,10 +158,15 @@ func TestJudgeHookRecordsVerdictAndBlocksOnceWithoutOne(t *testing.T) {
 }
 
 func TestParseVerdict(t *testing.T) {
-	for _, bad := range []string{"no block", "```json\n{\"verdict\": \"maybe\", \"reasons\": [\"x\"], \"criteria_assessed\": []}\n```",
-		"```json\n{\"verdict\": \"REJECT\", \"reasons\": [], \"criteria_assessed\": []}\n```"} {
+	for _, bad := range []string{"no block", "```json\n{\"verdict\": \"REJECT\", \"reasons\": [], \"criteria_assessed\": []}\n```"} {
 		if _, err := ParseVerdict(bad); err == nil {
 			t.Errorf("%q parsed", bad)
+		}
+	}
+	for in, want := range map[string]string{"merge": "MERGE", "Reject": "REJECT", "MERGE": "MERGE"} {
+		v, err := ParseVerdict("```json\n{\"verdict\": \"" + in + "\", \"reasons\": [\"x\"], \"criteria_assessed\": []}\n```")
+		if err != nil || v.Verdict != want {
+			t.Errorf("%q: %v %v, want %s", in, v, err, want)
 		}
 	}
 }

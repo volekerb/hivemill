@@ -43,7 +43,13 @@ func ParseVerdict(text string) (*Verdict, error) {
 	if err := json.Unmarshal([]byte(raw), &v); err != nil {
 		return nil, fmt.Errorf("the verdict block is not valid JSON (%v)", err)
 	}
-	if v.Verdict != "MERGE" && v.Verdict != "REJECT" {
+	// Judges sometimes answer "merge" or "Reject": normalise the case instead of refusing the block.
+	switch up := strings.ToUpper(strings.TrimSpace(v.Verdict)); {
+	case strings.HasPrefix(up, "M"):
+		v.Verdict = "MERGE"
+	case strings.HasPrefix(up, "R"):
+		v.Verdict = "REJECT"
+	default:
 		return nil, errors.New(`verdict must be "MERGE" or "REJECT"`)
 	}
 	if len(v.Reasons) == 0 {
