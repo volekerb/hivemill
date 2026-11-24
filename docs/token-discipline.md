@@ -45,7 +45,7 @@ Claude Code 2.1.331 has two settings for how long a prompt cache entry lives. Ea
 
 A cache write costs more than plain input: 1.25x the input price for a 5-minute entry, 2x for a 1-hour entry. Reads cost the same for both. A short session that uses its cache for minutes pays the 2x write price for nothing.
 
-The Option B task and judge settings (`roles/hivemill/*.json.in`) set both to `5m`. Keep `1h` for a long-lived session that idles more than 5 minutes between turns: there a 5-minute entry expires before the next turn and is written again each time. Each rewrite costs 1.25x against a single 2x write for `1h`, so `1h` wins once a session has two or more idle gaps longer than 5 minutes within the hour.
+The Option B task and judge settings (`roles/hivemill/*.json.in`) set both to `5m`. Keep `1h` for a long-lived session that idles more than 5 minutes between turns: there a 5-minute entry expires before the next turn and is written again each time. With `5m` the session pays 1.25x for the first write and 1.25x for each rewrite, 1.25 * (gaps + 1) in total, against 2x once for `1h`. One gap already gives 2.5x, so `1h` wins once a session has even one idle gap longer than 5 minutes within the hour.
 
 ## The rules
 
