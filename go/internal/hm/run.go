@@ -212,7 +212,9 @@ func (r *Runner) Start(id string) error {
 	if err != nil {
 		return err
 	}
-	name := "claude-task-" + strings.ToLower(id)
+	// The worker guard (unchanged) lets a pane push only HEAD:factory/<task> for FACTORY_AGENT
+	// claude-coder-t-NNNN(-aN); the lane's own suffix -a7 keeps the name apart from old-pipeline coders.
+	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(),
 		Criteria: len(Criteria(t.Acceptance))}
