@@ -70,7 +70,8 @@ func testRunner(t *testing.T, actor string) (*Runner, *SQLite) {
 		HC: func(...string) (int, string, string) { return 0, `{"terminals": []}`, "" },
 		Sh: func(string, time.Duration, []string, ...string) (int, string) { return 0, "" },
 	}
-	return &Runner{Env: e, Store: s, Tools: tools, Log: Log{Path: filepath.Join(e.StateDir(), "events.jsonl")}, Out: io.Discard}, s
+	return &Runner{Env: e, Store: s, Tools: tools, Log: Log{Path: filepath.Join(e.StateDir(), "events.jsonl")}, Out: io.Discard, ReadyWait: 20 * time.Millisecond,
+		Poll: time.Millisecond}, s
 }
 
 func TestGateHookBlocksThenFailsAtTheCap(t *testing.T) {

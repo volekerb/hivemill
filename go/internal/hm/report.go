@@ -229,7 +229,11 @@ func (r *Runner) Report(asJSON bool) error {
 		r.printf("%s\n", b)
 		return nil
 	}
-	r.printf("%s\n", caps.Header(r.Store))
+	drain := ""
+	if r.Draining() {
+		drain = "DRAIN on (no new runs), "
+	}
+	r.printf("%s%s; backup: %s\n", drain, caps.Header(r.Store), r.ReplicationPlan())
 	r.printf("%-7s %-10s %6s %6s %6s %6s %3s %-12s %2s %5s %4s %4s %3s %5s sessions\n", "task", "outcome", "$", "$task", "$judge", "h",
 		"blk", "judge", "ci", "fix", "crit", "prov", "man", "rfail")
 	for _, x := range rows {

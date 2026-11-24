@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>hivemill.run</string>
+	<string>hivemill.daemon</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>/bin/sh</string>
 		<string>-c</string>
-		<string>exec "$HOME/.local/bin/hivemill" run</string>
+		<string>exec "$HOME/.local/bin/hivemill" daemon</string>
 	</array>
 	<key>EnvironmentVariables</key>
 	<dict>
@@ -17,11 +17,15 @@
 		<key>PATH</key>
 		<string>{{.Path}}</string>
 	</dict>
-	<key>StartInterval</key>
-	<integer>60</integer>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
 	<key>StandardOutPath</key>
-	<string>{{.LogDir}}/hivemill.run.log</string>
+	<string>{{.LogDir}}/hivemill.daemon.log</string>
 	<key>StandardErrorPath</key>
-	<string>{{.LogDir}}/hivemill.run.log</string>
+	<string>{{.LogDir}}/hivemill.daemon.log</string>
 </dict>
 </plist>

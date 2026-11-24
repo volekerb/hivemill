@@ -28,6 +28,14 @@ var Defaults = map[string]string{
 	"task_budget_usd":          "5",    // a run whose sessions cost more (API prices) is stopped and marked FAIL "budget"; off = none
 	"project_daily_budget_usd": "off",  // per project, sessions started today; reached = no new run in that project
 	"weekly_budget_usd":        "off",  // all runs, sessions started in the last 7 days; reached = no new run
+	"pass_interval_s":          "60",   // `hivemill daemon`: seconds between passes
+	"resume_max":               "3",    // lost sessions relaunched with claude --resume per run, then FAIL "session lost"
+	"health_max_age_s":         "300",  // `hivemill health` fails when the last good pass is older
+	"alert_every_s":            "3600", // at most one dead-man alert per this many seconds
+	"backup_interval":          "off",  // daemon snapshot schedule as a Go duration (6h, 30m); off = only `hivemill backup`
+	"backup_keep":              "7",    // snapshots kept (in backup_dir and in a file:// target)
+	"backup_dir":               "",     // empty = state/hivemill/backups
+	"backup_target":            "",     // file:///path (copy) | s3://bucket/path | sftp://host/path (litestream when installed)
 }
 
 // DefaultKeys returns the config keys, sorted.

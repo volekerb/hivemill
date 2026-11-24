@@ -36,6 +36,7 @@ type Run struct {
 	Outcome, FailReason, Kind, RevertedBy, GoalCheck          string
 	Criteria, Proven, Manual, FindingsTotal, FindingsFixed    int
 	IdleSince                                                 string
+	Resumes                                                   int
 	IdleNudges                                                int
 	Verdicts                                                  []Verdict
 	History                                                   []string
@@ -56,11 +57,15 @@ type Store interface {
 	TaskPR(id, prURL, tier string) error
 	TaskClone(id, worktree, branch string) error
 	NewTask(goal, title, spec, acceptance string) (string, error)
+	TaskByTitle(goal, title string) (string, error)
 	GoalOpenTasks(goal string) (int, string, error)
 	DoneTasks() (map[string]bool, error)
 	FactoryCfg(key string) string
 	Cfg(key string) string
 	SetCfg(key, value string) error
+	Meta(key string) string
+	SetMeta(key, value string) error
+	AlertFeed(kind, ref, link string) error
 	AgentLive(name, role, task, goal, team, model, sid, cwd, args string) error
 	AgentEnded(name string) error
 	AgentSession(name, sid string) error
@@ -421,4 +426,33 @@ func (s *SQLite) SetRedMainFix(slug, task string) error {
 	b, _ := json.Marshal(m)
 	_, err := s.db.Exec(`UPDATE config SET value=? WHERE key=?`, string(b), "red_main:"+slug)
 	return err
+}
+
+// Meta reads a runner state value (heartbeat, drain, alert marks) kept in hm_config under "meta:<key>".
+func (s *SQLite) Meta(key string) string {
+	var v string
+	_ = s.db.QueryRow(`SELECT value FROM hm_config WHERE key=?`, "meta:"+key).Scan(&v)
+	return v
+}
+
+func (s *SQLite) SetMeta(key, value string) error {
+	_, err := s.db.Exec(`INSERT INTO hm_config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, "meta:"+key, value)
+	return err
+}
+
+// AlertFeed opens one row in the factory's owner alert feed (deduped by kind and ref while open).
+func (s *SQLite) AlertFeed(kind, ref, link string) error {
+	_, err := s.db.Exec(`INSERT OR IGNORE INTO owner_alert_feed(org,kind,ref,since,link,first_seen) VALUES('claude',?,?,?,?,?)`,
+		kind, ref, s.now(), link, s.now())
+	return err
+}
+
+// TaskByTitle is the id of a task of `goal` with exactly this title ("" when none).
+func (s *SQLite) TaskByTitle(goal, title string) (string, error) {
+	var id string
+	err := s.db.QueryRow(`SELECT id FROM tasks WHERE goal_id=? AND title=? ORDER BY id LIMIT 1`, goal, title).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return id, err
 }

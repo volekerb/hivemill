@@ -11,16 +11,24 @@
 //	hivemill report [--json]       scoreboard
 //	hivemill task lint T-1234      spec gate: every acceptance criterion names its proof
 //	hivemill config [KEY [VALUE]]  runner settings (table hm_config)
+//	hivemill daemon                the pass loop in-process (systemd Type=notify, launchd KeepAlive)
+//	hivemill health [--alert]      exit 0 when the last good pass is recent; --alert raises the rate-limited dead-man alert
+//	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
+//	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"regexp"
 	"strings"
+	"syscall"
+	"time"
 
 	"factory/go/internal/hm"
 )
@@ -32,7 +40,8 @@ func main() { os.Exit(Main(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }
 // Main is the whole CLI; it returns the exit code.
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
-		"report [--json] | task lint T-1234 | config [KEY [VALUE]]"
+		"report [--json] | task lint T-1234 | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
+		"backup | restore <snapshot> [--dry-run]"
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Fprintln(stdout, usage)
 		return 0
@@ -60,7 +69,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	defer r.Store.Close()
 	if !hook && env.Actor != "" && env.Actor != "owner" {
 		role := r.Store.AgentRole(env.Actor)
-		if role != "director" && role != "boss" && !(args[0] == "task" || args[0] == "report") {
+		if role != "director" && role != "boss" && !(args[0] == "task" || args[0] == "report" || args[0] == "health") {
 			fmt.Fprintf(stderr, "hivemill: %s is for the owner or the director, not %s\n", args[0], env.Actor)
 			return 3
 		}
@@ -156,6 +165,51 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		r.Merge(run)
 		err = r.Store.PutRun(run)
 		fmt.Fprintf(stdout, "%s: %s %s\n", run.Task, run.State, run.MergeHold)
+	case "daemon":
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+		defer stop()
+		err = r.Daemon(ctx)
+	case "health":
+		ok, age := r.Health(time.Now())
+		fmt.Fprintf(stdout, "last good pass %s ago; drain %v\n", age.Round(time.Second), r.Draining())
+		if !ok {
+			if arg(1) == "--alert" {
+				if sent, e := r.HealthAlert(time.Now(), age); e != nil {
+					fmt.Fprintln(stderr, "hivemill: alert:", e)
+				} else if sent {
+					fmt.Fprintln(stdout, "alert sent")
+				}
+			}
+			return 1
+		}
+	case "drain":
+		if arg(1) != "--status" {
+			err = r.SetDrain(true)
+		}
+		if err == nil {
+			fmt.Fprintf(stdout, "drain %v\n", r.Draining())
+			err = r.Status()
+		}
+	case "resume":
+		err = r.SetDrain(false)
+		fmt.Fprintln(stdout, "drain off: new runs may start")
+	case "backup":
+		var p string
+		p, err = r.Backup(time.Now())
+		if err == nil {
+			fmt.Fprintf(stdout, "snapshot %s\n%s\n", p, r.ReplicationPlan())
+		}
+	case "restore":
+		if arg(1) == "" {
+			fmt.Fprintln(stderr, "usage: hivemill restore <snapshot> [--dry-run]")
+			return 2
+		}
+		l := r.DaemonRunning()
+		var msg string
+		msg, err = hm.Restore(env, arg(1), arg(2) == "--dry-run", l)
+		if err == nil {
+			fmt.Fprintln(stdout, msg)
+		}
 	case "report":
 		err = r.Report(arg(1) == "--json")
 	case "task":

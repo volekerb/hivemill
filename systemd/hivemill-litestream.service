@@ -1,0 +1,10 @@
+[Unit]
+Description=Litestream continuous replication of the factory DB (optional; docs/option-b-runner.md#backup)
+After=network-online.target
+[Service]
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=litestream replicate -config %h/.config/hivemill/litestream.yml
+Restart=always
+RestartSec=30
+[Install]
+WantedBy=default.target

@@ -385,6 +385,9 @@ func (r *Runner) RevertCheck() error {
 
 func (r *Runner) openRevert(x *Run, st map[string]any) (string, error) {
 	title := fmt.Sprintf("Revert %s: main red after its merge", x.Task)
+	if old, _ := r.Store.TaskByTitle(x.Goal, title); old != "" {
+		return old, nil // idempotent: a pass that crashed after filing the revert task does not file a second one
+	}
 	id, err := r.Store.NewTask(x.Goal, title, fmt.Sprintf("Mechanical revert of %.12s (%s): main's push run %v failed on it.", x.MergeSHA, x.PRURL, st["run"]),
 		"1. main is green again - manual: the red-main monitor clears it")
 	if err != nil {

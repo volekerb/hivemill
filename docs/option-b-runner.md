@@ -71,6 +71,14 @@ None of these guards changes a config key.
 | `judge_rounds_max` | `2` | judge REJECT rounds before FAIL |
 | `ci_rounds_max` | `3` | red-CI rounds before FAIL |
 | `auto_revert` | `off` | `on` turns on the mechanical revert |
+| `pass_interval_s` | `60` | daemon: seconds between passes |
+| `resume_max` | `3` | lost sessions resumed per run before FAIL `session lost` |
+| `health_max_age_s` | `300` | `hivemill health` fails when the last good pass is older |
+| `alert_every_s` | `3600` | at most one dead-man alert per this many seconds |
+| `backup_interval` | `off` | daemon snapshot schedule (`6h`, `30m`) |
+| `backup_keep` | `7` | snapshots kept |
+| `backup_dir` | empty | snapshot dir; empty = `state/hivemill/backups` |
+| `backup_target` | empty | `file:///path`, `s3://…` or `sftp://…` (see Backup) |
 | `max_five_hour_pct` | `92` | a fresh (under 3 h old) plan 5-hour usage reading at or over this holds new runs; same file and meaning as the old pipeline (`~/.claude/usage-limits.json`) |
 | `max_seven_day_pct` | `95` | the same for the 7-day usage |
 | `mem_floor_mb` | `1024` | MemAvailable below this holds new runs |
@@ -94,17 +102,82 @@ hivemill gate T-1234                # run the gate checks now, print them
 hivemill judge packet T-1234        # print what the judge reads
 hivemill merge T-1234 --dry-run     # print the merge input and decision
 hivemill report [--json]            # scoreboard
+hivemill daemon                     # the pass loop (systemd/launchd run it)
+hivemill health [--alert]           # dead-man check
+hivemill drain [--status] | resume  # stop / resume new dispatch
+hivemill backup | restore <snap> [--dry-run]
 ```
 
 Agents other than the director and the boss may only run `task lint` and `report`; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run.
 
 ## Running unattended
 
-The runner needs no open client: the owner's laptop can be closed, and the runner survives a reboot.
+The runner needs no open client. The owner's laptop can be closed, and the runner survives a reboot.
 
-- **Passes.** On Linux, the user units `systemd/hivemill-run.service` and `systemd/hivemill-run.timer` run `hivemill run` 60 s after the previous pass ends, and 2 minutes after boot. They are modelled on `factory-tick.timer`. Install them with `install -m 644 systemd/hivemill-run.* ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now hivemill-run.timer`. User lingering must be on (`loginctl enable-linger`), so the units run without a login session. Passes never overlap: the service is a oneshot (a timer does not start it again while it runs), and `hivemill run` also takes `state/hivemill/locks/pass.lock`, so a second pass started by hand exits at once. Logs: `journalctl --user -u hivemill-run.service`. Stop with `systemctl --user disable --now hivemill-run.timer`.
-- **macOS.** `launchd/hivemill.run.plist.in` is the matching launchd agent template (`StartInterval` 60, same `FactoryHome`, `Path` and `LogDir` fields as `hivemill.tick.plist.in`). It is not installed anywhere yet.
-- **Sessions.** Task and judge sessions are hc terminals started with `--no-parent` and pinned to the local hc core, which keeps running after logout. Nothing in a session depends on the client that started it: not an ssh session, not the Herdr app. Its env comes from the spawn script, its kickoff is typed in once, and its hooks run inside the session. Each pass reaches a session through the core (`hc ls`, `hc send`, `hc kill`).
+### Supervision
+
+`hivemill daemon` runs the pass loop in-process: one pass every `pass_interval_s` (60), a heartbeat after each good pass, and a scheduled backup when one is due. Only one daemon runs per factory home (`state/hivemill/locks/daemon.lock`), and each pass also takes `pass.lock`, so a manual `hivemill run` never overlaps it. On SIGTERM it finishes the current pass and exits.
+
+- **Linux:** the user unit `systemd/hivemill.service` (`Type=notify`, `WatchdogSec=900`, `Restart=always`). The daemon sends `READY=1` at start and `WATCHDOG=1` after every pass, so a hung pass is restarted. Install it with `install -m 644 systemd/hivemill.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now hivemill.service`. User lingering must be on (`loginctl enable-linger`).
+- **macOS:** `launchd/hivemill.daemon.plist.in` (`RunAtLoad`, `KeepAlive`). It is a template and is not installed anywhere.
+- **Sessions** are hc terminals started with `--no-parent` and pinned to the local hc core, which keeps running after logout. Nothing in a session depends on the client that started it, whether an ssh session or the Herdr app.
+
+### Reconcile and resume
+
+Every pass compares each active run with what is really there, repairs it, and writes a `run.reconciled` event:
+- **Lost session.** The task or judge terminal is gone (reboot, OOM, crash). It is relaunched in a new hc terminal with `claude --resume <session id>`, with the same settings and model, at most `resume_max` (3) times. After that the run is FAIL `session lost`.
+- **Missing clone.** It is recreated from the pushed branch.
+- **PR merged or closed by hand.** The run is finished or failed.
+
+Every side effect checks before it acts, so a pass that crashed half way can safely run again:
+- a session whose terminal already runs is adopted, not started twice;
+- the PR is found by branch before one is opened;
+- a refresh happens only when the head is behind;
+- a merged PR is `done`, never merged again;
+- the revert task is looked up by title before one is filed.
+
+`TestStepsAreIdempotent` and `TestReconcileResumesALostSessionThenFails` run these steps twice.
+
+### Health and alerts
+
+`hivemill health` exits 0 when the last good pass is less than `health_max_age_s` (300) old, and 1 otherwise. The timer `systemd/hivemill-health.timer` (with `hivemill-health.service`) runs `hivemill health --alert` every 5 minutes. When the check fails, it opens one row in the factory's owner alert feed (`factory alerts`; sent to the phone only when `owner_alert_send=1`). It also sends one message to `claude-boss`. Both happen at most once per `alert_every_s` (3600).
+
+### Backup
+
+- **Built in, no extra binary.** `hivemill backup` writes a consistent snapshot with SQLite `VACUUM INTO` to `backup_dir` (default `state/hivemill/backups`), keeping `backup_keep` (7). The daemon does it every `backup_interval` (a Go duration such as `6h`; default off).
+- **Restore.** `hivemill restore <snapshot> --dry-run` runs `integrity_check` and counts the rows. Without `--dry-run`, it keeps the current DB as `<db>.pre-restore-<ts>` and refuses while a daemon runs. Stop the daemon and the factory tick first.
+- **Off-machine copies (`backup_target`).**
+  - `file:///path` (a mounted disk or NAS share) gets a copy of each snapshot, with the same retention.
+  - `s3://…` (AWS, MinIO, B2, R2) and `sftp://…` use Litestream for continuous replication when it is on PATH. Fill in `systemd/litestream.yml.in` as `~/.config/hivemill/litestream.yml`, with credentials in the environment, never in the repo, and enable `systemd/hivemill-litestream.service`. Without Litestream, those targets get no upload: snapshots stay local, and `hivemill backup` says so.
+  - Litestream is never required.
+- **Hosted (Postgres).** Backups are the database's job (managed point-in-time recovery). Nothing is built for it.
+
+### Drain and upgrade
+
+`hivemill drain` stops new dispatch while active runs finish. `hivemill drain --status` lists what still runs, and `hivemill resume` lifts drain. The report header shows `DRAIN on` while it is active.
+
+To upgrade:
+1. `hivemill drain`, and wait until `--status` shows no active run, or leave runs active, since reconcile resumes them.
+2. `hivemill backup`.
+3. `git pull` in the factory home.
+4. `cd go && go build -o ~/.local/bin/hivemill ./cmd/hivemill`.
+5. `systemctl --user restart hivemill.service`.
+6. `hivemill resume`.
+
+### Deployment profiles
+
+| profile | supervision | backup | what keeps it awake |
+|---|---|---|---|
+| laptop | launchd agent (`KeepAlive`) or a terminal running `hivemill daemon` | built-in snapshots (`backup_interval`, `backup_target` file:// to an external disk) | the laptop itself; runs pause while it sleeps and resume on wake (reconcile) |
+| homelab | systemd user unit with lingering, health timer | snapshots to a NAS share (`file://`) or Litestream to MinIO/sftp | an always-on box; no client needed |
+| company | systemd (or the company's service manager) on a server | Stage 2: the managed Postgres's PITR | the server; Stage 2 adds workers that pull work |
+
+### Stage 2 (hosted), design notes only
+
+- Postgres behind the same `Store` interface, with a tenant id on every row and no SQL outside `store`.
+- Runs are claimed through leases with an expiry. A worker that dies loses its lease, and another worker reconciles the run.
+- One leader lock (an advisory lock) for the scheduling pass.
+- Workers pull work: each machine runs a worker that claims runs and hosts their sessions, instead of one host pushing work out.
 
 ## Event log and report
 
