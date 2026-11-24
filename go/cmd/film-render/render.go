@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"factory/go/internal/cdp"
 )
 
 //go:embed card.html
@@ -24,12 +27,12 @@ var placeholderCard []byte
 var filmReadyTimeout = 30 * time.Second
 
 type session struct {
-	c  *cdpClient
+	c  *cdp.Client
 	id string
 }
 
 func (s *session) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
-	return s.c.call(ctx, s.id, method, params)
+	return s.c.Call(ctx, s.id, method, params)
 }
 
 // eval runs a JS expression in the page, awaiting a returned promise, and returns the JSON value.
@@ -56,8 +59,8 @@ func (s *session) eval(ctx context.Context, expr string) (json.RawMessage, error
 	return r.Result.Value, nil
 }
 
-func openSession(ctx context.Context, c *cdpClient, w, h int) (*session, error) {
-	raw, err := c.call(ctx, "", "Target.createTarget", map[string]any{"url": "about:blank"})
+func openSession(ctx context.Context, c *cdp.Client, w, h int) (*session, error) {
+	raw, err := c.Call(ctx, "", "Target.createTarget", map[string]any{"url": "about:blank"})
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +70,7 @@ func openSession(ctx context.Context, c *cdpClient, w, h int) (*session, error) 
 	if err := json.Unmarshal(raw, &t); err != nil || t.TargetID == "" {
 		return nil, fmt.Errorf("Target.createTarget returned no targetId")
 	}
-	raw, err = c.call(ctx, "", "Target.attachToTarget", map[string]any{"targetId": t.TargetID, "flatten": true})
+	raw, err = c.Call(ctx, "", "Target.attachToTarget", map[string]any{"targetId": t.TargetID, "flatten": true})
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +159,7 @@ func (s *session) frame(ctx context.Context, t float64) ([]byte, error) {
 
 // encoder is the ffmpeg process fed one continuous PNG stream.
 type encoder struct {
-	p      *proc
+	p      *cdp.Proc
 	stdin  io.WriteCloser
 	stderr *lockedBuffer
 }
@@ -184,7 +187,7 @@ func startEncoder(ffmpeg string, fps float64, out string) (*encoder, error) {
 	}
 	buf := &lockedBuffer{}
 	cmd.Stderr = buf
-	p, err := startProc("ffmpeg", cmd)
+	p, err := cdp.StartProc("ffmpeg", cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -193,9 +196,8 @@ func startEncoder(ffmpeg string, fps float64, out string) (*encoder, error) {
 
 func (e *encoder) finish() error {
 	e.stdin.Close()
-	<-e.p.done
-	if e.p.err != nil {
-		return failf("ffmpeg failed: %v: %s", e.p.err, strings.TrimSpace(e.stderr.String()))
+	if err := e.p.Wait(); err != nil {
+		return failf("ffmpeg failed: %v: %s", err, strings.TrimSpace(e.stderr.String()))
 	}
 	return nil
 }
@@ -258,4 +260,8 @@ func renderFilm(ctx context.Context, s *session, enc *encoder, sb *storyboard, o
 		fmt.Fprintf(stdout, "scene %s: %d frames, %.1f frames/s\n", sc.ID, n, float64(n)/math.Max(el, 1e-9))
 	}
 	return nil
+}
+
+func fileURL(path string) string {
+	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
 }

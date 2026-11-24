@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"factory/go/internal/cdp"
 )
 
 // TestSmokeRender renders the testdata fixture with a real browser and ffmpeg. It runs only when FILM_RENDER_BROWSER
@@ -20,7 +22,7 @@ func TestSmokeRender(t *testing.T) {
 		if err != nil {
 			t.Skip("SKIPPED: no user cache dir and FILM_RENDER_BROWSER not set")
 		}
-		if _, err := os.Stat(filepath.Join(cache, "hivemill-film", "chrome-headless-shell-"+browserVersion+".zip")); err != nil {
+		if _, err := os.Stat(filepath.Join(cache, "hivemill-film", "chrome-headless-shell-"+cdp.BrowserVersion+".zip")); err != nil {
 			t.Skip("SKIPPED: no browser: set FILM_RENDER_BROWSER or cache the pinned zip")
 		}
 	}

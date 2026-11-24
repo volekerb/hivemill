@@ -21,6 +21,13 @@ func TestRuleKeysMatchPython(t *testing.T) {
 			want[k[1]] = true
 		}
 	}
+	if strings.Contains(body, `a.key.startswith("model_")`) { // every model_<role> key shares check_model_override
+		for _, d := range DefaultConfig {
+			if strings.HasPrefix(d.Key, "model_") {
+				want[d.Key] = true
+			}
+		}
+	}
 	if len(want) == 0 {
 		t.Fatal("no keys parsed from _config_value_rules")
 	}

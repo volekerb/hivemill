@@ -1,0 +1,24 @@
+# /tokens
+TEXT
+Tokens - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 3 Insights Throughput Quality Tokens Changelog System Resources Tokens All Claude Cursor <TS> Gate closed · 2 queued Needs you 6 Cursor usage · 0 h · Pro · ok Today 7 days 30 days All time Claude usage Claude usage 50% · 10% OK · 5 h · week data 1 min old Cursor runtime Org Model Sessions Live now Agent-hours Tokens Cursor claude-sonnet-5-5 1 0 1.0 h not reported Cursor grok-4.7-high 1 0 1.0 h not reported Cursor composer-2.5 1 1 0.5 h not reported Token usage is not reported by Cursor CLI: it leaves no token or usage counts on this machine, so Cursor runtime agents show sessions and agent-hours per model from the agents table, and no cost. Token index indexing… 3 files / 3.1 MB read Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 3 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/goals
+a:/quality
+a:/resources
+a:/tasks
+a:/throughput
+a:/tokens
+a:/tokens?days=1
+a:/tokens?days=30
+a:/tokens?days=7
+a:/tokens?days=all
+a:/tokens?org=claude
+a:/tokens?org=cursor

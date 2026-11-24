@@ -25,6 +25,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-flow.md](pr-flow.md): read-only PR flow report: merges per day, open-to-merge time and stage hours per org.
 - [verify.md](verify.md): the verify harness: run a change in a temp home (cli) or check the dashboard mod, with a step trace and exit 0/1.
+- [diff-checklist.md](diff-checklist.md): the diff-checklist tool: match checklist items to a diff, render and verify the PR body block.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [researcher.md](researcher.md): the researcher role, its per-task research directory and where its findings go.
@@ -62,8 +63,10 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [lanes.md](lanes.md): `lane-check`, whether two branches or the open PR heads really conflict (git merge-tree), with exit codes.
 - [retro.md](retro.md): how the daily retro loop runs and how to turn it off.
 - [red-pr-owner-alert.md](red-pr-owner-alert.md): `red_pr_owner_alert` flag, the tick mails the lead once per red or conflicted head with no coder.
+- [stuckpr.md](stuckpr.md): the tick unit that classifies open hivemill PRs and wakes the coder or escalates once when stale.
 - [gh-quota.md](gh-quota.md): `pr_view_ttl_s` and `gh_quota_min`, the tick's PR probe cache and low GraphQL quota guard.
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
+- [judge-ci-gate.md](judge-ci-gate.md): judge_ci_gate=none merges without reading PR checks; red-main bisect + revert task (T-1772).
 - [merge-queue.md](merge-queue.md): the serial and batch-train merge path (`judge --train` without `--dry-run`).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
@@ -71,7 +74,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [judge-hold-expiry.md](judge-hold-expiry.md): a manual judge hold on a reviewer+QA PASS PR expires after 2 h unless it names a boss decision (`judge_hold_expiry_min`).
 - [prcheck.md](prcheck.md): `factory prcheck`, the coder's pre-PR check, and the `prcheck_required` gate on `factory done` (G-022).
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
-- [model-routing.md](model-routing.md): which model each role starts on, and the `model_cleaner` config rollback.
+- [model-routing.md](model-routing.md): which model each role starts on, and the `model_<role>` config keys (rollback per role).
 - [freshness.md](freshness.md): the per-tick check that flags live agents running outdated role files, plugins or CLI.
 - [staleness.md](staleness.md): what to do when main moves during review and QA.
 - [verdict-carry-over.md](verdict-carry-over.md): when a PASS verdict survives a merge of main.
@@ -112,6 +115,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [guard-unittest-shard.md](guard-unittest-shard.md): how guard unittest ids are sharded in CI and when a shard step fails the list check.
 - [scrub-scan.md](scrub-scan.md): the scanner that catches owner-specific or sensitive data.
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
+- [size-classes.md](size-classes.md): the ci-size-class selector: small, medium and large classes, budgets and checks.
 - [worker-guard-go.md](worker-guard-go.md): the Go port of the worker-guard hook (opt-in through `guard_impl`, Python stays the default; section status, golden data, lookaround map).
 - [cli-go.md](cli-go.md): the Go CLI behind `bin/factory` (opt-in through `cli_impl`, Python stays the default; fast path, shadow mode, build and dependency fetch).
 - [schedule.md](schedule.md): owner-defined recurring jobs (`factory schedule`), Go-only dispatch, per-run token caps and overlap with digest, retro and scout.
@@ -124,6 +128,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0005-self-hosted-ci-runners.md](adr/0005-self-hosted-ci-runners.md): self-hosted CI runners for trusted PRs (proposed design, nothing installed).
 - [adr/0006-worker-sandbox-assessment.md](adr/0006-worker-sandbox-assessment.md): worker sandbox assessment (why go test fails for QA; proposed, nothing installed).
 - [adr/0007-hivemill-kit.md](adr/0007-hivemill-kit.md): Hivemill Kit design (standalone skills, three levels, evals and a catalog; proposed).
+- [adr/0008-resource-hygiene.md](adr/0008-resource-hygiene.md): deterministic resource hygiene (hm-clean; proposed, nothing installed).
 
 ## Internals
 

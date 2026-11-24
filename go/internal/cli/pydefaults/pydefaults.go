@@ -13,7 +13,7 @@ import (
 // Entry is one DEFAULT_CONFIG item in source order.
 type Entry struct{ Key, Value string }
 
-var line = regexp.MustCompile(`^\s*"([A-Za-z0-9_]+)":\s*"((?:[^"\\]|\\.)*)",\s*(?:#.*)?$`)
+var line = regexp.MustCompile(`^\s*"([A-Za-z0-9_-]+)":\s*"((?:[^"\\]|\\.)*)",\s*(?:#.*)?$`)
 
 // Parse returns the entries of the `DEFAULT_CONFIG = {` literal. Every line inside must be a comment, blank or one
 // `"key": "value",` item; anything else is an error (the generator must be taught the new shape, never guess).
