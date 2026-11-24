@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -284,5 +285,34 @@ func TestResumeArchivesFindings(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(wt, ".hivemill", "findings-r1.json")); err != nil {
 		t.Error("the old findings are not kept as findings-r1.json")
+	}
+}
+
+func TestGateBlockWithProgressIsNotCounted(t *testing.T) {
+	r, s := testRunner(t, "claude-task-t-0001")
+	run := &Run{Task: "T-0001", Goal: "G-001", Project: "www", Repo: "zz-test/www", Base: "main", Worktree: t.TempDir(),
+		Branch: "factory/t-0001", Agent: "claude-task-t-0001", State: Working, Round: 1}
+	_ = os.MkdirAll(filepath.Join(run.Worktree, ".hivemill"), 0o755)
+	_ = os.WriteFile(filepath.Join(run.Worktree, ".hivemill", "findings.json"), []byte(`{"findings": []}`), 0o600)
+	_ = s.PutRun(run)
+	stop := func() {
+		var out bytes.Buffer
+		_ = r.GateHook(strings.NewReader(`{"session_id":"s-1"}`), &out)
+	}
+	for i := 0; i < 5; i++ { // each stop has other problems than the last block: progress, not a repeat
+		stop()
+		got, _ := s.Run("T-0001")
+		got.LastBlock = fmt.Sprintf("an earlier, different problem %d", i)
+		_ = s.PutRun(got)
+	}
+	got, _ := s.Run("T-0001")
+	if got.State != Working || got.GateBlocks != 1 || got.GateBlocksTotal != 5 {
+		t.Errorf("state %s, counted %d, total %d: progress must not use up the cap", got.State, got.GateBlocks, got.GateBlocksTotal)
+	}
+	for i := 0; i < 5; i++ { // the same problems again and again: counted, then FAIL
+		stop()
+	}
+	if got, _ = s.Run("T-0001"); got.State != Failed {
+		t.Errorf("repeated blocks must still fail the run, got %s", got.State)
 	}
 }

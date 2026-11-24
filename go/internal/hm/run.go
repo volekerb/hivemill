@@ -375,7 +375,7 @@ func (r *Runner) resume(run *Run, text string) {
 		dir := filepath.Join(run.Worktree, ".hivemill")
 		_ = os.Rename(filepath.Join(dir, "findings.json"), filepath.Join(dir, fmt.Sprintf("findings-r%d.json", run.Round)))
 	}
-	run.State, run.Round, run.GateBlocks = Working, run.Round+1, 0
+	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	if err := r.Prompt(run.Agent, text); err != nil {
