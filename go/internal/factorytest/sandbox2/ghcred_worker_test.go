@@ -337,8 +337,8 @@ func TestWorkerGhcredFlagOffAddsNoEnvAndCreatesNothing(t *testing.T) {
 			if p := w.spawn(role, ghDangerous, c.tag); p.Exit != 0 {
 				t.Fatalf("%s: exit %d: %s", role, p.Exit, p.Stderr)
 			}
-			if got := ghKeys(w.started(role, c.tag)); !reflect.DeepEqual(got, []string{"FACTORY_AGENT", "FACTORY_HOME", "FACTORY_ROLE"}) {
-				t.Fatalf("%s pane env keys = %v, want FACTORY_AGENT, FACTORY_HOME, FACTORY_ROLE", role, got)
+			if got := ghKeys(w.started(role, c.tag)); !reflect.DeepEqual(got, ghBaseEnv) {
+				t.Fatalf("%s pane env keys = %v, want %v", role, got, ghBaseEnv)
 			}
 		}
 	}
@@ -361,8 +361,8 @@ func TestWorkerGhcredARoleNotListedIsUntouched(t *testing.T) {
 	w := ghNewW(t)
 	w.flag("reviewer")
 	w.spawn("coder", ghDangerous, "")
-	if got := ghKeys(w.started("coder", "")); !reflect.DeepEqual(got, []string{"FACTORY_AGENT", "FACTORY_HOME", "FACTORY_ROLE"}) {
-		t.Fatalf("pane env keys = %v, want FACTORY_AGENT, FACTORY_HOME, FACTORY_ROLE", got)
+	if got := ghKeys(w.started("coder", "")); !reflect.DeepEqual(got, ghBaseEnv) {
+		t.Fatalf("pane env keys = %v, want %v", got, ghBaseEnv)
 	}
 }
 
