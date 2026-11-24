@@ -20198,7 +20198,7 @@ UP_LOCK_WAIT_S = 90  # boot: wait out the first tick instead of skipping the HQ 
 
 def cmd_up(a):
     refuse_worker("up")
-    lock = tick_lock(wait_s=UP_LOCK_WAIT_S)  # noqa: F841
+    lock = tick_lock(busy_exit=3, wait_s=UP_LOCK_WAIT_S)  # still busy: exit non-zero so systemd retries the unit  # noqa: F841
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started

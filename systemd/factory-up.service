@@ -2,6 +2,8 @@
 Description=factory up (resume HQ and team leads after boot)
 Wants=herdr-server.service
 After=herdr-server.service
+StartLimitIntervalSec=900
+StartLimitBurst=5
 
 [Service]
 Type=oneshot

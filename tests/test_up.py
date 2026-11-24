@@ -101,8 +101,15 @@ class UpHcBackendTests(FactoryTestCase):
         lock_path.parent.mkdir(exist_ok=True)
         held = open(lock_path, "w")
         fcntl.flock(held, fcntl.LOCK_EX)
-        threading.Timer(2, lambda: (fcntl.flock(held, fcntl.LOCK_UN), held.close())).start()
+        timer = threading.Timer(2, lambda: (fcntl.flock(held, fcntl.LOCK_UN), held.close()))
+        timer.start()
         t0 = time.time()
-        p = self.ok("up")
+        try:
+            p = self.ok("up")
+        finally:
+            timer.cancel()
+            timer.join()
+            if not held.closed:
+                held.close()
         self.assertNotIn("skipping", p.stdout)
         self.assertGreaterEqual(time.time() - t0, 1)
