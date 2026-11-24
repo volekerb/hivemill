@@ -182,6 +182,37 @@ class TemplateFileTests(unittest.TestCase):
         self.assertEqual(self.run_rendered(cmd, "ls").returncode, 0)
 
 
+GO_BIN = "~/.local/go/bin/"
+
+
+class GoToolchainAllowTests(unittest.TestCase):
+    """T-1518: qa, reviewer and coder allow the read/test Go shapes T-1498's guard allows; no write shape."""
+    PRE = "GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod "
+    SHAPES = [f"{GO_BIN}go {s}" for s in ("test", "vet", "build", "run", "list", "env", "version")] + [f"{GO_BIN}gofmt -l", f"{GO_BIN}gofmt -d"]
+    FORBIDDEN = ("go mod download", "go get", "go install", "go env -w", "go clean", "gofmt -w")
+
+    def allow(self, role):
+        return json.loads(substitute((SETTINGS / f"{role}.json.in").read_text()))["permissions"]["allow"]
+
+    def test_each_go_shape_is_allowed_plain_and_with_the_env_prefix(self):
+        for role in ("qa", "reviewer", "coder"):
+            allow = self.allow(role)
+            for s in self.SHAPES:
+                self.assertIn(f"Bash({s}:*)", allow, role)
+                self.assertIn(f"Bash({self.PRE}{s}:*)", allow, role)
+
+    def test_no_write_or_network_go_shape_is_allowed(self):
+        for role in ("qa", "reviewer", "coder"):
+            for entry in self.allow(role):
+                for bad in self.FORBIDDEN:
+                    self.assertNotIn(bad, entry, role)
+                self.assertNotIn("go fmt", entry, role)
+
+    def test_other_roles_do_not_get_the_go_allow(self):
+        for role in ("pm", "judge", "cleaner", "lead"):
+            self.assertFalse([e for e in self.allow(role) if ".local/go" in e], role)
+
+
 class LiveHomePinTests(unittest.TestCase):
     """v4: a live FACTORY_HOME renders only when LIVE_HOME == the running checkout == FACTORY_HOME (fail closed)."""
 
