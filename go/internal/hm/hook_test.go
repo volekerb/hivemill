@@ -181,3 +181,18 @@ func TestFindingsAndEvidence(t *testing.T) {
 		t.Errorf("%v", probs)
 	}
 }
+
+func TestAffectedFullNeededLeavesItToCI(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Tools.Git = func(string, ...string) (int, string, string) { return 0, "", "" }
+	r.Tools.Sh = func(string, time.Duration, []string, ...string) (int, string) {
+		return 0, "FULL needed: rely on CI (no test module mentions go/x.go; run the full suite)\n"
+	}
+	if ok, note := r.affected(t.TempDir(), "main"); !ok || !strings.Contains(note, "CI runs the full suite") {
+		t.Errorf("FULL needed must pass to CI: %v %q", ok, note)
+	}
+	r.Tools.Sh = func(string, time.Duration, []string, ...string) (int, string) { return 0, "nothing\n" }
+	if ok, _ := r.affected(t.TempDir(), "main"); ok {
+		t.Error("exit 0 with no tests run must fail")
+	}
+}

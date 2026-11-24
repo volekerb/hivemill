@@ -213,6 +213,8 @@ func (r *Runner) affected(wt, base string) (bool, string) {
 		rc, text := r.Tools.Sh(wt, 30*time.Minute, cleanEnv(), "python3", "ci/affected.py", "--base", "origin/"+base, "--quick", "--run")
 		tail := lastLines(text, 8)
 		switch {
+		case strings.Contains(text, "FULL needed"):
+			return true, "not run locally (" + firstLine(tail) + "); CI runs the full suite"
 		case rc == 0:
 			n := 0
 			for _, m := range ranRe.FindAllStringSubmatch(text, -1) {
@@ -223,8 +225,8 @@ func (r *Runner) affected(wt, base string) (bool, string) {
 				return false, "ci/affected.py exited 0 but reported no tests run:\n" + tail
 			}
 			return true, fmt.Sprintf("ci/affected.py ok, ran %d tests", n)
-		case rc == 5 || strings.Contains(text, "FULL needed") || strings.Contains(text, "test slot"):
-			if time.Now().After(deadline) || strings.Contains(text, "FULL needed") {
+		case rc == 5 || strings.Contains(text, "test slot"):
+			if time.Now().After(deadline) {
 				return true, "undecided (" + firstLine(tail) + "); CI decides"
 			}
 			time.Sleep(time.Minute)
