@@ -9,3 +9,5 @@ judge_ci_prune
 main_protection
 remote_url_alert
 tmp_alert
+tmp_clean
+tmp_harness
