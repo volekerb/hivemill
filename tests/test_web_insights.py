@@ -376,7 +376,7 @@ class TestSpendPage(unittest.TestCase):
     def test_exactly_one_how_this_is_counted_link_on_data_and_on_error(self):
         self.assertEqual(howto_count(obs_render(tokens, spend=spend_obs())[1]), 1)
         self.assertEqual(howto_count(obs_render(tokens, error="boom")[1]), 1)
-        self.assertIn('href="https://github.com/volekerb/hivemill/blob/main/docs/obs.md"', obs_render(tokens, spend=spend_obs())[1])
+        self.assertIn('href="/docs/obs.md"', obs_render(tokens, spend=spend_obs())[1])
 
     def test_hm_obs_error_is_a_banner_and_an_empty_state_not_a_crash(self):
         d, html, _ = obs_render(tokens, error="cannot run hm-obs (No such file)")

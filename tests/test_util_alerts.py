@@ -1,5 +1,7 @@
 """G-018 C: util_alerts() tick hook: workers / P1 / P2 starvation alerts, boss escalation, dedupe, cap-breach alert."""
+import contextlib
 import datetime as dt
+import io
 import importlib.machinery
 import importlib.util
 import json
@@ -319,6 +321,14 @@ class ObsIngestTick(AlertCase):
         with mock.patch.dict(os.environ, {"FACTORY_OBS_BIN": ""}):
             self.assertEqual(self.run_tick(0, lib=lib, go=lib / "no-go"), "skipped")
         self.assertFalse((lib / "hm-obs").exists())
+
+    def test_invalid_factory_now_skips_without_raising(self):
+        b, out = self.stub()
+        with mock.patch.dict(os.environ, {"FACTORY_OBS_BIN": b, "FACTORY_NOW": "not-a-time"}), \
+                contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(self.mod.obs_ingest_tick(self.con), "skipped")
+        self.assertIn("obs ingest: skipped", err.getvalue())
+        self.assertFalse(out.exists())
 
     def test_wired_into_util_tick(self):
         src = FACTORY_SRC.read_text()

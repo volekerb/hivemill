@@ -269,12 +269,10 @@ def strip(items, key="strip"):
     return el("div", out)
 
 
-DOCS_BASE = "https://github.com/volekerb/hivemill/blob/main/"
-
-
 def howto(doc):
-    """The page's one "How this is counted" link (G-069), to a repo doc such as docs/obs.md."""
-    return el("p", el("a", "How this is counted", href=DOCS_BASE + doc, rel="noopener"), class_="howto")
+    """The page's one "How this is counted" link (G-069), to a repo doc such as docs/obs.md, served locally by
+    web.server at /docs/<name> (no external host)."""
+    return el("p", el("a", "How this is counted", href="/" + doc), class_="howto")
 
 
 def banner(text):

@@ -3891,7 +3891,12 @@ def obs_ingest_tick(con, lib=None, go=None):
     a no-op. FACTORY_OBS_BIN replaces the binary (tests) and is refused on the live home. Returns started | throttled |
     skipped | refused | failed; never raises. See docs/obs.md."""
     try:
-        if _util_throttled(con, "obs_ingest", OBS_INGEST_EVERY_S, digest_clock().timestamp()):
+        now = digest_clock().timestamp()
+    except FactoryNowError as e:  # a bad FACTORY_NOW must not abort the tick (test_digest)
+        print(f"obs ingest: skipped ({e})", file=sys.stderr)
+        return "skipped"
+    try:
+        if _util_throttled(con, "obs_ingest", OBS_INGEST_EVERY_S, now):
             return "throttled"
         override = (os.environ.get("FACTORY_OBS_BIN") or "").strip()
         if override and home_is_live():

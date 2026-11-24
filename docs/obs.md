@@ -32,6 +32,9 @@ Until the tick has built the binary and run one ingest, both pages say so in a `
 
 ## How this is counted
 
+Each page's "How this is counted" link opens this file, served by `factory serve` at `/docs/obs.md` (no external
+host).
+
 ### Spend
 
 - **Cost.** Every request is priced at API list prices, with the same price table and rules as `hm-spend`. Each

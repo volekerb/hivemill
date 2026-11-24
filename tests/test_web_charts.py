@@ -167,7 +167,7 @@ class TestStrip(unittest.TestCase):
         self.assertEqual(spark_cell([0, 0], "t"), "–")
         self.assertIn('aria-label="Trend: 3 points, peak 3"', str(spark_cell([1, 2, 3], "Trend")))
         h = str(howto("docs/obs.md"))
-        self.assertIn('href="https://github.com/volekerb/hivemill/blob/main/docs/obs.md"', h)
+        self.assertIn('href="/docs/obs.md"', h)
         self.assertIn("How this is counted", h)
 
 

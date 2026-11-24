@@ -56,7 +56,7 @@ def page_routes(db_path):
             if not row:
                 raise SetupError("%s has no row to open %s with." % (db_path, route))
             route = route.replace("<id>", row[0])
-        out.append(route)
+        out.append(server.REDIRECTS.get(route, route))  # G-069: /tokens and /throughput 301 to /spend and /flow
     return out
 
 

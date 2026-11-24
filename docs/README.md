@@ -11,6 +11,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [examples/02-handling-a-rejection.md](examples/02-handling-a-rejection.md): what happens when review fails and the judge rejects.
 - [examples/03-digest-and-scorecard.md](examples/03-digest-and-scorecard.md): the morning digest and the per-team scorecard.
 - [web-ui.md](web-ui.md): the dashboard started by `factory serve` and what each panel shows.
+- [obs.md](obs.md): `hm-obs ingest` (state/obs.db), the /api/obs JSON and how the Spend and Flow pages count; privacy rules.
 - [herdr-app-dashboard.md](herdr-app-dashboard.md): the Hivemill status bar and dashboard tab for the Herdr app; install, settings, Claude/Cursor choice.
 - [token-discipline.md](token-discipline.md): what agents cost (context per turn, idle turns, spawns), the worker context limits and the boss exception, the rules, and `hm-spend`.
 - [releases/v0.4.0-announcement.md](releases/v0.4.0-announcement.md): what's new in v0.4.0, in plain English, with two screenshots.

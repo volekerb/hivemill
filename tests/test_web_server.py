@@ -391,12 +391,20 @@ class TestVocabularyAndStubs(ServerCase):
         for path in PAGES:
             text = self.get(path)[2].decode()
             self.assertNotRegex(text, r'src="(?:https?:)?//')
-            # outbound links are allowed only to GitHub pull requests (web.html.link) and, G-069, the page's one
-            # "How this is counted" link to a repo doc (components.howto); never to assets
-            self.assertNotRegex(text, r'href="//')
+            # outbound links are allowed only to GitHub pull requests (web.html.link); never to assets. G-069's
+            # "How this is counted" link is local (/docs/obs.md), not an external host.
+            self.assertNotRegex(text, r'href="(?:https?:)?//(?!github\.com/[\w.-]+/[\w.-]+/pull/\d+")')
             for href in re.findall(r'href="(https?://[^"]*)"', text):
-                self.assertRegex(href, r"^https://github\.com/[\w.-]+/[\w.-]+/(?:pull/\d+|blob/main/docs/[\w-]+\.md)$")
+                self.assertRegex(href, r"^https://github\.com/[\w.-]+/[\w.-]+/pull/\d+$")
             self.assertNotIn("<script", text.replace('<script src="/static/theme.js" defer></script>', ""))  # only the deferred theme toggle
+
+    def test_docs_route_serves_only_allowlisted_docs(self):
+        st, hdrs, body = self.get("/docs/obs.md")
+        self.assertEqual(st, 200)
+        self.assertIn(b"hm-obs", body)
+        for bad in ("/docs/testing.md", "/docs/../README.md", "/docs/%2e%2e/README.md", "/docs/", "/docs/obs.md/x"):
+            with self.subTest(bad):
+                self.assertEqual(self.get(bad)[0], 404)
 
     def test_registry_complete(self):
         self.assertEqual(set(ROUTES), {"/", "/goals", "/goal/<id>", "/tasks", "/task/<id>", "/agents", "/resources",

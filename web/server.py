@@ -38,6 +38,8 @@ _ID_RE = re.compile(r"^/(goal|task)/([A-Z]-\d+)$")
 _STATIC_NAME_RE = re.compile(r"^(?:fonts/)?[\w][\w.-]*$")  # one level: static/fonts/
 RELOAD_INTERVAL_S = 60     # FACTORY_SERVE_RELOAD_INTERVAL overrides it (tests)
 ROOT = Path(__file__).resolve().parent.parent
+# repo docs a page links to as "How this is counted" (components.howto): served locally, never an external host
+SERVED_DOCS = ("obs.md",)
 # callables a view may append at import; each runs once in a daemon thread when the server starts
 background = []
 
@@ -166,6 +168,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._healthz(app)
         if path.startswith("/static/"):
             return self._static(unquote(path[len("/static/"):]))
+        if path.startswith("/docs/"):
+            return self._doc(unquote(path[len("/docs/"):]))
         if path in ("/api/obs/spend", "/api/obs/flow", "/api/obs/spend.json", "/api/obs/flow.json"):
             return self._obs_json(path[len("/api/obs/"):].removesuffix(".json"))
         if path in REDIRECTS:
@@ -219,6 +223,13 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             return self._send(503, "db missing\n", "text/plain; charset=utf-8")
         self._send(200, f"ok\ndb_mtime_age_s={age}\n", "text/plain; charset=utf-8")
+
+    def _doc(self, name):
+        """/docs/<name>: an allowlisted repo doc as plain text (G-069 "How this is counted"); anything else 404."""
+        f = ROOT / "docs" / name
+        if name not in SERVED_DOCS or not f.is_file():
+            return self._error(404, "not found")
+        self._send(200, f.read_bytes(), "text/plain; charset=utf-8", cache="max-age=3600")
 
     def _static(self, name):
         if not _STATIC_NAME_RE.match(name):
