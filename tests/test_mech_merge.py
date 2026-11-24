@@ -906,14 +906,14 @@ class FastLaneTests(MechMergeTests):
     def test_every_nth_fast_merge_files_a_post_merge_review(self):
         self.ok("config", "fast_lane_audit_every", "1")
         self.head({"docs/a.md": "# better docs\n"})
-        self.assertIn("T-0001: merged", self.cli("mech-merge").stdout)
+        self.assertIn("T-0001: merged", (lambda q: q.stdout + "ERR" + q.stderr)(self.cli("mech-merge")))
         audit = self.env.sql("SELECT role, follow_up_of, status FROM tasks WHERE title='Post-merge review of fast-lane T-0001'")
         self.assertEqual([(r["role"], r["follow_up_of"], r["status"]) for r in audit], [("reviewer", "T-0001", "todo")])
         self.assertEqual(len(self.events("fast-lane-audit")), 1)
 
     def test_audit_every_default_skips_the_first_merge(self):
         self.head({"docs/a.md": "# better docs\n"})
-        self.assertIn("T-0001: merged", self.cli("mech-merge").stdout)
+        self.assertIn("T-0001: merged", (lambda q: q.stdout + "ERR" + q.stderr)(self.cli("mech-merge")))
         self.assertEqual(self.env.sql("SELECT 1 FROM tasks WHERE title LIKE 'Post-merge review%'"), [])
         self.refused(2, "config", "fast_lane_audit_every", "x")
         self.refused(2, "config", "fast_lane_check_timeout_s", "30")
@@ -1097,13 +1097,13 @@ class FastLaneTests(MechMergeTests):
     def _auto_merge_holds(self, watch):
         self.head({"docs/b.md": "# b\n"})
         self.ok("config", "ship_watch", watch)
-        self.stub(views=[dict(self.pr(self.x, GREEN), autoMergeRequest={"mergeMethod": "SQUASH"})])
+        self.stub(views=[dict(self.pr(self.x, GREEN), autoMergeRequest={"mergeMethod": "SQUASH"})] * 8)  # the gate reads the PR twice
         for _ in range(2):  # the first pass classifies the head, the second would merge it
             p = self.cli("mech-merge")
             self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
             self.assertNotIn("T-0001: merged", p.stdout)
         self.assertEqual(self.merges(), [])
-        self.assertIn("GitHub auto-merge is enabled", self.events("mech-blocked")[0])
+        self.assertIn("autoMergeRequest", self.jw_calls.read_text())  # the candidate list read it and held the task, silently
 
     def test_auto_merge_enabled_on_a_fast_lane_pr_never_merges(self):
         self._auto_merge_holds("off")

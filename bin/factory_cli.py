@@ -6151,7 +6151,7 @@ def require_acceptance_walk(pr_url):
 
 def pr_state(url):
     return gh_json("pr", "view", url, "--json",
-                   "number,state,headRefOid,headRefName,baseRefName,mergeable,isDraft,statusCheckRollup,url,autoMergeRequest")
+                   "number,state,headRefOid,headRefName,baseRefName,mergeable,isDraft,statusCheckRollup,url")
 
 
 def latest_checks(rollup):
@@ -6661,7 +6661,7 @@ def no_refresh_merge(con, t, pr, git_repo, *, repo_url=None, main_sha=None, carr
         held.append("CI green on the head")
     carry = {} if carry is None else carry
     if judge_review_green(con, t["id"]):  # T-1802: only a FAIL on the head blocks
-        hold += green_head_fail_problems(con, t["id"], sha) + fast_lane_gate_problems(con, t["id"], sha, pr)
+        hold += green_head_fail_problems(con, t["id"], sha) + fast_lane_gate_problems(con, t["id"], sha)
         return ("hold", hold) if hold else ("merge", held + ["no reviewer/QA FAIL on the head (judge_review_gate=green)"])
     for role in ("reviewer", "qa"):
         kind, _ = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
@@ -7774,7 +7774,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             carry_unavail = (False, f"cannot verify, gh repo view failed: {e}", None, [])
         if judge_review_green(con, a.task):  # T-1802 (owner M40731/M40734): only a FAIL verdict on the head blocks
             problems += green_head_fail_problems(con, a.task, sha)
-            problems += fast_lane_gate_problems(con, a.task, sha, pr)  # G-070: classified head; fast-check PASS on a code head
+            problems += fast_lane_gate_problems(con, a.task, sha)  # G-070: classified head; fast-check PASS on a code head
         for role in (() if judge_review_green(con, a.task) else ("reviewer", "qa")):
             kind, info = verdict_pass_holds_for_pr_head(con, a.task, role, sha, pr["number"], git_repo, repo_url,
                                                        owner_repo, carry, carry_unavailable=carry_unavail)
@@ -8189,13 +8189,18 @@ def ship_watch_expire(con, clock=None):
             fast_lane_escalate(con, t, [f"ship watch ran {limit // 3600} h (ship_watch_hours) without a merge: the normal lane reviews it"])
 
 
-def fast_lane_gate_problems(con, tid, sha, pr=None):
+def fast_lane_gate_problems(con, tid, sha):
     """Merge-gate problems a fast-lane task adds (G-070): the head must be the one the fast-lane pass classified, and a
     code head needs a fast-check PASS on exactly that head (a ship_watch task needs none). A docs head needs no agent check.
     A fast-lane PR with GitHub auto-merge enabled never merges here: a watch could merge it past the factory's gates."""
     if not fast_lane_effective(con, tid):
         return []
-    if pr and pr.get("autoMergeRequest"):
+    row = con.execute("SELECT pr_url FROM tasks WHERE id=?", (tid,)).fetchone()
+    try:  # a separate gh call, only for a fast-lane task: pr_state's field list is shared with the Go verdict path
+        auto = gh_json("pr", "view", row["pr_url"], "--json", "autoMergeRequest").get("autoMergeRequest") if row and row["pr_url"] else None
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError) as e:
+        return [f"fast lane: cannot read the auto-merge state of the PR ({_tick_gh_detail(e)}): retry on the next pass"]
+    if auto:
         return ["fast lane: GitHub auto-merge is enabled on this PR (never allowed on a fast-lane PR); disable it"]
     hsha, kind = fast_lane_head(con, tid)
     if not hsha or hsha != sha:

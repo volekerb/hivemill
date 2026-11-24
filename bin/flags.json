@@ -1049,6 +1049,30 @@
    "doc": ""
   },
   {
+   "key": "ship_watch",
+   "kind": "setting",
+   "default": "off",
+   "summary": "off|fast|all: the fast-lane coder runs /ship low (docs: /steward) on its PR instead of the fast check; owner only",
+   "goal": "G-070",
+   "doc": "docs/fast-lane.md"
+  },
+  {
+   "key": "ship_watch_hours",
+   "kind": "setting",
+   "default": "24",
+   "summary": "a ship watch older than this many hours is dropped and the task moves to the normal lane",
+   "goal": "G-070",
+   "doc": "docs/fast-lane.md"
+  },
+  {
+   "key": "ship_watch_max",
+   "kind": "setting",
+   "default": "3",
+   "summary": "at most this many ship watches at once; a task past the cap takes the normal lane",
+   "goal": "G-070",
+   "doc": "docs/fast-lane.md"
+  },
+  {
    "key": "skilleval_keep_failed_h",
    "kind": "setting",
    "default": "48",
