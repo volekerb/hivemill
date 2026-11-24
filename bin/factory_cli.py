@@ -2609,6 +2609,8 @@ def claude_outside_spawn(con):
         return []
     agents = {}  # pid -> agent row, the claude process of a live agent
     for r in con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL").fetchall():
+        if r["role"] in ("task", "task-judge"):  # Option B: /code-review subagents run in-process; the runner owns the pane
+            continue
         for pid, _argv in claude_procs(r["session_id"], {p: v[0] for p, v in found.items()}):
             agents[pid] = r
     out = []
@@ -5893,7 +5895,7 @@ def cmd_pr(a):
     redirect it. The child env drops GH_REPO and GH_HOST."""
     con = db()
     role = actor_role(con)
-    if role != "coder":
+    if role not in ("coder", "task"):  # task: the Option B session opens its own PR
         die(f"role '{role}' ({actor()}) may not do this: `factory pr` is for coders; ask your lead", 3)
     ag = con.execute("SELECT task_id FROM agents WHERE name=?", (actor(),)).fetchone()
     tid = ag["task_id"] if ag else None
@@ -8190,7 +8192,7 @@ def mech_candidates(con, only=None):
     for t in con.execute(q, (only,) if only else ()).fetchall():
         if t["tier"] and t["tier"] > MECH_MAX_TIER:
             continue
-        if mech_dispute(con, t["id"]):
+        if mech_dispute(con, t["id"]) or runner_managed(con, t["id"]):  # the Option B runner merges its own tasks
             continue
         if task_judge_hold_reason(con, t["id"]):  # a held task is not merged mechanically; judge_autospawn_tick logs the hold
             continue
@@ -8392,6 +8394,14 @@ def mech_try(con, t, mode, retry_s):
         return "would-merge"
     done = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] == "done"
     return "merged" if done else block("gate returned without merging")
+
+
+def runner_managed(con, tid):
+    """True when the Go Option B runner (`hivemill run`, docs/option-b-runner.md) owns this task: an agents row of role
+    task or task-judge exists for it. The old pipeline (autospawn, ci resume, dispatch, the tick's merger, red-PR mail)
+    leaves such a task alone."""
+    return bool(tid) and con.execute("SELECT 1 FROM agents WHERE task_id=? AND role IN ('task','task-judge') LIMIT 1",
+                                     (tid,)).fetchone() is not None
 
 
 def cmd_mech_merge(a):
@@ -17931,6 +17941,8 @@ def autospawn_block_reason(con, t):
         r = con.execute("SELECT status FROM tasks WHERE id=?", (d,)).fetchone()
         if r and r["status"] not in ("done", "cancelled"):
             return f"depends_on {d} is {r['status']}, not done"
+    if runner_managed(con, t["id"]):
+        return "runner-managed (Option B: its own judge)"
     return None
 
 
@@ -18918,7 +18930,7 @@ def _tick_u_reap_loop(con, st):
         tui_list_ok = st.get("tui_list_ok", True)
         # 1. reap finished workers; detect lost agents; record session ids for resume
         remote_terms, hq_name = None, None
-        for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
+        for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done') AND role NOT IN ('task','task-judge')").fetchall():
             row_exe = _agent_host_exe(con, r)
             rm = _spawn_args_row(r).get("machine")
             if rm:
@@ -19061,7 +19073,8 @@ def _tick_u_drift(con, st):
 def _tick_u_flagless(con, st):
         # 1b. flagless panes (resumed by herdr without role flags) surface even without `factory up`
         notify_flagless(con, [f for f in flagless_scan(
-            con, con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL").fetchall(),
+            con, con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL "
+                             "AND role NOT IN ('task','task-judge')").fetchall(),
             throttle=True) if f["new"]])
         _pt_lap("flagless")
 
@@ -19337,7 +19350,7 @@ def _tick_u_nudge(con, st):
             nudge_hc_list = _host_agents_list("hc") or []
             nudge_hc_by = {x["name"]: x for x in nudge_hc_list if x.get("name")}
         nudge_by_name, nudge_by_pane = _agents_index(nudge_agents)
-        for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
+        for r in con.execute("SELECT * FROM agents WHERE status='live' AND role NOT IN ('task','task-judge')").fetchall():
             if r["role"] == "boss":
                 if nudge_eff == "hc" and _agent_host_exe(con, r) == "herdr":
                     if not tui_list_ok:
@@ -20688,7 +20701,7 @@ def dispatch_candidates(con):
     for t in rows:
         if not set(json.loads(t["depends_on"] or "[]")) <= done:
             continue
-        if not (t["spec"] or "").strip():
+        if not (t["spec"] or "").strip() or runner_managed(con, t["id"]):
             continue
         if t["role"] in ("coder", "qa") and not (t["acceptance"] or "").strip():
             continue  # cmd_spawn would refuse it
@@ -21459,8 +21472,8 @@ def coder_ci_resume_tick(con):
     batch, starts = [], 0
     for t in con.execute(
             "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.role='coder' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
-            "AND g.status='active' AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND a.role='coder' "
-            "AND a.status NOT IN ('done','exited','lost','cancelled')) ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
+            "AND g.status='active' AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role IN ('task','task-judge') OR a.role='coder' "
+            "AND a.status NOT IN ('done','exited','lost','cancelled'))) ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
         if starts >= CODER_RESUME_MAX_STARTS:
             return
         tid, team = t["id"], t["team_id"]
@@ -22007,7 +22020,7 @@ def tick_red_pr_owner(con):
     for k in con.execute("SELECT t.id, t.goal_id, t.status, t.waits, t.pr_url, t.branch, tm.lead_agent FROM tasks t LEFT JOIN teams tm ON tm.id=t.team_id AND tm.status='active' "
                          "WHERE t.status IN ('in_progress','in_review','blocked') AND t.pr_url IS NOT NULL AND t.pr_url != '' ORDER BY t.id").fetchall():
         if con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('live','starting','queued')",
-                       (k["id"],)).fetchone():
+                       (k["id"],)).fetchone() or runner_managed(con, k["id"]):
             continue
         head = _ci_remote_head(k["branch"], batch)
         if head is not None and (_throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))

@@ -70,6 +70,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
 - [mech-merge.md](mech-merge.md): the tick's mechanical merger for T0-T2 PRs (`mech_merge` off/shadow/on), same gate as the judge.
+- [option-b-runner.md](option-b-runner.md): Option B lane (`hivemill`, Go): one Claude session per task, a Stop-hook gate, a fresh judge, mechanical merge.
 - [spend-alert.md](spend-alert.md): the tick mails claude-boss when the last hour's token spend is over $20 or 2x the 24 h hourly average (one alert per hour, no LLM).
 - [judge-hold-expiry.md](judge-hold-expiry.md): a manual judge hold on a reviewer+QA PASS PR expires after 2 h unless it names a boss decision (`judge_hold_expiry_min`).
 - [prcheck.md](prcheck.md): `factory prcheck`, the coder's pre-PR check, and the `prcheck_required` gate on `factory done` (G-022).
@@ -129,6 +130,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adr/0006-worker-sandbox-assessment.md](adr/0006-worker-sandbox-assessment.md): worker sandbox assessment (why go test fails for QA; proposed, nothing installed).
 - [adr/0007-hivemill-kit.md](adr/0007-hivemill-kit.md): Hivemill Kit design (standalone skills, three levels, evals and a catalog; proposed).
 - [adr/0008-resource-hygiene.md](adr/0008-resource-hygiene.md): deterministic resource hygiene (hm-clean; proposed, nothing installed).
+- [adr/0009-option-b-runner.md](adr/0009-option-b-runner.md): ADR 0009, Option B runner: one session per task, Stop-hook gate, fresh judge, mechanical merge (Go core `hivemill`).
 
 ## Internals
 
