@@ -122,6 +122,11 @@ class TestAxisChart(unittest.TestCase):
         bins = [(f"h{i:02d}", {"work_usd": 1}) for i in range(24)]
         self.assertEqual(len(re.findall(r'class="axis-x"', str(charts.axis_chart(bins, SERIES, "s")))), 8)
 
+    def test_token_sized_values_never_print_an_exponent(self):
+        bins = [("11-21", {"work_usd": 48_567_200}), ("11-22", {"work_usd": 0.000_000_3}), ("11-23", {"work_usd": 1e-9})]
+        c = str(charts.axis_chart(bins, SERIES, "tokens", unit=""))
+        self.assertNotRegex(c, r"\de[+-]\d")
+
     def test_compact_rolls_over_to_M_at_the_unit_boundary(self):
         self.assertEqual([charts.compact(n) for n in (999, 1000, 999949, 999950, 999999, 1_000_000)],
                          ["999", "1.0k", "999.9k", "1.0M", "1.0M", "1.0M"])

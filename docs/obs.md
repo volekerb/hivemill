@@ -14,7 +14,8 @@ pages and keep their query string.
   - Takes a lock, so a second run at the same time does nothing.
 - **Privacy.** Ingest stores token counts, prices, model names and tool names. Tool names are checked against a
   name pattern. A Bash call is reduced to an allowlisted command head such as `git push`. It also stores sizes and
-  ids. It never stores message text, prompts, tool input or output, file contents or paths. The Go test
+  ids, and each transcript file's location as the ingest cursor. It never stores message text, prompts, tool input
+  or output, file contents or the paths a tool touched. The Go test
   `TestPrivacyNoContentIsStored` feeds secrets through every field and checks that none reaches `obs.db`.
 - **API.** The pages call `hm-obs api spend|flow` with a fixed argv. Only validated values reach it: a known range,
   a known group, and filter values that match an id pattern. The same JSON is served at `/api/obs/spend` and

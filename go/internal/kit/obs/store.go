@@ -4,8 +4,9 @@
 // and Flow pages of the web UI as JSON.
 //
 // Privacy: obs.db holds only numbers, ids, timestamps, model names, tool and skill names, tool result sizes and Bash
-// command heads from a fixed allowlist. Message text, prompts, tool input and output, file contents and paths are
-// never stored; a session's kickoff message is matched for its role and agent name, then dropped.
+// command heads from a fixed allowlist, plus each transcript file's own location as the ingest cursor. Message text,
+// prompts, tool input and output, file contents and the paths a tool touched are never stored; a session's kickoff
+// message is matched for its role and agent name, then dropped.
 package obs
 
 import (
