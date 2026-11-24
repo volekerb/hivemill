@@ -121,7 +121,7 @@ class WorkflowWiring(unittest.TestCase):
         self.assertIn(STEP, cd)
         self.assertNotIn("Guard hook unittests", cd)
         for block in (ut, cd):
-            self.assertLessEqual(int(re.search(r"timeout-minutes: (\d+)", block).group(1)), 30)
+            self.assertLessEqual(int(re.search(r"timeout-minutes: (\d+)", block).group(1)), 45)  # guard-diff: two corpus passes, ~32 min
             self.assertNotRegex(block, r"(?m)^\s+continue-on-error:\s*true")
         agg = job_block(WF, "unittest")
         self.assertRegex(agg, r"needs:\s*\[[^\]]*\bguard-unittest\b[^\]]*\bguard-diff\b[^\]]*\]")

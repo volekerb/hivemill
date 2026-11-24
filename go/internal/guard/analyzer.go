@@ -438,6 +438,8 @@ func (a *Analyzer) script(text string, depth int) error {
 					cur, piped, hs = top.words, top.piped, top.hs
 					if anyOf(cur, func(w string) bool { return !assignOrReserved(w) }) {
 						cur = append(cur, "$SUB") // the substitution's value is an argument of that command
+					} else if n := len(cur); n > 0 && IsAssign(cur[n-1]) && in(tcEnvNames, strings.SplitN(cur[n-1], "=", 2)[0]) {
+						cur = append(append([]string(nil), cur[:n-1]...), cur[n-1]+"$SUB") // T-1498: a substitution in a toolchain env value (GOFLAGS=$(..)) is dynamic
 					}
 				default:
 					cmds = append(cmds, pcmd{cur, piped, hs})
@@ -597,7 +599,7 @@ func (a *Analyzer) priv(words []string, depth int, piped bool, hstrs []string) e
 		}
 	}
 	if a.hqDeny {
-		if what := hqDenyHit(w, name, rest); what != "" {
+		if what := hqDenyHit(w, name, rest, a.Role); what != "" {
 			return &HqDenyBlock{Msg: what}
 		}
 	}

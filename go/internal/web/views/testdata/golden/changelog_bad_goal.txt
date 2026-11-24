@@ -1,0 +1,30 @@
+# /changelog?goal=G-999
+TEXT
+Changelog - factory Skip to content Hivemill Needs you 6 Hivemill Work Overview 6 Goals Tasks Agents 3 Insights Throughput Quality Tokens Changelog System Resources Changelog All Claude Cursor <TS> Gate closed · 2 queued Needs you 6 Cursor usage · 0 h · Pro · ok Entries use a bounded line length on desktop so titles stay readable; meta stays near the title. By date By goal Filters Goal All goals G-001 3 G-002 2 G-003 1 Today 1 Done Merged <i>markup</i> title G-001 PR cafe123 2 h ago Yesterday 1 Done Cursor merged work G-002 PR beef456 1 d ago Nov 12 1 Done plain no tag G-001 PR feed001 2 d ago Nov 11 1 Done é ünïcode 日本 spaced G-002 PR abc 3 d ago Nov 02 1 Done build parser G-001 PR abc1234 12 d ago Oct 01 1 Done old merged G-003 PR old0001 44 d ago Work Overview Goals Tasks Agents Insights Throughput Quality Tokens Changelog System Resources Theme Overview Goals Tasks Agents 3 More
+LINKS
+#content
+#more
+a:#content
+a:#more
+a:/
+a:/#needs-you
+a:/agents
+a:/changelog
+a:/changelog?goal=G-001
+a:/changelog?goal=G-002
+a:/changelog?goal=G-003
+a:/changelog?group=goal
+a:/changelog?org=claude
+a:/changelog?org=cursor
+a:/goals
+a:/quality
+a:/resources
+a:/task/T-1
+a:/task/T-11
+a:/task/T-30
+a:/task/T-31
+a:/task/T-5
+a:/task/T-8
+a:/tasks
+a:/throughput
+a:/tokens

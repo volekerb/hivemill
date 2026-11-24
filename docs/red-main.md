@@ -17,3 +17,7 @@ The revert/fix task the check files may itself merge during the freeze (matched 
 **Which goal gets the revert task (T-0669).** The active goal of the project whose `gh_repo` is the repo; if that project has none, the active goal with a task whose PR is in the repo (a goal can work in a repo its project row does not name). With no such goal the director is told to file the task by hand.
 
 **Naming the fix task by hand.** `factory redmain fix <OWNER/NAME> <T-id>` (director only) sets the stored fix task of a frozen repo (event `red-main-fix-task`), so that task may merge during the freeze. Use it when no revert task was filed, otherwise the fix PR cannot merge.
+
+## One bisect + revert task per red run (T-1772)
+
+The task filed for a red run is titled `Red main: bisect + revert <repo> run <id>`, has priority 1 and names the merge commits since the last green main. With `judge_ci_gate=none` this is the only CI safety net; see `docs/judge-ci-gate.md`.

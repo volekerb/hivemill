@@ -87,6 +87,33 @@ missing from `agent_goals` until the next tick (up to a minute): `factory goal s
 A `git`/`gh` command reads the export for the public-text rule only when it can reach the rule (the write forms above); a
 shell payload in HQ mode is analysed only when it may hold a `git`/`gh` word once its quoting is resolved.
 
+## Go toolchain for workers (T-1498)
+
+The roles coder, qa and reviewer may run the toolchain by full path, `~/.local/go/bin/go` and `~/.local/go/bin/gofmt` (also
+written `$HOME/.local/go/bin/...` or with the passwd home spelled out). Both guards (worker-guard.py and this package) apply the
+same rules; every other role is unchanged. Allowed: `go build|test|vet|run|list|env|version|fmt` and `go mod verify|graph|why`;
+`gofmt -w` and `go fmt` (both rewrite files) only on files inside the caller's working tree or scratchpad. Allowed env prefixes:
+`GOTOOLCHAIN=local`, `GOFLAGS=...`, `GOPROXY=off`, `GOCACHE=<path>`, `GOMODCACHE=<path>` (`~/.local/lib/factory/go/mod` for
+read use, and then only with `GOPROXY=off`), `CGO_ENABLED=0`, `PATH=~/.local/go/bin:$PATH`; any other prefix is refused.
+Refused: the network and write subcommands (`go mod download`, `go get`, `go install`, `go clean`, `go mod tidy`, `go work`, ...),
+`go env -w` and a lookalike spelling (`~/.local/go/bin/../../go/bin/go`).
+
+Flags are a strict per-subcommand allow-list, default deny (`TC_FLAGS` in worker-guard.py, `tcSubFlags` in gotoolchain.go; the two
+tables are the same). Anything not in the table blocks: an unknown flag, `-args`, `-exec`/`-toolexec`/`-vettool`, `-pkgdir`,
+`-overlay`, `-modfile`, `gofmt -cpuprofile`, `go env -w`. A value flag consumes the next word whatever it looks like (as Go does), so
+`-run -o` has no `-o`; `--` is never dropped before the parse, so `-tags -- -o x` has tags `--` and an `-o`. Default deny on words: any word of a `go`/`gofmt` command (positional, flag or flag value) holding `$`, a backtick, `*`, `?`, `[` or `{`, or a `~` that is not the whole word or a `~/` prefix, is refused, because the shell could word-split or glob it into a flag (`./x$X`, `[-]o`). Words reach the guard dequoted, so a quoted literal such as `'^TestX$'` is refused too. A bare `--` at flag position ends the flags, and is refused for `go test` (everything after it goes to the test binary) and in `GOFLAGS`. The flags: `build` and `run` take `-race -v -trimpath -tags -mod -p -buildvcs` (`build` also `-o`);
+`test` adds `-short -cover -failfast -json -benchmem -c -run -skip -count -timeout -bench -benchtime -cpu -parallel -shuffle -coverpkg
+-covermode -list -fuzz -fuzztime` and the path flags `-o -coverprofile -cpuprofile -memprofile -blockprofile -mutexprofile -trace
+-outputdir` (a `-test.NAME` spelling is the same flag); `vet`: `-race -v -tags -mod`; `list`, `env`, `version`, `fmt`, `mod` a few
+read-only flags (see the table); `gofmt`: `-l -d -s -e -w -r`. `GOFLAGS` is parsed by the same table. Path flags and `-C` accept a plain path
+inside the caller's worktree or scratchpad only (`-o /dev/null` is allowed too). `-mod` accepts `readonly` or `vendor`; `-mod=mod`
+(any spelling: `-mod mod`, `--mod=mod`, `GOFLAGS='-mod mod'`) needs `GOPROXY=off`. `go build`, `go test -c` and `go test` with a profile flag (`-cpuprofile -memprofile -blockprofile -mutexprofile -trace -coverprofile`, which keep `pkg.test` in the cwd) without `-o` write into
+the working directory, so they are refused when it is a protected tree. Every write into those trees stays blocked as before. QA copy-paste line:
+
+    GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go test ./...
+
+Putting `~/.local/go/bin` on the pane PATH at spawn is not part of this change.
+
 ## Command analyser (T-0349)
 
 `analyzer.go` (`Analyzer`, `script`, `priv`), `commands.go` (`cmd`, `kill`, `shell`, `loose`, `xargs`, `systemctl`,
@@ -272,9 +299,7 @@ The shim locates the binary under `$HOME`; the guard protects the passwd home. T
 ## Build and stamp
 
 No binary is in git. `factory up` and the tick call `build_guard_go()` (T-0354), which builds `go/cmd/worker-guard`
-into `~/.local/lib/factory/worker-guard`, **only when `guard_impl` is not `python`**. At the default no Go toolchain runs
-in the tick or in `factory up`; `write_guard_impl()` runs in every case. After a flip to `go` or `shadow` the next tick
-(or `factory up`) builds, and the shim stays on Python until the stamp matches. Rolling back to `python` also stops builds.
+into `~/.local/lib/factory/worker-guard`, on every tick and `factory up` whatever `guard_impl` says (T-1804; no-op when stamped, skipped under load or without a toolchain). `write_guard_impl()` runs in every case and dispatch still follows `guard_impl`: after a flip to `go` or `shadow` the shim stays on Python until the stamp matches the new `srchash`.
 
 1. The toolchain is `~/.local/go/bin/go` only, `nice` is `/usr/bin/nice`; neither is
    looked up on `PATH`. A missing toolchain: one stderr line `guard go build: skipped (no go toolchain)`, no stamp, no error.

@@ -28,8 +28,8 @@ type Org struct {
 var Orgs = map[string]Org{
 	"claude": {Label: "Claude", Runtime: "claude", Models: map[string]string{
 		"boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
-		"pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-		"staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
+		"pm": "claude-sonnet-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-sonnet-5-5",
+		"staff-engineer": "claude-opus-5-5", "researcher": "claude-sonnet-5-5",
 		"coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
 		"scout": "claude-sonnet-5-5", "retro": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 	}},

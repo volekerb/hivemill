@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 import uuid
 from collections import Counter
 from pathlib import Path
@@ -485,6 +486,77 @@ class QuarantineTest(unittest.TestCase):
         self.assertEqual(n, 2)
 
 
+class ScopeAndJobsTest(unittest.TestCase):
+    """Owner 2026-11-17: a PR run stays near 10 minutes; the deep run (workflow_dispatch) runs everything."""
+
+    MODS = ["test_a.py", "test_guard_diff.py", "test_priv_guard.py", "test_worker_guard_x.py", "test_guard_build.py"]
+
+    def test_deep_run_drops_nothing(self):
+        self.assertEqual(shard.scoped_out(self.MODS, env={"SHARD_DEEP": "true", "SHARD_BASE": "abc"}, changed=[]), frozenset())
+
+    def test_corpus_module_is_deep_only_everywhere_else(self):
+        self.assertEqual(shard.scoped_out(self.MODS, env={}), frozenset({"test_guard_diff.py"}))
+        self.assertEqual(shard.scoped_out(self.MODS, only={"test_a.py"}, env={"SHARD_BASE": "abc"}, changed=[]),
+                         frozenset({"test_guard_diff.py"}))
+
+    def test_full_mode_runs_guard_modules_only_for_a_guard_path(self):
+        env = {"SHARD_BASE": "abc"}
+        dropped = shard.scoped_out(self.MODS, env=env, changed=["bin/factory_cli.py", "docs/x.md"])
+        self.assertEqual(dropped, frozenset(self.MODS) - {"test_a.py"})
+        for path in ("roles/hooks/worker" + "-guard.py", "roles/settings/coder.json", "ci/guard_diff.py", "ci/shard.py",
+                     ".github/workflows/tests.yml", "go/internal/guard/x.go", "go/cmd/worker" + "-guard/main.go",
+                     "go/internal/shlex/lex.go", "tests/test_worker_guard_x.py", "tests/harness.py", "tests/guard_impl.py"):
+            self.assertEqual(shard.scoped_out(self.MODS, env=env, changed=[path]), frozenset({"test_guard_diff.py"}), path)
+
+    def test_unknown_diff_keeps_the_guard_modules(self):
+        with tempfile.TemporaryDirectory() as d:  # not a git repo: the diff cannot be read
+            self.assertIsNone(shard.changed_paths("abc", root=d))
+        self.assertEqual(shard.scoped_out(self.MODS, env={"SHARD_BASE": "0" * 40}), frozenset({"test_guard_diff.py"}))
+
+    def test_default_jobs(self):
+        with unittest.mock.patch.dict(os.environ, {"SHARD_JOBS": "3"}):
+            self.assertEqual(shard.default_jobs(), 3)
+        with unittest.mock.patch.dict(os.environ, {"SHARD_JOBS": ""}):
+            self.assertTrue(1 <= shard.default_jobs() <= 4)
+
+    def _tree(self, d, red=False):
+        tests = os.path.join(d, "tests")
+        os.mkdir(tests)
+        for name in ("test_p1.py", "test_p2.py", "test_p3.py"):
+            body = "self.assertTrue(%s)" % ("False" if red and name == "test_p2.py" else "True")
+            Path(tests, name).write_text("import unittest\nclass T(unittest.TestCase):\n    def test_x(self):\n        %s\n" % body)
+        return tests
+
+    def _run(self, tests, out, jobs):
+        cmd = [sys.executable, shard.__file__, "run", "--shard", "1", "--total", "1", "--out", out, "--jobs", str(jobs)]
+        env = dict(os.environ, SHARD_DEEP="true")
+        code = ("import sys; sys.path.insert(0, %r); import shard; "
+                "sys.exit(shard.run_shard(1, 1, %r, tests_dir=%r, jobs=%d))" % (os.path.dirname(shard.__file__), out, tests, jobs))
+        return subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+
+    def test_parallel_run_matches_the_serial_report(self):
+        with tempfile.TemporaryDirectory() as d:
+            tests = self._tree(d)
+            reports = []
+            for jobs in (1, 3):
+                out = os.path.join(d, "r%d.json" % jobs)
+                r = self._run(tests, out, jobs)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                with open(out) as f:
+                    reports.append(json.load(f))
+            self.assertEqual(reports[0]["modules"], reports[1]["modules"])
+            self.assertEqual(reports[0]["tests"], 3)
+            self.assertEqual(reports[1]["tests"], 3)
+            self.assertEqual(sorted(reports[1]["seconds"]), ["test_p1.py", "test_p2.py", "test_p3.py"])
+
+    def test_parallel_run_is_red_when_one_module_fails(self):
+        with tempfile.TemporaryDirectory() as d:
+            tests = self._tree(d, red=True)
+            r = self._run(tests, os.path.join(d, "r.json"), 3)
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn("failed modules: test_p2.py", r.stderr)
+
+
 class WorkflowTest(unittest.TestCase):
     wf = (ROOT / ".github" / "workflows" / "tests.yml").read_text()
 
@@ -503,7 +575,7 @@ class WorkflowTest(unittest.TestCase):
         )
         self.assertEqual(
             re.findall(r"timeout-minutes: (\d+)", self.wf),
-            ["5", "10", "30", "40", "30", "5", "30", "30", "30", "30", "5", "30", "5"],
+            ["5", "10", "30", "40", "30", "5", "45", "30", "30", "30", "5", "30", "5"],
         )
 
     def test_edited_trigger_is_not_used(self):

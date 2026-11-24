@@ -1,0 +1,9 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# sandboxes part 1 (T-1681): the Go tests live in internal/factorytest/sandbox1. The Python modules stay as parity oracles.
+# TestWorkerbox also matches the 14 TestWorkerboxClone tests, so its count is a floor.
+tests/test_workerbox.py 82 -> internal/factorytest/sandbox1:TestWorkerbox 82
+tests/test_workerbox_clone.py 14 -> internal/factorytest/sandbox1:TestWorkerboxClone 14
+tests/test_testbox.py 27 -> internal/factorytest/sandbox1:TestTestbox 27
+tests/test_testcg.py 12 -> internal/factorytest/sandbox1:TestTestcg 12
+tests/test_gatebox.py 20 -> internal/factorytest/sandbox1:TestGatebox 20
+tests/test_gate_sandbox.py 15 -> internal/factorytest/sandbox1:TestGateSandbox 15

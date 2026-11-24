@@ -72,3 +72,44 @@ When `stale_policy=behind_ok` would merge a PR whose diff since the merge-base t
 merger run `go vet` then `go test -count=1` on the `git merge-tree` result (the whole merge tree is materialised with `git archive`, no checkout
 or worktree, so Go tests may read repo files outside `go/` via `../` paths). A failure refuses with prefix `MERGED-TREE` and does **not** refresh and does **not** merge. PRs that do
 not touch `go/`, and non-go stale merges, are unchanged. Rollback: `factory config merged_go_proof 0`.
+
+## No-refresh merge (owner 2026-11-17)
+
+Owner rule (T-1676): a judge may merge a PR without first updating it to the newest main when the PR already passed CI on
+its own commit and nothing that changed on main since then touches the same files, with no merge conflict. One helper,
+`no_refresh_merge`, decides for all three paths, so they agree: the judge spawn pre-check (`staleness_precheck`),
+`factory judge --merge` (the gate in `_judge_gate_and_merge`) and the mechanical merger (`mech_try`, which also runs that gate).
+`--train` never refreshes (it builds on origin/main itself) and is unchanged.
+
+A head that does not contain `origin/main` is merged as it is, with no refresh anywhere, when **all** of these hold:
+
+1. CI green on the PR's current head: every check COMPLETED with SUCCESS, SKIPPED or NEUTRAL, the required checks present,
+   at least one check (local-gate projects: `local_checks_problems`).
+2. Reviewer PASS and QA PASS on that head (exact head, or carried by the unchanged T-0095 carry rule).
+3. `git merge-tree --write-tree` of main and the head is clean.
+4. No file changed on main since the merge-base is also changed by the PR, and `.github/workflows/tests.yml` is unchanged
+   on main since the merge-base (`behind_ok_blocker`, T-1025 and T-1000 kept).
+5. GitHub reports `mergeable == MERGEABLE`.
+
+GitHub must also accept a BEHIND merge (`stale_behind_ok`: `stale_policy=behind_ok` and a non-strict branch protection or
+ruleset); a strict main still refreshes, because GitHub would refuse the merge.
+
+Outcomes of the helper:
+
+| verdict | when | pre-check | `judge --merge` | mech merger |
+|---|---|---|---|---|
+| `merge` | all hold | no refresh (event `precheck-no-refresh`) | merges the current head with `--match-head-commit`, event `merged-no-refresh` `{"head", "main", "reasons"}` | merges through the same gate |
+| `hold` | 3-5 hold, CI (1) or a verdict (2) does not | no refresh | refused (checks not green / no PASS on head), no refresh | refused by the gate, no refresh |
+| `refresh` | 3, 4 or 5 fails, strict main, or any git/gh error (fail closed) | the rule before T-1676 | refreshes as before | `STALE-ONLY`, the judge refreshes |
+
+Kept: `merged_go_proof` for `go/` diffs, the red-main freeze, `judge_wait_main_run`, the public-text guard, the noreply
+author and every other gate check. The judge reason still carries the behind_ok note above.
+
+Rollback: `factory config stale_no_refresh off` restores the behaviour before T-1676 (the behind_ok rules above). Default `on`.
+
+## Spawn pre-check refreshes only a CONFLICTING PR (T-1788, owner M40469)
+
+`factory spawn judge` merges origin/main into the PR branch only when GitHub reports `mergeable == CONFLICTING`.
+A PR that is merely behind (MERGEABLE or UNKNOWN: BEHIND, CLEAN, UNSTABLE, BLOCKED) keeps its head sha, so the
+reviewer and QA verdicts still match it. `stale_policy` and the branch protection no longer change this. The reviewer
+and QA spawns never push (dry run). Tests: `tests/test_spawn_precheck.py` (`test_t1788_*`).

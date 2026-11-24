@@ -566,13 +566,15 @@ func RunQuarantine(root string, shard, total int, out string, only map[string]bo
 			return 1, err
 		}
 		for _, m := range collectMods {
-			hit, dropped := quarantineHits(modEntries[m], ids[m])
-			for k, v := range hit {
-				quarantined[k] = v
-			}
 			if split[m] {
+				// a split module runs only this shard's id slice: quarantine looks at that slice, as ci/shard.py does
+				sub := ShardOfTestIDs(ids[m], shard, total)
+				hit, dropped := quarantineHits(modEntries[m], sub)
+				for k, v := range hit {
+					quarantined[k] = v
+				}
 				var keep []string
-				for _, id := range ShardOfTestIDs(ids[m], shard, total) {
+				for _, id := range sub {
 					if !dropped[id] {
 						keep = append(keep, id)
 					}
@@ -582,6 +584,10 @@ func RunQuarantine(root string, shard, total int, out string, only map[string]bo
 				}
 				idSubsets[m] = keep
 			} else {
+				hit, dropped := quarantineHits(modEntries[m], ids[m])
+				for k, v := range hit {
+					quarantined[k] = v
+				}
 				for id := range dropped {
 					drop[m] = append(drop[m], id)
 				}

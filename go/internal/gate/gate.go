@@ -132,12 +132,28 @@ type Usage struct {
 	Unreadable         bool
 	FiveResetsAt       *int64
 	SevenResetsAt      *int64
+	UpdatedAt          *int64 // updated_at epoch of the file; nil when the file is missing or has none
 }
 
-// Text is usage_text(): the "claude usage ..." line of `factory res`.
+// usageZone pins the zone of the "stale since" time; nil is the box zone. Tests set it.
+var usageZone *time.Location
+
+// Text is usage_text(): the "claude usage ..." line of `factory res`. A reading that is not fresh (the file is
+// missing or its updated_at is old) never shows percentages: they would be a guess, and a missing file used to
+// read as 0%. It says since when the numbers have been stale instead.
 func (u Usage) Text() string {
 	if u.Unreadable {
 		return "claude usage unreadable"
+	}
+	if !u.Fresh {
+		if u.UpdatedAt == nil {
+			return "claude usage stale since never (no usage file)"
+		}
+		t := time.Unix(*u.UpdatedAt, 0) // the box's own zone unless a test pins usageZone
+		if usageZone != nil {
+			t = t.In(usageZone)
+		}
+		return "claude usage stale since " + t.Format("2006-01-02 15:04 MST")
 	}
 	five, week := "n/a", "n/a"
 	if u.FiveHour != nil {
@@ -146,11 +162,7 @@ func (u Usage) Text() string {
 	if u.SevenDay != nil {
 		week = fmt.Sprintf("%.0f%%", *u.SevenDay)
 	}
-	s := "claude usage 5h " + five + " · week " + week
-	if !u.Fresh {
-		s += fmt.Sprintf(" (stale: %d min old)", u.AgeMin)
-	}
-	return s
+	return "claude usage 5h " + five + " · week " + week
 }
 
 // Tmp is tmp_usage(): the filesystem holding /tmp.

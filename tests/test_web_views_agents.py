@@ -225,7 +225,7 @@ class TestGate(Base):
         stale = {**FRESH, "five_hour": 99.0, "fresh": False, "age_min": 400}
         g = self.gate(usage=stale)
         self.assertTrue(g["open"])    # stale usage never closes the gate
-        self.assertIn("(stale: 400 min old)", " ".join(g["checks"]))
+        self.assertIn("claude usage stale since", " ".join(g["checks"]))
         unread = {"five_hour": None, "seven_day": None, "fresh": False, "age_min": -1, "unreadable": True}
         g = self.gate(usage=unread)
         self.assertTrue(g["open"])

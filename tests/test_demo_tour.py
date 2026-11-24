@@ -324,13 +324,15 @@ class Cli(unittest.TestCase):
 
     @envcheck.skip_on_ram()
     def test_max_frames_below_page_count_is_usage_error(self):
-        r = self.run_tour("--out", str(REPO / "docs/demo/out/x"), "--pages", "/a,/b,/c", "--max-frames", "2")
+        r = self.run_tour("--out", str(REPO / "docs/demo/out/x"), "--demo-dir", str(REPO / "docs/demo/out/x-demo"),
+                          "--pages", "/a,/b,/c", "--max-frames", "2")
         self.assertEqual(r.returncode, 2)
         self.assertIn("at least the number of pages", r.stderr)
 
     @envcheck.skip_on_ram()
     def test_bad_pages_is_usage_error(self):
-        r = self.run_tour("--out", str(REPO / "docs/demo/out/x"), "--pages", "goals")
+        r = self.run_tour("--out", str(REPO / "docs/demo/out/x"), "--demo-dir", str(REPO / "docs/demo/out/x-demo"),
+                          "--pages", "goals")
         self.assertEqual(r.returncode, 2, r.stderr)
 
 
@@ -354,15 +356,20 @@ class SceneAndScale(unittest.TestCase):
                         demo_tour.load_tour(bad)
 
     def cli(self, *args):
-        return subprocess.run([sys.executable, str(TOUR), "--out", str(REPO / "docs" / "demo" / "out" / "t"), *args],
-                              capture_output=True, text=True, timeout=60)
+        # an explicit --demo-dir in the checkout (never created on a usage error): the default is under $HOME, which
+        # the local gate puts in its run dir under /var/tmp (T-1679), a dir the demo scripts refuse as RAM-backed
+        out = REPO / "docs" / "demo" / "out"
+        return subprocess.run([sys.executable, str(TOUR), "--out", str(out / "t"), "--demo-dir", str(out / "t-demo"),
+                               *args], capture_output=True, text=True, timeout=60)
 
+    @envcheck.skip_on_ram()
     def test_unknown_scene_is_a_usage_error(self):
         r = self.cli("--scene", "nope")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn("'nope'", r.stderr)
         self.assertIn("open, work, result", r.stderr)  # lists the ui scenes that exist
 
+    @envcheck.skip_on_ram()
     def test_scale_outside_range_is_a_usage_error(self):
         for bad in ("0.5", "3"):
             r = self.cli("--scale", bad)

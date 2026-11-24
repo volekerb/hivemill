@@ -415,6 +415,43 @@ func TestShardQuarantineRunExcludesAndVerifies(t *testing.T) {
 	}
 }
 
+func TestShardQuarantineSplitModuleParity(t *testing.T) {
+	root, script := shardFixture(t, defaultTimings(), defaultMods())
+	q := filepath.Join(root, "q.json")
+	// test_03 sits at sorted position 3 of 7: round-robin over 3 shards puts it on shard 1 only.
+	entry := `{"entries":[{"id":"test_guard_diff.T.test_03","owner":"T-0001","added":"2026-11-10","expires":"2026-11-20","reason":"r","evidence":"https://example.invalid/r"}]}`
+	if err := os.WriteFile(q, []byte(entry), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for shard := 1; shard <= 3; shard++ {
+		sh := fmt.Sprint(shard)
+		goOut := filepath.Join(root, "go"+sh+".json")
+		pyOut := filepath.Join(root, "py"+sh+".json")
+		gso, _, code := runGo(Main, "run", "--root", root, "--shard", sh, "--total", "3", "--quarantine", q, "--today", "2026-11-17", "--out", goOut)
+		pso, _, pc := pyRun(t, root, script, "run", "--shard", sh, "--total", "3", "--quarantine", q, "--today", "2026-11-17", "--out", pyOut)
+		if code != 0 || pc != 0 {
+			t.Fatalf("shard %d: go exit %d, python exit %d", shard, code, pc)
+		}
+		var g, p Report
+		for path, r := range map[string]*Report{goOut: &g, pyOut: &p} {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(raw, r); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !reflect.DeepEqual(g.Quarantined, p.Quarantined) || g.Tests != p.Tests || !reflect.DeepEqual(g.TestIDs, p.TestIDs) {
+			t.Errorf("shard %d: go %+v, python %+v", shard, g, p)
+		}
+		excluded := strings.Contains(gso, "quarantine: excluded") || strings.Contains(pso, "quarantine: excluded")
+		if excluded != (shard == 1) {
+			t.Errorf("shard %d: quarantine line present=%v, want only on shard 1\ngo: %s\npython: %s", shard, excluded, gso, pso)
+		}
+	}
+}
+
 func TestShardQuarantineCorruptFileExits2(t *testing.T) {
 	root, _ := shardFixture(t, nil, map[string]string{"test_q.py": pyModule(1, false)})
 	q := filepath.Join(root, "q.json")

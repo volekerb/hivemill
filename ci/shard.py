@@ -2,7 +2,8 @@
 """CI test sharding: pick, run and verify a deterministic slice of tests/test_*.py.
 
   shard.py list [--shard I --total N]     module file names, one per line (I is 1-based)
-  shard.py run --shard I --total N --out F [--only L] [--quarantine Q] [--today D]   run that slice (just the modules listed in file L), write its report (JSON) to F; tests listed in the quarantine file Q (default ci/quarantine.json) are left out (docs/flaky-tests.md)
+  shard.py run --shard I --total N --out F [--only L] [--jobs J] [--quarantine Q] [--today D]   run that slice (just the modules listed in file L), write its report (JSON) to F; tests listed in the quarantine file Q (default ci/quarantine.json) are left out (docs/flaky-tests.md)
+                                          J modules at a time, each in its own child process (default: one per CPU, at most 4; SHARD_JOBS overrides)
   shard.py verify --total N --dir D [--only L]   check the shard reports in D cover every module (of L) once
   shard.py timings --dir D [--out F]      merge the reports' per-module seconds into a timing file
 
@@ -18,9 +19,12 @@ import json
 import os
 import re
 import statistics
+import subprocess
 import sys
+import tempfile
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS = os.path.join(ROOT, "tests")
@@ -32,6 +36,43 @@ QUARANTINE_MAX_DAYS = 14
 # (30 min). Its unittest ids are then split across all shards (T-1168); keep the file name in sync with
 # ci/shard_timings.json and the real tests/ tree.
 SPLIT_TEST_IDS_MODULES = frozenset({"test_guard_diff.py"})
+
+
+# Scoping (owner 2026-11-17: a PR run must stay near 10 minutes). The deep run (workflow_dispatch, SHARD_DEEP=true)
+# runs everything. Elsewhere:
+#  - DEEP_ONLY_MODULES never run (the 13 min Python-vs-Go corpus comparison);
+#  - in full mode (no --only list) the guard hook modules run only when the diff SHARD_BASE..HEAD touches a guard
+#    path. An unreadable diff or no SHARD_BASE keeps them (fail safe). The affected selection (--only) is left alone.
+DEEP_ONLY_MODULES = frozenset({"test_guard_diff.py"})
+GUARD_MODULE_RE = re.compile(r"^test_(worker_guard|priv_guard|guard_)")
+GUARD_PATH_RE = re.compile(
+    r"^(roles/hooks/|roles/settings/|ci/guard_|ci/(public_text_guard|scrub_scan|shard)\.py$|\.github/workflows/|"
+    r"go/internal/guard/|go/cmd/worker-guard/|go/internal/shlex/|"
+    r"tests/(test_(worker_guard|priv_guard|guard_)|guard_impl\.py$|harness\.py$|_slot\.py$|stubs/))")
+
+
+def changed_paths(base, root=ROOT):
+    """Paths changed between `base` and HEAD (merge-base diff, else two-dot); None when git cannot tell."""
+    for spec in ("%s...HEAD" % base, "%s..HEAD" % base):
+        r = subprocess.run(["git", "-C", root, "diff", "--name-only", "--no-renames", spec],
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        if r.returncode == 0:
+            return [l for l in r.stdout.splitlines() if l]
+    return None
+
+
+def scoped_out(modules, only=None, env=None, changed=None):
+    """The modules of `modules` this run leaves to the deep run; see the comment above."""
+    env = os.environ if env is None else env
+    if env.get("SHARD_DEEP", "") == "true":
+        return frozenset()
+    out = {m for m in modules if m in DEEP_ONLY_MODULES}
+    base = env.get("SHARD_BASE", "")
+    if only is None and base and set(base) != {"0"}:
+        paths = changed_paths(base) if changed is None else changed
+        if paths is not None and not any(GUARD_PATH_RE.match(x) for x in paths):
+            out |= {m for m in modules if GUARD_MODULE_RE.match(m)}
+    return frozenset(out)
 
 
 class ShardError(Exception):
@@ -227,19 +268,69 @@ def read_only(path):
         return {l.strip() for l in f if l.strip()}
 
 
-def _walk_ids(suite, out):
-    for t in suite:
-        if isinstance(t, unittest.TestSuite):
-            _walk_ids(t, out)
-        else:
-            out.append(t)
-    return out
+def default_jobs():
+    """Modules run at a time: $SHARD_JOBS, else one per CPU, at most 4 (the hosted runner size)."""
+    env = os.environ.get("SHARD_JOBS", "")
+    if env.isdigit() and int(env) > 0:
+        return int(env)
+    return max(1, min(4, os.cpu_count() or 1))
 
 
-def run_shard(shard, total, out, tests_dir=TESTS, only=None, quarantine=None, today=None):
+def _run_module(module, tests_dir, ids=None):
+    """Run one module (or just the test ids `ids`) in this process; return (testsRun, wasSuccessful)."""
+    loader = unittest.TestLoader()
+    runner = unittest.TextTestRunner(verbosity=2)
+    if ids is not None:
+        result = runner.run(unittest.TestSuite(loader.loadTestsFromName(i) for i in ids))
+    else:
+        result = runner.run(loader.discover(tests_dir, pattern=module, top_level_dir=tests_dir))
+    return result.testsRun, result.wasSuccessful()
+
+
+def _child(module, tests_dir, json_path, ids_path=None):
+    """Child entry (`shard.py _one`): run one module, write {tests, ok} to json_path. rc 0 only when it passed."""
+    root = os.path.dirname(os.path.abspath(tests_dir))
+    os.chdir(root)
+    sys.path.insert(0, root)
+    sys.path.insert(0, tests_dir)
+    ids = None
+    if ids_path:
+        with open(ids_path) as f:
+            ids = json.load(f)
+    tests, ok = _run_module(module, tests_dir, ids)
+    with open(json_path, "w") as f:
+        json.dump({"tests": tests, "ok": ok}, f)
+    return 0 if ok else 1
+
+
+def _spawn_module(module, i, tmp, tests_dir, ids):
+    """Run one module in its own child process; return (output text, tests, ok, seconds)."""
+    jpath = os.path.join(tmp, "%d.json" % i)
+    cmd = [sys.executable, os.path.abspath(__file__), "_one", module, tests_dir, jpath]
+    if ids is not None:
+        ipath = os.path.join(tmp, "%d.ids.json" % i)
+        with open(ipath, "w") as f:
+            json.dump(ids, f)
+        cmd.append(ipath)
+    t0 = time.monotonic()
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+    secs = round(time.monotonic() - t0, 1)
+    tests, ok = 0, False
+    try:
+        with open(jpath) as f:
+            data = json.load(f)
+        tests, ok = int(data["tests"]), bool(data["ok"]) and r.returncode == 0
+    except (OSError, ValueError, KeyError, TypeError):
+        pass  # no report: the child died early; counted as a failure with its output below
+    return r.stdout or "", tests, ok, secs
+
+
+def run_shard(shard, total, out, tests_dir=TESTS, only=None, jobs=None, quarantine=None, today=None):
     """Run the shard's modules (only those in `only`, if given); write {shard,total,modules,tests} to `out`; return the exit code.
 
     Quarantined tests (ci/quarantine.json, or `quarantine`) are dropped from the run and listed under "quarantined".
+    jobs > 1: every module is its own child process, `jobs` at a time, slowest first; a module's output is printed whole
+    when it finishes, in list order (never interleaved). A child with no report or a non-zero exit fails the shard.
     """
     quarantine = os.path.abspath(quarantine or QUARANTINE)
     entries, warnings = load_quarantine(quarantine, today or datetime.date.today().isoformat())
@@ -248,6 +339,11 @@ def run_shard(shard, total, out, tests_dir=TESTS, only=None, quarantine=None, to
     mods = select(all_modules(tests_dir), shard, total)
     if only is not None:
         mods = [m for m in mods if m in only]
+    dropped = scoped_out(mods, only)
+    if dropped:
+        print("shard %d: left to the deep run: %d modules (%s)" % (
+            shard, len(dropped), "guard hook modules, no guard path changed" if len(dropped) > len(DEEP_ONLY_MODULES) else " ".join(sorted(dropped))))
+        mods = [m for m in mods if m not in dropped]
     timings = load_timings()
     split = split_modules(all_modules(tests_dir), timings, total)
     split_here = [m for m in mods if m in split]
@@ -255,37 +351,56 @@ def run_shard(shard, total, out, tests_dir=TESTS, only=None, quarantine=None, to
     for m in split_here:
         all_ids = collect_test_ids(m, tests_dir)
         id_subsets[m] = shard_of_test_ids(all_ids, shard, total)
-    root = os.path.dirname(os.path.abspath(tests_dir))
-    os.chdir(root)
-    # `python -m unittest` puts the cwd (repo root) on sys.path; tests import `web` from there.
-    sys.path.insert(0, root)
-    sys.path.insert(0, tests_dir)
-    loader = unittest.TestLoader()
-    runner = unittest.TextTestRunner(verbosity=2)
+    jobs = default_jobs() if jobs is None else max(1, jobs)
     tests, ok, seconds = 0, True, {}
+    failed = []
     quarantined = {}
+    run_ids = {}  # module -> the test ids to run when quarantine drops some of them
     for m in mods:
-        t0 = time.monotonic()
         mod_entries = [e for e in entries if e["id"].split(".")[0] == m[:-3]]
+        if not mod_entries:
+            continue
         if m in id_subsets:
-            hit, dropped = _quarantine_hits(mod_entries, id_subsets[m])
-            quarantined.update(hit)
-            id_subsets[m] = wanted = [i for i in id_subsets[m] if i not in dropped]
-            suite = unittest.TestSuite(loader.loadTestsFromName(i) for i in wanted)
-            result = runner.run(suite)
+            hit, gone = _quarantine_hits(mod_entries, id_subsets[m])
+            id_subsets[m] = [i for i in id_subsets[m] if i not in gone]
         else:
-            suite = loader.discover(tests_dir, pattern=m, top_level_dir=tests_dir)
-            if mod_entries:
-                found = _walk_ids(suite, [])
-                hit, dropped = _quarantine_hits(mod_entries, [t.id() for t in found])
-                quarantined.update(hit)
-                suite = unittest.TestSuite(t for t in found if t.id() not in dropped)
-            result = runner.run(suite)
-        seconds[m] = round(time.monotonic() - t0, 1)
-        tests += result.testsRun
-        ok = ok and result.wasSuccessful()
+            hit, gone = _quarantine_hits(mod_entries, collect_test_ids(m, tests_dir))
+            if gone:
+                run_ids[m] = [i for i in collect_test_ids(m, tests_dir) if i not in gone]
+        quarantined.update(hit)
     for eid in sorted(quarantined):
         print("quarantine: excluded %s (owner %s, expires %s)" % (eid, quarantined[eid]["owner"], quarantined[eid]["expires"]))
+    run_ids.update(id_subsets)
+    if jobs == 1:
+        root = os.path.dirname(os.path.abspath(tests_dir))
+        os.chdir(root)
+        # `python -m unittest` puts the cwd (repo root) on sys.path; tests import `web` from there.
+        sys.path.insert(0, root)
+        sys.path.insert(0, tests_dir)
+        for m in mods:
+            t0 = time.monotonic()
+            n, good = _run_module(m, tests_dir, run_ids.get(m))
+            seconds[m] = round(time.monotonic() - t0, 1)
+            tests += n
+            ok = ok and good
+            if not good:
+                failed.append(m)
+    else:
+        w = weights(mods, timings)
+        order = sorted(range(len(mods)), key=lambda i: (-w[mods[i]], mods[i]))
+        with tempfile.TemporaryDirectory() as tmp, ThreadPoolExecutor(max_workers=jobs) as ex:
+            futs = {i: ex.submit(_spawn_module, mods[i], i, tmp, tests_dir, run_ids.get(mods[i])) for i in order}
+            for i, m in enumerate(mods):
+                text, n, good, secs = futs[i].result()
+                sys.stdout.write(text if text.endswith("\n") or not text else text + "\n")
+                print("module %s: tests=%d ok=%s secs=%.1f" % (m, n, good, secs), flush=True)
+                seconds[m] = secs
+                tests += n
+                ok = ok and good
+                if not good:
+                    failed.append(m)
+    if failed:
+        print("shard %d failed modules: %s" % (shard, " ".join(failed)), file=sys.stderr)
     report = {"shard": shard, "total": total, "modules": mods, "tests": tests, "seconds": seconds}
     if quarantined:
         report["quarantined"] = sorted(quarantined)
@@ -324,6 +439,8 @@ def verify(reports_dir, total, tests_dir=TESTS, only=None):
     expected = all_modules(tests_dir)
     if only is not None:
         expected = [m for m in expected if m in only]
+    dropped = scoped_out(expected, only)
+    expected = [m for m in expected if m not in dropped]
     timings = load_timings()
     split = split_modules(expected, timings, total)
     dup = sorted(m for m, s in seen.items() if m not in split and len(s) > 1)
@@ -391,6 +508,9 @@ def merge_timings(reports_dir):
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["_one"]:  # internal: one module in a child process (run --jobs)
+        return _child(argv[1], argv[2], argv[3], argv[4] if len(argv) > 4 else None)
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     ls = sub.add_parser("list")
@@ -403,6 +523,7 @@ def main(argv=None):
     rn.add_argument("--only", help="file of module names: run only those (affected mode)")
     rn.add_argument("--quarantine", help="quarantine list (default: ci/quarantine.json of this tree)")
     rn.add_argument("--today", help="YYYY-MM-DD used for expiry (default: the real date; tests pass it)")
+    rn.add_argument("--jobs", type=int, help="modules run at a time, each in a child process (default: per CPU, max 4)")
     vf = sub.add_parser("verify")
     vf.add_argument("--total", type=int, required=True)
     vf.add_argument("--dir", required=True)
@@ -419,7 +540,7 @@ def main(argv=None):
             print("\n".join(mods))
             return 0
         if a.cmd == "run":
-            return run_shard(a.shard, a.total, a.out, only=read_only(a.only), quarantine=a.quarantine, today=a.today)
+            return run_shard(a.shard, a.total, a.out, only=read_only(a.only), jobs=a.jobs, quarantine=a.quarantine, today=a.today)
         if a.cmd == "timings":
             data = merge_timings(a.dir)
             with open(a.out, "w") as f:
