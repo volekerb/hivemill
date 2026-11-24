@@ -181,7 +181,7 @@ CREATE TABLE skill_trials (
   skill_invoked INTEGER, check_output TEXT, author TEXT,
   void_reason TEXT, void_why TEXT,   -- set by `skilleval void`; the row keeps every other field
   UNIQUE(candidate_id, vendor_sha, task, condition));
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;
 INSERT INTO config(key,value) VALUES('affected_smoke','test_db_layout.py test_inbox.py test_judge.py');
 INSERT INTO config(key,value) VALUES('agent_runtimes','');
 INSERT INTO config(key,value) VALUES('block_conditions','0');
@@ -224,6 +224,7 @@ INSERT INTO config(key,value) VALUES('idle_coder_reap','off');
 INSERT INTO config(key,value) VALUES('idle_coder_reap_s','900');
 INSERT INTO config(key,value) VALUES('issue_intake_repos','');
 INSERT INTO config(key,value) VALUES('judge_ci_gate','pr');
+INSERT INTO config(key,value) VALUES('judge_review_gate','passpass');
 INSERT INTO config(key,value) VALUES('judge_ci_wait_s','2400');
 INSERT INTO config(key,value) VALUES('judge_hold_expiry_min','120');
 INSERT INTO config(key,value) VALUES('judge_max_refreshes','4');
