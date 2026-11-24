@@ -1336,3 +1336,97 @@ class ForeignRepoTests(Base):
         self.remotes = {"origin": {"factory/t-0001": H1}}
         self.assertEqual(len(self.run_tick()), 2)
         self.assertEqual(self.ls, [("origin", None, "refs/heads/factory/*")])
+
+
+class GateReviewOnPushTests(NewHeadTests):
+    """T-1828: with projects.gate_cmd set, review starts on push without waiting for GitHub checks (first round and rerun);
+    gate_push_tick queues one gate run per pushed head and notes the result on the task. Empty gate_cmd: unchanged."""
+
+    def setUp(self):
+        super().setUp()
+        self.env.seed_project()
+        self.env.sql("UPDATE goals SET project_id='zz-test-proj' WHERE id='G-001'")
+        self.set_gate("true")
+
+    # inherited NewHeadTests cases that assert the empty-gate_cmd wait; the same behaviour is asserted without gate_cmd below
+    test_pending_ci_on_a_new_head_logs_one_ci_wait = None
+    test_pending_or_red_head_waits = None
+
+    def set_gate(self, cmd):
+        self.env.sql("UPDATE projects SET gate_cmd=? WHERE id='zz-test-proj'", (cmd,))
+
+    def push_tick(self, head=H1):
+        with self.env.load_factory() as f:
+            con = f.db()
+            f._ci_remote_head = lambda branch, batch=None, remote=None: head
+            f.gate_push_tick(con)
+            con.commit()
+
+    def gate_rows(self):
+        return self.env.sql("SELECT * FROM gate_runs ORDER BY id")
+
+    def notes(self):
+        return [r["detail"] for r in self.env.sql(
+            "SELECT detail FROM events WHERE entity='task' AND entity_id='T-0001' AND action='note' ORDER BY id")]
+
+    def test_first_round_starts_with_pending_checks_under_handoff(self):
+        self.ok("config", "coder_ci_handoff", "resume")
+        self.assertEqual([r for r, _ in self.step(H1, rollup=PENDING)], ["reviewer", "qa"])
+
+    def test_first_round_still_waits_without_gate_cmd(self):
+        self.ok("config", "coder_ci_handoff", "resume")
+        self.set_gate("")
+        self.assertEqual(self.step(H1, rollup=PENDING), [])
+        self.assertEqual([w["kind"] for w in self.rerun_waits()], ["ci"])
+
+    def test_rerun_starts_on_a_new_head_with_pending_checks(self):
+        self.reviewed_on_h1()
+        self.assertEqual(sorted(r for r, _ in self.step(H2, rollup=PENDING)), ["qa", "reviewer"])
+
+    def test_rerun_still_waits_without_gate_cmd(self):
+        self.reviewed_on_h1()
+        self.set_gate("")
+        self.assertEqual(self.step(H2, rollup=PENDING), [])
+
+    def test_live_coder_still_holds_review_with_gate_cmd(self):
+        self.ok("config", "coder_ci_handoff", "resume")
+        self.env.seed_agent("coder-t-0001", "coder", goal="G-001", team=TEAM, task="T-0001", status="live")
+        self.assertEqual(self.step(H1, rollup=PENDING), [])
+
+    def test_push_queues_one_gate_run_and_notes_it(self):
+        self.push_tick()
+        self.push_tick()
+        rows = self.gate_rows()
+        self.assertEqual([(r["head_sha"], r["status"], r["kind"], r["task_id"]) for r in rows], [(H1, "queued", "pr", "T-0001")])
+        self.assertEqual(len(self.notes()), 1)
+        self.assertIn(H1, self.notes()[0])
+
+    def test_new_head_queues_a_second_run_once_the_first_finished(self):
+        self.push_tick(H1)
+        self.env.sql("UPDATE gate_runs SET status='pass' WHERE id=1")
+        self.push_tick(H2)
+        self.assertEqual([(r["head_sha"], r["status"]) for r in self.gate_rows()], [(H1, "pass"), (H2, "queued")])
+
+    def test_new_head_while_an_older_run_is_active_adds_no_row_and_no_repeated_note(self):
+        self.push_tick(H1)
+        self.env.sql("UPDATE gate_runs SET status='running' WHERE id=1")
+        for _ in range(3):
+            self.push_tick(H2)
+        self.assertEqual([(r["head_sha"], r["status"]) for r in self.gate_rows()], [(H1, "running")])
+        self.assertEqual([n for n in self.notes() if H2 in n], [])
+
+    def test_no_gate_run_without_gate_cmd(self):
+        self.set_gate("")
+        self.push_tick()
+        self.assertEqual(self.gate_rows(), [])
+        self.assertEqual(self.notes(), [])
+
+    def test_finished_run_is_noted_once_with_sha_and_log_path(self):
+        self.env.sql("INSERT INTO gate_runs(project_id,task_id,pr_url,kind,head_sha,status,cmd,log_path,note,created) "
+                     "VALUES('zz-test-proj','T-0001','u','pr',?,'fail','true','/x/logs/gate/7.log','exit 1','t')", (H1,))
+        self.push_tick(H1)
+        self.push_tick(H1)
+        notes = [n for n in self.notes() if "local gate FAIL" in n]
+        self.assertEqual(len(notes), 1)
+        self.assertIn(H1, notes[0])
+        self.assertIn("/x/logs/gate/7.log", notes[0])

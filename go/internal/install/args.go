@@ -24,6 +24,9 @@ type Args struct {
 	MaxAgents          string // decimal text of a positive integer, "" when not given
 	Port               int    // 0 when not given
 	NoSystemd, Linger  bool
+	// WithServe: macOS only, also install the hivemill.serve launchd job (Linux always installs the serve unit).
+	WithServe          bool
+	UninstallBootUnits bool
 	NoScout, Resume    bool
 
 	HerdrApp       bool
@@ -36,7 +39,7 @@ type Args struct {
 }
 
 const usageLine = "usage: hivemill-install (--check | --dry-run | --yes) [--ref REF] [--repo-url URL] [--project-id ID --project-repo PATH]\n" +
-	"       [--project-name NAME] [--project-gh OWNER/NAME] [--max-agents N] [--port N] [--no-systemd] [--linger]\n" +
+	"       [--project-name NAME] [--project-gh OWNER/NAME] [--max-agents N] [--port N] [--no-systemd|--no-boot-units] [--with-serve] [--uninstall-boot-units] [--linger]\n" +
 	"       [--no-scout] [--resume] [--herdr-app [--factory-url URL] [--factory-machine NAME] [--factory-web-url URL]\n" +
 	"       [--orgs auto|claude|cursor|claude,cursor] [--no-switch] [--no-sidebar]]"
 
@@ -59,7 +62,10 @@ options:
   --project-gh OWNER/NAME  GitHub name of that project
   --max-agents N       agent cap (positive integer)
   --port N             port of the web UI (1-65535, default 8765)
-  --no-systemd         skip the systemd user units
+  --no-systemd         skip the boot units (systemd user units; launchd agents on macOS)
+  --no-boot-units      same as --no-systemd, the neutral name
+  --with-serve         macOS: also install the hivemill.serve launchd job (Linux always installs the serve unit)
+  --uninstall-boot-units  macOS: boot out hivemill.* and remove their plists (with --dry-run or --yes)
   --linger             also run loginctl enable-linger
   --no-scout           turn the scout off
   --resume             continue after a login it asked for
@@ -97,8 +103,9 @@ var negNumRe = regexp.MustCompile(`^-\p{Nd}+$|^-\p{Nd}*\.\p{Nd}+$`)
 func ParseArgs(argv []string) (*Args, error) {
 	a := &Args{Ref: "latest", RepoURL: DefaultRepoURL}
 	boolFlags := map[string]*bool{
-		"--check": &a.Check, "--dry-run": &a.DryRun, "--yes": &a.Yes, "--no-systemd": &a.NoSystemd,
-		"--linger": &a.Linger, "--no-scout": &a.NoScout, "--resume": &a.Resume, "--herdr-app": &a.HerdrApp,
+		"--check": &a.Check, "--dry-run": &a.DryRun, "--yes": &a.Yes, "--no-systemd": &a.NoSystemd, "--no-boot-units": &a.NoSystemd, "--with-serve": &a.WithServe,
+		"--uninstall-boot-units": &a.UninstallBootUnits,
+		"--linger":               &a.Linger, "--no-scout": &a.NoScout, "--resume": &a.Resume, "--herdr-app": &a.HerdrApp,
 		"--no-switch": &a.NoSwitch, "--no-sidebar": &a.NoSidebar,
 	}
 	valueFlags := map[string]func(string) error{
@@ -177,6 +184,9 @@ func (a *Args) validate() error {
 	}
 	if modes != 1 {
 		return usageErr("pass exactly one of --check, --dry-run, --yes")
+	}
+	if a.UninstallBootUnits && a.Check {
+		return usageErr("--uninstall-boot-units goes with --dry-run or --yes")
 	}
 	dashSet := a.FactoryURL != nil || a.FactoryMachine != nil || a.FactoryWebURL != nil || a.Orgs != nil || a.NoSwitch || a.NoSidebar
 	if !a.HerdrApp && dashSet {
