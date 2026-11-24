@@ -36,6 +36,17 @@ The boss is the one agent that holds the whole picture, so it keeps the 1M windo
 
 In the factory these values are in `roles/settings/<role>.json.in` (boss: `boss.json.in`), and `go/internal/kit/spend` tests that they match. Outside a factory, `hm-spend limits --apply` writes the worker values into `~/.claude/settings.json` and the boss values into a separate file. The boss then starts with `claude --settings <that file>`, which outranks the user file. A setting applies when a session starts; a running agent keeps its old window until it restarts.
 
+### Prompt cache lifetime
+
+Claude Code 2.1.331 has two settings for how long a prompt cache entry lives. Each is `"5m"` or `"1h"`:
+
+- `promptCacheTtl`: the main conversation.
+- `subagentPromptCacheTtl`: subagents and helpers.
+
+A cache write costs more than plain input: 1.25x the input price for a 5-minute entry, 2x for a 1-hour entry. Reads cost the same for both. A short session that uses its cache for minutes pays the 2x write price for nothing.
+
+The Option B task and judge settings (`roles/hivemill/*.json.in`) set both to `5m`. Keep `1h` for a long-lived session that idles more than 5 minutes between turns: there a 5-minute entry expires before the next turn and is written again each time, which costs more than one 2x write.
+
 ## The rules
 
 They are in `roles/_common.md` for factory agents. For any other team, put them where every agent reads them (its `CLAUDE.md` or role prompts).
