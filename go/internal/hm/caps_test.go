@@ -12,26 +12,41 @@ func TestUsageAndDispatchCaps(t *testing.T) {
 	r, s := testRunner(t, "")
 	now := time.Unix(1795548325, 0)
 	dir := filepath.Join(r.Env.UserHome, ".claude")
-	_ = os.MkdirAll(dir, 0o700)
-	write := func(body string) { _ = os.WriteFile(filepath.Join(dir, "usage-limits.json"), []byte(body), 0o600) }
-
-	write(`{"five_hour_pct": "95", "seven_day_pct": "12", "updated_at": 1795548000}`)
-	c := Caps{Usage: ReadUsage(r.Env.UserHome, now), MemMB: 4096, MemMin: 1024}
-	if why := c.DispatchBlock(s, "www"); !strings.Contains(why, "5h at 95%") {
-		t.Errorf("fresh 5h over cap: %q", why)
+	write := func(body string) {
+		_ = os.MkdirAll(dir, 0o700)
+		_ = os.WriteFile(filepath.Join(dir, "usage-limits.json"), []byte(body), 0o600)
 	}
-	write(`{"five_hour_pct": "95", "seven_day_pct": "12", "updated_at": 1795500000}`) // 13 h old: stale
-	c.Usage = ReadUsage(r.Env.UserHome, now)
-	if why := c.DispatchBlock(s, "www"); why != "" {
-		t.Errorf("a stale reading does not hold: %q", why)
+	block := func() string {
+		c := Caps{Usage: ReadUsage(r.Env.UserHome, now), MemMB: 4096, MemMin: 1024}
+		return c.DispatchBlock(s, "www")
 	}
-	write(`{"five_hour_pct": "", "seven_day_pct": "96", "updated_at": 1795548000}`)
-	c.Usage = ReadUsage(r.Env.UserHome, now)
-	if why := c.DispatchBlock(s, "www"); !strings.Contains(why, "7d at 96%") {
-		t.Errorf("7d over cap: %q", why)
+	cases := []struct {
+		name, body, want string
+	}{
+		{"missing reading", "", "no usage reading"},
+		{"stale reading (11 min)", `{"five_hour_pct": "10", "seven_day_pct": "12", "updated_at": 1795547665}`, "660s old"},
+		{"empty 5h field", `{"five_hour_pct": "", "seven_day_pct": "12", "updated_at": 1795548300}`, "5-hour field is empty"},
+		{"5h over the threshold", `{"five_hour_pct": "95", "seven_day_pct": "12", "updated_at": 1795548300}`, "5h at 95%"},
+		{"7d over the threshold", `{"five_hour_pct": "10", "seven_day_pct": "96", "updated_at": 1795548300}`, "7d at 96%"},
+		{"OK", `{"five_hour_pct": "10", "seven_day_pct": "12", "updated_at": 1795548300}`, ""},
 	}
-	c.Usage = Usage{}
-	c.MemMB = 500
+	for _, c := range cases {
+		_ = os.Remove(filepath.Join(dir, "usage-limits.json"))
+		if c.body != "" {
+			write(c.body)
+		}
+		got := block()
+		if (c.want == "" && got != "") || (c.want != "" && !strings.Contains(got, c.want)) {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+	write(`{"five_hour_pct": "", "seven_day_pct": "12", "updated_at": 1795548300}`)
+	_ = s.SetCfg("usage_require_5h", "off")
+	if got := block(); got != "" {
+		t.Errorf("usage_require_5h=off accepts an empty 5h field: %q", got)
+	}
+	write(`{"five_hour_pct": "10", "seven_day_pct": "12", "updated_at": 1795548300}`)
+	c := Caps{Usage: ReadUsage(r.Env.UserHome, now), MemMB: 500, MemMin: 1024}
 	if why := c.DispatchBlock(s, "www"); !strings.Contains(why, "memory") {
 		t.Errorf("memory floor: %q", why)
 	}
@@ -47,7 +62,8 @@ func TestUsageAndDispatchCaps(t *testing.T) {
 	if why := c.DispatchBlock(s, "factory"); !strings.Contains(why, "weekly_budget_usd") {
 		t.Errorf("weekly budget: %q", why)
 	}
-	if h := c.Header(s); !strings.Contains(h, "usage 5h n/a / 7d n/a") || !strings.Contains(h, "mem 4.0 GB free") {
+	c.Usage = Usage{}
+	if h := c.Header(s); !strings.Contains(h, "UNKNOWN: no usage reading") {
 		t.Errorf("header %q", h)
 	}
 }
