@@ -67,6 +67,7 @@ None of these guards changes a config key.
 | `model` | `claude-sonnet-5-5` | task session and judge model |
 | `risk_model` | `claude-opus-5-5` | model when the task names a `sensitive_paths` entry of `ci/tier_rules.json` or is T3 |
 | `effort` | `medium` | `--effort` of every session |
+| `judge_effort` | empty | `--effort` of the judge session; empty = the same as `effort` |
 | `gate_max_blocks` | `3` | gate blocks per round before FAIL |
 | `gate_wait_s` | `900` | wait for a test slot before leaving affected tests to CI |
 | `judge_rounds_max` | `2` | judge REJECT rounds before FAIL |

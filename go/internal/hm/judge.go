@@ -139,6 +139,9 @@ func (r *Runner) StartJudge(run *Run) error {
 	if err != nil {
 		return err
 	}
+	if effort, err = r.JudgeEffort(effort); err != nil {
+		return err
+	}
 	run.Judges = append(run.Judges, name)
 	run.JudgeHead, run.JudgeBlocks, run.State = run.Head, 0, Judging
 	kick := fmt.Sprintf("You are `%s`, the factory task-judge. Judge %s (%s). Read the judge packet %s in your cwd, then answer "+
@@ -146,6 +149,19 @@ func (r *Runner) StartJudge(run *Run) error {
 	_, err = r.StartSession(run, Launch{Role: "task-judge", Name: name, Cwd: run.Worktree, Model: model, Effort: effort,
 		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task-judge.md"), Kickoff: kick})
 	return err
+}
+
+// JudgeEffort is the judge session's --effort: the judge_effort key, else the task effort.
+func (r *Runner) JudgeEffort(taskEffort string) (string, error) {
+	e := strings.TrimSpace(r.Store.Cfg("judge_effort"))
+	if e == "" {
+		return taskEffort, nil
+	}
+	switch e {
+	case "low", "medium", "high", "xhigh", "max":
+		return e, nil
+	}
+	return "", fmt.Errorf("judge_effort %q must be low, medium, high, xhigh or max", e)
 }
 
 // LastAssistantText is the judge's final message: from the hook input, else from the transcript.
