@@ -77,8 +77,14 @@ func (r *Runner) Packet(run *Run) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Judge packet: %s %s\n\nPR: %s  head %.12s\nRisk tier: %s (%s)\nTests (def test_ under tests/): base %d, head %d\n",
 		t.ID, t.Title, run.PRURL, run.Head, or(g.Tier, "unknown"), or(g.TierWhy, "-"), g.TestsBase, g.TestsHead)
-	fmt.Fprintf(&b, "CI: green on the head. Gate: passed in round %d.\n\n## Spec\n%s\n\n## Criteria, proofs and the factory's re-run\n",
-		run.Round, strings.TrimSpace(t.Spec))
+	ci, gate := "green on the head", fmt.Sprintf("passed in round %d", run.Round)
+	if run.CINote != "" {
+		ci = run.CINote
+	}
+	if len(g.Problems) > 0 {
+		gate = fmt.Sprintf("%d problems (listed under Gate checks)", len(g.Problems))
+	}
+	fmt.Fprintf(&b, "CI: %s. Gate: %s.\n\n## Spec\n%s\n\n## Criteria, proofs and the factory's re-run\n", ci, gate, strings.TrimSpace(t.Spec))
 	for _, c := range Criteria(t.Acceptance) {
 		x := reruns[c.ID]
 		res := "not re-run"
@@ -240,8 +246,11 @@ func (r *Runner) RecordVerdict(run *Run, v *Verdict, sid, author string) error {
 	b, _ := json.MarshalIndent(v, "", " ")
 	_ = os.WriteFile(filepath.Join(dir, fmt.Sprintf("verdict-r%d.json", len(run.Judges))), b, 0o600)
 	verdict := map[string]string{"MERGE": "pass", "REJECT": "fail"}[v.Verdict]
-	if err := r.Store.Verdict(run.Task, run.PRURL, run.JudgeHead, verdict, truncate(strings.Join(v.Reasons, "; "), 2000), author); err != nil {
-		return err
+	// An eval run writes no verdicts row: nothing outside the runner may ever read an eval MERGE as a merge verdict.
+	if !run.Eval {
+		if err := r.Store.Verdict(run.Task, run.PRURL, run.JudgeHead, verdict, truncate(strings.Join(v.Reasons, "; "), 2000), author); err != nil {
+			return err
+		}
 	}
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-judge-verdict", map[string]string{"verdict": v.Verdict, "head": truncate(run.JudgeHead, 12)})
 	run.Verdicts = append(run.Verdicts, *v)
