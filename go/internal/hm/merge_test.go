@@ -60,3 +60,27 @@ func TestCIVerdict(t *testing.T) {
 		t.Errorf("cancelled = %s, want red (never green)", v)
 	}
 }
+
+func TestNoreplyBeforeAndAfterMerge(t *testing.T) {
+	r, s := testRunner(t, "")
+	_, _ = s.db.Exec(`INSERT INTO config(key,value) VALUES('noreply_email','1+me@users.noreply.github.com')`)
+	_, _ = s.db.Exec(`CREATE TABLE owner_alert_feed (id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL,
+		ref TEXT NOT NULL, since TEXT NOT NULL, link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT, sent TEXT)`)
+	if !r.isNoreply("1+ME@users.noreply.github.com") || r.isNoreply("2+other@users.noreply.github.com") || r.isNoreply("me@example.com") {
+		t.Error("only the configured noreply_email passes")
+	}
+	run := &Run{Task: "T-0001", Repo: "zz-test/www", MergeSHA: "abc"}
+	for _, c := range []struct {
+		out  string
+		want int
+	}{{"1+me@users.noreply.github.com noreply@github.com", 0}, {"me@example.com noreply@github.com", 1}} {
+		out := c.out
+		r.Tools.GH = func(string, ...string) (int, string, string) { return 0, out, "" }
+		r.checkMergeCommit(run)
+		var n int
+		_ = s.db.QueryRow(`SELECT count(*) FROM owner_alert_feed WHERE kind='hivemill-noreply'`).Scan(&n)
+		if n != c.want {
+			t.Errorf("%q: %d alerts, want %d", c.out, n, c.want)
+		}
+	}
+}

@@ -78,7 +78,7 @@ func Decide(in MergeInput) MergeDecision {
 	case in.MainRun == "red" && !in.FixTask:
 		return MergeDecision{"hold", "main's push run for its head failed"}
 	case !in.IdentityOK:
-		return MergeDecision{"block", "a commit is not authored and committed with a noreply email"}
+		return MergeDecision{"block", "a commit is not authored and committed with the configured noreply_email"}
 	case !in.PublicTextOK:
 		return MergeDecision{"block", "public text: " + in.PublicTextNote}
 	}
@@ -148,7 +148,7 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 	in.IdentityOK = true
 	_, logs, _ := r.Tools.Git(wt, "log", "--format=%ae%x09%ce", "origin/"+base+".."+pr.HeadRefOid)
 	for _, ln := range strings.Split(logs, "\n") {
-		if f := strings.Split(ln, "\t"); len(f) == 2 && (!noreply(f[0]) || !(noreply(f[1]) || f[1] == "noreply@github.com")) {
+		if f := strings.Split(ln, "\t"); len(f) == 2 && (!r.isNoreply(f[0]) || !r.isNoreply(f[1])) {
 			in.IdentityOK = false
 		}
 	}
@@ -297,6 +297,7 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
 	_ = r.Log.Emit("pr.merged", run, Event{Data: map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL}})
+	r.checkMergeCommit(run)
 	r.Close(run.Agent)
 	for _, j := range run.Judges {
 		r.Close(j)
@@ -441,4 +442,26 @@ func (r *Runner) MergeDecision(run *Run) (MergeInput, MergeDecision, error) {
 		return in, MergeDecision{}, err
 	}
 	return in, Decide(in), nil
+}
+
+// checkMergeCommit verifies, once the merge commit has landed, that its author is the configured noreply_email and
+// its committer is that address or GitHub's own web-flow address (GitHub commits squash merges). A violation cannot be
+// undone by the runner: it records an event and opens an owner alert.
+func (r *Runner) checkMergeCommit(run *Run) {
+	if run.MergeSHA == "" {
+		return
+	}
+	rc, out, errs := r.Tools.GH("", "api", "repos/"+run.Repo+"/commits/"+run.MergeSHA, "--jq", `.commit.author.email + " " + .commit.committer.email`)
+	why := ""
+	if f := strings.Fields(out); rc != 0 || len(f) != 2 {
+		why = "cannot read the merge commit: " + firstLine(errs)
+	} else if !r.isNoreply(f[0]) || !(r.isNoreply(f[1]) || f[1] == "noreply@github.com") {
+		why = fmt.Sprintf("merge commit %.9s has author %s, committer %s", run.MergeSHA, f[0], f[1])
+	}
+	if why == "" {
+		return
+	}
+	_ = r.Store.Event(r.actor(), "task", run.Task, "noreply-violation", why)
+	_ = r.Store.AlertFeed("hivemill-noreply", run.Task, run.PRURL)
+	_ = r.Log.Emit("pr.noreply_violation", run, Event{Data: map[string]any{"why": why}})
 }
