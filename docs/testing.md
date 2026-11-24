@@ -19,3 +19,11 @@ CI runs the full sharded suite, go and integration (`docs/tests-and-ci.md`). Age
 ## The merge gate
 
 For projects listed in config `gate_fast_projects` (default `factory`), `factory gate run` runs fast mode: `py_compile` + `ci/affected.py --quick --budget 600 --run` against the verified main. The judge still needs the GitHub checks green, so CI is the full gate. Rollback: `factory config gate_fast_projects ''` restores the project's `gate_cmd`.
+
+## The factory-go that tests use (T-1830)
+
+Tests and the Go/Python diff harness never use an installed `factory-go`. `tests/harness.py` `cli_go_bin()` stages one:
+
+- `FACTORY_GO_BIN=<path>` set: that executable is copied and used. A path that is not an executable file is an error.
+- Not set: it is built once per test process from this checkout's `go/cmd/factory` and exported as `FACTORY_GO_BIN`, so child processes reuse it.
+- No Go toolchain, a toolchain older than `go/go.mod`, or no module cache offline: `GoUnavailable` is raised and the Go-dependent tests skip with that reason. A real compile error still fails.

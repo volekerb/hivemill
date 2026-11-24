@@ -287,30 +287,45 @@ def factory_impl():
     return mode
 
 
+class GoUnavailable(RuntimeError):
+    """No Go toolchain, a toolchain too old for go/go.mod, or no module cache offline: Go-dependent tests skip with this text."""
+
+
+# stderr fragments of a `go build` that cannot run here (as opposed to a real compile error, which still raises)
+_GO_ENV_ERRORS = ("go.mod requires go >=", "GOPROXY list is not the empty string", "module lookup disabled by GOPROXY=off",
+                  "cannot find module providing", "missing go.sum entry", "toolchain not available")
+
+
 def cli_go_bin():
     """A staged Go CLI: <tmp>/factory-go (FACTORY_GO_BIN copied, else built once per process) next to a `factory`
-    symlink to bin/factory, because the Go side hands unported commands to <its own dir>/factory. Raises, never skips."""
+    symlink to bin/factory, because the Go side hands unported commands to <its own dir>/factory. Built once per process and exported as
+    FACTORY_GO_BIN so child test processes reuse it. Raises GoUnavailable (a RuntimeError the Go tests turn into a named
+    skip) when no Go runs here; a failing build with a present toolchain raises plain RuntimeError."""
     if _cli_go:
         return _cli_go[0]
     src = os.environ.get("FACTORY_GO_BIN")
+    if src and not (os.path.isfile(src) and os.access(src, os.X_OK)):
+        raise RuntimeError(f"FACTORY_GO_BIN={src} is not an executable file; point it at a built go/cmd/factory")
     tmp = tempfile.mkdtemp(prefix="factory-impl-go-")
     atexit.register(shutil.rmtree, tmp, True)
     out = os.path.join(tmp, "factory-go")
     if src:
-        if not (os.path.isfile(src) and os.access(src, os.X_OK)):
-            raise RuntimeError(f"FACTORY_GO_BIN={src} is not an executable file; point it at a built go/cmd/factory")
         shutil.copy2(src, out)
     else:
         go = shutil.which("go") or os.path.expanduser("~/.local/go/bin/go")
         if not os.access(go, os.X_OK):
-            raise RuntimeError("go not found on PATH; install Go or set FACTORY_GO_BIN (a Go run never skips)")
+            raise GoUnavailable("go not found on PATH and FACTORY_GO_BIN unset; Go-dependent tests need one of them")
         env = dict(os.environ, GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off")
         p = subprocess.run([go, "build", "-o", out, "./cmd/factory"], cwd=str(REPO / "go"), capture_output=True,
                            text=True, timeout=600, env=env)
         if p.returncode != 0:
-            raise RuntimeError(f"go build ./go/cmd/factory failed: {p.stderr.strip()}; fix the Go build first")
+            msg = f"go build ./go/cmd/factory failed: {p.stderr.strip()}; fix the Go build first"
+            if any(m in p.stderr for m in _GO_ENV_ERRORS):
+                raise GoUnavailable(msg)
+            raise RuntimeError(msg)
     os.symlink(FACTORY, os.path.join(tmp, "factory"))
     _cli_go.append(out)
+    os.environ["FACTORY_GO_BIN"] = out
     return out
 
 

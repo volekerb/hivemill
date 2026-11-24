@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from unittest import mock  # noqa: E402
-from harness import FactoryTestCase, PR_URL, REPO, cli_go_bin, git  # noqa: E402
+from harness import FactoryTestCase, PR_URL, REPO, GoUnavailable, cli_go_bin, git  # noqa: E402
 
 LINE = re.compile(r"^tick-phases total=\d+\.\d\d( [a-z_]+=\d+(\.\d\d)?)+$")
 PHASES = ("migrate_db render_settings herdr_list digest tmp_alert remote_url_alert main_protection tmp_clean red_main "
@@ -342,10 +342,8 @@ class TickHoldExpiryGo(FactoryTestCase):
         else:
             try:
                 src = binary or cli_go_bin()
-            except RuntimeError as e:
-                if "go not found on PATH" in str(e) or "go.mod requires go >=" in str(e):
-                    self.skipTest(str(e))  # unittest shards without setup-go cannot build factory-go
-                raise
+            except GoUnavailable as e:
+                self.skipTest(str(e))  # no Go and no FACTORY_GO_BIN: a named skip, never a silent pass
             shutil.copy2(src, dst)
         dst.chmod(0o755)
         (self.lib() / "factory-go.stamp").write_text((stamp or h) + "\n")
@@ -439,6 +437,37 @@ class TickHoldExpiryGo(FactoryTestCase):
         body = src[a:src.index("def _tick_u_mech_merge")]
         for term in ("verdicts", "judge-hold-set", "boss-approved", "judge_hold_reason"):
             self.assertNotIn(term, body)
+
+
+class CliGoBinEnv(unittest.TestCase):
+    """T-1830: FACTORY_GO_BIN picks the factory-go the harness stages; with no Go and no override the helper says so by name."""
+
+    def run_helper(self, **env):
+        code = ("import sys; sys.path.insert(0, 'tests'); import harness\n"
+                "try:\n    print(open(harness.cli_go_bin(), 'rb').read().decode())\n"
+                "except harness.GoUnavailable as e:\n    print('UNAVAILABLE', e)\n")
+        base = {"PATH": "/usr/bin:/bin", "HOME": "/nonexistent"}
+        return subprocess.run([sys.executable, "-I", "-c", code], cwd=str(REPO), capture_output=True, text=True,
+                              env={**base, **env}, timeout=60)
+
+    def test_override_is_the_binary_the_harness_stages(self):
+        with tempfile.TemporaryDirectory() as d:
+            fake = Path(d) / "my-go"
+            fake.write_text("#!/bin/sh\necho MARKER-1830\n")
+            fake.chmod(0o755)
+            p = self.run_helper(FACTORY_GO_BIN=str(fake))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("MARKER-1830", p.stdout)
+
+    def test_override_pointing_nowhere_is_an_error_not_a_skip(self):
+        p = self.run_helper(FACTORY_GO_BIN="/nonexistent/factory-go")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("FACTORY_GO_BIN=/nonexistent/factory-go is not an executable file", p.stderr)
+
+    def test_no_go_and_no_override_is_a_named_unavailable(self):
+        p = self.run_helper()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("UNAVAILABLE go not found on PATH and FACTORY_GO_BIN unset", p.stdout)
 
 
 if __name__ == "__main__":
