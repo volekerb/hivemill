@@ -4,3 +4,11 @@
 tests/test_scout_db.py 27 -> internal/factorytest/scout:TestScout 27
 tests/test_scout_pending_order.py 5 -> internal/factorytest/scout:TestPendingOrder 5
 tests/test_cursor_harness.py 5 -> internal/factorytest/scout:TestCursorHarness 5
+# T-1680 (P6f-2): the remaining 7 scout modules. test_clone_trust: 8 of 11 ported (3 need Python os.fstat/os.lstat patching, see clone_trust_port_test.go).
+tests/test_scout_fetch.py 79 -> internal/factorytest/scout:TestScoutFetch 79
+tests/test_scout_report.py 18 -> internal/factorytest/scout:TestScoutReport 18
+tests/test_scout_roles.py 19 -> internal/factorytest/scout:TestScoutRoles 19
+tests/test_scout_schedule.py 29 -> internal/factorytest/scout:TestScoutSchedule 29
+tests/test_scout_schedule_org.py 10 -> internal/factorytest/scout:TestScoutScheduleOrg 10
+tests/test_adoption.py 22 -> internal/factorytest/scout:TestAdoption 22
+tests/test_clone_trust.py 8 -> internal/factorytest/scout:TestCloneTrust 8

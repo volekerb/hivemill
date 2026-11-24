@@ -53,7 +53,17 @@ They are in `roles/_common.md` for factory agents. For any other team, put them 
 `hm-spend report` reads `~/.claude/projects/**/*.jsonl` for the last 24 hours (`--hours N`). It prints:
 - the cost by model;
 - the top sessions, with each one's average, peak and start-up context and its share of tiny turns;
-- findings with a fix: `fable`, `big-context`, `chatter`, `cache-writes`, `unpriced`.
+- findings with a fix: `fable`, `big-context`, `chatter`, `cache-writes`, `unpriced`;
+- a `By role:` table (role, sessions, requests, $, spawn $, polling $, work $, median start-up context).
+
+The role comes from the session's first user message, the factory kickoff "You are `<agent>`, the factory <role>.", matched against the known roles (boss, director, lead, pm, coder, qa, reviewer, judge, cleaner, staff-engineer, researcher, scout, retro, evaluator); no match gives `other`. A subagent transcript (`<session>/subagents/agent-*.jsonl`) takes its parent session's role, or `other` when the parent is not in the scan.
+
+Every request falls in exactly one cost bucket, and the three add up to the total:
+- **spawn**: the cache-write cost of a session's first request, its start-up context;
+- **polling**: every later request that wrote fewer than 300 output tokens (the same threshold as the `chatter` finding), at full cost;
+- **work**: everything else.
+
+`--merged-prs N` (integer, 0 or more) adds the dollars per merged PR, the total divided by N, and the same per role. Without it, or with 0, the text prints `merged PRs: not given` and no per-PR figure. The command reads no factory DB, so the caller passes N. In `--json` the fields are `by_role` (same fields as the table), `total.spawn_usd`, `total.polling_usd`, `total.work_usd`, `merged_prs` and `per_merged_pr_usd`.
 
 `--json` gives the same data to a script. `--check` exits 3 when a high finding exists, so a scheduled job can alert on it.
 

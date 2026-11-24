@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
+## [Unreleased]
+
+### Fixed
+
+- **`factory schedule` works on a box running the Python defaults.** The tick built `factory-go` and the guard binary only when `cli_impl`, `tick_impl` or `guard_impl` asked for Go, so `factory schedule add` failed with "needs the Go CLI binary". Both binaries are now built on every tick when a `go/` tree and a Go toolchain exist. Dispatch is unchanged: no command routes to Go unless its impl flag says so (T-1804).
+
+### Added
+
+- **The boss role may merge on hivemill and hivemill-www (owner fallback merge path).** By the owner's decision (M40734) the boss can run `gh pr merge <N> --squash --delete-branch`, with `--repo volekerb/hivemill` or `--repo volekerb/hivemill-www` (the repo is required). `--admin`, `--auto`, `--merge`, `--rebase`, any other repo and every other role stay refused, in the boss settings and in both worker-guard implementations.
+
+- **Opt-in `judge_review_gate = green`.** Before, the merge gate needed a reviewer PASS and a QA PASS on the head. With `factory config judge_review_gate green` a PR merges when its checks are green on the head and no reviewer or QA FAIL is on the head; the main push run is the safety net. The default stays `passpass`. See [docs/judge-ci-gate.md](https://github.com/volekerb/hivemill/blob/main/docs/judge-ci-gate.md).
+
+- **Scheduled jobs now fire from the tick.** Before, `factory schedule` only stored jobs and nothing fired them. Now the Python tick runs `factory-go schedule due --json` and mails each due job to the director, the run's token cap is applied through the goal's `token_limit`, and days the tick missed are not back-filled. See [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md#tick-claiming-due-jobs) (#777).
+
 ## [0.5.0] - Unreleased
 
 See [What's new in v0.5.0](https://github.com/volekerb/hivemill/blob/main/docs/releases/v0.5.0-announcement.md) for a short plain-English summary of this release.
@@ -126,14 +140,15 @@ Hivemill v0.4.0 is a pre-release. It adds a daily retro report on why work was r
 
 - **Database.** New tables `rejection_incidents`, `retro_runs`, `retro_reports`, `owner_alert_feed` and `goal_token_tally`, and a new column `goals.token_limit` (empty means no limit). The CLI creates them itself on the first run and the migration is idempotent. No table or column is removed or renamed.
 - **Breaking: `--cause`.** `factory verdict --fail` and `factory judge --reject` now exit 2 without `--cause`, and record nothing. Allowed values: `unclear_spec`, `bug`, `missing_test`, `stale_or_conflicting_branch`, `wrong_review`, `gate_refusal`, `other`. Update any script or role text that calls them without it (#492).
-- **Config.** 9 keys added since v0.3.0, none renamed or removed: `boss_wake_after_s`, `boss_wake_cooldown_s`, `goal_token_tally_s`, `owner_alert_feed`, `owner_alert_send`, `retro_enabled`, `retro_hour`, `retro_max_minutes` and `terminal_backend`. The registry is `bin/flags.json`; run `factory flags` to see all keys.
-- **Flags.** No default of an existing key changed. Off by default: `owner_alert_feed`, `owner_alert_send`, `goal_token_tally_s` (`0`) and every `hc` use (`terminal_backend` is `auto`, which keeps `herdr` when it is installed). Active after the upgrade: `retro_enabled` (`1`; `factory config retro_enabled 0` turns the daily retro off), and the boss wake (`boss_wake_after_s` `900`, `boss_wake_cooldown_s` `1800`).
+- **Config.** 10 keys added since v0.3.0, none renamed or removed: `boss_wake_after_s`, `boss_wake_cooldown_s`, `cap_fallback_offer`, `goal_token_tally_s`, `owner_alert_feed`, `owner_alert_send`, `retro_enabled`, `retro_hour`, `retro_max_minutes` and `terminal_backend`. The registry is `bin/flags.json`; run `factory flags` to see all keys.
+- **Flags.** No default of an existing key changed. Off by default: `cap_fallback_offer` (`0`), `owner_alert_feed`, `owner_alert_send`, `goal_token_tally_s` (`0`) and every `hc` use (`terminal_backend` is `auto`, which keeps `herdr` when it is installed). Active after the upgrade: `retro_enabled` (`1`; `factory config retro_enabled 0` turns the daily retro off), and the boss wake (`boss_wake_after_s` `900`, `boss_wake_cooldown_s` `1800`).
 - **Steps.** A live factory needs no checkout: the tick fast-forwards `~/factory` main to the tag commit within a minute (after `git -C ~/factory fetch --tags`, check that main contains the tag: `git -C ~/factory merge-base --is-ancestor v0.4.0 main && echo ok` prints ok); `git checkout v0.4.0` is only for a fresh, non-live install. Then run any `factory` command once so the migration runs, and run `factory flags` to review the keys. To use the daily retro, make sure the Cursor runtime is set up (see [docs/runtimes.md](https://github.com/volekerb/hivemill/blob/main/docs/runtimes.md)); otherwise set `retro_enabled` to `0`. See [docs/SETUP.md](https://github.com/volekerb/hivemill/blob/main/docs/SETUP.md).
 
 ### All merged changes since v0.3.0
 
 #### Added
 
+- **Weekly-cap offer.** Before, when the Claude weekly cap was reached, queued Claude goals waited and nobody was told they could move. Now, with `cap_fallback_offer` on (default `0`), the tick mails the org's boss once per goal and cap window with the ready `factory goal org G-xxx cursor` command, and never moves a goal itself. See [docs/runtimes.md](https://github.com/volekerb/hivemill/blob/main/docs/runtimes.md) (#532).
 - T-1270: no-new-Python guidance for coder, qa, reviewer (G-041 SC4)
 - test: drop dead home continue in HQ add-dir loop
 - T-1145: treat new top-level paths as risky full CI

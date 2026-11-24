@@ -413,6 +413,45 @@ class RemoteGate(unittest.TestCase):
         self.assertRegex(seen["env"]["HOME"], rf"^{RUN_DIR_RE}/home$")
         self.assertEqual(self.run_dirs(p.stdout), [])
 
+    def test_host_named_like_this_machine_runs_locally_without_ssh(self):
+        me = subprocess.run(["hostname", "-s"], capture_output=True, text=True).stdout.strip()
+        self.env["GATE_REMOTE_HOST"] = me
+        self.env["HOME"] = str(self.remote)
+        p = self.gate()
+        self.assertIn("is this host: running locally, no ssh", p.stdout)
+        self.assertEqual(self.ssh_calls(), [])
+        self.run_dirs(p.stdout)
+
+    def test_other_host_name_still_goes_through_ssh(self):
+        p = self.gate()
+        self.assertNotIn("running locally", p.stdout)
+        self.assertTrue(self.ssh_calls())
+        self.run_dirs(p.stdout)
+
+    def test_run_roots_come_from_the_env(self):
+        self.env["GATE_RUN_ROOTS"] = "/nonexistent-gate-root"
+        p = self.gate()
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("no usable run root on gate-host among /nonexistent-gate-root", p.stderr)
+        self.env["GATE_RUN_ROOTS"] = "/x;rm"
+        self.assertEqual(self.gate().returncode, 2)
+
+    def test_sandbox_note_names_both_branches(self):
+        drv = ROOT / "ci" / "remote_gate_driver.sh"
+        stub = self.tmp / "nsstub"
+        stub.mkdir()
+        (stub / "unshare").write_text("#!/bin/sh\necho 'unshare: unshare failed: Operation not permitted' >&2\nexit 1\n")
+        (stub / "unshare").chmod(0o755)
+        env = {**os.environ, "PATH": f"{stub}:{os.environ['PATH']}"}
+        no = subprocess.run(["bash", str(drv), "--sandbox-note"], capture_output=True, text=True, env=env)
+        self.assertEqual(no.returncode, 0, no.stderr)
+        self.assertIn("user namespaces unavailable", no.stdout)
+        self.assertIn("Operation not permitted", no.stdout)
+        (stub / "unshare").write_text("#!/bin/sh\nexit 0\n")
+        yes = subprocess.run(["bash", str(drv), "--sandbox-note"], capture_output=True, text=True, env=env)
+        self.assertIn("user namespaces available", yes.stdout)
+        self.assertIn("nsbox-dependent tests run", yes.stdout)
+
     def test_sigterm_to_the_process_group_removes_the_remote_dir(self):
         self.commit_head(sleep=120)
         p = subprocess.Popen(["bash", str(GATE_SH)], cwd=self.tree, env=self.env, stdout=subprocess.PIPE,

@@ -1,0 +1,11 @@
+# <python module> <python case count> -> <go package>:<TestName prefix> <go case count>
+# worker-guard behaviour tests, part 2 (T-1690, G-048 SC4): every case drives the cmd/worker-guard binary.
+tests/test_worker_guard_persist.py 24 -> internal/factorytest/guard2:TestPersist 24
+tests/test_worker_guard_push_pin.py 22 -> internal/factorytest/guard2:TestPushPin 22
+tests/test_worker_guard_repocfg.py 11 -> internal/factorytest/guard2:TestRepoCfg 11
+tests/test_worker_guard_repoprot.py 2 -> internal/factorytest/guard2:TestRepoProt 2
+tests/test_worker_guard_researcher.py 22 -> internal/factorytest/guard2:TestResearcher 22
+tests/test_worker_guard_retro.py 5 -> internal/factorytest/guard2:TestRetroGuard 5
+tests/test_worker_guard_retro_mirror.py 3 -> internal/factorytest/guard2:TestRetroMirror 3
+tests/test_worker_guard_scratch_init.py 20 -> internal/factorytest/guard2:TestScratchInit 20
+tests/test_worker_guard_uv_wrapper.py 16 -> internal/factorytest/guard2:TestUvWrapper 16

@@ -116,3 +116,64 @@ func TestHqDeny(t *testing.T) {
 		}
 	})
 }
+
+// T-1803 (owner decision M40734): only the boss role may run `gh pr merge <N> --squash --delete-branch` on hivemill or
+// hivemill-www. Mirrors BossMergeTests in tests/test_worker_guard_hq_deny.py.
+var bossMergeCases = []string{
+	"gh pr merge 12 --delete-branch --squash --repo volekerb/hivemill",
+	"gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill",
+	"gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill-www",
+	"gh pr merge 12 --squash --delete-branch --repo=volekerb/hivemill-www",
+	"gh -R volekerb/hivemill pr merge 12 --squash --delete-branch",
+	"gh pr merge --repo volekerb/hivemill 12 --squash --delete-branch",
+}
+
+var bossMergeRefused = []string{
+	"gh pr merge 12 --squash --delete-branch",
+	"GH_REPO=evil/x gh pr merge 12 --squash --delete-branch",
+	"gh pr merge 12 --squash --delete-branch --admin",
+	"gh pr merge 12 --squash --delete-branch --auto",
+	"gh pr merge 12 --merge --delete-branch",
+	"gh pr merge 12 --rebase --delete-branch",
+	"gh pr merge 12 --squash",
+	"gh pr merge 12 --delete-branch",
+	"gh pr merge --squash --delete-branch",
+	"gh pr merge abc --squash --delete-branch",
+	"gh pr merge 12 --squash --delete-branch --repo volekerb/other",
+	"gh pr merge 12 --squash --delete-branch --repo evil/hivemill",
+	"gh pr merge 12 --squash --delete-branch --repo volekerb/hivemill --repo volekerb/other",
+	"gh pr merge 12 13 --squash --delete-branch",
+	"gh pr merge 12 --squash --delete-branch --body x",
+	"gh pr merge 12 --squash --delete-branch --match-head-commit abc",
+	"bash -c 'gh pr merge 12 --admin --squash --delete-branch'",
+}
+
+func TestBossMerge(t *testing.T) {
+	clearTermsEnv(t)
+	for _, cmd := range bossMergeCases {
+		if err := Check(cmd, "", "boss", true); err != nil {
+			t.Errorf("boss %q: %v", cmd, err)
+		}
+	}
+	for _, cmd := range bossMergeRefused {
+		err := Check(cmd, "", "boss", true)
+		if err == nil || !strings.Contains(Explain(err), "HQ deny rule") {
+			t.Errorf("boss %q: want HQ deny, got %v", cmd, err)
+		}
+	}
+	for _, role := range []string{"", "director", "lead"} {
+		for _, cmd := range bossMergeCases[:3] {
+			err := Check(cmd, "", role, true)
+			if err == nil || !strings.Contains(Explain(err), "HQ deny rule") {
+				t.Errorf("hq role %q %q: want HQ deny, got %v", role, cmd, err)
+			}
+		}
+	}
+	for _, role := range []string{"qa", "reviewer", "pm"} {
+		for _, cmd := range bossMergeCases[:3] {
+			if err := Check(cmd, "", role, false); err == nil {
+				t.Errorf("role %q %q: allowed", role, cmd)
+			}
+		}
+	}
+}
