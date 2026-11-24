@@ -8215,8 +8215,12 @@ def fast_lane_classify(con, t, sha):
     rc, err = 1, f"task branch {branch!r} cannot be fetched"
     if not git_config_guard(con, HOME):
         err = f"git config in {HOME} would run code"
-    elif branch and not branch.startswith("-"):
-        rc, _, err = _git_rc(["fetch", "-q", "origin", "main", f"refs/heads/{branch}"], timeout=120, repo=HOME)
+    elif not (len(branch) <= 200 and REMOTE_BRANCH_RE.match(branch) and ":" not in branch and "+" not in branch
+              and _git_rc(["check-ref-format", f"refs/heads/{branch}"], repo=HOME)[0] == 0):
+        err = f"task branch {branch!r} is not a plain factory/* branch name"
+    else:  # main and the branch go into private refs: origin/main (the diff base) is never moved by a task's branch value
+        rc, _, err = _git_rc(["fetch", "-q", "origin", "+refs/heads/main:refs/factory/lane-main",
+                              f"+refs/heads/{branch}:refs/factory/lane-head"], timeout=120, repo=HOME)
     if rc != 0:
         if lane is None:  # an unread diff never takes the fast lane, and must not hold the normal lane's judge either
             lane_set(con, tid, "normal", f"auto: diff not readable ({err})"[:300])
@@ -8226,7 +8230,7 @@ def fast_lane_classify(con, t, sha):
         return None
     try:
         ct = _ci_tier_mod()
-        name, why = ct.lane(str(HOME), "origin/main", sha)
+        name, why = ct.lane(str(HOME), "refs/factory/lane-main", sha)
     except (OSError, ImportError, SyntaxError, AttributeError) as e:
         name, why = "normal", [f"cannot load main's {CI_TIER_FILE}: {type(e).__name__}: {e}"]
     except Exception as e:  # noqa: BLE001 - ct.affected.AffectedError lives in main's module; any other error is undecidable too
@@ -9398,6 +9402,23 @@ def _red_main_revert_task(con, slug, run, since_ts):
     return tid, merged
 
 
+def _fast_merge_in_run(con, slug, tid, head_sha):
+    """True when the red run's head `head_sha` is the merge commit of task `tid`'s PR or a descendant of it (GitHub compare
+    status identical/ahead). Fails closed: any gh trouble or missing sha is False (alert only, no revert)."""
+    t = con.execute("SELECT pr_url FROM tasks WHERE id=?", (tid,)).fetchone()
+    if not t or not t["pr_url"] or not re.fullmatch(r"[0-9a-f]{7,64}", head_sha or ""):
+        return False
+    try:
+        mc = (gh_json("pr", "view", t["pr_url"], "--json", "mergeCommit").get("mergeCommit") or {}).get("oid") or ""
+        if not re.fullmatch(r"[0-9a-f]{40}", mc):
+            return False
+        p = subprocess.run(["gh", "api", f"repos/{slug}/compare/{mc}...{head_sha}", "--jq", ".status"],
+                           capture_output=True, text=True, timeout=60, env=gh_git_env())
+    except (SystemExit, OSError, ValueError, TypeError, subprocess.SubprocessError):
+        return False
+    return p.returncode == 0 and p.stdout.strip() in ("identical", "ahead")
+
+
 REVERT_PR_MUTATION = ("mutation($id:ID!){revertPullRequest(input:{pullRequestId:$id}){"
                       "revertPullRequest{url headRefName}}}")
 
@@ -9502,7 +9523,13 @@ def red_main_check(con):
                     if tid and merged and fast_lane_on(con) and con.execute(
                             "SELECT 1 FROM events WHERE entity='task' AND entity_id=? AND action='fast-lane-merged'",
                             (merged[0],)).fetchone():
-                        fast_lane_revert(con, merged[0], tid)  # G-070: the newest merge was a fast-lane one
+                        # G-070: the newest merge was a fast-lane one; revert it only when the red run is its own commit
+                        # or a descendant (an earlier merge's run going red must not revert the later fast merge)
+                        if _fast_merge_in_run(con, slug, merged[0], run.get("headSha") or ""):
+                            fast_lane_revert(con, merged[0], tid)
+                        else:
+                            event(con, "task", merged[0], "fast-lane-revert-skipped",
+                                  f"red run {run['databaseId']} is not the fast merge or a descendant")
                 kept = (old or {}).get("task") or ""
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
                                           "task": tid or kept,
@@ -9510,7 +9537,8 @@ def red_main_check(con):
                 event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
                 send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
-                     f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
+                     f"({run.get('url') or 'no url'}). " + ("Judges refuse to merge until a green push run (red_main_freeze=1). " if cfg(con, "red_main_freeze") == "1"
+                                       else "Merges are not frozen (red_main_freeze=0); fast_lane watches this run for its auto-revert. ")
                      + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
                         if tid else _red_main_kept_text(con, kept, slug)
                         if kept else "No active goal for the project: file the revert task by hand.")

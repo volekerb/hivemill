@@ -984,6 +984,20 @@ class FastLaneTests(MechMergeTests):
         self.assertEqual(self.merges(), [])
         self.assertEqual(git(self.wt, "rev-parse", "refs/remotes/origin/main"), guarded)  # the forge was in place
 
+    def test_a_hostile_task_branch_cannot_move_origin_main_or_fake_docs(self):
+        """Review of #858: tasks.branch is coder-settable; a refspec-shaped value is refused before any fetch, never
+        moves the main checkout's origin/main, and leaves the task on the normal lane."""
+        self.head({"ci/affected.py": "# relaxed\n", "docs/a.md": "# looks harmless\n"})
+        git(self.wt, "push", "-q", "origin", "HEAD~1:refs/heads/factory/guarded")  # the guarded commit, on the remote
+        before = git(self.env.home_dir, "for-each-ref", "refs/remotes/origin/main", "refs/factory")
+        self.env.sql("UPDATE tasks SET branch=? WHERE id='T-0001'", ("factory/guarded:refs/remotes/origin/main",))
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(git(self.env.home_dir, "for-each-ref", "refs/remotes/origin/main", "refs/factory"), before)
+
     def test_a_head_missing_from_the_main_checkout_takes_the_normal_lane(self):
         """A head the main checkout cannot fetch (not on its origin) is undecidable: never the fast or docs lane."""
         self.head({"docs/a.md": "# better docs\n"})

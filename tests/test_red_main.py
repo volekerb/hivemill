@@ -239,12 +239,14 @@ class RedMainTests(FactoryTestCase):
     REVERT = {"data": {"revertPullRequest": {"revertPullRequest": {"url": "https://github.com/acme/priv/pull/9",
                                                                    "headRefName": "revert-1-factory/t-0001"}}}}
 
-    def fast_merge_then_red(self, api):
+    def fast_merge_then_red(self, api, compare="ahead"):
         """G-070 AC4: T-0001 merged through the fast lane, then main's push run goes red."""
         for k, v in (("red_main_interval_s", "0"), ("fast_lane", "on")):  # red_main_freeze stays 0: fast_lane alone detects
             self.ok("config", k, v)
         prs = json.loads(self.env.gh_state.read_text())["prs"]
-        self.env.set_gh(prs={u: dict(p, id="PR_node1") for u, p in prs.items()}, api=api)
+        cmp = {"match": ["compare/" + "a" * 40 + "...", "--jq"], "out": compare + "\n"}  # red run vs the fast merge commit
+        self.env.set_gh(prs={u: dict(p, id="PR_node1", mergeCommit={"oid": "a" * 40}) for u, p in prs.items()},
+                        api=api + [cmp])
         self.runs(GOOD)
         self.tick()
         for action in ("merged", "fast-lane-merged"):
@@ -278,6 +280,16 @@ class RedMainTests(FactoryTestCase):
         failed = self.env.sql("SELECT detail FROM events WHERE action='fast-lane-revert-failed' AND entity_id='T-0001'")
         self.assertEqual(len(failed), 1)
         self.assertIn("no permission", failed[0]["detail"])
+
+    def test_red_run_not_descending_from_the_fast_merge_does_not_revert_it(self):
+        """Review of #858: an earlier normal merge's run goes red; the newer fast merge is not in that run, so no revert."""
+        fix = self.fast_merge_then_red([{"match": ["graphql", "revertPullRequest", "id=PR_node1"], "out": self.REVERT}],
+                                       compare="behind")
+        self.assertEqual((fix["status"], fix["pr_url"]), ("todo", None))  # plain bisect task, nothing reverted
+        self.assertEqual([c for c in self.env.calls("gh") if "graphql" in c["argv"]], [])
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='fast-lane-reverted'"), [])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='fast-lane-revert-skipped' AND entity_id='T-0001'")), 1)
+        self.assertEqual(self.env.sql("SELECT 1 FROM tasks WHERE title='Redo T-0001 in the normal lane'"), [])
 
     def test_red_main_after_normal_merge_does_not_revert(self):
         self.ok("config", "red_main_freeze", "1")
