@@ -45,6 +45,8 @@ type Runner struct {
 	Log   Log
 	Out   io.Writer
 	Poll  time.Duration
+	// ReadyWait bounds the wait for a new session's TUI (0 = 90 s).
+	ReadyWait time.Duration
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -193,6 +195,9 @@ func (r *Runner) Start(id string) error {
 	if limit := cfgInt(r.Store, "max_concurrent"); r.activeCount() >= limit {
 		return fmt.Errorf("%w: max_concurrent=%d runs are active", ErrRefused, limit)
 	}
+	if r.Draining() {
+		return fmt.Errorf("%w: drain mode is on (`hivemill resume` lifts it)", ErrRefused)
+	}
 	if why := r.ReadCaps(time.Now()).DispatchBlock(r.Store, t.Project); why != "" {
 		r.budgetEvent(why)
 		return fmt.Errorf("%w: %s", ErrRefused, why)
@@ -290,13 +295,20 @@ func (r *Runner) Clone(t *Task, branch string) (string, error) {
 			{t.RepoPath, "-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", t.RepoPath, wt},
 			{wt, "remote", "set-url", "origin", url},
 			{wt, "fetch", "-q", "origin"},
-			{wt, "checkout", "-q", "-f", "-B", branch, "origin/" + t.Base},
 		}
 		for _, s := range steps {
 			if rc, _, errs := g(s[0], s[1:]...); rc != 0 {
 				_ = os.RemoveAll(wt)
 				return "", fmt.Errorf("clone %s: git %s: %s", wt, s[1], firstLine(errs))
 			}
+		}
+		start := "origin/" + t.Base // a recreated clone continues the pushed branch, never restarts it
+		if rc, _, _ := g(wt, "rev-parse", "--verify", "-q", "refs/remotes/origin/"+branch); rc == 0 {
+			start = "origin/" + branch
+		}
+		if rc, _, errs := g(wt, "checkout", "-q", "-f", "-B", branch, start); rc != 0 {
+			_ = os.RemoveAll(wt)
+			return "", fmt.Errorf("clone %s: git checkout: %s", wt, firstLine(errs))
 		}
 	}
 	if err := r.prepareClone(wt); err != nil {
@@ -375,7 +387,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.RevertCheck(); err != nil {
 		r.printf("revert check: %v\n", err)
 	}
-	if !startNew {
+	if !startNew || r.Draining() {
 		return nil
 	}
 	cands, err := r.Candidates()
@@ -408,19 +420,15 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	if Active(run.State) && run.State != Merging && r.overBudget(run) {
 		return run.State, nil
 	}
+	if r.reconcile(run, list, listed) {
+		return run.State, nil
+	}
 	switch run.State {
 	case Working:
-		if !alive(list, listed, run.Agent) {
-			r.fail(run, "the task session ended before its gate passed")
-		} else {
-			r.idleWatch(run, list)
-		}
+		r.idleWatch(run, list)
 	case Gated:
 		r.gated(run)
 	case Judging:
-		if j := last(run.Judges); j != "" && !alive(list, listed, j) {
-			r.fail(run, "judge "+j+" ended without a verdict")
-		}
 	case Judged:
 		r.judged(run)
 	}

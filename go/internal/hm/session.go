@@ -87,6 +87,7 @@ func TrustClone(e Env, clone string) error {
 // Launch is one interactive Claude Code session started in an hc terminal (never `claude -p`).
 type Launch struct {
 	Role, Name, Cwd, Model, Effort, PromptFile, Kickoff string
+	Resume                                              string // a session id: relaunch it with `claude --resume`
 	Env                                                 map[string]string
 }
 
@@ -112,7 +113,13 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	sid := uuid4()
 	args := []string{"--model", l.Model, "--effort", l.Effort, "--permission-mode", "auto", "--settings", settings,
 		"--append-system-prompt-file", sysprompt, "--add-dir", r.Env.Home, "-n", l.Name,
-		"--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`, "--session-id", sid}
+		"--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`}
+	if l.Resume != "" {
+		sid = l.Resume // --resume keeps the session id; the SessionStart hook records any new one
+		args = append(args, "--resume", l.Resume, "--system-prompt-snapshot", "off")
+	} else {
+		args = append(args, "--session-id", sid)
+	}
 	env := map[string]string{"PATH": sessionPath(r.Env.UserHome), "LANG": "C.UTF-8", "TERM": "xterm-256color", "HOME": r.Env.UserHome,
 		"FACTORY_AGENT": l.Name, "FACTORY_ROLE": l.Role, "FACTORY_HOME": r.Env.Home}
 	for k, v := range l.Env {
@@ -148,10 +155,18 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	if core := r.coreName(); core != "" {
 		runArgs = append(runArgs, "--on", core)
 	}
+	if list, ok := Terminals(r.Tools); ok && alive(list, true, l.Name) {
+		// idempotent: a terminal of this name already runs (a pass that crashed after starting it): adopt it
+		return sid, nil
+	}
 	if rc, _, errs := r.Tools.HC(append(runArgs, "sh", script)...); rc != 0 {
 		return "", fmt.Errorf("hc run %s: exit %d: %s", l.Name, rc, firstLine(errs))
 	}
-	r.waitReady(l.Name, 90*time.Second)
+	wait := r.ReadyWait
+	if wait == 0 {
+		wait = 90 * time.Second
+	}
+	r.waitReady(l.Name, wait)
 	if rc, _, errs := r.Tools.HC("send", l.Name, l.Kickoff); rc != 0 {
 		return sid, fmt.Errorf("hc send %s: exit %d: %s", l.Name, rc, firstLine(errs))
 	}

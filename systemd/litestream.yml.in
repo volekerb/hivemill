@@ -1,0 +1,13 @@
+# Litestream config for `systemd/hivemill-litestream.service`. Copy to ~/.config/hivemill/litestream.yml (untracked)
+# and fill in the replica. Keep credentials in the environment (LITESTREAM_ACCESS_KEY_ID / LITESTREAM_SECRET_ACCESS_KEY),
+# never in this repo.
+dbs:
+  - path: @FACTORY_LIVE_HOME@/db/factory.db
+    replicas:
+      # one of:
+      # - url: s3://BUCKET/hivemill/factory.db            # AWS S3, or with endpoint: MinIO, B2, R2
+      #   endpoint: https://S3_ENDPOINT
+      # - url: sftp://USER@HOST:22/PATH/factory.db
+      #   key-path: /home/USER/.ssh/id_ed25519
+      # - path: /mnt/BACKUP/hivemill/factory.db           # a mounted disk
+      - url: REPLACE_ME
