@@ -86,6 +86,20 @@ func registerGo(unit string, fn GoFunc) {
 	goUnits[unit] = fn
 }
 
+// checkGoSet refuses a Go set that has exactly one of pending_nudges and reap_loop: they hand by_name and by_pane to
+// each other through driver state that is not in the handoff, so they are Go-capable only together.
+func checkGoSet(m map[string]GoFunc) error {
+	_, a := m["pending_nudges"]
+	_, b := m["reap_loop"]
+	switch {
+	case a && !b:
+		return fmt.Errorf("go set has pending_nudges without reap_loop: units 20 and 21 are Go-capable only together")
+	case b && !a:
+		return fmt.Errorf("go set has reap_loop without pending_nudges: units 20 and 21 are Go-capable only together")
+	}
+	return nil
+}
+
 // Blocks lists the block names in table order.
 func Blocks() []string {
 	var b []string
