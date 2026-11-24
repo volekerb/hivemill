@@ -501,6 +501,14 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 	// still mid-work (a background /code-review writes its run record when it starts, so that record alone does not
 	// mean the review is done). The stop is not a gate attempt; the idle watch nudges and then fails a session that
 	// stays idle like this.
+	if run.Eval && run.EvalMode == EvalReview {
+		if _, findings, _ := checkFindings(filepath.Join(run.Worktree, ".hivemill", "findings.json")); findings != nil {
+			run.LastGate = &GateRecord{Findings: findings}
+			run.FindingsTotal = len(findings)
+			r.evalFinish(run, Evaluated, fmt.Sprintf("review: %d findings", len(findings)))
+		}
+		return nil
+	}
 	if _, err := os.Stat(filepath.Join(run.Worktree, ".hivemill", "findings.json")); err != nil {
 		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no findings.json yet"}})
 		return nil

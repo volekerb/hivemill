@@ -15,12 +15,13 @@ const (
 	Evaluated     = "evaluated"
 	EvalFull      = "full"       // a task session reviews the prepared head, then the gate, CI and the judge
 	EvalJudgeOnly = "judge-only" // no session: the runner gates the prepared head itself, then a judge reads it
+	EvalReview    = "review"     // a task session only runs /code-review on the prepared head and writes its findings
 )
 
 // EvalStart starts an eval run of a task whose branch is pushed and has an open draft PR.
 func (r *Runner) EvalStart(id, mode string) error {
-	if mode != EvalFull && mode != EvalJudgeOnly {
-		return fmt.Errorf("%w: eval mode %q: use %s or %s", ErrRefused, mode, EvalFull, EvalJudgeOnly)
+	if mode != EvalFull && mode != EvalJudgeOnly && mode != EvalReview {
+		return fmt.Errorf("%w: eval mode %q: use %s, %s or %s", ErrRefused, mode, EvalFull, EvalJudgeOnly, EvalReview)
 	}
 	t, err := r.Store.Task(id)
 	if err != nil {
@@ -89,10 +90,14 @@ func (r *Runner) EvalStart(id, mode string) error {
 		r.printf("EVAL %s judge-only: gate %d problems; the judge starts when CI has finished\n", id, len(rec.Problems))
 		return r.Store.PutRun(run)
 	}
-	if err := r.launchTask(run, EvalKickoff(run, t)); err != nil {
+	kick := EvalKickoff(run, t)
+	if mode == EvalReview {
+		kick = EvalReviewKickoff(run, t)
+	}
+	if err := r.launchTask(run, kick); err != nil {
 		return err
 	}
-	r.printf("EVAL %s full: %s (%s) in %s\n", id, run.Agent, run.Model, run.Worktree)
+	r.printf("EVAL %s %s: %s (%s) in %s\n", id, mode, run.Agent, run.Model, run.Worktree)
 	return r.Store.PutRun(run)
 }
 
@@ -105,6 +110,15 @@ func EvalKickoff(run *Run, t *Task) string {
 			"on the branch and its draft PR %s is open. Do not start over. Continue your role steps from there: check the change "+
 			"against the spec and the criteria, run the affected tests, run /code-review, fix the findings, write the .hivemill files, "+
 			"push, wait for CI once and stop.", run.Branch, run.Base, run.PRURL)
+}
+
+// EvalReviewKickoff asks only for the review: /code-review on the committed change, findings written, no code change.
+func EvalReviewKickoff(run *Run, t *Task) string {
+	k := Kickoff(run, t)
+	return strings.TrimSuffix(k, fmt.Sprintf("\nBranch %s, base %s. Follow your role steps; stop when the PR is open and CI is green.", run.Branch, run.Base)) +
+		fmt.Sprintf("\nBranch %s, base %s. The change is committed on the branch and its draft PR %s is open. Your only job now is the "+
+			"review step: run /code-review on the branch, wait for it, then write .hivemill/findings.json with every finding and "+
+			"\"resolution\": \"open\". Do not change, commit or push code. Then stop.", run.Branch, run.Base, run.PRURL)
 }
 
 // EvalGate is the deterministic layer on the prepared head without a session: the gate's checks minus the session's own
