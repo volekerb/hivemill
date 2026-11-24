@@ -1,7 +1,8 @@
 [Unit]
-Description=hivemill pass every minute (opt-in; docs/option-b-runner.md)
+Description=hivemill pass every minute (Option B runner; docs/option-b-runner.md)
 [Timer]
-OnBootSec=2min
-OnUnitInactiveSec=60s
+OnBootSec=120
+OnUnitInactiveSec=60
+AccuracySec=5
 [Install]
 WantedBy=timers.target

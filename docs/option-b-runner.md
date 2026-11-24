@@ -96,7 +96,15 @@ hivemill merge T-1234 --dry-run     # print the merge input and decision
 hivemill report [--json]            # scoreboard
 ```
 
-Agents other than the director and the boss may only run `task lint` and `report`; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run. To run passes every minute, install the user timer `systemd/hivemill-run.timer` with its service (`systemctl --user enable --now hivemill-run.timer`).
+Agents other than the director and the boss may only run `task lint` and `report`; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run.
+
+## Running unattended
+
+The runner needs no open client: the owner's laptop can be closed, and the runner survives a reboot.
+
+- **Passes.** On Linux, the user units `systemd/hivemill-run.service` and `systemd/hivemill-run.timer` run `hivemill run` 60 s after the previous pass ends, and 2 minutes after boot. They are modelled on `factory-tick.timer`. Install them with `install -m 644 systemd/hivemill-run.* ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now hivemill-run.timer`. User lingering must be on (`loginctl enable-linger`), so the units run without a login session. Passes never overlap: the service is a oneshot (a timer does not start it again while it runs), and `hivemill run` also takes `state/hivemill/locks/pass.lock`, so a second pass started by hand exits at once. Logs: `journalctl --user -u hivemill-run.service`. Stop with `systemctl --user disable --now hivemill-run.timer`.
+- **macOS.** `launchd/hivemill.run.plist.in` is the matching launchd agent template (`StartInterval` 60, same `FactoryHome`, `Path` and `LogDir` fields as `hivemill.tick.plist.in`). It is not installed anywhere yet.
+- **Sessions.** Task and judge sessions are hc terminals started with `--no-parent` and pinned to the local hc core, which keeps running after logout. Nothing in a session depends on the client that started it: not an ssh session, not the Herdr app. Its env comes from the spawn script, its kickoff is typed in once, and its hooks run inside the session. Each pass reaches a session through the core (`hc ls`, `hc send`, `hc kill`).
 
 ## Event log and report
 

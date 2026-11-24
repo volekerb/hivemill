@@ -352,6 +352,12 @@ func truncate(s string, n int) string {
 
 // Pass advances every active run once (at most one gh read per run), checks for a revert, then starts ready tasks.
 func (r *Runner) Pass(startNew bool) error {
+	l := r.lock("pass", false) // one pass at a time: a timer tick that finds a pass running exits at once
+	if l == nil {
+		r.printf("another pass is running; skipped\n")
+		return nil
+	}
+	defer l.Close()
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
 	if err != nil {
