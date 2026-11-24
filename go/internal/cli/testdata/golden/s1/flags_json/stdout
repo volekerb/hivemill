@@ -211,6 +211,24 @@
   "current": ""
  },
  {
+  "key": "fix_carry",
+  "kind": "setting",
+  "default": "on",
+  "summary": "on | off: after a FAIL only the failed role re-checks; the other role's PASS carries across a small non-sensitive fix",
+  "goal": "G-058",
+  "doc": "docs/verdict-carry-over.md",
+  "current": "on"
+ },
+ {
+  "key": "fix_carry_max_lines",
+  "kind": "setting",
+  "default": "150",
+  "summary": "most lines (added + deleted) the fix commits between the carried PASS head and the PR head may total",
+  "goal": "G-058",
+  "doc": "docs/verdict-carry-over.md",
+  "current": "150"
+ },
+ {
   "key": "frozen_repos",
   "kind": "setting",
   "default": "",
