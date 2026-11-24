@@ -232,6 +232,9 @@ func (r *Runner) Start(id string) error {
 	if terms := r.Store.FactoryCfg("scrub_terms_file"); terms != "" {
 		env["SCRUB_TERMS_FILE"] = terms
 	}
+	if list, ok := Terminals(r.Tools); ok && alive(list, true, name) {
+		r.Close(name) // a session left open by an earlier FAIL; its transcript stays resumable by session id
+	}
 	_, err = r.StartSession(run, Launch{Role: "task", Name: name, Cwd: wt, Model: model, Effort: effort,
 		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: Kickoff(run, t), Env: env})
 	if err != nil {
