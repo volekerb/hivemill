@@ -1,0 +1,8 @@
+[Unit]
+Description=hivemill morning digest at 07:30
+[Timer]
+OnCalendar=*-*-* 07:30:00
+Persistent=true
+AccuracySec=60
+[Install]
+WantedBy=timers.target
