@@ -561,3 +561,49 @@ func contains(xs []string, x string) bool {
 	}
 	return false
 }
+
+func TestPlannerWorkIdempotent(t *testing.T) {
+	r, s, _ := plannerRunner(t, "runner")
+	evs, levels := []string{"task.failed:T-1", "goal.checked:G-001"}, []string{"queue_low:www=0/3"}
+	r.enqueuePlannerWork(evs, levels, true)
+	r.enqueuePlannerWork(evs, levels, true)
+	work, err := s.OpenPlannerWork()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(work) != 3 {
+		t.Fatalf("want 3 open rows after the same events twice, got %+v", work)
+	}
+	if work[2].Kind != "queue_low" || work[2].Ref != "www" {
+		t.Fatalf("level row = %+v", work[2])
+	}
+	if err := r.PlannerDone([]int64{work[0].ID}, "handled"); err != nil {
+		t.Fatal(err)
+	}
+	r.enqueuePlannerWork(evs[:1], nil, false) // closed: a new event opens a new row
+	if work, _ = s.OpenPlannerWork(); len(work) != 3 {
+		t.Fatalf("want 3 open rows after a closed one came back, got %+v", work)
+	}
+	r.enqueuePlannerWork(nil, nil, true) // the level cleared: its row closes
+	if work, _ = s.OpenPlannerWork(); len(work) != 2 {
+		t.Fatalf("want the cleared level closed, got %+v", work)
+	}
+}
+
+func TestPlannerDoneUnknownID(t *testing.T) {
+	r, s, _ := plannerRunner(t, "runner")
+	r.enqueuePlannerWork([]string{"task.failed:T-1"}, nil, false)
+	work, _ := s.OpenPlannerWork()
+	if err := r.PlannerDone([]int64{work[0].ID, 999}, ""); err == nil {
+		t.Fatal("an unknown id must fail")
+	}
+	if w, _ := s.OpenPlannerWork(); len(w) != 1 {
+		t.Fatal("a failed done must close nothing")
+	}
+	if err := r.PlannerDone([]int64{work[0].ID}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.PlannerDone([]int64{work[0].ID}, ""); err == nil {
+		t.Fatal("a closed id must fail")
+	}
+}

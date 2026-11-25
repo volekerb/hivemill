@@ -26,6 +26,7 @@
 //	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
 //	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
 //	hivemill planner start|stop|status|wake [REASON]   the planner session (keeps ready queues full; woken by the daemon)
+//	hivemill planner done ID [ID...] [--note TEXT]     close planner work rows (planner status lists the open ones)
 //	hivemill ask add|list|answer|withdraw              the owner queue
 //	hivemill digest [--date D] [--json] [--send]        the morning digest of one day (default yesterday)
 //	hivemill obs [--port N] [--json] | obs pull --from HOST:PATH | obs sources   read-only page, multi-machine roll-up
@@ -41,6 +42,8 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -62,7 +65,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
 		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close | " +
 		"project add|list | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
-		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake | " +
+		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake|done ID... [--note TEXT] | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | check public-text --home DIR REMOTE URL | affected --base REF | " +
 		"obs [--port N] [--json] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
@@ -297,6 +300,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	case "task":
 		return cmdTask(r, args[1:], stdin, stdout, stderr)
 	case "planner":
+		if arg(1) == "done" {
+			return cmdPlannerDone(r, args[2:], stdout, stderr)
+		}
 		return cmdPlanner(r, args[1:], stdout, stderr)
 	case "ask":
 		return cmdAsk(r, args[1:], stdout, stderr)
@@ -354,4 +360,39 @@ func hookLog(env hm.Env, msg string) {
 	}
 	defer f.Close()
 	fmt.Fprintf(f, "%s %s: %s\n", env.Actor, strings.Join(os.Args[1:], " "), msg)
+}
+
+// cmdPlannerDone is `hivemill planner done ID [ID...] [--note TEXT]`: it closes planner work rows; an unknown or closed id exits 1.
+func cmdPlannerDone(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
+	var ids []int64
+	note := ""
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--note" {
+			if i+1 >= len(args) {
+				fmt.Fprintln(stderr, "hivemill: --note needs a text")
+				return 2
+			}
+			note = args[i+1]
+			i++
+			continue
+		}
+		id, err := strconv.ParseInt(strings.TrimPrefix(args[i], "#"), 10, 64)
+		if err != nil {
+			fmt.Fprintf(stderr, "hivemill: %q is not a planner work id\n", args[i])
+			return 1
+		}
+		if !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		fmt.Fprintln(stderr, "usage: hivemill planner done ID [ID...] [--note TEXT]")
+		return 2
+	}
+	if err := r.PlannerDone(ids, note); err != nil {
+		fmt.Fprintln(stderr, "hivemill:", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "closed %d planner work row(s)\n", len(ids))
+	return 0
 }
