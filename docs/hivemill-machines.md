@@ -37,7 +37,8 @@ session would run there. A busy coordinator then does not hold dispatch while a 
 ### What is recorded
 
 - The run records its machine, `Machine` in `hm_runs.data`. Empty means the local core.
-- `session.started` and `task.dispatched` events carry `data.machine` (`local` for the local core).
+- `session.started` and `task.dispatched` events carry `data.machine`: where the session runs (`local` for the local
+  core). The top-level `machine` of an event is the coordinator that wrote it (`hivemill obs`).
 - `hivemill run status` prints `on <machine>`.
 - Reconcile relaunches a lost task session with `claude --resume` on the recorded machine. The transcript and the
   worker's trust entry are there.
