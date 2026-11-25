@@ -1,5 +1,7 @@
 # Setup
 
+> **Legacy pipeline.** This page describes the paused chain of agents, kept as the rollback. The current flow is the runner: [option-b-runner.md](option-b-runner.md).
+
 How to install the factory on a Linux box and bring up its first agents. If you would rather have your own Claude Code do it for you, give it [adopt/ADOPT.md](adopt/ADOPT.md). Boot, reboot recovery and identity rules are in [operations.md](operations.md).
 
 Every command here was run on this branch under a temporary `HOME` and `FACTORY_HOME`, except those marked **not run in CI**: they need a real herdr server, a real systemd user session, or a logged-in Claude Code, none of which a CI job has.
