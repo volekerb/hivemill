@@ -63,6 +63,9 @@ func scopeEntryRisky(e string, rules risktier.Rules) bool {
 	if i := strings.IndexAny(e, "*?["); i >= 0 {
 		return prefixOverlapsSensitive(e[:i], rules)
 	}
+	if !strings.HasSuffix(e, "/") && strings.Contains(e[strings.LastIndex(e, "/")+1:], ".") {
+		return sensitivePath(e, rules) // a file: only that path, never a directory under it
+	}
 	e = strings.TrimSuffix(e, "/")
 	return sensitivePath(e, rules) || prefixOverlapsSensitive(e+"/", rules)
 }

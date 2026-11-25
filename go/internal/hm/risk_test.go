@@ -78,6 +78,10 @@ func TestRiskRoutesSensitiveFilesToOpus(t *testing.T) {
 	if risky, why := Risk(r.Env.Home, safe, []string{"go/internal/hm/risk.go"}); risky {
 		t.Errorf("a scope that cannot reach a sensitive path: %s", why)
 	}
+	// a file is matched as a file: roles/*.md covers one segment, so a nested role prompt is not sensitive
+	if risky, why := Risk(r.Env.Home, &Task{Spec: "FILES: roles/hivemill/task-judge.md, go/internal/hm/judge.go."}, nil); risky {
+		t.Errorf("a nested .md file under roles/: %s", why)
+	}
 	// "No roles/ change" lists what stays out of scope; it is not a declaration of roles/
 	if risky, why := Risk(r.Env.Home, &Task{Spec: "FILES: go/internal/hm/run.go. No roles/ or .github/ change."}, nil); risky {
 		t.Errorf("a negated FILES clause: %s", why)
