@@ -70,14 +70,14 @@ The runner does the rest, with no model in the loop: the spec gate, the Stop-hoo
 
 ## Quickstart
 
-Needs: Linux or macOS, Go 1.27, git, Python 3, a logged-in Claude Code, a logged-in `gh`, and herdr-core (`hc`), which hosts the sessions. Use a checkout of this repository as the runner's home.
+Needs: Linux or macOS, Go 1.27 to build, git, a logged-in Claude Code, a logged-in `gh`, and herdr-core (`hc`), which hosts the sessions. The home is any empty directory; it needs no checkout of this repository. Python 3 is needed only for Python unittest proofs.
 
 ```
-git clone https://github.com/volekerb/hivemill ~/hivemill
-cd ~/hivemill/go && go build -o ~/.local/bin/hivemill ./cmd/hivemill
-hivemill init --home ~/hivemill --noreply-email YOU@users.noreply.github.com
-export FACTORY_HOME=~/hivemill
-hivemill project add app --repo OWNER/NAME --path ~/src/app
+git clone https://github.com/volekerb/hivemill && cd hivemill/go
+go build -o ~/.local/bin/hivemill ./cmd/hivemill
+hivemill init --home ~/hivemill-home --noreply-email YOU@users.noreply.github.com
+export FACTORY_HOME=~/hivemill-home
+hivemill project add app --repo OWNER/NAME --path ~/src/app --gate 'make test'
 ```
 
 To run unattended, start `hivemill daemon` under systemd or launchd ([steps](docs/option-b-runner.md#supervision)), turn on the planner with `hivemill planner start`, and let `hivemill config projects app` pick ready tasks. The plugin installer (`/hivemill:setup`) installs the legacy pipeline, not the runner.
@@ -95,11 +95,11 @@ hivemill merge T-0001 --dry-run
 hivemill report                # cost, rounds and verdicts per task
 ```
 
-Acceptance criteria with proofs look like this. A `cmd:` expectation is an exit code, a number, `empty` or text the output must contain:
+Acceptance criteria with proofs look like this. A `test:` proof with a space is a shell command that must exit 0; without one it is a Python unittest. A `cmd:` expectation is an exit code, a number, `empty` or text the output must contain:
 
 ```
 1. one header row and one row per order - cmd:./app export --format csv --fixture tests/orders.json | wc -l => 4
-2. an account sees only its own orders - test:tests/test_export.py
+2. an account sees only its own orders - test:pnpm --filter app test
 3. only the export code changes - cmd:git diff --name-only origin/main...HEAD | grep -vE '^(app/export/|tests/)' => empty
 ```
 
