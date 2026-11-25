@@ -485,3 +485,22 @@ func TestAPulledLogKeepsOneMachineName(t *testing.T) {
 		t.Fatalf("one machine, one task key: %v", o.TaskList("", ""))
 	}
 }
+
+func TestOpenAsksCountPulledMachinesFromEvents(t *testing.T) {
+	day := "2026-11-22T0"
+	a := func(h, kind, m, p string, id float64) Event {
+		e := ev(day+h+":00:00Z", kind, "", "", p, "", "", map[string]any{"id": id})
+		e.Machine = m
+		return e
+	}
+	evs := []Event{a("1", "ask.added", "box-b", "api", 1), a("2", "ask.added", "box-b", "api", 2), a("3", "ask.answered", "box-b", "api", 1),
+		a("4", "ask.added", "box-c", "api", 1), a("5", "ask.withdrawn", "box-c", "api", 1), a("6", "ask.added", "box-a", "www", 1)}
+	o := BuildObs(evs, ObsFilter{}, "box-a", nil, time.Now())
+	got := o.OpenAsks("box-a", map[string]int{"www": 3}, true) // this machine: its DB wins over its events
+	if got["api"] != 1 || got["www"] != 3 {
+		t.Fatalf("open asks: %v", got)
+	}
+	if got := o.OpenAsks("box-a", nil, false); got["www"] != 1 {
+		t.Fatalf("no local DB: events for every machine: %v", got)
+	}
+}

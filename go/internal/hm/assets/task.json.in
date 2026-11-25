@@ -227,8 +227,8 @@
     ],
     "allow": [
       "Bash(factory:*)",
-      "Bash(factory pr create *)",
-      "Bash(factory pr ready)",
+      "Bash(hivemill pr create *)",
+      "Bash(hivemill pr ready)",
       "Bash(gh pr view:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",

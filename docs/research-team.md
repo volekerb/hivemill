@@ -1,5 +1,7 @@
 # Research team
 
+> **Legacy pipeline.** This page describes the paused chain of agents, kept as the rollback. The current flow is the runner: [option-b-runner.md](option-b-runner.md).
+
 How you give the boss a research question and what report comes back. The role itself is described in [researcher.md](researcher.md).
 
 ## Asking a research question

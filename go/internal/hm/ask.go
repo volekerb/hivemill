@@ -226,6 +226,7 @@ func (r *Runner) RaiseOwnerAlerts(now time.Time, checks []OwnerAlert) ([]string,
 		}
 		if len(sent) > 0 && sent[len(sent)-1] == a.Kind {
 			_ = r.Log.Emit("owner.alert", nil, Event{Data: map[string]any{"kind": a.Kind, "text": truncate(a.Text, 500)}})
+			r.ownerAlert(a.Kind, a.Text)
 		}
 	}
 	for _, k := range []string{"hivemill-idle", "hivemill-asks"} {

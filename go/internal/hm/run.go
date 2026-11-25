@@ -322,8 +322,10 @@ func (r *Runner) prepareClone(wt string) error {
 		}
 	}
 	_ = os.MkdirAll(filepath.Join(wt, ".hivemill"), 0o755)
-	hook := "#!/bin/sh\n# factory pre-push public-text guard (G-021 T-0696)\nexec python3 " +
-		filepath.Join(r.Env.Home, "ci", "pre_push_public_text.py") + " --home " + r.Env.Home + " \"$@\"\n"
+	hook, err := PrePushHook(r.Env.Home)
+	if err != nil {
+		return err
+	}
 	_ = os.MkdirAll(filepath.Join(gitDir, "hooks"), 0o755)
 	return os.WriteFile(filepath.Join(gitDir, "hooks", "pre-push"), []byte(hook), 0o755)
 }
@@ -374,6 +376,9 @@ func (r *Runner) Pass(startNew bool) error {
 		return nil
 	}
 	defer l.Close()
+	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
+		r.printf("hivemill: %v\n", err)
+	}
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
 	if err != nil {

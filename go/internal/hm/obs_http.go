@@ -295,7 +295,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		p.Kind, p.Title = "portfolio", "Portfolio"
 		asks, ok := s.r.OpenAsks()
 		p.AsksLocal = ok
-		p.Portfolio = o.Portfolio(days, asks)
+		p.Portfolio = o.Portfolio(days, o.OpenAsks(p.Me, asks, ok))
 		for _, src := range srcs {
 			p.Sources = append(p.Sources, sourceLine{ObsSource: src, Last: o.LastSeen[src.Label]})
 		}
@@ -386,8 +386,7 @@ func projectKey(p string) string {
 	return p
 }
 
-// OpenAsks counts this machine's open owner questions per project (the owner queue lives in the local DB; no event
-// marks an answer, so pulled machines show none).
+// OpenAsks counts this machine's open owner questions per project from its DB (pulled machines: Obs.OpenAsks).
 func (r *Runner) OpenAsks() (map[string]int, bool) {
 	sq, err := r.sq()
 	if err != nil {

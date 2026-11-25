@@ -53,7 +53,7 @@ hivemill obs sources             # the logs it reads
 - **Binding and requests.** The page binds to 127.0.0.1 only and answers only GET and HEAD. A request whose `Host` is not a loopback name gets 403, which blocks DNS rebinding.
 - **Self-contained.** It is plain HTML from `html/template` with inline CSS. There is no script, and nothing is loaded from another origin; the CSP header is `default-src 'none'`. The only outbound links are the PRs' own `https://github.com/...` URLs.
 - **Filters.** `machine`, `harness` and `days` are query parameters, and every link keeps them. `GET /api/portfolio` returns the same filters' portfolio as JSON.
-- **Open owner questions.** These come from this machine's `hm_asks` table. Only `ask.added` is logged; nothing is logged when a question is answered or withdrawn, so the page can't count open questions from a pulled log.
+- **Open owner questions.** This machine's come from its `hm_asks` table. A pulled machine's are counted from its log: `ask.added` minus `ask.answered` and `ask.withdrawn` (same id).
 
 ## Several machines: `hivemill obs pull`
 
@@ -124,5 +124,4 @@ Any OTLP/HTTP receiver works: an OpenTelemetry Collector (`otlphttp` receiver on
 
 - **Pull is a snapshot.** Data from another machine is as fresh as its last pull.
 - **Active remote runs.** A run that is still active on another machine has no cost until its run ends, because its transcript is not read remotely.
-- **Open owner questions** are counted on the local machine only (see above).
 - **Large logs.** The page reads the logs on each request. That is fine for tens of thousands of lines, but a very large or hosted deployment would load them into a database instead, the Postgres store of [option-b-runner.md](option-b-runner.md#stage-2-hosted-design-notes-only).

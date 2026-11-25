@@ -66,7 +66,7 @@ footer { margin-top:24px; font-size:12px; }
   <td class="num">{{.OpenAsks}}</td>
 </tr>{{end}}
 </table></div>
-<p class="muted">$ at API prices; a session's whole cost counts on the day it started. Merged, $/merged PR, 2+ rounds and median hours (dispatch to merge) are <code>hivemill report</code>'s rules over the tasks active in the last {{.Days}} days. {{if .AsksLocal}}Open questions come from this machine's owner queue only.{{else}}Open questions: no local owner queue.{{end}}</p>
+<p class="muted">$ at API prices; a session's whole cost counts on the day it started. Merged, $/merged PR, 2+ rounds and median hours (dispatch to merge) are <code>hivemill report</code>'s rules over the tasks active in the last {{.Days}} days. Open questions: this machine's from its owner queue, pulled machines' from their ask events.</p>
 <h2>Machines</h2>
 <div class="scroll"><table>
 <tr><th>machine</th><th>source</th><th>newest event</th><th>pulled</th></tr>

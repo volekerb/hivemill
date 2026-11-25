@@ -1,5 +1,7 @@
 # Agent runtimes
 
+> **Legacy pipeline.** This page describes the paused chain of agents, kept as the rollback. The current flow is the runner: [option-b-runner.md](option-b-runner.md).
+
 Hivemill defaults every role to **Claude Code** via `herdr agent start --kind claude`. Other LLM harnesses plug in through `scout/agent_runtime.py` without changing the boss / director / teams org model.
 
 Empty `agent_runtimes` keeps the historical all-Claude factory. Setting Cursor for some or all roles does **not** remove Claude support.

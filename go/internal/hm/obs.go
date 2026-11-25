@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -191,6 +192,28 @@ type Obs struct {
 	Machines  []string               `json:"machines"`  // every machine in the logs (before the filter)
 	Harnesses []string               `json:"harnesses"` // every harness in the logs (before the filter)
 	LastSeen  map[string]string      `json:"last_seen"` // machine -> its newest event
+	// EventAsks is the open owner questions per machine and project, from ask.added minus ask.answered/withdrawn.
+	EventAsks map[string]map[string]int `json:"-"`
+}
+
+// OpenAsks is the open owner questions per project: this machine's from its DB (local, when ok), every other
+// machine's from its event log.
+func (o *Obs) OpenAsks(me string, local map[string]int, ok bool) map[string]int {
+	out := map[string]int{}
+	for m, by := range o.EventAsks {
+		if m == me && ok {
+			continue
+		}
+		for p, n := range by {
+			out[p] += n
+		}
+	}
+	if ok {
+		for p, n := range local {
+			out[p] += n
+		}
+	}
+	return out
 }
 
 var terminalEvents = map[string]bool{"pr.merged": true, "task.failed": true, "task.cancelled": true, "eval.done": true,
@@ -204,6 +227,7 @@ func TaskKey(machine, task string) string { return machine + "/" + task }
 func BuildObs(evs []Event, f ObsFilter, localMachine string, local map[string]SessUsage, now time.Time) *Obs {
 	o := &Obs{Now: now, Filter: f, Tasks: map[string]*ObsTask{}, Sessions: map[string]*ObsSession{}, LastSeen: map[string]string{}}
 	ms, hs := map[string]bool{}, map[string]bool{}
+	openAsk := map[string][2]string{} // machine/id -> machine, project
 	for _, e := range evs {
 		ms[e.Machine], hs[e.Harness] = true, true
 		if evTime(e).After(parseTS(o.LastSeen[e.Machine])) {
@@ -211,6 +235,17 @@ func BuildObs(evs []Event, f ObsFilter, localMachine string, local map[string]Se
 		}
 		if !f.keep(e) {
 			continue
+		}
+		if strings.HasPrefix(e.Event, "ask.") {
+			if id, ok := e.Data["id"].(float64); ok {
+				k := fmt.Sprintf("%s/%d", e.Machine, int64(id))
+				switch e.Event {
+				case "ask.added":
+					openAsk[k] = [2]string{e.Machine, e.Project}
+				case "ask.answered", "ask.withdrawn":
+					delete(openAsk, k)
+				}
+			}
 		}
 		var t *ObsTask
 		if e.TaskID != "" {
@@ -277,6 +312,13 @@ func BuildObs(evs []Event, f ObsFilter, localMachine string, local map[string]Se
 			}
 			return parseTS(a.Start).Before(parseTS(b.Start))
 		})
+	}
+	o.EventAsks = map[string]map[string]int{}
+	for _, v := range openAsk {
+		if o.EventAsks[v[0]] == nil {
+			o.EventAsks[v[0]] = map[string]int{}
+		}
+		o.EventAsks[v[0]][v[1]]++
 	}
 	o.Machines, o.Harnesses = setKeys(ms), setKeys(hs)
 	return o

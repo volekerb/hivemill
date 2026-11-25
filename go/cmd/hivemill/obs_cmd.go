@@ -68,7 +68,8 @@ func cmdObs(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "hivemill:", err)
 			return 1
 		}
-		asks, _ := r.OpenAsks()
+		local, ok := r.OpenAsks()
+		asks := o.OpenAsks(r.Machine(), local, ok)
 		b, _ := json.MarshalIndent(map[string]any{"filter": o.Filter, "days": *days, "projects": o.Portfolio(*days, asks),
 			"machines": o.Machines, "harnesses": o.Harnesses, "last_seen": o.LastSeen}, "", " ")
 		fmt.Fprintf(stdout, "%s\n", b)
