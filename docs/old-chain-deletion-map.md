@@ -45,7 +45,7 @@ These name the old chain only as text. They do not import or run it.
 
 ### `bin/` (4 files)
 
-`bin/factory`, `bin/factory_cli.py` (about 25,000 lines), `bin/flags.json` and one more helper.
+`bin/factory`, `bin/factory_cli.py` (about 25,000 lines), `bin/flags.json` and `bin/cursor-commit-msg-strip.sh`.
 
 - Imported or executed by: `go/cmd/factory` (Go port, same commands), `tests/harness.py` (subprocess), about 110 Python tests, `ci/demo_seed.py`, `ci/screenshots.py`, `ci/freshbox_test.py`, `ci/install_container_test.py`, `ci/release_check.py`, `ci/remote_gate*.sh`, `tests.yml`, and `hivemill-install` (route 1).
 - Kept set depends on it: routes 1, 4, 5, 7. Kept guard code only names it (literal strings).
@@ -82,7 +82,7 @@ These name the old chain only as text. They do not import or run it.
 - Tested by: its own tests, and every test in `factorytest/*`.
 - Kept set depends on it: nothing at build time. `tests.yml` runs `go build ./...` and `go test ./...`, so it needs no edit. `tests/test_guard_build.py` asserts `CLI_GO_CMDS_KNOWN` against it (kept-edit).
 
-### `go/cmd/factory-forward` (2 files), `go/internal/forward` (5), `go/cmd/factory-go-version` (1), `go/internal/buildinfo` (3)
+### `go/cmd/factory-forward` (2 files), `go/internal/forward` (5), `go/cmd/factory-go-version` (1), `go/internal/buildinfo` (2)
 
 Self-contained leaves. `factory-forward` is named only in `bin/factory_cli.py`, `tests/test_spawn_precheck.py`, `tests/test_worker_gate.py` and `factorytest/s2cli/worker_gate_test.go`. `factory-go-version` and `buildinfo` use only each other. The kept set does not use them.
 
