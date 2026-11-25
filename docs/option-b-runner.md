@@ -68,7 +68,7 @@ None of these guards changes a config key.
 | `max_concurrent` | `2` | active runs at one time |
 | `projects` | empty | project ids a plain `hivemill run` may pick from; empty = explicit task ids only |
 | `model` | `claude-sonnet-5-5` | task session and judge model |
-| `risk_model` | `claude-opus-5-5` | model when the task names a `sensitive_paths` entry of `ci/tier_rules.json` or is T3 |
+| `risk_model` | `claude-opus-5-5` | model when a file the task declares in scope (`FILES:` line or scope criterion) or, for the judge, a file the diff changes matches a `sensitive_paths` entry of `ci/tier_rules.json`, or the task is T3. Words in the task text never route a task |
 | `effort` | `medium` | `--effort` of every session |
 | `gate_max_blocks` | `3` | gate blocks per round before FAIL |
 | `gate_wait_s` | `900` | wait for a test slot before leaving affected tests to CI |

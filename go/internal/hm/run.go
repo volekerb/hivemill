@@ -7,12 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
-
-	"factory/go/internal/citools/risktier"
 )
 
 // Run states.
@@ -86,36 +83,6 @@ func (r *Runner) lock(task string, wait bool) *os.File {
 		return nil
 	}
 	return f
-}
-
-var pathWordRe = regexp.MustCompile(`[\w.\-]+(?:/[\w.\-*]+)+/?`)
-
-// Risk decides the model before any diff exists: a stored tier T3, or a sensitive path (ci/tier_rules.json of the
-// main checkout) named in the task text. Unreadable rules count as risky (Opus), never the cheap path.
-func Risk(home string, t *Task) (bool, string) {
-	if t.Tier == "T3" {
-		return true, "task tier T3"
-	}
-	rules, err := risktier.LoadRules(filepath.Join(home, "ci", "tier_rules.json"))
-	if err != nil {
-		if t.Project == "factory" {
-			return true, "tier rules unreadable"
-		}
-		return false, ""
-	}
-	var hits []string
-	for _, w := range pathWordRe.FindAllString(t.Title+" "+t.Spec+" "+t.Acceptance, -1) {
-		if why, _ := risktier.Reasons(map[string][2]string{}, []string{strings.Trim(w, "/")}, 0, rules); len(why) > 0 {
-			hits = append(hits, w)
-		}
-	}
-	if len(hits) > 0 {
-		if len(hits) > 3 {
-			hits = hits[:3]
-		}
-		return true, "names " + strings.Join(hits, ", ")
-	}
-	return false, ""
 }
 
 // ModelFor picks the session model: model_task / model_task-judge override, else risk_model or model. Fable is refused.
@@ -217,7 +184,7 @@ func (r *Runner) Start(id string) error {
 	if t.RepoPath == "" || t.GHRepo == "" {
 		return fmt.Errorf("%w: %s: its project has no repo_path or gh_repo", ErrRefused, id)
 	}
-	risky, why := Risk(r.Env.Home, t)
+	risky, why := Risk(r.Env.Home, t, nil)
 	model, effort, err := r.ModelFor(risky)
 	if err != nil {
 		return err

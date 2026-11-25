@@ -248,7 +248,14 @@ func (r *Runner) StartJudge(run *Run) error {
 	if err := os.WriteFile(filepath.Join(run.Worktree, rel), []byte(packet), 0o644); err != nil {
 		return err
 	}
-	model, effort, err := r.ModelFor(run.Risky || run.Tier == "T3")
+	// The judge's model follows the files the diff really changes (and the declared scope), not the task's words.
+	t, err := r.Store.Task(run.Task)
+	if err != nil {
+		return err
+	}
+	_, names, _ := r.Tools.Git(run.Worktree, "diff", "--name-only", "origin/"+run.Base+"...HEAD")
+	risky, _ := Risk(r.Env.Home, t, strings.Fields(names))
+	model, effort, err := r.ModelFor(risky || run.Tier == "T3")
 	if err != nil {
 		return err
 	}
