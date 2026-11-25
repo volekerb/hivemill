@@ -144,7 +144,7 @@ func TestJudgeHookRecordsVerdictAndBlocksOnceWithoutOne(t *testing.T) {
 		t.Fatalf("no verdict must block once: %q", out.String())
 	}
 	out.Reset()
-	msg := "ok\n```json\n{\"verdict\": \"MERGE\", \"reasons\": [\"does what was asked\"], \"criteria_assessed\": [{\"id\": 1, \"proven\": true}]}\n```"
+	msg := "ok\n```json\n{\"verdict\": \"MERGE\", \"reasons\": [\"does what was asked\"], \"criteria_assessed\": [{\"id\": 1, \"proven\": true}], \"changes\": [{\"change\": \"x\", \"criterion\": \"x\"}]}\n```"
 	in, _ := json.Marshal(map[string]string{"last_assistant_message": msg, "session_id": "j-1"})
 	if err := r.JudgeHook(bytes.NewReader(in), &out); err != nil || out.Len() != 0 {
 		t.Fatalf("verdict: err %v out %q", err, out.String())
@@ -163,10 +163,16 @@ func TestJudgeHookRecordsVerdictAndBlocksOnceWithoutOne(t *testing.T) {
 
 func TestParseVerdict(t *testing.T) {
 	for _, bad := range []string{"no block", "```json\n{\"verdict\": \"maybe\", \"reasons\": [\"x\"], \"criteria_assessed\": []}\n```",
-		"```json\n{\"verdict\": \"REJECT\", \"reasons\": [], \"criteria_assessed\": []}\n```"} {
+		"```json\n{\"verdict\": \"REJECT\", \"reasons\": [], \"criteria_assessed\": [], \"changes\": []}\n```",
+		"```json\n{\"verdict\": \"MERGE\", \"reasons\": [\"x\"], \"criteria_assessed\": []}\n```",
+		"```json\n{\"verdict\": \"MERGE\", \"reasons\": [\"x\"], \"criteria_assessed\": [], \"changes\": [{\"criterion\": null}]}\n```"} {
 		if _, err := ParseVerdict(bad); err == nil {
 			t.Errorf("%q parsed", bad)
 		}
+	}
+	if v, err := ParseVerdict("```json\n{\"verdict\": \"HOLD\", \"reasons\": [\"x\"], \"criteria_assessed\": [], \"changes\": [{\"change\": \"c\", \"criterion\": null}]}\n```"); err != nil ||
+		v.Verdict != VerdictHold || v.Changes[0].Criterion != nil {
+		t.Errorf("HOLD with a null criterion: %+v %v", v, err)
 	}
 }
 
