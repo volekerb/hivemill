@@ -110,32 +110,62 @@ type Placement struct {
 	Skipped []string
 }
 
-// PickMachine picks the machine of a new task session: the first session_machines entry with at least
-// machine_mem_floor_mb MemAvailable that is eligible, else the local core.
+// PickMachine picks the machine of a new task session: among the session_machines entries that are eligible (at least
+// machine_mem_floor_mb MemAvailable, the marker probe), the one with the fewest active runs; a tie goes to the earlier
+// entry. The local core counts when listed. Skipped says why each ineligible entry was passed. No eligible entry: the
+// local core.
 func (r *Runner) PickMachine() Placement {
 	var pl Placement
 	floor := cfgInt(r.Store, "machine_mem_floor_mb")
 	core, coreRead := "", false
+	var load map[string]int
+	best, bestLoad, found := "", 0, false
 	for _, m := range csv(r.Store.Cfg("session_machines")) {
 		if m != localMachine && !coreRead {
 			core, coreRead = r.coreName(), true
 		}
-		if m == localMachine || m == core {
+		isLocal := m == localMachine || m == core
+		if isLocal {
 			mb := MemAvailableMB()
-			if mb >= floor {
-				return pl
+			if mb < floor {
+				pl.Skipped = append(pl.Skipped, fmt.Sprintf("%s: %s MemAvailable < %d MB", localMachine, mbText(mb), floor))
+				continue
 			}
-			pl.Skipped = append(pl.Skipped, fmt.Sprintf("%s: %s MemAvailable < %d MB", localMachine, mbText(mb), floor))
-			continue
-		}
-		if why := r.eligible(m, floor); why != "" {
+		} else if why := r.eligible(m, floor); why != "" {
 			pl.Skipped = append(pl.Skipped, m+": "+why)
 			continue
 		}
-		pl.Machine = m
-		return pl
+		if load == nil {
+			load = r.activeByMachine(core)
+		}
+		key, n := m, 0
+		if isLocal {
+			key = ""
+		}
+		n = load[key]
+		if !found || n < bestLoad {
+			best, bestLoad, found = key, n, true
+		}
 	}
+	pl.Machine = best
 	return pl
+}
+
+// activeByMachine counts the active runs per machine; "" is the local core (a run on the core's own name counts there).
+func (r *Runner) activeByMachine(core string) map[string]int {
+	load := map[string]int{}
+	runs, _ := r.Store.Runs()
+	for _, x := range runs {
+		if !Active(x.State) {
+			continue
+		}
+		m := x.Machine
+		if m == localMachine || (core != "" && m == core) {
+			m = ""
+		}
+		load[m]++
+	}
+	return load
 }
 
 func mbText(mb int) string {
