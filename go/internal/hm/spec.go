@@ -114,9 +114,36 @@ func LintProblems(acceptance string) []string {
 			probs = append(probs, fmt.Sprintf("criterion %d: %s: has nothing after it", c.ID, c.Kind))
 		case c.Kind == "cmd" && c.Expect == "":
 			probs = append(probs, fmt.Sprintf("criterion %d: cmd: needs `=> <expected exit code or output>`", c.ID))
+		case c.Kind == "cmd" && proseExpectRe.MatchString(c.Expect):
+			probs = append(probs, fmt.Sprintf("criterion %d: `=> %s` is prose and is matched literally, so it can never pass: "+
+				"use an exact value, `exit 0` with grep -q, or `empty`", c.ID, c.Expect))
+		case c.Kind == "test" && proseTestProof(c.Proof):
+			probs = append(probs, fmt.Sprintf("criterion %d: test:%s has prose after the test name or file: "+
+				"use cmd:<the exact test command> => exit 0", c.ID, c.Proof))
 		}
 	}
 	return probs
+}
+
+// proseExpectRe matches an expectation that starts with a comparison phrase: ExpectOK would match it literally.
+var proseExpectRe = regexp.MustCompile(`(?i)^(?:(?:at\s+least|at\s+most|more\s+than|less\s+than|greater|fewer)\b|[<>]=?\s*\d|[<>]=\s)`)
+
+var testIDRe = regexp.MustCompile(`^[\w./~-]+$`)
+
+// proseTestProof reports a test: proof that cannot run: prose after a file or path, or a name TestArgv cannot resolve.
+func proseTestProof(proof string) bool {
+	p := strings.TrimSpace(proof)
+	if f := strings.Fields(p); len(f) > 1 {
+		first := f[0]
+		if strings.HasPrefix(f[1], "-") {
+			return false
+		}
+		return strings.HasSuffix(first, ".py") || strings.HasSuffix(first, ".go")
+	}
+	if strings.HasSuffix(p, ".py") {
+		return false
+	}
+	return strings.HasSuffix(p, ".go") || !testIDRe.MatchString(p)
 }
 
 var exitRe = regexp.MustCompile(`(?i)^(?:exit\s*|rc\s*=\s*)(\d+)$`)
