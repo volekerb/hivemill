@@ -108,7 +108,7 @@ clone, with a scrubbed PATH (no hc, no factory CLI) and a temporary `HOME`:
 | check | result |
 |---|---|
 | `go vet ./...` | exit 0. Before this change it failed, because `internal/factorytest/sandbox2` tests use `syscall.Mount`. Those tests are now `//go:build linux`. |
-| `go test ./internal/hm/... ./cmd/hivemill/... ./internal/kit/...` | all packages ok. 153 tests pass, none skipped or failed. Linux runs 157; the 4 extra are Linux-only `/proc` reader tests in `kit/clean/procx`. |
+| `go test ./internal/hm/... ./cmd/hivemill/... ./internal/kit/...` | all packages ok. 162 tests pass, none skipped or failed. Linux runs 166; the 4 extra are Linux-only `/proc` reader tests in `kit/clean/procx`. |
 | memory reading | `MemAvailableMB` returned -1 on macOS: it read only `/proc/meminfo`. So `hivemill report` printed "mem -0.0 GB free" and the `mem_floor_mb` cap was silently skipped. It now uses `vm_stat` and the memory pressure level, and a reading that fails counts as 0 (the cap holds), as in the old pipeline. On the test Mac it read about 10 GB, matching `vm_stat` by hand. |
 | placement probe | a Mac listed in `session_machines` that does not share the coordinator's home is refused at the marker check, and its own hivemill is never called. |
 
