@@ -148,13 +148,15 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 				p.Merged++
 			}
 		}
-		if !parseTS(t.Last).After(wN) || t.Row.Eval {
+		if t.Row.Eval {
 			continue
 		}
 		f := flowOf(t, o.Now)
-		p.Tasks = append(p.Tasks, f)
 		if f.Stage != "" && f.Stage != "held" && time.Duration(f.AgeSec)*time.Second > StuckAfter {
-			p.Stuck = append(p.Stuck, f)
+			p.Stuck = append(p.Stuck, f) // stuck now, whatever the range
+		}
+		if parseTS(t.Last).After(wN) {
+			p.Tasks = append(p.Tasks, f)
 		}
 	}
 	sort.SliceStable(p.Tasks, func(i, j int) bool { return p.Tasks[i].Total > p.Tasks[j].Total })
@@ -355,7 +357,7 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 		switch {
 		case strings.HasPrefix(t.Row.Outcome, "held"):
 			p.Held = append(p.Held, r)
-		case t.Row.Outcome == "open":
+		default:
 			p.Running = append(p.Running, r)
 		}
 	}
