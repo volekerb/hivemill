@@ -666,7 +666,7 @@ def cleanup(c):
 def parse(argv, host, env):
     ap = argparse.ArgumentParser(prog="freshbox_test.py", description="One-command fresh-install test (needs root, a TTY and a throwaway user name).")
     ap.add_argument("--repo", default=DEFAULT_REPO, help="git URL to clone (default %(default)s)")
-    ap.add_argument("--ref", help="branch, tag, sha or refs/pull/N/head (default: remote default branch)")
+    ap.add_argument("--ref", help="branch, tag, sha or refs/pull/N/head (default: remote default branch); with --two-command only a branch or tag")
     ap.add_argument("--user", default="fbtest", help="throwaway user to create and delete (default %(default)s)")
     ap.add_argument("--port", type=int, default=8799, help="web UI port (default %(default)s)")
     ap.add_argument("--out", help="results file (default ~invoker/factory-freshbox-<UTC ts>.log)")
@@ -703,6 +703,7 @@ def results_path(a, host, env, now):
 
 
 def run_steps(c, start=1):
+    assert c.steps[0][0] == "preflight"  # main() runs preflight itself, then run_steps(c, 2)
     for i, (name, fn) in enumerate(c.steps, 1):
         if i < start:
             continue
