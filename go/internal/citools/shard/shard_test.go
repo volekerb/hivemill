@@ -325,6 +325,149 @@ func TestSplitLimitMatchesPython(t *testing.T) {
 	}
 }
 
+// quarantineFixture is ci/testdata/quarantine_fixture.json, shared with tests/test_shard.py.
+type quarantineFixtureFile struct {
+	Today            string   `json:"today"`
+	ExpectedActive   []string `json:"expected_active"`
+	ExpectedWarnings []string `json:"expected_warnings"`
+}
+
+func TestQuarantineSharedFixture(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "ci", "testdata", "quarantine_fixture.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fx quarantineFixtureFile
+	if err := json.Unmarshal(raw, &fx); err != nil {
+		t.Fatal(err)
+	}
+	active, warnings, err := LoadQuarantine(path, fx.Today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, e := range active {
+		ids = append(ids, e.ID)
+	}
+	if !reflect.DeepEqual(ids, fx.ExpectedActive) {
+		t.Errorf("active = %v, want %v", ids, fx.ExpectedActive)
+	}
+	if !reflect.DeepEqual(warnings, fx.ExpectedWarnings) {
+		t.Errorf("warnings = %q, want %q", warnings, fx.ExpectedWarnings)
+	}
+}
+
+func TestQuarantineCorruptFileFailsClosed(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "q.json")
+	if err := os.WriteFile(p, []byte("not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := LoadQuarantine(p, "2026-11-17")
+	if _, ok := err.(*QuarantineError); !ok || !strings.Contains(err.Error(), p) {
+		t.Fatalf("want a QuarantineError naming %s, got %v", p, err)
+	}
+	if a, w, err := LoadQuarantine(filepath.Join(t.TempDir(), "none.json"), "2026-11-17"); a != nil || w != nil || err != nil {
+		t.Fatalf("a missing file is no quarantine, got %v %v %v", a, w, err)
+	}
+}
+
+func TestShardQuarantineRunExcludesAndVerifies(t *testing.T) {
+	root, script := shardFixture(t, nil, map[string]string{"test_q.py": pyModule(3, false)})
+	q := filepath.Join(root, "q.json")
+	entry := `{"entries":[{"id":"test_q.T.test_01","owner":"T-0001","added":"2026-11-10","expires":"2026-11-20","reason":"r","evidence":"https://example.invalid/r"}]}`
+	if err := os.WriteFile(q, []byte(entry), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	goOut := filepath.Join(root, "go.json")
+	pyOut := filepath.Join(root, "py.json")
+	so, _, code := runGo(Main, "run", "--root", root, "--shard", "1", "--total", "1", "--quarantine", q, "--today", "2026-11-17", "--out", goOut)
+	pso, _, pc := pyRun(t, root, script, "run", "--shard", "1", "--total", "1", "--quarantine", q, "--today", "2026-11-17", "--out", pyOut)
+	if code != 0 || pc != 0 {
+		t.Fatalf("go exit %d, python exit %d", code, pc)
+	}
+	want := "quarantine: excluded test_q.T.test_01 (owner T-0001, expires 2026-11-20)"
+	if !strings.Contains(so, want) || !strings.Contains(pso, want) {
+		t.Errorf("stdout lacks %q:\ngo: %s\npython: %s", want, so, pso)
+	}
+	var g, p Report
+	for path, r := range map[string]*Report{goOut: &g, pyOut: &p} {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if g.Tests != 2 || p.Tests != 2 || !reflect.DeepEqual(g.Quarantined, []string{"test_q.T.test_01"}) || !reflect.DeepEqual(p.Quarantined, g.Quarantined) {
+		t.Errorf("go %+v, python %+v", g, p)
+	}
+	dir := filepath.Join(root, "reps")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(goOut, filepath.Join(dir, "s1.json")); err != nil {
+		t.Fatal(err)
+	}
+	if out, errs, code := runGo(Main, "verify", "--root", root, "--total", "1", "--dir", dir); code != 0 {
+		t.Fatalf("verify exit %d: %s%s", code, out, errs)
+	}
+}
+
+func TestShardQuarantineSplitModuleParity(t *testing.T) {
+	root, script := shardFixture(t, defaultTimings(), defaultMods())
+	q := filepath.Join(root, "q.json")
+	// test_03 sits at sorted position 3 of 7: round-robin over 3 shards puts it on shard 1 only.
+	entry := `{"entries":[{"id":"test_guard_diff.T.test_03","owner":"T-0001","added":"2026-11-10","expires":"2026-11-20","reason":"r","evidence":"https://example.invalid/r"}]}`
+	if err := os.WriteFile(q, []byte(entry), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for shard := 1; shard <= 3; shard++ {
+		sh := fmt.Sprint(shard)
+		goOut := filepath.Join(root, "go"+sh+".json")
+		pyOut := filepath.Join(root, "py"+sh+".json")
+		gso, _, code := runGo(Main, "run", "--root", root, "--shard", sh, "--total", "3", "--quarantine", q, "--today", "2026-11-17", "--out", goOut)
+		pso, _, pc := pyRun(t, root, script, "run", "--shard", sh, "--total", "3", "--quarantine", q, "--today", "2026-11-17", "--out", pyOut)
+		if code != 0 || pc != 0 {
+			t.Fatalf("shard %d: go exit %d, python exit %d", shard, code, pc)
+		}
+		var g, p Report
+		for path, r := range map[string]*Report{goOut: &g, pyOut: &p} {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(raw, r); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !reflect.DeepEqual(g.Quarantined, p.Quarantined) || g.Tests != p.Tests || !reflect.DeepEqual(g.TestIDs, p.TestIDs) {
+			t.Errorf("shard %d: go %+v, python %+v", shard, g, p)
+		}
+		excluded := strings.Contains(gso, "quarantine: excluded") || strings.Contains(pso, "quarantine: excluded")
+		if excluded != (shard == 1) {
+			t.Errorf("shard %d: quarantine line present=%v, want only on shard 1\ngo: %s\npython: %s", shard, excluded, gso, pso)
+		}
+	}
+}
+
+func TestShardQuarantineCorruptFileExits2(t *testing.T) {
+	root, _ := shardFixture(t, nil, map[string]string{"test_q.py": pyModule(1, false)})
+	q := filepath.Join(root, "q.json")
+	if err := os.WriteFile(q, []byte("not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(root, "o.json")
+	_, errs, code := runGo(Main, "run", "--root", root, "--shard", "1", "--total", "1", "--quarantine", q, "--out", out)
+	if code != 2 || !strings.Contains(errs, q) {
+		t.Fatalf("exit %d, stderr %q", code, errs)
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Fatal("a report was written")
+	}
+}
+
 func TestShardUsage(t *testing.T) {
 	for _, args := range [][]string{{}, {"nope"}, {"run", "--shard", "1"}, {"verify"}, {"timings"}} {
 		if _, _, code := runGo(Main, args...); code != 2 {

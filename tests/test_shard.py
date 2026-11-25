@@ -341,6 +341,151 @@ class SplitModuleTest(unittest.TestCase):
             sys.modules.pop(base, None)
 
 
+FIXTURE = ROOT / "ci" / "testdata" / "quarantine_fixture.json"
+MOD3 = "import unittest\nclass T(unittest.TestCase):\n    def test_1(self): pass\n    def test_2(self): pass\n    def test_3(self): pass\n"
+
+
+def entry(**kw):
+    e = {"id": "test_q.T.test_2", "owner": "T-0001", "added": "2026-11-10", "expires": "2026-11-20",
+         "reason": "flaky", "evidence": "https://example.invalid/r/1"}
+    e.update(kw)
+    return {k: v for k, v in e.items() if v is not None}
+
+
+class QuarantineTest(unittest.TestCase):
+    """T-1742: ci/quarantine.json keeps known-flaky tests out of the run."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.tests = os.path.join(self.tmp.name, "tests")
+        os.mkdir(self.tests)
+        Path(self.tests, "test_q.py").write_text(MOD3)
+        self.out = os.path.join(self.tmp.name, "o.json")
+        self.qfile = os.path.join(self.tmp.name, "q.json")
+
+    def qwrite(self, entries):
+        Path(self.qfile).write_text(json.dumps({"entries": entries}))
+
+    def run_q(self, today="2026-11-17", total=1, shard_i=1, split=False):
+        cwd, path = os.getcwd(), list(sys.path)
+        buf = io.StringIO()
+        old_split, old_timings = shard.SPLIT_TEST_IDS_MODULES, shard.load_timings
+        if split:
+            shard.SPLIT_TEST_IDS_MODULES = frozenset({"test_q.py"})
+            shard.load_timings = lambda *a, **k: {"test_q.py": 9999.0}
+        try:
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+                rc = shard.run_shard(shard_i, total, self.out, self.tests, quarantine=self.qfile, today=today)
+        finally:
+            shard.SPLIT_TEST_IDS_MODULES, shard.load_timings = old_split, old_timings
+            os.chdir(cwd)
+            sys.path[:] = path
+            sys.modules.pop("test_q", None)
+        return rc, buf.getvalue(), json.loads(Path(self.out).read_text())
+
+    def test_valid_entry_excludes_exactly_that_test(self):
+        self.qwrite([entry()])
+        rc, out, rep = self.run_q()
+        self.assertEqual((rc, rep["tests"], rep["quarantined"]), (0, 2, ["test_q.T.test_2"]))
+        self.assertIn("quarantine: excluded test_q.T.test_2 (owner T-0001, expires 2026-11-20)", out)
+
+    def test_class_and_module_ids_drop_all_their_tests(self):
+        for eid in ("test_q.T", "test_q"):
+            self.qwrite([entry(id=eid)])
+            rc, _, rep = self.run_q()
+            self.assertEqual((rc, rep["tests"], rep["quarantined"]), (0, 0, [eid]))
+
+    def test_empty_list_changes_nothing(self):
+        self.qwrite([])
+        rc, out, rep = self.run_q()
+        self.assertEqual((rc, rep["tests"], "quarantined" in rep), (0, 3, False))
+        self.assertNotIn("quarantine:", out)
+
+    def test_invalid_entries_are_ignored_with_a_warning_each(self):
+        bad = [(entry(owner=None), "missing owner"),
+               (entry(expires="2026-11-25"), "expires is more than 14 days after added"),
+               (entry(added="2026-02-30"), "bad date added"),
+               (entry(evidence=""), "empty evidence")]
+        self.qwrite([b for b, _ in bad])
+        rc, out, rep = self.run_q()
+        self.assertEqual((rc, rep["tests"], "quarantined" in rep), (0, 3, False))
+        lines = [l for l in out.splitlines() if l.startswith("quarantine:")]
+        self.assertEqual(len(lines), 4, out)
+        for line, (_, why) in zip(lines, bad):
+            self.assertIn("quarantine: ignored invalid entry test_q.T.test_2: " + why, line)
+
+    def test_expired_entry_stays_excluded_and_warns(self):
+        self.qwrite([entry()])
+        rc, out, rep = self.run_q(today="2026-11-21")
+        self.assertEqual((rc, rep["tests"]), (0, 2))
+        self.assertIn("quarantine: EXPIRED test_q.T.test_2 owner T-0001 expired 2026-11-20", out)
+
+    def test_corrupt_file_exits_2_and_writes_no_report(self):
+        Path(self.qfile).write_text("not json")
+        r = subprocess.run([sys.executable, str(ROOT / "ci" / "shard.py"), "run", "--shard", "1", "--total", "1",
+                            "--out", self.out, "--quarantine", self.qfile, "--today", "2026-11-17"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn(self.qfile, r.stderr)
+        self.assertFalse(os.path.exists(self.out))
+
+    def test_wrong_shape_exits_2(self):
+        Path(self.qfile).write_text("[]")
+        with self.assertRaises(shard.QuarantineError):
+            shard.load_quarantine(self.qfile, "2026-11-17")
+
+    def test_missing_file_is_no_quarantine(self):
+        self.assertEqual(shard.load_quarantine(os.path.join(self.tmp.name, "none.json"), "2026-11-17"), ([], []))
+
+    def test_shared_fixture_active_set_and_warnings(self):
+        fx = json.loads(FIXTURE.read_text())
+        active, warnings = shard.load_quarantine(str(FIXTURE), fx["today"])
+        self.assertEqual([e["id"] for e in active], fx["expected_active"])
+        self.assertEqual(warnings, fx["expected_warnings"])
+
+    def test_split_module_path_excludes_the_id_on_its_shard(self):
+        self.qwrite([entry()])
+        full = shard.collect_test_ids("test_q.py", self.tests)
+        sys.modules.pop("test_q", None)
+        self.assertEqual(len(full), 3)
+        total = 2
+        reps = []
+        for i in (1, 2):
+            rc, _, rep = self.run_q(total=total, shard_i=i, split=True)
+            self.assertEqual(rc, 0)
+            reps.append(rep)
+        ran = [t for r in reps for t in r["test_ids"]["test_q.py"]]
+        self.assertEqual(sorted(ran), ["test_q.T.test_1", "test_q.T.test_3"])
+        self.assertEqual(sum(r["tests"] for r in reps), 2)
+        # verify treats the dropped id as covered
+        d = os.path.join(self.tmp.name, "reps")
+        os.mkdir(d)
+        for i, r in enumerate(reps, 1):
+            Path(d, "s%d.json" % i).write_text(json.dumps(r))
+        old_split, old_timings = shard.SPLIT_TEST_IDS_MODULES, shard.load_timings
+        shard.SPLIT_TEST_IDS_MODULES = frozenset({"test_q.py"})
+        shard.load_timings = lambda *a, **k: {"test_q.py": 9999.0}
+        try:
+            summary, n = shard.verify(d, total, self.tests)
+        finally:
+            shard.SPLIT_TEST_IDS_MODULES, shard.load_timings = old_split, old_timings
+            sys.modules.pop("test_q", None)
+        self.assertEqual(n, 2)
+
+    def test_verify_ignores_the_quarantined_key(self):
+        d = os.path.join(self.tmp.name, "reps")
+        os.mkdir(d)
+        Path(d, "s1.json").write_text(json.dumps({"shard": 1, "total": 1, "modules": ["test_q.py"], "tests": 2,
+                                                  "seconds": {"test_q.py": 1.0}, "quarantined": ["test_q.T.test_2"]}))
+        r = subprocess.run([sys.executable, str(ROOT / "ci" / "shard.py"), "verify", "--total", "1", "--dir", d],
+                           capture_output=True, text=True)
+        # the real tests/ tree is the reference, so only the key handling is under test: no "unreadable report"
+        self.assertNotIn("unreadable", r.stderr)
+        summary, n = shard.verify(d, 1, self.tests)
+        self.assertEqual(n, 2)
+
+
 class ScopeAndJobsTest(unittest.TestCase):
     """Owner 2026-11-17: a PR run stays near 10 minutes; the deep run (workflow_dispatch) runs everything."""
 

@@ -35,6 +35,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 	out := fs.String("out", "", "report file (run) or timing file (timings)")
 	only := fs.String("only", "", "file of module names (the affected selection)")
 	dir := fs.String("dir", "", "directory of shard reports")
+	quarantine := fs.String("quarantine", "", "quarantine list (default: ci/quarantine.json of the root)")
+	today := fs.String("today", "", "YYYY-MM-DD used for quarantine expiry (default: the real date)")
 	switch cmd {
 	case "list", "run", "verify", "timings":
 	default:
@@ -96,7 +98,12 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		if err != nil {
 			return fail(err)
 		}
-		code, err := Run(*root, *shardN, *total, *out, onlySet, os.Stderr)
+		code, err := RunQuarantine(*root, *shardN, *total, *out, onlySet, *quarantine, *today, stdout, os.Stderr)
+		var qe *QuarantineError
+		if errors.As(err, &qe) {
+			fail(err)
+			return 2
+		}
 		if err != nil {
 			return fail(err)
 		}

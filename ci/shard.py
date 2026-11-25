@@ -2,7 +2,7 @@
 """CI test sharding: pick, run and verify a deterministic slice of tests/test_*.py.
 
   shard.py list [--shard I --total N]     module file names, one per line (I is 1-based)
-  shard.py run --shard I --total N --out F [--only L] [--jobs J]   run that slice (just the modules listed in file L), write its report (JSON) to F;
+  shard.py run --shard I --total N --out F [--only L] [--jobs J] [--quarantine Q] [--today D]   run that slice (just the modules listed in file L), write its report (JSON) to F; tests listed in the quarantine file Q (default ci/quarantine.json) are left out (docs/flaky-tests.md)
                                           J modules at a time, each in its own child process (default: one per CPU, at most 4; SHARD_JOBS overrides)
   shard.py verify --total N --dir D [--only L]   check the shard reports in D cover every module (of L) once
   shard.py timings --dir D [--out F]      merge the reports' per-module seconds into a timing file
@@ -14,6 +14,7 @@ then appended to every shard's module list (T-1168); ``run`` executes only that 
 by round-robin on the sorted id list (same rule as guard-unittest T-1039). Other modules stay whole. Stdlib only.
 """
 import argparse
+import datetime
 import json
 import os
 import re
@@ -28,6 +29,8 @@ from concurrent.futures import ThreadPoolExecutor
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS = os.path.join(ROOT, "tests")
 TIMINGS = os.path.join(ROOT, "ci", "shard_timings.json")
+QUARANTINE = os.path.join(ROOT, "ci", "quarantine.json")
+QUARANTINE_MAX_DAYS = 14
 
 # One module can be so slow that greedy packing puts it alone on a shard and still exceeds the job cap
 # (30 min). Its unittest ids are then split across all shards (T-1168); keep the file name in sync with
@@ -74,6 +77,96 @@ def scoped_out(modules, only=None, env=None, changed=None):
 
 class ShardError(Exception):
     """Bad shard arguments or an inconsistent set of shard reports."""
+
+
+class QuarantineError(Exception):
+    """The quarantine file exists but cannot be used (exit 2: never run nothing, never skip all)."""
+
+
+_QUARANTINE_FIELDS = ("id", "owner", "added", "expires", "reason", "evidence")
+
+
+def _qdate(value):
+    if not isinstance(value, str) or len(value) != 10:
+        raise ValueError(value)
+    return datetime.date.fromisoformat(value)
+
+
+def _quarantine_problem(e):
+    """Why entry `e` is invalid, or None if it is valid."""
+    for k in _QUARANTINE_FIELDS:
+        if k not in e:
+            return "missing %s" % k
+        if not isinstance(e[k], str) or not e[k].strip():
+            return "empty %s" % k
+    if not re.fullmatch(r"T-[0-9]+", e["owner"]):
+        return "owner %r is not a task id like T-0001" % e["owner"]
+    if not e["evidence"].startswith("https://"):
+        return "evidence must be an https:// URL"
+    dates = {}
+    for k in ("added", "expires"):
+        try:
+            dates[k] = _qdate(e[k])
+        except ValueError:
+            return "bad date %s %r (use YYYY-MM-DD)" % (k, e[k])
+    if dates["expires"] <= dates["added"]:
+        return "expires must be after added"
+    if dates["expires"] > dates["added"] + datetime.timedelta(days=QUARANTINE_MAX_DAYS):
+        return "expires is more than %d days after added" % QUARANTINE_MAX_DAYS
+    return None
+
+
+def load_quarantine(path, today):
+    """(active entries, warnings) from the quarantine file; `today` is a YYYY-MM-DD string.
+
+    Invalid entries are ignored with a warning; expired ones stay active (excluded) with a warning; ids starting
+    with ``go:`` belong to the Go side and are skipped. A missing file is no quarantine; an unreadable or
+    non-JSON file raises QuarantineError.
+    """
+    try:
+        now = _qdate(today)
+    except ValueError:
+        raise QuarantineError("bad --today %r; use YYYY-MM-DD" % (today,))
+    if not os.path.exists(path):
+        return [], []
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as e:
+        raise QuarantineError("cannot read quarantine file %s: %s; fix it or restore it from main" % (path, e))
+    if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
+        raise QuarantineError(
+            'quarantine file %s must be a JSON object {"entries": [...]}; fix it or restore it from main' % path)
+    active, warnings = [], []
+    for e in data["entries"]:
+        eid = e.get("id") if isinstance(e, dict) else None
+        if isinstance(eid, str) and eid.startswith("go:"):
+            continue
+        why = "entry is not an object" if not isinstance(e, dict) else _quarantine_problem(e)
+        if why:
+            shown = eid if isinstance(eid, str) and eid else "?"
+            warnings.append("quarantine: ignored invalid entry %s: %s" % (shown, why))
+            continue
+        active.append(e)
+        if _qdate(e["expires"]) < now:
+            warnings.append("quarantine: EXPIRED %s owner %s expired %s" % (e["id"], e["owner"], e["expires"]))
+    return active, warnings
+
+
+def quarantine_matches(entry_id, test_id):
+    """An entry id names a test, a class or a module: it covers that id and everything under it."""
+    return test_id == entry_id or test_id.startswith(entry_id + ".")
+
+
+def _quarantine_hits(entries, test_ids):
+    """({entry id: entry} covering at least one of test_ids, the set of those test ids)."""
+    hit, dropped = {}, set()
+    for t in test_ids:
+        for e in entries:
+            if quarantine_matches(e["id"], t):
+                hit.setdefault(e["id"], e)
+                dropped.add(t)
+    return hit, dropped
 
 
 def _pack_limit_seconds(modules, timings, total):
@@ -232,12 +325,17 @@ def _spawn_module(module, i, tmp, tests_dir, ids):
     return r.stdout or "", tests, ok, secs
 
 
-def run_shard(shard, total, out, tests_dir=TESTS, only=None, jobs=None):
+def run_shard(shard, total, out, tests_dir=TESTS, only=None, jobs=None, quarantine=None, today=None):
     """Run the shard's modules (only those in `only`, if given); write {shard,total,modules,tests} to `out`; return the exit code.
 
+    Quarantined tests (ci/quarantine.json, or `quarantine`) are dropped from the run and listed under "quarantined".
     jobs > 1: every module is its own child process, `jobs` at a time, slowest first; a module's output is printed whole
     when it finishes, in list order (never interleaved). A child with no report or a non-zero exit fails the shard.
     """
+    quarantine = os.path.abspath(quarantine or QUARANTINE)
+    entries, warnings = load_quarantine(quarantine, today or datetime.date.today().isoformat())
+    for w in warnings:
+        print(w)
     mods = select(all_modules(tests_dir), shard, total)
     if only is not None:
         mods = [m for m in mods if m in only]
@@ -256,6 +354,23 @@ def run_shard(shard, total, out, tests_dir=TESTS, only=None, jobs=None):
     jobs = default_jobs() if jobs is None else max(1, jobs)
     tests, ok, seconds = 0, True, {}
     failed = []
+    quarantined = {}
+    run_ids = {}  # module -> the test ids to run when quarantine drops some of them
+    for m in mods:
+        mod_entries = [e for e in entries if e["id"].split(".")[0] == m[:-3]]
+        if not mod_entries:
+            continue
+        if m in id_subsets:
+            hit, gone = _quarantine_hits(mod_entries, id_subsets[m])
+            id_subsets[m] = [i for i in id_subsets[m] if i not in gone]
+        else:
+            hit, gone = _quarantine_hits(mod_entries, collect_test_ids(m, tests_dir))
+            if gone:
+                run_ids[m] = [i for i in collect_test_ids(m, tests_dir) if i not in gone]
+        quarantined.update(hit)
+    for eid in sorted(quarantined):
+        print("quarantine: excluded %s (owner %s, expires %s)" % (eid, quarantined[eid]["owner"], quarantined[eid]["expires"]))
+    run_ids.update(id_subsets)
     if jobs == 1:
         root = os.path.dirname(os.path.abspath(tests_dir))
         os.chdir(root)
@@ -264,7 +379,7 @@ def run_shard(shard, total, out, tests_dir=TESTS, only=None, jobs=None):
         sys.path.insert(0, tests_dir)
         for m in mods:
             t0 = time.monotonic()
-            n, good = _run_module(m, tests_dir, id_subsets.get(m))
+            n, good = _run_module(m, tests_dir, run_ids.get(m))
             seconds[m] = round(time.monotonic() - t0, 1)
             tests += n
             ok = ok and good
@@ -274,7 +389,7 @@ def run_shard(shard, total, out, tests_dir=TESTS, only=None, jobs=None):
         w = weights(mods, timings)
         order = sorted(range(len(mods)), key=lambda i: (-w[mods[i]], mods[i]))
         with tempfile.TemporaryDirectory() as tmp, ThreadPoolExecutor(max_workers=jobs) as ex:
-            futs = {i: ex.submit(_spawn_module, mods[i], i, tmp, tests_dir, id_subsets.get(mods[i])) for i in order}
+            futs = {i: ex.submit(_spawn_module, mods[i], i, tmp, tests_dir, run_ids.get(mods[i])) for i in order}
             for i, m in enumerate(mods):
                 text, n, good, secs = futs[i].result()
                 sys.stdout.write(text if text.endswith("\n") or not text else text + "\n")
@@ -287,11 +402,13 @@ def run_shard(shard, total, out, tests_dir=TESTS, only=None, jobs=None):
     if failed:
         print("shard %d failed modules: %s" % (shard, " ".join(failed)), file=sys.stderr)
     report = {"shard": shard, "total": total, "modules": mods, "tests": tests, "seconds": seconds}
+    if quarantined:
+        report["quarantined"] = sorted(quarantined)
     if id_subsets:
         report["test_ids"] = {m: id_subsets[m] for m in sorted(id_subsets)}
     with open(out, "w") as f:
         json.dump(report, f)
-    if tests == 0 and mods:
+    if tests == 0 and mods and not quarantined:
         print("shard %d ran 0 tests from %d modules" % (shard, len(mods)), file=sys.stderr)
         return 1
     return 0 if ok else 1
@@ -341,12 +458,14 @@ def verify(reports_dir, total, tests_dir=TESTS, only=None):
             if m not in r["modules"]:
                 continue
             ids = (r.get("test_ids") or {}).get(m)
-            if not ids:
+            if ids is None or (not ids and not r.get("quarantined")):
                 raise ShardError("split module %s on shard %d: missing test_ids in report" % (m, i))
             for tid in ids:
                 by_shard.setdefault(tid, []).append(i)
         dup_ids = sorted(t for t, s in by_shard.items() if len(s) > 1)
-        ran = sorted(by_shard)
+        # Quarantined tests were dropped from the run on purpose: the report's "quarantined" entry ids still cover them.
+        qids = {q for r in reports.values() if m in r["modules"] for q in (r.get("quarantined") or ())}
+        ran = sorted(set(by_shard) | {t for t in full if any(quarantine_matches(q, t) for q in qids)})
         if dup_ids or ran != full:
             raise ShardError(
                 "split module %s: id coverage wrong: ran twice=%s never ran=%s"
@@ -356,7 +475,8 @@ def verify(reports_dir, total, tests_dir=TESTS, only=None):
             if m not in r["modules"]:
                 continue
             got = (r.get("test_ids") or {}).get(m)
-            exp = shard_of_test_ids(full, i, total)
+            rq = r.get("quarantined") or ()
+            exp = [t for t in shard_of_test_ids(full, i, total) if not any(quarantine_matches(q, t) for q in rq)]
             if got != exp:
                 raise ShardError("split module %s shard %d: expected %d ids, got %d (or wrong ids)" % (
                     m, i, len(exp), len(got or ())))
@@ -401,6 +521,8 @@ def main(argv=None):
     rn.add_argument("--total", type=int, required=True)
     rn.add_argument("--out", required=True)
     rn.add_argument("--only", help="file of module names: run only those (affected mode)")
+    rn.add_argument("--quarantine", help="quarantine list (default: ci/quarantine.json of this tree)")
+    rn.add_argument("--today", help="YYYY-MM-DD used for expiry (default: the real date; tests pass it)")
     rn.add_argument("--jobs", type=int, help="modules run at a time, each in a child process (default: per CPU, max 4)")
     vf = sub.add_parser("verify")
     vf.add_argument("--total", type=int, required=True)
@@ -418,7 +540,7 @@ def main(argv=None):
             print("\n".join(mods))
             return 0
         if a.cmd == "run":
-            return run_shard(a.shard, a.total, a.out, only=read_only(a.only), jobs=a.jobs)
+            return run_shard(a.shard, a.total, a.out, only=read_only(a.only), jobs=a.jobs, quarantine=a.quarantine, today=a.today)
         if a.cmd == "timings":
             data = merge_timings(a.dir)
             with open(a.out, "w") as f:
@@ -429,6 +551,9 @@ def main(argv=None):
         summary, _ = verify(a.dir, a.total, only=read_only(a.only))
         print(summary)
         return 0
+    except QuarantineError as e:
+        print("shard: %s" % e, file=sys.stderr)
+        return 2
     except ShardError as e:
         print("shard: %s" % e, file=sys.stderr)
         return 1
