@@ -26,6 +26,7 @@
 //	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
 //	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
 //	hivemill planner start|stop|status|wake [REASON]   the planner session (keeps ready queues full; woken by the daemon)
+//	hivemill planner done ID [ID...] [--note TEXT]    acknowledge planner work items (rows of the work queue)
 //	hivemill ask add|list|answer|withdraw              the owner queue
 //	hivemill digest [--date D] [--json] [--send]        the morning digest of one day (default yesterday)
 //	hivemill obs [--port N] [--json] | obs pull --from HOST:PATH | obs sources   read-only page, multi-machine roll-up
@@ -41,6 +42,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -128,7 +130,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		readTask := args[0] == "task" && (arg(1) == "lint" || arg(1) == "list" || arg(1) == "show")
 		ownPR := args[0] == "pr" && (role == "task" || role == "coder") // the PR of the session's own task only
 		if role == "planner" {
-			if !plannerMay(args) {
+			if !plannerMay(args) && !(args[0] == "planner" && arg(1) == "done") {
 				fmt.Fprintf(stderr, "hivemill: the planner may run goal, task, run status, report, health and ask add|list|withdraw, not %s\n", args[0])
 				return 3
 			}
@@ -297,6 +299,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	case "task":
 		return cmdTask(r, args[1:], stdin, stdout, stderr)
 	case "planner":
+		if arg(1) == "done" {
+			return cmdPlannerDone(r, args[2:], stdout, stderr)
+		}
 		return cmdPlanner(r, args[1:], stdout, stderr)
 	case "ask":
 		return cmdAsk(r, args[1:], stdout, stderr)
@@ -354,4 +359,44 @@ func hookLog(env hm.Env, msg string) {
 	}
 	defer f.Close()
 	fmt.Fprintf(f, "%s %s: %s\n", env.Actor, strings.Join(os.Args[1:], " "), msg)
+}
+
+// cmdPlannerDone is `hivemill planner done ID [ID...] [--note TEXT]`: the planner's acknowledgement of work items. It closes
+// the rows with close_reason "done" and exits 1 on an unknown or closed id, closing none.
+func cmdPlannerDone(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
+	usage := "usage: hivemill planner done ID [ID...] [--note TEXT]"
+	var ids []int64
+	note := ""
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--note" {
+			if i+1 >= len(args) {
+				fmt.Fprintln(stderr, usage)
+				return 2
+			}
+			note = args[i+1]
+			i++
+			continue
+		}
+		id, err := strconv.ParseInt(args[i], 10, 64)
+		if err != nil || id <= 0 {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		fmt.Fprintln(stderr, usage)
+		return 2
+	}
+	s := sqliteOf(r, stderr)
+	if s == nil {
+		return 1
+	}
+	if err := s.PlannerWorkDone(ids, time.Now()); err != nil {
+		fmt.Fprintln(stderr, "hivemill:", err)
+		return 1
+	}
+	_ = r.Log.Emit("planner.done", nil, hm.Event{Role: "planner", Data: map[string]any{"items": ids, "note": note}})
+	fmt.Fprintf(stdout, "%d planner work item(s) done\n", len(ids))
+	return 0
 }

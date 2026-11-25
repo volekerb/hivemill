@@ -86,70 +86,30 @@ func addReady(t *testing.T, s *SQLite, n int) {
 	}
 }
 
-func TestDecideWakeRewakesStarvedLevel(t *testing.T) {
-	t0 := time.Date(2026, 11, 25, 14, 0, 0, 0, time.UTC)
-	in := WakeInput{Now: t0, Levels: []string{"queue_low:factory=0/3"}, LastFingerprint: "queue_low:factory=0/3", MinGap: 10 * time.Minute,
-		Rewake: 1500 * time.Second, Idle: true}
-	for _, c := range []struct {
-		name   string
-		ago    time.Duration
-		rewake time.Duration
-		wake   bool
-	}{
-		{"1501 s ago wakes", 1501 * time.Second, 1500 * time.Second, true},
-		{"1000 s ago does not", 1000 * time.Second, 1500 * time.Second, false},
-		{"rewake off keeps the old behaviour", 5000 * time.Second, 0, false},
-	} {
-		i := in
-		i.LastWake, i.Rewake = t0.Add(-c.ago), c.rewake
-		if d := DecideWake(i); d.Wake != c.wake {
-			t.Errorf("%s: got wake=%v why=%q", c.name, d.Wake, d.Why)
-		}
-	}
-}
-
-func TestDecideWake(t *testing.T) {
-	t0 := time.Date(2026, 11, 25, 3, 0, 0, 0, time.UTC)
-	gap := 10 * time.Minute
-	for _, c := range []struct {
-		name   string
-		in     WakeInput
-		wake   bool
-		adv    bool
-		why    string
-		reason string
-	}{
-		{"first short queue wakes", WakeInput{Now: t0, Levels: []string{"queue_low:www=1/3"}, Idle: true}, true, false, "", "queue_low:www=1/3"},
-		{"same levels, no events: nothing changed", WakeInput{Now: t0, Levels: []string{"queue_low:www=1/3"}, LastFingerprint: "queue_low:www=1/3",
-			Idle: true}, false, true, "nothing changed", ""},
-		{"no reasons at all", WakeInput{Now: t0, LastFingerprint: "queue_low:www=1/3", Idle: true}, false, true, "nothing changed", ""},
-		{"an event inside the gap waits", WakeInput{Now: t0, LastWake: t0.Add(-9 * time.Minute), Events: []string{"task.failed:T-1"}, MinGap: gap,
-			Idle: true}, false, false, "debounce", "task.failed:T-1"},
-		{"an event after the gap wakes", WakeInput{Now: t0, LastWake: t0.Add(-10 * time.Minute), Events: []string{"task.failed:T-1"}, MinGap: gap,
-			Idle: true}, true, false, "", "task.failed:T-1"},
-		{"a busy planner is not interrupted", WakeInput{Now: t0, Events: []string{"run.held:T-2"}, MinGap: gap}, false, false, "busy", "run.held:T-2"},
-		{"changed levels wake", WakeInput{Now: t0, Levels: []string{"queue_low:www=2/3"}, LastFingerprint: "queue_low:www=1/3", Idle: true},
-			true, false, "", "queue_low:www=2/3"},
-		{"a level that went away is no news", WakeInput{Now: t0, Levels: []string{"not_dispatched:www"},
-			LastFingerprint: "not_dispatched:www queue_low:www=1/3", Idle: true}, false, true, "nothing changed", ""},
-		{"a manual wake ignores the gap and busy", WakeInput{Now: t0, LastWake: t0, MinGap: gap, Force: true}, true, false, "", "manual"},
-	} {
-		d := DecideWake(c.in)
-		if d.Wake != c.wake || d.Advance != c.adv || !strings.Contains(d.Why, c.why) {
-			t.Errorf("%s: got wake=%v advance=%v why=%q", c.name, d.Wake, d.Advance, d.Why)
-		}
-		if c.reason != "" && !strings.Contains(strings.Join(d.Reasons, " "), c.reason) {
-			t.Errorf("%s: reasons %v lack %q", c.name, d.Reasons, c.reason)
-		}
-	}
+func TestCoalesce(t *testing.T) {
 	if got := Coalesce([]string{"task.failed:T-1", "run.held:T-3", "task.failed:T-2", "task.failed:T-1", "budget.reached"}, []string{"queue_low:www=0/3"}); strings.Join(got, " ") !=
 		"task.failed:T-1,T-2 run.held:T-3 budget.reached queue_low:www=0/3" {
 		t.Errorf("coalesce: %v", got)
 	}
 }
 
-// The daemon's planner pass wakes once, coalesces what happens in the next 10 minutes into one wake, never wakes for an
-// unchanged state, and waits while the planner works.
+// ackAll marks every open work item done, as the planner does at the end of a wake.
+func ackAll(t *testing.T, s *SQLite, now time.Time) {
+	t.Helper()
+	rows, _ := s.PlannerWorkOpenRows()
+	var ids []int64
+	for _, w := range rows {
+		ids = append(ids, w.ID)
+	}
+	if len(ids) > 0 {
+		if err := s.PlannerWorkDone(ids, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// The daemon's planner pass wakes once, coalesces what happens in the next 10 minutes into one wake, delivers an item again
+// only when it was not acknowledged, and waits while the planner works.
 func TestPlannerPassDebouncesAndCoalesces(t *testing.T) {
 	r, s, f := plannerRunner(t, "")
 	_ = s.SetMeta("planner", "on")
@@ -162,12 +122,15 @@ func TestPlannerPassDebouncesAndCoalesces(t *testing.T) {
 
 	r.PlannerPass(t0)
 	if got := f.sent(); len(got) != 1 || !strings.HasPrefix(got[0], "hivemill-wake v1 ") || !strings.Contains(got[0], "queue_low:www=0/3") ||
-		!strings.Contains(got[0], "not_dispatched:www") {
+		!strings.Contains(got[0], "not_dispatched:www") || !strings.Contains(got[0], "items=1:") {
 		t.Fatalf("first wake: %q", got)
 	}
+	// the levels clear (a refilled queue, a dispatched project): their items close "cleared"
+	_ = s.SetCfg("projects", "www")
+	addReady(t, s, 3)
 	r.PlannerPass(t0.Add(time.Minute))
-	if n := len(f.sent()); n != 1 {
-		t.Fatalf("unchanged state woke the planner again (%d wakes)", n)
+	if rows, _ := s.PlannerWorkOpenRows(); len(rows) != 0 || len(f.sent()) != 1 {
+		t.Fatalf("after clearing: open %v, wakes %d", rows, len(f.sent()))
 	}
 	failed("T-0001")
 	r.PlannerPass(t0.Add(2 * time.Minute))
@@ -186,11 +149,16 @@ func TestPlannerPassDebouncesAndCoalesces(t *testing.T) {
 		strings.Contains(got[1], "T-0004") {
 		t.Fatalf("coalesced wake: %q", got)
 	}
+	r.PlannerPass(t0.Add(12 * time.Minute))
+	if n := len(f.sent()); n != 2 {
+		t.Fatalf("a delivered item woke the planner again inside planner_ack_s (%d wakes)", n)
+	}
+	ackAll(t, s, t0.Add(13*time.Minute))
 	r.PlannerPass(t0.Add(30 * time.Minute))
 	if n := len(f.sent()); n != 2 {
-		t.Fatalf("nothing changed but the planner was woken (%d wakes)", n)
+		t.Fatalf("nothing is open but the planner was woken (%d wakes)", n)
 	}
-	// busy: the reason waits until the planner is idle
+	// busy: the item waits until the planner is idle
 	failed("T-0005")
 	f.terms[0].Status = "working"
 	r.PlannerPass(t0.Add(45 * time.Minute))
@@ -202,18 +170,167 @@ func TestPlannerPassDebouncesAndCoalesces(t *testing.T) {
 	if got := f.sent(); len(got) != 3 || !strings.Contains(got[2], "task.failed:T-0005") || strings.Contains(got[2], "T-0001") {
 		t.Fatalf("wake after busy: %q", got)
 	}
-	// a refilled queue changes the levels but needs no wake; when it runs low again, that is news
-	addReady(t, s, 3)
-	r.PlannerPass(t0.Add(60 * time.Minute))
-	if n := len(f.sent()); n != 3 {
-		t.Fatalf("a full queue woke the planner")
-	}
 	// planner off: no wake at all
 	_ = s.SetMeta("planner", "off")
 	failed("T-0006")
 	r.PlannerPass(t0.Add(90 * time.Minute))
 	if n := len(f.sent()); n != 3 {
 		t.Fatalf("planner off but woken")
+	}
+}
+
+func openRowsOf(t *testing.T, s *SQLite) []PlannerWork {
+	t.Helper()
+	rows, err := s.PlannerWorkOpenRows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rows
+}
+
+func TestPlannerWorkIdempotent(t *testing.T) {
+	_, s, _ := plannerRunner(t, "")
+	now := time.Now()
+	id1, created1, err := s.PlannerWorkOpen("task.failed", "T-0001", now)
+	id2, created2, err2 := s.PlannerWorkOpen("task.failed", "T-0001", now.Add(time.Minute))
+	if err != nil || err2 != nil || id1 != id2 || !created1 || created2 {
+		t.Fatalf("ids %d %d created %v %v errs %v %v", id1, id2, created1, created2, err, err2)
+	}
+	if rows := openRowsOf(t, s); len(rows) != 1 {
+		t.Fatalf("open rows: %+v", rows)
+	}
+	// the same event in the log twice, over two passes, is still one row
+	r, s2, f := plannerRunner(t, "")
+	_ = s2.SetMeta("planner", "on")
+	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
+	_ = s2.SetCfg("projects", "www")
+	addReady(t, s2, 3)
+	for i := 0; i < 2; i++ {
+		_ = r.Log.Emit("task.failed", &Run{Task: "T-0009", Goal: "G-001", Project: "www"}, Event{})
+		r.PlannerPass(now.Add(time.Duration(i) * time.Minute))
+	}
+	if rows := openRowsOf(t, s2); len(rows) != 1 || rows[0].Kind != "task.failed" || rows[0].Ref != "T-0009" {
+		t.Fatalf("open rows: %+v", rows)
+	}
+}
+
+func TestPlannerWorkRedelivers(t *testing.T) {
+	r, s, f := plannerRunner(t, "")
+	_ = s.SetMeta("planner", "on")
+	_ = s.SetCfg("projects", "www")
+	addReady(t, s, 3)
+	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
+	t0 := time.Now().Truncate(time.Second)
+	_ = r.Log.Emit("run.held", &Run{Task: "T-0003"}, Event{})
+	r.PlannerPass(t0)
+	if len(f.sent()) != 1 {
+		t.Fatalf("first delivery: %q", f.sent())
+	}
+	r.PlannerPass(t0.Add(900 * time.Second))
+	if len(f.sent()) != 1 {
+		t.Fatalf("redelivered at exactly planner_ack_s: %q", f.sent())
+	}
+	r.PlannerPass(t0.Add(901 * time.Second))
+	got := f.sent()
+	rows := openRowsOf(t, s)
+	if len(got) != 2 || !strings.Contains(got[1], "run.held:T-0003") || len(rows) != 1 || rows[0].Attempts != 2 {
+		t.Fatalf("redelivery: %q rows %+v", got, rows)
+	}
+}
+
+func TestPlannerWorkLevelReopens(t *testing.T) {
+	r, s, f := plannerRunner(t, "")
+	_ = s.SetMeta("planner", "on")
+	_ = s.SetCfg("projects", "www")
+	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
+	t0 := time.Now()
+	r.PlannerPass(t0)
+	rows := openRowsOf(t, s)
+	if len(rows) != 1 || rows[0].Kind != "queue_low" || rows[0].Ref != "www" {
+		t.Fatalf("rows: %+v", rows)
+	}
+	first := rows[0].ID
+	if err := s.PlannerWorkDone([]int64{first}, t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PlannerWorkDone([]int64{first}, t0); err == nil {
+		t.Error("a closed id was accepted twice")
+	}
+	if err := s.PlannerWorkDone([]int64{999}, t0); err == nil {
+		t.Error("an unknown id was accepted")
+	}
+	r.PlannerPass(t0.Add(time.Minute)) // still low: a new row
+	rows = openRowsOf(t, s)
+	if len(rows) != 1 || rows[0].ID == first {
+		t.Fatalf("not reopened: %+v", rows)
+	}
+	addReady(t, s, 3)
+	r.PlannerPass(t0.Add(2 * time.Minute))
+	var reason string
+	_ = s.db.QueryRow(`SELECT close_reason FROM planner_work WHERE id=?`, rows[0].ID).Scan(&reason)
+	if len(openRowsOf(t, s)) != 0 || reason != "cleared" {
+		t.Fatalf("cleared: open %v reason %q", openRowsOf(t, s), reason)
+	}
+}
+
+func TestPlannerWorkEscalates(t *testing.T) {
+	setup := func() (*Runner, *SQLite, *fakeHC, time.Time) {
+		r, s, f := plannerRunner(t, "")
+		_ = s.SetMeta("planner", "on")
+		_ = s.SetCfg("projects", "www")
+		addReady(t, s, 3)
+		_ = s.SetMeta("planner_sid", "11111111-2222-4333-8444-555555555555")
+		f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
+		return r, s, f, time.Now().Truncate(time.Second)
+	}
+	restarted := func(r *Runner) string {
+		b, _ := os.ReadFile(r.Log.Path)
+		for _, l := range strings.Split(string(b), "\n") {
+			if strings.Contains(l, `"planner.restarted"`) {
+				return l
+			}
+		}
+		return ""
+	}
+	// delivered three times without a done: restart
+	r, s, f, t0 := setup()
+	_ = r.Log.Emit("run.held", &Run{Task: "T-0003"}, Event{})
+	_ = s.SetCfg("planner_wake_gap_s", "0")
+	for i := 0; i < 3; i++ {
+		r.PlannerPass(t0.Add(time.Duration(i) * 901 * time.Second))
+	}
+	if rows := openRowsOf(t, s); len(rows) != 1 || rows[0].Attempts != 3 || f.count("kill") != 0 {
+		t.Fatalf("before: rows %+v kills %d", rows, f.count("kill"))
+	}
+	r.PlannerPass(t0.Add(3 * 901 * time.Second))
+	if f.count("kill") != 1 || !strings.Contains(restarted(r), "delivered 3 times") {
+		t.Fatalf("attempts>=3: kills %d event %q", f.count("kill"), restarted(r))
+	}
+	// busy longer than planner_busy_max_s with a due row: restart
+	r, s, f, t0 = setup()
+	_ = r.Log.Emit("run.held", &Run{Task: "T-0003"}, Event{})
+	f.terms[0].Status = "working"
+	r.PlannerPass(t0)
+	r.PlannerPass(t0.Add(1800 * time.Second))
+	if f.count("kill") != 0 {
+		t.Fatalf("restarted at exactly planner_busy_max_s")
+	}
+	r.PlannerPass(t0.Add(1801 * time.Second))
+	if f.count("kill") != 1 || !strings.Contains(restarted(r), "busy for") {
+		t.Fatalf("busy: kills %d event %q", f.count("kill"), restarted(r))
+	}
+	// past the restart limit: one owner alert per row
+	r, s, f, t0 = setup()
+	_ = s.SetMeta("planner_lost", t0.Format(time.RFC3339))
+	_ = r.Log.Emit("run.held", &Run{Task: "T-0003"}, Event{})
+	f.terms[0].Status = "working"
+	r.PlannerPass(t0)
+	r.PlannerPass(t0.Add(1801 * time.Second))
+	r.PlannerPass(t0.Add(1900 * time.Second))
+	var n int
+	_ = s.db.QueryRow(`SELECT count(*) FROM owner_alert_feed WHERE kind='hivemill-planner' AND closed IS NULL`).Scan(&n)
+	if n != 1 || f.count("kill") != 0 {
+		t.Fatalf("alerts %d kills %d", n, f.count("kill"))
 	}
 }
 

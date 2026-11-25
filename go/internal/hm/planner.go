@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -143,17 +144,18 @@ func (r *Runner) PlannerPass(now time.Time) {
 		}
 	}
 	if t == nil {
-		r.plannerRevive(now)
+		r.plannerRevive(now, "terminal missing")
 		return
 	}
 	r.plannerWake(now, t.Status == "idle" || t.Status == "done", false, "")
 }
 
-// plannerRevive restarts a dead planner with `claude --resume` of its last session, at most resume_max times in 24 h;
-// after that it opens one owner alert and stops trying until `hivemill planner start`.
-func (r *Runner) plannerRevive(now time.Time) {
+// plannerRevive restarts a dead or stuck planner with `claude --resume` of its last session, at most resume_max times in
+// 24 h; after that it opens one owner alert and stops trying until `hivemill planner start`. It reports whether it
+// restarted the planner.
+func (r *Runner) plannerRevive(now time.Time, why string) bool {
 	if r.Store.Meta("planner_lost") != "" {
-		return
+		return false
 	}
 	var recent []string
 	for _, x := range csv(r.Store.Meta("planner_resumes")) {
@@ -168,7 +170,10 @@ func (r *Runner) plannerRevive(now time.Time) {
 		r.ownerAlert("hivemill-planner", what+". Restart it with `hivemill planner start`.")
 		_ = r.Log.Emit("planner.lost", nil, Event{Data: map[string]any{"restarts_24h": len(recent)}})
 		r.printf("planner: lost after %d restarts in 24h; owner alerted\n", len(recent))
-		return
+		return false
+	}
+	if why != "terminal missing" {
+		r.Close(PlannerName) // a stuck planner still holds its terminal name
 	}
 	recent = append(recent, strconv.FormatInt(now.Unix(), 10))
 	_ = r.Store.SetMeta("planner_resumes", strings.Join(recent, ","))
@@ -179,12 +184,13 @@ func (r *Runner) plannerRevive(now time.Time) {
 	}
 	err := r.launchPlanner(sid, kick)
 	_ = r.Store.SetMeta("planner_last_wake", strconv.FormatInt(now.Unix(), 10)) // the restart kickoff counts as a wake
-	data := map[string]any{"resumed": sid, "restarts_24h": len(recent)}
+	data := map[string]any{"resumed": sid, "restarts_24h": len(recent), "why": why}
 	if err != nil {
 		data["error"] = firstLine(err.Error())
 	}
 	_ = r.Log.Emit("planner.restarted", nil, Event{Session: sid, Role: "planner", Data: data})
-	r.printf("planner: restarted (%d in 24h)\n", len(recent))
+	r.printf("planner: restarted (%d in 24h): %s\n", len(recent), why)
+	return err == nil
 }
 
 // PlannerWake wakes the planner now, past the debounce (`hivemill planner wake`).
@@ -193,116 +199,229 @@ func (r *Runner) PlannerWake(now time.Time, why string) error {
 	if ok && !alive(list, true, PlannerName) {
 		return fmt.Errorf("%w: the planner is not running (`hivemill planner start`)", ErrRefused)
 	}
+	if why == "" {
+		why = "manual"
+	}
 	if !r.plannerWake(now, true, true, why) {
 		return errors.New("the wake was not delivered")
 	}
 	return nil
 }
 
-// plannerWake decides and, when due, sends one wake line. Reasons that cannot go out now (debounce, busy, a failed
-// send) stay pending: the event cursor only moves once the planner has them.
-func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) bool {
+// levelKinds are the work kinds that stand for a condition (see PlannerLevels): their row stays open while the condition
+// holds and is closed "cleared" by the pass that sees it gone. Every other kind is an event row.
+var levelKinds = map[string]bool{"queue_low": true, "not_dispatched": true, "goal_done": true}
+
+// splitLevel cuts a level string ("queue_low:www=0/3") into its kind and ref ("queue_low", "www").
+func splitLevel(l string) (kind, ref string) {
+	kind, ref, _ = strings.Cut(l, ":")
+	ref, _, _ = strings.Cut(ref, "=")
+	return kind, ref
+}
+
+// plannerSync turns what the planner must know into rows: each level opens a row (idempotent) and a level that is gone
+// closes its row "cleared"; each new event in the log and a manual wake open an event row. It returns the text of each
+// current level by "kind:ref", and the event-log cursor to record once the rows exist.
+func (r *Runner) plannerSync(s *SQLite, now time.Time, manual string) (map[string]string, int64, error) {
 	levels, err := r.PlannerLevels()
 	if err != nil {
-		r.printf("planner: %v\n", err)
-		return false
+		return nil, 0, err
+	}
+	text := map[string]string{}
+	for _, l := range levels {
+		k, ref := splitLevel(l)
+		text[k+":"+ref] = l
+		if _, _, err := s.PlannerWorkOpen(k, ref, now); err != nil {
+			return nil, 0, err
+		}
+	}
+	open, err := s.PlannerWorkOpenRows()
+	if err != nil {
+		return nil, 0, err
+	}
+	for _, w := range open {
+		if _, held := text[w.Kind+":"+w.Ref]; levelKinds[w.Kind] && !held {
+			if err := s.PlannerWorkClose(w.ID, "cleared", now); err != nil {
+				return nil, 0, err
+			}
+		}
 	}
 	evs, cursor := r.wakeEvents()
 	if manual != "" {
 		evs = append(evs, "manual:"+strings.ReplaceAll(manual, " ", "_"))
 	}
-	var last time.Time
-	if ts, err := strconv.ParseInt(r.Store.Meta("planner_last_wake"), 10, 64); err == nil {
-		last = time.Unix(ts, 0)
-	}
-	d := DecideWake(WakeInput{Now: now, LastWake: last, Levels: levels, Events: evs, LastFingerprint: r.Store.Meta("planner_fp"),
-		MinGap: time.Duration(cfgInt(r.Store, "planner_wake_gap_s")) * time.Second, Rewake: time.Duration(cfgInt(r.Store, "planner_rewake_s")) * time.Second, Idle: idle, Force: force})
-	if !d.Wake {
-		if d.Advance {
-			_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(cursor, 10))
-			_ = r.Store.SetMeta("planner_fp", d.Fingerprint)
-			_ = r.Store.SetMeta("planner_pending", "")
-		} else {
-			_ = r.Store.SetMeta("planner_pending", d.Why+": "+strings.Join(d.Reasons, " "))
+	for _, e := range evs {
+		k, ref, _ := strings.Cut(e, ":")
+		if _, _, err := s.PlannerWorkOpen(k, ref, now); err != nil {
+			return nil, 0, err
 		}
+	}
+	return text, cursor, nil
+}
+
+// plannerWake is the delivery pass. It syncs the rows, escalates a stuck planner, and when a row is due (never delivered,
+// or delivered more than planner_ack_s ago) and the planner is idle and the gap has passed, types one wake line for the due
+// rows. A row stays open until `hivemill planner done`; a row that cannot go out now (gap, busy, a failed send) stays due.
+func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) bool {
+	s, err := r.sq()
+	if err != nil {
+		r.printf("planner: %v\n", err)
 		return false
 	}
-	asks := 0
-	if s, err := r.sq(); err == nil {
-		open, _ := s.Asks("open")
-		asks = len(open)
+	text, cursor, err := r.plannerSync(s, now, manual)
+	if err != nil {
+		r.printf("planner: %v\n", err)
+		return false
 	}
-	msg := WakeMessage(now, d.Reasons, asks)
+	_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(cursor, 10))
+	open, err := s.PlannerWorkOpenRows()
+	if err != nil {
+		r.printf("planner: %v\n", err)
+		return false
+	}
+	ack := time.Duration(cfgInt(r.Store, "planner_ack_s")) * time.Second
+	var due []PlannerWork
+	for _, w := range open {
+		if d, ok := parseWorkTime(w.Delivered); !ok || now.Sub(d) > ack {
+			due = append(due, w)
+		}
+	}
+	// how long the planner has been busy: the start is recorded the first pass that sees it working
+	if idle {
+		_ = r.Store.SetMeta("planner_busy_since", "")
+	} else if r.Store.Meta("planner_busy_since") == "" {
+		_ = r.Store.SetMeta("planner_busy_since", strconv.FormatInt(now.Unix(), 10))
+	}
+	if len(due) == 0 {
+		_ = r.Store.SetMeta("planner_pending", "")
+		return false
+	}
+	if why := r.plannerStuck(now, due, idle, ack); why != "" && !force {
+		if r.plannerEscalate(now, why, due) {
+			return false // the restart kickoff is the delivery
+		}
+	}
+	if !force {
+		var last time.Time
+		if ts, err := strconv.ParseInt(r.Store.Meta("planner_last_wake"), 10, 64); err == nil {
+			last = time.Unix(ts, 0)
+		}
+		gap := time.Duration(cfgInt(r.Store, "planner_wake_gap_s")) * time.Second
+		why := ""
+		if !last.IsZero() && now.Sub(last) < gap {
+			why = fmt.Sprintf("debounce: next wake after %s", last.Add(gap).Format(time.RFC3339))
+		} else if !idle {
+			why = "planner busy"
+		}
+		if why != "" {
+			var rs []string
+			for _, w := range due {
+				rs = append(rs, workReason(w, text))
+			}
+			_ = r.Store.SetMeta("planner_pending", why+": "+strings.Join(Coalesce(rs, nil), " "))
+			return false
+		}
+	}
+	asks := 0
+	open2, _ := s.Asks("open")
+	asks = len(open2)
+	var items, reasons []string
+	var sent []PlannerWork
+	size := 0
+	for _, w := range due {
+		it := fmt.Sprintf("%d:%s:%s", w.ID, w.Kind, w.Ref)
+		if size+len(it) > 800 && len(sent) > 0 {
+			break // the rest stays due and goes out with the next wake
+		}
+		size += len(it) + 1
+		items, reasons, sent = append(items, it), append(reasons, workReason(w, text)), append(sent, w)
+	}
+	msg := WakeMessage(now, Coalesce(reasons, nil), asks, items)
 	if err := r.Prompt(PlannerName, msg); err != nil {
 		_ = r.Store.SetMeta("planner_pending", "send failed: "+firstLine(err.Error()))
 		return false
 	}
-	_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(cursor, 10))
-	_ = r.Store.SetMeta("planner_fp", d.Fingerprint)
+	for _, w := range sent {
+		_ = s.PlannerWorkDelivered(w.ID, now)
+	}
 	_ = r.Store.SetMeta("planner_last_wake", strconv.FormatInt(now.Unix(), 10))
 	_ = r.Store.SetMeta("planner_pending", "")
-	_ = r.Log.Emit("planner.woken", nil, Event{Role: "planner", Data: map[string]any{"reasons": d.Reasons}})
+	_ = r.Log.Emit("planner.woken", nil, Event{Role: "planner", Data: map[string]any{"reasons": reasons, "items": items}})
 	return true
 }
 
-// WakeInput is what DecideWake reads: level reasons (a state that holds, such as a short queue) and event reasons (what
-// happened since the last delivered wake).
-type WakeInput struct {
-	Now, LastWake   time.Time
-	Levels, Events  []string
-	LastFingerprint string // the levels the planner last heard about
-	MinGap          time.Duration
-	Rewake          time.Duration // a level still present counts as changed when the last wake is older than this; 0 = off
-	Idle, Force     bool          // Idle: the planner waits for input; Force: a manual wake (no debounce, no busy check)
+func parseWorkTime(v string) (time.Time, bool) {
+	t, err := time.Parse(time.RFC3339, v)
+	return t, err == nil
 }
 
-// WakeDecision says whether to wake the planner now and with what.
-type WakeDecision struct {
-	Wake        bool
-	Reasons     []string
-	Fingerprint string
-	Advance     bool   // no wake, and nothing is pending: record the cursor and the fingerprint
-	Why         string // why there is no wake
+// workReason is the wake-line reason of a row: a level shows its current numbers, an event is "kind:ref".
+func workReason(w PlannerWork, levels map[string]string) string {
+	if l, ok := levels[w.Kind+":"+w.Ref]; ok && levelKinds[w.Kind] {
+		return l
+	}
+	if w.Ref == "" {
+		return w.Kind
+	}
+	return w.Kind + ":" + w.Ref
 }
 
-// DecideWake is the pure wake rule: wake when an event happened or a level appeared that the planner has not heard about,
-// at most once per MinGap and only while the planner is idle. A level that has not changed never wakes it again, and
-// neither does one that went away. A level that is still present when the last wake is older than Rewake counts as
-// changed, so a starved queue is not left alone.
-func DecideWake(in WakeInput) WakeDecision {
-	levels := append([]string(nil), in.Levels...)
-	sort.Strings(levels)
-	d := WakeDecision{Fingerprint: strings.Join(levels, " ")}
-	heard := map[string]bool{}
-	for _, x := range strings.Fields(in.LastFingerprint) {
-		heard[x] = true
-	}
-	changed := len(in.Events) > 0
-	stale := in.Rewake > 0 && !in.LastWake.IsZero() && in.Now.Sub(in.LastWake) > in.Rewake
-	for _, x := range levels {
-		// a level that went away (a refilled queue) is no news; one that persists past Rewake is news again
-		changed = changed || !heard[x] || stale
-	}
-	if !changed && !in.Force {
-		d.Advance, d.Why = true, "nothing changed"
-		return d
-	}
-	d.Reasons = Coalesce(in.Events, levels)
-	if !in.Force {
-		if !in.LastWake.IsZero() && in.Now.Sub(in.LastWake) < in.MinGap {
-			d.Why = fmt.Sprintf("debounce: next wake after %s", in.LastWake.Add(in.MinGap).Format(time.RFC3339))
-			return d
-		}
-		if !in.Idle {
-			d.Why = "planner busy"
-			return d
+// plannerStuck says why the planner needs a restart ("" = it does not): a due row that was delivered 3 times without an
+// acknowledgement, or a planner busy longer than planner_busy_max_s while a row is due.
+func (r *Runner) plannerStuck(now time.Time, due []PlannerWork, idle bool, ack time.Duration) string {
+	for _, w := range due {
+		if w.Attempts >= 3 {
+			return fmt.Sprintf("item %d (%s:%s) delivered %d times without done", w.ID, w.Kind, w.Ref, w.Attempts)
 		}
 	}
-	if len(d.Reasons) == 0 {
-		d.Reasons = []string{"manual"}
+	if !idle {
+		if ts, err := strconv.ParseInt(r.Store.Meta("planner_busy_since"), 10, 64); err == nil {
+			since := time.Unix(ts, 0)
+			// the clock starts when the oldest row became due, so long work the planner started before it is not a stall
+			for _, w := range due {
+				at, ok := parseWorkTime(w.Opened)
+				if d, dok := parseWorkTime(w.Delivered); dok {
+					at, ok = d.Add(ack), true
+				}
+				if ok && at.After(since) {
+					since = at
+				}
+				break // due is oldest first
+			}
+			if max := time.Duration(cfgInt(r.Store, "planner_busy_max_s")) * time.Second; max > 0 && now.Sub(since) > max {
+				return fmt.Sprintf("busy for %s with %d item(s) due", now.Sub(since).Round(time.Second), len(due))
+			}
+		}
 	}
-	d.Wake = true
-	return d
+	return ""
+}
+
+// plannerEscalate restarts the stuck planner. Past the restart limit it raises the hivemill-planner owner alert once per
+// row instead. It reports whether the planner was restarted.
+func (r *Runner) plannerEscalate(now time.Time, why string, due []PlannerWork) bool {
+	if r.Store.Meta("planner_lost") == "" && r.plannerRevive(now, why) {
+		if s, err := r.sq(); err == nil {
+			_ = s.PlannerWorkRestarted(now)
+		}
+		_ = r.Store.SetMeta("planner_busy_since", "")
+		return true
+	}
+	if r.Store.Meta("planner_lost") == "" {
+		return false // the relaunch failed: not the restart limit, so no alert; the next pass tries again
+	}
+	alerted := csv(r.Store.Meta("planner_alerted"))
+	for _, w := range due {
+		id := strconv.FormatInt(w.ID, 10)
+		if !(w.Attempts >= 3 || strings.HasPrefix(why, "busy")) || slices.Contains(alerted, id) {
+			continue
+		}
+		alerted = append(alerted, id)
+		what := fmt.Sprintf("planner work item %d (%s:%s) is stuck: %s", w.ID, w.Kind, w.Ref, why)
+		_ = r.Store.AlertFeed("hivemill-planner", what, "hivemill planner status")
+		r.ownerAlert("hivemill-planner", what+". The planner restart limit is used up.")
+	}
+	_ = r.Store.SetMeta("planner_alerted", strings.Join(alerted, ","))
+	return false
 }
 
 // Coalesce groups event reasons by kind ("task.failed:T-1" + "task.failed:T-2" = "task.failed:T-1,T-2"), keeps first-seen
@@ -338,7 +457,7 @@ func Coalesce(events, levels []string) []string {
 }
 
 // WakeMessage is the one machine-readable line typed into the planner.
-func WakeMessage(now time.Time, reasons []string, asksOpen int) string {
+func WakeMessage(now time.Time, reasons []string, asksOpen int, items []string) string {
 	var b strings.Builder
 	n := 0
 	for _, x := range reasons {
@@ -354,7 +473,8 @@ func WakeMessage(now time.Time, reasons []string, asksOpen int) string {
 	if n < len(reasons) {
 		fmt.Fprintf(&b, " +%d more", len(reasons)-n)
 	}
-	return fmt.Sprintf("hivemill-wake v1 at=%s asks_open=%d reasons=%s", now.UTC().Format(time.RFC3339), asksOpen, b.String())
+	return fmt.Sprintf("hivemill-wake v1 at=%s asks_open=%d items=%s reasons=%s", now.UTC().Format(time.RFC3339), asksOpen,
+		strings.Join(items, ","), b.String())
 }
 
 // wakeKinds are the event-log kinds that wake the planner.
@@ -529,6 +649,15 @@ func (r *Runner) PlannerStatus(now time.Time) error {
 	if s, err := r.sq(); err == nil {
 		open, _ := s.Asks("open")
 		r.printf("open owner questions: %d\n", len(open))
+		rows, _ := s.PlannerWorkOpenRows()
+		r.printf("open work items: %d\n", len(rows))
+		for _, w := range rows {
+			age := "-"
+			if t, ok := parseWorkTime(w.Opened); ok {
+				age = now.Sub(t).Round(time.Second).String()
+			}
+			r.printf("  %d  %s  %s  age %s  attempts %d\n", w.ID, w.Kind, or(w.Ref, "-"), age, w.Attempts)
+		}
 	}
 	return nil
 }

@@ -111,6 +111,10 @@ CREATE TABLE IF NOT EXISTS hm_asks (id INTEGER PRIMARY KEY AUTOINCREMENT, ref TE
   goal TEXT NOT NULL DEFAULT '', task TEXT NOT NULL DEFAULT '', question TEXT NOT NULL, asked_by TEXT NOT NULL, asked TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open', answer TEXT NOT NULL DEFAULT '', answered_by TEXT NOT NULL DEFAULT '', answered TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS hm_asks_status ON hm_asks(status);
+CREATE TABLE IF NOT EXISTS planner_work (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, ref TEXT NOT NULL DEFAULT '',
+  opened TEXT NOT NULL, delivered TEXT NOT NULL DEFAULT '', attempts INTEGER NOT NULL DEFAULT 0, closed TEXT NOT NULL DEFAULT '',
+  close_reason TEXT NOT NULL DEFAULT '');
+CREATE UNIQUE INDEX IF NOT EXISTS planner_work_open ON planner_work(kind, ref) WHERE closed = '';
 `
 
 // OpenSQLite opens an existing factory DB read-write (never creates one) and makes sure the hm_* tables exist.
@@ -864,4 +868,89 @@ func (s *SQLite) ReplaceAlert(kind, ref, link string) (bool, error) {
 func (s *SQLite) CloseAlertKind(kind string) error {
 	_, err := s.db.Exec(`UPDATE owner_alert_feed SET closed=? WHERE kind=? AND closed IS NULL`, s.now(), kind)
 	return err
+}
+
+// PlannerWork is one durable item of the planner's work queue (docs/hivemill-planner.md): an event or a level the planner
+// must handle. It stays open until the planner acknowledges it (`hivemill planner done`) or, for a level, the condition clears.
+type PlannerWork struct {
+	ID                           int64
+	Kind, Ref, Opened, Delivered string
+	Attempts                     int
+	Closed, CloseReason          string
+}
+
+func workTime(t time.Time) string { return t.Format(time.RFC3339) }
+
+// PlannerWorkOpen opens a row for (kind, ref) unless one is already open (idempotent); created says whether it is new.
+func (s *SQLite) PlannerWorkOpen(kind, ref string, now time.Time) (int64, bool, error) {
+	res, err := s.db.Exec(`INSERT OR IGNORE INTO planner_work(kind,ref,opened) VALUES(?,?,?)`, kind, ref, workTime(now))
+	if err != nil {
+		return 0, false, err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		id, err := res.LastInsertId()
+		return id, true, err
+	}
+	var id int64
+	err = s.db.QueryRow(`SELECT id FROM planner_work WHERE kind=? AND ref=? AND closed=''`, kind, ref).Scan(&id)
+	return id, false, err
+}
+
+// PlannerWorkOpenRows lists the open rows, oldest first.
+func (s *SQLite) PlannerWorkOpenRows() ([]PlannerWork, error) {
+	rows, err := s.db.Query(`SELECT id,kind,ref,opened,delivered,attempts,closed,close_reason FROM planner_work WHERE closed='' ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PlannerWork
+	for rows.Next() {
+		var w PlannerWork
+		if err := rows.Scan(&w.ID, &w.Kind, &w.Ref, &w.Opened, &w.Delivered, &w.Attempts, &w.Closed, &w.CloseReason); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+// PlannerWorkClose closes one open row with a reason.
+func (s *SQLite) PlannerWorkClose(id int64, reason string, now time.Time) error {
+	_, err := s.db.Exec(`UPDATE planner_work SET closed=?, close_reason=? WHERE id=? AND closed=''`, workTime(now), reason, id)
+	return err
+}
+
+// PlannerWorkDelivered records one delivery of an open row.
+func (s *SQLite) PlannerWorkDelivered(id int64, now time.Time) error {
+	_, err := s.db.Exec(`UPDATE planner_work SET delivered=?, attempts=attempts+1 WHERE id=? AND closed=''`, workTime(now), id)
+	return err
+}
+
+// PlannerWorkRestarted resets the delivery clock of every open row after a planner restart (its kickoff reads the state).
+func (s *SQLite) PlannerWorkRestarted(now time.Time) error {
+	_, err := s.db.Exec(`UPDATE planner_work SET delivered=?, attempts=0 WHERE closed=''`, workTime(now))
+	return err
+}
+
+// PlannerWorkDone closes rows as "done". It refuses the whole call when one id is unknown or already closed.
+func (s *SQLite) PlannerWorkDone(ids []int64, now time.Time) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, id := range ids {
+		var closed string
+		if err := tx.QueryRow(`SELECT closed FROM planner_work WHERE id=?`, id).Scan(&closed); errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("no planner work item %d", id)
+		} else if err != nil {
+			return err
+		} else if closed != "" {
+			return fmt.Errorf("planner work item %d is already closed", id)
+		}
+		if _, err := tx.Exec(`UPDATE planner_work SET closed=?, close_reason='done' WHERE id=?`, workTime(now), id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
