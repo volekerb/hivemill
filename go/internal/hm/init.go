@@ -83,8 +83,14 @@ func DefaultLaunchdPath(userHome string) string {
 
 // RenderDaemonPlist renders the daemon's LaunchAgent (launchd/hivemill.daemon.plist.in, the home's copy or the
 // built-in one). Values are XML-escaped and the result must parse.
-func RenderDaemonPlist(e Env, in PlistInput) (string, error) {
-	src, err := readRoleFile(filepath.Join(e.Home, "launchd", "hivemill.daemon.plist.in"))
+func RenderDaemonPlist(e Env, in PlistInput) (string, error) { return RenderPlist(e, "daemon", in) }
+
+// RenderPlist renders launchd/hivemill.<name>.plist.in (daemon: the pass loop; digest: the morning digest).
+func RenderPlist(e Env, name string, in PlistInput) (string, error) {
+	if name != "daemon" && name != "digest" {
+		return "", fmt.Errorf("no LaunchAgent %q (daemon or digest)", name)
+	}
+	src, err := readRoleFile(filepath.Join(e.Home, "launchd", "hivemill."+name+".plist.in"))
 	if err != nil {
 		return "", err
 	}

@@ -57,6 +57,11 @@ func TrustClone(e Env, clone string) error {
 	if !strings.HasPrefix(clone, wt) {
 		return fmt.Errorf("refused: %s is not under %s", clone, wt)
 	}
+	return trustPath(e, clone)
+}
+
+// trustPath adds one project entry with workspace trust to ~/.claude.json (nothing else changes).
+func trustPath(e Env, clone string) error {
 	path := filepath.Join(e.UserHome, ".claude.json")
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -89,11 +94,19 @@ type Launch struct {
 	Role, Name, Cwd, Model, Effort, PromptFile, Kickoff string
 	Resume                                              string // a session id: relaunch it with `claude --resume`
 	Env                                                 map[string]string
+	// SessRole is the hm_sessions role (default task, or judge for task-judge); Task is the hm_sessions task when the
+	// session has no run (the planner).
+	SessRole, Task string
 }
 
 // StartSession renders the settings, writes the spawn script, starts the terminal, waits for the TUI and sends the
 // kickoff. It returns the session id given to claude with --session-id, so spend maps to the task from the first request.
+// run is nil for a session that belongs to no run (the planner): its events then carry no task.
 func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
+	task, goal := l.Task, ""
+	if run != nil {
+		task, goal = run.Task, run.Goal
+	}
 	settings, err := RenderSettings(r.Env, l.Role)
 	if err != nil {
 		return "", err
@@ -146,7 +159,7 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	}
 	spawnArgs, _ := json.Marshal(map[string]string{"role": l.Role, "lane": "option-b", "host_backend": "hc", "model": l.Model,
 		"effort": l.Effort, "runtime": "claude", "cwd": l.Cwd})
-	if err := r.Store.AgentLive(l.Name, l.Role, run.Task, run.Goal, "", l.Model, sid, l.Cwd, string(spawnArgs)); err != nil {
+	if err := r.Store.AgentLive(l.Name, l.Role, task, goal, "", l.Model, sid, l.Cwd, string(spawnArgs)); err != nil {
 		return "", err
 	}
 	// Pin the terminal to this machine: an hc wrapper may place worker-named terminals elsewhere, where the hook
@@ -174,7 +187,10 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	if l.Role == "task-judge" {
 		role = "judge"
 	}
-	_ = r.Store.AddSession(Session{SID: sid, Task: run.Task, Role: role, Agent: l.Name, Model: l.Model, Effort: l.Effort, Started: nowISO()})
+	if l.SessRole != "" {
+		role = l.SessRole
+	}
+	_ = r.Store.AddSession(Session{SID: sid, Task: task, Role: role, Agent: l.Name, Model: l.Model, Effort: l.Effort, Started: nowISO()})
 	_ = r.Store.Event(r.actor(), "agent", l.Name, "spawn", map[string]string{"role": l.Role, "model": l.Model, "lane": "option-b"})
 	_ = r.Log.Emit("session.started", run, Event{Session: sid, Role: role, Model: l.Model, Effort: l.Effort, Data: map[string]any{"agent": l.Name}})
 	return sid, nil

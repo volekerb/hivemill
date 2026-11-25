@@ -115,8 +115,12 @@ func (r *Runner) activeCount() int {
 }
 
 // Candidates are ready tasks a plain pass may start (config projects): deps done, spec set, spec gate passing.
-func (r *Runner) Candidates() ([]Task, error) {
-	ts, err := r.Store.ReadyTasks(csv(r.Store.Cfg("projects")))
+func (r *Runner) Candidates() ([]Task, error) { return r.ReadyIn(csv(r.Store.Cfg("projects"))) }
+
+// ReadyIn are the tasks of these projects a pass would start: todo, deps done, spec set, spec gate passing, and never run
+// before (a task with any run, failed or cancelled included, is not started again: file a new one).
+func (r *Runner) ReadyIn(projects []string) ([]Task, error) {
+	ts, err := r.Store.ReadyTasks(projects)
 	if err != nil || len(ts) == 0 {
 		return nil, err
 	}

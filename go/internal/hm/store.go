@@ -104,6 +104,10 @@ CREATE TABLE IF NOT EXISTS hm_runs (task TEXT PRIMARY KEY, state TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS hm_sessions (sid TEXT PRIMARY KEY, task TEXT NOT NULL, role TEXT NOT NULL, agent TEXT, model TEXT,
   effort TEXT, started TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS hm_sessions_task ON hm_sessions(task);
+CREATE TABLE IF NOT EXISTS hm_asks (id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT NOT NULL DEFAULT '', project TEXT NOT NULL DEFAULT '',
+  goal TEXT NOT NULL DEFAULT '', task TEXT NOT NULL DEFAULT '', question TEXT NOT NULL, asked_by TEXT NOT NULL, asked TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open', answer TEXT NOT NULL DEFAULT '', answered_by TEXT NOT NULL DEFAULT '', answered TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS hm_asks_status ON hm_asks(status);
 `
 
 // OpenSQLite opens an existing factory DB read-write (never creates one) and makes sure the hm_* tables exist.
@@ -257,7 +261,7 @@ func (s *SQLite) SetCfg(key, value string) error {
 	if _, ok := Defaults[key]; !ok {
 		return fmt.Errorf("unknown key %s; known: %s", key, strings.Join(DefaultKeys(), ", "))
 	}
-	if key == "model" || key == "risk_model" {
+	if key == "model" || key == "risk_model" || key == "planner_model" {
 		if err := CheckModel(value); err != nil {
 			return err
 		}
@@ -732,4 +736,129 @@ func (s *SQLite) UpdateTask(id string, set map[string]any) error {
 		return fmt.Errorf("no task %s", id)
 	}
 	return nil
+}
+
+// Ask is one owner question (table hm_asks): the one queue where the planner and the runner put what only the owner can
+// decide, so nothing waits on the owner silently.
+type Ask struct {
+	ID                                 int64
+	Ref, Project, Goal, Task, Question string
+	AskedBy, Asked, Status             string // status: open | answered | withdrawn
+	Answer, AnsweredBy, Answered       string
+}
+
+const askCols = `id, ref, project, goal, task, question, asked_by, asked, status, answer, answered_by, answered`
+
+func scanAsk(sc interface{ Scan(...any) error }) (*Ask, error) {
+	var a Ask
+	err := sc.Scan(&a.ID, &a.Ref, &a.Project, &a.Goal, &a.Task, &a.Question, &a.AskedBy, &a.Asked, &a.Status, &a.Answer, &a.AnsweredBy,
+		&a.Answered)
+	return &a, err
+}
+
+// AddAsk files an open owner question. A non-empty ref is a dedupe key: when any question with that ref exists (open,
+// answered or withdrawn), nothing is filed and that question's id is returned with created=false.
+func (s *SQLite) AddAsk(a Ask) (int64, bool, error) {
+	if a.Ref != "" {
+		var id int64
+		err := s.db.QueryRow(`SELECT id FROM hm_asks WHERE ref=? ORDER BY id LIMIT 1`, a.Ref).Scan(&id)
+		if err == nil {
+			return id, false, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return 0, false, err
+		}
+	}
+	res, err := s.db.Exec(`INSERT INTO hm_asks(ref,project,goal,task,question,asked_by,asked) VALUES(?,?,?,?,?,?,?)`,
+		a.Ref, a.Project, a.Goal, a.Task, a.Question, a.AskedBy, s.now())
+	if err != nil {
+		return 0, false, err
+	}
+	id, err := res.LastInsertId()
+	return id, true, err
+}
+
+// Ask reads one owner question.
+func (s *SQLite) Ask(id int64) (*Ask, error) {
+	a, err := scanAsk(s.db.QueryRow(`SELECT `+askCols+` FROM hm_asks WHERE id=?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("no question #%d", id)
+	}
+	return a, err
+}
+
+// Asks lists owner questions of one status ("" = all), oldest first.
+func (s *SQLite) Asks(status string) ([]Ask, error) {
+	rows, err := s.db.Query(`SELECT `+askCols+` FROM hm_asks WHERE ?='' OR status=? ORDER BY id`, status, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Ask
+	for rows.Next() {
+		a, err := scanAsk(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *a)
+	}
+	return out, rows.Err()
+}
+
+// CloseAsk answers (status answered) or withdraws (status withdrawn) an open question.
+func (s *SQLite) CloseAsk(id int64, status, answer, by string) error {
+	res, err := s.db.Exec(`UPDATE hm_asks SET status=?, answer=?, answered_by=?, answered=? WHERE id=? AND status='open'`,
+		status, answer, by, s.now(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := s.Ask(id); err != nil {
+			return err
+		}
+		return fmt.Errorf("%w: question #%d is not open", ErrRefused, id)
+	}
+	return nil
+}
+
+// SessionsBetween lists every hm_sessions row started in [from, to) (planner sessions included).
+func (s *SQLite) SessionsBetween(from, to time.Time) ([]Session, error) {
+	rows, err := s.db.Query(`SELECT sid,task,role,COALESCE(agent,''),COALESCE(model,''),COALESCE(effort,''),started FROM hm_sessions ORDER BY started`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Session
+	for rows.Next() {
+		var x Session
+		if err := rows.Scan(&x.SID, &x.Task, &x.Role, &x.Agent, &x.Model, &x.Effort, &x.Started); err != nil {
+			return nil, err
+		}
+		if at, err := time.Parse(time.RFC3339, x.Started); err == nil && !at.Before(from) && at.Before(to) {
+			out = append(out, x)
+		}
+	}
+	return out, rows.Err()
+}
+
+// ReplaceAlert keeps one open owner alert feed row of a kind: when no open row has this ref, the open rows of the kind
+// are closed and one row is opened. It reports whether a row was opened.
+func (s *SQLite) ReplaceAlert(kind, ref, link string) (bool, error) {
+	var n int
+	if err := s.db.QueryRow(`SELECT count(*) FROM owner_alert_feed WHERE kind=? AND ref=? AND closed IS NULL`, kind, ref).Scan(&n); err != nil {
+		return false, err
+	}
+	if n > 0 {
+		return false, nil
+	}
+	if _, err := s.db.Exec(`UPDATE owner_alert_feed SET closed=? WHERE kind=? AND closed IS NULL`, s.now(), kind); err != nil {
+		return false, err
+	}
+	return true, s.AlertFeed(kind, ref, link)
+}
+
+// CloseAlertKind closes the open owner alert feed rows of a kind (its condition cleared).
+func (s *SQLite) CloseAlertKind(kind string) error {
+	_, err := s.db.Exec(`UPDATE owner_alert_feed SET closed=? WHERE kind=? AND closed IS NULL`, s.now(), kind)
+	return err
 }

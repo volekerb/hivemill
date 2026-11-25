@@ -91,6 +91,7 @@ None of these guards changes a config key.
 | `task_budget_usd` | `5` | a run whose sessions cost more at API prices is stopped and marked FAIL `budget: ...`; `off` = no cap |
 | `project_daily_budget_usd` | `off` | per project, sessions started today; once reached, no new run in that project and one `budget.reached` event |
 | `weekly_budget_usd` | `off` | all runs, sessions started in the last 7 days; once reached, no new run and one `budget.reached` event |
+| `planner_queue_min`, `planner_model`, `planner_effort`, `planner_wake_gap_s`, `idle_alert_h`, `ask_alert_h` | see [hivemill-planner.md](hivemill-planner.md) | the planner, its wakes and the owner alerts |
 
 The usage, memory and budget caps only hold new runs: active runs finish, except a run over `task_budget_usd`, which is stopped. The usage gate fails closed: a missing reading, a reading older than `usage_max_age_s`, an empty 7-day field or an empty 5-hour field (with `usage_require_5h=on`) holds new runs and writes one `usage.unknown` event a day per reason. The reading is `~/.claude/usage-limits.json`, which the status line writes from Claude Code's `rate_limits`. Claude Code includes `rate_limits.five_hour` only while the API reports a 5-hour window, which is why that field can be empty. The reading is refreshed only while some Claude session renders its status line, so an idle box goes stale. To avoid that deadlock, a **probe** is allowed: when the reading is stale, no run is active and its last values were under the caps, exactly one run may start (the effective `max_concurrent` is 1 until a fresh reading arrives) and a `usage.probe` event is written. If the fresh reading is over a cap, the gate closes as usual. A missing reading, or a stale one whose last values were over a cap, stays closed and alerts the owner once (owner alert feed `hivemill-usage`). The report header shows `UNKNOWN: <why>; dispatch held` while dispatch is held. On a plan whose API reports no 5-hour window, set `usage_require_5h off`: the field only appears while the API reports such a window. `hivemill report` starts with one line that shows every cap's current state, for example `usage 5h 42% / 7d 61% (caps 92%/95%), today $3.10 (cap $20.00 per project), 7d $9.80, task cap $5, mem 2.1 GB free (floor 1.0 GB)`.
 
@@ -112,9 +113,12 @@ hivemill daemon                     # the pass loop (systemd/launchd run it)
 hivemill health [--alert]           # dead-man check
 hivemill drain [--status] | resume  # stop / resume new dispatch
 hivemill backup | restore <snap> [--dry-run]
+hivemill planner start|stop|status|wake  # the planner session: keeps ready queues full (hivemill-planner.md)
+hivemill ask add|list|answer|withdraw   # the owner queue
+hivemill digest [--date D] [--send]     # morning digest
 ```
 
-Agents other than the director and the boss may only run `task lint`, `task list`, `task show`, `report` and `health`; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run.
+Agents other than the director, the boss and the planner may only run `task lint`, `task list`, `task show`, `report` and `health` (the planner: see [hivemill-planner.md](hivemill-planner.md)); hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run.
 
 ## Standalone install (no old factory CLI)
 
@@ -166,7 +170,7 @@ Every side effect checks before it acts, so a pass that crashed half way can saf
 
 ### Health and alerts
 
-`hivemill health` exits 0 when the last good pass is less than `health_max_age_s` (300) old, and 1 otherwise. The timer `systemd/hivemill-health.timer` (with `hivemill-health.service`) runs `hivemill health --alert` every 5 minutes. When the check fails, it opens one row in the factory's owner alert feed (`factory alerts`; sent to the phone only when `owner_alert_send=1`). It also sends one message to `claude-boss`. Both happen at most once per `alert_every_s` (3600).
+`hivemill health` exits 0 when the last good pass is less than `health_max_age_s` (300) old, and 1 otherwise. It also prints the starvation and owner-queue checks, and `--alert` raises them ([hivemill-planner.md](hivemill-planner.md#alerts-hivemill-health---alert)). The timer `systemd/hivemill-health.timer` (with `hivemill-health.service`) runs `hivemill health --alert` every 5 minutes. When the check fails, it opens one row in the factory's owner alert feed (`factory alerts`; sent to the phone only when `owner_alert_send=1`). It also sends one message to `claude-boss`. Both happen at most once per `alert_every_s` (3600).
 
 ### Backup
 

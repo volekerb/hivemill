@@ -13,7 +13,9 @@ import (
 // `go generate ./internal/hm` refreshes, and TestAssetsMatchTheRepo fails when the two differ.
 //
 //go:generate sh -c "cp ../../../roles/hivemill/task.md ../../../roles/hivemill/task-judge.md ../../../roles/hivemill/task.json.in ../../../roles/hivemill/task-judge.json.in ../../../launchd/hivemill.daemon.plist.in assets/"
+//go:generate sh -c "cp ../../../roles/hivemill/planner.md ../../../roles/hivemill/planner.json.in ../../../launchd/hivemill.digest.plist.in assets/"
 //go:embed assets/task.md assets/task-judge.md assets/task.json.in assets/task-judge.json.in assets/hivemill.daemon.plist.in
+//go:embed assets/planner.md assets/planner.json.in assets/hivemill.digest.plist.in
 var assets embed.FS
 
 // AssetNames are the files in assets/, with the repo path each one is copied from.
@@ -23,6 +25,9 @@ var AssetNames = map[string]string{
 	"task.json.in":             "roles/hivemill/task.json.in",
 	"task-judge.json.in":       "roles/hivemill/task-judge.json.in",
 	"hivemill.daemon.plist.in": "launchd/hivemill.daemon.plist.in",
+	"planner.md":               "roles/hivemill/planner.md",
+	"planner.json.in":          "roles/hivemill/planner.json.in",
+	"hivemill.digest.plist.in": "launchd/hivemill.digest.plist.in",
 }
 
 // Asset returns a built-in file by its name in assets/.
