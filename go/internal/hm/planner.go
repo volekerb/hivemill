@@ -48,19 +48,27 @@ func (r *Runner) PlannerStart(now time.Time) error {
 	if _, _, err := r.plannerModel(); err != nil {
 		return err
 	}
-	_ = r.Store.SetMeta("planner", "on")
-	_ = r.Store.SetMeta("planner_lost", "")
-	_ = r.Store.SetMeta("planner_resumes", "")
-	// a started planner reads the state itself (its kickoff): the event log's history is not news
-	_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(fileSize(r.Log.Path), 10))
+	l := r.lock("planner", true) // a daemon pass never revives or wakes the planner while it starts
+	if l != nil {
+		defer l.Close()
+	}
+	on := func() {
+		_ = r.Store.SetMeta("planner", "on")
+		_ = r.Store.SetMeta("planner_lost", "")
+		_ = r.Store.SetMeta("planner_resumes", "")
+		// a started planner reads the state itself (its kickoff): the event log's history is not news
+		_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(fileSize(r.Log.Path), 10))
+		_ = r.Store.SetMeta("planner_last_wake", strconv.FormatInt(now.Unix(), 10)) // the kickoff is a wake
+	}
 	if list, ok := Terminals(r.Tools); ok && alive(list, true, PlannerName) {
+		on()
 		r.printf("planner already runs\n")
 		return nil
 	}
 	if err := r.launchPlanner("", r.plannerKickoff()); err != nil {
 		return err
 	}
-	_ = r.Store.SetMeta("planner_last_wake", strconv.FormatInt(now.Unix(), 10)) // the kickoff is a wake
+	on()
 	r.printf("planner started (%s)\n", r.Store.Meta("planner_sid"))
 	return nil
 }
@@ -119,6 +127,11 @@ func (r *Runner) PlannerPass(now time.Time) {
 	if r.Store.Meta("planner") != "on" {
 		return
 	}
+	l := r.lock("planner", false)
+	if l == nil {
+		return // `planner start` is launching it
+	}
+	defer l.Close()
 	list, ok := Terminals(r.Tools)
 	if !ok {
 		return // hc cannot say: never restart or wake blind

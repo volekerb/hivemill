@@ -22,6 +22,7 @@ func PlannerHook(in io.Reader, userHome string) string {
 	var h struct {
 		Tool  string         `json:"tool_name"`
 		Input map[string]any `json:"tool_input"`
+		Cwd   string         `json:"cwd"`
 	}
 	if err := json.NewDecoder(in).Decode(&h); err != nil {
 		return "planner hook: unreadable hook input"
@@ -34,7 +35,7 @@ func PlannerHook(in io.Reader, userHome string) string {
 		return "the planner never edits files: file a task (`hivemill task add`) for the change"
 	case "Read", "Grep", "Glob":
 		for _, k := range []string{"file_path", "path", "notebook_path"} {
-			if p := str(k); p != "" && !plannerPathOK(p, userHome) {
+			if p := str(k); p != "" && !plannerPathOK(p, h.Cwd, userHome) {
 				return fmt.Sprintf("the planner does not read %s (hidden files in the home directory hold credentials)", p)
 			}
 		}
@@ -42,11 +43,17 @@ func PlannerHook(in io.Reader, userHome string) string {
 	return ""
 }
 
-func plannerPathOK(p, userHome string) bool {
+func plannerPathOK(p, cwd, userHome string) bool {
 	if strings.HasPrefix(p, "~/") || p == "~" {
 		p = filepath.Join(userHome, strings.TrimPrefix(p, "~"))
 	}
-	if !filepath.IsAbs(p) || userHome == "" {
+	if !filepath.IsAbs(p) {
+		if cwd == "" {
+			return false // a relative path with no cwd to resolve it against: refuse
+		}
+		p = filepath.Join(cwd, p)
+	}
+	if userHome == "" {
 		return true
 	}
 	rel, err := filepath.Rel(filepath.Clean(userHome), filepath.Clean(p))
@@ -224,7 +231,7 @@ func plannerCommand(argv []string) string {
 			return "the planner may only run read-only git (log, show, diff, status, blame, grep, ls-files, rev-parse, ...), with -C DIR"
 		}
 		for _, a := range args[1:] {
-			if strings.HasPrefix(a, "--output") || strings.HasPrefix(a, "--ext-diff") || strings.HasPrefix(a, "-O") ||
+			if a == "--no-index" || strings.HasPrefix(a, "--output") || strings.HasPrefix(a, "--ext-diff") || strings.HasPrefix(a, "-O") ||
 				strings.HasPrefix(a, "--open-files-in-pager") || strings.HasPrefix(a, "--textconv") {
 				return "git option " + a + " is not read-only"
 			}
@@ -239,19 +246,53 @@ func plannerCommand(argv []string) string {
 	return fmt.Sprintf("the planner may only run hivemill, read-only git and gh reads, not %s", name)
 }
 
+// filterRule is a read-only filter after a pipe: it reads stdin only. Value flags take that many following tokens;
+// refused flags read files or write them; positional is how many operands (a pattern, a jq program) it may have.
+type filterRule struct {
+	value      map[string]int
+	refused    []string
+	positional int
+}
+
+var filters = map[string]filterRule{
+	"head": {value: map[string]int{"-n": 1, "-c": 1, "--lines": 1, "--bytes": 1}},
+	"tail": {value: map[string]int{"-n": 1, "-c": 1, "--lines": 1, "--bytes": 1}, refused: []string{"-f", "-F", "--follow"}},
+	"wc":   {refused: []string{"--files0-from"}},
+	"cut":  {value: map[string]int{"-d": 1, "-f": 1, "-c": 1, "-b": 1, "--delimiter": 1, "--fields": 1}},
+	"sort": {value: map[string]int{"-k": 1, "-t": 1, "--key": 1}, refused: []string{"-o", "--output", "--files0-from", "-T", "--temporary-directory"}},
+	"grep": {value: map[string]int{"-e": 1, "-m": 1, "-A": 1, "-B": 1, "-C": 1, "--regexp": 1, "--max-count": 1}, positional: 1,
+		refused: []string{"-f", "--file", "-r", "-R", "--recursive", "--dereference-recursive", "-d", "--directories", "--exclude-from"}},
+	"jq": {value: map[string]int{"--arg": 2, "--argjson": 2, "--indent": 1}, positional: 1,
+		refused: []string{"-f", "--from-file", "--rawfile", "--slurpfile", "--argfile", "-L", "--jsonargs", "--args"}},
+}
+
 func plannerFilter(argv []string) string {
-	switch filepath.Base(argv[0]) {
-	case "head", "tail", "wc", "grep", "cut", "jq":
-		return ""
-	case "sort":
-		for _, a := range argv[1:] {
-			if strings.HasPrefix(a, "-o") || strings.HasPrefix(a, "--output") {
-				return "sort -o writes a file"
-			}
-		}
-		return ""
+	name := filepath.Base(argv[0])
+	rule, ok := filters[name]
+	if !ok {
+		return "after a pipe the planner may only use head, tail, wc, grep, cut, sort or jq"
 	}
-	return "after a pipe the planner may only use head, tail, wc, grep, cut, sort or jq"
+	pos := 0
+	for i := 1; i < len(argv); i++ {
+		a := argv[i]
+		if len(a) > 1 && strings.HasPrefix(a, "-") { // -5 (head) is a flag too
+			for _, ref := range rule.refused {
+				if a == ref || strings.HasPrefix(a, ref+"=") || (len(ref) == 2 && !strings.HasPrefix(a, "--") && strings.HasPrefix(a, ref)) {
+					return fmt.Sprintf("%s %s reads or writes a file", name, a)
+				}
+			}
+			if name == "grep" && (a == "-e" || strings.HasPrefix(a, "--regexp")) {
+				pos = rule.positional // the pattern comes with -e: no positional pattern is left
+			}
+			i += rule.value[a]
+			continue
+		}
+		pos++
+	}
+	if pos > rule.positional {
+		return fmt.Sprintf("%s after a pipe reads stdin only: no file operands", name)
+	}
+	return ""
 }
 
 func keys(m map[string]bool) []string {

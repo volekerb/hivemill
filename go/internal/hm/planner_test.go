@@ -24,7 +24,7 @@ func (f *fakeHC) hc(args ...string) (int, string, string) {
 		b, _ := json.Marshal(map[string]any{"terminals": f.terms})
 		return 0, string(b), ""
 	case "server":
-		return 1, "", "no"
+		return 0, `{"core":{"name":"core-a"}}`, ""
 	}
 	return 0, "", ""
 }
@@ -206,6 +206,11 @@ func TestPlannerPassRestartsADeadPlannerThenAlerts(t *testing.T) {
 	}
 	if n := f.count("run"); n != 3 {
 		t.Fatalf("restarts: %d, want 3", n)
+	}
+	for _, c := range f.calls {
+		if c[0] == "run" && !strings.Contains(strings.Join(c, " "), "--name planner --cwd "+filepath.Join(r.Env.StateDir(), "planner")+" --on core-a sh ") {
+			t.Errorf("not pinned to the local core: %v", c)
+		}
 	}
 	b, err := os.ReadFile(filepath.Join(r.Env.StateDir(), "spawn", PlannerName+".sh"))
 	if err != nil || !strings.Contains(string(b), "--resume 11111111-2222-4333-8444-555555555555") ||
@@ -453,6 +458,20 @@ func TestPlannerBash(t *testing.T) {
 		{"GH_TOKEN=x gh pr list", false},
 		{"sqlite3 db/factory.db", false},
 		{"cat roles/hivemill/planner.md", false},
+		{"hivemill task list | head -n 5", true},
+		{"hivemill task list | head -5 | wc -l", true},
+		{"hivemill report --json | jq --arg t T-1 '.rows[] | select(.task==$t)'", true},
+		{"gh pr list | grep -c -e open", true},
+		{"hivemill task list | head ~/.ssh/id_ed25519", false},
+		{"hivemill task list | grep x ~/.config/gh/hosts.yml", false},
+		{"hivemill task list | jq . ~/.claude.json", false},
+		{"hivemill task list | jq --rawfile k /etc/passwd .", false},
+		{"hivemill task list | grep -f /etc/passwd", false},
+		{"hivemill task list | grep -r token /", false},
+		{"hivemill task list | grep -e x secrets.txt", false},
+		{"hivemill task list | tail -f", false},
+		{"git diff --no-index /dev/null /home/user/.ssh/id_ed25519", false},
+		{"git grep --no-index token", false},
 	} {
 		why := PlannerBash(c.cmd)
 		if (why == "") != c.ok {
@@ -470,6 +489,9 @@ func TestPlannerBash(t *testing.T) {
 		{`{"tool_name":"Grep","tool_input":{"pattern":"x","path":"~/.config"}}`, false},
 		{`{"tool_name":"Read","tool_input":{"file_path":"/home/user/src/www/README.md"}}`, true},
 		{`{"tool_name":"Glob","tool_input":{"pattern":"**/*.go"}}`, true},
+		{`{"tool_name":"Read","cwd":"/home/user/hm/state/hivemill/planner","tool_input":{"file_path":"../../../../.ssh/id_ed25519"}}`, false},
+		{`{"tool_name":"Read","cwd":"/home/user/hm/state/hivemill/planner","tool_input":{"file_path":"../../../roles/hivemill/planner.md"}}`, true},
+		{`{"tool_name":"Grep","tool_input":{"pattern":"x","path":"relative/dir"}}`, false},
 		{`{"tool_name":"Bash","tool_input":{"command":"hivemill task list"}}`, true},
 		{`not json`, false},
 	} {
