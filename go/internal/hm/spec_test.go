@@ -88,3 +88,33 @@ func TestCriteriaProseNumbers(t *testing.T) {
 		t.Error("line-start duplicate not reported")
 	}
 }
+
+func TestLintRejectsProseExpectations(t *testing.T) {
+	for _, e := range []string{"at least 1", "At most 2", "more than 3", "less than 4", ">= 1", "<=2", "> 0", "<5", "greater than 1", "fewer than 3"} {
+		p := LintProblems("1. x - cmd:grep -c a b => " + e)
+		if len(p) != 1 || !strings.Contains(p[0], "exit 0") {
+			t.Errorf("%q: %v", e, p)
+		}
+	}
+}
+
+func TestLintRejectsProseTestProof(t *testing.T) {
+	for _, in := range []string{"test:tests/test_x.py passes", "test:foo_test.go has a case", "test:go/internal/hm works", "test:go/x/y_test.go", "test:tests/x::y"} {
+		p := LintProblems("1. x - " + in)
+		if len(p) != 1 || !strings.Contains(p[0], "cmd:") {
+			t.Errorf("%q: %v", in, p)
+		}
+	}
+	for _, in := range []string{"test:pnpm --filter web test", "test:go test ./internal/x", "test:tests/test_x.py", "test:tests.test_x.T.test_y", "test:./run.sh a"} {
+		if p := LintProblems("1. x - " + in); len(p) != 0 {
+			t.Errorf("%q: %v", in, p)
+		}
+	}
+}
+
+func TestLintAcceptsT1876Acceptance(t *testing.T) {
+	in := "1. a - cmd:true => OK\n2. b - cmd:true => True\n3. c - cmd:true => 6\n4. d - cmd:true => exit 0\n5. e - cmd:true => empty"
+	if p := LintProblems(in); len(p) != 0 {
+		t.Errorf("%v", p)
+	}
+}
