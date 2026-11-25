@@ -45,6 +45,7 @@ var Defaults = map[string]string{
 	"planner_model":      "claude-opus-5-5", // the planner session's model (never Fable)
 	"planner_effort":     "medium",          // its --effort
 	"planner_wake_gap_s": "600",             // at most one wake per this many seconds; reasons in between are coalesced
+	"planner_rewake_s":   "1500",            // a queue level still present wakes the planner again after this many seconds; 0 = off
 	"idle_alert_h":       "2",               // `health --alert`: no dispatch for this many hours while an active goal exists
 	"ask_alert_h":        "1",               // `health --alert`: open owner questions older than this go out in one digest
 	// session placement (placement.go, docs/hivemill-machines.md): task sessions on other hc machines

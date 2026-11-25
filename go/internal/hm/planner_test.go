@@ -86,6 +86,28 @@ func addReady(t *testing.T, s *SQLite, n int) {
 	}
 }
 
+func TestDecideWakeRewakesStarvedLevel(t *testing.T) {
+	t0 := time.Date(2026, 11, 25, 14, 0, 0, 0, time.UTC)
+	in := WakeInput{Now: t0, Levels: []string{"queue_low:factory=0/3"}, LastFingerprint: "queue_low:factory=0/3", MinGap: 10 * time.Minute,
+		Rewake: 1500 * time.Second, Idle: true}
+	for _, c := range []struct {
+		name   string
+		ago    time.Duration
+		rewake time.Duration
+		wake   bool
+	}{
+		{"1501 s ago wakes", 1501 * time.Second, 1500 * time.Second, true},
+		{"1000 s ago does not", 1000 * time.Second, 1500 * time.Second, false},
+		{"rewake off keeps the old behaviour", 5000 * time.Second, 0, false},
+	} {
+		i := in
+		i.LastWake, i.Rewake = t0.Add(-c.ago), c.rewake
+		if d := DecideWake(i); d.Wake != c.wake {
+			t.Errorf("%s: got wake=%v why=%q", c.name, d.Wake, d.Why)
+		}
+	}
+}
+
 func TestDecideWake(t *testing.T) {
 	t0 := time.Date(2026, 11, 25, 3, 0, 0, 0, time.UTC)
 	gap := 10 * time.Minute

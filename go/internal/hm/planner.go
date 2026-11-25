@@ -216,7 +216,7 @@ func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) boo
 		last = time.Unix(ts, 0)
 	}
 	d := DecideWake(WakeInput{Now: now, LastWake: last, Levels: levels, Events: evs, LastFingerprint: r.Store.Meta("planner_fp"),
-		MinGap: time.Duration(cfgInt(r.Store, "planner_wake_gap_s")) * time.Second, Idle: idle, Force: force})
+		MinGap: time.Duration(cfgInt(r.Store, "planner_wake_gap_s")) * time.Second, Rewake: time.Duration(cfgInt(r.Store, "planner_rewake_s")) * time.Second, Idle: idle, Force: force})
 	if !d.Wake {
 		if d.Advance {
 			_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(cursor, 10))
@@ -252,7 +252,8 @@ type WakeInput struct {
 	Levels, Events  []string
 	LastFingerprint string // the levels the planner last heard about
 	MinGap          time.Duration
-	Idle, Force     bool // Idle: the planner waits for input; Force: a manual wake (no debounce, no busy check)
+	Rewake          time.Duration // a level still present counts as changed when the last wake is older than this; 0 = off
+	Idle, Force     bool          // Idle: the planner waits for input; Force: a manual wake (no debounce, no busy check)
 }
 
 // WakeDecision says whether to wake the planner now and with what.
@@ -266,7 +267,8 @@ type WakeDecision struct {
 
 // DecideWake is the pure wake rule: wake when an event happened or a level appeared that the planner has not heard about,
 // at most once per MinGap and only while the planner is idle. A level that has not changed never wakes it again, and
-// neither does one that went away.
+// neither does one that went away. A level that is still present when the last wake is older than Rewake counts as
+// changed, so a starved queue is not left alone.
 func DecideWake(in WakeInput) WakeDecision {
 	levels := append([]string(nil), in.Levels...)
 	sort.Strings(levels)
@@ -276,8 +278,10 @@ func DecideWake(in WakeInput) WakeDecision {
 		heard[x] = true
 	}
 	changed := len(in.Events) > 0
+	stale := in.Rewake > 0 && !in.LastWake.IsZero() && in.Now.Sub(in.LastWake) > in.Rewake
 	for _, x := range levels {
-		changed = changed || !heard[x] // a level that went away (a refilled queue) is no news
+		// a level that went away (a refilled queue) is no news; one that persists past Rewake is news again
+		changed = changed || !heard[x] || stale
 	}
 	if !changed && !in.Force {
 		d.Advance, d.Why = true, "nothing changed"
