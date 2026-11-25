@@ -101,6 +101,15 @@ class LiveCheckoutDeny(unittest.TestCase):
                     for rule in (f"{tool}(/{LIVE}/{entry})", f"{tool}(/{LIVE}/{entry}/**)"):
                         self.assertIn(rule, deny, f"{role}: missing deny rule {rule}")
 
+    def test_planned_oss_entries_have_literal_rules_in_task_template(self):
+        # T-1859: runner task sessions deny the planned entries too; check the template's literal rules
+        with open(os.path.join(ROOT, "roles", "hivemill", "task.json.in")) as f:
+            deny = json.load(f)["permissions"]["deny"]
+        for entry in PLANNED_ENTRIES:
+            for tool in TOOLS:
+                for rule in (f"{tool}(/@FACTORY_LIVE_HOME@/{entry})", f"{tool}(/@FACTORY_LIVE_HOME@/{entry}/**)"):
+                    self.assertIn(rule, deny, f"task: missing deny rule {rule}")
+
     def test_runtime_entries_denied_for_coder_and_qa(self):
         for role in ("coder", "qa"):
             deny = settings(role)["permissions"]["deny"]
