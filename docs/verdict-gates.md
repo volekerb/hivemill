@@ -1,5 +1,7 @@
 # Verdict gates
 
+> **Legacy pipeline.** This page describes the paused chain of agents, kept as the rollback. The current flow is the runner: [option-b-runner.md](option-b-runner.md).
+
 A `factory verdict <T> --pass --sha <sha> --summary ...` summary can carry a machine-checked `## Gates` section: one line per command that must succeed on the PR head.
 
 ```

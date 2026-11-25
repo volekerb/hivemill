@@ -2,28 +2,34 @@
 
 ## How work flows here
 
-The factory builds itself. Its own changes come from goals and tasks run by agents (pm, coder, qa, reviewer, judge); each task becomes one PR on a `factory/<task-id>` branch. Outside contributors do not need any of that: fork, branch, and open a normal pull request against `main`. A maintainer (GitHub handle `volekerb`) reviews it.
+The factory builds itself. Its own changes come from tasks run by the runner (`hivemill`, [docs/option-b-runner.md](docs/option-b-runner.md)): one Claude Code session per task, a gate that re-runs the task's proofs, and a fresh judge that decides the merge. Each task becomes one PR on a `factory/<task-id>` branch. Outside contributors do not need any of that: fork, branch, and open a normal pull request against `main`. A maintainer (GitHub handle `volekerb`) reviews it.
 
-External pull requests get the same reviewer, QA and judge gate as the factory's own, and nothing in them runs before a reviewer has read the diff. The details are in [docs/contributor-flow.md](docs/contributor-flow.md).
+A maintainer reads an external pull request before anything in it runs. [docs/contributor-flow.md](docs/contributor-flow.md) describes that read pass and the gate as the legacy pipeline ran them; the runner has no step for external PRs yet.
 
 Open an issue first for anything larger than a small fix, so the change is agreed before you build it. Security problems do not go in issues: see [SECURITY.md](SECURITY.md).
 
 ## Dev setup
 
-Python standard library only, no packages to install. Run the whole suite from the repository root:
+The Python code uses the standard library only, so there are no packages to install. The Go code needs Go 1.27 ([docs/go-toolchain.md](docs/go-toolchain.md)). Run the whole Python suite from the repository root:
 
 ```
 python3 -m unittest discover -s tests
 ```
 
-The suite is offline. It runs `bin/factory` against a throwaway `FACTORY_HOME` with `herdr` and `gh` stubbed (`tests/stubs/`) and never touches a real factory. A run that reports 0 tests is a failure. To run one file: `python3 -m unittest discover -s tests -p test_X.py`.
+The runner is Go. Its tests run from `go/`:
+
+```
+cd go && go test ./internal/hm/
+```
+
+The Python suite is offline. It runs `bin/factory` against a throwaway `FACTORY_HOME` with `herdr` and `gh` stubbed (`tests/stubs/`) and never touches a real factory. A run that reports 0 tests is a failure. To run one file: `python3 -m unittest discover -s tests -p test_X.py`.
 
 ## Rules
 
 Read these before opening a PR. They are linked, not copied, so they stay current:
 
-- [docs/coder-rules.md](docs/coder-rules.md): the coder quality bar (deterministic outcome tests, no live-home paths, fail-closed errors, out-of-scope finds reported rather than fixed).
-- [docs/review-rules.md](docs/review-rules.md): what a reviewer checks and what blocks a merge.
+- [docs/coder-rules.md](docs/coder-rules.md): the quality bar for code changes, written for the legacy coder role and still the bar (deterministic outcome tests, no live-home paths, fail-closed errors, out-of-scope finds reported rather than fixed).
+- [docs/review-rules.md](docs/review-rules.md): what a review checks and what blocks a merge (legacy reviewer rules; the runner's judge is described in [docs/option-b-runner.md](docs/option-b-runner.md#flow)).
 - [docs/tests-and-ci.md](docs/tests-and-ci.md): the test suite, the CI workflow and the test-count gate.
 - [docs/pr-descriptions.md](docs/pr-descriptions.md): the PR body standard; `.github/pull_request_template.md` carries it.
 

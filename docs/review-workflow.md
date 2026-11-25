@@ -1,5 +1,7 @@
 # Multi-angle review workflow
 
+> **Legacy pipeline.** This page describes the paused chain of agents, kept as the rollback. The current flow is the runner: [option-b-runner.md](option-b-runner.md).
+
 Risky PRs get a deterministic multi-angle review through the Workflow tool before the reviewer writes its verdict. Other PRs keep the single-pass review.
 
 ## Gate

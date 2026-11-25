@@ -5,21 +5,20 @@
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.svg"><img src="docs/images/wordmark-light.svg" alt="Hivemill" height="72"></picture></p>
 
-<h3 align="center">Hivemill is a self-hosted software factory of AI coding agents (Claude Code and Cursor),<br>with separate review, QA and a judge that decides the merge.</h3>
+<h3 align="center">Every merged PR proven against its spec, at a known cost.<br>A self-hosted runner for Claude Code: one session per task, a gate that re-runs the proofs, and a fresh judge.</h3>
 
 <p align="center">
   <a href="https://github.com/volekerb/hivemill/actions/workflows/tests.yml"><img src="https://github.com/volekerb/hivemill/actions/workflows/tests.yml/badge.svg?branch=main&event=push" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="docs/go-toolchain.md"><img src="https://img.shields.io/badge/go-runner-00ADD8.svg" alt="Go (the runner)"></a>
   <a href="docs/SETUP.md"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+"></a>
-  <a href="docs/go-toolchain.md"><img src="https://img.shields.io/badge/go-guard-00ADD8.svg" alt="Go (worker guard)"></a>
   <a href="https://github.com/volekerb/hivemill/releases"><img src="https://img.shields.io/github/v/release/volekerb/hivemill?include_prereleases&sort=semver" alt="Release"></a>
 </p>
 
 <p align="center">
   <a href="#quickstart"><b>Quickstart</b></a> ·
+  <a href="docs/option-b-runner.md">How the runner works</a> ·
   <a href="docs/README.md">Docs</a> ·
-  <a href="docs/examples/README.md">Examples</a> ·
-  <a href="docs/adopt/ADOPT.md">Adopt with Claude</a> ·
   <a href="SECURITY.md">Security</a> ·
   <a href="https://github.com/volekerb/hivemill/discussions">Discussions</a>
 </p>
@@ -27,7 +26,7 @@
 <!-- SLOT:VIDEO (T-0708): replace only the bare user-attachments URL on the next line and keep the links below it. -->
 https://github.com/user-attachments/assets/dfec91f4-de05-4592-aaec-3662ce674c4a
 
-<p align="center"><a href="docs/demo/README.md">how it was made</a> · seeded demo data only</p>
+<p align="center"><a href="docs/demo/README.md">how it was made</a> · seeded demo data only · the film and screenshots show the <a href="#how-it-works">legacy pipeline</a></p>
 
 <!-- SLOT:HERO (T-0480): one big screenshot. Swap the two paths (light in img src, dark in source srcset) and the alt text. -->
 <p align="center">
@@ -39,174 +38,150 @@ https://github.com/user-attachments/assets/dfec91f4-de05-4592-aaec-3662ce674c4a
 
 ## Where you run and watch it
 
-| Surface | What it is | Status in v0.5.0 |
-|---|---|---|
-| herdr-core (`hc`) | The headless core of herdr. Hivemill runs its agent panes through it. | The default backend: `terminal_backend = auto` prefers `hc` when both binaries are installed. See [docs/terminal-backends.md](docs/terminal-backends.md). |
-| Classic herdr terminal UI | The herdr TUI you attach to and watch panes in. | Still supported, opt-in: set `terminal_backend = herdr`. |
-| Herdr desktop app plugin | The Hivemill dashboard: a status bar and a dashboard tab in the Herdr desktop app, installed with `/hivemill:setup`. | Available. See [Herdr desktop dashboard](#herdr-desktop-dashboard). |
-| Web view | `factory serve`: the web UI with goals, agents, cost and throughput. | Available. See [The web UI](#the-web-ui). |
+| Profile | Supervision | Backup | Notes |
+|---|---|---|---|
+| Laptop | a launchd agent or a terminal running `hivemill daemon` | built-in snapshots, optionally copied to an external disk | runs pause while the laptop sleeps and resume on wake |
+| Homelab | a systemd user unit with lingering and a health timer | snapshots to a network share, or Litestream to S3-compatible storage or sftp | an always-on box; you can close your laptop |
+| Company | systemd or your service manager on a server | built-in snapshots today | hosted Postgres and workers that pull work are planned, not built |
+
+Sessions run in [herdr-core](https://herdr.dev) (`hc`) terminals that keep running after you log out. A reboot or a lost session is repaired on the next pass. You watch the runner from the terminal: `hivemill run status`, `hivemill report`, `hivemill ask list` and the morning digest (`hivemill digest`). The web UI and the Herdr desktop dashboard show the legacy pipeline, not runner state (see [The web UI](#the-web-ui)).
 
 ## What you get
 
-You describe what you want built to one boss agent. A director staffs a team, and a chain of coders, QA, reviewers and a judge ships it as pull requests. The agent that writes a change never reviews, tests or merges it. Hivemill's CLI is `factory`.
+You write a task with acceptance criteria. Each criterion names its proof. Hivemill starts one Claude Code session for the task, checks the work with code before the session may stop, asks a fresh read-only judge whether the diff does what was asked and nothing else, and merges mechanically when every check passes.
 
-<table>
-  <tr>
-    <td width="33%"><b>Fixed roles</b><br>Each role has its own prompt and permissions, enforced by hooks rather than by trust.</td>
-    <td width="33%"><b>Independent review</b><br>A separate reviewer and QA check every pull request against a real test run.</td>
-    <td width="33%"><b>A judge merges</b><br>Only on passing reviewer and QA verdicts. Anything else goes back with findings.</td>
-  </tr>
-  <tr>
-    <td><b>One source of truth</b><br>Goals, tasks, messages and verdicts are rows in SQLite with an append-only log.</td>
-    <td colspan="2"><b>Small-box friendly</b><br>A spawn gate queues agents until RAM, load and Claude process count allow.</td>
-  </tr>
-  <tr>
-    <td><b>Two runtimes, side by side</b><br>A Claude org and a Cursor org, each a full chain of command, share one box and one DB (<a href="docs/runtimes.md">runtimes</a>).</td>
-    <td><b>A read-only web UI</b><br>Goals, agents, throughput, quality, and cost, tokens and wall time per task, in light and dark.</td>
-    <td><b>Opt-in containment</b><br>A worker guard on every tool call, an optional sandbox, a GitHub token per worker role and optional per-task clones (<a href="docs/worker-guard.md">guard</a>, <a href="docs/worker-sandbox.md">sandbox</a>).</td>
-  </tr>
-</table>
+There are three AI roles. A deterministic Go runner, `hivemill`, does everything else.
+
+| Role | What it does |
+|---|---|
+| **Planner** | One long-running session. It keeps each project's queue of ready tasks full, splits tasks that are too big, turns failures into new tasks, and asks you when it needs a decision. |
+| **Task session** | One Claude Code session per task. It implements the task, runs the affected tests, runs `/code-review`, fixes the findings and opens the PR. |
+| **Judge** | A fresh, read-only session that never wrote the code. It lists every behaviour change in the diff and maps each one to a criterion. It answers MERGE, REJECT or HOLD. |
+
+The runner does the rest, with no model in the loop: the spec gate, the Stop-hook gate that re-runs the proofs, CI rounds, the mechanical merge, budgets and usage caps, the daemon with reconcile and backups, the owner question queue and the morning digest. Each is listed under [Features](#features).
 
 ## One change, five steps
 
-1. **You ask.** Describe what you want to the boss. It becomes a goal with success criteria.
-2. **A team forms.** A director staffs a lead, who plans tasks. Each task gets its own worktree and branch.
-3. **A coder builds.** It opens a pull request and stops. It cannot merge or review.
-4. **Two others check.** A reviewer reads the diff. QA runs the tests against the acceptance criteria.
-5. **A judge decides.** Both pass, it merges. Either fails, it goes back with findings. Every verdict is stored.
-
-The roles and the merge gate as diagrams are under [How it works](#how-it-works).
-
-The factory runs on [herdr](https://herdr.dev), the terminal multiplexer that hosts the agent panes ([source](https://github.com/herdrdev/herdr), pinned release [v0.9.5](https://github.com/herdrdev/herdr/releases/tag/v0.9.5)).
+1. **You write the spec.** Each acceptance criterion names its proof: `test:`, `cmd:`, `flow:` or `manual:`. The spec gate refuses a task with a criterion that names none. The planner can write and split tasks for you.
+2. **One session builds it.** The task session implements the change in its own clone, runs the affected tests, runs `/code-review`, fixes the findings and opens the PR.
+3. **Code checks the work.** Before the session may stop, the Stop-hook gate checks the tree, the PR body, the findings and the evidence, and re-runs every `test:` and `cmd:` proof itself. Red CI goes back to the same session.
+4. **A fresh judge reads it.** It maps every behaviour change in the diff to a criterion. MERGE, REJECT (back to the same session, two rounds at most) or HOLD (an unasked change, parked for you).
+5. **Code merges it.** On MERGE the runner checks the exact head, green checks, the risk tier, main's state and authorship, then merges. A T3 diff waits for you.
 
 ## Quickstart
 
-### Install
-
-Needs a fresh Debian or Ubuntu machine and a logged-in Claude Code (the Cursor org also needs the Cursor Agent CLI, see [docs/runtimes.md](docs/runtimes.md)). In Claude Code:
+Needs: Linux or macOS, Go 1.27 to build, git, a logged-in Claude Code, a logged-in `gh`, and herdr-core (`hc`), which hosts the sessions. The home is any empty directory; it needs no checkout of this repository. Python 3 is needed only for Python unittest proofs.
 
 ```
-/plugin marketplace add volekerb/hivemill
-/plugin install hivemill
-/hivemill:setup
+git clone https://github.com/volekerb/hivemill && cd hivemill/go
+go build -o ~/.local/bin/hivemill ./cmd/hivemill
+hivemill init --home ~/hivemill-home --noreply-email YOU@users.noreply.github.com
+export FACTORY_HOME=~/hivemill-home
+hivemill project add app --repo OWNER/NAME --path ~/src/app --gate 'make test'
 ```
 
-The full guide, with the installer options and the manual steps, is [docs/SETUP.md](docs/SETUP.md).
-
-### Look around without installing
-
-Seeded fictional data, nothing real runs ([docs/demo-data.md](docs/demo-data.md)). Run from the repository root:
-
-```
-export TRIAL=$(mktemp -d)
-python3 ci/demo_seed.py --home "$TRIAL/demo" --now 2026-10-25T12:00:00+01:00
-HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo bin/factory serve --bind 127.0.0.1 --port 18624
-```
-
-Open <http://127.0.0.1:18624/> to see the read-only web UI on the demo data. In another shell, put `HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo` in front of `factory goal list` to see the demo goals as a table.
+To run unattended, start `hivemill daemon` under systemd or launchd ([steps](docs/option-b-runner.md#supervision)), turn on the planner with `hivemill planner start`, and let `hivemill config projects app` pick ready tasks. The plugin installer (`/hivemill:setup`) installs the legacy pipeline, not the runner.
 
 ## A task's life in commands
 
-Three walkthroughs with full output on the demo data: [from a goal to a merged PR](docs/examples/01-goal-to-merged-pr.md), [handling a rejection](docs/examples/02-handling-a-rejection.md), [the digest and scorecard](docs/examples/03-digest-and-scorecard.md).
+```
+hivemill goal new --project app --title 'Export filtered orders as CSV'
+hivemill task add --goal G-001 --title 'CSV export' --spec-file spec.md --acceptance-file acc.md
+hivemill task lint T-0001      # the spec gate
+hivemill run T-0001            # start the task, or advance it
+hivemill run status            # one line per run
+hivemill judge packet T-0001   # what the judge reads
+hivemill merge T-0001 --dry-run
+hivemill report                # cost, rounds and verdicts per task
+```
+
+Acceptance criteria with proofs look like this. A `test:` proof with a space is a shell command that must exit 0; without one it is a Python unittest. A `cmd:` expectation is an exit code, a number, `empty` or text the output must contain:
+
+```
+1. one header row and one row per order - cmd:./app export --format csv --fixture tests/orders.json | wc -l => 4
+2. an account sees only its own orders - test:pnpm --filter app test
+3. only the export code changes - cmd:git diff --name-only origin/main...HEAD | grep -vE '^(app/export/|tests/)' => empty
+```
 
 ## How it works
 
-- **Separation of roles.** Each role has its own prompt and its own permission settings, enforced by hooks rather than by trust.
-- **Two orgs, one box.** An org is a complete chain of command (boss, director, leads, workers) on one runtime and one model map: `claude` (Claude Code, the default) and `cursor` (Cursor Agent). Each goal belongs to one org, every spawn inherits it, and both orgs share one agent cap and one resource gate ([docs/runtimes.md](docs/runtimes.md)).
-- **Evidence over claims.** A task is done when a reviewer and QA have checked the PR diff and a real test run, not when an agent says so.
-- **Resource-aware on a small box.** A spawn gate watches RAM, load and the number of Claude processes, and queues new agents until there is room. The whole factory runs on one modest VM.
-- **Contained workers.** A worker guard hook blocks actions outside a role's job. Opt-in extras: the worker sandbox (`sandbox_roles`), a worker GitHub token per role (`worker_gh_roles`) and a standalone clone per coder task instead of a worktree (`task_clones`, off by default; [docs/git-hardening.md](docs/git-hardening.md)). The guard is Python by default; a Go port is available through `guard_impl` ([docs/worker-guard-go.md](docs/worker-guard-go.md)), about 8 ms against about 69 ms per call. A Go build of the `factory` CLI is opt-in through `cli_impl`, `factory schedule` runs only in Go, and Python stays the default ([docs/cli-go.md](docs/cli-go.md), [docs/schedule.md](docs/schedule.md)).
-- **Everything auditable.** Goals, plans, tasks, messages, verdicts and decisions are rows in SQLite with an append-only event log, exported to readable markdown every minute.
-
-```mermaid
-flowchart TB
-    owner([owner]) <--> boss
-    boss <--> director
-    director <--> lead["team leads (lead)"]
-    lead --> pm
-    lead --> coder
-    lead --> qa
-    lead --> reviewer
-    lead --> judge
-    director --> cleaner
-
-    subgraph infra [Infrastructure]
-        direction LR
-        tick["tick (systemd timer, every minute)"]
-        herdr["herdr panes (one per agent)"]
-        db[("SQLite DB + factory CLI")]
-        web["web UI (read-only)"]
-    end
-
-    tick -->|"reap, spawn, nudge, export"| herdr
-    herdr -->|"hosts every agent"| boss
-    boss -.->|"factory CLI"| db
-    director -.->|"factory CLI"| db
-    lead -.->|"factory CLI"| db
-    db --> web
-    tick --> db
-```
-
-The merge gate, for every change:
-
 ```mermaid
 flowchart LR
-    coder["coder opens PR"] --> reviewer["reviewer: diff verdict"]
-    coder --> qa["qa: test and acceptance verdict"]
-    reviewer --> judge{"judge"}
-    qa --> judge
-    judge -->|"both pass"| merge["merge to main"]
-    judge -->|"any fail"| retry["back to coder with findings"]
-    merge --> cleaner["cleaner removes worktree and branch"]
+    owner([owner]) <-->|"asks and answers"| planner
+    planner -->|"ready tasks"| specgate["spec gate"]
+    specgate --> task["task session: build, test, /code-review, PR"]
+    task --> stopgate["Stop-hook gate: re-runs proofs"]
+    stopgate -->|"blocked"| task
+    stopgate --> ci["CI"]
+    ci -->|"red"| task
+    ci -->|"green"| judge{"fresh judge"}
+    judge -->|"REJECT"| task
+    judge -->|"HOLD"| owner
+    judge -->|"MERGE"| merge["mechanical merge checks"]
+    merge -->|"T3"| owner
+    merge --> main["merged to main"]
 ```
 
-Details: [docs/lifecycle.md](docs/lifecycle.md), [docs/verdict-gates.md](docs/verdict-gates.md), [docs/db-layout.md](docs/db-layout.md).
+**Why the judge matters.** The judge does not only check that the asked-for change is there. It must also list every behaviour change in the diff (failure paths, defaults, limits, timers, shared functions) and quote the criterion that asks for each one. A change with no criterion turns a MERGE into a REJECT. A change that is probably fine but was not asked for becomes a HOLD for you. The judge packet also flags files changed outside the task's declared scope. This rule exists because the first version missed things: in the second pilot the judge passed three side effects that no criterion asked for. The fix shipped in [#904](https://github.com/volekerb/hivemill/pull/904) ([ADR 0009](docs/adr/0009-option-b-runner.md#pilot-results)).
+
+**Model choice comes from files, not words.** Sessions run Sonnet 5.5 at medium effort. A task whose declared files, or for the judge whose changed files, match a sensitive path runs Opus 5.5, as does an explicit T3 task.
+
+**The legacy pipeline.** Before the runner, Hivemill was a chain of chat agents: a boss, a director, team leads, pm, coder, reviewer, QA and a judge, run by the Python `factory` CLI and a tick. The runner replaced it ([ADR 0009](docs/adr/0009-option-b-runner.md)). The legacy pipeline is paused, kept as the rollback, and will be removed in its own PR. Its pages are kept and marked legacy in [docs/README.md](docs/README.md). Teams are now projects (`hivemill project add`). Research and design as task kinds are planned.
+
+Details: [docs/option-b-runner.md](docs/option-b-runner.md), [docs/hivemill-planner.md](docs/hivemill-planner.md).
 
 ## Features
 
 | Feature | What it does | Docs |
 |---|---|---|
-| **Run it** | | |
-| Setup and operations | Install, boot units, reboot recovery, identity rules | [SETUP](docs/SETUP.md), [operations](docs/operations.md) |
-| Adopt with Claude | An instruction file your own Claude Code follows to install it | [ADOPT](docs/adopt/ADOPT.md) |
-| **Ship safely** | | |
-| Verdict gates | The judge merges only on passing reviewer and QA verdicts | [verdict-gates](docs/verdict-gates.md) |
-| Goal lifecycle | From request to goal to done, with plan and success criteria | [goal-lifecycle](docs/goal-lifecycle.md) |
-| **Contain agents** | | |
-| Worker guard | Hooks that block actions outside a role's job | [worker-guard](docs/worker-guard.md) |
-| Worker sandbox | Opt-in namespaced spawn and worker GitHub tokens, with known limits | [worker-sandbox](docs/worker-sandbox.md) |
-| Per-task clones | Optional standalone clone per coder task (`task_clones`) | [git-hardening](docs/git-hardening.md) |
-| Stopping a worker | Stop one agent cleanly without losing its work | [stopping-a-worker](docs/stopping-a-worker.md) |
-| **Two runtimes** | | |
-| Claude and Cursor orgs | Orgs, runtimes, model maps and message routing | [runtimes](docs/runtimes.md) |
-| **Run it fast** | | |
-| Scheduled jobs | Owner-defined recurring jobs that mail the director (`factory schedule`) | [schedule](docs/schedule.md) |
-| Go CLI | Opt-in Go build of the `factory` CLI (`cli_impl`); Python stays the default | [cli-go](docs/cli-go.md) |
-| Terminal backends | herdr-core (`hc`) is the default; the classic herdr terminal UI is opt-in | [terminal-backends](docs/terminal-backends.md) |
-| **See it** | | |
-| Web UI | Read-only pages for goals, tasks, agents, throughput and quality | [web-ui](docs/web-ui.md) |
-| State branch | Markdown exports and a DB dump pushed to the `state` branch | [state-branch](docs/state-branch.md) |
+| **Gate the work** | | |
+| Spec gate | Every criterion names its proof before dispatch (`hivemill task lint`) | [runner](docs/option-b-runner.md#flow) |
+| Stop-hook gate | Checks tree, PR body, findings and evidence; re-runs every `test:` and `cmd:` proof | [runner](docs/option-b-runner.md#flow) |
+| Judge | Fresh and read-only; maps every behaviour change to a criterion; MERGE, REJECT or HOLD | [runner](docs/option-b-runner.md#flow) |
+| Mechanical merge | Judge MERGE on the exact head, green checks, tier T2 or lower, main green, noreply, public text | [runner](docs/option-b-runner.md#flow) |
+| **Control cost** | | |
+| Budgets | A cap per task, optional caps per project per day and per week | [config keys](docs/option-b-runner.md#config-keys) |
+| Usage caps | Holds new runs near the Claude plan's 5-hour and 7-day limits or when memory is low | [config keys](docs/option-b-runner.md#config-keys) |
+| Report | Cost per merged PR, hours to merge, rounds, verdicts and proofs per task | [report](docs/option-b-runner.md#event-log-and-report) |
+| **Run unattended** | | |
+| Daemon | One pass a minute under systemd or launchd, with a health check and alerts | [supervision](docs/option-b-runner.md#supervision) |
+| Reconcile | Resumes lost sessions, recreates clones, notices PRs merged by hand | [reconcile](docs/option-b-runner.md#reconcile-and-resume) |
+| Backup | SQLite snapshots, file copies or Litestream replication | [backup](docs/option-b-runner.md#backup) |
+| **Work with you** | | |
+| Planner | Keeps ready queues full, splits tasks, files questions | [planner](docs/hivemill-planner.md) |
+| Owner queue | Questions wait in one queue and never block other work (`hivemill ask`) | [owner queue](docs/hivemill-planner.md#owner-queue) |
+| Morning digest | Merges, cost, failures, holds and open questions for one day | [digest](docs/hivemill-planner.md#morning-digest) |
 
-Each feature has its own file under docs/ (all pages: [docs/README.md](docs/README.md)). Also: [tests and CI](docs/tests-and-ci.md), [lessons](docs/lessons.md), [per-role plugins](docs/per-role-plugins.md), [updating persistent agents](docs/updating-persistent-agents.md), [boss mail](docs/boss-mail.md).
+Each feature has its own file under docs/ (all pages: [docs/README.md](docs/README.md)).
 
 <p align="right"><a href="#readme-top">back to top</a></p>
 
 ## How it compares
 
-| | One Claude Code session | Hand-run subagents | Hivemill |
+| | One Claude Code session | A chain of chat agents | Hivemill runner |
 |---|---|---|---|
-| Role separation | One agent plans, writes and judges its own work | You choose the roles each time | Fixed roles with their own prompts and permissions, enforced by hooks ([worker-guard](docs/worker-guard.md)) |
-| Independent review | The author reviews itself | Only if you start a reviewer | A separate reviewer and QA check every PR ([verdict-gates](docs/verdict-gates.md)) |
-| Merge gate | You merge by hand | You merge by hand | The judge merges, gated on reviewer and QA ([verdict-gates](docs/verdict-gates.md)) |
-| State and audit | The chat transcript | Whatever you wrote down | Goals, tasks, messages and verdicts in SQLite with an append-only event log ([db-layout](docs/db-layout.md)) |
-| Resource gate | None | None | A spawn gate queues agents until RAM, load and Claude process count allow ([spawn-queue](docs/spawn-queue.md)) |
-| Recovery after reboot | Start over | Start over | Boot units resume the headquarters and active teams ([operations](docs/operations.md)) |
+| Definition of done | The agent says so | Reviewer and QA verdicts | Every `test:` and `cmd:` proof re-run by code, then a judge |
+| Unasked changes | Unchecked | Up to the reviewer | Every behaviour change mapped to a criterion, or REJECT or HOLD |
+| Merge | You merge by hand | An agent merges | Deterministic checks, then `--match-head-commit` |
+| Cost control | None | Agent caps | A budget per task, per project per day and per week, and plan usage caps |
+| Sessions per task | 1 | 4–6 | 2 (task and judge) |
+| Recovery after a reboot | Start over | Restart the agents | Reconcile resumes the session |
 
-Works with: Claude Code, Cursor Agent, [herdr](https://github.com/herdrdev/herdr), `gh`, systemd user units and the [Moshi](#use-it-from-your-phone) phone app.
+Pilot numbers, against Hivemill's own legacy chain. These are small pilots on Hivemill's own backlog, not a benchmark. Cost is estimated from session transcripts at API list prices, not from invoices.
+
+| | runner | legacy chain |
+|---|---|---|
+| Cost per merged PR | $1.33 (pilot 1, 4 of 5 merged) and $4.64 (pilot 2, 3 of 6 merged) | $3.56–14 |
+| Median time to merge | 0.39 h | 3.4 h |
+| PRs needing 2+ rounds | 22% | 50% |
+
+The pilots were 11 tasks. The median and the rounds share cover all 13 runner tasks to date (9 merged), as `hivemill report` printed them on 2026-11-25. `hivemill report` prints the same figures for your own runs.
+
+Works with: Claude Code, `gh`, [herdr-core](https://herdr.dev), systemd or launchd, and the [Moshi](#use-it-from-your-phone) phone app.
 
 ## The web UI
 
-A read-only web UI shows goals, tasks, live agents, throughput and quality, in light and dark themes, with an org filter, a runtime chip per agent and cost, tokens and wall time per task. Start it with `factory serve` ([docs/web-ui.md](docs/web-ui.md)). The screenshots come from fictional demo data only ([docs/demo-data.md](docs/demo-data.md)); click one for the full-size light image.
+The read-only web UI (`factory serve`, [docs/web-ui.md](docs/web-ui.md)) belongs to the legacy pipeline. It reads the legacy tables, so it does not show runner state; use `hivemill report` and `hivemill digest` for that. The screenshots come from fictional demo data only; click one for the full-size light image.
 
 <!-- SLOT:GALLERY (T-0480): six page shots in a 3x2 table; swap paths and alt text only. -->
 <table>
@@ -269,9 +244,7 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
 
 ## Herdr desktop dashboard
 
-If you use the [Herdr app](https://herdr.dev), Hivemill adds a status bar and a dashboard tab to it. The dashboard shows alerts, budget and cost, the Claude and Cursor lanes, active goals and the factory's agents.
-
-`/hivemill:setup` offers it as an optional step. Or run `python3 plugins/hivemill/scripts/install.py --herdr-app --dry-run` and then `--yes` on the machine where the app runs. Details: [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md).
+The Herdr desktop dashboard ([docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md)) also belongs to the legacy pipeline and reads the same legacy API as the web UI.
 
 <p align="center">
   <img src="docs/film/herdr/panel-factory.png" width="420" alt="The Hivemill dashboard tab in the Herdr desktop app: lanes and tiles for the factory">
@@ -280,33 +253,33 @@ If you use the [Herdr app](https://herdr.dev), Hivemill adds a status bar and a 
 
 ## Status and limits
 
-- An agent is a Claude Code or a Cursor Agent session, depending on its org, so it uses your Claude or Cursor usage. Claude is the default.
-- The `hc` (herdr-core) terminal backend is the default (`terminal_backend = auto` prefers `hc`); the classic herdr terminal UI is still supported as an opt-in (`terminal_backend = herdr`) ([docs/terminal-backends.md](docs/terminal-backends.md)).
-- It is built for a single box, not a cluster. State is one SQLite file.
-- Agent isolation is a tripwire, not a sandbox. Hooks and permission settings stop honest mistakes and make bypasses visible; they do not contain a determined adversary. Read [SECURITY.md](SECURITY.md) for the threat model and the known limits before you point it at anything you cannot afford to lose.
-- The worker sandbox is opt-in (`sandbox_roles`, off by default) and a tripwire, not a boundary: it has no egress filter ([docs/worker-sandbox.md](docs/worker-sandbox.md)).
-- The web UI is read-only and has no authentication; bind it to an address you trust.
+- **Claude Code only.** Every session is Claude Code. A Codex harness is planned.
+- **Model judgement remains.** `/code-review` and the judge are model judgement. The gate and the proof re-runs are the deterministic part. `flow:` and `manual:` criteria are not re-run; the report marks those tasks "needs owner check".
+- **Not every PR merges by itself.** T3 (high-risk) diffs are never merged mechanically; they wait for you.
+- **Sandbox.** The worker guard hook is the security policy. Claude Code's own sandbox is not on yet: on Linux it needs bubblewrap, and macOS support is planned. Isolation is a tripwire, not a boundary. Read [SECURITY.md](SECURITY.md) before you point it at anything you cannot afford to lose.
+- **One machine.** State is one SQLite file behind a `Store` interface. Hosted Postgres is planned, not built.
+- **Your usage.** Sessions use your Claude plan or API usage. Dollar figures are estimates at API list prices.
+- **Install from source.** Build the runner with Go. No release ships the `hivemill` binary yet.
 
 Not affiliated with Anthropic. Claude and Claude Code are products of Anthropic.
 
 ## Use it from your phone
 
-Install [Moshi](https://getmoshi.app) on your phone, connect to your box over SSH, and run `herdr` there to reach the boss's pane. Moshi is a third-party app, not part of Hivemill.
+Install [Moshi](https://getmoshi.app) on your phone and connect to your box over SSH. Run `hivemill run status` or `hivemill ask list` there, and answer a question with `hivemill ask answer`. Moshi is a third-party app, not part of Hivemill.
+
+<p align="right"><a href="#readme-top">back to top</a></p>
 
 ## Resources
 
-- [What's new in v0.5.0](docs/releases/v0.5.0-announcement.md): a short plain-English summary of the v0.5.0 release.
-- [What's new in v0.4.0](docs/releases/v0.4.0-announcement.md): a short plain-English summary of this release.
-- [docs/examples/](docs/examples/README.md): three walkthroughs with real output.
-- [docs/README.md](docs/README.md): index of every docs page. [docs/SETUP.md](docs/SETUP.md): install and troubleshooting.
-- [docs/finishing-coders.md](docs/finishing-coders.md): how coders finish. [Known gaps](docs/worker-guard.md) of the worker guard.
-- [docs/worker-sandbox.md](docs/worker-sandbox.md): worker sandbox design, owner steps, rollout, rollback.
-- [docs/adopt/ADOPT.md](docs/adopt/ADOPT.md): let your own Claude Code set it up.
+- [docs/option-b-runner.md](docs/option-b-runner.md): the runner in full: flow, gate, judge, merge, config keys, daemon, backup and deployment profiles.
+- [docs/hivemill-planner.md](docs/hivemill-planner.md): the planner, the owner queue, alerts and the morning digest.
+- [docs/adr/0009-option-b-runner.md](docs/adr/0009-option-b-runner.md): the decision record and the pilot results.
+- [docs/README.md](docs/README.md): index of every docs page.
 - [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), [THIRD_PARTY.md](THIRD_PARTY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) first. A feature PR adds or edits its docs/<feature>.md page and does not edit this README. Small, well-scoped places to start are in [docs/STARTER_ISSUES.md](docs/STARTER_ISSUES.md). Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. A feature PR adds or edits its docs/<feature>.md page and does not edit this README. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

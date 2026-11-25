@@ -1,6 +1,6 @@
 # Option B runner: one session per task, a gate, a judge, a mechanical merge
 
-The runner is a second lane next to the old chain of roles (lead, coder, reviewer, QA, judge). Each task gets one interactive Claude Code session that implements it, reviews it with `/code-review`, fixes the findings and opens the PR. A Stop hook checks the work before the session may stop. A separate judge session decides whether the PR should merge, and the mechanical merger merges it. The old roles stay in place and still run. Decision record: [ADR 0009](adr/0009-option-b-runner.md).
+The runner replaced the old chain of roles (lead, coder, reviewer, QA, judge). Each task gets one interactive Claude Code session that implements it, reviews it with `/code-review`, fixes the findings and opens the PR. A Stop hook checks the work before the session may stop. A separate judge session decides whether the PR should merge, and the mechanical merger merges it. The old pipeline is paused and kept as the rollback ([Rollback](#rollback)). Decision record: [ADR 0009](adr/0009-option-b-runner.md).
 
 Code: the Go binary `hivemill` (`go/cmd/hivemill`, package `go/internal/hm`). It reuses `gitx` (hardened git), `guard` (public-text and scrub scans), `citools/risktier` and `kit/spend`. Prompts: `roles/hivemill/task.md` and `roles/hivemill/task-judge.md`. Settings: `roles/hivemill/task.json.in` and `roles/hivemill/task-judge.json.in`. Tests: `go test ./internal/hm/`, with the merge cases in `go/internal/hm/testdata/merge_cases.json`. Build and install: `cd go && go build -o ~/.local/bin/hivemill ./cmd/hivemill`.
 
@@ -25,7 +25,7 @@ hivemill run T-1234
 ```
 
 1. **Spec gate.** Every acceptance criterion names its proof. `hivemill task lint T-1234` checks this, and `hivemill run` refuses a task that fails it. A criterion is a numbered item (`1.`, `2)`, `AC3.`). A number at the start of a line always starts one; a number inside a line starts one only when it is the next in sequence, so prose such as `(exit 3) naming` stays in its criterion. Its proof is one of:
-   - `test:<unittest id or tests/ file>`, for example `test:test_option_b_runner.CriteriaTests` or `test:tests/test_x.py`. Python unittest only; other projects write `cmd:` proofs.
+   - `test:<unittest id or tests/ file>`, for example `test:test_option_b_runner.CriteriaTests` or `test:tests/test_x.py`, runs Python unittest. A `test:` proof that contains a space is a shell command run in the clone that passes on exit 0, for example `test:pnpm --filter web test` (see Tests under [Standalone install](#standalone-install-no-old-factory-cli)).
    - `cmd:<command> => <expected>`, where the expectation is `exit N` (or `rc=N`) for the exit code, a bare number for the whole output (a count such as `grep -c`), `empty`, or text the output must contain.
    - `flow:<flow>`: reported to the judge, not re-run.
    - `manual:<why only the owner can check>`: allowed; the report flags the task "needs owner check".

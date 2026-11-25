@@ -1,5 +1,7 @@
 # Factory web UI
 
+> **Legacy pipeline.** This page describes the paused chain of agents, kept as the rollback. The current flow is the runner: [option-b-runner.md](option-b-runner.md).
+
 A small web page that shows what the factory is doing: goals, tasks, agents, resources, throughput, quality and token cost. It is started with `factory serve`.
 
 ## What it is

@@ -1,5 +1,7 @@
 # Goal lifecycle
 
+> **Legacy pipeline.** This page describes the paused chain of agents, kept as the rollback. The current flow is the runner: [option-b-runner.md](option-b-runner.md).
+
 The pm owns a goal's tickets end to end, but never writes code or git, merges or records verdicts.
 - **Audit.** When every build task is done or cancelled, the lead creates an audit pm task and spawns the pm. The pm checks each task against its acceptance list and each success criterion against evidence, then records `factory goal audit G --ready|--gaps --report -`. At most 2 audit rounds; a third goes to the director.
 - **Follow-up.** For a gap in merged work: `factory task add … --follow-up-of T-x` (the parent must be a done task of the same goal). Merged (PR) tasks are never reopened.
