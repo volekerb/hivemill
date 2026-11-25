@@ -168,12 +168,12 @@ func TestPickMachineBalances(t *testing.T) {
 	}
 	// the local core is balanced too, and a finished run does not count
 	_ = s.SetCfg("session_machines", "w1,local")
-	if pl := r.PickMachine(); pl.Machine != "w1" && pl.Machine != "" {
-		t.Errorf("unexpected %+v", pl)
+	if pl := r.PickMachine(); pl.Machine != "" {
+		t.Errorf("w1 has 1 active, local 0: %+v", pl)
 	}
 	put("T-0003", "w1")
-	put("T-0004", "")
-	put("T-0005", "")
+	put("T-0004", "local") // aliases of the local core count as local
+	put("T-0005", "coord-core")
 	_ = s.PutRun(&Run{Task: "T-0006", State: "merged", Machine: ""})
 	// w1 has 2, local has 2 active (the merged one is not counted): the tie goes to w1
 	if pl := r.PickMachine(); pl.Machine != "w1" {

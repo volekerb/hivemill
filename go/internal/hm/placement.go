@@ -104,7 +104,7 @@ func darwinMemMB(text string) int {
 // placementOn reports whether session_machines lists any machine (empty = every session on the local core).
 func placementOn(s Store) bool { return len(csv(s.Cfg("session_machines"))) > 0 }
 
-// Placement is the outcome of one pick: Machine "" is the local core; Skipped says why each earlier entry was passed.
+// Placement is the outcome of one pick: Machine "" is the local core; Skipped says why each ineligible entry was passed.
 type Placement struct {
 	Machine string
 	Skipped []string
