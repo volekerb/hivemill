@@ -138,11 +138,11 @@ func (r *Runner) PickMachine() Placement {
 		if load == nil {
 			load = r.activeByMachine(core)
 		}
-		key, n := m, 0
+		key := m
 		if isLocal {
 			key = ""
 		}
-		n = load[key]
+		n := load[key]
 		if !found || n < bestLoad {
 			best, bestLoad, found = key, n, true
 		}
