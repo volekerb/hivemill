@@ -1,5 +1,7 @@
 # Status lifecycle: goals and tasks
 
+> **Legacy pipeline.** This page describes the paused chain of agents, kept as the rollback. The current flow is the runner: [option-b-runner.md](option-b-runner.md).
+
 Status must be mechanical: it is correct because the CLI sets it, not because an agent remembered to.
 This file lists which transitions the factory makes by itself and which stay manual.
 

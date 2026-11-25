@@ -337,3 +337,46 @@ func TestIdleReaderCancelledReadIsTimeout(t *testing.T) {
 		}
 	}
 }
+
+// withStdin swaps os.Stdin for a pipe holding data and returns the read end, so a test can see what was left unread.
+func withStdin(t *testing.T, data string) *os.File {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.WriteString(data); err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = old; r.Close(); w.Close() })
+	return r
+}
+
+func TestWaitEnterRefusesNonTTYStdin(t *testing.T) {
+	r := withStdin(t, "x\n")
+	if err := (&OSHost{}).WaitEnter(); err == nil {
+		t.Fatal("WaitEnter read a pipe")
+	}
+	buf := make([]byte, 8)
+	n, _ := r.Read(buf)
+	if n != 2 {
+		t.Errorf("the pipe bytes were consumed: %d left", n)
+	}
+}
+
+func TestRunTTYRefusesNonTTYStdin(t *testing.T) {
+	r := withStdin(t, "x\n")
+	marker := filepath.Join(t.TempDir(), "started")
+	if rc := (&OSHost{}).RunTTY([]string{"sh", "-c", "touch " + marker}); rc == 0 {
+		t.Fatal("RunTTY ran with a pipe on stdin")
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Error("the child was started")
+	}
+	buf := make([]byte, 8)
+	if n, _ := r.Read(buf); n != 2 {
+		t.Errorf("the pipe bytes were consumed: %d left", n)
+	}
+}

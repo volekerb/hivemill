@@ -1,6 +1,7 @@
 package install
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,6 +35,14 @@ type fakeHost struct {
 	rules   func(argv []string) (int, string, bool)
 	assets  map[string][]byte
 	httpRC  map[string]int
+
+	tty     bool
+	ttyRuns [][]string
+	ttyRun  func(f *fakeHost, argv []string) (int, string) // the fake `gh auth login`; its output goes to ttyOut only
+	ttyOut  strings.Builder                                // what the user would see on the terminal; never the installer log
+	enters  int                                            // Enter presses the test will give
+	waited  int
+	onEnter func(f *fakeHost)
 
 	calls   [][]string
 	muts    [][]string
@@ -173,4 +182,29 @@ func (f *fakeHost) mutated(sub string) bool {
 		}
 	}
 	return false
+}
+
+func (f *fakeHost) IsTerminal() bool { return f.tty }
+
+func (f *fakeHost) RunTTY(argv []string) int {
+	f.mu.Lock()
+	f.ttyRuns = append(f.ttyRuns, argv)
+	f.mu.Unlock()
+	if f.ttyRun == nil {
+		return 1
+	}
+	rc, out := f.ttyRun(f, argv)
+	f.ttyOut.WriteString(out)
+	return rc
+}
+
+func (f *fakeHost) WaitEnter() error {
+	f.waited++
+	if f.waited > f.enters {
+		return io.EOF
+	}
+	if f.onEnter != nil {
+		f.onEnter(f)
+	}
+	return nil
 }

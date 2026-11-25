@@ -142,7 +142,7 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 		in.MergeClean = rc == 0
 	}
 	if t != nil {
-		in.Tier = r.tierOf(wt, base, pr.HeadRefOid)
+		in.Tier = r.tierOf(t.Project, wt, base, pr.HeadRefOid)
 	}
 	in.MainRun = r.mainRun(slug, wt, base)
 	in.IdentityOK = true
@@ -165,8 +165,8 @@ func (r *Runner) projectRequired(project string) string {
 	return ""
 }
 
-func (r *Runner) tierOf(wt, base, head string) string {
-	rules, err := risktier.LoadRules(filepath.Join(r.Env.Home, "ci", "tier_rules.json"))
+func (r *Runner) tierOf(project, wt, base, head string) string {
+	rules, _, err := r.TierRules(project)
 	if err != nil {
 		return "" // cannot decide: Decide blocks, never merges
 	}
@@ -351,16 +351,7 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	for _, j := range run.Judges {
 		r.Close(j)
 	}
-	sess, _ := r.Store.Sessions(run.Task)
-	ids := make([]string, len(sess))
-	for i, s := range sess {
-		ids[i] = s.SID
-	}
-	costs := SessionCosts(r.Env.UserHome, ids)
-	for _, s := range sess {
-		c := costs[s.SID]
-		_ = r.Log.Emit("session.ended", run, Event{Session: s.SID, Role: s.Role, Model: s.Model, Effort: s.Effort, CostUSD: &c})
-	}
+	r.endSessions(run)
 	r.GoalCheck(run)
 }
 

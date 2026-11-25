@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -143,7 +144,7 @@ func TestJudgeHookRecordsVerdictAndBlocksOnceWithoutOne(t *testing.T) {
 		t.Fatalf("no verdict must block once: %q", out.String())
 	}
 	out.Reset()
-	msg := "ok\n```json\n{\"verdict\": \"MERGE\", \"reasons\": [\"does what was asked\"], \"criteria_assessed\": [{\"id\": 1, \"proven\": true}]}\n```"
+	msg := "ok\n```json\n{\"verdict\": \"MERGE\", \"reasons\": [\"does what was asked\"], \"criteria_assessed\": [{\"id\": 1, \"proven\": true}], \"changes\": [{\"change\": \"x\", \"criterion\": \"x\"}]}\n```"
 	in, _ := json.Marshal(map[string]string{"last_assistant_message": msg, "session_id": "j-1"})
 	if err := r.JudgeHook(bytes.NewReader(in), &out); err != nil || out.Len() != 0 {
 		t.Fatalf("verdict: err %v out %q", err, out.String())
@@ -162,10 +163,16 @@ func TestJudgeHookRecordsVerdictAndBlocksOnceWithoutOne(t *testing.T) {
 
 func TestParseVerdict(t *testing.T) {
 	for _, bad := range []string{"no block", "```json\n{\"verdict\": \"maybe\", \"reasons\": [\"x\"], \"criteria_assessed\": []}\n```",
-		"```json\n{\"verdict\": \"REJECT\", \"reasons\": [], \"criteria_assessed\": []}\n```"} {
+		"```json\n{\"verdict\": \"REJECT\", \"reasons\": [], \"criteria_assessed\": [], \"changes\": []}\n```",
+		"```json\n{\"verdict\": \"MERGE\", \"reasons\": [\"x\"], \"criteria_assessed\": []}\n```",
+		"```json\n{\"verdict\": \"MERGE\", \"reasons\": [\"x\"], \"criteria_assessed\": [], \"changes\": [{\"criterion\": null}]}\n```"} {
 		if _, err := ParseVerdict(bad); err == nil {
 			t.Errorf("%q parsed", bad)
 		}
+	}
+	if v, err := ParseVerdict("```json\n{\"verdict\": \"HOLD\", \"reasons\": [\"x\"], \"criteria_assessed\": [], \"changes\": [{\"change\": \"c\", \"criterion\": null}]}\n```"); err != nil ||
+		v.Verdict != VerdictHold || v.Changes[0].Criterion != nil {
+		t.Errorf("HOLD with a null criterion: %+v %v", v, err)
 	}
 }
 
@@ -269,5 +276,49 @@ func TestHeldRunFinishesWhenTheOwnerMerges(t *testing.T) {
 	_ = r.Pass(false)
 	if got, _ := s.Run("T-0001"); got.State != Merged {
 		t.Errorf("legacy failed hold: %s", got.State)
+	}
+}
+
+func TestResumeArchivesFindings(t *testing.T) {
+	r, _ := testRunner(t, "")
+	wt := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(wt, ".hivemill"), 0o755)
+	_ = os.WriteFile(filepath.Join(wt, ".hivemill", "findings.json"), []byte(`{"findings": []}`), 0o600)
+	run := &Run{Task: "T-0001", Worktree: wt, Round: 1, Agent: "a"}
+	r.resume(run, "CI is red")
+	if _, err := os.Stat(filepath.Join(wt, ".hivemill", "findings.json")); err == nil {
+		t.Error("the old findings stay in place")
+	}
+	if _, err := os.Stat(filepath.Join(wt, ".hivemill", "findings-r1.json")); err != nil {
+		t.Error("the old findings are not kept as findings-r1.json")
+	}
+}
+
+func TestGateBlockWithProgressIsNotCounted(t *testing.T) {
+	r, s := testRunner(t, "claude-task-t-0001")
+	run := &Run{Task: "T-0001", Goal: "G-001", Project: "www", Repo: "zz-test/www", Base: "main", Worktree: t.TempDir(),
+		Branch: "factory/t-0001", Agent: "claude-task-t-0001", State: Working, Round: 1}
+	_ = os.MkdirAll(filepath.Join(run.Worktree, ".hivemill"), 0o755)
+	_ = os.WriteFile(filepath.Join(run.Worktree, ".hivemill", "findings.json"), []byte(`{"findings": []}`), 0o600)
+	_ = s.PutRun(run)
+	stop := func() {
+		var out bytes.Buffer
+		_ = r.GateHook(strings.NewReader(`{"session_id":"s-1"}`), &out)
+	}
+	for i := 0; i < 5; i++ { // each stop has other problems than the last block: progress, not a repeat
+		stop()
+		got, _ := s.Run("T-0001")
+		got.LastBlock = fmt.Sprintf("an earlier, different problem %d", i)
+		_ = s.PutRun(got)
+	}
+	got, _ := s.Run("T-0001")
+	if got.State != Working || got.GateBlocks != 1 || got.GateBlocksTotal != 5 {
+		t.Errorf("state %s, counted %d, total %d: progress must not use up the cap", got.State, got.GateBlocks, got.GateBlocksTotal)
+	}
+	for i := 0; i < 5; i++ { // the same problems again and again: counted, then FAIL
+		stop()
+	}
+	if got, _ = s.Run("T-0001"); got.State != Failed {
+		t.Errorf("repeated blocks must still fail the run, got %s", got.State)
 	}
 }

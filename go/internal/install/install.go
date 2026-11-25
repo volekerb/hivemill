@@ -594,16 +594,62 @@ func stepTools(c *Ctx) (string, error) {
 	return strings.Join(done, "; "), nil
 }
 
+// authRounds is how many times an interactive run lets the user log in before it gives up with the exit-3 stop.
+const authRounds = 3
+
+const claudeLoginPrompt = "Log in to Claude in another terminal: run `claude`, complete /login, then /exit. Press Enter here when done."
+
+func authStop(todo []string) error {
+	return stopf(3, "not logged in. Do this, then re-run the installer with --resume:\n  %s", strings.Join(todo, "\n  "))
+}
+
 func stepAuth(c *Ctx) (string, error) {
-	var todo []string
-	if !have(c, "gh", "auth", "status") {
-		todo = append(todo, "Run this in your own terminal: gh auth login")
-	}
-	if !c.host.Exists(filepath.Join(c.home, ".claude", ".credentials.json")) {
-		todo = append(todo, "Run this in your own terminal: claude   (then complete /login and /exit)")
-	}
-	if len(todo) > 0 && !c.plan {
-		return "", stopf(3, "not logged in. Do this, then re-run the installer with --resume:\n  %s", strings.Join(todo, "\n  "))
+	// a terminal plus --yes: let the user log in and carry on; anything else keeps the exit-3 hand-off
+	interactive := c.args.Yes && !c.plan && c.host.IsTerminal()
+	for round := 0; ; round++ {
+		var todo []string
+		ghOK := have(c, "gh", "auth", "status")
+		if !ghOK {
+			todo = append(todo, "Run this in your own terminal: gh auth login")
+		}
+		claudeOK := c.host.Exists(filepath.Join(c.home, ".claude", ".credentials.json"))
+		if !claudeOK {
+			todo = append(todo, "Run this in your own terminal: claude   (then complete /login and /exit)")
+		}
+		if len(todo) == 0 || c.plan {
+			break
+		}
+		if !interactive || round >= authRounds {
+			return "", authStop(todo)
+		}
+		ghFailed := false
+		if !ghOK {
+			// gh's own flow on the terminal: the installer never sees, prints or stores what gh prints there
+			c.note("running `gh auth login` (gh asks the questions)")
+			rc := c.host.RunTTY([]string{"gh", "auth", "login"})
+			if rc != 0 { // success is judged by the re-check
+				c.note(fmt.Sprintf("`gh auth login` exited %d", rc))
+			}
+			if rc != 0 || !have(c, "gh", "auth", "status") {
+				ghFailed = true
+				env := c.host.Environ()
+				if env["GH_TOKEN"] != "" || env["GITHUB_TOKEN"] != "" {
+					c.note("GH_TOKEN or GITHUB_TOKEN is set, and gh uses it instead of a login: unset it or replace it")
+				}
+			}
+		}
+		prompt := ""
+		if !claudeOK {
+			prompt = claudeLoginPrompt
+		} else if ghFailed && round+1 < authRounds {
+			prompt = "Press Enter here to run `gh auth login` again."
+		}
+		if prompt != "" {
+			c.emit(prompt)
+			if err := c.host.WaitEnter(); err != nil {
+				return "", authStop(todo)
+			}
+		}
 	}
 	return "gh and Claude are logged in (the installer never reads a token)", nil
 }

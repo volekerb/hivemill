@@ -44,7 +44,9 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 	case Judging:
 		name = last(run.Judges)
 	}
-	if name != "" && listed && !alive(list, true, name) {
+	// a task session on a worker that hc lists as disconnected is not lost: hc keeps it and lists it again on reconnect
+	down := name == run.Agent && run.Machine != "" && machineDown(r.Tools, run.Machine)
+	if name != "" && listed && !down && !alive(list, true, name) {
 		if run.Resumes >= cfgInt(r.Store, "resume_max") {
 			r.fail(run, fmt.Sprintf("session lost: %s is gone after %d resumes", name, run.Resumes))
 			fixed = append(fixed, "session lost, run failed")
@@ -78,18 +80,19 @@ func (r *Runner) resumeSession(run *Run, name string) error {
 	if sid == "" {
 		return fmt.Errorf("no session id recorded for %s", name)
 	}
-	role, prompt := "task", "task.md"
+	role, prompt, machine := "task", "task.md", run.Machine // the transcript and the trust entry are there
 	kick := "The factory restarted your session after it was lost. Continue your role steps from where you were."
 	var env map[string]string
 	if strings.Contains(name, "judge") {
-		role, prompt = "task-judge", "task-judge.md"
+		role, prompt, machine = "task-judge", "task-judge.md", "" // the judge stays on the local core
 		kick = "The factory restarted your session after it was lost. Finish your verdict with the JSON block."
 	} else if email := r.Store.FactoryCfg("noreply_email"); email != "" {
 		env = map[string]string{"GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_EMAIL": email, "GIT_AUTHOR_NAME": nameOf(email),
 			"GIT_COMMITTER_NAME": nameOf(email)}
 	}
 	_, err := r.StartSession(run, Launch{Role: role, Name: name, Cwd: run.Worktree, Model: model, Effort: effort,
-		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", prompt), Kickoff: kick, Env: env, Resume: sid})
+		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", prompt), Kickoff: kick, Env: env, Resume: sid,
+		Machine: machine})
 	return err
 }
 
@@ -120,8 +123,8 @@ func (r *Runner) Health(now time.Time) (bool, time.Duration) {
 	return age <= time.Duration(cfgInt(r.Store, "health_max_age_s"))*time.Second, age
 }
 
-// HealthAlert raises the dead-man alert, at most once per alert_every_s: one owner alert feed row and one message to
-// the owner's planner session (claude-boss) through the factory CLI.
+// HealthAlert raises the dead-man alert, at most once per alert_every_s: one owner alert feed row and one owner alert
+// (Alert: the alert log, then alert_cmd or a macOS notification).
 func (r *Runner) HealthAlert(now time.Time, age time.Duration) (bool, error) {
 	if last, err := strconv.ParseInt(r.Store.Meta("alerted"), 10, 64); err == nil &&
 		now.Sub(time.Unix(last, 0)) < time.Duration(cfgInt(r.Store, "alert_every_s"))*time.Second {
@@ -131,13 +134,17 @@ func (r *Runner) HealthAlert(now time.Time, age time.Duration) (bool, error) {
 	if age >= 0 {
 		what = fmt.Sprintf("the last hivemill pass ended %s ago", age.Round(time.Second))
 	}
-	if err := r.Store.AlertFeed("hivemill-dead", "hivemill", "journalctl --user -u hivemill.service"); err != nil {
+	link, check := "journalctl --user -u hivemill.service", "Check `systemctl --user status hivemill.service` and "+
+		"`journalctl --user -u hivemill.service -n 50`."
+	if GOOS == "darwin" {
+		log := filepath.Join(r.Env.Home, "logs", "hivemill.daemon.log")
+		link, check = log, "Check `launchctl print gui/$(id -u)/hivemill.daemon` and "+log+"."
+	}
+	if err := r.Store.AlertFeed("hivemill-dead", "hivemill", link); err != nil {
 		return false, err
 	}
-	if r.Tools.Sh != nil {
-		r.Tools.Sh(r.Env.Home, time.Minute, append(os.Environ(), "FACTORY_AGENT=owner"), "factory", "msg", "--kind", "alert",
-			"claude-boss", "hivemill runner is down", what+". Check `systemctl --user status hivemill.service` and "+
-				"`journalctl --user -u hivemill.service -n 50`. Active task sessions keep running in their hc terminals.")
+	if _, err := r.Alert("hivemill runner is down", what+". "+check+" Active task sessions keep running in their hc terminals."); err != nil {
+		fmt.Fprintf(os.Stderr, "hivemill: alert: %v\n", err) // the feed row is open; the mark below still rate-limits
 	}
 	_ = r.Log.Emit("health.alert", nil, Event{Data: map[string]any{"why": what}})
 	return true, r.Store.SetMeta("alerted", strconv.FormatInt(now.Unix(), 10))
@@ -168,6 +175,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		return fmt.Errorf("%w: another hivemill daemon holds the lock", ErrRefused)
 	}
 	defer l.Close()
+	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
 	sdNotify("READY=1")
 	for {
 		if err := r.Pass(true); err != nil {
@@ -175,6 +183,8 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		} else {
 			_ = r.Heartbeat(time.Now())
 		}
+		r.PlannerPass(time.Now()) // held runs to the owner queue; keep the planner alive and wake it on events
+		r.OtelTail(time.Now())    // otel_endpoint set: finished tasks go out as traces (never fails the pass)
 		if r.BackupDue(time.Now()) {
 			if _, err := r.Backup(time.Now()); err != nil {
 				r.printf("backup: %v\n", err)

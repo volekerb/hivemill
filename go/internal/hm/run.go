@@ -7,12 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
-
-	"factory/go/internal/citools/risktier"
 )
 
 // Run states.
@@ -56,8 +53,8 @@ func NewRunner(e Env, out io.Writer) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{Env: e, Store: s, Tools: RealTools(e), Log: Log{Path: filepath.Join(e.StateDir(), "events.jsonl")}, Out: out,
-		Poll: 2 * time.Second}, nil
+	return &Runner{Env: e, Store: s, Tools: RealTools(e), Out: out, Poll: 2 * time.Second,
+		Log: Log{Path: filepath.Join(e.StateDir(), "events.jsonl"), Machine: s.Cfg("machine_name")}}, nil
 }
 
 func (r *Runner) actor() string {
@@ -86,36 +83,6 @@ func (r *Runner) lock(task string, wait bool) *os.File {
 		return nil
 	}
 	return f
-}
-
-var pathWordRe = regexp.MustCompile(`[\w.\-]+(?:/[\w.\-*]+)+/?`)
-
-// Risk decides the model before any diff exists: a stored tier T3, or a sensitive path (ci/tier_rules.json of the
-// main checkout) named in the task text. Unreadable rules count as risky (Opus), never the cheap path.
-func Risk(home string, t *Task) (bool, string) {
-	if t.Tier == "T3" {
-		return true, "task tier T3"
-	}
-	rules, err := risktier.LoadRules(filepath.Join(home, "ci", "tier_rules.json"))
-	if err != nil {
-		if t.Project == "factory" {
-			return true, "tier rules unreadable"
-		}
-		return false, ""
-	}
-	var hits []string
-	for _, w := range pathWordRe.FindAllString(t.Title+" "+t.Spec+" "+t.Acceptance, -1) {
-		if why, _ := risktier.Reasons(map[string][2]string{}, []string{strings.Trim(w, "/")}, 0, rules); len(why) > 0 {
-			hits = append(hits, w)
-		}
-	}
-	if len(hits) > 0 {
-		if len(hits) > 3 {
-			hits = hits[:3]
-		}
-		return true, "names " + strings.Join(hits, ", ")
-	}
-	return false, ""
 }
 
 // ModelFor picks the session model: model_task / model_task-judge override, else risk_model or model. Fable is refused.
@@ -148,8 +115,12 @@ func (r *Runner) activeCount() int {
 }
 
 // Candidates are ready tasks a plain pass may start (config projects): deps done, spec set, spec gate passing.
-func (r *Runner) Candidates() ([]Task, error) {
-	ts, err := r.Store.ReadyTasks(csv(r.Store.Cfg("projects")))
+func (r *Runner) Candidates() ([]Task, error) { return r.ReadyIn(csv(r.Store.Cfg("projects"))) }
+
+// ReadyIn are the tasks of these projects a pass would start: todo, deps done, spec set, spec gate passing, and never run
+// before (a task with any run, failed or cancelled included, is not started again: file a new one).
+func (r *Runner) ReadyIn(projects []string) ([]Task, error) {
+	ts, err := r.Store.ReadyTasks(projects)
 	if err != nil || len(ts) == 0 {
 		return nil, err
 	}
@@ -217,7 +188,7 @@ func (r *Runner) Start(id string) error {
 	if t.RepoPath == "" || t.GHRepo == "" {
 		return fmt.Errorf("%w: %s: its project has no repo_path or gh_repo", ErrRefused, id)
 	}
-	risky, why := Risk(r.Env.Home, t)
+	risky, why := Risk(r.Env.Home, t, nil)
 	model, effort, err := r.ModelFor(risky)
 	if err != nil {
 		return err
@@ -226,9 +197,20 @@ func (r *Runner) Start(id string) error {
 	if branch == "" {
 		branch = "factory/" + strings.ToLower(id)
 	}
+	pl := r.PickMachine()
 	wt, err := r.Clone(t, branch)
 	if err != nil {
 		return err
+	}
+	if pl.Machine != "" {
+		if why := r.cloneOn(pl.Machine, wt); why != "" {
+			pl.Skipped, pl.Machine = append(pl.Skipped, pl.Machine+": "+why), ""
+		}
+	}
+	if pl.Machine == "" && placementOn(r.Store) && caps.MemMB >= 0 && caps.MemMB < caps.MemMin {
+		// DispatchBlock leaves the local floor to here when placement is on: no worker took it, so it runs here
+		return fmt.Errorf("%w: memory: %d MB available, floor %d MB, and no session machine took it (%s)", ErrRefused, caps.MemMB,
+			caps.MemMin, strings.Join(pl.Skipped, "; "))
 	}
 	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
 	// session's first mid-work stop as a gate attempt, and they describe another head.
@@ -240,17 +222,19 @@ func (r *Runner) Start(id string) error {
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
-		Criteria: len(Criteria(t.Acceptance))}
+		Criteria: len(Criteria(t.Acceptance)), Machine: pl.Machine}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
 	}
-	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why}})
+	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why,
+		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
 	if err := r.launchTask(run, Kickoff(run, t)); err != nil {
 		return err
 	}
-	r.printf("RUN %s: %s (%s, effort %s%s) in %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], wt)
+	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], wt,
+		machineLabel(pl.Machine))
 	return nil
 }
 
@@ -269,7 +253,7 @@ func (r *Runner) launchTask(run *Run, kickoff string) error {
 		r.Close(name) // a session left open by an earlier FAIL; its transcript stays resumable by session id
 	}
 	_, err := r.StartSession(run, Launch{Role: "task", Name: name, Cwd: wt, Model: model, Effort: effort,
-		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: kickoff, Env: env})
+		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: kickoff, Env: env, Machine: run.Machine})
 	if err != nil {
 		r.fail(run, "the session did not start: "+err.Error())
 		_ = r.Store.PutRun(run)
@@ -351,8 +335,10 @@ func (r *Runner) prepareClone(wt string) error {
 		}
 	}
 	_ = os.MkdirAll(filepath.Join(wt, ".hivemill"), 0o755)
-	hook := "#!/bin/sh\n# factory pre-push public-text guard (G-021 T-0696)\nexec python3 " +
-		filepath.Join(r.Env.Home, "ci", "pre_push_public_text.py") + " --home " + r.Env.Home + " \"$@\"\n"
+	hook, err := PrePushHook(r.Env.Home)
+	if err != nil {
+		return err
+	}
 	_ = os.MkdirAll(filepath.Join(gitDir, "hooks"), 0o755)
 	return os.WriteFile(filepath.Join(gitDir, "hooks", "pre-push"), []byte(hook), 0o755)
 }
@@ -361,6 +347,9 @@ func (r *Runner) fail(run *Run, reason string) {
 	run.State, run.Outcome, run.FailReason, run.Ended = Failed, "failed", reason, nowISO()
 	_ = r.Store.TaskStatus(run.Task, "blocked", "owner")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-fail", truncate(reason, 900))
+	if !run.Eval {
+		r.endSessions(run) // the $ and tokens of a failed run reach the event log too (evalFinish writes its own)
+	}
 	_ = r.Log.Emit("task.failed", run, Event{Data: map[string]any{"reason": truncate(reason, 900)}})
 	if run.Eval {
 		r.evalFinish(run, Failed, "failed: "+truncate(reason, 300))
@@ -369,7 +358,13 @@ func (r *Runner) fail(run *Run, reason string) {
 
 // resume sends text to the same warm task session and starts a new round.
 func (r *Runner) resume(run *Run, text string) {
-	run.State, run.Round, run.GateBlocks = Working, run.Round+1, 0
+	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
+	// are deferred until the session writes fresh findings.
+	if run.Worktree != "" {
+		dir := filepath.Join(run.Worktree, ".hivemill")
+		_ = os.Rename(filepath.Join(dir, "findings.json"), filepath.Join(dir, fmt.Sprintf("findings-r%d.json", run.Round)))
+	}
+	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	if err := r.Prompt(run.Agent, text); err != nil {
@@ -394,6 +389,9 @@ func (r *Runner) Pass(startNew bool) error {
 		return nil
 	}
 	defer l.Close()
+	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
+		r.printf("hivemill: %v\n", err)
+	}
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
 	if err != nil {
@@ -535,8 +533,13 @@ func (r *Runner) judged(run *Run) {
 		r.evalFinish(run, Evaluated, "judge "+v.Verdict)
 		return
 	}
-	if v.Verdict == "MERGE" {
+	if v.Verdict == VerdictMerge {
 		run.State = Merging
+		return
+	}
+	if v.Verdict == VerdictHold {
+		run.History = append(run.History, fmt.Sprintf("round %d: judge HOLD: %s", run.Round, truncate(strings.Join(v.Reasons, "; "), 300)))
+		r.hold(run, "judge HOLD: "+truncate(strings.Join(v.Reasons, "; "), 500))
 		return
 	}
 	run.JudgeRounds++
@@ -560,6 +563,7 @@ func (r *Runner) Stop(task string) error {
 		r.Close(j)
 	}
 	run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
+	r.endSessions(run)
 	_ = r.Log.Emit("task.cancelled", run, Event{})
 	_ = r.Store.TaskStatus(task, "todo", "")
 	return r.Store.PutRun(run)
@@ -576,8 +580,8 @@ func (r *Runner) Status() error {
 		if x.State == Merging && x.MergeHold != "" {
 			hold = " hold: " + truncate(x.MergeHold, 100)
 		}
-		r.printf("%s %-9s round %d blocks %d judge %d ci %d %s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
-			x.CIRounds, x.PRURL, hold)
+		r.printf("%s %-9s round %d blocks %d judge %d ci %d on %s %s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
+			x.CIRounds, machineLabel(x.Machine), x.PRURL, hold)
 	}
 	return nil
 }

@@ -26,7 +26,7 @@ func uuid4() string {
 // state dir. A leftover token or invalid JSON refuses the launch.
 func RenderSettings(e Env, role string) (string, error) {
 	src := filepath.Join(e.Home, "roles", "hivemill", role+".json.in")
-	b, err := os.ReadFile(src)
+	b, err := readRoleFile(src) // the home's copy, else the built-in one (standalone install)
 	if err != nil {
 		return "", fmt.Errorf("cannot read %s: %w", src, err)
 	}
@@ -38,6 +38,9 @@ func RenderSettings(e Env, role string) (string, error) {
 	}
 	if strings.Contains(text, "@FACTORY_") {
 		return "", fmt.Errorf("%s has an unknown @FACTORY_ token", src)
+	}
+	if text, err = standaloneGuard(text, e.Home); err != nil { // a home without the guard shim: `hivemill guard`
+		return "", err
 	}
 	if !json.Valid([]byte(text)) {
 		return "", fmt.Errorf("%s renders to invalid JSON", src)
@@ -57,6 +60,11 @@ func TrustClone(e Env, clone string) error {
 	if !strings.HasPrefix(clone, wt) {
 		return fmt.Errorf("refused: %s is not under %s", clone, wt)
 	}
+	return trustPath(e, clone)
+}
+
+// trustPath adds one project entry with workspace trust to ~/.claude.json (nothing else changes).
+func trustPath(e Env, clone string) error {
 	path := filepath.Join(e.UserHome, ".claude.json")
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -89,11 +97,20 @@ type Launch struct {
 	Role, Name, Cwd, Model, Effort, PromptFile, Kickoff string
 	Resume                                              string // a session id: relaunch it with `claude --resume`
 	Env                                                 map[string]string
+	// SessRole is the hm_sessions role (default task, or judge for task-judge); Task is the hm_sessions task when the
+	// session has no run (the planner).
+	SessRole, Task string
+	Machine        string // hc machine to run on ("" = the local core); see placement.go
 }
 
 // StartSession renders the settings, writes the spawn script, starts the terminal, waits for the TUI and sends the
 // kickoff. It returns the session id given to claude with --session-id, so spend maps to the task from the first request.
+// run is nil for a session that belongs to no run (the planner): its events then carry no task.
 func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
+	task, goal := l.Task, ""
+	if run != nil {
+		task, goal = run.Task, run.Goal
+	}
 	settings, err := RenderSettings(r.Env, l.Role)
 	if err != nil {
 		return "", err
@@ -103,7 +120,7 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 		return "", err
 	}
 	sysprompt := filepath.Join(dir, l.Name+".prompt.md")
-	pb, err := os.ReadFile(l.PromptFile)
+	pb, err := readRoleFile(l.PromptFile)
 	if err != nil {
 		return "", err
 	}
@@ -146,13 +163,21 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	}
 	spawnArgs, _ := json.Marshal(map[string]string{"role": l.Role, "lane": "option-b", "host_backend": "hc", "model": l.Model,
 		"effort": l.Effort, "runtime": "claude", "cwd": l.Cwd})
-	if err := r.Store.AgentLive(l.Name, l.Role, run.Task, run.Goal, "", l.Model, sid, l.Cwd, string(spawnArgs)); err != nil {
+	if err := r.Store.AgentLive(l.Name, l.Role, task, goal, "", l.Model, sid, l.Cwd, string(spawnArgs)); err != nil {
+		return "", err
+	}
+	if err := r.WriteGuardExport(time.Now()); err != nil { // the new agent's goal, before its first tool call
 		return "", err
 	}
 	// Pin the terminal to this machine: an hc wrapper may place worker-named terminals elsewhere, where the hook
 	// binary and the factory DB are not local.
 	runArgs := []string{"run", "--bg", "--no-parent", "--name", l.Name, "--cwd", l.Cwd}
-	if core := r.coreName(); core != "" {
+	if l.Machine != "" {
+		runArgs = append(runArgs, "--on", l.Machine) // a placed session: its hivemill forwards to this coordinator
+		if err := r.trustOn(l.Machine, l.Cwd); err != nil {
+			fmt.Fprintf(os.Stderr, "hivemill: trust %s on %s: %v (the trust dialog may show)\n", l.Cwd, l.Machine, err)
+		}
+	} else if core := r.coreName(); core != "" {
 		runArgs = append(runArgs, "--on", core)
 	}
 	if list, ok := Terminals(r.Tools); ok && alive(list, true, l.Name) {
@@ -166,7 +191,10 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	if wait == 0 {
 		wait = 90 * time.Second
 	}
-	r.waitReady(l.Name, wait)
+	if err := r.waitReady(l.Name, wait); err != nil {
+		r.Close(l.Name) // never answer the prompt: the owner trusts the folder, then the run is retried
+		return "", err
+	}
 	if rc, _, errs := r.Tools.HC("send", l.Name, l.Kickoff); rc != 0 {
 		return sid, fmt.Errorf("hc send %s: exit %d: %s", l.Name, rc, firstLine(errs))
 	}
@@ -174,24 +202,35 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	if l.Role == "task-judge" {
 		role = "judge"
 	}
-	_ = r.Store.AddSession(Session{SID: sid, Task: run.Task, Role: role, Agent: l.Name, Model: l.Model, Effort: l.Effort, Started: nowISO()})
-	_ = r.Store.Event(r.actor(), "agent", l.Name, "spawn", map[string]string{"role": l.Role, "model": l.Model, "lane": "option-b"})
-	_ = r.Log.Emit("session.started", run, Event{Session: sid, Role: role, Model: l.Model, Effort: l.Effort, Data: map[string]any{"agent": l.Name}})
+	if l.SessRole != "" {
+		role = l.SessRole
+	}
+	_ = r.Store.AddSession(Session{SID: sid, Task: task, Role: role, Agent: l.Name, Model: l.Model, Effort: l.Effort, Started: nowISO()})
+	_ = r.Store.Event(r.actor(), "agent", l.Name, "spawn", map[string]string{"role": l.Role, "model": l.Model, "lane": "option-b",
+		"machine": machineLabel(l.Machine)})
+	_ = r.Log.Emit("session.started", run, Event{Session: sid, Role: role, Model: l.Model, Effort: l.Effort,
+		Data: map[string]any{"agent": l.Name, "machine": machineLabel(l.Machine)}})
 	return sid, nil
 }
 
 // waitReady waits (one blocking loop on the local hc listing, no network) until the terminal reports an idle agent.
-func (r *Runner) waitReady(name string, max time.Duration) {
+// A session that shows Claude Code's workspace trust prompt is an error at once (StuckAtTrust): it would wait there
+// forever, and the runner never answers that prompt.
+func (r *Runner) waitReady(name string, max time.Duration) error {
 	deadline := time.Now().Add(max)
 	for time.Now().Before(deadline) {
+		if err := r.stuckAtTrust(name); err != nil {
+			return err
+		}
 		list, ok := Terminals(r.Tools)
 		for _, t := range list {
 			if ok && t.Name == name && t.Agent == "claude-code" && (t.Status == "idle" || t.Status == "done") {
-				return
+				return r.stuckAtTrust(name) // the prompt can show while the agent reads as idle
 			}
 		}
 		time.Sleep(r.Poll)
 	}
+	return r.stuckAtTrust(name)
 }
 
 // Prompt types text into a session (a warm resume: same session, same cache).

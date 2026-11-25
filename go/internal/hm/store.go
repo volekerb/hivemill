@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -45,6 +46,9 @@ type Run struct {
 	// Eval runs (eval.go) measure the review layers on a prepared branch and are never merged.
 	Eval             bool
 	EvalMode, CINote string
+	LastBlock        string // the problems of the last gate block, to tell progress from a repeated block
+	BlockStops       int    // gate stops blocked in this round, progress or not (hard limit 3x gate_max_blocks)
+	Machine          string `json:",omitempty"` // hc machine of the task session ("" = the local core); resumes go there too
 }
 
 // Session is one Claude session of a run (task, judge).
@@ -101,6 +105,12 @@ CREATE TABLE IF NOT EXISTS hm_runs (task TEXT PRIMARY KEY, state TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS hm_sessions (sid TEXT PRIMARY KEY, task TEXT NOT NULL, role TEXT NOT NULL, agent TEXT, model TEXT,
   effort TEXT, started TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS hm_sessions_task ON hm_sessions(task);
+CREATE TABLE IF NOT EXISTS hm_project (id TEXT PRIMARY KEY, sensitive_paths TEXT NOT NULL DEFAULT '',
+  tier_rules TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS hm_asks (id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT NOT NULL DEFAULT '', project TEXT NOT NULL DEFAULT '',
+  goal TEXT NOT NULL DEFAULT '', task TEXT NOT NULL DEFAULT '', question TEXT NOT NULL, asked_by TEXT NOT NULL, asked TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open', answer TEXT NOT NULL DEFAULT '', answered_by TEXT NOT NULL DEFAULT '', answered TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS hm_asks_status ON hm_asks(status);
 `
 
 // OpenSQLite opens an existing factory DB read-write (never creates one) and makes sure the hm_* tables exist.
@@ -253,6 +263,11 @@ func (s *SQLite) Cfg(key string) string {
 func (s *SQLite) SetCfg(key, value string) error {
 	if _, ok := Defaults[key]; !ok {
 		return fmt.Errorf("unknown key %s; known: %s", key, strings.Join(DefaultKeys(), ", "))
+	}
+	if key == "model" || key == "risk_model" || key == "planner_model" {
+		if err := CheckModel(value); err != nil {
+			return err
+		}
 	}
 	_, err := s.db.Exec(`INSERT INTO hm_config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, value)
 	return err
@@ -459,4 +474,394 @@ func (s *SQLite) TaskByTitle(goal, title string) (string, error) {
 		return "", nil
 	}
 	return id, err
+}
+
+// FactorySchema is the part of the factory DB the runner reads and writes, with the columns of the existing factory
+// schema (same names and order). `hivemill init` runs it on a new home. Every statement is IF NOT EXISTS and none
+// alters a table, so on an existing factory DB it changes nothing.
+const FactorySchema = `
+CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, repo_path TEXT, gh_repo TEXT,
+  base_branch TEXT NOT NULL DEFAULT 'main', auto_merge INTEGER NOT NULL DEFAULT 1,
+  notes TEXT, created TEXT NOT NULL, required_checks TEXT NOT NULL DEFAULT '', gate_cmd TEXT NOT NULL DEFAULT '',
+  gate_count_cmd TEXT NOT NULL DEFAULT '', gate_timeout_s INTEGER NOT NULL DEFAULT 3600);
+CREATE TABLE IF NOT EXISTS goals (
+  id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), title TEXT NOT NULL,
+  intent TEXT, success_criteria TEXT, status TEXT NOT NULL DEFAULT 'proposed',
+  priority INTEGER NOT NULL DEFAULT 2, requested_by TEXT, workspace_id TEXT,
+  created TEXT NOT NULL, updated TEXT NOT NULL, org TEXT NOT NULL DEFAULT 'claude', token_limit INTEGER);
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY, goal_id TEXT NOT NULL REFERENCES goals(id), team_id TEXT,
+  title TEXT NOT NULL, spec TEXT, acceptance TEXT, role TEXT NOT NULL DEFAULT 'coder',
+  status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
+  branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+  created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER, waits TEXT NOT NULL DEFAULT 'internal',
+  sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT, judge_hold_reason TEXT, block_on TEXT);
+CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
+CREATE TABLE IF NOT EXISTS agents (
+  name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
+  status TEXT NOT NULL,
+  pane_id TEXT, workspace_id TEXT, tab_id TEXT, model TEXT, session_id TEXT, cwd TEXT,
+  spawn_args TEXT, summary TEXT, last_nudge REAL, blocked_since REAL, blocked_alerted INTEGER DEFAULT 0,
+  queued_at TEXT, started TEXT, ended TEXT, flagless INTEGER NOT NULL DEFAULT 0, flagless_since TEXT,
+  stop_requested_at TEXT, stop_attempt_at TEXT, stop_failed_kind TEXT, relaunch_requested_at TEXT,
+  relaunch_requested_by TEXT, relaunch_fresh INTEGER NOT NULL DEFAULT 0, start_pending REAL, start_pending_info TEXT, org TEXT);
+CREATE TABLE IF NOT EXISTS verdicts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, pr_url TEXT, head_sha TEXT,
+  role TEXT NOT NULL, verdict TEXT NOT NULL, summary TEXT, author TEXT, created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, actor TEXT, entity TEXT,
+  entity_id TEXT, action TEXT NOT NULL, detail TEXT);
+CREATE TABLE IF NOT EXISTS owner_alert_feed (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, since TEXT NOT NULL,
+  link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT, sent TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_alert_open ON owner_alert_feed(kind, ref) WHERE closed IS NULL;
+`
+
+// CreateSQLite creates the factory DB at path when it is missing and runs FactorySchema and the hm schema on it. It
+// never sets PRAGMA user_version: the factory CLI must not mistake this subset for its full schema.
+func CreateSQLite(path string) (*SQLite, error) {
+	_, statErr := os.Stat(path)
+	q := url.Values{}
+	q.Set("mode", "rwc")
+	q.Add("_pragma", "busy_timeout(30000)")
+	q.Add("_pragma", "journal_mode(WAL)")
+	db, err := sql.Open("sqlite", (&url.URL{Scheme: "file", Path: path, RawQuery: q.Encode()}).String())
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec(FactorySchema); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("cannot create the factory tables in %s: %w", path, err)
+	}
+	db.Close()
+	if statErr != nil {
+		_ = os.Chmod(path, 0o600) // a new DB only: an existing one keeps its mode
+	}
+	return OpenSQLite(path)
+}
+
+// SetFactoryCfg writes a key of the factory's config table (noreply_email, scrub_terms_file, required_checks, ...).
+func (s *SQLite) SetFactoryCfg(key, value string) error {
+	_, err := s.db.Exec(`INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, value)
+	return err
+}
+
+// Project is a factory project row (the columns the runner and `hivemill project` use).
+type Project struct {
+	ID, Name, RepoPath, GHRepo, Base, GateCmd, Created string
+}
+
+// AddProject files a project; an existing id is refused.
+func (s *SQLite) AddProject(p Project) error {
+	if p.Base == "" {
+		p.Base = "main"
+	}
+	if p.Name == "" {
+		p.Name = p.ID
+	}
+	var n int
+	if err := s.db.QueryRow(`SELECT count(*) FROM projects WHERE id=?`, p.ID).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: project %s exists", ErrRefused, p.ID)
+	}
+	_, err := s.db.Exec(`INSERT INTO projects(id,name,repo_path,gh_repo,base_branch,gate_cmd,created) VALUES(?,?,?,?,?,?,?)`,
+		p.ID, p.Name, p.RepoPath, p.GHRepo, p.Base, p.GateCmd, s.now())
+	return err
+}
+
+// Projects lists the projects by id.
+func (s *SQLite) Projects() ([]Project, error) {
+	rows, err := s.db.Query(`SELECT id,name,COALESCE(repo_path,''),COALESCE(gh_repo,''),base_branch,gate_cmd,created FROM projects ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Project
+	for rows.Next() {
+		var p Project
+		if err := rows.Scan(&p.ID, &p.Name, &p.RepoPath, &p.GHRepo, &p.Base, &p.GateCmd, &p.Created); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// Goal is a factory goal row.
+type Goal struct {
+	ID, Project, Title, Intent, Criteria, Status, Created, Updated string
+	Priority                                                       int
+}
+
+// GoalStatuses are the factory's goal states.
+var GoalStatuses = []string{"proposed", "planning", "active", "blocked", "done", "cancelled"}
+
+// NewGoal files an active goal in an existing project with the next free G-NNN id.
+func (s *SQLite) NewGoal(project, title, intent, criteria string, priority int) (string, error) {
+	var n int
+	if err := s.db.QueryRow(`SELECT count(*) FROM projects WHERE id=?`, project).Scan(&n); err != nil {
+		return "", err
+	}
+	if n == 0 {
+		return "", fmt.Errorf("%w: no project %s (`hivemill project add`)", ErrRefused, project)
+	}
+	var max sql.NullInt64
+	if err := s.db.QueryRow(`SELECT MAX(CAST(substr(id, 3) AS INTEGER)) FROM goals WHERE id LIKE 'G-%'`).Scan(&max); err != nil {
+		return "", err
+	}
+	id := fmt.Sprintf("G-%03d", max.Int64+1)
+	_, err := s.db.Exec(`INSERT INTO goals(id,project_id,title,intent,success_criteria,status,priority,requested_by,created,updated)
+		VALUES(?,?,?,NULLIF(?,''),NULLIF(?,''),'active',?,'owner',?,?)`, id, project, title, intent, criteria, priority, s.now(), s.now())
+	return id, err
+}
+
+const goalCols = `id, COALESCE(project_id,''), title, COALESCE(intent,''), COALESCE(success_criteria,''), status, priority, created, updated`
+
+func scanGoal(sc interface{ Scan(...any) error }) (*Goal, error) {
+	var g Goal
+	err := sc.Scan(&g.ID, &g.Project, &g.Title, &g.Intent, &g.Criteria, &g.Status, &g.Priority, &g.Created, &g.Updated)
+	return &g, err
+}
+
+// Goal reads one goal.
+func (s *SQLite) Goal(id string) (*Goal, error) {
+	g, err := scanGoal(s.db.QueryRow(`SELECT `+goalCols+` FROM goals WHERE id=?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("no goal %s", id)
+	}
+	return g, err
+}
+
+// Goals lists goals, optionally of one status ("" = all), by id.
+func (s *SQLite) Goals(status string) ([]Goal, error) {
+	rows, err := s.db.Query(`SELECT `+goalCols+` FROM goals WHERE ?='' OR status=? ORDER BY id`, status, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Goal
+	for rows.Next() {
+		g, err := scanGoal(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *g)
+	}
+	return out, rows.Err()
+}
+
+// SetGoalStatus moves a goal to one of GoalStatuses.
+func (s *SQLite) SetGoalStatus(id, status string) error {
+	res, err := s.db.Exec(`UPDATE goals SET status=?, updated=? WHERE id=?`, status, s.now(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("no goal %s", id)
+	}
+	return nil
+}
+
+// AddTask files a coder task in an existing goal with the next free T-NNNN id. status is todo or draft.
+func (s *SQLite) AddTask(goal, title, spec, acceptance, status, dependsOn string, priority int) (string, error) {
+	var n int
+	if err := s.db.QueryRow(`SELECT count(*) FROM goals WHERE id=?`, goal).Scan(&n); err != nil {
+		return "", err
+	}
+	if n == 0 {
+		return "", fmt.Errorf("%w: no goal %s (`hivemill goal new`)", ErrRefused, goal)
+	}
+	if dependsOn == "" {
+		dependsOn = "[]"
+	}
+	var max sql.NullInt64
+	if err := s.db.QueryRow(`SELECT MAX(CAST(substr(id, 3) AS INTEGER)) FROM tasks WHERE id LIKE 'T-%'`).Scan(&max); err != nil {
+		return "", err
+	}
+	id := fmt.Sprintf("T-%04d", max.Int64+1)
+	_, err := s.db.Exec(`INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,status,depends_on,created,updated,priority)
+		VALUES(?,?,?,?,?,'coder',?,?,?,?,?)`, id, goal, title, spec, acceptance, status, dependsOn, s.now(), s.now(), priority)
+	return id, err
+}
+
+// Tasks lists tasks of one goal and/or one status ("" = any), by id.
+func (s *SQLite) Tasks(goal, status string) ([]Task, error) {
+	rows, err := s.db.Query(`SELECT `+taskCols+` FROM tasks t JOIN goals g ON g.id=t.goal_id LEFT JOIN projects p ON p.id=g.project_id
+		WHERE (?='' OR t.goal_id=?) AND (?='' OR t.status=?) ORDER BY t.id`, goal, goal, status, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Task
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *t)
+	}
+	return out, rows.Err()
+}
+
+// TaskFields are the task columns `hivemill task update` may change.
+var TaskFields = map[string]bool{"title": true, "spec": true, "acceptance": true, "status": true, "priority": true, "depends_on": true}
+
+// UpdateTask sets the given TaskFields of a task.
+func (s *SQLite) UpdateTask(id string, set map[string]any) error {
+	if len(set) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		if !TaskFields[k] {
+			return fmt.Errorf("task field %s cannot be set", k)
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var cols []string
+	var args []any
+	for _, k := range keys {
+		cols = append(cols, k+"=?")
+		args = append(args, set[k])
+	}
+	args = append(args, s.now(), id)
+	res, err := s.db.Exec(`UPDATE tasks SET `+strings.Join(cols, ", ")+`, updated=? WHERE id=?`, args...)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("no task %s", id)
+	}
+	return nil
+}
+
+// Ask is one owner question (table hm_asks): the one queue where the planner and the runner put what only the owner can
+// decide, so nothing waits on the owner silently.
+type Ask struct {
+	ID                                 int64
+	Ref, Project, Goal, Task, Question string
+	AskedBy, Asked, Status             string // status: open | answered | withdrawn
+	Answer, AnsweredBy, Answered       string
+}
+
+const askCols = `id, ref, project, goal, task, question, asked_by, asked, status, answer, answered_by, answered`
+
+func scanAsk(sc interface{ Scan(...any) error }) (*Ask, error) {
+	var a Ask
+	err := sc.Scan(&a.ID, &a.Ref, &a.Project, &a.Goal, &a.Task, &a.Question, &a.AskedBy, &a.Asked, &a.Status, &a.Answer, &a.AnsweredBy,
+		&a.Answered)
+	return &a, err
+}
+
+// AddAsk files an open owner question. A non-empty ref is a dedupe key: when any question with that ref exists (open,
+// answered or withdrawn), nothing is filed and that question's id is returned with created=false.
+func (s *SQLite) AddAsk(a Ask) (int64, bool, error) {
+	if a.Ref != "" {
+		var id int64
+		err := s.db.QueryRow(`SELECT id FROM hm_asks WHERE ref=? ORDER BY id LIMIT 1`, a.Ref).Scan(&id)
+		if err == nil {
+			return id, false, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return 0, false, err
+		}
+	}
+	res, err := s.db.Exec(`INSERT INTO hm_asks(ref,project,goal,task,question,asked_by,asked) VALUES(?,?,?,?,?,?,?)`,
+		a.Ref, a.Project, a.Goal, a.Task, a.Question, a.AskedBy, s.now())
+	if err != nil {
+		return 0, false, err
+	}
+	id, err := res.LastInsertId()
+	return id, true, err
+}
+
+// Ask reads one owner question.
+func (s *SQLite) Ask(id int64) (*Ask, error) {
+	a, err := scanAsk(s.db.QueryRow(`SELECT `+askCols+` FROM hm_asks WHERE id=?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("no question #%d", id)
+	}
+	return a, err
+}
+
+// Asks lists owner questions of one status ("" = all), oldest first.
+func (s *SQLite) Asks(status string) ([]Ask, error) {
+	rows, err := s.db.Query(`SELECT `+askCols+` FROM hm_asks WHERE ?='' OR status=? ORDER BY id`, status, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Ask
+	for rows.Next() {
+		a, err := scanAsk(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *a)
+	}
+	return out, rows.Err()
+}
+
+// CloseAsk answers (status answered) or withdraws (status withdrawn) an open question.
+func (s *SQLite) CloseAsk(id int64, status, answer, by string) error {
+	res, err := s.db.Exec(`UPDATE hm_asks SET status=?, answer=?, answered_by=?, answered=? WHERE id=? AND status='open'`,
+		status, answer, by, s.now(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := s.Ask(id); err != nil {
+			return err
+		}
+		return fmt.Errorf("%w: question #%d is not open", ErrRefused, id)
+	}
+	return nil
+}
+
+// SessionsBetween lists every hm_sessions row started in [from, to) (planner sessions included).
+func (s *SQLite) SessionsBetween(from, to time.Time) ([]Session, error) {
+	rows, err := s.db.Query(`SELECT sid,task,role,COALESCE(agent,''),COALESCE(model,''),COALESCE(effort,''),started FROM hm_sessions ORDER BY started`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Session
+	for rows.Next() {
+		var x Session
+		if err := rows.Scan(&x.SID, &x.Task, &x.Role, &x.Agent, &x.Model, &x.Effort, &x.Started); err != nil {
+			return nil, err
+		}
+		if at, err := time.Parse(time.RFC3339, x.Started); err == nil && !at.Before(from) && at.Before(to) {
+			out = append(out, x)
+		}
+	}
+	return out, rows.Err()
+}
+
+// ReplaceAlert keeps one open owner alert feed row of a kind: when no open row has this ref, the open rows of the kind
+// are closed and one row is opened. It reports whether a row was opened.
+func (s *SQLite) ReplaceAlert(kind, ref, link string) (bool, error) {
+	var n int
+	if err := s.db.QueryRow(`SELECT count(*) FROM owner_alert_feed WHERE kind=? AND ref=? AND closed IS NULL`, kind, ref).Scan(&n); err != nil {
+		return false, err
+	}
+	if n > 0 {
+		return false, nil
+	}
+	if _, err := s.db.Exec(`UPDATE owner_alert_feed SET closed=? WHERE kind=? AND closed IS NULL`, s.now(), kind); err != nil {
+		return false, err
+	}
+	return true, s.AlertFeed(kind, ref, link)
+}
+
+// CloseAlertKind closes the open owner alert feed rows of a kind (its condition cleared).
+func (s *SQLite) CloseAlertKind(kind string) error {
+	_, err := s.db.Exec(`UPDATE owner_alert_feed SET closed=? WHERE kind=? AND closed IS NULL`, s.now(), kind)
+	return err
 }

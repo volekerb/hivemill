@@ -1,6 +1,7 @@
 package hm
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,7 +15,7 @@ var Defaults = map[string]string{
 	"max_concurrent":   "2",                 // active runs at one time
 	"projects":         "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
 	"model":            "claude-sonnet-5-5", // task session and judge
-	"risk_model":       "claude-opus-5-5",   // when the task names a risk-tier path or is T3
+	"risk_model":       "claude-opus-5-5",   // when a declared-scope or changed file is a sensitive path, or the task is T3
 	"effort":           "medium",            // --effort of every session
 	"gate_max_blocks":  "3",                 // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
 	"gate_wait_s":      "900",               // wait for a test slot before leaving the affected tests to CI
@@ -38,6 +39,17 @@ var Defaults = map[string]string{
 	"backup_keep":              "7",    // snapshots kept (in backup_dir and in a file:// target)
 	"backup_dir":               "",     // empty = state/hivemill/backups
 	"backup_target":            "",     // file:///path (copy) | s3://bucket/path | sftp://host/path (litestream when installed)
+	"alert_cmd":                "",     // owner alerts: run as sh -c "$alert_cmd" hivemill-alert TITLE TEXT; empty = log, plus a notification on macOS
+	// planner (planner.go): one long-lived session that keeps the ready queues full and turns failures into a next step
+	"planner_queue_min":  "3",               // lint-passing ready tasks wanted per project with an active goal
+	"planner_model":      "claude-opus-5-5", // the planner session's model (never Fable)
+	"planner_effort":     "medium",          // its --effort
+	"planner_wake_gap_s": "600",             // at most one wake per this many seconds; reasons in between are coalesced
+	"idle_alert_h":       "2",               // `health --alert`: no dispatch for this many hours while an active goal exists
+	"ask_alert_h":        "1",               // `health --alert`: open owner questions older than this go out in one digest
+	// session placement (placement.go, docs/hivemill-machines.md): task sessions on other hc machines
+	"session_machines":     "",     // hc machines for task sessions in order, e.g. worker1,local; empty = local core only
+	"machine_mem_floor_mb": "2500", // a listed machine needs this much MemAvailable to take a new task session
 }
 
 // DefaultKeys returns the config keys, sorted.
@@ -95,4 +107,13 @@ func csv(v string) []string {
 		}
 	}
 	return out
+}
+
+// CheckModel refuses a session model that is not a claude-* id, and every Fable model. `hivemill config` applies it to
+// model and risk_model, so a refused model never reaches the config (dispatch checks again in ModelFor).
+func CheckModel(m string) error {
+	if !strings.HasPrefix(m, "claude-") || strings.Contains(strings.ToLower(m), "fable") {
+		return fmt.Errorf("model %q refused: use a claude-sonnet-* or claude-opus-* id (never Fable)", m)
+	}
+	return nil
 }
