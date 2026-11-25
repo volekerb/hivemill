@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hivemill obs: {{.Title}}</title>
+<style>
+:root { --bg:#fbfbfa; --fg:#1d1d1b; --muted:#6b6b66; --line:#e3e2dd; --head:#f1f0ec; --ok:#1f7a3a; --bad:#b3261e; --warn:#8a5a00; --link:#1f5fa8; }
+@media (prefers-color-scheme: dark) { :root { --bg:#17171a; --fg:#e8e7e3; --muted:#a09f99; --line:#2d2d31; --head:#212125; --ok:#5cc27b; --bad:#ff8a80; --warn:#e0b04a; --link:#8ab4f8; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:1200px; margin:0 auto; padding:16px; }
+header { display:flex; flex-wrap:wrap; gap:8px 24px; align-items:baseline; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:8px; }
+h1 { font-size:18px; margin:0; }
+h2 { font-size:15px; margin:24px 0 8px; }
+nav.crumbs a, nav.crumbs span { color:var(--muted); }
+nav.crumbs a { color:var(--link); }
+a { color:var(--link); text-decoration:none; }
+a:hover { text-decoration:underline; }
+form.filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:12px 0; color:var(--muted); }
+select, input, button { font:inherit; color:var(--fg); background:var(--bg); border:1px solid var(--line); border-radius:4px; padding:2px 6px; }
+.scroll { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th, td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--line); vertical-align:top; white-space:nowrap; }
+th { background:var(--head); font-weight:600; }
+td.num, th.num { text-align:right; }
+td.wrap { white-space:normal; word-break:break-word; min-width:240px; }
+tr.total td { font-weight:600; border-top:2px solid var(--line); }
+.ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+.muted, footer { color:var(--muted); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+dl.kv { display:grid; grid-template-columns:max-content 1fr; gap:2px 16px; margin:8px 0; }
+dl.kv dt { color:var(--muted); }
+dl.kv dd { margin:0; }
+footer { margin-top:24px; font-size:12px; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>hivemill obs: {{.Title}}</h1>
+  <nav class="crumbs">{{range $i, $c := .Crumbs}}{{if $i}} / {{end}}{{if $c.Href}}<a href="{{$c.Href}}">{{$c.Label}}</a>{{else}}<span>{{$c.Label}}</span>{{end}}{{end}}</nav>
+</header>
+<form class="filters" method="get" action="{{.Path}}">
+  {{if .Project}}<input type="hidden" name="p" value="{{.Project}}">{{end}}
+  {{if eq .Kind "goal"}}<input type="hidden" name="g" value="{{.Goal}}">{{end}}
+  {{if and (eq .Kind "task") .Task}}<input type="hidden" name="k" value="{{.Task.Key}}">{{end}}
+  {{if and (eq .Kind "session") .Session}}<input type="hidden" name="s" value="{{.Session.ID}}">{{end}}
+  <label>machine <select name="machine"><option value="">all</option>{{range .Machines}}<option{{if eq . $.F.Machine}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>harness <select name="harness"><option value="">all</option>{{range .Harnesses}}<option{{if eq . $.F.Harness}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>window <input type="number" name="days" min="1" max="3650" value="{{.Days}}" style="width:5em"> days</label>
+  <button type="submit">apply</button>
+</form>
+
+{{if .NotFound}}<p class="bad">{{.NotFound}}</p>{{end}}
+
+{{if eq .Kind "portfolio"}}
+<h2>Projects</h2>
+<div class="scroll"><table>
+<tr><th>project</th><th class="num">$ today</th><th class="num">$ 7d</th><th class="num">$ 30d</th><th class="num">tasks</th><th class="num">active</th><th class="num">merged ({{.Days}}d)</th><th class="num">$ / merged PR</th><th class="num">2+ rounds %</th><th class="num">median h</th><th class="num">open questions</th></tr>
+{{range .Portfolio}}<tr{{if eq .Project "all"}} class="total"{{end}}>
+  <td>{{if eq .Project "all"}}all projects{{else}}<a href="{{$.Q "/project" "p" .Project}}">{{.Project}}</a>{{end}}{{if .CostPending}} <span class="warn" title="sessions with no cost yet (remote, still running)">({{.CostPending}} pending)</span>{{end}}</td>
+  <td class="num">{{usd .USDToday}}</td><td class="num">{{usd .USD7d}}</td><td class="num">{{usd .USD30d}}</td>
+  <td class="num">{{.Tasks}}</td><td class="num">{{.Active}}</td><td class="num">{{.Merged}}</td>
+  <td class="num">{{if .PerMergedPR}}${{fp .PerMergedPR}}{{else}}-{{end}}</td><td class="num">{{fp .TwoPlusPct}}</td><td class="num">{{fp .MedianHours}}</td>
+  <td class="num">{{.OpenAsks}}</td>
+</tr>{{end}}
+</table></div>
+<p class="muted">$ at API prices; a session's whole cost counts on the day it started. Merged, $/merged PR, 2+ rounds and median hours (dispatch to merge) are <code>hivemill report</code>'s rules over the tasks active in the last {{.Days}} days. Open questions: this machine's from its owner queue, pulled machines' from their ask events.</p>
+<h2>Machines</h2>
+<div class="scroll"><table>
+<tr><th>machine</th><th>source</th><th>newest event</th><th>pulled</th></tr>
+{{range .Sources}}<tr><td><a href="{{$.Q "/" "machine" .Label}}">{{.Label}}</a></td><td>{{if .Own}}this machine{{else}}pulled{{end}}</td><td>{{when .Last}}</td><td>{{if .Pulled}}{{when .Pulled}}{{else}}-{{end}}</td></tr>{{end}}
+</table></div>
+{{end}}
+
+{{if eq .Kind "project"}}
+<h2>Goals</h2>
+<div class="scroll"><table>
+<tr><th>goal</th><th>title</th><th class="num">tasks</th><th class="num">merged</th><th class="num">active</th><th class="num">failed</th><th class="num">$</th><th class="num">rounds</th><th>machines</th></tr>
+{{range .Goals}}<tr><td><a href="{{$.Q "/goal" "g" .Goal "p" $.Project}}">{{if .Goal}}{{.Goal}}{{else}}(no goal){{end}}</a></td><td class="wrap">{{.Title}}</td>
+<td class="num">{{.Tasks}}</td><td class="num">{{.Merged}}</td><td class="num">{{.Active}}</td><td class="num">{{.Failed}}</td><td class="num">{{usd .USD}}</td><td class="num">{{.Rounds}}</td><td>{{.MachineList}}</td></tr>
+{{else}}<tr><td colspan="9" class="muted">no tasks</td></tr>{{end}}
+</table></div>
+{{end}}
+
+{{if eq .Kind "goal"}}
+{{if .GoalTitle}}<p>{{.GoalTitle}}</p>{{end}}
+<h2>Tasks</h2>
+<div class="scroll"><table>
+<tr><th>task</th><th>machine</th><th>outcome</th><th class="num">$</th><th class="num">$ task</th><th class="num">$ judge</th><th class="num">rounds</th><th class="num">gate blocks</th><th class="num">h to merge</th><th class="num">sessions</th><th>last event</th></tr>
+{{range .Tasks}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td class="{{outcomeClass .Row.Outcome}}">{{.Row.Outcome}}</td>
+<td class="num">{{usd .Row.USD}}</td><td class="num">{{usd .Row.USDTask}}</td><td class="num">{{usd .Row.USDJudge}}</td><td class="num">{{.Rounds}}</td><td class="num">{{.Row.GateBlocks}}</td><td class="num">{{fp .Row.HoursToMerge}}</td><td class="num">{{len .Sessions}}</td><td>{{when .Last}}</td></tr>
+{{else}}<tr><td colspan="11" class="muted">no tasks</td></tr>{{end}}
+</table></div>
+{{end}}
+
+{{if and (eq .Kind "task") .Task}}{{with .Task}}
+{{if $.TaskTitle}}<p>{{$.TaskTitle}}</p>{{end}}
+<dl class="kv">
+<dt>outcome</dt><dd class="{{outcomeClass .Row.Outcome}}">{{.Row.Outcome}}</dd>
+<dt>machine / harness</dt><dd>{{.Machine}} / {{.Harness}}</dd>
+<dt>$</dt><dd>{{usd .Row.USD}} (task {{usd .Row.USDTask}}, judge {{usd .Row.USDJudge}})</dd>
+<dt>rounds</dt><dd>{{.Rounds}} (judge {{len .Row.Judge}}, red CI {{.Row.CIRounds}}), gate blocks {{.Row.GateBlocks}}, refreshes {{.Row.Refreshes}}</dd>
+<dt>findings</dt><dd>{{.Row.Fixed}} fixed of {{.Row.Findings}}; criteria {{.Row.Proven}}/{{.Row.Criteria}} proven, {{.Row.Manual}} manual</dd>
+<dt>hours to merge</dt><dd>{{fp .Row.HoursToMerge}}</dd>
+{{if .PR}}<dt>PR</dt><dd>{{with safeURL .PR}}<a href="{{.}}" rel="noreferrer">{{$.Task.PR}}</a>{{else}}{{$.Task.PR}}{{end}}</dd>{{end}}
+<dt>trace id</dt><dd><code>{{traceID .Key}}</code></dd>
+</dl>
+{{end}}
+<h2>Sessions</h2>
+<div class="scroll"><table>
+<tr><th>session</th><th>role</th><th>model</th><th>effort</th><th>harness</th><th>machine</th><th>start</th><th>end</th><th class="num">$</th><th class="num">tokens in</th><th class="num">out</th><th class="num">cache read</th><th class="num">cache write</th></tr>
+{{range .Sessions}}<tr><td><a href="{{$.Q "/session" "s" .ID}}"><code>{{short .ID}}</code></a></td><td>{{.Role}}</td><td>{{.Model}}</td><td>{{.Effort}}</td><td>{{.Harness}}</td><td>{{.Machine}}</td><td>{{when .Start}}</td><td>{{if .End}}{{when .End}}{{else}}-{{end}}</td>
+<td class="num">{{if .CostKnown}}{{usd .Usage.USD}}{{else}}<span class="warn">pending</span>{{end}}</td><td class="num">{{tokens .Usage.Input}}</td><td class="num">{{tokens .Usage.Output}}</td><td class="num">{{tokens .Usage.CacheRead}}</td><td class="num">{{tokens .Usage.CacheWrite}}</td></tr>
+{{else}}<tr><td colspan="13" class="muted">no sessions</td></tr>{{end}}
+</table></div>
+{{end}}
+
+{{if and (eq .Kind "session") .Session}}{{with .Session}}
+<dl class="kv">
+<dt>role / model / effort</dt><dd>{{.Role}} / {{.Model}} / {{.Effort}}</dd>
+<dt>machine / harness</dt><dd>{{.Machine}} / {{.Harness}}</dd>
+<dt>span</dt><dd>{{when .Start}} to {{if .End}}{{when .End}}{{else}}(open){{end}}</dd>
+<dt>$</dt><dd>{{if .CostKnown}}{{usd .Usage.USD}}{{else}}pending{{end}}</dd>
+<dt>tokens</dt><dd>in {{tokens .Usage.Input}}, out {{tokens .Usage.Output}}, cache read {{tokens .Usage.CacheRead}}, cache write {{tokens .Usage.CacheWrite}}</dd>
+</dl>
+{{end}}{{end}}
+
+{{if or (and (eq .Kind "task") .Task) (and (eq .Kind "session") .Session)}}
+<h2>Timeline</h2>
+<div class="scroll"><table>
+<tr><th>time</th><th>event</th><th>role</th><th>session</th><th>detail</th></tr>
+{{range .Events}}<tr><td>{{when .TS}}</td><td>{{.Event}}</td><td>{{.Role}}</td><td>{{if .Session}}<a href="{{$.Q "/session" "s" .Session}}"><code>{{short .Session}}</code></a>{{end}}</td><td class="wrap"><code>{{summary .}}</code></td></tr>{{end}}
+</table></div>
+{{end}}
+
+<footer>read-only; {{.Me}}; {{.Now}}. JSON: <a href="{{.Q "/api/portfolio"}}">/api/portfolio</a>. Docs: docs/hivemill-observability.md.</footer>
+</main>
+</body>
+</html>

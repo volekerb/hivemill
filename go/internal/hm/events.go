@@ -24,19 +24,28 @@ type Event struct {
 	Session string         `json:"session_id,omitempty"`
 	Role    string         `json:"role,omitempty"` // task | judge | review
 	Harness string         `json:"harness"`
+	Machine string         `json:"machine,omitempty"` // the machine that wrote the line (config machine_name, else the hostname)
 	Model   string         `json:"model,omitempty"`
 	Effort  string         `json:"effort,omitempty"`
 	CostUSD *float64       `json:"cost_usd,omitempty"`
 	Data    map[string]any `json:"data,omitempty"`
 }
 
-// Log appends events to a JSONL file under an exclusive lock.
-type Log struct{ Path string }
+// Log appends events to a JSONL file under an exclusive lock. Machine stamps every line (empty = the hostname).
+type Log struct {
+	Path    string
+	Machine string
+}
 
 func (l Log) Emit(kind string, r *Run, e Event) error {
 	e.TS = time.Now().Format(time.RFC3339)
 	e.Event = kind
-	e.Harness = Harness
+	if e.Harness == "" { // a future adapter names its own harness; Claude Code is the default
+		e.Harness = Harness
+	}
+	if e.Machine == "" {
+		e.Machine = MachineName(l.Machine)
+	}
 	if r != nil {
 		e.TaskID, e.GoalID, e.Project = r.Task, r.Goal, r.Project
 	}

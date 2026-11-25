@@ -55,6 +55,7 @@ type Bucket struct {
 	Model          string  `json:"model,omitempty"`
 	Requests       int     `json:"requests"`
 	Tiny           int     `json:"tiny_requests"`
+	Input          int64   `json:"input_tokens"`
 	Output         int64   `json:"output_tokens"`
 	CacheRead      int64   `json:"cache_read_tokens"`
 	CacheWrite     int64   `json:"cache_write_tokens"`
@@ -87,6 +88,7 @@ func (b *Bucket) add(r Request) {
 		b.startFound, b.startCtx = true, ctx
 	}
 	b.Requests++
+	b.Input += r.Usage.Input
 	if r.Usage.Output < TinyOutput {
 		b.Tiny++
 	}

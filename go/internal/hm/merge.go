@@ -351,16 +351,7 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	for _, j := range run.Judges {
 		r.Close(j)
 	}
-	sess, _ := r.Store.Sessions(run.Task)
-	ids := make([]string, len(sess))
-	for i, s := range sess {
-		ids[i] = s.SID
-	}
-	costs := SessionCosts(r.Env.UserHome, ids)
-	for _, s := range sess {
-		c := costs[s.SID]
-		_ = r.Log.Emit("session.ended", run, Event{Session: s.SID, Role: s.Role, Model: s.Model, Effort: s.Effort, CostUSD: &c})
-	}
+	r.endSessions(run)
 	r.GoalCheck(run)
 }
 
