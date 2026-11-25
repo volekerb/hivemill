@@ -148,9 +148,6 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 				p.Merged++
 			}
 		}
-		if t.Row.Eval {
-			continue
-		}
 		f := flowOf(t, o.Now)
 		if f.Stage != "" && f.Stage != "held" && time.Duration(f.AgeSec)*time.Second > StuckAfter {
 			p.Stuck = append(p.Stuck, f) // stuck now, whatever the range
@@ -366,7 +363,7 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 	}
 	all := o.OpenAsks(me, asks, ok)
 	for pr, n := range all {
-		if n > 0 && projectMatches(project, pr) {
+		if n > 0 && (project == "" || projectKeyLabel(pr) == projectKeyLabel(project)) {
 			p.Asks = append(p.Asks, NowAsk{pr, n})
 		}
 	}
