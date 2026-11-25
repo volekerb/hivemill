@@ -100,6 +100,7 @@ type Launch struct {
 	// SessRole is the hm_sessions role (default task, or judge for task-judge); Task is the hm_sessions task when the
 	// session has no run (the planner).
 	SessRole, Task string
+	Machine        string // hc machine to run on ("" = the local core); see placement.go
 }
 
 // StartSession renders the settings, writes the spawn script, starts the terminal, waits for the TUI and sends the
@@ -171,7 +172,12 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	// Pin the terminal to this machine: an hc wrapper may place worker-named terminals elsewhere, where the hook
 	// binary and the factory DB are not local.
 	runArgs := []string{"run", "--bg", "--no-parent", "--name", l.Name, "--cwd", l.Cwd}
-	if core := r.coreName(); core != "" {
+	if l.Machine != "" {
+		runArgs = append(runArgs, "--on", l.Machine) // a placed session: its hivemill forwards to this coordinator
+		if err := r.trustOn(l.Machine, l.Cwd); err != nil {
+			fmt.Fprintf(os.Stderr, "hivemill: trust %s on %s: %v (the trust dialog may show)\n", l.Cwd, l.Machine, err)
+		}
+	} else if core := r.coreName(); core != "" {
 		runArgs = append(runArgs, "--on", core)
 	}
 	if list, ok := Terminals(r.Tools); ok && alive(list, true, l.Name) {
@@ -200,8 +206,10 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 		role = l.SessRole
 	}
 	_ = r.Store.AddSession(Session{SID: sid, Task: task, Role: role, Agent: l.Name, Model: l.Model, Effort: l.Effort, Started: nowISO()})
-	_ = r.Store.Event(r.actor(), "agent", l.Name, "spawn", map[string]string{"role": l.Role, "model": l.Model, "lane": "option-b"})
-	_ = r.Log.Emit("session.started", run, Event{Session: sid, Role: role, Model: l.Model, Effort: l.Effort, Data: map[string]any{"agent": l.Name}})
+	_ = r.Store.Event(r.actor(), "agent", l.Name, "spawn", map[string]string{"role": l.Role, "model": l.Model, "lane": "option-b",
+		"machine": machineLabel(l.Machine)})
+	_ = r.Log.Emit("session.started", run, Event{Session: sid, Role: role, Model: l.Model, Effort: l.Effort,
+		Data: map[string]any{"agent": l.Name, "machine": machineLabel(l.Machine)}})
 	return sid, nil
 }
 

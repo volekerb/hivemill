@@ -50,7 +50,12 @@ import (
 
 var taskRe = regexp.MustCompile(`^(?i)T-\d+$`)
 
-func main() { os.Exit(Main(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }
+func main() {
+	if code, done := preMain(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); done { // a worker forwards (forward.go)
+		os.Exit(code)
+	}
+	os.Exit(Main(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+}
 
 // Main is the whole CLI; it returns the exit code.
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {

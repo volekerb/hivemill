@@ -1,12 +1,13 @@
 package hm
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -56,21 +57,31 @@ func ReadUsage(userHome string, now time.Time) Usage {
 	return u
 }
 
-// MemAvailableMB reads MemAvailable from /proc/meminfo (-1 when it cannot).
-func MemAvailableMB() int {
-	f, err := os.Open("/proc/meminfo")
+// MemAvailableMB is the free memory of this machine in MB (-1 when it cannot be read): MemAvailable of /proc/meminfo
+// on Linux; on macOS (free + inactive + speculative) pages of vm_stat, and 0 while the memory pressure level is not
+// normal (the old pipeline's rule), so the mem floors hold there too instead of reading -1 and being skipped.
+var MemAvailableMB = func() int {
+	if runtime.GOOS == "darwin" {
+		return darwinHostMemMB()
+	}
+	b, err := os.ReadFile("/proc/meminfo")
 	if err != nil {
 		return -1
 	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		if fs := strings.Fields(sc.Text()); len(fs) >= 2 && fs[0] == "MemAvailable:" {
-			kb, _ := strconv.Atoi(fs[1])
-			return kb / 1024
-		}
+	return linuxMemMB(string(b))
+}
+
+// darwinHostMemMB fails closed like the old pipeline: a reading it cannot take is 0 MB, so the floor holds.
+func darwinHostMemMB() int {
+	lvl, err := exec.Command("/usr/sbin/sysctl", "-n", "kern.memorystatus_vm_pressure_level").Output()
+	if err != nil {
+		return 0
 	}
-	return -1
+	vm, err := exec.Command("/usr/bin/vm_stat").Output()
+	if err != nil {
+		return 0
+	}
+	return max(0, darwinMemMB("pressure="+strings.TrimSpace(string(lvl))+"\n"+string(vm)))
 }
 
 func cfgFloat(s Store, key string) (float64, bool) {
@@ -155,7 +166,7 @@ func (c *Caps) DispatchBlock(s Store, project string) string {
 	if f := c.Usage.SevenDay; f != nil && *f >= float64(cfgInt(s, "max_seven_day_pct")) {
 		return fmt.Sprintf("usage: 7d at %.0f%% (cap %s%%)", *f, s.Cfg("max_seven_day_pct"))
 	}
-	if c.MemMB >= 0 && c.MemMB < c.MemMin {
+	if c.MemMB >= 0 && c.MemMB < c.MemMin && !placementOn(s) { // with placement, Start applies it when the pick is local
 		return fmt.Sprintf("memory: %d MB available, floor %d MB", c.MemMB, c.MemMin)
 	}
 	if c.HasWeek && c.WeekUSD >= c.WeekCap {
@@ -193,8 +204,12 @@ func (c Caps) Header(s Store) string {
 	if c.HasWeek {
 		week += fmt.Sprintf(" of $%.2f", c.WeekCap)
 	}
-	return fmt.Sprintf("%s, %s, %s, task cap $%s, mem %.1f GB free (floor %.1f GB)", usage, day, week, s.Cfg("task_budget_usd"),
-		float64(c.MemMB)/1024, float64(c.MemMin)/1024)
+	mem := "unknown"
+	if c.MemMB >= 0 {
+		mem = fmt.Sprintf("%.1f GB", float64(c.MemMB)/1024)
+	}
+	return fmt.Sprintf("%s, %s, %s, task cap $%s, mem %s free (floor %.1f GB)", usage, day, week, s.Cfg("task_budget_usd"),
+		mem, float64(c.MemMin)/1024)
 }
 
 // overBudget stops a run whose sessions cost more than task_budget_usd, marking it FAIL with "budget".

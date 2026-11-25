@@ -1,3 +1,5 @@
+//go:build linux
+
 package sandbox2
 
 // Go port of tests/test_nsbox_resolv_keep.py (13 cases): the /run keep-list derived from the real path of resolv.conf

@@ -47,6 +47,9 @@ var Defaults = map[string]string{
 	"planner_wake_gap_s": "600",             // at most one wake per this many seconds; reasons in between are coalesced
 	"idle_alert_h":       "2",               // `health --alert`: no dispatch for this many hours while an active goal exists
 	"ask_alert_h":        "1",               // `health --alert`: open owner questions older than this go out in one digest
+	// session placement (placement.go, docs/hivemill-machines.md): task sessions on other hc machines
+	"session_machines":     "",     // hc machines for task sessions in order, e.g. worker1,local; empty = local core only
+	"machine_mem_floor_mb": "2500", // a listed machine needs this much MemAvailable to take a new task session
 }
 
 // DefaultKeys returns the config keys, sorted.
