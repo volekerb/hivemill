@@ -88,14 +88,18 @@ func cmdInit(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "hivemill:", err)
 		return 1
 	}
+	for _, n := range hm.TrustNotes(hm.LoadEnv().UserHome, h) { // read-only: the owner accepts the prompt once
+		fmt.Fprintln(stdout, n)
+	}
 	fmt.Fprintf(stdout, "factory home %s ready; use FACTORY_HOME=%s\n", h, h)
 	return 0
 }
 
-// cmdLaunchd is `hivemill launchd daemon [--home DIR] [--path PATH] [--out FILE]`.
+// cmdLaunchd is `hivemill launchd daemon|digest|health [--home DIR] [--path PATH] [--out FILE]`: the pass loop
+// (KeepAlive), the morning digest, or the dead-man check (`hivemill health --alert` every 5 minutes).
 func cmdLaunchd(args []string, stdout, stderr io.Writer) int {
-	usage := "usage: hivemill launchd daemon|digest [--home DIR] [--path PATH] [--out FILE]"
-	if len(args) == 0 || (args[0] != "daemon" && args[0] != "digest") {
+	usage := "usage: hivemill launchd daemon|digest|health [--home DIR] [--path PATH] [--out FILE]"
+	if len(args) == 0 || (args[0] != "daemon" && args[0] != "digest" && args[0] != "health") {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
@@ -138,9 +142,12 @@ func sqliteOf(r *hm.Runner, stderr io.Writer) *hm.SQLite {
 	return s
 }
 
-// cmdProject is `hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] | project list`.
+// cmdProject is `hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] | project list |
+// project profile ID ...`. The gate command is what the gate's tests check runs in the task clone (and what a test:
+// proof can name); the profile holds the project's own tier settings.
 func cmdProject(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
-	usage := "usage: hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] [--name NAME] | project list"
+	usage := "usage: hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] [--name NAME] | project list | " +
+		"project profile ID [--sensitive GLOB]... [--tier-rules FILE] [--clear]"
 	s := sqliteOf(r, stderr)
 	if s == nil {
 		return 1
@@ -156,6 +163,8 @@ func cmdProject(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "%s %s %s base %s gate %q\n", p.ID, p.GHRepo, p.RepoPath, p.Base, p.GateCmd)
 		}
 		return 0
+	case len(args) >= 1 && args[0] == "profile":
+		return cmdProfile(r, args[1:], stdout, stderr)
 	case len(args) >= 2 && args[0] == "add":
 	default:
 		fmt.Fprintln(stderr, usage)

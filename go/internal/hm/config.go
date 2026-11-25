@@ -39,6 +39,7 @@ var Defaults = map[string]string{
 	"backup_keep":              "7",    // snapshots kept (in backup_dir and in a file:// target)
 	"backup_dir":               "",     // empty = state/hivemill/backups
 	"backup_target":            "",     // file:///path (copy) | s3://bucket/path | sftp://host/path (litestream when installed)
+	"alert_cmd":                "",     // owner alerts: run as sh -c "$alert_cmd" hivemill-alert TITLE TEXT; empty = log, plus a notification on macOS
 	// planner (planner.go): one long-lived session that keeps the ready queues full and turns failures into a next step
 	"planner_queue_min":  "3",               // lint-passing ready tasks wanted per project with an active goal
 	"planner_model":      "claude-opus-5-5", // the planner session's model (never Fable)

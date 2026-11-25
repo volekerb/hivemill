@@ -212,8 +212,12 @@ func (r *Runner) SendDigest(d *Digest, now time.Time) (string, error) {
 	if err := writeFile(p, d.Markdown(now), 0o600); err != nil {
 		return "", err
 	}
-	if _, err := s.ReplaceAlert("hivemill-digest", d.Summary(), p); err != nil {
+	opened, err := s.ReplaceAlert("hivemill-digest", d.Summary(), p)
+	if err != nil {
 		return p, err
+	}
+	if opened {
+		r.ownerAlert("hivemill-digest", d.Summary()+" ("+p+")")
 	}
 	_ = r.Log.Emit("digest.sent", nil, Event{Data: map[string]any{"date": d.Date, "path": p}})
 	return p, nil
