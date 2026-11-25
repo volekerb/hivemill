@@ -135,3 +135,15 @@ func TestAuthRoundsGhOnlyWaitsBetweenTries(t *testing.T) {
 		t.Errorf("want the token hint and no Claude prompt:\n%s", out)
 	}
 }
+
+func TestAuthNoTTYNeverReadsStdin(t *testing.T) {
+	f := ttyHost(t)
+	f.tty = false
+	rc, out, _ := runMain(t, f, "--yes", "--no-systemd")
+	if rc != 3 || !strings.Contains(out, authStopMsg) {
+		t.Fatalf("rc=%d\n%s", rc, out)
+	}
+	if f.waited != 0 || len(f.ttyRuns) != 0 {
+		t.Errorf("WaitEnter called %d times, RunTTY %d times", f.waited, len(f.ttyRuns))
+	}
+}

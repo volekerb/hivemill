@@ -542,6 +542,9 @@ func (h *OSHost) IsTerminal() bool {
 }
 
 func (h *OSHost) RunTTY(argv []string) int {
+	if !isCharDevice(os.Stdin) { // the stdin rule: hand stdin to a child only when it is a terminal
+		return 1
+	}
 	env := h.childEnv()
 	path, err := lookPath(argv[0], pathOf(env))
 	if err != nil {
@@ -566,6 +569,9 @@ func (h *OSHost) RunTTY(argv []string) int {
 }
 
 func (h *OSHost) WaitEnter() error {
+	if !isCharDevice(os.Stdin) { // the stdin rule: read stdin only when it is a terminal
+		return errors.New("stdin is not a terminal")
+	}
 	if h.stdin == nil {
 		h.stdin = bufio.NewReader(os.Stdin)
 	}
