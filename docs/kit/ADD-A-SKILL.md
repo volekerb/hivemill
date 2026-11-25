@@ -1,6 +1,6 @@
 # Add a Hivemill Kit skill
 
-A kit skill is a SKILL.md, one Go binary and a small JSON config, with no factory DB (ADR 0007). Adding one is a single PR. `kit-check` validates everything below, so run it before you push:
+A kit skill is a SKILL.md, one Go binary and a small JSON config, with no factory DB (ADR 0007). Adding one is a single PR. `kit-check` validates the files and fields listed under "What kit-check verifies" (it does not inspect eval case contents, the binary's imports or the prose of SKILL.md), so run it before you push:
 
 ```
 cd go && go run ./cmd/kit-check --root ..
