@@ -512,7 +512,7 @@ func stampedBoxA(t *testing.T, r *Runner, day string) {
 	evs := boxA(day)
 	for i := range evs {
 		evs[i].Machine = "box-a"
-		evs[i].CostUSD, evs[i].Event = nil, evs[i].Event
+		evs[i].CostUSD = nil
 	}
 	var kept []Event
 	for _, e := range evs {
