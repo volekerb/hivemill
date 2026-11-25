@@ -151,8 +151,13 @@ func CheckEvidence(path string, crit []Criterion) []string {
 	return nil
 }
 
-// TestArgv is how a test: proof runs: Python unittest, a dotted id under tests/ or a tests/ file.
+// TestArgv is how a test: proof runs. A proof with a space in it is a shell command run in the clone, passing on
+// exit 0 (`test:pnpm --filter web test`, `test:go test ./internal/x`: any project's own test or gate command); else
+// it is Python unittest: a tests/ file (`test:tests/test_x.py`) or a dotted id under tests/ (`test:tests.test_x.T.t`).
 func TestArgv(wt, name string) ([]string, string) {
+	if strings.ContainsAny(strings.TrimSpace(name), " \t") {
+		return []string{"bash", "-c", name}, wt
+	}
 	if strings.HasSuffix(name, ".py") {
 		dir := filepath.Dir(name)
 		if dir == "." {
@@ -193,7 +198,7 @@ func (r *Runner) RerunProofs(wt string, crit []Criterion, logdir string) []Rerun
 			argv, dir = TestArgv(wt, c.Proof)
 			if argv == nil {
 				f := false
-				x.OK, x.Note = &f, "no Python tests/ dir: write this proof as cmd:"
+				x.OK, x.Note = &f, "no Python tests/ dir: write the proof as the project's test command (test:pnpm test) or as cmd:"
 				out = append(out, x)
 				continue
 			}
@@ -239,15 +244,19 @@ func (r *Runner) findPR(run *Run, t *Task) string {
 	return strings.TrimSpace(out)
 }
 
-// affected runs the project's affected tests (ci/affected.py of the factory repo) and waits, not fails, while the box
-// has no test slot or is over its load cap.
+// affected runs the project's affected tests (the selection of ci/affected.py of the factory repo, through its Go port
+// `hivemill affected`) and waits, not fails, while the box has no test slot or is over its load cap.
 func (r *Runner) affected(wt, base string) (bool, string) {
 	if rc, _, _ := r.Tools.Git(wt, "cat-file", "-e", "origin/"+base+":ci/affected.py"); rc != 0 {
 		return true, "n/a: no ci/affected.py in this project"
 	}
 	deadline := time.Now().Add(time.Duration(cfgInt(r.Store, "gate_wait_s")) * time.Second)
 	for {
-		rc, text := r.Tools.Sh(wt, 30*time.Minute, cleanEnv(), "python3", "ci/affected.py", "--base", "origin/"+base, "--quick", "--run")
+		argv := []string{"python3", "ci/affected.py", "--base", "origin/" + base, "--quick", "--run"}
+		if self, err := SelfBinary(); err == nil && filepath.IsAbs(self) {
+			argv = []string{self, "affected", "--root", wt, "--base", "origin/" + base, "--quick", "--run"} // the Go port
+		}
+		rc, text := r.Tools.Sh(wt, 30*time.Minute, cleanEnv(), argv...)
 		tail := lastLines(text, 8)
 		switch {
 		case rc == 4: // EXIT_BUDGET: what ran passed; slow or over-budget modules are left to CI
@@ -286,6 +295,9 @@ func lastLines(s string, n int) string {
 // publicText runs the public-text guard (owner terms, secrets) over what the branch publishes and over the PR text.
 func (r *Runner) publicText(wt, base string, pr *PR) (bool, string) {
 	terms := r.Store.FactoryCfg("scrub_terms_file")
+	if terms == "" && os.Getenv("SCRUB_TERMS_FILE") == "" {
+		return false, "no owner terms: set them with `hivemill config scrub_terms_file /abs/path` (the check never passes without them)"
+	}
 	args := []string{}
 	if terms != "" {
 		args = append(args, "--terms-file", terms)
@@ -335,7 +347,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	rec.PRURL = r.findPR(run, t)
 	var pr *PR
 	if rec.PRURL == "" {
-		add("pr", false, fmt.Sprintf("no open PR for %s: push, then `factory pr create --title '%s: ...' --body -`", run.Branch, run.Task))
+		add("pr", false, fmt.Sprintf("no open PR for %s: push, then `hivemill pr create --title '%s: ...' --body -`", run.Branch, run.Task))
 	} else if pr, err = PRView(r.Tools, rec.PRURL); err != nil {
 		add("pr", false, "cannot read the PR: "+err.Error())
 	} else if pr.State != "OPEN" {
@@ -374,7 +386,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 			rec.Checks["body"] = "follows docs/pr-descriptions.md"
 		}
 	}
-	if rules, err := risktier.LoadRules(filepath.Join(r.Env.Home, "ci", "tier_rules.json")); err == nil {
+	if rules, _, err := r.TierRules(t.Project); err == nil {
 		tier, why, err := risktier.ClassifyRange(wt, "origin/"+base, "HEAD", rules)
 		if err == nil {
 			rec.Tier, rec.TierWhy = tier, strings.Join(why, "; ")
@@ -384,6 +396,9 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	add("public-text", ok, note)
 	if rec.Tier == "T0" {
 		rec.Checks["affected"] = "n/a: docs only (T0)"
+	} else if cmd, limit := r.projectGate(t.Project); cmd != "" {
+		ok, note = r.runProjectGate(wt, cmd, limit, logdir)
+		add("affected", ok, note)
 	} else {
 		ok, note = r.affected(wt, base)
 		add("affected", ok, note)

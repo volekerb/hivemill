@@ -42,7 +42,7 @@ There is one table, `hm_asks`. A question never blocks other work: the planner k
 
 ## Alerts (`hivemill health --alert`)
 
-These run whether or not the dead-man check passes. They write owner alert feed rows, never a message to the boss. `hivemill health` prints them without `--alert`. The exit code still reflects only the heartbeat.
+These run whether or not the dead-man check passes. They write owner alert feed rows, never a message to the boss; each row they open (like `hivemill-planner` and `hivemill-digest`) also goes out as an owner alert: `<home>/logs/alerts.log`, then `alert_cmd` or a macOS notification ([option-b-runner.md](option-b-runner.md#health-and-alerts)). `hivemill health` prints them without `--alert`. The exit code still reflects only the heartbeat.
 
 - `hivemill-idle`: no task was dispatched for `idle_alert_h` (2) hours while an active goal exists and a run slot is free (drain off). The text names the likely causes: `projects` is empty, the goal's project is not in `projects`, dispatch is held by a cap, there are 0 lint-passing ready tasks, or the planner is off or lost. It is raised at most once per `alert_every_s`, and closed when the condition clears.
 - `hivemill-asks`: open owner questions older than `ask_alert_h` (1), in one digest row. A new row replaces the open one only when the list changes.

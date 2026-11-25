@@ -28,6 +28,7 @@ func TestHealthAndRateLimitedAlert(t *testing.T) {
 		ref TEXT NOT NULL, since TEXT NOT NULL, link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT, sent TEXT)`)
 	msgs := 0
 	r.Tools.Sh = func(string, time.Duration, []string, ...string) (int, string) { msgs++; return 0, "" }
+	_ = s.SetCfg("alert_cmd", "true") // the owner alert goes through alert_cmd (counted by the Sh above)
 	now := time.Unix(1795548325, 0)
 	if ok, _ := r.Health(now); ok {
 		t.Error("no heartbeat yet is not healthy")

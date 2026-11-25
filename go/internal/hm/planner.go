@@ -163,7 +163,9 @@ func (r *Runner) plannerRevive(now time.Time) {
 	}
 	if max := cfgInt(r.Store, "resume_max"); len(recent) >= max {
 		_ = r.Store.SetMeta("planner_lost", now.Format(time.RFC3339))
-		_ = r.Store.AlertFeed("hivemill-planner", fmt.Sprintf("planner lost after %d restarts in 24h", len(recent)), "hivemill planner start")
+		what := fmt.Sprintf("planner lost after %d restarts in 24h", len(recent))
+		_ = r.Store.AlertFeed("hivemill-planner", what, "hivemill planner start")
+		r.ownerAlert("hivemill-planner", what+". Restart it with `hivemill planner start`.")
 		_ = r.Log.Emit("planner.lost", nil, Event{Data: map[string]any{"restarts_24h": len(recent)}})
 		r.printf("planner: lost after %d restarts in 24h; owner alerted\n", len(recent))
 		return
