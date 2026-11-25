@@ -1,12 +1,37 @@
 package hm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
+
+// exportMu serialises the writers of one process (the pass and the daemon's refresher share the temp file name).
+var exportMu sync.Mutex
+
+// GuardExportEvery is how often the daemon refreshes the export between passes.
+var GuardExportEvery = time.Minute
+
+// keepGuardExport rewrites the export every GuardExportEvery until ctx ends, so a pass stuck in a long step (a
+// 15-minute proof re-run, a wait for a test slot) never leaves the other sessions with a stale export.
+func (r *Runner) keepGuardExport(ctx context.Context) {
+	t := time.NewTicker(GuardExportEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-t.C:
+			if err := r.WriteGuardExport(now); err != nil {
+				r.printf("guard export: %v\n", err)
+			}
+		}
+	}
+}
 
 // The guard export of a standalone home. The Go worker guard decides the coder's push pin, own goal, test sandbox and
 // the public-text config from <home>/run/guard-export.json and fails closed when the file is missing or older than
@@ -67,6 +92,8 @@ func (r *Runner) WriteGuardExport(now time.Time) error {
 	if pyTickOwnsExport(r.Env.Home) {
 		return nil
 	}
+	exportMu.Lock()
+	defer exportMu.Unlock()
 	s, ok := r.Store.(*SQLite)
 	if !ok {
 		return nil

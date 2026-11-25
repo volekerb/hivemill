@@ -172,6 +172,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		return fmt.Errorf("%w: another hivemill daemon holds the lock", ErrRefused)
 	}
 	defer l.Close()
+	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
 	sdNotify("READY=1")
 	for {
 		if err := r.Pass(true); err != nil {

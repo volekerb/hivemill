@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -358,5 +359,80 @@ func TestProjectProfileSetsSensitivePaths(t *testing.T) {
 	}
 	if code, _, _ := c.run("", "project", "profile", "nope"); code != 3 {
 		t.Errorf("unknown project: exit %d", code)
+	}
+}
+
+// The allow side from where a session really works: its task clone under <home>/worktrees, which is inside the live
+// home. Every step of the task role (edit, commit, the pinned push, hivemill pr create, the CI wait) and the judge's
+// reads must pass the guard, or a standalone session cannot finish a task.
+func TestStandaloneSessionCanDoItsWorkInItsClone(t *testing.T) {
+	bin := selfIsTheTestBinary(t)
+	c, home := standalone(t)
+	wt := filepath.Join(home, "worktrees", "G-001-T-0001")
+	gitT(t, home, nil, "init", "-q", "-b", "factory/t-0001", wt)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", wt)
+	c.ok("goal", "new", "--project", "www", "--title", "zz-test goal")
+	acc := filepath.Join(t.TempDir(), "acc.txt")
+	_ = os.WriteFile(acc, []byte("1. it works - cmd:true => exit 0\n"), 0o600)
+	c.ok("task", "add", "--goal", "G-001", "--title", "zz-test task", "--spec", "s", "--acceptance-file", acc)
+	db, err := sql.Open("sqlite", filepath.Join(home, "db", "factory.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE tasks SET worktree=?, branch='factory/t-0001' WHERE id='T-0001'`, wt); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO agents(name,role,goal_id,task_id,status,started) VALUES('claude-coder-t-0001-a7','task','G-001','T-0001','live','t')`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	r, err := hm.NewRunner(hm.Env{Home: home, UserHome: t.TempDir()}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.WriteGuardExport(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	r.Store.Close()
+	env := hookEnv(home, "FACTORY_AGENT=claude-coder-t-0001-a7", "FACTORY_ROLE=task")
+	task := guardCommands(t, home)[0]
+	tool := func(name string, in map[string]any) map[string]any {
+		return map[string]any{"tool_name": name, "tool_input": in, "cwd": wt, "session_id": "zz-test"}
+	}
+	f := filepath.Join(wt, "page.html")
+	for _, p := range []map[string]any{
+		tool("Write", map[string]any{"file_path": f, "content": "x"}),
+		tool("Edit", map[string]any{"file_path": f, "old_string": "x", "new_string": "y"}),
+		tool("Read", map[string]any{"file_path": f}),
+		bash("git add -A", wt), bash("git commit -m 'T-0001: page'", wt),
+		bash("git fetch origin && git merge origin/main", wt),
+		bash("git push origin HEAD:factory/t-0001", wt),
+		bash("hivemill pr create --title 'T-0001: add the page' --body - <<'EOF'\n## Summary\nx\nEOF", wt),
+		bash("gh pr checks 1 --watch --fail-fast --interval 60 > .hivemill/ci.log 2>&1; echo exit=$?", wt),
+	} {
+		if code, stderr := hook(t, task, env, p); code != 0 {
+			b, _ := json.Marshal(p["tool_input"])
+			t.Errorf("task session %s %s: exit %d %q", p["tool_name"], b, code, stderr)
+		}
+	}
+	if code, _ := hook(t, task, env, bash("git push origin HEAD:factory/t-0002", wt)); code != 2 {
+		t.Error("the push stays pinned to the session's own branch")
+	}
+	// the judge's settings get the same guard, with its own role
+	e := hm.LoadEnv()
+	e.Home = home
+	p, err := hm.RenderSettings(e, "task-judge")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(p)
+	if !strings.Contains(string(b), "hivemill-guard") || !strings.Contains(string(b), "--role reviewer") || strings.Contains(string(b), hm.GuardShim(home)) {
+		t.Fatalf("judge settings do not call the guard: %s", bin)
+	}
+	judge := strings.Replace(task, "--role coder", "--role reviewer", 1)
+	for _, cmd := range []string{"gh pr diff 1", "gh pr view 1 --json body", "git log --oneline -3"} {
+		if code, stderr := hook(t, judge, hookEnv(home, "FACTORY_AGENT=claude-judge-t-0001"), bash(cmd, wt)); code != 0 {
+			t.Errorf("judge %q: exit %d %q", cmd, code, stderr)
+		}
 	}
 }
