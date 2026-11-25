@@ -44,7 +44,9 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 	case Judging:
 		name = last(run.Judges)
 	}
-	if name != "" && listed && !alive(list, true, name) {
+	// a task session on a worker that hc lists as disconnected is not lost: hc keeps it and lists it again on reconnect
+	down := name == run.Agent && run.Machine != "" && machineDown(r.Tools, run.Machine)
+	if name != "" && listed && !down && !alive(list, true, name) {
 		if run.Resumes >= cfgInt(r.Store, "resume_max") {
 			r.fail(run, fmt.Sprintf("session lost: %s is gone after %d resumes", name, run.Resumes))
 			fixed = append(fixed, "session lost, run failed")
@@ -78,18 +80,19 @@ func (r *Runner) resumeSession(run *Run, name string) error {
 	if sid == "" {
 		return fmt.Errorf("no session id recorded for %s", name)
 	}
-	role, prompt := "task", "task.md"
+	role, prompt, machine := "task", "task.md", run.Machine // the transcript and the trust entry are there
 	kick := "The factory restarted your session after it was lost. Continue your role steps from where you were."
 	var env map[string]string
 	if strings.Contains(name, "judge") {
-		role, prompt = "task-judge", "task-judge.md"
+		role, prompt, machine = "task-judge", "task-judge.md", "" // the judge stays on the local core
 		kick = "The factory restarted your session after it was lost. Finish your verdict with the JSON block."
 	} else if email := r.Store.FactoryCfg("noreply_email"); email != "" {
 		env = map[string]string{"GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_EMAIL": email, "GIT_AUTHOR_NAME": nameOf(email),
 			"GIT_COMMITTER_NAME": nameOf(email)}
 	}
 	_, err := r.StartSession(run, Launch{Role: role, Name: name, Cwd: run.Worktree, Model: model, Effort: effort,
-		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", prompt), Kickoff: kick, Env: env, Resume: sid})
+		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", prompt), Kickoff: kick, Env: env, Resume: sid,
+		Machine: machine})
 	return err
 }
 

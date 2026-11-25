@@ -197,9 +197,20 @@ func (r *Runner) Start(id string) error {
 	if branch == "" {
 		branch = "factory/" + strings.ToLower(id)
 	}
+	pl := r.PickMachine()
 	wt, err := r.Clone(t, branch)
 	if err != nil {
 		return err
+	}
+	if pl.Machine != "" {
+		if why := r.cloneOn(pl.Machine, wt); why != "" {
+			pl.Skipped, pl.Machine = append(pl.Skipped, pl.Machine+": "+why), ""
+		}
+	}
+	if pl.Machine == "" && placementOn(r.Store) && caps.MemMB >= 0 && caps.MemMB < caps.MemMin {
+		// DispatchBlock leaves the local floor to here when placement is on: no worker took it, so it runs here
+		return fmt.Errorf("%w: memory: %d MB available, floor %d MB, and no session machine took it (%s)", ErrRefused, caps.MemMB,
+			caps.MemMin, strings.Join(pl.Skipped, "; "))
 	}
 	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
 	// session's first mid-work stop as a gate attempt, and they describe another head.
@@ -211,17 +222,19 @@ func (r *Runner) Start(id string) error {
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
-		Criteria: len(Criteria(t.Acceptance))}
+		Criteria: len(Criteria(t.Acceptance)), Machine: pl.Machine}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
 	}
-	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why}})
+	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why,
+		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
 	if err := r.launchTask(run, Kickoff(run, t)); err != nil {
 		return err
 	}
-	r.printf("RUN %s: %s (%s, effort %s%s) in %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], wt)
+	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], wt,
+		machineLabel(pl.Machine))
 	return nil
 }
 
@@ -240,7 +253,7 @@ func (r *Runner) launchTask(run *Run, kickoff string) error {
 		r.Close(name) // a session left open by an earlier FAIL; its transcript stays resumable by session id
 	}
 	_, err := r.StartSession(run, Launch{Role: "task", Name: name, Cwd: wt, Model: model, Effort: effort,
-		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: kickoff, Env: env})
+		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: kickoff, Env: env, Machine: run.Machine})
 	if err != nil {
 		r.fail(run, "the session did not start: "+err.Error())
 		_ = r.Store.PutRun(run)
@@ -567,8 +580,8 @@ func (r *Runner) Status() error {
 		if x.State == Merging && x.MergeHold != "" {
 			hold = " hold: " + truncate(x.MergeHold, 100)
 		}
-		r.printf("%s %-9s round %d blocks %d judge %d ci %d %s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
-			x.CIRounds, x.PRURL, hold)
+		r.printf("%s %-9s round %d blocks %d judge %d ci %d on %s %s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
+			x.CIRounds, machineLabel(x.Machine), x.PRURL, hold)
 	}
 	return nil
 }

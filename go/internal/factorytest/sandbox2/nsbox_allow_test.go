@@ -1,3 +1,5 @@
+//go:build linux
+
 package sandbox2
 
 // Go port of tests/test_nsbox_allow.py (46 cases): the allow-list mode of the nsbox view (additive make_cfg options,
