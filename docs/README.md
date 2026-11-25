@@ -12,6 +12,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [hivemill-planner.md](hivemill-planner.md): the `hivemill` planner session (keeps ready queues full), the owner queue (`hivemill ask`), wakes, starvation alerts and the morning digest.
 - [hivemill-observability.md](hivemill-observability.md): `hivemill obs` (read-only local page: portfolio, project, goal, task, session), `obs pull` from other machines, and the OpenTelemetry export of tasks as traces.
 - [hivemill-machines.md](hivemill-machines.md): `hivemill` task sessions on other hc machines (`session_machines`), forwarding a worker's `hivemill` to the coordinator, and running on macOS.
+- [pipelines/web-sample-run.md](pipelines/web-sample-run.md): the recorded run of one planner-filed task on the hivemill-www sample web repo: steps, elapsed time, cost and the merged PR.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [token-discipline.md](token-discipline.md): what agents cost (context per turn, idle turns, spawns), the worker context limits and the boss exception, the rules, and `hm-spend`.
 
