@@ -111,7 +111,27 @@ hivemill drain [--status] | resume  # stop / resume new dispatch
 hivemill backup | restore <snap> [--dry-run]
 ```
 
-Agents other than the director and the boss may only run `task lint` and `report`; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run.
+Agents other than the director and the boss may only run `task lint`, `task list`, `task show`, `report` and `health`; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run.
+
+## Standalone install (no old factory CLI)
+
+The runner needs neither the Python `factory` CLI nor a repo checkout:
+
+```
+hivemill init --home ~/hivemill [--noreply-email EMAIL] [--scrub-terms FILE]
+export FACTORY_HOME=~/hivemill
+hivemill project add www --repo OWNER/NAME --path ~/src/www [--gate 'make test']...
+hivemill goal new --project www --title '...' [--criteria-file F]
+hivemill task add --goal G-001 --title '...' --spec-file spec.md --acceptance-file acc.md [--draft]
+hivemill config projects www         # only now does a plain pass dispatch from it
+```
+
+- `init` creates `db/factory.db` with the tables the runner reads and writes (`projects`, `goals`, `tasks`, `config`, `agents`, `verdicts`, `events`, `owner_alert_feed`, with the factory schema's columns) and the `hm_*` tables, plus `state/hivemill/*`, `worktrees` and `logs`. Every statement is `CREATE ... IF NOT EXISTS`: on a factory home it changes nothing, and it never sets `user_version`. Run it again at any time.
+- The role prompts, settings templates and the daemon plist are built into the binary (`go/internal/hm/assets`, a copy of `roles/hivemill/*` and `launchd/hivemill.daemon.plist.in`). A home that has its own `roles/hivemill/<file>` (a repo checkout) uses that file. After changing one of the repo files, run `cd go && go generate ./internal/hm`; `TestAssetsMatchTheRepo` fails until the copy matches.
+- `task add` runs the spec gate and refuses criteria that fail it, printing why. `--draft` stores the task as status `draft` instead: it is never dispatched, and its criteria may still fail. `task update` re-runs the spec gate whenever it changes the criteria or the status of a task that can be dispatched, so promoting a draft (`--status todo`) needs passing criteria. `task cancel` and `task update --status` refuse a task with an active run (`hivemill run stop` first).
+- `goal new` files the goal as `active` (the old CLI starts at `proposed`); `goal close` refuses a goal with open tasks unless `--force`.
+- Sessions (`FACTORY_AGENT`) may only run `task lint|list|show`, `report` and `health`: a session never changes a task row, because the gate re-runs the proofs stored there.
+- `hivemill config model|risk_model` refuses anything but a `claude-*` id, and every Fable model.
 
 ## Running unattended
 
@@ -122,7 +142,7 @@ The runner needs no open client. The owner's laptop can be closed, and the runne
 `hivemill daemon` runs the pass loop in-process: one pass every `pass_interval_s` (60), a heartbeat after each good pass, and a scheduled backup when one is due. Only one daemon runs per factory home (`state/hivemill/locks/daemon.lock`), and each pass also takes `pass.lock`, so a manual `hivemill run` never overlaps it. On SIGTERM it finishes the current pass and exits.
 
 - **Linux:** the user unit `systemd/hivemill.service` (`Type=notify`, `WatchdogSec=900`, `Restart=always`). The daemon sends `READY=1` at start and `WATCHDOG=1` after every pass, so a hung pass is restarted. Install it with `install -m 644 systemd/hivemill.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now hivemill.service`. User lingering must be on (`loginctl enable-linger`).
-- **macOS:** `launchd/hivemill.daemon.plist.in` (`RunAtLoad`, `KeepAlive`). It is a template and is not installed anywhere.
+- **macOS:** the LaunchAgent `hivemill.daemon` (`RunAtLoad`, `KeepAlive`), from `launchd/hivemill.daemon.plist.in`. `hivemill launchd daemon [--home DIR] [--out FILE]` renders it with `FACTORY_HOME`, a PATH that has `~/.local/bin` (claude, hc, hivemill), `/opt/homebrew/bin` (gh) and the system dirs, and the log at `<home>/logs/hivemill.daemon.log`. Install it with `hivemill launchd daemon --out ~/Library/LaunchAgents/hivemill.daemon.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/hivemill.daemon.plist`.
 - **Sessions** are hc terminals started with `--no-parent` and pinned to the local hc core, which keeps running after logout. Nothing in a session depends on the client that started it, whether an ssh session or the Herdr app.
 
 ### Reconcile and resume

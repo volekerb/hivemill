@@ -26,7 +26,7 @@ func uuid4() string {
 // state dir. A leftover token or invalid JSON refuses the launch.
 func RenderSettings(e Env, role string) (string, error) {
 	src := filepath.Join(e.Home, "roles", "hivemill", role+".json.in")
-	b, err := os.ReadFile(src)
+	b, err := readRoleFile(src) // the home's copy, else the built-in one (standalone install)
 	if err != nil {
 		return "", fmt.Errorf("cannot read %s: %w", src, err)
 	}
@@ -103,7 +103,7 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 		return "", err
 	}
 	sysprompt := filepath.Join(dir, l.Name+".prompt.md")
-	pb, err := os.ReadFile(l.PromptFile)
+	pb, err := readRoleFile(l.PromptFile)
 	if err != nil {
 		return "", err
 	}

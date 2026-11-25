@@ -1,6 +1,7 @@
 package hm
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -95,4 +96,13 @@ func csv(v string) []string {
 		}
 	}
 	return out
+}
+
+// CheckModel refuses a session model that is not a claude-* id, and every Fable model. `hivemill config` applies it to
+// model and risk_model, so a refused model never reaches the config (dispatch checks again in ModelFor).
+func CheckModel(m string) error {
+	if !strings.HasPrefix(m, "claude-") || strings.Contains(strings.ToLower(m), "fable") {
+		return fmt.Errorf("model %q refused: use a claude-sonnet-* or claude-opus-* id (never Fable)", m)
+	}
+	return nil
 }
