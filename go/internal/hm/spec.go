@@ -126,22 +126,25 @@ func LintProblems(acceptance string) []string {
 }
 
 // proseExpectRe matches an expectation that starts with a comparison phrase: ExpectOK would match it literally.
-var proseExpectRe = regexp.MustCompile(`(?i)^(?:at\s+least|at\s+most|more\s+than|less\s+than|greater|fewer|>=|<=|>|<)`)
+var proseExpectRe = regexp.MustCompile(`(?i)^(?:(?:at\s+least|at\s+most|more\s+than|less\s+than|greater|fewer)\b|[<>]=?\s*\d|[<>]=\s)`)
 
-var testIDRe = regexp.MustCompile(`^[A-Za-z_][\w.]*$`)
+var testIDRe = regexp.MustCompile(`^[A-Za-z_][\w./]*$`)
 
 // proseTestProof reports a test: proof that cannot run: prose after a file or path, or a name TestArgv cannot resolve.
 func proseTestProof(proof string) bool {
-	p := strings.TrimSpace(proof)
+	p := strings.TrimRight(strings.TrimSpace(proof), ").,;")
 	if f := strings.Fields(p); len(f) > 1 {
 		first := f[0]
 		if strings.HasSuffix(first, ".py") || strings.HasSuffix(first, ".go") {
 			return true
 		}
 		return strings.Contains(first, "/") && !strings.HasPrefix(first, "./") && !strings.HasPrefix(first, "/") &&
-			!strings.HasPrefix(first, "~")
+			!strings.HasPrefix(first, "~") && !strings.HasSuffix(first, ".sh") && !strings.HasPrefix(f[1], "-")
 	}
-	return !strings.HasSuffix(p, ".py") && !testIDRe.MatchString(p)
+	if strings.HasSuffix(p, ".py") {
+		return false
+	}
+	return strings.HasSuffix(p, ".go") || !testIDRe.MatchString(p)
 }
 
 var exitRe = regexp.MustCompile(`(?i)^(?:exit\s*|rc\s*=\s*)(\d+)$`)

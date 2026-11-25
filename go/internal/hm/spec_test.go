@@ -105,7 +105,7 @@ func TestLintRejectsProseTestProof(t *testing.T) {
 			t.Errorf("%q: %v", in, p)
 		}
 	}
-	for _, in := range []string{"test:pnpm --filter web test", "test:go test ./internal/x", "test:tests/test_x.py", "test:tests.test_x.T.test_y", "test:./run.sh a"} {
+	for _, in := range []string{"test:pnpm --filter web test", "test:go test ./internal/x", "test:tests/test_x.py", "test:tests.test_x.T.test_y", "test:./run.sh a", "test:scripts/run_tests.sh --fast", "test:bin/x --all"} {
 		if p := LintProblems("1. x - " + in); len(p) != 0 {
 			t.Errorf("%q: %v", in, p)
 		}
@@ -116,5 +116,13 @@ func TestLintAcceptsT1876Acceptance(t *testing.T) {
 	in := "1. a - cmd:true => OK\n2. b - cmd:true => True\n3. c - cmd:true => 6\n4. d - cmd:true => exit 0\n5. e - cmd:true => empty"
 	if p := LintProblems(in); len(p) != 0 {
 		t.Errorf("%v", p)
+	}
+}
+
+func TestLintKeepsLiteralAngleExpectations(t *testing.T) {
+	for _, e := range []string{"<nil>", "<html>", "greaterThan", "fewerItems"} {
+		if p := LintProblems("1. x - cmd:true => " + e); len(p) != 0 {
+			t.Errorf("%q: %v", e, p)
+		}
 	}
 }
