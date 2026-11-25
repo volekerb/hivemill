@@ -88,6 +88,9 @@ func cmdInit(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "hivemill:", err)
 		return 1
 	}
+	for _, n := range hm.TrustNotes(hm.LoadEnv().UserHome, h) { // read-only: the owner accepts the prompt once
+		fmt.Fprintln(stdout, n)
+	}
 	fmt.Fprintf(stdout, "factory home %s ready; use FACTORY_HOME=%s\n", h, h)
 	return 0
 }

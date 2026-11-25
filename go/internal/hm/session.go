@@ -172,7 +172,10 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	if wait == 0 {
 		wait = 90 * time.Second
 	}
-	r.waitReady(l.Name, wait)
+	if err := r.waitReady(l.Name, wait); err != nil {
+		r.Close(l.Name) // never answer the prompt: the owner trusts the folder, then the run is retried
+		return "", err
+	}
 	if rc, _, errs := r.Tools.HC("send", l.Name, l.Kickoff); rc != 0 {
 		return sid, fmt.Errorf("hc send %s: exit %d: %s", l.Name, rc, firstLine(errs))
 	}
@@ -187,17 +190,23 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 }
 
 // waitReady waits (one blocking loop on the local hc listing, no network) until the terminal reports an idle agent.
-func (r *Runner) waitReady(name string, max time.Duration) {
+// A session that shows Claude Code's workspace trust prompt is an error at once (StuckAtTrust): it would wait there
+// forever, and the runner never answers that prompt.
+func (r *Runner) waitReady(name string, max time.Duration) error {
 	deadline := time.Now().Add(max)
 	for time.Now().Before(deadline) {
+		if err := r.stuckAtTrust(name); err != nil {
+			return err
+		}
 		list, ok := Terminals(r.Tools)
 		for _, t := range list {
 			if ok && t.Name == name && t.Agent == "claude-code" && (t.Status == "idle" || t.Status == "done") {
-				return
+				return r.stuckAtTrust(name) // the prompt can show while the agent reads as idle
 			}
 		}
 		time.Sleep(r.Poll)
 	}
+	return r.stuckAtTrust(name)
 }
 
 // Prompt types text into a session (a warm resume: same session, same cache).

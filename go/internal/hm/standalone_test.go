@@ -2,6 +2,7 @@ package hm
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -341,5 +342,50 @@ func TestHealthLaunchAgentRunsEveryFiveMinutes(t *testing.T) {
 	}
 	if _, err := RenderLaunchAgent(e, "nope", PlistInput{}); err == nil {
 		t.Error("unknown LaunchAgent")
+	}
+}
+
+func TestTrustPromptFailsTheSessionFast(t *testing.T) {
+	r, _ := testRunner(t, "")
+	screen := "\n Do you trust the files in this folder?\n\n /x/worktrees/G-001-T-0001\n\n > 1. Yes, proceed\n   2. No, exit\n"
+	var keys [][]string
+	r.Tools.HC = func(args ...string) (int, string, string) {
+		switch args[0] {
+		case "read":
+			return 0, screen, ""
+		case "ls":
+			return 0, `{"terminals": []}`, ""
+		}
+		keys = append(keys, args)
+		return 0, "", ""
+	}
+	start := time.Now()
+	err := r.waitReady("claude-coder-t-0001-a7", time.Minute)
+	if !errors.Is(err, ErrTrustPrompt) || time.Since(start) > 5*time.Second || !strings.Contains(err.Error(), "cd "+r.Env.Home+" && claude") {
+		t.Fatalf("stuck at trust: %v after %s", err, time.Since(start))
+	}
+	for _, k := range keys {
+		if k[0] == "send" || k[0] == "keys" {
+			t.Errorf("the runner must never answer the prompt: hc %q", k)
+		}
+	}
+	screen = "Welcome to Claude Code\n> "
+	if r.stuckAtTrust("x") != nil {
+		t.Error("an ordinary screen is not the trust prompt")
+	}
+}
+
+func TestTrustNotesOnlyRead(t *testing.T) {
+	uh, home := t.TempDir(), "/srv/hive"
+	if n := TrustNotes(uh, home); len(n) != 1 || !strings.Contains(n[0], "not trusted yet: /srv/hive, /srv/hive/worktrees") {
+		t.Errorf("no ~/.claude.json: %q", n)
+	}
+	cfg := `{"projects":{"/srv/hive":{"hasTrustDialogAccepted":true}},"numStartups":7}`
+	_ = os.WriteFile(filepath.Join(uh, ".claude.json"), []byte(cfg), 0o600)
+	if n := TrustNotes(uh, home); !strings.Contains(n[0], "are trusted") {
+		t.Errorf("trusted home (its worktrees inherit): %q", n)
+	}
+	if b, _ := os.ReadFile(filepath.Join(uh, ".claude.json")); string(b) != cfg {
+		t.Error("TrustNotes must not write ~/.claude.json")
 	}
 }
