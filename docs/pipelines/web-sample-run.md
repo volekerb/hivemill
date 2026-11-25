@@ -21,9 +21,9 @@ All times are UTC, 2026-11-25. Where this machine holds no timestamp, the step s
 
 Steps: 6
 
-Elapsed: 1h 16m 01s, from PR open (10:31:36) to merge (11:47:37). Dispatch is not recorded here, so PR open is the start. `hivemill report` shows 1.28 h to merge for this task. It does not say which start it counts from, so the two figures are not claimed to be the same measure.
+Elapsed: 1h 16m 01s, from PR open (10:31:36) to merge (11:47:37). Dispatch is not recorded here, so PR open is the start. This is not the end-to-end time from dispatch: the spec gate, the task session and the gate rounds before PR open are not in it, so it understates the full run. The report's own figure for this task is 1.28 h to merge. Its start point is not recorded here, so that figure is not reconciled with this one.
 
-Cost: $0.80 in total from `hivemill report`: $0.67 for the task session and $0.13 for the judge. The report lists 3 sessions: 2 task and 1 judge.
+Cost: $0.80 in total from `hivemill report`: $0.67 for the task sessions and $0.13 for the judge. The report lists 3 sessions: 2 task and 1 judge. The $0.67 is the report's task total. What the second task session did is not recorded here.
 
 ## Sources
 
