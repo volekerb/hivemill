@@ -14,7 +14,7 @@ var Defaults = map[string]string{
 	"max_concurrent":   "2",                 // active runs at one time
 	"projects":         "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
 	"model":            "claude-sonnet-5-5", // task session and judge
-	"risk_model":       "claude-opus-5-5",   // when the task names a risk-tier path or is T3
+	"risk_model":       "claude-opus-5-5",   // when a declared-scope or changed file is a sensitive path, or the task is T3
 	"effort":           "medium",            // --effort of every session
 	"gate_max_blocks":  "3",                 // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
 	"gate_wait_s":      "900",               // wait for a test slot before leaving the affected tests to CI

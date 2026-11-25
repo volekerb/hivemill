@@ -74,7 +74,7 @@ func (r *Runner) EvalStart(id, mode string) error {
 	}
 	_ = os.RemoveAll(filepath.Join(run.Worktree, ".hivemill"))
 	_ = os.MkdirAll(filepath.Join(run.Worktree, ".hivemill"), 0o755)
-	run.Risky, run.RiskWhy = Risk(r.Env.Home, t)
+	run.Risky, run.RiskWhy = Risk(r.Env.Home, t, nil)
 	if run.Model, run.Effort, err = r.ModelFor(run.Risky); err != nil {
 		return err
 	}
