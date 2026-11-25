@@ -53,8 +53,8 @@ func NewRunner(e Env, out io.Writer) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{Env: e, Store: s, Tools: RealTools(e), Log: Log{Path: filepath.Join(e.StateDir(), "events.jsonl")}, Out: out,
-		Poll: 2 * time.Second}, nil
+	return &Runner{Env: e, Store: s, Tools: RealTools(e), Out: out, Poll: 2 * time.Second,
+		Log: Log{Path: filepath.Join(e.StateDir(), "events.jsonl"), Machine: s.Cfg("machine_name")}}, nil
 }
 
 func (r *Runner) actor() string {
@@ -332,6 +332,9 @@ func (r *Runner) fail(run *Run, reason string) {
 	run.State, run.Outcome, run.FailReason, run.Ended = Failed, "failed", reason, nowISO()
 	_ = r.Store.TaskStatus(run.Task, "blocked", "owner")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-fail", truncate(reason, 900))
+	if !run.Eval {
+		r.endSessions(run) // the $ and tokens of a failed run reach the event log too (evalFinish writes its own)
+	}
 	_ = r.Log.Emit("task.failed", run, Event{Data: map[string]any{"reason": truncate(reason, 900)}})
 	if run.Eval {
 		r.evalFinish(run, Failed, "failed: "+truncate(reason, 300))
@@ -542,6 +545,7 @@ func (r *Runner) Stop(task string) error {
 		r.Close(j)
 	}
 	run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
+	r.endSessions(run)
 	_ = r.Log.Emit("task.cancelled", run, Event{})
 	_ = r.Store.TaskStatus(task, "todo", "")
 	return r.Store.PutRun(run)

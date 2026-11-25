@@ -68,59 +68,7 @@ func (r *Runner) ReportRows() ([]Row, error) {
 		if e.TaskID == "" {
 			continue
 		}
-		x := get(e.TaskID)
-		switch e.Event {
-		case "task.dispatched":
-			if e.Data["eval"] == true {
-				x.Eval = true
-			}
-			if x.dispatched == "" {
-				x.dispatched = e.TS
-			}
-		case "session.started":
-			x.Sessions[e.Session] = e.Role
-		case "gate.blocked":
-			x.GateBlocks++
-		case "gate.passed":
-			b, _ := json.Marshal(e.Data["reruns"])
-			var rr []Rerun
-			_ = json.Unmarshal(b, &rr)
-			x.Criteria, x.Proven, x.Manual = len(rr), 0, 0
-			for _, q := range rr {
-				if q.OK != nil && *q.OK {
-					x.Proven++
-				}
-				if q.Kind == "manual" {
-					x.Manual++
-				}
-			}
-		case "review.findings":
-			x.Findings += num(e.Data["count"])
-			x.Fixed += num(e.Data["fixed"])
-		case "judge.verdict":
-			x.Judge = append(x.Judge, fmt.Sprint(e.Data["verdict"]))
-		case "ci.red":
-			x.CIRounds++
-		case "pr.refreshed":
-			x.Refreshes++
-		case "pr.merged":
-			x.merged, x.Outcome = e.TS, "merged"
-			if at, _ := e.Data["merged_at"].(string); at != "" {
-				x.merged = at
-			}
-		case "run.held":
-			x.Outcome = "held: owner"
-		case "pr.reverted":
-			x.Outcome = "reverted"
-		case "task.failed":
-			x.Outcome = "FAIL: " + truncate(fmt.Sprint(e.Data["reason"]), 60)
-		case "task.cancelled":
-			x.Outcome = "cancelled"
-		case "eval.done":
-			x.Outcome = "eval: " + fmt.Sprint(e.Data["outcome"])
-		case "goal.checked":
-			x.GoalCheck = fmt.Sprint(e.Data["result"])
-		}
+		get(e.TaskID).apply(e)
 	}
 	var ids []string
 	out := make([]Row, 0, len(rows))
@@ -144,31 +92,92 @@ func (r *Runner) ReportRows() ([]Row, error) {
 	}
 	costs := SessionCosts(r.Env.UserHome, ids)
 	for _, x := range rows {
-		x.Cost = map[string]float64{}
-		for sid, role := range x.Sessions {
-			c := costs[sid]
-			x.Cost[sid] = c
-			x.USD += c
-			if role == "judge" {
-				x.USDJudge += c
-			} else {
-				x.USDTask += c
-			}
-		}
-		x.USD, x.USDTask, x.USDJudge = round2(x.USD), round2(x.USDTask), round2(x.USDJudge)
-		if x.merged != "" {
-			a, e1 := time.Parse(time.RFC3339, x.dispatched)
-			b, e2 := time.Parse(time.RFC3339, x.merged)
-			if e1 == nil && e2 == nil {
-				h := round2(b.Sub(a).Hours())
-				x.HoursToMerge = &h
-			}
-		}
-		x.OwnerCheck = x.Manual > 0
+		x.finish(costs)
 		out = append(out, *x)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Task < out[j].Task })
 	return out, nil
+}
+
+// apply folds one event of the task into its row (the scoreboard's rules; obs.go reuses them).
+func (x *Row) apply(e Event) {
+	switch e.Event {
+	case "task.dispatched":
+		if e.Data["eval"] == true {
+			x.Eval = true
+		}
+		if x.dispatched == "" {
+			x.dispatched = e.TS
+		}
+	case "session.started":
+		x.Sessions[e.Session] = e.Role
+	case "gate.blocked":
+		x.GateBlocks++
+	case "gate.passed":
+		b, _ := json.Marshal(e.Data["reruns"])
+		var rr []Rerun
+		_ = json.Unmarshal(b, &rr)
+		x.Criteria, x.Proven, x.Manual = len(rr), 0, 0
+		for _, q := range rr {
+			if q.OK != nil && *q.OK {
+				x.Proven++
+			}
+			if q.Kind == "manual" {
+				x.Manual++
+			}
+		}
+	case "review.findings":
+		x.Findings += num(e.Data["count"])
+		x.Fixed += num(e.Data["fixed"])
+	case "judge.verdict":
+		x.Judge = append(x.Judge, fmt.Sprint(e.Data["verdict"]))
+	case "ci.red":
+		x.CIRounds++
+	case "pr.refreshed":
+		x.Refreshes++
+	case "pr.merged":
+		x.merged, x.Outcome = e.TS, "merged"
+		if at, _ := e.Data["merged_at"].(string); at != "" {
+			x.merged = at
+		}
+	case "run.held":
+		x.Outcome = "held: owner"
+	case "pr.reverted":
+		x.Outcome = "reverted"
+	case "task.failed":
+		x.Outcome = "FAIL: " + truncate(fmt.Sprint(e.Data["reason"]), 60)
+	case "task.cancelled":
+		x.Outcome = "cancelled"
+	case "eval.done":
+		x.Outcome = "eval: " + fmt.Sprint(e.Data["outcome"])
+	case "goal.checked":
+		x.GoalCheck = fmt.Sprint(e.Data["result"])
+	}
+}
+
+// finish prices the row's sessions and derives the totals and the hours to merge.
+func (x *Row) finish(costs map[string]float64) {
+	x.Cost = map[string]float64{}
+	for sid, role := range x.Sessions {
+		c := costs[sid]
+		x.Cost[sid] = c
+		x.USD += c
+		if role == "judge" {
+			x.USDJudge += c
+		} else {
+			x.USDTask += c
+		}
+	}
+	x.USD, x.USDTask, x.USDJudge = round2(x.USD), round2(x.USDTask), round2(x.USDJudge)
+	if x.merged != "" {
+		a, e1 := time.Parse(time.RFC3339, x.dispatched)
+		b, e2 := time.Parse(time.RFC3339, x.merged)
+		if e1 == nil && e2 == nil {
+			h := round2(b.Sub(a).Hours())
+			x.HoursToMerge = &h
+		}
+	}
+	x.OwnerCheck = x.Manual > 0
 }
 
 func num(v any) int {

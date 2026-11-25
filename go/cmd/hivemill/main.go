@@ -280,6 +280,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		return cmdAsk(r, args[1:], stdout, stderr)
 	case "digest":
 		return cmdDigest(r, args[1:], stdout, stderr)
+	case "obs": // read-only page, JSON portfolio, pull other machines (docs/hivemill-observability.md)
+		return cmdObs(r, args[1:], stdout, stderr)
+	case "otel":
+		return cmdOtel(r, args[1:], stdout, stderr)
 	case "goal":
 		return cmdGoal(r, args[1:], stdin, stdout, stderr)
 	case "project":

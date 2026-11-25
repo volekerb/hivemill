@@ -179,18 +179,7 @@ func (r *Runner) evalFinish(run *Run, state, outcome string) {
 			r.Close(j)
 		}
 	}()
-	sess, _ := r.Store.Sessions(run.Task)
-	ids := make([]string, len(sess))
-	for i, s := range sess {
-		ids[i] = s.SID
-	}
-	costs := SessionCosts(r.Env.UserHome, ids)
-	total := 0.0
-	for _, s := range sess {
-		c := costs[s.SID]
-		total += c
-		_ = r.Log.Emit("session.ended", run, Event{Session: s.SID, Role: s.Role, Model: s.Model, Effort: s.Effort, CostUSD: &c})
-	}
+	total := r.endSessions(run)
 	data := map[string]any{"mode": run.EvalMode, "outcome": outcome, "gate_blocks": run.GateBlocksTotal, "ci_rounds": run.CIRounds,
 		"findings": run.FindingsTotal, "findings_fixed": run.FindingsFixed, "head": run.Head, "history": run.History, "usd_all_sessions": round2(total)}
 	if run.LastGate != nil {
