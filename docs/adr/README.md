@@ -18,4 +18,4 @@ A Proposed ADR becomes Accepted only with the approving message id recorded in i
 | [0006](0006-worker-sandbox-assessment.md) | Worker sandbox assessment: why go test fails for QA, alternatives, one recommended fix | Proposed | 2026-11-16 |
 | [0007](0007-hivemill-kit.md) | Hivemill Kit: standalone skills (marketplace + npx), three levels, evals and a catalog | Proposed | 2026-11-17 |
 | [0008](0008-resource-hygiene.md) | Deterministic resource hygiene: one Go binary (hm-clean) that measures, plans and cleans disk and memory on every Hivemill machine | Proposed | 2026-11-17 |
-| [0009](0009-option-b-runner.md) | Option B runner: one session per task with a Stop-hook gate, a fresh judge and a mechanical merge (Go core `hivemill`) | Proposed | 2026-11-24 |
+| [0009](0009-option-b-runner.md) | Option B runner: one session per task with a Stop-hook gate, a fresh judge and a mechanical merge (Go core `hivemill`) | Accepted | 2026-11-25 |

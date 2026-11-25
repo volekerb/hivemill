@@ -1,5 +1,7 @@
 # Examples: working with Hivemill
 
+> **Legacy pipeline.** This page describes the paused chain of agents, kept as the rollback. The current flow is the runner: [option-b-runner.md](../option-b-runner.md).
+
 Three walkthroughs with real command output, captured against a fictional demo home built by `ci/demo_seed.py`
 ([../demo-data.md](../demo-data.md)), never a live factory. All three use the same seed:
 
