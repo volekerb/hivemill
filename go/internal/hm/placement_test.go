@@ -20,6 +20,9 @@ Pages wired down:                             200000.
 `
 
 func TestParseProbe(t *testing.T) {
+	if !strings.Contains(probeScript, `env -i HOME="$HOME" "$HOME/.local/bin/hivemill" local coordinator`) {
+		t.Error("the probe must ask the worker hivemill under env -i: sessions start that way, so only its coordinator file reaches hooks")
+	}
 	p := ParseProbe("home=/u\nos=Linux\nmarker=tok\ncoordinator=coord\n---mem\n" + fmt.Sprintf(meminfoText, 9118088))
 	if p.Home != "/u" || p.OS != "Linux" || p.Marker != "tok" || p.Coordinator != "coord" || p.MemMB != 8904 {
 		t.Errorf("linux probe %+v", p)

@@ -22,12 +22,13 @@ const localMachine = "local"
 
 // probeScript prints what a pick needs from a machine, in one hc exec: user home, OS, the marker it reads at the
 // coordinator's path, the coordinator its hivemill forwards to (asked only when the marker matched: a machine that
-// does not share the home may run hivemill against its own DB), then its memory (/proc/meminfo or vm_stat).
+// does not share the home may run hivemill against its own DB; under env -i, as sessions start, so only the worker's
+// coordinator file counts, not a variable of the hc exec environment), then its memory (/proc/meminfo or vm_stat).
 const probeScript = `echo "home=$HOME"
 echo "os=$(uname -s)"
 printf 'marker='; cat "$1" 2>/dev/null; echo
 printf 'coordinator='
-if [ "$(cat "$1" 2>/dev/null)" = "$2" ]; then "$HOME/.local/bin/hivemill" local coordinator 2>/dev/null; fi
+if [ "$(cat "$1" 2>/dev/null)" = "$2" ]; then env -i HOME="$HOME" "$HOME/.local/bin/hivemill" local coordinator 2>/dev/null; fi
 echo
 echo '---mem'
 if [ "$(uname -s)" = Darwin ]; then

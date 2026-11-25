@@ -52,9 +52,10 @@ session would run there. A busy coordinator then does not hold dispatch while a 
 On a worker, the factory DB is reachable only over the shared filesystem. SQLite in WAL mode is not safe across
 hosts, so a worker's `hivemill` never opens the DB. Configure it with either of these:
 
-- the environment variable `HIVEMILL_COORDINATOR=<ssh name of the coordinator>`, or
-- the file `~/.config/hivemill/coordinator` with that one line. Keep this directory local to the worker. A shared
-  `~/.config/hivemill` would make the coordinator forward to itself.
+- the file `~/.config/hivemill/coordinator`, one line: the coordinator's ssh name. This is what counts for
+  sessions. They start under `env -i`, so the placement probe also asks under `env -i`. Keep this directory local to
+  the worker: a shared `~/.config/hivemill` would make the coordinator forward to itself.
+- the environment variable `HIVEMILL_COORDINATOR=<name>`. It only helps interactive use, and it overrides the file.
 
 Every call, the session's own and its Stop and SessionStart hooks', then becomes:
 
