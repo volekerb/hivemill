@@ -112,6 +112,12 @@ func projectMatches(filter, project string) bool {
 	return filter == "" || projectKey(filter) == project
 }
 
+// windowStart is midnight UTC of the first chart day, so the table, the total and the chart cover the same days.
+func windowStart(now time.Time, days int) time.Time {
+	n := now.UTC().AddDate(0, 0, -(days - 1))
+	return time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, time.UTC).Add(-time.Nanosecond)
+}
+
 // dayList is the UTC days from days-1 ago through today, oldest first.
 func dayList(now time.Time, days int) []string {
 	out := make([]string, 0, days)
@@ -124,7 +130,7 @@ func dayList(now time.Time, days int) []string {
 // BuildFlow is the Flow page over the last days days and one project (empty = all).
 func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 	p := &FlowPage{Days: days, Stages: FlowStages, StuckAfter: StuckAfter.String()}
-	wN := o.Now.AddDate(0, 0, -days)
+	wN := windowStart(o.Now, days)
 	perDay := map[string]int{}
 	keys := make([]string, 0, len(o.Tasks))
 	for k := range o.Tasks {
@@ -215,7 +221,7 @@ func (o *Obs) BuildSpend(days int, project, by string) *SpendPage {
 		by = "goal"
 	}
 	p := &SpendPage{Days: days, By: by}
-	wN := o.Now.AddDate(0, 0, -days)
+	wN := windowStart(o.Now, days)
 	byDay := map[string]*SpendDay{}
 	list := dayList(o.Now, days)
 	for _, d := range list {

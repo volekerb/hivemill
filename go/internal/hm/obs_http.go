@@ -141,6 +141,7 @@ type obsPage struct {
 	Theme     string // light, dark or "" (follow the system)
 	PFilter   string // header project filter ("" = all)
 	Projects  []string
+	Sel       url.Values // the request query, for links that keep the page's selection
 	NowPg     *NowPage
 	SpendPg   *SpendPage
 	FlowPg    *FlowPage
@@ -195,6 +196,17 @@ func (p *obsPage) Q(path string, kv ...string) string {
 		return path
 	}
 	return path + "?" + v.Encode()
+}
+
+// ThemeQ is this page's own address with the theme switched, keeping the selection (p, g, k, s, by).
+func (p *obsPage) ThemeQ(theme string) string {
+	extra := []string{"theme", theme}
+	for _, k := range []string{"p", "g", "k", "s", "by"} {
+		if v := p.Sel.Get(k); v != "" {
+			extra = append(extra, k, v)
+		}
+	}
+	return p.Q(p.Path(), extra...)
 }
 
 // Ranges are the time ranges of the header (days), plus the current one.
@@ -328,7 +340,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	p := &obsPage{F: f, Days: days, Machines: o.Machines, Harnesses: o.Harnesses, Now: o.Now.Format("2006-01-02 15:04 MST"),
-		Me: s.r.Machine(), obs: o, path: req.URL.Path, Section: "now", PFilter: q.Get("project")}
+		Me: s.r.Machine(), obs: o, path: req.URL.Path, Section: "now", PFilter: q.Get("project"), Sel: q}
 	if th := q.Get("theme"); th == "light" || th == "dark" {
 		p.Theme = th
 	}
