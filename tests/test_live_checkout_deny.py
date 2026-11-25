@@ -12,8 +12,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIVE = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # T-0212
 TOOLS = ("Edit", "Write", "NotebookEdit")
 EXTRA_ENTRIES = (".git",)  # not in git ls-tree, but live and must be denied
-# G-012 top-level OSS files and the G-025 plugins/ dir, denied ahead of their PRs so those PRs stay out of the settings files
-PLANNED_ENTRIES = ("LICENSE", "THIRD_PARTY.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CHANGELOG.md", ".editorconfig", "plugins", ".claude-plugin")
+# G-012 top-level OSS files, the G-025 plugins/ dir and the G-059 kit/ dir, denied ahead of their PRs so those PRs stay out of the settings files
+PLANNED_ENTRIES = ("LICENSE", "THIRD_PARTY.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CHANGELOG.md", ".editorconfig", "plugins", ".claude-plugin", "kit")
 # T-0208: untracked runtime entries of the live checkout (not in git ls-tree)
 RUNTIME_ENTRIES = ("audit.log", "run", "db", "exports", "state", "factory.db", "factory.db.migrated-x")
 RUNTIME_CHILDREN = {"audit.log": "audit.log.1", "run": "run/x.sock", "db": "db/factory.db", "exports": "exports/a.json",
@@ -100,6 +100,15 @@ class LiveCheckoutDeny(unittest.TestCase):
                         continue
                     for rule in (f"{tool}(/{LIVE}/{entry})", f"{tool}(/{LIVE}/{entry}/**)"):
                         self.assertIn(rule, deny, f"{role}: missing deny rule {rule}")
+
+    def test_planned_oss_entries_have_literal_rules_in_task_template(self):
+        # T-1859: runner task sessions deny the planned entries too; check the template's literal rules
+        with open(os.path.join(ROOT, "roles", "hivemill", "task.json.in")) as f:
+            deny = json.load(f)["permissions"]["deny"]
+        for entry in PLANNED_ENTRIES:
+            for tool in TOOLS:
+                for rule in (f"{tool}(/@FACTORY_LIVE_HOME@/{entry})", f"{tool}(/@FACTORY_LIVE_HOME@/{entry}/**)"):
+                    self.assertIn(rule, deny, f"task: missing deny rule {rule}")
 
     def test_runtime_entries_denied_for_coder_and_qa(self):
         for role in ("coder", "qa"):
