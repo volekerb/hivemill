@@ -315,6 +315,23 @@ Run it in your own terminal (it needs a TTY) on a Linux box with `sudo`. What it
 
 Every command for the test user runs as `runuser -u <user> -- env -i HOME=... XDG_RUNTIME_DIR=...`: a clean environment, no `FACTORY_HOME`, so it cannot reach your factory. `runuser` is enough because nothing here needs a user systemd session.
 
+## Install with two commands
+
+On a fresh Debian or Ubuntu box, type these two lines:
+
+```
+git clone --depth 1 --branch vX.Y.Z https://github.com/<you>/factory.git ~/hivemill
+~/hivemill/plugins/hivemill/scripts/install --yes
+```
+
+The GitHub (`gh`) and Claude logins happen when the installer asks for them, in your terminal.
+
+Proof that these two commands are enough (it needs root and a TTY, and uses a throwaway user; `--ref` must be a branch or tag, and the repository must be cloneable without a login):
+
+```
+sudo python3 ci/freshbox_test.py --two-command --ref vX.Y.Z
+```
+
 ## systemd
 
 Units in `systemd/` bring the factory back after a reboot. Linger must be on, or user units do not start at boot: `loginctl enable-linger $USER` (this changes your account; do it on purpose).
