@@ -315,7 +315,7 @@ func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			fmt.Fprintln(stderr, usage)
 			return 2
 		}
-		id, st := strings.ToUpper(args[1]), args[2]
+		id, st := strings.ToUpper(args[1]), strings.ToLower(args[2])
 		switch st {
 		case "active", "blocked", "done", "cancelled":
 		default:
@@ -323,8 +323,20 @@ func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			return 2
 		}
 		if _, err := s.Goal(id); err != nil {
-			fmt.Fprintf(stderr, "hivemill: unknown goal %s\n", id)
-			return 2
+			if strings.HasPrefix(err.Error(), "no goal ") {
+				fmt.Fprintf(stderr, "hivemill: unknown goal %s\n", id)
+				return 2
+			}
+			return fail(stderr, err)
+		}
+		if st == "done" || st == "cancelled" {
+			n, _, err := s.GoalOpenTasks(id)
+			if err != nil {
+				return fail(stderr, err)
+			}
+			if n > 0 {
+				return fail(stderr, fmt.Errorf("%w: %s has %d open tasks (cancel them, or use goal close --force)", hm.ErrRefused, id, n))
+			}
 		}
 		if err := s.SetGoalStatus(id, st); err != nil {
 			return fail(stderr, err)

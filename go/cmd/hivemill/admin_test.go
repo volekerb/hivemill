@@ -167,4 +167,15 @@ func TestGoalStatus(t *testing.T) {
 	if code, _, errs := c.run("", "goal", "status", "G-099", "blocked"); code != 2 || !strings.Contains(errs, "unknown goal") {
 		t.Errorf("unknown goal: exit %d %q", code, errs)
 	}
+	c.ok("task", "add", "--goal", "G-001", "--title", "x", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0")
+	if code, _, _ := c.run("", "goal", "status", "G-001", "done"); code != 3 {
+		t.Errorf("done with open tasks: exit %d, want 3", code)
+	}
+	c.ok("task", "cancel", "T-0001")
+	if out := c.ok("goal", "status", "G-001", "Cancelled"); out != "G-001 cancelled\n" {
+		t.Errorf("cancelled: %q", out)
+	}
+	if code, _, _ := c.run("", "goal", "status", "G-001"); code != 2 {
+		t.Errorf("missing status: exit %d, want 2", code)
+	}
 }
