@@ -24,7 +24,7 @@ The kept set still reaches the old chain by seven other routes. These are the ed
 | 6 | `ci/guard_diff.py` and `tests/test_guard_diff.py` | Diff the allow, deny and hook rules in `roles/settings/*.json.in` and derive `--roles all` from them | About 150 lines; `roles/settings` cannot go first |
 | 7 | `go/internal/hm/guardexport.go`, `go/internal/tokens`, `go/internal/kit/spend/findings.go` | `os.Stat(<home>/bin/factory_cli.py)` decides whether the Python tick writes the guard export; strings and comments name `web/prices.py`, `web/tokens.py`, `web/dbpath.py` | About 30 lines; check behaviour for `guardexport.go` |
 
-Also coupled: `launchd/hivemill.serve.plist.in` runs `{{.FactoryBin}} serve`, and the `herdr-server`, `tick` and `up` plists in `launchd/` start old-chain commands. `go/internal/launchd` and the `hivemill launchd` command in `go/cmd/hivemill/main.go` install them. `tests/harness.py` runs `bin/factory` as a subprocess and copies `scout/__init__.py`; 44 kept-code test files name `bin/factory`, `factory_cli` or `systemd` (list under "Tests" below).
+Also coupled: `launchd/hivemill.serve.plist.in` runs `{{.FactoryBin}} serve`, and the `herdr-server`, `tick` and `up` plists in `launchd/` start old-chain commands. The `hivemill launchd` command (`go/cmd/hivemill/admin.go`) is kept; `go/internal/launchd` is dead code (only its own test imports it). `go/internal/install/bootunits_test.go` reads the `launchd/` templates. `tests/harness.py` runs `bin/factory` as a subprocess and copies `scout/__init__.py`; 44 kept-code test files name `bin/factory`, `factory_cli` or `systemd` (list under "Tests" below).
 
 ### Literal strings: kept, or a one-line edit
 
@@ -60,23 +60,23 @@ These name the old chain only as text. They do not import or run it.
 
 ### `scout/` (19 files), `go/internal/scout` (27 files)
 
-- Imported by: `bin/factory_cli.py`, `web/`, `tests/harness.py`, `ci/release_check.py`, `factorytest/scout`, `factorytest/cursor`.
+- Imported by: `bin/factory_cli.py`, `web/`, `tests/harness.py`, `ci/release_check.py`; in Go `cli`, `cursorharness`, `retro`, `skilleval`, `factorytest/cursor`, `factorytest/s2cli/msgs`, `factorytest/scout`, `factorytest/skilleval1` and `skilleval2`.
 - Tested by: 21 Python tests (`test_scout_*`, `test_cursor_*`, `test_nsbox_*`, `test_orgs`, `test_research*`, `test_testbox`, `test_workerbox*`) and 11 fixture files under `tests/fixtures` (scout and skilleval together).
 - Kept set depends on it: route 3 (`release_check`, `releasecheck.go`, `test_release_check`) and `tests/harness.py`.
 
 ### `skilleval/` (27 files), `go/internal/skilleval` (9 files)
 
-- Imported by: `bin/factory_cli.py` and `factorytest/skilleval1`, `skilleval2`.
+- Imported by: `bin/factory_cli.py`; in Go `cli` and `factorytest/skilleval1`, `skilleval2`.
 - Tested by: 10 Python tests, plus the entries in `ci/scrub_allowlist.txt` and `scrub_history_allowlist.txt` for `tests/test_skilleval_vendor.py`.
 - Kept set depends on it: nothing except the scrub allowlist entries.
 
 ### `retro/` (3 files), `go/internal/retro` (5 files)
 
-- Imported by: `bin/factory_cli.py`, `go/internal/tick`.
+- Imported by: `bin/factory_cli.py`, `go/internal/cli`, `go/internal/tick`.
 - Tested by: `tests/test_retro_role.py`, `tests/test_retro_schedule.py`; `roles/retro.md` and `roles/hooks/worker-guard.py` mirror tests (`test_worker_guard_retro_mirror`).
 - Kept set depends on it: `pythonRuleDirs` (route 3); the mirror test is a kept-edit.
 
-### `go/cmd/factory` (3 files) and `go/internal/cli` (4,368 files, mostly testdata)
+### `go/cmd/factory` (3 files) and `go/internal/cli` (4,365 files, mostly testdata)
 
 - Imported by: `factorytest/s2cli`, `cli/pydefaults`, `store`. Built by `factorytest/build.go:137` as the harness binary.
 - Tested by: its own tests, and every test in `factorytest/*`.
@@ -90,7 +90,7 @@ Self-contained leaves. `factory-forward` is named only in `bin/factory_cli.py`, 
 
 - `tick` is imported by `cli` and itself.
 - Old-only packages (files): `spawn` 112, `factorydb` 4, `store` 10, `digest` 7, `schedule` 6, `herdr` 4, `holdexpiry` 4, `identity` 3, `stuckpr` 3, `spendalert` 2, `agentruntime` 2, `cursorharness` 2, `launchd` 2, `sandbox` 26, `kit/clean` 24 (`fsx` 9, `procx` 15).
-- Kept set depends on them: only `macbox` through `sandbox` (route 2) and `hivemill launchd` through `launchd` (see the launchd note above).
+- Kept set depends on them: only `macbox` through `sandbox` (route 2). `go/internal/launchd` is unused by the kept set.
 - Kept internal packages that stay: `blockcond`, `cdp`, `checklist`, `citools/*`, `freshdarwin`, `gate`, `ghx`, `gitx`, `gowrap`, `guard`, `hm`, `install`, `kit/spend`, `lanecheck`, `langshare`, `macbox`, `macfacts`, `machinesync`, `nonewpy`, `prflow`, `shlex`, `tokens`.
 
 ### `go/internal/factorytest/*` (221 files)
@@ -118,17 +118,15 @@ Root files (`build.go`, `doc.go`, `env.go`, `ported.go`, `ported_*.txt`, `testda
 
 ## Deletion steps
 
-Each step leaves `main` green: it deletes a layer only after everything that imports or runs it is already gone or edited. "Edits" is the estimate of changed lines that are not whole-file deletions. Only step 4 touches `.github/workflows` (**T3**).
+Each step leaves `main` green: it deletes a layer only after everything that imports or runs it is gone or edited. "Edits" is the estimate of changed lines that are not whole-file deletions. Steps 2 and 3 touch `.github/workflows` (**T3**). The Python trees go last because `bin/factory_cli.py` imports `web` at the top (`from web import dbpath`) and `scout`, `skilleval`, `retro` lazily, and about 110 tests run `bin/factory`. The Go packages `scout`, `skilleval`, `retro` go after `go/internal/cli`, which imports them.
 
 1. **Leaves.** Delete `go/cmd/factory-forward`, `go/internal/forward`, `go/cmd/factory-go-version`, `go/internal/buildinfo`. Files: 10. Edits: about 20 (drop the forward cases from `test_spawn_precheck`, `test_worker_gate`, `worker_gate_test.go`). Workflows: no.
-2. **Web.** Delete `web/` (33), `go/internal/web` (215), the 35 web tests, the web fixtures (28), the 10 related CI tools, `go/internal/factorytest/scout` (12). Files: about 333. Edits: about 20 (`tokens` and `kit/spend` strings, the `ci/affected.py` docstring, `ci/shard_timings.json` entries). Workflows: no.
-3. **Scout, skilleval, retro (Python and Go).** Delete `scout/` (19), `skilleval/` (27), `retro/` (3), `go/internal/scout` (27), `go/internal/skilleval` (9), `go/internal/retro` (5), their tests (33) and fixtures (11), `factorytest/skilleval1`, `skilleval2` (30), role files `roles/scout.md`, `roles/retro.md`, `roles/researcher.md`. Files: about 205. Edits: about 150 (route 3: `ci/release_check.py`, `releasecheck.go` and its test, `tests/harness.py` scout copy, `test_release_check`; the scrub allowlists). Workflows: no.
-4. **Cut the kept set from `bin/factory`.** Remove `bin/factory` from `tests.yml` (py-compile, `--help`), `remote_gate.sh` and `remote_gate_driver.sh`; replace the `BIN` constants in `ci/affected.py`, `ci/ci_tier.py`, `tier.go`, `affected.go`, `risktier`, and the three `tier_rules.json` copies; edit `tests/harness.py`'s `FACTORY_IMPL` switch and `guardexport.go`. Files: about 20 edited, 0 deleted. Edits: about 200. Workflows: **yes, T3** (`.github/workflows/tests.yml`).
-5. **Rewrite `hivemill-install`.** Remove the `factory` symlink, the `factory init|config|project|serve|up|agents` calls and the old unit starts from `go/internal/install/install.go` and `plugins/hivemill/scripts/install.py`; remove the factory unit lines from `systemd/install.sh`; fix `install.yml` triggers; adjust `test_install`, `test_hivemill_install`, `ci/freshbox_test.py`, `ci/install_container_test.py`. Files: about 10 edited. Edits: about 280. Split in two if it passes 300: (5a) Go install and its tests, (5b) the shell, Python shim and the CI scripts. Workflows: **yes, T3** if `install.yml` is edited, otherwise no.
-6. **Go outer layer.** Delete `go/cmd/factory` (3), `go/internal/cli` (4,368), `go/internal/factorytest` (about 209 left after steps 2 and 3). Before this step, move or drop the `guard1`, `guard2`, `guardtools`, `installer` coverage as decided above. Files: about 4,580. Edits: about 40 (`test_guard_build`'s `CLI_GO_CMDS_KNOWN`, `tests/test_tmp_leftover_sweep.py`). Workflows: no (`go build ./...` and `go test ./...` need no edit).
-7. **Go inner packages.** Delete `go/internal/tick` (123), `spawn` (112), `factorydb` (4), `store` (10), `digest` (7), `schedule` (6), `herdr` (4), `holdexpiry` (4), `identity` (3), `stuckpr` (3), `spendalert` (2), `agentruntime` (2), `cursorharness` (2), `sandbox` (26), `kit/clean` (24), and `launchd` (2) with the matching `hivemill launchd` command and the `launchd/` plists, after checking the daemon does not need them. Files: about 335. Edits: about 40 (`macbox/envlist_test.go`, `go/cmd/hivemill/main.go`). Workflows: no.
-8. **Python chain, role files, units.** Delete `bin/` (4), the 38 other old-chain tests, the 7 `factory-*`/`herdr-server` units, the roles files (`roles/*.md` 15, `roles/plugins` 114, `roles/cursor` 1, `roles/workflows` 2, `roles/hooks/boss-inbox.py`, `cursor-guard-adapter.py`), the old CI tools (`demo_seed.py`, `freshbox_test.py`, `install_container_test.py`, `profile_baseline.py`), `tests/stubs` if unused. Files: about 190. Edits: about 100 (`tests/test_guard_factory_cli.py`, `test_worker_guard*`, scrub allowlists, `ci/shard_timings.json`). Workflows: no.
-9. **Settings templates.** Delete `roles/settings/*.json.in` (14) after replacing the `--roles all` derivation in `ci/guard_diff.py` and its tests (route 6). Files: 14 deleted, about 4 edited. Edits: about 150. Workflows: no (check `tests.yml` guard jobs that call `guard_diff`; if one lists a `roles/settings` path, mark this step **T3**).
-10. **Docs.** Delete or archive the pages under "Legacy pipeline (paused)" in `docs/README.md` and fix the index. A separate pass; it does not change code.
+2. **Cut the kept set from `bin/factory` and `scout/`.** Remove `bin/factory` from `tests.yml` (py-compile, `--help`), `remote_gate.sh` and `remote_gate_driver.sh`; replace the `BIN` constants in `ci/affected.py`, `ci/ci_tier.py`, `tier.go`, `affected.go`, `risktier` and the three `tier_rules.json` copies; cut `scout` out of `ci/release_check.py`, `releasecheck.go` and its tests, `tests/harness.py` and `test_release_check`; edit `tests/harness.py`'s `FACTORY_IMPL` switch and `hm/guardexport.go`. Files: about 20 edited, 0 deleted. Edits: about 220. Workflows: **yes, T3** (`.github/workflows/tests.yml`).
+3. **Rewrite `hivemill-install`.** Remove the `factory` symlink, the `factory init|config|project|serve|up|agents` calls and the old unit starts from `go/internal/install/install.go` and `plugins/hivemill/scripts/install.py`; remove the factory unit lines from `systemd/install.sh`; fix `install.yml` triggers; adjust `test_install`, `test_hivemill_install`, `ci/freshbox_test.py`, `ci/install_container_test.py`, and `go/internal/install/bootunits_test.go` (it copies the `launchd/` templates, so it must stop reading the plists step 5 deletes). Files: about 10 edited. Edits: about 280. Split in two if it passes 300: (3a) Go install and its tests, (3b) the shell, Python shim and CI scripts. Workflows: **yes, T3** (`install.yml`).
+4. **Go outer layer.** Delete `go/cmd/factory` (3), `go/internal/cli` (4,365), `go/internal/factorytest` (221) and `go/internal/web` (215, imported only by `factorytest/scout`). Before this step, move or drop the `guard1`, `guard2`, `guardtools` and `installer` coverage as decided above. Files: 4,804. Edits: about 40 (`test_guard_build`'s `CLI_GO_CMDS_KNOWN`, `tests/test_tmp_leftover_sweep.py`). Workflows: no (`go build ./...` and `go test ./...` need no edit).
+5. **Go inner packages.** Delete `go/internal/tick` (123), `spawn` (112), `scout` (27), `skilleval` (9), `retro` (5), `factorydb` (4), `store` (10), `digest` (7), `schedule` (6), `herdr` (4), `holdexpiry` (4), `identity` (3), `stuckpr` (3), `spendalert` (2), `agentruntime` (2), `cursorharness` (2), `sandbox` (26), `kit/clean` (24) and `launchd` (2; dead code, only its own test imports it). Keep the `hivemill launchd` command (`go/cmd/hivemill/admin.go`) and the `launchd/` daemon, digest and health plist templates. Delete the serve, herdr-server, tick and up plists once step 3 has fixed the install boot-unit tests. Files: about 375 plus 4 plists. Edits: about 30 (`macbox/envlist_test.go`). Workflows: no.
+6. **Python chain, role files, units.** Delete `bin/` (4; check users of `bin/cursor-commit-msg-strip.sh` first), `web/` (33), `scout/` (19), `skilleval/` (27), `retro/` (3), the 106 old-chain tests (web 35, scout 21, skilleval 10, retro 2, other 38), the web and scout/skilleval fixtures (39), the old CI tools (`demo_*`, `web_render_bench.py`, `visual_qa.py`, `screenshots.py`, `profile_baseline.py`; 14), the 7 `factory-*` and `herdr-server` units, roles files (`roles/*.md` 15, `roles/plugins` 114, `roles/cursor` 1, `roles/workflows` 2, `roles/hooks/boss-inbox.py`, `cursor-guard-adapter.py`) and `tests/stubs` if unused. Files: about 390. Edits: about 150 (`tokens` and `kit/spend` strings, `ci/affected.py` docstring, `test_guard_factory_cli.py`, `test_worker_guard*`, scrub allowlists, `ci/shard_timings.json`). Workflows: no.
+7. **Settings templates.** Delete `roles/settings/*.json.in` (14) after replacing the `--roles all` derivation in `ci/guard_diff.py` and its tests (route 6). Files: 14 deleted, about 4 edited. Edits: about 150. Workflows: no (check the `tests.yml` guard jobs that call `guard_diff`; if one lists a `roles/settings` path, mark this step **T3**).
+8. **Docs.** Delete or archive the pages under "Legacy pipeline (paused)" in `docs/README.md` and fix the index. A separate pass; it does not change code.
 
-Order is forced by three rules: delete a layer only after its importers; delete `factorytest` as one unit (test-import cycle); do routes 1, 4 and 5 before `bin/` and the units go. Steps 1 to 3 are independent of each other and can run in parallel; 4 and 5 must come before 8; 6 before 7.
+Order is forced by: delete a layer only after its importers; delete `factorytest` as one unit (test-import cycle); do steps 2 and 3 before `bin/` and the units go (step 6); step 4 before step 5. Step 1 is independent.
