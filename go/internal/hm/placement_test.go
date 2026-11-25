@@ -241,7 +241,9 @@ func TestCloneOnAndHostMem(t *testing.T) {
 	if why := r.cloneOn("w2", "/x"); why != "the clone head differs there" {
 		t.Errorf("other head: %q", why)
 	}
-	if mb := MemAvailableMB(); mb < 0 {
+	mb := MemAvailableMB()
+	t.Logf("this host: MemAvailable %d MB", mb)
+	if mb < 0 {
 		t.Errorf("this host's memory must be readable (linux /proc, darwin vm_stat): %d", mb)
 	}
 }
