@@ -69,6 +69,9 @@ ssh -o BatchMode=yes -- <coordinator> 'PATH="$HOME/.local/bin:$PATH"; export PAT
 - The exit code is the remote one. 255 means ssh could not connect, and 1 means the cwd does not exist on the
   coordinator.
 - `HIVEMILL_FORWARDED` stops a second forward, and `hivemill local ...` never forwards.
+- `hivemill guard`, `hivemill check` and `hivemill affected` open no DB and run on the worker. These are the guard
+  hook, the clone's pre-push check and the affected-test runner. `hivemill pr create` is forwarded and runs `gh` on
+  the coordinator.
 - The worker needs non-interactive ssh to the coordinator (`BatchMode`) and a `hivemill` in the coordinator's
   `~/.local/bin` or PATH.
 
@@ -90,10 +93,11 @@ Then, on the coordinator: `hivemill config session_machines worker1,local`.
   works, but the proofs use the coordinator's CPU and toolchain, not the worker's.
 - **Plan usage.** The worker writes its own `~/.claude/usage-limits.json`, and only the coordinator's copy feeds the
   usage caps. Sessions on the coordinator (planner, judges) keep that copy fresh. With none running there, the reading ages, and the usage probe rule applies.
-- **The worker guard runs on the worker.** Its PreToolUse hook is not a `hivemill` call. The Python guard reads the
-  factory DB read-only over the shared filesystem, as it did for the old pipeline's workers.
-- **The `factory` CLI on a worker needs its own forwarder.** Sessions call `factory pr create`, and this change does
-  not cover it.
+- **The worker guard runs on the worker,** through the guard shim or `hivemill guard`. Where it falls back to the
+  Python guard, that guard reads the factory DB read-only over the shared filesystem, as it did for the old
+  pipeline's workers.
+- **The old `factory` CLI is not covered.** A worker that also runs old-pipeline sessions needs that CLI's own
+  forwarder.
 
 ## Running on macOS
 

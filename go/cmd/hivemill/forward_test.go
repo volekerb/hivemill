@@ -99,6 +99,11 @@ func TestLocalNeverForwards(t *testing.T) {
 	if !done || code != 0 || strings.TrimSpace(out.String()) != "coord-c" {
 		t.Errorf("local coordinator: %d %v %q %q", code, done, out.String(), errs.String())
 	}
+	for _, sub := range []string{"guard", "check", "affected"} {
+		if _, done := preMain([]string{sub, "--home", "/x"}, strings.NewReader(""), &out, &errs); done {
+			t.Errorf("%s opens no DB and runs on the worker", sub)
+		}
+	}
 	t.Setenv("HIVEMILL_COORDINATOR", "")
 	t.Setenv("HOME", t.TempDir())
 	if _, done := preMain([]string{"run", "status"}, strings.NewReader(""), &out, &errs); done {

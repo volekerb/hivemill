@@ -5,7 +5,8 @@ package main
 // Stop/SessionStart hooks') runs on the coordinator instead: ssh with the same args, cwd, FACTORY_* env and stdin,
 // and the remote exit code. A worker is configured by HIVEMILL_COORDINATOR or ~/.config/hivemill/coordinator (one
 // line: the coordinator's ssh name); that directory must not be shared with the coordinator.
-// `hivemill local ...` never forwards: it is what the coordinator asks of the worker itself.
+// `hivemill local ...` never forwards: it is what the coordinator asks of the worker itself; nor do the DB-free
+// subcommands of runsHere.
 
 import (
 	"errors"
@@ -27,6 +28,11 @@ var (
 	fwdEnvRe  = regexp.MustCompile(`^FACTORY_[A-Z0-9_]+$`)
 	forwarded = "HIVEMILL_FORWARDED" // set on the coordinator side of a forward: never forward again (no loop)
 )
+
+// runsHere are the subcommands that open no DB and act on this machine: the guard hook (every tool call: an ssh hop
+// each would be slow), the clone's pre-push check and the affected-test runner (the session's CPU, not the
+// coordinator's). They run on the worker even when it forwards.
+var runsHere = map[string]bool{"guard": true, "check": true, "affected": true}
 
 // coordinator is the ssh name this machine forwards to ("" = run here).
 func coordinator(getenv func(string) string, userHome string) string {
@@ -93,7 +99,7 @@ func preMain(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int
 		return cmdLocal(args[1:], uh, stdout, stderr), true
 	}
 	coord := coordinator(os.Getenv, uh)
-	if coord == "" {
+	if coord == "" || (len(args) > 0 && runsHere[args[0]]) {
 		return 0, false
 	}
 	cwd, err := os.Getwd()
