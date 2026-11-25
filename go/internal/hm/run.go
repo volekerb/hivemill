@@ -541,8 +541,13 @@ func (r *Runner) judged(run *Run) {
 		r.evalFinish(run, Evaluated, "judge "+v.Verdict)
 		return
 	}
-	if v.Verdict == "MERGE" {
+	if v.Verdict == VerdictMerge {
 		run.State = Merging
+		return
+	}
+	if v.Verdict == VerdictHold {
+		run.History = append(run.History, fmt.Sprintf("round %d: judge HOLD: %s", run.Round, truncate(strings.Join(v.Reasons, "; "), 300)))
+		r.hold(run, "judge HOLD: "+truncate(strings.Join(v.Reasons, "; "), 500))
 		return
 	}
 	run.JudgeRounds++
