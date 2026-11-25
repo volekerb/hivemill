@@ -4,16 +4,20 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	ft "factory/go/internal/factorytest"
 	"factory/go/internal/install"
@@ -638,11 +642,94 @@ func TestHivemillInstallNoWideBindPromptsOrElevation(t *testing.T) {
 				t.Errorf("%s: unexpected sudo line %q", base, ln)
 			}
 		}
-		if re := regexp.MustCompile(`os\.Stdin|getpass|ReadPassword|bufio\.NewScanner\(os`); re.MatchString(src) {
+		if re := regexp.MustCompile(`getpass|ReadPassword|bufio\.NewScanner\(os`); re.MatchString(src) {
 			t.Errorf("%s: reads input (%q)", base, re.FindString(src))
 		}
+		hiCheckStdinUse(t, base, src)
 		if re := regexp.MustCompile(`--(gh-)?token`); re.MatchString(src) {
 			t.Errorf("%s: mentions a token option (%q)", base, re.FindString(src))
 		}
+	}
+}
+
+// hiCheckStdinUse enforces the stdin rule: os.Stdin appears only in host.go, and there only inside IsTerminal, WaitEnter
+// and RunTTY; WaitEnter and RunTTY must check the character-device mode of stdin before using it.
+func hiCheckStdinUse(t *testing.T, base, src string) {
+	t.Helper()
+	if !strings.Contains(src, "os.Stdin") {
+		return
+	}
+	if base != "host.go" {
+		t.Errorf("%s: os.Stdin outside host.go", base)
+		return
+	}
+	af, err := parser.ParseFile(token.NewFileSet(), base, src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := map[string]bool{"IsTerminal": true, "WaitEnter": true, "RunTTY": true}
+	seen := map[string]bool{}
+	for _, d := range af.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Body == nil {
+			continue
+		}
+		body := src[fd.Body.Pos()-1 : fd.Body.End()-1]
+		if !strings.Contains(body, "os.Stdin") {
+			continue
+		}
+		name := fd.Name.Name
+		if !allowed[name] {
+			t.Errorf("host.go: os.Stdin inside %s", name)
+			continue
+		}
+		seen[name] = true
+		if name != "IsTerminal" && !regexp.MustCompile(`!isCharDevice\(os\.Stdin\)`).MatchString(body) {
+			t.Errorf("host.go: %s uses os.Stdin without checking that it is a character device", name)
+		}
+	}
+	for _, n := range []string{"WaitEnter", "RunTTY"} {
+		if !seen[n] {
+			t.Errorf("host.go: %s no longer checks os.Stdin", n)
+		}
+	}
+}
+
+// A run with logins missing and stdin an open pipe that nobody writes to or closes must stop at once with exit 3.
+func TestHivemillInstallNoTTYOpenStdinDoesNotBlock(t *testing.T) {
+	home := t.TempDir()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	c := exec.Command(buildCmd(t, "hivemill-install"), "--yes", "--no-systemd")
+	c.Env = hiPlainEnv(home)
+	c.Stdin = r
+	var out, errb bytes.Buffer
+	c.Stdout, c.Stderr = &out, &errb
+	if err := c.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- c.Wait() }()
+	select {
+	case err := <-done:
+		rc := 0
+		var ee *exec.ExitError
+		if err != nil {
+			if !errors.As(err, &ee) {
+				t.Fatal(err)
+			}
+			rc = ee.ExitCode()
+		}
+		all := out.String() + errb.String()
+		if rc != 3 || !strings.Contains(all, "not logged in. Do this, then re-run the installer with --resume:") {
+			t.Errorf("rc=%d\n%s", rc, all)
+		}
+	case <-time.After(30 * time.Second):
+		_ = c.Process.Kill()
+		t.Fatal("the installer blocked with an open stdin pipe")
 	}
 }

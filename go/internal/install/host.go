@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -88,6 +89,13 @@ type Host interface {
 	Symlink(target, link string) error
 	Popen(argv []string, logpath string) error
 	WriteText(path, text string) error
+	// IsTerminal reports whether stdin, stdout and stderr are all terminals (character devices).
+	IsTerminal() bool
+	// RunTTY runs argv attached to the user's terminal (stdin, stdout, stderr) and returns its exit code.
+	// The installer sees none of its output.
+	RunTTY(argv []string) int
+	// WaitEnter blocks until the user presses Enter; an error means stdin is closed.
+	WaitEnter() error
 }
 
 // OSHost is the real machine.
@@ -97,7 +105,8 @@ type OSHost struct {
 	// DownloadIdle and StatusTimeout override the 60 s and 10 s defaults (tests use short ones).
 	DownloadIdle  time.Duration
 	StatusTimeout time.Duration
-	tlsConfig     *tls.Config // tests only: trust a local TLS server
+	tlsConfig     *tls.Config   // tests only: trust a local TLS server
+	stdin         *bufio.Reader // WaitEnter's one reader, so nothing typed ahead is dropped between prompts
 }
 
 // NewOSHost reads the home directory and environment of the invoking user.
@@ -520,4 +529,52 @@ func (h *OSHost) WriteText(path, text string) error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
+}
+
+func isCharDevice(f *os.File) bool {
+	st, err := f.Stat()
+	return err == nil && st.Mode()&os.ModeCharDevice != 0
+}
+
+// IsTerminal also needs stderr: gh prompts there, and a redirected stderr would hide the prompts and keep gh's output.
+func (h *OSHost) IsTerminal() bool {
+	return isCharDevice(os.Stdin) && isCharDevice(os.Stdout) && isCharDevice(os.Stderr)
+}
+
+func (h *OSHost) RunTTY(argv []string) int {
+	if !isCharDevice(os.Stdin) { // the stdin rule: hand stdin to a child only when it is a terminal
+		return 1
+	}
+	env := h.childEnv()
+	path, err := lookPath(argv[0], pathOf(env))
+	if err != nil {
+		return 127
+	}
+	cmd := exec.Command(path, argv[1:]...)
+	cmd.Env = env
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	// Ctrl-C at gh's prompts ends gh, not the installer: catch SIGINT here (the child still gets the default action)
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	defer signal.Stop(sig)
+	err = cmd.Run()
+	if err == nil {
+		return 0
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return ee.ExitCode()
+	}
+	return 1
+}
+
+func (h *OSHost) WaitEnter() error {
+	if !isCharDevice(os.Stdin) { // the stdin rule: read stdin only when it is a terminal
+		return errors.New("stdin is not a terminal")
+	}
+	if h.stdin == nil {
+		h.stdin = bufio.NewReader(os.Stdin)
+	}
+	_, err := h.stdin.ReadString('\n')
+	return err
 }
