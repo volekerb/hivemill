@@ -99,13 +99,13 @@ func TestLintRejectsProseExpectations(t *testing.T) {
 }
 
 func TestLintRejectsProseTestProof(t *testing.T) {
-	for _, in := range []string{"test:tests/test_x.py passes", "test:foo_test.go has a case", "test:go/internal/hm works", "test:go/x/y_test.go", "test:tests/x::y"} {
+	for _, in := range []string{"test:tests/test_x.py passes", "test:foo_test.go has a case", "test:go/x/y_test.go", "test:tests/x::y"} {
 		p := LintProblems("1. x - " + in)
 		if len(p) != 1 || !strings.Contains(p[0], "cmd:") {
 			t.Errorf("%q: %v", in, p)
 		}
 	}
-	for _, in := range []string{"test:pnpm --filter web test", "test:go test ./internal/x", "test:tests/test_x.py", "test:tests.test_x.T.test_y", "test:./run.sh a", "test:scripts/run_tests.sh --fast", "test:bin/x --all"} {
+	for _, in := range []string{"test:pnpm --filter web test", "test:go test ./internal/x", "test:tests/test_x.py", "test:tests.test_x.T.test_y", "test:./run.sh a", "test:scripts/run_tests.sh --fast", "test:bin/x --all", "test:tests/run all", "test:./run_tests.sh", "test:test-all.sh", "test:tests/run.py --fast"} {
 		if p := LintProblems("1. x - " + in); len(p) != 0 {
 			t.Errorf("%q: %v", in, p)
 		}
