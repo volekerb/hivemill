@@ -626,9 +626,12 @@ func stepAuth(c *Ctx) (string, error) {
 		if !ghOK {
 			// gh's own flow on the terminal: the installer never sees, prints or stores what gh prints there
 			c.note("running `gh auth login` (gh asks the questions)")
-			if rc := c.host.RunTTY([]string{"gh", "auth", "login"}); rc != 0 { // success is judged by the re-check
-				ghFailed = true
+			rc := c.host.RunTTY([]string{"gh", "auth", "login"})
+			if rc != 0 { // success is judged by the re-check
 				c.note(fmt.Sprintf("`gh auth login` exited %d", rc))
+			}
+			if rc != 0 || !have(c, "gh", "auth", "status") {
+				ghFailed = true
 				env := c.host.Environ()
 				if env["GH_TOKEN"] != "" || env["GITHUB_TOKEN"] != "" {
 					c.note("GH_TOKEN or GITHUB_TOKEN is set, and gh uses it instead of a login: unset it or replace it")
