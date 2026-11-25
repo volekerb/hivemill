@@ -13,10 +13,14 @@
 //	hivemill task lint T-1234      spec gate: every acceptance criterion names its proof
 //	hivemill task add|list|show|update|cancel   file and change tasks (add and update refuse criteria that fail the spec gate; --draft)
 //	hivemill goal new|list|show|close           goals
-//	hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... | project list
-//	hivemill init [--home DIR]     make a standalone factory home (DB tables, state dirs); idempotent
-//	hivemill launchd daemon        print the daemon's LaunchAgent for this home
-//	hivemill config [KEY [VALUE]]  runner settings (table hm_config)
+//	hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... | project list | project profile ID [--sensitive GLOB]...
+//	hivemill init [--home DIR]     make a standalone factory home (DB tables, state dirs, ci/scrub_allowlist.txt); idempotent
+//	hivemill launchd daemon|health print the daemon's LaunchAgent, or the 5-minute `health --alert` one, for this home
+//	hivemill config [KEY [VALUE]]  runner settings (table hm_config) and the factory keys noreply_email, scrub_terms_file, ...
+//	hivemill pr create --title T --body - | pr ready   a task session opens the PR of its own task (repo and branch from the DB)
+//	hivemill guard --home DIR --role ROLE   the worker guard hook of a standalone home's sessions (exit 2 blocks)
+//	hivemill check public-text --home DIR REMOTE URL   the pre-push hook of a task clone (ci/pre_push_public_text.py in Go)
+//	hivemill affected --base REF [--run] [--quick]     ci/affected.py in Go
 //	hivemill daemon                the pass loop in-process (systemd Type=notify, launchd KeepAlive)
 //	hivemill health [--alert]      exit 0 when the last good pass is recent; --alert raises the rate-limited dead-man alert
 //	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
@@ -48,7 +52,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
 		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close | " +
 		"project add|list | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
-		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon"
+		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|health | pr create|ready | " +
+		"guard --home DIR --role ROLE | check public-text --home DIR REMOTE URL | affected --base REF"
+	if len(args) > 0 && args[0] == "guard" { // a hook: its arguments and stdin are the guard's, never a help request
+		return cmdGuard(args[1:], stdin, stdout, stderr)
+	}
 	help := len(args) == 0
 	for _, a := range args {
 		help = help || a == "-h" || a == "--help" // every subcommand: never read -h/--help as a task, key or path
@@ -66,6 +74,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		return cmdInit(args[1:], stdout, stderr)
 	case "launchd":
 		return cmdLaunchd(args[1:], stdout, stderr)
+	case "check": // the pre-push hook of a session's clone: no runner, any actor
+		return cmdCheck(args[1:], stdin, stdout, stderr)
+	case "affected": // the gate and the sessions: no runner, any actor
+		return cmdAffected(args[1:], stdout, stderr)
 	}
 	env := hm.LoadEnv()
 	hook := len(args) >= 2 && (args[1] == "hook" || args[1] == "hook-session")
@@ -98,7 +110,8 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		role := r.Store.AgentRole(env.Actor)
 		// a session may read tasks, never change one: the gate re-runs the proofs stored in the task row
 		readTask := args[0] == "task" && (arg(1) == "lint" || arg(1) == "list" || arg(1) == "show")
-		if role != "director" && role != "boss" && !(readTask || args[0] == "report" || args[0] == "health") {
+		ownPR := args[0] == "pr" && (role == "task" || role == "coder") // the PR of the session's own task only
+		if role != "director" && role != "boss" && !(readTask || ownPR || args[0] == "report" || args[0] == "health") {
 			fmt.Fprintf(stderr, "hivemill: %s is for the owner or the director, not %s\n", args[0], env.Actor)
 			return 3
 		}
@@ -255,16 +268,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	case "project":
 		return cmdProject(r, args[1:], stdout, stderr)
 	case "config":
-		switch len(args) {
-		case 1:
-			for _, k := range hm.DefaultKeys() {
-				fmt.Fprintf(stdout, "%s=%s\n", k, r.Store.Cfg(k))
-			}
-		case 2:
-			fmt.Fprintln(stdout, r.Store.Cfg(args[1]))
-		default:
-			err = r.Store.SetCfg(args[1], args[2])
-		}
+		return cmdConfig(r, args[1:], stdout, stderr)
+	case "pr":
+		return cmdPR(r, args[1:], stdin, stdout, stderr)
 	default:
 		fmt.Fprintln(stderr, usage)
 		return 2

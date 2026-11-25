@@ -57,14 +57,33 @@ func InitHome(home string, o InitOptions) ([]string, error) {
 	} else {
 		notes = append(notes, "checked "+dbp)
 	}
-	for k, v := range map[string]string{"noreply_email": o.NoreplyEmail, "scrub_terms_file": o.ScrubTermsFile} {
+	for _, k := range []string{"noreply_email", "scrub_terms_file"} {
+		v := map[string]string{"noreply_email": o.NoreplyEmail, "scrub_terms_file": o.ScrubTermsFile}[k]
 		if v == "" {
 			continue
 		}
-		if err := s.SetFactoryCfg(k, v); err != nil {
+		if err := SetFactoryKey(s, k, v); err != nil {
 			return notes, err
 		}
 		notes = append(notes, "set "+k)
+	}
+	if s.FactoryCfg("noreply_email") == "" { // as bin/factory: the git identity, when it is a noreply address
+		if g := GitGlobalEmail(); g != "" && CheckFactoryKey("noreply_email", g) == nil {
+			if err := s.SetFactoryCfg("noreply_email", g); err != nil {
+				return notes, err
+			}
+			notes = append(notes, "set noreply_email from git config --global user.email")
+		}
+	}
+	more, err := EnsureHomeFiles(home)
+	notes = append(notes, more...)
+	if err != nil {
+		return notes, err
+	}
+	for _, k := range []string{"noreply_email", "scrub_terms_file"} {
+		if s.FactoryCfg(k) == "" {
+			notes = append(notes, "note: "+k+" is not set: "+FactoryKeys[k])
+		}
 	}
 	return notes, nil
 }
@@ -84,7 +103,23 @@ func DefaultLaunchdPath(userHome string) string {
 // RenderDaemonPlist renders the daemon's LaunchAgent (launchd/hivemill.daemon.plist.in, the home's copy or the
 // built-in one). Values are XML-escaped and the result must parse.
 func RenderDaemonPlist(e Env, in PlistInput) (string, error) {
-	src, err := readRoleFile(filepath.Join(e.Home, "launchd", "hivemill.daemon.plist.in"))
+	return RenderLaunchAgent(e, "daemon", in)
+}
+
+// LaunchAgents are the LaunchAgents `hivemill launchd` renders: the pass loop, and the dead-man check that runs
+// `hivemill health --alert` every 5 minutes.
+var LaunchAgents = []string{"daemon", "health"}
+
+// RenderLaunchAgent renders launchd/hivemill.<name>.plist.in (the home's copy or the built-in one).
+func RenderLaunchAgent(e Env, name string, in PlistInput) (string, error) {
+	known := false
+	for _, n := range LaunchAgents {
+		known = known || n == name
+	}
+	if !known {
+		return "", fmt.Errorf("no LaunchAgent %q (known: %s)", name, strings.Join(LaunchAgents, ", "))
+	}
+	src, err := readRoleFile(filepath.Join(e.Home, "launchd", "hivemill."+name+".plist.in"))
 	if err != nil {
 		return "", err
 	}

@@ -92,10 +92,11 @@ func cmdInit(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// cmdLaunchd is `hivemill launchd daemon [--home DIR] [--path PATH] [--out FILE]`.
+// cmdLaunchd is `hivemill launchd daemon|health [--home DIR] [--path PATH] [--out FILE]`: the pass loop (KeepAlive) or
+// the dead-man check (`hivemill health --alert` every 5 minutes).
 func cmdLaunchd(args []string, stdout, stderr io.Writer) int {
-	usage := "usage: hivemill launchd daemon [--home DIR] [--path PATH] [--out FILE]"
-	if len(args) == 0 || args[0] != "daemon" {
+	usage := "usage: hivemill launchd daemon|health [--home DIR] [--path PATH] [--out FILE]"
+	if len(args) == 0 || (args[0] != "daemon" && args[0] != "health") {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
@@ -117,7 +118,7 @@ func cmdLaunchd(args []string, stdout, stderr io.Writer) int {
 	if *path == "" {
 		*path = hm.DefaultLaunchdPath(e.UserHome)
 	}
-	p, err := hm.RenderDaemonPlist(e, hm.PlistInput{FactoryHome: h, Path: *path, LogDir: filepath.Join(h, "logs")})
+	p, err := hm.RenderLaunchAgent(e, args[0], hm.PlistInput{FactoryHome: h, Path: *path, LogDir: filepath.Join(h, "logs")})
 	if err == nil && *out != "" {
 		err = os.WriteFile(*out, []byte(p), 0o644)
 	} else if err == nil {
@@ -138,9 +139,12 @@ func sqliteOf(r *hm.Runner, stderr io.Writer) *hm.SQLite {
 	return s
 }
 
-// cmdProject is `hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] | project list`.
+// cmdProject is `hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] | project list |
+// project profile ID ...`. The gate command is what the gate's tests check runs in the task clone (and what a test:
+// proof can name); the profile holds the project's own tier settings.
 func cmdProject(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
-	usage := "usage: hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] [--name NAME] | project list"
+	usage := "usage: hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] [--name NAME] | project list | " +
+		"project profile ID [--sensitive GLOB]... [--tier-rules FILE] [--clear]"
 	s := sqliteOf(r, stderr)
 	if s == nil {
 		return 1
@@ -156,6 +160,8 @@ func cmdProject(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "%s %s %s base %s gate %q\n", p.ID, p.GHRepo, p.RepoPath, p.Base, p.GateCmd)
 		}
 		return 0
+	case len(args) >= 1 && args[0] == "profile":
+		return cmdProfile(r, args[1:], stdout, stderr)
 	case len(args) >= 2 && args[0] == "add":
 	default:
 		fmt.Fprintln(stderr, usage)

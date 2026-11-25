@@ -47,6 +47,18 @@ func SetPyHook(path string) {
 	resetHost()
 }
 
+// ExtraLiveHome is a factory home the caller names as live (`hivemill guard --home DIR`: a standalone home that
+// ~/.config/factory/live_home does not name). It is only ever added: the passwd-derived live homes stay, so every rule
+// that protects a live home protects this one too and none protects less. "" = none.
+var ExtraLiveHome string
+
+// SetLiveHome sets ExtraLiveHome (absolute) and drops the cached host state. The home also becomes the primary live
+// home (the DB and the guard export when FACTORY_HOME is unset).
+func SetLiveHome(path string) {
+	ExtraLiveHome = path
+	resetHost()
+}
+
 // getHost computes the host state once. An unreadable passwd entry would make Python die at import (exit 2):
 // the error is a block.
 func getHost() (*hostInfo, error) {
@@ -82,6 +94,10 @@ func mustHost() *hostInfo {
 
 func buildHost(pwDir string, uid int, pyHook string) *hostInfo {
 	primary, homes := deriveLiveHomes(pwDir, uid)
+	if ExtraLiveHome != "" && strings.HasPrefix(ExtraLiveHome, "/") {
+		primary = pyRealpath(ExtraLiveHome)
+		homes = uniq(append(homes, primary))
+	}
 	h := &hostInfo{
 		pwDir:        pwDir,
 		cfgDir:       pyRealpath(pyJoin(pyJoin(pwDir, ".config"), "factory")),

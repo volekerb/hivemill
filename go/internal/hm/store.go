@@ -104,6 +104,8 @@ CREATE TABLE IF NOT EXISTS hm_runs (task TEXT PRIMARY KEY, state TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS hm_sessions (sid TEXT PRIMARY KEY, task TEXT NOT NULL, role TEXT NOT NULL, agent TEXT, model TEXT,
   effort TEXT, started TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS hm_sessions_task ON hm_sessions(task);
+CREATE TABLE IF NOT EXISTS hm_project (id TEXT PRIMARY KEY, sensitive_paths TEXT NOT NULL DEFAULT '',
+  tier_rules TEXT NOT NULL DEFAULT '');
 `
 
 // OpenSQLite opens an existing factory DB read-write (never creates one) and makes sure the hm_* tables exist.

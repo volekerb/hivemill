@@ -120,8 +120,8 @@ func (r *Runner) Health(now time.Time) (bool, time.Duration) {
 	return age <= time.Duration(cfgInt(r.Store, "health_max_age_s"))*time.Second, age
 }
 
-// HealthAlert raises the dead-man alert, at most once per alert_every_s: one owner alert feed row and one message to
-// the owner's planner session (claude-boss) through the factory CLI.
+// HealthAlert raises the dead-man alert, at most once per alert_every_s: one owner alert feed row and one owner alert
+// (Alert: the alert log, then alert_cmd or a macOS notification).
 func (r *Runner) HealthAlert(now time.Time, age time.Duration) (bool, error) {
 	if last, err := strconv.ParseInt(r.Store.Meta("alerted"), 10, 64); err == nil &&
 		now.Sub(time.Unix(last, 0)) < time.Duration(cfgInt(r.Store, "alert_every_s"))*time.Second {
@@ -131,13 +131,17 @@ func (r *Runner) HealthAlert(now time.Time, age time.Duration) (bool, error) {
 	if age >= 0 {
 		what = fmt.Sprintf("the last hivemill pass ended %s ago", age.Round(time.Second))
 	}
-	if err := r.Store.AlertFeed("hivemill-dead", "hivemill", "journalctl --user -u hivemill.service"); err != nil {
+	link, check := "journalctl --user -u hivemill.service", "Check `systemctl --user status hivemill.service` and "+
+		"`journalctl --user -u hivemill.service -n 50`."
+	if GOOS == "darwin" {
+		log := filepath.Join(r.Env.Home, "logs", "hivemill.daemon.log")
+		link, check = log, "Check `launchctl print gui/$(id -u)/hivemill.daemon` and "+log+"."
+	}
+	if err := r.Store.AlertFeed("hivemill-dead", "hivemill", link); err != nil {
 		return false, err
 	}
-	if r.Tools.Sh != nil {
-		r.Tools.Sh(r.Env.Home, time.Minute, append(os.Environ(), "FACTORY_AGENT=owner"), "factory", "msg", "--kind", "alert",
-			"claude-boss", "hivemill runner is down", what+". Check `systemctl --user status hivemill.service` and "+
-				"`journalctl --user -u hivemill.service -n 50`. Active task sessions keep running in their hc terminals.")
+	if _, err := r.Alert("hivemill runner is down", what+". "+check+" Active task sessions keep running in their hc terminals."); err != nil {
+		fmt.Fprintf(os.Stderr, "hivemill: alert: %v\n", err) // the feed row is open; the mark below still rate-limits
 	}
 	_ = r.Log.Emit("health.alert", nil, Event{Data: map[string]any{"why": what}})
 	return true, r.Store.SetMeta("alerted", strconv.FormatInt(now.Unix(), 10))

@@ -8,12 +8,13 @@ import (
 	"path/filepath"
 )
 
-// The role prompts, settings templates and the daemon plist are built into the binary, so a standalone install
+// The role prompts, settings templates, the LaunchAgents, and the tier rules are built into the binary, so a standalone install
 // (`hivemill init`, no repo checkout) can launch sessions. The repo files stay the source: assets/ is a copy that
 // `go generate ./internal/hm` refreshes, and TestAssetsMatchTheRepo fails when the two differ.
 //
-//go:generate sh -c "cp ../../../roles/hivemill/task.md ../../../roles/hivemill/task-judge.md ../../../roles/hivemill/task.json.in ../../../roles/hivemill/task-judge.json.in ../../../launchd/hivemill.daemon.plist.in assets/"
+//go:generate sh -c "cp ../../../roles/hivemill/task.md ../../../roles/hivemill/task-judge.md ../../../roles/hivemill/task.json.in ../../../roles/hivemill/task-judge.json.in ../../../launchd/hivemill.daemon.plist.in ../../../launchd/hivemill.health.plist.in ../../../ci/tier_rules.json assets/"
 //go:embed assets/task.md assets/task-judge.md assets/task.json.in assets/task-judge.json.in assets/hivemill.daemon.plist.in
+//go:embed assets/hivemill.health.plist.in assets/tier_rules.json
 var assets embed.FS
 
 // AssetNames are the files in assets/, with the repo path each one is copied from.
@@ -23,6 +24,8 @@ var AssetNames = map[string]string{
 	"task.json.in":             "roles/hivemill/task.json.in",
 	"task-judge.json.in":       "roles/hivemill/task-judge.json.in",
 	"hivemill.daemon.plist.in": "launchd/hivemill.daemon.plist.in",
+	"hivemill.health.plist.in": "launchd/hivemill.health.plist.in",
+	"tier_rules.json":          "ci/tier_rules.json",
 }
 
 // Asset returns a built-in file by its name in assets/.

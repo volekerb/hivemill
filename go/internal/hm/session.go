@@ -39,6 +39,9 @@ func RenderSettings(e Env, role string) (string, error) {
 	if strings.Contains(text, "@FACTORY_") {
 		return "", fmt.Errorf("%s has an unknown @FACTORY_ token", src)
 	}
+	if text, err = standaloneGuard(text, e.Home); err != nil { // a home without the guard shim: `hivemill guard`
+		return "", err
+	}
 	if !json.Valid([]byte(text)) {
 		return "", fmt.Errorf("%s renders to invalid JSON", src)
 	}
@@ -147,6 +150,9 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	spawnArgs, _ := json.Marshal(map[string]string{"role": l.Role, "lane": "option-b", "host_backend": "hc", "model": l.Model,
 		"effort": l.Effort, "runtime": "claude", "cwd": l.Cwd})
 	if err := r.Store.AgentLive(l.Name, l.Role, run.Task, run.Goal, "", l.Model, sid, l.Cwd, string(spawnArgs)); err != nil {
+		return "", err
+	}
+	if err := r.WriteGuardExport(time.Now()); err != nil { // the new agent's goal, before its first tool call
 		return "", err
 	}
 	// Pin the terminal to this machine: an hc wrapper may place worker-named terminals elsewhere, where the hook
