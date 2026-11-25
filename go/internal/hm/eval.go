@@ -15,12 +15,13 @@ const (
 	Evaluated     = "evaluated"
 	EvalFull      = "full"       // a task session reviews the prepared head, then the gate, CI and the judge
 	EvalJudgeOnly = "judge-only" // no session: the runner gates the prepared head itself, then a judge reads it
+	EvalReview    = "review"     // a task session only runs /code-review on the prepared head and writes its findings
 )
 
 // EvalStart starts an eval run of a task whose branch is pushed and has an open draft PR.
 func (r *Runner) EvalStart(id, mode string) error {
-	if mode != EvalFull && mode != EvalJudgeOnly {
-		return fmt.Errorf("%w: eval mode %q: use %s or %s", ErrRefused, mode, EvalFull, EvalJudgeOnly)
+	if mode != EvalFull && mode != EvalJudgeOnly && mode != EvalReview {
+		return fmt.Errorf("%w: eval mode %q: use %s, %s or %s", ErrRefused, mode, EvalFull, EvalJudgeOnly, EvalReview)
 	}
 	t, err := r.Store.Task(id)
 	if err != nil {
@@ -73,7 +74,7 @@ func (r *Runner) EvalStart(id, mode string) error {
 	}
 	_ = os.RemoveAll(filepath.Join(run.Worktree, ".hivemill"))
 	_ = os.MkdirAll(filepath.Join(run.Worktree, ".hivemill"), 0o755)
-	run.Risky, run.RiskWhy = Risk(r.Env.Home, t)
+	run.Risky, run.RiskWhy = Risk(r.Env.Home, t, nil)
 	if run.Model, run.Effort, err = r.ModelFor(run.Risky); err != nil {
 		return err
 	}
@@ -89,10 +90,14 @@ func (r *Runner) EvalStart(id, mode string) error {
 		r.printf("EVAL %s judge-only: gate %d problems; the judge starts when CI has finished\n", id, len(rec.Problems))
 		return r.Store.PutRun(run)
 	}
-	if err := r.launchTask(run, EvalKickoff(run, t)); err != nil {
+	kick := EvalKickoff(run, t)
+	if mode == EvalReview {
+		kick = EvalReviewKickoff(run, t)
+	}
+	if err := r.launchTask(run, kick); err != nil {
 		return err
 	}
-	r.printf("EVAL %s full: %s (%s) in %s\n", id, run.Agent, run.Model, run.Worktree)
+	r.printf("EVAL %s %s: %s (%s) in %s\n", id, mode, run.Agent, run.Model, run.Worktree)
 	return r.Store.PutRun(run)
 }
 
@@ -105,6 +110,15 @@ func EvalKickoff(run *Run, t *Task) string {
 			"on the branch and its draft PR %s is open. Do not start over. Continue your role steps from there: check the change "+
 			"against the spec and the criteria, run the affected tests, run /code-review, fix the findings, write the .hivemill files, "+
 			"push, wait for CI once and stop.", run.Branch, run.Base, run.PRURL)
+}
+
+// EvalReviewKickoff asks only for the review: /code-review on the committed change, findings written, no code change.
+func EvalReviewKickoff(run *Run, t *Task) string {
+	k := Kickoff(run, t)
+	return strings.TrimSuffix(k, fmt.Sprintf("\nBranch %s, base %s. Follow your role steps; stop when the PR is open and CI is green.", run.Branch, run.Base)) +
+		fmt.Sprintf("\nBranch %s, base %s. The change is committed on the branch and its draft PR %s is open. Your only job now is the "+
+			"review step: run /code-review on the branch, wait for it, then write .hivemill/findings.json with every finding and "+
+			"\"resolution\": \"open\". Do not change, commit or push code. Then stop.", run.Branch, run.Base, run.PRURL)
 }
 
 // EvalGate is the deterministic layer on the prepared head without a session: the gate's checks minus the session's own
@@ -156,10 +170,15 @@ func (r *Runner) evalJudge(run *Run) {
 // leaves the PR open for the full run and empties .hivemill/ so that session never sees the judge packet.
 func (r *Runner) evalFinish(run *Run, state, outcome string) {
 	run.State, run.Outcome, run.Ended = state, "eval: "+outcome, nowISO()
-	r.Close(run.Agent)
-	for _, j := range run.Judges {
-		r.Close(j)
-	}
+	// Close the terminals last, after the run is saved: when the task session's own Stop hook fails the run, closing
+	// its terminal ends the hook process, and an unsaved state would be resumed by the next pass.
+	defer func() {
+		_ = r.Store.PutRun(run)
+		r.Close(run.Agent)
+		for _, j := range run.Judges {
+			r.Close(j)
+		}
+	}()
 	sess, _ := r.Store.Sessions(run.Task)
 	ids := make([]string, len(sess))
 	for i, s := range sess {
@@ -180,7 +199,10 @@ func (r *Runner) evalFinish(run *Run, state, outcome string) {
 	}
 	if len(run.Verdicts) > 0 {
 		v := run.Verdicts[len(run.Verdicts)-1]
-		data["verdict"], data["reasons"] = v.Verdict, v.Reasons
+		data["verdict"], data["reasons"], data["changes"] = v.Verdict, v.Reasons, v.Changes
+		if v.JudgeVerdict != "" {
+			data["judge_verdict"] = v.JudgeVerdict
+		}
 	}
 	_ = r.Log.Emit("eval.done", run, Event{Data: data})
 	_ = r.Store.TaskStatus(run.Task, "cancelled", "")

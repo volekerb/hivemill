@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed, 2026-11-24. The owner chose Option B of the 2026-11-24 factory review and asked for a pilot on real tasks. This ADR becomes Accepted with the owner's approving message id recorded here, after the pilot numbers.
+Accepted, 2026-11-25. The owner accepted it in chat on 2026-11-25, after the two pilots below; that approval has no factory message id. Proposed on 2026-11-24, when the owner chose Option B of the 2026-11-24 factory review and asked for a pilot on real tasks.
 
 ## Context
 
@@ -18,6 +18,21 @@ The chain of chat agents (lead, coder, reviewer, QA, judge) costs $3.56–14 per
 - `hivemill` merges with a fresh Go merge decision that keeps the old merger's safety checks (fixtures from its tests): judge MERGE on the exact head, green and complete checks, tier at most T2, red-main freeze, main push run green, noreply, public text, `--match-head-commit`.
 - Optionally, a runner merge that turns main red is reverted mechanically through a PR.
 - The lane is a fresh, small Go core (`go/cmd/hivemill`, `go/internal/hm`), written from this spec, not ported from Python. It reuses `gitx`, `guard`, `citools/risktier` and `kit/spend`. The byte-parity port (`go/internal/cli`, `tick`) is not extended. State is SQLite behind a `Store` interface (Postgres-ready, not built).
+
+## Pilot results
+
+| run | cost per merged PR | merged |
+|---|---|---|
+| pilot 1 | $1.33 | 4 of 5 tasks |
+| pilot 2 | $4.64 | 3 of 6 tasks |
+| old pipeline (for comparison) | $3.56–14 | |
+
+Pilot 2 found a gap in the judge. It passed three side effects that no criterion asked for as "no unasked changes". Two fixes closed it:
+
+- #904: the verdict lists every behaviour change in the diff and maps each to a word-for-word criterion or spec quote, or `null`. The runner turns a MERGE with a `null` change into a REJECT. A new verdict, HOLD, parks a plausibly fine unasked change for the owner. The judge packet also gets a mechanical scope check that flags changed files outside the task's declared scope.
+- #905: the model is chosen from files, never from words in the task text. The files a task declares in scope and, for the judge, the files the diff changes are matched against `sensitive_paths`; an explicit T3 tier also routes to Opus.
+
+The pilot 2 failures that were not judge verdicts were spec conflicts and a budget overrun. A criterion that contradicts another rule of the repo, such as a scope criterion that forbids a file the change needs, or an existing test the spec must change, has to be resolved in the spec before dispatch. Tasks are sized to fit `task_budget_usd`.
 
 ## Consequences
 

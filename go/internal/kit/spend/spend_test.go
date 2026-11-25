@@ -418,3 +418,141 @@ func TestMergedPRsFlag(t *testing.T) {
 		t.Fatalf("negative: exit %d", c)
 	}
 }
+
+func scanMetrics(t *testing.T, since, until time.Time) *Metrics {
+	t.Helper()
+	rep, err := Scan(filepath.Join("testdata", "metrics"), since, until, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rep.Metrics
+}
+
+func roleMetrics(t *testing.T, m *Metrics, role string) RoleMetrics {
+	t.Helper()
+	for _, r := range m.ByRole {
+		if r.Role == role {
+			return r
+		}
+	}
+	t.Fatalf("no role %q in %+v", role, m.ByRole)
+	return RoleMetrics{}
+}
+
+var metricsDay = time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC)
+
+// The start-up context is the first request of each session, not the largest or the last.
+func TestStartCtx(t *testing.T) {
+	m := scanMetrics(t, metricsDay, metricsDay.Add(24*time.Hour))
+	c := roleMetrics(t, m, "coder")
+	if c.Sessions != 3 || c.Requests != 6 || c.MedianStartContext != 50_000 {
+		t.Fatalf("coder %+v, want 3 sessions, 6 requests, median start 50000 (starts 40000, 50000, 60000)", c)
+	}
+	if p := roleMetrics(t, m, "pm"); p.Sessions != 1 || p.MedianStartContext != 20_000 {
+		t.Fatalf("pm %+v", p)
+	}
+	// A window that starts after the first request of a session leaves that session without a start-up.
+	m = scanMetrics(t, metricsDay.Add(11*time.Hour+30*time.Minute), metricsDay.Add(24*time.Hour))
+	if c := roleMetrics(t, m, "coder"); c.Sessions != 1 || c.MedianStartContext != 50_000 {
+		t.Fatalf("late window coder %+v", c)
+	}
+}
+
+func TestToolOutputTokens(t *testing.T) {
+	m := scanMetrics(t, metricsDay, metricsDay.Add(24*time.Hour))
+	c := roleMetrics(t, m, "coder")
+	// 4000, 8000 and 400 bytes -> 1000, 2000 and 100 tokens.
+	if c.ToolOutputMedian != 1000 || c.ToolOutputP90 != 2000 {
+		t.Fatalf("coder tool output median %d p90 %d, want 1000 and 2000", c.ToolOutputMedian, c.ToolOutputP90)
+	}
+	if p := roleMetrics(t, m, "pm"); p.ToolOutputMedian != 0 || p.ToolOutputP90 != 0 {
+		t.Fatalf("pm %+v", p)
+	}
+}
+
+func TestRequestsPerMergedPR(t *testing.T) {
+	rep, err := Scan(filepath.Join("testdata", "metrics"), metricsDay, metricsDay.Add(24*time.Hour), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep.SetMergedPRs(0)
+	if rep.Metrics.Total.Requests != 8 || rep.Metrics.Total.RequestsPerMergedPR != nil {
+		t.Fatalf("0 merged: %+v", rep.Metrics.Total)
+	}
+	var out bytes.Buffer
+	printReport(&out, rep, 24)
+	if !strings.Contains(out.String(), "requests per merged PR: n/a") {
+		t.Fatalf("text: %s", out.String())
+	}
+	rep.SetMergedPRs(4)
+	if v := rep.Metrics.Total.RequestsPerMergedPR; v == nil || *v != 2 {
+		t.Fatalf("4 merged: %v", v)
+	}
+}
+
+func TestWindowSinceUntil(t *testing.T) {
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name, since, until string
+		hours              float64
+		set                bool
+		from, to           time.Time
+	}{
+		{"default", "", "", 24, false, now.Add(-24 * time.Hour), now},
+		{"hours", "", "", 2, true, now.Add(-2 * time.Hour), now},
+		{"dates", "2026-11-17", "2026-11-18", 24, false, metricsDay, metricsDay.Add(24 * time.Hour)},
+		{"until+hours", "", "2026-11-18", 3, true, metricsDay.Add(21 * time.Hour), metricsDay.Add(24 * time.Hour)},
+		{"since+hours", "2026-11-17T10:00:00Z", "", 2, true, metricsDay.Add(10 * time.Hour), metricsDay.Add(12 * time.Hour)},
+		{"since only", "2026-11-17", "", 24, false, metricsDay, now},
+	}
+	for _, c := range cases {
+		from, to, err := Window(now, c.since, c.until, c.hours, c.set)
+		if err != nil || !from.Equal(c.from) || !to.Equal(c.to) {
+			t.Errorf("%s: got %v %v %v, want %v %v", c.name, from, to, err, c.from, c.to)
+		}
+	}
+	if _, _, err := Window(now, "2026-11-18", "2026-11-17", 24, false); err == nil {
+		t.Error("since after until accepted")
+	}
+	if _, _, err := Window(now, "yesterday", "", 24, false); err == nil {
+		t.Error("bad since accepted")
+	}
+	// Only the sessions inside the window count: 11:00-12:00 holds the second coder only.
+	m := scanMetrics(t, metricsDay.Add(11*time.Hour), metricsDay.Add(12*time.Hour))
+	if c := roleMetrics(t, m, "coder"); c.Sessions != 1 || c.Requests != 2 || c.MedianStartContext != 60_000 {
+		t.Fatalf("window coder %+v", c)
+	}
+}
+
+// The metrics are added beside the T-1776 fields, which stay where they were.
+func TestMetricsInReportOutput(t *testing.T) {
+	root := filepath.Join("testdata", "metrics")
+	var out, errb bytes.Buffer
+	if c := Main([]string{"report", "--root", root, "--hours", "1000000", "--json", "--merged-prs", "4"}, &out, &errb); c != ExitOK {
+		t.Fatalf("exit %d: %s", c, errb.String())
+	}
+	var j struct {
+		ByRole []map[string]any `json:"by_role"`
+		Total  map[string]any   `json:"total"`
+		M      struct {
+			Total  map[string]any   `json:"total"`
+			ByRole []map[string]any `json:"by_role"`
+		} `json:"metrics"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &j); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"spawn_usd", "polling_usd", "work_usd"} {
+		if j.Total[k] == nil {
+			t.Errorf("total.%s missing", k)
+		}
+	}
+	if len(j.ByRole) == 0 || len(j.M.ByRole) == 0 || j.M.Total["requests_per_merged_pr"] != 2.0 {
+		t.Fatalf("by_role %d, metrics %+v", len(j.ByRole), j.M)
+	}
+	out.Reset()
+	if c := Main([]string{"report", "--root", root, "--hours", "1000000"}, &out, &errb); c != ExitOK ||
+		strings.Count(out.String(), "Before/after metrics") != 1 {
+		t.Fatalf("exit %d, text:\n%s", c, out.String())
+	}
+}

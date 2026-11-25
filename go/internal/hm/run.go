@@ -7,12 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
-
-	"factory/go/internal/citools/risktier"
 )
 
 // Run states.
@@ -86,36 +83,6 @@ func (r *Runner) lock(task string, wait bool) *os.File {
 		return nil
 	}
 	return f
-}
-
-var pathWordRe = regexp.MustCompile(`[\w.\-]+(?:/[\w.\-*]+)+/?`)
-
-// Risk decides the model before any diff exists: a stored tier T3, or a sensitive path (ci/tier_rules.json of the
-// main checkout) named in the task text. Unreadable rules count as risky (Opus), never the cheap path.
-func Risk(home string, t *Task) (bool, string) {
-	if t.Tier == "T3" {
-		return true, "task tier T3"
-	}
-	rules, err := risktier.LoadRules(filepath.Join(home, "ci", "tier_rules.json"))
-	if err != nil {
-		if t.Project == "factory" {
-			return true, "tier rules unreadable"
-		}
-		return false, ""
-	}
-	var hits []string
-	for _, w := range pathWordRe.FindAllString(t.Title+" "+t.Spec+" "+t.Acceptance, -1) {
-		if why, _ := risktier.Reasons(map[string][2]string{}, []string{strings.Trim(w, "/")}, 0, rules); len(why) > 0 {
-			hits = append(hits, w)
-		}
-	}
-	if len(hits) > 0 {
-		if len(hits) > 3 {
-			hits = hits[:3]
-		}
-		return true, "names " + strings.Join(hits, ", ")
-	}
-	return false, ""
 }
 
 // ModelFor picks the session model: model_task / model_task-judge override, else risk_model or model. Fable is refused.
@@ -217,7 +184,7 @@ func (r *Runner) Start(id string) error {
 	if t.RepoPath == "" || t.GHRepo == "" {
 		return fmt.Errorf("%w: %s: its project has no repo_path or gh_repo", ErrRefused, id)
 	}
-	risky, why := Risk(r.Env.Home, t)
+	risky, why := Risk(r.Env.Home, t, nil)
 	model, effort, err := r.ModelFor(risky)
 	if err != nil {
 		return err
@@ -229,6 +196,11 @@ func (r *Runner) Start(id string) error {
 	wt, err := r.Clone(t, branch)
 	if err != nil {
 		return err
+	}
+	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
+	// session's first mid-work stop as a gate attempt, and they describe another head.
+	for _, f := range []string{"findings.json", "evidence.json"} {
+		_ = os.Remove(filepath.Join(wt, ".hivemill", f))
 	}
 	// The worker guard (unchanged) lets a pane push only HEAD:factory/<task> for FACTORY_AGENT
 	// claude-coder-t-NNNN(-aN); the lane's own suffix -a7 keeps the name apart from old-pipeline coders.
@@ -364,7 +336,13 @@ func (r *Runner) fail(run *Run, reason string) {
 
 // resume sends text to the same warm task session and starts a new round.
 func (r *Runner) resume(run *Run, text string) {
-	run.State, run.Round, run.GateBlocks = Working, run.Round+1, 0
+	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
+	// are deferred until the session writes fresh findings.
+	if run.Worktree != "" {
+		dir := filepath.Join(run.Worktree, ".hivemill")
+		_ = os.Rename(filepath.Join(dir, "findings.json"), filepath.Join(dir, fmt.Sprintf("findings-r%d.json", run.Round)))
+	}
+	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	if err := r.Prompt(run.Agent, text); err != nil {
@@ -530,8 +508,13 @@ func (r *Runner) judged(run *Run) {
 		r.evalFinish(run, Evaluated, "judge "+v.Verdict)
 		return
 	}
-	if v.Verdict == "MERGE" {
+	if v.Verdict == VerdictMerge {
 		run.State = Merging
+		return
+	}
+	if v.Verdict == VerdictHold {
+		run.History = append(run.History, fmt.Sprintf("round %d: judge HOLD: %s", run.Round, truncate(strings.Join(v.Reasons, "; "), 300)))
+		r.hold(run, "judge HOLD: "+truncate(strings.Join(v.Reasons, "; "), 500))
 		return
 	}
 	run.JudgeRounds++

@@ -497,11 +497,20 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no PR yet"}})
 		return nil
 	}
-	// A PR exists (a takeover of an older branch, or a later round) but this round's review has not run and no
-	// findings are written: the session is still mid-work, so the stop is not a gate attempt. The idle watch nudges and
-	// then fails a session that stays idle like this.
-	if _, err := os.Stat(filepath.Join(run.Worktree, ".hivemill", "findings.json")); err != nil && !r.ReviewRan(run) {
-		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "review not run yet this round"}})
+	// A PR exists (a takeover of an older branch, or a later round) but no findings are written yet: the session is
+	// still mid-work (a background /code-review writes its run record when it starts, so that record alone does not
+	// mean the review is done). The stop is not a gate attempt; the idle watch nudges and then fails a session that
+	// stays idle like this.
+	if run.Eval && run.EvalMode == EvalReview {
+		if _, findings, _ := checkFindings(filepath.Join(run.Worktree, ".hivemill", "findings.json")); findings != nil {
+			run.LastGate = &GateRecord{Findings: findings}
+			run.FindingsTotal = len(findings)
+			r.evalFinish(run, Evaluated, fmt.Sprintf("review: %d findings", len(findings)))
+		}
+		return nil
+	}
+	if _, err := os.Stat(filepath.Join(run.Worktree, ".hivemill", "findings.json")); err != nil {
+		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no findings.json yet"}})
 		return nil
 	}
 	rec := r.Gate(run)
@@ -533,7 +542,14 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 			"round": run.Round, "reruns": rec.Reruns, "tier": rec.Tier}})
 		return nil
 	}
-	run.GateBlocks++
+	// A block counts toward the cap only when it repeats the last block's problems: a session that fixes one problem and
+	// stops again (T-1858 fixed three PR-body problems in 35 s) is making progress. BlockStops bounds a loop anyway.
+	probs := strings.Join(rec.Problems, "\n")
+	run.BlockStops++
+	if probs == run.LastBlock || run.BlockStops > 3*cfgInt(r.Store, "gate_max_blocks") || run.GateBlocks == 0 {
+		run.GateBlocks++
+	}
+	run.LastBlock = probs
 	run.GateBlocksTotal++
 	for _, x := range rec.Reruns {
 		if x.OK != nil && !*x.OK {
