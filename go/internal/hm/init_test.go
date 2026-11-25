@@ -83,6 +83,7 @@ func TestInitHomeOnAnExistingFactoryDBChangesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw.Close()
+	_ = os.Chmod(dbp, 0o640)
 	before := map[string][]string{}
 	s0, _ := OpenSQLite(dbp)
 	for _, tb := range []string{"tasks", "goals", "projects", "agents"} {
@@ -104,6 +105,9 @@ func TestInitHomeOnAnExistingFactoryDBChangesNothing(t *testing.T) {
 	_ = s.db.QueryRow(`SELECT count(*) FROM projects`).Scan(&n)
 	if v != 4 || n != 1 {
 		t.Errorf("user_version %d, projects %d; want 4 and 1", v, n)
+	}
+	if fi, _ := os.Stat(dbp); fi.Mode().Perm() != 0o640 {
+		t.Errorf("mode of the existing DB changed to %v", fi.Mode().Perm())
 	}
 }
 

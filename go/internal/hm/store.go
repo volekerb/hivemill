@@ -515,6 +515,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_alert_open ON owner_alert_feed(kind,
 // CreateSQLite creates the factory DB at path when it is missing and runs FactorySchema and the hm schema on it. It
 // never sets PRAGMA user_version: the factory CLI must not mistake this subset for its full schema.
 func CreateSQLite(path string) (*SQLite, error) {
+	_, statErr := os.Stat(path)
 	q := url.Values{}
 	q.Set("mode", "rwc")
 	q.Add("_pragma", "busy_timeout(30000)")
@@ -529,7 +530,9 @@ func CreateSQLite(path string) (*SQLite, error) {
 		return nil, fmt.Errorf("cannot create the factory tables in %s: %w", path, err)
 	}
 	db.Close()
-	_ = os.Chmod(path, 0o600)
+	if statErr != nil {
+		_ = os.Chmod(path, 0o600) // a new DB only: an existing one keeps its mode
+	}
 	return OpenSQLite(path)
 }
 
