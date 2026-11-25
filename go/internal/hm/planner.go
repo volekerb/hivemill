@@ -122,7 +122,7 @@ func (r *Runner) plannerKickoff() string {
 }
 
 // PlannerPass is the daemon's planner step: file an owner question for each held run, keep the planner alive and wake it
-// when something changed (DecideWake). It is a no-op for the session while the planner is off.
+// when something changed (the planner work queue: plannerWake). It is a no-op for the session while the planner is off.
 func (r *Runner) PlannerPass(now time.Time) {
 	r.syncHeldAsks()
 	if r.Store.Meta("planner") != "on" {
@@ -291,6 +291,9 @@ func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) boo
 		_ = r.Store.SetMeta("planner_busy_since", "")
 	} else if r.Store.Meta("planner_busy_since") == "" {
 		_ = r.Store.SetMeta("planner_busy_since", strconv.FormatInt(now.Unix(), 10))
+	}
+	if force && len(due) == 0 {
+		due = open // a forced wake re-delivers what is open, even inside the ack window
 	}
 	if len(due) == 0 {
 		_ = r.Store.SetMeta("planner_pending", "")
@@ -486,7 +489,7 @@ func (r *Runner) wakeEvents() ([]string, int64) {
 	cur, _ := strconv.ParseInt(r.Store.Meta("planner_cursor"), 10, 64)
 	f, err := os.Open(r.Log.Path)
 	if err != nil {
-		return nil, 0
+		return nil, cur // unreadable now: keep the cursor so the next pass does not re-read the whole log
 	}
 	defer f.Close()
 	if fi, err := f.Stat(); err == nil && fi.Size() < cur {
