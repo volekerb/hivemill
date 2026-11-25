@@ -3,7 +3,7 @@
 
   sudo python3 ci/freshbox_test.py [--repo URL] [--ref REF] [--user NAME] [--port N] [--out PATH]
                                    [--herdr-bin PATH] [--max-total-claude N] [--gh-token-file PATH]
-                                   [--login-timeout SEC] [--dry-run]
+                                   [--login-timeout SEC] [--two-command] [--dry-run]
 
 Run it in your own terminal (two interactive logins need a TTY). It creates a user, installs herdr and Claude
 Code for that user, follows the docs, and always deletes the user again. It starts REAL Claude agents for
@@ -225,6 +225,7 @@ class Ctx:
         self.host, self.args, self.env, self.plan = host, args, env, plan
         self.out = out or sys.stdout
         self.user = args.user
+        self.steps = TWO_COMMAND_STEPS if getattr(args, "two_command", False) else STEPS
         self.home = "%s/%s" % (HOME_BASE, args.user)
         self.fh = self.home + "/factory"
         self.tmp = "<tmpdir>" if plan else None
@@ -550,10 +551,28 @@ def step_serve(c):
     return "/ and /goals answered 200"
 
 
+def step_two_commands(c):
+    """The two-command install: the test user types exactly these two commands on the TTY; the logins happen in (b)."""
+    a, u = c.args, c.as_user
+    typed = ["git clone --depth 1 --branch %s %s ~/hivemill" % (shlex.quote(a.ref), shlex.quote(a.repo)),
+             "~/hivemill/plugins/hivemill/scripts/install --yes"]
+    c.emit("TYPED-COMMANDS 2")
+    for t in typed:
+        c.emit("  " + t)
+    clone = c.home + "/hivemill"
+    c.do(u(["git", "clone", "--depth", "1", "--branch", a.ref, "--", a.repo, clone]), tty=True, cwd=c.home, timeout=600,
+         what="typed command 1: git clone")
+    c.do(u([clone + "/plugins/hivemill/scripts/install", "--yes"]), tty=True, cwd=c.home, timeout=a.login_timeout * 2 + 900,
+         what="typed command 2: install --yes")
+    return "2 typed commands ran as %s" % c.user
+
+
 STEPS = [("preflight", step_preflight), ("create-user", step_user), ("install-herdr", step_herdr),
          ("install-claude", step_claude), ("prerequisites", step_prereqs), ("logins", step_logins),
          ("follow-setup", step_setup), ("herdr-server", step_herdr_server), ("factory-up", step_up),
          ("web-ui", step_serve)]
+TWO_COMMAND_STEPS = [("preflight", step_preflight), ("create-user", step_user), ("two-commands", step_two_commands),
+                     ("herdr-server", step_herdr_server), ("factory-up", step_up), ("web-ui", step_serve)]
 
 
 # ───────────────────────────── cleanup ─────────────────────────────
@@ -658,6 +677,7 @@ def parse(argv, host, env):
     ap.add_argument("--login-timeout", type=int, default=900, metavar="SEC",
                     help="max seconds per interactive login step (claude, gh); default %(default)s (15 min); prints "
                     "'waiting for owner input: …' then times out and cleans up")
+    ap.add_argument("--two-command", action="store_true", help="prove the two-command install: the test user only clones --ref and runs plugins/hivemill/scripts/install --yes (needs --ref, a branch or tag; --repo must be cloneable without a login)")
     ap.add_argument("--dry-run", action="store_true", help="print the plan and the exact argv; no root, no TTY, nothing run")
     a = ap.parse_args(argv)
     if not USER_RE.match(a.user) or a.user == "root":
@@ -666,6 +686,8 @@ def parse(argv, host, env):
         v = getattr(a, name)
         if v is not None and (v.startswith("-") or "\n" in v):
             ap.error("--%s must not start with '-'" % name)
+    if a.two_command and not a.ref:
+        ap.error("--two-command needs --ref (the tag or branch to clone)")
     if not 1 <= a.port <= 65535:
         ap.error("--port out of range")
     if a.login_timeout < 1:
@@ -681,7 +703,7 @@ def results_path(a, host, env, now):
 
 
 def run_steps(c, start=1):
-    for i, (name, fn) in enumerate(STEPS, 1):
+    for i, (name, fn) in enumerate(c.steps, 1):
         if i < start:
             continue
         c.n_steps = i
@@ -712,7 +734,7 @@ def main(argv=None, host=None, env=None, now=None, out=None):
         c.note("results file: %s (mode 600, chowned to $SUDO_USER)" % results_path(a, host, env, now))
         run_steps(c)
         cleanup(c)
-        c.emit("RESULT PLAN steps=%d failed=none" % len(STEPS))
+        c.emit("RESULT PLAN steps=%d failed=none" % len(c.steps))
         return 0
     try:
         step_preflight(c)

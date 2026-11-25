@@ -849,6 +849,63 @@ class ResultsFile(Base):
         self.assertGreater(seen, 15)
 
 
+class TwoCommand(Base):
+    """--two-command: the test user types exactly two commands; no install, prerequisite, login or setup step runs."""
+
+    def run_two(self, host, *extra):
+        return self.go(host, "--two-command", "--ref", "v0.4.0", *extra)
+
+    def user_argvs(self, host):
+        return [a for a in host.joined() if a.startswith("runuser")]
+
+    def test_two_command_dry_run_prints_two_commands_and_the_plan(self):
+        p = subprocess.run([sys.executable, SCRIPT, "--dry-run", "--two-command", "--ref", "v0.4.0"], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        lines = p.stdout.splitlines()
+        self.assertEqual(lines.count("TYPED-COMMANDS 2"), 1)
+        i = lines.index("TYPED-COMMANDS 2")
+        self.assertTrue(lines[i + 1].strip().startswith("git clone --depth 1 --branch v0.4.0 "))
+        self.assertTrue(lines[i + 1].endswith(" ~/hivemill"))
+        self.assertEqual(lines[i + 2].strip(), "~/hivemill/plugins/hivemill/scripts/install --yes")
+        names = [ln.split()[2] for ln in lines if ln.startswith("[PLAN]")]
+        self.assertEqual(names, ["preflight", "create-user", "two-commands", "herdr-server", "factory-up", "web-ui"])
+
+    def test_two_command_without_ref_is_refused_with_exit_2(self):
+        p = subprocess.run([sys.executable, SCRIPT, "--dry-run", "--two-command"], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("--ref", p.stderr)
+
+    def test_two_command_no_extra_install_steps_as_the_test_user(self):
+        host = FakeHost(self.tmp)
+        self.assertEqual(self.run_two(host), 0, self.results())
+        argvs = self.user_argvs(host)
+        for banned in ("herdr-linux", "claude.ai", "apt", "apt-get", "gh auth login", "gh auth setup-git", "factory init", "project add",
+                       "cursor-pilot", "ln -sf"):
+            self.assertFalse([a for a in argvs if banned in a], banned)
+        self.assertFalse([a for a in host.joined() if a.startswith(("apt", "install -m"))])
+        self.assertEqual(host.downloads, [])
+        self.assertEqual(len([a for a in argvs if " git clone " in a]), 1)
+        self.assertEqual(len([a for a in argvs if a.endswith("scripts/install --yes")]), 1)
+        clone = [a for a in argvs if " git clone " in a][0]
+        self.assertIn("git clone --depth 1 --branch v0.4.0 -- %s " % fb.DEFAULT_REPO, clone)
+        self.assertTrue(clone.endswith("fbtest/hivemill"))
+        res = self.results()
+        self.assertIn("TYPED-COMMANDS 2\n  git clone --depth 1 --branch v0.4.0 ", res)
+        self.assertIn("  ~/hivemill/plugins/hivemill/scripts/install --yes\n", res)
+        self.assertIn("RESULT PASS", res)
+
+    def test_two_command_failing_second_command_still_deletes_the_user(self):
+        host = FakeHost(self.tmp, rules={"scripts/install --yes": (1, "boom\n")})
+        rc = self.run_two(host)
+        self.assertEqual(rc, 1)
+        self.assertEqual(host.argvs("userdel")[-1][-1], "fbtest")
+        self.assertNotIn("fbtest", host.users)
+        self.assertFalse([a for a in host.joined() if "factory up" in a])
+        self.assertIn("RESULT FAIL", self.results())
+
+
 class Source(unittest.TestCase):
     def setUp(self):
         with open(SCRIPT) as f:
