@@ -1,0 +1,62 @@
+{{define "drill"}}
+{{if eq .Kind "project"}}
+<h2>Goals</h2>
+<div class="scroll"><table>
+<tr><th>goal</th><th>title</th><th class="num">tasks</th><th class="num">merged</th><th class="num">active</th><th class="num">failed</th><th class="num">$</th><th class="num">rounds</th><th>machines</th></tr>
+{{range .Goals}}<tr><td><a href="{{$.Q "/goal" "g" .Goal "p" $.Project}}">{{if .Goal}}{{.Goal}}{{else}}(no goal){{end}}</a></td><td class="wrap">{{.Title}}</td>
+<td class="num">{{.Tasks}}</td><td class="num">{{.Merged}}</td><td class="num">{{.Active}}</td><td class="num">{{.Failed}}</td><td class="num">{{usd .USD}}</td><td class="num">{{.Rounds}}</td><td>{{.MachineList}}</td></tr>
+{{else}}<tr><td colspan="9" class="muted">no tasks</td></tr>{{end}}
+</table></div>
+{{end}}
+
+{{if eq .Kind "goal"}}
+{{if .GoalTitle}}<p>{{.GoalTitle}}</p>{{end}}
+<h2>Tasks</h2>
+<div class="scroll"><table>
+<tr><th>task</th><th>machine</th><th>outcome</th><th class="num">$</th><th class="num">$ task</th><th class="num">$ judge</th><th class="num">rounds</th><th class="num">gate blocks</th><th class="num">h to merge</th><th class="num">sessions</th><th>last event</th></tr>
+{{range .Tasks}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td class="{{outcomeClass .Row.Outcome}}">{{.Row.Outcome}}</td>
+<td class="num">{{usd .Row.USD}}</td><td class="num">{{usd .Row.USDTask}}</td><td class="num">{{usd .Row.USDJudge}}</td><td class="num">{{.Rounds}}</td><td class="num">{{.Row.GateBlocks}}</td><td class="num">{{fp .Row.HoursToMerge}}</td><td class="num">{{len .Sessions}}</td><td>{{when .Last}}</td></tr>
+{{else}}<tr><td colspan="11" class="muted">no tasks</td></tr>{{end}}
+</table></div>
+{{end}}
+
+{{if and (eq .Kind "task") .Task}}{{with .Task}}
+{{if $.TaskTitle}}<p>{{$.TaskTitle}}</p>{{end}}
+<dl class="kv">
+<dt>outcome</dt><dd class="{{outcomeClass .Row.Outcome}}">{{.Row.Outcome}}</dd>
+<dt>machine / harness</dt><dd>{{.Machine}} / {{.Harness}}</dd>
+<dt>$</dt><dd>{{usd .Row.USD}} (task {{usd .Row.USDTask}}, judge {{usd .Row.USDJudge}})</dd>
+<dt>rounds</dt><dd>{{.Rounds}} (judge {{len .Row.Judge}}, red CI {{.Row.CIRounds}}), gate blocks {{.Row.GateBlocks}}, refreshes {{.Row.Refreshes}}</dd>
+<dt>findings</dt><dd>{{.Row.Fixed}} fixed of {{.Row.Findings}}; criteria {{.Row.Proven}}/{{.Row.Criteria}} proven, {{.Row.Manual}} manual</dd>
+<dt>hours to merge</dt><dd>{{fp .Row.HoursToMerge}}</dd>
+{{if .PR}}<dt>PR</dt><dd>{{with safeURL .PR}}<a href="{{.}}" rel="noreferrer">{{$.Task.PR}}</a>{{else}}{{$.Task.PR}}{{end}}</dd>{{end}}
+<dt>trace id</dt><dd><code>{{traceID .Key}}</code></dd>
+</dl>
+{{end}}
+<h2>Sessions</h2>
+<div class="scroll"><table>
+<tr><th>session</th><th>role</th><th>model</th><th>effort</th><th>harness</th><th>machine</th><th>start</th><th>end</th><th class="num">$</th><th class="num">tokens in</th><th class="num">out</th><th class="num">cache read</th><th class="num">cache write</th></tr>
+{{range .Sessions}}<tr><td><a href="{{$.Q "/session" "s" .ID}}"><code>{{short .ID}}</code></a></td><td>{{.Role}}</td><td>{{.Model}}</td><td>{{.Effort}}</td><td>{{.Harness}}</td><td>{{.Machine}}</td><td>{{when .Start}}</td><td>{{if .End}}{{when .End}}{{else}}-{{end}}</td>
+<td class="num">{{if .CostKnown}}{{usd .Usage.USD}}{{else}}<span class="warn">pending</span>{{end}}</td><td class="num">{{tokens .Usage.Input}}</td><td class="num">{{tokens .Usage.Output}}</td><td class="num">{{tokens .Usage.CacheRead}}</td><td class="num">{{tokens .Usage.CacheWrite}}</td></tr>
+{{else}}<tr><td colspan="13" class="muted">no sessions</td></tr>{{end}}
+</table></div>
+{{end}}
+
+{{if and (eq .Kind "session") .Session}}{{with .Session}}
+<dl class="kv">
+<dt>role / model / effort</dt><dd>{{.Role}} / {{.Model}} / {{.Effort}}</dd>
+<dt>machine / harness</dt><dd>{{.Machine}} / {{.Harness}}</dd>
+<dt>span</dt><dd>{{when .Start}} to {{if .End}}{{when .End}}{{else}}(open){{end}}</dd>
+<dt>$</dt><dd>{{if .CostKnown}}{{usd .Usage.USD}}{{else}}pending{{end}}</dd>
+<dt>tokens</dt><dd>in {{tokens .Usage.Input}}, out {{tokens .Usage.Output}}, cache read {{tokens .Usage.CacheRead}}, cache write {{tokens .Usage.CacheWrite}}</dd>
+</dl>
+{{end}}{{end}}
+
+{{if or (and (eq .Kind "task") .Task) (and (eq .Kind "session") .Session)}}
+<h2>Timeline</h2>
+<div class="scroll"><table>
+<tr><th>time</th><th>event</th><th>role</th><th>session</th><th>detail</th></tr>
+{{range .Events}}<tr><td>{{when .TS}}</td><td>{{.Event}}</td><td>{{.Role}}</td><td>{{if .Session}}<a href="{{$.Q "/session" "s" .Session}}"><code>{{short .Session}}</code></a>{{end}}</td><td class="wrap"><code>{{summary .}}</code></td></tr>{{end}}
+</table></div>
+{{end}}
+{{end}}

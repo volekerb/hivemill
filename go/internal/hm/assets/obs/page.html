@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"{{if .Theme}} data-theme="{{.Theme}}"{{end}}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hivemill obs: {{.Title}}</title>
+<link rel="stylesheet" href="/assets/obs/app.css">
+</head>
+<body>
+<div class="app">
+<aside class="side">
+  <div class="brand">hivemill</div>
+  <nav>
+    <div class="grp">Now</div>
+    <a href="{{.Q "/"}}"{{if eq .Section "now"}} class="on"{{end}}>Now</a>
+    <div class="grp">Analyze</div>
+    <a href="{{.Q "/spend"}}"{{if eq .Section "spend"}} class="on"{{end}}>Spend</a>
+    <a href="{{.Q "/flow"}}"{{if eq .Section "flow"}} class="on"{{end}}>Flow</a>
+    <div class="grp">Improve</div>
+    <span class="off">not built yet</span>
+    <div class="grp">System</div>
+    <a href="{{.Q "/"}}#machines">Machines</a>
+    <a href="{{.Q "/api/obs/now"}}">JSON</a>
+  </nav>
+</aside>
+<main>
+<header class="top">
+  <div class="where"><strong>{{or .PFilter "all projects"}}</strong> <span class="muted">last {{.Days}} days</span></div>
+  <form class="filters" method="get" action="{{.Path}}">
+    {{if .Project}}<input type="hidden" name="p" value="{{.Project}}">{{end}}
+    {{if eq .Kind "goal"}}<input type="hidden" name="g" value="{{.Goal}}">{{end}}
+    {{if and (eq .Kind "task") .Task}}<input type="hidden" name="k" value="{{.Task.Key}}">{{end}}
+    {{if and (eq .Kind "session") .Session}}<input type="hidden" name="s" value="{{.Session.ID}}">{{end}}
+    {{if .Theme}}<input type="hidden" name="theme" value="{{.Theme}}">{{end}}
+    <label>project <select name="project"><option value="">all</option>{{range .Projects}}<option{{if eq . $.PFilter}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+    <label>range <select name="days">{{range .Ranges}}<option value="{{.}}"{{if eq . $.Days}} selected{{end}}>{{.}} days</option>{{end}}</select></label>
+    <label>machine <select name="machine"><option value="">all</option>{{range .Machines}}<option{{if eq . $.F.Machine}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+    <label>harness <select name="harness"><option value="">all</option>{{range .Harnesses}}<option{{if eq . $.F.Harness}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+    <button type="submit">apply</button>
+    <span class="theme"><a href="{{.Q .Path "theme" "light"}}">light</a> <a href="{{.Q .Path "theme" "dark"}}">dark</a></span>
+  </form>
+</header>
+<h1>{{.Title}}</h1>
+{{if gt (len .Crumbs) 1}}<nav class="crumbs">{{range $i, $c := .Crumbs}}{{if $i}} / {{end}}{{if $c.Href}}<a href="{{$c.Href}}">{{$c.Label}}</a>{{else}}<span>{{$c.Label}}</span>{{end}}{{end}}</nav>{{end}}
+{{if .NotFound}}<p class="bad">{{.NotFound}}</p>{{end}}
+{{if eq .Kind "now"}}{{template "now" .}}{{end}}
+{{if eq .Kind "spend"}}{{template "spend" .}}{{end}}
+{{if eq .Kind "flow"}}{{template "flow" .}}{{end}}
+{{if or (eq .Kind "project") (eq .Kind "goal") (eq .Kind "task") (eq .Kind "session")}}{{template "drill" .}}{{end}}
+<footer>read-only; {{.Me}}; {{.Now}}. Docs: docs/hivemill-observability.md.</footer>
+</main>
+</div>
+</body>
+</html>

@@ -17,10 +17,11 @@ import (
 	"time"
 )
 
-// `hivemill obs`: a read-only page on 127.0.0.1. Plain HTML from html/template, inline CSS, no script, nothing loaded
-// from another origin. Zoom: portfolio -> project -> goal -> task -> session; filters machine, harness and window.
+// `hivemill obs`: a read-only dashboard on 127.0.0.1. html/template pages and one embedded stylesheet, no script,
+// nothing loaded from another origin. Sidebar: Now, Spend, Flow; the drill-down zoom (project -> goal -> task ->
+// session) stays under Now. Header: project, time range, machine, harness, theme. JSON of every page: /api/obs/*.
 
-//go:embed obs_assets/obs.html
+//go:embed assets/obs
 var obsFS embed.FS
 
 // ObsAddr is the listen address: loopback only.
@@ -85,7 +86,7 @@ func (s *obsServer) load(f ObsFilter) (*Obs, []ObsSource, error) {
 
 // ObsHandler is the page. It answers GET and HEAD only, and only for a loopback Host (no DNS rebinding).
 func (r *Runner) ObsHandler() (http.Handler, error) {
-	t, err := template.New("obs.html").Funcs(obsFuncs).ParseFS(obsFS, "obs_assets/obs.html")
+	t, err := template.New("page.html").Funcs(obsFuncs).ParseFS(obsFS, "assets/obs/*.html")
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +137,13 @@ type sourceLine struct {
 
 type obsPage struct {
 	Kind      string
+	Section   string // sidebar entry: now, spend, flow
+	Theme     string // light, dark or "" (follow the system)
+	PFilter   string // header project filter ("" = all)
+	Projects  []string
+	NowPg     *NowPage
+	SpendPg   *SpendPage
+	FlowPg    *FlowPage
 	Title     string
 	Crumbs    []crumb
 	F         ObsFilter
@@ -174,6 +182,12 @@ func (p *obsPage) Q(path string, kv ...string) string {
 	if p.Days != 30 {
 		v.Set("days", strconv.Itoa(p.Days))
 	}
+	if p.PFilter != "" {
+		v.Set("project", p.PFilter)
+	}
+	if p.Theme != "" {
+		v.Set("theme", p.Theme)
+	}
 	for i := 0; i+1 < len(kv); i += 2 {
 		v.Set(kv[i], kv[i+1])
 	}
@@ -183,6 +197,19 @@ func (p *obsPage) Q(path string, kv ...string) string {
 	return path + "?" + v.Encode()
 }
 
+// Ranges are the time ranges of the header (days), plus the current one.
+func (p *obsPage) Ranges() []int {
+	out := []int{7, 30, 90}
+	for _, d := range out {
+		if d == p.Days {
+			return out
+		}
+	}
+	out = append(out, p.Days)
+	sort.Ints(out)
+	return out
+}
+
 // Path is the page's own path (the filter form's action).
 func (p *obsPage) Path() string { return p.path }
 
@@ -190,8 +217,10 @@ func (p *obsPage) Path() string { return p.path }
 func (p *obsPage) SessionsOf(t *ObsTask) []*ObsSession { return p.obs.TaskSessions(t) }
 
 var obsFuncs = template.FuncMap{
-	"usd": func(f float64) string { return fmt.Sprintf("$%.2f", f) },
-	"fp":  fp,
+	"usd":         func(f float64) string { return fmt.Sprintf("$%.2f", f) },
+	"dur":         dur,
+	"spendGroups": func() []string { return SpendGroups },
+	"fp":          fp,
 	"short": func(s string) string {
 		if len(s) > 8 {
 			return s[:8]
@@ -262,7 +291,7 @@ func eventSummary(e Event) string {
 
 func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h := w.Header()
-	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("Cache-Control", "no-store")
@@ -273,6 +302,18 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	if !loopbackHost(req.Host) {
 		http.Error(w, "loopback only", http.StatusForbidden)
+		return
+	}
+	if req.URL.Path == "/assets/obs/app.css" {
+		b, err := obsFS.ReadFile("assets/obs/app.css")
+		if err != nil {
+			http.NotFound(w, req)
+			return
+		}
+		h.Set("Content-Type", "text/css; charset=utf-8")
+		if req.Method == http.MethodGet {
+			_, _ = w.Write(b)
+		}
 		return
 	}
 	q := req.URL.Query()
@@ -287,17 +328,51 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	p := &obsPage{F: f, Days: days, Machines: o.Machines, Harnesses: o.Harnesses, Now: o.Now.Format("2006-01-02 15:04 MST"),
-		Me: s.r.Machine(), obs: o, path: req.URL.Path}
-	p.Crumbs = []crumb{{"portfolio", p.Q("/")}}
+		Me: s.r.Machine(), obs: o, path: req.URL.Path, Section: "now", PFilter: q.Get("project")}
+	if th := q.Get("theme"); th == "light" || th == "dark" {
+		p.Theme = th
+	}
+	pset := map[string]bool{}
+	for _, t := range o.Tasks {
+		pset[or(t.Project, NoProject)] = true
+	}
+	p.Projects = setKeys(pset)
+	if p.PFilter != "" && !pset[p.PFilter] {
+		p.Projects = append(p.Projects, p.PFilter)
+	}
+	p.Crumbs = []crumb{{"now", p.Q("/")}}
 	code := http.StatusOK
+	jsonOut := func(v any) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(v)
+	}
 	switch req.URL.Path {
-	case "/", "/api/portfolio":
-		p.Kind, p.Title = "portfolio", "Portfolio"
+	case "/spend", "/api/obs/spend":
+		p.Kind, p.Section, p.Title = "spend", "spend", "Spend"
+		p.SpendPg = o.BuildSpend(days, p.PFilter, q.Get("by"))
+		if req.URL.Path == "/api/obs/spend" {
+			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "spend": p.SpendPg})
+			return
+		}
+	case "/flow", "/api/obs/flow":
+		p.Kind, p.Section, p.Title = "flow", "flow", "Flow"
+		p.FlowPg = o.BuildFlow(days, p.PFilter)
+		if req.URL.Path == "/api/obs/flow" {
+			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "flow": p.FlowPg})
+			return
+		}
+	case "/", "/now", "/api/obs/now", "/api/portfolio":
+		p.Kind, p.Title = "now", "Now"
 		asks, ok := s.r.OpenAsks()
 		p.AsksLocal = ok
-		p.Portfolio = o.Portfolio(days, o.OpenAsks(p.Me, asks, ok))
+		p.NowPg = o.BuildNow(days, p.PFilter, p.Me, o.OpenAsks(p.Me, asks, ok), ok, srcs)
+		p.Portfolio = p.NowPg.Portfolio
 		for _, src := range srcs {
 			p.Sources = append(p.Sources, sourceLine{ObsSource: src, Last: o.LastSeen[src.Label]})
+		}
+		if req.URL.Path == "/api/obs/now" {
+			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "days": days, "page": p.NowPg})
+			return
 		}
 		if req.URL.Path == "/api/portfolio" {
 			w.Header().Set("Content-Type", "application/json")
