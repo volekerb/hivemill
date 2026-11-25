@@ -95,11 +95,11 @@ func cmdInit(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// cmdLaunchd is `hivemill launchd daemon|health [--home DIR] [--path PATH] [--out FILE]`: the pass loop (KeepAlive) or
-// the dead-man check (`hivemill health --alert` every 5 minutes).
+// cmdLaunchd is `hivemill launchd daemon|digest|health [--home DIR] [--path PATH] [--out FILE]`: the pass loop
+// (KeepAlive), the morning digest, or the dead-man check (`hivemill health --alert` every 5 minutes).
 func cmdLaunchd(args []string, stdout, stderr io.Writer) int {
-	usage := "usage: hivemill launchd daemon|health [--home DIR] [--path PATH] [--out FILE]"
-	if len(args) == 0 || (args[0] != "daemon" && args[0] != "health") {
+	usage := "usage: hivemill launchd daemon|digest|health [--home DIR] [--path PATH] [--out FILE]"
+	if len(args) == 0 || (args[0] != "daemon" && args[0] != "digest" && args[0] != "health") {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
@@ -121,7 +121,7 @@ func cmdLaunchd(args []string, stdout, stderr io.Writer) int {
 	if *path == "" {
 		*path = hm.DefaultLaunchdPath(e.UserHome)
 	}
-	p, err := hm.RenderLaunchAgent(e, args[0], hm.PlistInput{FactoryHome: h, Path: *path, LogDir: filepath.Join(h, "logs")})
+	p, err := hm.RenderPlist(e, args[0], hm.PlistInput{FactoryHome: h, Path: *path, LogDir: filepath.Join(h, "logs")})
 	if err == nil && *out != "" {
 		err = os.WriteFile(*out, []byte(p), 0o644)
 	} else if err == nil {
@@ -496,6 +496,15 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		if err != nil {
 			return fail(stderr, err)
 		}
+		if isPlanner(r) {
+			// the gate re-runs the criteria stored in the row: the planner never changes a task while it runs
+			if run, _ := s.Run(id); run != nil && hm.Active(run.State) {
+				return fail(stderr, fmt.Errorf("%w: %s has an active run (%s); the planner changes no running task", hm.ErrRefused, id, run.State))
+			}
+			if *status == "done" || *status == "in_progress" || *status == "in_review" {
+				return fail(stderr, fmt.Errorf("%w: only the runner sets a task %s", hm.ErrRefused, *status))
+			}
+		}
 		set := map[string]any{}
 		if *title != "" {
 			set["title"] = strings.TrimSpace(*title)
@@ -604,4 +613,9 @@ func fail(stderr io.Writer, err error) int {
 		return 3
 	}
 	return 1
+}
+
+// isPlanner reports whether the caller is the planner session (agents row role planner).
+func isPlanner(r *hm.Runner) bool {
+	return r.Env.Actor != "" && r.Env.Actor != "owner" && r.Store.AgentRole(r.Env.Actor) == "planner"
 }

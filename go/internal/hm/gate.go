@@ -585,6 +585,9 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 // SessionHook records a new session id (/clear, resume) so every session's spend maps to its task.
 func (r *Runner) SessionHook(in io.Reader) error {
 	h := readHook(in)
+	if r.Env.Actor == PlannerName && h.SessionID != "" {
+		return r.notePlannerSession(h.SessionID)
+	}
 	run := r.runFor(r.Env.Actor)
 	if run == nil || h.SessionID == "" {
 		return nil

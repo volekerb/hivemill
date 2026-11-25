@@ -389,3 +389,31 @@ func TestTrustNotesOnlyRead(t *testing.T) {
 		t.Error("TrustNotes must not write ~/.claude.json")
 	}
 }
+
+func TestPlannerOwnerAlertsGoThroughAlertCmd(t *testing.T) {
+	r, s := testRunner(t, "")
+	_, _ = s.db.Exec(`CREATE TABLE owner_alert_feed (id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL,
+		ref TEXT NOT NULL, since TEXT NOT NULL, link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT, sent TEXT)`)
+	_ = s.SetCfg("alert_cmd", "true")
+	var calls [][]string
+	r.Tools.Sh = func(_ string, _ time.Duration, _ []string, argv ...string) (int, string) {
+		calls = append(calls, argv)
+		return 0, ""
+	}
+	now := time.Now()
+	checks := []OwnerAlert{{Kind: "hivemill-asks", Ref: "1 owner question(s) waiting: #1", Text: "1 owner question open"},
+		{Kind: "hivemill-idle", Ref: "idle", Text: "no task dispatched for 3h"}}
+	if _, err := r.RaiseOwnerAlerts(now, checks); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.RaiseOwnerAlerts(now, checks); err != nil { // the same rows stay open: nothing is sent again
+		t.Fatal(err)
+	}
+	var kinds []string
+	for _, c := range calls {
+		kinds = append(kinds, c[4])
+	}
+	if strings.Join(kinds, ",") != "hivemill-asks,hivemill-idle" {
+		t.Errorf("alert_cmd calls: %q", calls)
+	}
+}

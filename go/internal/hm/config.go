@@ -40,6 +40,13 @@ var Defaults = map[string]string{
 	"backup_dir":               "",     // empty = state/hivemill/backups
 	"backup_target":            "",     // file:///path (copy) | s3://bucket/path | sftp://host/path (litestream when installed)
 	"alert_cmd":                "",     // owner alerts: run as sh -c "$alert_cmd" hivemill-alert TITLE TEXT; empty = log, plus a notification on macOS
+	// planner (planner.go): one long-lived session that keeps the ready queues full and turns failures into a next step
+	"planner_queue_min":  "3",               // lint-passing ready tasks wanted per project with an active goal
+	"planner_model":      "claude-opus-5-5", // the planner session's model (never Fable)
+	"planner_effort":     "medium",          // its --effort
+	"planner_wake_gap_s": "600",             // at most one wake per this many seconds; reasons in between are coalesced
+	"idle_alert_h":       "2",               // `health --alert`: no dispatch for this many hours while an active goal exists
+	"ask_alert_h":        "1",               // `health --alert`: open owner questions older than this go out in one digest
 }
 
 // DefaultKeys returns the config keys, sorted.

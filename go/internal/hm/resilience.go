@@ -180,6 +180,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		} else {
 			_ = r.Heartbeat(time.Now())
 		}
+		r.PlannerPass(time.Now()) // held runs to the owner queue; keep the planner alive and wake it on events
 		if r.BackupDue(time.Now()) {
 			if _, err := r.Backup(time.Now()); err != nil {
 				r.printf("backup: %v\n", err)

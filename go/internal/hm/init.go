@@ -102,16 +102,19 @@ func DefaultLaunchdPath(userHome string) string {
 
 // RenderDaemonPlist renders the daemon's LaunchAgent (launchd/hivemill.daemon.plist.in, the home's copy or the
 // built-in one). Values are XML-escaped and the result must parse.
-func RenderDaemonPlist(e Env, in PlistInput) (string, error) {
-	return RenderLaunchAgent(e, "daemon", in)
+func RenderDaemonPlist(e Env, in PlistInput) (string, error) { return RenderPlist(e, "daemon", in) }
+
+// LaunchAgents are the LaunchAgents `hivemill launchd` renders: the pass loop, the morning digest, and the dead-man
+// check that runs `hivemill health --alert` every 5 minutes.
+var LaunchAgents = []string{"daemon", "digest", "health"}
+
+// RenderLaunchAgent is RenderPlist.
+func RenderLaunchAgent(e Env, name string, in PlistInput) (string, error) {
+	return RenderPlist(e, name, in)
 }
 
-// LaunchAgents are the LaunchAgents `hivemill launchd` renders: the pass loop, and the dead-man check that runs
-// `hivemill health --alert` every 5 minutes.
-var LaunchAgents = []string{"daemon", "health"}
-
-// RenderLaunchAgent renders launchd/hivemill.<name>.plist.in (the home's copy or the built-in one).
-func RenderLaunchAgent(e Env, name string, in PlistInput) (string, error) {
+// RenderPlist renders launchd/hivemill.<name>.plist.in (the home's copy or the built-in one).
+func RenderPlist(e Env, name string, in PlistInput) (string, error) {
 	known := false
 	for _, n := range LaunchAgents {
 		known = known || n == name

@@ -25,6 +25,9 @@
 //	hivemill health [--alert]      exit 0 when the last good pass is recent; --alert raises the rate-limited dead-man alert
 //	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
 //	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
+//	hivemill planner start|stop|status|wake [REASON]   the planner session (keeps ready queues full; woken by the daemon)
+//	hivemill ask add|list|answer|withdraw              the owner queue
+//	hivemill digest [--date D] [--json] [--send]        the morning digest of one day (default yesterday)
 package main
 
 import (
@@ -52,7 +55,8 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
 		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close | " +
 		"project add|list | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
-		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|health | pr create|ready | " +
+		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake | " +
+		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | check public-text --home DIR REMOTE URL | affected --base REF"
 	if len(args) > 0 && args[0] == "guard" { // a hook: its arguments and stdin are the guard's, never a help request
 		return cmdGuard(args[1:], stdin, stdout, stderr)
@@ -68,6 +72,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	if a := os.Getenv("FACTORY_AGENT"); (args[0] == "init" || args[0] == "launchd") && a != "" && a != "owner" {
 		fmt.Fprintf(stderr, "hivemill: %s is for the owner, not %s\n", args[0], a)
 		return 3
+	}
+	if args[0] == "planner" && len(args) > 1 && args[1] == "hook" {
+		return cmdPlannerHook(stdin, stderr) // fails closed, needs no DB
 	}
 	switch args[0] {
 	case "init": // before the DB exists
@@ -111,7 +118,12 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		// a session may read tasks, never change one: the gate re-runs the proofs stored in the task row
 		readTask := args[0] == "task" && (arg(1) == "lint" || arg(1) == "list" || arg(1) == "show")
 		ownPR := args[0] == "pr" && (role == "task" || role == "coder") // the PR of the session's own task only
-		if role != "director" && role != "boss" && !(readTask || ownPR || args[0] == "report" || args[0] == "health") {
+		if role == "planner" {
+			if !plannerMay(args) {
+				fmt.Fprintf(stderr, "hivemill: the planner may run goal, task, run status, report, health and ask add|list|withdraw, not %s\n", args[0])
+				return 3
+			}
+		} else if role != "director" && role != "boss" && !(readTask || ownPR || args[0] == "report" || args[0] == "health") {
 			fmt.Fprintf(stderr, "hivemill: %s is for the owner or the director, not %s\n", args[0], env.Actor)
 			return 3
 		}
@@ -221,6 +233,18 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	case "health":
 		ok, age := r.Health(time.Now())
 		fmt.Fprintf(stdout, "last good pass %s ago; drain %v\n", age.Round(time.Second), r.Draining())
+		// starvation and owner-queue checks: reported (and with --alert raised) whether or not the dead-man check passes
+		checks := r.OwnerChecks(time.Now())
+		for _, c := range checks {
+			fmt.Fprintf(stdout, "%s: %s\n", c.Kind, c.Text)
+		}
+		if arg(1) == "--alert" && (env.Actor == "" || env.Actor == "owner") {
+			if sent, e := r.RaiseOwnerAlerts(time.Now(), checks); e != nil {
+				fmt.Fprintln(stderr, "hivemill: owner alert:", e)
+			} else if len(sent) > 0 {
+				fmt.Fprintf(stdout, "owner alert: %s\n", strings.Join(sent, ", "))
+			}
+		}
 		if !ok {
 			if arg(1) == "--alert" {
 				if sent, e := r.HealthAlert(time.Now(), age); e != nil {
@@ -263,6 +287,12 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		err = r.Report(arg(1) == "--json")
 	case "task":
 		return cmdTask(r, args[1:], stdin, stdout, stderr)
+	case "planner":
+		return cmdPlanner(r, args[1:], stdout, stderr)
+	case "ask":
+		return cmdAsk(r, args[1:], stdout, stderr)
+	case "digest":
+		return cmdDigest(r, args[1:], stdout, stderr)
 	case "goal":
 		return cmdGoal(r, args[1:], stdin, stdout, stderr)
 	case "project":
