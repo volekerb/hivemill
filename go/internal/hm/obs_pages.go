@@ -139,7 +139,7 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 	sort.Strings(keys)
 	for _, k := range keys {
 		t := o.Tasks[k]
-		if !projectMatches(project, t.Project) {
+		if t.Row.Eval || !projectMatches(project, t.Project) {
 			continue
 		}
 		for _, e := range t.Events {
@@ -153,7 +153,7 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 		}
 		f := flowOf(t, o.Now)
 		p.Tasks = append(p.Tasks, f)
-		if f.Stage != "" && time.Duration(f.AgeSec)*time.Second > StuckAfter {
+		if f.Stage != "" && f.Stage != "held" && time.Duration(f.AgeSec)*time.Second > StuckAfter {
 			p.Stuck = append(p.Stuck, f)
 		}
 	}
@@ -369,7 +369,7 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 		}
 	}
 	sort.Slice(p.Asks, func(i, j int) bool { return p.Asks[i].Project < p.Asks[j].Project })
-	wN := o.Now.AddDate(0, 0, -days)
+	wN := windowStart(o.Now, days)
 	by := map[string]*NowPlanner{}
 	var newest = map[string]time.Time{}
 	ids := make([]string, 0, len(o.Sessions))
@@ -404,7 +404,7 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 	}
 	sort.Slice(p.Planner, func(i, j int) bool { return p.Planner[i].Machine < p.Planner[j].Machine })
 	for _, l := range o.Portfolio(days, all) {
-		if project == "" || l.Project == "all" || l.Project == projectKeyLabel(project) {
+		if project == "" || l.Project == projectKeyLabel(project) {
 			p.Portfolio = append(p.Portfolio, l)
 		}
 	}
