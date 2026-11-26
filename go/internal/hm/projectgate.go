@@ -30,7 +30,12 @@ func (r *Runner) projectGate(project string) (string, time.Duration) {
 // runProjectGate runs the gate command with bash in the clone (the environment without Claude or GitHub tokens) and
 // passes on exit 0. The output goes to gate-cmd.log in the round's log dir.
 func (r *Runner) runProjectGate(wt, cmd string, limit time.Duration, logdir string) (bool, string) {
-	rc, text := r.Tools.Sh(wt, limit, cleanEnv(), "bash", "-c", cmd)
+	return r.runProjectGateAt(place{r: r}, wt, cmd, limit, logdir)
+}
+
+// runProjectGateAt is runProjectGate where the worktree is; the log is written here.
+func (r *Runner) runProjectGateAt(p place, wt, cmd string, limit time.Duration, logdir string) (bool, string) {
+	rc, text := p.sh(wt, limit, cleanEnv(), "bash", "-c", cmd)
 	log := filepath.Join(logdir, "gate-cmd.log")
 	_ = os.WriteFile(log, []byte(text), 0o600)
 	switch {

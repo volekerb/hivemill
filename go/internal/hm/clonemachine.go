@@ -47,6 +47,30 @@ func (r *Runner) cloneMode(machine string) bool {
 // cloned reports whether the run's worktree is on a clone-mode machine.
 func (run *Run) cloned() bool { return run != nil && run.Mirror != "" }
 
+// coordWT is the run's clone on the coordinator.
+func (run *Run) coordWT() string {
+	if run.cloned() {
+		return run.Mirror
+	}
+	return run.Worktree
+}
+
+// syncMirror brings the coordinator's clone of a clone-mode run to head, which the session must have pushed.
+func (r *Runner) syncMirror(run *Run, head string) error {
+	g := r.Tools.Git
+	if rc, _, errs := g(run.Mirror, "fetch", "-q", "origin", run.Base, run.Branch); rc != 0 {
+		return fmt.Errorf("git fetch in %s: %s", run.Mirror, firstLine(errs))
+	}
+	rc, pushed, _ := g(run.Mirror, "rev-parse", "refs/remotes/origin/"+run.Branch)
+	if rc != 0 || strings.TrimSpace(pushed) != head {
+		return fmt.Errorf("origin/%s is not at the worktree's HEAD %.12s: push the branch", run.Branch, head)
+	}
+	if rc, _, errs := g(run.Mirror, "checkout", "-q", "-f", "--detach", head); rc != 0 {
+		return fmt.Errorf("git checkout in %s: %s", run.Mirror, firstLine(errs))
+	}
+	return nil
+}
+
 // remoteBase is the factory home of a clone-mode machine.
 func remoteBase(remoteHome string) string { return path.Join(remoteHome, "hivemill") }
 

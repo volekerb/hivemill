@@ -2,6 +2,7 @@ package hm
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -172,5 +173,53 @@ func TestCloneMachineWorktree(t *testing.T) {
 	}
 	if got, _ := s.Run("T-0001"); !got.RemoteDone {
 		t.Error("the run must record the removal")
+	}
+}
+
+func TestCloneMachineGateReadsRemote(t *testing.T) {
+	r, s, _, _ := cloneRunner(t)
+	if err := r.Start("T-0001"); err != nil {
+		t.Fatal(err)
+	}
+	run1, _ := s.Run("T-0001")
+	wt := run1.Worktree
+	// the session's work and its .hivemill files exist on the machine only
+	if err := os.WriteFile(filepath.Join(wt, "marker.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, wt, "add", "marker.txt")
+	mustGit(t, wt, "commit", "-qm", "work")
+	mustGit(t, wt, "push", "-q", "origin", "HEAD:factory/t-0001")
+	head := mustGit(t, wt, "rev-parse", "HEAD")
+	_ = os.MkdirAll(filepath.Join(wt, ".hivemill"), 0o755)
+	_ = writeFile(filepath.Join(wt, ".hivemill", "findings.json"), fmt.Sprintf(`{"head": %q, "findings": [{"severity": "low",
+		"file": "marker.txt", "line": 1, "issue": "zz remote finding", "resolution": "fixed: done"}]}`, head), 0o600)
+	_ = writeFile(filepath.Join(wt, ".hivemill", "evidence.json"), `{"criteria": [{"id": 1}]}`, 0o600)
+
+	rec := r.Gate(run1)
+	if rec.Head != head {
+		t.Errorf("gate head %q, want the remote HEAD %q", rec.Head, head)
+	}
+	if len(rec.Findings) != 1 || rec.Findings[0].Issue != "zz remote finding" {
+		t.Errorf("findings not read from the machine: %+v", rec.Findings)
+	}
+	for _, p := range rec.Problems {
+		if strings.HasPrefix(p, "review:") || strings.HasPrefix(p, "pr:") {
+			continue
+		}
+		if strings.Contains(p, "findings.json") || strings.Contains(p, "evidence.json") || strings.HasPrefix(p, "criterion ") ||
+			strings.HasPrefix(p, "committed") || strings.HasPrefix(p, "identity") {
+			t.Errorf("problem: %s", p)
+		}
+	}
+	// the proof passes only where marker.txt is: in the worktree on the machine
+	if len(rec.Reruns) != 1 || rec.Reruns[0].OK == nil || !*rec.Reruns[0].OK {
+		t.Errorf("rerun on the machine: %+v (problems %v)", rec.Reruns, rec.Problems)
+	}
+	if _, err := os.Stat(filepath.Join(run1.Mirror, ".hivemill", "findings.json")); err == nil {
+		t.Error("the coordinator's clone must not hold the session's files")
+	}
+	if got := mustGit(t, run1.Mirror, "rev-parse", "HEAD"); got != head {
+		t.Errorf("the mirror is at %q, want %q", got, head)
 	}
 }

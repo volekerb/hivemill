@@ -2,6 +2,7 @@ package hm
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -143,8 +144,12 @@ func (r *Runner) Packet(run *Run) (string, error) {
 	if g == nil {
 		g = &GateRecord{}
 	}
-	_, stat, _ := r.Tools.Git(run.Worktree, "diff", "--stat", "origin/"+run.Base+"...HEAD")
-	_, diff, _ := r.Tools.Git(run.Worktree, "diff", "origin/"+run.Base+"...HEAD")
+	git := r.at(run).git
+	_, stat, _ := git(run.Worktree, "diff", "--stat", "origin/"+run.Base+"...HEAD")
+	rc, diff, errs := git(run.Worktree, "diff", "origin/"+run.Base+"...HEAD")
+	if rc != 0 && run.cloned() { // never a packet without the diff because ssh failed
+		return "", fmt.Errorf("git diff on %s: exit %d: %s", run.Machine, rc, firstLine(errs))
+	}
 	if len(diff) > diffMax {
 		diff = diff[:diffMax] + fmt.Sprintf("\n... diff cut at %d characters; read the rest in your cwd if needed\n", diffMax)
 	}
@@ -196,7 +201,10 @@ func (r *Runner) Packet(run *Run) (string, error) {
 	for _, k := range sortedKeys(g.Checks) {
 		fmt.Fprintf(&b, "- %s: %s\n", k, truncate(g.Checks[k], 200))
 	}
-	_, names, _ := r.Tools.Git(run.Worktree, "diff", "--name-only", "origin/"+run.Base+"...HEAD")
+	rc, names, errs := git(run.Worktree, "diff", "--name-only", "origin/"+run.Base+"...HEAD")
+	if rc != 0 && run.cloned() {
+		return "", fmt.Errorf("git diff on %s: exit %d: %s", run.Machine, rc, firstLine(errs))
+	}
 	b.WriteString("\n## Scope check (mechanical)\n")
 	b.WriteString(ScopeSection(DeclaredScope(t), strings.Fields(names)))
 	fmt.Fprintf(&b, "\n## Diff stat\n```\n%s\n```\n\n## Diff\n```diff\n%s\n```\n", strings.TrimSpace(stat), diff)
@@ -245,7 +253,8 @@ func (r *Runner) StartJudge(run *Run) error {
 		return err
 	}
 	rel := fmt.Sprintf(".hivemill/judge-packet-r%d.md", n)
-	if err := os.WriteFile(filepath.Join(run.Worktree, rel), []byte(packet), 0o644); err != nil {
+	at := r.at(run)
+	if err := at.write(filepath.Join(run.Worktree, rel), []byte(packet), 0o644); err != nil {
 		return err
 	}
 	// The judge's model follows the files the diff really changes (and the declared scope), not the task's words.
@@ -253,7 +262,10 @@ func (r *Runner) StartJudge(run *Run) error {
 	if err != nil {
 		return err
 	}
-	_, names, _ := r.Tools.Git(run.Worktree, "diff", "--name-only", "origin/"+run.Base+"...HEAD")
+	rc, names, errs := at.git(run.Worktree, "diff", "--name-only", "origin/"+run.Base+"...HEAD")
+	if rc != 0 && run.cloned() {
+		return fmt.Errorf("git diff on %s: exit %d: %s", run.Machine, rc, firstLine(errs))
+	}
 	risky, _ := Risk(r.Env.Home, t, strings.Fields(names))
 	model, effort, err := r.ModelFor(risky || run.Tier == "T3")
 	if err != nil {
@@ -264,7 +276,8 @@ func (r *Runner) StartJudge(run *Run) error {
 	kick := fmt.Sprintf("You are `%s`, the factory task-judge. Judge %s (%s). Read the judge packet %s in your cwd, then answer "+
 		"with the verdict JSON block.", name, run.Task, run.PRURL, rel)
 	_, err = r.StartSession(run, Launch{Role: "task-judge", Name: name, Cwd: run.Worktree, Model: model, Effort: effort,
-		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task-judge.md"), Kickoff: kick})
+		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task-judge.md"), Kickoff: kick,
+		Machine: at.machine}) // the judge stays here, except for a worktree that is only on a clone-mode machine
 	if err == nil {
 		r.recordPrompt(run, "judge", "judge", packet) // the judge reads it from the file the kickoff names
 	}
@@ -281,8 +294,13 @@ func LastAssistantText(h HookInput) string {
 		return ""
 	}
 	defer f.Close()
+	return transcriptText(f)
+}
+
+// transcriptText is the last assistant text of a Claude Code transcript.
+func transcriptText(in io.Reader) string {
 	text := ""
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(in)
 	sc.Buffer(make([]byte, 1<<20), 64<<20)
 	for sc.Scan() {
 		var d struct {
@@ -327,7 +345,13 @@ func (r *Runner) JudgeHook(in io.Reader, out io.Writer) error {
 	}
 	defer func() { _ = r.Store.PutRun(run) }()
 	r.noteSession(run, h.SessionID, r.Env.Actor)
-	v, perr := ParseVerdict(LastAssistantText(h))
+	said := LastAssistantText(h)
+	if said == "" && run.cloned() { // the transcript is on the judge's machine
+		if b, err := r.at(run).read(h.TranscriptPath); err == nil {
+			said = transcriptText(bytes.NewReader(b))
+		}
+	}
+	v, perr := ParseVerdict(said)
 	if perr == nil && v.Verdict == VerdictMerge {
 		perr = r.mergeChangeCheck(run, v)
 	}
