@@ -69,8 +69,12 @@ func actionsRun(c map[string]any) string {
 
 func rowStr(c map[string]any, k string) string { s, _ := c[k].(string); return s }
 
-// unfinished reports whether a rollup row has no result yet.
+// unfinished reports whether a rollup row is still queued or running. A cancelled row has stopped, though CIVerdict
+// reads it as pending: waiting for it to finish would never re-run it.
 func unfinished(c map[string]any) bool {
+	if strings.EqualFold(rowStr(c, "conclusion"), "CANCELLED") {
+		return false
+	}
 	v, _ := ciRows([]map[string]any{c})
 	return v == "pending"
 }
