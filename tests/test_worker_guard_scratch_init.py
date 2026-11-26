@@ -202,7 +202,7 @@ class InstallDryRunWritesNothing(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.listing(home, fh), before)
         self.assertIn("[dry-run] mkdir -p " + os.path.join(home, ".config", "systemd", "user"), p.stdout)
-        self.assertIn("[dry-run] systemctl --user enable factory-tick.timer", p.stdout)
+        self.assertIn("[dry-run] systemctl --user enable hivemill.service", p.stdout)
         self.assertFalse(os.path.exists(os.path.join(home, ".config")))
 
 
