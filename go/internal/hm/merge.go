@@ -237,6 +237,9 @@ func (r *Runner) Merge(run *Run) {
 			return
 		}
 	}
+	if d.Why == ciPending && !r.ciNone(run.Project) {
+		r.rerunCancelled(run, pr.Checks)
+	}
 	switch d.Action {
 	case "done":
 		r.finish(run, pr)
@@ -596,4 +599,20 @@ func (r *Runner) protectionNotStrict(repo, base string) bool {
 	}
 	_ = r.Store.SetMeta(key, v+" "+time.Now().UTC().Format(time.RFC3339))
 	return v == "false"
+}
+
+// rerunCancelled re-runs the cancelled Actions runs of the head, at most once per run per 10 minutes. A cancelled run is
+// not a failure (the task session is not resumed for it), and without a re-run the PR would wait on it forever.
+func (r *Runner) rerunCancelled(run *Run, checks []map[string]any) {
+	for _, id := range ciCancelledRuns(checks) {
+		key := "ci_rerun:" + id
+		if v := r.Store.Meta(key); v != "" {
+			if t, err := time.Parse(time.RFC3339, v); err == nil && time.Since(t) < 10*time.Minute {
+				continue
+			}
+		}
+		_ = r.Store.SetMeta(key, time.Now().UTC().Format(time.RFC3339))
+		rc, _, errs := r.Tools.GH("", "run", "rerun", id, "--failed", "-R", run.Repo)
+		_ = r.Log.Emit("ci.rerun", run, Event{Data: map[string]any{"run_id": id, "rc": rc, "err": firstLine(errs)}})
+	}
 }
