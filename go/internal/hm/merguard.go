@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -87,8 +88,13 @@ func Check(diff Diff, st PRStatus) []Limit {
 			}
 		}
 		if strings.HasPrefix(f.Path, "roles/hooks/worker-guard") {
-			if gone := removed(codeLines(f.Old), codeLines(f.New)); len(gone) > 0 {
+			o, n := codeLines(f.Old), codeLines(f.New)
+			if gone := removed(o, n); len(gone) > 0 {
 				add("d", f.Path, "removes or edits %d guard line(s), first: %s", len(gone), truncate(gone[0], 80))
+			}
+			// an added line can switch the guard off (an early exit) without removing anything
+			if added := removed(n, o); len(added) > 0 {
+				add("d", f.Path, "adds %d guard line(s), first: %s", len(added), truncate(added[0], 80))
 			}
 		}
 	}
@@ -153,7 +159,7 @@ func settingsLists(content string) (map[string][]string, error) {
 	}
 	lists(v, map[string]bool{"deny": true, "ask": true, "allow": true}, out)
 	hookEntries(v, out)
-	defaultModes(v, out)
+	scalars(v, out)
 	return out, nil
 }
 
@@ -193,20 +199,23 @@ func hookEntries(v any, out map[string][]string) {
 	}
 }
 
-// defaultModes collects every defaultMode value, at any depth.
-func defaultModes(v any, out map[string][]string) {
+// scalarKeys are the settings keys whose every value must stay as it is: setting, changing or dropping one is limit a.
+var scalarKeys = []string{"defaultMode", "disableAllHooks"}
+
+// scalars collects every value of the scalarKeys, at any depth.
+func scalars(v any, out map[string][]string) {
 	switch x := v.(type) {
 	case map[string]any:
 		for k, val := range x {
-			if k == "defaultMode" {
+			if slices.Contains(scalarKeys, k) {
 				b, _ := json.Marshal(val)
 				out[k] = append(out[k], string(b))
 			}
-			defaultModes(val, out)
+			scalars(val, out)
 		}
 	case []any:
 		for _, val := range x {
-			defaultModes(val, out)
+			scalars(val, out)
 		}
 	}
 }
@@ -232,8 +241,8 @@ func allowsForcedMerge(entry string) bool {
 	return wild && (strings.HasPrefix(merge, lit) || strings.HasPrefix(lit, merge+" "))
 }
 
-// checkSettings: limit a (a deny, ask or hook entry is gone or changed, or defaultMode changed) and limit d (a new allow
-// of gh pr merge --admin/--auto).
+// checkSettings: limit a (a deny, ask or hook entry is gone or changed, or defaultMode or disableAllHooks is set or
+// changed) and limit d (a new allow of gh pr merge --admin/--auto).
 func checkSettings(f DiffFile, add addLimit) {
 	o, oerr := settingsLists(f.Old)
 	n, nerr := settingsLists(f.New)
@@ -241,8 +250,10 @@ func checkSettings(f DiffFile, add addLimit) {
 		add("a", f.Path, "not readable as JSON, so its deny, ask and hooks entries cannot be compared")
 		return
 	}
-	if len(removed(o["defaultMode"], n["defaultMode"]))+len(removed(n["defaultMode"], o["defaultMode"])) > 0 {
-		add("a", f.Path, "changes defaultMode")
+	for _, k := range scalarKeys {
+		if len(removed(o[k], n[k]))+len(removed(n[k], o[k])) > 0 {
+			add("a", f.Path, "changes %s", k)
+		}
 	}
 	for _, k := range []string{"deny", "ask", "hooks"} {
 		for _, e := range removed(o[k], n[k]) {
@@ -344,10 +355,16 @@ var t3DefaultRe = regexp.MustCompile(`t3_auto_merge"[^,\n]*`)
 
 // checkGate: limit f (the PR changes this gate, the tier classification or the t3_auto_merge default).
 func checkGate(f DiffFile, add addLimit) {
+	if strings.HasPrefix(f.Path, "go/internal/citools/risktier/") {
+		add("f", f.Path, "changes the tier classification")
+		return
+	}
 	switch f.Path {
 	case "go/internal/hm/merguard.go":
 		add("f", f.Path, "changes the merge guard")
-	case "go/internal/hm/tierrules.go", "go/internal/hm/assets/tier_rules.json":
+	case "go/internal/hm/merge.go":
+		add("f", f.Path, "changes the merge step")
+	case "go/internal/hm/tierrules.go", "go/internal/hm/assets/tier_rules.json", "ci/risk_tier.py":
 		add("f", f.Path, "changes the tier classification")
 	case configGo:
 		value := func(s string) []string { return t3DefaultRe.FindAllString(strings.Join(codeLines(s), "\n"), -1) }

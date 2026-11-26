@@ -320,6 +320,49 @@ func TestT3GuardSkipAddedHeld(t *testing.T) {
 	}
 }
 
+func TestT3RiskTierEditHeld(t *testing.T) {
+	f := newT3(t, map[string]string{"ci/risk_tier.py": "# zz\n"})
+	f.held(t, "f) ci/risk_tier.py: changes the tier classification")
+	for _, p := range []string{"go/internal/citools/risktier/zz.go", "go/internal/citools/risktier/testdata/zz.json"} {
+		if got := limitsOf(DiffFile{Path: p, Old: "a", New: "b"}); !strings.Contains(got, "f) "+p) {
+			t.Errorf("%s: %q", p, got)
+		}
+	}
+}
+
+func TestT3MergeGoEditHeld(t *testing.T) {
+	f := newT3(t, map[string]string{"go/internal/hm/merge.go": "package hm\n"})
+	f.held(t, "f) go/internal/hm/merge.go: changes the merge step")
+}
+
+func TestT3DisableAllHooksHeld(t *testing.T) {
+	f := newT3(t, map[string]string{"roles/settings/zz.json.in": `{"disableAllHooks":true,"permissions":{"allow":["Read"],"deny":["Bash(rm:*)","Bash(sudo:*)"]}}`})
+	f.held(t, "a) roles/settings/zz.json.in: changes disableAllHooks")
+	const on, off = `{"disableAllHooks":true}`, `{"disableAllHooks":false}`
+	for _, c := range []DiffFile{
+		{Path: "plugins/zz/settings.json", New: on, Added: true},
+		{Path: "roles/settings/zz.json.in", Old: off, New: on},
+		{Path: "go/internal/hm/assets/zz.json.in", Old: `{}`, New: off},
+		{Path: "plugins/zz/settings.json", Old: on, New: `{}`},
+	} {
+		if got := limitsOf(c); !strings.Contains(got, "changes disableAllHooks") {
+			t.Errorf("%s %q -> %q: %q", c.Path, c.Old, c.New, got)
+		}
+	}
+	if got := limitsOf(DiffFile{Path: "roles/settings/zz.json.in", Old: on, New: "{ \"disableAllHooks\": true }"}); got != "" {
+		t.Errorf("unchanged: %q", got)
+	}
+}
+
+func TestT3GuardHookAddedLineHeld(t *testing.T) {
+	f := newT3(t, map[string]string{"roles/hooks/worker-guard.py": "sys.exit(0)\n"})
+	f.held(t, "d) roles/hooks/worker-guard.py: adds 1 guard line(s)")
+	got := limitsOf(DiffFile{Path: "roles/hooks/worker-guard.py", Old: "deny(a)\n", New: "sys.exit(0)\ndeny(a)\n"})
+	if !strings.Contains(got, "adds 1 guard line(s), first: sys.exit(0)") || strings.Contains(got, "removes") {
+		t.Errorf("added line only: %q", got)
+	}
+}
+
 // a PR that renames away a required job never gets that check:the owner is asked instead of waiting for ever
 func TestMergeGuardMissingRequiredCheck(t *testing.T) {
 	require := func(f *t3Fixture) {
@@ -369,7 +412,7 @@ func TestMergeGuardOtherLimits(t *testing.T) {
 		want string // "" = no limit
 	}{
 		{DiffFile{Path: "roles/hooks/worker-guard.py", Old: "# note\ndeny(a)\ndeny(b)\n", New: "deny(a)\n"}, "d)"},
-		{DiffFile{Path: "roles/hooks/worker-guard.py", Old: "# note\ndeny(a)\n", New: "deny(a)\ndeny(b)\n"}, ""},
+		{DiffFile{Path: "roles/hooks/worker-guard.py", Old: "# note\ndeny(a)\n", New: "# other note\ndeny(a)\n\n"}, ""},
 		{DiffFile{Path: "go/cmd/worker-guard/zz_test.go", Old: "x", Deleted: true}, "b)"},
 		{DiffFile{Path: "go/internal/factorytest/guard1/testdata/zz.json", Old: "[\n1,\n2\n]", New: "[\n1\n]"}, "b)"},
 		{DiffFile{Path: "ci/guard_corpus.json", Old: `{"must_block":["a","b"]}`, New: `{"must_block":["a"]}`}, "b)"},
