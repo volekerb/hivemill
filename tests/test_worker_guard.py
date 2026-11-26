@@ -724,7 +724,7 @@ class ClaudeGuardTests(unittest.TestCase):
                 old = json.loads(base.stdout)["permissions"]["deny"]
                 with open(os.path.join(ROOT, rel)) as f:
                     tdeny = json.load(f)["permissions"]["deny"]
-                # only these may differ from main: PRIV denies (T-0057), db/** denies (T-0159), advisor (T-0250)
+                # only these may differ from main: PRIV denies (T-0057), db/** denies (T-0159)
                 added = {"Bash(claude:*)", "Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)", "Bash(pkexec:*)",
                          "Bash(docker:*)", "Edit(/@FACTORY_LIVE_HOME@/db/**)",  # T-A
                          "Edit(/@FACTORY_LIVE_HOME@/run/settings/**)"}  # T-B2
