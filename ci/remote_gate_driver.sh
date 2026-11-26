@@ -240,18 +240,32 @@ stop_holder() {
 mkdir -p "$real_home/factory-gate"
 lock="$real_home/factory-gate/.lock"
 # .lock.meta (fd 8) makes "record the holder" and "judge the record and take over" atomic.
-meta_lock() { exec 8>>"$lock.meta"; flock 8; }
+# In the background, then `wait`: a trapped TERM must end a run that is queued here behind a slow takeover.
+meta_lock() { exec 8>>"$lock.meta"; flock 8 & wait "$!"; }
 # take_record: fd 9 has the flock; record us as the holder, unless a takeover replaced the file meanwhile.
 take_record() {
   [ "/proc/$$/fd/9" -ef "$lock" ] || return 1
-  echo "$$ $(proc_start "$$") $(date +%s) $limit" > "$lock"
+  if ! echo "$$ $(proc_start "$$") $(date +%s) $limit" > "$lock"; then   # no retry: we would only spin on our own lock
+    echo "remote-gate-driver: cannot write the holder record to ~/factory-gate/.lock (disk full?)" >&2
+    exit 1
+  fi
 }
 waiting=
+dead_seen=
 while :; do
   meta_lock
   exec 9>>"$lock"
   if flock -n 9 && take_record; then break; fi
   why=$(stale_holder "$lock")
+  # A holder that just finished leaves its record until the next one in the queue writes its own: give that one a second.
+  case "$why" in *"is dead")
+    if [ "$(cat "$lock")" != "$dead_seen" ]; then
+      dead_seen=$(cat "$lock")
+      exec 8>&- 9>&-
+      sleep 1 & wait "$!"
+      continue
+    fi ;;
+  esac
   if [ -n "$why" ]; then
     echo "remote-gate-driver: taking over ~/factory-gate/.lock: $why"
     read -r pid start _ < "$lock"
