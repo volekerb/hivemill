@@ -298,7 +298,10 @@ func lastLines(s string, n int) string {
 // publicText runs the public-text guard over what the branch publishes and over the PR text: owner terms and secrets
 // for a public_text_repos repo, the secret checks alone for any other. A failure names the part that failed.
 func (r *Runner) publicText(repo, wt, base string, pr *PR) (bool, string) {
-	public := r.publicTextRepo(repo)
+	public, err := r.publicTextRepo(repo)
+	if err != nil {
+		return false, err.Error()
+	}
 	scan, args := guard.CISecretsGuardMain, []string(nil)
 	if public {
 		terms, why := r.guardArgs()
@@ -313,12 +316,12 @@ func (r *Runner) publicText(repo, wt, base string, pr *PR) (bool, string) {
 		if rc == 0 {
 			return true, ""
 		}
-		// no hit line (the guard could not decide): name the check that was running
+		// no hit line (the guard could not decide): name every check that was running
 		part := "secrets"
 		switch owner, secrets := guard.CIHitParts(out.String()); {
-		case owner && secrets:
+		case owner && secrets, public && !owner && !secrets:
 			part = "owner terms and secrets"
-		case owner || public && !secrets:
+		case owner:
 			part = "owner terms"
 		}
 		return false, fmt.Sprintf("public-text guard (%s) on %s exited %d: %s", part, what, rc, lastLines(out.String()+errb.String(), 6))

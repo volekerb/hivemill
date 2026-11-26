@@ -72,7 +72,8 @@ func CheckFactoryKey(key, value string) error {
 			if strings.TrimSpace(x) == "" {
 				continue
 			}
-			if _, ok := guard.CIRepoSlug(x); !ok {
+			// a list split on spaces or semicolons would match no repo, and so check nothing
+			if _, ok := guard.CIRepoSlug(x); !ok || strings.ContainsAny(strings.TrimSpace(x), " \t\r\n;") {
 				return fmt.Errorf("%s: %q is not OWNER/NAME", key, strings.TrimSpace(x))
 			}
 		}

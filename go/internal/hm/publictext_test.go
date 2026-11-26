@@ -87,6 +87,17 @@ func TestPublicTextSecretsStillCheckedForPrivateRepo(t *testing.T) {
 	}
 }
 
+// A list that cannot be read must not pass as "not listed".
+func TestPublicTextUnreadableRepoListRefuses(t *testing.T) {
+	r, wt := publicTextCase(t, "acme/app", "notes.txt", "about "+ptTerm)
+	if err := r.Store.(*SQLite).Close(); err != nil {
+		t.Fatal(err)
+	}
+	if ok, note := r.publicText("acme/app", wt, "main", nil); ok || !strings.Contains(note, "cannot read public_text_repos") {
+		t.Errorf("unreadable list: %v %q", ok, note)
+	}
+}
+
 func TestPublicTextOwnerTermsForPublicRepo(t *testing.T) {
 	r, wt := publicTextCase(t, "acme/other, Acme/App", "notes.txt", "about "+ptTerm)
 	ok, note := r.publicText("acme/APP", wt, "main", nil)

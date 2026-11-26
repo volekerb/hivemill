@@ -329,6 +329,8 @@ func TestFactoryKeysAreChecked(t *testing.T) {
 		{"scrub_terms_file", "/nonexistent/terms.txt", false},
 		{"public_text_repos", "acme/www, acme/api", true},
 		{"public_text_repos", "not a slug", false},
+		{"public_text_repos", "acme/www acme/api", false},
+		{"public_text_repos", "acme/www;acme/api", false},
 		{"model", "x", false},
 	} {
 		if err := CheckFactoryKey(c.k, c.v); (err == nil) != c.ok {
