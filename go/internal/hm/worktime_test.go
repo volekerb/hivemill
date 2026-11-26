@@ -203,9 +203,10 @@ func TestRunMaxWorkingKeepsTheGrace(t *testing.T) {
 		t.Fatalf("failed sends inside the grace: %s", run.State)
 	}
 	r.Tools.HC = up
-	run.IdleSince = now.Format(time.RFC3339)
-	if !r.workingLimit(run, now.Add(40*time.Minute)) || run.State != Working || len(*sent) != 1 || run.IdleSince != "" {
-		t.Fatalf("send works again: %s %v %q", run.State, *sent, run.IdleSince)
+	run.IdleSince, run.IdleNudges = now.Format(time.RFC3339), 1
+	if !r.workingLimit(run, now.Add(40*time.Minute)) || run.State != Working || len(*sent) != 1 || run.IdleSince != "" ||
+		run.IdleNudges != 0 {
+		t.Fatalf("send works again: %s %v %q %d", run.State, *sent, run.IdleSince, run.IdleNudges)
 	}
 	r.Tools.HC = down
 	run.LongResumed, run.LongSendFailed = "", "" // as after a relaunch

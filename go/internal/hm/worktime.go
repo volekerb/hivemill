@@ -69,7 +69,9 @@ func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 		return true
 	}
 	run.LongResumed = now.Format(time.RFC3339)
-	run.IdleSince = "" // the message is new work: a quick answer must not read as 15 minutes idle
+	// the message is new work: a quick answer must not read as 15 minutes idle, nor an earlier idle nudge fail it as
+	// stalled inside the grace
+	run.IdleSince, run.IdleNudges = "", 0
 	r.recordPrompt(run, "task", "resume", text)
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-resume", text)
 	return true
