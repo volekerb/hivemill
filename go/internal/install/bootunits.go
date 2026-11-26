@@ -78,7 +78,7 @@ func (c *Ctx) launchdVars() ldVars {
 		FactoryHome: c.fh,
 		Path:        strings.Join(pathParts, ":"),
 		HerdrBin:    filepath.Join(c.bindir, "herdr"),
-		FactoryBin:  c.factory,
+		FactoryBin:  filepath.Join(c.bindir, "hivemill"),
 	}
 }
 
