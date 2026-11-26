@@ -165,7 +165,7 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 			in.IdentityOK = false
 		}
 	}
-	in.PublicTextOK, in.PublicTextNote = r.publicText(wt, base, pr)
+	in.PublicTextOK, in.PublicTextNote = r.publicText(run.Repo, wt, base, pr)
 	return in, pr, nil
 }
 

@@ -83,6 +83,7 @@ type Store interface {
 	GoalOpenTasks(goal string) (int, string, error)
 	DoneTasks() (map[string]bool, error)
 	FactoryCfg(key string) string
+	FactoryCfgErr(key string) (string, error)
 	Cfg(key string) string
 	CfgErr(key string) (string, error)
 	SetCfg(key, value string) error
@@ -303,9 +304,18 @@ func (s *SQLite) GoalOpenTasks(goal string) (int, string, error) {
 
 // FactoryCfg reads a key of the factory's own config table ("" when unset).
 func (s *SQLite) FactoryCfg(key string) string {
-	var v string
-	_ = s.db.QueryRow(`SELECT value FROM config WHERE key=?`, key).Scan(&v)
+	v, _ := s.FactoryCfgErr(key)
 	return v
+}
+
+// FactoryCfgErr is FactoryCfg for a caller that must not take a failed read for an unset key.
+func (s *SQLite) FactoryCfgErr(key string) (string, error) {
+	var v string
+	err := s.db.QueryRow(`SELECT value FROM config WHERE key=?`, key).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return v, err
 }
 
 // Cfg reads an hm_config key, falling back to Defaults.
