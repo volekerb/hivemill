@@ -315,7 +315,7 @@ func TestScratchInitInstallDryRunWritesNothingListingUnchanged(t *testing.T) {
 		t.Errorf("listing changed: before %v after %v", before, after)
 	}
 	for _, want := range []string{"[dry-run] mkdir -p " + filepath.Join(home, ".config", "systemd", "user"),
-		"[dry-run] systemctl --user enable factory-tick.timer"} {
+		"[dry-run] systemctl --user enable hivemill.service"} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("stdout lacks %q:\n%s", want, out)
 		}
