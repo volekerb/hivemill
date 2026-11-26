@@ -45,7 +45,8 @@ func (r *Runner) goalPrompt(harness string, run *Run, t *Task, kickoff string) s
 		fmt.Fprintf(os.Stderr, "hivemill: %s: %v (the session starts without /goal)\n", run.Task, err)
 		return kickoff
 	}
-	pointer := "\nFirst read " + kickoffFile + " in the worktree: it is your kickoff message, with the task id, spec, " +
+	// the spend report reads the session's role from "the factory task." in a user message (spend.RoleFromKickoff)
+	pointer := "\nYou are `" + run.Agent + "`, the factory task. First read " + kickoffFile + " in the worktree: it is your kickoff message, with the task id, spec, " +
 		"acceptance criteria and branch. Follow it."
 	// The owner's workflow request stays in the message itself: the Workflow tool wants it in the user's words.
 	if run.WorkflowAgents > 0 {

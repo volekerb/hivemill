@@ -69,7 +69,7 @@ func TestGoalPromptStaysWithinTheConditionLimit(t *testing.T) {
 		if !strings.HasPrefix(got, "/goal ") || goalLen(strings.TrimPrefix(got, "/goal ")) > goalMax {
 			t.Errorf("%s: not a /goal within the limit (%d):\n%.300s", name, goalLen(got), got)
 		}
-		for _, part := range []string{c.want, goalExits, "First read " + kickoffFile, "Use at most 6 agents."} {
+		for _, part := range []string{c.want, goalExits, "the factory task. First read " + kickoffFile, "Use at most 6 agents."} {
 			if !strings.Contains(got, part) {
 				t.Errorf("%s: %q not in the prompt", name, part)
 			}
