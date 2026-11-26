@@ -84,13 +84,13 @@ type obsServer struct {
 // coreTTL is how long one `hc server status` answer, a failure too, serves the page.
 const coreTTL = 30 * time.Second
 
-// coreName is Runner.coreName asked at most once per coreTTL. A failed call keeps the last name hc gave, so this
+// coreName is Runner.knownCoreName asked at most once per coreTTL. A failed call keeps the last name hc gave, so this
 // machine is not listed a second time under it.
 func (s *obsServer) coreName() string {
 	s.coreMu.Lock()
 	defer s.coreMu.Unlock()
 	if s.coreAt.IsZero() || s.now().Sub(s.coreAt) >= coreTTL {
-		s.core = or(s.r.coreName(), s.core)
+		s.core = or(s.r.knownCoreName(), s.core)
 		s.coreAt = s.now() // after the call: a hung hc can outlast coreTTL and must still be cached
 	}
 	return s.core

@@ -1273,11 +1273,20 @@ func TestObsServerStatusCachedAndNoDuplicateCore(t *testing.T) {
 	check(29*time.Second, 2, "box-a,box-c") // the failure is cached too
 	check(time.Second, 3, "box-a,box-c")
 
-	// hc never answered: the failure is cached, and the name stands once, as configured
+	// a restarted server whose hc is down still knows the name
 	calls, down = 0, true
 	srv = &obsServer{r: r, now: srv.now}
-	check(0, 1, "box-a,box-c,core-a")
-	check(29*time.Second, 1, "box-a,box-c,core-a")
+	check(0, 1, "box-a,box-c")
+	check(29*time.Second, 1, "box-a,box-c")
+
+	// hc never answered: either entry may be this machine, so neither is listed from the config alone
+	if err := os.Remove(filepath.Join(r.Env.StateDir(), "core_name")); err != nil {
+		t.Fatal(err)
+	}
+	calls = 0
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a")
+	check(29*time.Second, 1, "box-a")
 
 	// a call that hangs past the 30 s is cached from the time it returned
 	calls = 0
@@ -1287,8 +1296,8 @@ func TestObsServerStatusCachedAndNoDuplicateCore(t *testing.T) {
 		return 1, "", "timeout"
 	}
 	srv = &obsServer{r: r, now: srv.now}
-	check(0, 1, "box-a,box-c,core-a")
-	check(29*time.Second, 1, "box-a,box-c,core-a")
+	check(0, 1, "box-a")
+	check(29*time.Second, 1, "box-a")
 }
 
 func TestObsAsksUnderTheirMachine(t *testing.T) {

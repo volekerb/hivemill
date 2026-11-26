@@ -212,8 +212,25 @@ func (o *Obs) addMachines(names ...string) {
 	o.Machines = setKeys(ms)
 }
 
+// knownCoreName is coreName, else the last name hc gave, kept in the state dir so that it outlives the process ("" when
+// hc has never answered).
+func (r *Runner) knownCoreName() string {
+	path := filepath.Join(r.Env.StateDir(), "core_name")
+	saved, _ := os.ReadFile(path)
+	last := strings.TrimSpace(string(saved))
+	name := r.coreName()
+	if name == "" {
+		return last
+	}
+	if name != last && os.MkdirAll(filepath.Dir(path), 0o700) == nil {
+		_ = os.WriteFile(path, []byte(name+"\n"), 0o600) // best effort: the page still has the name
+	}
+	return name
+}
+
 // listMachines adds every session_machines entry ("local" or the local core's name is this machine) and every source's
-// machine. coreName is asked only when an entry is not "local".
+// machine. coreName is asked only when an entry is not "local". While it is unknown, such an entry may be this machine
+// under its hc name, so it is listed only through its logs and placements.
 func (r *Runner) listMachines(o *Obs, sources []string, coreName func() string) {
 	names := append([]string(nil), sources...)
 	core, coreRead := "", false
@@ -223,6 +240,8 @@ func (r *Runner) listMachines(o *Obs, sources []string, coreName func() string) 
 		}
 		if m == localMachine || (core != "" && m == core) {
 			m = r.Machine()
+		} else if core == "" && m != r.Machine() {
+			continue
 		}
 		names = append(names, m)
 	}
@@ -637,7 +656,7 @@ func (r *Runner) LoadObs(f ObsFilter, withPulled bool, now time.Time) (*Obs, err
 		}
 	}
 	o := BuildObs(evs, f, me, SessionUsages(r.Env.UserHome, uniq(ids)), now)
-	r.listMachines(o, sources, r.coreName)
+	r.listMachines(o, sources, r.knownCoreName)
 	return o, nil
 }
 
