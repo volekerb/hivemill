@@ -82,7 +82,7 @@ The snapshot holds the primary's runs, but not their terminals or Claude session
 1. On the standby: `hivemill planner stop` (the restored snapshot carries the planner setting, so the standby daemon may have started a planner, and drain does not stop it), then `hivemill drain`, wait until `hivemill drain --status` shows no active run, then `systemctl --user disable --now hivemill.service` (disabled, so a reboot cannot start it again).
 2. On the standby: `hivemill backup`, and copy the snapshot it prints to the primary.
 3. On the primary, with its daemon still stopped: `hivemill restore <snapshot> --dry-run`, then without `--dry-run`.
-4. On the primary: `systemctl --user enable --now hivemill.service`, check `hivemill run status`, then `hivemill resume`.
+4. On the primary: `systemctl --user enable --now hivemill.service`, check `hivemill run status`, then `hivemill resume`. If you use the planner, `hivemill planner start`: the restored DB has it off since step 1.
 5. On the standby, put its own DB back **before** its daemon starts again, or it would be a second writer of the same work: `hivemill restore <db>.pre-restore-<ts>`, then `systemctl --user enable --now hivemill.service`.
 
 ## The daemon lock
