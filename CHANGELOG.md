@@ -11,7 +11,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **The runner reports todo tasks that cannot start.** `hivemill task list --startable` and `--blocked` (with the reason: lint, deps or a run) show what a pass starts and skips. A todo task failing the spec gate logs one `task.unstartable` event and gives the planner one wake reason; when a run slot is free and nothing is startable, the wake says how many tasks deps and lint block. The idle alert counts startable tasks (T-2048).
+
 - **A task session that stops on a worker-guard block fails at once.** The Stop hook fails the run with `guard block: ` and the guard message instead of leaving it idle until it fails as stalled (T-2012).
+
 - **`hivemill obs` serves a task's timeline as JSON.** `GET /api/obs/task?k=<machine>/<task>` returns its steps in time order with the cost per step, the total, and the PR and session links (T-2025).
 
 - **The runner records every prompt it sends to a task or judge session.** Each one is saved under `state/hivemill/prompts/<task>/` and logged as a `prompt.sent` event with its kind, path, length and sha256; a write error is logged as `prompt.record_failed` and the prompt is still sent (T-2020).
