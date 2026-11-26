@@ -18,7 +18,9 @@ var unaskedRiskPaths = []string{
 	"go/internal/guard/**", "go/cmd/worker-guard/**", "go/internal/shlex/**", "go/internal/spawn/settings.go",
 	"go/internal/hm/*hook*", "go/internal/hm/guard*", "go/internal/hm/judge*", "go/internal/hm/unasked*",
 	"go/internal/hm/merge*", "go/internal/hm/run.go", "go/internal/hm/gate.go", "go/internal/hm/cigate.go",
-	"go/internal/hm/risk.go", "go/internal/hm/tierrules.go", "go/internal/hm/assets/task*",
+	"go/internal/hm/risk.go", "go/internal/hm/tierrules.go", "go/internal/hm/session.go", "go/internal/hm/store.go",
+	"go/internal/hm/resilience.go", "go/internal/sandbox/**", "go/internal/macbox/**", "go/internal/gowrap/**",
+	"go/internal/hm/assets/task*", "go/internal/hm/assets/planner*", "go/internal/hm/assets/skills.json",
 	"go/internal/hm/assets/tier_rules.json", "go/internal/citools/risktier/**",
 	"bin/factory", "bin/factory_cli.py",
 }
@@ -41,8 +43,9 @@ func (r *Runner) unaskedRisk(run *Run) func(Change) string {
 		return func(Change) string { return "the tier rules cannot be read" }
 	}
 	// --no-renames: a file moved out of a risk path still counts under its old name
-	rc, out, _ := r.Tools.Git(run.Worktree, "diff", "--name-only", "--no-renames", "origin/"+run.Base+"...HEAD")
-	files := strings.Fields(out)
+	// -z: no quoting of unusual names. The judged head, not HEAD: the clone may have moved on since.
+	rc, out, _ := r.Tools.Git(run.Worktree, "diff", "--name-only", "--no-renames", "-z", "origin/"+run.Base+"..."+run.JudgeHead)
+	files := strings.FieldsFunc(out, func(c rune) bool { return c == 0 })
 	if rc != 0 || len(files) == 0 {
 		return func(Change) string { return "the changed files cannot be listed" }
 	}
@@ -97,15 +100,15 @@ func overruleMerge(v *Verdict, risk func(Change) string) {
 	v.Reasons = append([]string{reason}, v.Reasons...)
 }
 
-// reportUnasked runs once, when the run's PR has merged: one judge.unasked_ok event per unasked change of the MERGE
-// verdict, and one PR comment that lists them. The repo may be public, so text that the public-text guard does not pass
+// reportUnasked runs once, when the run's PR has merged: one judge.unasked_ok event per cleared unasked change of the
+// last verdict (a MERGE, or a HOLD the owner merged), and one PR comment that lists them. The repo may be public, so text that the public-text guard does not pass
 // is left out of the comment.
 func (r *Runner) reportUnasked(run *Run) {
 	if run.Eval || len(run.Verdicts) == 0 {
 		return
 	}
 	v := run.Verdicts[len(run.Verdicts)-1]
-	if v.Verdict != VerdictMerge {
+	if v.Verdict == VerdictReject {
 		return
 	}
 	var list strings.Builder

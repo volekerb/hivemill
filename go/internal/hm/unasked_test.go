@@ -14,7 +14,7 @@ func unaskedRun(t *testing.T, files ...string) (*Runner, *SQLite, *[]string) {
 	git := r.Tools.Git
 	r.Tools.Git = func(repo string, args ...string) (int, string, string) {
 		if args[0] == "diff" {
-			return 0, strings.Join(files, "\n"), ""
+			return 0, strings.Join(files, "\x00"), ""
 		}
 		return git(repo, args...)
 	}
@@ -137,6 +137,25 @@ func TestJudgeUnaskedRiskPathHolds(t *testing.T) {
 	judgeSays(t, r, mergeWith(change("web/a.html")))
 	if _, v := verdictOf(t, s); v.Verdict != VerdictHold {
 		t.Errorf("unknown files: %+v", v)
+	}
+
+	// a HOLD is no way around the quote check
+	r, _, _ = unaskedRun(t, "go/internal/hm/session.go")
+	misquoted := `{"change": "y", "criterion": "words the task never had"}, ` + change("go/internal/hm/session.go")
+	if out := judgeSays(t, r, mergeWith(misquoted)); !strings.Contains(out, "must quote") {
+		t.Errorf("misquoted criterion beside a HOLD: %q", out)
+	}
+
+	// the owner merges the held PR: its unasked change is listed; a merge by hand during a later round lists nothing
+	for state, want := range map[string]int{Held: 1, Working: 0} {
+		r, s, comments := unaskedRun(t, "roles/x.md")
+		judgeSays(t, r, mergeWith(change("roles/x.md")))
+		run, _ := verdictOf(t, s)
+		run.State = state
+		r.finish(run, &PR{State: "MERGED"})
+		if len(*comments) != want {
+			t.Errorf("merged from %s: comments %q", state, *comments)
+		}
 	}
 }
 

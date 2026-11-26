@@ -22,7 +22,8 @@ type Verdict struct {
 	Head             string           `json:"head,omitempty"`
 	TS               string           `json:"ts,omitempty"`
 	Invalid          bool             `json:"invalid,omitempty"`
-	// JudgeVerdict is what the judge wrote when the runner overruled it (a MERGE with an unmapped change).
+	// JudgeVerdict is what the judge wrote when the runner overruled it: a MERGE turned into a REJECT (an unmarked unasked
+	// change) or a HOLD (a marked one that may touch a risk-tier path).
 	JudgeVerdict string `json:"judge_verdict,omitempty"`
 }
 
@@ -349,15 +350,16 @@ func (r *Runner) mergeChangeCheck(run *Run, v *Verdict) error {
 	if len(v.Changes) == 0 {
 		return errors.New("a MERGE needs a non-empty changes list: list every behaviour change in the diff, each with the criterion it serves")
 	}
-	t, err := r.Store.Task(run.Task)
-	if err != nil {
-		return nil // the runner cannot read the task: the mapping stays unchecked, the merge gate still applies
-	}
-	_, misquoted := ChangeProblems(v, t)
 	overruleMerge(v, r.unaskedRisk(run))
-	if v.Verdict != VerdictMerge {
+	if v.Verdict == VerdictReject {
 		return nil
 	}
+	t, err := r.Store.Task(run.Task)
+	if err != nil {
+		return nil // the runner cannot read the task: the quotes stay unchecked, the merge gate still applies
+	}
+	// a HOLD is checked too: the owner who merges it reads the same mapping
+	_, misquoted := ChangeProblems(v, t)
 	if len(misquoted) > 0 {
 		return errors.New("each criterion must quote the task's own words for what was asked, never a proof command: " +
 			strings.Join(misquoted, "; ") + ". Quote the requirement word for word, or set criterion to null and mark it unasked_ok, or give REJECT or HOLD")
