@@ -69,14 +69,14 @@ func mayMergeRed(st map[string]any, task string) bool {
 	return task != "" && (st["task"] == task || st["revert"] == task || st["named"] == task || prev["task"] == task)
 }
 
-// isPostMergeFix: the task is the one filed to clear its repo's post_merge red.
+// isPostMergeFix: the task is one that may repair its repo's post_merge red (mayMergeRed).
 func (r *Runner) isPostMergeFix(id string) bool {
 	t, err := r.Store.Task(id)
 	if err != nil || t == nil || t.GHRepo == "" {
 		return false
 	}
 	st, red := r.Store.RedMain(strings.ToLower(t.GHRepo))
-	return red && fromPostMerge(st) && st["task"] == id
+	return red && fromPostMerge(st) && mayMergeRed(st, id)
 }
 
 // nameRevert lets the revert task merge. A post_merge record keeps its fix-forward task and gets the revert beside it.

@@ -593,7 +593,7 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		}
 		_ = r.Store.PutRun(run)
 	}()
-	if Active(run.State) && run.State != Merging && r.overBudget(run) {
+	if Active(run.State) && run.State != Merging && run.PostMerge != PostMergePending && r.overBudget(run) { // pending: merged by hand, waits for the merge commit
 		return run.State, nil
 	}
 	if r.reconcile(run, list, listed) {

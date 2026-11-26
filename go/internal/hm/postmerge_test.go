@@ -302,6 +302,13 @@ func TestPostMergeFixForwardCanStart(t *testing.T) {
 	if !r.isPostMergeFix(id) || r.isPostMergeFix("T-0001") {
 		t.Errorf("fix-forward task %q is not told apart", id)
 	}
+	st["named"], st["task"] = id, "T-0002" // the director's named task is not held by max_waiting either
+	if err := s.SetRedMain("zz-test/www", st); err != nil {
+		t.Fatal(err)
+	}
+	if !r.isPostMergeFix(id) {
+		t.Errorf("named task %q counts against max_waiting", id)
+	}
 }
 
 func TestPostMergeRedactsOutput(t *testing.T) {
