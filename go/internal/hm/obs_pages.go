@@ -190,6 +190,14 @@ type SpendRow struct {
 	Project    string  `json:"project,omitempty"`  // by=goal
 }
 
+// SpendRole is one role's spend and the part of it that was polling.
+type SpendRole struct {
+	Role       string  `json:"role"`
+	USD        float64 `json:"usd"`
+	PollingUSD float64 `json:"polling_usd"`
+	PollingPct float64 `json:"polling_pct"` // of this role's USD
+}
+
 // SpendPage is the Spend page.
 type SpendPage struct {
 	Days    int     `json:"days"`
@@ -200,6 +208,10 @@ type SpendPage struct {
 	Unattributed        float64       `json:"unattributed_usd"`
 	UnattributedPct     float64       `json:"unattributed_pct"`
 	UnattributedPending int           `json:"unattributed_cost_pending"` // such sessions with no cost yet
+	PollingUSD          float64       `json:"polling_usd"`
+	PollingPct          float64       `json:"polling_pct"` // of Total
+	Roles               []SpendRole   `json:"roles"`
+	Banners             []string      `json:"banners"`
 	Daily               []SpendDay    `json:"daily"`
 	Rows                []SpendRow    `json:"rows"`
 	Chart               template.HTML `json:"-"`
@@ -217,6 +229,28 @@ func spendRole(s *ObsSession) string {
 	return "task"
 }
 
+// pollingBanners is the polling recommendation: at most one line, for the factory when its share is strictly above
+// pct, else for the role with the most polling $ among those above it.
+func (p *SpendPage) pollingBanners(pct int) []string {
+	over := func(polling, usd float64) bool { return usd > 0 && 100*polling-float64(pct)*usd > 1e-9 }
+	line := func(share float64, of string, polling float64) []string {
+		return []string{fmt.Sprintf("Polling is %.0f%% of %s ($%.2f). Action: replace wait turns with one blocking command.", share, of, polling)}
+	}
+	if over(p.PollingUSD, p.Total) {
+		return line(p.PollingPct, "spend", p.PollingUSD)
+	}
+	var worst *SpendRole
+	for i, r := range p.Roles {
+		if over(r.PollingUSD, r.USD) && (worst == nil || r.PollingUSD > worst.PollingUSD) {
+			worst = &p.Roles[i]
+		}
+	}
+	if worst == nil {
+		return []string{}
+	}
+	return line(worst.PollingPct, worst.Role+" spend", worst.PollingUSD)
+}
+
 // BuildSpend sums the sessions that started in the window. A session's whole cost counts on its start day, as in the
 // portfolio and the digest, so the total is the sum of the report's per-session costs.
 func (o *Obs) BuildSpend(days int, project, by string) *SpendPage {
@@ -231,6 +265,7 @@ func (o *Obs) BuildSpend(days int, project, by string) *SpendPage {
 		byDay[d] = &SpendDay{Day: d}
 	}
 	rows := map[string]*SpendRow{}
+	roles := map[string]*SpendRole{}
 	ids := make([]string, 0, len(o.Sessions))
 	for id := range o.Sessions {
 		ids = append(ids, id)
@@ -252,6 +287,13 @@ func (o *Obs) BuildSpend(days int, project, by string) *SpendPage {
 				d.Task += s.Usage.USD
 			}
 		}
+		role := spendRole(s)
+		if roles[role] == nil {
+			roles[role] = &SpendRole{Role: role}
+		}
+		roles[role].USD += s.Usage.USD
+		roles[role].PollingUSD += s.Usage.PollingUSD
+		p.PollingUSD += s.Usage.PollingUSD
 		t := o.Tasks[s.TaskKey]
 		if t == nil {
 			p.Unattributed += s.Usage.USD
@@ -296,6 +338,16 @@ func (o *Obs) BuildSpend(days int, project, by string) *SpendPage {
 	}
 	if p.Total > 0 {
 		p.UnattributedPct = 100 * p.Unattributed / p.Total
+		p.PollingPct = 100 * p.PollingUSD / p.Total
+	}
+	p.Roles = []SpendRole{}
+	for _, name := range []string{"task", "judge", "planner"} {
+		if r := roles[name]; r != nil {
+			if r.USD > 0 {
+				r.PollingPct = 100 * r.PollingUSD / r.USD
+			}
+			p.Roles = append(p.Roles, *r)
+		}
 	}
 	var bars []chartBar
 	for _, d := range list {
