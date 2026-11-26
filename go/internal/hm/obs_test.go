@@ -946,28 +946,22 @@ func TestObsFlowBannerHTML(t *testing.T) {
 	})
 }
 
-// stageFixture is a running obs page over one merged task with the given hours in dispatched, ci and judge, plus one
-// hour each in gate and merge when even.
-func stageFixture(t *testing.T, even bool, dispatched, ci, judge int) (*Runner, http.Handler) {
+// stageFixture is a running obs page over one merged task with the given hours in dispatched, gate, ci and judge.
+func stageFixture(t *testing.T, hours [4]int) (*Runner, http.Handler) {
 	t.Helper()
 	r, _ := testRunner(t, "")
 	r.Log.Machine = "box-a"
-	at := time.Now().UTC().AddDate(0, 0, -3).Truncate(24 * time.Hour)
+	at := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -2)
 	var evs []Event
-	add := func(kind, role string, data map[string]any, hours int) {
-		evs = append(evs, ev(at.Format(time.RFC3339), kind, "T-1", "G-1", "www", "", role, data))
-		at = at.Add(time.Duration(hours) * time.Hour)
+	add := func(kind, role string, h int) {
+		evs = append(evs, ev(at.Format(time.RFC3339), kind, "T-1", "G-1", "www", "", role, nil))
+		at = at.Add(time.Duration(h) * time.Hour)
 	}
-	add("task.dispatched", "", nil, dispatched)
-	if even {
-		add("gate.blocked", "", nil, 1)
-	}
-	add("gate.passed", "", nil, ci)
-	add("session.started", "judge", nil, judge)
-	if even {
-		add("judge.verdict", "", map[string]any{"verdict": "MERGE"}, 1)
-	}
-	add("pr.merged", "", map[string]any{"pr": "1"}, 0)
+	add("task.dispatched", "", hours[0])
+	add("gate.blocked", "", hours[1])
+	add("gate.passed", "", hours[2])
+	add("session.started", "judge", hours[3])
+	add("pr.merged", "", 0)
 	writeEvents(t, r.Log.Path, evs...)
 	h, err := r.ObsHandler()
 	if err != nil {
@@ -976,27 +970,25 @@ func stageFixture(t *testing.T, even bool, dispatched, ci, judge int) (*Runner, 
 	return r, h
 }
 
-const stageWant = "ci holds 3 of 5 stage hours (60%)."
-
 func TestObsBannerStage(t *testing.T) {
 	t.Run("below", func(t *testing.T) {
-		_, h := stageFixture(t, true, 1, 1, 1) // five stages of 20%
-		if p := flowBanners(t, h); len(p.Tasks) != 1 || p.Tasks[0].Total != 5*3600 || len(p.Banners) != 0 {
+		_, h := stageFixture(t, [4]int{3, 3, 2, 2}) // the largest share is exactly 30%
+		if p := flowBanners(t, h); len(p.Tasks) != 1 || p.Tasks[0].Total != 10*3600 || len(p.Banners) != 0 {
 			t.Fatalf("no banner: %+v", p)
 		}
-		at := &FlowPage{Tasks: []FlowTask{{Seconds: map[string]int64{"ci": 30, "gate": 30, "judge": 20, "merge": 20}}}}
 		lone := &FlowPage{Tasks: []FlowTask{{Seconds: map[string]int64{"ci": 3600, "gate": 0}}}}
-		if a, l := at.stageBanners(30), lone.stageBanners(30); a != nil || l != nil {
-			t.Fatalf("no banner at the threshold or for a lone stage: %q %q", a, l)
+		if b := lone.stageBanners(30); b != nil {
+			t.Fatalf("no banner for a lone stage: %q", b)
 		}
 	})
 	t.Run("above", func(t *testing.T) {
-		_, h := stageFixture(t, false, 1, 3, 1)
-		if p := flowBanners(t, h); !reflect.DeepEqual(p.Banners, []string{stageWant}) {
-			t.Fatalf("one banner: %+v", p)
+		_, h := stageFixture(t, [4]int{2, 0, 7, 1})
+		want := "ci holds 7 of 10 stage hours (70%)."
+		if p := flowBanners(t, h); !reflect.DeepEqual(p.Banners, []string{want}) {
+			t.Fatalf("one banner: %q", p.Banners)
 		}
 		html := flowBannerHTML(t, h)
-		if len(html) != 1 || !strings.Contains(html[0], stageWant) {
+		if len(html) != 1 || !strings.Contains(html[0], want) {
 			t.Fatalf("one banner element: %q", html)
 		}
 		if strings.Contains(html[0], "<button") || strings.Contains(html[0], "<form") || strings.Contains(html[0], "<a") {
@@ -1006,12 +998,15 @@ func TestObsBannerStage(t *testing.T) {
 }
 
 func TestObsBannerStageConfig(t *testing.T) {
-	r, h := stageFixture(t, false, 1, 3, 1)
+	r, h := stageFixture(t, [4]int{2, 0, 7, 1})
+	if p := flowBanners(t, h); len(p.Banners) != 1 {
+		t.Fatalf("one banner at the default: %q", p.Banners)
+	}
 	if err := r.Store.SetCfg("obs_banner_stage_pct", "90"); err != nil {
 		t.Fatal(err)
 	}
 	if p := flowBanners(t, h); len(p.Banners) != 0 {
-		t.Fatalf("60%% is under the configured 90%%: %q", p.Banners)
+		t.Fatalf("70%% is under the configured 90%%: %q", p.Banners)
 	}
 }
 
