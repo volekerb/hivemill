@@ -128,12 +128,19 @@ func (r *Runner) recordLocalCI(run *Run, head, cmd string, limit time.Duration, 
 		return false, "", fmt.Errorf("gate_cmd: the checkout is at %.12s, not at the head %.12s", at, head)
 	}
 	rc, text, note := r.execProjectGate(dir, cmd, limit, logdir)
+	// the log on disk and the note must not keep the key; a log that cannot be rewritten does not stay
+	log := filepath.Join(logdir, "gate-cmd.log")
+	if err := os.WriteFile(log, []byte(ScrubSecrets(text)), 0o600); err != nil {
+		_ = os.Remove(log)
+	}
+	note = ScrubSecrets(note)
 	// the checkout's name differs on every call: an unchanged failure must read the same, or it looks new each time
 	text, note = strings.ReplaceAll(text, dir, "<checkout>"), strings.ReplaceAll(note, dir, "<checkout>")
 	// the whole log is checked: the tail alone may have lost the line that marks it as private
 	private := true
 	if args, why := r.guardArgs(); why == "" {
-		refused, _ := r.guardText(args, r.redactHomes(text))
+		// before the key scrub: a log that held a key is still withheld, not posted redacted
+		refused, _ := r.guardText(args, r.replaceHomes(text))
 		private = refused != 0
 	}
 	run.LocalCI = &LocalCI{Head: head, RC: rc, Tail: r.commentTail(text), Private: private}
@@ -142,7 +149,12 @@ func (r *Runner) recordLocalCI(run *Run, head, cmd string, limit time.Duration, 
 
 // redactHomes removes the App Store Connect key and the local home paths.
 func (r *Runner) redactHomes(text string) string {
-	text = ScrubSecrets(text) // before the paths: a rewritten path inside a secret would hide it
+	// the key before the paths: a rewritten path inside a secret would hide it
+	return r.replaceHomes(ScrubSecrets(text))
+}
+
+// replaceHomes removes only the local home paths: the public-text guard must still see a key.
+func (r *Runner) replaceHomes(text string) string {
 	// the factory home first: it is usually inside the user home
 	for _, p := range [][2]string{{r.Env.Home, "<factory>"}, {r.Env.UserHome, "~"}} {
 		if len(p[0]) > 1 {

@@ -104,12 +104,13 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		ghTitle, body = ScrubSecrets(ghTitle), ScrubSecrets(body)
 		if r.publicTextRepo(repo) {
 			if why := r.prTextHits(ghTitle, body, branch); why != "" {
 				return "", fmt.Errorf("%w: pr create refused (public text): %s", ErrRefused, why)
 			}
 		}
+		// after the check: a body that holds a key block is still refused, not sent redacted
+		ghTitle, body = ScrubSecrets(ghTitle), ScrubSecrets(body)
 		argv = []string{"pr", "create", "--repo", repo, "--base", t.Base, "--head", branch, "--title", ghTitle, "--body-file", "-"}
 		input = body
 	case "ready":

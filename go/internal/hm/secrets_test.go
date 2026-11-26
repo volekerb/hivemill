@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // noASCEnv hides any real key of the machine the tests run on.
@@ -70,6 +71,85 @@ func TestScrubSecretsCleanTextUnchanged(t *testing.T) {
 	in := "ok\r\n-----BEGIN CERTIFICATE-----\nEXAMPLE\n-----END CERTIFICATE-----\nPRIVATE KEY é\n"
 	if got := ScrubSecrets(in); got != in {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestScrubSecretsLocalCI(t *testing.T) {
+	noASCEnv(t)
+	key := "EXAMPLE-fake-asc-key-content"
+	t.Setenv("ASC_KEY_CONTENT", key)
+	block := "-----BEGIN " + "PRIVATE KEY-----\nEXAMPLEfakeKeyLineOne\n-----END " + "PRIVATE KEY-----"
+	f := newLocalCIFake(t, "none", "make test")
+	terms := filepath.Join(t.TempDir(), "terms.txt")
+	if err := os.WriteFile(terms, []byte("zz-example-term\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f.factoryCfg(t, "scrub_terms_file", terms)
+	f.r.Tools.Sh = func(string, time.Duration, []string, ...string) (int, string) {
+		return 1, "building\n" + block + "\nkey " + key + "\n"
+	}
+	logdir := t.TempDir()
+	_, note, err := f.r.recordLocalCI(f.run, headA, "make test", time.Minute, logdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := filepath.Join(logdir, "gate-cmd.log")
+	b, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "building\n[asc-key redacted]\nkey [asc-key redacted]\n"; string(b) != want {
+		t.Errorf("gate-cmd.log: %q", b)
+	}
+	if fi, err := os.Stat(log); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf("gate-cmd.log mode: %v %v", fi, err)
+	}
+	for name, text := range map[string]string{"tail": f.run.LocalCI.Tail, "note": note} {
+		if strings.Contains(text, key) || strings.Contains(text, "EXAMPLEfakeKeyLineOne") || !strings.Contains(text, "[asc-key redacted]") {
+			t.Errorf("%s: %q", name, text)
+		}
+	}
+	// the public-text guard reads the log before the scrub: it is still withheld from the PR
+	if !f.run.LocalCI.Private {
+		t.Error("a log with a key block must stay private")
+	}
+}
+
+// A public repo's pr create still refuses a key block: the scrub does not turn the refusal into a redacted PR.
+func TestScrubSecretsPRBody(t *testing.T) {
+	noASCEnv(t)
+	key := "EXAMPLE-fake-asc-key-content"
+	t.Setenv("ASC_KEY_CONTENT", key)
+	r, s := testRunner(t, "claude-coder-t-0001-a7")
+	var ghArgs []string
+	var ghIn string
+	r.Tools.GH = func(in string, args ...string) (int, string, string) {
+		ghArgs, ghIn = args, in
+		return 0, "", ""
+	}
+	r.Tools.Git = func(string, ...string) (int, string, string) { return 0, "factory/t-0001\n", "" }
+	if _, err := s.db.Exec(`INSERT INTO agents(name,role,goal_id,task_id,status) VALUES('claude-coder-t-0001-a7','task','G-001','T-0001','live')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.PR("create", "T-0001: add "+key, "the key is "+key, "/wt"); err != nil {
+		t.Fatal(err)
+	}
+	if ghIn != "the key is [asc-key redacted]" || !strings.Contains(strings.Join(ghArgs, " "), "--title T-0001: add [asc-key redacted] --body-file") {
+		t.Errorf("gh %q stdin %q", ghArgs, ghIn)
+	}
+	terms := filepath.Join(t.TempDir(), "terms.txt")
+	if err := os.WriteFile(terms, []byte("zz-example-term\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range map[string]string{"public_text_repos": "zz-test/www", "scrub_terms_file": terms} {
+		if err := s.SetFactoryCfg(k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ghArgs = nil
+	block := "-----BEGIN " + "PRIVATE KEY-----\nEXAMPLEfakeKeyLineOne\n-----END " + "PRIVATE KEY-----"
+	if _, err := r.PR("create", "T-0001: x", block, "/wt"); err == nil || !strings.Contains(err.Error(), "public text") || ghArgs != nil {
+		t.Errorf("key block: %v (gh %q)", err, ghArgs)
 	}
 }
 
