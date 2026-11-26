@@ -660,7 +660,7 @@ func barChart(bars []chartBar, series []string, yLabel string, fmtY func(float64
 	return template.HTML(sb.String())
 }
 
-// Top reports whether the page is a top section (now, spend, flow) rather than a drill-down or a not-found page.
+// Top reports whether the page is a top section (now, spend, flow, machines) rather than a drill-down or a not-found page.
 func (p *obsPage) Top() bool { return p.Kind == p.Section }
 
 // Current reports whether the sidebar entry for section s is the page being shown; only top sections have one.

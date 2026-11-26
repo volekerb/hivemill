@@ -1,0 +1,15 @@
+{{define "machines"}}{{with .MachPg}}
+<div class="machines">
+{{range .Cards}}<section class="machine{{if .Down}} is-down{{end}}">
+  <h2>{{.Name}}{{if .Coordinator}} <span class="muted">coordinator</span>{{end}}{{if .Down}} <span class="bad">down</span>{{end}}</h2>
+  <dl class="kv">
+    <dt>running</dt><dd>{{if .Running}}<ul>{{range .Running}}<li>{{if .Key}}<a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a>{{else}}{{.Task}}{{end}}</li>{{end}}</ul>{{else}}<span class="muted">none</span>{{end}}</dd>
+    <dt>free slots</dt><dd>{{.FreeSlots}} of {{$.MachPg.Cap}}</dd>
+    <dt>memory available</dt><dd>{{if .MemMB}}{{.MemMB}} MB{{else}}<span class="muted">unknown</span>{{end}}</dd>
+    <dt>last seen</dt><dd>{{if .LastSeen}}{{when .LastSeen}}{{else}}<span class="muted">no event yet</span>{{end}}</dd>
+  </dl>
+</section>
+{{end}}</div>
+<p class="muted">Running counts what placement counts: working and judging runs, and waiting runs whose session is open. Free slots are <code>max_concurrent</code> minus that count; the cap is one limit for all machines together. Last seen is the time of the machine's newest event.</p>
+{{if eq (len .Cards) 1}}<p class="muted">No other session machine: set <code>session_machines</code> to list more.</p>{{end}}
+{{end}}{{end}}
