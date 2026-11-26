@@ -1,6 +1,6 @@
 name: obs-screens
 
-# Light and dark screenshots of the `hivemill obs` Spend and Flow pages, taken from the synthetic fixture in
+# Light and dark screenshots of the `hivemill obs` Now, Spend and Flow pages, taken from the synthetic fixture in
 # go/internal/hm/testdata/obs_fixture/ by ci/obs_screens.sh. Task sessions never run the script; this job does.
 on:
   pull_request:
@@ -49,6 +49,8 @@ jobs:
         with:
           name: obs-screens
           path: |
+            obs-screens/now-light.png
+            obs-screens/now-dark.png
             obs-screens/spend-light.png
             obs-screens/spend-dark.png
             obs-screens/flow-light.png
