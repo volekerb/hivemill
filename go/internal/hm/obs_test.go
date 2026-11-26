@@ -976,6 +976,10 @@ func TestObsBannerStage(t *testing.T) {
 		if p := flowBanners(t, h); len(p.Tasks) != 1 || p.Tasks[0].Total != 10*3600 || len(p.Banners) != 0 {
 			t.Fatalf("no banner: %+v", p)
 		}
+		lone := &FlowPage{Tasks: []FlowTask{{Seconds: map[string]int64{"ci": 3600, "gate": 0}}}}
+		if b := lone.stageBanners(30); b != nil {
+			t.Fatalf("no banner for a lone stage: %q", b)
+		}
 	})
 	t.Run("above", func(t *testing.T) {
 		_, h := stageFixture(t, [4]int{2, 0, 7, 1})
