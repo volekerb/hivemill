@@ -517,6 +517,109 @@ func (r *Runner) noteSession(run *Run, sid, agent string) {
 	_ = r.Store.AddSession(Session{SID: sid, Task: run.Task, Role: role, Agent: agent, Started: nowISO()})
 }
 
+const (
+	guardDenial    = "worker-guard: blocked"
+	transcriptTail = 256 << 10
+)
+
+// failOnGuardBlock fails the run when the session stopped on a worker-guard denial: a denied command stays denied, so
+// the session would only sit idle until the idle watch failed it as stalled, without the reason.
+func (r *Runner) failOnGuardBlock(run *Run, h HookInput) bool {
+	line := stoppedOnGuard(h)
+	if line == "" {
+		return false
+	}
+	r.fail(run, "guard block: "+truncate(line, 300))
+	return true
+}
+
+// stoppedOnGuard returns the denial line when the last tool result in the transcript's tail is a worker-guard denial,
+// else "". Without a readable transcript it looks for the line in the last assistant message.
+func stoppedOnGuard(h HookInput) string {
+	tail, err := readTail(h.TranscriptPath, transcriptTail)
+	if err != nil {
+		for _, l := range strings.Split(h.LastAssistantMessage, "\n") {
+			if strings.HasPrefix(l, guardDenial) {
+				return l
+			}
+		}
+		return ""
+	}
+	denial := ""
+	for _, raw := range bytes.Split(tail, []byte("\n")) {
+		var d struct {
+			Sidechain bool `json:"isSidechain"`
+			Message   struct {
+				Content json.RawMessage `json:"content"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(raw, &d) != nil || d.Sidechain {
+			continue
+		}
+		var blocks []struct {
+			Type    string          `json:"type"`
+			IsError bool            `json:"is_error"`
+			Content json.RawMessage `json:"content"`
+		}
+		if json.Unmarshal(d.Message.Content, &blocks) != nil {
+			continue // a plain text message
+		}
+		for _, b := range blocks {
+			if b.Type != "tool_result" {
+				continue
+			}
+			denial = ""
+			if b.IsError {
+				denial = denialLine(b.Content)
+			}
+		}
+	}
+	return denial
+}
+
+// denialLine is the guard message of a failed tool result (a string or a list of text blocks), from its first line:
+// bare, or behind Claude Code's "PreToolUse:<tool> hook error: [<command>]: " prefix. Command output that only quotes
+// a denial further down does not match.
+func denialLine(content json.RawMessage) string {
+	var text string
+	if json.Unmarshal(content, &text) != nil {
+		var parts []struct {
+			Text string `json:"text"`
+		}
+		if json.Unmarshal(content, &parts) != nil || len(parts) == 0 {
+			return ""
+		}
+		text = parts[0].Text
+	}
+	first, _, _ := strings.Cut(text, "\n")
+	if strings.HasPrefix(first, "PreToolUse:") {
+		_, first, _ = strings.Cut(first, "]: ")
+	}
+	if !strings.HasPrefix(first, guardDenial) {
+		return ""
+	}
+	return first
+}
+
+// readTail returns at most the last n bytes of the file. A line cut at the start does not parse and is skipped.
+func readTail(path string, n int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if st.Size() > n {
+		if _, err := f.Seek(-n, io.SeekEnd); err != nil {
+			return nil, err
+		}
+	}
+	return io.ReadAll(io.LimitReader(f, n))
+}
+
 // GateHook is the Stop hook of a task session. It allows the stop when the gate passes and blocks with the problems
 // otherwise, at most gate_max_blocks times per round; then it allows the stop and marks the task FAIL for the owner.
 func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
@@ -538,6 +641,9 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 	// No PR yet: the session is mid-work (often waiting for a background /code-review that wakes it again). Let it
 	// stop without a block; the runner's idle watch nudges a session that stays idle with no PR.
 	if t, err := r.Store.Task(run.Task); err == nil && t.PRURL == "" && r.findPR(run, t) == "" {
+		if r.failOnGuardBlock(run, h) {
+			return nil
+		}
 		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no PR yet"}})
 		return nil
 	}
@@ -554,6 +660,9 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 		return nil
 	}
 	if _, err := os.Stat(filepath.Join(run.Worktree, ".hivemill", "findings.json")); err != nil {
+		if r.failOnGuardBlock(run, h) {
+			return nil
+		}
 		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no findings.json yet"}})
 		return nil
 	}
