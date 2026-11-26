@@ -161,11 +161,11 @@ func (r *Runner) redCI(run *Run, failed []string) {
 	}
 	run.History = append(run.History, fmt.Sprintf("round %d: CI red (%s)", run.Round, strings.Join(failed, ", ")))
 	if r.ciNone(run.Project) && run.LocalCI != nil {
-		r.resume(run, "The project gate command (this project's CI) failed on your PR head: "+strings.Join(failed, ", ")+
+		r.resumeAs(run, "ci", "The project gate command (this project's CI) failed on your PR head: "+strings.Join(failed, ", ")+
 			". Its log ends:\n"+run.LocalCI.Tail+"\nFix it, "+r.pushAndStop(run.Project)+".")
 		return
 	}
-	r.resume(run, "CI is red on your PR: "+strings.Join(failed, ", ")+". Read the failing log (`gh run view --log-failed`), "+
+	r.resumeAs(run, "ci", "CI is red on your PR: "+strings.Join(failed, ", ")+". Read the failing log (`gh run view --log-failed`), "+
 		"fix it, push, wait for CI once with one blocking command, and stop.")
 }
 
