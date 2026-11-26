@@ -1,5 +1,5 @@
-// Package tokens is the Go port of web/tokens.py (token tally of Claude Code transcripts and attribution to factory
-// agents, tasks and goals), web/cursor_limits.py (Cursor plan limits) and web/prices.py (price table).
+// Package tokens tallies the tokens of Claude Code transcripts, attributes them to factory agents, tasks and goals,
+// records Cursor plan limits and holds the price table.
 //
 // Python and Go run side by side, so every JSON shape here is the one Python writes and reads: the TokenIndex
 // snapshot (Python's idx.snapshot()) and the config row "cursor_model_limits". Cost numbers use the same float
@@ -11,7 +11,7 @@ import "math"
 // PriceRow is USD per million tokens for one model.
 type PriceRow struct{ Input, Output, CacheRead, CacheWrite5m, CacheWrite1h float64 }
 
-// PricesAsOf mirrors web/prices.py PRICES_AS_OF.
+// PricesAsOf is the date of the price table.
 const PricesAsOf = "2026-10-25"
 
 // Prices mirrors PRICES (source: platform.claude.com pricing page, checked 2026-10-25).

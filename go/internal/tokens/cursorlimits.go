@@ -13,7 +13,7 @@ import (
 	"unicode"
 )
 
-// Cursor plan limits recorded by the tick from in-pane usage-limit errors (port of web/cursor_limits.py).
+// Cursor plan limits recorded by the tick from in-pane usage-limit errors.
 
 // ConfigKey is the config row that holds the per-model limit state (JSON, shared with Python).
 const ConfigKey = "cursor_model_limits"
