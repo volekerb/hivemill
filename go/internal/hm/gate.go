@@ -251,10 +251,11 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 		}
 		var rc int
 		var text string
+		limit := proofTimeout
 		if run.cloned() {
 			rc, text = at.sh(dir, proofTimeout, cleanEnv(), argv...)
 		} else {
-			rc, text = proofs.sh(c.ID, dir, argv)
+			rc, text, limit = proofs.sh(c.ID, dir, argv)
 		}
 		x.Log = filepath.Join(logdir, fmt.Sprintf("proof-%d.log", c.ID))
 		_ = os.WriteFile(x.Log, []byte(text), 0o600)
@@ -264,7 +265,7 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 			ok, x.Note = ExpectOK(c.Expect, rc, text)
 		}
 		if rc == 124 {
-			ok, x.Note = false, "timed out after 15m"
+			ok, x.Note = false, timeoutNote(limit)
 		}
 		x.OK = &ok
 		out = append(out, x)

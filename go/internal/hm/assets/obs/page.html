@@ -19,13 +19,15 @@
     <div class="grp">Improve</div>
     <span class="off">not built yet</span>
     <div class="grp">System</div>
-    <a href="{{.Q "/"}}#machines">Machines</a>
+    <a href="{{.Q "/machines"}}"{{if eq .Section "machines"}} class="on" aria-current="page"{{end}}>Machines</a>
     <a href="{{.Q "/api/obs/now"}}">JSON</a>
   </nav>
 </aside>
 <main>
 <header class="top">
-  <div class="where"><strong>{{or .PFilter "all projects"}}</strong> <span class="muted">last {{.Days}} days</span></div>
+  {{if eq .Kind "machines"}}<div class="where"><strong>all machines</strong> <span class="muted">now</span></div>
+  <span class="theme"><a href="{{.ThemeQ "light"}}">light</a> <a href="{{.ThemeQ "dark"}}">dark</a></span>
+  {{else}}<div class="where"><strong>{{or .PFilter "all projects"}}</strong> <span class="muted">last {{.Days}} days</span></div>
   <form class="filters" method="get" action="{{.Path}}">
     {{if .Project}}<input type="hidden" name="p" value="{{.Project}}">{{end}}
     {{if eq .Kind "goal"}}<input type="hidden" name="g" value="{{.Goal}}">{{end}}
@@ -39,7 +41,7 @@
     <label>harness <select name="harness"><option value="">all</option>{{range .Harnesses}}<option{{if eq . $.F.Harness}} selected{{end}}>{{.}}</option>{{end}}</select></label>
     <button type="submit">apply</button>
     <span class="theme"><a href="{{.ThemeQ "light"}}">light</a> <a href="{{.ThemeQ "dark"}}">dark</a></span>
-  </form>
+  </form>{{end}}
 </header>
 <h1>{{.Title}}</h1>
 {{if gt (len .Crumbs) 1}}<nav class="crumbs">{{range $i, $c := .Crumbs}}{{if $i}} / {{end}}{{if $c.Href}}<a href="{{$c.Href}}">{{$c.Label}}</a>{{else}}<span>{{$c.Label}}</span>{{end}}{{end}}</nav>{{end}}
@@ -47,6 +49,7 @@
 {{if eq .Kind "now"}}{{template "now" .}}{{end}}
 {{if eq .Kind "spend"}}{{template "spend" .}}{{end}}
 {{if eq .Kind "flow"}}{{template "flow" .}}{{end}}
+{{if eq .Kind "machines"}}{{template "machines" .}}{{end}}
 {{if or (eq .Kind "project") (eq .Kind "goal") (eq .Kind "task") (eq .Kind "session")}}{{template "drill" .}}{{end}}
 <footer>read-only; {{.Me}}; {{.Now}}. Docs: docs/hivemill-observability.md.</footer>
 </main>
