@@ -155,7 +155,7 @@ jobs:
         run: |
           # zsh reads .zshenv: the sandbox PATH-order regression tests must run in CI, not skip.
           command -v zsh >/dev/null || sudo apt-get install -y zsh
-          (cd go&& GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
+          (cd go && GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
           # setup-go put its go on PATH only to build ci-shard: take that one directory off so the shards see the PATH they saw before.
           d=$(dirname "$(command -v go)")
           PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF -e "$d" -e "$d/" | paste -sd: -)
@@ -416,7 +416,10 @@ jobs:
           if [ "$lines" -le 100 ]; then echo "corpus has $lines lines (<= 100): not the real corpus; restore ci/guard_corpus.json" >&2; exit 1; fi
           git diff --exit-code -- roles/hooks/worker-guard.py || exit 1
           rc=0
-          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator | tee "$RUNNER_TEMP/gd-self.txt" || rc=1
+          # Private TMPDIR and longer hook timeout, as in guard-diff: the hm-ci host is shared.
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          trap 'rm -rf "$TMPDIR"' EXIT
+          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator --timeout 30 | tee "$RUNNER_TEMP/gd-self.txt" || rc=1
           if ! grep -F ' 0 loosened, 0 tightened' "$RUNNER_TEMP/gd-self.txt"; then
             echo "evaluator self-compare: expected summary ' 0 loosened, 0 tightened' in stdout" >&2
             rc=1
@@ -467,7 +470,10 @@ jobs:
           PY
           out="$RUNNER_TEMP/gd-home-loosen.txt"
           rc=0
-          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator >"$out" 2>&1 || rc=$?
+          # Private TMPDIR and longer hook timeout, as in guard-diff: the hm-ci host is shared.
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          trap 'rm -rf "$TMPDIR"' EXIT
+          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator --timeout 30 >"$out" 2>&1 || rc=$?
           cat "$out"
           if [ "$rc" -eq 0 ]; then
             echo "evaluator home-check loosen probe: expected non-zero exit from guard_diff" >&2
@@ -568,7 +574,10 @@ jobs:
           ls -l "$HOME/.local/go/bin/go"
       - name: guard_diff strict Go gate (corpus, one role shard; shard 1 also runs hq)
         if: steps.paths.outputs.run == 'true'
-        run: python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --role-shard ${{ matrix.shard }} --role-shards 4 --mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict
+        run: |
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          trap 'rm -rf "$TMPDIR"' EXIT
+          python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --role-shard ${{ matrix.shard }} --role-shards 4 --mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict --timeout 30
 
   # Fan-in: the required check name stays exactly "guard-equiv". needs.guard-equiv.result is the matrix.
   guard-equiv-fanin:
