@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -362,10 +363,18 @@ func (r *Runner) Requeue(id string) error {
 	if run != nil {
 		if run.cloned() && !run.RemoteDone {
 			r.removeRemoteWorktree(run) // no pass sees a retired run, so its worktree is removed now
+			under := path.Join(remoteBase(run.RemoteHome), "worktrees") + "/"
+			if !run.RemoteDone && strings.HasPrefix(run.Worktree, under) {
+				return fmt.Errorf("%w: the worktree of %s is still on %s; try again", ErrRefused, id, run.Machine)
+			}
 		}
 		if err := s.RetireRun(id); err != nil {
 			return err
 		}
+	}
+	// the old run's PR is not the new run's: an open one on the branch is found again by its head
+	if err := r.Store.TaskPR(id, "", ""); err != nil {
+		return err
 	}
 	if err := r.Store.TaskStatus(id, "todo", "internal"); err != nil {
 		return err
@@ -521,16 +530,9 @@ func (r *Runner) resume(run *Run, text string) { r.resumeAs(run, "resume", text)
 
 // resumeAs is resume with the kind the prompt is recorded under.
 func (r *Runner) resumeAs(run *Run, kind, text string) {
-	if run.cloned() && run.RemoteDone { // a held run gave its worktree back
-		t, err := r.Store.Task(run.Task)
-		if err == nil {
-			run.Worktree, err = r.remoteWorktree(run.Machine, run.RemoteHome, t, run.Branch)
-		}
-		if err != nil {
-			r.fail(run, "cannot make the worktree again: "+err.Error())
-			return
-		}
-		run.RemoteDone = false
+	if err := r.remakeWorktree(run); err != nil {
+		r.fail(run, "cannot make the worktree again: "+err.Error())
+		return
 	}
 	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
 	// are deferred until the session writes fresh findings.
@@ -550,6 +552,23 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 		return
 	}
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-resume", truncate(text, 300))
+}
+
+// remakeWorktree gives a cloned run its worktree again; a held run gave it back.
+func (r *Runner) remakeWorktree(run *Run) error {
+	if !run.cloned() || !run.RemoteDone {
+		return nil
+	}
+	t, err := r.Store.Task(run.Task)
+	if err != nil {
+		return err
+	}
+	wt, err := r.remoteWorktree(run.Machine, run.RemoteHome, t, run.Branch)
+	if err != nil {
+		return err
+	}
+	run.Worktree, run.RemoteDone = wt, false
+	return nil
 }
 
 // deliver sends text to the warm task session. One that is gone (a held run closes it) is resumed by its recorded

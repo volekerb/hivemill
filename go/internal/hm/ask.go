@@ -81,15 +81,16 @@ func (r *Runner) answeredHeld(run *Run, list []Terminal, listed bool) {
 	if err != nil {
 		return
 	}
-	var a *Ask
-	for i := range asks { // oldest first: the latest question wins
-		if ref := asks[i].Ref; ref == "held:"+run.Task || ref == fmt.Sprintf("held:%s:%d", run.Task, run.Round) {
-			a = &asks[i]
+	var found []Ask
+	for _, x := range asks { // oldest first: the latest question wins
+		if x.Ref == "held:"+run.Task || x.Ref == fmt.Sprintf("held:%s:%d", run.Task, run.Round) {
+			found = append(found, x)
 		}
 	}
-	if a == nil {
+	if len(found) == 0 {
 		return
 	}
+	a := found[len(found)-1]
 	if run.PRURL != "" {
 		if pr, err := PRView(r.Tools, run.PRURL); err != nil || pr.State != "OPEN" {
 			return // checkHeld records a merged or closed PR; an unread one waits for the next pass
@@ -100,10 +101,18 @@ func (r *Runner) answeredHeld(run *Run, list []Terminal, listed bool) {
 	if !merge && (!listed || (run.Machine != "" && machineDown(r.Tools, run.Machine))) {
 		return // cannot tell whether the session is there: next pass
 	}
-	// used once, and retired before acting: a run held again gets a new question
-	if err := s.RetireAskRef(a.ID); err != nil {
-		r.printf("%s: question #%d: %v\n", run.Task, a.ID, err)
-		return
+	if !merge {
+		if err := r.remakeWorktree(run); err != nil { // the run stays held and the answer unused: next pass
+			r.printf("%s: cannot make the worktree again: %v\n", run.Task, err)
+			return
+		}
+	}
+	// used once, and retired before acting: a run held again gets a new question, and no older answer is left over
+	for _, x := range found {
+		if err := s.RetireAskRef(x.ID); err != nil {
+			r.printf("%s: question #%d: %v\n", run.Task, x.ID, err)
+			return
+		}
 	}
 	run.Outcome, run.FailReason, run.Ended, run.MergeHold = "", "", "", ""
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "internal")

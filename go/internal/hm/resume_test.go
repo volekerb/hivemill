@@ -90,6 +90,8 @@ func TestAnsweredHeldAskResumes(t *testing.T) {
 				PRURL: "https://github.com/zz-test/www/pull/1", Verdicts: []Verdict{{Verdict: c.verdict}}}
 			_ = s.PutRun(run)
 			_ = s.AddSession(Session{SID: "sid-1", Task: "T-0001", Role: "task", Agent: agent, Started: nowISO()})
+			// an older answered question about the same hold: used up with the latest, never acted on later
+			older, _, _ := s.AddAsk(Ask{Ref: "held:T-0001", Task: "T-0001", Question: "T-0001 waits", AskedBy: "runner"})
 			id, _, err := s.AddAsk(Ask{Ref: c.ref, Task: "T-0001", Question: "T-0001 is held", AskedBy: "runner"})
 			if err != nil {
 				t.Fatal(err)
@@ -97,6 +99,9 @@ func TestAnsweredHeldAskResumes(t *testing.T) {
 			_ = r.Pass(false)
 			if got, _ := s.Run("T-0001"); got.State != Held || len(f.sent) != 0 {
 				t.Fatalf("an open question moves nothing: %s, sent %q", got.State, f.sent)
+			}
+			if c.ref == "held:T-0001:1" {
+				_ = r.AskClose(older, true, "an older answer")
 			}
 			if err := r.AskClose(id, true, c.answer); err != nil {
 				t.Fatal(err)
@@ -121,6 +126,12 @@ func TestAnsweredHeldAskResumes(t *testing.T) {
 			if c.state == Held {
 				return
 			}
+			answered, _ := s.Asks("answered")
+			for _, a := range answered {
+				if strings.HasPrefix(a.Ref, "held:") {
+					t.Errorf("an answer is left to act on: %+v", a)
+				}
+			}
 			// the answer is used once: the same question about a later hold is filed anew
 			if _, isNew, _ := s.AddAsk(Ask{Ref: c.ref, Task: "T-0001", Question: "T-0001 is held again", AskedBy: "runner"}); !isNew {
 				t.Error("the used question still blocks a new one")
@@ -134,6 +145,7 @@ func TestRequeueFailedTask(t *testing.T) {
 	addReady(t, s, 1)
 	_ = s.PutRun(&Run{Task: "T-0001", State: Failed, FailReason: "zz-test failure"})
 	_ = s.TaskStatus("T-0001", "blocked", "owner")
+	_ = s.TaskPR("T-0001", "https://github.com/zz-test/www/pull/1", "T1")
 	_, _, _ = s.AddAsk(Ask{Ref: "held:T-0001:1", Task: "T-0001", Question: "T-0001 is held", AskedBy: "runner"})
 	if got, _ := r.ReadyIn([]string{"www"}); len(got) != 0 {
 		t.Fatalf("a failed task is ready: %v", got)
@@ -145,6 +157,9 @@ func TestRequeueFailedTask(t *testing.T) {
 	got, err := r.ReadyIn([]string{"www"})
 	if err != nil || task.Status != "todo" || len(got) != 1 {
 		t.Fatalf("status %s, ready %v, err %v", task.Status, got, err)
+	}
+	if task.PRURL != "" {
+		t.Errorf("the old run's PR is kept: %s", task.PRURL)
 	}
 	var old string
 	if err := s.db.QueryRow(`SELECT data FROM hm_runs WHERE task='T-0001#1'`).Scan(&old); err != nil || !strings.Contains(old, "zz-test failure") {
