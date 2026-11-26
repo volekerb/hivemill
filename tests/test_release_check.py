@@ -4,7 +4,6 @@ Most tests inject a fake runner (the process boundary: git, gh, python children)
 import io
 import json
 import os
-import shutil
 import sqlite3
 import subprocess
 import sys
@@ -21,7 +20,7 @@ import release_check as rc  # noqa: E402
 SHA = "a" * 40
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com", "GIT_COMMITTER_NAME": "t",
            "GIT_COMMITTER_EMAIL": "t@example.com", "PATH": os.environ["PATH"], "HOME": "/nonexistent"}
-CHECKS = ("on-main", "version", "ci-green", "notes", "fresh-install-smoke", "public-text", "tag-free", "cursor-runtime")
+CHECKS = ("on-main", "version", "ci-green", "notes", "fresh-install-smoke", "public-text", "tag-free")
 GREEN_RUN = json.dumps([{"status": "completed", "conclusion": "success", "databaseId": 777}])
 
 
@@ -107,7 +106,7 @@ class CheckTest(unittest.TestCase):
         fake = Fake()
         code, lines = go(fake)
         self.assertEqual(code, 0)
-        self.assertEqual([status(lines, c) for c in CHECKS], ["PASS"] * 8)
+        self.assertEqual([status(lines, c) for c in CHECKS], ["PASS"] * 7)
         self.assertEqual(lines[-5:], [
             "Release v0.3.1 is ready. Owner, run:", "  git -C ~/factory fetch origin",
             f"  git -C ~/factory tag -a v0.3.1 -m v0.3.1 {SHA}", "  git -C ~/factory push origin v0.3.1",
@@ -261,24 +260,6 @@ class CheckTest(unittest.TestCase):
     def test_tag_free_fail_ls_remote_error(self):
         self.assert_fail("tag-free", {"git-ls-remote": (128, "", "no network")})
 
-    def test_cursor_runtime_passes_on_real_tree(self):
-        fake = Fake()
-        code, lines = go(fake)
-        self.assertEqual(status(lines, "cursor-runtime"), "PASS", lines)
-        self.assertIn("pm/claude", [ln for ln in lines if "cursor-runtime" in ln][0])
-
-    def test_cursor_runtime_resolve_contract(self):
-        sys.path.insert(0, str(ROOT))
-        from scout.agent_runtime import parse_runtimes, resolve_runtime
-        self.assertEqual(resolve_runtime("pm", ""), "claude")
-        self.assertEqual(parse_runtimes("*=cursor").get("coder"), "cursor")
-        self.assertEqual(resolve_runtime("evaluator", "*=cursor"), "claude")
-
-    def test_cursor_runtime_fail_missing_adapter(self):
-        path = "roles/hooks/cursor-guard-adapter.py"
-        lines = self.assert_fail("cursor-runtime", {"git-show:" + path: (128, "", "missing")})
-        self.assertTrue(any(ln.startswith("FAIL cursor-runtime:") for ln in lines), lines)
-
     def test_unresolvable_sha_exit_2(self):
         fake = Fake(over={"git-rev-parse": (128, "", "Needed a single revision")})
         code, lines = go(fake)
@@ -344,16 +325,6 @@ class RealGitTest(unittest.TestCase):
         (Path(self.repo) / "bin" / "factory").write_text("import sys\nprint('hivemill 0.3.1 (git x)' if sys.argv[1:] == ['--version'] else '')\n")
         (Path(self.repo) / "ci" / "demo_seed.py").write_text("import sys,os\nos.makedirs(sys.argv[2])\n")
         (Path(self.repo) / "VERSION").write_text("0.3.1\n")
-        for rel in rc.CURSOR_RUNTIME_PATHS:
-            src = ROOT / rel
-            dst = Path(self.repo) / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
-        scout_init = ROOT / "scout" / "__init__.py"
-        if scout_init.is_file():
-            dst = Path(self.repo) / "scout" / "__init__.py"
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(scout_init, dst)
         self.git("init", "-q", "-b", "main")
         self.git("add", ".")
         self.git("commit", "-q", "-m", "one")
@@ -381,6 +352,13 @@ class RealGitTest(unittest.TestCase):
         code = rc.main([self.sha, "--version", "0.3.1", "--repo", "acme/widget"], run=self.runner, probe=lambda a, e, p: (True, "HTTP 200 on /"),
                        root=self.repo, out=lines.append, env=env)
         self.assertEqual((status(lines, "on-main"), status(lines, "fresh-install-smoke"), code), ("PASS", "PASS", 0), lines)
+
+    def test_passes_on_tree_without_scout_dir(self):
+        self.assertFalse((Path(self.repo) / "scout").exists())
+        lines = []
+        code = rc.main([self.sha, "--version", "0.3.1", "--repo", "acme/widget"], run=self.runner, probe=lambda a, e, p: (True, "ok"),
+                       root=self.repo, out=lines.append, env=dict(os.environ, FACTORY_HOME=self.repo))
+        self.assertEqual(([status(lines, c) for c in CHECKS], code), (["PASS"] * len(CHECKS), 0), lines)
 
     def test_commit_off_main_fails_on_main_real_repo(self):
         lines = []

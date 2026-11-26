@@ -151,7 +151,6 @@ func (f *fake) run(argv []string, cwd string, env []string, timeout time.Duratio
 		write(f.t, filepath.Join(src, "VERSION"), version+"\n")
 		write(f.t, filepath.Join(src, "ci", "release-notes", version+".md"), f.notes)
 		write(f.t, filepath.Join(src, "CHANGELOG.md"), "## ["+version+"] - x\n")
-		write(f.t, filepath.Join(src, "scout", "agent_runtime.py"), "")
 		return 0, "", ""
 	case strings.Contains(key, "rev-parse --verify"):
 		return 0, sha + "\n", ""
@@ -192,7 +191,7 @@ func TestAllGreenPrintsOwnerCommands(t *testing.T) {
 	if rc != 0 {
 		t.Fatalf("rc %d\n%s\n%s", rc, out, errText)
 	}
-	for _, name := range []string{"on-main", "version", "ci-green", "notes", "fresh-install-smoke", "public-text", "tag-free", "cursor-runtime"} {
+	for _, name := range []string{"on-main", "version", "ci-green", "notes", "fresh-install-smoke", "public-text", "tag-free"} {
 		if !strings.Contains(out, "PASS "+name+": ") {
 			t.Errorf("no PASS for %s:\n%s", name, out)
 		}
@@ -210,6 +209,18 @@ func TestAllGreenPrintsOwnerCommands(t *testing.T) {
 	}
 }
 
+// A tree with no scout/ dir passes: a `<sha>:scout/` read or a `from scout.` import fails, and the gate stays green.
+func TestPassesOnTreeWithoutScoutDir(t *testing.T) {
+	f := newFake(t)
+	for _, use := range []string{":scout/", "from scout."} { // not bare "scout": the checkout path may contain it
+		f.over[use] = func() (int, string, string) { return 128, "", "no scout/ in this tree" }
+	}
+	rc, out, errText := f.exec(sha, "--version", version, "--repo", "example-org/hivemill")
+	if rc != 0 || strings.Contains(out, "FAIL") {
+		t.Fatalf("rc %d\n%s\n%s", rc, out, errText)
+	}
+}
+
 func TestEachCheckCanFail(t *testing.T) {
 	cases := map[string]struct {
 		key  string
@@ -221,7 +232,6 @@ func TestEachCheckCanFail(t *testing.T) {
 		"tag-free": {"ls-remote", func() (int, string, string) { return 0, "abc\trefs/tags/v0.6.0\n", "" }, "FAIL tag-free: tag v0.6.0 already exists on origin"},
 		"smoke":    {"--version", func() (int, string, string) { return 0, "hivemill 0.5.0\n", "" }, "FAIL fresh-install-smoke: "},
 		"public":   {"public_text_guard.py", func() (int, string, string) { return 2, "", "no terms" }, "FAIL public-text: public_text_guard.py exit 2 (owner terms not loaded"},
-		"cursor":   {"from scout.agent_runtime", func() (int, string, string) { return 1, "", "boom\n" }, "FAIL cursor-runtime: runtime resolve check failed: boom"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
