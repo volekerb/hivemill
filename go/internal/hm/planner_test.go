@@ -305,7 +305,7 @@ func TestStarvationAlert(t *testing.T) {
 		t.Fatalf("no ready tasks: %+v", c)
 	}
 	// a recent dispatch: not idle, and the open alert is closed
-	_ = s.PutRun(&Run{Task: "T-0099", Project: "www", State: Merged, Dispatched: now.Add(-30 * time.Minute).Format(time.RFC3339)})
+	_ = s.PutRun(&Run{Task: "T-0099", Project: "www", State: Merged, Dispatched: now.Add(-10 * time.Minute).Format(time.RFC3339)})
 	if c := r.OwnerChecks(now); len(c) != 0 {
 		t.Fatalf("recent dispatch: %+v", c)
 	}

@@ -318,7 +318,7 @@ func evidenceIsCommand(text string) bool {
 			}
 			toks = toks[1:]
 		}
-		if len(toks) >= 2 && (inList(evidenceRunners, toks[0]) || strings.HasPrefix(toks[0], "ci/") || strings.HasPrefix(toks[0], "./")) {
+		if len(toks) >= 2 && (inList(evidenceRunners, toks[0][strings.LastIndex(toks[0], "/")+1:]) || strings.HasPrefix(toks[0], "ci/") || strings.HasPrefix(toks[0], "./")) {
 			return true
 		}
 	}

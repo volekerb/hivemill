@@ -693,6 +693,7 @@ func stepClone(c *Ctx) (string, error) {
 }
 
 func stepLink(c *Ctx) (string, error) {
+	installSkills(c)
 	target := filepath.Join(c.fh, "bin", "factory")
 	if c.plan {
 		c.emit(fmt.Sprintf("    $ ln -s %s %s", target, c.factory))
@@ -717,113 +718,6 @@ func stepLink(c *Ctx) (string, error) {
 	return "linked " + c.factory, nil
 }
 
-func stepInit(c *Ctx) (string, error) {
-	if c.host.Exists(filepath.Join(c.fh, "db", "factory.db")) {
-		return "database exists: init skipped", nil
-	}
-	out, err := c.doDefault([]string{c.factory, "init"}, "factory init")
-	if err != nil {
-		return "", err
-	}
-	if !c.plan && !strings.Contains(out, "initialised") {
-		return "", stepf("`factory init` did not print an `initialised` line:\n%s", tailOf(out))
-	}
-	return "factory init done", nil
-}
-
-func stepConfig(c *Ctx) (string, error) {
-	a := c.args
-	dbExisted := c.host.Exists(filepath.Join(c.fh, "db", "factory.db")) && !c.plan
-	type kv struct{ k, v string }
-	var sets []kv
-	// the default bind is the default-route address, which would put the UI on the LAN
-	if a.Resume && dbExisted {
-		_, cur := c.read([]string{c.factory, "config", "serve_bind"}, 60*time.Second)
-		if pyStrip(cur) != "" {
-			c.note(fmt.Sprintf("--resume: serve_bind is already %s, kept", pyRepr(pyStrip(cur))))
-		} else {
-			sets = append(sets, kv{"serve_bind", Loopback})
-		}
-	} else {
-		sets = append(sets, kv{"serve_bind", Loopback})
-	}
-	if a.Port != 0 {
-		sets = append(sets, kv{"serve_port", strconv.Itoa(a.Port)})
-	}
-	if a.MaxAgents != "" {
-		sets = append(sets, kv{"max_live_agents", a.MaxAgents})
-	}
-	if a.NoScout {
-		sets = append(sets, kv{"scout_enabled", "0"})
-	}
-	for _, s := range sets {
-		if _, err := c.doDefault([]string{c.factory, "config", s.k, s.v}, "factory config "+s.k); err != nil {
-			return "", err
-		}
-	}
-	if a.Port == 0 && a.Resume && dbExisted {
-		rc, out := c.read([]string{c.factory, "config", "serve_port"}, 60*time.Second)
-		if n, ok := asciiDigits(pyStrip(out)); rc == 0 && ok {
-			c.port = n
-		}
-	}
-	if len(sets) == 0 {
-		return "no config change", nil
-	}
-	parts := make([]string, len(sets))
-	for i, s := range sets {
-		parts[i] = s.k + "=" + s.v
-	}
-	return "set " + strings.Join(parts, ", "), nil
-}
-
-// asciiDigits is str.isdigit() followed by int() for the values `factory config` prints.
-func asciiDigits(s string) (int, bool) {
-	n, ok := pyInt(s)
-	if !ok || s == "" || strings.ContainsAny(s, "+-_ ") || !n.IsInt64() || n.Int64() > 1<<31 {
-		return 0, false
-	}
-	return int(n.Int64()), true
-}
-
-// pyRepr is repr() of a str for the plain strings printed here.
-func pyRepr(s string) string {
-	q := "'"
-	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
-		q = `"`
-	}
-	return q + strings.ReplaceAll(s, q, `\`+q) + q
-}
-
-func stepProject(c *Ctx) (string, error) {
-	a := c.args
-	if a.ProjectID == "" || a.ProjectRepo == "" {
-		return "no --project-id/--project-repo: skipped", nil
-	}
-	if !c.plan {
-		rc, out := c.read([]string{c.factory, "project", "list"}, 60*time.Second)
-		if rc == 0 {
-			for _, f := range pyFields(out) {
-				if f == a.ProjectID {
-					return fmt.Sprintf("project %s already listed: skipped", a.ProjectID), nil
-				}
-			}
-		}
-	}
-	name := a.ProjectName
-	if name == "" {
-		name = a.ProjectID
-	}
-	argv := []string{c.factory, "project", "add", a.ProjectID, "--name", name, "--repo", a.ProjectRepo}
-	if a.ProjectGH != "" {
-		argv = append(argv, "--gh", a.ProjectGH)
-	}
-	if _, err := c.doDefault(argv, "factory project add"); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("project %s added", a.ProjectID), nil
-}
-
 func stepServices(c *Ctx) (string, error) {
 	a := c.args
 	if c.host.GOOS() == "darwin" {
@@ -837,7 +731,7 @@ func stepServices(c *Ctx) (string, error) {
 	if a.NoSystemd {
 		return servicesBackground(c)
 	}
-	if _, _, err := c.do([]string{"bash", filepath.Join(c.fh, "systemd", "install.sh"), "--with-serve"}, "systemd install", c.fh, 600*time.Second, true); err != nil {
+	if err := installUnits(c); err != nil {
 		return "", err
 	}
 	if a.Linger {
@@ -846,52 +740,55 @@ func stepServices(c *Ctx) (string, error) {
 			c.emit(fmt.Sprintf("    warning: loginctl enable-linger was refused (rc=%d); the factory will not start at boot until you run it with the right to do so", rc))
 		}
 	}
-	if _, err := c.doDefault([]string{"systemctl", "--user", "start", "herdr-server.service", "factory-tick.timer",
-		"factory-serve.service", "factory-up.service"}, "systemctl start"); err != nil {
+	if _, err := c.doDefault([]string{"systemctl", "--user", "daemon-reload"}, "systemctl daemon-reload"); err != nil {
 		return "", err
 	}
-	return "systemd user units installed and started (the tick timer keeps the factory running)", nil
+	if _, err := c.doDefault([]string{"systemctl", "--user", "enable", "--now", "hivemill.service", "hivemill-digest.timer",
+		"hivemill-health.timer"}, "systemctl enable"); err != nil {
+		return "", err
+	}
+	return "hivemill systemd user units installed, enabled and started", nil
 }
 
-func servicesBackground(c *Ctx) (string, error) {
-	logdir := filepath.Join(c.home, ".cache", "hivemill-install")
-	if c.plan {
-		c.emit("    $ mkdir -p " + logdir)
-		c.emit("    $ (background) herdr server")
-	} else {
-		if err := c.host.Mkdirs(logdir); err != nil {
-			return "", fmt.Errorf("create %s: %w", logdir, err)
-		}
-		if err := c.host.Popen([]string{"herdr", "server"}, filepath.Join(logdir, "herdr-server.log")); err != nil {
-			return "", err
-		}
+// systemdUnits are the files of the clone's systemd/ folder that a Linux install copies.
+var systemdUnits = []string{"hivemill.service", "hivemill-digest.service", "hivemill-digest.timer",
+	"hivemill-health.service", "hivemill-health.timer"}
+
+// installUnits copies the hivemill units from the clone into the systemd user unit dir. WriteText renames into
+// place, so a link left there by an earlier install is replaced and its target is not written through.
+func installUnits(c *Ctx) error {
+	config := c.host.Environ()["XDG_CONFIG_HOME"]
+	if config == "" {
+		config = filepath.Join(c.home, ".config")
 	}
-	ready := false
-	for i := 0; i < 20; i++ {
+	dir := filepath.Join(config, "systemd", "user")
+	if c.plan {
+		c.emit("    $ mkdir -p " + dir)
+	} else if err := c.host.Mkdirs(dir); err != nil {
+		return fmt.Errorf("create %s: %w", dir, err)
+	}
+	for _, u := range systemdUnits {
+		src, dst := filepath.Join(c.fh, "systemd", u), filepath.Join(dir, u)
 		if c.plan {
-			c.emit("    $ herdr workspace list   (until exit 0, 20 s)")
-			ready = true
-			break
+			c.emit(fmt.Sprintf("    copy %s -> %s", src, dst))
+			continue
 		}
-		if rc, _ := c.read([]string{"herdr", "workspace", "list"}, 60*time.Second); rc == 0 {
-			ready = true
-			break
+		b, err := c.host.ReadFile(src)
+		if err != nil {
+			return stepWrap(err, "read "+u)
 		}
-		c.host.Sleep(time.Second)
+		if err := c.host.WriteText(dst, string(b)); err != nil {
+			return stepWrap(err, "install "+u)
+		}
 	}
-	if !ready {
-		return "", stepf("`herdr workspace list` never exited 0 within 20 s (see %s/herdr-server.log)", logdir)
-	}
-	if c.plan {
-		c.emit(fmt.Sprintf("    $ (background) %s serve --bind %s", c.factory, Loopback))
-	} else if err := c.host.Popen([]string{c.factory, "serve", "--bind", Loopback}, filepath.Join(logdir, "factory-serve.log")); err != nil {
-		return "", err
-	}
-	if _, err := c.doDefault([]string{c.factory, "up"}, "factory up"); err != nil {
-		return "", err
-	}
-	c.emit("WARNING: no tick timer: agents will not be nudged and queued spawns will not start")
-	return "herdr server and factory serve running in the background; factory up ran once", nil
+	return nil
+}
+
+// servicesBackground is --no-systemd (and --no-boot-units on macOS): it starts nothing and says how to.
+func servicesBackground(c *Ctx) (string, error) {
+	c.emit(fmt.Sprintf("    no service was started. To run hivemill by hand: build it (cd %s && go build -o %s ./cmd/hivemill), then run `hivemill daemon`",
+		filepath.Join(c.fh, "go"), filepath.Join(c.bindir, "hivemill")))
+	return "no services started; run `hivemill daemon` by hand", nil
 }
 
 // agentStatus maps NAME -> STATUS from the table `factory agents` prints.
@@ -927,8 +824,6 @@ func indexOf(s []string, v string) int {
 func stepSmoke(c *Ctx) (string, error) {
 	if c.plan {
 		c.emit(fmt.Sprintf("    $ %s --version   (expects 'hivemill X.Y.Z')", c.factory))
-		c.emit(fmt.Sprintf("    $ %s agents   (boss and director live, or queued)", c.factory))
-		c.emit(fmt.Sprintf("    $ GET http://%s:%d/ and /goals   (expect 200)", Loopback, c.port))
 		return "plan", nil
 	}
 	rc, out := c.read([]string{c.factory, "--version"}, 60*time.Second)
@@ -937,45 +832,8 @@ func stepSmoke(c *Ctx) (string, error) {
 		return "", stepf("`factory --version` did not print 'hivemill X.Y.Z':\n%s", tailOf(out))
 	}
 	c.version = m[1]
-	var states map[string]string
-	okAgents := false
-	for i := 0; i < 30; i++ {
-		rc, out = c.read([]string{c.factory, "agents"}, 60*time.Second)
-		states = map[string]string{}
-		if rc == 0 {
-			states = agentStatus(out)
-		}
-		if liveOrQueued(states["boss"]) && liveOrQueued(states["director"]) {
-			okAgents = true
-			break
-		}
-		c.host.Sleep(2 * time.Second)
-	}
-	if !okAgents {
-		return "", stepf("boss/director are not live or queued after 60 s:\n%s", tailOf(out))
-	}
-	detail := fmt.Sprintf("boss %s, director %s", states["boss"], states["director"])
-	for _, path := range []string{"/", "/goals"} {
-		url := fmt.Sprintf("http://%s:%d%s", Loopback, c.port, path)
-		code := 0
-		for i := 0; i < 15; i++ {
-			if code = c.host.HTTPStatus(url); code == 200 {
-				break
-			}
-			c.host.Sleep(2 * time.Second)
-		}
-		if code != 200 {
-			got := "nothing"
-			if code != 0 {
-				got = strconv.Itoa(code)
-			}
-			return "", stepf("GET %s answered %s, expected 200", url, got)
-		}
-	}
-	return fmt.Sprintf("version %s; %s; UI answers 200", c.version, detail), nil
+	return "version " + c.version, nil
 }
-
-func liveOrQueued(s string) bool { return s == "live" || s == "queued" }
 
 type step struct {
 	name string
@@ -984,8 +842,7 @@ type step struct {
 
 var steps = []step{
 	{"prereqs", stepPrereqs}, {"tools", stepTools}, {"auth", stepAuth}, {"clone", stepClone},
-	{"link", stepLink}, {"init", stepInit}, {"config", stepConfig}, {"project", stepProject},
-	{"services", stepServices}, {"smoke", stepSmoke},
+	{"link", stepLink}, {"services", stepServices}, {"smoke", stepSmoke},
 }
 
 // finish prints the outcome of a failed run and returns its exit code.
@@ -1026,7 +883,7 @@ func runSteps(c *Ctx) int {
 		if !c.plan && !c.args.NoSystemd && c.host.GOOS() != "darwin" {
 			if rc, _ := c.read([]string{"systemctl", "--user", "show-environment"}, 60*time.Second); rc != 0 {
 				return stopf(3, "no user systemd session here. Either log in to a session that has one, or re-run with "+
-					"--no-systemd (CI, containers: the factory then runs as plain background processes without a tick timer)")
+					"--no-systemd (CI, containers: no service is started; run `hivemill daemon` by hand)")
 			}
 		}
 		if c.plan {

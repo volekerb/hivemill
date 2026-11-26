@@ -8,13 +8,13 @@ The Option B runner ([option-b-runner.md](option-b-runner.md)) writes one line p
 
 None of it changes a run, and nothing is on by default except the `machine` field.
 
-Code: `go/internal/hm/obs.go` (the model), `obs_http.go` and `obs_assets/obs.html` (the page), `obs_pull.go`, `otel.go`, `sessionend.go`. Tests: `go test ./internal/hm -run 'Obs|Otel|Portfolio|Pull|Emit|FailedRun'`.
+Code: `go/internal/hm/obs.go` (the model), `obs_http.go` (the server), `obs_pages.go` and `assets/obs/` (the page shell, the Now, Spend, Flow and drill pages, and `app.css`), `obs_pull.go`, `otel.go`, `sessionend.go`. Tests: `go test ./internal/hm -run 'Obs|Otel|Portfolio|Pull|Emit|FailedRun'`.
 
 ## What the events carry
 
 Every line has `ts`, `event`, `harness` and `machine`. Where they apply, it also has `task_id`, `goal_id`, `project`, `session_id`, `role`, `model`, `effort` and `cost_usd`.
 
-- **`machine`** is the config key `machine_name`, or the short hostname when that is empty. Give every machine a unique name: two boxes with the same name merge their task keys. When a line written before this field existed is read, it gets the name of the log it came from. For a pulled log whose stamped lines all name one machine, that name is used rather than the pull label, so a box never shows up under both its ssh alias and its own name.
+- **`machine`** is the config key `machine_name`, or the short hostname when that is empty. Give every machine a unique name: two boxes with the same name merge their task keys. Make it the name hc and `session_machines` use for the box, or its pulled log shows as a second machine. When a line written before this field existed is read, it gets the name of the log it came from. For a pulled log whose stamped lines all name one machine, that name is used rather than the pull label, so a box never shows up under both its ssh alias and its own name.
 - **`harness`** is `claude-code` today. An adapter for another harness (codex, pi) sets its own value, and `Emit` keeps it. The page and the traces only group by this field. Nothing in them depends on Claude Code.
 - **`session.ended`** has the session's `cost_usd` at API prices. Its `data` has `input_tokens`, `output_tokens`, `cache_read_tokens` and `cache_write_tokens`, counted from the session's transcript (subagents included).
   - It is written when a run is merged, fails or is cancelled, and when an eval finishes.
@@ -30,7 +30,9 @@ Every line has `ts`, `event`, `harness` and `machine`. Where they apply, it also
 | task | machine/`task_id` | outcome, $, rounds, findings, PR, trace id, its sessions, and the timeline of its events |
 | session | `session_id` | role, model, effort, harness, machine, start and end, $, tokens, and its events |
 
-- **Task key.** Task ids are numbered by each factory DB, so two machines can both have a `T-0042`. A task is therefore keyed by machine and task id. Projects and goals are grouped by name across machines.
+- **Task key.** Task ids are numbered by each factory DB, so two machines can both have a `T-0042`. A task is therefore keyed by the machine that wrote its log and the task id. Projects and goals are grouped by name across machines.
+- **Placed runs.** A run placed on another machine (`session_machines`) is logged by the coordinator. The views, the `machine` filter and the traces show such a task's events and sessions on the placement machine (the `data.machine` of its `task.dispatched`; `local` means the coordinator). A session whose `session.started` names its own machine, such as the judge, shows there. The machine filter keeps each task with a line on that machine as a whole, under the machine of its latest run; spend and planner sums count only that machine's sessions, while task, goal and outcome figures are whole-task totals. A trace's resource is the task's placement; each span's `hivemill.machine` is its session's. A machine's newest event is the latest line about its work, including lines the coordinator wrote. The key keeps the coordinator's name.
+- **Which machines are listed.** Every machine in the logs, every placement, every `session_machines` entry and every pulled copy, including those with no run.
 - **Spend columns.** These sum the sessions *started* in the window. A session's whole cost counts on its start day, as in the digest.
 - **Outcome columns.** These are `hivemill report`'s rules (`Summarise`), applied to the tasks with an event in the last `days` days (30 by default):
   - $ per merged PR is the $ of those tasks divided by the number merged.
@@ -43,15 +45,19 @@ Every line has `ts`, `event`, `harness` and `machine`. Where they apply, it also
 
 ## `hivemill obs`
 
+The sidebar has three pages: Now (`/`), Spend (`/spend`) and Flow (`/flow`); the project, goal, task and session drill-down stays under Now.
+
 ```
 hivemill obs                     # http://127.0.0.1:7461/ (config obs_port), Ctrl-C stops
 hivemill obs --port 7470
+hivemill obs --listen 0.0.0.0   # reachable from other machines (config obs_listen); prints a WARNING
 hivemill obs --json [--days N] [--machine M] [--harness H]   # the portfolio as JSON
 hivemill obs sources             # the logs it reads
 ```
 
-- **Binding and requests.** The page binds to 127.0.0.1 only and answers only GET and HEAD. A request whose `Host` is not a loopback name gets 403, which blocks DNS rebinding.
-- **Self-contained.** It is plain HTML from `html/template` with inline CSS. There is no script, and nothing is loaded from another origin; the CSP header is `default-src 'none'`. The only outbound links are the PRs' own `https://github.com/...` URLs.
+- **Binding and requests.** The page binds to 127.0.0.1 by default and answers only GET and HEAD. A request whose `Host` is not a loopback name gets 403, which blocks DNS rebinding.
+- **Other machines.** `--listen HOST`, or the config key `obs_listen`, picks the bind address: an IP address or `localhost`. A host name is a usage error (exit 2). An IPv4 address, `0.0.0.0` included, is served over IPv4 only. When the address is not loopback, one `WARNING` line goes to stderr: the page is read-only but readable by anyone on that network. It has no authentication, so use it only on a network you trust. A `Host` that is an IP address is then answered too; a DNS name still gets 403.
+- **Self-contained.** It is plain HTML from `html/template` with one embedded stylesheet (`app.css`). There is no script, and nothing is loaded from another origin; the CSP header starts with `default-src 'none'` and allows stylesheets only from its own origin, so inline styles are blocked. The only outbound links are the PRs' own `https://github.com/...` URLs.
 - **Filters.** `machine`, `harness` and `days` are query parameters, and every link keeps them. `GET /api/portfolio` returns the same filters' portfolio as JSON.
 - **Open owner questions.** This machine's come from its `hm_asks` table. A pulled machine's are counted from its log: `ask.added` minus `ask.answered` and `ask.withdrawn` (same id).
 
@@ -92,7 +98,7 @@ The protocol is OTLP/HTTP with the JSON encoding, POSTed to `<endpoint>/v1/trace
 
 | OTel | hivemill |
 |---|---|
-| trace | one task on one machine. The trace id is the first 16 bytes of sha256 of `machine/task`, so exporting a task again gives the same ids |
+| trace | one task on one machine. The trace id is the first 16 bytes of sha256 of `machine/task` (the machine that wrote the log, also for a placed run), so exporting a task again gives the same ids |
 | resource | `service.name=hivemill`, `host.name` and `hivemill.machine` = the machine |
 | root span `task T-…` | from the first event to the terminal one. Attributes: `hivemill.task_id`, `goal_id`, `project`, `machine`, `harness`, `outcome`, `usd`, `rounds`, `gate_blocks`, `ci_rounds`, `pr`, `eval`, and the token totals. Status is OK when merged and ERROR on FAIL |
 | child span `session <role>` | one per session (task, judge, planner). Attributes: `hivemill.session_id`, `role`, `model` (also `gen_ai.request.model`), `effort`, `harness`, `machine`, `usd`, `tokens`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `hivemill.tokens.cache_read`, `hivemill.tokens.cache_write`; `hivemill.cost_known=false` while the cost is pending |
@@ -117,7 +123,8 @@ Any OTLP/HTTP receiver works: an OpenTelemetry Collector (`otlphttp` receiver on
 | key | default | meaning |
 |---|---|---|
 | `machine_name` | empty | the `machine` of every event; empty means the short hostname |
-| `obs_port` | `7461` | `hivemill obs` port on 127.0.0.1 |
+| `obs_listen` | `127.0.0.1` | `hivemill obs` bind address (IP or `localhost`); `--listen` overrides it |
+| `obs_port` | `7461` | `hivemill obs` port |
 | `otel_endpoint` | empty | OTLP/HTTP base URL for the daemon tail; empty or `off` means no export |
 
 ## Limits

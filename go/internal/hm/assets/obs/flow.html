@@ -1,0 +1,19 @@
+{{define "flow"}}{{with .FlowPg}}
+{{range .Banners}}<p class="banner">{{.}}</p>
+{{end -}}
+<h2>Stuck now (a stage for more than {{.StuckAfter}})</h2>
+<div class="scroll"><table>
+<tr><th>task</th><th>machine</th><th>project</th><th>stage</th><th class="num">in stage</th><th>since</th></tr>
+{{range .Stuck}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td>{{.Stage}}</td><td class="num warn">{{dur .AgeSec}}</td><td>{{when .Since}}</td></tr>
+{{else}}<tr><td colspan="6" class="muted">nothing is stuck</td></tr>{{end}}
+</table></div>
+<h2>Time per stage</h2>
+<div class="scroll"><table>
+<tr><th>task</th><th>machine</th><th>outcome</th>{{range .Stages}}<th class="num">{{.}}</th>{{end}}<th class="num">held</th><th class="num">total</th></tr>
+{{range $t := .Tasks}}<tr><td><a href="{{$.Q "/task" "k" $t.Key}}">{{$t.Task}}</a></td><td>{{$t.Machine}}</td><td class="{{outcomeClass $t.Outcome}}">{{$t.Outcome}}</td>{{range $s := $.FlowPg.Stages}}<td class="num">{{dur (index $t.Seconds $s)}}</td>{{end}}<td class="num">{{dur (index $t.Seconds "held")}}</td><td class="num">{{dur $t.Total}}</td></tr>
+{{else}}<tr><td colspan="10" class="muted">no task in this range</td></tr>{{end}}
+</table></div>
+<p class="muted">dispatched: the agent builds. gate: it fixes what the gate blocked. ci: gate passed, the PR waits for or repairs CI. judge: the judge session runs. merge: judged MERGE, waiting for the merge. Times come from events.jsonl.</p>
+<h2>Merged per day ({{.Merged}} in {{.Days}} days)</h2>
+{{.Chart}}
+{{end}}{{end}}

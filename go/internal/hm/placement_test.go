@@ -27,6 +27,15 @@ func TestParseProbe(t *testing.T) {
 	if p.Home != "/u" || p.OS != "Linux" || p.Marker != "tok" || p.Coordinator != "coord" || p.MemMB != 8904 {
 		t.Errorf("linux probe %+v", p)
 	}
+	if p := ParseProbe("os=Linux\nload=3.50 1.00 0.50 2/300 9\ncpus=4\n---mem\n"); p.Load != (Load{3.5, 4}) {
+		t.Errorf("linux load %+v", p.Load)
+	}
+	if p := ParseProbe("os=Darwin\nload={ 2.25 1.00 0.50 }\ncpus=8\n---mem\n"); p.Load != (Load{2.25, 8}) {
+		t.Errorf("darwin load %+v", p.Load)
+	}
+	if p := ParseProbe("os=Linux\nload=\ncpus=\n---mem\n"); p.Load.known() || p.Load.overloaded() {
+		t.Errorf("unreadable load %+v", p.Load)
+	}
 	// (9650 + 100000 + 2750) pages x 16 KiB = 1756 MB
 	if p := ParseProbe("os=Darwin\n---mem\npressure=1\n" + vmStatText); p.MemMB != 1756 {
 		t.Errorf("darwin probe %+v", p)
@@ -46,6 +55,8 @@ type fakeWorker struct {
 	shared      bool
 	home, coord string
 	cloneHead   string
+	load        float64 // 1-minute load; reported when cpus is set
+	cpus        int
 }
 
 func placementRunner(t *testing.T, workers map[string]fakeWorker) (*Runner, *SQLite, *[]string) {
@@ -78,8 +89,12 @@ func placementRunner(t *testing.T, workers map[string]fakeWorker) (*Runner, *SQL
 			if home == "" {
 				home = r.Env.UserHome
 			}
-			return 0, fmt.Sprintf("home=%s\nos=Linux\nmarker=%s\ncoordinator=%s\n---mem\n"+meminfoText, home, marker, w.coord,
-				w.memMB*1024), ""
+			cpu := ""
+			if w.cpus > 0 {
+				cpu = fmt.Sprintf("load=%g 0.50 0.20 1/100 42\ncpus=%d\n", w.load, w.cpus)
+			}
+			return 0, fmt.Sprintf("home=%s\nos=Linux\nmarker=%s\ncoordinator=%s\n%s---mem\n"+meminfoText, home, marker, w.coord,
+				cpu, w.memMB*1024), ""
 		}
 		return 0, "{}", ""
 	}
@@ -90,6 +105,13 @@ func withLocalMem(t *testing.T, mb int) {
 	old := MemAvailableMB
 	MemAvailableMB = func() int { return mb }
 	t.Cleanup(func() { MemAvailableMB = old })
+	withLocalLoad(t, Load{})
+}
+
+func withLocalLoad(t *testing.T, l Load) {
+	old := LocalLoad
+	LocalLoad = func() Load { return l }
+	t.Cleanup(func() { LocalLoad = old })
 }
 
 func TestPickMachine(t *testing.T) {
@@ -141,6 +163,47 @@ func TestPickMachine(t *testing.T) {
 	withLocalMem(t, 8000)
 	if pl := r.PickMachine(); pl.Machine != "" || len(pl.Skipped) != 1 || !strings.Contains(pl.Skipped[0], "not a machine name") {
 		t.Errorf("option-like names are refused and the core name is local: %+v", pl)
+	}
+}
+
+func TestPickMachineBalances(t *testing.T) {
+	workers := map[string]fakeWorker{
+		"w1": {memMB: 9000, shared: true, coord: "c"},
+		"w2": {memMB: 9000, shared: true, coord: "c"},
+	}
+	r, s, _ := placementRunner(t, workers)
+	withLocalMem(t, 8000)
+	_ = s.SetCfg("session_machines", "w1,w2")
+	put := func(task, machine string) {
+		if err := s.PutRun(&Run{Task: task, State: "working", Machine: machine}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put("T-0001", "w1")
+	put("T-0002", "w1")
+	if pl := r.PickMachine(); pl.Machine != "w2" {
+		t.Errorf("2 active on the first, 0 on the second: %+v", pl)
+	}
+	put("T-0002", "w2") // w1 has 1, w2 has 1: the tie goes to the earlier entry
+	if pl := r.PickMachine(); pl.Machine != "w1" {
+		t.Errorf("1 and 1: %+v", pl)
+	}
+	// the local core is balanced too, and a finished run does not count
+	_ = s.SetCfg("session_machines", "w1,local")
+	if pl := r.PickMachine(); pl.Machine != "" {
+		t.Errorf("w1 has 1 active, local 0: %+v", pl)
+	}
+	put("T-0003", "w1")
+	put("T-0004", "local") // aliases of the local core count as local
+	put("T-0005", "coord-core")
+	_ = s.PutRun(&Run{Task: "T-0006", State: "merged", Machine: ""})
+	// w1 has 2, local has 2 active (the merged one is not counted): the tie goes to w1
+	if pl := r.PickMachine(); pl.Machine != "w1" {
+		t.Errorf("2 and 2: %+v", pl)
+	}
+	put("T-0007", "w1")
+	if pl := r.PickMachine(); pl.Machine != "" {
+		t.Errorf("w1 busier than local: %+v", pl)
 	}
 }
 

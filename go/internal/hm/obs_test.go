@@ -1,13 +1,18 @@
 package hm
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -429,8 +434,101 @@ func TestObsPageIsReadOnlyLoopbackAndZooms(t *testing.T) {
 			t.Errorf("%s accepted", a)
 		}
 	}
-	if CheckLoopback(ObsAddr(7461)) != nil || CheckLoopback("[::1]:1") != nil {
+	if CheckLoopback(ObsAddr("127.0.0.1", 7461)) != nil || CheckLoopback("[::1]:1") != nil {
 		t.Error("loopback refused")
+	}
+}
+
+func TestObsListenDefaultLoopback(t *testing.T) {
+	r, _ := obsRunner(t)
+	var warn strings.Builder
+	for _, cfg := range []string{"", r.Store.Cfg("obs_listen")} {
+		if h, err := ObsListen("", cfg, &warn); err != nil || h != "127.0.0.1" {
+			t.Fatalf("config %q: %q %v", cfg, h, err)
+		}
+	}
+	for _, in := range []string{"localhost", "::1"} {
+		if h, err := ObsListen(in, "0.0.0.0", &warn); err != nil || h != in {
+			t.Fatalf("flag %q over config: %q %v", in, h, err)
+		}
+	}
+	if warn.Len() != 0 {
+		t.Fatalf("a warning on loopback: %q", warn.String())
+	}
+}
+
+func TestObsListenFlag(t *testing.T) {
+	for _, c := range [][2]string{{"0.0.0.0", ""}, {"", "0.0.0.0"}, {"0.0.0.0", "127.0.0.1"}} {
+		var warn strings.Builder
+		h, err := ObsListen(c[0], c[1], &warn)
+		if err != nil || h != "0.0.0.0" || ObsAddr(h, 7461) != "0.0.0.0:7461" {
+			t.Fatalf("%q: %q %v", c, h, err)
+		}
+		if w := warn.String(); !strings.HasPrefix(w, "WARNING:") || strings.Count(w, "\n") != 1 || !strings.Contains(w, "anyone on that network") {
+			t.Fatalf("%q: warning %q", c, w)
+		}
+	}
+	r, _ := obsRunner(t)
+	for _, c := range []struct {
+		wide bool
+		host string
+		code int
+	}{
+		{true, "192.0.2.1:7461", 200}, {true, "[2001:db8::1]:7461", 200}, {true, "localhost:7461", 200},
+		{true, "evil.example:7461", 403}, {false, "192.0.2.1:7461", 403},
+	} {
+		h, err := r.obsHandler(c.wide)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Host = c.host
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != c.code {
+			t.Errorf("wide=%v Host %s: %d, want %d", c.wide, c.host, w.Code, c.code)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := r.ServeObs(ctx, ObsAddr("0.0.0.0", 0)); err != nil {
+		t.Errorf("a non-loopback IP address: %v", err)
+	}
+	if err := r.ServeObs(ctx, "evil.example:0"); err == nil {
+		t.Error("ServeObs took a host name")
+	}
+}
+
+func TestObsListenIPv4Only(t *testing.T) {
+	l, err := obsSocket(ObsAddr("0.0.0.0", 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	a := l.Addr().(*net.TCPAddr)
+	if a.IP.To4() == nil {
+		t.Fatalf("0.0.0.0 opened %s, not an IPv4 socket", a)
+	}
+	c, err := net.DialTimeout("tcp4", ObsAddr("127.0.0.1", a.Port), time.Second)
+	if err != nil {
+		t.Fatalf("IPv4 dial: %v", err)
+	}
+	_ = c.Close()
+	if c, err := net.DialTimeout("tcp6", ObsAddr("::1", a.Port), time.Second); err == nil {
+		_ = c.Close()
+		t.Fatal("0.0.0.0 accepted an IPv6 connection")
+	}
+}
+
+func TestObsListenBadHost(t *testing.T) {
+	for _, in := range []string{"box-b", "evil.example", "127.0.0.1:7461", "[::1]"} {
+		var warn strings.Builder
+		if h, err := ObsListen(in, "", &warn); err == nil || warn.Len() != 0 {
+			t.Errorf("flag %q: %q %v %q", in, h, err, warn.String())
+		}
+		if h, err := ObsListen("", in, &warn); err == nil {
+			t.Errorf("config %q: %q accepted", in, h)
+		}
 	}
 }
 
@@ -503,4 +601,776 @@ func TestOpenAsksCountPulledMachinesFromEvents(t *testing.T) {
 	if got := o.OpenAsks("box-a", nil, false); got["www"] != 1 {
 		t.Fatalf("no local DB: events for every machine: %v", got)
 	}
+}
+
+// stampedBoxA is boxA written as this machine's own log (every line carries machine box-a), with a transcript for
+// every session so SessionUsages prices them, as the report does.
+func stampedBoxA(t *testing.T, r *Runner, day string) {
+	t.Helper()
+	evs := boxA(day)
+	for i := range evs {
+		evs[i].Machine = "box-a"
+		evs[i].CostUSD = nil
+	}
+	var kept []Event
+	for _, e := range evs {
+		if e.Event != "session.ended" { // priced from the transcripts, like a live session
+			kept = append(kept, e)
+		}
+	}
+	writeEvents(t, r.Log.Path, kept...)
+	dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "p")
+	_ = os.MkdirAll(dir, 0o700)
+	for i, sid := range []string{"s-task-1", "s-judge-1", "s-task-2", "s-plan"} {
+		usage := map[string]any{"input_tokens": 100000 * (i + 1), "output_tokens": 20000 * (i + 1), "cache_read_input_tokens": 50000,
+			"cache_creation_input_tokens": 1000}
+		line, _ := json.Marshal(map[string]any{"type": "assistant", "timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+			"requestId": "q-" + sid, "message": map[string]any{"id": "m-" + sid, "model": "claude-sonnet-5-5", "usage": usage}})
+		if err := os.WriteFile(filepath.Join(dir, sid+".jsonl"), append(line, '\n'), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func obsGet(t *testing.T, h http.Handler, target string) (int, string) {
+	t.Helper()
+	req := httptest.NewRequest("GET", target, nil)
+	req.Host = "127.0.0.1:7461"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w.Code, w.Body.String()
+}
+
+func withinPct(a, b, pct float64) bool {
+	if b == 0 {
+		return a == 0
+	}
+	d := (a - b) / b
+	if d < 0 {
+		d = -d
+	}
+	return d <= pct/100
+}
+
+func TestObsSpendMatchesReport(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	stampedBoxA(t, r, day)
+	rows, err := r.ReportRows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report float64 // what hivemill report prints as the cost of the tasks
+	for _, x := range rows {
+		report += x.USD
+	}
+	if report <= 0 {
+		t.Fatalf("the report priced nothing: %+v", rows)
+	}
+	planner := SessionUsages(r.Env.UserHome, []string{"s-plan"})["s-plan"].USD
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, body := obsGet(t, h, "/api/obs/spend?by=task")
+	var api struct {
+		Spend SpendPage `json:"spend"`
+	}
+	if code != 200 || json.Unmarshal([]byte(body), &api) != nil {
+		t.Fatalf("api %d: %s", code, body)
+	}
+	var tasks float64
+	for _, row := range api.Spend.Rows {
+		if row.TaskKey != "" {
+			tasks += row.USD
+		}
+	}
+	if !withinPct(tasks, report, 1) {
+		t.Fatalf("task spend %.4f, report %.4f", tasks, report)
+	}
+	if !withinPct(api.Spend.Total, report+planner, 1) {
+		t.Fatalf("total %.4f, report %.4f + planner %.4f", api.Spend.Total, report, planner)
+	}
+	var daily, byRole float64
+	for _, d := range api.Spend.Daily {
+		daily += d.Task + d.Judge + d.Planner
+		if d.Planner > 0 {
+			byRole += d.Planner
+		}
+	}
+	if !withinPct(daily, api.Spend.Total, 1) || !withinPct(byRole, planner, 1) {
+		t.Fatalf("the daily chart (%.4f, planner %.4f) differs from the table (%.4f, planner %.4f)", daily, byRole, api.Spend.Total, planner)
+	}
+	for _, by := range SpendGroups { // every grouping sums to the same total
+		_, body := obsGet(t, h, "/api/obs/spend?by="+by)
+		var g struct {
+			Spend SpendPage `json:"spend"`
+		}
+		if json.Unmarshal([]byte(body), &g) != nil || g.Spend.By != by || !withinPct(g.Spend.Total, api.Spend.Total, 0.01) || len(g.Spend.Rows) == 0 {
+			t.Fatalf("by %s: %s", by, body)
+		}
+		var sum float64
+		for _, row := range g.Spend.Rows {
+			sum += row.USD
+		}
+		if !withinPct(sum, g.Spend.Total, 0.01) {
+			t.Fatalf("by %s: rows sum %.4f, total %.4f", by, sum, g.Spend.Total)
+		}
+	}
+	if _, page := obsGet(t, h, "/spend?by=task"); !strings.Contains(page, `href="/task?k=box-a%2FT-1"`) {
+		t.Fatalf("a task row opens the task:\n%s", page)
+	}
+}
+
+func TestObsSpendUnattributed(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	ts := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
+	writeEvents(t, r.Log.Path,
+		cost(ev(ts, "session.ended", "T-1", "G-1", "www", "s-task", "task", nil), 3.00, 1, 2),
+		cost(ev(ts, "session.ended", "", "", "", "s-plan", "planner", nil), 1.00, 1, 2),
+	)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, body := obsGet(t, h, "/api/obs/spend")
+	var api struct {
+		Spend map[string]any `json:"spend"`
+	}
+	if code != 200 || json.Unmarshal([]byte(body), &api) != nil {
+		t.Fatalf("api %d: %s", code, body)
+	}
+	if api.Spend["usd"] != 4.0 || api.Spend["unattributed_usd"] != 1.0 || api.Spend["unattributed_pct"] != 25.0 {
+		t.Fatalf("unattributed: %s", body)
+	}
+	row := regexp.MustCompile(`of which unattributed \(no task\): 25\.0%</td>(<td></td>)+<td class="num">\$1\.00</td>`)
+	for _, by := range SpendGroups {
+		if _, page := obsGet(t, h, "/spend?by="+by); !row.MatchString(page) {
+			t.Fatalf("by %s: no unattributed row:\n%s", by, page)
+		}
+	}
+	// A session with no task and no cost yet is marked, so the share is not read as complete.
+	writeEvents(t, r.Log.Path, ev(ts, "session.started", "", "", "", "s-live", "planner", nil))
+	if _, page := obsGet(t, h, "/spend"); !strings.Contains(page, `$1.00 <span class="warn">+1 pending</span></td><td colspan="4">`) {
+		t.Fatalf("no pending marker:\n%s", page)
+	}
+}
+
+func TestObsFlowStages(t *testing.T) {
+	day := "2026-11-20"
+	evs := boxA(day)
+	ts := func(h string) string { return day + "T" + h + ":00Z" }
+	evs = append(evs,
+		ev(ts("04:00"), "task.dispatched", "T-4", "G-1", "www", "", "", nil), // 2.5 h in dispatched: stuck
+		ev(ts("06:00"), "task.dispatched", "T-5", "G-1", "www", "", "", nil), // 30 min: not stuck
+	)
+	for i := range evs {
+		evs[i].Machine = "box-a"
+	}
+	now, _ := time.Parse(time.RFC3339, ts("06:30"))
+	o := BuildObs(evs, ObsFilter{}, "box-a", nil, now)
+	f := o.BuildFlow(30, "")
+	by := map[string]FlowTask{}
+	for _, x := range f.Tasks {
+		by[x.Task] = x
+	}
+	t1 := by["T-1"]
+	want := map[string]int64{"dispatched": 2400, "gate": 0, "ci": 1800, "judge": 600, "merge": 2400}
+	for st, sec := range want {
+		if t1.Seconds[st] != sec {
+			t.Errorf("T-1 %s: %d s, want %d (%+v)", st, t1.Seconds[st], sec, t1.Seconds)
+		}
+	}
+	if t1.Stage != "" || t1.Total != 7200 {
+		t.Errorf("T-1 finished in 2 h: %+v", t1)
+	}
+	if by["T-2"].Seconds["dispatched"] != 3600 || by["T-2"].Stage != "" {
+		t.Errorf("T-2: %+v", by["T-2"])
+	}
+	if by["T-4"].Stage != "dispatched" || by["T-4"].AgeSec != 9000 || by["T-5"].AgeSec != 1800 {
+		t.Errorf("open runs: %+v %+v", by["T-4"], by["T-5"])
+	}
+	if len(f.Stuck) != 1 || f.Stuck[0].Task != "T-4" {
+		t.Errorf("stuck now: %+v", f.Stuck)
+	}
+	if f.Merged != 1 || f.MergedByDay[len(f.MergedByDay)-1].Day != day || f.MergedByDay[len(f.MergedByDay)-1].N != 1 {
+		t.Errorf("merged per day: %+v", f.MergedByDay)
+	}
+	if !strings.Contains(string(f.Chart), "<svg") || !strings.Contains(string(f.Chart), `class="tick"`) {
+		t.Error("the merged chart has axes")
+	}
+}
+
+func TestObsPagesRender(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	stampedBoxA(t, r, day)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ext := regexp.MustCompile(`https?://|(src|href)="//`)
+	for _, path := range []string{"/", "/spend", "/flow"} {
+		for _, theme := range []string{"", "light", "dark"} {
+			target := path
+			if theme != "" {
+				target += "?theme=" + theme
+			}
+			code, body := obsGet(t, h, target)
+			if code != 200 || strings.Contains(body, "<svg") == (path == "/") || !strings.Contains(body, `class="on"`) {
+				t.Fatalf("%s: %d\n%s", target, code, body)
+			}
+			if theme != "" && !strings.Contains(body, `data-theme="`+theme+`"`) || theme == "" && strings.Contains(body, "data-theme") {
+				t.Errorf("%s: theme attribute", target)
+			}
+			if ext.MatchString(body) || strings.Contains(body, "<script") {
+				t.Errorf("%s: an external URL or a script", target)
+			}
+		}
+	}
+	_, css := obsGet(t, h, "/assets/obs/app.css")
+	for _, want := range []string{`[data-theme="dark"]`, "prefers-color-scheme: dark", "--honey"} {
+		if !strings.Contains(css, want) {
+			t.Errorf("stylesheet lacks %q", want)
+		}
+	}
+	if ext.MatchString(css) || strings.Contains(css, "box-shadow") {
+		t.Error("the stylesheet loads nothing and has no shadow")
+	}
+	for _, path := range []string{"/api/obs/now", "/api/obs/spend", "/api/obs/flow"} {
+		code, body := obsGet(t, h, path)
+		var v map[string]any
+		if code != 200 || json.Unmarshal([]byte(body), &v) != nil || v["now"] == nil {
+			t.Errorf("%s: %d %s", path, code, body)
+		}
+	}
+	_, body := obsGet(t, h, "/flow?project=www")
+	if !strings.Contains(body, "T-1") {
+		t.Errorf("project filter:\n%s", body)
+	}
+}
+
+// pollingFixture is a running obs page over one task and one judge session with the given $ and polling $.
+func pollingFixture(t *testing.T, taskUSD, taskPolling, judgeUSD, judgePolling float64) (*Runner, http.Handler) {
+	t.Helper()
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	ts := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
+	ended := func(sid, role string, usd, polling float64) Event {
+		e := cost(ev(ts, "session.ended", "T-1", "G-1", "www", sid, role, nil), usd, 1, 2)
+		e.Data["polling_usd"] = polling
+		return e
+	}
+	writeEvents(t, r.Log.Path, ended("s-task", "task", taskUSD, taskPolling), ended("s-judge", "judge", judgeUSD, judgePolling))
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, h
+}
+
+var bannerHTML = regexp.MustCompile(`(?s)<p class="banner">.*?</p>`)
+
+// spendBanners is the API's page model and the banner elements of the HTML page.
+func spendBanners(t *testing.T, h http.Handler) (SpendPage, []string) {
+	t.Helper()
+	code, body := obsGet(t, h, "/api/obs/spend")
+	var api struct {
+		Spend SpendPage `json:"spend"`
+	}
+	if code != 200 || json.Unmarshal([]byte(body), &api) != nil || !strings.Contains(body, `"banners":[`) {
+		t.Fatalf("api %d: %s", code, body)
+	}
+	code, page := obsGet(t, h, "/spend")
+	if code != 200 {
+		t.Fatalf("page %d: %s", code, page)
+	}
+	return api.Spend, bannerHTML.FindAllString(page, -1)
+}
+
+func TestObsBannerPolling(t *testing.T) {
+	t.Run("below", func(t *testing.T) {
+		_, h := pollingFixture(t, 8, 1.6, 2, 0.4) // exactly 20% everywhere: not above
+		p, html := spendBanners(t, h)
+		if p.PollingUSD != 2 || p.PollingPct != 20 || len(p.Banners) != 0 || len(html) != 0 {
+			t.Fatalf("no banner at the threshold: %+v %q", p, html)
+		}
+	})
+	t.Run("above", func(t *testing.T) {
+		_, h := pollingFixture(t, 8, 3, 2, 0.6) // 36%
+		p, html := spendBanners(t, h)
+		want := "Polling is 36% of spend ($3.60). Action: replace wait turns with one blocking command."
+		if len(p.Banners) != 1 || p.Banners[0] != want || len(html) != 1 || !strings.Contains(html[0], want) {
+			t.Fatalf("one banner: %q %q", p.Banners, html)
+		}
+		if strings.Contains(html[0], "<button") || strings.Contains(html[0], "<form") || strings.Contains(html[0], "<a ") {
+			t.Fatalf("a banner is text only: %s", html[0])
+		}
+	})
+}
+
+func TestObsBannerPollingRole(t *testing.T) {
+	_, h := pollingFixture(t, 9, 0.9, 1, 0.5) // factory 14%, judge 50%
+	p, html := spendBanners(t, h)
+	want := "Polling is 50% of judge spend ($0.50). Action: replace wait turns with one blocking command."
+	if len(p.Banners) != 1 || p.Banners[0] != want || len(html) != 1 {
+		t.Fatalf("the role banner: %q %q", p.Banners, html)
+	}
+	roles := []SpendRole{{"task", 9, 0.9, 10}, {"judge", 1, 0.5, 50}}
+	if !reflect.DeepEqual(p.Roles, roles) {
+		t.Fatalf("roles: %+v", p.Roles)
+	}
+}
+
+func TestObsBannerPollingJustAbove(t *testing.T) {
+	_, h := pollingFixture(t, 8, 1.62, 2, 0.4) // 20.2%
+	if p, _ := spendBanners(t, h); len(p.Banners) != 1 || !strings.HasPrefix(p.Banners[0], "Polling is 20.2% of spend") {
+		t.Fatalf("the printed share reads above the threshold: %q", p.Banners)
+	}
+	_, h = pollingFixture(t, 160, 33, 40, 8) // 20.5% rounds up, never to the even 20
+	if p, _ := spendBanners(t, h); len(p.Banners) != 1 || !strings.HasPrefix(p.Banners[0], "Polling is 21% of spend") {
+		t.Fatalf("20.5%%: %q", p.Banners)
+	}
+}
+
+func TestObsBannerPollingConfig(t *testing.T) {
+	r, h := pollingFixture(t, 8, 3, 2, 0.6)
+	if err := r.Store.SetCfg("obs_banner_polling_pct", "50"); err != nil {
+		t.Fatal(err)
+	}
+	if p, html := spendBanners(t, h); len(p.Banners) != 0 || len(html) != 0 {
+		t.Fatalf("36%% is under the configured 50%%: %q %q", p.Banners, html)
+	}
+}
+
+// roundsFixture is a running obs page over four PRs, the first many of which needed 2 review rounds.
+func roundsFixture(t *testing.T, many int) (*Runner, http.Handler) {
+	t.Helper()
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	ts := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
+	e := func(kind, task string, data map[string]any) Event {
+		return ev(ts, kind, task, "G-1", "www", "", "", data)
+	}
+	// T-5 has no PR, so it is not counted, whatever its rounds.
+	evs := []Event{e("ci.red", "T-5", nil), e("ci.red", "T-5", nil)}
+	for i := 1; i <= 4; i++ {
+		task := fmt.Sprintf("T-%d", i)
+		evs = append(evs, e("pr.merged", task, map[string]any{"pr": task}), e("judge.verdict", task, map[string]any{"verdict": "PASS"}))
+		if i <= many {
+			evs = append(evs, e("ci.red", task, nil))
+		}
+	}
+	writeEvents(t, r.Log.Path, evs...)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, h
+}
+
+// flowBanners is the API's Flow page model.
+func flowBanners(t *testing.T, h http.Handler) FlowPage {
+	t.Helper()
+	code, body := obsGet(t, h, "/api/obs/flow")
+	var api struct {
+		Flow FlowPage `json:"flow"`
+	}
+	if code != 200 || json.Unmarshal([]byte(body), &api) != nil || !strings.Contains(body, `"banners":[`) {
+		t.Fatalf("api %d: %s", code, body)
+	}
+	return api.Flow
+}
+
+// flowBannerHTML is the banner elements of the Flow HTML page.
+func flowBannerHTML(t *testing.T, h http.Handler) []string {
+	t.Helper()
+	code, page := obsGet(t, h, "/flow")
+	if code != 200 {
+		t.Fatalf("page %d: %s", code, page)
+	}
+	return bannerHTML.FindAllString(page, -1)
+}
+
+func TestObsBannerRounds(t *testing.T) {
+	t.Run("below", func(t *testing.T) {
+		_, h := roundsFixture(t, 1) // 25%
+		if p := flowBanners(t, h); p.PRs != 4 || p.Rounds2 != 1 || len(p.Banners) != 0 {
+			t.Fatalf("no banner: %+v", p)
+		}
+	})
+	t.Run("above", func(t *testing.T) {
+		_, h := roundsFixture(t, 2)
+		want := []string{"2 of 4 PRs (50%) needed 2+ review rounds."}
+		if p := flowBanners(t, h); p.PRs != 4 || p.Rounds2 != 2 || !reflect.DeepEqual(p.Banners, want) {
+			t.Fatalf("one banner: %+v", p)
+		}
+	})
+}
+
+func TestObsBannerRoundsConfig(t *testing.T) {
+	r, h := roundsFixture(t, 2)
+	if err := r.Store.SetCfg("obs_banner_rounds_pct", "60"); err != nil {
+		t.Fatal(err)
+	}
+	if p := flowBanners(t, h); len(p.Banners) != 0 {
+		t.Fatalf("50%% is under the configured 60%%: %q", p.Banners)
+	}
+}
+
+func TestObsFlowBannerHTML(t *testing.T) {
+	t.Run("shown", func(t *testing.T) {
+		_, h := roundsFixture(t, 2) // 50%
+		html := flowBannerHTML(t, h)
+		// html/template writes "+" as &#43;.
+		want := "2 of 4 PRs (50%) needed 2&#43; review rounds."
+		if len(html) != 1 || !strings.Contains(html[0], want) {
+			t.Fatalf("one banner: %q", html)
+		}
+		if strings.Contains(html[0], "<button") || strings.Contains(html[0], "<form") || strings.Contains(html[0], "<a") {
+			t.Fatalf("a banner is text only: %s", html[0])
+		}
+	})
+	t.Run("hidden", func(t *testing.T) {
+		_, h := roundsFixture(t, 1) // 25%
+		if html := flowBannerHTML(t, h); len(html) != 0 {
+			t.Fatalf("no banner: %q", html)
+		}
+	})
+}
+
+// stageFixture is a running obs page over one merged task with the given hours in dispatched, gate, ci and judge.
+func stageFixture(t *testing.T, hours [4]int) (*Runner, http.Handler) {
+	t.Helper()
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	at := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -2)
+	var evs []Event
+	add := func(kind, role string, h int) {
+		evs = append(evs, ev(at.Format(time.RFC3339), kind, "T-1", "G-1", "www", "", role, nil))
+		at = at.Add(time.Duration(h) * time.Hour)
+	}
+	add("task.dispatched", "", hours[0])
+	add("gate.blocked", "", hours[1])
+	add("gate.passed", "", hours[2])
+	add("session.started", "judge", hours[3])
+	add("pr.merged", "", 0)
+	writeEvents(t, r.Log.Path, evs...)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, h
+}
+
+func TestObsBannerStage(t *testing.T) {
+	t.Run("below", func(t *testing.T) {
+		_, h := stageFixture(t, [4]int{3, 3, 2, 2}) // the largest share is exactly 30%
+		if p := flowBanners(t, h); len(p.Tasks) != 1 || p.Tasks[0].Total != 10*3600 || len(p.Banners) != 0 {
+			t.Fatalf("no banner: %+v", p)
+		}
+		lone := &FlowPage{Tasks: []FlowTask{{Seconds: map[string]int64{"ci": 3600, "gate": 0}}}}
+		if b := lone.stageBanners(30); b != nil {
+			t.Fatalf("no banner for a lone stage: %q", b)
+		}
+	})
+	t.Run("above", func(t *testing.T) {
+		_, h := stageFixture(t, [4]int{2, 0, 7, 1})
+		want := "ci holds 7 of 10 stage hours (70%)."
+		if p := flowBanners(t, h); !reflect.DeepEqual(p.Banners, []string{want}) {
+			t.Fatalf("one banner: %q", p.Banners)
+		}
+		html := flowBannerHTML(t, h)
+		if len(html) != 1 || !strings.Contains(html[0], want) {
+			t.Fatalf("one banner element: %q", html)
+		}
+		if strings.Contains(html[0], "<button") || strings.Contains(html[0], "<form") || strings.Contains(html[0], "<a") {
+			t.Fatalf("a banner is text only: %s", html[0])
+		}
+	})
+}
+
+func TestObsBannerStageConfig(t *testing.T) {
+	r, h := stageFixture(t, [4]int{2, 0, 7, 1})
+	if p := flowBanners(t, h); len(p.Banners) != 1 {
+		t.Fatalf("one banner at the default: %q", p.Banners)
+	}
+	if err := r.Store.SetCfg("obs_banner_stage_pct", "90"); err != nil {
+		t.Fatal(err)
+	}
+	if p := flowBanners(t, h); len(p.Banners) != 0 {
+		t.Fatalf("70%% is under the configured 90%%: %q", p.Banners)
+	}
+}
+
+func TestSessionPollingUSD(t *testing.T) {
+	r, _ := testRunner(t, "")
+	dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "p")
+	_ = os.MkdirAll(dir, 0o700)
+	var raw []byte
+	for i, out := range []int{2000, 10} { // the second request is a wait turn
+		usage := map[string]any{"input_tokens": 1000, "output_tokens": out, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+		id := string(rune('a' + i))
+		line, _ := json.Marshal(map[string]any{"type": "assistant", "timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+			"requestId": "q-" + id, "message": map[string]any{"id": "m-" + id, "model": "claude-sonnet-5-5", "usage": usage}})
+		raw = append(raw, append(line, '\n')...)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "s-1.jsonl"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	u := SessionUsages(r.Env.UserHome, []string{"s-1"})["s-1"]
+	if u.PollingUSD <= 0 || u.PollingUSD >= u.USD {
+		t.Fatalf("polling part: %+v", u)
+	}
+	b, _ := json.Marshal(Event{CostUSD: &u.USD, Data: u.data()})
+	var e Event
+	if err := json.Unmarshal(b, &e); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := usageOf(e); !ok || got != u {
+		t.Fatalf("session.ended round trip: %+v, want %+v", got, u)
+	}
+	delete(e.Data, "polling_usd") // a line from before the field
+	if got, ok := usageOf(e); !ok || got.PollingUSD != 0 {
+		t.Fatalf("old line: %+v", got)
+	}
+}
+
+func TestObsShowsThePlacementMachine(t *testing.T) {
+	r, s := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	if err := s.SetCfg("session_machines", "local,box-c,box-d,core-a"); err != nil {
+		t.Fatal(err)
+	}
+	// session_machines also names this machine by its hc core name: it is listed once
+	r.Tools.HC = func(...string) (int, string, string) { return 0, `{"core":{"name":"core-a"}}`, "" }
+	day := time.Now().UTC().Format("2006-01-02")
+	ts := func(h string) string { return day + "T" + h + ":00Z" }
+	placed := func(m string) map[string]any { return map[string]any{"machine": m} }
+	evs := []Event{
+		ev(ts("00:30"), "ask.added", "T-1", "G-1", "www", "", "", map[string]any{"id": 1.0}),
+		ev(ts("01:00"), "task.dispatched", "T-1", "G-1", "www", "", "", placed("box-c")),
+		ev(ts("01:01"), "session.started", "T-1", "G-1", "www", "s-far", "task", placed("box-c")),
+		cost(ev(ts("02:00"), "session.ended", "T-1", "G-1", "www", "s-far", "task", nil), 2, 1, 1),
+		ev(ts("02:01"), "pr.merged", "T-1", "G-1", "www", "", "", nil),
+		ev(ts("03:00"), "task.dispatched", "T-2", "G-1", "www", "", "", placed("local")),
+		ev(ts("03:01"), "session.started", "T-2", "G-1", "www", "s-near", "task", placed("local")),
+		// the judge of a placed task runs on this machine
+		ev(ts("02:02"), "session.started", "T-1", "G-1", "www", "s-judge", "judge", placed("local")),
+		ev(ts("02:03"), "session.closed", "T-1", "G-1", "www", "", "judge", placed("local")),
+		// dispatched again, to the other machine: the first run stays where it ran
+		ev(ts("04:00"), "task.dispatched", "T-2", "G-1", "www", "", "", placed("box-c")),
+		ev(ts("04:01"), "session.started", "T-2", "G-1", "www", "s-again", "task", placed("box-c")),
+		// every session of the task is ended after the last run: the first run's stays on its machine
+		cost(ev(ts("05:00"), "session.ended", "T-2", "G-1", "www", "s-near", "task", nil), 1, 1, 1),
+	}
+	for i := range evs {
+		evs[i].Machine = "box-a"
+	}
+	writeEvents(t, r.Log.Path, evs...)
+	// a pulled copy with no event yet
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "box-e", "events.jsonl"))
+
+	o, err := r.LoadObs(ObsFilter{}, true, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(o.Machines, ","); got != "box-a,box-c,box-d,box-e" {
+		t.Fatalf("machines %s", got)
+	}
+	t1 := o.Tasks["box-a/T-1"]
+	if t1 == nil || t1.Machine != "box-c" || t1.Origin != "box-a" || t1.Row.Outcome != "merged" {
+		t.Fatalf("T-1: %+v", t1)
+	}
+	for _, e := range t1.Events {
+		if e.Role != "judge" && e.Machine != "box-c" {
+			t.Fatalf("event %s on %s", e.Event, e.Machine)
+		}
+	}
+	for id, want := range map[string]string{"s-far": "box-c", "s-near": "box-a", "s-again": "box-c", "s-judge": "box-a"} {
+		if s := o.Sessions[id]; s.Machine != want {
+			t.Fatalf("session %s on %s, want %s", id, s.Machine, want)
+		}
+	}
+	if o.Tasks["box-a/T-2"].Machine != "box-c" || o.Sessions["s-near"].Machine != "box-a" || o.EventAsks["box-a"]["www"] != 1 || o.LastSeen["box-c"] != ts("04:01") || o.LastSeen["box-a"] != ts("05:00") {
+		t.Fatalf("T-2 %+v asks %v seen %v", o.Tasks["box-a/T-2"], o.EventAsks, o.LastSeen)
+	}
+	near, err := r.LoadObs(ObsFilter{Machine: "box-a"}, true, time.Now())
+	if err != nil || near.Sessions["s-near"] == nil || !near.Sessions["s-near"].CostKnown || near.Sessions["s-judge"] == nil || near.Sessions["s-far"] == nil {
+		t.Fatalf("the first run's session.ended: %v %v", err, near.Sessions)
+	}
+	// a task with a line on the machine is whole: merged on the other machine is not open here
+	if t1 := near.Tasks["box-a/T-1"]; t1 == nil || t1.Row.Outcome != "merged" || t1.Machine != "box-c" || t1.Row.USD != 2 {
+		t.Fatalf("T-1 under the filter: %+v", t1)
+	}
+	// the task page keeps its sessions from elsewhere; the sums count only this machine's
+	if got := len(near.TaskSessions(near.Tasks["box-a/T-1"])); got != 2 {
+		t.Fatalf("T-1 sessions under the filter: %d", got)
+	}
+	usd := 0.0
+	for _, l := range near.Portfolio(30, nil)[:1] {
+		usd += l.USD30d
+	}
+	if want := near.Sessions["s-near"].Usage.USD; usd != want {
+		t.Fatalf("spend under the filter %v, want %v", usd, want)
+	}
+	far, err := r.LoadObs(ObsFilter{Machine: "box-c"}, true, time.Now())
+	if err != nil || far.Sessions["s-far"] == nil || far.Tasks["box-a/T-2"] == nil || far.Tasks["box-a/T-1"] == nil {
+		t.Fatalf("machine filter: %v %v", err, far.Sessions)
+	}
+
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "http://localhost:7461/", nil))
+	for _, m := range []string{"box-c", "box-d", "box-e"} {
+		if !strings.Contains(w.Body.String(), `href="/?machine=`+m+`">`+m+`</a>`) {
+			t.Fatalf("machines table lacks %s: %s", m, w.Body.String())
+		}
+	}
+}
+
+func TestObsServerStatusCachedAndNoDuplicateCore(t *testing.T) {
+	r, s := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	if err := s.SetCfg("session_machines", "local,box-c,core-a"); err != nil {
+		t.Fatal(err)
+	}
+	calls, down := 0, false
+	r.Tools.HC = func(args ...string) (int, string, string) {
+		if args[0] != "server" {
+			return 0, "", ""
+		}
+		calls++
+		if down {
+			return 1, "", "no server"
+		}
+		return 0, `{"core":{"name":"core-a"}}`, ""
+	}
+	now := time.Now()
+	srv := &obsServer{r: r, now: func() time.Time { return now }}
+	check := func(after time.Duration, wantCalls int, want string) {
+		t.Helper()
+		now = now.Add(after)
+		o, _, err := srv.load(ObsFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Join(o.Machines, ","); got != want || calls != wantCalls {
+			t.Fatalf("machines %s after %d calls, want %s after %d", got, calls, want, wantCalls)
+		}
+	}
+	check(0, 1, "box-a,box-c")
+	check(29*time.Second, 1, "box-a,box-c")
+	down = true
+	check(time.Second, 2, "box-a,box-c") // the call fails: the core is still listed once
+	down = false
+	check(29*time.Second, 2, "box-a,box-c") // the failure is cached too
+	check(time.Second, 3, "box-a,box-c")
+
+	// a restarted server whose hc is down still knows the name
+	calls, down = 0, true
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a,box-c")
+	check(29*time.Second, 1, "box-a,box-c")
+
+	// hc never answered: either entry may be this machine, so neither is listed from the config alone
+	if err := os.Remove(filepath.Join(r.Env.StateDir(), "core_name")); err != nil {
+		t.Fatal(err)
+	}
+	calls = 0
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a")
+	check(29*time.Second, 1, "box-a")
+
+	// a call that hangs past the 30 s is cached from the time it returned
+	calls = 0
+	r.Tools.HC = func(...string) (int, string, string) {
+		calls++
+		now = now.Add(90 * time.Second)
+		return 1, "", "timeout"
+	}
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a")
+	check(29*time.Second, 1, "box-a")
+}
+
+func TestObsAsksUnderTheirMachine(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	a := func(h, kind, machine, task, project string, id float64) Event {
+		e := ev(day+"T"+h+":00Z", kind, task, "", project, "", "", map[string]any{"id": id})
+		e.Machine = machine
+		return e
+	}
+	placed := a("00:00", "task.dispatched", "box-a", "T-1", "www", 0)
+	placed.Data = map[string]any{"machine": "box-c"}
+	writeEvents(t, r.Log.Path, placed,
+		a("01:00", "ask.added", "", "", "www", 1),    // no machine field: this machine
+		a("02:00", "ask.added", "", "T-1", "www", 2)) // filed here, about a task placed on box-c
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "box-b", "events.jsonl"), a("03:00", "ask.added", "box-b", "", "api", 1))
+
+	for _, c := range []struct {
+		machine  string
+		www, api int
+	}{{"", 2, 1}, {"box-a", 2, 0}, {"box-b", 0, 1}, {"box-c", 0, 0}} {
+		o, err := r.LoadObs(ObsFilter{Machine: c.machine}, true, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := o.OpenAsks("box-a", nil, false); got["www"] != c.www || got["api"] != c.api {
+			t.Errorf("machine %q, from events: %v", c.machine, got)
+		}
+		// this machine's asks come from its DB
+		if got := o.OpenAsks("box-a", map[string]int{"www": c.www}, true); got["www"] != c.www || got["api"] != c.api {
+			t.Errorf("machine %q, from the DB: %v", c.machine, got)
+		}
+		wantDB := 0
+		if c.machine == "" || c.machine == "box-a" {
+			wantDB = 5
+		}
+		if got := o.OpenAsks("box-a", map[string]int{"www": 5}, true); got["www"] != wantDB {
+			t.Errorf("machine %q: DB asks %v, want %d", c.machine, got, wantDB)
+		}
+	}
+}
+
+func TestObsPulledLogNoEmptyMachine(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	on := func(h, machine, task string) Event {
+		e := ev(day+"T"+h+":00Z", "task.dispatched", task, "", "api", "", "", nil)
+		e.Machine = machine
+		return e
+	}
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "alias-b", "events.jsonl"), on("01:00", "box-b", "T-1"), on("02:00", "box-c", "T-2"))
+	check := func(want string) {
+		t.Helper()
+		o, srcs, err := (&obsServer{r: r, now: time.Now}).load(ObsFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rows []string
+		for _, m := range o.BuildNow(30, "", "box-a", nil, false, srcs).Machines {
+			rows = append(rows, m.Machine)
+		}
+		sort.Strings(rows)
+		if got, page := strings.Join(o.Machines, ","), strings.Join(rows, ","); got != want || page != want {
+			t.Fatalf("machines %s, page rows %s, want %s", got, page, want)
+		}
+		if o.Tasks["box-b/T-1"] == nil || o.Tasks["box-c/T-2"] == nil {
+			t.Fatalf("tasks: %v", o.TaskList("", ""))
+		}
+	}
+	check("box-a,box-b,box-c")
+	// a line with no machine name takes the pull label, which then has something to show
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "alias-b", "events.jsonl"), on("03:00", "", "T-3"))
+	check("alias-b,box-a,box-b,box-c")
 }

@@ -1,0 +1,13 @@
+diff --git a/go/internal/guard/live_remote.go b/go/internal/guard/live_remote.go
+index 624ec66b9..49e4a47ba 100644
+--- a/go/internal/guard/live_remote.go
++++ b/go/internal/guard/live_remote.go
+@@ -308,7 +308,7 @@ func (a *Analyzer) gitLivePushGuard(rest []string) error {
+ }
+ 
+ func (a *Analyzer) gitLivePushGuardPushArgs(args []string, remoteCfg bool) error {
+-	if remoteCfg {
++	if remoteCfg && false {
+ 		return gitBlockf("`git -c remote.<name>.url=... push` overrides the shared origin from a worktree; push with " +
+ 			"origin or the plain factory URL only (T-1200)")
+ 	}

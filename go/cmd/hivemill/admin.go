@@ -214,7 +214,7 @@ func cmdProject(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 // cmdGoal is `hivemill goal new|list|show|close`.
 func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	usage := "usage: hivemill goal new --project ID --title TEXT [--intent TEXT] [--criteria TEXT|--criteria-file F] [--priority N] | " +
-		"goal list [--status S] | goal show G-001 | goal close G-001 [--cancel] [--force]"
+		"goal list [--status S] | goal show G-001 | goal close G-001 [--cancel] [--force] | goal status G-001 active|blocked|done|cancelled"
 	s := sqliteOf(r, stderr)
 	if s == nil {
 		return 1
@@ -310,6 +310,38 @@ func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			return fail(stderr, err)
 		}
 		fmt.Fprintf(stdout, "%s %s\n", id, st)
+	case "status":
+		if len(args) != 3 || !goalRe.MatchString(args[1]) {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		id, st := strings.ToUpper(args[1]), strings.ToLower(args[2])
+		switch st {
+		case "active", "blocked", "done", "cancelled":
+		default:
+			fmt.Fprintf(stderr, "hivemill: unknown goal status %q (active, blocked, done, cancelled)\n", st)
+			return 2
+		}
+		if _, err := s.Goal(id); err != nil {
+			if strings.HasPrefix(err.Error(), "no goal ") {
+				fmt.Fprintf(stderr, "hivemill: unknown goal %s\n", id)
+				return 2
+			}
+			return fail(stderr, err)
+		}
+		if st == "done" || st == "cancelled" {
+			n, _, err := s.GoalOpenTasks(id)
+			if err != nil {
+				return fail(stderr, err)
+			}
+			if n > 0 {
+				return fail(stderr, fmt.Errorf("%w: %s has %d open tasks (cancel them, or use goal close --force)", hm.ErrRefused, id, n))
+			}
+		}
+		if err := s.SetGoalStatus(id, st); err != nil {
+			return fail(stderr, err)
+		}
+		fmt.Fprintf(stdout, "%s %s\n", id, st)
 	default:
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -317,7 +349,7 @@ func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 	return 0
 }
 
-const taskUsage = "usage: hivemill task lint|show|cancel T-1234 | task list [--goal G] [--status S] | " +
+const taskUsage = "usage: hivemill task lint|show|cancel T-1234 | task lint --all | task list [--goal G] [--status S] | " +
 	"task add --goal G --title TEXT (--spec TEXT|--spec-file F) (--acceptance TEXT|--acceptance-file F) [--priority N] [--depends T-1,T-2] [--draft] | " +
 	"task update T-1234 [--title] [--spec|--spec-file] [--acceptance|--acceptance-file] [--status S] [--priority N] [--depends T-1,T-2]"
 
@@ -333,13 +365,43 @@ func lintReport(w io.Writer, id, acceptance string) []string {
 		}
 		fmt.Fprintf(w, "  %d. %s: %s\n", c.ID, or(c.Kind, "-"), trunc(p, 100))
 	}
-	probs := hm.LintProblems(acceptance)
+	probs := hm.FilingProblems(acceptance)
 	if len(probs) > 0 {
 		fmt.Fprintf(w, "%s: spec gate FAIL\n  - %s\n", id, strings.Join(probs, "\n  - "))
 	} else {
 		fmt.Fprintf(w, "%s: spec gate PASS (%d criteria)\n", id, len(hm.Criteria(acceptance)))
 	}
 	return probs
+}
+
+// lintAll lists the todo and draft tasks that fail the spec gate, one line per problem; exit 1 when there is one.
+func lintAll(r *hm.Runner, stdout, stderr io.Writer) int {
+	s := sqliteOf(r, stderr)
+	if s == nil {
+		return 1
+	}
+	checked, failed := 0, 0
+	for _, status := range []string{"todo", "draft"} {
+		ts, err := s.Tasks("", status)
+		if err != nil {
+			return fail(stderr, err)
+		}
+		for _, t := range ts {
+			checked++
+			probs := hm.FilingProblems(t.Acceptance)
+			if len(probs) > 0 {
+				failed++
+			}
+			for _, p := range probs {
+				fmt.Fprintf(stdout, "%s %s: %s\n", t.ID, t.Status, p)
+			}
+		}
+	}
+	fmt.Fprintf(stdout, "%d of %d todo and draft tasks fail the spec gate\n", failed, checked)
+	if failed > 0 {
+		return 1
+	}
+	return 0
 }
 
 func depsJSON(v string) (string, error) {
@@ -371,9 +433,12 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 	}
 	switch args[0] {
 	case "lint":
+		if len(args) == 2 && args[1] == "--all" {
+			return lintAll(r, stdout, stderr)
+		}
 		id, ok := idArg()
 		if !ok || len(args) != 2 {
-			fmt.Fprintln(stderr, "usage: hivemill task lint T-1234")
+			fmt.Fprintln(stderr, "usage: hivemill task lint T-1234|--all")
 			return 2
 		}
 		t, e := r.Store.Task(id)
@@ -558,7 +623,12 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		_, stChanged := set["status"]
 		if (accChanged || stChanged) && newStatus != "draft" && newStatus != "done" && newStatus != "cancelled" {
 			var lint strings.Builder
-			if probs := lintReport(&lint, id, newAcc); len(probs) > 0 {
+			probs := lintReport(&lint, id, newAcc)
+			filed := t.Status == "todo" || t.Status == "blocked" || t.Status == "in_progress" || t.Status == "in_review"
+			if !accChanged && filed { // a status change of a filed task: the dispatch gate
+				probs = hm.LintProblems(newAcc)
+			}
+			if len(probs) > 0 {
 				fmt.Fprint(stderr, lint.String())
 				return fail(stderr, fmt.Errorf("%w: %s would be %s with criteria that fail the spec gate", hm.ErrRefused, id, newStatus))
 			}

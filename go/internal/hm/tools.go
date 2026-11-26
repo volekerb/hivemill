@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,7 +24,7 @@ type Tools struct {
 
 // RealTools runs git through gitx (hooks off, https only, live-checkout moves refused), gh and hc.
 func RealTools(e Env) Tools {
-	o := gitx.Options{Home: e.Home, LiveHomes: []string{e.Home}, Timeout: 180 * time.Second}
+	o := gitOptions(e)
 	return Tools{
 		Git: func(repo string, args ...string) (int, string, string) { return gitx.RC(repo, o, args...) },
 		GH: func(input string, args ...string) (int, string, string) {
@@ -39,6 +40,21 @@ func RealTools(e Env) Tools {
 	}
 }
 
+func gitOptions(e Env) gitx.Options {
+	return gitx.Options{Home: e.Home, LiveHomes: []string{e.Home}, Timeout: 180 * time.Second}
+}
+
+// gitAs is RealTools' git with email as author and committer, for the runner's own commits. The GIT_* variables are set
+// because inherited ones override `-c user.email`. An empty email sets none of them and passes only the -c values, as before.
+func gitAs(e Env, email, repo string, args ...string) (int, string, string) {
+	o := gitOptions(e)
+	if email != "" { // the last value of a repeated key wins
+		o.Env = append(os.Environ(), "GIT_AUTHOR_EMAIL="+email, "GIT_COMMITTER_EMAIL="+email,
+			"GIT_AUTHOR_NAME="+nameOf(email), "GIT_COMMITTER_NAME="+nameOf(email))
+	}
+	return gitx.RC(repo, o, append([]string{"-c", "user.email=" + email, "-c", "user.name=" + nameOf(email)}, args...)...)
+}
+
 func run(timeout time.Duration, dir, input string, env []string, argv ...string) (int, string, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -48,11 +64,15 @@ func run(timeout time.Duration, dir, input string, env []string, argv ...string)
 		cmd.Env = env
 	}
 	cmd.Stdin = strings.NewReader(input)
+	cmd.WaitDelay = 30 * time.Second // a child left holding the output pipe must not block past the command
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()
 	if ctx.Err() == context.DeadlineExceeded {
 		return 124, out.String(), errb.String() + fmt.Sprintf("\ntimed out after %s", timeout)
+	}
+	if errors.Is(err, exec.ErrWaitDelay) {
+		err = nil // the command itself exited 0
 	}
 	if ee, ok := err.(*exec.ExitError); ok {
 		return ee.ExitCode(), out.String(), errb.String()

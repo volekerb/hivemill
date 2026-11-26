@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"factory/go/internal/hm"
 )
 
 type cli struct {
@@ -128,6 +130,47 @@ func TestSessionsCannotChangeTasks(t *testing.T) {
 	}
 }
 
+func TestTaskLintAll(t *testing.T) {
+	c, home := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "g")
+	whole := "1. a - cmd:go test ./... => exit 0"
+	if code, _, errs := c.run("", "task", "add", "--goal", "G-001", "--title", "t", "--spec", "s", "--acceptance", whole); code != 3 || !strings.Contains(errs, "name the packages") {
+		t.Errorf("add: exit %d %q", code, errs)
+	}
+	c.ok("task", "add", "--goal", "G-001", "--title", "ok", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0")
+	if out := c.ok("task", "lint", "--all"); !strings.Contains(out, "0 of 1 ") {
+		t.Errorf("clean: %q", out)
+	}
+	c.ok("task", "add", "--goal", "G-001", "--title", "d", "--acceptance", whole, "--draft")
+	code, out, _ := c.run("", "task", "lint", "--all")
+	if code != 1 || !strings.Contains(out, "T-0002 draft: criterion 1: name the packages") || strings.Contains(out, "T-0001") {
+		t.Errorf("offenders: exit %d %q", code, out)
+	}
+	if code, _, _ := c.run("", "task", "update", "T-0002", "--status", "todo"); code != 3 {
+		t.Errorf("promote a draft offender: exit %d, want 3", code)
+	}
+	c.ok("task", "update", "T-0002", "--status", "cancelled")
+	if code, _, _ := c.run("", "task", "update", "T-0002", "--status", "todo"); code != 3 {
+		t.Errorf("promote through cancelled: exit %d, want 3", code)
+	}
+	c.ok("task", "update", "T-0002", "--status", "draft")
+	if code, _, _ := c.run("", "task", "update", "T-0001", "--acceptance", whole); code != 3 {
+		t.Errorf("new offending criteria: exit %d, want 3", code)
+	}
+	// A task filed before the rule keeps its criteria and may still change status.
+	s, err := hm.OpenSQLite(filepath.Join(home, "db", "factory.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.UpdateTask("T-0001", map[string]any{"acceptance": whole}); err != nil {
+		t.Fatal(err)
+	}
+	c.ok("task", "update", "T-0001", "--status", "blocked")
+	c.ok("task", "update", "T-0001", "--status", "todo")
+}
+
 func TestConfigRefusesFableModels(t *testing.T) {
 	c, _ := standalone(t)
 	if code, _, errs := c.run("", "config", "model", "claude-fable-5"); code == 0 || !strings.Contains(errs, "never Fable") {
@@ -145,5 +188,50 @@ func TestLaunchdDaemonPlist(t *testing.T) {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("plist lacks %q:\n%s", want, b)
 		}
+	}
+}
+
+func TestGoalStatus(t *testing.T) {
+	c, _ := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "g")
+	if out := c.ok("goal", "status", "G-001", "blocked"); out != "G-001 blocked\n" {
+		t.Errorf("blocked: %q", out)
+	}
+	if out := c.ok("goal", "show", "G-001"); !strings.HasPrefix(out, "G-001 blocked") {
+		t.Errorf("show: %q", out)
+	}
+	if out := c.ok("goal", "status", "G-001", "active"); out != "G-001 active\n" {
+		t.Errorf("active: %q", out)
+	}
+	if code, _, errs := c.run("", "goal", "status", "G-001", "bogus"); code != 2 || !strings.Contains(errs, "unknown goal status") {
+		t.Errorf("unknown status: exit %d %q", code, errs)
+	}
+	if code, _, errs := c.run("", "goal", "status", "G-099", "blocked"); code != 2 || !strings.Contains(errs, "unknown goal") {
+		t.Errorf("unknown goal: exit %d %q", code, errs)
+	}
+	c.ok("task", "add", "--goal", "G-001", "--title", "x", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0")
+	if code, _, _ := c.run("", "goal", "status", "G-001", "done"); code != 3 {
+		t.Errorf("done with open tasks: exit %d, want 3", code)
+	}
+	c.ok("task", "cancel", "T-0001")
+	if out := c.ok("goal", "status", "G-001", "Cancelled"); out != "G-001 cancelled\n" {
+		t.Errorf("cancelled: %q", out)
+	}
+	if code, _, _ := c.run("", "goal", "status", "G-001"); code != 2 {
+		t.Errorf("missing status: exit %d, want 2", code)
+	}
+}
+
+func TestGuardExportCommand(t *testing.T) {
+	c, home := standalone(t)
+	p := filepath.Join(home, "run", "guard-export.json")
+	_ = os.Remove(p)
+	c.ok("guard", "export")
+	if _, err := os.Stat(p); err != nil {
+		t.Fatalf("guard export wrote nothing: %v", err)
+	}
+	if code, _, errs := c.run("", "guard", "export", "x"); code != 2 || !strings.Contains(errs, "usage: hivemill guard export") {
+		t.Errorf("extra argument: exit %d %q", code, errs)
 	}
 }

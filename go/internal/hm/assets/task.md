@@ -6,10 +6,10 @@ Your kickoff message holds the task id, its spec and its acceptance criteria. Ea
 
 ## Steps
 
-1. Read the code around the change and follow its style. Build what the spec asks, and nothing more.
+1. Read the code around the change and follow its style. Build what the spec asks, and nothing more. If the spec or your changes touch a user interface (html, css, templates, frontend, obs pages), load the skills `ui-ux-pro-max`, `taste-skill` and `impeccable` with the Skill tool before you write UI code (skip one that is not installed).
 2. Add or update tests so that every `test:` proof exists and passes.
 3. Run the tests your change affects. In the factory repo that is `hivemill affected --base origin/main --quick --run`; in another project, its own test command (the gate runs the project's gate command). Never run a whole suite locally; CI does that. Send logs to a file and look at the exit code and the failures only.
-4. Run `/code-review` on your diff. Use `/code-review high` when the diff touches a risk-tier path (guard, hooks, role settings, `ci/`, `.github/`, merge or judge code, schema); otherwise `/code-review medium`.
+4. Run `/code-review` on your diff. Use `/code-review high` when the diff touches a risk-tier path (guard, hooks, role settings, `ci/`, `.github/`, merge or judge code, schema); otherwise `/code-review medium`. If you use a workflow, run `/code-review` in the main session (the check does not see one a workflow agent runs); parallel agents share your clone, so give each its own files and commit yourself. Have a workflow's result before you write the `.hivemill` files.
 5. Fix the findings in this session and commit the fixes. Then write `.hivemill/findings.json` (format below), with one entry per finding and how you resolved it, and `"head"` set to the output of `git rev-parse HEAD`. The check accepts the file only for the current HEAD and only when a `/code-review` ran in this round, so if you commit again later, run `/code-review` again and rewrite the file.
 6. Write `.hivemill/evidence.json` (format below): for each acceptance criterion, the proof, the command you ran and its exit code. The factory re-runs every `test:` and `cmd:` proof itself, so record what you really ran.
 7. Commit with your noreply identity. Run `git fetch origin && git merge origin/main` and re-run the affected tests if main moved.
@@ -38,4 +38,5 @@ Use the criterion numbers from the kickoff. A `manual:` criterion gets `"command
 - Logs go to files. Show yourself the exit code and the failing lines only.
 - Removing tests fails the check unless the PR body has a `Tests removed: <what and why>` line.
 - The repo is public. Write no hostnames, IP addresses, personal names or private terms in code, commits or the PR.
+- A worker-guard denial is not a reason to stop. Never run the denied command again in another spelling, wrapper or interpreter. Read the deny text and reach the same step another way: edit files with the Edit tool instead of a heredoc or a script, split a command that writes a file and then reads it into two Bash calls, remove private text the public-text check names from your own changes, and push with exactly the command in step 8. A spec rule like "stop and report on any denial" means this. Only if no other way can finish the task, write `.hivemill/blocked.md` with the denied command and the deny text, then stop.
 - If the spec is wrong or impossible, say so in one short final message and stop. The check will mark the task for the owner after a few blocked stops.

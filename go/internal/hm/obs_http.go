@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,14 +18,39 @@ import (
 	"time"
 )
 
-// `hivemill obs`: a read-only page on 127.0.0.1. Plain HTML from html/template, inline CSS, no script, nothing loaded
-// from another origin. Zoom: portfolio -> project -> goal -> task -> session; filters machine, harness and window.
+// `hivemill obs`: a read-only dashboard, on 127.0.0.1 unless --listen says otherwise. html/template pages and one embedded stylesheet, no script,
+// nothing loaded from another origin. Sidebar: Now, Spend, Flow; the drill-down zoom (project -> goal -> task ->
+// session) stays under Now. Header: project, time range, machine, harness, theme. JSON of every page: /api/obs/*.
 
-//go:embed obs_assets/obs.html
+//go:embed assets/obs
 var obsFS embed.FS
 
-// ObsAddr is the listen address: loopback only.
-func ObsAddr(port int) string { return net.JoinHostPort("127.0.0.1", strconv.Itoa(port)) }
+// ObsAddr is the listen address of host and port.
+func ObsAddr(host string, port int) string { return net.JoinHostPort(host, strconv.Itoa(port)) }
+
+// ObsListen picks the bind host: --listen, else config obs_listen, else 127.0.0.1. It takes an IP literal or
+// localhost, and warns on stderr when the host is not loopback.
+func ObsListen(flagHost, cfgHost string, stderr io.Writer) (string, error) {
+	host := strings.TrimSpace(or(strings.TrimSpace(flagHost), strings.TrimSpace(cfgHost)))
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if err := checkBindHost(host); err != nil {
+		return "", err
+	}
+	if !loopbackHost(host) {
+		fmt.Fprintf(stderr, "WARNING: hivemill obs listens on %s: the page is read-only but readable by anyone on that network\n", host)
+	}
+	return host, nil
+}
+
+// checkBindHost refuses a host that is not an IP literal or localhost.
+func checkBindHost(h string) error {
+	if h != "localhost" && net.ParseIP(h) == nil {
+		return fmt.Errorf("obs listens on an IP address or localhost, not %q", h)
+	}
+	return nil
+}
 
 // CheckLoopback refuses an address that is not a loopback address.
 func CheckLoopback(addr string) error {
@@ -48,6 +74,26 @@ type obsServer struct {
 	priced time.Time
 	usage  map[string]SessUsage
 	now    func() time.Time
+	wide   bool // bound beyond loopback: an IP literal Host is answered too
+
+	coreMu sync.Mutex
+	coreAt time.Time // when hc was last asked
+	core   string    // the last core name hc gave
+}
+
+// coreTTL is how long one `hc server status` answer, a failure too, serves the page.
+const coreTTL = 30 * time.Second
+
+// coreName is Runner.knownCoreName asked at most once per coreTTL. A failed call keeps the last name hc gave, so this
+// machine is not listed a second time under it.
+func (s *obsServer) coreName() string {
+	s.coreMu.Lock()
+	defer s.coreMu.Unlock()
+	if s.coreAt.IsZero() || s.now().Sub(s.coreAt) >= coreTTL {
+		s.core = or(s.r.knownCoreName(), s.core)
+		s.coreAt = s.now() // after the call: a hung hc can outlast coreTTL and must still be cached
+	}
+	return s.core
 }
 
 // usages prices this machine's sessions from their transcripts at most once a minute.
@@ -69,7 +115,7 @@ func (s *obsServer) usages(ids []string) map[string]SessUsage {
 
 func (s *obsServer) load(f ObsFilter) (*Obs, []ObsSource, error) {
 	srcs := s.r.ObsSources(true)
-	evs, err := LoadObsEvents(srcs)
+	evs, sources, err := loadObs(srcs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -80,25 +126,54 @@ func (s *obsServer) load(f ObsFilter) (*Obs, []ObsSource, error) {
 			ids = append(ids, e.Session)
 		}
 	}
-	return BuildObs(evs, f, me, s.usages(uniq(ids)), s.now()), srcs, nil
+	o := BuildObs(evs, f, me, s.usages(uniq(ids)), s.now())
+	s.r.listMachines(o, sources, s.coreName)
+	listed := srcs[:0]
+	for i, src := range srcs {
+		if src.Machine = sources[i]; src.Machine != "" { // "": the lines' own machines are listed instead
+			listed = append(listed, src)
+		}
+	}
+	return o, listed, nil
 }
 
 // ObsHandler is the page. It answers GET and HEAD only, and only for a loopback Host (no DNS rebinding).
-func (r *Runner) ObsHandler() (http.Handler, error) {
-	t, err := template.New("obs.html").Funcs(obsFuncs).ParseFS(obsFS, "obs_assets/obs.html")
+func (r *Runner) ObsHandler() (http.Handler, error) { return r.obsHandler(false) }
+
+// obsHandler is ObsHandler; wide also answers a Host that is an IP literal (a DNS name stays refused).
+func (r *Runner) obsHandler(wide bool) (http.Handler, error) {
+	t, err := template.New("page.html").Funcs(obsFuncs).ParseFS(obsFS, "assets/obs/*.html")
 	if err != nil {
 		return nil, err
 	}
-	s := &obsServer{r: r, tmpl: t, now: time.Now}
+	s := &obsServer{r: r, tmpl: t, now: time.Now, wide: wide}
 	return s, nil
 }
 
-// ServeObs serves the page on addr until ctx ends.
+// obsSocket opens the listener for addr. An IPv4 literal gets "tcp4": on "tcp", Go turns 0.0.0.0 into a dual-stack
+// socket that also accepts IPv6.
+func obsSocket(addr string) (net.Listener, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkBindHost(host); err != nil {
+		return nil, err
+	}
+	network := "tcp"
+	if net.ParseIP(host).To4() != nil {
+		network = "tcp4"
+	}
+	return net.Listen(network, addr)
+}
+
+// ServeObs serves the page on addr (an IP address or localhost, with a port) until ctx ends.
 func (r *Runner) ServeObs(ctx context.Context, addr string) error {
-	if err := CheckLoopback(addr); err != nil {
+	h, err := r.obsHandler(CheckLoopback(addr) != nil)
+	if err != nil {
 		return err
 	}
-	h, err := r.ObsHandler()
+	l, err := obsSocket(addr)
 	if err != nil {
 		return err
 	}
@@ -109,7 +184,7 @@ func (r *Runner) ServeObs(ctx context.Context, addr string) error {
 		defer cancel()
 		_ = srv.Shutdown(sc)
 	}()
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
@@ -127,15 +202,34 @@ func loopbackHost(h string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// ipHost reports whether a Host header names an IP literal, with or without a port.
+func ipHost(h string) bool {
+	if x, _, err := net.SplitHostPort(h); err == nil {
+		h = x
+	}
+	return net.ParseIP(strings.Trim(h, "[]")) != nil
+}
+
 type crumb struct{ Label, Href string }
 
 type sourceLine struct {
 	ObsSource
 	Last string
+	// the gate proofs the machine ran in the page's window, and their wall time (gate.proof_run)
+	Proofs   int     `json:"proof_runs,omitempty"`
+	ProofMin float64 `json:"proof_minutes,omitempty"`
 }
 
 type obsPage struct {
 	Kind      string
+	Section   string // sidebar entry: now, spend, flow
+	Theme     string // light, dark or "" (follow the system)
+	PFilter   string // header project filter ("" = all)
+	Projects  []string
+	Sel       url.Values // the request query, for links that keep the page's selection
+	NowPg     *NowPage
+	SpendPg   *SpendPage
+	FlowPg    *FlowPage
 	Title     string
 	Crumbs    []crumb
 	F         ObsFilter
@@ -174,6 +268,12 @@ func (p *obsPage) Q(path string, kv ...string) string {
 	if p.Days != 30 {
 		v.Set("days", strconv.Itoa(p.Days))
 	}
+	if p.PFilter != "" {
+		v.Set("project", p.PFilter)
+	}
+	if p.Theme != "" {
+		v.Set("theme", p.Theme)
+	}
 	for i := 0; i+1 < len(kv); i += 2 {
 		v.Set(kv[i], kv[i+1])
 	}
@@ -183,6 +283,30 @@ func (p *obsPage) Q(path string, kv ...string) string {
 	return path + "?" + v.Encode()
 }
 
+// ThemeQ is this page's own address with the theme switched, keeping the selection (p, g, k, s, by).
+func (p *obsPage) ThemeQ(theme string) string {
+	extra := []string{"theme", theme}
+	for _, k := range []string{"p", "g", "k", "s", "by"} {
+		if v := p.Sel.Get(k); v != "" {
+			extra = append(extra, k, v)
+		}
+	}
+	return p.Q(p.Path(), extra...)
+}
+
+// Ranges are the time ranges of the header (days), plus the current one.
+func (p *obsPage) Ranges() []int {
+	out := []int{7, 30, 90}
+	for _, d := range out {
+		if d == p.Days {
+			return out
+		}
+	}
+	out = append(out, p.Days)
+	sort.Ints(out)
+	return out
+}
+
 // Path is the page's own path (the filter form's action).
 func (p *obsPage) Path() string { return p.path }
 
@@ -190,8 +314,10 @@ func (p *obsPage) Path() string { return p.path }
 func (p *obsPage) SessionsOf(t *ObsTask) []*ObsSession { return p.obs.TaskSessions(t) }
 
 var obsFuncs = template.FuncMap{
-	"usd": func(f float64) string { return fmt.Sprintf("$%.2f", f) },
-	"fp":  fp,
+	"usd":         func(f float64) string { return fmt.Sprintf("$%.2f", f) },
+	"dur":         dur,
+	"spendGroups": func() []string { return SpendGroups },
+	"fp":          fp,
 	"short": func(s string) string {
 		if len(s) > 8 {
 			return s[:8]
@@ -262,17 +388,34 @@ func eventSummary(e Event) string {
 
 func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h := w.Header()
-	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("Cache-Control", "no-store")
+	if req.URL.Path == "/api/obs/task" && req.Method != http.MethodGet {
+		h.Set("Allow", "GET")
+		http.Error(w, "read-only", http.StatusMethodNotAllowed)
+		return
+	}
 	if req.Method != http.MethodGet && req.Method != http.MethodHead {
 		h.Set("Allow", "GET, HEAD")
 		http.Error(w, "read-only", http.StatusMethodNotAllowed)
 		return
 	}
-	if !loopbackHost(req.Host) {
-		http.Error(w, "loopback only", http.StatusForbidden)
+	if !loopbackHost(req.Host) && !(s.wide && ipHost(req.Host)) {
+		http.Error(w, "host refused", http.StatusForbidden)
+		return
+	}
+	if req.URL.Path == "/assets/obs/app.css" {
+		b, err := obsFS.ReadFile("assets/obs/app.css")
+		if err != nil {
+			http.NotFound(w, req)
+			return
+		}
+		h.Set("Content-Type", "text/css; charset=utf-8")
+		if req.Method == http.MethodGet {
+			_, _ = w.Write(b)
+		}
 		return
 	}
 	q := req.URL.Query()
@@ -287,17 +430,54 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	p := &obsPage{F: f, Days: days, Machines: o.Machines, Harnesses: o.Harnesses, Now: o.Now.Format("2006-01-02 15:04 MST"),
-		Me: s.r.Machine(), obs: o, path: req.URL.Path}
-	p.Crumbs = []crumb{{"portfolio", p.Q("/")}}
+		Me: s.r.Machine(), obs: o, path: req.URL.Path, Section: "now", PFilter: q.Get("project"), Sel: q}
+	if th := q.Get("theme"); th == "light" || th == "dark" {
+		p.Theme = th
+	}
+	pset := map[string]bool{}
+	for _, t := range o.Tasks {
+		pset[or(t.Project, NoProject)] = true
+	}
+	p.Projects = setKeys(pset)
+	if p.PFilter != "" && !pset[p.PFilter] {
+		p.Projects = append(p.Projects, p.PFilter)
+	}
+	p.Crumbs = []crumb{{"now", p.Q("/")}}
 	code := http.StatusOK
+	jsonOut := func(v any) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(v)
+	}
 	switch req.URL.Path {
-	case "/", "/api/portfolio":
-		p.Kind, p.Title = "portfolio", "Portfolio"
+	case "/spend", "/api/obs/spend":
+		p.Kind, p.Section, p.Title = "spend", "spend", "Spend"
+		p.SpendPg = o.BuildSpend(days, p.PFilter, q.Get("by"))
+		p.SpendPg.Banners = p.SpendPg.pollingBanners(cfgInt(s.r.Store, "obs_banner_polling_pct"))
+		if req.URL.Path == "/api/obs/spend" {
+			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "spend": p.SpendPg})
+			return
+		}
+	case "/flow", "/api/obs/flow":
+		p.Kind, p.Section, p.Title = "flow", "flow", "Flow"
+		p.FlowPg = o.BuildFlow(days, p.PFilter)
+		p.FlowPg.Banners = p.FlowPg.roundsBanners(cfgInt(s.r.Store, "obs_banner_rounds_pct"))
+		p.FlowPg.Banners = append(p.FlowPg.Banners, p.FlowPg.stageBanners(cfgInt(s.r.Store, "obs_banner_stage_pct"))...)
+		if req.URL.Path == "/api/obs/flow" {
+			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "flow": p.FlowPg})
+			return
+		}
+	case "/", "/now", "/api/obs/now", "/api/portfolio":
+		p.Kind, p.Title = "now", "Now"
 		asks, ok := s.r.OpenAsks()
 		p.AsksLocal = ok
-		p.Portfolio = o.Portfolio(days, o.OpenAsks(p.Me, asks, ok))
+		p.NowPg = o.BuildNow(days, p.PFilter, p.Me, o.OpenAsks(p.Me, asks, ok), ok, srcs)
+		p.Portfolio = p.NowPg.Portfolio
 		for _, src := range srcs {
-			p.Sources = append(p.Sources, sourceLine{ObsSource: src, Last: o.LastSeen[src.Label]})
+			p.Sources = append(p.Sources, sourceLine{ObsSource: src, Last: o.LastSeen[src.Machine]})
+		}
+		if req.URL.Path == "/api/obs/now" {
+			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "days": days, "page": p.NowPg})
+			return
 		}
 		if req.URL.Path == "/api/portfolio" {
 			w.Header().Set("Content-Type", "application/json")
@@ -310,7 +490,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		p.Title = "Project " + p.Project
 		p.Crumbs = append(p.Crumbs, crumb{p.Project, ""})
 		for _, g := range o.Goals(projectKey(p.Project)) {
-			if g.Machines[p.Me] { // goal ids are per factory DB: only a goal this machine ran has its title here
+			if g.origins[p.Me] { // goal ids are per factory DB: only a goal this machine ran has its title here
 				g.Title = s.goalTitle(g.Goal)
 			}
 			p.Goals = append(p.Goals, g)
@@ -325,7 +505,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			p.Project = or(p.Tasks[0].Project, NoProject)
 		}
 		for _, t := range p.Tasks {
-			if t.Machine == p.Me {
+			if t.Origin == p.Me {
 				p.GoalTitle = s.goalTitle(p.Goal)
 				break
 			}
@@ -341,7 +521,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		t := p.Task
 		p.Title = "Task " + t.Task
-		if t.Machine == s.r.Machine() {
+		if t.Origin == s.r.Machine() {
 			if x, err := s.r.Store.Task(t.Task); err == nil && x != nil {
 				p.TaskTitle = x.Title
 			}
@@ -349,6 +529,16 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		p.Sessions, p.Events = o.TaskSessions(t), t.Events
 		p.Crumbs = append(p.Crumbs, crumb{or(t.Project, NoProject), p.Q("/project", "p", or(t.Project, NoProject))},
 			crumb{or(t.Goal, "(no goal)"), p.Q("/goal", "g", t.Goal, "p", or(t.Project, NoProject))}, crumb{t.Task + " @" + t.Machine, ""})
+	case "/api/obs/task":
+		t := o.Tasks[q.Get("k")]
+		if t == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "no task " + q.Get("k") + " (with these filters)"})
+			return
+		}
+		jsonOut(buildTrace(t))
+		return
 	case "/session":
 		p.Kind = "session"
 		p.Session = o.Sessions[q.Get("s")]

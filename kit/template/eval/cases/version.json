@@ -1,0 +1,6 @@
+{
+  "name": "version prints the binary name and version",
+  "argv": ["--version"],
+  "exitCode": 0,
+  "stdoutContains": ["hm-NAME "]
+}

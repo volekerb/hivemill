@@ -104,6 +104,9 @@ func TestLocalNeverForwards(t *testing.T) {
 			t.Errorf("%s opens no DB and runs on the worker", sub)
 		}
 	}
+	if !isGuardExport([]string{"guard", "export"}) || isGuardExport([]string{"guard", "--home", "/x"}) {
+		t.Error("only `guard export` opens the DB (and so forwards)")
+	}
 	t.Setenv("HIVEMILL_COORDINATOR", "")
 	t.Setenv("HOME", t.TempDir())
 	if _, done := preMain([]string{"run", "status"}, strings.NewReader(""), &out, &errs); done {

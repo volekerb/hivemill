@@ -257,6 +257,13 @@ func nsbFakeProxyProc(t *testing.T) *exec.Cmd {
 		_ = cmd.Process.Kill() // already dead after StopProxy
 		<-exited
 	})
+	// /proc/<pid>/cmdline can still read empty right after Start, and StopProxy would then not know it as a proxy
+	if !nsbWaitFor(func() bool {
+		b, _ := os.ReadFile("/proc/" + strconv.Itoa(cmd.Process.Pid) + "/cmdline")
+		return bytes.Contains(b, []byte("egress.py"))
+	}, 5) {
+		t.Fatal("the stand-in proxy never showed its command line")
+	}
 	return cmd
 }
 

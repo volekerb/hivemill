@@ -1,0 +1,17 @@
+{{define "spend"}}{{with .SpendPg}}
+{{range .Banners}}<p class="banner">{{.}}</p>
+{{end -}}
+<h2>Cost per day, by role</h2>
+{{.Chart}}
+<h2>{{usd .Total}} in {{.Days}} days{{if .Pending}} <span class="warn">({{.Pending}} sessions with no cost yet)</span>{{end}}</h2>
+<p class="group">group by {{range $i, $g := spendGroups}}{{if $i}} | {{end}}{{if eq $g $.SpendPg.By}}<strong>{{$g}}</strong>{{else}}<a href="{{$.Q $.Path "by" $g}}">{{$g}}</a>{{end}}{{end}}</p>
+<div class="scroll"><table>
+<tr><th>{{.By}}</th>{{if eq .By "goal"}}<th>project</th>{{end}}<th class="num">sessions</th><th class="num">$</th><th class="num">tokens in</th><th class="num">out</th><th class="num">cache read</th><th class="num">cache write</th></tr>
+{{range .Rows}}<tr><td>{{if .TaskKey}}<a href="{{$.Q "/task" "k" .TaskKey}}">{{.Key}}</a>{{else if .GoalID}}<a href="{{$.Q "/goal" "g" .GoalID "p" .Project}}">{{.Key}}</a>{{else}}{{.Key}}{{end}}</td>{{if eq $.SpendPg.By "goal"}}<td>{{.Project}}</td>{{end}}
+<td class="num">{{.Sessions}}</td><td class="num">{{usd .USD}}{{if .Pending}} <span class="warn">+{{.Pending}} pending</span>{{end}}</td><td class="num">{{tokens .Input}}</td><td class="num">{{tokens .Output}}</td><td class="num">{{tokens .CacheRead}}</td><td class="num">{{tokens .CacheWrite}}</td></tr>
+{{else}}<tr><td colspan="8" class="muted">no sessions in this range</td></tr>{{end}}
+<tr><td>of which unattributed (no task): {{printf "%.1f" .UnattributedPct}}%</td>{{if eq .By "goal"}}<td></td>{{end}}<td></td><td class="num">{{usd .Unattributed}}{{if .UnattributedPending}} <span class="warn">+{{.UnattributedPending}} pending</span>{{end}}</td><td colspan="4"></td></tr>
+<tr class="total"><td>total</td>{{if eq .By "goal"}}<td></td>{{end}}<td></td><td class="num">{{usd .Total}}</td><td colspan="4"></td></tr>
+</table></div>
+<p class="muted">The same session costs as <code>hivemill report</code> (transcripts on this machine, session.ended lines of pulled machines). A task row opens that task's sessions.</p>
+{{end}}{{end}}

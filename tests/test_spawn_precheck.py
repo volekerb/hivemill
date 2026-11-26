@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from harness import FACTORY as FACTORY_BIN, VALID_PR_BODY, FactoryTestCase, PR_URL
+from harness import FactoryTestCase, PR_URL
 from harness import git as harness_git
 
 BRANCH = "factory/t-0001"
@@ -482,31 +482,6 @@ class SpawnPrecheckTests(FactoryTestCase):
 # ── G-057 T-1586: remote spawn on a worker machine (stub ssh + stub hc, mirror tree for the worker machine) ──
 FWD_STUB = "#!/bin/sh\n[ \"$1\" = --version ] && echo 'hivemill test (forward stub)' && exit 0\nexit 2\n"
 MARK = "zz-fixture-ghcred-7d1e"
-_FORWARD_BIN = {}
-
-
-def built_forwarder():
-    """go/cmd/factory-forward built once per process, or None when no Go toolchain can build this module (a CI shard
-    without setup-go has an older go that refuses go.mod). Any other build error raises."""
-    if "bin" in _FORWARD_BIN:
-        return _FORWARD_BIN["bin"]
-    import atexit
-    import shutil
-    go = shutil.which("go") or os.path.expanduser("~/.local/go/bin/go")
-    out = None
-    if os.access(go, os.X_OK):
-        tmp = tempfile.mkdtemp(prefix="factory-forward-")
-        atexit.register(shutil.rmtree, tmp, True)
-        out = os.path.join(tmp, "factory-forward")
-        p = subprocess.run([go, "build", "-o", out, "./cmd/factory-forward"], cwd=str(Path(__file__).resolve().parent.parent / "go"),
-                           capture_output=True, text=True, timeout=600,
-                           env=dict(os.environ, GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off"))
-        if p.returncode != 0:
-            if "requires go" not in p.stderr and "toolchain" not in p.stderr:
-                raise RuntimeError(f"go build ./cmd/factory-forward failed: {p.stderr.strip()}")
-            out = None
-    _FORWARD_BIN["bin"] = out
-    return out
 
 
 class RemoteSpawnTests(FactoryTestCase):
@@ -737,62 +712,6 @@ class RemoteSpawnTests(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertNotIn("machine", json.loads(self.row("zz-legacy")["spawn_args"]))
         self.assertEqual([a for a in self.hc_runs() if "--on" in a], [])
-
-    def test_remote_worker_factory_roundtrip(self):
-        """SC1: a coder placed on workerhost, then its `factory` calls go through the forwarder (the built binary in client
-        mode over the ssh stub when Go can build it, else the server's exact env) and land in this DB."""
-        e = self.env
-        p = self.spawn("zz-rc")
-        self.assertIn("SPAWNED zz-rc", p.stdout, p.stderr)
-        e.seed_agent("zz-rr", "reviewer", goal="G-001", task="T-0001")
-        e.sql("UPDATE agents SET spawn_args=? WHERE name='zz-rr'", (json.dumps({"machine": "workerhost"}),))
-        for twin, role in (("zz-lc", "coder"), ("zz-lr", "reviewer")):  # the same calls run locally, for the exit codes
-            e.seed_agent(twin, role, goal="G-001", task="T-0001")
-        e.sql("UPDATE tasks SET status='in_review', pr_url=? WHERE id='T-0001'", (PR_URL,))
-        e.seed_pr(body=VALID_PR_BODY)
-        # the forwarder server passes only its base env to the CLI: the stubs it reaches get their state paths baked in
-        import sys as _sys
-        for tool, state in (("gh", e.gh_state), ("hc", self.hc_state), ("herdr", e.herdr_state)):
-            src = e.stub_bin / f"{tool}.real"
-            (e.stub_bin / tool).rename(src)
-            var = {"gh": "FAKE_GH_STATE", "hc": "FAKE_HC_STATE", "herdr": "FAKE_HERDR_STATE"}[tool]
-            (e.stub_bin / tool).write_text(f'#!/bin/sh\n{var}={state} FAKE_HERDR_STATE={e.herdr_state} '
-                                           f'FAKE_CALLS={e.calls_file} exec {_sys.executable} {src} "$@"\n')
-            (e.stub_bin / tool).chmod(0o755)
-        fbin = built_forwarder()
-        cfg = e.home / "forward.json"
-        cfg.write_text(json.dumps({"hq_host": "hqhost", "remote_receiver": fbin or "/x", "factory_bin": str(FACTORY_BIN),
-                                   "path_map": []}))
-
-        def forwarded(agent, role, *argv, stdin=None):
-            if fbin:  # worker side: the forwarder client; ssh (stub) runs `<receiver> --serve` for hqhost
-                env = {**e.env(), **self.xenv(), "FORWARD_CONFIG": str(cfg), "FACTORY_AGENT": agent, "FACTORY_ROLE": role}
-                return subprocess.run([fbin, *argv], input=stdin, capture_output=True, text=True, env=env, cwd=e.home, timeout=120)
-            base = {k: v for k, v in e.env().items() if k in ("PATH", "HOME", "LANG", "LC_ALL", "TZ", "FACTORY_HOME")}
-            env = {**base, "FACTORY_AGENT": agent, "FACTORY_ROLE": role, "FACTORY_FORWARDED": "1"}
-            return subprocess.run([str(FACTORY_BIN), *argv], input=stdin, capture_output=True, text=True, env=env,
-                                  cwd=e.home, timeout=120)
-
-        def local(agent, role, *argv, stdin=None):
-            return e.run(*argv, agent=agent, stdin=stdin, extra_env={"FACTORY_ROLE": role, **self.xenv()})
-
-        calls = [("zz-rc", "zz-lc", "coder", ("inbox",), None),
-                 ("zz-rc", "zz-lc", "coder", ("msg", "lead:g-001-a", "zz-fwd-subject", "zz-fwd-body"), None),
-                 ("zz-rr", "zz-lr", "reviewer", ("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "zz-fwd-verdict"), None),
-                 ("zz-rc", "zz-lc", "coder", ("msg",), None),
-                 ("zz-rc", "zz-lc", "coder", ("done", "-"), "zz-fwd-done line one\nline two\n")]
-        for remote_agent, twin, role, argv, stdin in calls:
-            f = forwarded(remote_agent, role, *argv, stdin=stdin)
-            loc = local(twin, role, *argv, stdin=stdin)
-            self.assertEqual(f.returncode, loc.returncode, f"{argv}: forwarded {f.stderr} / local {loc.stderr}")
-            self.assertEqual(f.returncode, 2 if argv == ("msg",) else 0, f"{argv}: {f.stdout}{f.stderr}")
-        self.assertEqual(len(e.sql("SELECT 1 FROM messages WHERE sender='zz-rc' AND subject='zz-fwd-subject'")), 1)
-        self.assertEqual(len(e.sql("SELECT 1 FROM verdicts WHERE author='zz-rr' AND summary LIKE 'zz-fwd-verdict%'")), 1)
-        if fbin:  # the calls really went client -> ssh -> `factory-forward --serve` -> bin/factory
-            self.assertEqual(len([c for c in e.calls("ssh") if "hqhost" in c["argv"] and "--serve" in c["argv"]]), len(calls))
-        done = e.sql("SELECT status, summary FROM agents WHERE name='zz-rc'")[0]
-        self.assertEqual(done["status"], "done")
-        self.assertIn("line two", done["summary"])
 
 
 if __name__ == "__main__":

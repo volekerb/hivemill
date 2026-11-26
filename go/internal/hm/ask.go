@@ -91,7 +91,7 @@ type OwnerAlert struct {
 }
 
 // OwnerChecks are the starvation and owner-queue checks (they do not change the dead-man result):
-//   - hivemill-idle: no task dispatched for idle_alert_h while an active goal exists and a run slot is free (drain off),
+//   - hivemill-idle: no task dispatched for idle_alert_min while an active goal exists and a run slot is free (drain off),
 //     with the likely causes;
 //   - hivemill-asks: owner questions open for longer than ask_alert_h, in one digest.
 func (r *Runner) OwnerChecks(now time.Time) []OwnerAlert {
@@ -132,7 +132,7 @@ func (r *Runner) idleCheck(s *SQLite, now time.Time) *OwnerAlert {
 	active := 0
 	var last time.Time
 	for _, x := range runs {
-		if Active(x.State) {
+		if busy(x.State) {
 			active++
 		}
 		if at, err := time.Parse(time.RFC3339, x.Dispatched); err == nil && at.After(last) {
@@ -150,7 +150,10 @@ func (r *Runner) idleCheck(s *SQLite, now time.Time) *OwnerAlert {
 			}
 		}
 	}
-	limit := time.Duration(cfgInt(r.Store, "idle_alert_h")) * time.Hour
+	limit := time.Duration(cfgInt(r.Store, "idle_alert_min")) * time.Minute
+	if limit == 0 {
+		limit = time.Duration(cfgInt(r.Store, "idle_alert_h")) * time.Hour
+	}
 	if last.IsZero() || now.Sub(last) < limit {
 		return nil
 	}
@@ -173,6 +176,9 @@ func (r *Runner) idleCheck(s *SQLite, now time.Time) *OwnerAlert {
 	caps := r.ReadCaps(now)
 	if why := caps.DispatchBlock(r.Store, ""); why != "" {
 		causes = append(causes, "dispatch held: "+why)
+	}
+	if _, waits := r.runCounts(); waits >= cfgInt(r.Store, "max_waiting") {
+		causes = append(causes, fmt.Sprintf("dispatch paused: %d runs wait, max_waiting=%d (see why they wait: CI, a red main or held PRs)", waits, cfgInt(r.Store, "max_waiting")))
 	}
 	if len(projects) > 0 {
 		if ready, err := r.ReadyIn(projects); err == nil && len(ready) == 0 {

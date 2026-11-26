@@ -182,9 +182,12 @@ func cleanEnv() []string {
 	return out
 }
 
-// RerunProofs runs every test: and cmd: proof of the DB criteria (never the session's evidence file).
-func (r *Runner) RerunProofs(wt string, crit []Criterion, logdir string) []Rerun {
+// RerunProofs runs every test: and cmd: proof of the DB criteria (never the session's evidence file) in the run's
+// clone, on the run's machine (proofrun.go).
+func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun {
 	var out []Rerun
+	wt := run.Worktree
+	proofs := &proofRunner{r: r, run: run}
 	for _, c := range crit {
 		x := Rerun{ID: c.ID, Kind: c.Kind}
 		var argv []string
@@ -205,7 +208,7 @@ func (r *Runner) RerunProofs(wt string, crit []Criterion, logdir string) []Rerun
 		default:
 			argv = []string{"bash", "-c", c.Proof}
 		}
-		rc, text := r.Tools.Sh(dir, 15*time.Minute, cleanEnv(), argv...)
+		rc, text := proofs.sh(c.ID, dir, argv)
 		x.Log = filepath.Join(logdir, fmt.Sprintf("proof-%d.log", c.ID))
 		_ = os.WriteFile(x.Log, []byte(text), 0o600)
 		ok := rc == 0
@@ -294,13 +297,9 @@ func lastLines(s string, n int) string {
 
 // publicText runs the public-text guard (owner terms, secrets) over what the branch publishes and over the PR text.
 func (r *Runner) publicText(wt, base string, pr *PR) (bool, string) {
-	terms := r.Store.FactoryCfg("scrub_terms_file")
-	if terms == "" && os.Getenv("SCRUB_TERMS_FILE") == "" {
-		return false, "no owner terms: set them with `hivemill config scrub_terms_file /abs/path` (the check never passes without them)"
-	}
-	args := []string{}
-	if terms != "" {
-		args = append(args, "--terms-file", terms)
+	args, why := r.guardArgs()
+	if why != "" {
+		return false, why
 	}
 	allow := filepath.Join(r.Env.Home, "ci", "scrub_allowlist.txt")
 	var out, errb bytes.Buffer
@@ -310,14 +309,30 @@ func (r *Runner) publicText(wt, base string, pr *PR) (bool, string) {
 		return false, fmt.Sprintf("public-text guard on the commits exited %d: %s", rc, lastLines(out.String()+errb.String(), 6))
 	}
 	if pr != nil {
-		out.Reset()
-		errb.Reset()
-		rc = guard.CIPublicTextGuardMain(append(append([]string{}, args...), "text", "-"), strings.NewReader(pr.Title+"\n"+pr.Body), &out, &errb)
-		if rc != 0 {
-			return false, fmt.Sprintf("public-text guard on the PR title/body exited %d: %s", rc, lastLines(out.String(), 6))
+		if rc, hits := r.guardText(args, pr.Title+"\n"+pr.Body); rc != 0 {
+			return false, fmt.Sprintf("public-text guard on the PR title/body exited %d: %s", rc, lastLines(hits, 6))
 		}
 	}
 	return true, "no hits"
+}
+
+// guardArgs are the public-text guard's owner-terms arguments; why says that there are no terms, so nothing may pass.
+func (r *Runner) guardArgs() (args []string, why string) {
+	terms := r.Store.FactoryCfg("scrub_terms_file")
+	if terms == "" && os.Getenv("SCRUB_TERMS_FILE") == "" {
+		return nil, "no owner terms: set them with `hivemill config scrub_terms_file /abs/path` (the check never passes without them)"
+	}
+	if terms != "" {
+		args = []string{"--terms-file", terms}
+	}
+	return args, ""
+}
+
+// guardText runs the public-text guard over one text.
+func (r *Runner) guardText(args []string, text string) (int, string) {
+	var out, errb bytes.Buffer
+	rc := guard.CIPublicTextGuardMain(append(append([]string{}, args...), "text", "-"), strings.NewReader(text), &out, &errb)
+	return rc, out.String()
 }
 
 // Gate runs every check in the task clone and returns the record (Problems empty = pass).
@@ -331,7 +346,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 		return rec
 	}
 	crit := Criteria(t.Acceptance)
-	logdir := filepath.Join(r.Env.StateDir(), "runs", run.Task, fmt.Sprintf("round-%d", run.Round))
+	logdir := r.logDir(run)
 	_ = os.MkdirAll(logdir, 0o700)
 	add := func(name string, ok bool, note string) {
 		rec.Checks[name] = note
@@ -339,7 +354,8 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 			rec.Problems = append(rec.Problems, name+": "+note)
 		}
 	}
-	if _, out, _ := g(wt, "status", "--porcelain", "--untracked-files=no"); out != "" {
+	_, dirty, _ := g(wt, "status", "--porcelain", "--untracked-files=no")
+	if dirty != "" {
 		add("committed", false, "uncommitted tracked changes: commit them")
 	}
 	_, rec.Head, _ = g(wt, "rev-parse", "HEAD")
@@ -394,9 +410,22 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	}
 	ok, note := r.publicText(wt, base, pr)
 	add("public-text", ok, note)
-	if rec.Tier == "T0" {
+	none, modeErr := r.ciMode(t.Project)
+	cmd, limit := r.projectGate(t.Project)
+	if modeErr != nil {
+		add("affected", false, modeErr.Error())
+	} else if none && strings.TrimSpace(cmd) == "" {
+		add("affected", false, "ci_gate none and the project has no gate_cmd: never merged untested")
+	} else if none {
+		// gate_cmd is the only CI here, so it runs for every tier, on a clean checkout of HEAD
+		ok, note, err := r.recordLocalCI(run, rec.Head, cmd, limit, logdir)
+		if err != nil {
+			note = err.Error()
+		}
+		add("affected", ok, note)
+	} else if rec.Tier == "T0" {
 		rec.Checks["affected"] = "n/a: docs only (T0)"
-	} else if cmd, limit := r.projectGate(t.Project); cmd != "" {
+	} else if cmd != "" {
 		ok, note = r.runProjectGate(wt, cmd, limit, logdir)
 		add("affected", ok, note)
 	} else {
@@ -422,7 +451,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 		add("evidence", false, p)
 	}
 	if len(ev) == 0 {
-		rec.Reruns = r.RerunProofs(wt, crit, logdir)
+		rec.Reruns = r.RerunProofs(run, crit, logdir)
 		for _, x := range rec.Reruns {
 			if x.OK != nil && !*x.OK {
 				rec.Problems = append(rec.Problems, fmt.Sprintf("criterion %d (%s): the factory re-ran its proof and it failed: %s", x.ID, x.Kind, x.Note))
@@ -488,6 +517,109 @@ func (r *Runner) noteSession(run *Run, sid, agent string) {
 	_ = r.Store.AddSession(Session{SID: sid, Task: run.Task, Role: role, Agent: agent, Started: nowISO()})
 }
 
+const (
+	guardDenial    = "worker-guard: blocked"
+	transcriptTail = 256 << 10
+)
+
+// failOnGuardBlock fails the run when the session stopped on a worker-guard denial: a denied command stays denied, so
+// the session would only sit idle until the idle watch failed it as stalled, without the reason.
+func (r *Runner) failOnGuardBlock(run *Run, h HookInput) bool {
+	line := stoppedOnGuard(h)
+	if line == "" {
+		return false
+	}
+	r.fail(run, "guard block: "+truncate(line, 300))
+	return true
+}
+
+// stoppedOnGuard returns the denial line when the last tool result in the transcript's tail is a worker-guard denial,
+// else "". Without a readable transcript it looks for the line in the last assistant message.
+func stoppedOnGuard(h HookInput) string {
+	tail, err := readTail(h.TranscriptPath, transcriptTail)
+	if err != nil {
+		for _, l := range strings.Split(h.LastAssistantMessage, "\n") {
+			if strings.HasPrefix(l, guardDenial) {
+				return l
+			}
+		}
+		return ""
+	}
+	denial := ""
+	for _, raw := range bytes.Split(tail, []byte("\n")) {
+		var d struct {
+			Sidechain bool `json:"isSidechain"`
+			Message   struct {
+				Content json.RawMessage `json:"content"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(raw, &d) != nil || d.Sidechain {
+			continue
+		}
+		var blocks []struct {
+			Type    string          `json:"type"`
+			IsError bool            `json:"is_error"`
+			Content json.RawMessage `json:"content"`
+		}
+		if json.Unmarshal(d.Message.Content, &blocks) != nil {
+			continue // a plain text message
+		}
+		for _, b := range blocks {
+			if b.Type != "tool_result" {
+				continue
+			}
+			denial = ""
+			if b.IsError {
+				denial = denialLine(b.Content)
+			}
+		}
+	}
+	return denial
+}
+
+// denialLine is the guard message of a failed tool result (a string or a list of text blocks), from its first line:
+// bare, or behind Claude Code's "PreToolUse:<tool> hook error: [<command>]: " prefix. Command output that only quotes
+// a denial further down does not match.
+func denialLine(content json.RawMessage) string {
+	var text string
+	if json.Unmarshal(content, &text) != nil {
+		var parts []struct {
+			Text string `json:"text"`
+		}
+		if json.Unmarshal(content, &parts) != nil || len(parts) == 0 {
+			return ""
+		}
+		text = parts[0].Text
+	}
+	first, _, _ := strings.Cut(text, "\n")
+	if strings.HasPrefix(first, "PreToolUse:") {
+		_, first, _ = strings.Cut(first, "]: ")
+	}
+	if !strings.HasPrefix(first, guardDenial) {
+		return ""
+	}
+	return first
+}
+
+// readTail returns at most the last n bytes of the file. A line cut at the start does not parse and is skipped.
+func readTail(path string, n int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if st.Size() > n {
+		if _, err := f.Seek(-n, io.SeekEnd); err != nil {
+			return nil, err
+		}
+	}
+	return io.ReadAll(io.LimitReader(f, n))
+}
+
 // GateHook is the Stop hook of a task session. It allows the stop when the gate passes and blocks with the problems
 // otherwise, at most gate_max_blocks times per round; then it allows the stop and marks the task FAIL for the owner.
 func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
@@ -509,6 +641,9 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 	// No PR yet: the session is mid-work (often waiting for a background /code-review that wakes it again). Let it
 	// stop without a block; the runner's idle watch nudges a session that stays idle with no PR.
 	if t, err := r.Store.Task(run.Task); err == nil && t.PRURL == "" && r.findPR(run, t) == "" {
+		if r.failOnGuardBlock(run, h) {
+			return nil
+		}
 		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no PR yet"}})
 		return nil
 	}
@@ -525,6 +660,9 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 		return nil
 	}
 	if _, err := os.Stat(filepath.Join(run.Worktree, ".hivemill", "findings.json")); err != nil {
+		if r.failOnGuardBlock(run, h) {
+			return nil
+		}
 		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": "no findings.json yet"}})
 		return nil
 	}

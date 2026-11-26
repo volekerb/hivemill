@@ -3,13 +3,24 @@ package macbox
 import (
 	"sort"
 	"testing"
-
-	"factory/go/internal/sandbox"
 )
 
 func TestEnvListMatchesLinux(t *testing.T) {
-	want := append(append([]string{}, sandbox.WorkerEnvPass...), sandbox.WorkerKeepEnv...)
-	sort.Strings(want)
+	// Mirrors the Linux worker env list (pass and keep keys), sorted.
+	want := []string{
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+		"CLAUDE_CODE_ENTRYPOINT",
+		"CLAUDE_CODE_OAUTH_TOKEN",
+		"DISABLE_AUTOUPDATER",
+		"FACTORY_AGENT",
+		"FACTORY_HOME",
+		"FACTORY_ROLE",
+		"GH_TOKEN",
+		"HERDR_PANE_ID",
+		"LANG",
+		"PATH",
+		"TERM",
+	}
 	got := append(append([]string{}, WorkerEnvPass...), WorkerKeepEnv...)
 	sort.Strings(got)
 	if len(got) != len(want) {

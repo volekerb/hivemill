@@ -16,9 +16,12 @@ import (
 // `hivemill obs` page and the OpenTelemetry export. It reads; it never changes a run.
 
 func init() {
-	Defaults["machine_name"] = ""  // stamps every event line (field machine); empty = the hostname
-	Defaults["obs_port"] = "7461"  // `hivemill obs`: the read-only page on 127.0.0.1:<port>
-	Defaults["otel_endpoint"] = "" // OTLP/HTTP base URL: the daemon sends each finished task as a trace; empty = off
+	Defaults["machine_name"] = ""             // stamps every event line (field machine); empty = the hostname
+	Defaults["obs_port"] = "7461"             // `hivemill obs`: the read-only page on 127.0.0.1:<port>
+	Defaults["otel_endpoint"] = ""            // OTLP/HTTP base URL: the daemon sends each finished task as a trace; empty = off
+	Defaults["obs_banner_polling_pct"] = "20" // the Spend page warns when polling is above this percent of spend
+	Defaults["obs_banner_rounds_pct"] = "30"  // the Flow API returns a banner when more than this percent of PRs needed 2+ review rounds
+	Defaults["obs_banner_stage_pct"] = "30"   // the Flow page warns when one stage holds more than this percent of stage hours
 }
 
 // MachineName is the configured machine name, else the short hostname.
@@ -43,6 +46,8 @@ type ObsSource struct {
 	Own    bool   `json:"local"`            // this machine's own log
 	Pulled string `json:"pulled,omitempty"` // when the copy was pulled
 	From   string `json:"from,omitempty"`
+	// Machine is the machine the log is of, set once the log is read (a pull label may be an ssh alias).
+	Machine string `json:"machine,omitempty"`
 }
 
 // ObsDir holds the pulled copies: <state>/obs/<label>/events.jsonl.
@@ -85,27 +90,39 @@ func (r *Runner) Machine() string {
 // report counts them. A line without a machine gets its source's name: for a pulled log whose stamped lines all name
 // one machine, that machine (so an ssh alias and the remote machine_name never show one box twice), else the label.
 func LoadObsEvents(srcs []ObsSource) ([]Event, error) {
+	evs, _, err := loadObs(srcs)
+	return evs, err
+}
+
+// loadObs is LoadObsEvents plus the machine each source is of: the one its stamped lines all name (counting lines
+// already read from another source, so a second copy of a log adds no machine), else its label. A pulled log whose
+// lines all name a machine, but not one and the same, has no line under its label: its source machine is "".
+func loadObs(srcs []ObsSource) ([]Event, []string, error) {
 	from := map[[32]byte]int{}
 	var out []Event
+	var machines []string
 	for i, s := range srcs {
+		machine := s.Label
 		f, err := os.Open(s.Path)
 		if os.IsNotExist(err) {
+			machines = append(machines, machine)
 			continue
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		var evs []Event
-		named := map[string]bool{}
+		named, all := map[string]bool{}, map[string]bool{}
 		sc := bufio.NewScanner(f)
 		sc.Buffer(make([]byte, 1<<20), 16<<20)
 		for sc.Scan() {
 			h := sha256.Sum256(sc.Bytes())
-			if j, ok := from[h]; ok && j != i {
-				continue
-			}
 			var e Event
 			if json.Unmarshal(sc.Bytes(), &e) != nil || e.Event == "" {
+				continue
+			}
+			all[e.Machine] = true
+			if j, ok := from[h]; ok && j != i {
 				continue
 			}
 			from[h] = i
@@ -117,8 +134,14 @@ func LoadObsEvents(srcs []ObsSource) ([]Event, error) {
 		err = sc.Err()
 		f.Close()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		if ms := setKeys(all); !s.Own && len(ms) == 1 {
+			machine = ms[0]
+		} else if !s.Own && len(ms) > 1 && !all[""] {
+			machine = ""
+		}
+		machines = append(machines, machine)
 		name := s.Label
 		if ms := setKeys(named); !s.Own && len(ms) == 1 {
 			name = ms[0]
@@ -129,7 +152,100 @@ func LoadObsEvents(srcs []ObsSource) ([]Event, error) {
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return evTime(out[i]).Before(evTime(out[j])) })
-	return out, nil
+	return out, machines, nil
+}
+
+// placements is the machine each event's work ran on. The log's writer (the coordinator) stamps every line with its own
+// name, so a task's lines take the machine its run was placed on: the data.machine of the task.dispatched in force (the
+// first one, for lines before it). "local" or none is the writer. A session's lines take the data.machine of its
+// session.started (the judge of a placed task runs locally; session.closed names it too), else the machine of its first line, so the
+// session.ended written after a re-dispatch stays with the run it belongs to. run is the machine of the task's run in
+// force at that line, whatever session the line is about. evs are in time order.
+func placements(evs []Event) (out, run []string) {
+	of := func(e Event) string {
+		if m, _ := e.Data["machine"].(string); m != "" && m != localMachine {
+			return m
+		}
+		return e.Machine
+	}
+	runs := map[string]string{} // writer/task -> machine of its run
+	for _, e := range evs {
+		k := TaskKey(e.Machine, e.TaskID)
+		if _, ok := runs[k]; !ok && e.Event == "task.dispatched" {
+			runs[k] = of(e)
+		}
+	}
+	out, run = make([]string, len(evs)), make([]string, len(evs))
+	sessions := map[string]string{} // writer/session -> machine
+	for i, e := range evs {
+		out[i], run[i] = e.Machine, e.Machine
+		if e.TaskID == "" {
+			continue
+		}
+		k := TaskKey(e.Machine, e.TaskID)
+		if e.Event == "task.dispatched" {
+			runs[k] = of(e)
+		}
+		run[i] = or(runs[k], e.Machine)
+		out[i] = run[i]
+		if e.Session != "" {
+			s := e.Machine + "/" + e.Session
+			out[i] = or(sessions[s], out[i])
+			if m, _ := e.Data["machine"].(string); e.Event == "session.started" && m != "" {
+				out[i] = of(e)
+			}
+			sessions[s] = out[i]
+		}
+		if m, _ := e.Data["machine"].(string); e.Event == "session.closed" && m != "" {
+			out[i] = of(e)
+		}
+	}
+	return out, run
+}
+
+// addMachines lists machines that may have no event: a configured session machine, a pulled source.
+func (o *Obs) addMachines(names ...string) {
+	ms := map[string]bool{}
+	for _, m := range append(names, o.Machines...) {
+		ms[m] = true
+	}
+	o.Machines = setKeys(ms)
+}
+
+// knownCoreName is coreName, else the last name hc gave, kept in the state dir so that it outlives the process ("" when
+// hc has never answered).
+func (r *Runner) knownCoreName() string {
+	path := filepath.Join(r.Env.StateDir(), "core_name")
+	saved, _ := os.ReadFile(path)
+	last := strings.TrimSpace(string(saved))
+	name := r.coreName()
+	if name == "" {
+		return last
+	}
+	if name != last && os.MkdirAll(filepath.Dir(path), 0o700) == nil {
+		_ = os.WriteFile(path, []byte(name+"\n"), 0o600) // best effort: the page still has the name
+	}
+	return name
+}
+
+// listMachines adds every session_machines entry ("local" or the local core's name is this machine) and every source's
+// machine. coreName is asked only when an entry is not "local". While it is unknown, such an entry may be this machine
+// under its hc name, so it is listed only through its logs and placements.
+func (r *Runner) listMachines(o *Obs, sources []string, coreName func() string) {
+	names := append([]string(nil), sources...)
+	core, coreRead := "", false
+	for _, m := range csv(r.Store.Cfg("session_machines")) {
+		if m != localMachine && !coreRead {
+			core, coreRead = coreName(), true
+		}
+		if m == localMachine || (core != "" && m == core) {
+			m = r.Machine()
+		} else if core == "" && m != r.Machine() {
+			continue
+		}
+		names = append(names, m)
+	}
+	o.addMachines(names...)
 }
 
 func evTime(e Event) time.Time {
@@ -137,15 +253,15 @@ func evTime(e Event) time.Time {
 	return t
 }
 
-// ObsFilter narrows the model to one machine and/or one harness (empty = all).
+// ObsFilter narrows the model to one machine and/or one harness (empty = all). The machine filter keeps every task with a
+// line there whole, sessions elsewhere included (part of a task would give a false outcome); the sums over sessions
+// count only that machine's.
 type ObsFilter struct {
 	Machine string `json:"machine,omitempty"`
 	Harness string `json:"harness,omitempty"`
 }
 
-func (f ObsFilter) keep(e Event) bool {
-	return (f.Machine == "" || e.Machine == f.Machine) && (f.Harness == "" || e.Harness == f.Harness)
-}
+func (f ObsFilter) onMachine(m string) bool { return f.Machine == "" || m == f.Machine }
 
 // ObsSession is one agent session: its role, model, harness, machine, time span, $ and tokens.
 type ObsSession struct {
@@ -156,7 +272,8 @@ type ObsSession struct {
 	Model     string    `json:"model,omitempty"`
 	Effort    string    `json:"effort,omitempty"`
 	Harness   string    `json:"harness"`
-	Machine   string    `json:"machine"`
+	Machine   string    `json:"machine"` // where it ran: its task's placement, else Origin
+	Origin    string    `json:"-"`       // the machine whose log it is in
 	Start     string    `json:"start"`
 	End       string    `json:"end,omitempty"` // the last session.ended line
 	Usage     SessUsage `json:"usage"`
@@ -164,14 +281,15 @@ type ObsSession struct {
 	Events    []Event   `json:"-"`
 }
 
-// ObsTask is one task on one machine: its scoreboard row, sessions and events. Task ids are per factory DB, so the
-// key is machine/task.
+// ObsTask is one task of one factory: its scoreboard row, sessions and events. Task ids are per factory DB, so the
+// key is origin/task, where Origin is the machine that wrote the log and Machine the one the run was placed on.
 type ObsTask struct {
 	Key      string   `json:"key"`
 	Task     string   `json:"task"`
 	Goal     string   `json:"goal,omitempty"`
 	Project  string   `json:"project,omitempty"`
 	Machine  string   `json:"machine"`
+	Origin   string   `json:"-"`
 	Harness  string   `json:"harness"`
 	Start    string   `json:"start"`
 	Last     string   `json:"last"`
@@ -189,15 +307,15 @@ type Obs struct {
 	Filter    ObsFilter              `json:"filter"`
 	Tasks     map[string]*ObsTask    `json:"-"`
 	Sessions  map[string]*ObsSession `json:"-"`
-	Machines  []string               `json:"machines"`  // every machine in the logs (before the filter)
+	Machines  []string               `json:"machines"`  // every machine: logs, placements, config, sources (before the filter)
 	Harnesses []string               `json:"harnesses"` // every harness in the logs (before the filter)
 	LastSeen  map[string]string      `json:"last_seen"` // machine -> its newest event
 	// EventAsks is the open owner questions per machine and project, from ask.added minus ask.answered/withdrawn.
 	EventAsks map[string]map[string]int `json:"-"`
 }
 
-// OpenAsks is the open owner questions per project: this machine's from its DB (local, when ok), every other
-// machine's from its event log.
+// OpenAsks is the open owner questions per project: this machine's from its DB (local, when ok and the machine filter
+// takes this machine), every other machine's from its event log.
 func (o *Obs) OpenAsks(me string, local map[string]int, ok bool) map[string]int {
 	out := map[string]int{}
 	for m, by := range o.EventAsks {
@@ -208,7 +326,7 @@ func (o *Obs) OpenAsks(me string, local map[string]int, ok bool) map[string]int 
 			out[p] += n
 		}
 	}
-	if ok {
+	if ok && o.Filter.onMachine(me) {
 		for p, n := range local {
 			out[p] += n
 		}
@@ -224,39 +342,55 @@ func TaskKey(machine, task string) string { return machine + "/" + task }
 
 // BuildObs folds the events into tasks and sessions. local is the usage read from this machine's transcripts: it
 // overrides the session.ended figure of a session this machine ran (it is current while a session still runs).
-func BuildObs(evs []Event, f ObsFilter, localMachine string, local map[string]SessUsage, now time.Time) *Obs {
+func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, now time.Time) *Obs {
 	o := &Obs{Now: now, Filter: f, Tasks: map[string]*ObsTask{}, Sessions: map[string]*ObsSession{}, LastSeen: map[string]string{}}
 	ms, hs := map[string]bool{}, map[string]bool{}
 	openAsk := map[string][2]string{} // machine/id -> machine, project
-	for _, e := range evs {
-		ms[e.Machine], hs[e.Harness] = true, true
-		if evTime(e).After(parseTS(o.LastSeen[e.Machine])) {
-			o.LastSeen[e.Machine] = e.TS
+	placed, run := placements(evs)
+	inFilter := map[string]bool{} // writer/task with a line on the filter's machine
+	for i, e := range evs {
+		if e.TaskID != "" && f.onMachine(placed[i]) && (f.Harness == "" || e.Harness == f.Harness) {
+			inFilter[TaskKey(e.Machine, e.TaskID)] = true
 		}
-		if !f.keep(e) {
+	}
+	for i, e := range evs {
+		origin := e.Machine // the writer: it identifies the factory (task ids, asks, transcripts)
+		e.Machine = placed[i]
+		for _, m := range []string{origin, e.Machine} {
+			ms[m] = true
+			if evTime(e).After(parseTS(o.LastSeen[m])) {
+				o.LastSeen[m] = e.TS
+			}
+		}
+		hs[e.Harness] = true
+		if f.Harness != "" && e.Harness != f.Harness {
 			continue
 		}
-		if strings.HasPrefix(e.Event, "ask.") {
+		// an ask belongs to the machine that filed it, wherever its task ran
+		if strings.HasPrefix(e.Event, "ask.") && f.onMachine(origin) {
 			if id, ok := e.Data["id"].(float64); ok {
-				k := fmt.Sprintf("%s/%d", e.Machine, int64(id))
+				k := fmt.Sprintf("%s/%d", origin, int64(id))
 				switch e.Event {
 				case "ask.added":
-					openAsk[k] = [2]string{e.Machine, e.Project}
+					openAsk[k] = [2]string{origin, e.Project}
 				case "ask.answered", "ask.withdrawn":
 					delete(openAsk, k)
 				}
 			}
 		}
+		if !f.onMachine(e.Machine) && !inFilter[TaskKey(origin, e.TaskID)] {
+			continue
+		}
 		var t *ObsTask
 		if e.TaskID != "" {
-			k := TaskKey(e.Machine, e.TaskID)
+			k := TaskKey(origin, e.TaskID)
 			if t = o.Tasks[k]; t == nil {
-				t = &ObsTask{Key: k, Task: e.TaskID, Machine: e.Machine, Harness: e.Harness, Start: e.TS,
+				t = &ObsTask{Key: k, Task: e.TaskID, Origin: origin, Harness: e.Harness, Start: e.TS,
 					Row: Row{Task: e.TaskID, Outcome: "open", Sessions: map[string]string{}}}
 				o.Tasks[k] = t
 			}
 			t.Goal, t.Project = or(e.GoalID, t.Goal), or(e.Project, t.Project)
-			t.Last = e.TS
+			t.Last, t.Machine = e.TS, run[i]
 			t.Events = append(t.Events, e)
 			t.Row.apply(e)
 			if terminalEvents[e.Event] {
@@ -271,7 +405,8 @@ func BuildObs(evs []Event, f ObsFilter, localMachine string, local map[string]Se
 		}
 		s := o.Sessions[e.Session]
 		if s == nil {
-			s = &ObsSession{ID: e.Session, Role: e.Role, Harness: e.Harness, Machine: e.Machine, Start: e.TS}
+			s = &ObsSession{ID: e.Session, Role: e.Role, Harness: e.Harness, Machine: e.Machine, Origin: origin,
+				Start: e.TS}
 			o.Sessions[e.Session] = s
 		}
 		s.Events = append(s.Events, e)
@@ -291,7 +426,7 @@ func BuildObs(evs []Event, f ObsFilter, localMachine string, local map[string]Se
 		}
 	}
 	for _, s := range o.Sessions {
-		if u, ok := local[s.ID]; ok && s.Machine == localMachine && (u.USD > 0 || !s.CostKnown) {
+		if u, ok := local[s.ID]; ok && s.Origin == me && (u.USD > 0 || !s.CostKnown) {
 			s.Usage, s.CostKnown = u, true
 		}
 	}
@@ -394,6 +529,9 @@ func (o *Obs) Portfolio(days int, asks map[string]int) []ProjectLine {
 	}
 	all := &ProjectLine{Project: "all"}
 	for _, s := range o.Sessions {
+		if !o.Filter.onMachine(s.Machine) {
+			continue
+		}
 		at := parseTS(s.Start)
 		for _, l := range []*ProjectLine{get(s.Project), all} {
 			if !at.Before(today) {
@@ -456,6 +594,7 @@ type GoalLine struct {
 	USD      float64         `json:"usd"`
 	Rounds   int             `json:"rounds"`
 	Machines map[string]bool `json:"machines"`
+	origins  map[string]bool
 }
 
 // MachineList is the goal's machines, sorted.
@@ -467,13 +606,13 @@ func (o *Obs) Goals(project string) []GoalLine {
 	for _, t := range o.TaskList(project, "") {
 		g := by[t.Goal]
 		if g == nil {
-			g = &GoalLine{Goal: t.Goal, Machines: map[string]bool{}}
+			g = &GoalLine{Goal: t.Goal, Machines: map[string]bool{}, origins: map[string]bool{}}
 			by[t.Goal] = g
 		}
 		g.Tasks++
 		g.USD += t.Row.USD
 		g.Rounds += t.Rounds
-		g.Machines[t.Machine] = true
+		g.Machines[t.Machine], g.origins[t.Origin] = true, true
 		switch {
 		case t.Row.Outcome == "merged":
 			g.Merged++
@@ -505,7 +644,7 @@ func (o *Obs) TaskSessions(t *ObsTask) []*ObsSession {
 
 // LoadObs reads every source and builds the model, pricing this machine's sessions from their transcripts.
 func (r *Runner) LoadObs(f ObsFilter, withPulled bool, now time.Time) (*Obs, error) {
-	evs, err := LoadObsEvents(r.ObsSources(withPulled))
+	evs, sources, err := loadObs(r.ObsSources(withPulled))
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +655,9 @@ func (r *Runner) LoadObs(f ObsFilter, withPulled bool, now time.Time) (*Obs, err
 			ids = append(ids, e.Session)
 		}
 	}
-	return BuildObs(evs, f, me, SessionUsages(r.Env.UserHome, uniq(ids)), now), nil
+	o := BuildObs(evs, f, me, SessionUsages(r.Env.UserHome, uniq(ids)), now)
+	r.listMachines(o, sources, r.knownCoreName)
+	return o, nil
 }
 
 func uniq(xs []string) []string {

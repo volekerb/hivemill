@@ -10,7 +10,7 @@
 //	hivemill merge T-1234          one merge attempt of a run in state merging (or print its decision with --dry-run)
 //	hivemill report [--json]       scoreboard
 //	hivemill eval T-1234 [--judge-only|--review-only]  eval run on a prepared branch with a draft PR: measures gate, review and judge, never merges
-//	hivemill task lint T-1234      spec gate: every acceptance criterion names its proof
+//	hivemill task lint T-1234|--all  spec gate: every criterion names its proof, none runs a whole Go module (--all: todo and draft tasks)
 //	hivemill task add|list|show|update|cancel   file and change tasks (add and update refuse criteria that fail the spec gate; --draft)
 //	hivemill goal new|list|show|close           goals
 //	hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... | project list | project profile ID [--sensitive GLOB]...
@@ -19,6 +19,7 @@
 //	hivemill config [KEY [VALUE]]  runner settings (table hm_config) and the factory keys noreply_email, scrub_terms_file, ...
 //	hivemill pr create --title T --body - | pr ready   a task session opens the PR of its own task (repo and branch from the DB)
 //	hivemill guard --home DIR --role ROLE   the worker guard hook of a standalone home's sessions (exit 2 blocks)
+//	hivemill guard export          write run/guard-export.json now (the daemon writes it every minute)
 //	hivemill check public-text --home DIR REMOTE URL   the pre-push hook of a task clone (ci/pre_push_public_text.py in Go)
 //	hivemill affected --base REF [--run] [--quick]     ci/affected.py in Go
 //	hivemill daemon                the pass loop in-process (systemd Type=notify, launchd KeepAlive)
@@ -29,7 +30,7 @@
 //	hivemill planner done ID [ID...] [--note TEXT]     close planner work rows (planner status lists the open ones)
 //	hivemill ask add|list|answer|withdraw              the owner queue
 //	hivemill digest [--date D] [--json] [--send]        the morning digest of one day (default yesterday)
-//	hivemill obs [--port N] [--json] | obs pull --from HOST:PATH | obs sources   read-only page, multi-machine roll-up
+//	hivemill obs [--listen HOST] [--port N] [--json] | obs pull --from HOST:PATH | obs sources   read-only page, multi-machine roll-up
 //	hivemill otel export [--since D] [--endpoint URL] [--pulled] [--dry-run]       tasks as OpenTelemetry traces
 package main
 
@@ -63,14 +64,14 @@ func main() {
 // Main is the whole CLI; it returns the exit code.
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
-		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close | " +
+		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close|status | " +
 		"project add|list | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
 		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake|done ID... [--note TEXT] | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
-		"guard --home DIR --role ROLE | check public-text --home DIR REMOTE URL | affected --base REF | " +
-		"obs [--port N] [--json] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
+		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
+		"obs [--listen HOST] [--port N] [--json] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
 		"otel export [--since D] [--endpoint URL] [--pulled] [--dry-run]"
-	if len(args) > 0 && args[0] == "guard" { // a hook: its arguments and stdin are the guard's, never a help request
+	if len(args) > 0 && args[0] == "guard" && !isGuardExport(args) { // a hook: its arguments and stdin are the guard's, never a help request
 		return cmdGuard(args[1:], stdin, stdout, stderr)
 	}
 	help := len(args) == 0
@@ -222,9 +223,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			fmt.Fprintf(stderr, "hivemill: %s is %s, not merging\n", run.Task, run.State)
 			return 2
 		}
-		r.Merge(run)
-		err = r.Store.PutRun(run)
-		fmt.Fprintf(stdout, "%s: %s %s\n", run.Task, run.State, run.MergeHold)
+		var merged *hm.Run
+		if merged, err = r.MergeTask(run.Task); merged != nil {
+			fmt.Fprintf(stdout, "%s: %s %s\n", merged.Task, merged.State, merged.MergeHold)
+		}
 	case "eval":
 		if !taskRe.MatchString(arg(1)) || (arg(2) != "" && arg(2) != "--judge-only" && arg(2) != "--review-only") {
 			fmt.Fprintln(stderr, usage)
@@ -318,6 +320,12 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		return cmdProject(r, args[1:], stdout, stderr)
 	case "config":
 		return cmdConfig(r, args[1:], stdout, stderr)
+	case "guard": // only `guard export` reaches here
+		if len(args) != 2 {
+			fmt.Fprintln(stderr, "usage: hivemill guard export")
+			return 2
+		}
+		err = r.WriteGuardExport(time.Now())
 	case "pr":
 		return cmdPR(r, args[1:], stdin, stdout, stderr)
 	default:
@@ -336,6 +344,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		return 1
 	}
 	return 0
+}
+
+// isGuardExport: `guard export` is a runner command that opens the DB; every other `guard ...` is the hook.
+func isGuardExport(args []string) bool {
+	return len(args) > 1 && args[0] == "guard" && args[1] == "export"
 }
 
 func or(a, b string) string {

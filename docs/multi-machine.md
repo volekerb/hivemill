@@ -1,5 +1,8 @@
 # Multi-machine factory (G-057)
 
+> **Removed:** the `factory-forward` forwarder (`go/cmd/factory-forward`, `go/internal/forward`) was deleted with the
+> old chain (T-1932). The text below describes it as it was; its build and install steps no longer work.
+
 The factory can run some workers on a second machine (a worker machine, e.g. `workerhost`) while the single factory DB
 stays on the HQ machine (`hqhost`). This page covers the forwarder (T-1582) that lets a worker on the worker machine
 run `factory ...` against the HQ DB. Later G-057 tasks fill in the sections marked as such.

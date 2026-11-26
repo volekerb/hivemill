@@ -12,6 +12,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [hivemill-planner.md](hivemill-planner.md): the `hivemill` planner session (keeps ready queues full), the owner queue (`hivemill ask`), wakes, starvation alerts and the morning digest.
 - [hivemill-observability.md](hivemill-observability.md): `hivemill obs` (read-only local page: portfolio, project, goal, task, session), `obs pull` from other machines, and the OpenTelemetry export of tasks as traces.
 - [hivemill-machines.md](hivemill-machines.md): `hivemill` task sessions on other hc machines (`session_machines`), forwarding a worker's `hivemill` to the coordinator, and running on macOS.
+- [pipelines/web-sample-run.md](pipelines/web-sample-run.md): the recorded run of one planner-filed task on the hivemill-www sample web repo: steps, elapsed time, cost and the merged PR.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [token-discipline.md](token-discipline.md): what agents cost (context per turn, idle turns, spawns), the worker context limits and the boss exception, the rules, and `hm-spend`.
 
@@ -106,7 +107,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [lessons.md](lessons.md): where corrections and incidents are recorded and applied.
 - [utilization.md](utilization.md): the live-agent count shown by `factory res`, the tick sample and the web home.
 - [terminal-backends.md](terminal-backends.md): Herdr TUI vs herdr-core (`hc`), how to switch `terminal_backend`, caveats.
-- [multi-machine.md](multi-machine.md): the `factory-forward` ssh forwarder (protocol, env allow-list, owner install, threat model) for workers on a second machine (G-057).
+- [multi-machine.md](multi-machine.md): workers on a second machine (G-057); its `factory-forward` ssh forwarder was removed with the old chain, and the page keeps its description for reference.
 - [utilization-alerts.md](utilization-alerts.md): tick alerts to the director and boss for low worker count, starved goals and owner-cap breaches.
 
 ## Contribute
@@ -116,6 +117,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [../CONTRIBUTING.md](../CONTRIBUTING.md): how to propose and land a change.
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
+- [old-chain-deletion-map.md](old-chain-deletion-map.md): what depends on the old chain (`bin/factory`, web, scout, skilleval, retro, the Go port, systemd) and the order to delete it in.
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
 - [scrub-scan.md](scrub-scan.md): the scanner that catches owner-specific or sensitive data.
 - [adr/README.md](adr/README.md): index of architecture decision records.
@@ -145,6 +147,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [planning-rules.md](planning-rules.md): planning and retry rules carried by per-role skills.
 - [test-first-pilot.md](test-first-pilot.md): the pilot where QA writes the failing test first.
 - [guard-diff.md](guard-diff.md): compare the worker-guard hook against main before changing it.
+- [guard-port.md](guard-port.md): the case map each guard port PR carries, its format and new-name convention, and the `ci/guard_port_check.py` map check.
 - [guard-unittest-shard.md](guard-unittest-shard.md): how guard unittest ids are sharded in CI and when a shard step fails the list check.
 - [size-classes.md](size-classes.md): the ci-size-class selector: small, medium and large classes, budgets and checks.
 - [worker-guard-go.md](worker-guard-go.md): the Go port of the worker-guard hook (opt-in through `guard_impl`, Python stays the default; section status, golden data, lookaround map).
@@ -188,3 +191,5 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [scout-eval.md](scout-eval.md): running one sandboxed evaluator trial.
 - [scout-nsbox.md](scout-nsbox.md): environment and working-directory rules in the eval sandbox.
 - [scout-timestamps.md](scout-timestamps.md): sortable timestamps across DST switches.
+- [kit/ADD-A-SKILL.md](kit/ADD-A-SKILL.md): adding a Hivemill Kit skill in one PR, validated by kit-check.
+- [skills.md](skills.md): the registered UI/UX skills, how sessions use them and how they are installed.

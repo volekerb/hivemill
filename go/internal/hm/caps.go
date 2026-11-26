@@ -42,19 +42,54 @@ func pctField(v any) *float64 {
 // ReadUsage parses the usage file the status line writes (the old pipeline's source). Claude Code puts
 // rate_limits.five_hour in the status line input only while the API reports a 5-hour window, so the field can be empty.
 func ReadUsage(userHome string, now time.Time) Usage {
+	u, _ := localUsage(userHome, now)
+	return u
+}
+
+// localUsage is ReadUsage plus whether the file has an updated_at.
+func localUsage(userHome string, now time.Time) (Usage, bool) {
 	b, err := os.ReadFile(filepath.Join(userHome, ".claude", "usage-limits.json"))
 	if err != nil {
-		return Usage{AgeS: -1}
+		return Usage{AgeS: -1}, false
 	}
+	return parseUsage(b, now)
+}
+
+// parseUsage parses the content of one usage file; dated says whether it has an updated_at.
+func parseUsage(b []byte, now time.Time) (u Usage, dated bool) {
 	var m map[string]any
 	if json.Unmarshal(b, &m) != nil {
-		return Usage{AgeS: -1}
+		return Usage{AgeS: -1}, false
 	}
-	u := Usage{FiveHour: pctField(m["five_hour_pct"]), SevenDay: pctField(m["seven_day_pct"]), Found: true, AgeS: -1}
-	if ts := pctField(m["updated_at"]); ts != nil {
+	u = Usage{FiveHour: pctField(m["five_hour_pct"]), SevenDay: pctField(m["seven_day_pct"]), Found: true, AgeS: -1}
+	ts := pctField(m["updated_at"])
+	if ts != nil {
 		u.AgeS = int(now.Sub(time.Unix(int64(*ts), 0)).Seconds())
 	}
-	return u
+	return u, ts != nil
+}
+
+// remoteSkewS is how far ahead of now a remote reading's updated_at may be (clock skew between machines).
+const remoteSkewS = 60
+
+// newestUsage is the newest reading of the local file and the files of the session machines: a session placed on
+// another machine refreshes only that machine's file.
+func (r *Runner) newestUsage(now time.Time) Usage {
+	best, localDated := localUsage(r.Env.UserHome, now)
+	if localDated && best.AgeS < 0 && best.AgeS >= -remoteSkewS {
+		best.AgeS = 0 // the clock stepped back a little: still the newest, not an undated file
+	}
+	for _, b := range r.remoteUsageFiles() {
+		u, dated := parseUsage(b, now)
+		if !dated || u.AgeS < -remoteSkewS {
+			continue
+		}
+		u.AgeS = max(u.AgeS, 0)
+		if !best.Found || best.AgeS < 0 || u.AgeS < best.AgeS {
+			best = u
+		}
+	}
+	return best
 }
 
 // MemAvailableMB is the free memory of this machine in MB (-1 when it cannot be read): MemAvailable of /proc/meminfo
@@ -96,7 +131,7 @@ func cfgFloat(s Store, key string) (float64, bool) {
 // Caps is the state of every dispatch cap at one moment.
 type Caps struct {
 	Usage           Usage
-	Active          int  // runs holding a slot now
+	Active          int  // unfinished runs now (Active)
 	Probe           bool // set by DispatchBlock: the usage reading is stale, but one probe run may refresh it
 	MemMB, MemMin   int
 	TodayUSD        map[string]float64 // per project, sessions started today (local time)
@@ -107,7 +142,7 @@ type Caps struct {
 
 // ReadCaps gathers usage, memory and spend. Spend sums the session transcripts at API prices.
 func (r *Runner) ReadCaps(now time.Time) Caps {
-	c := Caps{Usage: ReadUsage(r.Env.UserHome, now), MemMB: MemAvailableMB(), MemMin: cfgInt(r.Store, "mem_floor_mb"),
+	c := Caps{Usage: r.newestUsage(now), MemMB: MemAvailableMB(), MemMin: cfgInt(r.Store, "mem_floor_mb"),
 		TodayUSD: map[string]float64{}}
 	c.DayCap, c.HasDay = cfgFloat(r.Store, "project_daily_budget_usd")
 	c.WeekCap, c.HasWeek = cfgFloat(r.Store, "weekly_budget_usd")
@@ -166,7 +201,8 @@ func (c *Caps) DispatchBlock(s Store, project string) string {
 	if f := c.Usage.SevenDay; f != nil && *f >= float64(cfgInt(s, "max_seven_day_pct")) {
 		return fmt.Sprintf("usage: 7d at %.0f%% (cap %s%%)", *f, s.Cfg("max_seven_day_pct"))
 	}
-	if c.MemMB >= 0 && c.MemMB < c.MemMin && !placementOn(s) { // with placement, Start applies it when the pick is local
+	// with placement, Start applies the floor when the pick is local; a probe always runs here, so it is applied now
+	if c.MemMB >= 0 && c.MemMB < c.MemMin && (!placementOn(s) || c.Probe) {
 		return fmt.Sprintf("memory: %d MB available, floor %d MB", c.MemMB, c.MemMin)
 	}
 	if c.HasWeek && c.WeekUSD >= c.WeekCap {
@@ -233,10 +269,7 @@ func (r *Runner) overBudget(run *Run) bool {
 	if total <= limit {
 		return false
 	}
-	r.Close(run.Agent)
-	for _, j := range run.Judges {
-		r.Close(j)
-	}
+	r.closeSessions(run) // first: fail reads the cost, which must not still be growing
 	r.fail(run, fmt.Sprintf("budget: sessions cost $%.2f, over task_budget_usd $%.2f", total, limit))
 	return true
 }

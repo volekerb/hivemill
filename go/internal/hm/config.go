@@ -12,16 +12,25 @@ import (
 // Defaults are the runner's own config keys (table hm_config). They are independent of the old pipeline's caps
 // (max_live_agents, max_total_claude, dispatch_max_per_tick are never read).
 var Defaults = map[string]string{
-	"max_concurrent":   "2",                 // active runs at one time
-	"projects":         "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
-	"model":            "claude-sonnet-5-5", // task session and judge
-	"risk_model":       "claude-opus-5-5",   // when a declared-scope or changed file is a sensitive path, or the task is T3
-	"effort":           "medium",            // --effort of every session
-	"gate_max_blocks":  "3",                 // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
-	"gate_wait_s":      "900",               // wait for a test slot before leaving the affected tests to CI
-	"judge_rounds_max": "2",                 // judge REJECT rounds before FAIL
-	"ci_rounds_max":    "3",                 // red-CI rounds sent back to the session before FAIL
-	"auto_revert":      "off",               // on: a runner merge that turns main red is reverted through a PR
+	"max_concurrent": "2",                 // working runs at one time (working, judging)
+	"max_waiting":    "20",                // waiting runs (CI, merge, held for the owner): reached = no new run
+	"projects":       "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
+	"model":          "claude-sonnet-5-5", // task session and judge
+	"risk_model":     "claude-opus-5-5",   // when a declared-scope or changed file is a sensitive path, or the task is T3
+	"effort":         "medium",            // --effort of every session
+	// dynamic workflows (workflow.go): which task sessions get the owner's request to use the Workflow tool
+	"task_workflows":       "large", // off | large (4+ criteria, 6+ scope paths or T3) | all
+	"task_workflow_agents": "6",     // at most this many agents per workflow, as the request says
+	// /goal (goal.go): a task session keeps working until its acceptance criteria pass
+	"task_goal":        "1",    // 1: the first prompt of a claude-code task session starts with /goal; 0: no prefix
+	"task_goal_turns":  "60",   // the goal stops after this many turns
+	"gate_max_blocks":  "3",    // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
+	"gate_wait_s":      "900",  // wait for a test slot before leaving the affected tests to CI
+	"judge_rounds_max": "2",    // judge REJECT rounds before FAIL
+	"ci_rounds_max":    "3",    // red-CI rounds sent back to the session before FAIL
+	"ci_poll_s":        "60",   // a gated run reads its PR at most this often (and once per pass)
+	"ci_timeout_s":     "2700", // checks still pending after this: one owner alert, the run stays
+	"auto_revert":      "off",  // on: a runner merge that turns main red is reverted through a PR
 	// dispatch caps: active runs may finish; only new runs wait
 	"max_five_hour_pct":        "92",   // plan 5-hour usage at or over this (fresh reading) holds new runs
 	"max_seven_day_pct":        "95",   // plan 7-day usage at or over this holds new runs
@@ -45,11 +54,14 @@ var Defaults = map[string]string{
 	"planner_model":      "claude-opus-5-5", // the planner session's model (never Fable)
 	"planner_effort":     "medium",          // its --effort
 	"planner_wake_gap_s": "600",             // at most one wake per this many seconds; reasons in between are coalesced
-	"idle_alert_h":       "2",               // `health --alert`: no dispatch for this many hours while an active goal exists
+	"idle_alert_min":     "20",              // `health --alert`: no dispatch for this many minutes while an active goal exists
+	"idle_alert_h":       "2",               // used in hours instead when idle_alert_min is 0
 	"ask_alert_h":        "1",               // `health --alert`: open owner questions older than this go out in one digest
 	// session placement (placement.go, docs/hivemill-machines.md): task sessions on other hc machines
 	"session_machines":     "",     // hc machines for task sessions in order, e.g. worker1,local; empty = local core only
 	"machine_mem_floor_mb": "2500", // a listed machine needs this much MemAvailable to take a new task session
+	// `hivemill obs` bind host (obs_http.go): an IP address or localhost; beyond loopback that network can read the page
+	"obs_listen": "127.0.0.1",
 }
 
 // DefaultKeys returns the config keys, sorted.

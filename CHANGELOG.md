@@ -9,11 +9,40 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Added
+
+- **A task session that stops on a worker-guard block fails at once.** The Stop hook fails the run with `guard block: ` and the guard message instead of leaving it idle until it fails as stalled (T-2012).
+- **`hivemill obs` serves a task's timeline as JSON.** `GET /api/obs/task?k=<machine>/<task>` returns its steps in time order with the cost per step, the total, and the PR and session links (T-2025).
+
+- **The runner records every prompt it sends to a task or judge session.** Each one is saved under `state/hivemill/prompts/<task>/` and logged as a `prompt.sent` event with its kind, path, length and sha256; a write error is logged as `prompt.record_failed` and the prompt is still sent (T-2020).
+
+- **The spec gate refuses whole-module Go test proofs.** `hivemill task lint`, `task add` and `task update` reject a `cmd:` or `test:` proof that runs `go test ./...` (with any flags): name the packages the task touches, CI runs the full suite. The new `hivemill task lint --all` lists the todo and draft tasks that fail; tasks filed before the rule are still dispatched (T-2018).
+
+- **Task sessions are asked to use dynamic workflows for large tasks.** `task_workflows` = `off` | `large` (default) | `all` puts the owner's request for the Workflow tool, with at most `task_workflow_agents` (6) agents, into the first prompt of a task session. Large means 4 or more acceptance criteria, 6 or more scope paths, or T3. The task role allows the Workflow tool. Workflow agents' spend and tokens now count toward their task (they were missed), and `hivemill report` compares tasks with and without workflows: $ per merged task, rounds per task and time to merge (T-1986).
+
+### Removed
+
+- **CI and the remote gate no longer compile or run `bin/factory`.** The two `unittest-shard` steps and the gate's `py-compile` and `factory-help` steps are gone; the gate test's probe is the head-tree `ci/shard.py` (T-1973).
+
+- **The release check drops its `cursor-runtime` check.** `ci/release_check.py` and the Go gate no longer require the `scout/` runtime files or the cursor adapter by name; the other checks are unchanged (T-1934).
+
+- Old-chain delete step 1: the `factory-forward` ssh forwarder, the `factory-go-version` command and their packages (`internal/forward`, `internal/buildinfo`) are gone, with the tests that built or exercised the forwarder (T-1932).
+
 ### Fixed
+
+- **`hivemill obs` shows the machine a run was placed on.** A run on a session machine showed as the coordinator. Every `session_machines` entry and pulled source is now listed, even with no run (T-1987).
+
+- **The PR body check accepts a runner given by path**, such as `~/.local/go/bin/go test ./...`: it compares the base name of the first word (T-1940).
 
 - **`factory schedule` works on a box running the Python defaults.** The tick built `factory-go` and the guard binary only when `cli_impl`, `tick_impl` or `guard_impl` asked for Go, so `factory schedule add` failed with "needs the Go CLI binary". Both binaries are now built on every tick when a `go/` tree and a Go toolchain exist. Dispatch is unchanged: no command routes to Go unless its impl flag says so (T-1804).
 
 ### Added
+
+- **`ci/guard_mutation_check.sh PATCH TESTREGEX` proves the ported guard tests catch a broken rule**: the tests pass, the patch is applied in place, the same tests must fail, and the patch is undone on exit (T-1963).
+
+- **`ci/guard_port_check.py` checks a guard port case map**: every old guard test in the map exactly once, each new name a test added to `go/internal/guard`, and the test count grown by the non-duplicate lines. Format in [docs/guard-port.md](https://github.com/volekerb/hivemill/blob/main/docs/guard-port.md) (T-1937).
+
+- **`hivemill goal status G-NNN active|blocked|done|cancelled`** parks, reopens, finishes or cancels a goal, replacing the old Python CLI for this (T-1896).
 
 - **Token-spend spike alert.** The tick now runs `hm-spend report` every 15 minutes and sends the boss one escalation per clock hour when the last hour cost more than $20 or more than twice the 24 h hourly average, naming the top 3 sessions, their agents and findings. A failing hm-spend writes one event, never an alert. See [docs/spend-alert.md](https://github.com/volekerb/hivemill/blob/main/docs/spend-alert.md) (T-1824).
 
@@ -22,6 +51,12 @@ v0.1.0 summarises the changes merged during private development.
 - **Opt-in `judge_review_gate = green`.** Before, the merge gate needed a reviewer PASS and a QA PASS on the head. With `factory config judge_review_gate green` a PR merges when its checks are green on the head and no reviewer or QA FAIL is on the head; the main push run is the safety net. The default stays `passpass`. See [docs/judge-ci-gate.md](https://github.com/volekerb/hivemill/blob/main/docs/judge-ci-gate.md).
 
 - **Scheduled jobs now fire from the tick.** Before, `factory schedule` only stored jobs and nothing fired them. Now the Python tick runs `factory-go schedule due --json` and mails each due job to the director, the run's token cap is applied through the goal's `token_limit`, and days the tick missed are not back-filled. See [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md#tick-claiming-due-jobs) (#777).
+
+### Changed
+
+- **The hivemill runner waits for CI itself after the gate.** It reads a gated run's PR every `ci_poll_s` (60), starts the judge once the checks are green with the required ones present (without a required list: still green one poll later), and alerts the owner once after `ci_timeout_s` (2700) while the run stays (T-2000).
+
+- **The release workflow uses the Go `ci-changelog`.** `release.yml` builds `go/cmd/ci-changelog` once and runs it for `--check-version`, `--release-notes` and `--prerelease` instead of `ci/changelog.py`, which stays for now (T-1948).
 
 ## [0.5.0] - Unreleased
 
