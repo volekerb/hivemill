@@ -23,6 +23,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **`ci/guard_mutation_check.sh PATCH TESTREGEX` proves the ported guard tests catch a broken rule**: the tests pass, the patch is applied in place, the same tests must fail, and the patch is undone on exit (T-1963).
+
 - **`ci/guard_port_check.py` checks a guard port case map**: every old guard test in the map exactly once, each new name a test added to `go/internal/guard`, and the test count grown by the non-duplicate lines. Format in [docs/guard-port.md](https://github.com/volekerb/hivemill/blob/main/docs/guard-port.md) (T-1937).
 
 - **`hivemill goal status G-NNN active|blocked|done|cancelled`** parks, reopens, finishes or cancels a goal, replacing the old Python CLI for this (T-1896).
