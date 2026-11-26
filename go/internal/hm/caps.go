@@ -192,8 +192,13 @@ func (c *Caps) DispatchBlock(s Store, project string) string {
 	if f := c.Usage.SevenDay; f != nil && *f >= float64(cfgInt(s, "max_seven_day_pct")) {
 		return fmt.Sprintf("usage: 7d at %.0f%% (cap %s%%)", *f, s.Cfg("max_seven_day_pct"))
 	}
-	if c.MemMB >= 0 && c.MemMB < c.MemMin && !placementOn(s) { // with placement, Start applies it when the pick is local
-		return fmt.Sprintf("memory: %d MB available, floor %d MB", c.MemMB, c.MemMin)
+	// With placement, Start applies the floor when the pick is local; a probe is always local, so it is applied here.
+	if c.MemMB >= 0 && c.MemMB < c.MemMin && (c.Probe || !placementOn(s)) {
+		why := fmt.Sprintf("memory: %d MB available, floor %d MB", c.MemMB, c.MemMin)
+		if c.Probe {
+			why += ", and the usage probe runs on " + localMachine
+		}
+		return why
 	}
 	if c.HasWeek && c.WeekUSD >= c.WeekCap {
 		return fmt.Sprintf("budget: $%.2f in 7 days reached weekly_budget_usd $%.2f", c.WeekUSD, c.WeekCap)

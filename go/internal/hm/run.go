@@ -179,10 +179,6 @@ func (r *Runner) Start(id string) error {
 		r.usageAlert(caps, why)
 		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
-	if caps.Probe && caps.MemMB >= 0 && caps.MemMB < caps.MemMin {
-		return fmt.Errorf("%w: memory: %d MB available, floor %d MB, and the usage probe runs on %s", ErrRefused, caps.MemMB,
-			caps.MemMin, localMachine)
-	}
 	if caps.Probe {
 		_ = r.Log.Emit("usage.probe", nil, Event{TaskID: id, Data: map[string]any{"why": caps.UsageUnknown(r.Store),
 			"note": "one run starts to refresh the stale usage reading; no second run until it is fresh"}})
@@ -396,14 +392,14 @@ func truncate(s string, n int) string {
 
 // Pass advances every active run once (at most one gh read per run), checks for a revert, then starts ready tasks.
 func (r *Runner) Pass(startNew bool) error {
+	// The usage files of the session machines are read again, once per pass, also after a skipped one.
+	r.usageRead = false
 	l := r.lock("pass", false) // one pass at a time: a timer tick that finds a pass running exits at once
 	if l == nil {
 		r.printf("another pass is running; skipped\n")
 		return nil
 	}
 	defer l.Close()
-	// The usage files of the session machines are read again, once per pass.
-	r.usageRead = false
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
