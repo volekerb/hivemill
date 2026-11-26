@@ -44,7 +44,7 @@ func gitOptions(e Env) gitx.Options {
 }
 
 // gitAs is RealTools' git with email as author and committer, for the runner's own commits. The GIT_* variables are set
-// because inherited ones override `-c user.email`; -c stays so an empty email never falls back to a configured identity.
+// because inherited ones override `-c user.email`. An empty email sets none of them and passes only the -c values, as before.
 func gitAs(e Env, email, repo string, args ...string) (int, string, string) {
 	o := gitOptions(e)
 	if email != "" { // the last value of a repeated key wins
