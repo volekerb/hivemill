@@ -25,16 +25,12 @@ func darwinWithTemplates(t *testing.T) *fakeHost {
 		t.Fatal(err)
 	}
 	src := "../../../launchd"
-	ents, err := os.ReadDir(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range ents {
-		b, err := os.ReadFile(filepath.Join(src, e.Name()))
+	for _, l := range bootJobs {
+		b, err := os.ReadFile(filepath.Join(src, l+".plist.in"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dst, e.Name()), b, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dst, l+".plist.in"), b, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -67,7 +63,7 @@ func TestDarwinBootUnitsDryRun(t *testing.T) {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
 	dir := filepath.Join(f.HomeDir, "Library", "LaunchAgents")
-	for _, l := range []string{"hivemill.herdr-server", "hivemill.up", "hivemill.tick"} {
+	for _, l := range bootJobs {
 		p := filepath.Join(dir, l+".plist")
 		for _, want := range []string{"write " + p, "launchctl bootstrap gui/1000 " + p, "<string>" + l + "</string>"} {
 			if !strings.Contains(out, want) {
@@ -75,13 +71,15 @@ func TestDarwinBootUnitsDryRun(t *testing.T) {
 			}
 		}
 	}
-	for _, want := range []string{"<string>--deadline</string>", "/opt/homebrew/bin", "<string>" + f.HomeDir + "/factory</string>"} {
+	for _, want := range []string{"/opt/homebrew/bin", "<string>" + f.HomeDir + "/factory</string>"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("dry-run lacks %q", want)
 		}
 	}
-	if strings.Contains(out, "hivemill.serve") {
-		t.Errorf("serve planned without --with-serve\n%s", out)
+	for _, old := range []string{"hivemill.herdr-server", "hivemill.up", "hivemill.tick", "hivemill.serve"} {
+		if strings.Contains(out, old) {
+			t.Errorf("%s planned\n%s", old, out)
+		}
 	}
 	if _, err := os.Stat(dir); err == nil {
 		t.Errorf("dry-run created %s", dir)
@@ -109,31 +107,28 @@ func TestDarwinBootUnitsInstall(t *testing.T) {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
 	dir := filepath.Join(f.HomeDir, "Library", "LaunchAgents")
-	for _, l := range []string{"hivemill.herdr-server", "hivemill.up", "hivemill.tick"} {
+	for _, l := range bootJobs {
 		p := filepath.Join(dir, l+".plist")
 		st, err := os.Stat(p)
 		if err != nil || st.Mode().Perm() != 0o644 {
 			t.Fatalf("%s: %v %v", p, st, err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(dir, "hivemill.serve.plist")); err == nil {
-		t.Errorf("serve plist written without --with-serve")
+	if ents, err := os.ReadDir(dir); err != nil || len(ents) != len(bootJobs) {
+		t.Errorf("plists written: %v %v", ents, err)
 	}
 	n := 0
 	for _, c := range launchctlCalls(f) {
 		if strings.HasPrefix(c, "launchctl bootstrap ") {
 			n++
-			if strings.Contains(c, "hivemill.serve") {
-				t.Errorf("serve bootstrapped: %s", c)
-			}
 		}
 	}
 	if n != 3 {
 		t.Errorf("bootstrap calls = %d, want 3: %v", n, launchctlCalls(f))
 	}
-	tick, _ := os.ReadFile(filepath.Join(dir, "hivemill.tick.plist"))
-	if !strings.Contains(string(tick), "/opt/homebrew/bin") || !strings.Contains(string(tick), f.HomeDir+"/.local/bin") {
-		t.Errorf("PATH of tick plist:\n%s", tick)
+	daemon, _ := os.ReadFile(filepath.Join(dir, "hivemill.daemon.plist"))
+	if !strings.Contains(string(daemon), "/opt/homebrew/bin") || !strings.Contains(string(daemon), f.HomeDir+"/.local/bin") {
+		t.Errorf("PATH of daemon plist:\n%s", daemon)
 	}
 }
 
@@ -142,9 +137,11 @@ func TestDarwinBootUnitsInstallWithServe(t *testing.T) {
 	if rc, out, _ := runMain(t, f, "--resume", "--yes", "--with-serve"); rc != 0 {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
-	p := filepath.Join(f.HomeDir, "Library", "LaunchAgents", "hivemill.serve.plist")
-	if indexOfStr(launchctlCalls(f), "launchctl bootstrap gui/1000 "+p) < 0 {
-		t.Errorf("serve not bootstrapped: %v", launchctlCalls(f))
+	// --with-serve is still accepted but there is no serve job any more
+	for _, c := range launchctlCalls(f) {
+		if strings.Contains(c, "hivemill.serve") {
+			t.Errorf("serve job managed: %s", c)
+		}
 	}
 }
 
@@ -156,7 +153,7 @@ func TestDarwinBootUnitsReinstall(t *testing.T) {
 		}
 	}
 	calls := launchctlCalls(f)
-	for _, l := range []string{"hivemill.herdr-server", "hivemill.up", "hivemill.tick"} {
+	for _, l := range bootJobs {
 		p := filepath.Join(f.HomeDir, "Library", "LaunchAgents", l+".plist")
 		out, boot := indexOfStr(calls, "launchctl bootout gui/1000/"+l), indexOfStr(calls, "launchctl bootstrap gui/1000 "+p)
 		if out < 0 || boot < 0 || out > boot {
@@ -203,7 +200,7 @@ func TestDarwinBootUnitsUninstall(t *testing.T) {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
 	calls := launchctlCalls(f)
-	for _, l := range []string{"hivemill.herdr-server", "hivemill.up", "hivemill.tick", "hivemill.serve"} {
+	for _, l := range ldLabels {
 		if indexOfStr(calls, "launchctl bootout gui/1000/"+l) < 0 {
 			t.Errorf("no bootout of %s: %v", l, calls)
 		}
@@ -220,13 +217,13 @@ func TestDarwinBootUnitsUninstallDryRunChangesNothing(t *testing.T) {
 	}
 	f.calls = nil
 	rc, out, _ := runMain(t, f, "--dry-run", "--uninstall-boot-units")
-	if rc != 0 || !strings.Contains(out, "launchctl bootout gui/1000/hivemill.tick") {
+	if rc != 0 || !strings.Contains(out, "launchctl bootout gui/1000/hivemill.daemon") {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
 	if len(launchctlCalls(f)) != 0 {
 		t.Errorf("dry-run ran launchctl")
 	}
-	if _, err := os.Stat(filepath.Join(f.HomeDir, "Library", "LaunchAgents", "hivemill.tick.plist")); err != nil {
+	if _, err := os.Stat(filepath.Join(f.HomeDir, "Library", "LaunchAgents", "hivemill.daemon.plist")); err != nil {
 		t.Errorf("plist removed by dry-run: %v", err)
 	}
 }
@@ -267,21 +264,21 @@ func TestDarwinTickPlistGolden(t *testing.T) {
 	if rc, out, _ := runMain(t, f, "--resume", "--yes"); rc != 0 {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
-	for _, l := range []string{"hivemill.herdr-server", "hivemill.up", "hivemill.tick"} {
+	for _, l := range bootJobs {
 		got, err := os.ReadFile(filepath.Join(f.HomeDir, "Library", "LaunchAgents", l+".plist"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		g := strings.ReplaceAll(string(got), f.HomeDir, "<HOME>")
-		gp := filepath.Join("testdata", "darwin", l+".plist.golden")
-		if os.Getenv("UPDATE_GOLDEN") != "" {
-			if err := os.WriteFile(gp, []byte(g), 0o644); err != nil {
-				t.Fatal(err)
-			}
+		// the expected plist is the repo's template with this host's values filled in
+		tmpl, err := os.ReadFile(filepath.Join("../../../launchd", l+".plist.in"))
+		if err != nil {
+			t.Fatal(err)
 		}
-		want, err := os.ReadFile(gp)
-		if err != nil || string(want) != g {
-			t.Errorf("%s differs from %s (UPDATE_GOLDEN=1 regenerates)\n%s", l, gp, g)
+		fh := filepath.Join(f.HomeDir, "factory")
+		want := strings.NewReplacer("{{.FactoryHome}}", fh, "{{.LogDir}}", fh+"/logs",
+			"{{.Path}}", f.HomeDir+"/.local/bin:/opt/homebrew/bin:/usr/bin:/bin").Replace(string(tmpl))
+		if string(got) != want {
+			t.Errorf("%s plist differs from its template\n%s", l, got)
 		}
 	}
 }
