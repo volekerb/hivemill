@@ -3,6 +3,7 @@ package factorytest
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -143,7 +144,10 @@ func doBuild() (builtTools, error) {
 			os.Remove(tmp)
 			return builtTools{}, fmt.Errorf("go build %s failed: %v\n%s\nfix the build first", b.pkg, err, out)
 		}
-		if err := os.Rename(tmp, b.out); err != nil { // atomic: a racing test binary builds the same bytes
+		// first build wins (atomic): replacing a racing test binary's file would change the inode its Envs hard-link
+		err := os.Link(tmp, b.out)
+		os.Remove(tmp)
+		if err != nil && !errors.Is(err, fs.ErrExist) {
 			return builtTools{}, err
 		}
 		buildCount++

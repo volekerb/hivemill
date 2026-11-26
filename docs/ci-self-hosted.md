@@ -50,7 +50,7 @@ The machine is busy, so `tests.yml` sets `HM_TEST_TIME_SCALE`, which multiplies 
 
 ## Tests that skip when a capability is absent
 
-Each skip prints its reason. A skip for the first three rows on `hm-ci` means the setup above is broken: fix the machine.
+Each skip prints its reason. A skip for the first two rows on `hm-ci`, or a failing `.zshenv` test, means the setup above is broken: fix the machine.
 
 | Missing | Skipped |
 |---|---|

@@ -583,7 +583,7 @@ func TestGateboxRealCapsDroppedAndOwnPidNamespace(t *testing.T) {
 func TestGateboxRealTimeoutKillsTheTree(t *testing.T) {
 	f := gbReal(t)
 	// a unique sleep length per run, so the outlived-the-timeout check cannot see another test's sleeper
-	secs := strconv.Itoa(300 + os.Getpid()%500)
+	secs := "300." + strconv.Itoa(os.Getpid())
 	r := f.runT("sleep "+secs+" & echo $! > "+f.wt+"/tmp/child; wait", 2*time.Second)
 	if !r.TimedOut {
 		t.Fatalf("TimedOut=false, rc=%d %s", r.ReturnCode, r.Output)
@@ -597,7 +597,7 @@ func TestGateboxRealTimeoutKillsTheTree(t *testing.T) {
 	}
 	var got []string
 	for i := 0; i < 20; i++ { // the kill is asynchronous: poll up to 2 s for the sleeper to be gone
-		out, _ := exec.Command("pgrep", "-f", "^sleep "+secs+"$", "-u", strconv.Itoa(os.Getuid())).Output() // exit 1 = no match
+		out, _ := exec.Command("pgrep", "-f", "^sleep "+regexp.QuoteMeta(secs)+"$", "-u", strconv.Itoa(os.Getuid())).Output() // exit 1 = no match
 		if got = strings.Fields(string(out)); len(got) == 0 {
 			break
 		}

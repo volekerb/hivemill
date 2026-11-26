@@ -380,15 +380,16 @@ jobs:
           trap 'rm -rf "$tmp_both" "$tmp_eval"' EXIT
           allow_both=(); allow_eval=()
           if [ -n "$files" ]; then
-            # --allow-loosen matches expanded commands: listed /tmp/guard-diff-* fixtures move with each pass's TMPDIR.
+            # --allow-loosen matches expanded commands: listed /tmp/guard-diff-* fixtures move with each pass's TMPDIR,
+            # and the log maps them back, so a logged command can be copied into an allow-loosen file.
             sed "s#/tmp/guard-diff-#$tmp_both/guard-diff-#g" "$RUNNER_TEMP/allow_loosen.json" > "$RUNNER_TEMP/allow_both.json"
             sed "s#/tmp/guard-diff-#$tmp_eval/guard-diff-#g" "$RUNNER_TEMP/allow_loosen.json" > "$RUNNER_TEMP/allow_eval.json"
             allow_both=(--allow-loosen "$RUNNER_TEMP/allow_both.json")
             allow_eval=(--allow-loosen "$RUNNER_TEMP/allow_eval.json")
           fi
-          TMPDIR="$tmp_both" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both --timeout 30 "${allow_both[@]}" | tee "$RUNNER_TEMP/gd-both.txt" &
+          TMPDIR="$tmp_both" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both --timeout 30 "${allow_both[@]}" | sed -u "s#$tmp_both/guard-diff-#/tmp/guard-diff-#g" | tee "$RUNNER_TEMP/gd-both.txt" &
           both=$!
-          TMPDIR="$tmp_eval" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator --timeout 30 "${allow_eval[@]}" | tee "$RUNNER_TEMP/gd-eval.txt" &
+          TMPDIR="$tmp_eval" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator --timeout 30 "${allow_eval[@]}" | sed -u "s#$tmp_eval/guard-diff-#/tmp/guard-diff-#g" | tee "$RUNNER_TEMP/gd-eval.txt" &
           eval_pass=$!
           wait "$both" || rc=1
           wait "$eval_pass" || rc=1
