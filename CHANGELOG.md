@@ -11,8 +11,12 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
-- **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item (T-2049).
+- **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).
+
+- **The runner reports todo tasks that cannot start.** `hivemill task list --startable` and `--blocked` (with the reason: lint, deps or a run) show what a pass starts and skips. A todo task failing the spec gate logs one `task.unstartable` event and gives the planner one wake reason; when a run slot is free and nothing is startable, the wake says how many tasks deps and lint block. The idle alert counts startable tasks (T-2048).
+
 - **A task session that stops on a worker-guard block fails at once.** The Stop hook fails the run with `guard block: ` and the guard message instead of leaving it idle until it fails as stalled (T-2012).
+
 - **`hivemill obs` serves a task's timeline as JSON.** `GET /api/obs/task?k=<machine>/<task>` returns its steps in time order with the cost per step, the total, and the PR and session links (T-2025).
 
 - **The runner records every prompt it sends to a task or judge session.** Each one is saved under `state/hivemill/prompts/<task>/` and logged as a `prompt.sent` event with its kind, path, length and sha256; a write error is logged as `prompt.record_failed` and the prompt is still sent (T-2020).
@@ -30,6 +34,8 @@ v0.1.0 summarises the changes merged during private development.
 - Old-chain delete step 1: the `factory-forward` ssh forwarder, the `factory-go-version` command and their packages (`internal/forward`, `internal/buildinfo`) are gone, with the tests that built or exercised the forwarder (T-1932).
 
 ### Fixed
+
+- **Gate proofs over 60 s no longer fail on a worker machine.** `hc exec` ended them at its own default of 60 s. A remote proof now has `--timeout 600`, one cut at that limit runs again on the local core, and the timeout note names the limit that applied (T-2040).
 
 - **`hivemill obs` shows the machine a run was placed on.** A run on a session machine showed as the coordinator. Every `session_machines` entry and pulled source is now listed, even with no run (T-1987).
 

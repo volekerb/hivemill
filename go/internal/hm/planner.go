@@ -273,11 +273,11 @@ func DecideWake(in WakeInput) WakeDecision {
 	d := WakeDecision{Fingerprint: strings.Join(levels, " ")}
 	heard := map[string]bool{}
 	for _, x := range strings.Fields(in.LastFingerprint) {
-		heard[x] = true
+		heard[levelKey(x)] = true
 	}
 	changed := len(in.Events) > 0
 	for _, x := range levels {
-		changed = changed || !heard[x] // a level that went away (a refilled queue) is no news
+		changed = changed || !heard[levelKey(x)] // a level that went away (a refilled queue) is no news
 	}
 	if !changed && !in.Force {
 		d.Advance, d.Why = true, "nothing changed"
@@ -334,7 +334,40 @@ func Coalesce(events, levels []string) []string {
 			out = append(out, k+":"+strings.Join(ids[k], ","))
 		}
 	}
-	return append(out, levels...)
+	return append(out, groupUnstartable(levels)...)
+}
+
+// levelKey is what makes a level news: none_startable carries live counts, which change with every filed or finished task,
+// so only its appearing counts.
+func levelKey(level string) string {
+	if strings.HasPrefix(level, "none_startable:") {
+		return "none_startable"
+	}
+	return level
+}
+
+// maxUnstartableIDs keeps the unstartable reason inside the wake line.
+const maxUnstartableIDs = 20
+
+// groupUnstartable writes the per-task unstartable levels as one reason ("unstartable:T-1,T-2,+3_more"), so many of them
+// are not cut from the wake line one by one. It goes before the other levels: those hold and are listed again by
+// `planner status`, while a task id cut here would not be heard again.
+func groupUnstartable(levels []string) []string {
+	var out, ids []string
+	for _, x := range levels {
+		if id, ok := strings.CutPrefix(x, "unstartable:"); ok {
+			ids = append(ids, id)
+		} else {
+			out = append(out, x)
+		}
+	}
+	if n := len(ids) - maxUnstartableIDs; n > 0 {
+		ids = append(ids[:maxUnstartableIDs], fmt.Sprintf("+%d_more", n))
+	}
+	if len(ids) > 0 {
+		out = append([]string{"unstartable:" + strings.Join(ids, ",")}, out...)
+	}
+	return out
 }
 
 // WakeMessage is the one machine-readable line typed into the planner.
@@ -414,9 +447,10 @@ func fileSize(p string) int64 {
 	return fi.Size()
 }
 
-// PlannerLevels are the level reasons: projects with an active goal whose ready queue is below planner_queue_min, projects
-// with an active goal that a pass never dispatches (not in config projects), todo tasks of active goals that depend on a
-// cancelled or failed task (deadDepLevel), and active goals whose tasks are all done.
+// PlannerLevels are the level reasons: projects with an active goal whose startable tasks are below planner_queue_min,
+// projects with an active goal that a pass never dispatches (not in config projects), todo tasks of active goals that
+// depend on a cancelled or failed task (deadDepLevel), active goals whose tasks are all done, one unstartable item per
+// todo task that fails the spec gate, and none_startable when the queue is starved.
 func (r *Runner) PlannerLevels() ([]string, error) {
 	s, err := r.sq()
 	if err != nil {
@@ -433,15 +467,28 @@ func (r *Runner) PlannerLevels() ([]string, error) {
 	want := cfgInt(r.Store, "planner_queue_min")
 	projects := map[string]bool{}
 	var out []string
+	ready, blocked, err := r.Queue(csv(r.Store.Cfg("projects")))
+	if err != nil {
+		return nil, err
+	}
+	// one work item per task that fails the spec gate: it stays until the task is fixed or cancelled
+	for _, b := range blocked {
+		if b.Kind == BlockedLint {
+			out = append(out, "unstartable:"+b.Task.ID)
+		}
+	}
+	if why := r.noneStartable(ready, blocked); why != "" {
+		out = append(out, why)
+	}
 	for _, g := range goals {
 		if g.Project != "" && !projects[g.Project] {
 			projects[g.Project] = true
-			ready, err := r.ReadyIn([]string{g.Project})
+			startable, err := r.ReadyIn([]string{g.Project})
 			if err != nil {
 				return nil, err
 			}
-			if len(ready) < want {
-				out = append(out, fmt.Sprintf("queue_low:%s=%d/%d", g.Project, len(ready), want))
+			if len(startable) < want {
+				out = append(out, fmt.Sprintf("queue_low:%s=%d/%d", g.Project, len(startable), want))
 			}
 			if !dispatched[g.Project] {
 				out = append(out, "not_dispatched:"+g.Project)
