@@ -29,8 +29,9 @@ type DigestUnasked struct {
 }
 
 type DigestMerge struct {
-	Task, PR string
-	USD      float64 // all sessions of the task, any day
+	Task, PR   string
+	USD        float64 // all sessions of the task, any day
+	Unattended bool    // a T3 merge the runner did without the owner
 }
 
 type DigestRun struct {
@@ -67,7 +68,8 @@ func (r *Runner) BuildDigest(day time.Time) (*Digest, error) {
 		switch e.Event {
 		case "pr.merged":
 			pr, _ := e.Data["pr"].(string)
-			d.Merges = append(d.Merges, DigestMerge{Task: e.TaskID, PR: pr})
+			unattended, _ := e.Data["unattended"].(bool)
+			d.Merges = append(d.Merges, DigestMerge{Task: e.TaskID, PR: pr, Unattended: unattended})
 			mergedTasks = append(mergedTasks, e.TaskID)
 		case "task.failed":
 			why, _ := e.Data["reason"].(string)
@@ -177,6 +179,15 @@ func (d *Digest) Markdown(now time.Time) string {
 	fmt.Fprintf(&b, "# hivemill digest %s\n\n%s\n\n## Merged (%d)\n", d.Date, d.Summary(), len(d.Merges))
 	for _, m := range d.Merges {
 		fmt.Fprintf(&b, "- %s %s ($%.2f)\n", m.Task, or(m.PR, "-"), m.USD)
+	}
+	var alone []string
+	for _, m := range d.Merges {
+		if m.Unattended {
+			alone = append(alone, fmt.Sprintf("- %s %s\n", m.Task, or(m.PR, "-")))
+		}
+	}
+	if len(alone) > 0 {
+		fmt.Fprintf(&b, "\n## T3 merged without you (%d)\n%s", len(alone), strings.Join(alone, ""))
 	}
 	roles := make([]string, 0, len(d.USDByRole))
 	for k := range d.USDByRole {

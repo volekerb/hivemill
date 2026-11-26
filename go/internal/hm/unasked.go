@@ -17,7 +17,7 @@ var unaskedRiskPaths = []string{
 	".github/workflows/**", "roles/**",
 	"go/internal/guard/**", "go/cmd/worker-guard/**", "go/internal/shlex/**", "go/internal/spawn/**",
 	"go/internal/hm/*hook*", "go/internal/hm/guard*", "go/internal/hm/judge*", "go/internal/hm/unasked*",
-	"go/internal/hm/merge*", "go/internal/hm/run.go", "go/internal/hm/gate.go", "go/internal/hm/cigate.go",
+	"go/internal/hm/merg*", "go/internal/hm/run.go", "go/internal/hm/gate.go", "go/internal/hm/cigate.go",
 	"go/internal/hm/risk.go", "go/internal/hm/tierrules.go", "go/internal/hm/session.go", "go/internal/hm/store.go",
 	"go/internal/hm/resilience.go", "go/internal/sandbox/**", "go/internal/macbox/**", "go/internal/gowrap/**",
 	"go/internal/hm/assets/task*", "go/internal/hm/assets/planner*", "go/internal/hm/assets/skills.json",

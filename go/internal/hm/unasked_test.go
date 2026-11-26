@@ -131,7 +131,7 @@ func TestJudgeUnaskedRiskPathHolds(t *testing.T) {
 		return `{"change": "wider env stripping", "criterion": null, "unasked_ok": true, "why": "safer", "file": "` + file + `"}`
 	}
 	for _, risky := range []string{"go/internal/guard/git.go", "roles/hooks/worker-guard", "roles/settings/coder.json.in",
-		"go/internal/hm/merge.go", "go/internal/hm/judge.go", ".github/workflows/tests.yml"} {
+		"go/internal/hm/merge.go", "go/internal/hm/merguard.go", "go/internal/hm/judge.go",".github/workflows/tests.yml"} {
 		for _, file := range []string{risky, "", "not/in/the/diff.go", "web/a.html"} {
 			r, s, _ := unaskedRun(t, "web/a.html", risky)
 			judgeSays(t, r, mergeWith(change(file)))
