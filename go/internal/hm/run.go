@@ -280,6 +280,7 @@ func Kickoff(run *Run, t *Task) string {
 		// The whole criterion text, not only its proof: the text says what the proof must show (fixtures, exact strings).
 		fmt.Fprintf(&b, "%d. %s\n", c.ID, c.Text)
 	}
+	b.WriteString(uiSkillNote(t))
 	fmt.Fprintf(&b, "\nBranch %s, base %s. Follow your role steps; stop when the PR is open and CI is green.", run.Branch, run.Base)
 	return b.String()
 }

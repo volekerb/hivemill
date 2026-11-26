@@ -30,6 +30,7 @@ Reasons:
 - Take the next steps from the goal's intent and success criteria and from what already merged (`git -C <repo> log --oneline -20`, `gh pr list --repo OWNER/NAME --state merged --limit 20`). File in the order the goal needs them, with `--depends` where one needs another.
 - Size: one task is one session under `task_budget_usd` (default $5): about one behaviour change, at most about 5 files and 300 changed lines, 2 to 5 criteria. When a task is bigger, split it.
 - Every criterion names its proof (`test:`, `cmd: ... => exit 0`, `flow:`, `manual:`), or `task add` refuses it. Prefer `cmd:` and `test:` proofs, which the gate re-runs. Add a `FILES:` line to the spec with the paths the task may change.
+- A task that creates or changes a user interface (html, css, templates, frontend, obs pages, dashboards): name the UI skills in the spec, e.g. `Load the skills ui-ux-pro-max, taste-skill and impeccable before writing UI code.` (`kit/skills.json`, `use_when`).
 - Pass multi-line text in single quotes, or as one quoted heredoc on stdin:
   `hivemill task add --goal G-001 --title '...' --spec '...' --acceptance-file - <<'EOF'` ... `EOF`.
 - Draft tasks (`--draft`) are never dispatched: use them for ideas that still miss a decision, and promote them with `hivemill task update T-NNNN --status todo` once their criteria pass.
