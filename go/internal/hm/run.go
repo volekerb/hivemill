@@ -411,7 +411,7 @@ func truncate(s string, n int) string {
 	return s
 }
 
-// Pass advances every active run once (at most one gh read per run), checks for a revert, then starts ready tasks.
+// Pass advances every active run once (one gh read per run; a red CI also reads the failed logs), checks for a revert, then starts ready tasks.
 func (r *Runner) Pass(startNew bool) error {
 	// the daemon reuses the Runner: each pass, a skipped one too, reads the machines again
 	r.usageFiles, r.usageRead = nil, false
