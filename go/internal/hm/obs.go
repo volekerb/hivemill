@@ -16,9 +16,10 @@ import (
 // `hivemill obs` page and the OpenTelemetry export. It reads; it never changes a run.
 
 func init() {
-	Defaults["machine_name"] = ""  // stamps every event line (field machine); empty = the hostname
-	Defaults["obs_port"] = "7461"  // `hivemill obs`: the read-only page on 127.0.0.1:<port>
-	Defaults["otel_endpoint"] = "" // OTLP/HTTP base URL: the daemon sends each finished task as a trace; empty = off
+	Defaults["machine_name"] = ""             // stamps every event line (field machine); empty = the hostname
+	Defaults["obs_port"] = "7461"             // `hivemill obs`: the read-only page on 127.0.0.1:<port>
+	Defaults["otel_endpoint"] = ""            // OTLP/HTTP base URL: the daemon sends each finished task as a trace; empty = off
+	Defaults["obs_banner_polling_pct"] = "20" // the Spend page warns when polling is above this percent of spend
 }
 
 // MachineName is the configured machine name, else the short hostname.

@@ -43,6 +43,7 @@ th { background:var(--head); font-weight:600; color:var(--muted); }
 td.num, th.num { text-align:right; }
 td.wrap { white-space:normal; word-break:break-word; min-width:240px; }
 tr.total td { font-weight:600; border-top:1px solid var(--fg); }
+.banner { border:1px solid var(--line); border-left:3px solid var(--honey); background:var(--panel); padding:6px 10px; color:var(--warn); }
 .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
 .muted, footer { color:var(--muted); }
 code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
