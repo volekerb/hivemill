@@ -1,15 +1,18 @@
 package hm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -431,8 +434,101 @@ func TestObsPageIsReadOnlyLoopbackAndZooms(t *testing.T) {
 			t.Errorf("%s accepted", a)
 		}
 	}
-	if CheckLoopback(ObsAddr(7461)) != nil || CheckLoopback("[::1]:1") != nil {
+	if CheckLoopback(ObsAddr("127.0.0.1", 7461)) != nil || CheckLoopback("[::1]:1") != nil {
 		t.Error("loopback refused")
+	}
+}
+
+func TestObsListenDefaultLoopback(t *testing.T) {
+	r, _ := obsRunner(t)
+	var warn strings.Builder
+	for _, cfg := range []string{"", r.Store.Cfg("obs_listen")} {
+		if h, err := ObsListen("", cfg, &warn); err != nil || h != "127.0.0.1" {
+			t.Fatalf("config %q: %q %v", cfg, h, err)
+		}
+	}
+	for _, in := range []string{"localhost", "::1"} {
+		if h, err := ObsListen(in, "0.0.0.0", &warn); err != nil || h != in {
+			t.Fatalf("flag %q over config: %q %v", in, h, err)
+		}
+	}
+	if warn.Len() != 0 {
+		t.Fatalf("a warning on loopback: %q", warn.String())
+	}
+}
+
+func TestObsListenFlag(t *testing.T) {
+	for _, c := range [][2]string{{"0.0.0.0", ""}, {"", "0.0.0.0"}, {"0.0.0.0", "127.0.0.1"}} {
+		var warn strings.Builder
+		h, err := ObsListen(c[0], c[1], &warn)
+		if err != nil || h != "0.0.0.0" || ObsAddr(h, 7461) != "0.0.0.0:7461" {
+			t.Fatalf("%q: %q %v", c, h, err)
+		}
+		if w := warn.String(); !strings.HasPrefix(w, "WARNING:") || strings.Count(w, "\n") != 1 || !strings.Contains(w, "anyone on that network") {
+			t.Fatalf("%q: warning %q", c, w)
+		}
+	}
+	r, _ := obsRunner(t)
+	for _, c := range []struct {
+		wide bool
+		host string
+		code int
+	}{
+		{true, "192.0.2.1:7461", 200}, {true, "[2001:db8::1]:7461", 200}, {true, "localhost:7461", 200},
+		{true, "evil.example:7461", 403}, {false, "192.0.2.1:7461", 403},
+	} {
+		h, err := r.obsHandler(c.wide)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Host = c.host
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != c.code {
+			t.Errorf("wide=%v Host %s: %d, want %d", c.wide, c.host, w.Code, c.code)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := r.ServeObs(ctx, ObsAddr("0.0.0.0", 0)); err != nil {
+		t.Errorf("a non-loopback IP address: %v", err)
+	}
+	if err := r.ServeObs(ctx, "evil.example:0"); err == nil {
+		t.Error("ServeObs took a host name")
+	}
+}
+
+func TestObsListenIPv4Only(t *testing.T) {
+	l, err := obsSocket(ObsAddr("0.0.0.0", 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	a := l.Addr().(*net.TCPAddr)
+	if a.IP.To4() == nil {
+		t.Fatalf("0.0.0.0 opened %s, not an IPv4 socket", a)
+	}
+	c, err := net.DialTimeout("tcp4", ObsAddr("127.0.0.1", a.Port), time.Second)
+	if err != nil {
+		t.Fatalf("IPv4 dial: %v", err)
+	}
+	_ = c.Close()
+	if c, err := net.DialTimeout("tcp6", ObsAddr("::1", a.Port), time.Second); err == nil {
+		_ = c.Close()
+		t.Fatal("0.0.0.0 accepted an IPv6 connection")
+	}
+}
+
+func TestObsListenBadHost(t *testing.T) {
+	for _, in := range []string{"box-b", "evil.example", "127.0.0.1:7461", "[::1]"} {
+		var warn strings.Builder
+		if h, err := ObsListen(in, "", &warn); err == nil || warn.Len() != 0 {
+			t.Errorf("flag %q: %q %v %q", in, h, err, warn.String())
+		}
+		if h, err := ObsListen("", in, &warn); err == nil {
+			t.Errorf("config %q: %q accepted", in, h)
+		}
 	}
 }
 
@@ -1141,4 +1237,144 @@ func TestObsShowsThePlacementMachine(t *testing.T) {
 			t.Fatalf("machines table lacks %s: %s", m, w.Body.String())
 		}
 	}
+}
+
+func TestObsServerStatusCachedAndNoDuplicateCore(t *testing.T) {
+	r, s := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	if err := s.SetCfg("session_machines", "local,box-c,core-a"); err != nil {
+		t.Fatal(err)
+	}
+	calls, down := 0, false
+	r.Tools.HC = func(args ...string) (int, string, string) {
+		if args[0] != "server" {
+			return 0, "", ""
+		}
+		calls++
+		if down {
+			return 1, "", "no server"
+		}
+		return 0, `{"core":{"name":"core-a"}}`, ""
+	}
+	now := time.Now()
+	srv := &obsServer{r: r, now: func() time.Time { return now }}
+	check := func(after time.Duration, wantCalls int, want string) {
+		t.Helper()
+		now = now.Add(after)
+		o, _, err := srv.load(ObsFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Join(o.Machines, ","); got != want || calls != wantCalls {
+			t.Fatalf("machines %s after %d calls, want %s after %d", got, calls, want, wantCalls)
+		}
+	}
+	check(0, 1, "box-a,box-c")
+	check(29*time.Second, 1, "box-a,box-c")
+	down = true
+	check(time.Second, 2, "box-a,box-c") // the call fails: the core is still listed once
+	down = false
+	check(29*time.Second, 2, "box-a,box-c") // the failure is cached too
+	check(time.Second, 3, "box-a,box-c")
+
+	// a restarted server whose hc is down still knows the name
+	calls, down = 0, true
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a,box-c")
+	check(29*time.Second, 1, "box-a,box-c")
+
+	// hc never answered: either entry may be this machine, so neither is listed from the config alone
+	if err := os.Remove(filepath.Join(r.Env.StateDir(), "core_name")); err != nil {
+		t.Fatal(err)
+	}
+	calls = 0
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a")
+	check(29*time.Second, 1, "box-a")
+
+	// a call that hangs past the 30 s is cached from the time it returned
+	calls = 0
+	r.Tools.HC = func(...string) (int, string, string) {
+		calls++
+		now = now.Add(90 * time.Second)
+		return 1, "", "timeout"
+	}
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a")
+	check(29*time.Second, 1, "box-a")
+}
+
+func TestObsAsksUnderTheirMachine(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	a := func(h, kind, machine, task, project string, id float64) Event {
+		e := ev(day+"T"+h+":00Z", kind, task, "", project, "", "", map[string]any{"id": id})
+		e.Machine = machine
+		return e
+	}
+	placed := a("00:00", "task.dispatched", "box-a", "T-1", "www", 0)
+	placed.Data = map[string]any{"machine": "box-c"}
+	writeEvents(t, r.Log.Path, placed,
+		a("01:00", "ask.added", "", "", "www", 1),    // no machine field: this machine
+		a("02:00", "ask.added", "", "T-1", "www", 2)) // filed here, about a task placed on box-c
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "box-b", "events.jsonl"), a("03:00", "ask.added", "box-b", "", "api", 1))
+
+	for _, c := range []struct {
+		machine  string
+		www, api int
+	}{{"", 2, 1}, {"box-a", 2, 0}, {"box-b", 0, 1}, {"box-c", 0, 0}} {
+		o, err := r.LoadObs(ObsFilter{Machine: c.machine}, true, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := o.OpenAsks("box-a", nil, false); got["www"] != c.www || got["api"] != c.api {
+			t.Errorf("machine %q, from events: %v", c.machine, got)
+		}
+		// this machine's asks come from its DB
+		if got := o.OpenAsks("box-a", map[string]int{"www": c.www}, true); got["www"] != c.www || got["api"] != c.api {
+			t.Errorf("machine %q, from the DB: %v", c.machine, got)
+		}
+		wantDB := 0
+		if c.machine == "" || c.machine == "box-a" {
+			wantDB = 5
+		}
+		if got := o.OpenAsks("box-a", map[string]int{"www": 5}, true); got["www"] != wantDB {
+			t.Errorf("machine %q: DB asks %v, want %d", c.machine, got, wantDB)
+		}
+	}
+}
+
+func TestObsPulledLogNoEmptyMachine(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	on := func(h, machine, task string) Event {
+		e := ev(day+"T"+h+":00Z", "task.dispatched", task, "", "api", "", "", nil)
+		e.Machine = machine
+		return e
+	}
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "alias-b", "events.jsonl"), on("01:00", "box-b", "T-1"), on("02:00", "box-c", "T-2"))
+	check := func(want string) {
+		t.Helper()
+		o, srcs, err := (&obsServer{r: r, now: time.Now}).load(ObsFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rows []string
+		for _, m := range o.BuildNow(30, "", "box-a", nil, false, srcs).Machines {
+			rows = append(rows, m.Machine)
+		}
+		sort.Strings(rows)
+		if got, page := strings.Join(o.Machines, ","), strings.Join(rows, ","); got != want || page != want {
+			t.Fatalf("machines %s, page rows %s, want %s", got, page, want)
+		}
+		if o.Tasks["box-b/T-1"] == nil || o.Tasks["box-c/T-2"] == nil {
+			t.Fatalf("tasks: %v", o.TaskList("", ""))
+		}
+	}
+	check("box-a,box-b,box-c")
+	// a line with no machine name takes the pull label, which then has something to show
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "alias-b", "events.jsonl"), on("03:00", "", "T-3"))
+	check("alias-b,box-a,box-b,box-c")
 }

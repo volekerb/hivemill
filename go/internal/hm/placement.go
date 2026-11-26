@@ -18,7 +18,8 @@ import (
 // factory home, the project checkouts and ~/.claude/projects at the same paths (NFS or similar) and never opens the
 // factory DB itself: its `hivemill` forwards every call to the coordinator over ssh (forward.go in cmd/hivemill).
 // Nothing is assumed: every pick re-checks that the machine sees this home (a fresh marker), has the same user home,
-// has a forwarding hivemill and has enough memory. The judge and the planner stay on the local core.
+// has a forwarding hivemill and has enough memory. A machine overloaded on CPU (load.go) takes no new run while
+// another one is not. The judge and the planner stay on the local core.
 
 // localMachine names the local core in session_machines, in events and in `run status`.
 const localMachine = "local"
@@ -26,13 +27,18 @@ const localMachine = "local"
 // probeScript prints what a pick needs from a machine, in one hc exec: user home, OS, the marker it reads at the
 // coordinator's path, the coordinator its hivemill forwards to (asked only when the marker matched: a machine that
 // does not share the home may run hivemill against its own DB; under env -i, as sessions start, so only the worker's
-// coordinator file counts, not a variable of the hc exec environment), then its memory (/proc/meminfo or vm_stat).
+// coordinator file counts, not a variable of the hc exec environment), then its load average, CPU count and memory
+// (/proc/meminfo or vm_stat).
 const probeScript = `echo "home=$HOME"
 echo "os=$(uname -s)"
 printf 'marker='; cat "$1" 2>/dev/null; echo
 printf 'coordinator='
 if [ "$(cat "$1" 2>/dev/null)" = "$2" ]; then env -i HOME="$HOME" "$HOME/.local/bin/hivemill" local coordinator 2>/dev/null; fi
 echo
+printf 'load='
+if [ "$(uname -s)" = Darwin ]; then sysctl -n vm.loadavg 2>/dev/null; else cat /proc/loadavg 2>/dev/null; fi
+echo
+echo "cpus=$(getconf _NPROCESSORS_ONLN 2>/dev/null)"
 echo '---mem'
 if [ "$(uname -s)" = Darwin ]; then
   echo "pressure=$(sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null)"
@@ -45,12 +51,14 @@ fi`
 type Probe struct {
 	Home, OS, Marker, Coordinator string
 	MemMB                         int // -1 = unreadable
+	Load                          Load
 }
 
 // ParseProbe reads the output of probeScript.
 func ParseProbe(out string) Probe {
 	p := Probe{MemMB: -1}
 	head, mem, _ := strings.Cut(out, "---mem\n")
+	avg, cpus := "", 0
 	for _, line := range strings.Split(head, "\n") {
 		k, v, ok := strings.Cut(line, "=")
 		if !ok {
@@ -66,8 +74,13 @@ func ParseProbe(out string) Probe {
 			p.Marker = v
 		case "coordinator":
 			p.Coordinator = v
+		case "load":
+			avg = v
+		case "cpus":
+			cpus, _ = strconv.Atoi(v)
 		}
 	}
+	p.Load = parseLoad(avg, cpus)
 	if p.OS == "Darwin" {
 		p.MemMB = darwinMemMB(mem)
 	} else {
@@ -114,52 +127,69 @@ type Placement struct {
 }
 
 // PickMachine picks the machine of a new task session: among the session_machines entries that are eligible (at least
-// machine_mem_floor_mb MemAvailable, the marker probe), the one with the fewest active runs; a tie goes to the earlier
-// entry. The local core counts when listed. Skipped says why each ineligible entry was passed. No eligible entry: the
-// local core.
+// machine_mem_floor_mb MemAvailable, the marker probe), the one with the fewest run sessions (activeByMachine); a tie goes to the earlier
+// entry. An entry overloaded on CPU is passed over while another eligible one reads below the limit. The local core
+// counts when listed. Skipped says why each entry was passed. No eligible entry: the local core.
 func (r *Runner) PickMachine() Placement {
 	var pl Placement
 	floor := cfgInt(r.Store, "machine_mem_floor_mb")
 	core, coreRead := "", false
-	var load map[string]int
-	best, bestLoad, found := "", 0, false
+	type cand struct {
+		name, key string // the label in Skipped; the machine of a run ("" = local)
+		load      Load
+	}
+	var cands []cand
+	spare := false // some eligible entry reads below the CPU limit
 	for _, m := range csv(r.Store.Cfg("session_machines")) {
 		if m != localMachine && !coreRead {
 			core, coreRead = r.coreName(), true
 		}
-		isLocal := m == localMachine || m == core
-		if isLocal {
+		c := cand{name: m, key: m}
+		if m == localMachine || m == core {
 			mb := MemAvailableMB()
 			if mb < floor {
 				pl.Skipped = append(pl.Skipped, fmt.Sprintf("%s: %s MemAvailable < %d MB", localMachine, mbText(mb), floor))
 				continue
 			}
-		} else if why := r.eligible(m, floor); why != "" {
-			pl.Skipped = append(pl.Skipped, m+": "+why)
+			c = cand{name: localMachine, load: r.cachedLoad(localMachine, LocalLoad())}
+		} else {
+			load, why := r.eligibleFor(m, floor)
+			if why != "" {
+				pl.Skipped = append(pl.Skipped, m+": "+why)
+				continue
+			}
+			c.load = load
+		}
+		spare = spare || c.load.known() && !c.load.overloaded()
+		cands = append(cands, c)
+	}
+	if len(cands) == 0 {
+		return pl
+	}
+	active := r.activeByMachine(core)
+	best, found := 0, false
+	for _, c := range cands {
+		if spare && c.load.overloaded() {
+			pl.Skipped = append(pl.Skipped, fmt.Sprintf("%s: load %.1f > %.1f x %d CPUs", c.name, c.load.Avg, overloadPerCPU, c.load.CPUs))
 			continue
 		}
-		if load == nil {
-			load = r.activeByMachine(core)
-		}
-		key := m
-		if isLocal {
-			key = ""
-		}
-		n := load[key]
-		if !found || n < bestLoad {
-			best, bestLoad, found = key, n, true
+		if n := active[c.key]; !found || n < best {
+			pl.Machine, best, found = c.key, n, true
 		}
 	}
-	pl.Machine = best
 	return pl
 }
 
-// activeByMachine counts the active runs per machine; "" is the local core (a run on the core's own name counts there).
+// activeByMachine counts the sessions of runs per machine: every busy run, and every waiting run whose task session is
+// still open. "" is the local core (a run on the core's own name counts there).
 func (r *Runner) activeByMachine(core string) map[string]int {
 	load := map[string]int{}
 	runs, _ := r.Store.Runs()
+	list, listed := Terminals(r.Tools)
 	for _, x := range runs {
-		if !Active(x.State) {
+		// without a listing, an unfinished run counts and a held one (hold closed its session) does not
+		open := x.Agent != "" && (listed && alive(list, true, x.Agent) || !listed && Active(x.State))
+		if !busy(x.State) && !(waiting(&x) && open) {
 			continue
 		}
 		m := x.Machine
@@ -178,37 +208,45 @@ func mbText(mb int) string {
 	return strconv.Itoa(mb) + " MB"
 }
 
-// eligible probes machine m and says why it may not take a session ("" = it may).
-func (r *Runner) eligible(m string, floor int) string {
+// eligibleFor is the probe of m's mode: a clone-mode machine shares nothing with this one.
+func (r *Runner) eligibleFor(m string, floor int) (Load, string) {
+	if r.cloneMode(m) {
+		return r.cloneEligible(m, floor)
+	}
+	return r.eligible(m, floor)
+}
+
+// eligible probes machine m and says why it may not take a session ("" = it may), with its CPU load when it may.
+func (r *Runner) eligible(m string, floor int) (Load, string) {
 	if !validMachine(m) {
-		return "not a machine name"
+		return Load{}, "not a machine name"
 	}
 	dir := filepath.Join(r.Env.StateDir(), "placement")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "cannot write the home marker: " + err.Error()
+		return Load{}, "cannot write the home marker: " + err.Error()
 	}
 	marker := filepath.Join(dir, "marker-"+m)
 	token := uuid4()
 	if err := writeFile(marker, token+"\n", 0o600); err != nil {
-		return "cannot write the home marker: " + err.Error()
+		return Load{}, "cannot write the home marker: " + err.Error()
 	}
 	defer os.Remove(marker)
 	rc, out, errs := r.Tools.HC("exec", "--on", m, "sh", "-c", probeScript, "sh", marker, token)
 	if rc != 0 {
-		return fmt.Sprintf("hc exec exit %d: %s", rc, firstLine(errs+out))
+		return Load{}, fmt.Sprintf("hc exec exit %d: %s", rc, firstLine(errs+out))
 	}
 	p := ParseProbe(out)
 	switch {
 	case p.Marker != token:
-		return "does not share the factory home at " + r.Env.Home
+		return Load{}, "does not share the factory home at " + r.Env.Home
 	case p.Home != r.Env.UserHome:
-		return fmt.Sprintf("user home %q is not %q", p.Home, r.Env.UserHome)
+		return Load{}, fmt.Sprintf("user home %q is not %q", p.Home, r.Env.UserHome)
 	case p.Coordinator == "":
-		return "its hivemill does not forward to a coordinator (see docs/hivemill-machines.md)"
+		return Load{}, "its hivemill does not forward to a coordinator (see docs/hivemill-machines.md)"
 	case p.MemMB < floor:
-		return fmt.Sprintf("%s MemAvailable < %d MB", mbText(p.MemMB), floor)
+		return Load{}, fmt.Sprintf("%s MemAvailable < %d MB", mbText(p.MemMB), floor)
 	}
-	return ""
+	return r.cachedLoad(m, p.Load), ""
 }
 
 // readRemoteUsage reads the usage file of machine m, over the transport of the placement probe but with a short

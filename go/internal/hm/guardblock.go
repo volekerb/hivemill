@@ -1,23 +1,35 @@
 package hm
 
 import (
-	"bufio"
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
 
 // A worker-guard block stops a task session (a denied command stays denied), and a generic nudge makes it refuse again
-// until the run is "stalled". So the runner answers a block with the block text and a way forward, and a session that
-// cannot finish says so in .hivemill/blocked.md. The guard and its rules are not changed here.
+// until the run is "stalled". So the runner answers the run's first block with the block text and a way forward, fails
+// the run at its second, and a session that cannot finish says so in .hivemill/blocked.md. The guard and its rules are
+// not changed here.
 
 // blockedPrefix starts the fail reason of a session that wrote .hivemill/blocked.md; the planner re-files such a task.
 const blockedPrefix = "blocked by policy: "
 
-var guardMarkers = []string{"worker-guard: block", "worker-guard(go): blocked", "PreToolUse:Bash hook error"}
+var guardMarkers = []string{"worker-guard: block", "worker-guard(go): blocked"}
+
+// guardNote starts the run history entry of a block; the entries are the run's block count.
+const guardNote = "stopped on a guard block: "
+
+const (
+	guardDenial    = "worker-guard: blocked"
+	transcriptTail = 256 << 10
+)
 
 // isGuardBlock reports whether an error result is a block: it starts with a marker (a hook of another tool starts with
 // "PreToolUse:<tool> hook error" and names the guard). A failed command that only prints a marker further down is not.
@@ -67,24 +79,34 @@ func guardRemedy(block string) (class, fix string) {
 	return "", ""
 }
 
-// lastToolResult is the text of a transcript's last tool result and whether it was an error.
-func lastToolResult(path string) (text string, isError bool) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", false
+// guardLine is the first line of a block without Claude Code's "PreToolUse:<tool> hook error: [<command>]: " prefix.
+func guardLine(block string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(block), "\n")
+	if strings.HasPrefix(line, "PreToolUse:") {
+		if _, after, ok := strings.Cut(line, "]: "); ok {
+			return after
+		}
+		if _, after, ok := strings.Cut(line, "hook error: "); ok {
+			return after
+		}
 	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 1<<20), 64<<20)
-	for sc.Scan() {
+	return line
+}
+
+// lastToolResult is the text of the last tool result in the transcript's tail and whether it was an error.
+func lastToolResult(path string) (text string, isError bool, err error) {
+	tail, err := readTail(path, transcriptTail)
+	if err != nil {
+		return "", false, err
+	}
+	for _, raw := range bytes.Split(tail, []byte("\n")) {
 		var d struct {
-			Type      string `json:"type"`
-			Sidechain bool   `json:"isSidechain"`
+			Sidechain bool `json:"isSidechain"`
 			Message   struct {
 				Content json.RawMessage `json:"content"`
 			} `json:"message"`
 		}
-		if json.Unmarshal(sc.Bytes(), &d) != nil || d.Type != "user" || d.Sidechain {
+		if json.Unmarshal(raw, &d) != nil || d.Sidechain {
 			continue
 		}
 		var blocks []struct {
@@ -92,14 +114,14 @@ func lastToolResult(path string) (text string, isError bool) {
 			IsError bool            `json:"is_error"`
 			Content json.RawMessage `json:"content"`
 		}
-		if json.Unmarshal(d.Message.Content, &blocks) != nil { // a plain prompt is a string
-			continue
+		if json.Unmarshal(d.Message.Content, &blocks) != nil {
+			continue // a plain text message
 		}
 		for _, b := range blocks {
 			if b.Type != "tool_result" {
 				continue
 			}
-			isError = b.IsError
+			isError, text = b.IsError, ""
 			if json.Unmarshal(b.Content, &text) == nil {
 				continue
 			}
@@ -114,7 +136,44 @@ func lastToolResult(path string) (text string, isError bool) {
 			text = strings.Join(s, "\n")
 		}
 	}
-	return text, isError
+	return text, isError, nil
+}
+
+// readTail returns at most the last n bytes of the file. A line cut at the start does not parse and is skipped.
+func readTail(path string, n int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if st.Size() > n {
+		if _, err := f.Seek(-n, io.SeekEnd); err != nil {
+			return nil, err
+		}
+	}
+	return io.ReadAll(io.LimitReader(f, n))
+}
+
+// stoppedOnGuard is the block a Stop hook's session stopped on, or "". Without a readable transcript it looks for a
+// denial line in the last assistant message.
+func stoppedOnGuard(h HookInput) string {
+	text, isError, err := lastToolResult(h.TranscriptPath)
+	if err != nil {
+		for _, l := range strings.Split(h.LastAssistantMessage, "\n") {
+			if strings.HasPrefix(l, guardDenial) {
+				return l
+			}
+		}
+		return ""
+	}
+	if !isError || !isGuardBlock(text) {
+		return ""
+	}
+	return text
 }
 
 // guardBlock is the block that the run's task session stopped on, or "" when its last tool result is not one. It reads
@@ -140,24 +199,30 @@ func (r *Runner) guardBlock(run *Run) string {
 	if newest == "" {
 		return ""
 	}
-	text, isError := lastToolResult(newest)
+	text, isError, _ := lastToolResult(newest)
 	if !isError || !isGuardBlock(text) {
 		return ""
 	}
 	return text
 }
 
-// resumeBlocked prompts a session that stopped on a guard block with the block and its fix; false when there is none.
-func (r *Runner) resumeBlocked(run *Run) bool {
-	block := r.guardBlock(run)
-	if block == "" {
-		return false
-	}
+// onGuardBlock records a block of the run. For the first one it returns the prompt that resumes the session with the
+// block and its fix; a later one fails the run, and it returns "".
+func (r *Runner) onGuardBlock(run *Run, block string) string {
 	class, fix := guardRemedy(block)
-	_ = r.Prompt(run.Agent, "You stopped after a command was blocked:\n\n"+truncate(strings.TrimSpace(block), 1500)+"\n\n"+fix+
-		"\n\nThen continue your role steps until the PR is open and CI is green, and stop.")
+	again := slices.ContainsFunc(run.History, func(h string) bool {
+		_, entry, _ := strings.Cut(h, ": ")
+		return strings.HasPrefix(entry, guardNote)
+	})
+	line := truncate(guardLine(block), 300)
+	run.History = append(run.History, fmt.Sprintf("round %d: %s%s", run.Round, guardNote, line))
 	_ = r.Log.Emit("run.guard_block", run, Event{Role: "task", Data: map[string]any{"class": class}})
-	return true
+	if again {
+		r.fail(run, "guard block: "+line)
+		return ""
+	}
+	return "You stopped after a command was blocked:\n\n" + truncate(strings.TrimSpace(block), 1500) + "\n\n" + fix +
+		"\n\nThen continue your role steps until the PR is open and CI is green, and stop."
 }
 
 // failBlocked fails the run when its session wrote .hivemill/blocked.md.

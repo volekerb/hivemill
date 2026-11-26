@@ -322,3 +322,113 @@ func TestGateBlockWithProgressIsNotCounted(t *testing.T) {
 		t.Errorf("repeated blocks must still fail the run, got %s", got.State)
 	}
 }
+
+const testDenial = "worker-guard: blocked (kill: workers may only kill their own background job)"
+
+// toolResult is one transcript line holding a tool result.
+func toolResult(text string, isError bool) string {
+	b, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"role": "user",
+		"content": []map[string]any{{"type": "tool_result", "tool_use_id": "t", "is_error": isError, "content": text}}}})
+	return string(b)
+}
+
+// guardStop runs Stop hooks of a working run with the given transcript, without a PR or with a PR and no findings.
+// It returns the run after the last one and what each hook wrote.
+func guardStop(t *testing.T, stops int, hasPR bool, h HookInput, lines ...string) (got *Run, outs []string) {
+	t.Helper()
+	r, s := testRunner(t, "claude-task-t-0001")
+	if !hasPR {
+		r.Tools.GH = func(string, ...string) (int, string, string) { return 0, "", "" }
+	}
+	_ = s.PutRun(&Run{Task: "T-0001", Goal: "G-001", Project: "www", Repo: "zz-test/www", Base: "main", Worktree: t.TempDir(),
+		Branch: "factory/t-0001", Agent: "claude-task-t-0001", State: Working, Round: 1})
+	if lines != nil {
+		h.TranscriptPath = filepath.Join(t.TempDir(), "s.jsonl")
+		if err := os.WriteFile(h.TranscriptPath, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	in, _ := json.Marshal(h)
+	for range stops {
+		var out bytes.Buffer
+		if err := r.GateHook(bytes.NewReader(in), &out); err != nil {
+			t.Fatalf("stop: %v", err)
+		}
+		outs = append(outs, out.String())
+	}
+	got, _ = s.Run("T-0001")
+	return got, outs
+}
+
+// resumed reports whether a Stop hook's output keeps the session going with the remedy.
+func resumed(out string) bool {
+	var d struct{ Decision, Reason string }
+	return json.Unmarshal([]byte(out), &d) == nil && d.Decision == "block" &&
+		strings.HasPrefix(d.Reason, "You stopped after a command was blocked:")
+}
+
+func TestGuardBlockFirstResumesSecondFails(t *testing.T) {
+	for _, hasPR := range []bool{false, true} {
+		line := toolResult(testDenial, true)
+		got, outs := guardStop(t, 1, hasPR, HookInput{}, line)
+		_, fix := guardRemedy(testDenial)
+		if got.State != Working || got.FailReason != "" || !resumed(outs[0]) || !strings.Contains(outs[0], fix[:40]) {
+			t.Errorf("first block (PR %v): run %s reason %q out %q", hasPR, got.State, got.FailReason, outs[0])
+		}
+		got, outs = guardStop(t, 2, hasPR, HookInput{}, line)
+		if got.State != Failed || got.FailReason != "guard block: "+testDenial || outs[1] != "" {
+			t.Errorf("second block (PR %v): run %s reason %q out %q", hasPR, got.State, got.FailReason, outs[1])
+		}
+	}
+}
+
+func TestGateHookGuardBlockFails(t *testing.T) {
+	hooked := "PreToolUse:Bash hook error: [sh /x/roles/hooks/worker-guard --role coder]: " + testDenial + "\n"
+	prose := `{"type":"assistant","message":{"content":[{"type":"text","text":"I stop here."}]}}`
+	// a line longer than the tail is read in front of the denial
+	long := toolResult(strings.Repeat("x", transcriptTail), false)
+	for name, c := range map[string]struct {
+		hasPR bool
+		h     HookInput
+		lines []string
+	}{
+		"no PR":            {false, HookInput{}, []string{toolResult("ok", false), toolResult(hooked, true), prose}},
+		"no findings":      {true, HookInput{}, []string{toolResult(testDenial+"\nmore", true), prose}},
+		"long transcript":  {false, HookInput{}, []string{long, toolResult(hooked, true)}},
+		"no transcript":    {false, HookInput{LastAssistantMessage: "Stopped.\n" + testDenial}, nil},
+		"unreadable path":  {false, HookInput{TranscriptPath: "/nonexistent/s.jsonl", LastAssistantMessage: testDenial}, nil},
+		"very long denial": {false, HookInput{}, []string{toolResult(testDenial+strings.Repeat("y", 900), true)}},
+	} {
+		got, outs := guardStop(t, 2, c.hasPR, c.h, c.lines...)
+		if !resumed(outs[0]) || got.State != Failed || !strings.HasPrefix(got.FailReason, "guard block: "+guardDenial) ||
+			len(got.FailReason) > len("guard block: ")+300 {
+			t.Errorf("%s: first stop %q, run %s reason %q", name, outs[0], got.State, got.FailReason)
+		}
+	}
+}
+
+func TestGateHookGuardBlockThenWorkDefers(t *testing.T) {
+	for name, last := range map[string]string{
+		"later success":  toolResult("ok", false),
+		"later failure":  toolResult("Exit code 1", true),
+		"quoted, passed": toolResult(testDenial, false),
+		"quoted, failed": toolResult("Exit code 1\n"+testDenial, true),
+	} {
+		for _, hasPR := range []bool{false, true} {
+			got, outs := guardStop(t, 1, hasPR, HookInput{LastAssistantMessage: testDenial}, toolResult(testDenial, true), last)
+			if got.State != Working || got.FailReason != "" || outs[0] != "" {
+				t.Errorf("%s (PR %v): run %s reason %q", name, hasPR, got.State, got.FailReason)
+			}
+		}
+	}
+}
+
+func TestGateHookNoTranscriptDefers(t *testing.T) {
+	for _, h := range []HookInput{{}, {TranscriptPath: "/nonexistent/s.jsonl", LastAssistantMessage: "waiting for the review"}} {
+		for _, hasPR := range []bool{false, true} {
+			if got, outs := guardStop(t, 1, hasPR, h); got.State != Working || got.GateBlocksTotal != 0 || outs[0] != "" {
+				t.Errorf("%+v (PR %v): run %s reason %q", h, hasPR, got.State, got.FailReason)
+			}
+		}
+	}
+}

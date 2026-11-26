@@ -53,7 +53,8 @@ func runWith(t *testing.T, argv []string, env []string) (int, string) {
 }
 
 // TestDryRunMatchesPythonReference is the r2 guard: the same inputs through plugins/hivemill/scripts/install.py
-// and through this command must print the same dry-run plan and exit with the same code.
+// and through this command must print the same dry-run plan and exit with the same code. See comparable for what is
+// not compared: the Python reference still sets up and starts the old chain.
 func TestDryRunMatchesPythonReference(t *testing.T) {
 	ref := filepath.Join("..", "..", "..", "plugins", "hivemill", "scripts", "install.py")
 	if _, err := os.Stat(ref); err != nil {
@@ -91,11 +92,41 @@ func TestDryRunMatchesPythonReference(t *testing.T) {
 			if prc == 2 {
 				pout, gout = beforeUsage(pout), beforeUsage(gout)
 			}
+			pout, gout = comparable(pout), comparable(gout)
 			if pout != gout {
 				t.Errorf("output differs\npython:\n%s\ngo:\n%s", pout, gout)
 			}
 		})
 	}
+}
+
+// comparable cuts what the two installers no longer share: the init, config and project steps the Go installer
+// dropped (and with them the step numbers), the lines of the services step, and the old smoke checks.
+func comparable(s string) string {
+	var kept []string
+	skip := false
+	for _, ln := range strings.Split(s, "\n") {
+		if strings.HasPrefix(ln, "[plan] ") {
+			skip = false
+			f := strings.Fields(ln)
+			name := f[len(f)-1]
+			switch name {
+			case "init", "config", "project":
+				skip = true
+				continue
+			case "services":
+				skip = true
+			}
+			kept = append(kept, "[plan] "+name)
+			continue
+		}
+		oldSmoke := strings.Contains(ln, "/factory agents ") || strings.HasPrefix(strings.TrimSpace(ln), "$ GET http://")
+		// the closing line follows the last step, so it is kept even when that step is skipped
+		if (!skip && !oldSmoke) || strings.HasPrefix(ln, "plan only:") {
+			kept = append(kept, ln)
+		}
+	}
+	return strings.Join(kept, "\n")
 }
 
 func beforeUsage(s string) string {
