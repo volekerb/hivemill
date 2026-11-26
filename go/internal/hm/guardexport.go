@@ -2,7 +2,9 @@ package hm
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,28 +35,26 @@ func (r *Runner) keepGuardExport(ctx context.Context) {
 	}
 }
 
-// The guard export of a standalone home. The Go worker guard decides the coder's push pin, own goal, test sandbox and
+// The guard export of a factory home. The Go worker guard decides the coder's push pin, own goal, test sandbox and
 // the public-text config from <home>/run/guard-export.json and fails closed when the file is missing or older than
-// 15 minutes (guard.GuardExportMaxAge). In a factory checkout the Python tick writes it (bin/factory_cli.py
-// write_guard_export); a standalone home has no tick, so every runner pass writes it here, with the same layout.
+// 15 minutes (guard.GuardExportMaxAge). The daemon writes it at start and every GuardExportEvery, every runner pass
+// and session start writes it too, and `hivemill guard export` writes it on demand, with the layout of the old
+// chain's write_guard_export.
 
-// guardExportKeys are GUARD_EXPORT_KEYS of bin/factory_cli.py with their DEFAULT_CONFIG values.
+// guardExportKeys are the old chain's GUARD_EXPORT_KEYS with their DEFAULT_CONFIG values.
 var guardExportKeys = map[string]string{"public_text_repos": "", "frozen_repos": "", "scrub_terms_file": "", "test_sandbox": "0",
 	"factory_remote_url": ""}
-
-// pyTickOwnsExport: the home is a factory checkout whose Python tick writes the export; the runner leaves it alone.
-func pyTickOwnsExport(home string) bool {
-	_, err := os.Stat(filepath.Join(home, "bin", "factory_cli.py"))
-	return err == nil
-}
 
 // GuardExportDoc builds the export document from the factory DB.
 func (s *SQLite) GuardExportDoc(now time.Time) (map[string]any, error) {
 	cfg := map[string]string{}
 	for k, def := range guardExportKeys {
 		var v string
-		if err := s.db.QueryRow(`SELECT value FROM config WHERE key=?`, k).Scan(&v); err != nil {
+		err := s.db.QueryRow(`SELECT value FROM config WHERE key=?`, k).Scan(&v)
+		if errors.Is(err, sql.ErrNoRows) {
 			v = def
+		} else if err != nil { // never export a default in place of a value that could not be read
+			return nil, fmt.Errorf("config %s: %w", k, err)
 		}
 		cfg[k] = v
 	}
@@ -74,9 +74,16 @@ func (s *SQLite) GuardExportDoc(now time.Time) (map[string]any, error) {
 		}
 		return out, rows.Err()
 	}
-	goals, err := pairs(`SELECT name, goal_id FROM agents WHERE goal_id IS NOT NULL AND goal_id != ''`)
-	if err != nil {
+	var agents int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='agents'`).Scan(&agents); err != nil {
 		return nil, err
+	}
+	goals := map[string]string{}
+	if agents > 0 {
+		var err error
+		if goals, err = pairs(`SELECT name, goal_id FROM agents WHERE goal_id IS NOT NULL AND goal_id != ''`); err != nil {
+			return nil, err
+		}
 	}
 	wts, err := pairs(`SELECT id, worktree FROM tasks WHERE worktree IS NOT NULL AND worktree != ''`)
 	if err != nil {
@@ -86,12 +93,9 @@ func (s *SQLite) GuardExportDoc(now time.Time) (map[string]any, error) {
 		"agent_goals": goals, "task_worktrees": wts}, nil
 }
 
-// WriteGuardExport writes <home>/run/guard-export.json (mode 0600, atomic rename) unless the Python tick owns it, and
-// gives the home its ci/ files (EnsureHomeFiles).
+// WriteGuardExport writes <home>/run/guard-export.json (mode 0600, atomic rename) and gives the home its ci/ files
+// (EnsureHomeFiles).
 func (r *Runner) WriteGuardExport(now time.Time) error {
-	if pyTickOwnsExport(r.Env.Home) {
-		return nil
-	}
 	exportMu.Lock()
 	defer exportMu.Unlock()
 	s, ok := r.Store.(*SQLite)
