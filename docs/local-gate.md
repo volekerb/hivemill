@@ -189,6 +189,9 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   8-CPU / 12 GB box to load 30 with swap full. `remote_gate_driver.sh --jobs <cores> <shards> <meminfo file>` prints
   the cap. The summary line reports peak CPU, used RAM, load1 and used swap (and swap at the start).
 - **One run at a time**: `flock` on `~/factory-gate/.lock` on the remote host; a second run prints that it waits and waits.
+  The lock file records the holder's pid, its start time and when it took the lock. A waiting run takes the lock over,
+  and logs `taking over`, when that process is dead or has held it longer than the gate's time limit (`GATE_TIMEOUT_S`,
+  default 3600; set it when the project's `gate_timeout_s` differs). A lock file with no record is only waited on.
 - **Run dir** (T-1679): each run has its own `<root>/fg-XXXXXX` (`mktemp -d`) on the gate host, with `HOME`, `TMPDIR`,
   `GOTMPDIR` (go test's build temp) and `FACTORY_HOME` inside it. `<root>` is the first of `/var/tmp`, `/tmp` that is
   on disk, not tmpfs (`remote_gate_driver.sh --pick-root`): a run writes about 1 GB, and on a host whose `/tmp` is a
@@ -198,7 +201,8 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   The old `~/factory-gate/<sha12>-<ts>-<pid>` failed those tests. The run dir and `TMPDIR` are `0711`: the subuid
   sandbox tests run as another host uid that must traverse to its files under `TMPDIR`, as under CI's `/tmp`.
 - **Cleanup**: the run dir is removed on every path: by the
-  remote driver on exit (it kills its own process group first; a lost ssh connection ends it within 5 s), and again
+  remote driver on exit (it kills its own process group first; a watchdog checks every 10 s and ends the run when the
+  run dir, the parent, the ssh connection or, in local mode, the gate script is gone, also while it waits), and again
   by the local script's EXIT trap (pass, fail, and SIGTERM from the runner). Under the lock, the driver sweeps the
   user's own `<root>/fg-XXXXXX` dirs and old `~/factory-gate/*` run dirs that are older than 12 h.
   Only the Go module and build caches (`~/go/pkg/mod`, `~/.cache/factory-gate/go-build`) persist between runs.
@@ -227,7 +231,7 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
 - `GATE_RUN_ROOTS="/var/tmp /tmp"` (space separated) overrides the run root candidates; the pick still needs a disk-backed,
   socket-short dir.
 - The `toolchain` step log has an `nsbox:` line: user namespaces available (nsbox-dependent tests run) or unavailable with
-  the reason (those tests skip with `user namespaces unavailable`). Tests: `tests/test_gate_shards.py`.
+  the reason (those tests skip with `user namespaces unavailable`). Tests: `tests/test_remote_gate.py`.
 
 ## Gate on push, the merge signal (T-1828, M41466)
 

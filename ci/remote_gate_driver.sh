@@ -9,7 +9,11 @@
 # <run dir> holds head/ (the tracked files of HEAD), base/ (git archive of the base) and trusted/ (this file, gate_shards.py,
 # test_count_gate.py). Everything the run writes stays under <run dir>, which is removed on every exit path; only the
 # shared Go module and build caches live outside it (~/go/pkg/mod, ~/.cache/factory-gate/go-build).
-# One run at a time: flock on ~/factory-gate/.lock (a second run waits). At most 8 CPUs: taskset -c 0-7, GOMAXPROCS.
+# One run at a time: flock on ~/factory-gate/.lock (a second run waits). The lock file holds the holder's "<pid> <pid start
+# time> <epoch it took the lock>"; a waiting run takes the lock over when that pid is dead or it has held the lock longer
+# than REMOTE_GATE_LIMIT_S (default 3600). A watchdog ends the run within 10 s when its run dir, its parent (the ssh
+# server or client side) or, in local mode, the gate script (REMOTE_GATE_SCRIPT_PID) is gone (T-2129).
+# At most 8 CPUs: taskset -c 0-7, GOMAXPROCS.
 # Job cap (T-1679), for GATE_SHARDS, go test -p and the parallel guard jobs: min(shards, cores, MemAvailable / 2048 MiB,
 # MemTotal / 2560 MiB), at least 1, read at the start of the run: 4 on an 8-CPU / 12 GB host, so swap does not fill.
 set -euo pipefail
@@ -94,6 +98,26 @@ if [ "${1-}" = --jobs ]; then
   job_cap "$2" "$3" "$4"
   exit
 fi
+# proc_stat PID: "<state> <ppid> <start time in clock ticks>" from /proc (the comm field may hold spaces).
+proc_stat() {
+  local s
+  s=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+  s=${s##*) }
+  awk '{print $1, $2, $20}' <<<"$s"
+}
+# proc_start PID: the start time of a live (not zombie) process; fails when there is none.
+proc_start() {
+  local state ppid start
+  read -r state ppid start < <(proc_stat "$1") || return 1
+  case "$state" in Z|X) return 1 ;; esac
+  echo "$start"
+}
+# still_alive PID START: that same process (not a reused pid) is still running.
+still_alive() {
+  local now
+  now=$(proc_start "$1") || return 1
+  [ "$now" = "$2" ]
+}
 if [ "$#" -ne 4 ]; then echo "remote-gate-driver: usage: remote_gate_driver.sh <run dir> <head> <base> <shards>" >&2; exit 2; fi
 run=$1 head_sha=$2 base_sha=$3 shards=$4
 case "$head_sha$base_sha" in *[!0-9a-f]*) echo "remote-gate-driver: head/base must be hex shas" >&2; exit 2 ;; esac
@@ -106,15 +130,21 @@ jobs=$(job_cap "$cores" "$shards" /proc/meminfo) || exit 2
 shards=$jobs
 # Re-exec once in a new session (so cleanup can kill the whole process group), pinned to $cores CPUs and niced.
 if [ "${REMOTE_GATE_LEADER-}" != 1 ]; then
-  # The watch target is our sshd ancestor: it exits when the connection drops (a waiting shell in between would not).
+  # Watch targets: our parent; our sshd ancestor, which exits when the connection drops (a waiting shell in between would
+  # not); and in local mode the gate script itself. The run ends when any of them is gone.
   w=$PPID
   while [ "$w" -gt 1 ] && [ -r "/proc/$w/comm" ]; do
     case "$(cat "/proc/$w/comm")" in sshd*) break ;; esac
-    w=$(awk '{print $4}' "/proc/$w/stat")
+    read -r _ w _ < <(proc_stat "$w") || w=0
   done
-  if [ "$w" -le 1 ] || [ ! -r "/proc/$w/comm" ]; then w=$PPID; fi
+  watch=
+  for p in "$PPID" "$w" "${REMOTE_GATE_SCRIPT_PID-}"; do
+    case "$p" in ''|0|1|*[!0-9]*) continue ;; esac
+    s=$(proc_start "$p") || s=gone
+    watch="$watch $p:$s"
+  done
   pin=(); command -v taskset >/dev/null && pin=(taskset -c "0-$((cores - 1))")
-  export REMOTE_GATE_LEADER=1 REMOTE_GATE_WATCH_PID=$w
+  export REMOTE_GATE_LEADER=1 REMOTE_GATE_WATCH="$watch"
   exec setsid -w "${pin[@]}" nice -n 5 bash "$0" "$@"
 fi
 
@@ -132,15 +162,65 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP PIPE
 
-# Lost ssh connection: the sshd ancestor goes away; end the run (and so clean up) instead of running on unseen.
-( while kill -0 "$REMOTE_GATE_WATCH_PID" 2>/dev/null; do sleep 5; done; kill -TERM $$ 2>/dev/null ) &
+# Watchdog (every 10 s): a removed run dir or a lost parent / ssh connection / gate script ends the run (and so cleans up
+# and releases the lock) instead of running on unseen. Started before the lock wait, so a waiting run ends too.
+watchdog() {
+  local why= t
+  trap '' PIPE   # the reader of our output may be what went away
+  while kill -0 "$$" 2>/dev/null; do
+    [ -d "$run" ] || why="run dir $run is gone"
+    for t in $REMOTE_GATE_WATCH; do
+      still_alive "${t%%:*}" "${t#*:}" || why="watched process ${t%%:*} (parent ssh or gate script) is gone"
+    done
+    if [ -n "$why" ]; then
+      echo "remote-gate-driver: $why; ending the run" 2>/dev/null || :
+      kill -TERM "$$" 2>/dev/null || :
+      return 0
+    fi
+    sleep 10
+  done
+}
+watchdog &
 
+limit=${REMOTE_GATE_LIMIT_S:-3600}
+case "$limit" in ''|*[!0-9]*) echo "remote-gate-driver: REMOTE_GATE_LIMIT_S must be an integer" >&2; exit 2 ;; esac
+# stale_holder LOCKFILE: why the recorded holder no longer owns the lock; prints nothing when it still does or when
+# there is no readable record.
+stale_holder() {
+  local pid start since age
+  read -r pid start since 2>/dev/null < "$1" || return 0
+  case "$pid$start$since" in ''|*[!0-9]*) return 0 ;; esac
+  [ -n "$since" ] || return 0
+  if ! still_alive "$pid" "$start"; then echo "holder pid $pid is dead"; return 0; fi
+  age=$(( $(date +%s) - since ))
+  if [ "$age" -gt "$limit" ]; then echo "holder pid $pid has held it for $age s, over the gate limit of $limit s"; fi
+}
 mkdir -p "$real_home/factory-gate"
-exec 9>"$real_home/factory-gate/.lock"
-if ! flock -n 9; then
-  echo "remote-gate-driver: another gate run holds ~/factory-gate/.lock; waiting"
-  flock 9
-fi
+lock="$real_home/factory-gate/.lock"
+waiting=
+while :; do
+  # .lock.meta makes "take the lock and record the holder" and "judge the record and take over" atomic.
+  exec 8>>"$lock.meta"
+  flock 8
+  exec 9>>"$lock"
+  if flock -n 9; then
+    echo "$$ $(proc_start "$$") $(date +%s)" > "$lock"
+    exec 8>&-
+    break
+  fi
+  why=$(stale_holder "$lock")
+  if [ -n "$why" ]; then
+    echo "remote-gate-driver: taking over ~/factory-gate/.lock: $why"
+    rm -f -- "$lock"   # a new file: whatever still holds the old one no longer blocks anybody
+  fi
+  exec 8>&- 9>&-
+  [ -z "$why" ] || continue
+  if [ -z "$waiting" ]; then
+    echo "remote-gate-driver: another gate run holds ~/factory-gate/.lock; waiting"
+    waiting=1
+  fi
+  sleep 2 & wait "$!"   # in the background: a trapped TERM interrupts `wait`, not a foreground command
+done
 # Sweep dirs of runs that died without cleanup (only under the lock, so never a live run's dir; > 12 h old): our own
 # <run root>/fg-XXXXXX dirs, and dirs of the old ~/factory-gate/<sha>-<ts>-<pid> layout.
 find "$(dirname "$run")" -mindepth 1 -maxdepth 1 -type d -name 'fg-??????' -user "$(id -u)" -mmin +720 ! -path "$run" \

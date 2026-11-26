@@ -47,6 +47,8 @@
 # Env: GATE_REMOTE_HOST (ssh host, or `local` to run here without ssh; required), GATE_SHARDS (runner; capped at 8), GATE_BASE (base rev; default the
 # merge base of HEAD with refs/factory-judge/main, else origin/main; HEAD^ when that is HEAD; none: refused).
 # GATE_RUN_ROOTS: space-separated run root candidates (default "/var/tmp /tmp").
+# GATE_TIMEOUT_S: the gate's time limit (default 3600, the projects.gate_timeout_s default): a run that has held the gate
+# lock longer than this, or whose holder is dead, loses it to the next run.
 # Run dir: <root>/fg-XXXXXX on the gate host (mktemp), HOME, TMPDIR, GOTMPDIR and FACTORY_HOME inside it (T-1679);
 # <root> is the first of /var/tmp, /tmp that is on disk (not tmpfs) and short enough for unix socket paths.
 # Job cap (T-1679): the driver runs min(GATE_SHARDS, 8 CPUs, MemAvailable / 2048 MiB, MemTotal / 2560 MiB) jobs at once
@@ -95,6 +97,8 @@ shards=${GATE_SHARDS:-$MAX_CORES}
 case "$shards" in ''|*[!0-9]*) echo "remote-gate: GATE_SHARDS='$shards' is not a positive integer" >&2; exit 2 ;; esac
 if [ "$shards" -lt 1 ]; then echo "remote-gate: GATE_SHARDS=$shards must be >= 1" >&2; exit 2; fi
 if [ "$shards" -gt "$MAX_CORES" ]; then shards=$MAX_CORES; fi
+limit=${GATE_TIMEOUT_S:-3600}
+case "$limit" in ''|*[!0-9]*) echo "remote-gate: GATE_TIMEOUT_S='$limit' is not a number of seconds" >&2; exit 2 ;; esac
 
 base=
 if [ -n "${GATE_BASE-}" ]; then
@@ -195,6 +199,9 @@ echo "remote-gate: shipped in $(( $(date +%s) - t0 )) s"
 
 # Remote PATH: the host's own login PATH is not used; only system dirs plus the go toolchains the driver looks for.
 rc=0
-rssh "env -i HOME=\"\$HOME\" LANG=C.UTF-8 PATH=/usr/local/bin:/usr/bin:/bin bash '$rdir/trusted/ci/remote_gate_driver.sh' '$rdir' $head $base $shards" || rc=$?
+# Local mode: the driver also watches this script (over ssh the lost connection is what it sees).
+script_pid=
+if [ "$host" = local ]; then script_pid=$$; fi
+rssh "env -i HOME=\"\$HOME\" LANG=C.UTF-8 PATH=/usr/local/bin:/usr/bin:/bin REMOTE_GATE_LIMIT_S=$limit REMOTE_GATE_SCRIPT_PID=$script_pid bash '$rdir/trusted/ci/remote_gate_driver.sh' '$rdir' $head $base $shards" || rc=$?
 echo "remote-gate: remote exit $rc, total wall $(( $(date +%s) - t0 )) s"
 exit "$rc"
