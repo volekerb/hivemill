@@ -72,9 +72,9 @@ A terminal shows in Herdr.app only when it carries the labels `herdr.space=<id>`
 --label where=<machine label> · <space> / <tab title>
 ```
 
-The planner is in the space `hivemill`, task and judge sessions are in `workers`. The tab title is `planner`, `T-1234 · <task title>`, or the same plus ` (judge)`. The machine label is `machine_label.<hc machine>` (`hivemill config set machine_label.worker1 "Build box"`), else the hc machine name. A daemon with the planner enabled starts its terminal before the first pass, so the `hivemill` space exists as soon as hivemill runs.
+The planner is in the space `hivemill`, task and judge sessions are in `workers`. The tab title is `planner`, `T-1234 · <task title>`, or the same plus ` (judge)`. The machine label is `machine_label.<hc machine>` (`hivemill config set machine_label.worker1 "Build box"`), else the hc machine name. A daemon with the planner enabled starts its terminal before the first pass, so the `hivemill` space exists as soon as hivemill runs. Labels are set when a terminal starts: one that already runs gets none until it is restarted (`hivemill planner stop`, then `start`).
 
-`hivemill herdr names` prints the names the app should show, for a Herdr mod or a namer script. It lists the live planner, task and judge terminals, one entry per space and hc machine:
+`hivemill herdr names` prints the names the app should show, for a Herdr mod or a namer script. It lists the planner, task and judge sessions the runner records as live (and the planner while it is enabled), one entry per space and hc machine:
 
 ```json
 {"spaces": [{"id": "workers", "name": "Build box · workers", "machine": "worker1",

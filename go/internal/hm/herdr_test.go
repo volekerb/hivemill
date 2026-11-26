@@ -112,6 +112,26 @@ func TestPlannerLaunchHasHerdrLabels(t *testing.T) {
 	}
 }
 
+func TestDaemonStartTriesAFailingPlannerOnce(t *testing.T) {
+	r, s, f := plannerRunner(t, "")
+	_ = s.SetMeta("planner", "on")
+	r.Tools.HC = func(args ...string) (int, string, string) {
+		rc, out, errs := f.hc(args...)
+		if args[0] == "run" {
+			return 1, "", "no"
+		}
+		return rc, out, errs
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := r.Daemon(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := f.count("run"); n != 1 {
+		t.Errorf("a daemon start tried the planner %d times, want 1", n)
+	}
+}
+
 func TestHerdrNamesJSON(t *testing.T) {
 	r, s, _ := herdrRunner(t)
 	if spaces, err := r.HerdrNames(); err != nil || spaces == nil || len(spaces) != 0 {

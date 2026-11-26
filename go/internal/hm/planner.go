@@ -121,8 +121,9 @@ func (r *Runner) plannerKickoff() string {
 }
 
 // PlannerPass is the daemon's planner step: file an owner question for each held run, keep the planner alive and wake it
-// when something changed (DecideWake). It is a no-op for the session while the planner is off.
-func (r *Runner) PlannerPass(now time.Time) {
+// when something changed (DecideWake). It is a no-op for the session while the planner is off. It reports whether it
+// found the planner dead and went to restart it.
+func (r *Runner) PlannerPass(now time.Time) (revived bool) {
 	r.syncHeldAsks()
 	if r.Store.Meta("planner") != "on" {
 		return
@@ -144,9 +145,10 @@ func (r *Runner) PlannerPass(now time.Time) {
 	}
 	if t == nil {
 		r.plannerRevive(now)
-		return
+		return true
 	}
 	r.plannerWake(now, t.Status == "idle" || t.Status == "done", false, "")
+	return
 }
 
 // plannerRevive restarts a dead planner with `claude --resume` of its last session, at most resume_max times in 24 h;
