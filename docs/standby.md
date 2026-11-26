@@ -79,7 +79,7 @@ The snapshot holds the primary's runs, but not their terminals or Claude session
 
 ## Hand back
 
-1. On the standby: `hivemill drain`, wait until `hivemill drain --status` shows no active run, then `systemctl --user disable --now hivemill.service` (disabled, so a reboot cannot start it again).
+1. On the standby: `hivemill planner stop` (the restored snapshot carries the planner setting, so the standby daemon may have started a planner, and drain does not stop it), then `hivemill drain`, wait until `hivemill drain --status` shows no active run, then `systemctl --user disable --now hivemill.service` (disabled, so a reboot cannot start it again).
 2. On the standby: `hivemill backup`, and copy the snapshot it prints to the primary.
 3. On the primary, with its daemon still stopped: `hivemill restore <snapshot> --dry-run`, then without `--dry-run`.
 4. On the primary: `systemctl --user enable --now hivemill.service`, check `hivemill run status`, then `hivemill resume`.
@@ -97,4 +97,4 @@ hivemill daemon --take-over
 
 A daemon that finds another host in the file stops with an error instead of writing on.
 
-On a home that two machines share, disable the other machine's unit: a clean stop of the active daemon removes the file, and a unit that retries would claim the home during a restart. The lock tells machines apart by host name only, so two machines with the same name (a cloned VM) are not held off. The lock is a guard against mistakes, not a fence: it cannot interrupt a pass that is already running, and it knows nothing about a home it cannot see. Do not share a home over a network filesystem to get a standby; SQLite is not safe there.
+On a home that two machines share, disable the other machine's unit: a clean stop of the active daemon removes the file, and a unit that retries would claim the home during a restart. The age of a heartbeat compares the two machines' clocks, so keep both synchronised (NTP). The lock tells machines apart by host name only, so two machines with the same name (a cloned VM) are not held off. The lock is a guard against mistakes, not a fence: it cannot interrupt a pass that is already running, and it knows nothing about a home it cannot see. Do not share a home over a network filesystem to get a standby; SQLite is not safe there.

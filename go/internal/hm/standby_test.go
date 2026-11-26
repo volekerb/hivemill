@@ -139,6 +139,34 @@ func TestStandbyCheckRestoresToTemp(t *testing.T) {
 	}
 }
 
+// A source that never answers (a hung mount) ends as a failed check.
+func TestStandbyPassGivesUp(t *testing.T) {
+	r, s := testRunner(t, "")
+	old := standbyLimit
+	standbyLimit = 10 * time.Millisecond
+	t.Cleanup(func() { standbyLimit = old })
+	hang, left := make(chan struct{}), make(chan struct{})
+	r.SSH = func(string, string, time.Duration, string) (int, string, string) {
+		defer close(left)
+		<-hang
+		return 1, "", "zz gone"
+	}
+	t.Cleanup(func() { close(hang); <-left })
+	if err := s.SetCfg("standby_from", "zz-primary"); err != nil {
+		t.Fatal(err)
+	}
+	r.StandbyPass("zz-hivemill", time.Now())
+	for end := time.Now().Add(10 * time.Second); r.standby != nil; time.Sleep(time.Millisecond) {
+		if time.Now().After(end) {
+			t.Fatal("the standby check never ended")
+		}
+		r.StandbyPass("zz-hivemill", time.Now())
+	}
+	if b, _ := os.ReadFile(r.Env.AlertLog()); !strings.Contains(string(b), "not finished after") {
+		t.Errorf("alert log: %q", b)
+	}
+}
+
 // writeForeignLock is the daemon lock of another machine with a heartbeat age ago.
 func writeForeignLock(t *testing.T, r *Runner, age time.Duration) {
 	t.Helper()

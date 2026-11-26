@@ -143,6 +143,9 @@ func (r *Runner) StandbyPassed(from string, now time.Time) {
 	_ = r.Store.CloseAlert("hivemill-standby", "standby")
 }
 
+// standbyLimit is how long the daemon waits for a check, above the sum of its command timeouts (tests replace it).
+var standbyLimit = 30 * time.Minute
+
 // standbyResult is the outcome of a check that ran beside the pass loop.
 type standbyResult struct {
 	from, msg string
@@ -161,9 +164,19 @@ func (r *Runner) StandbyPass(bin string, now time.Time) {
 		ch := make(chan standbyResult, 1)
 		r.standby = ch
 		from := strings.TrimSpace(r.Store.Cfg("standby_from"))
+		limit := standbyLimit
 		go func() { // StandbyCheck does not use the store
-			msg, err := r.StandbyCheck(from, bin, now)
-			ch <- standbyResult{from, msg, err}
+			done := make(chan standbyResult, 1)
+			go func() {
+				msg, err := r.StandbyCheck(from, bin, now)
+				done <- standbyResult{from, msg, err}
+			}()
+			select {
+			case res := <-done:
+				ch <- res
+			case <-time.After(limit): // a hung mount has no timeout of its own, and would silence the check for good
+				ch <- standbyResult{from: from, err: fmt.Errorf("not finished after %s", limit)}
+			}
 		}()
 		return
 	}
