@@ -220,9 +220,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			fmt.Fprintf(stderr, "hivemill: %s is %s, not merging\n", run.Task, run.State)
 			return 2
 		}
-		r.Merge(run)
-		err = r.Store.PutRun(run)
-		fmt.Fprintf(stdout, "%s: %s %s\n", run.Task, run.State, run.MergeHold)
+		var merged *hm.Run
+		if merged, err = r.MergeTask(run.Task); merged != nil {
+			fmt.Fprintf(stdout, "%s: %s %s\n", merged.Task, merged.State, merged.MergeHold)
+		}
 	case "eval":
 		if !taskRe.MatchString(arg(1)) || (arg(2) != "" && arg(2) != "--judge-only" && arg(2) != "--review-only") {
 			fmt.Fprintln(stderr, usage)
