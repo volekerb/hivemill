@@ -844,6 +844,352 @@ class MechMergeTests(FactoryTestCase):
         self.assertNotIn("fix-carry", "; ".join(self.events("mech-blocked")))
 
 
+# G-070: the stub also answers the lane label calls (gh pr edit --add-label, gh label create)
+GH_FAST = GH_MECH.replace('elif argv[:2] == ["repo", "view"]:',
+                          'elif argv[:2] in (["pr", "edit"], ["label", "create"]):\n    pass\nelif argv[:2] == ["repo", "view"]:', 1)
+
+
+class FastLaneTests(MechMergeTests):
+    """G-070 fast lane through the real CLI: `factory mech-merge` reads the lane from main's ci/ci_tier.py (copied into the
+    temp main checkout), merges docs-only heads with no agent, code heads after one fastcheck PASS, and escalates a guarded
+    diff to the normal lane. mech_merge stays off: fast_lane=on alone drives the merger. The inherited MechMergeTests
+    cases are not rerun here (see load_tests)."""
+
+    def setUp(self):
+        super().setUp()
+        (self.gh_dir / "gh").write_text(GH_FAST)
+        for f in ("ci_tier.py", "affected.py"):
+            shutil.copy(REPO / "ci" / f, self.env.home_dir / "ci" / f)
+        # the main checkout is a git repo on the same origin: the lane diff is read there, never in the task worktree
+        git(self.env.home_dir, "init", "-q", "-b", "main")
+        git(self.env.home_dir, "remote", "add", "origin", str(self.remote))
+        self.env.seed_agent("zz-test-lead", "lead", goal="G-001")
+        self.env.seed_agent("zz-test-pm", "pm", goal="G-001")
+        self.env.seed_agent("zz-test-boss", "boss")
+
+    def head(self, files, lane=None):
+        """Main gains docs/ and web/ (so the PR adds no new top-level entry), then the PR head changes `files`. No
+        reviewer or QA verdict exists: the fast lane does not need one."""
+        self.commit("docs/a.md", "# a\n", "scaffold docs")
+        self.commit("web/app.py", "x = 1\n", "scaffold web")
+        git(self.wt, "push", "-q", "origin", "HEAD:main")
+        for name, text in files.items():
+            self.commit(name, text, "change")
+        self.x = self.publish()
+        self.stub(views=[self.pr(self.x, GREEN)])
+        self.env.sql("DELETE FROM verdicts")
+        self.ok("config", "fast_lane", "on")
+        if lane:
+            self.ok("task", "update", "T-0001", "--lane", lane, agent="zz-test-director")
+
+    def lane(self):
+        r = self.env.sql("SELECT value FROM config WHERE key='lane:T-0001'")
+        return r[0]["value"] if r else None
+
+    def fastcheck(self, verdict):
+        name = f"fastcheck-t-0001-{self.x[:8]}"
+        self.env.seed_agent(name, "qa", goal="G-001", task="T-0001")
+        extra = ("--cause", "bug") if verdict == "fail" else ()
+        return self.cli("verdict", "T-0001", f"--{verdict}", "--sha", self.x[:8], "--summary", gates_summary(), *extra,
+                        agent=name)
+
+    def calls(self, verb):
+        rows = [json.loads(l) for l in self.jw_calls.read_text().splitlines() if l.strip()]
+        return [r for r in rows if r[:2] == verb]
+
+    # -- switch and flags --------------------------------------------------
+    def test_fast_lane_switch_is_owner_only_and_off_by_default(self):
+        self.assertEqual(self.ok("config", "fast_lane").stdout.strip().split()[-1], "off")
+        self.refused(3, "config", "fast_lane", "on", agent="zz-test-director")
+        self.refused(3, "config", "fast_lane", "on", agent="zz-test-boss")
+        self.refused(2, "config", "fast_lane", "maybe")
+        self.ok("config", "fast_lane", "on")
+        self.assertEqual(self.ok("config", "fast_lane").stdout.strip().split()[-1], "on")
+
+    def test_lane_fast_is_for_boss_director_owner_only(self):
+        for who in ("zz-test-lead", "zz-test-pm"):
+            p = self.refused(3, "task", "update", "T-0001", "--lane", "fast", agent=who)
+            self.assertIn("--lane fast", p.stderr)
+            self.refused(3, "task", "add", "--goal", "G-001", "--title", "zz-test fast", "--lane", "fast", agent=who)
+        self.assertIsNone(self.lane())
+        self.ok("task", "update", "T-0001", "--lane", "normal", agent="zz-test-lead")
+        self.assertEqual(self.lane(), "normal")
+        self.ok("task", "update", "T-0001", "--lane", "fast", agent="zz-test-director")
+        self.assertEqual(self.lane(), "fast")
+        self.assertIn("lane: fast (fast_lane=off: normal review)", self.ok("task", "show", "T-0001").stdout)
+        gid = self.ok("goal", "new", "--title", "zz-test fast goal", "--lane", "fast", agent="zz-test-boss").stdout.strip()
+        self.assertEqual(self.env.sql("SELECT value FROM config WHERE key=?", (f"lane:{gid}",))[0]["value"], "fast")
+
+    def test_lane_off_switch_merges_nothing(self):
+        self.head({"docs/a.md": "# b\n"}, lane="fast")
+        self.ok("config", "fast_lane", "off")
+        p = self.cli("mech-merge")
+        self.assertIn("mech_merge is off", p.stdout)
+        self.assertEqual(self.merges(), [])
+
+    # -- demo 1: docs-only PR merges with no agent review --------------------
+    def test_demo_docs_only_merges_without_any_agent(self):
+        self.head({"docs/a.md": "# better docs\n", "docs/b.md": "# new\n"})
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane docs", p.stdout)
+        self.assertIn("T-0001: merged", p.stdout)
+        self.assertEqual(self.lane(), "fast:docs")
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.status(), "done")
+        # the only verdict is the merger's own judge "merge" row: no reviewer, QA or fastcheck agent ran
+        self.assertEqual([(r["role"], r["verdict"]) for r in self.env.sql("SELECT role,verdict FROM verdicts")],
+                         [("judge", "merge")])
+        self.assertEqual(self.env.sql("SELECT name FROM agents WHERE name LIKE '%fastcheck%'"), [])
+        merged = self.events("merged")
+        self.assertIn("fast-lane merge (lane fast:docs): docs-only diff, no agent check", merged[0])
+        self.assertEqual(len(self.events("fast-lane-merged")), 1)
+
+    def test_every_nth_fast_merge_files_a_post_merge_review(self):
+        self.ok("config", "fast_lane_audit_every", "1")
+        self.head({"docs/a.md": "# better docs\n"})
+        self.assertIn("T-0001: merged", (lambda q: q.stdout + "ERR" + q.stderr)(self.cli("mech-merge")))
+        audit = self.env.sql("SELECT role, follow_up_of, status FROM tasks WHERE title='Post-merge review of fast-lane T-0001'")
+        self.assertEqual([(r["role"], r["follow_up_of"], r["status"]) for r in audit], [("reviewer", "T-0001", "todo")])
+        self.assertEqual(len(self.events("fast-lane-audit")), 1)
+
+    def test_audit_every_default_skips_the_first_merge(self):
+        self.head({"docs/a.md": "# better docs\n"})
+        self.assertIn("T-0001: merged", (lambda q: q.stdout + "ERR" + q.stderr)(self.cli("mech-merge")))
+        self.assertEqual(self.env.sql("SELECT 1 FROM tasks WHERE title LIKE 'Post-merge review%'"), [])
+        self.refused(2, "config", "fast_lane_audit_every", "x")
+        self.refused(2, "config", "fast_lane_check_timeout_s", "30")
+
+    def test_auto_lane_code_diff_takes_the_normal_lane(self):
+        self.head({"web/app.py": "x = 2\n"})
+        p = self.cli("mech-merge")
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.events("lane-escalated"), [])  # auto normal: nothing to escalate from, no label
+
+    # -- demo 2: fast code PR merges after one fast check -------------------
+    def test_demo_fast_code_pr_merges_after_one_fastcheck_pass(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        p = self.cli("mech-merge")
+        self.assertIn("T-0001: lane fast", p.stdout)
+        self.assertEqual(self.merges(), [])  # classified, but no fastcheck PASS yet
+        v = self.fastcheck("pass")
+        self.assertEqual(v.returncode, 0, v.stdout + v.stderr)
+        self.assertIn("T-0001 fastcheck PASS", v.stdout)
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: merged", p.stdout)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.status(), "done")
+        self.assertIn("fast-check PASS on this head", self.events("merged")[0])
+        rows = [(r["role"], r["verdict"]) for r in self.env.sql("SELECT role,verdict FROM verdicts ORDER BY id")]
+        self.assertEqual(rows, [("fastcheck", "pass"), ("judge", "merge")])  # no reviewer or QA verdict; judge row = the merger
+
+    def test_pass_on_an_older_head_does_not_merge_the_new_head(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        self.cli("mech-merge")
+        self.assertEqual(self.fastcheck("pass").returncode, 0)
+        old = self.x
+        self.commit("web/app.py", "x = 3\n", "rework after the pass")
+        self.x = self.publish()
+        self.assertNotEqual(old, self.x)
+        self.stub(views=[self.pr(self.x, GREEN)])
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("T-0001: merged", p.stdout)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+
+    def test_a_pr_cannot_relax_its_own_lane_rules(self):
+        """The PR head ships a ci_tier.py whose lane() keeps everything fast: the merger still reads main's copy."""
+        relaxed = "def lane(root, base, head):\n    return 'fast', ['relaxed']\n\n\ndef escalations(root, base, head):\n    return []\n"
+        self.head({"web/app.py": "x = 2\n", "ci/ci_tier.py": relaxed, "ci/affected.py": "# relaxed\n"}, lane="fast")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
+        self.assertIn("ci/ci_tier.py is a guarded path", self.events("lane-escalated")[0])
+        self.assertEqual(self.merges(), [])
+
+    def test_a_forged_worktree_origin_main_cannot_hide_a_guarded_change(self):
+        """Review of #858: the coder points its worktree's origin/main at its own guarded commit and stops fetch from
+        moving it. Read in the worktree, the diff would be docs only and auto-merge; read in the main checkout it is not."""
+        self.head({"ci/affected.py": "# relaxed\n", "docs/a.md": "# looks harmless\n"})  # one commit per file
+        guarded = git(self.wt, "rev-parse", "HEAD~1")
+        git(self.wt, "update-ref", "refs/remotes/origin/main", guarded)
+        git(self.wt, "config", "remote.origin.fetch", "+refs/heads/nothing:refs/remotes/origin/nothing")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(git(self.wt, "rev-parse", "refs/remotes/origin/main"), guarded)  # the forge was in place
+
+    def test_a_hostile_task_branch_cannot_move_origin_main_or_fake_docs(self):
+        """Review of #858: tasks.branch is coder-settable; a refspec-shaped value is refused before any fetch, never
+        moves the main checkout's origin/main, and leaves the task on the normal lane."""
+        self.head({"ci/affected.py": "# relaxed\n", "docs/a.md": "# looks harmless\n"})
+        git(self.wt, "push", "-q", "origin", "HEAD~1:refs/heads/factory/guarded")  # the guarded commit, on the remote
+        before = git(self.env.home_dir, "for-each-ref", "refs/remotes/origin/main", "refs/factory")
+        self.env.sql("UPDATE tasks SET branch=? WHERE id='T-0001'", ("factory/guarded:refs/remotes/origin/main",))
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(git(self.env.home_dir, "for-each-ref", "refs/remotes/origin/main", "refs/factory"), before)
+
+    def test_the_auto_revert_pr_branch_is_classified_not_refused(self):
+        """Review of #858: GitHub's revert PR head is revert-<n>-factory/t-<n>; it must classify (fast lane kept) so the
+        gate can merge it. Variants that are not exactly that shape stay refused (normal lane)."""
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        git(self.wt, "push", "-q", "origin", "HEAD:refs/heads/revert-1-factory/t-0001")
+        self.env.sql("UPDATE tasks SET branch='revert-1-factory/t-0001' WHERE id='T-0001'")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.lane(), "fast")
+        self.assertEqual(len(self.events("lane-classified")), 1)
+
+    def test_hostile_revert_lookalike_branches_stay_refused(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        for bad in ("revert-1-factory/t-0001:refs/remotes/origin/main", "revert-x-factory/t-0001",
+                    "revert-1-factory/../main", "revert-\u00b2-factory/t-0001", "refs/revert-1-factory/t-0001"):
+            with self.subTest(branch=bad):
+                self.env.sql("DELETE FROM throttle WHERE key LIKE 'fastlane%'")
+                self.env.sql("UPDATE tasks SET branch=? WHERE id='T-0001'", (bad,))
+                self.assertEqual(self.cli("mech-merge").returncode, 0)
+                self.assertEqual(self.events("lane-classified"), [])
+
+    def test_a_non_ascii_digit_in_a_fast_lane_number_is_a_usage_error_not_a_crash(self):
+        p = self.env.run("config", "fast_lane_audit_every", "²")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertNotIn("Traceback", p.stderr)
+
+    def test_a_head_missing_from_the_main_checkout_takes_the_normal_lane(self):
+        """A head the main checkout cannot fetch (not on its origin) is undecidable: never the fast or docs lane."""
+        self.head({"docs/a.md": "# better docs\n"})
+        git(self.env.home_dir, "remote", "set-url", "origin", str(self.env.home / "no-such-origin.git"))
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
+        self.assertEqual(self.merges(), [])
+
+    def test_fastcheck_fail_twice_escalates(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        self.cli("mech-merge")
+        self.assertEqual(self.fastcheck("fail").returncode, 0)
+        self.assertEqual(self.lane(), "fast")  # one rework round
+        req = self.env.sql("SELECT subject FROM messages WHERE subject LIKE 'fast check FAIL%'")
+        self.assertEqual(len(req), 1)
+        self.env.sql("DELETE FROM agents WHERE name LIKE 'fastcheck-%'")
+        self.assertEqual(self.fastcheck("fail").returncode, 0)
+        self.assertEqual(self.lane(), "normal")
+        self.assertIn("2 fast-check FAILs", self.events("lane-escalated")[0])
+        self.assertEqual(self.merges(), [])
+
+    # -- demo 3: guarded path auto-escalates ---------------------------------
+    def test_demo_guard_path_pr_auto_escalates(self):
+        self.head({"web/app.py": "x = 2\n", "ci/affected.py": "# relaxed\n"}, lane="fast")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: lane normal", p.stdout)
+        self.assertEqual(self.lane(), "normal")
+        esc = self.events("lane-escalated")
+        self.assertEqual(len(esc), 1)
+        self.assertIn("ci/affected.py is a guarded path", esc[0])
+        label = self.calls(["pr", "edit"])
+        self.assertEqual(label[0][-2:], ["--add-label", "lane:normal"])
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        fyi = self.env.sql("SELECT subject FROM messages WHERE subject LIKE 'fast lane:%'")
+        self.assertEqual([r["subject"] for r in fyi], ["fast lane: T-0001 moved to the normal lane"])
+
+    # -- ship watch (G-070 addendum) --------------------------------------------
+    def test_ship_watch_is_off_by_default_owner_only_and_validated(self):
+        self.assertEqual(self.ok("config", "ship_watch").stdout.strip().split()[-1], "off")
+        self.refused(3, "config", "ship_watch", "fast", agent="zz-test-director")
+        self.refused(3, "config", "ship_watch", "all", agent="zz-test-boss")
+        self.refused(2, "config", "ship_watch", "maybe")
+        self.refused(2, "config", "ship_watch_max", "0")
+        self.refused(2, "config", "ship_watch_hours", "x")
+        for key, val in (("ship_watch_max", "2"), ("ship_watch_hours", "5"), ("fast_lane_audit_every", "0"), ("fast_lane_check_timeout_s", "900")):
+            self.refused(3, "config", key, val, agent="zz-test-director")  # the limits are the owner's too
+            self.ok("config", key, val)
+        self.ok("config", "ship_watch", "fast")
+        self.assertEqual(self.ok("config", "ship_watch").stdout.strip().split()[-1], "fast")
+
+    def test_ship_watch_code_pr_merges_with_no_fast_check(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        self.ok("config", "ship_watch", "fast")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: merged", p.stdout)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.env.sql("SELECT 1 FROM verdicts WHERE role='fastcheck'"), [])
+        self.assertEqual(len(self.events("ship-watch-start")), 1)
+        self.assertEqual(len(self.events("ship-watch-end")), 1)  # merged: the slot is released
+        self.assertEqual(self.env.sql("SELECT 1 FROM throttle WHERE key='shipwatch:T-0001'"), [])
+
+    def test_ship_watch_off_still_needs_the_fast_check(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        p = self.cli("mech-merge")
+        self.assertNotIn("T-0001: merged", p.stdout)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.events("ship-watch-start"), [])
+
+    def _auto_merge_holds(self, watch):
+        self.head({"docs/b.md": "# b\n"})
+        self.ok("config", "ship_watch", watch)
+        self.stub(views=[dict(self.pr(self.x, GREEN), autoMergeRequest={"mergeMethod": "SQUASH"})] * 8)  # the gate reads the PR twice
+        for _ in range(2):  # the first pass classifies the head, the second would merge it
+            p = self.cli("mech-merge")
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            self.assertNotIn("T-0001: merged", p.stdout)
+        self.assertEqual(self.merges(), [])
+        self.assertIn("autoMergeRequest", self.jw_calls.read_text())  # the candidate list read it and held the task, silently
+
+    def test_auto_merge_enabled_on_a_fast_lane_pr_never_merges(self):
+        self._auto_merge_holds("off")
+
+    def test_auto_merge_enabled_on_a_ship_watch_pr_never_merges(self):
+        self._auto_merge_holds("fast")
+
+    def test_ship_watch_cap_sends_the_extra_task_to_the_normal_lane(self):
+        self.env.seed_task("T-0002", pr_url="https://github.com/o/r/pull/2")
+        self.env.sql("INSERT INTO throttle(key,ts) VALUES('shipwatch:T-0002','1')")
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        self.ok("config", "ship_watch", "fast")
+        self.ok("config", "ship_watch_max", "1")
+        self.ok("config", "ship_watch_hours", "999")
+        p = self.cli("mech-merge", "--task", "T-0001")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.lane(), "normal")
+        self.assertIn("ship_watch_max=1", self.events("lane-escalated")[0])
+        self.assertEqual(self.merges(), [])
+
+    def test_ship_watch_older_than_the_cap_falls_back_to_the_normal_lane(self):
+        self.head({"web/app.py": "x = 2\n"}, lane="fast")
+        self.ok("config", "ship_watch", "fast")
+        self.env.sql("INSERT INTO throttle(key,ts) VALUES('shipwatch:T-0001','1')")  # started at epoch 1: far past 24 h
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.lane(), "normal")
+        self.assertIn("ship_watch_hours", self.events("lane-escalated")[0])
+        self.assertEqual(len(self.events("ship-watch-end")), 1)
+        self.assertEqual(self.merges(), [])
+
+
+def load_tests(loader, tests, pattern):
+    """FastLaneTests reuses MechMergeTests' setUp and helpers; only its own test_ methods run."""
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(MechMergeTests))
+    own = [n for n, v in vars(FastLaneTests).items() if n.startswith("test_") and callable(v)]
+    suite.addTests(FastLaneTests(n) for n in sorted(own))
+    return suite
+
+
 if __name__ == "__main__":
     unittest.main()
 

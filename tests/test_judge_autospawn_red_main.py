@@ -105,6 +105,17 @@ class JudgeRedMainTests(FactoryTestCase):
         self.assertEqual(len(self.tick()), 1)
         self.assertEqual(self.waits(), [])
 
+    def test_fast_lane_task_starts_no_judge(self):
+        """G-070: the fast check replaces the judge; a task in the fast lane (fast_lane=on) never gets one. Off, or the
+        task moved to the normal lane, the judge starts as before."""
+        self.env.sql("INSERT INTO config(key,value) VALUES(?, 'fast')", (f"lane:{T}",))
+        self.assertEqual(len(self.tick()), 1)  # fast_lane=off: the lane is ignored
+        self.env.sql("DELETE FROM agents WHERE role='judge'")
+        self.env.run("config", "fast_lane", "on")
+        self.assertEqual(self.tick(), [])
+        self.env.sql("UPDATE config SET value='normal' WHERE key=?", (f"lane:{T}",))
+        self.assertEqual(len(self.tick()), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

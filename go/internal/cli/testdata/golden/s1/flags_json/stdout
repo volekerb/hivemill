@@ -211,6 +211,34 @@
   "current": ""
  },
  {
+  "key": "fast_lane",
+  "kind": "flag",
+  "default": "off",
+  "summary": "off | on: fast lane (docs-only and --lane fast tasks merge on CI green + one combined fast check, risky diffs escalate); only the owner sets it",
+  "goal": "G-070",
+  "doc": "docs/fast-lane.md",
+  "state": "off",
+  "current": "off"
+ },
+ {
+  "key": "fast_lane_audit_every",
+  "kind": "setting",
+  "default": "10",
+  "summary": "every Nth fast-lane merge gets a post-merge normal review task (0 = no audits)",
+  "goal": "G-070",
+  "doc": "docs/fast-lane.md",
+  "current": "10"
+ },
+ {
+  "key": "fast_lane_check_timeout_s",
+  "kind": "setting",
+  "default": "600",
+  "summary": "a fast check with no PASS/FAIL after this many seconds is stopped and the task moves to the normal lane",
+  "goal": "G-070",
+  "doc": "docs/fast-lane.md",
+  "current": "600"
+ },
+ {
   "key": "fix_carry",
   "kind": "setting",
   "default": "on",
@@ -1163,6 +1191,33 @@
   "goal": "",
   "doc": "",
   "current": "8765"
+ },
+ {
+  "key": "ship_watch",
+  "kind": "setting",
+  "default": "off",
+  "summary": "off|fast|all: the fast-lane coder runs /ship low (docs: /steward) on its PR instead of the fast check; owner only",
+  "goal": "G-070",
+  "doc": "docs/fast-lane.md",
+  "current": "off"
+ },
+ {
+  "key": "ship_watch_hours",
+  "kind": "setting",
+  "default": "24",
+  "summary": "a ship watch older than this many hours is dropped and the task moves to the normal lane",
+  "goal": "G-070",
+  "doc": "docs/fast-lane.md",
+  "current": "24"
+ },
+ {
+  "key": "ship_watch_max",
+  "kind": "setting",
+  "default": "3",
+  "summary": "at most this many ship watches at once; a task past the cap takes the normal lane",
+  "goal": "G-070",
+  "doc": "docs/fast-lane.md",
+  "current": "3"
  },
  {
   "key": "skilleval_keep_failed_h",

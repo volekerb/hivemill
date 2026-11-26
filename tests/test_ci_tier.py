@@ -3,6 +3,7 @@
 T-1166 (binary trigger): a changed file whose ``git diff --numstat`` added/deleted field is not a decimal line count
 (e.g. ``-`` for binary) must classify as risky with that path in the reason, before the all-docs path.
 """
+import json
 import os
 import re
 import subprocess
@@ -294,6 +295,226 @@ class CliTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("missing.md does not exist", r.stderr)
         self.assertIn("unbalanced code fence", r.stderr)
+
+
+class FastLaneTest(unittest.TestCase):
+    """G-070: ci_tier.lane() and the `escalate` CLI decide whether a PR may stay in the fast lane."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.repo = Repo(self._tmp.name)
+
+    def fresh(self):
+        return Repo(tempfile.mkdtemp(dir=self._tmp.name))
+
+    def lane(self, files, repo=None):
+        repo = repo or self.repo
+        base, head = repo.change(files)
+        return ci_tier.lane(str(repo.root), base, head)
+
+    def escalate(self, repo, base, head):
+        return subprocess.run([sys.executable, TIER, "escalate", "--root", str(repo.root), "--base", base, "--head", head],
+                              capture_output=True, text=True)
+
+    def test_docs_only_is_docs(self):
+        self.assertEqual(self.lane({"docs/a.md": "# b\n", "README.md": "x\n"})[0], "docs")
+
+    def test_plain_code_is_fast(self):
+        self.assertEqual(self.lane({"web/app.py": "x = 2\n"})[0], "fast")
+
+    def test_size_does_not_escalate(self):
+        big = "".join("v%d = %d\n" % (i, i) for i in range(900))
+        lane, why = self.lane({"web/big.py": big})
+        self.assertEqual(lane, "fast", why)
+        self.assertEqual(ci_tier.classify(str(self.repo.root), self.repo.base, self.repo.rev())[0], "risky")
+
+    def test_every_escalation_category(self):
+        cases = {
+            "guard": "go/internal/guard/rules.go", "hooks": "roles/hooks/x.sh", "role settings": "roles/settings/qa.json.in",
+            "role prompt": "roles/coder.md", "workflow": ".github/workflows/tests.yml", "ci gate": "ci/affected.py",
+            "secret": "web/secrets.py", "auth file": "web/token_store.py", "pem": "web/k.pem", "env": ".env",
+            "sandbox": "go/internal/sandbox/run.go", "scout sandbox": "scout/workerbox.py",
+            "merge gate": "go/internal/gate/gate.go", "schema": "db/schema.sql", "migration": "web/migrations/001.py",
+            "factorydb": "go/internal/factorydb/db.go",
+            "go ci gate": "go/cmd/ci-tier/main.go", "go tick": "go/internal/tick/merge.go",
+            "go spawn": "go/internal/spawn/spawn.go", "go prflow": "go/internal/prflow/flow.go",
+            "go cli": "go/internal/cli/cmd_done.go", "go deps": "go/go.mod", "guard test": "tests/test_worker_guard.py",
+            "skill": "roles/plugins/x/skills/y/SKILL.md", "plugin skill": "plugins/hivemill/README.md",
+            "skilleval prompt": "skilleval/tasks/t1/task.md", "prompt file": "docs/fastcheck-prompt.md",
+            "launchd": "launchd/hivemill.tick.plist.in", "go git env scrub": "go/internal/gitx/gitx.go",
+            "go default config": "go/internal/store/defaults_gen.go",
+            "claude settings": ".claude/settings.json", "claude command": ".claude/commands/x.md", "claude memory": "CLAUDE.md", "agents file": "AGENTS.md",
+        }
+        for what, path in cases.items():
+            with self.subTest(what=what):
+                lane, why = self.lane({path: "x = 1\n"}, repo=self.fresh())
+                self.assertEqual(lane, "normal", why)
+                self.assertTrue(any(path in w for w in why), why)
+
+    def test_merge_and_judge_defs_escalate_in_factory_cli(self):
+        for name in ("mech_try", "judge_pick", "red_main_check", "fast_lane_classify", "verdict_x", "migrate", "SCHEMA",
+                     "cmd_config", "require_role", "actor_role", "cmd_verdict", "is_fastcheck_agent", "fast_check_spawn",
+                     "cmd_spawn", "cmd_merge", "cmd_done", "_config_value_rules", "ROLES", "FASTCHECK_ROLE"):
+            with self.subTest(name=name):
+                repo = self.fresh()
+                src = "def other():\n    return 1\n\n\n" + ("%s = 1\n" % name if name.isupper() else "def %s():\n    return 1\n" % name)
+                repo.write("bin/factory_cli.py", "def other():\n    return 0\n")
+                git(repo.root, "add", "-A")
+                git(repo.root, "commit", "-q", "-m", "cli base")
+                repo.base = repo.rev()
+                lane, why = self.lane({"bin/factory_cli.py": src}, repo=repo)
+                self.assertEqual(lane, "normal", why)
+                self.assertTrue(any(name in w for w in why), why)
+
+    def test_other_factory_cli_def_stays_fast(self):
+        self.repo.write("bin/factory_cli.py", "def cmd_hello():\n    return 0\n")
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "cli base")
+        self.repo.base = self.repo.rev()
+        self.assertEqual(self.lane({"bin/factory_cli.py": "def cmd_hello():\n    return 1\n"})[0], "fast")
+
+    def test_top_level_statement_in_factory_cli_escalates(self):
+        self.repo.write("bin/factory_cli.py", "import os\n\nLIMIT = 3\n")
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "cli base")
+        self.repo.base = self.repo.rev()
+        lane, why = self.lane({"bin/factory_cli.py": "import os\nimport json\n\nLIMIT = 3\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertIn("<stmt> changed in bin/factory_cli.py", why)
+
+    def test_docs_lane_is_markdown_only(self):
+        lane, why = self.lane({"docs/run.sh": "echo hi\n"})
+        self.assertEqual(lane, "fast", why)
+        self.assertEqual(self.lane({"docs/guide.md": "# g\n"}, repo=self.fresh())[0], "docs")
+
+    def test_deleted_test_escalates(self):
+        (self.repo.root / "tests" / "test_alpha.py").unlink()
+        lane, why = self.lane({"web/app.py": "x = 2\n"})
+        self.assertEqual(lane, "normal")
+        self.assertIn("deleted test tests/test_alpha.py", why)
+
+    def test_removed_test_function_escalates(self):
+        """Review of #858: emptying a test file of its tests (the file stays) must leave the fast lane too."""
+        lane, why = self.lane({"tests/test_alpha.py": "import unittest\n\nclass A(unittest.TestCase):\n    pass\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertIn("deleted test test_a in tests/test_alpha.py", why)
+
+    def test_removed_go_test_function_escalates(self):
+        self.repo.write("go/pkg/x_test.go", "package pkg\n\nfunc TestOne(t *testing.T) {}\n\nfunc TestTwo(t *testing.T) {}\n")
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "go base")
+        self.repo.base = self.repo.rev()
+        lane, why = self.lane({"go/pkg/x_test.go": "package pkg\n\nfunc TestOne(t *testing.T) {}\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertIn("deleted test TestTwo in go/pkg/x_test.go", why)
+
+    def test_duplicate_test_name_removed_from_one_class_escalates(self):
+        two = "class A:\n    def test_a(self):\n        pass\n\n\nclass B:\n    def test_a(self):\n        pass\n"
+        self.repo.write("tests/test_alpha.py", two)
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "two classes")
+        self.repo.base = self.repo.rev()
+        lane, why = self.lane({"tests/test_alpha.py": "class A:\n    def test_a(self):\n        pass\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertIn("deleted test test_a in tests/test_alpha.py", why)
+
+    def test_added_or_edited_test_stays_fast(self):
+        src = ("import unittest\n\nclass A(unittest.TestCase):\n    def test_a(self):\n        self.assertTrue(1)\n\n"
+               "    def test_b(self):\n        pass\n")
+        lane, why = self.lane({"tests/test_alpha.py": src})
+        self.assertEqual(lane, "fast", why)
+
+    def test_test_added_on_main_after_the_branch_point_is_not_a_removal(self):
+        """The names compare against the merge-base: a test main gained since the branch point is not 'removed'."""
+        branch_point = self.repo.base
+        main = self.repo.change({"tests/test_alpha.py": "class A:\n    def test_a(self):\n        pass\n\n"
+                                                        "    def test_new_on_main(self):\n        pass\n"})[1]
+        git(self.repo.root, "checkout", "-q", "-b", "feature", branch_point)
+        head = self.repo.change({"web/app.py": "x = 2\n"})[1]
+        lane, why = ci_tier.lane(str(self.repo.root), main, head)
+        self.assertEqual(lane, "fast", why)
+
+    def test_every_path_of_the_existing_guard_lists_is_refused(self):
+        """G-070 round 4: the fast-lane list is derived from the repo's own guarded-path sources, not hand-picked. A path
+        in ci_tier.RISKY_PATHS, in ci/tier_rules.json sensitive_paths, or in a dir the factory keeps for service launchers
+        and the Go git/config layer must be refused; a path added to those sources without a fast-lane entry fails here."""
+        rules = json.loads((ROOT / "ci" / "tier_rules.json").read_text())["sensitive_paths"]
+        concrete = [pat.replace("**", "x/y").replace("*", "x") for pat in rules + ci_tier.RISKY_PATHS]
+        tracked = subprocess.run(["git", "-C", str(ROOT), "ls-files", "launchd", "systemd", "go/internal/gitx",
+                                  "go/internal/store", "go/internal/guard", ".github"], capture_output=True, text=True)
+        concrete += [p for p in tracked.stdout.split() if p]
+        self.assertGreater(len(concrete), 40)
+        for path in concrete:
+            with self.subTest(path=path):
+                self.assertTrue(ci_tier.fast_lane_path(path), path)
+        self.assertFalse(ci_tier.fast_lane_path("web/app.py"))  # and the lane is not simply closed
+
+    def test_every_def_of_tier_rules_is_refused_in_the_cli_module(self):
+        """Self-review of #858: the def list is derived from ci/tier_rules.json sensitive_defs too (task_merge_lock, ci_verdict,
+        cmd_mech_merge, train_*, ...), so a def added there without a fast-lane rule fails here."""
+        rules = json.loads((ROOT / "ci" / "tier_rules.json").read_text())["sensitive_defs"]
+        names = {n.replace("*", "x") for pats in rules.values() for n in pats}
+        self.assertIn("task_merge_lock", names)
+        for name in sorted(names):
+            with self.subTest(name=name):
+                self.assertTrue(ci_tier.fast_lane_def(name), name)
+        self.assertFalse(ci_tier.fast_lane_def("cmd_hello"))
+
+    def test_quoted_non_ascii_guard_path_escalates(self):
+        lane, why = self.lane({"roles/hooks/\u00e9.py": "x = 1\n"})
+        self.assertEqual(lane, "normal", why)
+        self.assertTrue(any("git quotes" in w for w in why), why)
+
+    def setup_merge_of_new_tests(self):
+        """main = base + M (adds a test file and edits web/app.py); returns (M, head of a branch off M that reverts M)."""
+        merge = self.repo.change({"tests/test_new.py": "class N:\n    def test_n(self):\n        pass\n",
+                                  "web/app.py": "x = 2\n"})[1]
+        git(self.repo.root, "checkout", "-q", "-b", "revert-1", merge)
+        git(self.repo.root, "revert", "--no-edit", merge)
+        return merge, self.repo.rev()
+
+    def test_exact_revert_of_a_merge_that_added_tests_stays_fast(self):
+        merge, head = self.setup_merge_of_new_tests()
+        lane, why = ci_tier.lane(str(self.repo.root), merge, head, merge)
+        self.assertEqual(lane, "fast", why)
+
+    def test_revert_without_its_merge_recorded_escalates(self):
+        merge, head = self.setup_merge_of_new_tests()
+        lane, why = ci_tier.lane(str(self.repo.root), merge, head)
+        self.assertEqual(lane, "normal")
+        self.assertIn("deleted test tests/test_new.py", why)
+
+    def test_revert_that_also_deletes_another_test_escalates(self):
+        merge, head = self.setup_merge_of_new_tests()
+        (self.repo.root / "tests" / "test_alpha.py").unlink()
+        git(self.repo.root, "commit", "-q", "-am", "also drop alpha")
+        lane, why = ci_tier.lane(str(self.repo.root), merge, self.repo.rev(), merge)
+        self.assertEqual(lane, "normal")
+        self.assertIn("deleted test tests/test_alpha.py", why)
+
+    def test_revert_that_leaves_part_of_the_merge_in_place_escalates(self):
+        merge, _ = self.setup_merge_of_new_tests()
+        git(self.repo.root, "reset", "-q", "--hard", merge)
+        git(self.repo.root, "rm", "-q", "tests/test_new.py")   # removes the added test but keeps the web/app.py edit
+        git(self.repo.root, "commit", "-q", "-m", "partial revert")
+        lane, why = ci_tier.lane(str(self.repo.root), merge, self.repo.rev(), merge)
+        self.assertEqual(lane, "normal")
+        self.assertIn("deleted test tests/test_new.py", why)
+
+    def test_cli_exit_codes(self):
+        base, head = self.repo.change({"web/app.py": "x = 5\n"})
+        r = self.escalate(self.repo, base, head)
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "lane=fast"), r.stderr)
+        repo = self.fresh()
+        base, head = repo.change({".github/workflows/x.yml": "on: push\n"})
+        r = self.escalate(repo, base, head)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("escalate: .github/workflows/x.yml is a guarded path", r.stdout)
+        self.assertTrue(r.stdout.rstrip().endswith("lane=normal"))
+        r = self.escalate(repo, "deadbeef" * 5, head)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("cannot decide", r.stdout)
 
 
 class WorkflowTest(unittest.TestCase):

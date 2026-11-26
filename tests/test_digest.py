@@ -421,6 +421,35 @@ class DigestTests(DigestBase):
         self.assertIn("## Org claude", out)
         self.assertNotIn("## Org cursor", out)
 
+    def lanes(self, out):
+        return out.split("## Lanes", 1)[1].split("\n## ", 1)[0]
+
+    def test_lanes_section_compares_fast_and_normal(self):
+        """G-070 AC5: count, median hours to merge, revert rate, follow-up-fix rate and agent-minutes per PR, by lane."""
+        e = self.env
+        for tid, created, merged in (("T-0001", -5, -1), ("T-0002", -10, -2)):
+            self.seed(tid, "done", f"zz-test {tid}", pr_url=PR_URL)
+            e.sql("UPDATE tasks SET created=? WHERE id=?", (iso(dt.timedelta(hours=created)), tid))
+            e.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
+                  (iso(dt.timedelta(hours=merged)), "mech", "task", tid, "merged", "@x"))
+        ev = [("fast-lane-merged", '{"lane": "fast"}'), ("fast-lane-reverted", '{"revert_pr": "u", "fix_task": "T-0004"}')]
+        for action, detail in ev:
+            e.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
+                  (iso(dt.timedelta(minutes=-50)), "tick", "task", "T-0001", action, detail))
+        e.seed_agent("zz-test-fc", "qa", goal="G-001", task="T-0001", status="done", started=iso(dt.timedelta(hours=-3)))
+        e.sql("UPDATE agents SET ended=? WHERE name='zz-test-fc'", (iso(dt.timedelta(hours=-3, minutes=6)),))
+        self.seed("T-0003", "todo", "zz-test fix of T-0002")
+        e.sql("UPDATE tasks SET follow_up_of='T-0002' WHERE id='T-0003'")
+        out = self.lanes(self.digest().stdout)
+        self.assertIn("fast_lane=off", out)  # shown while off because the window holds a fast-lane merge
+        self.assertIn("| fast | 1 | 4.0 | 100% | 0% | 6 |", out)
+        self.assertIn("| normal | 1 | 8.0 | 0% | 100% | 0 |", out)
+
+    def test_lanes_section_hidden_while_off_and_unused(self):
+        self.assertNotIn("## Lanes", self.digest().stdout)
+        self.env.run("config", "fast_lane", "on")
+        self.assertIn("| fast | 0 | n/a | n/a | n/a | n/a |", self.lanes(self.digest().stdout))
+
 
 class TickDigestTests(DigestBase):
     def setUp(self):

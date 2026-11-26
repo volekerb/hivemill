@@ -3,6 +3,7 @@ agent_runtimes        off                                  docs/runtimes.md
 block_conditions      off     0          0          G-040  docs/block-conditions.md  
 coder_ci_handoff      off     off        off        G-018  docs/prcheck.md           
 cursor_pilot_roles    off                                  docs/runtimes.md          
+fast_lane             off     off        off        G-070  docs/fast-lane.md         
 gate_fast_projects    on      factory    factory                                     
 gate_post_status      off     0          0                                           
 gate_sandbox          off     0          0                                           

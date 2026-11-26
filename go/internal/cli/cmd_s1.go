@@ -320,6 +320,7 @@ var ruleKeys = map[string]bool{
 	"block_conditions": true, "task_clones": true,
 	"terminal_backend": true, "skilleval_root": true, "cli_impl": true, "cli_go_cmds": true, "tick_impl": true,
 	"merged_go_proof": true, "cursor_prompt": true, "worker_machines": true, "machine_hq": true,
+	"fast_lane": true, "ship_watch": true, "ship_watch_max": true, "ship_watch_hours": true, "fast_lane_check_timeout_s": true, "fast_lane_audit_every": true,
 }
 
 func (d *Deps) cmdConfig(db *sql.DB, c configCmd, out io.Writer) (int, error) {

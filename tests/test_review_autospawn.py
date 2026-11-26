@@ -32,12 +32,12 @@ class Base(FactoryTestCase):
         kw.setdefault("team", TEAM)
         self.env.seed_task(tid, **kw)
 
-    def tick_step(self, gate_open=True, spawn_status="live", stub_pr=True, heads=None, now=None):
+    def tick_step(self, gate_open=True, spawn_status="live", stub_pr=True, heads=None, now=None, rollup=None):
         calls = []
         with self.env.load_factory() as f:
             con = f.db()
             if stub_pr:  # a healthy open PR; the T-0815 skip tests use the gh stub instead
-                f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": SHA_A, "statusCheckRollup": []}
+                f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": SHA_A, "statusCheckRollup": rollup or []}
             f._ci_remote_heads = lambda: heads
             if now is not None:  # seconds since a fixed epoch: the tick's clock
                 f.digest_clock = lambda: f.dt.datetime.fromtimestamp(now, f.dt.timezone.utc)
@@ -1160,6 +1160,70 @@ class RespawnTests(Base):
         self.verdict(SHA_A)
         self.at(46)
         self.assertEqual(self.stops(), [])
+
+    def fast_check_live(self):
+        """G-070: fast_lane=on, T-0001 in the fast lane, the tick's fast check started on SHA_A at T0."""
+        self.ok("config", "fast_lane", "on")
+        self.env.sql("INSERT INTO config(key,value) VALUES('lane:T-0001','fast')")
+        self.tick_started(name="fastcheck-t-0001-aaaaaaaa", role="qa")
+
+    def lane(self):
+        return self.env.sql("SELECT value FROM config WHERE key='lane:T-0001'")[0]["value"]
+
+    def test_fast_check_past_its_timeout_is_stopped_and_the_task_escalates(self):
+        self.fast_check_live()
+        self.at(11)  # fast_lane_check_timeout_s 600 by default, far under review_verdict_timeout_min 45
+        self.assertEqual(self.stops(), ["fastcheck-t-0001-aaaaaaaa"])
+        stop = self.env.sql("SELECT body FROM messages WHERE subject='STOP'")
+        self.assertIn("fast_lane_check_timeout_s: fast check live 660 s (> 600)", stop[0]["body"])
+        self.assertEqual(self.lane(), "normal")
+        esc = self.env.sql("SELECT detail FROM events WHERE action='lane-escalated' AND entity_id='T-0001'")
+        self.assertEqual(len(esc), 1)
+        self.assertIn("fast check timed out after 600 s with no verdict", esc[0]["detail"])
+
+    def test_fast_check_under_its_timeout_or_with_a_verdict_keeps_running(self):
+        self.fast_check_live()
+        self.at(9)
+        self.assertEqual(self.stops(), [])
+        self.env.seed_pr(sha=SHA_A)
+        r = self.env.run("verdict", "T-0001", "--pass", "--sha", SHA_A, "--summary", GOOD, agent="fastcheck-t-0001-aaaaaaaa")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.at(30)
+        self.assertEqual(self.stops(), [])
+        self.assertEqual(self.lane(), "fast")
+
+    GREEN = [{"__typename": "CheckRun", "name": "ci", "status": "COMPLETED", "conclusion": "SUCCESS"}]
+
+    def fast_check_ended(self, status):
+        """G-070: a classified code head in the fast lane whose first fast check ended with `status` and left no verdict."""
+        self.ok("config", "fast_lane", "on")
+        self.env.sql("UPDATE tasks SET status='in_review', branch=NULL, pr_url='https://github.com/o/r/pull/1' WHERE id='T-0001'")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('lane:T-0001','fast')")
+        self.env.sql("INSERT OR REPLACE INTO throttle(key,ts) VALUES('fastlane-head:T-0001',?)", (f"{SHA_A} code",))
+        self.env.seed_agent("fastcheck-t-0001-aaaaaaaa", "qa", goal="G-001", team=TEAM, task="T-0001", status=status, started=self.T0)
+
+    def test_fast_check_that_ended_without_a_verdict_is_restarted_once(self):
+        for n, status in enumerate(("dead", "done", "quota"), 1):  # dead agent, done without a verdict, quota stop
+            with self.subTest(status=status):
+                self.env.sql("DELETE FROM agents WHERE name LIKE 'fastcheck-%'")
+                self.fast_check_ended(status)
+                calls = self.tick_step(rollup=self.GREEN)
+                self.assertEqual([(c["role"], c["name"]) for c in calls], [("qa", "fastcheck-t-0001-aaaaaaaa-r2")])
+                self.assertEqual(self.lane(), "fast")
+                self.assertEqual(len(self.events("fast-check-restart")), n)  # one restart per ended check
+
+    def test_fast_check_restart_ending_without_a_verdict_moves_the_task_to_the_normal_lane(self):
+        self.fast_check_ended("dead")
+        self.env.seed_agent("fastcheck-t-0001-aaaaaaaa-r2", "qa", goal="G-001", team=TEAM, task="T-0001", status="done", started=self.T0)
+        self.assertEqual(self.tick_step(rollup=self.GREEN), [])
+        self.assertEqual(self.lane(), "normal")
+        esc = self.env.sql("SELECT detail FROM events WHERE action='lane-escalated' AND entity_id='T-0001'")
+        self.assertIn("ended without a verdict", esc[0]["detail"])
+
+    def test_live_fast_check_is_left_alone_by_the_start_pass(self):
+        self.fast_check_ended("live")
+        self.assertEqual(self.tick_step(rollup=self.GREEN), [])
+        self.assertEqual(self.lane(), "fast")
 
     def test_timeout_key_default_and_not_an_owner_cap(self):
         with self.env.load_factory() as f:

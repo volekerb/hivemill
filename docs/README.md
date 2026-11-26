@@ -90,6 +90,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [merge-queue.md](merge-queue.md): the serial and batch-train merge path (`judge --train` without `--dry-run`).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [mech-merge.md](mech-merge.md): the tick's mechanical merger for T0-T2 PRs (`mech_merge` off/shadow/on), same gate as the judge.
+- [fast-lane.md](fast-lane.md): the G-070 fast lane (`--lane fast`, off by default, owner-only switch): mechanical escalation, one fast check, auto-revert and 1-in-10 audit.
 - [spend-alert.md](spend-alert.md): the tick mails claude-boss when the last hour's token spend is over $20 or 2x the 24 h hourly average (one alert per hour, no LLM).
 - [judge-hold-expiry.md](judge-hold-expiry.md): a manual judge hold on a reviewer+QA PASS PR expires after 2 h unless it names a boss decision (`judge_hold_expiry_min`).
 - [prcheck.md](prcheck.md): `factory prcheck`, the coder's pre-PR check, and the `prcheck_required` gate on `factory done` (G-022).
