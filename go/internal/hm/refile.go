@@ -24,7 +24,7 @@ type refileRow struct {
 
 func (s *SQLite) refileRows() ([]refileRow, error) {
 	rows, err := s.db.Query(`SELECT t.id, t.goal_id, COALESCE(g.project_id,''), t.title, t.status, t.depends_on, COALESCE(f.refile_of,'')
-		FROM tasks t LEFT JOIN goals g ON g.id=t.goal_id LEFT JOIN hm_refile f ON f.task=t.id ORDER BY t.id`)
+		FROM tasks t LEFT JOIN goals g ON g.id=t.goal_id LEFT JOIN hm_refile f ON f.task=t.id ORDER BY length(t.id), t.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (r *Runner) RepointRefiles() error {
 	var successor func(string) string
 	successor = func(old string) string {
 		for _, id := range slices.Backward(refiles[old]) {
-			if !dead[id] {
+			if !dead[id] && !needs(id, old) { // one that waits on what it replaces can never start
 				return id
 			}
 			if next := successor(id); next != "" {

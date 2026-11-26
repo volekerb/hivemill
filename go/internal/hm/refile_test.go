@@ -173,6 +173,13 @@ func TestRefileTitleFallback(t *testing.T) {
 	cancelTask(t, s, flagged)
 	repoint(t, r)
 	wantDeps(t, s, onC, `["T-0008"]`) // not the title-only piece, also once the flagged one is dead
+
+	gone := refileAdd(t, s, "zz-test gone", "")
+	waiter := refileAdd(t, s, "zz-test waiter", `["`+gone+`"]`)
+	refileAdd(t, s, "zz-test stuck (re-file of "+gone+")", `["`+gone+`"]`)
+	cancelTask(t, s, gone)
+	repoint(t, r)
+	wantDeps(t, s, waiter, `["`+gone+`"]`) // a re-file that waits on what it replaces can never start
 	if all, _ := r.Log.Read(); len(all) == 0 || all[len(all)-1].Project != "www" {
 		t.Errorf("the event names no project: %+v", all)
 	}
