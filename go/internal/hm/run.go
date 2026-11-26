@@ -302,8 +302,8 @@ func (r *Runner) Start(id string) error {
 			caps.MemMin, strings.Join(pl.Skipped, "; "))
 	}
 	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
-	// session's first mid-work stop as a gate attempt, and they describe another head.
-	for _, f := range []string{"findings.json", "evidence.json"} {
+	// session's first mid-work stop as a gate attempt, and they describe another head. An old blocked.md would end its /goal.
+	for _, f := range []string{"findings.json", "evidence.json", "blocked.md"} {
 		if mirror == "" { // remoteWorktree removed them in a remote worktree
 			_ = os.Remove(filepath.Join(wt, ".hivemill", f))
 		}
@@ -323,7 +323,7 @@ func (r *Runner) Start(id string) error {
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
-	if err := r.launchTask(run, Kickoff(run, t)); err != nil {
+	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, Kickoff(run, t))); err != nil {
 		return err
 	}
 	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,

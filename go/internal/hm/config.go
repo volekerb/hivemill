@@ -21,14 +21,17 @@ var Defaults = map[string]string{
 	// dynamic workflows (workflow.go): which task sessions get the owner's request to use the Workflow tool
 	"task_workflows":       "large", // off | large (4+ criteria, 6+ scope paths or T3) | all
 	"task_workflow_agents": "6",     // at most this many agents per workflow, as the request says
-	"gate_max_blocks":      "3",     // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
-	"gate_wait_s":          "900",   // wait for a test slot before leaving the affected tests to CI
-	"judge_rounds_max":     "2",     // judge REJECT rounds before FAIL
-	"ci_rounds_max":        "3",     // red-CI rounds sent back to the session before FAIL
-	"ci_poll_s":            "60",    // a gated run reads its PR at most this often (and once per pass)
-	"ci_timeout_s":         "2700",  // checks still pending after this: one owner alert, the run stays
-	"auto_revert":          "off",   // on: a runner merge that turns main red is reverted through a PR
-	"t3_auto_merge":        "on",    // a T3 PR with a judge MERGE merges unless a hard limit holds it (merguard.go); off = held
+	// /goal (goal.go): a task session keeps working until its acceptance criteria pass
+	"task_goal":        "1",    // 1: the first prompt of a claude-code task session starts with /goal; 0: no prefix
+	"task_goal_turns":  "60",   // the goal stops after this many turns
+	"gate_max_blocks":  "3",    // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
+	"gate_wait_s":      "900",  // wait for a test slot before leaving the affected tests to CI
+	"judge_rounds_max": "2",    // judge REJECT rounds before FAIL
+	"ci_rounds_max":    "3",    // red-CI rounds sent back to the session before FAIL
+	"ci_poll_s":        "60",   // a gated run reads its PR at most this often (and once per pass)
+	"ci_timeout_s":     "2700", // checks still pending after this: one owner alert, the run stays
+	"auto_revert":      "off",  // on: a runner merge that turns main red is reverted through a PR
+	"t3_auto_merge":    "on",   // a T3 PR with a judge MERGE merges unless a hard limit holds it (merguard.go); off = held
 	// dispatch caps: active runs may finish; only new runs wait
 	"max_five_hour_pct":        "92",   // plan 5-hour usage at or over this (fresh reading) holds new runs
 	"max_seven_day_pct":        "95",   // plan 7-day usage at or over this holds new runs
