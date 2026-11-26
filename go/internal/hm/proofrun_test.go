@@ -3,6 +3,7 @@ package hm
 import (
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -52,7 +53,7 @@ func TestProofRunsOnRunMachine(t *testing.T) {
 		t.Errorf("the end token is not part of the log: %q", text)
 	}
 	cmd := strings.Join((*got)[0], " ")
-	for _, want := range []string{wt + " 15m0s hc exec --on w1 env -i PATH=" + sessionPath(r.Env.UserHome), "HOME=" + r.Env.UserHome,
+	for _, want := range []string{wt + " 15m0s hc exec --on w1 --timeout 600 env -i PATH=" + sessionPath(r.Env.UserHome), "HOME=" + r.Env.UserHome,
 		" sh " + wt + " hm-proof-ran-", " bash -c make check"} {
 		if !strings.Contains(cmd, want) {
 			t.Errorf("missing %q in %q", want, cmd)
@@ -153,6 +154,69 @@ func TestProofFallbackWhenUnreachable(t *testing.T) {
 	res = r.RerunProofs(run, crit[:1], t.TempDir())
 	if len(res) != 1 || !*res[0].OK || !stalled {
 		t.Errorf("stalled connection: %+v", res)
+	}
+}
+
+// hc exec gets the worker's limit; a proof it cuts runs again on the local core, and the note names the limit.
+func TestProofRemoteTimeout(t *testing.T) {
+	r, _, _ := placementRunner(t, map[string]fakeWorker{"w1": {cloneHead: strings.Repeat("a", 40)}})
+	crit := []Criterion{{ID: 1, Kind: "cmd", Proof: "slow", Expect: "exit 0"}, {ID: 2, Kind: "cmd", Proof: "slow", Expect: "exit 0"}}
+	run := &Run{Task: "T-0001", Worktree: t.TempDir(), Machine: "w1"}
+	var calls []string
+	localRC := 0
+	// the first remote call is cut by hc; the later ones end on w1 in time
+	r.Tools.Sh = func(_ string, timeout time.Duration, _ []string, argv ...string) (int, string) {
+		if argv[0] != "hc" {
+			calls = append(calls, "local "+timeout.String())
+			return localRC, "ran here\n"
+		}
+		calls = append(calls, strings.Join(argv[1:6], " "))
+		if len(calls) == 1 {
+			return 124, "partial\n[hc] timed out after 600005 ms\n"
+		}
+		for _, a := range argv {
+			if strings.HasPrefix(a, "hm-proof-ran-") {
+				return 0, a + "\n"
+			}
+		}
+		return 127, "no token"
+	}
+	res := r.RerunProofs(run, crit, t.TempDir())
+	remote := "exec --on w1 --timeout 600"
+	if want := []string{remote, "local 15m0s", remote}; !slices.Equal(calls, want) {
+		t.Fatalf("calls %q, want %q", calls, want)
+	}
+	if len(res) != 2 || !*res[0].OK || !strings.HasPrefix(res[0].Note, "exit 0") || !*res[1].OK {
+		t.Fatalf("the local result counts: %+v", res)
+	}
+	if text, _ := os.ReadFile(res[0].Log); string(text) != "ran here\n" {
+		t.Errorf("log: %q", text)
+	}
+	ev := proofEvents(t, r)
+	if strings.Count(ev, `"event":"gate.proof_run"`) != 3 || strings.Count(ev, `"event":"gate.proof_fallback"`) != 1 ||
+		!strings.Contains(ev, `"exit":124`) || !strings.Contains(ev, "timed out after 10m") {
+		t.Errorf("events: %s", ev)
+	}
+	// cut there and too slow here too: the local limit is the one that applied
+	calls, localRC = nil, 124
+	res = r.RerunProofs(run, crit[:1], t.TempDir())
+	if len(res) != 1 || *res[0].OK || res[0].Note != "timed out after 15m" || len(calls) != 2 {
+		t.Errorf("local timeout: %+v %q", res, calls)
+	}
+	// exit 124 of a command that ran to its end on the worker: no second run, the worker's limit is named
+	n := 0
+	r.Tools.Sh = func(_ string, _ time.Duration, _ []string, argv ...string) (int, string) {
+		n++
+		for _, a := range argv {
+			if strings.HasPrefix(a, "hm-proof-ran-") {
+				return 124, a + "\n"
+			}
+		}
+		return 127, "no token"
+	}
+	res = r.RerunProofs(run, crit[:1], t.TempDir())
+	if len(res) != 1 || *res[0].OK || res[0].Note != "timed out after 10m" || n != 1 {
+		t.Errorf("worker timeout: %+v after %d calls", res, n)
 	}
 }
 
