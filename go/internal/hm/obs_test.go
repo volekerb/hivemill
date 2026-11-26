@@ -833,6 +833,10 @@ func TestObsBannerPollingJustAbove(t *testing.T) {
 	if p, _ := spendBanners(t, h); len(p.Banners) != 1 || !strings.HasPrefix(p.Banners[0], "Polling is 20.2% of spend") {
 		t.Fatalf("the printed share reads above the threshold: %q", p.Banners)
 	}
+	_, h = pollingFixture(t, 160, 33, 40, 8) // 20.5% rounds up, never to the even 20
+	if p, _ := spendBanners(t, h); len(p.Banners) != 1 || !strings.HasPrefix(p.Banners[0], "Polling is 21% of spend") {
+		t.Fatalf("20.5%%: %q", p.Banners)
+	}
 }
 
 func TestObsBannerPollingConfig(t *testing.T) {
