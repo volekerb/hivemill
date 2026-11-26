@@ -150,7 +150,7 @@ func (r *Runner) ciRed(run *Run, failed []map[string]any) {
 		}
 		fmt.Fprintf(&b, "\n\n=== %s: last lines of the failed log ===\n%s", checkName(c), tail)
 	}
-	r.resume(run, b.String())
+	r.resumeAs(run, "ci", b.String())
 }
 
 var (

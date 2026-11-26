@@ -3,13 +3,16 @@ package hm
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"factory/go/internal/shlex"
 )
@@ -206,6 +209,11 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	if l.SessRole != "" {
 		role = l.SessRole
 	}
+	kind := "first"
+	if l.Resume != "" {
+		kind = "resume"
+	}
+	r.recordPrompt(run, role, kind, l.Kickoff)
 	_ = r.Store.AddSession(Session{SID: sid, Task: task, Role: role, Agent: l.Name, Model: l.Model, Effort: l.Effort, Started: nowISO()})
 	_ = r.Store.Event(r.actor(), "agent", l.Name, "spawn", map[string]string{"role": l.Role, "model": l.Model, "lane": "option-b",
 		"machine": machineLabel(l.Machine)})
@@ -240,6 +248,56 @@ func (r *Runner) Prompt(name, text string) error {
 		return fmt.Errorf("hc send %s: exit %d: %s", name, rc, firstLine(errs))
 	}
 	return nil
+}
+
+// recordPrompt saves a prompt sent to a run's session as <state>/prompts/<task>/<NNN>-<kind>.txt and emits
+// prompt.sent. kind is first, resume, nudge, gate, ci, judge, answer or other. A session with no run (the planner) is
+// not recorded. A write error is only an event (prompt.record_failed): it never stops the caller.
+func (r *Runner) recordPrompt(run *Run, role, kind, text string) {
+	if run == nil {
+		return
+	}
+	rel, err := r.savePrompt(run.Task, kind, text)
+	if err != nil {
+		_ = r.Log.Emit("prompt.record_failed", run, Event{Role: role, Data: map[string]any{"kind": kind, "error": err.Error()}})
+		return
+	}
+	_ = r.Log.Emit("prompt.sent", run, Event{Role: role, Data: map[string]any{"kind": kind, "path": rel,
+		"chars": utf8.RuneCountInString(text), "sha256": fmt.Sprintf("%x", sha256.Sum256([]byte(text)))}})
+}
+
+// savePrompt writes text to the task's next numbered file and returns its path relative to the state dir.
+func (r *Runner) savePrompt(task, kind, text string) (string, error) {
+	rel := filepath.Join("prompts", task)
+	dir := filepath.Join(r.Env.StateDir(), rel)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	n := 0
+	for _, e := range entries {
+		num, _, _ := strings.Cut(e.Name(), "-")
+		if i, err := strconv.Atoi(num); err == nil && i > n {
+			n = i
+		}
+	}
+	name := fmt.Sprintf("%03d-%s.txt", n+1, kind)
+	f, err := os.OpenFile(filepath.Join(dir, name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return "", err
+	}
+	_, err = f.WriteString(text)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = os.Remove(f.Name()) // no half-written prompt in the trace
+		return "", err
+	}
+	return filepath.Join(rel, name), nil
 }
 
 // Close ends a session's terminal and marks its agents row exited.

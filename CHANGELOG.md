@@ -12,6 +12,10 @@ v0.1.0 summarises the changes merged during private development.
 ### Added
 
 - **A red CI resumes the task session with the failed logs.** The runner names each failed job and sends the last 80 lines of its failed log (read through `ghx`); a session whose pane has closed is relaunched by its session id. A startup failure counts as red. (T-2001)
+
+- **`hivemill obs` serves a task's timeline as JSON.** `GET /api/obs/task?k=<machine>/<task>` returns its steps in time order with the cost per step, the total, and the PR and session links (T-2025).
+
+- **The runner records every prompt it sends to a task or judge session.** Each one is saved under `state/hivemill/prompts/<task>/` and logged as a `prompt.sent` event with its kind, path, length and sha256; a write error is logged as `prompt.record_failed` and the prompt is still sent (T-2020).
 - **The spec gate refuses whole-module Go test proofs.** `hivemill task lint`, `task add` and `task update` reject a `cmd:` or `test:` proof that runs `go test ./...` (with any flags): name the packages the task touches, CI runs the full suite. The new `hivemill task lint --all` lists the todo and draft tasks that fail; tasks filed before the rule are still dispatched (T-2018).
 
 - **Task sessions are asked to use dynamic workflows for large tasks.** `task_workflows` = `off` | `large` (default) | `all` puts the owner's request for the Workflow tool, with at most `task_workflow_agents` (6) agents, into the first prompt of a task session. Large means 4 or more acceptance criteria, 6 or more scope paths, or T3. The task role allows the Workflow tool. Workflow agents' spend and tokens now count toward their task (they were missed), and `hivemill report` compares tasks with and without workflows: $ per merged task, rounds per task and time to merge (T-1986).

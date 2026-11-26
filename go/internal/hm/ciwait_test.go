@@ -265,6 +265,11 @@ func TestCIWaitRedResumes(t *testing.T) {
 		if resumed := err == nil && strings.Contains(string(script), "sid-1"); resumed != (pane == "closed") {
 			t.Errorf("%s: resumed by session id = %v", pane, resumed)
 		}
+		// one send, one record: a relaunch records its own as resume
+		kind := map[string]string{"live": "ci", "closed": "resume"}[pane]
+		if ev := eventsOf(t, f.r, "prompt.sent"); len(ev) != 1 || ev[0].Data["kind"] != kind {
+			t.Errorf("%s: prompt.sent %+v", pane, ev)
+		}
 	}
 
 	// Past ci_rounds_max the run fails.
