@@ -333,7 +333,7 @@ func (r *Runner) launchTask(run *Run, kickoff string) error {
 
 // kickoffEnd is the last line of a kickoff.
 func kickoffEnd(run *Run) string {
-	return fmt.Sprintf("\nBranch %s, base %s. Follow your role steps: open the PR, %s.", run.Branch, run.Base, pushAndStop)
+	return fmt.Sprintf("\nBranch %s, base %s. Follow your role steps: push, open the PR and stop; the runner watches CI.", run.Branch, run.Base)
 }
 
 // Kickoff is the first message of a task session: the task itself, so the session needs no lookup.
@@ -705,7 +705,7 @@ func (r *Runner) judged(run *Run) {
 		r.fail(run, fmt.Sprintf("judge REJECT x%d: %s", run.JudgeRounds, reasons))
 		return
 	}
-	r.resumeAs(run, "judge", "The judge rejected the PR. Fix this, "+pushAndStop+":\n- "+strings.Join(v.Reasons, "\n- "))
+	r.resumeAs(run, "judge", "The judge rejected the PR. Fix these, then "+pushAndStop+". The reasons:\n- "+strings.Join(v.Reasons, "\n- "))
 }
 
 // Stop cancels a run: its terminals close and the task goes back to todo.
@@ -804,7 +804,7 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	}
 	run.IdleNudges++
 	nudge := "You stopped before your task was finished. Continue your role steps from where you are: finish the " +
-		"review, write the .hivemill files, open the PR, " + pushAndStop + "."
+		"review, write the .hivemill files, push, open the PR and stop; the runner watches CI."
 	if r.Prompt(run.Agent, nudge) == nil {
 		r.recordPrompt(run, "task", "nudge", nudge)
 	}

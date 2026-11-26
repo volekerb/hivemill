@@ -74,8 +74,9 @@ func TestPromptHasNoCIWait(t *testing.T) {
 		} {
 			check(name, text)
 		}
-		if k := Kickoff(run, task); !strings.HasSuffix(k, pushAndStop+".") {
-			t.Errorf("kickoff does not end with %q: %s", pushAndStop, strconv.Quote(k))
+		const end = "push, open the PR and stop; the runner watches CI."
+		if k := Kickoff(run, task); !strings.HasSuffix(k, end) {
+			t.Errorf("kickoff does not end with %q: %s", end, strconv.Quote(k))
 		}
 	}
 }
