@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// repointedEvent changes a task that may never have run: reports and obs make no task row for it.
+const repointedEvent = "task.depends_repointed"
+
 // A re-filed task is a new id for a task that was cancelled or failed. Tasks that depend on the old id would never
 // start, so RepointRefiles moves them to the new one.
 
@@ -69,23 +72,50 @@ func (r *Runner) RepointRefiles() error {
 		// a run held for the owner may still merge
 		failed[x.Task] = x.State == Failed && !heldForOwner(&x)
 	}
-	dead, refiles, origin, flagged := map[string]bool{}, map[string][]string{}, map[string]string{}, map[string]bool{}
+	dead, project, deps := map[string]bool{}, map[string]string{}, map[string][]string{}
 	for _, t := range tasks {
 		// a failed run leaves its task blocked; a task set back to todo or done after it is not failed any more
 		dead[t.id] = t.status == "cancelled" || (failed[t.id] && t.status == "blocked")
-		flagged[t.of] = true
+		project[t.id] = t.project
+		var list []string
+		if json.Unmarshal([]byte(t.depends), &list) == nil {
+			deps[t.id] = list
+		}
 	}
+	flagged := map[string]bool{}
+	for _, t := range tasks {
+		if !dead[t.id] {
+			flagged[t.of] = true
+		}
+	}
+	refiles, origin := map[string][]string{}, map[string]string{}
 	for _, t := range tasks {
 		of := t.of
-		// the flag beats titles: on a split, only the flagged piece takes the dependents
+		// a live flagged re-file beats titles: on a split, only that piece takes the dependents
 		if m := refileTitle.FindStringSubmatch(t.title); of == "" && m != nil && !flagged[strings.ToUpper(m[1])] {
 			of = strings.ToUpper(m[1])
 		}
-		// only a later id re-files an earlier one, so the chains cannot loop
-		if of != "" && taskNum(t.id) > taskNum(of) {
+		// only a later id of the same project re-files an earlier one, so the chains cannot loop
+		if of != "" && project[of] == t.project && taskNum(t.id) > taskNum(of) {
 			refiles[of] = append(refiles[of], t.id)
 			origin[t.id] = of
 		}
+	}
+	// needs reports whether the task `from` waits on `on`, directly or through other tasks
+	needs := func(from, on string) bool {
+		seen := map[string]bool{}
+		for queue := []string{from}; len(queue) > 0; queue = queue[1:] {
+			for _, d := range deps[queue[0]] {
+				if d == on {
+					return true
+				}
+				if !seen[d] {
+					seen[d] = true
+					queue = append(queue, d)
+				}
+			}
+		}
+		return false
 	}
 	var successor func(string) string
 	successor = func(old string) string {
@@ -103,16 +133,18 @@ func (r *Runner) RepointRefiles() error {
 		if t.status != "todo" && t.status != "draft" {
 			continue
 		}
-		var deps []string
-		if json.Unmarshal([]byte(t.depends), &deps) != nil {
+		list, ok := deps[t.id]
+		if !ok {
 			continue
 		}
 		next, moved := []string{}, [][2]string{}
-		for _, d := range deps {
-			// a dead re-file with no successor of its own: another re-file of what it replaced takes over
+		for _, d := range list {
+			// A dead re-file with no successor of its own: a newer re-file of what it replaced takes over. An older
+			// sibling does not, the new one may not be filed yet.
 			for o := d; dead[d] && o != ""; o = origin[o] {
-				if to := successor(o); to != "" {
-					if to != t.id {
+				if to := successor(o); to != "" && taskNum(to) > taskNum(d) {
+					// never make a cycle: a re-file that waits on this task stays unused
+					if to != t.id && !needs(to, t.id) {
 						moved = append(moved, [2]string{d, to})
 						d = to
 					}
@@ -136,9 +168,10 @@ func (r *Runner) RepointRefiles() error {
 		if n, _ := res.RowsAffected(); n == 0 {
 			continue
 		}
+		deps[t.id] = next
 		for _, m := range moved {
 			r.printf("%s: depends %s -> %s (re-filed)\n", t.id, m[0], m[1])
-			_ = r.Log.Emit("task.depends_repointed", nil, Event{TaskID: t.id, GoalID: t.goal, Project: t.project, Data: map[string]any{"from": m[0], "to": m[1]}})
+			_ = r.Log.Emit(repointedEvent, nil, Event{TaskID: t.id, GoalID: t.goal, Project: t.project, Data: map[string]any{"from": m[0], "to": m[1]}})
 		}
 	}
 	return nil

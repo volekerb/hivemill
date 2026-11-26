@@ -3,6 +3,7 @@ package hm
 import (
 	"slices"
 	"testing"
+	"time"
 )
 
 func refileAdd(t *testing.T, s *SQLite, title, status, deps string) string {
@@ -44,6 +45,15 @@ func repointEvents(t *testing.T, r *Runner) (out []string) {
 		}
 	}
 	return out
+}
+
+func mustRead(t *testing.T, r *Runner) []Event {
+	t.Helper()
+	all, err := r.Log.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return all
 }
 
 func cancelTask(t *testing.T, s *SQLite, id string) {
@@ -120,6 +130,8 @@ func TestRefileRepointsAfterCancel(t *testing.T) {
 
 	// the replacement is dropped and the first id is filed again: the dependents move on
 	cancelTask(t, s, third)
+	repoint(t, r)
+	wantDeps(t, s, dep, `["T-0004"]`)                         // no newer re-file yet: it keeps waiting, not on an older one
 	fourth := refileAdd(t, s, "zz-test fourth", "todo", "[]") // T-0006
 	refileOf(t, s, fourth, old)
 	repoint(t, r)
@@ -161,4 +173,36 @@ func TestRefileTitleFallback(t *testing.T) {
 	if all, _ := r.Log.Read(); len(all) == 0 || all[len(all)-1].Project != "www" {
 		t.Errorf("the event names no project: %+v", all)
 	}
+	rows, err := r.ReportRows()
+	if err != nil || len(rows) != 0 {
+		t.Errorf("a re-pointed task is no report row: %v %v", rows, err)
+	}
+	if o := BuildObs(mustRead(t, r), ObsFilter{}, "", nil, time.Now()); len(o.Tasks) != 0 {
+		t.Errorf("a re-pointed task is no obs task: %v", o.Tasks)
+	}
+
+	// no cycle: a re-file that waits on the dependent is not used
+	d := refileAdd(t, s, "zz-test d", "todo", "[]")
+	onD := refileAdd(t, s, "zz-test on d", "todo", `["`+d+`"]`)
+	refileOf(t, s, refileAdd(t, s, "zz-test d again", "todo", `["`+onD+`"]`), d)
+	cancelTask(t, s, d)
+	repoint(t, r)
+	wantDeps(t, s, onD, `["`+d+`"]`)
+
+	// a title that names a task of another project is ignored
+	if err := s.AddProject(Project{ID: "api", RepoPath: "/nonexistent", GHRepo: "zz-test/api"}); err != nil {
+		t.Fatal(err)
+	}
+	goal, err := s.NewGoal("api", "zz-test other", "", "", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := refileAdd(t, s, "zz-test e", "todo", "[]")
+	onE := refileAdd(t, s, "zz-test on e", "todo", `["`+e+`"]`)
+	if _, err := s.AddTask(goal, "(re-file of "+e+") elsewhere", "spec", "", "todo", "[]", 1); err != nil {
+		t.Fatal(err)
+	}
+	cancelTask(t, s, e)
+	repoint(t, r)
+	wantDeps(t, s, onE, `["`+e+`"]`)
 }
