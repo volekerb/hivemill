@@ -283,6 +283,10 @@ func DecideWake(in WakeInput) WakeDecision {
 		d.Advance, d.Why = true, "nothing changed"
 		return d
 	}
+	// dead_dep items go last: there can be many, and WakeMessage cuts the end of a long list
+	sort.SliceStable(levels, func(i, j int) bool {
+		return !strings.HasPrefix(levels[i], "dead_dep:") && strings.HasPrefix(levels[j], "dead_dep:")
+	})
 	d.Reasons = Coalesce(in.Events, levels)
 	if !in.Force {
 		if !in.LastWake.IsZero() && in.Now.Sub(in.LastWake) < in.MinGap {

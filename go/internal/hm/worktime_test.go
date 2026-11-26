@@ -151,6 +151,39 @@ func TestTaskPromptNoForeignWaitLoop(t *testing.T) {
 	}
 }
 
+// A late first check, a failed send and a relaunched session each leave the session a full grace.
+func TestRunMaxWorkingKeepsTheGrace(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	r, _, run, sent := longRun(t, now, 400*time.Minute)
+	up := r.Tools.HC
+	down := func(...string) (int, string, string) { return 1, "", "not up" }
+	r.Tools.HC = down
+	if r.workingLimit(run, now) || r.workingLimit(run, now.Add(29*time.Minute)) || run.State != Working {
+		t.Fatalf("failed sends inside the grace: %s", run.State)
+	}
+	r.Tools.HC = up
+	run.IdleSince = now.Format(time.RFC3339)
+	if !r.workingLimit(run, now.Add(40*time.Minute)) || run.State != Working || len(*sent) != 1 || run.IdleSince != "" {
+		t.Fatalf("send works again: %s %v %q", run.State, *sent, run.IdleSince)
+	}
+	r.Tools.HC = down
+	run.LongResumed, run.LongSendFailed = "", "" // as after a relaunch
+	if r.workingLimit(run, now.Add(70*time.Minute)) || run.State != Working {
+		t.Fatalf("first failed send: %s", run.State)
+	}
+	if !r.workingLimit(run, now.Add(100*time.Minute)) || run.State != Failed {
+		t.Fatalf("unreachable for the whole grace: %s", run.State)
+	}
+}
+
+func TestDeadDependencyIsLastInAWake(t *testing.T) {
+	d := DecideWake(WakeInput{Now: time.Now(), Idle: true, Levels: []string{"queue_low:www=0/3", "dead_dep:T-2=T-1(cancelled)",
+		"goal_done:G-001"}})
+	if n := len(d.Reasons); n != 3 || !strings.HasPrefix(d.Reasons[n-1], "dead_dep:") {
+		t.Fatalf("reasons: %v", d.Reasons)
+	}
+}
+
 func TestRunMaxWorkingShowsInFlow(t *testing.T) {
 	r, _ := testRunner(t, "")
 	now := time.Now().UTC()

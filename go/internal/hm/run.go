@@ -486,7 +486,7 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	}
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
-	run.LongPct, run.LongResumed = 0, ""
+	run.LongPct, run.LongResumed, run.LongSendFailed = 0, "", ""
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	if err := r.Prompt(run.Agent, text); err != nil {
 		r.fail(run, "cannot reach the task session: "+err.Error())

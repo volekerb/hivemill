@@ -46,13 +46,21 @@ func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 		"blocks you.", mins)
 	if err := r.Prompt(run.Agent, text); err != nil {
 		r.printf("%s: working limit resume: %v\n", run.Task, err)
-		if spent < full+workGrace {
-			return false // the next pass tries again
+		// The next pass tries again. The grace runs from the first failed send, not from the limit: the daemon may have
+		// been down past it. A disconnected worker keeps its session, so its run is never failed for this.
+		first, perr := time.Parse(time.RFC3339, run.LongSendFailed)
+		if perr != nil {
+			run.LongSendFailed = now.Format(time.RFC3339)
+			return false
+		}
+		if now.Sub(first) < workGrace || (run.Machine != "" && machineDown(r.Tools, run.Machine)) {
+			return false
 		}
 		r.fail(run, reason)
 		return true
 	}
 	run.LongResumed = now.Format(time.RFC3339)
+	run.IdleSince = "" // the message is new work: a quick answer must not read as 15 minutes idle
 	r.recordPrompt(run, "task", "resume", text)
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-resume", text)
 	return true

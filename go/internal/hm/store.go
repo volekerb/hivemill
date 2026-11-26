@@ -59,8 +59,9 @@ type Run struct {
 	Mirror, RemoteHome string `json:",omitempty"`
 	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
 	// working time limit (worktime.go), per round: the highest run.long_working percent sent and the one resume
-	LongPct     int    `json:",omitempty"`
-	LongResumed string `json:",omitempty"`
+	LongPct        int    `json:",omitempty"`
+	LongResumed    string `json:",omitempty"`
+	LongSendFailed string `json:",omitempty"` // the first time that message could not be sent
 }
 
 // Session is one Claude session of a run (task, judge).

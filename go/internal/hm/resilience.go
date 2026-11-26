@@ -54,6 +54,9 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 			fixed = append(fixed, "resume of "+name+" failed: "+firstLine(err.Error()))
 		} else {
 			run.Resumes++
+			if name == run.Agent { // the time the session was gone is not its fault: a new message and a new grace
+				run.LongResumed, run.LongSendFailed = "", ""
+			}
 			fixed = append(fixed, "session "+name+" resumed")
 		}
 	}
