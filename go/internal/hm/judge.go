@@ -156,6 +156,9 @@ func (r *Runner) Packet(run *Run) (string, error) {
 	fmt.Fprintf(&b, "# Judge packet: %s %s\n\nPR: %s  head %.12s\nRisk tier: %s (%s)\nTests (def test_ under tests/): base %d, head %d\n",
 		t.ID, t.Title, run.PRURL, run.Head, or(g.Tier, "unknown"), or(g.TierWhy, "-"), g.TestsBase, g.TestsHead)
 	ci, gate := "green on the head", fmt.Sprintf("passed in round %d", run.Round)
+	if c := run.LocalCI; c != nil && r.ciNone(run.Project) {
+		ci = fmt.Sprintf("no PR checks (ci_gate none); the project gate_cmd exited %d on head %.12s", c.RC, c.Head)
+	}
 	if run.CINote != "" {
 		ci = run.CINote
 	}
