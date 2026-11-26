@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -31,6 +32,13 @@ func flagValues(args []string, flag string) []string {
 		}
 	}
 	return out
+}
+
+// runLine reports that one recorded call has every part.
+func runLine(calls []string, parts ...string) bool {
+	return slices.ContainsFunc(calls, func(c string) bool {
+		return !slices.ContainsFunc(parts, func(p string) bool { return !strings.Contains(c, p) })
+	})
 }
 
 // runLabels are the --label values of the `hc run` of a terminal.
