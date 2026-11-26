@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -37,6 +39,17 @@ func cmdGuard(args []string, stdin io.Reader, stdout, stderr io.Writer) (code in
 		return 2
 	}
 	home, rest := filepath.Clean(args[1]), args[2:]
+	// stdin is read once, for the release limit, and the guard gets the same bytes (one past its cap still blocks).
+	raw, err := io.ReadAll(io.LimitReader(stdin, guard.MaxHookInput+1))
+	if err != nil {
+		fmt.Fprintln(stderr, "hivemill guard: reading stdin:", err, "; blocking")
+		return 2
+	}
+	if releaseRefused(home, raw) {
+		fmt.Fprintln(stderr, "hivemill guard: App Store release refused: the owner has not answered release build N for this build")
+		return 2
+	}
+	stdin = bytes.NewReader(raw)
 	guard.SetLiveHome(home)
 	for _, a := range rest {
 		if a == "--py-hook" {
@@ -47,6 +60,52 @@ func cmdGuard(args []string, stdin io.Reader, stdout, stderr io.Writer) (code in
 	// push check); a home without roles/hooks/worker-guard.py has no Python hook, so a decision that needs it blocks.
 	py := filepath.Join(home, "roles", "hooks", "worker-guard.py")
 	return guard.HookMain(append([]string{"--py-hook", py}, rest...), stdin, stdout, stderr)
+}
+
+// releaseRefused is true for a Bash call that submits or releases to the App Store while the home's DB holds no owner
+// answer for its build. A DB that cannot be read holds no answer. Any other payload is left to the guard.
+func releaseRefused(home string, raw []byte) bool {
+	var call struct {
+		Tool  string `json:"tool_name"`
+		Input struct {
+			Command string `json:"command"`
+		} `json:"tool_input"`
+	}
+	if json.Unmarshal(raw, &call) != nil || call.Tool != "Bash" {
+		return false
+	}
+	submit, build := hm.ReleaseAction(call.Input.Command)
+	if !submit {
+		return false
+	}
+	asks, err := answeredAsks(home)
+	return err != nil || !hm.ReleaseAllowed(asks, build)
+}
+
+// answeredAsks reads the answered owner questions of the home's factory DB, read-only.
+func answeredAsks(home string) ([]hm.Ask, error) {
+	con, err := openHomeDB(home)
+	if err != nil {
+		return nil, err
+	}
+	defer con.Close()
+	rows, err := con.Query("SELECT status, answered_by, answer FROM hm_asks WHERE status='answered'")
+	if err != nil {
+		return nil, fmt.Errorf("read asks: %w", err)
+	}
+	defer rows.Close()
+	var out []hm.Ask
+	for rows.Next() {
+		var a hm.Ask
+		if err := rows.Scan(&a.Status, &a.AnsweredBy, &a.Answer); err != nil {
+			return nil, fmt.Errorf("scan asks: %w", err)
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read asks: %w", err)
+	}
+	return out, nil
 }
 
 // cmdCheck is `hivemill check public-text --home DIR REMOTE URL`: the git pre-push hook of a task clone (the Go port
@@ -62,18 +121,9 @@ func cmdCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // prePushConfig is pre_push_public_text.read_config: public_text_repos and scrub_terms_file of the home's factory
 // DB, read-only.
 func prePushConfig(home string) (map[string]string, error) {
-	db := filepath.Join(home, "db", "factory.db")
-	if _, err := os.Stat(db); err != nil {
-		legacy := filepath.Join(home, "factory.db")
-		if _, lerr := os.Stat(legacy); lerr != nil {
-			return nil, fmt.Errorf("factory db: %w", err)
-		}
-		db = legacy
-	}
-	dsn := "file:" + (&url.URL{Path: db}).EscapedPath() + "?mode=ro&_pragma=busy_timeout(5000)"
-	con, err := sql.Open("sqlite", dsn)
+	con, err := openHomeDB(home)
 	if err != nil {
-		return nil, fmt.Errorf("open factory db: %w", err)
+		return nil, err
 	}
 	defer con.Close()
 	rows, err := con.Query("SELECT key, value FROM config WHERE key IN ('public_text_repos','scrub_terms_file')")
@@ -94,6 +144,24 @@ func prePushConfig(home string) (map[string]string, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 	return out, nil
+}
+
+// openHomeDB opens the factory DB of a home (db/factory.db, else the legacy file) read-only.
+func openHomeDB(home string) (*sql.DB, error) {
+	db := filepath.Join(home, "db", "factory.db")
+	if _, err := os.Stat(db); err != nil {
+		legacy := filepath.Join(home, "factory.db")
+		if _, lerr := os.Stat(legacy); lerr != nil {
+			return nil, fmt.Errorf("factory db: %w", err)
+		}
+		db = legacy
+	}
+	dsn := "file:" + (&url.URL{Path: db}).EscapedPath() + "?mode=ro&_pragma=busy_timeout(5000)"
+	con, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open factory db: %w", err)
+	}
+	return con, nil
 }
 
 // cmdAffected is `hivemill affected --base REF [--head REF] [--list|--run] [--quick] [--budget S] [--root DIR]`, the Go
