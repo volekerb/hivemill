@@ -103,31 +103,20 @@ func TestHivemillInstallDryRunChangesNothingAndListsArgv(t *testing.T) {
 	hiIn(t, out, "checkout --detach refs/tags/v0.10.0")
 	hiIn(t, out, "config max_live_agents 3")
 	hiIn(t, out, "project add demo --name demo --repo /r")
-	hiIn(t, out, "systemctl --user start herdr-server.service factory-tick.timer factory-serve.service factory-up.service")
+	hiIn(t, out, "systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer")
+	for _, unit := range []string{"herdr-server", "factory-tick", "factory-serve", "factory-up"} {
+		hiNotIn(t, out, unit)
+	}
 }
 
 func TestHivemillInstallServeBindBeforeAnyServeStartInBothPlans(t *testing.T) {
-	for _, c := range []struct {
-		extra []string
-		start string
-	}{{nil, "systemctl --user start"}, {[]string{"--no-systemd"}, "serve --bind"}} {
-		_, out, _ := hiRun(hiNew(t, hiHome(t)), append([]string{"--dry-run"}, c.extra...)...)
-		bind, serve := -1, -1
-		for i, ln := range strings.Split(out, "\n") {
-			if bind < 0 && strings.Contains(ln, "config serve_bind 127.0.0.1") {
-				bind = i
-			}
-			if serve < 0 && strings.Contains(ln, c.start) {
-				serve = i
-			}
-		}
-		if bind < 0 || serve < 0 {
-			t.Errorf("%v: bind=%d serve=%d in\n%s", c.extra, bind, serve, out)
-			continue
-		}
-		if bind >= serve {
-			t.Errorf("%v: serve_bind (line %d) must precede the serve start (line %d)", c.extra, bind, serve)
-		}
+	// The installer starts no factory serve any more: the bind is still configured and neither plan starts one.
+	for _, extra := range [][]string{nil, {"--no-systemd"}} {
+		rc, out, _ := hiRun(hiNew(t, hiHome(t)), append([]string{"--dry-run"}, extra...)...)
+		hiEq(t, rc, 0, "rc: "+out)
+		hiIn(t, out, "config serve_bind 127.0.0.1")
+		hiNotIn(t, out, "serve --bind")
+		hiNotIn(t, out, "factory-serve")
 	}
 }
 
