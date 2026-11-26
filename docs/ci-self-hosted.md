@@ -6,6 +6,8 @@ CI for our own pull requests and pushes runs on four self-hosted runners with th
 
 Every job in `.github/workflows/tests.yml` uses one `runs-on` expression: a pull request from this repository, a push to `main` and a manual run go to `hm-ci`; a pull request from a fork goes to `ubuntu-latest`. `tests/test_ci_policy.py` allows exactly that expression and no other self-hosted form. The other workflows stay on `ubuntu-latest`.
 
+The expression is routing, not a security boundary: a fork pull request can edit the workflow and ask for `hm-ci`. The boundary is the approval of fork runs (below). Read the workflow changes of a fork pull request before you approve its run.
+
 ## One-time machine setup
 
 The owner session applies this and keeps it so. Workflows must not depend on `sudo`.

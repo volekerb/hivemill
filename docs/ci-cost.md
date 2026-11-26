@@ -2,7 +2,7 @@
 
 ## Policy
 
-- GitHub Actions runs on **free standard hosted runners only** (`ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`). No larger or paid runners, no paid features. The one self-hosted exception is the free `hm-ci` runners for same-repository code ([ci-self-hosted.md](ci-self-hosted.md)); forks stay on hosted runners. The paid Actions budget is **$0**.
+- GitHub Actions runs on **free standard hosted runners only** (`ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`). No larger or paid runners, no paid features. The one self-hosted exception is the free `hm-ci` runners for same-repository code ([ci-self-hosted.md](ci-self-hosted.md)); the workflow routes forks to hosted runners, and approval of fork runs is the boundary. The paid Actions budget is **$0**.
 - The **local gate** (`factory gate run`) is the factory's merge gate. GitHub required checks are used only while they are free; they are never the only thing standing between a change and `main`.
 - Fork pull requests never get secrets or a write token: workflows run on `pull_request` (not `pull_request_target`), with read-only permissions and no secrets other than the built-in `GITHUB_TOKEN`.
 
