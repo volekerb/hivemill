@@ -272,6 +272,9 @@ func TestTaskAddRefileOf(t *testing.T) {
 	if code, _, errs := c.run("", append(add, "--refile-of", "T-0001", "--depends", "T-0001")...); code != 3 {
 		t.Errorf("depends on the re-filed task: exit %d %q", code, errs)
 	}
+	if code, _, errs := c.run("", append(add, "--refile-of", "T-0001", "--depends", "T-0002")...); code != 3 {
+		t.Errorf("depends through another task: exit %d %q", code, errs)
+	}
 	c.ok("project", "add", "api", "--repo", "zz-test/api", "--path", t.TempDir())
 	c.ok("goal", "new", "--project", "api", "--title", "zz-test other")
 	if code, _, errs := c.run("", "task", "add", "--goal", "G-002", "--title", "t", "--spec", "s", "--acceptance",

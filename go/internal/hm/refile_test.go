@@ -65,7 +65,7 @@ func cancelTask(t *testing.T, s *SQLite, id string) {
 
 func refileOf(t *testing.T, s *SQLite, id, of string) {
 	t.Helper()
-	if err := s.SetRefileOf(id, of); err != nil {
+	if _, err := s.db.Exec(`INSERT INTO hm_refile(task,refile_of) VALUES(?,?)`, id, of); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -155,7 +155,7 @@ func TestRefileTitleFallback(t *testing.T) {
 	b := refileAdd(t, s, "zz-test b", "todo", "[]")                      // T-0002
 	dep := refileAdd(t, s, "zz-test dep", "todo", `["T-0001","T-0002"]`) // T-0003
 	refileAdd(t, s, "(re-file of T-0001) zz-test a", "todo", "[]")       // T-0004
-	refileAdd(t, s, "zz-test b (Re-file of T-0002: smaller)", "todo", "[]")
+	refileAdd(t, s, "zz-test b (Re-file of T-2: smaller)", "todo", "[]")
 	cancelTask(t, s, a)
 	cancelTask(t, s, b)
 	repoint(t, r)
@@ -170,6 +170,9 @@ func TestRefileTitleFallback(t *testing.T) {
 	cancelTask(t, s, c)
 	repoint(t, r)
 	wantDeps(t, s, onC, `["T-0008"]`)
+	cancelTask(t, s, flagged)
+	repoint(t, r)
+	wantDeps(t, s, onC, `["T-0008"]`) // not the title-only piece, also once the flagged one is dead
 	if all, _ := r.Log.Read(); len(all) == 0 || all[len(all)-1].Project != "www" {
 		t.Errorf("the event names no project: %+v", all)
 	}

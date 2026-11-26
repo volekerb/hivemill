@@ -2,6 +2,7 @@ package hm
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -16,13 +17,6 @@ const repointedEvent = "task.depends_repointed"
 
 // refileTitle is the planner's title marker, read when a task was added without --refile-of.
 var refileTitle = regexp.MustCompile(`(?i)\(re-file of (T-\d+)`)
-
-// SetRefileOf records that task was filed again for the task `of`.
-func (s *SQLite) SetRefileOf(task, of string) error {
-	_, err := s.db.Exec(`INSERT INTO hm_refile(task,refile_of) VALUES(?,?)
-		ON CONFLICT(task) DO UPDATE SET refile_of=excluded.refile_of`, task, of)
-	return err
-}
 
 type refileRow struct {
 	id, goal, project, title, status, depends, of string
@@ -84,16 +78,16 @@ func (r *Runner) RepointRefiles() error {
 	}
 	flagged := map[string]bool{}
 	for _, t := range tasks {
-		if !dead[t.id] {
-			flagged[t.of] = true
-		}
+		flagged[t.of] = true
 	}
 	refiles, origin := map[string][]string{}, map[string]string{}
 	for _, t := range tasks {
 		of := t.of
-		// a live flagged re-file beats titles: on a split, only that piece takes the dependents
-		if m := refileTitle.FindStringSubmatch(t.title); of == "" && m != nil && !flagged[strings.ToUpper(m[1])] {
-			of = strings.ToUpper(m[1])
+		// The flag beats titles, also when its task is dead: on a split, only the flagged piece takes the dependents.
+		if m := refileTitle.FindStringSubmatch(t.title); of == "" && m != nil {
+			if id := fmt.Sprintf("T-%04d", taskNum(strings.ToUpper(m[1]))); !flagged[id] {
+				of = id
+			}
 		}
 		// only a later id of the same project re-files an earlier one, so the chains cannot loop
 		if of != "" && project[of] == t.project && taskNum(t.id) > taskNum(of) {

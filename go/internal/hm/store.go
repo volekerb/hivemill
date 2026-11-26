@@ -706,8 +706,9 @@ func (s *SQLite) SetGoalStatus(id, status string) error {
 	return nil
 }
 
-// AddTask files a coder task in an existing goal with the next free T-NNNN id. status is todo or draft.
-func (s *SQLite) AddTask(goal, title, spec, acceptance, status, dependsOn string, priority int) (string, error) {
+// AddTask files a coder task in an existing goal with the next free T-NNNN id. status is todo or draft. refileOf, when
+// given and not empty, is the task this one files again.
+func (s *SQLite) AddTask(goal, title, spec, acceptance, status, dependsOn string, priority int, refileOf ...string) (string, error) {
 	var n int
 	if err := s.db.QueryRow(`SELECT count(*) FROM goals WHERE id=?`, goal).Scan(&n); err != nil {
 		return "", err
@@ -723,9 +724,21 @@ func (s *SQLite) AddTask(goal, title, spec, acceptance, status, dependsOn string
 		return "", err
 	}
 	id := fmt.Sprintf("T-%04d", max.Int64+1)
-	_, err := s.db.Exec(`INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,status,depends_on,created,updated,priority)
-		VALUES(?,?,?,?,?,'coder',?,?,?,?,?)`, id, goal, title, spec, acceptance, status, dependsOn, s.now(), s.now(), priority)
-	return id, err
+	tx, err := s.db.Begin() // a task is never filed without its re-file link
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,status,depends_on,created,updated,priority)
+		VALUES(?,?,?,?,?,'coder',?,?,?,?,?)`, id, goal, title, spec, acceptance, status, dependsOn, s.now(), s.now(), priority); err != nil {
+		return "", err
+	}
+	if len(refileOf) > 0 && refileOf[0] != "" {
+		if _, err := tx.Exec(`INSERT OR REPLACE INTO hm_refile(task,refile_of) VALUES(?,?)`, id, refileOf[0]); err != nil {
+			return "", err
+		}
+	}
+	return id, tx.Commit()
 }
 
 // Tasks lists tasks of one goal and/or one status ("" = any), by id.

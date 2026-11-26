@@ -510,21 +510,19 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			if g, err := s.Goal(strings.ToUpper(*goal)); err == nil && g.Project != old.Project {
 				return fail(stderr, fmt.Errorf("%w: --refile-of %s is a task of another project", hm.ErrRefused, of))
 			}
-			if strings.Contains(deps, `"`+of+`"`) {
-				return fail(stderr, fmt.Errorf("%w: --depends names %s, which this task files again: it could never start", hm.ErrRefused, of))
+			if old.Status == "done" {
+				return fail(stderr, fmt.Errorf("%w: --refile-of %s is done; a re-file replaces a cancelled or failed task", hm.ErrRefused, of))
+			}
+			if waitsOn(s, deps, of) {
+				return fail(stderr, fmt.Errorf("%w: --depends leads to %s, which this task files again: it could never start", hm.ErrRefused, of))
 			}
 		}
-		id, err := s.AddTask(strings.ToUpper(*goal), strings.TrimSpace(*title), sp, a, status, deps, *prio)
+		id, err := s.AddTask(strings.ToUpper(*goal), strings.TrimSpace(*title), sp, a, status, deps, *prio, of)
 		if err != nil {
 			return fail(stderr, err)
 		}
 		fmt.Fprint(stdout, strings.Replace(lint.String(), "new task", id, 1))
 		fmt.Fprintf(stdout, "%s %s in %s\n", id, status, strings.ToUpper(*goal))
-		if of != "" {
-			if err := s.SetRefileOf(id, of); err != nil {
-				return fail(stderr, fmt.Errorf("%s is filed, but not as a re-file of %s: %w", id, of, err))
-			}
-		}
 		repoint(r, stderr)
 	case "list":
 		fs := newFlags("task list", stderr)
@@ -692,6 +690,29 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		return 2
 	}
 	return 0
+}
+
+// waitsOn reports whether the depends list leads to the task `on`, directly or through other tasks.
+func waitsOn(s *hm.SQLite, depends, on string) bool {
+	var queue []string
+	_ = json.Unmarshal([]byte(depends), &queue)
+	seen := map[string]bool{}
+	for ; len(queue) > 0; queue = queue[1:] {
+		id := queue[0]
+		if id == on {
+			return true
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if t, err := s.Task(id); err == nil {
+			var next []string
+			_ = json.Unmarshal([]byte(t.DependsOn), &next)
+			queue = append(queue, next...)
+		}
+	}
+	return false
 }
 
 // repoint moves dependents to re-filed tasks after a task change; the change stands when it fails (a pass retries).
