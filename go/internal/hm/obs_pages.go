@@ -234,7 +234,11 @@ func spendRole(s *ObsSession) string {
 func (p *SpendPage) pollingBanners(pct int) []string {
 	over := func(polling, usd float64) bool { return usd > 0 && 100*polling-float64(pct)*usd > 1e-9 }
 	line := func(share float64, of string, polling float64) []string {
-		return []string{fmt.Sprintf("Polling is %.0f%% of %s ($%.2f). Action: replace wait turns with one blocking command.", share, of, polling)}
+		shown := fmt.Sprintf("%.0f", share)
+		if math.Round(share) <= float64(pct) { // never print a share that reads as not above the threshold
+			shown = fmt.Sprintf("%.1f", math.Ceil(share*10)/10)
+		}
+		return []string{fmt.Sprintf("Polling is %s%% of %s ($%.2f). Action: replace wait turns with one blocking command.", shown, of, polling)}
 	}
 	if over(p.PollingUSD, p.Total) {
 		return line(p.PollingPct, "spend", p.PollingUSD)

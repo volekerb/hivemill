@@ -828,6 +828,13 @@ func TestObsBannerPollingRole(t *testing.T) {
 	}
 }
 
+func TestObsBannerPollingJustAbove(t *testing.T) {
+	_, h := pollingFixture(t, 8, 1.62, 2, 0.4) // 20.2%
+	if p, _ := spendBanners(t, h); len(p.Banners) != 1 || !strings.HasPrefix(p.Banners[0], "Polling is 20.2% of spend") {
+		t.Fatalf("the printed share reads above the threshold: %q", p.Banners)
+	}
+}
+
 func TestObsBannerPollingConfig(t *testing.T) {
 	r, h := pollingFixture(t, 8, 3, 2, 0.6)
 	if err := r.Store.SetCfg("obs_banner_polling_pct", "50"); err != nil {

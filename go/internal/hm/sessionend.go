@@ -14,7 +14,7 @@ type SessUsage struct {
 	Output     int64   `json:"output_tokens"`
 	CacheRead  int64   `json:"cache_read_tokens"`
 	CacheWrite int64   `json:"cache_write_tokens"`
-	PollingUSD float64 `json:"polling_usd"` // the part of USD from requests with output under spend.TinyOutput
+	PollingUSD float64 `json:"polling_usd"` // spend.Bucket.PollingCost: tiny-output requests, never a transcript's first
 }
 
 // Tokens is every token the session's requests carried.
