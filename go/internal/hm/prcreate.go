@@ -78,7 +78,13 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 	if !slugRe.MatchString(repo) {
 		return "", fmt.Errorf("%w: %s: its project has no valid gh_repo (%q)", ErrRefused, tid, repo)
 	}
-	rc, branch, errs := r.Tools.Git(cwd, "branch", "--show-current")
+	git := r.Tools.Git
+	if run, err := r.Store.Run(tid); err != nil {
+		return "", err
+	} else if run.cloned() { // the call was forwarded from a clone-mode machine: the task clone is there
+		git, cwd = r.at(run).git, run.Worktree
+	}
+	rc, branch, errs := git(cwd, "branch", "--show-current")
 	if rc != 0 {
 		return "", fmt.Errorf("%w: cannot read the current git branch (%s); run `hivemill pr` from your task clone", ErrRefused, firstLine(errs))
 	}
