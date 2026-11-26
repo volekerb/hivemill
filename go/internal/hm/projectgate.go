@@ -45,8 +45,12 @@ func (r *Runner) execProjectGate(wt, cmd string, limit time.Duration, logdir str
 }
 
 func (r *Runner) execProjectGateAt(p place, wt, cmd string, limit time.Duration, logdir string) (int, string, string) {
-	env := append(cleanEnv(), fmt.Sprintf("GATE_TIMEOUT_S=%d", int(limit.Seconds()))) // ci/remote_gate.sh records it
-	rc, text := p.sh(wt, limit, env, "bash", "-c", cmd)
+	limitVar := fmt.Sprintf("GATE_TIMEOUT_S=%d", int(limit.Seconds())) // ci/remote_gate.sh records it
+	argv := []string{"bash", "-c", cmd}
+	if p.machine != "" { // another machine gets no env from here
+		argv = append([]string{"env", limitVar}, argv...)
+	}
+	rc, text := p.sh(wt, limit, append(cleanEnv(), limitVar), argv...)
 	log := filepath.Join(logdir, "gate-cmd.log")
 	_ = os.WriteFile(log, []byte(text), 0o600)
 	switch {

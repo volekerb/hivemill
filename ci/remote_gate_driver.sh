@@ -131,8 +131,10 @@ shards=$jobs
 # Re-exec once in a new session (so cleanup can kill the whole process group), pinned to $cores CPUs and niced.
 if [ "${REMOTE_GATE_LEADER-}" != 1 ]; then
   # Watch targets: our parent; our sshd ancestor, which exits when the connection drops (a waiting shell in between would
-  # not); and in local mode the gate script itself. The run ends when any of them is gone.
+  # not). In local mode there is no connection: the gate script itself is watched instead (an sshd above it is only the
+  # login its runner was started from). The run ends when any watched process is gone.
   w=$PPID
+  [ -z "${REMOTE_GATE_SCRIPT_PID-}" ] || w=0
   while [ "$w" -gt 1 ] && [ -r "/proc/$w/comm" ]; do
     case "$(cat "/proc/$w/comm")" in sshd*) break ;; esac
     read -r _ w _ < <(proc_stat "$w") || w=0
@@ -195,6 +197,26 @@ stale_holder() {
   age=$(( $(date +%s) - since ))
   if [ "$age" -gt "$max" ]; then echo "holder pid $pid has held it for $age s, over the gate limit of $max s"; fi
 }
+# group_pids PGID: the live (not zombie) processes of that group.
+group_pids() {
+  local d stat
+  for d in /proc/[0-9]*; do
+    stat=$(cat "$d/stat" 2>/dev/null) || continue
+    stat=${stat##*) }
+    case "$stat" in Z*|X*) continue ;; esac
+    [ "$(awk '{print $3}' <<<"$stat")" != "$1" ] || echo "${d#/proc/}"
+  done
+}
+# group_holds_lock PGID: some process of that group has the lock file ($lock) open.
+group_holds_lock() {
+  local p fd
+  for p in $(group_pids "$1"); do
+    for fd in "/proc/$p"/fd/*; do
+      if [ "$fd" -ef "$lock" ]; then return 0; fi
+    done
+  done
+  return 1
+}
 # stop_holder PID START: end what is left of a run before its lock is taken over, so two gates never load the host at once:
 # its process group, when the pid is still that driver (and leads its group), or when it is gone and only its jobs are left.
 # A reused pid is never signalled.
@@ -205,42 +227,54 @@ stop_holder() {
     stat=${stat##*) }
     [ "$(awk '{print $3, $20}' <<<"$stat")" = "$pid $2" ] || return 0
     if still_alive "$pid" "$2"; then grep -qa remote_gate_driver.sh "/proc/$pid/cmdline" || return 0; fi
+  else
+    group_holds_lock "$pid" || return 0   # no driver left: signal only a group that still has the lock open
   fi
   kill -TERM -- "-$pid" 2>/dev/null || return 0
-  for i in 1 2 3 4 5 6 7 8 9 10; do
+  for ((i = 0; i < 120; i++)); do   # long enough for its cleanup to remove a large run dir
     sleep 1
-    kill -0 -- "-$pid" 2>/dev/null || return 0
+    [ -n "$(group_pids "$pid")" ] || return 0
   done
   kill -KILL -- "-$pid" 2>/dev/null || :
 }
 mkdir -p "$real_home/factory-gate"
 lock="$real_home/factory-gate/.lock"
+# .lock.meta (fd 8) makes "record the holder" and "judge the record and take over" atomic.
+meta_lock() { exec 8>>"$lock.meta"; flock 8; }
+# take_record: fd 9 has the flock; record us as the holder, unless a takeover replaced the file meanwhile.
+take_record() {
+  [ "/proc/$$/fd/9" -ef "$lock" ] || return 1
+  echo "$$ $(proc_start "$$") $(date +%s) $limit" > "$lock"
+}
 waiting=
 while :; do
-  # .lock.meta makes "take the lock and record the holder" and "judge the record and take over" atomic.
-  exec 8>>"$lock.meta"
-  flock 8
+  meta_lock
   exec 9>>"$lock"
-  if flock -n 9; then
-    echo "$$ $(proc_start "$$") $(date +%s) $limit" > "$lock"
-    exec 8>&-
-    break
-  fi
+  if flock -n 9 && take_record; then break; fi
   why=$(stale_holder "$lock")
   if [ -n "$why" ]; then
     echo "remote-gate-driver: taking over ~/factory-gate/.lock: $why"
     read -r pid start _ < "$lock"
     stop_holder "$pid" "$start"
     rm -f -- "$lock"   # a new file: whatever still holds the old one no longer blocks anybody
+    exec 8>&- 9>&-
+    continue
   fi
-  exec 8>&- 9>&-
-  [ -z "$why" ] || continue
+  exec 8>&-
   if [ -z "$waiting" ]; then
     echo "remote-gate-driver: another gate run holds ~/factory-gate/.lock; waiting"
     waiting=1
   fi
-  sleep 2 & wait "$!"   # in the background: a trapped TERM interrupts `wait`, not a foreground command
+  # Block in the kernel's queue (a release wakes us at once), 5 s at a time to judge the holder again. In the background:
+  # a trapped TERM interrupts `wait`, not a foreground command.
+  flock -w 5 9 &
+  if wait "$!"; then
+    meta_lock
+    if take_record; then break; fi
+  fi
+  exec 8>&- 9>&-
 done
+exec 8>&-
 # Sweep dirs of runs that died without cleanup (only under the lock, so never a live run's dir; > 12 h old): our own
 # <run root>/fg-XXXXXX dirs, and dirs of the old ~/factory-gate/<sha>-<ts>-<pid> layout.
 find "$(dirname "$run")" -mindepth 1 -maxdepth 1 -type d -name 'fg-??????' -user "$(id -u)" -mmin +720 ! -path "$run" \

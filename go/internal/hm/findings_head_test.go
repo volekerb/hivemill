@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // reviewRepo is a task clone with one reviewed commit on a task branch, and an origin/main that can move.
@@ -253,6 +254,17 @@ func TestFindingsBaseMergeOnCloneMachine(t *testing.T) {
 	}
 	if onlyBaseMerges(at, p.dir, "main", p.reviewed, head) {
 		t.Error("info/attributes there: accepted")
+	}
+}
+
+// The project gate on a clone machine, whose environment is its own, still learns its time limit.
+func TestProjectGateGetsItsTimeLimit(t *testing.T) {
+	p := newReviewRepo(t)
+	newFakeRemote(t, p.r)
+	at := place{r: p.r, machine: "w1"}
+	rc, text, _ := p.r.execProjectGateAt(at, p.dir, `echo "limit=$GATE_TIMEOUT_S"`, 2*time.Hour, t.TempDir())
+	if rc != 0 || !strings.Contains(text, "limit=7200") {
+		t.Errorf("exit %d, output %q", rc, text)
 	}
 }
 
