@@ -353,13 +353,9 @@ func lastLines(s string, n int) string {
 
 // publicText runs the public-text guard (owner terms, secrets) over what the branch publishes and over the PR text.
 func (r *Runner) publicText(wt, base string, pr *PR) (bool, string) {
-	terms := r.Store.FactoryCfg("scrub_terms_file")
-	if terms == "" && os.Getenv("SCRUB_TERMS_FILE") == "" {
-		return false, "no owner terms: set them with `hivemill config scrub_terms_file /abs/path` (the check never passes without them)"
-	}
-	args := []string{}
-	if terms != "" {
-		args = append(args, "--terms-file", terms)
+	args, why := r.guardArgs()
+	if why != "" {
+		return false, why
 	}
 	allow := filepath.Join(r.Env.Home, "ci", "scrub_allowlist.txt")
 	var out, errb bytes.Buffer
@@ -369,14 +365,30 @@ func (r *Runner) publicText(wt, base string, pr *PR) (bool, string) {
 		return false, fmt.Sprintf("public-text guard on the commits exited %d: %s", rc, lastLines(out.String()+errb.String(), 6))
 	}
 	if pr != nil {
-		out.Reset()
-		errb.Reset()
-		rc = guard.CIPublicTextGuardMain(append(append([]string{}, args...), "text", "-"), strings.NewReader(pr.Title+"\n"+pr.Body), &out, &errb)
-		if rc != 0 {
-			return false, fmt.Sprintf("public-text guard on the PR title/body exited %d: %s", rc, lastLines(out.String(), 6))
+		if rc, hits := r.guardText(args, pr.Title+"\n"+pr.Body); rc != 0 {
+			return false, fmt.Sprintf("public-text guard on the PR title/body exited %d: %s", rc, lastLines(hits, 6))
 		}
 	}
 	return true, "no hits"
+}
+
+// guardArgs are the public-text guard's owner-terms arguments; why says that there are no terms, so nothing may pass.
+func (r *Runner) guardArgs() (args []string, why string) {
+	terms := r.Store.FactoryCfg("scrub_terms_file")
+	if terms == "" && os.Getenv("SCRUB_TERMS_FILE") == "" {
+		return nil, "no owner terms: set them with `hivemill config scrub_terms_file /abs/path` (the check never passes without them)"
+	}
+	if terms != "" {
+		args = []string{"--terms-file", terms}
+	}
+	return args, ""
+}
+
+// guardText runs the public-text guard over one text.
+func (r *Runner) guardText(args []string, text string) (int, string) {
+	var out, errb bytes.Buffer
+	rc := guard.CIPublicTextGuardMain(append(append([]string{}, args...), "text", "-"), strings.NewReader(text), &out, &errb)
+	return rc, out.String()
 }
 
 // Gate runs every check in the task clone and returns the record (Problems empty = pass).
@@ -393,7 +405,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 		return rec
 	}
 	crit := Criteria(t.Acceptance)
-	logdir := filepath.Join(r.Env.StateDir(), "runs", run.Task, fmt.Sprintf("round-%d", run.Round))
+	logdir := r.logDir(run)
 	_ = os.MkdirAll(logdir, 0o700)
 	add := func(name string, ok bool, note string) {
 		rec.Checks[name] = note
@@ -401,7 +413,8 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 			rec.Problems = append(rec.Problems, name+": "+note)
 		}
 	}
-	if _, out, _ := g(wt, "status", "--porcelain", "--untracked-files=no"); out != "" {
+	_, dirty, _ := g(wt, "status", "--porcelain", "--untracked-files=no")
+	if dirty != "" {
 		add("committed", false, "uncommitted tracked changes: commit them")
 	}
 	_, rec.Head, _ = g(wt, "rev-parse", "HEAD")
@@ -466,9 +479,22 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 		ok, note = r.publicText(run.coordWT(), base, pr)
 	}
 	add("public-text", ok, note)
-	if rec.Tier == "T0" {
+	none, modeErr := r.ciMode(t.Project)
+	cmd, limit := r.projectGate(t.Project)
+	if modeErr != nil {
+		add("affected", false, modeErr.Error())
+	} else if none && strings.TrimSpace(cmd) == "" {
+		add("affected", false, "ci_gate none and the project has no gate_cmd: never merged untested")
+	} else if none {
+		// gate_cmd is the only CI here, so it runs for every tier, on a clean checkout of HEAD
+		ok, note, err := r.recordLocalCI(run, rec.Head, cmd, limit, logdir)
+		if err != nil {
+			note = err.Error()
+		}
+		add("affected", ok, note)
+	} else if rec.Tier == "T0" {
 		rec.Checks["affected"] = "n/a: docs only (T0)"
-	} else if cmd, limit := r.projectGate(t.Project); cmd != "" {
+	} else if cmd != "" {
 		ok, note = r.runProjectGateAt(at, wt, cmd, limit, logdir)
 		add("affected", ok, note)
 	} else {
