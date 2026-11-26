@@ -55,6 +55,9 @@ type Run struct {
 	LocalCI  *LocalCI `json:",omitempty"`
 	CIPosted string   `json:",omitempty"`
 	CI       *CIWait  `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
+	// T3 auto-merge (merge.go)
+	Guarded    string `json:",omitempty"` // head and limits of the last merge.guarded event
+	Unattended bool   `json:",omitempty"` // the runner merges this T3 run without the owner
 	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
 	Mirror, RemoteHome string `json:",omitempty"`
 	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
@@ -79,6 +82,7 @@ type Store interface {
 	DoneTasks() (map[string]bool, error)
 	FactoryCfg(key string) string
 	Cfg(key string) string
+	CfgErr(key string) (string, error)
 	SetCfg(key, value string) error
 	Meta(key string) string
 	SetMeta(key, value string) error
@@ -290,6 +294,18 @@ func (s *SQLite) Cfg(key string) string {
 		return v
 	}
 	return Defaults[key]
+}
+
+// CfgErr is Cfg for a gate that must fail closed: only a missing row falls back to Defaults, a read error is returned.
+func (s *SQLite) CfgErr(key string) (string, error) {
+	var v string
+	switch err := s.db.QueryRow(`SELECT value FROM hm_config WHERE key=?`, key).Scan(&v); {
+	case errors.Is(err, sql.ErrNoRows):
+		return Defaults[key], nil
+	case err != nil:
+		return "", err
+	}
+	return v, nil
 }
 
 func (s *SQLite) SetCfg(key, value string) error {
