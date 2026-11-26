@@ -33,8 +33,8 @@ func (r *Runner) EvalStart(id, mode string) error {
 	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
-	if limit := cfgInt(r.Store, "max_concurrent"); r.activeCount() >= limit {
-		return fmt.Errorf("%w: max_concurrent=%d runs are active", ErrRefused, limit)
+	if why := r.runCapBlock(); why != "" {
+		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
 	if t.RepoPath == "" || t.GHRepo == "" {
 		return fmt.Errorf("%w: %s: its project has no repo_path or gh_repo", ErrRefused, id)
