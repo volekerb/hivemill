@@ -36,6 +36,16 @@ func TestInstallWritesObsUnit(t *testing.T) {
 	if f.mutated("--obs-listen") {
 		t.Errorf("obs_listen changed without an address: %v", f.muts)
 	}
+	dst := filepath.Join(f.HomeDir, ".config", "systemd", "user", "hivemill-obs.service")
+	if err := f.WriteText(dst, "mine"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stepServices(NewCtx(f, &Args{}, &out, false)); err != nil {
+		t.Fatalf("second run: %v\n%s", err, out.String())
+	}
+	if got, err := f.ReadFile(dst); err != nil || string(got) != "mine" {
+		t.Errorf("an existing obs unit was overwritten: %q %v", got, err)
+	}
 }
 
 func TestObsListenOption(t *testing.T) {

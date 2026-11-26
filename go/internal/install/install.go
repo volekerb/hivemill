@@ -869,6 +869,13 @@ func installUnits(c *Ctx) ([]string, error) {
 		if err != nil {
 			return nil, stepWrap(err, "read "+u)
 		}
+		if u == obsUnit { // it may carry another FACTORY_HOME and PATH, from `hivemill init` or by hand
+			if _, err := c.host.ReadFile(dst); err == nil {
+				c.note(dst + " exists and is kept")
+				units = append(units, u)
+				continue
+			}
+		}
 		if err := c.host.WriteText(dst, string(b)); err != nil {
 			return nil, stepWrap(err, "install "+u)
 		}
