@@ -196,13 +196,16 @@ func shownShare(share float64, pct int) string {
 }
 
 // hasPR says whether the task opened a PR. Only pr.merged and run.held name it; an open or failed PR shows as a
-// passed gate (which requires one) or as a round on it.
+// round on it or as a gate stop: the gate hook defers with "no PR yet" until a PR exists, and only then blocks, passes
+// or waits for findings.
 func hasPR(t *ObsTask) bool {
 	if t.PR != "" || t.Rounds > 0 {
 		return true
 	}
 	for _, e := range t.Events {
-		if e.Event == "gate.passed" {
+		switch {
+		case e.Event == "gate.passed", e.Event == "gate.blocked",
+			e.Event == "gate.deferred" && e.Data["why"] == "no findings.json yet":
 			return true
 		}
 	}

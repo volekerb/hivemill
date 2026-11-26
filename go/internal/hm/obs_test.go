@@ -851,8 +851,8 @@ func TestObsBannerPollingConfig(t *testing.T) {
 }
 
 // roundsFixture is a running obs page over ten PR tasks, the first reworked of them with 2 review rounds, and one task
-// that never opened a PR. As the runner writes them, only pr.merged names the PR: T-1 stays open at the gate and T-2
-// to T-4 have rounds but no merge.
+// that never opened a PR. As the runner writes them, only pr.merged names the PR: T-1 to T-4 have no merge, T-9 is
+// blocked at the gate and T-10 waits for its findings.
 func roundsFixture(t *testing.T, reworked int) (*Runner, http.Handler) {
 	t.Helper()
 	r, _ := testRunner(t, "")
@@ -861,14 +861,21 @@ func roundsFixture(t *testing.T, reworked int) (*Runner, http.Handler) {
 	of := func(kind, task string, data map[string]any) Event {
 		return ev(ts, kind, task, "G-1", "www", "", "", data)
 	}
-	evs := []Event{of("task.dispatched", "T-99", nil)}
+	evs := []Event{of("gate.deferred", "T-99", map[string]any{"why": "no PR yet"})}
 	for i := 1; i <= 10; i++ {
 		task := fmt.Sprintf("T-%d", i)
-		evs = append(evs, of("gate.passed", task, nil))
+		switch i {
+		case 9:
+			evs = append(evs, of("gate.blocked", task, nil))
+		case 10:
+			evs = append(evs, of("gate.deferred", task, map[string]any{"why": "no findings.json yet"}))
+		default:
+			evs = append(evs, of("gate.passed", task, nil))
+		}
 		switch {
 		case i <= reworked:
 			evs = append(evs, of("judge.verdict", task, map[string]any{"verdict": "REJECT"}), of("ci.red", task, nil))
-		case i > 4:
+		case i > 4 && i < 9:
 			evs = append(evs, of("pr.merged", task, map[string]any{"pr": "https://github.com/zz-test/www/pull/" + task}))
 		}
 	}
