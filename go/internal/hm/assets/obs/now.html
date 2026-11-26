@@ -37,7 +37,7 @@
 <p class="muted">$ at API prices; a session's whole cost counts on the day it started. Merged, $/merged PR, 2+ rounds and median hours (dispatch to merge) are <code>hivemill report</code>'s rules. Open questions: this machine's from its owner queue, pulled machines' from their ask events.</p>
 <h2 id="machines">Machines</h2>
 <div class="scroll"><table>
-<tr><th>machine</th><th>source</th><th>newest event</th><th>pulled</th></tr>
-{{range .Machines}}<tr><td><a href="{{$.Q "/" "machine" .Machine}}">{{.Machine}}</a></td><td>{{if .Own}}this machine{{else if .Path}}pulled{{else}}-{{end}}</td><td>{{if .Last}}{{when .Last}}{{else}}-{{end}}</td><td>{{if .Pulled}}{{when .Pulled}}{{else}}-{{end}}</td></tr>{{end}}
+<tr><th>machine</th><th>source</th><th>newest event</th><th>pulled</th><th class="num">gate proofs ({{$.Days}}d)</th><th class="num" title="wall time of the gate's test: and cmd: proofs">proof min ({{$.Days}}d)</th></tr>
+{{range .Machines}}<tr><td><a href="{{$.Q "/" "machine" .Machine}}">{{.Machine}}</a></td><td>{{if .Own}}this machine{{else if .Path}}pulled{{else}}-{{end}}</td><td>{{if .Last}}{{when .Last}}{{else}}-{{end}}</td><td>{{if .Pulled}}{{when .Pulled}}{{else}}-{{end}}</td><td class="num">{{if .Proofs}}{{.Proofs}}{{else}}-{{end}}</td><td class="num">{{if .Proofs}}{{fp .ProofMin}}{{else}}-{{end}}</td></tr>{{end}}
 </table></div>
 {{end}}{{end}}
