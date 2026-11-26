@@ -181,8 +181,14 @@ func (r *Runner) idleCheck(s *SQLite, now time.Time) *OwnerAlert {
 		causes = append(causes, fmt.Sprintf("dispatch paused: %d runs wait, max_waiting=%d (see why they wait: CI, a red main or held PRs)", waits, cfgInt(r.Store, "max_waiting")))
 	}
 	if len(projects) > 0 {
-		if ready, err := r.ReadyIn(projects); err == nil && len(ready) == 0 {
-			causes = append(causes, "0 lint-passing ready tasks in the dispatched projects")
+		if ready, blocked, err := r.Queue(projects); err == nil && len(ready) == 0 {
+			cause := "0 startable tasks in the dispatched projects"
+			if len(blocked) > 0 {
+				n := blockedCounts(blocked)
+				cause += fmt.Sprintf(" (%d todo: %d blocked by deps, %d by lint, %d have a run; `hivemill task list --blocked`)",
+					len(blocked), n[BlockedDeps], n[BlockedLint], n[BlockedRun])
+			}
+			causes = append(causes, cause)
 		}
 	}
 	if r.Store.Meta("planner") != "on" {

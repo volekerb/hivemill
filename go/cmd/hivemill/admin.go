@@ -349,7 +349,7 @@ func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 	return 0
 }
 
-const taskUsage = "usage: hivemill task lint|show|cancel T-1234 | task lint --all | task list [--goal G] [--status S] | " +
+const taskUsage = "usage: hivemill task lint|show|cancel T-1234 | task lint --all | task list [--goal G] [--status S] | task list --startable|--blocked | " +
 	"task add --goal G --title TEXT (--spec TEXT|--spec-file F) (--acceptance TEXT|--acceptance-file F) [--priority N] [--depends T-1,T-2] [--draft] | " +
 	"task update T-1234 [--title] [--spec|--spec-file] [--acceptance|--acceptance-file] [--status S] [--priority N] [--depends T-1,T-2]"
 
@@ -507,9 +507,18 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		fs := newFlags("task list", stderr)
 		goal := fs.String("goal", "", "only tasks of this goal")
 		status := fs.String("status", "", "only tasks in this state")
-		if fs.Parse(args[1:]) != nil || fs.NArg() > 0 {
+		startable := fs.Bool("startable", false, "the tasks a pass would start")
+		blocked := fs.Bool("blocked", false, "the todo tasks a pass skips, with the reason")
+		if fs.Parse(args[1:]) != nil || fs.NArg() > 0 || (*startable && *blocked) ||
+			((*startable || *blocked) && (*goal != "" || *status != "")) {
 			fmt.Fprintln(stderr, taskUsage)
 			return 2
+		}
+		if *startable || *blocked {
+			if err := r.ListQueue(stdout, *blocked); err != nil {
+				return fail(stderr, err)
+			}
+			return 0
 		}
 		ts, err := s.Tasks(strings.ToUpper(*goal), *status)
 		if err != nil {
