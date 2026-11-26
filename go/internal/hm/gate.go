@@ -3,8 +3,10 @@ package hm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,6 +16,7 @@ import (
 
 	"factory/go/internal/citools/risktier"
 	"factory/go/internal/guard"
+	"factory/go/internal/shlex"
 )
 
 // Finding is one review finding (docs/schemas/review-findings.schema.json).
@@ -46,6 +49,8 @@ type GateRecord struct {
 	TestsBase int               `json:"tests_base"`
 	TestsHead int               `json:"tests_head"`
 	Problems  []string          `json:"problems"`
+	// Undecided: ssh to the run's clone-mode machine failed during the checks, so they say nothing about the work
+	Undecided bool `json:"undecided,omitempty"`
 }
 
 var (
@@ -62,8 +67,12 @@ func CheckFindings(path string) ([]string, []Finding) {
 }
 
 func checkFindings(path string) ([]string, []Finding, string) {
-	b, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
+	return parseFindings(os.ReadFile(path))
+}
+
+// parseFindings is checkFindings over the result of a read, here or on a clone-mode machine.
+func parseFindings(b []byte, err error) ([]string, []Finding, string) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return []string{"no .hivemill/findings.json: run /code-review, fix the findings, then write the file (see your role steps)"}, nil, ""
 	}
 	var doc struct {
@@ -101,6 +110,12 @@ func (r *Runner) ReviewRan(run *Run) bool {
 		if s.Role != "task" {
 			continue
 		}
+		if run.cloned() {
+			if r.remoteReviewRan(run.Machine, s.SID, since) {
+				return true
+			}
+			continue
+		}
 		m, _ := filepath.Glob(filepath.Join(r.Env.UserHome, ".claude", "projects", "*", s.SID, "subagents", "*.forked-skill.json"))
 		for _, f := range m {
 			fi, err := os.Stat(f)
@@ -119,10 +134,26 @@ func (r *Runner) ReviewRan(run *Run) bool {
 	return false
 }
 
+// remoteReviewRan is ReviewRan's look at the Claude Code records of one session on a clone-mode machine.
+func (r *Runner) remoteReviewRan(machine, sid string, since time.Time) bool {
+	rc, _, _ := r.rsh(machine, "", 60*time.Second, fmt.Sprintf(`sid=%s; since=%d
+for f in "$HOME"/.claude/projects/*/"$sid"/subagents/*.forked-skill.json; do
+  [ -f "$f" ] || continue
+  m=$(stat -c %%Y "$f" 2>/dev/null || stat -f %%m "$f") || continue
+  if [ "$m" -ge "$since" ] && grep -qE '"skillName"[[:space:]]*:[[:space:]]*"code-review"' "$f"; then exit 0; fi
+done
+exit 1`, shlex.Quote(sid), max(since.Unix(), 0)))
+	return rc == 0
+}
+
 // CheckEvidence requires an evidence entry for every criterion id.
 func CheckEvidence(path string, crit []Criterion) []string {
 	b, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
+	return parseEvidence(b, err, crit)
+}
+
+func parseEvidence(b []byte, err error, crit []Criterion) []string {
+	if errors.Is(err, fs.ErrNotExist) {
 		return []string{"no .hivemill/evidence.json: map each criterion to its proof, command and exit code"}
 	}
 	var doc struct {
@@ -155,6 +186,10 @@ func CheckEvidence(path string, crit []Criterion) []string {
 // exit 0 (`test:pnpm --filter web test`, `test:go test ./internal/x`: any project's own test or gate command); else
 // it is Python unittest: a tests/ file (`test:tests/test_x.py`) or a dotted id under tests/ (`test:tests.test_x.T.t`).
 func TestArgv(wt, name string) ([]string, string) {
+	return testArgv(place{}, wt, name)
+}
+
+func testArgv(p place, wt, name string) ([]string, string) {
 	if strings.ContainsAny(strings.TrimSpace(name), " \t") {
 		return []string{"bash", "-c", name}, wt
 	}
@@ -165,7 +200,7 @@ func TestArgv(wt, name string) ([]string, string) {
 		}
 		return []string{"python3", "-m", "unittest", "discover", "-s", dir, "-p", filepath.Base(name)}, wt
 	}
-	if fi, err := os.Stat(filepath.Join(wt, "tests")); err != nil || !fi.IsDir() {
+	if !p.isDir(filepath.Join(wt, "tests")) {
 		return nil, ""
 	}
 	return []string{"python3", "-m", "unittest", strings.TrimPrefix(name, "tests.")}, filepath.Join(wt, "tests")
@@ -185,6 +220,12 @@ func cleanEnv() []string {
 // RerunProofs runs every test: and cmd: proof of the DB criteria (never the session's evidence file) in the run's
 // clone, on the run's machine (proofrun.go).
 func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun {
+	return r.rerunProofs(r.at(run), run, crit, logdir)
+}
+
+// rerunProofs is RerunProofs with the place of the worktree: a clone-mode run's proofs run there over ssh, and the logs
+// are written here.
+func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string) []Rerun {
 	var out []Rerun
 	wt := run.Worktree
 	proofs := &proofRunner{r: r, run: run}
@@ -198,7 +239,7 @@ func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun 
 			out = append(out, x)
 			continue
 		case "test":
-			argv, dir = TestArgv(wt, c.Proof)
+			argv, dir = testArgv(at, wt, c.Proof)
 			if argv == nil {
 				f := false
 				x.OK, x.Note = &f, "no Python tests/ dir: write the proof as the project's test command (test:pnpm test) or as cmd:"
@@ -208,7 +249,14 @@ func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun 
 		default:
 			argv = []string{"bash", "-c", c.Proof}
 		}
-		rc, text, limit := proofs.sh(c.ID, dir, argv)
+		var rc int
+		var text string
+		limit := proofTimeout
+		if run.cloned() {
+			rc, text = at.sh(dir, proofTimeout, cleanEnv(), argv...)
+		} else {
+			rc, text, limit = proofs.sh(c.ID, dir, argv)
+		}
 		x.Log = filepath.Join(logdir, fmt.Sprintf("proof-%d.log", c.ID))
 		_ = os.WriteFile(x.Log, []byte(text), 0o600)
 		ok := rc == 0
@@ -225,8 +273,8 @@ func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun 
 	return out
 }
 
-func (r *Runner) testCount(wt, ref string) int {
-	rc, out, _ := r.Tools.Git(wt, "grep", "-h", "-E", testDefRe, ref, "--", "tests")
+func (r *Runner) testCount(p place, wt, ref string) int {
+	rc, out, _ := p.git(wt, "grep", "-h", "-E", testDefRe, ref, "--", "tests")
 	if rc != 0 && rc != 1 {
 		return -1
 	}
@@ -250,16 +298,25 @@ func (r *Runner) findPR(run *Run, t *Task) string {
 // affected runs the project's affected tests (the selection of ci/affected.py of the factory repo, through its Go port
 // `hivemill affected`) and waits, not fails, while the box has no test slot or is over its load cap.
 func (r *Runner) affected(wt, base string) (bool, string) {
-	if rc, _, _ := r.Tools.Git(wt, "cat-file", "-e", "origin/"+base+":ci/affected.py"); rc != 0 {
+	return r.affectedAt(place{r: r}, "", wt, base)
+}
+
+// affectedAt is affected where the worktree is; bin is the hivemill of a clone-mode machine.
+func (r *Runner) affectedAt(p place, bin, wt, base string) (bool, string) {
+	if rc, _, _ := p.git(wt, "cat-file", "-e", "origin/"+base+":ci/affected.py"); rc != 0 {
 		return true, "n/a: no ci/affected.py in this project"
 	}
 	deadline := time.Now().Add(time.Duration(cfgInt(r.Store, "gate_wait_s")) * time.Second)
 	for {
 		argv := []string{"python3", "ci/affected.py", "--base", "origin/" + base, "--quick", "--run"}
-		if self, err := SelfBinary(); err == nil && filepath.IsAbs(self) {
+		self, err := SelfBinary()
+		if bin != "" {
+			self, err = bin, nil
+		}
+		if err == nil && filepath.IsAbs(self) {
 			argv = []string{self, "affected", "--root", wt, "--base", "origin/" + base, "--quick", "--run"} // the Go port
 		}
-		rc, text := r.Tools.Sh(wt, 30*time.Minute, cleanEnv(), argv...)
+		rc, text := p.sh(wt, 30*time.Minute, cleanEnv(), argv...)
 		tail := lastLines(text, 8)
 		switch {
 		case rc == 4: // EXIT_BUDGET: what ran passed; slow or over-budget modules are left to CI
@@ -337,7 +394,10 @@ func (r *Runner) guardText(args []string, text string) (int, string) {
 
 // Gate runs every check in the task clone and returns the record (Problems empty = pass).
 func (r *Runner) Gate(run *Run) *GateRecord {
-	g := r.Tools.Git
+	at := r.at(run) // the worktree, its commands and its .hivemill files may be on a clone-mode machine
+	lost := false
+	at.lost = &lost
+	g := at.git
 	wt, base := run.Worktree, run.Base
 	rec := &GateRecord{Checks: map[string]string{}}
 	t, err := r.Store.Task(run.Task)
@@ -393,7 +453,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	}
 	// tests and tier
 	_, mb, _ := g(wt, "merge-base", "HEAD", "origin/"+base)
-	rec.TestsBase, rec.TestsHead = r.testCount(wt, mb), r.testCount(wt, "HEAD")
+	rec.TestsBase, rec.TestsHead = r.testCount(at, wt, mb), r.testCount(at, wt, "HEAD")
 	if pr != nil {
 		dropped := rec.TestsBase >= 0 && rec.TestsHead >= 0 && rec.TestsHead < rec.TestsBase
 		if probs := BodyProblems(pr.Body, dropped); len(probs) > 0 {
@@ -402,13 +462,23 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 			rec.Checks["body"] = "follows docs/pr-descriptions.md"
 		}
 	}
-	if rules, _, err := r.TierRules(t.Project); err == nil {
-		tier, why, err := risktier.ClassifyRange(wt, "origin/"+base, "HEAD", rules)
+	// the tier rules and the public-text terms are read here: a clone-mode run is checked in the coordinator's mirror
+	var mirrored error
+	if run.cloned() {
+		mirrored = r.syncMirror(run, rec.Head)
+	}
+	if rules, _, err := r.TierRules(t.Project); err == nil && mirrored == nil {
+		tier, why, err := risktier.ClassifyRange(run.coordWT(), "origin/"+base, "HEAD", rules)
 		if err == nil {
 			rec.Tier, rec.TierWhy = tier, strings.Join(why, "; ")
 		}
 	}
-	ok, note := r.publicText(wt, base, pr)
+	ok, note := false, ""
+	if mirrored != nil {
+		note = mirrored.Error()
+	} else {
+		ok, note = r.publicText(run.coordWT(), base, pr)
+	}
 	add("public-text", ok, note)
 	none, modeErr := r.ciMode(t.Project)
 	cmd, limit := r.projectGate(t.Project)
@@ -426,13 +496,17 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	} else if rec.Tier == "T0" {
 		rec.Checks["affected"] = "n/a: docs only (T0)"
 	} else if cmd != "" {
-		ok, note = r.runProjectGate(wt, cmd, limit, logdir)
+		ok, note = r.runProjectGateAt(at, wt, cmd, limit, logdir)
 		add("affected", ok, note)
 	} else {
-		ok, note = r.affected(wt, base)
+		bin := ""
+		if run.cloned() {
+			bin = remoteBin(run.RemoteHome)
+		}
+		ok, note = r.affectedAt(at, bin, wt, base)
 		add("affected", ok, note)
 	}
-	probs, findings, fhead := checkFindings(filepath.Join(wt, ".hivemill", "findings.json"))
+	probs, findings, fhead := parseFindings(at.read(filepath.Join(wt, ".hivemill", "findings.json")))
 	rec.Findings = findings
 	for _, p := range probs {
 		add("findings", false, p)
@@ -446,19 +520,23 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	} else {
 		rec.Checks["review"] = "/code-review ran in this round"
 	}
-	ev := CheckEvidence(filepath.Join(wt, ".hivemill", "evidence.json"), crit)
+	b, err := at.read(filepath.Join(wt, ".hivemill", "evidence.json"))
+	ev := parseEvidence(b, err, crit)
 	for _, p := range ev {
 		add("evidence", false, p)
 	}
 	if len(ev) == 0 {
-		rec.Reruns = r.RerunProofs(run, crit, logdir)
+		rec.Reruns = r.rerunProofs(at, run, crit, logdir)
 		for _, x := range rec.Reruns {
 			if x.OK != nil && !*x.OK {
 				rec.Problems = append(rec.Problems, fmt.Sprintf("criterion %d (%s): the factory re-ran its proof and it failed: %s", x.ID, x.Kind, x.Note))
 			}
 		}
 	}
-	b, _ := json.MarshalIndent(rec, "", " ")
+	if lost {
+		rec.Undecided, rec.Problems = true, []string{"machine: ssh to " + run.Machine + " failed during the checks; the gate is not decided"}
+	}
+	b, _ = json.MarshalIndent(rec, "", " ")
 	_ = os.WriteFile(filepath.Join(logdir, "gate.json"), b, 0o600)
 	return rec
 }
@@ -652,14 +730,14 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 	// mean the review is done). The stop is not a gate attempt; the idle watch nudges and then fails a session that
 	// stays idle like this.
 	if run.Eval && run.EvalMode == EvalReview {
-		if _, findings, _ := checkFindings(filepath.Join(run.Worktree, ".hivemill", "findings.json")); findings != nil {
+		if _, findings, _ := parseFindings(r.at(run).read(filepath.Join(run.Worktree, ".hivemill", "findings.json"))); findings != nil {
 			run.LastGate = &GateRecord{Findings: findings}
 			run.FindingsTotal = len(findings)
 			r.evalFinish(run, Evaluated, fmt.Sprintf("review: %d findings", len(findings)))
 		}
 		return nil
 	}
-	if _, err := os.Stat(filepath.Join(run.Worktree, ".hivemill", "findings.json")); err != nil {
+	if _, err := r.at(run).read(filepath.Join(run.Worktree, ".hivemill", "findings.json")); err != nil {
 		if r.failOnGuardBlock(run, h) {
 			return nil
 		}
@@ -667,6 +745,10 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 		return nil
 	}
 	rec := r.Gate(run)
+	if rec.Undecided { // neither a pass nor an attempt: the idle watch brings the session back to stop again
+		_ = r.Log.Emit("gate.deferred", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"why": rec.Problems[0]}})
+		return nil
+	}
 	if len(rec.Problems) == 0 {
 		run.State, run.Head, run.PRURL, run.Tier, run.Gated, run.LastGate = Gated, rec.Head, rec.PRURL, rec.Tier, nowISO(), rec
 		fixed := 0
