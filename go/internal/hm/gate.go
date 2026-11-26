@@ -104,15 +104,15 @@ func parseFindings(b []byte, err error) ([]string, []Finding, string) {
 // must be exactly git's own merge of its two parents: a conflict resolution or any edit in the merge needs a new review.
 // A local branch named like the base, a replace ref or a local merge rule must not widen this by accident, so the base is
 // named by its full ref, replace objects are off and such rules refuse. This is no defence against a forged clone: the
-// head in findings.json is the session's own statement.
-func (r *Runner) onlyBaseMerges(wt, base, reviewed, head string) bool {
+// head in findings.json is the session's own statement. at is where the worktree is.
+func onlyBaseMerges(at place, wt, base, reviewed, head string) bool {
 	g := func(args ...string) (int, string, string) {
-		return r.Tools.Git(wt, append([]string{"--no-replace-objects", "-c", "core.attributesFile=/dev/null"}, args...)...)
+		return at.git(wt, append([]string{"--no-replace-objects", "-c", "core.attributesFile=/dev/null"}, args...)...)
 	}
-	if !commitRe.MatchString(reviewed) || r.localMergeRules(wt) { // session text: only a full commit id reaches git
+	if !commitRe.MatchString(reviewed) || localMergeRules(at, wt) { // session text: only a full commit id reaches git
 		return false
 	}
-	rc, log, _ := g("log", "--first-parent", "--format=%H %P %T", reviewed+".."+head)
+	rc, log, _ := g("log", "--first-parent", "--no-show-signature", "--format=%H %P %T", reviewed+".."+head)
 	if rc != 0 || log == "" {
 		return false
 	}
@@ -123,6 +123,10 @@ func (r *Runner) onlyBaseMerges(wt, base, reviewed, head string) bool {
 			return false
 		}
 		if rc, _, _ := g("merge-base", "--is-ancestor", f[2], "refs/remotes/origin/"+base); rc != 0 {
+			return false
+		}
+		// merge-tree reads .gitattributes from the checkout: they must be the ones this merge was made with.
+		if rc, _, _ := g("diff", "--quiet", f[1], "--", ":(glob)**/.gitattributes"); rc != 0 {
 			return false
 		}
 		if rc, out, _ := g("merge-tree", "--write-tree", f[1], f[2]); rc != 0 || strings.TrimSpace(out) != f[3] {
@@ -136,8 +140,8 @@ func (r *Runner) onlyBaseMerges(wt, base, reviewed, head string) bool {
 // localMergeRules reports whether the clone has uncommitted rules that change how git merges (a merge driver, a default
 // driver, info/attributes, an untracked .gitattributes over tracked files), or cannot be asked: git would then repeat a merge the review
 // never saw, such as a union of two conflicting sides.
-func (r *Runner) localMergeRules(wt string) bool {
-	g := r.Tools.Git
+func localMergeRules(at place, wt string) bool {
+	g := at.git
 	if rc, _, _ := g(wt, "config", "--get-regexp", `^merge\.(default$|.*\.driver$)`); rc != 1 { // 1 = no such key
 		return true
 	}
@@ -148,7 +152,7 @@ func (r *Runner) localMergeRules(wt string) bool {
 	if !filepath.IsAbs(attrs) {
 		attrs = filepath.Join(wt, attrs)
 	}
-	if _, err := os.Stat(attrs); !os.IsNotExist(err) {
+	if _, err := at.read(attrs); !errors.Is(err, fs.ErrNotExist) {
 		return true
 	}
 	// Ignored files count too. One whose directory holds no tracked file (an installed dependency's own) shapes no merge.
@@ -583,7 +587,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	for _, p := range probs {
 		add("findings", false, p)
 	}
-	if len(probs) == 0 && fhead != rec.Head && !r.onlyBaseMerges(wt, base, fhead, rec.Head) {
+	if len(probs) == 0 && fhead != rec.Head && !onlyBaseMerges(at, wt, base, fhead, rec.Head) {
 		add("review", false, fmt.Sprintf("findings.json is for head %.9s, not HEAD %.9s: run /code-review on the current head and rewrite "+
 			"the file with \"head\": the output of `git rev-parse HEAD`", fhead, rec.Head))
 	}

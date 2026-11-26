@@ -18,6 +18,7 @@ type reviewRepo struct {
 
 func newReviewRepo(t *testing.T) *reviewRepo {
 	t.Helper()
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null") // the Runner's git must not read the developer's merge settings
 	r, _ := testRunner(t, "")
 	r.Tools.Git = RealTools(r.Env).Git
 	p := &reviewRepo{t: t, r: r, dir: t.TempDir()}
@@ -223,6 +224,35 @@ func TestFindingsRefuseCloneTricks(t *testing.T) {
 	p.git("config", "merge.default", "union")
 	if !p.stale(p.reviewed) {
 		t.Error("merge.default: accepted")
+	}
+	// .gitattributes that main changed after an earlier merge: that merge cannot be repeated as it was made
+	p = newReviewRepo(t)
+	p.moveBase("other.txt", "base\n")
+	p.merge("origin/main")
+	p.moveBase(".gitattributes", "*.md text\n")
+	p.merge("origin/main")
+	if !p.stale(p.reviewed) {
+		t.Error("changed .gitattributes: accepted")
+	}
+}
+
+// A clone-mode task's worktree is on another machine: the merges and the merge rules are read there.
+func TestFindingsBaseMergeOnCloneMachine(t *testing.T) {
+	p := newReviewRepo(t)
+	p.moveBase("other.txt", "base\n")
+	p.merge("origin/main")
+	head := p.git("rev-parse", "HEAD")
+	newFakeRemote(t, p.r)
+	p.r.Tools.Git = func(string, ...string) (int, string, string) { return 128, "", "not on this machine" }
+	at := place{r: p.r, machine: "w1"}
+	if !onlyBaseMerges(at, p.dir, "main", p.reviewed, head) {
+		t.Error("clean merge of main: refused")
+	}
+	if err := os.WriteFile(filepath.Join(p.dir, ".git", "info", "attributes"), []byte("*.txt merge=union\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if onlyBaseMerges(at, p.dir, "main", p.reviewed, head) {
+		t.Error("info/attributes there: accepted")
 	}
 }
 
