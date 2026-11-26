@@ -23,7 +23,7 @@ const (
 	Failed    = "failed"
 	Reverted  = "reverted"
 	Cancelled = "cancelled"
-	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, counts against max_waiting
+	Held      = "held" // the owner decides (a hard limit, judge HOLD, a tier the runner does not merge); not a failure, counts against max_waiting
 )
 
 // Active reports whether a run is unfinished and each pass advances it; busy and waiting say which cap it counts against.
