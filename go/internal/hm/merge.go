@@ -347,10 +347,7 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
 	_ = r.Log.Emit("pr.merged", run, Event{Data: map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL, "merged_at": run.Merged}})
 	r.checkMergeCommit(run)
-	r.Close(run.Agent)
-	for _, j := range run.Judges {
-		r.Close(j)
-	}
+	r.closeSessions(run)
 	r.endSessions(run)
 	r.GoalCheck(run)
 }
