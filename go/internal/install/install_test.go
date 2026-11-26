@@ -532,49 +532,42 @@ func TestStepFailureRedactsTail(t *testing.T) {
 
 // A full --yes run, with every option the removed steps read, never starts or names the old chain.
 func TestInstallNoFactoryChain(t *testing.T) {
-	for _, goos := range []string{"linux", "darwin"} {
-		t.Run(goos, func(t *testing.T) {
-			var f *fakeHost
-			if goos == "darwin" {
-				f = darwinWithTemplates(t)
-			} else {
-				f = unitsFake(t)
-				f.login(t)
-				mustMkdir(t, filepath.Join(f.HomeDir, "factory", "db"))
-				mustWrite(t, filepath.Join(f.HomeDir, "factory", "db", "factory.db"), "x")
-			}
-			rc, out, _ := runMain(t, f, "--resume", "--yes", "--with-serve", "--port", "9100", "--max-agents", "3", "--no-scout",
-				"--project-id", "p", "--project-repo", "/x")
-			if rc != 0 || !strings.Contains(out, "RESULT PASS") {
-				t.Fatalf("rc=%d\n%s", rc, out)
-			}
-			oldUnit := regexp.MustCompile(`factory-|herdr-server|hivemill\.(tick|serve|up)\b`)
-			for _, c := range f.calls {
-				if filepath.Base(c[0]) == "factory" && len(c) > 1 {
-					switch c[1] {
-					case "init", "config", "project", "up", "agents":
-						t.Errorf("ran %q", c)
-					}
-				}
-				if line := strings.Join(c, " "); oldUnit.MatchString(line) {
-					t.Errorf("names an old unit: %q", line)
+	linux := unitsFake(t)
+	linux.login(t)
+	mustMkdir(t, filepath.Join(linux.HomeDir, "factory", "db"))
+	mustWrite(t, filepath.Join(linux.HomeDir, "factory", "db", "factory.db"), "x")
+	oldUnit := regexp.MustCompile(`factory-|herdr-server|hivemill\.(tick|serve|up)\b`)
+	for _, f := range []*fakeHost{linux, darwinWithTemplates(t)} {
+		rc, out, _ := runMain(t, f, "--resume", "--yes", "--with-serve", "--port", "9100", "--max-agents", "3", "--no-scout",
+			"--project-id", "p", "--project-repo", "/x")
+		if rc != 0 || !strings.Contains(out, "RESULT PASS") {
+			t.Fatalf("%s: rc=%d\n%s", f.GOOS(), rc, out)
+		}
+		for _, c := range f.calls {
+			if filepath.Base(c[0]) == "factory" && len(c) > 1 {
+				switch c[1] {
+				case "init", "config", "project", "up", "agents":
+					t.Errorf("%s: ran %q", f.GOOS(), c)
 				}
 			}
-			if len(f.popens) != 0 {
-				t.Errorf("popens = %v, want none", f.popens)
+			if line := strings.Join(c, " "); oldUnit.MatchString(line) {
+				t.Errorf("%s: names an old unit: %q", f.GOOS(), line)
 			}
-			for _, dir := range []string{filepath.Join(f.HomeDir, ".config", "systemd", "user"), filepath.Join(f.HomeDir, "Library", "LaunchAgents")} {
-				ents, err := os.ReadDir(dir)
-				if err != nil && !os.IsNotExist(err) {
-					t.Fatal(err)
-				}
-				for _, e := range ents {
-					if oldUnit.MatchString(e.Name()) {
-						t.Errorf("wrote %s", e.Name())
-					}
+		}
+		if len(f.popens) != 0 {
+			t.Errorf("%s: popens = %v, want none", f.GOOS(), f.popens)
+		}
+		for _, dir := range []string{filepath.Join(f.HomeDir, ".config", "systemd", "user"), filepath.Join(f.HomeDir, "Library", "LaunchAgents")} {
+			ents, err := os.ReadDir(dir)
+			if err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			for _, e := range ents {
+				if oldUnit.MatchString(e.Name()) {
+					t.Errorf("%s: wrote %s", f.GOOS(), e.Name())
 				}
 			}
-		})
+		}
 	}
 }
 
