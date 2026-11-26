@@ -231,12 +231,15 @@ func evTime(e Event) time.Time {
 	return t
 }
 
-// ObsFilter narrows the model to one machine and/or one harness (empty = all). The machine filter keeps that machine's
-// sessions, and every task with a line there, whole: part of a task's lines would give a false outcome.
+// ObsFilter narrows the model to one machine and/or one harness (empty = all). The machine filter keeps every task with a
+// line there whole, sessions elsewhere included (part of a task would give a false outcome); the sums over sessions
+// count only that machine's.
 type ObsFilter struct {
 	Machine string `json:"machine,omitempty"`
 	Harness string `json:"harness,omitempty"`
 }
+
+func (f ObsFilter) onMachine(m string) bool { return f.Machine == "" || m == f.Machine }
 
 // ObsSession is one agent session: its role, model, harness, machine, time span, $ and tokens.
 type ObsSession struct {
@@ -322,10 +325,9 @@ func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, n
 	ms, hs := map[string]bool{}, map[string]bool{}
 	openAsk := map[string][2]string{} // machine/id -> machine, project
 	placed, run := placements(evs)
-	onMachine := func(m string) bool { return f.Machine == "" || m == f.Machine }
 	inFilter := map[string]bool{} // writer/task with a line on the filter's machine
 	for i, e := range evs {
-		if e.TaskID != "" && onMachine(placed[i]) {
+		if e.TaskID != "" && f.onMachine(placed[i]) {
 			inFilter[TaskKey(e.Machine, e.TaskID)] = true
 		}
 	}
@@ -340,10 +342,10 @@ func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, n
 		}
 		hs[e.Harness] = true
 		if f.Harness != "" && e.Harness != f.Harness ||
-			!onMachine(e.Machine) && !inFilter[TaskKey(origin, e.TaskID)] {
+			!f.onMachine(e.Machine) && !inFilter[TaskKey(origin, e.TaskID)] {
 			continue
 		}
-		if strings.HasPrefix(e.Event, "ask.") && onMachine(e.Machine) {
+		if strings.HasPrefix(e.Event, "ask.") && f.onMachine(e.Machine) {
 			if id, ok := e.Data["id"].(float64); ok {
 				k := fmt.Sprintf("%s/%d", origin, int64(id))
 				switch e.Event {
@@ -420,11 +422,6 @@ func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, n
 			}
 			return parseTS(a.Start).Before(parseTS(b.Start))
 		})
-	}
-	for id, s := range o.Sessions {
-		if !onMachine(s.Machine) {
-			delete(o.Sessions, id)
-		}
 	}
 	o.EventAsks = map[string]map[string]int{}
 	for _, v := range openAsk {
@@ -507,6 +504,9 @@ func (o *Obs) Portfolio(days int, asks map[string]int) []ProjectLine {
 	}
 	all := &ProjectLine{Project: "all"}
 	for _, s := range o.Sessions {
+		if !o.Filter.onMachine(s.Machine) {
+			continue
+		}
 		at := parseTS(s.Start)
 		for _, l := range []*ProjectLine{get(s.Project), all} {
 			if !at.Before(today) {

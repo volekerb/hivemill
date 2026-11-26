@@ -1103,15 +1103,26 @@ func TestObsShowsThePlacementMachine(t *testing.T) {
 		t.Fatalf("T-2 %+v asks %v seen %v", o.Tasks["box-a/T-2"], o.EventAsks, o.LastSeen)
 	}
 	near, err := r.LoadObs(ObsFilter{Machine: "box-a"}, true, time.Now())
-	if err != nil || near.Sessions["s-near"] == nil || !near.Sessions["s-near"].CostKnown || near.Sessions["s-judge"] == nil || near.Sessions["s-far"] != nil {
+	if err != nil || near.Sessions["s-near"] == nil || !near.Sessions["s-near"].CostKnown || near.Sessions["s-judge"] == nil || near.Sessions["s-far"] == nil {
 		t.Fatalf("the first run's session.ended: %v %v", err, near.Sessions)
 	}
 	// a task with a line on the machine is whole: merged on the other machine is not open here
 	if t1 := near.Tasks["box-a/T-1"]; t1 == nil || t1.Row.Outcome != "merged" || t1.Machine != "box-c" || t1.Row.USD != 2 {
 		t.Fatalf("T-1 under the filter: %+v", t1)
 	}
+	// the task page keeps its sessions from elsewhere; the sums count only this machine's
+	if got := len(near.TaskSessions(near.Tasks["box-a/T-1"])); got != 2 {
+		t.Fatalf("T-1 sessions under the filter: %d", got)
+	}
+	usd := 0.0
+	for _, l := range near.Portfolio(30, nil)[:1] {
+		usd += l.USD30d
+	}
+	if want := near.Sessions["s-near"].Usage.USD; usd != want {
+		t.Fatalf("spend under the filter %v, want %v", usd, want)
+	}
 	far, err := r.LoadObs(ObsFilter{Machine: "box-c"}, true, time.Now())
-	if err != nil || far.Sessions["s-far"] == nil || far.Sessions["s-near"] != nil || far.Tasks["box-a/T-1"] == nil {
+	if err != nil || far.Sessions["s-far"] == nil || far.Tasks["box-a/T-2"] == nil || far.Tasks["box-a/T-1"] == nil {
 		t.Fatalf("machine filter: %v %v", err, far.Sessions)
 	}
 

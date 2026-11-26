@@ -323,7 +323,7 @@ func (o *Obs) BuildSpend(days int, project, by string) *SpendPage {
 	for _, id := range ids {
 		s := o.Sessions[id]
 		at := parseTS(s.Start)
-		if !at.After(wN) || !projectMatches(project, s.Project) {
+		if !o.Filter.onMachine(s.Machine) || !at.After(wN) || !projectMatches(project, s.Project) {
 			continue
 		}
 		if d := byDay[at.UTC().Format("2006-01-02")]; d != nil {
@@ -492,7 +492,7 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 	sort.Strings(ids)
 	for _, id := range ids {
 		s := o.Sessions[id]
-		if s.Role != "planner" {
+		if s.Role != "planner" || !o.Filter.onMachine(s.Machine) {
 			continue
 		}
 		pl := by[s.Machine]
@@ -521,17 +521,21 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 			p.Portfolio = append(p.Portfolio, l)
 		}
 	}
-	listed := map[string]bool{}
+	listed := map[string]int{} // machine -> its row
 	for _, src := range srcs {
 		src.Machine = or(src.Machine, src.Label)
-		if listed[src.Machine] { // a second copy of one machine's log
-			continue
+		row := sourceLine{ObsSource: src, Last: o.LastSeen[src.Machine]}
+		i, ok := listed[src.Machine]
+		switch {
+		case !ok:
+			listed[src.Machine] = len(p.Machines)
+			p.Machines = append(p.Machines, row)
+		case !p.Machines[i].Own && src.Pulled > p.Machines[i].Pulled: // a newer copy of one machine's log
+			p.Machines[i] = row
 		}
-		listed[src.Machine] = true
-		p.Machines = append(p.Machines, sourceLine{ObsSource: src, Last: o.LastSeen[src.Machine]})
 	}
 	for _, m := range o.Machines { // a session machine has no log of its own
-		if !listed[m] {
+		if _, ok := listed[m]; !ok {
 			p.Machines = append(p.Machines, sourceLine{ObsSource: ObsSource{Label: m, Machine: m}, Last: o.LastSeen[m]})
 		}
 	}
