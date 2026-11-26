@@ -144,6 +144,47 @@ func TestPickMachine(t *testing.T) {
 	}
 }
 
+func TestPickMachineBalances(t *testing.T) {
+	workers := map[string]fakeWorker{
+		"w1": {memMB: 9000, shared: true, coord: "c"},
+		"w2": {memMB: 9000, shared: true, coord: "c"},
+	}
+	r, s, _ := placementRunner(t, workers)
+	withLocalMem(t, 8000)
+	_ = s.SetCfg("session_machines", "w1,w2")
+	put := func(task, machine string) {
+		if err := s.PutRun(&Run{Task: task, State: "working", Machine: machine}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put("T-0001", "w1")
+	put("T-0002", "w1")
+	if pl := r.PickMachine(); pl.Machine != "w2" {
+		t.Errorf("2 active on the first, 0 on the second: %+v", pl)
+	}
+	put("T-0002", "w2") // w1 has 1, w2 has 1: the tie goes to the earlier entry
+	if pl := r.PickMachine(); pl.Machine != "w1" {
+		t.Errorf("1 and 1: %+v", pl)
+	}
+	// the local core is balanced too, and a finished run does not count
+	_ = s.SetCfg("session_machines", "w1,local")
+	if pl := r.PickMachine(); pl.Machine != "" {
+		t.Errorf("w1 has 1 active, local 0: %+v", pl)
+	}
+	put("T-0003", "w1")
+	put("T-0004", "local") // aliases of the local core count as local
+	put("T-0005", "coord-core")
+	_ = s.PutRun(&Run{Task: "T-0006", State: "merged", Machine: ""})
+	// w1 has 2, local has 2 active (the merged one is not counted): the tie goes to w1
+	if pl := r.PickMachine(); pl.Machine != "w1" {
+		t.Errorf("2 and 2: %+v", pl)
+	}
+	put("T-0007", "w1")
+	if pl := r.PickMachine(); pl.Machine != "" {
+		t.Errorf("w1 busier than local: %+v", pl)
+	}
+}
+
 func TestPlacementLocalFloorOnlyWhenLocal(t *testing.T) {
 	r, s, _ := placementRunner(t, nil)
 	c := Caps{MemMB: 500, MemMin: 1024}
