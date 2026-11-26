@@ -6,6 +6,7 @@
     <dt>running</dt><dd>{{if .Running}}<ul>{{range .Running}}<li>{{if .Key}}<a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a>{{else}}{{.Task}}{{end}}</li>{{end}}</ul>{{else}}<span class="muted">none</span>{{end}}</dd>
     <dt>free slots</dt><dd>{{.FreeSlots}} of {{$.MachPg.Cap}}</dd>
     <dt>memory available</dt><dd>{{if .MemMB}}{{.MemMB}} MB{{else}}<span class="muted">unknown</span>{{end}}</dd>
+    <dt>disk used</dt><dd>{{if .DiskPct}}{{.DiskPct}}%{{else}}<span class="muted">unknown</span>{{end}}</dd>
     <dt>last seen</dt><dd>{{if .LastSeen}}{{when .LastSeen}}{{else}}<span class="muted">no event yet</span>{{end}}</dd>
   </dl>
 </section>

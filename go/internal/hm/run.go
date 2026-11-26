@@ -52,6 +52,8 @@ type Runner struct {
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
 	loads      map[string]loadReading // CPU load per machine, see load.go
+	// DiskFree is (total, available) bytes of a path's filesystem; nil = statfs. Tests replace it.
+	DiskFree func(path string) (uint64, uint64, error)
 }
 
 // NewRunner opens the factory DB of the environment.

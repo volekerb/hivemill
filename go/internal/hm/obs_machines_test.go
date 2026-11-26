@@ -25,6 +25,7 @@ func machinesFixture(t *testing.T) (http.Handler, func() []string) {
 	old := MemAvailableMB
 	MemAvailableMB = func() int { return 2048 }
 	t.Cleanup(func() { MemAvailableMB = old })
+	r.DiskFree = func(string) (uint64, uint64, error) { return 100, 58, nil }
 
 	var mu sync.Mutex
 	var probed []string
@@ -38,7 +39,7 @@ func machinesFixture(t *testing.T) (http.Handler, func() []string) {
 			mu.Lock()
 			defer mu.Unlock()
 			probed = append(probed, args[2])
-			return 0, "---mem\nMemAvailable: 4096000 kB\n", ""
+			return 0, "disk=/dev/x 1000 870 130 87% /\n---mem\nMemAvailable: 4096000 kB\n", ""
 		}
 		return 1, "", "no"
 	}
@@ -107,6 +108,16 @@ func TestObsMachinesAPI(t *testing.T) {
 			t.Errorf("card %d: %+v (tasks %v, mem %d), want %+v", i, c, tasks, mem, want)
 		}
 	}
+	// disk use: the factory home here, the probe's df line elsewhere, null on the down machine
+	for i, want := range []int{42, 87, -1} {
+		disk := -1
+		if p := got.Cards[i].DiskPct; p != nil {
+			disk = *p
+		}
+		if disk != want {
+			t.Errorf("card %d: disk %d%%, want %d%%", i, disk, want)
+		}
+	}
 	// the down machine is not probed, and a reload within the TTL probes nothing again
 	serveMachines(h, http.MethodGet, "/api/obs/machines")
 	if got := probed(); !reflect.DeepEqual(got, []string{"box-b"}) {
@@ -121,7 +132,7 @@ func TestObsMachinesPage(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", w.Code, body)
 	}
-	for _, want := range []string{"box-a", "box-b", "box-c", ">coordinator<", ">down<", "unknown", "T-0001", "4000 MB",
+	for _, want := range []string{"box-a", "box-b", "box-c", ">coordinator<", ">down<", "unknown", "T-0001", "4000 MB", "<dt>disk used</dt><dd>87%</dd>",
 		`href="/machines" class="on" aria-current="page"`, `href="/task?k=box-a%2fT-0001"`} {
 		if !strings.Contains(strings.ReplaceAll(body, "%2F", "%2f"), want) {
 			t.Errorf("page lacks %q", want)

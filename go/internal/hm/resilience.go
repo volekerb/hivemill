@@ -191,6 +191,9 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		r.printf("guard export: %v\n", err)
 	}
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
+	cleaned := make(chan struct{})
+	go func() { defer close(cleaned); r.keepClean(ctx) }()
+	defer func() { <-cleaned }() // the daemon lock is held until a running clean has stopped
 	sdNotify("READY=1")
 	for {
 		if err := r.Pass(true); err != nil {

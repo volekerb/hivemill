@@ -8,9 +8,9 @@ import (
 )
 
 // The Machines page of `hivemill obs`: this machine (the coordinator) and every session_machines entry, with the runs
-// whose session counts there (the count placement uses), the free slots under max_concurrent, MemAvailable and the time
-// of the machine's newest event. It only reads: the memory probe is placement's, with a marker that never matches, so it
-// writes nothing and runs no hivemill on the machine.
+// whose session counts there (the count placement uses), the free slots under max_concurrent, MemAvailable, the disk use
+// (of the factory home here, of the user home elsewhere) and the time of the machine's newest event. It only reads: the
+// probe is placement's, with a marker that never matches, so it writes nothing and runs no hivemill on the machine.
 
 // MachineCard is one machine of the page.
 type MachineCard struct {
@@ -20,6 +20,7 @@ type MachineCard struct {
 	Running     []RunningRun `json:"running"`
 	FreeSlots   int          `json:"free_slots"`       // cap minus running, never below 0
 	MemMB       *int         `json:"mem_available_mb"` // null: unknown
+	DiskPct     *int         `json:"disk_used_pct"`    // null: unknown
 	LastSeen    string       `json:"last_seen"`        // the machine's newest event ("" = none)
 }
 
@@ -38,12 +39,13 @@ type MachinesPage struct {
 type machineProbe struct {
 	down bool
 	mem  int // MB, -1 unknown
+	disk int // percent used, -1 unknown
 	at   time.Time
 }
 
-// probeMachine reads one session machine: hc's connection state, then MemAvailable when it is not down.
+// probeMachine reads one session machine: hc's connection state, then memory and disk when it is not down.
 func (r *Runner) probeMachine(m string) machineProbe {
-	p := machineProbe{mem: -1}
+	p := machineProbe{mem: -1, disk: -1}
 	if !validMachine(m) {
 		return p
 	}
@@ -58,7 +60,8 @@ func (r *Runner) probeMachine(m string) machineProbe {
 		rc, out, _ = r.Tools.HC("exec", "--on", m, "sh", "-c", probeScript, "sh", "/nonexistent", "-")
 	}
 	if rc == 0 {
-		p.mem = ParseProbe(out).MemMB
+		got := ParseProbe(out)
+		p.mem, p.disk = got.MemMB, got.DiskPct
 	}
 	return p
 }
@@ -112,7 +115,7 @@ func (s *obsServer) machinesPage(o *Obs) *MachinesPage {
 	active := r.activeRuns(core)
 
 	p := &MachinesPage{Cap: cfgInt(r.Store, "max_concurrent")}
-	card := func(name string, tasks []string, mem int) MachineCard {
+	card := func(name string, tasks []string, mem, disk int) MachineCard {
 		c := MachineCard{Name: name, Running: []RunningRun{}, LastSeen: o.LastSeen[name]}
 		for _, task := range tasks {
 			run := RunningRun{Task: task}
@@ -125,6 +128,9 @@ func (s *obsServer) machinesPage(o *Obs) *MachinesPage {
 		if mem >= 0 {
 			c.MemMB = &mem
 		}
+		if disk >= 0 {
+			c.DiskPct = &disk
+		}
 		return c
 	}
 	// the coordinator's runs: those under "" (local or the core) and those placed under its own name
@@ -132,11 +138,15 @@ func (s *obsServer) machinesPage(o *Obs) *MachinesPage {
 	if me != core {
 		mine = append(mine, active[me]...)
 	}
-	local := card(me, mine, MemAvailableMB())
+	disk := -1
+	if total, free, err := r.diskUse(r.Env.Home); err == nil && total > 0 {
+		disk = usedPct(total, free)
+	}
+	local := card(me, mine, MemAvailableMB(), disk)
 	local.Coordinator = true
 	p.Cards = []MachineCard{local}
 	for _, m := range others {
-		c := card(m, active[m], probed[m].mem)
+		c := card(m, active[m], probed[m].mem, probed[m].disk)
 		c.Down = probed[m].down
 		p.Cards = append(p.Cards, c)
 	}
