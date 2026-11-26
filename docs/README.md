@@ -107,7 +107,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [lessons.md](lessons.md): where corrections and incidents are recorded and applied.
 - [utilization.md](utilization.md): the live-agent count shown by `factory res`, the tick sample and the web home.
 - [terminal-backends.md](terminal-backends.md): Herdr TUI vs herdr-core (`hc`), how to switch `terminal_backend`, caveats.
-- [multi-machine.md](multi-machine.md): the `factory-forward` ssh forwarder (protocol, env allow-list, owner install, threat model) for workers on a second machine (G-057).
+- [multi-machine.md](multi-machine.md): workers on a second machine (G-057); its `factory-forward` ssh forwarder was removed with the old chain, and the page keeps its description for reference.
 - [utilization-alerts.md](utilization-alerts.md): tick alerts to the director and boss for low worker count, starved goals and owner-cap breaches.
 
 ## Contribute

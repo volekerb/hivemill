@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Removed
+
+- Old-chain delete step 1: the `factory-forward` ssh forwarder, the `factory-go-version` command and their packages (`internal/forward`, `internal/buildinfo`) are gone, with the tests that built or exercised the forwarder (T-1932).
+
 ### Fixed
 
 - **`factory schedule` works on a box running the Python defaults.** The tick built `factory-go` and the guard binary only when `cli_impl`, `tick_impl` or `guard_impl` asked for Go, so `factory schedule add` failed with "needs the Go CLI binary". Both binaries are now built on every tick when a `go/` tree and a Go toolchain exist. Dispatch is unchanged: no command routes to Go unless its impl flag says so (T-1804).
