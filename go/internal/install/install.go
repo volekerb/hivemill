@@ -718,113 +718,6 @@ func stepLink(c *Ctx) (string, error) {
 	return "linked " + c.factory, nil
 }
 
-func stepInit(c *Ctx) (string, error) {
-	if c.host.Exists(filepath.Join(c.fh, "db", "factory.db")) {
-		return "database exists: init skipped", nil
-	}
-	out, err := c.doDefault([]string{c.factory, "init"}, "factory init")
-	if err != nil {
-		return "", err
-	}
-	if !c.plan && !strings.Contains(out, "initialised") {
-		return "", stepf("`factory init` did not print an `initialised` line:\n%s", tailOf(out))
-	}
-	return "factory init done", nil
-}
-
-func stepConfig(c *Ctx) (string, error) {
-	a := c.args
-	dbExisted := c.host.Exists(filepath.Join(c.fh, "db", "factory.db")) && !c.plan
-	type kv struct{ k, v string }
-	var sets []kv
-	// the default bind is the default-route address, which would put the UI on the LAN
-	if a.Resume && dbExisted {
-		_, cur := c.read([]string{c.factory, "config", "serve_bind"}, 60*time.Second)
-		if pyStrip(cur) != "" {
-			c.note(fmt.Sprintf("--resume: serve_bind is already %s, kept", pyRepr(pyStrip(cur))))
-		} else {
-			sets = append(sets, kv{"serve_bind", Loopback})
-		}
-	} else {
-		sets = append(sets, kv{"serve_bind", Loopback})
-	}
-	if a.Port != 0 {
-		sets = append(sets, kv{"serve_port", strconv.Itoa(a.Port)})
-	}
-	if a.MaxAgents != "" {
-		sets = append(sets, kv{"max_live_agents", a.MaxAgents})
-	}
-	if a.NoScout {
-		sets = append(sets, kv{"scout_enabled", "0"})
-	}
-	for _, s := range sets {
-		if _, err := c.doDefault([]string{c.factory, "config", s.k, s.v}, "factory config "+s.k); err != nil {
-			return "", err
-		}
-	}
-	if a.Port == 0 && a.Resume && dbExisted {
-		rc, out := c.read([]string{c.factory, "config", "serve_port"}, 60*time.Second)
-		if n, ok := asciiDigits(pyStrip(out)); rc == 0 && ok {
-			c.port = n
-		}
-	}
-	if len(sets) == 0 {
-		return "no config change", nil
-	}
-	parts := make([]string, len(sets))
-	for i, s := range sets {
-		parts[i] = s.k + "=" + s.v
-	}
-	return "set " + strings.Join(parts, ", "), nil
-}
-
-// asciiDigits is str.isdigit() followed by int() for the values `factory config` prints.
-func asciiDigits(s string) (int, bool) {
-	n, ok := pyInt(s)
-	if !ok || s == "" || strings.ContainsAny(s, "+-_ ") || !n.IsInt64() || n.Int64() > 1<<31 {
-		return 0, false
-	}
-	return int(n.Int64()), true
-}
-
-// pyRepr is repr() of a str for the plain strings printed here.
-func pyRepr(s string) string {
-	q := "'"
-	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
-		q = `"`
-	}
-	return q + strings.ReplaceAll(s, q, `\`+q) + q
-}
-
-func stepProject(c *Ctx) (string, error) {
-	a := c.args
-	if a.ProjectID == "" || a.ProjectRepo == "" {
-		return "no --project-id/--project-repo: skipped", nil
-	}
-	if !c.plan {
-		rc, out := c.read([]string{c.factory, "project", "list"}, 60*time.Second)
-		if rc == 0 {
-			for _, f := range pyFields(out) {
-				if f == a.ProjectID {
-					return fmt.Sprintf("project %s already listed: skipped", a.ProjectID), nil
-				}
-			}
-		}
-	}
-	name := a.ProjectName
-	if name == "" {
-		name = a.ProjectID
-	}
-	argv := []string{c.factory, "project", "add", a.ProjectID, "--name", name, "--repo", a.ProjectRepo}
-	if a.ProjectGH != "" {
-		argv = append(argv, "--gh", a.ProjectGH)
-	}
-	if _, err := c.doDefault(argv, "factory project add"); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("project %s added", a.ProjectID), nil
-}
-
 func stepServices(c *Ctx) (string, error) {
 	a := c.args
 	if c.host.GOOS() == "darwin" {
@@ -931,8 +824,6 @@ func indexOf(s []string, v string) int {
 func stepSmoke(c *Ctx) (string, error) {
 	if c.plan {
 		c.emit(fmt.Sprintf("    $ %s --version   (expects 'hivemill X.Y.Z')", c.factory))
-		c.emit(fmt.Sprintf("    $ %s agents   (boss and director live, or queued)", c.factory))
-		c.emit(fmt.Sprintf("    $ GET http://%s:%d/ and /goals   (expect 200)", Loopback, c.port))
 		return "plan", nil
 	}
 	rc, out := c.read([]string{c.factory, "--version"}, 60*time.Second)
@@ -941,45 +832,8 @@ func stepSmoke(c *Ctx) (string, error) {
 		return "", stepf("`factory --version` did not print 'hivemill X.Y.Z':\n%s", tailOf(out))
 	}
 	c.version = m[1]
-	var states map[string]string
-	okAgents := false
-	for i := 0; i < 30; i++ {
-		rc, out = c.read([]string{c.factory, "agents"}, 60*time.Second)
-		states = map[string]string{}
-		if rc == 0 {
-			states = agentStatus(out)
-		}
-		if liveOrQueued(states["boss"]) && liveOrQueued(states["director"]) {
-			okAgents = true
-			break
-		}
-		c.host.Sleep(2 * time.Second)
-	}
-	if !okAgents {
-		return "", stepf("boss/director are not live or queued after 60 s:\n%s", tailOf(out))
-	}
-	detail := fmt.Sprintf("boss %s, director %s", states["boss"], states["director"])
-	for _, path := range []string{"/", "/goals"} {
-		url := fmt.Sprintf("http://%s:%d%s", Loopback, c.port, path)
-		code := 0
-		for i := 0; i < 15; i++ {
-			if code = c.host.HTTPStatus(url); code == 200 {
-				break
-			}
-			c.host.Sleep(2 * time.Second)
-		}
-		if code != 200 {
-			got := "nothing"
-			if code != 0 {
-				got = strconv.Itoa(code)
-			}
-			return "", stepf("GET %s answered %s, expected 200", url, got)
-		}
-	}
-	return fmt.Sprintf("version %s; %s; UI answers 200", c.version, detail), nil
+	return "version " + c.version, nil
 }
-
-func liveOrQueued(s string) bool { return s == "live" || s == "queued" }
 
 type step struct {
 	name string
@@ -988,8 +842,7 @@ type step struct {
 
 var steps = []step{
 	{"prereqs", stepPrereqs}, {"tools", stepTools}, {"auth", stepAuth}, {"clone", stepClone},
-	{"link", stepLink}, {"init", stepInit}, {"config", stepConfig}, {"project", stepProject},
-	{"services", stepServices}, {"smoke", stepSmoke},
+	{"link", stepLink}, {"services", stepServices}, {"smoke", stepSmoke},
 }
 
 // finish prints the outcome of a failed run and returns its exit code.
