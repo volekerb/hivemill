@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Light and dark screenshots of the `hivemill obs` Spend and Flow pages, from the synthetic fixture in
+# Light and dark screenshots of the `hivemill obs` Now, Spend and Flow pages, from the synthetic fixture in
 # go/internal/hm/testdata/obs_fixture/. Nothing of a real factory is read: the server gets a throwaway home and a
 # clean environment.
 #
-#   ci/obs_screens.sh --out DIR      writes spend-light.png spend-dark.png flow-light.png flow-dark.png
+#   ci/obs_screens.sh --out DIR      writes now-, spend- and flow-light.png and -dark.png
 #
 # CHROME (default ~/.local/bin/chrome-headless-shell) is the headless browser, GO the go binary.
 set -euo pipefail
@@ -78,16 +78,19 @@ done
 [ -n "$ready" ] && kill -0 %1 2>/dev/null || { cat "$tmp/obs.log" >&2; die "hivemill obs did not start"; }
 
 # Blink's preferred colour scheme: 0 is dark, 1 is light. The pages follow prefers-color-scheme.
-for page in spend flow; do
-  curl -fsS -o /dev/null "$url/$page" || die "GET /$page failed"
+# Now is served at /, the other pages at /<page>.
+for page in now spend flow; do
+  path=/$page
+  [ "$page" = now ] && path=/
+  curl -fsS -o /dev/null "$url$path" || die "GET $path failed"
   for theme in light:1 dark:0; do
     png=$out/$page-${theme%:*}.png
     rm -f "$png"
     chrome-headless-shell --headless --hide-scrollbars --window-size=1280,900 --user-data-dir="$tmp/chrome" \
-      --blink-settings=preferredColorScheme="${theme#*:}" --screenshot="$png" "$url/$page" \
-      >"$tmp/chrome.log" 2>&1 || { cat "$tmp/chrome.log" >&2; die "screenshot of /$page failed"; }
+      --blink-settings=preferredColorScheme="${theme#*:}" --screenshot="$png" "$url$path" \
+      >"$tmp/chrome.log" 2>&1 || { cat "$tmp/chrome.log" >&2; die "screenshot of $path failed"; }
     [ -s "$png" ] || { cat "$tmp/chrome.log" >&2; die "no screenshot written: $png"; }
   done
-  ! cmp -s "$out/$page-light.png" "$out/$page-dark.png" || die "/$page: light and dark screenshots are identical"
+  ! cmp -s "$out/$page-light.png" "$out/$page-dark.png" || die "$path: light and dark screenshots are identical"
 done
-echo "obs_screens: wrote spend-light.png spend-dark.png flow-light.png flow-dark.png to $out"
+echo "obs_screens: wrote now-light.png now-dark.png spend-light.png spend-dark.png flow-light.png flow-dark.png to $out"
