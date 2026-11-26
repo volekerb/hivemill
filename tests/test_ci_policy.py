@@ -76,7 +76,7 @@ def _block(rows, i):
 
 def _flow_line(s):
     """One line of a flow value: quoted names unquoted, other quoted text blanked (brackets and # in it are text), comment cut."""
-    if "\\" in s:  # escapes in a quoted scalar are not read: the caller reports the value as unparsed
+    if "\\" in s or s.count("'") % 2 or s.count('"') % 2:  # escapes or a quote open across lines: reported as unparsed
         return "\x00"
     s = re.sub(r"'[^']*'|\"[^\"]*\"", lambda q: q.group(0)[1:-1] if re.fullmatch(r"[A-Za-z_][\w-]*", q.group(0)[1:-1]) else "_q", s)
     return re.sub(r"(^|\s+)#.*$", "", s).strip()
@@ -346,7 +346,8 @@ class RunnerRule(PolicyBase):  # a
                            "issue_comment")
         # a hosted workflow whose triggers cannot be read fails too, so a banned trigger cannot hide there
         for on in ("on:\n- schedule\n", "on: [push,\n", "on :\n  schedule:\n",
-                   'on: {push: {branches: ["a\\"b"]}, schedule: {}}\n'):
+                   'on: {push: {branches: ["a\\"b"]}, schedule: {}}\n',
+                   "on: {push: {branches: ['a\n  ]}']}, schedule: {}}\n"):
             self.assertBlocked(GOOD.replace(block, on), "cannot read")
 
     def test_self_hosted_for_forks_blocked(self):

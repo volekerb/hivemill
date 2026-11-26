@@ -168,7 +168,7 @@ jobs:
           # 711 as in the local gate: the subuid sandbox tests run as another uid that must traverse it.
           TMPDIR=$(mktemp -d /tmp/hm-shard.XXXXXX); export TMPDIR
           chmod 711 "$TMPDIR"
-          trap 'rm -rf "$TMPDIR" || true' EXIT
+          trap 'rm -rf "$TMPDIR" || echo "cleanup left files in $TMPDIR" >&2' EXIT
           only=()
           if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
           "$RUNNER_TEMP/ci-shard" run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json" "${only[@]}"
@@ -587,10 +587,13 @@ jobs:
         run: |
           (cd go && go build -o "$RUNNER_TEMP/worker-guard" ./cmd/worker-guard)
           echo "GUARD_GO_BIN=$RUNNER_TEMP/worker-guard" >> "$GITHUB_ENV"
-          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run
-          mkdir -p "$HOME/.local"
-          ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
-          ls -l "$HOME/.local/go/bin/go"
+          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run.
+          # Only on a throwaway hosted VM: the hm-ci runners share one HOME, so they keep the host's own ~/.local/go.
+          if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
+            mkdir -p "$HOME/.local"
+            ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
+          fi
+          ls -l "$HOME/.local/go/bin/go" || echo "no ~/.local/go on this runner: the REAL_GO tests skip"
       - name: guard_diff strict Go gate (corpus, one role shard; shard 1 also runs hq)
         if: steps.paths.outputs.run == 'true'
         run: |
@@ -693,10 +696,13 @@ jobs:
         run: |
           (cd go && go build -o "$RUNNER_TEMP/worker-guard" ./cmd/worker-guard)
           echo "GUARD_GO_BIN=$RUNNER_TEMP/worker-guard" >> "$GITHUB_ENV"
-          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run
-          mkdir -p "$HOME/.local"
-          ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
-          ls -l "$HOME/.local/go/bin/go"
+          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run.
+          # Only on a throwaway hosted VM: the hm-ci runners share one HOME, so they keep the host's own ~/.local/go.
+          if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
+            mkdir -p "$HOME/.local"
+            ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
+          fi
+          ls -l "$HOME/.local/go/bin/go" || echo "no ~/.local/go on this runner: the REAL_GO tests skip"
       - name: Routed unittest modules under GUARD_IMPL=diff (not in guard-diff)
         if: steps.paths.outputs.run == 'true'
         run: |

@@ -26,6 +26,7 @@ OS packages:
 - `gcc` and `libc6-dev`: the manual deep run uses `go test -race`.
 - `nodejs`, version 20 or newer: with `CI` set, the ios-release node tests fail without it.
 - `util-linux` (`unshare`, `setpriv`) and `uidmap` (`newuidmap`, `newgidmap`).
+- Go at `~/.local/go` of the runner user, at the version in `go/go.mod`: the guard jobs' REAL_GO tests use it, and the workflow links it only on hosted VMs, because the runners share one home.
 
 Kernel and user settings:
 
