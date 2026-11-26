@@ -54,7 +54,7 @@ jobs:
   install-smoke:
     name: install-smoke (${{ matrix.image }}, ${{ matrix.ref }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30  # two cold go builds as the plain user, no module cache
     container:
       image: ${{ matrix.image }}
     strategy:
