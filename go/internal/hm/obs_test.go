@@ -851,24 +851,25 @@ func TestObsBannerPollingConfig(t *testing.T) {
 }
 
 // roundsFixture is a running obs page over ten PR tasks, the first reworked of them with 2 review rounds, and one task
-// with 2 rounds but no PR, which never counts.
+// that never opened a PR. As the runner writes them, only pr.merged names the PR: T-1 stays open at the gate and T-2
+// to T-4 have rounds but no merge.
 func roundsFixture(t *testing.T, reworked int) (*Runner, http.Handler) {
 	t.Helper()
 	r, _ := testRunner(t, "")
 	r.Log.Machine = "box-a"
 	ts := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
-	red := func(task string) Event {
-		return ev(ts, "ci.red", task, "G-1", "www", "", "", map[string]any{"failed": []any{"go"}})
+	of := func(kind, task string, data map[string]any) Event {
+		return ev(ts, kind, task, "G-1", "www", "", "", data)
 	}
-	verdict := func(task string, data map[string]any) Event {
-		return ev(ts, "judge.verdict", task, "G-1", "www", "", "", data)
-	}
-	evs := []Event{red("T-99"), red("T-99")}
+	evs := []Event{of("task.dispatched", "T-99", nil)}
 	for i := 1; i <= 10; i++ {
 		task := fmt.Sprintf("T-%d", i)
-		evs = append(evs, verdict(task, map[string]any{"verdict": "MERGE", "pr": "https://github.com/zz-test/www/pull/" + task}))
-		if i <= reworked {
-			evs = append(evs, red(task))
+		evs = append(evs, of("gate.passed", task, nil))
+		switch {
+		case i <= reworked:
+			evs = append(evs, of("judge.verdict", task, map[string]any{"verdict": "REJECT"}), of("ci.red", task, nil))
+		case i > 4:
+			evs = append(evs, of("pr.merged", task, map[string]any{"pr": "https://github.com/zz-test/www/pull/" + task}))
 		}
 	}
 	writeEvents(t, r.Log.Path, evs...)

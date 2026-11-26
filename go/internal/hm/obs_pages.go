@@ -104,7 +104,7 @@ type FlowPage struct {
 	MergedByDay []DayCount `json:"merged_per_day"`
 	Merged      int        `json:"merged"`
 	Banners     []string   `json:"banners"`
-	prs         int        // tasks of Tasks that have a PR
+	prs         int        // tasks of Tasks that opened a PR
 	reworked    int        // those of prs with 2+ review rounds
 	// Chart is the merged-per-day SVG.
 	Chart template.HTML `json:"-"`
@@ -157,7 +157,7 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 		}
 		if parseTS(t.Last).After(wN) {
 			p.Tasks = append(p.Tasks, f)
-			if t.PR != "" {
+			if hasPR(t) {
 				p.prs++
 				if t.Rounds >= 2 {
 					p.reworked++
@@ -193,6 +193,20 @@ func shownShare(share float64, pct int) string {
 		return fmt.Sprintf("%.1f", math.Ceil(share*10)/10)
 	}
 	return fmt.Sprintf("%.0f", math.Round(share)) // %.0f alone rounds 20.5 down
+}
+
+// hasPR says whether the task opened a PR. Only pr.merged and run.held name it; an open or failed PR shows as a
+// passed gate (which requires one) or as a round on it.
+func hasPR(t *ObsTask) bool {
+	if t.PR != "" || t.Rounds > 0 {
+		return true
+	}
+	for _, e := range t.Events {
+		if e.Event == "gate.passed" {
+			return true
+		}
+	}
+	return false
 }
 
 // SpendDay is the day's cost by role.
