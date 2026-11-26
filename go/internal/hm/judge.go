@@ -265,6 +265,9 @@ func (r *Runner) StartJudge(run *Run) error {
 		"with the verdict JSON block.", name, run.Task, run.PRURL, rel)
 	_, err = r.StartSession(run, Launch{Role: "task-judge", Name: name, Cwd: run.Worktree, Model: model, Effort: effort,
 		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task-judge.md"), Kickoff: kick})
+	if err == nil {
+		r.recordPrompt(run, "judge", "judge", packet) // the judge reads it from the file the kickoff names
+	}
 	return err
 }
 

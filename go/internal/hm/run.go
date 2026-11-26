@@ -405,7 +405,10 @@ func (r *Runner) fail(run *Run, reason string) {
 }
 
 // resume sends text to the same warm task session and starts a new round.
-func (r *Runner) resume(run *Run, text string) {
+func (r *Runner) resume(run *Run, text string) { r.resumeAs(run, "resume", text) }
+
+// resumeAs is resume with the kind the prompt is recorded under.
+func (r *Runner) resumeAs(run *Run, kind, text string) {
 	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
 	// are deferred until the session writes fresh findings.
 	if run.Worktree != "" {
@@ -423,6 +426,7 @@ func (r *Runner) resume(run *Run, text string) {
 		r.fail(run, "cannot reach the task session: "+err.Error())
 		return
 	}
+	r.recordPrompt(run, "task", kind, text)
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-resume", truncate(text, 300))
 }
 
@@ -588,7 +592,7 @@ func (r *Runner) gated(run *Run) {
 				return
 			}
 			run.History = append(run.History, fmt.Sprintf("round %d: CI red (%s)", run.Round, strings.Join(failed, ", ")))
-			r.resume(run, "CI is red on your PR: "+strings.Join(failed, ", ")+". Read the failing log (`gh run view --log-failed`), "+
+			r.resumeAs(run, "ci", "CI is red on your PR: "+strings.Join(failed, ", ")+". Read the failing log (`gh run view --log-failed`), "+
 				"fix it, push, wait for CI once with one blocking command, and stop.")
 		case "green":
 			if err := r.StartJudge(run); err != nil {
@@ -625,7 +629,7 @@ func (r *Runner) judged(run *Run) {
 		r.fail(run, fmt.Sprintf("judge REJECT x%d: %s", run.JudgeRounds, reasons))
 		return
 	}
-	r.resume(run, "The judge rejected the PR. Fix this, push, wait for CI once and stop:\n- "+strings.Join(v.Reasons, "\n- "))
+	r.resumeAs(run, "judge", "The judge rejected the PR. Fix this, push, wait for CI once and stop:\n- "+strings.Join(v.Reasons, "\n- "))
 }
 
 // Stop cancels a run: its terminals close and the task goes back to todo.
@@ -711,8 +715,11 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 		return
 	}
 	run.IdleNudges++
-	_ = r.Prompt(run.Agent, "You stopped before your task was finished. Continue your role steps from where you are: finish the "+
-		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop.")
+	nudge := "You stopped before your task was finished. Continue your role steps from where you are: finish the " +
+		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop."
+	if r.Prompt(run.Agent, nudge) == nil {
+		r.recordPrompt(run, "task", "nudge", nudge)
+	}
 	_ = r.Log.Emit("session.nudged", run, Event{Role: "task"})
 }
 
