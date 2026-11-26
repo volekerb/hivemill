@@ -9,7 +9,9 @@ hivemill-wake v1 at=<time> asks_open=<n> reasons=<reason> <reason> ...
 ```
 
 Reasons:
-- `queue_low:<project>=<ready>/<min>`: fewer lint-passing ready tasks than `planner_queue_min` in a project with an active goal.
+- `queue_low:<project>=<startable>/<min>`: fewer startable tasks than `planner_queue_min` in a project with an active goal.
+- `unstartable:<id>,...`: todo tasks fail the spec gate, so no pass starts them. `hivemill task list --blocked` says why: fix the acceptance or the missing spec (`hivemill task update`), or cancel the task and file it again.
+- `none_startable:todo=<n>,blocked_by_deps=<n>,blocked_by_lint=<n>[,have_a_run=<n>]`: a run slot is free and todo tasks exist, but none can start. `hivemill task list --blocked` says why for each.
 - `not_dispatched:<project>`: the project has an active goal, but it is not in the config key `projects`, so no pass starts its tasks. Only the owner can change that: ask once.
 - `task.failed:<ids>`: runs that failed (gate cap, judge REJECT rounds, CI rounds, budget, session lost).
 - `run.held:<ids>`: runs held for the owner (T3 diff, or judge HOLD). The runner has already filed an owner question for each.
@@ -26,7 +28,7 @@ Reasons:
 
 ## Keep the ready queue full
 
-- A ready task is `todo`, has a spec, passes `hivemill task lint`, has its dependencies done, and has never run. Keep at least `planner_queue_min` (default 3) per project with an active goal.
+- A ready (startable) task is `todo`, has a spec, passes `hivemill task lint`, has its dependencies done, and has no run (it never ran, or was requeued) (`hivemill task list --startable`). Keep at least `planner_queue_min` (default 3) per project with an active goal.
 - Take the next steps from the goal's intent and success criteria and from what already merged (`git -C <repo> log --oneline -20`, `gh pr list --repo OWNER/NAME --state merged --limit 20`). File in the order the goal needs them, with `--depends` where one needs another.
 - Size: one task is one session under `task_budget_usd` (default $5): about one behaviour change, at most about 5 files and 300 changed lines, 2 to 5 criteria. When a task is bigger, split it.
 - Every criterion names its proof (`test:`, `cmd: ... => exit 0`, `flow:`, `manual:`), or `task add` refuses it. Prefer `cmd:` and `test:` proofs, which the gate re-runs. Add a `FILES:` line to the spec with the paths the task may change.
@@ -38,12 +40,13 @@ Reasons:
 
 ## Failed and held runs
 
-A task that ran once is never started again. For a failed run, read why (`hivemill task show`, `hivemill run status`, the PR) and choose one:
+A task that ran once is started again only after `hivemill task requeue`. For a failed run, read why (`hivemill task show`, `hivemill run status`, the PR) and choose one:
+- **Requeue**: the spec is right and the cause is gone (infrastructure, a lost session, a fixed runner bug). `hivemill task requeue T-x` takes a failed or cancelled task back to `todo` for a new run. The old run stays in `hivemill report` and `hivemill task show`, and its spend still counts against the budgets, so a run that failed on budget fails again: split it instead.
 - **Split**: the task was too big or mixed two changes. Cancel it (`hivemill task cancel`) and file two or three smaller tasks.
 - **Spec fix**: the spec or a proof was wrong or unclear. Cancel it and file a corrected task with a new title.
 - **Owner question**: only the owner can decide (product choice, credentials, a T3 area, a judge HOLD on an unasked change). `hivemill ask add --task T-NNNN '...'`.
 
-Never cancel a held run's task: the owner merges or closes its PR. Its question is already in the owner queue.
+Never cancel a held run's task: its question is already in the owner queue, and the answer to it resumes the run. An answer that starts with `merge` merges a PR the judge passed (the tier rules still apply); any other answer goes to the task session as a new round. You do not relay it. The owner may also merge or close the PR.
 
 ## Owner questions
 

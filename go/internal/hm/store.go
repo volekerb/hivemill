@@ -96,6 +96,7 @@ type Store interface {
 	Run(task string) (*Run, error)
 	PutRun(r *Run) error
 	Runs() ([]Run, error)
+	RetiredRuns() ([]Run, error)
 	AddSession(s Session) error
 	Sessions(task string) ([]Session, error)
 	RedMain(slug string) (map[string]any, bool)
@@ -418,7 +419,17 @@ func (s *SQLite) PutRun(r *Run) error {
 
 // Runs lists the current run of every task; a run retired by `task requeue` (key T-x#n) is kept but not listed.
 func (s *SQLite) Runs() ([]Run, error) {
-	rows, err := s.db.Query(`SELECT data FROM hm_runs WHERE instr(task,'#')=0 ORDER BY task`)
+	return s.queryRuns(`SELECT data FROM hm_runs WHERE instr(task,'#')=0 ORDER BY task`)
+}
+
+// RetiredRuns lists the runs `task requeue` retired, oldest first per task; Task is the task id, not the row key.
+func (s *SQLite) RetiredRuns() ([]Run, error) {
+	return s.queryRuns(`SELECT data FROM hm_runs WHERE instr(task,'#')>0
+		ORDER BY substr(task,1,instr(task,'#')), CAST(substr(task,instr(task,'#')+1) AS INTEGER)`)
+}
+
+func (s *SQLite) queryRuns(query string) ([]Run, error) {
+	rows, err := s.db.Query(query)
 	if err != nil {
 		return nil, err
 	}

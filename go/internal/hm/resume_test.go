@@ -140,6 +140,86 @@ func TestAnsweredHeldAskResumes(t *testing.T) {
 	}
 }
 
+// spentRun is a failed run of T-0001 whose one session has a priced transcript.
+func spentRun(t *testing.T) (*Runner, *SQLite) {
+	t.Helper()
+	r, s, _ := plannerRunner(t, "")
+	addReady(t, s, 1)
+	now := nowISO()
+	_ = s.PutRun(&Run{Task: "T-0001", Goal: "G-001", Project: "www", State: Failed, Round: 2, Dispatched: now,
+		FailReason: "zz-test failure", PRURL: "https://github.com/zz-test/www/pull/1"})
+	_ = s.AddSession(Session{SID: "s-old", Task: "T-0001", Role: "task", Model: "claude-sonnet-5-5", Started: now})
+	line := `{"type":"assistant","timestamp":"` + now + `","requestId":"q1","message":{"id":"m1","model":"claude-sonnet-5-5",` +
+		`"usage":{"input_tokens":1000,"output_tokens":2000}}}` + "\n"
+	dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "p")
+	_ = os.MkdirAll(dir, 0o700)
+	if err := os.WriteFile(filepath.Join(dir, "s-old.jsonl"), []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return r, s
+}
+
+func TestRequeueKeepsRetiredSpend(t *testing.T) {
+	r, s := spentRun(t)
+	before := r.ReadCaps(time.Now())
+	if before.WeekUSD <= 0 || before.TodayUSD["www"] <= 0 {
+		t.Fatalf("the run costs nothing: %+v", before)
+	}
+	if err := r.Requeue("T-0001"); err != nil {
+		t.Fatal(err)
+	}
+	check := func(when string) {
+		t.Helper()
+		got := r.ReadCaps(time.Now())
+		if got.WeekUSD != before.WeekUSD || got.TodayUSD["www"] != before.TodayUSD["www"] {
+			t.Errorf("%s: week $%v today $%v, want $%v and $%v", when, got.WeekUSD, got.TodayUSD["www"], before.WeekUSD, before.TodayUSD["www"])
+		}
+	}
+	check("requeued")
+	// the next run: the old spend is counted once, and still counts against task_budget_usd
+	next := &Run{Task: "T-0001", Goal: "G-001", Project: "www", State: Working, Dispatched: time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}
+	_ = s.PutRun(next)
+	check("dispatched again")
+	if err := s.SetCfg("task_budget_usd", "0.000001"); err != nil {
+		t.Fatal(err)
+	}
+	if !r.overBudget(next) {
+		t.Error("the retired run's spend is not counted against the task budget")
+	}
+}
+
+func TestRequeueReportKeepsOldRuns(t *testing.T) {
+	r, _ := spentRun(t)
+	var out strings.Builder
+	r.Out = &out
+	_ = r.Log.Emit("task.dispatched", &Run{Task: "T-0001", Goal: "G-001", Project: "www"}, Event{})
+	for range 2 {
+		if err := r.Requeue("T-0001"); err != nil {
+			t.Fatal(err)
+		}
+		_ = r.Store.PutRun(&Run{Task: "T-0001", State: Cancelled, Round: 1})
+	}
+	rows, err := r.ReportRows()
+	if err != nil || len(rows) != 1 || rows[0].Task != "T-0001" || rows[0].USD <= 0 {
+		t.Fatalf("report rows after a requeue: %+v %v", rows, err)
+	}
+	for _, task := range []string{"T-0001", ""} {
+		out.Reset()
+		if err := r.PrintRetiredRuns(task); err != nil {
+			t.Fatal(err)
+		}
+		want := "T-0001 requeued run 1: failed, round 2, https://github.com/zz-test/www/pull/1 zz-test failure\n" +
+			"T-0001 requeued run 2: cancelled, round 1, no PR \n"
+		if out.String() != want {
+			t.Errorf("task %q: %q, want %q", task, out.String(), want)
+		}
+	}
+	out.Reset()
+	if err := r.PrintRetiredRuns("T-0002"); err != nil || out.Len() != 0 {
+		t.Errorf("another task's runs: %q %v", out.String(), err)
+	}
+}
+
 func TestRequeueFailedTask(t *testing.T) {
 	r, s, _ := plannerRunner(t, "")
 	addReady(t, s, 1)

@@ -154,6 +154,13 @@ func (r *Runner) ReadCaps(now time.Time) Caps {
 			c.Active++
 		}
 	}
+	// a requeued task has spent money even before (or without) its next run
+	retired, _ := r.Store.RetiredRuns()
+	for _, x := range retired {
+		if _, ok := project[x.Task]; !ok {
+			project[x.Task] = x.Project
+		}
+	}
 	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	week := now.Add(-7 * 24 * time.Hour)
 	var ids []string
@@ -162,15 +169,15 @@ func (r *Runner) ReadCaps(now time.Time) Caps {
 		at   time.Time
 	}
 	sess := map[string]ss{}
-	for _, x := range runs {
-		list, _ := r.Store.Sessions(x.Task)
+	for task := range project {
+		list, _ := r.Store.Sessions(task)
 		for _, s := range list {
 			at, err := time.Parse(time.RFC3339, s.Started)
 			if err != nil || at.Before(week) {
 				continue
 			}
 			ids = append(ids, s.SID)
-			sess[s.SID] = ss{x.Task, at}
+			sess[s.SID] = ss{task, at}
 		}
 	}
 	if len(ids) == 0 {
@@ -248,17 +255,25 @@ func (c Caps) Header(s Store) string {
 		mem, float64(c.MemMin)/1024)
 }
 
-// overBudget stops a run whose sessions cost more than task_budget_usd, marking it FAIL with "budget".
+// overBudget stops a run whose sessions, with those of the task's retired runs, cost more than task_budget_usd, marking
+// it FAIL with "budget".
 func (r *Runner) overBudget(run *Run) bool {
 	limit, ok := cfgFloat(r.Store, "task_budget_usd")
 	if !ok {
 		return false
 	}
+	since := run.Dispatched
+	retired, _ := r.Store.RetiredRuns()
+	for _, x := range retired { // a requeue never resets the task's budget
+		if x.Task == run.Task && x.Dispatched != "" && x.Dispatched < since {
+			since = x.Dispatched
+		}
+	}
 	sess, _ := r.Store.Sessions(run.Task)
 	ids := make([]string, 0, len(sess))
 	for _, s := range sess {
-		if s.Started < run.Dispatched {
-			continue // an earlier, cancelled attempt does not count against this run
+		if s.Started < since {
+			continue // an attempt older than every run row of the task does not count
 		}
 		ids = append(ids, s.SID)
 	}
