@@ -43,15 +43,15 @@ func gitOptions(e Env) gitx.Options {
 	return gitx.Options{Home: e.Home, LiveHomes: []string{e.Home}, Timeout: 180 * time.Second}
 }
 
-// gitAs is RealTools' git with email as author and committer, for the runner's own commits. It sets the GIT_* variables
-// because inherited ones override `-c user.email`. An empty email leaves the environment as it is.
+// gitAs is RealTools' git with email as author and committer, for the runner's own commits. The GIT_* variables are set
+// because inherited ones override `-c user.email`; -c stays so an empty email never falls back to a configured identity.
 func gitAs(e Env, email, repo string, args ...string) (int, string, string) {
 	o := gitOptions(e)
 	if email != "" { // the last value of a repeated key wins
 		o.Env = append(os.Environ(), "GIT_AUTHOR_EMAIL="+email, "GIT_COMMITTER_EMAIL="+email,
 			"GIT_AUTHOR_NAME="+nameOf(email), "GIT_COMMITTER_NAME="+nameOf(email))
 	}
-	return gitx.RC(repo, o, args...)
+	return gitx.RC(repo, o, append([]string{"-c", "user.email=" + email, "-c", "user.name=" + nameOf(email)}, args...)...)
 }
 
 func run(timeout time.Duration, dir, input string, env []string, argv ...string) (int, string, string) {
