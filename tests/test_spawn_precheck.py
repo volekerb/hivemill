@@ -482,6 +482,8 @@ class SpawnPrecheckTests(FactoryTestCase):
 # ── G-057 T-1586: remote spawn on a worker machine (stub ssh + stub hc, mirror tree for the worker machine) ──
 FWD_STUB = "#!/bin/sh\n[ \"$1\" = --version ] && echo 'hivemill test (forward stub)' && exit 0\nexit 2\n"
 MARK = "zz-fixture-ghcred-7d1e"
+
+
 class RemoteSpawnTests(FactoryTestCase):
     """A coder placed on worker machine workerhost (machine_hq hqhost). ssh runs remote commands in <tmp>/remote-workerhost,
     a mirror of the test tree; hc records `run --on workerhost`. Never real ssh or hc."""
