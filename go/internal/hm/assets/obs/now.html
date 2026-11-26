@@ -1,43 +1,55 @@
 {{define "now"}}{{with .NowPg}}
-<h2>Running</h2>
-<div class="scroll"><table>
-<tr><th>task</th><th>machine</th><th>project</th><th>stage</th><th class="num">in stage</th><th class="num">sessions</th><th class="num">$</th></tr>
+<p><a href="#held">{{len .Held}} held</a> · <a href="#questions">{{.Questions}} open question{{if ne .Questions 1}}s{{end}}</a> · <a href="#running">{{len .Running}} running</a> · <a href="#planner">planner</a> · <a href="#projects">projects</a> · <a href="#machines">machines</a></p>
+
+<h2 id="held">Held</h2>
+{{if .Held}}<div class="scroll" tabindex="0" role="region" aria-labelledby="held"><table>
+<tr><th scope="col">task</th><th scope="col">machine</th><th scope="col">project</th><th scope="col" class="num">held for</th><th scope="col" class="num">$</th></tr>
+{{range .Held}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td class="num">{{dur .AgeSec}}</td><td class="num">{{usd .USD}}</td></tr>
+{{end}}</table></div>
+{{else}}<p class="muted">no held run. Next: check the <a href="#running">running tasks</a>.</p>{{end}}
+
+<h2 id="questions">Open questions</h2>
+{{if .Asks}}<div class="scroll" tabindex="0" role="region" aria-labelledby="questions"><table>
+<tr><th scope="col">project</th><th scope="col" class="num">open</th></tr>
+{{range .Asks}}<tr><td>{{.Project}}</td><td class="num">{{.Open}}</td></tr>
+{{end}}</table></div>
+{{else}}<p class="muted">no open question. Next: check the <a href="#running">running tasks</a>.</p>{{end}}
+
+<h2 id="running">Running</h2>
+<div class="scroll" tabindex="0" role="region" aria-labelledby="running"><table>
+<tr><th scope="col">task</th><th scope="col">machine</th><th scope="col">project</th><th scope="col">stage</th><th scope="col" class="num">in stage</th><th scope="col" class="num">sessions</th><th scope="col" class="num">$</th></tr>
 {{range .Running}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td>{{.Stage}}</td><td class="num">{{dur .AgeSec}}</td><td class="num">{{.Sessions}}</td><td class="num">{{usd .USD}}</td></tr>
 {{else}}<tr><td colspan="7" class="muted">nothing is running</td></tr>{{end}}
 </table></div>
-<h2>Held for the owner</h2>
-<div class="scroll"><table>
-<tr><th>task</th><th>machine</th><th>project</th><th class="num">held for</th><th class="num">$</th></tr>
-{{range .Held}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td class="num">{{dur .AgeSec}}</td><td class="num">{{usd .USD}}</td></tr>
-{{else}}<tr><td colspan="5" class="muted">no held run</td></tr>{{end}}
-</table></div>
-<h2>Open questions</h2>
-<div class="scroll"><table>
-<tr><th>project</th><th class="num">open</th></tr>
-{{range .Asks}}<tr><td>{{.Project}}</td><td class="num">{{.Open}}</td></tr>
-{{else}}<tr><td colspan="2" class="muted">none</td></tr>{{end}}
-</table></div>
-<h2>Planner</h2>
-<div class="scroll"><table>
-<tr><th>machine</th><th>newest event</th><th>at</th><th>session</th><th class="num">sessions ({{$.Days}}d)</th><th class="num">$</th></tr>
+
+<h2 id="planner">Planner</h2>
+<div class="scroll" tabindex="0" role="region" aria-labelledby="planner"><table>
+<tr><th scope="col">machine</th><th scope="col">newest event</th><th scope="col">at</th><th scope="col">session</th><th scope="col" class="num">sessions ({{$.Days}}d)</th><th scope="col" class="num">$</th></tr>
 {{range .Planner}}<tr><td>{{.Machine}}</td><td>{{.LastEvent}}</td><td>{{when .LastAt}}</td><td><a href="{{$.Q "/session" "s" .Session}}"><code>{{short .Session}}</code></a></td><td class="num">{{.Sessions}}</td><td class="num">{{usd .USD}}</td></tr>
 {{else}}<tr><td colspan="6" class="muted">no planner session</td></tr>{{end}}
 </table></div>
-<h2>Projects</h2>
-<div class="scroll"><table>
-<tr><th>project</th><th class="num">$ today</th><th class="num">$ 7d</th><th class="num">$ 30d</th><th class="num">tasks</th><th class="num">active</th><th class="num">merged ({{$.Days}}d)</th><th class="num">$ / merged PR</th><th class="num">2+ rounds %</th><th class="num">median h</th><th class="num">open questions</th></tr>
+
+<h2 id="projects">Projects</h2>
+{{if .HasProjects}}<div class="scroll" tabindex="0" role="region" aria-labelledby="projects"><table>
+<tr><th scope="col">project</th><th scope="col" class="num">$ today</th><th scope="col" class="num">$ 7d</th><th scope="col" class="num">$ 30d</th><th scope="col" class="num">tasks</th><th scope="col" class="num">active</th><th scope="col" class="num">merged ({{$.Days}}d)</th><th scope="col" class="num">$ / merged PR</th><th scope="col" class="num">2+ rounds %</th><th scope="col" class="num">median h</th><th scope="col" class="num">open questions</th></tr>
 {{range .Portfolio}}<tr{{if eq .Project "all"}} class="total"{{end}}>
-  <td>{{if eq .Project "all"}}all projects{{else}}<a href="{{$.Q "/project" "p" .Project}}">{{.Project}}</a>{{end}}{{if .CostPending}} <span class="warn" title="sessions with no cost yet (remote, still running)">({{.CostPending}} pending)</span>{{end}}</td>
+  <td>{{if eq .Project "all"}}all projects{{else}}<a href="{{$.Q "/project" "p" .Project}}">{{.Project}}</a>{{end}}{{if .CostPending}} <span class="warn">({{.CostPending}} pending)</span>{{end}}</td>
   <td class="num">{{usd .USDToday}}</td><td class="num">{{usd .USD7d}}</td><td class="num">{{usd .USD30d}}</td>
   <td class="num">{{.Tasks}}</td><td class="num">{{.Active}}</td><td class="num">{{.Merged}}</td>
   <td class="num">{{if .PerMergedPR}}${{fp .PerMergedPR}}{{else}}-{{end}}</td><td class="num">{{fp .TwoPlusPct}}</td><td class="num">{{fp .MedianHours}}</td>
   <td class="num">{{.OpenAsks}}</td>
 </tr>{{end}}
 </table></div>
+{{if .Pending}}<p class="muted">Pending: sessions in the range with no cost yet (remote, still running). Their cost is not in the $ figures.</p>
+{{end}}<details><summary>How these figures are counted</summary>
 <p class="muted">$ at API prices; a session's whole cost counts on the day it started. Merged, $/merged PR, 2+ rounds and median hours (dispatch to merge) are <code>hivemill report</code>'s rules. Open questions: this machine's from its owner queue, pulled machines' from their ask events.</p>
+</details>
+{{else}}<p class="muted">no project yet. Next: dispatch a task, or copy another machine's log with <code>hivemill obs pull</code>.</p>{{end}}
+
 <h2 id="machines">Machines</h2>
-<div class="scroll"><table>
-<tr><th>machine</th><th>source</th><th>newest event</th><th>pulled</th><th class="num">gate proofs ({{$.Days}}d)</th><th class="num" title="wall time of the gate's test: and cmd: proofs">proof min ({{$.Days}}d)</th></tr>
-{{range .Machines}}<tr><td><a href="{{$.Q "/" "machine" .Machine}}">{{.Machine}}</a></td><td>{{if .Own}}this machine{{else if .Path}}pulled{{else}}-{{end}}</td><td>{{if .Last}}{{when .Last}}{{else}}-{{end}}</td><td>{{if .Pulled}}{{when .Pulled}}{{else}}-{{end}}</td><td class="num">{{if .Proofs}}{{.Proofs}}{{else}}-{{end}}</td><td class="num">{{if .Proofs}}{{fp .ProofMin}}{{else}}-{{end}}</td></tr>{{end}}
+<div class="scroll" tabindex="0" role="region" aria-labelledby="machines"><table>
+<tr><th scope="col">machine</th><th scope="col">source</th><th scope="col">newest event</th><th scope="col">pulled</th><th scope="col" class="num">gate proofs ({{$.Days}}d)</th><th scope="col" class="num" title="wall time of the gate's test: and cmd: proofs">proof min ({{$.Days}}d)</th></tr>
+{{range .Machines}}<tr><td><a href="{{$.Q "/" "machine" .Machine}}">{{.Machine}}</a></td><td>{{if .Own}}this machine{{else if .Path}}pulled{{else}}-{{end}}</td><td>{{if .Last}}{{when .Last}}{{else}}-{{end}}</td><td>{{if .Pulled}}{{when .Pulled}}{{else}}-{{end}}</td><td class="num">{{if .Proofs}}{{.Proofs}}{{else}}-{{end}}</td><td class="num">{{if .Proofs}}{{fp .ProofMin}}{{else}}-{{end}}</td></tr>
+{{else}}<tr><td colspan="6" class="muted">no machine yet. Next: copy a machine's log with <code>hivemill obs pull</code>.</td></tr>{{end}}
 </table></div>
 {{end}}{{end}}

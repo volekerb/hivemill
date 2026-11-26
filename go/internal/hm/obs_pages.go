@@ -449,6 +449,10 @@ type NowPage struct {
 	Planner   []NowPlanner  `json:"planner"`
 	Portfolio []ProjectLine `json:"projects"`
 	Machines  []sourceLine  `json:"machines"`
+	// for the page's layout only
+	Questions   int  `json:"-"` // open questions, all listed projects
+	HasProjects bool `json:"-"` // Portfolio has a row besides the total
+	Pending     bool `json:"-"` // a project row has sessions with no cost yet
 }
 
 // BuildNow is the Now page for one project (empty = all). asks are this machine's open asks (local, when ok).
@@ -479,6 +483,7 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 	for pr, n := range all {
 		if n > 0 && (project == "" || projectKeyLabel(pr) == projectKeyLabel(project)) {
 			p.Asks = append(p.Asks, NowAsk{pr, n})
+			p.Questions += n
 		}
 	}
 	sort.Slice(p.Asks, func(i, j int) bool { return p.Asks[i].Project < p.Asks[j].Project })
@@ -519,6 +524,8 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 	for _, l := range o.Portfolio(days, all) {
 		if project == "" || l.Project == projectKeyLabel(project) {
 			p.Portfolio = append(p.Portfolio, l)
+			p.HasProjects = p.HasProjects || l.Project != "all"
+			p.Pending = p.Pending || l.CostPending > 0
 		}
 	}
 	listed := map[string]int{} // machine -> its row
