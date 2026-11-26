@@ -128,6 +128,25 @@ func TestSessionsCannotChangeTasks(t *testing.T) {
 	}
 }
 
+func TestTaskLintAll(t *testing.T) {
+	c, _ := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "g")
+	whole := "1. a - cmd:go test ./... => exit 0"
+	if code, _, errs := c.run("", "task", "add", "--goal", "G-001", "--title", "t", "--spec", "s", "--acceptance", whole); code != 3 || !strings.Contains(errs, "name the packages") {
+		t.Errorf("add: exit %d %q", code, errs)
+	}
+	c.ok("task", "add", "--goal", "G-001", "--title", "ok", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0")
+	if out := c.ok("task", "lint", "--all"); !strings.Contains(out, "0 of 1 ") {
+		t.Errorf("clean: %q", out)
+	}
+	c.ok("task", "add", "--goal", "G-001", "--title", "d", "--acceptance", whole, "--draft")
+	code, out, _ := c.run("", "task", "lint", "--all")
+	if code != 1 || !strings.Contains(out, "T-0002 draft: criterion 1: name the packages") || strings.Contains(out, "T-0001") {
+		t.Errorf("offenders: exit %d %q", code, out)
+	}
+}
+
 func TestConfigRefusesFableModels(t *testing.T) {
 	c, _ := standalone(t)
 	if code, _, errs := c.run("", "config", "model", "claude-fable-5"); code == 0 || !strings.Contains(errs, "never Fable") {

@@ -10,7 +10,7 @@
 //	hivemill merge T-1234          one merge attempt of a run in state merging (or print its decision with --dry-run)
 //	hivemill report [--json]       scoreboard
 //	hivemill eval T-1234 [--judge-only|--review-only]  eval run on a prepared branch with a draft PR: measures gate, review and judge, never merges
-//	hivemill task lint T-1234      spec gate: every acceptance criterion names its proof
+//	hivemill task lint T-1234|--all  spec gate: every criterion names its proof, none runs a whole Go module (--all: todo and draft tasks)
 //	hivemill task add|list|show|update|cancel   file and change tasks (add and update refuse criteria that fail the spec gate; --draft)
 //	hivemill goal new|list|show|close           goals
 //	hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... | project list | project profile ID [--sensitive GLOB]...
