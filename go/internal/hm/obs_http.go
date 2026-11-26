@@ -392,6 +392,11 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("Cache-Control", "no-store")
+	if req.URL.Path == "/api/obs/task" && req.Method != http.MethodGet {
+		h.Set("Allow", "GET")
+		http.Error(w, "read-only", http.StatusMethodNotAllowed)
+		return
+	}
 	if req.Method != http.MethodGet && req.Method != http.MethodHead {
 		h.Set("Allow", "GET, HEAD")
 		http.Error(w, "read-only", http.StatusMethodNotAllowed)
@@ -524,6 +529,16 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		p.Sessions, p.Events = o.TaskSessions(t), t.Events
 		p.Crumbs = append(p.Crumbs, crumb{or(t.Project, NoProject), p.Q("/project", "p", or(t.Project, NoProject))},
 			crumb{or(t.Goal, "(no goal)"), p.Q("/goal", "g", t.Goal, "p", or(t.Project, NoProject))}, crumb{t.Task + " @" + t.Machine, ""})
+	case "/api/obs/task":
+		t := o.Tasks[q.Get("k")]
+		if t == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "no task " + q.Get("k") + " (with these filters)"})
+			return
+		}
+		jsonOut(buildTrace(t))
+		return
 	case "/session":
 		p.Kind = "session"
 		p.Session = o.Sessions[q.Get("s")]
