@@ -51,6 +51,7 @@ type GateRecord struct {
 var (
 	resolutionRe = regexp.MustCompile(`(?i)^(fixed|not-a-bug|deferred|duplicate)\b`)
 	ranRe        = regexp.MustCompile(`(?m)^Ran (\d+) tests? in |(\d+) passed`)
+	commitRe     = regexp.MustCompile(`^([0-9a-f]{40}|[0-9a-f]{64})$`)
 	testDefRe    = `^[[:space:]]+(async[[:space:]]+)?def[[:space:]]+test_`
 	severities   = map[string]bool{"high": true, "medium": true, "low": true, "info": true}
 )
@@ -86,6 +87,35 @@ func checkFindings(path string) ([]string, []Finding, string) {
 		}
 	}
 	return probs, doc.Findings, doc.Head
+}
+
+// onlyBaseMerges reports whether head is the reviewed commit plus nothing but clean merges of origin/base, so the review
+// still holds. Each commit on head's first-parent path down to reviewed must merge a commit of origin/base, and its tree
+// must be exactly git's own merge of its two parents: a conflict resolution or any edit in the merge needs a new review.
+func (r *Runner) onlyBaseMerges(wt, base, reviewed, head string) bool {
+	g := r.Tools.Git
+	if !commitRe.MatchString(reviewed) { // session text: only a full commit id reaches git
+		return false
+	}
+	rc, log, _ := g(wt, "log", "--first-parent", "--format=%H %P %T", reviewed+".."+head)
+	if rc != 0 || log == "" {
+		return false
+	}
+	next := head
+	for _, ln := range strings.Split(strings.TrimSpace(log), "\n") {
+		f := strings.Fields(ln) // commit, first parent, second parent, tree
+		if len(f) != 4 || f[0] != next {
+			return false
+		}
+		if rc, _, _ := g(wt, "merge-base", "--is-ancestor", f[2], "origin/"+base); rc != 0 {
+			return false
+		}
+		if rc, out, _ := g(wt, "merge-tree", "--write-tree", f[1], f[2]); rc != 0 || strings.TrimSpace(out) != f[3] {
+			return false
+		}
+		next = f[1]
+	}
+	return next == reviewed
 }
 
 // ReviewRan reports whether a /code-review ran in this round: Claude Code records a forked skill run as
@@ -437,7 +467,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	for _, p := range probs {
 		add("findings", false, p)
 	}
-	if len(probs) == 0 && fhead != rec.Head {
+	if len(probs) == 0 && fhead != rec.Head && !r.onlyBaseMerges(wt, base, fhead, rec.Head) {
 		add("review", false, fmt.Sprintf("findings.json is for head %.9s, not HEAD %.9s: run /code-review on the current head and rewrite "+
 			"the file with \"head\": the output of `git rev-parse HEAD`", fhead, rec.Head))
 	}
