@@ -55,9 +55,16 @@ type Run struct {
 	LocalCI  *LocalCI `json:",omitempty"`
 	CIPosted string   `json:",omitempty"`
 	CI       *CIWait  `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
+	// T3 auto-merge (merge.go)
+	Guarded    string `json:",omitempty"` // head and limits of the last merge.guarded event
+	Unattended bool   `json:",omitempty"` // the runner merges this T3 run without the owner
 	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
 	Mirror, RemoteHome string `json:",omitempty"`
 	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
+	// working time limit (worktime.go), per round: the highest run.long_working percent sent and the one resume
+	LongPct        int    `json:",omitempty"`
+	LongResumed    string `json:",omitempty"`
+	LongSendFailed string `json:",omitempty"` // the first time that message could not be sent
 }
 
 // Session is one Claude session of a run (task, judge).
@@ -78,7 +85,9 @@ type Store interface {
 	GoalOpenTasks(goal string) (int, string, error)
 	DoneTasks() (map[string]bool, error)
 	FactoryCfg(key string) string
+	FactoryCfgErr(key string) (string, error)
 	Cfg(key string) string
+	CfgErr(key string) (string, error)
 	SetCfg(key, value string) error
 	Meta(key string) string
 	SetMeta(key, value string) error
@@ -275,9 +284,18 @@ func (s *SQLite) GoalOpenTasks(goal string) (int, string, error) {
 
 // FactoryCfg reads a key of the factory's own config table ("" when unset).
 func (s *SQLite) FactoryCfg(key string) string {
-	var v string
-	_ = s.db.QueryRow(`SELECT value FROM config WHERE key=?`, key).Scan(&v)
+	v, _ := s.FactoryCfgErr(key)
 	return v
+}
+
+// FactoryCfgErr is FactoryCfg for a caller that must not take a failed read for an unset key.
+func (s *SQLite) FactoryCfgErr(key string) (string, error) {
+	var v string
+	err := s.db.QueryRow(`SELECT value FROM config WHERE key=?`, key).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return v, err
 }
 
 // Cfg reads an hm_config key, falling back to Defaults.
@@ -287,6 +305,18 @@ func (s *SQLite) Cfg(key string) string {
 		return v
 	}
 	return Defaults[key]
+}
+
+// CfgErr is Cfg for a gate that must fail closed: only a missing row falls back to Defaults, a read error is returned.
+func (s *SQLite) CfgErr(key string) (string, error) {
+	var v string
+	switch err := s.db.QueryRow(`SELECT value FROM hm_config WHERE key=?`, key).Scan(&v); {
+	case errors.Is(err, sql.ErrNoRows):
+		return Defaults[key], nil
+	case err != nil:
+		return "", err
+	}
+	return v, nil
 }
 
 func (s *SQLite) SetCfg(key, value string) error {

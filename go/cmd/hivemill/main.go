@@ -24,7 +24,8 @@
 //	hivemill affected --base REF [--run] [--quick]     ci/affected.py in Go
 //	hivemill proofs touched --base REF [--root DIR]    test the JS packages changed since REF (a project's gate proof)
 //	    [--ios-dir DIR --xcode-workspace PATH|--xcode-project PATH --xcode-scheme NAME]   and xcodebuild on an iOS change
-//	hivemill daemon                the pass loop in-process (systemd Type=notify, launchd KeepAlive)
+//	hivemill daemon [--take-over]  the pass loop in-process (systemd Type=notify, launchd KeepAlive)
+//	hivemill standby check --from HOST[:DIR]  restore the primary's newest snapshot into a temp home and read it
 //	hivemill health [--alert]      exit 0 when the last good pass is recent; --alert raises the rate-limited dead-man alert
 //	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
 //	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
@@ -65,7 +66,7 @@ func main() {
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
 		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close|status | " +
-		"project add|list | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
+		"project add|list | config [KEY [VALUE]] | daemon [--take-over] | standby check --from HOST[:DIR] | health [--alert] | drain [--status] | resume | " +
 		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
@@ -248,9 +249,27 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		}
 		err = r.EvalStart(strings.ToUpper(arg(1)), mode)
 	case "daemon":
+		if len(args) > 2 || (len(args) == 2 && args[1] != "--take-over") {
+			fmt.Fprintln(stderr, "usage: hivemill daemon [--take-over]")
+			return 2
+		}
+		r.TakeOver = len(args) == 2
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 		defer stop()
 		err = r.Daemon(ctx)
+	case "standby":
+		if len(args) != 4 || args[1] != "check" || args[2] != "--from" {
+			fmt.Fprintln(stderr, "usage: hivemill standby check --from HOST[:DIR]")
+			return 2
+		}
+		var bin, msg string
+		if bin, err = os.Executable(); err == nil {
+			msg, err = r.StandbyCheck(args[3], bin, time.Now())
+		}
+		if err == nil {
+			r.StandbyPassed(args[3], time.Now())
+			fmt.Fprintln(stdout, msg)
+		}
 	case "health":
 		ok, age := r.Health(time.Now())
 		fmt.Fprintf(stdout, "last good pass %s ago; drain %v\n", age.Round(time.Second), r.Draining())
