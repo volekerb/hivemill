@@ -189,9 +189,10 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   8-CPU / 12 GB box to load 30 with swap full. `remote_gate_driver.sh --jobs <cores> <shards> <meminfo file>` prints
   the cap. The summary line reports peak CPU, used RAM, load1 and used swap (and swap at the start).
 - **One run at a time**: `flock` on `~/factory-gate/.lock` on the remote host; a second run prints that it waits and waits.
-  The lock file records the holder's pid, its start time and when it took the lock. A waiting run takes the lock over,
-  and logs `taking over`, when that process is dead or has held it longer than the gate's time limit (`GATE_TIMEOUT_S`,
-  default 3600; set it when the project's `gate_timeout_s` differs). A lock file with no record is only waited on.
+  The lock file records the holder's pid, its start time, when it took the lock and its own time limit
+  (`GATE_TIMEOUT_S`, set by the gate runners from the project's `gate_timeout_s`; default 3600). A waiting run takes the
+  lock over, and logs `taking over`, when that process is dead or has held it longer than that limit; it first stops
+  what is left of the holder's process group. A lock file with no record is only waited on.
 - **Run dir** (T-1679): each run has its own `<root>/fg-XXXXXX` (`mktemp -d`) on the gate host, with `HOME`, `TMPDIR`,
   `GOTMPDIR` (go test's build temp) and `FACTORY_HOME` inside it. `<root>` is the first of `/var/tmp`, `/tmp` that is
   on disk, not tmpfs (`remote_gate_driver.sh --pick-root`): a run writes about 1 GB, and on a host whose `/tmp` is a

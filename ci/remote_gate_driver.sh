@@ -10,15 +10,15 @@
 # test_count_gate.py). Everything the run writes stays under <run dir>, which is removed on every exit path; only the
 # shared Go module and build caches live outside it (~/go/pkg/mod, ~/.cache/factory-gate/go-build).
 # One run at a time: flock on ~/factory-gate/.lock (a second run waits). The lock file holds the holder's "<pid> <pid start
-# time> <epoch it took the lock>"; a waiting run takes the lock over when that pid is dead or it has held the lock longer
-# than REMOTE_GATE_LIMIT_S (default 3600). A watchdog ends the run within 10 s when its run dir, its parent (the ssh
+# time> <epoch it took the lock> <its REMOTE_GATE_LIMIT_S, default 3600>"; a waiting run takes the lock over when that pid
+# is dead or it has held the lock longer than its own limit, after stopping what is left of its process group. A watchdog ends the run within 10 s when its run dir, its parent (the ssh
 # server or client side) or, in local mode, the gate script (REMOTE_GATE_SCRIPT_PID) is gone (T-2129).
 # At most 8 CPUs: taskset -c 0-7, GOMAXPROCS.
 # Job cap (T-1679), for GATE_SHARDS, go test -p and the parallel guard jobs: min(shards, cores, MemAvailable / 2048 MiB,
 # MemTotal / 2560 MiB), at least 1, read at the start of the run: 4 on an 8-CPU / 12 GB host, so swap does not fill.
 set -euo pipefail
 
-# Keep in run order and in step with the step map in ci/remote_gate.sh (tests/test_gate_shards.py checks both).
+# Keep in run order and in step with the step map in ci/remote_gate.sh (tests/test_remote_gate.py checks both).
 PLAN="toolchain unittest go-modules go-gofmt go-vet go-test go-build guard-build
 guard-unittest-1 guard-unittest-2 guard-unittest-3 guard-equiv-rest guard-equiv-1 guard-equiv-2 guard-equiv-3
 guard-equiv-4 guard-diff guard-self-compare guard-home-loosen docs-check"
@@ -183,17 +183,35 @@ watchdog() {
 watchdog &
 
 limit=${REMOTE_GATE_LIMIT_S:-3600}
-case "$limit" in ''|*[!0-9]*) echo "remote-gate-driver: REMOTE_GATE_LIMIT_S must be an integer" >&2; exit 2 ;; esac
+case "$limit" in ''|0*|*[!0-9]*) echo "remote-gate-driver: REMOTE_GATE_LIMIT_S must be a positive integer" >&2; exit 2 ;; esac
 # stale_holder LOCKFILE: why the recorded holder no longer owns the lock; prints nothing when it still does or when
 # there is no readable record.
 stale_holder() {
-  local pid start since age
-  read -r pid start since 2>/dev/null < "$1" || return 0
-  case "$pid$start$since" in ''|*[!0-9]*) return 0 ;; esac
-  [ -n "$since" ] || return 0
+  local pid start since max age
+  read -r pid start since max 2>/dev/null < "$1" || return 0
+  case "$pid$start$since$max" in ''|*[!0-9]*) return 0 ;; esac
+  [ -n "$max" ] || return 0
   if ! still_alive "$pid" "$start"; then echo "holder pid $pid is dead"; return 0; fi
   age=$(( $(date +%s) - since ))
-  if [ "$age" -gt "$limit" ]; then echo "holder pid $pid has held it for $age s, over the gate limit of $limit s"; fi
+  if [ "$age" -gt "$max" ]; then echo "holder pid $pid has held it for $age s, over the gate limit of $max s"; fi
+}
+# stop_holder PID START: end what is left of a run before its lock is taken over, so two gates never load the host at once:
+# its process group, when the pid is still that driver (and leads its group), or when it is gone and only its jobs are left.
+# A reused pid is never signalled.
+stop_holder() {
+  local pid=$1 stat i
+  [ "$pid" -gt 1 ] || return 0
+  if stat=$(cat "/proc/$pid/stat" 2>/dev/null); then
+    stat=${stat##*) }
+    [ "$(awk '{print $3, $20}' <<<"$stat")" = "$pid $2" ] || return 0
+    if still_alive "$pid" "$2"; then grep -qa remote_gate_driver.sh "/proc/$pid/cmdline" || return 0; fi
+  fi
+  kill -TERM -- "-$pid" 2>/dev/null || return 0
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 1
+    kill -0 -- "-$pid" 2>/dev/null || return 0
+  done
+  kill -KILL -- "-$pid" 2>/dev/null || :
 }
 mkdir -p "$real_home/factory-gate"
 lock="$real_home/factory-gate/.lock"
@@ -204,13 +222,15 @@ while :; do
   flock 8
   exec 9>>"$lock"
   if flock -n 9; then
-    echo "$$ $(proc_start "$$") $(date +%s)" > "$lock"
+    echo "$$ $(proc_start "$$") $(date +%s) $limit" > "$lock"
     exec 8>&-
     break
   fi
   why=$(stale_holder "$lock")
   if [ -n "$why" ]; then
     echo "remote-gate-driver: taking over ~/factory-gate/.lock: $why"
+    read -r pid start _ < "$lock"
+    stop_holder "$pid" "$start"
     rm -f -- "$lock"   # a new file: whatever still holds the old one no longer blocks anybody
   fi
   exec 8>&- 9>&-

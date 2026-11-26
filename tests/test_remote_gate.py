@@ -101,21 +101,18 @@ def drivers(tmp):
     return sorted(pid for pid, (_, seen) in processes().items() if mark in seen and b"remote_gate_driver.sh" in seen)
 
 
-MADE = []  # every test dir of this module, checked once more when it ends
+LEFT = {}  # {test id: driver pids that did not exit by themselves once the test's gate runs were over}
 
 
 def tearDownModule():
-    left = {str(t): drivers(t) for t in MADE if drivers(t)}
-    for t in MADE:
-        kill_groups(t)
-    if left:
-        raise AssertionError(f"driver processes left after the remote gate tests: {left}")
+    if LEFT:
+        raise AssertionError(f"driver processes left after the remote gate tests: {LEFT}")
 
 
 class RemoteGate(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="zz-test-remote-gate-"))
-        MADE.append(self.tmp)
+        self.procs = []
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.tree, self.remote, stub = self.tmp / "tree", self.tmp / "remote-home", self.tmp / "stub"
         for d in (self.tree, self.remote, stub):
@@ -145,14 +142,24 @@ class RemoteGate(unittest.TestCase):
         git(self.tree, "commit", "-q", "-m", f"head sleep {sleep}")
 
     def tearDown(self):
-        # also after a timeout or a failed assert: no gate, ssh stub or driver of this test outlives it
+        # also after a timeout or a failed assert: give up on the gate runs as a runner does (kill their group), see that
+        # every driver then ends by itself, and kill whatever is still there
+        for p in self.procs:
+            if p.poll() is None:
+                os.killpg(p.pid, signal.SIGKILL)
+            p.wait()
+        end = time.monotonic() + 30
+        while drivers(self.tmp) and time.monotonic() < end:
+            time.sleep(0.2)
+        if drivers(self.tmp):
+            LEFT[self.id()] = drivers(self.tmp)
         self.assertEqual(kill_groups(self.tmp), [], "processes survived SIGKILL of their group")
 
     def start(self, script=GATE_SH, *args, **kw):
         """A gate run in its own process group, killed with its driver's group in tearDown."""
         kw = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "text": True, **kw}
         p = subprocess.Popen(["bash", str(script), *args], cwd=self.tree, env=self.env, start_new_session=True, **kw)
-        self.addCleanup(p.wait)
+        self.procs.append(p)
         self.addCleanup(lambda: [f.close() for f in (p.stdout, p.stderr) if f])
         return p
 
@@ -244,22 +251,22 @@ class RemoteGate(unittest.TestCase):
 
     def test_no_driver_process_is_left_after_a_run_that_times_out(self):
         self.commit_head(sleep=120)
-        with self.assertRaises(subprocess.TimeoutExpired):
-            self.gate(timeout=8)
-        self.assertTrue(self.mark.exists(), "the run never reached unittest")
+        p = self.start(stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        self.wait_for("the unittest step", self.mark.exists)
         self.addCleanup(shutil.rmtree, json.loads(self.mark.read_text())["env"]["HOME"].rsplit("/", 1)[0], True)
-        self.assertEqual(drivers(self.tmp), [])
-        self.assertEqual(groups_of(self.tmp), set())
+        with self.assertRaises(subprocess.TimeoutExpired):
+            p.wait(timeout=1)
+        os.killpg(p.pid, signal.SIGKILL)  # what a runner does at its time limit; the driver has its own group
+        self.wait_for("the driver to exit by itself", lambda: not drivers(self.tmp), timeout=40)
 
-    def holder_record(self, pid, since):
+    def holder_record(self, pid, since, limit=600):
         start = Path(f"/proc/{pid}/stat").read_text().rsplit(") ", 1)[1].split()[19]
-        return f"{pid} {start} {since}\n"
+        return f"{pid} {start} {since} {limit}\n"
 
     def test_stale_lock_is_taken_over(self):
         dead = subprocess.Popen(["true"])
         dead_record = self.holder_record(dead.pid, int(time.time()))  # not yet reaped, so /proc still has it
         dead.wait()
-        self.env["GATE_TIMEOUT_S"] = "600"
         cases = {"is dead": dead_record,
                  "over the gate limit of 600 s": self.holder_record(os.getpid(), int(time.time()) - 601)}
         (self.remote / "factory-gate").mkdir()
@@ -277,11 +284,38 @@ class RemoteGate(unittest.TestCase):
                 self.assertNotEqual(lockfile.read_text(), record, "the new holder is not recorded")
                 self.assertEqual(self.run_dirs(p.stdout), [])
 
-    def test_bad_time_limit_is_refused_before_any_ssh(self):
-        self.env["GATE_TIMEOUT_S"] = "1h"
+    def test_takeover_stops_what_is_left_of_the_holder(self):
+        (self.remote / "factory-gate").mkdir()
+        lockfile = self.remote / "factory-gate" / ".lock"
+        cases = {"over the gate limit": ["bash", "-c", "sleep 60 & wait", "remote_gate_driver.sh"],  # a hung driver
+                 "is dead": ["bash", "-c", "sleep 60 & exit 0"]}  # a killed driver whose jobs run on
+        for why, argv in cases.items():
+            with self.subTest(why):
+                with open(lockfile, "w") as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX)
+                    holder = subprocess.Popen(argv, start_new_session=True, pass_fds=[lock.fileno()])
+                    self.addCleanup(holder.wait)
+                    self.addCleanup(lambda g=holder.pid: alive_in({g}) and os.killpg(g, signal.SIGKILL))
+                    lock.write(self.holder_record(holder.pid, int(time.time()) - 601))
+                if why == "is dead":
+                    holder.wait()
+                p = self.gate(timeout=90)
+                self.assertIn(why, p.stdout, p.stdout + p.stderr)
+                holder.wait(timeout=10)
+                self.assertEqual(alive_in({holder.pid}), [], "the old holder's processes still run")
+
+    def test_driver_records_the_gate_time_limit(self):
+        self.env["GATE_TIMEOUT_S"] = "7200"
         p = self.gate()
-        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
-        self.assertIn("GATE_TIMEOUT_S", p.stderr)
+        self.assertEqual((self.remote / "factory-gate" / ".lock").read_text().split()[3:], ["7200"], p.stdout + p.stderr)
+
+    def test_bad_time_limit_is_refused_before_any_ssh(self):
+        for v in ("1h", "0"):
+            with self.subTest(v):
+                self.env["GATE_TIMEOUT_S"] = v
+                p = self.gate()
+                self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+                self.assertIn("GATE_TIMEOUT_S", p.stderr)
         self.assertEqual(self.ssh_calls(), [])
 
     def ssh_calls(self):
@@ -617,7 +651,8 @@ class RemoteGate(unittest.TestCase):
         (self.remote / "factory-gate").mkdir()
         with open(self.remote / "factory-gate" / ".lock", "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
-            lock.write(self.holder_record(os.getpid(), int(time.time())))  # a live, recent holder is waited on
+            # a live holder within its own limit is waited on, also when it has run longer than this waiter's 3600 s
+            lock.write(self.holder_record(os.getpid(), int(time.time()) - 3700, limit=7200))
             lock.flush()
             p = self.start(stderr=subprocess.STDOUT)
             seen = []

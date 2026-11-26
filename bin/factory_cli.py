@@ -16939,7 +16939,8 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
     env = gate_child_env(wt_root / "factory-home")
     (wt_root / "factory-home").mkdir()
     shards = gate_shard_count(con)
-    env.update({"GATE_SHARDS": str(shards), "GATE_REPORT_DIR": str(wt_root / "reports")})
+    env.update({"GATE_SHARDS": str(shards), "GATE_REPORT_DIR": str(wt_root / "reports"),
+                "GATE_TIMEOUT_S": str(proj["gate_timeout_s"])})
     box = gate_box(con, env, wt_root)
     if box:
         note = "; ".join(x for x in (note, "sandboxed (gate_sandbox=1: ro tree, no net, no $HOME)") if x)
