@@ -410,8 +410,9 @@ func fileSize(p string) int64 {
 	return fi.Size()
 }
 
-// PlannerLevels are the level reasons: projects with an active goal whose ready queue is below planner_queue_min, projects
-// with an active goal that a pass never dispatches (not in config projects), and active goals whose tasks are all done.
+// PlannerLevels are the level reasons: projects with an active goal whose startable tasks are below planner_queue_min,
+// projects with an active goal that a pass never dispatches (not in config projects), active goals whose tasks are all
+// done, one unstartable item per todo task that fails the spec gate, and none_startable when the queue is starved.
 func (r *Runner) PlannerLevels() ([]string, error) {
 	s, err := r.sq()
 	if err != nil {
@@ -428,15 +429,28 @@ func (r *Runner) PlannerLevels() ([]string, error) {
 	want := cfgInt(r.Store, "planner_queue_min")
 	projects := map[string]bool{}
 	var out []string
+	ready, blocked, err := r.Queue(csv(r.Store.Cfg("projects")))
+	if err != nil {
+		return nil, err
+	}
+	// one work item per task that fails the spec gate: it stays until the task is fixed or cancelled
+	for _, b := range blocked {
+		if b.Kind == BlockedLint {
+			out = append(out, "unstartable:"+b.Task.ID)
+		}
+	}
+	if why := r.noneStartable(ready, blocked); why != "" {
+		out = append(out, why)
+	}
 	for _, g := range goals {
 		if g.Project != "" && !projects[g.Project] {
 			projects[g.Project] = true
-			ready, err := r.ReadyIn([]string{g.Project})
+			startable, err := r.ReadyIn([]string{g.Project})
 			if err != nil {
 				return nil, err
 			}
-			if len(ready) < want {
-				out = append(out, fmt.Sprintf("queue_low:%s=%d/%d", g.Project, len(ready), want))
+			if len(startable) < want {
+				out = append(out, fmt.Sprintf("queue_low:%s=%d/%d", g.Project, len(startable), want))
 			}
 			if !dispatched[g.Project] {
 				out = append(out, "not_dispatched:"+g.Project)
