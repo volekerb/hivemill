@@ -197,11 +197,12 @@ type SpendPage struct {
 	Total   float64 `json:"usd"`
 	Pending int     `json:"cost_pending"`
 	// Unattributed is the part of Total from sessions that join to no task; UnattributedPct is its percent of Total.
-	Unattributed    float64       `json:"unattributed_usd"`
-	UnattributedPct float64       `json:"unattributed_pct"`
-	Daily           []SpendDay    `json:"daily"`
-	Rows            []SpendRow    `json:"rows"`
-	Chart           template.HTML `json:"-"`
+	Unattributed        float64       `json:"unattributed_usd"`
+	UnattributedPct     float64       `json:"unattributed_pct"`
+	UnattributedPending int           `json:"unattributed_cost_pending"` // such sessions with no cost yet
+	Daily               []SpendDay    `json:"daily"`
+	Rows                []SpendRow    `json:"rows"`
+	Chart               template.HTML `json:"-"`
 }
 
 // SpendGroups are the groupings of the table.
@@ -287,6 +288,9 @@ func (o *Obs) BuildSpend(days int, project, by string) *SpendPage {
 		if !s.CostKnown {
 			r.Pending++
 			p.Pending++
+			if t == nil {
+				p.UnattributedPending++
+			}
 		}
 		p.Total += s.Usage.USD
 	}

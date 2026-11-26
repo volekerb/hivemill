@@ -653,6 +653,11 @@ func TestObsSpendUnattributed(t *testing.T) {
 			t.Fatalf("by %s: no unattributed row:\n%s", by, page)
 		}
 	}
+	// A session with no task and no cost yet is marked, so the share is not read as complete.
+	writeEvents(t, r.Log.Path, ev(ts, "session.started", "", "", "", "s-live", "planner", nil))
+	if _, page := obsGet(t, h, "/spend"); !strings.Contains(page, `$1.00 <span class="warn">+1 pending</span></td><td colspan="4">`) {
+		t.Fatalf("no pending marker:\n%s", page)
+	}
 }
 
 func TestObsFlowStages(t *testing.T) {
