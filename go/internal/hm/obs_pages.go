@@ -186,6 +186,32 @@ func (p *FlowPage) roundsBanners(pct int) []string {
 	return []string{fmt.Sprintf("%d of %d PRs (%.0f%%) needed 2+ review rounds.", p.Rounds2, p.PRs, share)}
 }
 
+// stageBanners is the largest-stage recommendation: one line when one stage holds strictly more than pct percent of
+// the stage time of all tasks. It needs time in two or more stages: a lone stage is always 100%.
+func (p *FlowPage) stageBanners(pct int) []string {
+	sums := map[string]int64{}
+	var total int64
+	for _, t := range p.Tasks {
+		for stage, s := range t.Seconds {
+			if s > 0 {
+				sums[stage] += s
+				total += s
+			}
+		}
+	}
+	var top string
+	for stage, s := range sums {
+		if s > sums[top] || (s == sums[top] && stage < top) { // a tie names the same stage on every load
+			top = stage
+		}
+	}
+	if len(sums) < 2 || sums[top]*100 <= int64(pct)*total {
+		return nil
+	}
+	return []string{fmt.Sprintf("%s holds %.0f of %.0f stage hours (%.0f%%).", top,
+		float64(sums[top])/3600, float64(total)/3600, math.Round(100*float64(sums[top])/float64(total)))}
+}
+
 // SpendDay is the day's cost by role.
 type SpendDay struct {
 	Day     string  `json:"day"`
