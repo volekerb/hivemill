@@ -50,7 +50,11 @@ func docsTierJobSkipErrors(text string) []string {
 		return strings.Join(body, "")
 	}
 	stepSplit := regexp.MustCompile(`(?m)^      - `)
-	for _, job := range []string{"unittest-shard", "go"} {
+	for _, js := range []struct {
+		name string
+		want int
+	}{{"unittest-shard", 6}, {"go", 8}} {
+		job := js.name
 		body := jobBody(job)
 		if !strings.Contains(body, "    steps:\n") {
 			errs = append(errs, job+": missing steps block")
@@ -64,8 +68,8 @@ func docsTierJobSkipErrors(text string) []string {
 			}
 		}
 		chunks := stepSplit.Split(parts[1], -1)[1:]
-		if len(chunks) != 8 {
-			errs = append(errs, fmt.Sprintf("%s: expected 8 steps, got %d", job, len(chunks)))
+		if len(chunks) != js.want {
+			errs = append(errs, fmt.Sprintf("%s: expected %d steps, got %d", job, js.want, len(chunks)))
 			continue
 		}
 		for i, c := range chunks {
@@ -477,7 +481,7 @@ func TestCiTierPushAndDispatchRunFull(t *testing.T) {
 func TestCiTierHeavyStepsAreGatedOnTier(t *testing.T) {
 	wf := tierWorkflow(t)
 	contains(t, wf, "steps.tier.outputs.go == 'true'")
-	if n := strings.Count(wf, "steps.tier.outputs.mode != 'docs'"); n != 5 {
+	if n := strings.Count(wf, "steps.tier.outputs.mode != 'docs'"); n != 3 {
 		t.Fatalf("mode != docs count %d", n)
 	}
 	contains(t, wf, "--only")

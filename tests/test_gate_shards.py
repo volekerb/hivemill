@@ -99,7 +99,7 @@ shipped = sorted(os.path.relpath(os.path.join(d, f)) for d, _, fs in os.walk("."
 json.dump({"env": dict(os.environ), "cwd": os.getcwd(),
            "modes": {k: oct(os.stat(p).st_mode & 0o777) for k, p in (("run", os.path.dirname(os.environ["HOME"])),
                                                                       ("tmp", os.environ["TMPDIR"]))}, "files": sorted(os.listdir(".")), "shipped": shipped,
-           "cli": open("ci/data.py").read()}, open(%r + ".tmp", "w"))
+           "data": open("ci/data.py").read()}, open(%r + ".tmp", "w"))
 os.replace(%r + ".tmp", %r)
 time.sleep(%d)
 """
@@ -346,10 +346,10 @@ class RemoteGate(unittest.TestCase):
 
     def test_head_ships_every_tracked_file_despite_export_attributes(self):
         # git archive would honour the PR's own .gitattributes: drop tests/ and rewrite the export-subst file
-        cli = self.tree / "ci" / "data.py"
+        data = self.tree / "ci" / "data.py"
         (self.tree / ".gitattributes").write_text("tests/** export-ignore\ntests export-ignore\n"
                                                   "ci/data.py export-subst\n")
-        cli.write_text("X = '$Format:%H$'\n")
+        data.write_text("X = '$Format:%H$'\n")
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "hide tests")
         p = self.gate()
@@ -357,7 +357,7 @@ class RemoteGate(unittest.TestCase):
         seen = json.loads(self.mark.read_text())
         self.assertEqual(sorted(set(seen["files"]) - {".git"}), [".gitattributes", "ci", "tests"])
         self.assertIn("tests/test_a.py", seen["shipped"], "export-ignore hid tests/test_a.py from the gate")
-        self.assertEqual(seen["cli"], "X = '$Format:%H$'\n", "export-subst rewrote a shipped file")
+        self.assertEqual(seen["data"], "X = '$Format:%H$'\n", "export-subst rewrote a shipped file")
         self.assertEqual(self.run_dirs(p.stdout), [])
 
     def test_self_ignored_force_added_file_is_in_the_remote_diff(self):
