@@ -148,6 +148,10 @@ func (f *fakeHost) Run(argv []string, cwd string, timeout time.Duration, mutate 
 		if err := os.WriteFile(argv[3], []byte(argv[4]), 0o755); err != nil {
 			return 1, err.Error()
 		}
+		// the clone being built holds VERSION, which smoke reads; a --resume run never ran the fake clone
+		if err := os.WriteFile(filepath.Join(filepath.Dir(cwd), "VERSION"), []byte("0.4.0\n"), 0o644); err != nil {
+			return 1, err.Error()
+		}
 		return 0, ""
 	case name == "gh" && joined == "gh auth status":
 		if f.ghAuth {

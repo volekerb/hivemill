@@ -884,7 +884,7 @@ func TestInstallSymlinks(t *testing.T) {
 	}
 	install := func(t *testing.T, f *fakeHost, args ...string) string {
 		t.Helper()
-		rc, out, errw := runMain(t, f, append([]string{"--yes", "--no-systemd", "--repo-url", testRepo}, args...)...)
+		rc, out, errw := runMain(t, f, append([]string{"--no-systemd", "--repo-url", testRepo}, args...)...)
 		if rc != 0 {
 			t.Fatalf("rc=%d\n%s%s", rc, out, errw)
 		}
@@ -893,7 +893,7 @@ func TestInstallSymlinks(t *testing.T) {
 	t.Run("links", func(t *testing.T) {
 		f := newFake(t)
 		f.login(t)
-		install(t, f)
+		install(t, f, "--yes")
 		linked(t, f)
 		health := filepath.Join(f.HomeDir, ".local", "bin", "hivemill") + " health"
 		for _, c := range f.calls {
@@ -906,8 +906,8 @@ func TestInstallSymlinks(t *testing.T) {
 	t.Run("rerun", func(t *testing.T) {
 		f := newFake(t)
 		f.login(t)
-		install(t, f)
-		install(t, f, "--resume")
+		install(t, f, "--yes")
+		install(t, f, "--yes", "--resume")
 		linked(t, f)
 	})
 	t.Run("dryrun", func(t *testing.T) {
