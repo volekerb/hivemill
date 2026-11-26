@@ -8,7 +8,7 @@ The Option B runner ([option-b-runner.md](option-b-runner.md)) writes one line p
 
 None of it changes a run, and nothing is on by default except the `machine` field.
 
-Code: `go/internal/hm/obs.go` (the model), `obs_http.go` and `obs_assets/obs.html` (the page), `obs_pull.go`, `otel.go`, `sessionend.go`. Tests: `go test ./internal/hm -run 'Obs|Otel|Portfolio|Pull|Emit|FailedRun'`.
+Code: `go/internal/hm/obs.go` (the model), `obs_http.go` (the server), `obs_pages.go` and `assets/obs/` (the page shell, the Now, Spend, Flow and drill pages, and `app.css`), `obs_pull.go`, `otel.go`, `sessionend.go`. Tests: `go test ./internal/hm -run 'Obs|Otel|Portfolio|Pull|Emit|FailedRun'`.
 
 ## What the events carry
 
@@ -43,6 +43,8 @@ Every line has `ts`, `event`, `harness` and `machine`. Where they apply, it also
 
 ## `hivemill obs`
 
+The sidebar has three pages: Now (`/`), Spend (`/spend`) and Flow (`/flow`); the project, goal, task and session drill-down stays under Now.
+
 ```
 hivemill obs                     # http://127.0.0.1:7461/ (config obs_port), Ctrl-C stops
 hivemill obs --port 7470
@@ -51,7 +53,7 @@ hivemill obs sources             # the logs it reads
 ```
 
 - **Binding and requests.** The page binds to 127.0.0.1 only and answers only GET and HEAD. A request whose `Host` is not a loopback name gets 403, which blocks DNS rebinding.
-- **Self-contained.** It is plain HTML from `html/template` with inline CSS. There is no script, and nothing is loaded from another origin; the CSP header is `default-src 'none'`. The only outbound links are the PRs' own `https://github.com/...` URLs.
+- **Self-contained.** It is plain HTML from `html/template` with one embedded stylesheet (`app.css`). There is no script, and nothing is loaded from another origin; the CSP header starts with `default-src 'none'` and allows stylesheets only from its own origin, so inline styles are blocked. The only outbound links are the PRs' own `https://github.com/...` URLs.
 - **Filters.** `machine`, `harness` and `days` are query parameters, and every link keeps them. `GET /api/portfolio` returns the same filters' portfolio as JSON.
 - **Open owner questions.** This machine's come from its `hm_asks` table. A pulled machine's are counted from its log: `ask.added` minus `ask.answered` and `ask.withdrawn` (same id).
 
