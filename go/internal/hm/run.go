@@ -392,14 +392,14 @@ func truncate(s string, n int) string {
 
 // Pass advances every active run once (at most one gh read per run), checks for a revert, then starts ready tasks.
 func (r *Runner) Pass(startNew bool) error {
+	// the daemon reuses the Runner: each pass, a skipped one too, reads the machines again
+	r.usageFiles, r.usageRead = nil, false
 	l := r.lock("pass", false) // one pass at a time: a timer tick that finds a pass running exits at once
 	if l == nil {
 		r.printf("another pass is running; skipped\n")
 		return nil
 	}
 	defer l.Close()
-	// the daemon reuses the Runner: each pass reads the machines again
-	r.usageFiles, r.usageRead = nil, false
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}

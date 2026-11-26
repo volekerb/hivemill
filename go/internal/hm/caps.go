@@ -42,12 +42,17 @@ func pctField(v any) *float64 {
 // ReadUsage parses the usage file the status line writes (the old pipeline's source). Claude Code puts
 // rate_limits.five_hour in the status line input only while the API reports a 5-hour window, so the field can be empty.
 func ReadUsage(userHome string, now time.Time) Usage {
+	u, _ := localUsage(userHome, now)
+	return u
+}
+
+// localUsage is ReadUsage plus whether the file has an updated_at.
+func localUsage(userHome string, now time.Time) (Usage, bool) {
 	b, err := os.ReadFile(filepath.Join(userHome, ".claude", "usage-limits.json"))
 	if err != nil {
-		return Usage{AgeS: -1}
+		return Usage{AgeS: -1}, false
 	}
-	u, _ := parseUsage(b, now)
-	return u
+	return parseUsage(b, now)
 }
 
 // parseUsage parses the content of one usage file; dated says whether it has an updated_at.
@@ -70,7 +75,10 @@ const remoteSkewS = 60
 // newestUsage is the newest reading of the local file and the files of the session machines: a session placed on
 // another machine refreshes only that machine's file.
 func (r *Runner) newestUsage(now time.Time) Usage {
-	best := ReadUsage(r.Env.UserHome, now)
+	best, localDated := localUsage(r.Env.UserHome, now)
+	if localDated && best.AgeS < 0 && best.AgeS >= -remoteSkewS {
+		best.AgeS = 0 // the clock stepped back a little: still the newest, not an undated file
+	}
 	for _, b := range r.remoteUsageFiles() {
 		u, dated := parseUsage(b, now)
 		if !dated || u.AgeS < -remoteSkewS {
@@ -193,7 +201,8 @@ func (c *Caps) DispatchBlock(s Store, project string) string {
 	if f := c.Usage.SevenDay; f != nil && *f >= float64(cfgInt(s, "max_seven_day_pct")) {
 		return fmt.Sprintf("usage: 7d at %.0f%% (cap %s%%)", *f, s.Cfg("max_seven_day_pct"))
 	}
-	if c.MemMB >= 0 && c.MemMB < c.MemMin && !placementOn(s) { // with placement, Start applies it when the pick is local
+	// with placement, Start applies the floor when the pick is local; a probe always runs here, so it is applied now
+	if c.MemMB >= 0 && c.MemMB < c.MemMin && (!placementOn(s) || c.Probe) {
 		return fmt.Sprintf("memory: %d MB available, floor %d MB", c.MemMB, c.MemMin)
 	}
 	if c.HasWeek && c.WeekUSD >= c.WeekCap {

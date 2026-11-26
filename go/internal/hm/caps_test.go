@@ -203,6 +203,23 @@ func TestUsageNewestAcrossMachines(t *testing.T) {
 	if strings.Join(asked, ",") != "w-down,w1" {
 		t.Errorf("a new pass reads the machines again: %v", asked)
 	}
+	held := r.lock("pass", false) // another pass is running: the skipped one still drops the cache
+	asked = nil
+	if err := r.Pass(false); err != nil {
+		t.Fatal(err)
+	}
+	r.ReadCaps(now)
+	held.Close()
+	if strings.Join(asked, ",") != "w-down,w1" {
+		t.Errorf("a skipped pass reads the machines again: %v", asked)
+	}
+	// a local reading a few seconds ahead of now is not replaced by an older remote one
+	_ = os.WriteFile(filepath.Join(dir, "usage-limits.json"), []byte(reading(10, -5)), 0o600)
+	remote = reading(20, 7200)
+	r.usageFiles, r.usageRead = nil, false
+	if got := r.ReadCaps(now); got.Usage.FiveHour == nil || *got.Usage.FiveHour != 10 || got.Usage.AgeS != 0 {
+		t.Errorf("local slightly ahead: %+v", got.Usage)
+	}
 }
 
 func TestProbeRunsLocal(t *testing.T) {
@@ -223,6 +240,12 @@ func TestProbeRunsLocal(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(r.Env.Home, "worktrees", task.Goal+"-"+task.ID, ".git", "info"), 0o755)
 	r.Tools.Git = func(string, ...string) (int, string, string) { return 0, strings.Repeat("a", 40), "" }
 	_, _ = s.db.Exec(`UPDATE tasks SET status='todo'`)
+	// the probe runs here, so the local memory floor holds it before anything is started, a free worker or not
+	low := r.ReadCaps(time.Now())
+	low.MemMB, low.MemMin = 500, 1024
+	if why := low.DispatchBlock(s, ""); !strings.HasPrefix(why, "memory:") {
+		t.Errorf("probe below the local floor: %q", why)
+	}
 	startErr := r.Start("T-0001")
 	run, err := s.Run("T-0001")
 	if err != nil || run == nil {
