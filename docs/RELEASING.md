@@ -11,9 +11,7 @@ While the version is 0.x:
 - MINOR is for new features, behaviour changes, flag promotions and breaking changes. A breaking change gets an Upgrade note in the release notes.
 - PATCH is for fixes only.
 
-Every 0.x tag is a GitHub pre-release; `python3 ci/changelog.py --prerelease 0.3.0` prints `true`.
-
-(or, from G-048 P5c: `go run ./cmd/ci-changelog --prerelease 0.3.0` from `go/`, same output.)
+Every 0.x tag is a GitHub pre-release; `GOTOOLCHAIN=local go run ./cmd/ci-changelog --prerelease 0.3.0`, run from `go/`, prints `true`.
 
 The `VERSION` file at the repo root holds the version of the last release PR (added by T-0792). `factory --version` prints it.
 
@@ -51,7 +49,7 @@ Or, from G-048 P5c: `go run ./cmd/ci-release-check <sha> [--version X.Y.Z] [--re
 1. `on-main`: the SHA is on the first-parent history of origin/main.
 2. `version`: the version is `X.Y.Z` and equals `VERSION` at the SHA.
 3. `ci-green`: a completed, successful `tests.yml` push run exists for the SHA (push runs on main run the full suite).
-4. `notes`: `changelog.py --check-version` passes and the release notes contain 0 placeholders (the FAIL line names each hit with its line number).
+4. `notes`: `GOTOOLCHAIN=local go run ./cmd/ci-changelog --check-version <version>` (from `go/`) passes and the release notes contain 0 placeholders (the FAIL line names each hit with its line number).
 5. `fresh-install-smoke`: from a detached checkout of the SHA, with a temporary `HOME` and `FACTORY_HOME`, `factory --version` prints `hivemill <version>`, `ci/demo_seed.py` succeeds and `factory serve` on the demo home answers HTTP 200. The live factory is never touched.
 6. `public-text`: the public-text guard passes on the release notes. Without owner terms the guard exits 2 and the check fails; it is never skipped.
 7. `tag-free`: `v<version>` is not on origin yet.
@@ -69,9 +67,8 @@ Later merges to main do not invalidate the candidate: the tag points at the SHA.
 
 ## Release steps
 
-1. The director files the release PR task. The coder bumps `VERSION`, writes `ci/release-notes/<version>.md` from `ci/release-notes/TEMPLATE.md`, updates the CHANGELOG header in `ci/changelog.py` and runs `python3 ci/changelog.py --write`.
+1. The director files the release PR task. The coder bumps `VERSION`, writes `ci/release-notes/<version>.md` from `ci/release-notes/TEMPLATE.md`, updates the CHANGELOG header constants in `go/internal/citools/changelog/changelog.go` and, while `ci/changelog.py` still exists, in `ci/changelog.py` too (update both), and runs `GOTOOLCHAIN=local go run ./cmd/ci-changelog --write --file ../CHANGELOG.md` from `go/`.
    The same PR pins the installer build (`hivemill-install`, see [Installer binaries](#installer-binaries)): the coder builds the three binaries, writes their sha256 into the `SHA_*` lines of `plugins/hivemill/scripts/install` and sets `VERSION` there to the release version. The release notes `### Upgrade` section names the last ref that still carries `plugins/hivemill/scripts/install.py`, the rollback target.
-   Or, from G-048 P5c: `go run ./cmd/ci-changelog --write` from `go/` (the header constants are still the ones in `ci/changelog.py` until stage P5e).
 2. The release PR goes through the normal review, QA and judge merge.
 3. The director runs `python3 ci/release_check.py <merge sha>`.
    Or, from G-048 P5c: `go run ./cmd/ci-release-check <merge sha>` from `go/`.
