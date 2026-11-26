@@ -192,13 +192,16 @@ type SpendRow struct {
 
 // SpendPage is the Spend page.
 type SpendPage struct {
-	Days    int           `json:"days"`
-	By      string        `json:"by"`
-	Total   float64       `json:"usd"`
-	Pending int           `json:"cost_pending"`
-	Daily   []SpendDay    `json:"daily"`
-	Rows    []SpendRow    `json:"rows"`
-	Chart   template.HTML `json:"-"`
+	Days    int     `json:"days"`
+	By      string  `json:"by"`
+	Total   float64 `json:"usd"`
+	Pending int     `json:"cost_pending"`
+	// Unattributed is the part of Total from sessions that join to no task; UnattributedPct is its percent of Total.
+	Unattributed    float64       `json:"unattributed_usd"`
+	UnattributedPct float64       `json:"unattributed_pct"`
+	Daily           []SpendDay    `json:"daily"`
+	Rows            []SpendRow    `json:"rows"`
+	Chart           template.HTML `json:"-"`
 }
 
 // SpendGroups are the groupings of the table.
@@ -249,6 +252,9 @@ func (o *Obs) BuildSpend(days int, project, by string) *SpendPage {
 			}
 		}
 		t := o.Tasks[s.TaskKey]
+		if t == nil {
+			p.Unattributed += s.Usage.USD
+		}
 		var r *SpendRow
 		get := func(k string) *SpendRow {
 			if rows[k] == nil {
@@ -283,6 +289,9 @@ func (o *Obs) BuildSpend(days int, project, by string) *SpendPage {
 			p.Pending++
 		}
 		p.Total += s.Usage.USD
+	}
+	if p.Total > 0 {
+		p.UnattributedPct = 100 * p.Unattributed / p.Total
 	}
 	var bars []chartBar
 	for _, d := range list {

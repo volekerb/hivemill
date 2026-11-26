@@ -625,6 +625,36 @@ func TestObsSpendMatchesReport(t *testing.T) {
 	}
 }
 
+func TestObsSpendUnattributed(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	ts := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
+	writeEvents(t, r.Log.Path,
+		cost(ev(ts, "session.ended", "T-1", "G-1", "www", "s-task", "task", nil), 3.00, 1, 2),
+		cost(ev(ts, "session.ended", "", "", "", "s-plan", "planner", nil), 1.00, 1, 2),
+	)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, body := obsGet(t, h, "/api/obs/spend")
+	var api struct {
+		Spend map[string]any `json:"spend"`
+	}
+	if code != 200 || json.Unmarshal([]byte(body), &api) != nil {
+		t.Fatalf("api %d: %s", code, body)
+	}
+	if api.Spend["usd"] != 4.0 || api.Spend["unattributed_usd"] != 1.0 || api.Spend["unattributed_pct"] != 25.0 {
+		t.Fatalf("unattributed: %s", body)
+	}
+	row := regexp.MustCompile(`of which unattributed \(no task\): 25\.0%</td>(<td></td>)+<td class="num">\$1\.00</td>`)
+	for _, by := range SpendGroups {
+		if _, page := obsGet(t, h, "/spend?by="+by); !row.MatchString(page) {
+			t.Fatalf("by %s: no unattributed row:\n%s", by, page)
+		}
+	}
+}
+
 func TestObsFlowStages(t *testing.T) {
 	day := "2026-11-20"
 	evs := boxA(day)
