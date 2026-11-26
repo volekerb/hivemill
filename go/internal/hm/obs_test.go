@@ -915,6 +915,34 @@ func TestObsBannerRoundsConfig(t *testing.T) {
 	}
 }
 
+func TestObsFlowBannerHTML(t *testing.T) {
+	banners := func(t *testing.T, many int) []string {
+		t.Helper()
+		_, h := roundsFixture(t, many)
+		code, page := obsGet(t, h, "/flow")
+		if code != 200 {
+			t.Fatalf("page %d: %s", code, page)
+		}
+		return bannerHTML.FindAllString(page, -1)
+	}
+	t.Run("shown", func(t *testing.T) {
+		html := banners(t, 2) // 50%
+		// html/template writes "+" as &#43;.
+		want := "2 of 4 PRs (50%) needed 2&#43; review rounds."
+		if len(html) != 1 || !strings.Contains(html[0], want) {
+			t.Fatalf("one banner: %q", html)
+		}
+		if strings.Contains(html[0], "<button") || strings.Contains(html[0], "<form") || strings.Contains(html[0], "<a ") {
+			t.Fatalf("a banner is text only: %s", html[0])
+		}
+	})
+	t.Run("hidden", func(t *testing.T) {
+		if html := banners(t, 1); len(html) != 0 { // 25%
+			t.Fatalf("no banner: %q", html)
+		}
+	})
+}
+
 func TestSessionPollingUSD(t *testing.T) {
 	r, _ := testRunner(t, "")
 	dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "p")
