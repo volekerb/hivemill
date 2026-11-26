@@ -19,7 +19,7 @@ import (
 )
 
 // `hivemill obs`: a read-only dashboard, on 127.0.0.1 unless --listen says otherwise. html/template pages and one embedded stylesheet, no script,
-// nothing loaded from another origin. Sidebar: Now, Spend, Flow; the drill-down zoom (project -> goal -> task ->
+// nothing loaded from another origin. Sidebar: Now, Spend, Flow, Machines (obs_machines.go); the drill-down zoom (project -> goal -> task ->
 // session) stays under Now. Header: project, time range, machine, harness, theme. JSON of every page: /api/obs/*.
 
 //go:embed assets/obs
@@ -79,6 +79,9 @@ type obsServer struct {
 	coreMu sync.Mutex
 	coreAt time.Time // when hc was last asked
 	core   string    // the last core name hc gave
+
+	probeMu sync.Mutex
+	probed  map[string]machineProbe // the Machines page's reading of each session machine
 }
 
 // coreTTL is how long one `hc server status` answer, a failure too, serves the page.
@@ -222,7 +225,7 @@ type sourceLine struct {
 
 type obsPage struct {
 	Kind      string
-	Section   string // sidebar entry: now, spend, flow
+	Section   string // sidebar entry: now, spend, flow, machines
 	Theme     string // light, dark or "" (follow the system)
 	PFilter   string // header project filter ("" = all)
 	Projects  []string
@@ -230,6 +233,7 @@ type obsPage struct {
 	NowPg     *NowPage
 	SpendPg   *SpendPage
 	FlowPg    *FlowPage
+	MachPg    *MachinesPage
 	Title     string
 	Crumbs    []crumb
 	F         ObsFilter
@@ -464,6 +468,13 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		p.FlowPg.Banners = append(p.FlowPg.Banners, p.FlowPg.stageBanners(cfgInt(s.r.Store, "obs_banner_stage_pct"))...)
 		if req.URL.Path == "/api/obs/flow" {
 			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "flow": p.FlowPg})
+			return
+		}
+	case "/machines", "/api/obs/machines":
+		p.Kind, p.Section, p.Title = "machines", "machines", "Machines"
+		p.MachPg = s.machinesPage(o)
+		if req.URL.Path == "/api/obs/machines" {
+			jsonOut(map[string]any{"now": o.Now, "cap": p.MachPg.Cap, "machines": p.MachPg.Cards})
 			return
 		}
 	case "/", "/now", "/api/obs/now", "/api/portfolio":
