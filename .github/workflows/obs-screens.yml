@@ -1,0 +1,56 @@
+name: obs-screens
+
+# Light and dark screenshots of the `hivemill obs` Spend and Flow pages, taken from the synthetic fixture in
+# go/internal/hm/testdata/obs_fixture/ by ci/obs_screens.sh. Task sessions never run the script; this job does.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ci/obs_screens.sh
+      - go/internal/hm/obs*.go
+      - go/internal/hm/assets/obs/**
+      - go/internal/hm/testdata/obs_fixture/**
+      - .github/workflows/obs-screens.yml
+  workflow_dispatch:
+
+concurrency:
+  group: "obs-screens-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  obs-screens:
+    name: obs-screens
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.mod
+      - name: Install headless Chrome
+        id: chrome
+        run: |
+          set -euo pipefail
+          line=$(npx --yes @puppeteer/browsers install chrome-headless-shell@stable --path "$RUNNER_TEMP/browsers" | tail -n 1)
+          bin=${line##* }
+          test -x "$bin"
+          echo "path=$bin" >> "$GITHUB_OUTPUT"
+          # Ubuntu 24.04 restricts unprivileged user namespaces, so Chrome's sandbox cannot start ("No usable sandbox").
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Take the screenshots
+        env:
+          CHROME: ${{ steps.chrome.outputs.path }}
+        run: bash ci/obs_screens.sh --out obs-screens
+      - uses: actions/upload-artifact@v7
+        with:
+          name: obs-screens
+          path: |
+            obs-screens/spend-light.png
+            obs-screens/spend-dark.png
+            obs-screens/flow-light.png
+            obs-screens/flow-dark.png
+          if-no-files-found: error
