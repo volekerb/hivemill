@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -56,6 +57,7 @@ type GateRecord struct {
 var (
 	resolutionRe = regexp.MustCompile(`(?i)^(fixed|not-a-bug|deferred|duplicate)\b`)
 	ranRe        = regexp.MustCompile(`(?m)^Ran (\d+) tests? in |(\d+) passed`)
+	commitRe     = regexp.MustCompile(`^([0-9a-f]{40}|[0-9a-f]{64})$`)
 	testDefRe    = `^[[:space:]]+(async[[:space:]]+)?def[[:space:]]+test_`
 	severities   = map[string]bool{"high": true, "medium": true, "low": true, "info": true}
 )
@@ -95,6 +97,80 @@ func parseFindings(b []byte, err error) ([]string, []Finding, string) {
 		}
 	}
 	return probs, doc.Findings, doc.Head
+}
+
+// onlyBaseMerges reports whether head is the reviewed commit plus nothing but clean merges of origin/base, so the review
+// still holds. Each commit on head's first-parent path down to reviewed must merge a commit of origin/base, and its tree
+// must be exactly git's own merge of its two parents: a conflict resolution or any edit in the merge needs a new review.
+// A local branch named like the base, a replace ref or a local merge rule must not widen this by accident, so the base is
+// named by its full ref, replace objects are off and such rules refuse. This is no defence against a forged clone: the
+// head in findings.json is the session's own statement. at is where the worktree is.
+func onlyBaseMerges(at place, wt, base, reviewed, head string) bool {
+	g := func(args ...string) (int, string, string) {
+		return at.git(wt, append([]string{"--no-replace-objects", "-c", "core.attributesFile=/dev/null"}, args...)...)
+	}
+	if !commitRe.MatchString(reviewed) || localMergeRules(at, wt) { // session text: only a full commit id reaches git
+		return false
+	}
+	rc, log, _ := g("log", "--first-parent", "--no-show-signature", "--format=%H %P %T", reviewed+".."+head)
+	if rc != 0 || log == "" {
+		return false
+	}
+	next := head
+	for _, ln := range strings.Split(strings.TrimSpace(log), "\n") {
+		f := strings.Fields(ln) // commit, first parent, second parent, tree
+		if len(f) != 4 || f[0] != next {
+			return false
+		}
+		if rc, _, _ := g("merge-base", "--is-ancestor", f[2], "refs/remotes/origin/"+base); rc != 0 {
+			return false
+		}
+		// merge-tree reads .gitattributes from the checkout: they must be the ones this merge was made with.
+		if rc, _, _ := g("diff", "--quiet", f[1], "--", ":(glob)**/.gitattributes"); rc != 0 {
+			return false
+		}
+		if rc, out, _ := g("merge-tree", "--write-tree", f[1], f[2]); rc != 0 || strings.TrimSpace(out) != f[3] {
+			return false
+		}
+		next = f[1]
+	}
+	return next == reviewed
+}
+
+// localMergeRules reports whether the clone has uncommitted rules that change how git merges (a merge driver, a default
+// driver, info/attributes, an untracked .gitattributes over tracked files), or cannot be asked: git would then repeat a merge the review
+// never saw, such as a union of two conflicting sides.
+func localMergeRules(at place, wt string) bool {
+	g := at.git
+	if rc, _, _ := g(wt, "config", "--get-regexp", `^merge\.(default$|.*\.driver$)`); rc != 1 { // 1 = no such key
+		return true
+	}
+	rc, attrs, _ := g(wt, "rev-parse", "--git-path", "info/attributes")
+	if attrs = strings.TrimSpace(attrs); rc != 0 || attrs == "" {
+		return true
+	}
+	if !filepath.IsAbs(attrs) {
+		attrs = filepath.Join(wt, attrs)
+	}
+	if _, err := at.read(attrs); !errors.Is(err, fs.ErrNotExist) {
+		return true
+	}
+	// Ignored files count too. One whose directory holds no tracked file (an installed dependency's own) shapes no merge.
+	rc, others, _ := g(wt, "ls-files", "-z", "--others", "--", ":(glob)**/.gitattributes")
+	if rc != 0 {
+		return true
+	}
+	var dirs []string
+	for _, f := range strings.Split(others, "\x00") {
+		if f != "" {
+			dirs = append(dirs, ":(literal)"+path.Dir(f))
+		}
+	}
+	if len(dirs) == 0 {
+		return false
+	}
+	rc, tracked, _ := g(wt, append([]string{"ls-files", "--"}, dirs...)...)
+	return rc != 0 || strings.TrimSpace(tracked) != ""
 }
 
 // ReviewRan reports whether a /code-review ran in this round: Claude Code records a forked skill run as
@@ -352,23 +428,50 @@ func lastLines(s string, n int) string {
 	return strings.Join(ls, "\n")
 }
 
-// publicText runs the public-text guard (owner terms, secrets) over what the branch publishes and over the PR text.
-func (r *Runner) publicText(wt, base string, pr *PR) (bool, string) {
-	args, why := r.guardArgs()
-	if why != "" {
+// publicText runs the public-text guard over what the branch publishes and over the PR text: owner terms and secrets
+// for a public_text_repos repo, the secret checks alone for any other. A failure names the part that failed.
+func (r *Runner) publicText(repo, wt, base string, pr *PR) (bool, string) {
+	public, err := r.publicTextRepo(repo)
+	if err != nil {
+		return false, err.Error()
+	}
+	scan, args := guard.CISecretsGuardMain, []string(nil)
+	terms, why := r.guardArgs()
+	switch {
+	case public && why != "":
 		return false, why
+	case public:
+		scan, args = guard.CIPublicTextGuardMain, terms
+	case why == "": // private repo: the terms only mask what the note shows
+		args = terms
+	}
+	check := func(what, stdin string, mode ...string) (bool, string) {
+		var out, errb bytes.Buffer
+		rc := scan(append(append([]string{}, args...), mode...), strings.NewReader(stdin), &out, &errb)
+		if rc == 0 {
+			return true, ""
+		}
+		// no hit line (the guard could not decide): name every check that was running
+		part := "secrets"
+		switch owner, secrets := guard.CIHitParts(out.String()); {
+		case owner && secrets, public && !owner && !secrets:
+			part = "owner terms and secrets"
+		case owner:
+			part = "owner terms"
+		}
+		return false, fmt.Sprintf("public-text guard (%s) on %s exited %d: %s", part, what, rc, lastLines(out.String()+errb.String(), 6))
 	}
 	allow := filepath.Join(r.Env.Home, "ci", "scrub_allowlist.txt")
-	var out, errb bytes.Buffer
-	rc := guard.CIPublicTextGuardMain(append(append([]string{}, args...), "push", "origin/"+base, "HEAD", "--repo", wt, "--allowlist", allow),
-		strings.NewReader(""), &out, &errb)
-	if rc != 0 {
-		return false, fmt.Sprintf("public-text guard on the commits exited %d: %s", rc, lastLines(out.String()+errb.String(), 6))
+	if ok, note := check("the commits", "", "push", "origin/"+base, "HEAD", "--repo", wt, "--allowlist", allow); !ok {
+		return false, note
 	}
 	if pr != nil {
-		if rc, hits := r.guardText(args, pr.Title+"\n"+pr.Body); rc != 0 {
-			return false, fmt.Sprintf("public-text guard on the PR title/body exited %d: %s", rc, lastLines(hits, 6))
+		if ok, note := check("the PR title/body", pr.Title+"\n"+pr.Body, "text", "-"); !ok {
+			return false, note
 		}
+	}
+	if !public {
+		return true, "no secrets (owner terms not checked: the repo is not in public_text_repos)"
 	}
 	return true, "no hits"
 }
@@ -477,7 +580,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	if mirrored != nil {
 		note = mirrored.Error()
 	} else {
-		ok, note = r.publicText(run.coordWT(), base, pr)
+		ok, note = r.publicText(run.Repo, run.coordWT(), base, pr)
 	}
 	add("public-text", ok, note)
 	none, modeErr := r.ciMode(t.Project)
@@ -511,7 +614,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	for _, p := range probs {
 		add("findings", false, p)
 	}
-	if len(probs) == 0 && fhead != rec.Head {
+	if len(probs) == 0 && fhead != rec.Head && !onlyBaseMerges(at, wt, base, fhead, rec.Head) {
 		add("review", false, fmt.Sprintf("findings.json is for head %.9s, not HEAD %.9s: run /code-review on the current head and rewrite "+
 			"the file with \"head\": the output of `git rev-parse HEAD`", fhead, rec.Head))
 	}
