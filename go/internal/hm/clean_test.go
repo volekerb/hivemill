@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -321,6 +323,44 @@ func TestCleanDryRunListsOnly(t *testing.T) {
 	}
 	if all, _ := f.r.Log.Read(); len(all) != 0 || f.s.Meta("cleaned") != "" {
 		t.Errorf("a dry run recorded something: %+v", all)
+	}
+}
+
+func TestCleanReportsDiskPerMachine(t *testing.T) {
+	f := newCleanFix(t)
+	if err := f.s.SetCfg("session_machines", "zz-worker,zz-gone,local"); err != nil {
+		t.Fatal(err)
+	}
+	f.r.Tools.HC = func(args ...string) (int, string, string) {
+		if len(args) > 2 && args[0] == "exec" && args[2] == "zz-worker" {
+			return 0, "disk=/dev/x 1000 870 130 87% /\n---mem\n", ""
+		}
+		return 1, "", "down"
+	}
+	f.r.DiskFree = func(string) (uint64, uint64, error) { return 100, 58, nil }
+	me := f.r.Machine()
+	want := []MachineDisk{{me, 42}, {"zz-worker", 87}, {"zz-gone", -1}}
+
+	var out bytes.Buffer
+	f.clean(t, true).Print(&out)
+	for _, line := range []string{"disk used on " + me + ": 42%", "disk used on zz-worker: 87%", "disk used on zz-gone: unknown"} {
+		if !strings.Contains(out.String(), line) {
+			t.Errorf("output lacks %q:\n%s", line, out.String())
+		}
+	}
+
+	f.clean(t, false)
+	done := f.events(t, "clean.done")
+	if len(done) != 1 {
+		t.Fatalf("clean.done events: %+v", done)
+	}
+	got, err := json.Marshal(done[0].Data["disks"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var disks []MachineDisk
+	if err := json.Unmarshal(got, &disks); err != nil || !slices.Equal(disks, want) {
+		t.Errorf("clean.done disks = %s (%v), want %+v", got, err, want)
 	}
 }
 

@@ -44,6 +44,13 @@ type CleanReport struct {
 	Removed []CleanItem
 	Kept    []CleanItem
 	Errors  []string
+	Disks   []MachineDisk
+}
+
+// MachineDisk is the disk use of one machine: of the factory home on this one, of the user home on a session machine.
+type MachineDisk struct {
+	Machine string `json:"machine"`
+	UsedPct int    `json:"disk_used_pct"` // -1 = unreadable
 }
 
 // MB is the megabytes freed in one category.
@@ -88,6 +95,13 @@ func (c *CleanReport) Print(w io.Writer) {
 	for _, e := range c.Errors {
 		fmt.Fprintf(w, "error: %s\n", e)
 	}
+	for _, d := range c.Disks {
+		if d.UsedPct < 0 {
+			fmt.Fprintf(w, "disk used on %s: unknown\n", d.Machine)
+		} else {
+			fmt.Fprintf(w, "disk used on %s: %d%%\n", d.Machine, d.UsedPct)
+		}
+	}
 	freed := "freed"
 	if c.DryRun {
 		freed = "to free"
@@ -111,17 +125,18 @@ func (r *Runner) Clean(ctx context.Context, dryRun bool, now time.Time) (*CleanR
 	if err := r.cleanOldTranscripts(ctx, rep, now); err != nil {
 		rep.Errors = append(rep.Errors, "transcripts: "+err.Error())
 	}
+	if !dryRun && ctx.Err() != nil { // a clean cut short is not done: the next one is due at once
+		return rep, ctx.Err()
+	}
+	rep.Disks = r.diskPerMachine() // after the removals
 	if dryRun {
 		return rep, nil
-	}
-	if ctx.Err() != nil { // a clean cut short is not done: the next one is due at once
-		return rep, ctx.Err()
 	}
 	_ = r.Store.SetMeta("cleaned", strconv.FormatInt(now.Unix(), 10))
 	err := r.Log.Emit("clean.done", nil, Event{Data: map[string]any{
 		"worktrees_mb": rep.MB(cleanWorktrees), "gocache_mb": rep.MB(cleanGoCache), "transcripts_mb": rep.MB(cleanTranscripts),
 		"worktrees": rep.count(cleanWorktrees), "gocaches": rep.count(cleanGoCache), "transcripts": rep.count(cleanTranscripts),
-		"kept": len(rep.Kept), "errors": rep.Errors}})
+		"kept": len(rep.Kept), "errors": rep.Errors, "disks": rep.Disks}})
 	return rep, err
 }
 
@@ -505,6 +520,35 @@ func (r *Runner) diskUse(path string) (uint64, uint64, error) {
 	bs := uint64(st.Bsize) //nolint:unconvert // width differs per OS
 	avail := uint64(st.Bavail)
 	return (uint64(st.Blocks) - uint64(st.Bfree) + avail) * bs, avail * bs, nil //nolint:unconvert
+}
+
+// diskPerMachine is the disk use of this machine and of every other session machine, from placement's probe with a
+// marker that never matches, so it writes nothing there.
+func (r *Runner) diskPerMachine() []MachineDisk {
+	me := r.Machine()
+	local := MachineDisk{Machine: me, UsedPct: -1}
+	if total, free, err := r.diskUse(r.Env.Home); err == nil && total > 0 {
+		local.UsedPct = usedPct(total, free)
+	}
+	disks := []MachineDisk{local}
+	entries := csv(r.Store.Cfg("session_machines"))
+	if len(entries) == 0 {
+		return disks
+	}
+	core := r.coreName()
+	for _, m := range entries {
+		if m == localMachine || m == me || m == core {
+			continue
+		}
+		d := MachineDisk{Machine: m, UsedPct: -1}
+		if validMachine(m) {
+			if rc, out, _ := r.Tools.HC("exec", "--on", m, "sh", "-c", probeScript, "sh", "/nonexistent", "-"); rc == 0 {
+				d.UsedPct = ParseProbe(out).DiskPct
+			}
+		}
+		disks = append(disks, d)
+	}
+	return disks
 }
 
 // usedPct is the used share of a disk in percent, rounded up like df.

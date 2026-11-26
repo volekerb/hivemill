@@ -210,7 +210,7 @@ Every side effect checks before it acts, so a pass that crashed half way can saf
 - **Go build caches.** While the disk of the home is above `disk_trim_pct` (80), `go clean -cache` runs for each of this user's build caches that was not used for 7 days. The module cache is never touched.
 - **Transcripts.** The `.jsonl` transcripts of a run that ended more than `transcript_keep_d` (30) days ago are gzipped in place (`.jsonl.gz`, same mode and mtime). Reports, `hivemill obs` and the task trace price both forms. No content is lost: a plain file is removed only once an archive holds the same bytes. The older web dashboard and the token index read plain `.jsonl` only.
 
-Each real clean that finishes writes `clean.done` with the MB freed and the count per category, and `hivemill clean` exits non-zero when a removal failed. Worktrees and transcripts on a machine that does not share the home are not cleaned from here. The Machines page of `hivemill obs` shows each machine's disk use.
+Each real clean that finishes writes `clean.done` with the MB freed and the count per category, and `hivemill clean` exits non-zero when a removal failed. Worktrees and transcripts on a machine that does not share the home are not cleaned from here. `clean.done` (`disks`) and the dry run also give the disk use of this machine and of each session machine.
 
 ### Drain and upgrade
 
