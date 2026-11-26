@@ -87,6 +87,25 @@ test("needs you: open questions and held runs, a held run with its reason and PR
   assert.equal(view("Pilot").needsCount, 0);
 });
 
+test("task titles: the API's own, else the worker tab's name on one of the factory's machines", async () => {
+  standardSetup();
+  const now = fx("now-busy.json");
+  now.page.running[0].title = "From the API";
+  S.http[`local ${BUSY}/api/obs/now`] = now;
+  S.spaces = [...S.spaces,
+    { id: "buildbox/workers", name: "workers", machine: "buildbox", tabs: [{ id: "t1", name: "T-0101 · from a tab" }, { id: "t2", name: "T-0110 · Held task title" }, { id: "t3", name: "T-0106 · judge" }] },
+    { id: "macmini/workers", name: "workers", machine: "macmini", tabs: [{ id: "t4", name: "T-0110 · another factory's task" }, { id: "t5", name: "T-0107 · only here" }, { id: "t6", name: "2" }] }];
+  await collect(fx("dashboard.json"));
+  const w = view("Workshop");
+  const title = (task) => w.running.find((r) => r.task === task)?.title;
+  assert.equal(title("T-0101"), "From the API");
+  assert.equal(w.needs.find((n) => n.task === "T-0110").title, "Held task title", "the tab on the factory's own machine wins");
+  assert.equal(title("T-0107"), "only here", "a single tab anywhere is taken");
+  assert.equal(title("T-0106"), null, "a judge tab names no task");
+  assert.equal(w.spend.top.find((x) => x.task === "T-0110").title, "Held task title");
+  assert.deepEqual(Object.keys(D.tabTitles(S.spaces)).sort(), ["T-0101", "T-0107", "T-0110"]);
+});
+
 test("a held run's trace is asked once, not on every poll", async () => {
   standardSetup();
   await collect(fx("dashboard.json"));

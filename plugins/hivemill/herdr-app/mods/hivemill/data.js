@@ -369,7 +369,7 @@ function loadPart(cx, f, path, pick) {
 
 const runRow = (r) => ({
   key: r.key, task: r.task, goal: r.goal ?? null, project: r.project ?? null, machine: r.machine ?? null, stage: r.stage ?? null,
-  since: r.since ?? null, age_sec: r.age_sec ?? 0, usd: r.usd ?? null, sessions: r.sessions ?? null, outcome: r.outcome ?? null,
+  title: r.title || null, since: r.since ?? null, age_sec: r.age_sec ?? 0, usd: r.usd ?? null, sessions: r.sessions ?? null, outcome: r.outcome ?? null,
 });
 
 function nowOf(p) {
@@ -487,6 +487,25 @@ export function dur(s) {
   return m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.round(m / 1440)}d`;
 }
 
+// Task titles the app already shows: a worker tab is named "T-1234 · title" (a judge's tab "T-1234 · judge").
+// -> {task id: [{machine, title}]}. Used until a factory's API carries the title itself.
+export function tabTitles(spaceList = spaces()) {
+  const out = {};
+  for (const s of spaceList)
+    for (const tb of s.tabs ?? []) {
+      const m = String(tb.name ?? "").match(/^(T-\d+) · (.+)$/);
+      if (!m || m[2] === "judge") continue;
+      (out[m[1]] ??= []).push({ machine: s.machine ?? null, title: m[2] });
+    }
+  return out;
+}
+
+// A task's title for one factory: a tab on one of the factory's machines, else the only tab with that id.
+function titleFor(task, titles, machineSet) {
+  const hits = titles[task] ?? [];
+  return (hits.find((h) => machineSet.has(h.machine)) ?? (hits.length === 1 ? hits[0] : null))?.title ?? null;
+}
+
 // ---- one view per factory ------------------------------------------------------------------------------------------
 
 const WAIT_CI = "ci", WAIT_MERGE = "merge";
@@ -497,8 +516,9 @@ export const brief = (text, max = 90) => (String(text ?? "").length > max ? `${S
 // Everything a factory's card, the bar and the alerts show, from its last answers.
 // state: "loading" (no answer yet), "down" (never answered), "stale" (the last answer is old or the factory stopped
 // answering) or "live". Counts and rows from a stale factory are its last known ones and are marked so.
-export function factoryViews(d = data()) {
+export function factoryViews(d = data(), spaceList = spaces()) {
   const now = Date.now();
+  const titles = tabTitles(spaceList);
   const A = { ...DEFAULTS.alerts, ...(config().alerts ?? {}) };
   return factoriesOf().map((f) => {
     const st = facState(d, f.key);
@@ -508,7 +528,9 @@ export function factoryViews(d = data()) {
     if (!n) return { ...base, state: st.error ? "down" : "loading", loaded: false, needsCount: 0, needs: [], stuck: [] };
     const state = st.error || now - st.at > A.stale_minutes * 60_000 ? "stale" : "live";
     const drift = Math.max(0, Math.round((now - st.at) / 1000)); // the answer's ages count on until the next one
-    const aged = (r, at = st.at) => ({ ...r, age_s: (r.age_sec ?? 0) + Math.max(0, Math.round((now - at) / 1000)) });
+    const own = new Set([f.machine, resolveSpace(f.space, spaceList)?.machine, ...(st.mach?.rows ?? []).map((m) => m.name)].filter((x) => x != null));
+    const named = (task, title) => title || titleFor(task, titles, own);
+    const aged = (r, at = st.at) => ({ ...r, title: named(r.task, r.title), age_s: (r.age_sec ?? 0) + Math.max(0, Math.round((now - at) / 1000)) });
     const running = n.running.map((r) => aged(r));
     const counts = { working: 0, ci: 0, merge: 0, held: n.held.length };
     for (const r of running) counts[r.stage === WAIT_CI ? "ci" : r.stage === WAIT_MERGE ? "merge" : "working"]++;
@@ -517,7 +539,7 @@ export function factoryViews(d = data()) {
       ...n.held.map((h) => {
         const more = st.held?.[`${h.key}@${h.since ?? ""}`] ?? {};
         return {
-          kind: "held", key: h.key, task: h.task, project: h.project, since: h.since, age_s: (h.age_sec ?? 0) + drift,
+          kind: "held", key: h.key, task: h.task, title: named(h.task, h.title), project: h.project, since: h.since, age_s: (h.age_sec ?? 0) + drift,
           text: more.reason || String(h.outcome ?? "held").replace(/^held:\s*/, "held for the "), pr: more.pr ?? null, href: more.pr ?? taskUrl(f, h.key),
         };
       }),
@@ -534,7 +556,7 @@ export function factoryViews(d = data()) {
       projects: n.projects.map((p) => p.project).filter((p) => p !== "all" && !/^\(/.test(p)),
       merged: { today: perDay.length ? perDay[perDay.length - 1].n : null, perDay, total: st.flow?.merged ?? null, days: st.flow?.days ?? null },
       spend: { today: all?.usd_today ?? null, week: all?.usd_7d ?? null, perPR: all?.per_pr ?? null, hours: all?.hours ?? null, pending: all?.pending ?? 0,
-        daily: (st.spend?.daily ?? []).slice(-7), top: st.spend?.top ?? [], pollingPct: st.spend?.pollingPct ?? null },
+        daily: (st.spend?.daily ?? []).slice(-7), top: (st.spend?.top ?? []).map((x) => ({ ...x, task: String(x.key).split("/").pop(), title: named(String(x.key).split("/").pop(), null) })), pollingPct: st.spend?.pollingPct ?? null },
       machines: (st.mach?.rows ?? []).map((m) => ({ ...m, label: labelFor(m.name, d) })), cap: st.mach?.cap ?? null,
     };
   });

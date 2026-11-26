@@ -276,7 +276,8 @@ export default class Dashboard extends View {
         body.child(this.sub(t, `Most expensive tasks, 7 days${lab}`, null));
         body.children(s.top.map((x) =>
           this.row(t, `cost-${v.key}-${x.key}`, () => openUrl(taskUrl(v.factory, x.key)), [
-            div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(String(x.key).split("/").pop()),
+            div().flex_none().w(56).text_size(11.5).text_color(t.foreground).child(x.task),
+            div().flex_1().min_w(0).truncate().text_size(11.5).text_color(x.title ? t.foreground : t.muted).child(x.title ?? ""),
             div().flex_none().text_size(11.5).font_semibold().text_color(x.usd > 10 ? warn(t) : t.muted).child(money(x.usd)),
           ])));
       }
@@ -364,8 +365,8 @@ export default class Dashboard extends View {
       this.row(t, `${k}-need-${i}`, () => openUrl(n.href), [
         div().size(7).rounded(4).flex_none().bg(warn(t)),
         v_flex().flex_1().min_w(0)
-          .child(div().truncate().text_size(12).text_color(t.foreground).child(n.kind === "held" ? [demo() ? null : n.task, clean(n.text)].filter(Boolean).join(" · ") : n.text))
-          .child(div().truncate().text_size(10.5).text_color(t.dim).child(n.kind === "held" ? ["held", dur(n.age_s), n.pr ? "PR ↗" : "trace ↗"].join(" · ") : "question · open ↗")),
+          .child(div().truncate().text_size(12).text_color(t.foreground).child(n.kind === "held" ? [demo() ? null : n.task, clean(n.title || n.text)].filter(Boolean).join(" · ") : n.text))
+          .child(div().truncate().text_size(10.5).text_color(t.dim).child(n.kind === "held" ? ["held", dur(n.age_s), n.title ? clean(n.text) : null, n.pr ? "PR ↗" : "trace ↗"].filter(Boolean).join(" · ") : "question · open ↗")),
       ])));
     if (v.needs.length > 8) body.child(this.row(t, `${k}-need-more`, () => openUrl(webUrl("/", f)), [div().text_size(11).text_color(t.accent).child(`+${v.needs.length - 8} more in the browser`)]));
 
@@ -412,7 +413,8 @@ export default class Dashboard extends View {
   runRow(t, v, id, r, tone) {
     return this.row(t, id, () => openTask(v, r), [
       div().flex_none().w(demo() ? 0 : 56).text_size(11.5).text_color(t.foreground).child(demo() ? "" : r.task),
-      div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted).child([r.stage, demo() ? null : r.project].filter(Boolean).join(" · ")),
+      div().flex_1().min_w(0).truncate().text_size(11.5).text_color(r.title ? t.foreground : t.muted).child(r.title ? clean(r.title) : demo() ? "" : r.project ?? ""),
+      div().flex_none().w(64).truncate().text_size(10.5).text_color(t.muted).child(r.stage ?? ""),
       div().flex_none().text_size(10.5).text_color(t.dim).child(r.usd != null ? money(r.usd) : ""),
       div().flex_none().w(52).text_size(11).text_color(tone ?? t.muted).child(dur(r.age_s)),
     ]);

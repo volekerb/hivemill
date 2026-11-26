@@ -152,7 +152,7 @@ Turn it off again after the pictures. The Herdr app draws only while its window 
 - An open question shows as a count per project. Its text is not in the obs API yet.
 - A failed run that the planner already re-filed still counts in "failed today".
 - The runner's dollar caps (`weekly_budget_usd`, `project_daily_budget_usd`) are not in the obs API yet, so the card shows spend without a cap.
-- Task rows show ids, not titles.
+- A task row shows its title when the factory's API gives one, else the name of its worker tab in the app ("T-1234 · title"). A task with neither shows its id only.
 - The status bar replaces Herdr's own status bar in the Hivemill layout. It keeps where you are, the branch and the commands hint, but not the agent count, which the agents list shows.
 
 [design/multi-factory.md](design/multi-factory.md) lists these as the API's next step.
