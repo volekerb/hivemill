@@ -272,7 +272,7 @@ func (p *FlowPage) stageBanners(pct int) []string {
 	hours := func(s int64) string { // one decimal under 10 h, so a short window does not read "0 of 0"
 		h := float64(s) / 3600
 		if h < 10 {
-			return strconv.FormatFloat(math.Round(h*10)/10, 'f', -1, 64)
+			return strconv.FormatFloat(math.Max(math.Round(h*10)/10, 0.1), 'f', -1, 64)
 		}
 		return fmt.Sprintf("%.0f", math.Round(h))
 	}

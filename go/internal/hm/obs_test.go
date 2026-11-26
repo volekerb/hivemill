@@ -998,6 +998,11 @@ func TestObsBannerStageText(t *testing.T) {
 	if got := p.stageBanners(30); !reflect.DeepEqual(got, want) {
 		t.Fatalf("%q", got)
 	}
+	p.Tasks[0].Seconds = map[string]int64{"dispatched": 120}
+	want = []string{"dispatched holds 0.1 of 0.1 stage hours (100%)."}
+	if got := p.stageBanners(30); !reflect.DeepEqual(got, want) {
+		t.Fatalf("%q", got)
+	}
 }
 
 func TestObsBannerStageConfig(t *testing.T) {
