@@ -110,19 +110,29 @@ func (r *Runner) noneStartable(ready []Task, blocked []BlockedTask) string {
 		return ""
 	}
 	n := blockedCounts(blocked)
-	return fmt.Sprintf("none_startable:todo=%d,blocked_by_deps=%d,blocked_by_lint=%d", len(blocked), n[BlockedDeps], n[BlockedLint])
+	why := fmt.Sprintf("none_startable:todo=%d,blocked_by_deps=%d,blocked_by_lint=%d", len(blocked), n[BlockedDeps], n[BlockedLint])
+	if n[BlockedRun] > 0 {
+		why += fmt.Sprintf(",have_a_run=%d", n[BlockedRun])
+	}
+	return why
 }
 
 // reportUnstartable emits one task.unstartable event for each task that newly fails the spec gate. A task that was fixed
-// leaves the remembered list, so a later failure is reported again.
+// leaves the remembered list, so a later failure is reported again; one that only left the queue for a while (its goal
+// paused, its project out of config projects) stays on it.
 func (r *Runner) reportUnstartable() error {
-	_, blocked, err := r.Queue(csv(r.Store.Cfg("projects")))
+	ready, blocked, err := r.Queue(csv(r.Store.Cfg("projects")))
 	if err != nil {
 		return err
 	}
 	told := csv(r.Store.Meta("unstartable"))
 	var now []string
+	queued := map[string]bool{}
+	for _, t := range ready {
+		queued[t.ID] = true
+	}
 	for _, b := range blocked {
+		queued[b.Task.ID] = true
 		if b.Kind != BlockedLint {
 			continue
 		}
@@ -135,6 +145,13 @@ func (r *Runner) reportUnstartable() error {
 		}
 		now = append(now, b.Task.ID)
 	}
+	for _, id := range told {
+		if t, err := r.Store.Task(id); err == nil && !queued[id] && t.Status == "todo" {
+			now = append(now, id)
+		}
+	}
+	slices.Sort(told)
+	slices.Sort(now)
 	if slices.Equal(told, now) {
 		return nil
 	}

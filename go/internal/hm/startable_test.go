@@ -1,6 +1,7 @@
 package hm
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -106,6 +107,14 @@ func TestLintFailingTodoMakesPlannerItem(t *testing.T) {
 	if got := f.sent(); len(got) != 1 || !strings.Contains(got[0], "unstartable:T-0002") {
 		t.Fatalf("wakes: %q", got)
 	}
+	// paused and resumed: the same failure, no second report
+	_ = s.SetCfg("projects", "")
+	pass()
+	_ = s.SetCfg("projects", "www")
+	pass()
+	if n := len(events()); n != 1 {
+		t.Fatalf("%d events after the project came back", n)
+	}
 	// fixed, then broken again: that is a new report
 	_ = s.UpdateTask("T-0002", map[string]any{"acceptance": "1. works - cmd:true => exit 0"})
 	pass()
@@ -145,8 +154,21 @@ func TestIdleAlertUsesStartable(t *testing.T) {
 		t.Fatalf("idle alert: %s", text)
 	}
 	lv, _ := r.PlannerLevels()
-	if !contains(lv, "queue_low:www=0/3") || !contains(lv, "none_startable:todo=5,blocked_by_deps=3,blocked_by_lint=1") {
+	if !contains(lv, "queue_low:www=0/3") || !contains(lv, "none_startable:todo=5,blocked_by_deps=3,blocked_by_lint=1,have_a_run=1") {
 		t.Fatalf("levels: %v", lv)
+	}
+	// other counts are not news
+	d := DecideWake(WakeInput{Levels: []string{"none_startable:todo=6,blocked_by_deps=4,blocked_by_lint=1"},
+		LastFingerprint: "none_startable:todo=5,blocked_by_deps=3,blocked_by_lint=1", Idle: true})
+	if d.Wake {
+		t.Fatalf("woken for changed counts: %+v", d)
+	}
+	var many []string
+	for i := range maxUnstartableIDs + 2 {
+		many = append(many, fmt.Sprintf("unstartable:T-%04d", i))
+	}
+	if got := Coalesce(nil, many); len(got) != 1 || !strings.HasSuffix(got[0], ",T-0039,+2_more") {
+		t.Fatalf("grouped: %q", got)
 	}
 	// no free slot: the queue is not starved yet
 	_ = s.SetCfg("max_concurrent", "1")

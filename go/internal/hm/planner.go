@@ -273,11 +273,11 @@ func DecideWake(in WakeInput) WakeDecision {
 	d := WakeDecision{Fingerprint: strings.Join(levels, " ")}
 	heard := map[string]bool{}
 	for _, x := range strings.Fields(in.LastFingerprint) {
-		heard[x] = true
+		heard[levelKey(x)] = true
 	}
 	changed := len(in.Events) > 0
 	for _, x := range levels {
-		changed = changed || !heard[x] // a level that went away (a refilled queue) is no news
+		changed = changed || !heard[levelKey(x)] // a level that went away (a refilled queue) is no news
 	}
 	if !changed && !in.Force {
 		d.Advance, d.Why = true, "nothing changed"
@@ -330,7 +330,39 @@ func Coalesce(events, levels []string) []string {
 			out = append(out, k+":"+strings.Join(ids[k], ","))
 		}
 	}
-	return append(out, levels...)
+	return append(out, groupUnstartable(levels)...)
+}
+
+// levelKey is what makes a level news: none_startable carries live counts, which change with every filed or finished task,
+// so only its appearing counts.
+func levelKey(level string) string {
+	if strings.HasPrefix(level, "none_startable:") {
+		return "none_startable"
+	}
+	return level
+}
+
+// maxUnstartableIDs keeps the unstartable reason inside the wake line.
+const maxUnstartableIDs = 40
+
+// groupUnstartable writes the per-task unstartable levels as one reason ("unstartable:T-1,T-2,+3_more"), so many of them
+// are not cut from the wake line one by one.
+func groupUnstartable(levels []string) []string {
+	var out, ids []string
+	for _, x := range levels {
+		if id, ok := strings.CutPrefix(x, "unstartable:"); ok {
+			ids = append(ids, id)
+		} else {
+			out = append(out, x)
+		}
+	}
+	if n := len(ids) - maxUnstartableIDs; n > 0 {
+		ids = append(ids[:maxUnstartableIDs], fmt.Sprintf("+%d_more", n))
+	}
+	if len(ids) > 0 {
+		out = append(out, "unstartable:"+strings.Join(ids, ","))
+	}
+	return out
 }
 
 // WakeMessage is the one machine-readable line typed into the planner.

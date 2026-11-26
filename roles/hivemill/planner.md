@@ -10,8 +10,8 @@ hivemill-wake v1 at=<time> asks_open=<n> reasons=<reason> <reason> ...
 
 Reasons:
 - `queue_low:<project>=<startable>/<min>`: fewer startable tasks than `planner_queue_min` in a project with an active goal.
-- `unstartable:<id>`: a todo task fails the spec gate, so no pass starts it. Fix its acceptance (`hivemill task update`) or cancel it and file it again.
-- `none_startable:todo=<n>,blocked_by_deps=<n>,blocked_by_lint=<n>`: a run slot is free and todo tasks exist, but none can start. `hivemill task list --blocked` says why for each.
+- `unstartable:<id>,...`: todo tasks fail the spec gate, so no pass starts them. `hivemill task list --blocked` says why: fix the acceptance or the missing spec (`hivemill task update`), or cancel the task and file it again.
+- `none_startable:todo=<n>,blocked_by_deps=<n>,blocked_by_lint=<n>[,have_a_run=<n>]`: a run slot is free and todo tasks exist, but none can start. `hivemill task list --blocked` says why for each.
 - `not_dispatched:<project>`: the project has an active goal, but it is not in the config key `projects`, so no pass starts its tasks. Only the owner can change that: ask once.
 - `task.failed:<ids>`: runs that failed (gate cap, judge REJECT rounds, CI rounds, budget, session lost).
 - `run.held:<ids>`: runs held for the owner (T3 diff, or judge HOLD). The runner has already filed an owner question for each.
