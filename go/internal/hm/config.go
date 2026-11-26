@@ -12,18 +12,21 @@ import (
 // Defaults are the runner's own config keys (table hm_config). They are independent of the old pipeline's caps
 // (max_live_agents, max_total_claude, dispatch_max_per_tick are never read).
 var Defaults = map[string]string{
-	"max_concurrent":   "2",                 // active runs at one time
-	"projects":         "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
-	"model":            "claude-sonnet-5-5", // task session and judge
-	"risk_model":       "claude-opus-5-5",   // when a declared-scope or changed file is a sensitive path, or the task is T3
-	"effort":           "medium",            // --effort of every session
-	"gate_max_blocks":  "3",                 // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
-	"gate_wait_s":      "900",               // wait for a test slot before leaving the affected tests to CI
-	"judge_rounds_max": "2",                 // judge REJECT rounds before FAIL
-	"ci_rounds_max":    "3",                 // red-CI rounds sent back to the session before FAIL
-	"ci_poll_s":        "60",                // a gated run reads its PR at most this often (and once per pass)
-	"ci_timeout_s":     "2700",              // checks still pending after this: one owner alert, the run stays
-	"auto_revert":      "off",               // on: a runner merge that turns main red is reverted through a PR
+	"max_concurrent": "2",                 // active runs at one time
+	"projects":       "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
+	"model":          "claude-sonnet-5-5", // task session and judge
+	"risk_model":     "claude-opus-5-5",   // when a declared-scope or changed file is a sensitive path, or the task is T3
+	"effort":         "medium",            // --effort of every session
+	// dynamic workflows (workflow.go): which task sessions get the owner's request to use the Workflow tool
+	"task_workflows":       "large", // off | large (4+ criteria, 6+ scope paths or T3) | all
+	"task_workflow_agents": "6",     // at most this many agents per workflow, as the request says
+	"gate_max_blocks":      "3",     // Stop-hook blocks per round, then the stop is allowed and the task is FAIL for the owner
+	"gate_wait_s":          "900",   // wait for a test slot before leaving the affected tests to CI
+	"judge_rounds_max":     "2",     // judge REJECT rounds before FAIL
+	"ci_rounds_max":        "3",     // red-CI rounds sent back to the session before FAIL
+	"ci_poll_s":            "60",    // a gated run reads its PR at most this often (and once per pass)
+	"ci_timeout_s":         "2700",  // checks still pending after this: one owner alert, the run stays
+	"auto_revert":          "off",   // on: a runner merge that turns main red is reverted through a PR
 	// dispatch caps: active runs may finish; only new runs wait
 	"max_five_hour_pct":        "92",   // plan 5-hour usage at or over this (fresh reading) holds new runs
 	"max_seven_day_pct":        "95",   // plan 7-day usage at or over this holds new runs

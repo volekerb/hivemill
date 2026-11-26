@@ -48,6 +48,7 @@ type Run struct {
 	EvalMode, CINote string
 	LastBlock        string  // the problems of the last gate block, to tell progress from a repeated block
 	BlockStops       int     // gate stops blocked in this round, progress or not (hard limit 3x gate_max_blocks)
+	WorkflowAgents   int     `json:",omitempty"` // agent cap of the workflow request in the first prompt; 0 = no request
 	Machine          string  `json:",omitempty"` // hc machine of the task session ("" = the local core); resumes go there too
 	CI               *CIWait `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
 }
@@ -270,6 +271,9 @@ func (s *SQLite) SetCfg(key, value string) error {
 		if err := CheckModel(value); err != nil {
 			return err
 		}
+	}
+	if err := checkWorkflowCfg(key, value); err != nil {
+		return err
 	}
 	_, err := s.db.Exec(`INSERT INTO hm_config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, value)
 	return err
