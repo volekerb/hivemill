@@ -90,9 +90,11 @@ func (r *Runner) EvalStart(id, mode string) error {
 		r.printf("EVAL %s judge-only: gate %d problems; the judge starts when CI has finished\n", id, len(rec.Problems))
 		return r.Store.PutRun(run)
 	}
-	kick := EvalKickoff(run, t)
+	var kick string
 	if mode == EvalReview {
-		kick = EvalReviewKickoff(run, t)
+		kick = EvalReviewKickoff(run, t) // no /goal: this session must not change code until the criteria pass
+	} else {
+		kick = r.goalPrompt(Harness, run, t, EvalKickoff(run, t))
 	}
 	if err := r.launchTask(run, kick); err != nil {
 		return err

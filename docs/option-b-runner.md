@@ -72,6 +72,8 @@ None of these guards changes a config key.
 | `effort` | `medium` | `--effort` of every session |
 | `task_workflows` | `large` | which task sessions get the owner's request to use a dynamic workflow (the Workflow tool) in their first prompt: `off`, `large` (4 or more acceptance criteria, 6 or more scope paths, or T3) or `all`. Scope paths are the `FILES:` entries or the alternatives of the allow-list regexes, whichever are more. Eval and judge sessions never get it |
 | `task_workflow_agents` | `6` | the agent limit the request names. It is an instruction to the session; the enforced limit is `task_budget_usd` |
+| `task_goal` | `1` | `1`: the first prompt of a claude-code task session starts with `/goal` and a condition built from the acceptance criteria, so the session keeps working until an evaluator judges them met. A prompt over the 4,000 characters `/goal` accepts goes to `.hivemill/kickoff.md` in the clone and the prompt points to it. `0`: no prefix. Eval review-only and judge sessions never get it. Gate and judge rounds are unchanged |
+| `task_goal_turns` | `60` | the turn limit the goal condition names |
 | `gate_max_blocks` | `3` | gate blocks per round before FAIL |
 | `gate_wait_s` | `900` | wait for a test slot before leaving affected tests to CI |
 | `judge_rounds_max` | `2` | judge REJECT rounds before FAIL |
