@@ -174,7 +174,7 @@ Routes under `/api/obs/v1/`. Today's `/api/obs/*` routes stay as they are and ar
 }
 ```
 
-- `runner.id` is a random id made once and kept in config. It survives a label change and lets a hub see one factory listed twice.
+- `runner.id` is derived from the machine's name and the factory's home folder (a short hash; neither is shown). Nothing is stored. It survives a label change and lets a hub see one factory listed twice; it changes when the factory moves to another machine or folder.
 - `needs_you` is the list of the UX section, already filtered and sorted. `href` is a path on this factory; a client joins it to the factory's URL.
 - The answer is cached in the server for 10 s, so many clients cost one rebuild.
 - `GET /api/obs/v1/now`, `flow`, `spend`, `machines`, `task` are today's payloads plus `api` and `runner`, with two changes: no file paths (finding 2), and task rows gain `title` and `pr`.
