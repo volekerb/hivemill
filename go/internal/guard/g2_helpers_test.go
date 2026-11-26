@@ -218,18 +218,18 @@ func g2WantExit(t testing.TB, what string, r g2Res, code int) {
 }
 
 // g2InstallHost makes the guard resolve ~ to pw instead of the account's passwd home: it caches a host built for pw
-// (getHost returns the cache), and t.Cleanup drops it. HookMain resets the cache (SetPyHook), so a call that needs this
+// (getHost returns the cache), and t.Cleanup drops it. HookMain resets the cache (SetHookPath), so a call that needs this
 // host goes through g2HookMainIn (g2Opts.pw).
 func g2InstallHost(t testing.TB, pw string) {
 	t.Helper()
 	hostMu.Lock()
-	hostCache, hostErr = buildHost(pw, os.Getuid(), PyHook), nil
+	hostCache, hostErr = buildHost(pw, os.Getuid(), HookPath), nil
 	hostMu.Unlock()
 	t.Cleanup(resetHost)
 }
 
 // g2HookMainIn is HookMain for a payload g2HookRaw has already checked to be a JSON object, with the host of pw
-// installed after the --py-hook argument is taken (SetPyHook drops the cache) and before the tool is dispatched.
+// installed after the --py-hook argument is taken (SetHookPath drops the cache) and before the tool is dispatched.
 func g2HookMainIn(t testing.TB, pw string, argv []string, data string, stdout, stderr io.Writer) (code int) {
 	t.Helper()
 	defer func() {
@@ -238,16 +238,16 @@ func g2HookMainIn(t testing.TB, pw string, argv []string, data string, stdout, s
 			code = 2
 		}
 	}()
+	hookPath, argv := splitPyHook(argv)
+	SetHookPath(hookPath)
 	role, hq := ParseHookArgs(argv)
-	pyHook, passArgs := splitPyHook(argv)
-	SetPyHook(pyHook)
 	g2InstallHost(t, pw)
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(data), &payload); err != nil || payload == nil {
 		t.Fatalf("g2HookMainIn: payload is not a JSON object: %q", data)
 	}
 	tool, _ := payload["tool_name"].(string)
-	return dispatch(tool, payload, role, hq, passArgs, []byte(data), stdout, stderr)
+	return dispatch(tool, payload, role, hq, stderr)
 }
 
 // g2TempPw is a temp passwd home (symlinks resolved) holding .local/bin/<name> = body for each entry of bins, mode 0755.

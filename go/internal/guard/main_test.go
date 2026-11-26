@@ -12,9 +12,9 @@ import (
 )
 
 // TestMain points FACTORY_HOME at an empty temp directory for the whole package: the rules that read the factory DB
-// (own goal, test_sandbox, public-text repos, the coder's task worktree) then take Python's "no DB file" branch
-// without delegating, and no test touches the live home (C6). The tests of the delegation create a DB file in
-// their own temp FACTORY_HOME.
+// (own goal, test_sandbox, public-text repos, the coder's task worktree) then take Python's "no DB file" branch,
+// and no test touches the live home (C6). The tests of the export-backed decisions create a DB file in their own temp
+// FACTORY_HOME.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "guard-test-home-")
 	if err != nil {
@@ -35,9 +35,9 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// dbHome is a temp FACTORY_HOME holding an (empty) DB file: the rules that read the DB are delegated to the Python
-// hook, which Go cannot do itself. It also exports a terms-file path (as spawn does), so that the terms roles are not
-// delegated for the DB's scrub_terms_file key: tests of that unset the variable themselves.
+// dbHome is a temp FACTORY_HOME holding an (empty) DB file and a fresh guard export of an empty DB: the rules that read
+// the DB read the export. It also exports a terms-file path (as spawn does), so that the terms roles do not depend on
+// the DB's scrub_terms_file key: tests of that unset the variable themselves.
 func dbHome(t *testing.T) string {
 	t.Helper()
 	exportTerms(t)

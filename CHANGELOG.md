@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **The Go guard no longer runs python3.** It lists tar/zip archive members itself and treats a DB value with no export row as absent; `--py-hook` is accepted and only locates the checkout (T-2112).
+
 - **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
 
 - **A red CI resumes the task session with the failed logs.** The runner names each failed job and sends the last 80 lines of its failed log (read through `ghx`); a session whose pane has closed is relaunched by its session id. A startup failure counts as red. (T-2001)
