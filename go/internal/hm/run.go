@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -52,6 +53,9 @@ type Runner struct {
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
+	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
+	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
+	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
 	loads      map[string]loadReading // CPU load per machine, see load.go
 	poll       *prPoll                // the pass's one read of the open PRs; nil outside a pass
 	queueSlow  bool                   // a PR is queued for CI over its budget: no refresh
