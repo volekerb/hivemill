@@ -32,7 +32,7 @@ jobs:
   # PRs: ci-tier classifies once. On a docs pull request, unittest-shard and go use a step-level skip and report success; guard jobs stay skipped by their job-level if; docs-check runs (T-1512).
   ci-tier:
     name: ci-tier
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       mode: ${{ steps.tier.outputs.mode }}
@@ -76,7 +76,7 @@ jobs:
     name: docs-check
     needs: ci-tier
     if: ${{ github.event_name == 'pull_request' && needs.ci-tier.outputs.mode == 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -104,7 +104,7 @@ jobs:
     name: unittest-shard (${{ matrix.shard }})
     needs: ci-tier
     # Docs tier skips unittest-shard and go at step level: the jobs run, every step is skipped, and unittest-shard (1) through (10) and go report success.
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -143,7 +143,7 @@ jobs:
       # zsh reads .zshenv: the sandbox PATH-order regression tests must run in CI, not skip.
       - name: Install zsh
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - name: Run shard
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
         run: |
@@ -161,7 +161,7 @@ jobs:
     name: go
     needs: ci-tier
     # Docs tier skips unittest-shard and go at step level: the jobs run, every step is skipped, and unittest-shard (1) through (10) and go report success.
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 40
     env:
       GOTOOLCHAIN: local
@@ -227,7 +227,7 @@ jobs:
     name: guard-unittest-shard (${{ matrix.shard }})
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -245,7 +245,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install zsh
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
@@ -263,7 +263,7 @@ jobs:
     name: guard-unittest
     needs: [ci-tier, guard-unittest-shard]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Every guard-unittest shard succeeded
@@ -282,7 +282,7 @@ jobs:
     name: guard-diff
     needs: ci-tier
     if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     # Two corpus passes (both modes, then evaluator) take about 32 min on a hosted runner; only guard-path PRs run them.
     timeout-minutes: 45
     env:
@@ -297,7 +297,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install zsh
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
@@ -365,7 +365,7 @@ jobs:
     name: guard-self-compare
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     env:
       GOTOOLCHAIN: local
@@ -379,7 +379,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install zsh
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
@@ -404,7 +404,7 @@ jobs:
     name: guard-evaluator-home-loosen
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     env:
       GOTOOLCHAIN: local
@@ -418,7 +418,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install zsh
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
@@ -461,7 +461,7 @@ jobs:
     name: guard-equiv-shard (${{ matrix.shard }})
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -526,7 +526,7 @@ jobs:
           python-version: "3.13"
       - name: Install zsh
         if: steps.paths.outputs.run == 'true'
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         if: steps.paths.outputs.run == 'true'
         with:
@@ -550,7 +550,7 @@ jobs:
     name: guard-equiv
     needs: [ci-tier, guard-equiv]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Every guard-equiv shard succeeded
@@ -568,7 +568,7 @@ jobs:
     name: guard-equiv-rest
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     env:
       GOTOOLCHAIN: local
@@ -629,7 +629,7 @@ jobs:
           python-version: "3.13"
       - name: Install zsh
         if: steps.paths.outputs.run == 'true'
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         if: steps.paths.outputs.run == 'true'
         with:
@@ -662,7 +662,7 @@ jobs:
     name: unittest
     needs: [ci-tier, docs-check, unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv-fanin, guard-equiv-rest]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Docs lane or every shard and guard job succeeded
