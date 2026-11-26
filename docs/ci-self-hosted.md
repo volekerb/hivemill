@@ -20,7 +20,8 @@ OS packages:
 
 - `python3` 3.13 at `/usr/bin/python3` (the Debian 13 default).
 - `zsh`: the workflow only calls `apt-get` when it is missing, which fails without `sudo`.
-- `git`, `bash`, `perl`.
+- `git`, `bash`, `perl`, `gh` (the test-count step reads the live PR body).
+- `gcc` and `libc6-dev`: the manual deep run uses `go test -race`.
 - `nodejs`, version 20 or newer: with `CI` set, the ios-release node tests fail without it.
 - `util-linux` (`unshare`, `setpriv`) and `uidmap` (`newuidmap`, `newgidmap`).
 

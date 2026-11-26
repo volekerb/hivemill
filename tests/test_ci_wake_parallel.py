@@ -113,6 +113,7 @@ class CiWakeParallelTests(FactoryTestCase):
         _, views = tick_ci_wake(self.env, 4, patch=rendezvous)
         self.assertEqual(len(views), 6)
         self.assertFalse(barrier.broken)
+        self.assertEqual(next(order), 6)  # every probe went through the wrapper
 
     def test_serial_baseline_is_slower(self):
         seed(self.env, sleep=0.5)

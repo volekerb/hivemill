@@ -21,6 +21,8 @@ ALLOWED_RUNNERS = {"ubuntu-latest", "ubuntu-24.04", "ubuntu-22.04"}
 SELF_HOSTED_SAME_REPO = ("${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == "
                          "github.repository) && fromJSON('[\"self-hosted\",\"hm-ci\"]') || 'ubuntu-latest' }}")
 BANNED_TRIGGERS = {"pull_request_target", "workflow_run", "schedule"}
+# SELF_HOSTED_SAME_REPO sends every non-pull_request event to hm-ci; other events (reviews, comments) can come from forks
+SELF_HOSTED_TRIGGERS = {"pull_request", "push", "workflow_dispatch"}
 FORK_EXPR = re.compile(r"\$\{\{(.*)")  # to end of line: a literal } (format('{0}', ..)) must not hide the rest
 FORK_TEXT = re.compile(r"github\.event\.pull_request\.|github\.event\.issue\.|github\.head_ref")
 BRACKET = re.compile(r"""\[\s*['"]([\w-]+)['"]\s*\]""")
@@ -132,6 +134,10 @@ def _check_workflow(path, text):
             if v not in ALLOWED_RUNNERS and re.sub(r"\s+#.*$", "", val) != SELF_HOSTED_SAME_REPO:
                 out.append("%s:%d: runs-on '%s' is not a free standard runner (%s)"
                            % (rel, n, v, ", ".join(sorted(ALLOWED_RUNNERS))))
+            elif v not in ALLOWED_RUNNERS and set(found) - SELF_HOSTED_TRIGGERS:
+                out.append("%s:%d: runs-on self-hosted allows only the triggers %s (found %s)"
+                           % (rel, n, ", ".join(sorted(SELF_HOSTED_TRIGGERS)),
+                              ", ".join(sorted(set(found) - SELF_HOSTED_TRIGGERS))))
         if key == "permissions":
             if ind == 0:
                 top_perm = n
@@ -261,6 +267,13 @@ class RunnerRule(PolicyBase):  # a
 
     def test_same_repo_self_hosted_expression_allowed(self):
         self.assertClean(GOOD.replace("runs-on: ubuntu-latest", "runs-on: " + SELF_HOSTED_SAME_REPO))
+
+    def test_self_hosted_with_fork_reachable_trigger_blocked(self):
+        wf = GOOD.replace("runs-on: ubuntu-latest", "runs-on: " + SELF_HOSTED_SAME_REPO)
+        for trigger in ("pull_request_review", "pull_request_review_comment", "issue_comment"):
+            bad = wf.replace("on:\n", "on:\n  %s:\n" % trigger, 1)
+            self.assertNotEqual(bad, wf)
+            self.assertBlocked(bad, trigger)
 
     def test_self_hosted_for_forks_blocked(self):
         # a fork must never reach the self-hosted runners: every other spelling is blocked

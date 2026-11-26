@@ -362,13 +362,16 @@ jobs:
             allow=(--allow-loosen "$RUNNER_TEMP/allow_loosen.json")
           fi
           rc=0
-          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both "${allow[@]}" > "$RUNNER_TEMP/gd-both.txt" &
+          # guard_diff keeps fixtures at fixed names under TMPDIR: a private one per pass, so parallel passes and
+          # other runners (same user) cannot overwrite each other's. --timeout: hook calls are slow on a busy host.
+          tmp_both=$(mktemp -d /tmp/gd.XXXXXX); tmp_eval=$(mktemp -d /tmp/gd.XXXXXX)
+          trap 'rm -rf "$tmp_both" "$tmp_eval"' EXIT
+          TMPDIR="$tmp_both" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both --timeout 30 "${allow[@]}" | tee "$RUNNER_TEMP/gd-both.txt" &
           both=$!
-          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator "${allow[@]}" > "$RUNNER_TEMP/gd-eval.txt" &
+          TMPDIR="$tmp_eval" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator --timeout 30 "${allow[@]}" | tee "$RUNNER_TEMP/gd-eval.txt" &
           eval_pass=$!
           wait "$both" || rc=1
           wait "$eval_pass" || rc=1
-          cat "$RUNNER_TEMP/gd-both.txt" "$RUNNER_TEMP/gd-eval.txt"
           grep -E '^(LOOSENED|SETTINGS-LOOSENED|TIMEOUT)' "$RUNNER_TEMP/gd-both.txt" "$RUNNER_TEMP/gd-eval.txt" || echo "no LOOSENED/TIMEOUT lines"
           echo "guard_diff failing runs: $rc"
           exit $rc
