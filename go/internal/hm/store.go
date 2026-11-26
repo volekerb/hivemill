@@ -294,7 +294,7 @@ func (s *SQLite) SetCfg(key, value string) error {
 		if value != modeShared && value != modeClone {
 			return fmt.Errorf("%s must be %s or %s", key, modeShared, modeClone)
 		}
-	} else if _, ok := Defaults[key]; !ok {
+	} else if _, ok := Defaults[key]; !ok && !machineLabelCfg(key) {
 		return fmt.Errorf("unknown key %s; known: %s", key, strings.Join(DefaultKeys(), ", "))
 	}
 	if key == "model" || key == "risk_model" || key == "planner_model" {
@@ -306,6 +306,9 @@ func (s *SQLite) SetCfg(key, value string) error {
 		return err
 	}
 	if err := checkGoalCfg(key, value); err != nil {
+		return err
+	}
+	if err := checkHerdrCfg(key, value); err != nil {
 		return err
 	}
 	_, err := s.db.Exec(`INSERT INTO hm_config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, value)

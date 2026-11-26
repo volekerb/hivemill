@@ -63,6 +63,24 @@ Schedules at 07:30:
 - **Linux:** `systemd/hivemill-digest.timer` with `hivemill-digest.service`. Install with `install -m 644 systemd/hivemill-digest.* ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now hivemill-digest.timer`.
 - **macOS:** `hivemill launchd digest --out ~/Library/LaunchAgents/hivemill.digest.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/hivemill.digest.plist`.
 
+## Herdr app spaces
+
+A terminal shows in Herdr.app only when it carries the labels `herdr.space=<id>` and `herdr.tab=<id>`. With `herdr_spaces` on (the default), every `hc run` the runner issues for a session adds:
+
+```
+--label herdr.space=<hivemill|workers> --label herdr.tab=tab-<terminal name>
+--label where=<machine label> · <space> / <tab title>
+```
+
+The planner is in the space `hivemill`, task and judge sessions are in `workers`. The tab title is `planner`, `T-1234 · <task title>`, or the same plus ` (judge)`. The machine label is `machine_label.<hc machine>` (`hivemill config set machine_label.worker1 "Build box"`), else the hc machine name. A daemon with the planner enabled starts its terminal before the first pass, so the `hivemill` space exists as soon as hivemill runs.
+
+`hivemill herdr names` prints the names the app should show, for a Herdr mod or a namer script. It lists the live planner, task and judge terminals, one entry per space and hc machine:
+
+```json
+{"spaces": [{"id": "workers", "name": "Build box · workers", "machine": "worker1",
+  "tabs": [{"id": "tab-<terminal>", "terminal": "<terminal>", "name": "T-1234 · add a footer"}]}]}
+```
+
 ## Config keys
 
 | key | default | meaning |

@@ -238,7 +238,7 @@ func TestPlacedSessionEventsAndStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(*calls, "\n")
-	if !strings.Contains(joined, "run --bg --no-parent --name claude-coder-t-0001-a7 --cwd "+run.Worktree+" --on w1 sh ") {
+	if !strings.Contains(joined, "run --bg --no-parent --name claude-coder-t-0001-a7 --cwd "+run.Worktree+" ") || !strings.Contains(joined, " --on w1 sh ") {
 		t.Errorf("hc run must target w1:\n%s", joined)
 	}
 	if !strings.Contains(joined, "exec --on w1 env FACTORY_HOME="+r.Env.Home+" "+filepath.Join(r.Env.UserHome, ".local", "bin", "hivemill")+
@@ -286,7 +286,7 @@ func TestReconcileResumesOnTheRecordedMachine(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := s.Run("T-0001")
-	if got.Resumes != 1 || !strings.Contains(strings.Join(*calls, "\n"), "--cwd "+wt+" --on w1 sh ") {
+	if got.Resumes != 1 || !strings.Contains(strings.Join(*calls, "\n"), "--cwd "+wt+" ") || !strings.Contains(strings.Join(*calls, "\n"), " --on w1 sh ") {
 		t.Fatalf("resume on w1: resumes %d calls\n%s", got.Resumes, strings.Join(*calls, "\n"))
 	}
 	// a run on a machine hc lists as disconnected is not resumed (hc keeps the session until it reconnects)

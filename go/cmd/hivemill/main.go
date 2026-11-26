@@ -30,6 +30,7 @@
 //	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
 //	hivemill planner start|stop|status|wake [REASON]   the planner session (keeps ready queues full; woken by the daemon)
 //	hivemill ask add|list|answer|withdraw              the owner queue
+//	hivemill herdr names                                space and tab names the Herdr app should show, as JSON
 //	hivemill digest [--date D] [--json] [--send]        the morning digest of one day (default yesterday)
 //	hivemill obs [--listen HOST] [--port N] [--json] | obs pull --from HOST:PATH | obs sources   read-only page, multi-machine roll-up
 //	hivemill otel export [--since D] [--endpoint URL] [--pulled] [--dry-run]       tasks as OpenTelemetry traces
@@ -66,7 +67,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close|status | " +
 		"project add|list | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
 		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake | " +
-		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
+		"herdr names | ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
 		"proofs touched --base REF [--root DIR] [--ios-dir DIR --xcode-workspace PATH|--xcode-project PATH --xcode-scheme NAME] | " +
 		"obs [--listen HOST] [--port N] [--json] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
@@ -303,6 +304,8 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		err = r.Report(arg(1) == "--json")
 	case "task":
 		return cmdTask(r, args[1:], stdin, stdout, stderr)
+	case "herdr":
+		return cmdHerdr(r, args[1:], stdout, stderr)
 	case "planner":
 		return cmdPlanner(r, args[1:], stdout, stderr)
 	case "ask":

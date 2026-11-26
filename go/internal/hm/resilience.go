@@ -192,6 +192,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	}
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
 	sdNotify("READY=1")
+	r.PlannerPass(time.Now()) // an enabled planner's terminal exists before the first pass starts any session
 	for {
 		if err := r.Pass(true); err != nil {
 			r.printf("pass: %v\n", err)
