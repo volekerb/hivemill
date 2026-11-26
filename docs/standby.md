@@ -48,7 +48,7 @@ Read the age in the OK line: the check passes with an old snapshot. It also does
 ## Fail over
 
 1. **Make sure the primary daemon is stopped and stays stopped.** On the primary: `systemctl --user disable --now hivemill.service` (macOS: `launchctl bootout` the `hivemill.daemon` agent). If you cannot reach it, keep it powered off or off the network until you can do this. The two machines have separate homes, so the daemon lock cannot stop a primary that comes back.
-2. On the standby, stop its daemon: `systemctl --user stop hivemill.service`.
+2. On the standby, stop its daemon: `systemctl --user disable --now hivemill.service`.
 3. Restore the newest snapshot (copy it to the standby first when it is not on a share):
 
    ```
@@ -58,18 +58,18 @@ Read the age in the OK line: the check passes with an old snapshot. It also does
 
    Write down the `<db>.pre-restore-<ts>` path it prints: that is the standby's own DB, and you need it to hand back.
 4. `hivemill drain`, so nothing new starts while you look.
-5. Start the daemon: `systemctl --user start hivemill.service`.
+5. Start the daemon: `systemctl --user enable --now hivemill.service`.
 6. Check `hivemill run status` and `hivemill report`, then `hivemill resume`.
 
 The snapshot holds the primary's runs, but not their terminals or Claude session files. The daemon recreates missing clones from pushed branches. A session it cannot resume ends as FAIL `session lost`; `hivemill run stop T-1234` puts such a task back to `todo`. Commits that were never pushed from the primary are not on the standby.
 
 ## Hand back
 
-1. On the standby: `hivemill drain`, wait until `hivemill drain --status` shows no active run, then `systemctl --user stop hivemill.service`.
+1. On the standby: `hivemill drain`, wait until `hivemill drain --status` shows no active run, then `systemctl --user disable --now hivemill.service` (disabled, so a reboot cannot start it again).
 2. On the standby: `hivemill backup`, and copy the snapshot it prints to the primary.
 3. On the primary, with its daemon still stopped: `hivemill restore <snapshot> --dry-run`, then without `--dry-run`.
 4. On the primary: `systemctl --user enable --now hivemill.service`, check `hivemill run status`, then `hivemill resume`.
-5. On the standby, put its own DB back **before** its daemon starts again, or it would be a second writer of the same work: `hivemill restore <db>.pre-restore-<ts>`, then `systemctl --user start hivemill.service`.
+5. On the standby, put its own DB back **before** its daemon starts again, or it would be a second writer of the same work: `hivemill restore <db>.pre-restore-<ts>`, then `systemctl --user enable --now hivemill.service`.
 
 ## The daemon lock
 

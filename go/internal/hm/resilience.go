@@ -2,6 +2,7 @@ package hm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -203,9 +204,11 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
 	sdNotify("READY=1")
 	for {
-		if err := r.refreshDaemonLock(host, time.Now()); err != nil {
+		if err := r.refreshDaemonLock(host, time.Now()); errors.Is(err, ErrRefused) { // another host took over
 			sdNotify("STOPPING=1")
 			return err
+		} else if err != nil { // a full disk or a brief I/O error does not stop the runner
+			r.printf("daemon lock: %v\n", err)
 		}
 		if err := r.Pass(true); err != nil {
 			r.printf("pass: %v\n", err)

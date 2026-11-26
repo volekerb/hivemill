@@ -126,23 +126,47 @@ func (r *Runner) StandbyDue(now time.Time) bool {
 	return err != nil || now.Sub(time.Unix(last, 0)) >= time.Duration(days)*24*time.Hour
 }
 
-// StandbyPass is the daemon's standby step: run the check when it is due and alert the owner when it fails. A failed
-// check also waits standby_check_days; `hivemill standby check` runs it again at once.
+// standbyResult is the outcome of a check that ran beside the pass loop.
+type standbyResult struct {
+	from, msg string
+	err       error
+}
+
+// StandbyPass is the daemon's standby step. A due check runs beside the pass loop (a slow link must not hold up the
+// passes, the watchdog or SIGTERM); a later pass records its result and alerts the owner when it failed. A check cut off
+// by a stop is not recorded, so it runs again. A failed check waits standby_check_days too; `hivemill standby check`
+// runs it again at once.
 func (r *Runner) StandbyPass(bin string, now time.Time) {
-	if !r.StandbyDue(now) {
+	if r.standby == nil {
+		if !r.StandbyDue(now) {
+			return
+		}
+		ch := make(chan standbyResult, 1)
+		r.standby = ch
+		from := strings.TrimSpace(r.Store.Cfg("standby_from"))
+		go func() { // StandbyCheck does not use the store
+			msg, err := r.StandbyCheck(from, bin, now)
+			ch <- standbyResult{from, msg, err}
+		}()
 		return
 	}
+	var res standbyResult
+	select {
+	case res = <-r.standby:
+		r.standby = nil
+	default:
+		return // still running
+	}
 	_ = r.Store.SetMeta("last_standby_check", strconv.FormatInt(now.Unix(), 10))
-	from := strings.TrimSpace(r.Store.Cfg("standby_from"))
-	msg, err := r.StandbyCheck(from, bin, now)
-	data := map[string]any{"ok": err == nil, "result": msg}
-	if err != nil {
-		data["result"] = err.Error()
+	if res.err != nil {
+		res.msg = res.err.Error()
 	}
-	_ = r.Log.Emit("standby.check", nil, Event{Data: data})
-	r.printf("standby check: %s\n", data["result"])
-	if err != nil {
-		_ = r.Store.AlertFeed("hivemill-standby", "standby", "hivemill standby check")
-		r.ownerAlert("hivemill-standby", fmt.Sprintf("standby check from %s failed: %v", from, err))
+	_ = r.Log.Emit("standby.check", nil, Event{Data: map[string]any{"ok": res.err == nil, "result": res.msg}})
+	r.printf("standby check: %s\n", res.msg)
+	if res.err == nil {
+		_ = r.Store.CloseAlert("hivemill-standby", "standby")
+		return
 	}
+	_ = r.Store.AlertFeed("hivemill-standby", "standby", "hivemill standby check")
+	r.ownerAlert("hivemill-standby", fmt.Sprintf("standby check from %s failed: %v", res.from, res.err))
 }

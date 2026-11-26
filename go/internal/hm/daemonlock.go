@@ -111,7 +111,8 @@ func (r *Runner) holdDaemonLock(ctx context.Context) (host string, release func(
 	if err = r.claimDaemonLock(host, time.Now()); err != nil {
 		return "", nil, err
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	// not ctx's end: after SIGTERM the daemon still finishes its pass and writes
+	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

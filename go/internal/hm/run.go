@@ -52,6 +52,7 @@ type Runner struct {
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
 	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
+	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
 	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 

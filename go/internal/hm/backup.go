@@ -26,10 +26,17 @@ func (r *Runner) Backup(now time.Time) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("backup needs the SQLite store")
 	}
-	if _, err := s.db.Exec(`VACUUM INTO ?`, snap); err != nil {
-		return "", fmt.Errorf("VACUUM INTO %s: %w", snap, err)
+	// under another name until complete: a standby check or a restore must never read a half-written snapshot
+	part := snap + ".part"
+	_ = os.Remove(part)
+	defer os.Remove(part) // no-op after the rename
+	if _, err := s.db.Exec(`VACUUM INTO ?`, part); err != nil {
+		return "", fmt.Errorf("VACUUM INTO %s: %w", part, err)
 	}
-	_ = os.Chmod(snap, 0o600)
+	_ = os.Chmod(part, 0o600)
+	if err := os.Rename(part, snap); err != nil {
+		return "", err
+	}
 	if err := pruneSnapshots(dir, cfgInt(r.Store, "backup_keep")); err != nil {
 		return snap, err
 	}

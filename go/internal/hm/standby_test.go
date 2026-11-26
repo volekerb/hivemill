@@ -86,11 +86,34 @@ func TestStandbyCheckRestoresToTemp(t *testing.T) {
 	if r.StandbyDue(taken) {
 		t.Error("due without standby_from")
 	}
+	if _, err := s.db.Exec(FactorySchema); err != nil { // the alert feed table
+		t.Fatal(err)
+	}
 	if err := s.SetCfg("standby_from", "zz-primary"); err != nil {
 		t.Fatal(err)
 	}
+	pass := func() { // start the check, then collect its result as a later pass does
+		t.Helper()
+		r.StandbyPass("zz-hivemill", taken)
+		for end := time.Now().Add(10 * time.Second); r.standby != nil; time.Sleep(time.Millisecond) {
+			if time.Now().After(end) {
+				t.Fatal("the standby check never ended")
+			}
+			r.StandbyPass("zz-hivemill", taken)
+		}
+	}
+	open := func() (n int) {
+		t.Helper()
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM owner_alert_feed WHERE kind='hivemill-standby' AND closed IS NULL`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
 	fail = "goal list"
-	r.StandbyPass("zz-hivemill", taken)
+	pass()
+	if open() != 1 {
+		t.Error("no open alert row after a failed check")
+	}
 	if b, _ := os.ReadFile(r.Env.AlertLog()); !strings.Contains(string(b), "hivemill-standby") || !strings.Contains(string(b), "goal list") {
 		t.Errorf("alert log: %q", b)
 	}
@@ -99,6 +122,12 @@ func TestStandbyCheckRestoresToTemp(t *testing.T) {
 	}
 	if !r.StandbyDue(taken.Add(30 * 24 * time.Hour)) {
 		t.Error("not due after 30 days")
+	}
+	fail = ""
+	taken = taken.Add(30 * 24 * time.Hour)
+	pass()
+	if open() != 0 {
+		t.Error("a good check leaves the alert row open")
 	}
 }
 
