@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -31,6 +33,7 @@ type g2Opts struct {
 	cwd  string
 	drop []string
 	set  map[string]string
+	pw   string // "" = the account's passwd home; else the guard runs with a host built for this home (g2InstallHost)
 }
 
 // g2Root is the checkout root (this package is go/internal/guard). It is read once, before any call changes the cwd.
@@ -79,7 +82,12 @@ func g2HookRaw(t testing.TB, data string, o g2Opts) g2Res {
 	resetHookState()
 	argv := append(append([]string{}, o.args...), "--py-hook", filepath.Join(root, "roles", "hooks", "worker-guard.py"))
 	var so, se bytes.Buffer
-	code := HookMain(argv, strings.NewReader(data), &so, &se)
+	var code int
+	if o.pw == "" {
+		code = HookMain(argv, strings.NewReader(data), &so, &se)
+	} else {
+		code = g2HookMainIn(t, o.pw, argv, data, &so, &se)
+	}
 	return g2Res{code: code, stderr: strings.ReplaceAll(se.String(), "worker-guard(go):", "worker-guard:")}
 }
 
@@ -207,4 +215,51 @@ func g2WantExit(t testing.TB, what string, r g2Res, code int) {
 	if r.code != code {
 		t.Errorf("%s: exit %d, want %d (stderr %q)", what, r.code, code, r.stderr)
 	}
+}
+
+// g2InstallHost makes the guard resolve ~ to pw instead of the account's passwd home: it caches a host built for pw
+// (getHost returns the cache), and t.Cleanup drops it. HookMain resets the cache (SetPyHook), so a call that needs this
+// host goes through g2HookMainIn (g2Opts.pw).
+func g2InstallHost(t testing.TB, pw string) {
+	t.Helper()
+	hostMu.Lock()
+	hostCache, hostErr = buildHost(pw, os.Getuid(), PyHook), nil
+	hostMu.Unlock()
+	t.Cleanup(resetHost)
+}
+
+// g2HookMainIn is HookMain for a payload g2HookRaw has already checked to be a JSON object, with the host of pw
+// installed after the --py-hook argument is taken (SetPyHook drops the cache) and before the tool is dispatched.
+func g2HookMainIn(t testing.TB, pw string, argv []string, data string, stdout, stderr io.Writer) (code int) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(stderr, "worker-guard(go): internal error: %v\n", r)
+			code = 2
+		}
+	}()
+	role, hq := ParseHookArgs(argv)
+	pyHook, passArgs := splitPyHook(argv)
+	SetPyHook(pyHook)
+	g2InstallHost(t, pw)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(data), &payload); err != nil || payload == nil {
+		t.Fatalf("g2HookMainIn: payload is not a JSON object: %q", data)
+	}
+	tool, _ := payload["tool_name"].(string)
+	return dispatch(tool, payload, role, hq, passArgs, []byte(data), stdout, stderr)
+}
+
+// g2TempPw is a temp passwd home (symlinks resolved) holding .local/bin/<name> = body for each entry of bins, mode 0755.
+func g2TempPw(t testing.TB, bins map[string]string) string {
+	t.Helper()
+	pw := g2RealTemp(t)
+	bin := filepath.Join(pw, ".local", "bin")
+	g2Mkdirs(t, bin)
+	for name, body := range bins {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return pw
 }
