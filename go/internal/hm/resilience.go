@@ -161,6 +161,63 @@ func (r *Runner) HealthAlert(now time.Time, age time.Duration) (bool, error) {
 	return true, r.Store.SetMeta("alerted", strconv.FormatInt(now.Unix(), 10))
 }
 
+// ObsDown says why the dashboard does not answer on obs_listen:obs_port ("" = it answers). A wildcard obs_listen is
+// dialled on loopback.
+func (r *Runner) ObsDown() string {
+	host := strings.TrimSpace(r.Store.Cfg("obs_listen"))
+	switch host {
+	case "", "0.0.0.0":
+		host = "127.0.0.1"
+	case "::":
+		host = "::1"
+	}
+	addr := ObsAddr(host, cfgInt(r.Store, "obs_port"))
+	dial := r.ObsDial
+	if dial == nil {
+		dial = func(a string) error {
+			c, err := net.DialTimeout("tcp", a, 2*time.Second)
+			if err == nil {
+				_ = c.Close()
+			}
+			return err
+		}
+	}
+	if err := dial(addr); err != nil {
+		return fmt.Sprintf("hivemill obs does not answer on %s: %v", addr, err)
+	}
+	return ""
+}
+
+// ObsAlert follows ObsDown: it opens the owner alert feed row and raises the owner alert while the dashboard is down,
+// at most once per alert_every_s (also across a recovery: a flapping obs alerts no more often), and closes the row
+// when why is "".
+func (r *Runner) ObsAlert(now time.Time, why string) (bool, error) {
+	s, err := r.sq()
+	if err != nil {
+		return false, err
+	}
+	if why == "" {
+		return false, s.CloseAlertKind("hivemill-obs-down")
+	}
+	if last, err := strconv.ParseInt(r.Store.Meta("obs_alerted"), 10, 64); err == nil &&
+		now.Sub(time.Unix(last, 0)) < time.Duration(cfgInt(r.Store, "alert_every_s"))*time.Second {
+		return false, nil
+	}
+	link, check := "journalctl --user -u hivemill-obs.service", "Check `systemctl --user status hivemill-obs.service`."
+	if GOOS == "darwin" {
+		log := filepath.Join(r.Env.Home, "logs", "hivemill.obs.log")
+		link, check = log, "Check `launchctl print gui/$(id -u)/hivemill.obs` and "+log+"."
+	}
+	if err := r.Store.AlertFeed("hivemill-obs-down", "hivemill", link); err != nil {
+		return false, err
+	}
+	if _, err := r.Alert("hivemill obs is down", why+". "+check); err != nil {
+		fmt.Fprintf(os.Stderr, "hivemill: alert: %v\n", err)
+	}
+	_ = r.Log.Emit("health.alert", nil, Event{Data: map[string]any{"why": why}})
+	return true, r.Store.SetMeta("obs_alerted", strconv.FormatInt(now.Unix(), 10))
+}
+
 // sdNotify sends one state line to systemd (Type=notify); a no-op outside systemd.
 func sdNotify(state string) {
 	sock := os.Getenv("NOTIFY_SOCKET")

@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -747,13 +749,22 @@ func stepServices(c *Ctx) (string, error) {
 			c.emit("    " + darwinLingerNote)
 		}
 		if !a.NoSystemd {
-			return stepBootUnits(c)
+			msg, err := stepBootUnits(c)
+			if err != nil {
+				return "", err
+			}
+			return msg, setObsListen(c)
 		}
 	}
 	if a.NoSystemd {
-		return servicesBackground(c)
+		msg, err := servicesBackground(c)
+		if err != nil {
+			return "", err
+		}
+		return msg, setObsListen(c)
 	}
-	if err := installUnits(c); err != nil {
+	units, err := installUnits(c)
+	if err != nil {
 		return "", err
 	}
 	if a.Linger {
@@ -765,20 +776,73 @@ func stepServices(c *Ctx) (string, error) {
 	if _, err := c.doDefault([]string{"systemctl", "--user", "daemon-reload"}, "systemctl daemon-reload"); err != nil {
 		return "", err
 	}
-	if _, err := c.doDefault([]string{"systemctl", "--user", "enable", "--now", "hivemill.service", "hivemill-digest.timer",
-		"hivemill-health.timer"}, "systemctl enable"); err != nil {
+	enable := []string{"systemctl", "--user", "enable", "--now"}
+	for _, u := range units {
+		if u != "hivemill-digest.service" && u != "hivemill-health.service" { // their timers start them
+			enable = append(enable, u)
+		}
+	}
+	if _, err := c.doDefault(enable, "systemctl enable"); err != nil {
 		return "", err
 	}
-	return "hivemill systemd user units installed, enabled and started", nil
+	return "hivemill systemd user units installed, enabled and started", setObsListen(c)
 }
 
+const obsAsk = "The dashboard (hivemill obs) listens on loopback only. To open it from your LAN, type this machine's " +
+	"IP address and press Enter (empty keeps the current setting):"
+
+// setObsListen takes --obs-listen, or asks on a terminal, and stores the address with `hivemill init`, which also
+// restarts obs (not with --no-systemd) and prints its warning about a non-loopback address.
+func setObsListen(c *Ctx) error {
+	addr := c.args.ObsListen
+	if addr == "" && !c.args.NoSystemd && c.args.Yes && !c.plan && c.host.IsTerminal() {
+		c.emit(obsAsk)
+		line, err := c.host.ReadLine()
+		switch {
+		case err != nil || line == "":
+		case line != "localhost" && net.ParseIP(line) == nil:
+			c.note("that is not an IP address: obs_listen is unchanged (`hivemill init --obs-listen ADDR` sets it)")
+		default:
+			addr = line
+		}
+	}
+	if addr == "" {
+		return nil
+	}
+	if !c.plan && c.lacksObs(filepath.Join("systemd", obsUnit)) {
+		c.note("this version has no dashboard service: --obs-listen is ignored")
+		return nil
+	}
+	if ip := net.ParseIP(addr); c.plan && addr != "localhost" && (ip == nil || !ip.IsLoopback()) {
+		c.note(fmt.Sprintf("WARNING: hivemill obs listens on %s: the page is read-only but readable by anyone on that network", addr))
+	}
+	argv := []string{filepath.Join(c.bindir, "hivemill"), "init", "--home", c.fh, "--obs-listen", addr}
+	if c.args.NoSystemd {
+		argv = append(argv, "--no-service")
+	}
+	out, err := c.doDefault(argv, "hivemill init")
+	if s := strings.TrimRight(out, "\n"); err == nil && s != "" {
+		c.emit(s)
+	}
+	return err
+}
+
+// lacksObs reports that the clone is of a version without the obs service: rel, its template, is not there.
+func (c *Ctx) lacksObs(rel string) bool {
+	_, err := c.host.ReadFile(filepath.Join(c.fh, rel))
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+const obsUnit = "hivemill-obs.service"
+
 // systemdUnits are the files of the clone's systemd/ folder that a Linux install copies.
-var systemdUnits = []string{"hivemill.service", "hivemill-digest.service", "hivemill-digest.timer",
+var systemdUnits = []string{"hivemill.service", obsUnit, "hivemill-digest.service", "hivemill-digest.timer",
 	"hivemill-health.service", "hivemill-health.timer"}
 
 // installUnits copies the hivemill units from the clone into the systemd user unit dir. WriteText renames into
-// place, so a link left there by an earlier install is replaced and its target is not written through.
-func installUnits(c *Ctx) error {
+// place, so a link left there by an earlier install is replaced and its target is not written through. It returns the
+// units it installed: an older version of the clone has no obs unit.
+func installUnits(c *Ctx) ([]string, error) {
 	config := c.host.Environ()["XDG_CONFIG_HOME"]
 	if config == "" {
 		config = filepath.Join(c.home, ".config")
@@ -787,28 +851,35 @@ func installUnits(c *Ctx) error {
 	if c.plan {
 		c.emit("    $ mkdir -p " + dir)
 	} else if err := c.host.Mkdirs(dir); err != nil {
-		return fmt.Errorf("create %s: %w", dir, err)
+		return nil, fmt.Errorf("create %s: %w", dir, err)
 	}
+	var units []string
 	for _, u := range systemdUnits {
 		src, dst := filepath.Join(c.fh, "systemd", u), filepath.Join(dir, u)
 		if c.plan {
 			c.emit(fmt.Sprintf("    copy %s -> %s", src, dst))
+			units = append(units, u)
 			continue
 		}
 		b, err := c.host.ReadFile(src)
+		if u == obsUnit && errors.Is(err, fs.ErrNotExist) {
+			c.note("this version has no dashboard service: " + u + " is not installed")
+			continue
+		}
 		if err != nil {
-			return stepWrap(err, "read "+u)
+			return nil, stepWrap(err, "read "+u)
 		}
 		if err := c.host.WriteText(dst, string(b)); err != nil {
-			return stepWrap(err, "install "+u)
+			return nil, stepWrap(err, "install "+u)
 		}
+		units = append(units, u)
 	}
-	return nil
+	return units, nil
 }
 
 // servicesBackground is --no-systemd (and --no-boot-units on macOS): it starts nothing and says how to.
 func servicesBackground(c *Ctx) (string, error) {
-	c.emit("    no service was started. To run hivemill by hand: run `hivemill daemon`")
+	c.emit("    no service was started. To run hivemill by hand: run `hivemill daemon`, and `hivemill obs` for the dashboard (`hivemill health` reports it when down)")
 	return "no services started; run `hivemill daemon` by hand", nil
 }
 
@@ -856,6 +927,8 @@ func stepSmoke(c *Ctx) (string, error) {
 	case rc == 0:
 	case rc == 1 && strings.Contains(out, "cannot open database"):
 		state = "no database yet (run `hivemill init`)"
+	case rc == 1 && strings.Contains(out, "problem: hivemill obs"):
+		state = "the dashboard does not answer yet (`hivemill health` shows this and the state of the daemon)"
 	case rc == 1 && strings.Contains(out, "last good pass"):
 		state = "no recent daemon pass"
 	default:
