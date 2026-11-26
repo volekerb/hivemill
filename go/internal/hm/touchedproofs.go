@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 )
@@ -68,17 +69,69 @@ func PackageTestArgv(pkgDir string) ([]string, bool) {
 	return nil, false
 }
 
-// TouchedRun runs the tests of the packages changed on Base...HEAD of Root.
+// TouchedRun runs the tests of the packages changed on Base...HEAD of Root, and, with IOSDir set, builds the iOS app
+// with xcodebuild when a file under it changed.
 type TouchedRun struct {
 	Root, Base string
 	Exec       func(dir string, argv []string) (int, error) // runs argv in dir and returns its exit code
 	Out        io.Writer
+
+	IOSDir             string // relative to Root, for example ios; empty: no iOS proof
+	Workspace, Project string // the .xcworkspace or .xcodeproj under IOSDir (one of the two)
+	Scheme             string
+	GOOS               string // empty: runtime.GOOS
 }
 
-// Run returns 0 when no package failed, 1 when one failed, 2 on a usage or git error.
+// iosChanged reports whether a changed path is IOSDir or under it.
+func (t TouchedRun) iosChanged(changed []string) bool {
+	dir := filepath.ToSlash(filepath.Clean(t.IOSDir))
+	return slices.ContainsFunc(changed, func(c string) bool {
+		return dir == "." || c == dir || strings.HasPrefix(c, dir+"/")
+	})
+}
+
+// xcodebuild builds the app of IOSDir and returns 0 on PASS, 1 on FAIL. It never passes off darwin.
+func (t TouchedRun) xcodebuild(root string) int {
+	goos := t.GOOS
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+	if goos != "darwin" {
+		fmt.Fprintln(t.Out, "FAIL xcodebuild: needs a darwin machine")
+		return 1
+	}
+	dir := filepath.Join(root, t.IOSDir)
+	flag, path := "-workspace", t.Workspace
+	if path == "" {
+		flag, path = "-project", t.Project
+	}
+	argv := []string{"xcodebuild", flag, filepath.Join(dir, path), "-scheme", t.Scheme,
+		"-destination", "generic/platform=iOS Simulator", "-configuration", "Debug", "build", "CODE_SIGNING_ALLOWED=NO"}
+	switch rc, err := t.Exec(dir, argv); {
+	case err != nil:
+		fmt.Fprintf(t.Out, "FAIL xcodebuild: %v\n", err)
+	case rc != 0:
+		fmt.Fprintln(t.Out, "FAIL xcodebuild")
+	default:
+		fmt.Fprintln(t.Out, "PASS xcodebuild")
+		return 0
+	}
+	return 1
+}
+
+// Run returns 0 when no package or iOS build failed, 1 when one failed, 2 on a usage or git error.
 func (t TouchedRun) Run() int {
 	if t.Base == "" || strings.HasPrefix(t.Base, "-") {
 		fmt.Fprintf(t.Out, "proofs touched: bad base %q\n", t.Base)
+		return 2
+	}
+	// A misspelled iOS setting must not turn into a silent pass.
+	if t.IOSDir == "" && t.Workspace+t.Project+t.Scheme != "" {
+		fmt.Fprintln(t.Out, "proofs touched: the xcode settings need an iOS directory")
+		return 2
+	}
+	if t.IOSDir != "" && !filepath.IsLocal(t.IOSDir) {
+		fmt.Fprintf(t.Out, "proofs touched: bad iOS directory %q: a path relative to the root\n", t.IOSDir)
 		return 2
 	}
 	root, err := filepath.Abs(t.Root)
@@ -97,10 +150,15 @@ func (t TouchedRun) Run() int {
 		fmt.Fprintln(t.Out, "proofs touched: git diff:", err)
 		return 2
 	}
-	pkgs := TouchedPackages(root, strings.FieldsFunc(string(diff), func(r rune) bool { return r == 0 }))
+	changed := strings.FieldsFunc(string(diff), func(r rune) bool { return r == 0 })
+	ios := t.IOSDir != "" && t.iosChanged(changed)
+	if ios && (t.Scheme == "" || (t.Workspace == "") == (t.Project == "")) { // before any test runs
+		fmt.Fprintln(t.Out, "proofs touched: an iOS change needs a scheme and one of a workspace or a project")
+		return 2
+	}
+	pkgs := TouchedPackages(root, changed)
 	if len(pkgs) == 0 {
 		fmt.Fprintln(t.Out, "no package changed")
-		return 0
 	}
 	code := 0
 	for _, pkg := range pkgs {
@@ -125,6 +183,12 @@ func (t TouchedRun) Run() int {
 		default:
 			fmt.Fprintf(t.Out, "PASS %s\n", strings.Join(argv, " "))
 		}
+	}
+	switch {
+	case ios:
+		code = max(code, t.xcodebuild(root))
+	case t.IOSDir != "":
+		fmt.Fprintln(t.Out, "SKIP xcodebuild: no iOS change")
 	}
 	return code
 }
