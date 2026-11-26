@@ -19,6 +19,18 @@ const blockedPrefix = "blocked by policy: "
 
 var guardMarkers = []string{"worker-guard: block", "worker-guard(go): blocked", "PreToolUse:Bash hook error"}
 
+// isGuardBlock reports whether an error result is a block: it starts with a marker (a hook of another tool starts with
+// "PreToolUse:<tool> hook error" and names the guard). A failed command that only prints a marker further down is not.
+func isGuardBlock(text string) bool {
+	text = strings.TrimSpace(text)
+	for _, m := range guardMarkers {
+		if strings.HasPrefix(text, m) {
+			return true
+		}
+	}
+	return strings.HasPrefix(text, "PreToolUse:") && strings.Contains(text, "worker-guard")
+}
+
 // guardClasses is the remediation per block class, first match wins. A text-file block is also a public-text block, so
 // "read-before" comes first. "<hits>" is replaced by the match's first group.
 var guardClasses = []struct {
@@ -30,7 +42,9 @@ var guardClasses = []struct {
 		"Split it: write the file in one command, then read or use it in the next command."},
 	{"public-text", regexp.MustCompile(`public text: (\d+ hits?: [^)\n]*)`),
 		"The push was blocked because your diff contains private text (<hits>). Remove or generalize that text in the " +
-			"files you changed (it is your content, not the command), commit and push again."},
+			"files you changed (it is your content, not the command), commit and push again. Every unpushed commit is " +
+			"scanned, so rewrite the unpushed commits that still hold it. If the blocked command was not a push, the text " +
+			"is in what that command publishes (a commit message, PR body or comment): fix it there and run it again."},
 	{"other", nil,
 		"This command is blocked by policy. Do not run it in another form. Reach the same goal another way that does not " +
 			"need it (for example, a different tool or a code change). If the task cannot be finished without it, write " +
@@ -127,15 +141,10 @@ func (r *Runner) guardBlock(run *Run) string {
 		return ""
 	}
 	text, isError := lastToolResult(newest)
-	if !isError {
+	if !isError || !isGuardBlock(text) {
 		return ""
 	}
-	for _, m := range guardMarkers {
-		if strings.Contains(text, m) {
-			return text
-		}
-	}
-	return ""
+	return text
 }
 
 // resumeBlocked prompts a session that stopped on a guard block with the block and its fix; false when there is none.

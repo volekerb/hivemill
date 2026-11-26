@@ -76,6 +76,10 @@ func TestGuardBlockResumeOther(t *testing.T) {
 	if len(*sent) != 1 || !strings.HasPrefix((*sent)[0], "You stopped before your task was finished") {
 		t.Errorf("sent %q", *sent)
 	}
+	// Nor is a failed command whose output has a marker further down.
+	if isGuardBlock("Exit code 1\n--- FAIL: TestX\nworker-guard: blocked (x)") {
+		t.Error("test output counted as a block")
+	}
 }
 
 func TestBlockedMdFails(t *testing.T) {

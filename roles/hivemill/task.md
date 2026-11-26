@@ -34,7 +34,7 @@ Use the criterion numbers from the kickoff. A `manual:` criterion gets `"command
 
 ## Rules
 
-- A denied command stays denied: never retry it in another spelling or wrapper. Fixing your own content (for example, removing private text) and choosing a different approach are allowed. If the task cannot be finished without the denied command, write `.hivemill/blocked.md` with the exact command and reason, then stop.
+- A denied command stays denied: never retry it in another spelling or wrapper. Fixing your own content (for example, removing private text) and choosing a different approach are allowed. If the task cannot be finished without the denied command, write `.hivemill/blocked.md` with the exact command and reason (the first line says both: it becomes the failure reason), then stop.
 - Never poll `gh` in a loop. One blocking wait per CI round. The API limit is shared across the whole factory.
 - Logs go to files. Show yourself the exit code and the failing lines only.
 - Removing tests fails the check unless the PR body has a `Tests removed: <what and why>` line.
