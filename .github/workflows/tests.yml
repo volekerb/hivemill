@@ -154,7 +154,10 @@ jobs:
           (cd go && go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
           # go is on PATH only to build ci-shard: take it off so the shards skip the same Go-needing tests as before.
           while gobin=$(command -v go) && [ "${gobin#/}" != "$gobin" ]; do
-            PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF "$(dirname "$gobin")" | paste -sd: -)
+            d=$(dirname "$gobin")
+            new=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxE "${d//./\\.}/*" | paste -sd: -)
+            [ "$new" = "$PATH" ] && break
+            PATH=$new
           done
           only=()
           if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
