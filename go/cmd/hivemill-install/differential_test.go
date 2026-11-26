@@ -26,6 +26,7 @@ exit 0`,
 		"claude":    `echo "claude 1.0"; exit 0`,
 		"python3":   `echo "Python 3.12.1"; exit 0`,
 		"systemctl": `exit 0`,
+		"go":        `echo "go version go1.25.0 linux/amd64"; exit 0`,
 	}
 	for name, body := range scripts {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
@@ -101,15 +102,17 @@ func TestDryRunMatchesPythonReference(t *testing.T) {
 }
 
 // comparable cuts what the two installers no longer share: the init, config and project steps the Go installer
-// dropped (and with them the step numbers), the lines of the services step, and the old smoke checks.
+// dropped (and with them the step numbers), the lines of the services step, the commands of the link step, and the
+// smoke checks.
 func comparable(s string) string {
 	var kept []string
-	skip := false
+	skip, link := false, false
 	for _, ln := range strings.Split(s, "\n") {
 		if strings.HasPrefix(ln, "[plan] ") {
 			skip = false
 			f := strings.Fields(ln)
 			name := f[len(f)-1]
+			link = name == "link"
 			switch name {
 			case "init", "config", "project":
 				skip = true
@@ -120,9 +123,11 @@ func comparable(s string) string {
 			kept = append(kept, "[plan] "+name)
 			continue
 		}
-		oldSmoke := strings.Contains(ln, "/factory agents ") || strings.HasPrefix(strings.TrimSpace(ln), "$ GET http://")
+		smoke := strings.Contains(ln, "/factory agents ") || strings.HasPrefix(strings.TrimSpace(ln), "$ GET http://") ||
+			strings.Contains(ln, "/factory --version ") || strings.HasSuffix(ln, "/hivemill health")
+		linkCmd := link && strings.HasPrefix(strings.TrimSpace(ln), "$ ") // python links factory; Go builds and links two
 		// the closing line follows the last step, so it is kept even when that step is skipped
-		if (!skip && !oldSmoke) || strings.HasPrefix(ln, "plan only:") {
+		if (!skip && !smoke && !linkCmd) || strings.HasPrefix(ln, "plan only:") {
 			kept = append(kept, ln)
 		}
 	}
