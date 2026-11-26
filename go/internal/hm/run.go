@@ -169,7 +169,7 @@ func (r *Runner) waitingBlock() string {
 func (r *Runner) Candidates() ([]Task, error) { return r.ReadyIn(csv(r.Store.Cfg("projects"))) }
 
 // ReadyIn are the tasks of these projects a pass would start: todo, deps done, spec set, spec gate passing, and never run
-// before (a task with any run, failed or cancelled included, is not started again: file a new one).
+// before (a task with a run, failed or cancelled included, is not started again until `task requeue` retires that run).
 func (r *Runner) ReadyIn(projects []string) ([]Task, error) {
 	ts, err := r.Store.ReadyTasks(projects)
 	if err != nil || len(ts) == 0 {
@@ -331,9 +331,65 @@ func (r *Runner) Start(id string) error {
 	return nil
 }
 
-// launchTask starts the task session of a run in its clone, with the noreply identity and the scrub terms.
+// Requeue puts a failed or cancelled task back to todo: its run is retired (the row stays), so the next dispatch makes a
+// new one.
+func (r *Runner) Requeue(id string) error {
+	s, err := r.sq()
+	if err != nil {
+		return err
+	}
+	l := r.lock(id, false)
+	if l == nil {
+		return fmt.Errorf("%w: %s is busy; try again", ErrRefused, id)
+	}
+	defer l.Close()
+	t, err := r.Store.Task(id)
+	if err != nil {
+		return err
+	}
+	run, err := r.Store.Run(id)
+	if err != nil {
+		return err
+	}
+	switch {
+	case t.Status == "done":
+		return fmt.Errorf("%w: %s is done", ErrRefused, id)
+	case run != nil && run.State != Failed && run.State != Cancelled:
+		return fmt.Errorf("%w: %s has a %s run; only a failed or cancelled task is requeued", ErrRefused, id, run.State)
+	case run == nil && t.Status != "cancelled":
+		return fmt.Errorf("%w: %s is %s; only a failed or cancelled task is requeued", ErrRefused, id, t.Status)
+	}
+	if run != nil {
+		if run.cloned() && !run.RemoteDone {
+			r.removeRemoteWorktree(run) // no pass sees a retired run, so its worktree is removed now
+		}
+		if err := s.RetireRun(id); err != nil {
+			return err
+		}
+	}
+	if err := r.Store.TaskStatus(id, "todo", "internal"); err != nil {
+		return err
+	}
+	_ = r.Store.Event(r.actor(), "task", id, "run-requeue", nil)
+	r.printf("%s: todo again; the next dispatch starts a new run\n", id)
+	return nil
+}
+
+// launchTask starts the task session of a run, closing one of the same name first.
 func (r *Runner) launchTask(run *Run, kickoff string) error {
-	name, wt, model, effort := run.Agent, run.Worktree, run.Model, run.Effort
+	if list, ok := Terminals(r.Tools); ok && alive(list, true, run.Agent) {
+		r.Close(run.Agent) // a session left open by an earlier FAIL; its transcript stays resumable by session id
+	}
+	if _, err := r.StartSession(run, r.taskLaunch(run, kickoff)); err != nil {
+		r.fail(run, "the session did not start: "+err.Error())
+		_ = r.Store.PutRun(run)
+		return err
+	}
+	return nil
+}
+
+// taskLaunch is the task session of a run in its clone, with the noreply identity and the scrub terms.
+func (r *Runner) taskLaunch(run *Run, kickoff string) Launch {
 	env := map[string]string{}
 	if email := r.Store.FactoryCfg("noreply_email"); email != "" {
 		env["GIT_AUTHOR_EMAIL"], env["GIT_COMMITTER_EMAIL"] = email, email
@@ -342,17 +398,8 @@ func (r *Runner) launchTask(run *Run, kickoff string) error {
 	if terms := r.Store.FactoryCfg("scrub_terms_file"); terms != "" {
 		env["SCRUB_TERMS_FILE"] = terms
 	}
-	if list, ok := Terminals(r.Tools); ok && alive(list, true, name) {
-		r.Close(name) // a session left open by an earlier FAIL; its transcript stays resumable by session id
-	}
-	_, err := r.StartSession(run, Launch{Role: "task", Name: name, Cwd: wt, Model: model, Effort: effort,
-		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: kickoff, Env: env, Machine: run.Machine})
-	if err != nil {
-		r.fail(run, "the session did not start: "+err.Error())
-		_ = r.Store.PutRun(run)
-		return err
-	}
-	return nil
+	return Launch{Role: "task", Name: run.Agent, Cwd: run.Worktree, Model: run.Model, Effort: run.Effort,
+		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: kickoff, Env: env, Machine: run.Machine}
 }
 
 // kickoffEnd is the last line of a kickoff; without PR checks there is no green CI to stop on.
@@ -469,11 +516,22 @@ func (r *Runner) fail(run *Run, reason string) {
 	r.closeSessions(run)
 }
 
-// resume sends text to the same warm task session and starts a new round.
+// resume sends text to the task session and starts a new round; a session that is gone is started again, resumed.
 func (r *Runner) resume(run *Run, text string) { r.resumeAs(run, "resume", text) }
 
 // resumeAs is resume with the kind the prompt is recorded under.
 func (r *Runner) resumeAs(run *Run, kind, text string) {
+	if run.cloned() && run.RemoteDone { // a held run gave its worktree back
+		t, err := r.Store.Task(run.Task)
+		if err == nil {
+			run.Worktree, err = r.remoteWorktree(run.Machine, run.RemoteHome, t, run.Branch)
+		}
+		if err != nil {
+			r.fail(run, "cannot make the worktree again: "+err.Error())
+			return
+		}
+		run.RemoteDone = false
+	}
 	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
 	// are deferred until the session writes fresh findings.
 	if run.Worktree != "" {
@@ -487,12 +545,38 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
-	if err := r.Prompt(run.Agent, text); err != nil {
+	if err := r.deliver(run, kind, text); err != nil {
 		r.fail(run, "cannot reach the task session: "+err.Error())
 		return
 	}
-	r.recordPrompt(run, "task", kind, text)
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-resume", truncate(text, 300))
+}
+
+// deliver sends text to the warm task session. One that is gone (a held run closes it) is resumed by its recorded
+// session id with text as the first message.
+func (r *Runner) deliver(run *Run, kind, text string) error {
+	list, ok := Terminals(r.Tools)
+	if ok && !alive(list, true, run.Agent) && !(run.Machine != "" && machineDown(r.Tools, run.Machine)) {
+		l := r.taskLaunch(run, text)
+		sess, _ := r.Store.Sessions(run.Task)
+		for _, s := range sess {
+			if s.Role == "task" && s.Agent == run.Agent {
+				l.Resume = s.SID
+				if s.Model != "" {
+					l.Model, l.Effort = s.Model, s.Effort
+				}
+			}
+		}
+		if l.Resume != "" {
+			_, err := r.StartSession(run, l) // records the prompt itself
+			return err
+		}
+	}
+	if err := r.Prompt(run.Agent, text); err != nil {
+		return err
+	}
+	r.recordPrompt(run, "task", kind, text)
+	return nil
 }
 
 func truncate(s string, n int) string {
@@ -526,6 +610,9 @@ func (r *Runner) Pass(startNew bool) error {
 			if l := r.lock(x.Task, false); l != nil {
 				if run, _ := r.Store.Run(x.Task); run != nil && heldForOwner(run) {
 					r.checkHeld(run)
+					if heldForOwner(run) {
+						r.answeredHeld(run, list, ok)
+					}
 					_ = r.Store.PutRun(run)
 				}
 				l.Close()

@@ -416,8 +416,9 @@ func (s *SQLite) PutRun(r *Run) error {
 	return err
 }
 
+// Runs lists the current run of every task; a run retired by `task requeue` (key T-x#n) is kept but not listed.
 func (s *SQLite) Runs() ([]Run, error) {
-	rows, err := s.db.Query(`SELECT data FROM hm_runs ORDER BY task`)
+	rows, err := s.db.Query(`SELECT data FROM hm_runs WHERE instr(task,'#')=0 ORDER BY task`)
 	if err != nil {
 		return nil, err
 	}
@@ -844,6 +845,31 @@ func (s *SQLite) Asks(status string) ([]Ask, error) {
 		out = append(out, *a)
 	}
 	return out, rows.Err()
+}
+
+// RetireAskRef takes a used question off its ref, so the next question about the same thing is filed anew.
+func (s *SQLite) RetireAskRef(id int64) error {
+	_, err := s.db.Exec(`UPDATE hm_asks SET ref = 'used:' || id || ':' || ref WHERE id=?`, id)
+	return err
+}
+
+// RetireRun moves the run of a task aside (key T-x#n), with the refs of its held-run questions: the task has no run
+// again, and the old row stays for the record.
+func (s *SQLite) RetireRun(task string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`UPDATE hm_runs SET task = task || '#' || (SELECT COUNT(*) FROM hm_runs WHERE task=? OR task LIKE ?)
+		WHERE task=?`, task, task+"#%", task); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE hm_asks SET ref = 'used:' || id || ':' || ref WHERE ref=? OR ref LIKE ?`,
+		"held:"+task, "held:"+task+":%"); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // CloseAsk answers (status answered) or withdraws (status withdrawn) an open question.

@@ -69,6 +69,55 @@ func (r *Runner) AskClose(id int64, answered bool, text string) error {
 	return nil
 }
 
+// answeredHeld acts on the owner's answer to the question about a held run (ref held:T-x[:round]): an answer starting
+// with "merge" merges a run the judge passed, the normal way (tier rules unchanged); any other answer goes to the task
+// session as a new round. A merged PR is recorded by checkHeld before this. Called with the task lock held.
+func (r *Runner) answeredHeld(run *Run, list []Terminal, listed bool) {
+	s, err := r.sq()
+	if err != nil {
+		return
+	}
+	asks, err := s.Asks("answered")
+	if err != nil {
+		return
+	}
+	var a *Ask
+	for i := range asks { // oldest first: the latest question wins
+		if ref := asks[i].Ref; ref == "held:"+run.Task || ref == fmt.Sprintf("held:%s:%d", run.Task, run.Round) {
+			a = &asks[i]
+		}
+	}
+	if a == nil {
+		return
+	}
+	if run.PRURL != "" {
+		if pr, err := PRView(r.Tools, run.PRURL); err != nil || pr.State != "OPEN" {
+			return // checkHeld records a merged or closed PR; an unread one waits for the next pass
+		}
+	}
+	merge := strings.HasPrefix(strings.ToLower(strings.TrimSpace(a.Answer)), "merge") &&
+		len(run.Verdicts) > 0 && run.Verdicts[len(run.Verdicts)-1].Verdict == VerdictMerge
+	if !merge && (!listed || (run.Machine != "" && machineDown(r.Tools, run.Machine))) {
+		return // cannot tell whether the session is there: next pass
+	}
+	// used once, and retired before acting: a run held again gets a new question
+	if err := s.RetireAskRef(a.ID); err != nil {
+		r.printf("%s: question #%d: %v\n", run.Task, a.ID, err)
+		return
+	}
+	run.Outcome, run.FailReason, run.Ended, run.MergeHold = "", "", "", ""
+	_ = r.Store.TaskStatus(run.Task, "in_progress", "internal")
+	if merge {
+		run.State = Merging
+		_ = r.Store.Event(r.actor(), "task", run.Task, "run-answered-merge", a.ID)
+		r.printf("%s: question #%d answered: merging\n", run.Task, a.ID)
+		return
+	}
+	r.printf("%s: question #%d answered: back to the task session\n", run.Task, a.ID)
+	r.resumeAs(run, "answer", fmt.Sprintf("The owner answered the question about your held run: %s\n\nAct on it, %s",
+		a.Answer, r.pushAndStop(run.Project)))
+}
+
 // AskLine is one question as `ask list` prints it.
 func AskLine(a Ask, now time.Time) string {
 	scope := strings.TrimSpace(strings.Join([]string{a.Project, a.Goal, a.Task}, " "))
