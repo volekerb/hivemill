@@ -33,6 +33,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Fixed
 
+- **Gate proofs over 60 s no longer fail on a worker machine.** `hc exec` ended them at its own default of 60 s. A remote proof now has `--timeout 600`, one cut at that limit runs again on the local core, and the timeout note names the limit that applied (T-2040).
+
 - **`hivemill obs` shows the machine a run was placed on.** A run on a session machine showed as the coordinator. Every `session_machines` entry and pulled source is now listed, even with no run (T-1987).
 
 - **The PR body check accepts a runner given by path**, such as `~/.local/go/bin/go test ./...`: it compares the base name of the first word (T-1940).
