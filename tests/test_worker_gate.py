@@ -1,5 +1,4 @@
 """T-0031: workers may never mutate the live herdr through bin/factory (herdr() role gate)."""
-import json
 import os
 import pwd
 import shutil
