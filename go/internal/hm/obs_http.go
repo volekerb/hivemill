@@ -534,6 +534,9 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		p.TracePg = newTracePage(buildTrace(t), goalTitle)
 		p.Sessions, p.Events = o.TaskSessions(t), t.Events
+		for _, x := range p.Sessions {
+			p.TracePg.CostPending = p.TracePg.CostPending || !x.CostKnown
+		}
 		p.Crumbs = append(p.Crumbs, crumb{or(t.Project, NoProject), p.Q("/project", "p", or(t.Project, NoProject))},
 			crumb{or(t.Goal, "(no goal)"), p.Q("/goal", "g", t.Goal, "p", or(t.Project, NoProject))}, crumb{t.Task + " @" + t.Machine, ""})
 	case "/api/obs/task":

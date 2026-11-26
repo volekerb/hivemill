@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestObsTracePage(t *testing.T) {
@@ -54,5 +55,16 @@ func TestObsTracePage(t *testing.T) {
 		if _, body = obsGet(t, h, target); strings.Contains(body, "<details><summary>Raw task fields") {
 			t.Errorf("%s has the trace page", target)
 		}
+	}
+
+	// A session with no session.ended line and no transcript: its cost is unknown, so the total says it is partial.
+	r := traceRunner(t)
+	writeEvents(t, r.Log.Path, ev(time.Now().UTC().Format(time.RFC3339), "session.started", "T-9", "G-1", "www", "s-open", "task", nil))
+	if h, err = r.ObsHandler(); err != nil {
+		t.Fatal(err)
+	}
+	if _, body = obsGet(t, h, "/task?k=box-a/T-9"); !strings.Contains(body, "partial: a session cost is pending") ||
+		strings.Contains(head, "partial:") {
+		t.Errorf("the pending total is not marked:\n%s", body)
 	}
 }

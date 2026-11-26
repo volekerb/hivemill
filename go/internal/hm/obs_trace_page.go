@@ -12,9 +12,10 @@ import (
 
 // tracePage is the data of the /task page's timeline.
 type tracePage struct {
-	Trace     Trace
-	GoalTitle string
-	Rows      []traceRow
+	Trace       Trace
+	GoalTitle   string
+	Rows        []traceRow
+	CostPending bool // a session's cost is not known yet, so the total is partial
 }
 
 // traceRow is one step as shown. Mark is the word a step that stands out carries (colour is never the only signal) and
@@ -64,7 +65,7 @@ const traceTmpl = `{{define "drill"}}{{with .TracePg}}
 <dl class="kv">
 <dt>goal</dt><dd>{{or .Trace.Goal "(no goal)"}}{{if .GoalTitle}}: {{.GoalTitle}}{{end}}</dd>
 <dt>status</dt><dd class="{{outcomeClass $.Task.Row.Outcome}}">{{$.Task.Row.Outcome}}</dd>
-<dt>total cost</dt><dd>{{usd .Trace.TotalUSD}}</dd>
+<dt>total cost</dt><dd>{{usd .Trace.TotalUSD}}{{if .CostPending}} <span class="warn">partial: a session cost is pending</span>{{end}}</dd>
 <dt>hours to merge</dt><dd>{{fp $.Task.Row.HoursToMerge}}</dd>
 {{if $.Task.PR}}<dt>PR</dt><dd>{{with safeURL $.Task.PR}}<a href="{{.}}" rel="noreferrer">{{$.Task.PR}}</a>{{else}}{{$.Task.PR}}{{end}}</dd>{{end}}
 </dl>
