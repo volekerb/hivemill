@@ -45,8 +45,8 @@ Test files are read from git, at the merge base of the base ref (default `origin
 
 Only files directly in `go/internal/guard/` count, not its subdirectories. A test is a `func TestXxx(` at the start of a line where `Xxx` does not start with a lowercase letter; `TestMain` is setup, not a case, and is skipped.
 
-The map works per test function. It does not see table rows or subtests inside a function, nor `Fuzz...` targets; the mutation check below covers what a function's cases catch. `python3 ci/guard_port_check.py --self-test` runs a pass and a fail case for each of a to d in a temporary git repo.
+The map works per test function. It does not see table rows or subtests inside a function, nor `Fuzz...` targets; the planned mutation check below is meant to cover what a function's cases catch. `python3 ci/guard_port_check.py --self-test` runs a pass and a fail case for each of a to d in a temporary git repo.
 
 ## Mutation check
 
-The mutation check `ci/guard_mutation_check.sh` (next task) takes `go/internal/guard/testdata/portmap/<batch>.mutation.patch`.
+Planned, not in the repo yet: the mutation check `ci/guard_mutation_check.sh` (next task) takes `go/internal/guard/testdata/portmap/<batch>.mutation.patch`.

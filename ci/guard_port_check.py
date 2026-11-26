@@ -49,9 +49,9 @@ def test_names(cwd, ref, path):
 
 def guard_tests(cwd, ref):
     """Every `func Test...` name in go/internal/guard/*_test.go at ref (a list)."""
-    out = git(cwd, "ls-tree", "-r", "--name-only", ref, "--", GUARD_DIR + "/")
+    out = git(cwd, "ls-tree", "-r", "-z", "--name-only", ref, "--", GUARD_DIR + "/")
     names = []
-    for path in out.splitlines():
+    for path in filter(None, out.split("\0")):
         if os.path.dirname(path) == GUARD_DIR and path.endswith("_test.go"):
             names.extend(test_names(cwd, ref, path))
     return names
@@ -82,8 +82,11 @@ def check(cwd, map_text, olds, base, head="HEAD"):
     try:
         base = git(cwd, "merge-base", base, head).strip()
         old_names = collections.Counter()
-        for path in olds:
-            old_names.update(test_names(cwd, base, path))
+        for path in dict.fromkeys(olds):
+            found = test_names(cwd, base, path)
+            if not found:
+                failures.append("a: old file %s has no test at %s" % (path, base))
+            old_names.update(found)
         ref_guard = guard_tests(cwd, base)
         head_guard = guard_tests(cwd, head)
     except GitError as e:
@@ -180,6 +183,7 @@ def self_test():
         _write(tmp, GUARD_DIR + "/a_test.go", _go("TestExisting"))
         _write(tmp, GUARD_DIR + "/sub/b_test.go", _go("TestSubdirIgnored"))
         _write(tmp, old, _go("TestFoo", "TestBar", "TestMain", "Testhelper"))
+        _write(tmp, "go/internal/factorytest/guard1/helpers_test.go", _go("TestMain"))
         _commit(tmp, "base")
         git(tmp, "-c", "tag.gpgSign=false", "tag", "base")
         _write(tmp, GUARD_DIR + "/g1_test.go", _go("TestG1Foo"))
@@ -210,6 +214,8 @@ def self_test():
             ("pass", good, "port", None),
             ("a fail: old test missing", "TestFoo -> TestG1Foo\n", "port", "a:"),
             ("a pass: all old tests mapped once", good, "port", "!a:"),
+            ("a fail: old file with no test",
+             "", "port", "a: old file go/internal/factorytest/guard1/helpers_test.go"),
             ("a fail: old test twice", good + "TestFoo -> duplicate-of TestExisting\n",
              "port", "a:"),
             ("b pass: new test added at HEAD", good, "port", "!b:"),
@@ -233,7 +239,10 @@ def self_test():
         for label, text, head, expect in cases:
             ref = ("mainmoved" if "base moved" in label
                    else "withother" if head == "swap" else "base")
-            fails = check(tmp, text, [old], ref, head)
+            olds = [old, old]
+            if "no test" in label:
+                olds = ["go/internal/factorytest/guard1/helpers_test.go"]
+            fails = check(tmp, text, olds, ref, head)
             joined = "\n".join(fails)
             if expect is None:
                 ok = not fails
