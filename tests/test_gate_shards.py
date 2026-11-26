@@ -96,10 +96,11 @@ import json, os, sys, time
 if sys.argv[1:4] != ["run", "--shard", "1"]:
     sys.exit(1)
 shipped = sorted(os.path.relpath(os.path.join(d, f)) for d, _, fs in os.walk(".") if ".git" not in d for f in fs)
-json.dump({"env": dict(os.environ), "cwd": os.getcwd(),
-           "modes": {k: oct(os.stat(p).st_mode & 0o777) for k, p in (("run", os.path.dirname(os.environ["HOME"])),
-                                                                      ("tmp", os.environ["TMPDIR"]))}, "files": sorted(os.listdir(".")), "shipped": shipped,
-           "data": open("ci/data.py").read()}, open(%r + ".tmp", "w"))
+with open(%r + ".tmp", "w") as out:
+    json.dump({"env": dict(os.environ), "cwd": os.getcwd(),
+               "modes": {k: oct(os.stat(p).st_mode & 0o777) for k, p in (("run", os.path.dirname(os.environ["HOME"])),
+                                                                          ("tmp", os.environ["TMPDIR"]))}, "files": sorted(os.listdir(".")), "shipped": shipped,
+               "data": open("ci/data.py").read()}, out)
 os.replace(%r + ".tmp", %r)
 time.sleep(%d)
 """
