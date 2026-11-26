@@ -242,9 +242,6 @@ func TestCIGatePRUnchanged(t *testing.T) {
 		if err != nil || in.CI != "pending" || strings.Join(in.MissingChecks, ",") != "build" {
 			t.Errorf("%q: ci %q missing %v %v", mode, in.CI, in.MissingChecks, err)
 		}
-		if s := f.r.pushAndStop("www"); s != "push, wait for CI once and stop" {
-			t.Errorf("%q: %q", mode, s)
-		}
 	}
 }
 

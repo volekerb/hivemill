@@ -249,7 +249,7 @@ func (r *Runner) Merge(run *Run) {
 			return
 		}
 		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
-		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+".")
+		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+pushAndStop+".")
 	case "refresh":
 		r.refresh(run)
 	case "merge":

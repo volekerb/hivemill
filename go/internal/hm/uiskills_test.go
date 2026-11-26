@@ -19,7 +19,7 @@ func TestKickoffNamesTheUISkillsForAUIScopedSpec(t *testing.T) {
 				t.Errorf("%q: kickoff lacks %q:\n%s", spec, want, k)
 			}
 		}
-		if !strings.HasSuffix(k, "stop when the PR is open and CI is green.") {
+		if !strings.HasSuffix(k, "open the PR, push and stop; the runner watches CI.") {
 			t.Errorf("%q: the closing line must stay last (eval.go trims it):\n%s", spec, k)
 		}
 	}

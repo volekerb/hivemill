@@ -1,6 +1,6 @@
 # Role: task session (Option B lane)
 
-You own one task from start to an open, green PR. You work alone in your task clone (your cwd, branch `factory/<task>`). The factory merges; you never merge, never push to main and never force-push.
+You own one task from start to an open PR. You work alone in your task clone (your cwd, branch `factory/<task>`). The factory merges; you never merge, never push to main and never force-push.
 
 Your kickoff message holds the task id, its spec and its acceptance criteria. Each criterion names its proof: `test:`, `cmd:`, `flow:` or `manual:`.
 
@@ -15,8 +15,7 @@ Your kickoff message holds the task id, its spec and its acceptance criteria. Ea
 7. Commit with your noreply identity. Run `git fetch origin && git merge origin/main` and re-run the affected tests if main moved.
 8. Push with exactly `git push origin HEAD:factory/t-1234` (your branch from the kickoff, lower case), alone in its own Bash call, with no pipe, redirect or `&&`.
 9. Open the PR: `hivemill pr create --title 'T-1234: what the change does' --body -` with a quoted heredoc body. It opens the PR of your own task and branch; raw `gh pr create` is denied. Follow `docs/pr-descriptions.md`: the five template sections, then the `<details>` acceptance walk. Keep the five sections under 300 words, with evidence detail inside `<details>`. In `## Test evidence`, give the exact command, its key output line, and how many tests ran on main and on the branch.
-10. Wait for CI with one blocking command: `gh pr checks <PR number> --watch --fail-fast --interval 60 > .hivemill/ci.log 2>&1; echo exit=$?`. If a check you caused is red, fix it, push, and wait once more.
-11. Stop. A check runs when you stop. If it lists problems, fix them and stop again. After you stop with everything green, the factory takes over: a separate judge reads the PR, and the factory merges it. If the judge or CI sends you a message later, fix what it names in this same session, push, and stop again.
+10. Push and stop; the runner watches CI. Do not run `gh pr checks` or watch the run. A check runs when you stop. If it lists problems, fix them and stop again. After you stop with the check passed, the factory takes over: the runner reads the PR checks, a separate judge reads the PR, and the factory merges it. If CI is red or the judge rejects, you get a message: fix what it names in this same session, push, and stop again.
 
 ## Files under `.hivemill/` (never committed; the clone ignores the folder)
 
@@ -34,7 +33,7 @@ Use the criterion numbers from the kickoff. A `manual:` criterion gets `"command
 
 ## Rules
 
-- Never poll `gh` in a loop. One blocking wait per CI round. The API limit is shared across the whole factory.
+- Never poll `gh`. The runner watches CI, and the API limit is shared across the whole factory.
 - Logs go to files. Show yourself the exit code and the failing lines only.
 - Removing tests fails the check unless the PR body has a `Tests removed: <what and why>` line.
 - The repo is public. Write no hostnames, IP addresses, personal names or private terms in code, commits or the PR.

@@ -331,13 +331,9 @@ func (r *Runner) launchTask(run *Run, kickoff string) error {
 	return nil
 }
 
-// kickoffEnd is the last line of a kickoff; without PR checks there is no green CI to stop on.
+// kickoffEnd is the last line of a kickoff.
 func kickoffEnd(run *Run) string {
-	until := "the PR is open and CI is green"
-	if run.CINone {
-		until = "the PR is open"
-	}
-	return fmt.Sprintf("\nBranch %s, base %s. Follow your role steps; stop when %s.", run.Branch, run.Base, until)
+	return fmt.Sprintf("\nBranch %s, base %s. Follow your role steps: open the PR, %s.", run.Branch, run.Base, pushAndStop)
 }
 
 // Kickoff is the first message of a task session: the task itself, so the session needs no lookup.
@@ -354,8 +350,7 @@ func Kickoff(run *Run, t *Task) string {
 		fmt.Fprintf(&b, "\n%s\n", workflowRequest(run.WorkflowAgents))
 	}
 	if run.CINone {
-		b.WriteString("\nThis project has no PR checks (ci_gate none): the factory runs the project's gate command as the CI. " +
-			"Skip the CI wait of your role steps (no `gh pr checks`): push, open the PR and stop.\n")
+		b.WriteString("\nThis project has no PR checks (ci_gate none): the factory runs the project's gate command as the CI.\n")
 	}
 	b.WriteString(kickoffEnd(run))
 	return b.String()
@@ -630,7 +625,7 @@ func (r *Runner) gated(run *Run) {
 	case pr.Mergeable == "CONFLICTING":
 		run.History = append(run.History, fmt.Sprintf("round %d: the PR conflicts with %s", run.Round, run.Base))
 		r.resume(run, fmt.Sprintf("Your PR conflicts with %s. Run `git fetch origin && git merge origin/%s`, resolve, re-run the "+
-			"affected tests, %s.", run.Base, run.Base, r.pushAndStop(run.Project)))
+			"affected tests, %s.", run.Base, run.Base, pushAndStop))
 	default:
 		run.Head, run.MergeHold = pr.HeadRefOid, ""
 		r.ciPolled(run, now)
@@ -710,7 +705,7 @@ func (r *Runner) judged(run *Run) {
 		r.fail(run, fmt.Sprintf("judge REJECT x%d: %s", run.JudgeRounds, reasons))
 		return
 	}
-	r.resumeAs(run, "judge", "The judge rejected the PR. Fix this, "+r.pushAndStop(run.Project)+":\n- "+strings.Join(v.Reasons, "\n- "))
+	r.resumeAs(run, "judge", "The judge rejected the PR. Fix this, "+pushAndStop+":\n- "+strings.Join(v.Reasons, "\n- "))
 }
 
 // Stop cancels a run: its terminals close and the task goes back to todo.
@@ -808,12 +803,8 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 		return
 	}
 	run.IdleNudges++
-	wait := "wait for CI once, then stop"
-	if r.ciNone(run.Project) {
-		wait = "then stop (this project has no PR checks to wait for)"
-	}
 	nudge := "You stopped before your task was finished. Continue your role steps from where you are: finish the " +
-		"review, write the .hivemill files, push, open the PR, " + wait + "."
+		"review, write the .hivemill files, open the PR, " + pushAndStop + "."
 	if r.Prompt(run.Agent, nudge) == nil {
 		r.recordPrompt(run, "task", "nudge", nudge)
 	}
