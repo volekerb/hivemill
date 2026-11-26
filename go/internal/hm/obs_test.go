@@ -1278,6 +1278,17 @@ func TestObsServerStatusCachedAndNoDuplicateCore(t *testing.T) {
 	srv = &obsServer{r: r, now: srv.now}
 	check(0, 1, "box-a,box-c,core-a")
 	check(29*time.Second, 1, "box-a,box-c,core-a")
+
+	// a call that hangs past the 30 s is cached from the time it returned
+	calls = 0
+	r.Tools.HC = func(...string) (int, string, string) {
+		calls++
+		now = now.Add(90 * time.Second)
+		return 1, "", "timeout"
+	}
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a,box-c,core-a")
+	check(29*time.Second, 1, "box-a,box-c,core-a")
 }
 
 func TestObsAsksUnderTheirMachine(t *testing.T) {

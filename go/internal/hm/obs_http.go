@@ -89,8 +89,9 @@ const coreTTL = 30 * time.Second
 func (s *obsServer) coreName() string {
 	s.coreMu.Lock()
 	defer s.coreMu.Unlock()
-	if now := s.now(); s.coreAt.IsZero() || now.Sub(s.coreAt) >= coreTTL {
-		s.core, s.coreAt = or(s.r.coreName(), s.core), now
+	if s.coreAt.IsZero() || s.now().Sub(s.coreAt) >= coreTTL {
+		s.core = or(s.r.coreName(), s.core)
+		s.coreAt = s.now() // after the call: a hung hc can outlast coreTTL and must still be cached
 	}
 	return s.core
 }
