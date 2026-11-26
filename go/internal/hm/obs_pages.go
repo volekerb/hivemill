@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -268,9 +269,23 @@ func (p *FlowPage) stageBanners(pct int) []string {
 	if total == 0 || most*100 <= int64(pct)*total {
 		return []string{}
 	}
-	hours := func(s int64) float64 { return math.Round(float64(s) / 3600) }
-	share := math.Round(100 * float64(most) / float64(total))
-	return []string{fmt.Sprintf("%s holds %.0f of %.0f stage hours (%.0f%%).", largest, hours(most), hours(total), share)}
+	hours := func(s int64) string { // one decimal under 10 h, so a short window does not read "0 of 0"
+		h := float64(s) / 3600
+		if h < 10 {
+			return strconv.FormatFloat(math.Round(h*10)/10, 'f', -1, 64)
+		}
+		return fmt.Sprintf("%.0f", math.Round(h))
+	}
+	share := shownShare(100*float64(most)/float64(total), pct)
+	return []string{fmt.Sprintf("%s holds %s of %s stage hours (%s%%).", largest, hours(most), hours(total), share)}
+}
+
+// shownShare prints a share that is above pct so that it never reads as not above it.
+func shownShare(share float64, pct int) string {
+	if math.Round(share) <= float64(pct) {
+		return fmt.Sprintf("%.1f", math.Ceil(share*10)/10)
+	}
+	return fmt.Sprintf("%.0f", math.Round(share)) // %.0f alone rounds 20.5 down
 }
 
 // pollingBanners is the polling recommendation: at most one line, for the factory when its share is strictly above
@@ -278,11 +293,7 @@ func (p *FlowPage) stageBanners(pct int) []string {
 func (p *SpendPage) pollingBanners(pct int) []string {
 	over := func(polling, usd float64) bool { return usd > 0 && 100*polling-float64(pct)*usd > 1e-9 }
 	line := func(share float64, of string, polling float64) []string {
-		shown := fmt.Sprintf("%.0f", math.Round(share)) // %.0f alone rounds 20.5 down
-		if math.Round(share) <= float64(pct) {          // never print a share that reads as not above the threshold
-			shown = fmt.Sprintf("%.1f", math.Ceil(share*10)/10)
-		}
-		return []string{fmt.Sprintf("Polling is %s%% of %s ($%.2f). Action: replace wait turns with one blocking command.", shown, of, polling)}
+		return []string{fmt.Sprintf("Polling is %s%% of %s ($%.2f). Action: replace wait turns with one blocking command.", shownShare(share, pct), of, polling)}
 	}
 	if over(p.PollingUSD, p.Total) {
 		return line(p.PollingPct, "spend", p.PollingUSD)

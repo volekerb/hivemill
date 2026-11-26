@@ -991,6 +991,15 @@ func TestObsBannerStage(t *testing.T) {
 	})
 }
 
+func TestObsBannerStageText(t *testing.T) {
+	p := &FlowPage{Tasks: []FlowTask{{Seconds: map[string]int64{"ci": 304, "gate": 232, "judge": 232, "merge": 232}}}}
+	// a short window keeps its hours readable, and a share just above the threshold does not read as the threshold.
+	want := []string{"ci holds 0.1 of 0.3 stage hours (30.4%)."}
+	if got := p.stageBanners(30); !reflect.DeepEqual(got, want) {
+		t.Fatalf("%q", got)
+	}
+}
+
 func TestObsBannerStageConfig(t *testing.T) {
 	r, h := stageFixture(t, 3)
 	if err := r.Store.SetCfg("obs_banner_stage_pct", "90"); err != nil {
