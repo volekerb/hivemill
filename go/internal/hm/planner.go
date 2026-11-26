@@ -398,6 +398,10 @@ func wakeReason(line []byte) string {
 		return "goal.checked:" + e.GoalID
 	case "ask.answered":
 		return fmt.Sprintf("ask.answered:#%v", e.Data["id"])
+	case "task.failed":
+		if why, _ := e.Data["reason"].(string); strings.HasPrefix(why, blockedPrefix) {
+			return "task.refile:" + e.TaskID
+		}
 	}
 	return e.Event + ":" + e.TaskID
 }

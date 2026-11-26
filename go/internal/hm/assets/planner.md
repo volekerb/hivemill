@@ -12,6 +12,7 @@ Reasons:
 - `queue_low:<project>=<ready>/<min>`: fewer lint-passing ready tasks than `planner_queue_min` in a project with an active goal.
 - `not_dispatched:<project>`: the project has an active goal, but it is not in the config key `projects`, so no pass starts its tasks. Only the owner can change that: ask once.
 - `task.failed:<ids>`: runs that failed (gate cap, judge REJECT rounds, CI rounds, budget, session lost).
+- `task.refile:<ids>`: runs that failed as `blocked by policy: ...`: the task needs a command the guard denies. Re-file each so that it does not need that command, or ask the owner.
 - `run.held:<ids>`: runs held for the owner (T3 diff, or judge HOLD). The runner has already filed an owner question for each.
 - `budget.reached`: a budget cap holds new runs.
 - `goal.checked:<goal>` or `goal_done:<goal>`: a goal's last task merged; its checks ran.

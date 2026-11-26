@@ -23,7 +23,7 @@ The daemon runs `PlannerPass` after every pass:
 1. Each held run gets one owner question (ref `held:<task>:<round>`). It is withdrawn once the run is no longer held.
 2. With the planner on and its terminal gone, the planner is resumed with `claude --resume <last session id>` (the SessionStart hook keeps the id current), at most `resume_max` times in 24 h. After that: one owner alert `hivemill-planner` and no more tries until `planner start`.
 3. Otherwise `DecideWake` decides. It is a pure function, and its state is kept in `hm_config` meta.
-   - **Event reasons** come from `events.jsonl` after a byte cursor: `task.failed`, `run.held`, `budget.reached`, `goal.checked`, `ask.answered`.
+   - **Event reasons** come from `events.jsonl` after a byte cursor: `task.failed`, `run.held`, `budget.reached`, `goal.checked`, `ask.answered`. A `task.failed` for a run blocked by policy arrives as `task.refile`.
    - **Level reasons** come from the DB: `queue_low:<project>=<ready>/<min>` for a project with an active goal, `not_dispatched:<project>` for an active goal outside `projects`, and `goal_done:<goal>` when all its tasks are done.
    - It wakes when an event happened, or a level appeared that the planner has not heard about. A level that went away (a refilled queue) is not news.
    - At most one wake per `planner_wake_gap_s` (600). It never types into a working planner. A deferred reason stays pending: the cursor moves only after a delivered wake, so the next wake coalesces everything (`task.failed:T-1,T-2`).

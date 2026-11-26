@@ -223,7 +223,7 @@ func (r *Runner) Start(id string) error {
 	}
 	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
 	// session's first mid-work stop as a gate attempt, and they describe another head.
-	for _, f := range []string{"findings.json", "evidence.json"} {
+	for _, f := range []string{"findings.json", "evidence.json", "blocked.md"} {
 		_ = os.Remove(filepath.Join(wt, ".hivemill", f))
 	}
 	// The worker guard (unchanged) lets a pane push only HEAD:factory/<task> for FACTORY_AGENT
@@ -626,13 +626,17 @@ func (r *Runner) budgetEvent(why string) {
 }
 
 // idleWatch nudges a task session that sits idle with no PR for 15 minutes (it stopped mid-work, e.g. while a
-// background review was running); after a second idle spell the run is FAIL "stalled".
+// background review was running); after a second idle spell the run is FAIL "stalled". A session that stopped on a
+// guard block gets the block and its fix instead of the nudge; one that wrote blocked.md fails at once.
 func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	idle := false
 	for _, t := range list {
 		if t.Name == run.Agent {
 			idle = t.Status == "idle" || t.Status == "done"
 		}
+	}
+	if idle && r.failBlocked(run) {
+		return
 	}
 	if !idle || r.workflowBusy(run, time.Now().Add(-15*time.Minute)) {
 		run.IdleSince = ""
@@ -652,6 +656,9 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 		return
 	}
 	run.IdleNudges++
+	if r.resumeBlocked(run) {
+		return
+	}
 	_ = r.Prompt(run.Agent, "You stopped before your task was finished. Continue your role steps from where you are: finish the "+
 		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop.")
 	_ = r.Log.Emit("session.nudged", run, Event{Role: "task"})

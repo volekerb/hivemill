@@ -506,6 +506,9 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 	}
 	r.noteSession(run, h.SessionID, r.Env.Actor)
 	defer func() { _ = r.Store.PutRun(run) }()
+	if r.failBlocked(run) {
+		return nil
+	}
 	// No PR yet: the session is mid-work (often waiting for a background /code-review that wakes it again). Let it
 	// stop without a block; the runner's idle watch nudges a session that stays idle with no PR.
 	if t, err := r.Store.Task(run.Task); err == nil && t.PRURL == "" && r.findPR(run, t) == "" {
