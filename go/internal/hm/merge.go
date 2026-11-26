@@ -261,6 +261,10 @@ func (r *Runner) Merge(run *Run) {
 		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
 		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+".")
 	case "refresh":
+		if h := r.refreshHolder(run); h != "" {
+			run.MergeHold = "hold: waiting for " + h + " to merge (one refresh at a time per repo)"
+			return
+		}
 		r.refresh(run)
 	case "merge":
 		r.mergeNow(run, in.Head)
@@ -615,4 +619,24 @@ func (r *Runner) rerunCancelled(run *Run, checks []map[string]any) {
 		rc, _, errs := r.Tools.GH("", "run", "rerun", id, "--failed", "-R", run.Repo)
 		_ = r.Log.Emit("ci.rerun", run, Event{Data: map[string]any{"run_id": id, "rc": rc, "err": firstLine(errs)}})
 	}
+}
+
+// refreshSlotTTL bounds how long one run may hold its repo's refresh slot (a CI run plus margin).
+const refreshSlotTTL = 40 * time.Minute
+
+// refreshHolder makes refreshes serial per repo, a merge queue of one: the run that holds the slot may refresh, and so
+// may a run that takes a free slot. A slot is free when its holder is no longer merging or held it longer than
+// refreshSlotTTL. Without it every green PR behind main refreshed in the same pass, and each merge sent the others
+// round again (2026-11-26). It returns the holder's task, or "" when this run may refresh.
+func (r *Runner) refreshHolder(run *Run) string {
+	key := "refresh_slot:" + strings.ToLower(run.Repo)
+	if f := strings.SplitN(r.Store.Meta(key), " ", 2); len(f) == 2 && f[0] != run.Task {
+		if t, err := time.Parse(time.RFC3339, f[1]); err == nil && time.Since(t) < refreshSlotTTL {
+			if h, err := r.Store.Run(f[0]); err == nil && h != nil && h.State == Merging {
+				return f[0]
+			}
+		}
+	}
+	_ = r.Store.SetMeta(key, run.Task+" "+time.Now().UTC().Format(time.RFC3339))
+	return ""
 }

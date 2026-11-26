@@ -22,3 +22,33 @@ func TestBehindSafe(t *testing.T) {
 		}
 	}
 }
+
+func TestRefreshSlotIsSerial(t *testing.T) {
+	r, s := testRunner(t, "")
+	a := &Run{Task: "T-0001", Repo: "zz-test/Repo", State: Merging}
+	b := &Run{Task: "T-0002", Repo: "zz-test/repo", State: Merging}
+	for _, x := range []*Run{a, b} {
+		if err := s.PutRun(x); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if h := r.refreshHolder(a); h != "" {
+		t.Fatalf("free slot: a got holder %q", h)
+	}
+	if h := r.refreshHolder(b); h != "T-0001" {
+		t.Fatalf("b while a merges: holder %q, want T-0001", h)
+	}
+	if h := r.refreshHolder(a); h != "" {
+		t.Fatalf("the holder refreshes again: got %q", h)
+	}
+	a.State = Merged
+	if err := s.PutRun(a); err != nil {
+		t.Fatal(err)
+	}
+	if h := r.refreshHolder(b); h != "" {
+		t.Fatalf("a merged: b got holder %q", h)
+	}
+	if h := r.refreshHolder(&Run{Task: "T-0003", Repo: "zz-test/other", State: Merging}); h != "" {
+		t.Fatalf("another repo has its own slot: %q", h)
+	}
+}
