@@ -109,7 +109,8 @@ jobs:
     needs: ci-tier
     # Docs tier skips unittest-shard and go at step level: the jobs run, every step is skipped, and unittest-shard (1) through (10) and go report success.
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    # The hm-ci machine is shared and the runners have low CPU priority: a full shard has run past 30 minutes there.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
