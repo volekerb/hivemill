@@ -71,18 +71,20 @@ func TestDispatchPausesAtMaxWaiting(t *testing.T) {
 	if err := r.Start("T-0009"); !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), "max_waiting=4") {
 		t.Errorf("start at the cap: %v", err)
 	}
-	_ = s.SetMeta("waiting_paused", "x")
 	runs[0].State = Merged
 	putRuns(t, s, runs[0])
 	if why := r.runCapBlock(); why != "" {
 		t.Fatalf("below the cap again: %q", why)
 	}
 	// a pass that dispatches nothing still ends a pause that is over
-	_ = s.SetCfg("max_waiting", "5")
+	for _, x := range runs[1:] {
+		x.State = Held // Pass leaves a held run with no PR alone
+	}
+	putRuns(t, s, runs[1:]...)
+	_ = s.SetMeta("waiting_paused", "x")
 	if err := r.Pass(false); err != nil || s.Meta("waiting_paused") != "" {
 		t.Fatalf("pass below the cap: %v, mark %q", err, s.Meta("waiting_paused"))
 	}
-	_ = s.SetCfg("max_waiting", "4")
 	runs[0].State = Held
 	putRuns(t, s, runs[0])
 	r.runCapBlock()
