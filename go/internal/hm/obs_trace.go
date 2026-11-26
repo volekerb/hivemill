@@ -123,6 +123,9 @@ func traceSummary(e Event) (string, bool) {
 		return with("held", str("why"))
 	case "pr.merged":
 		return "merged", true
+	case "run.long_working":
+		return fmt.Sprintf("long in working: %d minutes, %d%% of the %d minute limit", num(e.Data["minutes"]),
+			num(e.Data["pct"]), num(e.Data["limit"])), true
 	case "task.failed":
 		return with("failed", str("reason"))
 	case "prompt.sent": // kind and path only: the prompt's text never reaches the trace

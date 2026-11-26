@@ -411,7 +411,8 @@ func fileSize(p string) int64 {
 }
 
 // PlannerLevels are the level reasons: projects with an active goal whose ready queue is below planner_queue_min, projects
-// with an active goal that a pass never dispatches (not in config projects), and active goals whose tasks are all done.
+// with an active goal that a pass never dispatches (not in config projects), todo tasks of active goals that depend on a
+// cancelled or failed task (deadDepLevel), and active goals whose tasks are all done.
 func (r *Runner) PlannerLevels() ([]string, error) {
 	s, err := r.sq()
 	if err != nil {
@@ -448,6 +449,9 @@ func (r *Runner) PlannerLevels() ([]string, error) {
 		}
 		open, done := 0, 0
 		for _, t := range ts {
+			if l := r.deadDepLevel(t); l != "" {
+				out = append(out, l)
+			}
 			switch t.Status {
 			case "done":
 				done++

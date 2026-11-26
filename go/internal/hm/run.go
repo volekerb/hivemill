@@ -486,6 +486,7 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	}
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
+	run.LongPct, run.LongResumed = 0, ""
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	if err := r.Prompt(run.Agent, text); err != nil {
 		r.fail(run, "cannot reach the task session: "+err.Error())
@@ -598,7 +599,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	}
 	switch run.State {
 	case Working:
-		r.idleWatch(run, list)
+		if !r.workingLimit(run, time.Now()) {
+			r.idleWatch(run, list)
+		}
 	case Gated:
 		r.gated(run)
 	case Judging:

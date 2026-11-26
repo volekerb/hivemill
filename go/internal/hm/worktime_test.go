@@ -1,0 +1,180 @@
+package hm
+
+import (
+	"os"
+	"strings"
+	"testing"
+	"time"
+)
+
+const longText = "You have worked 180 minutes without a passing gate. Stop any wait loop, finish or report what blocks you."
+
+// longRun is a run in working since `ago` before now, and the number of events of one kind in the runner's log.
+func longRun(t *testing.T, now time.Time, ago time.Duration) (*Runner, *SQLite, *Run, *[]string) {
+	t.Helper()
+	r, s := testRunner(t, "")
+	var sent []string
+	hc := r.Tools.HC
+	r.Tools.HC = func(args ...string) (int, string, string) {
+		if args[0] == "send" {
+			sent = append(sent, strings.Join(args, " "))
+		}
+		return hc(args...)
+	}
+	run := &Run{Task: "T-0001", Goal: "G-001", Project: "www", Agent: "zz-test-agent", State: Working, Round: 1,
+		RoundStart: now.Add(-ago).Format(time.RFC3339)}
+	putRuns(t, s, run)
+	return r, s, run, &sent
+}
+
+func events(t *testing.T, r *Runner, kind string) int {
+	t.Helper()
+	b, err := os.ReadFile(r.Log.Path)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	return strings.Count(string(b), `"`+kind+`"`)
+}
+
+func TestRunMaxWorkingResumes(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	r, _, run, sent := longRun(t, now, 89*time.Minute)
+	for _, c := range []struct {
+		after          time.Duration // since now
+		events, resume int
+	}{
+		{0, 0, 0},                 // 89 of 180 minutes
+		{time.Minute, 1, 0},       // 50%
+		{2 * time.Minute, 1, 0},   // said once
+		{91 * time.Minute, 2, 1},  // 100%: the resume
+		{100 * time.Minute, 2, 1}, // one resume only
+		{120 * time.Minute, 2, 1}, // 29 minutes after it
+	} {
+		r.workingLimit(run, now.Add(c.after))
+		if n := events(t, r, "run.long_working"); n != c.events || len(*sent) != c.resume || run.State != Working {
+			t.Fatalf("after %s: %d events, sends %v, state %s", c.after, n, *sent, run.State)
+		}
+	}
+	if (*sent)[0] != "send zz-test-agent "+longText {
+		t.Fatalf("sent: %q", (*sent)[0])
+	}
+	if run.Round != 1 || run.LongPct != 100 || run.LongResumed == "" {
+		t.Fatalf("run: %+v", run)
+	}
+
+	// 0 = off
+	r, s, run, sent := longRun(t, now, 1000*time.Minute)
+	_ = s.SetCfg("run_max_working_min", "0")
+	if r.workingLimit(run, now) || len(*sent) != 0 || events(t, r, "run.long_working") != 0 {
+		t.Fatalf("off: sends %v", *sent)
+	}
+}
+
+func TestRunMaxWorkingFails(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	r, s, run, _ := longRun(t, now, 180*time.Minute)
+	if !r.workingLimit(run, now) || run.State != Working {
+		t.Fatalf("at the limit: %s", run.State)
+	}
+	if r.workingLimit(run, now.Add(29*time.Minute)) || run.State != Working {
+		t.Fatalf("inside the grace: %s", run.State)
+	}
+	if !r.workingLimit(run, now.Add(30*time.Minute)) || run.State != Failed {
+		t.Fatalf("after the grace: %s", run.State)
+	}
+	if !strings.Contains(run.FailReason, "timed out: 210 minutes in working") {
+		t.Fatalf("reason: %q", run.FailReason)
+	}
+	if st, _ := s.Task("T-0001"); st.ID != "" && st.Status != "blocked" {
+		t.Fatalf("task status %s", st.Status)
+	}
+}
+
+func TestDeadDependencyMakesPlannerItem(t *testing.T) {
+	r, s, _ := plannerRunner(t, "")
+	_ = s.SetCfg("projects", "www")
+	addReady(t, s, 6) // T-0001..T-0006
+	dead := func() string {
+		lv, err := r.PlannerLevels()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, l := range lv {
+			if strings.HasPrefix(l, "dead_dep:") {
+				out = append(out, l)
+			}
+		}
+		return strings.Join(out, " ")
+	}
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(s.UpdateTask("T-0003", map[string]any{"depends_on": `["T-0001","T-0002"]`}))
+	must(s.UpdateTask("T-0006", map[string]any{"depends_on": `["T-0004","T-0005"]`}))
+	if got := dead(); got != "" {
+		t.Fatalf("live dependencies: %s", got)
+	}
+	must(s.UpdateTask("T-0001", map[string]any{"status": "cancelled"}))
+	must(s.PutRun(&Run{Task: "T-0004", Goal: "G-001", Project: "www", State: Failed}))
+	must(s.UpdateTask("T-0004", map[string]any{"status": "blocked"}))
+	must(s.UpdateTask("T-0005", map[string]any{"status": "done"}))
+	// one item per waiting task, the same on the next pass
+	want := "dead_dep:T-0003=T-0001(cancelled) dead_dep:T-0006=T-0004(failed)"
+	for range 2 {
+		if got := dead(); got != want {
+			t.Fatalf("items: %q, want %q", got, want)
+		}
+	}
+	// re-pointed, or no longer waiting: no item
+	must(s.UpdateTask("T-0003", map[string]any{"depends_on": `["T-0002"]`}))
+	must(s.UpdateTask("T-0006", map[string]any{"status": "cancelled"}))
+	if got := dead(); got != "" {
+		t.Fatalf("after the fix: %s", got)
+	}
+}
+
+func TestTaskPromptNoForeignWaitLoop(t *testing.T) {
+	for _, p := range []string{"assets/task.md", "../../../roles/hivemill/task.md"} {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"Never wait in a loop on processes you did not start (`pgrep`, `ps`)",
+			"Wait on your own background job, or run the command in the foreground with a timeout."} {
+			if !strings.Contains(string(b), want) {
+				t.Errorf("%s: no %q", p, want)
+			}
+		}
+	}
+}
+
+func TestRunMaxWorkingShowsInFlow(t *testing.T) {
+	r, _ := testRunner(t, "")
+	now := time.Now().UTC()
+	at := func(ago time.Duration) string { return now.Add(-ago).Format(time.RFC3339) }
+	long := func(task string, pct int) Event {
+		return ev(at(10*time.Minute), "run.long_working", task, "G-1", "www", "", "",
+			map[string]any{"pct": pct, "minutes": 90, "limit": 180})
+	}
+	writeEvents(t, r.Log.Path,
+		ev(at(2*time.Hour), "task.dispatched", "T-1", "G-1", "www", "", "", nil), long("T-1", 50),
+		ev(at(5*time.Minute), "gate.blocked", "T-1", "G-1", "www", "", "", nil), // still working
+		ev(at(2*time.Hour), "task.dispatched", "T-2", "G-1", "www", "", "", nil), long("T-2", 50),
+		ev(at(5*time.Minute), "gate.passed", "T-2", "G-1", "www", "", "", nil), // left working
+	)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow := flowBanners(t, h)
+	if len(flow.Long) != 1 || flow.Long[0].Task != "T-1" || flow.Long[0].LongPct != 50 || flow.Long[0].LimitSec != 10800 ||
+		flow.Long[0].WorkingSec < 6000 {
+		t.Fatalf("long: %+v", flow.Long)
+	}
+	if _, page := obsGet(t, h, "/flow"); !strings.Contains(page, "Long in working") || !strings.Contains(page, ">50%</td>") {
+		t.Fatalf("page:\n%s", page)
+	}
+}

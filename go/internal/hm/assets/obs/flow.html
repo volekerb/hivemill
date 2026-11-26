@@ -1,6 +1,13 @@
 {{define "flow"}}{{with .FlowPg}}
 {{range .Banners}}<p class="banner">{{.}}</p>
 {{end -}}
+{{if .Long}}<h2>Long in working</h2>
+<div class="scroll"><table>
+<tr><th>task</th><th>machine</th><th>project</th><th class="num">working for</th><th class="num">limit</th><th class="num">passed</th></tr>
+{{range .Long}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td class="num{{if ge .LongPct 100}} warn{{end}}">{{dur .WorkingSec}}</td><td class="num">{{dur .LimitSec}}</td><td class="num">{{.LongPct}}%</td></tr>
+{{end}}</table></div>
+<p class="muted">At the limit the run is resumed once; 30 minutes later it fails as timed out.</p>
+{{end -}}
 <h2>Stuck now (a stage for more than {{.StuckAfter}})</h2>
 <div class="scroll"><table>
 <tr><th>task</th><th>machine</th><th>project</th><th>stage</th><th class="num">in stage</th><th>since</th></tr>

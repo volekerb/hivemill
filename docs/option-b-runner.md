@@ -82,6 +82,7 @@ None of these guards changes a config key.
 | `auto_revert` | `off` | `on` turns on the mechanical revert |
 | `pass_interval_s` | `60` | daemon: seconds between passes |
 | `resume_max` | `3` | lost sessions resumed per run before FAIL `session lost` |
+| `run_max_working_min` | `180` | minutes a run may stay in `working` in one round without a passing gate. Then one resume; 30 minutes later FAIL `timed out: N minutes in working`. `0`: no limit |
 | `health_max_age_s` | `300` | `hivemill health` fails when the last good pass is older |
 | `alert_every_s` | `3600` | at most one dead-man alert per this many seconds |
 | `backup_interval` | `off` | daemon snapshot schedule (`6h`, `30m`) |
@@ -181,6 +182,10 @@ Every side effect checks before it acts, so a pass that crashed half way can saf
 - the revert task is looked up by title before one is filed.
 
 `TestStepsAreIdempotent` and `TestReconcileResumesALostSessionThenFails` run these steps twice.
+
+**Working time limit.** A session that waits in a loop costs almost nothing, so the budget never stops it. Each round (dispatch, or a resume for red CI or a judge REJECT) may stay in `working` for `run_max_working_min` minutes. The runner writes `run.long_working` at 50% and 100% of the limit. At the limit it sends the session one message ("You have worked N minutes without a passing gate. Stop any wait loop, finish or report what blocks you."). A run still in `working` 30 minutes later is FAIL `timed out: N minutes in working`.
+
+**Dead dependencies.** A todo task whose `depends_on` names a cancelled or failed task can never start. It is a planner level reason, `dead_dep:<task>=<dependency>(cancelled|failed)` (see [hivemill-planner.md](hivemill-planner.md)).
 
 ### Health and alerts
 
