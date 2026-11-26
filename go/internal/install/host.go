@@ -353,7 +353,9 @@ func (h *OSHost) Download(url, dest string) error {
 		},
 	}
 	fail := func(err error) error {
-		if ctx.Err() != nil {
+		// The transport's own timeouts use the same limit and can fire before the idle timer cancels ctx.
+		var ne net.Error
+		if ctx.Err() != nil || (errors.As(err, &ne) && ne.Timeout()) {
 			return stepWrap(fmt.Errorf("timed out after %s without data: %w", idle, err), "cannot fetch "+url)
 		}
 		return stepWrap(err, "cannot fetch "+url)
