@@ -471,6 +471,7 @@ func (r *Runner) fail(run *Run, reason string) {
 		return
 	}
 	_ = r.Store.PutRun(run) // before the close: an unsaved state would be resumed by the next pass
+	r.repointRefiles()      // after the save: it reads the run state
 	r.closeSessions(run)
 }
 
@@ -600,6 +601,7 @@ func (r *Runner) pass(only string, startNew bool) error {
 		r.printf("revert check: %v\n", err)
 	}
 	if only == "" {
+		r.repointRefiles() // a cancel by another tool, or a new dependency on an old id
 		if err := r.reportUnstartable(); err != nil {
 			r.stepErrs++
 			r.printf("unstartable tasks: %v\n", err)
