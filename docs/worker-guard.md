@@ -99,6 +99,20 @@ A worker never changes the shared checkout `~/factory` (branch `main`), where th
 
 Source: shared-checkout git guard, idea from gAmUssA/coding-policy @7a25169 (declares MIT, no LICENSE file); our own code.
 
+## Ref moves (T-0336)
+
+Only the **coder** may run git that creates commits or moves branch or `HEAD` refs. Every other worker role (qa, reviewer, judge, cleaner, pm, scout, evaluator, staff-engineer) is refused these subcommands in any form the parser sees: `commit`, `merge`, `rebase`, `cherry-pick`, `revert`, `am`, `pull`, `reset`, `update-ref`, `symbolic-ref`, `stash`. That covers plain `git`, `git -C <dir>`, `--git-dir` / `--work-tree`, after `cd … ;` / `cd … &&`, inside `sh/bash -c`, `eval` or `$( )`, and wrappers such as `env`, `timeout`, `nice` or `xargs`. A dynamic subcommand (`git $S merge`) is refused (fail closed). Plain-text mentions stay allowed (`grep 'git merge' docs/`, `factory msg … 'git commit'`). **Coder** is unchanged in every worktree.
+
+**Still allowed for qa and reviewer** (and other non-coders where noted): `merge-tree` (including `--write-tree`), `merge-base`, `commit-tree`, `fetch`, and the other read-only subs; `git worktree add --detach <path> <commit>` to check out a tree without moving a branch ref. QA/reviewer merged-tree recipe (no `git merge`):
+
+```text
+T=$(git merge-tree --write-tree origin/main HEAD)
+C=$(git commit-tree "$T" -p HEAD -p origin/main -m msg)
+git worktree add --detach <scratchpad>/mt "$C"
+```
+
+The hook cannot tell a scratchpad **clone** from a live worktree when only `git -C` paths differ, so there is no clone exception: qa/reviewer must use the recipe above or read-only git. **Cleaner** keeps `git worktree remove`, `git worktree prune` and `git branch -d` on the shared checkout (T-0068) plus `factory/*` branch delete (T-0057). Judge merges only through `factory judge` (`bin/factory`, not this hook). `factory refresh` uses `commit-tree` inside `bin/factory` and is unaffected.
+
 ## Repo git config writes (T-0226)
 
 Every task worktree shares `.git/config` with the live checkout `~/factory`, so a worker could plant `filter.<x>.smudge`, `diff.<x>.textconv`, `core.hooksPath`, `core.fsmonitor`, `core.sshCommand` or `remote.<x>.uploadpack` there and have it run as the next agent's plain `git status`. The hook therefore refuses repo-config writes by **allow-list, not by key**, for every worker role and from any cwd:

@@ -910,6 +910,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		if err := a.gitDelete(rest); err != nil {
 			return err
 		}
+		if !a.HQ { // T-0336: after gitDelete so cleaner branch scope still applies
+			if err := a.gitRefMove(rest); err != nil {
+				return err
+			}
+		}
 		if a.noPush() { // T-0755: after gitDelete, whose reason names the branch-deletion rule
 			if err := a.gitAllow(rest); err != nil {
 				return err
