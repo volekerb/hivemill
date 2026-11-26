@@ -2,6 +2,7 @@ package hm
 
 import (
 	"fmt"
+	"path"
 	"slices"
 	"strings"
 
@@ -21,30 +22,58 @@ func FilingProblems(acceptance string) []string {
 	return probs
 }
 
-// wholeModuleGoTest reports a `go test ./...` in the shell command, whatever its flags. After a cd (or go -C) into an
-// internal, cmd or pkg directory, ./... is only that subtree and passes.
-func wholeModuleGoTest(command string) bool {
+// wholeModuleGoTest reports a `go test ./...` in the shell command (also inside `sh -c`), whatever its flags. In an
+// internal, cmd or pkg directory (cd, pushd or go -C), ./... is only that subtree and passes.
+func wholeModuleGoTest(command string) bool { return wholeModuleIn("", command) }
+
+func wholeModuleIn(dir, command string) bool {
 	words, err := shlex.Script(command)
 	if err != nil { // prose with a lone quote after a test: command
 		words = strings.Fields(command)
 	}
-	subtree := func(dir string) bool {
-		return slices.ContainsFunc(strings.Split(dir, "/"), func(s string) bool { return s == "internal" || s == "cmd" || s == "pkg" })
+	join := func(base, to string) string {
+		if path.IsAbs(to) {
+			return to
+		}
+		return path.Join(base, to)
 	}
-	var inGo, inTest, inSub, dashC bool
+	subtree := func(d string) bool {
+		return slices.ContainsFunc(strings.Split(d, "/"), func(s string) bool { return s == "internal" || s == "cmd" || s == "pkg" })
+	}
+	var shells []string // the directory outside each open subshell
+	var inShell, inGo, inTest bool
+	goDir := dir
 	for i, w := range words {
+		next := ""
+		if i+1 < len(words) {
+			next = words[i+1]
+		}
 		switch {
 		case w != "" && strings.Trim(w, "();<>|&") == "": // an operator ends the command
-			inGo, inTest, dashC = false, false, false
-		case w == "cd" && i+1 < len(words):
-			inSub = subtree(words[i+1])
-		case w == "go":
-			inGo, dashC = true, false
-		case inGo && !inTest && w == "-C" && i+1 < len(words):
-			dashC = subtree(words[i+1])
+			for _, c := range w {
+				if c == '(' {
+					shells = append(shells, dir)
+				} else if c == ')' && len(shells) > 0 {
+					dir, shells = shells[len(shells)-1], shells[:len(shells)-1]
+				}
+			}
+			inShell, inGo, inTest = false, false, false
+		case w == "cd" || w == "pushd":
+			dir = join(dir, next)
+		case path.Base(w) == "sh" || path.Base(w) == "bash" || path.Base(w) == "zsh":
+			inShell = true
+		case inShell && strings.HasPrefix(w, "-") && strings.HasSuffix(w, "c"):
+			if wholeModuleIn(dir, next) {
+				return true
+			}
+			inShell = false
+		case path.Base(w) == "go":
+			inGo, inTest, goDir = true, false, dir
+		case inGo && w == "-C":
+			goDir = join(dir, next)
 		case inGo && w == "test":
 			inTest = true
-		case inTest && w == "./..." && !inSub && !dashC:
+		case inTest && w == "./..." && !subtree(goDir):
 			return true
 		}
 	}

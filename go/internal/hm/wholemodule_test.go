@@ -16,6 +16,9 @@ func TestLintRejectsWholeModuleGoTest(t *testing.T) {
 		"cmd:(cd go && go test ./...) => exit 0",
 		"test:cd go && go test ./...",
 		"test:go test -count=1 ./...",
+		"cmd:cd go && ~/.local/go/bin/go test ./... => exit 0",
+		"cmd:(cd go/internal/hm && true); go test ./... => exit 0",
+		"cmd:bash -c 'cd go && go test ./...' => exit 0",
 	} {
 		p := FilingProblems("1. x - " + proof)
 		if len(p) != 1 || !strings.Contains(p[0], "name the packages the task touches (go test ./internal/hm/...); CI runs the full suite") {
@@ -38,6 +41,10 @@ func TestLintAllowsPackageGoTest(t *testing.T) {
 		"cmd:cd go && go test ./internal/hm && go build ./... => exit 0",
 		"cmd:grep -c 'go test ./...' docs/testing.md => 1",
 		"test:go test ./internal/x",
+		"cmd:go test -C go/internal/hm ./... => exit 0",
+		"cmd:cd go/internal && cd hm && go test ./... => exit 0",
+		"cmd:pushd go/internal/hm && go test ./... => exit 0",
+		"cmd:cd go/internal/hm && bash -c 'go test ./...' => exit 0",
 		"manual: the owner runs go test ./... on the device",
 	} {
 		if p := FilingProblems("1. x - " + proof); len(p) != 0 {

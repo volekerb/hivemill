@@ -623,7 +623,11 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		_, stChanged := set["status"]
 		if (accChanged || stChanged) && newStatus != "draft" && newStatus != "done" && newStatus != "cancelled" {
 			var lint strings.Builder
-			if probs := lintReport(&lint, id, newAcc); len(probs) > 0 {
+			probs := lintReport(&lint, id, newAcc)
+			if !accChanged && t.Status != "draft" { // a status change of a filed task: the dispatch gate
+				probs = hm.LintProblems(newAcc)
+			}
+			if len(probs) > 0 {
 				fmt.Fprint(stderr, lint.String())
 				return fail(stderr, fmt.Errorf("%w: %s would be %s with criteria that fail the spec gate", hm.ErrRefused, id, newStatus))
 			}
