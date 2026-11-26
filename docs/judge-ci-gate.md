@@ -29,3 +29,18 @@ Run both together: `factory config judge_ci_gate none` and `factory config red_m
 - `none` covers the judge `--merge` gate and the judge spawn hold only. Projects in local-gate mode (`gate_cmd`) keep their local gate run; that is a local run, not a GitHub PR check, and is out of scope here.
 - `judge --train` and the reviewer auto-spawn/rerun ticks still require green PR checks. Under `none` a PR whose checks stay pending does not get its reviewer from the tick until a follow-up task changes that; the lead may spawn the reviewer by hand.
 - A BEHIND head merges under `none` only when it may merge unrefreshed: `stale_no_refresh=on` (default) or `stale_policy=behind_ok`, and `behind_ok_blocker` allows it (it also refuses when `tests.yml` changed on main).
+
+## Go runner
+
+`hivemill` reads the same factory key, `judge_ci_gate` (`pr`, the default, or `none`), and a per-project override, `projects.ci_gate` (`''` uses the factory key). `hivemill` adds the column when it opens a factory DB that has none; set it with SQL: `UPDATE projects SET ci_gate='pr' WHERE id='<project>'`. Only `none` turns the PR checks off.
+
+Under `none` the project's `gate_cmd` is the CI:
+
+- Dispatch is refused for a project with an empty `gate_cmd`: nothing would test the change.
+- The runner reads no PR check, waits on none and does not apply `required_checks`.
+- The gate runs `gate_cmd` for every risk tier, docs-only included. It runs in a fresh detached worktree of that commit, removed afterwards, as the old chain did, so uncommitted or untracked files in the task clone do not count. A pass counts for that head only.
+- A new PR head (a later push, a refresh) runs `gate_cmd` again, before the judge and before the merge, inside the runner pass (other runs wait meanwhile; the heartbeat and watchdog stay alive). A failure goes back to the task session like red CI and counts against `ci_rounds_max`. `hivemill merge --dry-run` never runs it.
+- The runner posts a result once as a PR comment: exit code, head SHA and log tail. A result of the session's own stop check that the runner never takes up (a red one the session fixes first) is not posted. The tail is left out when the public-text guard does not pass it. A failed post is tried again only while that result is the run's latest.
+- Merge needs `gate_cmd` green on the current head, the judge's MERGE, a mergeable PR and the other checks as under `pr` (identity, public text, tier, frozen repos, red main). The wait on main's own push run stays: it is not a PR check. A repo with no `tests.yml` workflow is not held by it. Never `--admin`.
+- The runner still refreshes a BEHIND branch, then runs `gate_cmd` on the new head. This differs from the old chain.
+- `judge_review_gate=green` does not force `pr` here: that mode merged without a review, and the runner always needs the judge's MERGE.

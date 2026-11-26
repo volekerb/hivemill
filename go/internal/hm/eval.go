@@ -33,8 +33,8 @@ func (r *Runner) EvalStart(id, mode string) error {
 	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
-	if limit := cfgInt(r.Store, "max_concurrent"); r.activeCount() >= limit {
-		return fmt.Errorf("%w: max_concurrent=%d runs are active", ErrRefused, limit)
+	if why := r.runCapBlock(); why != "" {
+		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
 	if t.RepoPath == "" || t.GHRepo == "" {
 		return fmt.Errorf("%w: %s: its project has no repo_path or gh_repo", ErrRefused, id)
@@ -46,6 +46,12 @@ func (r *Runner) EvalStart(id, mode string) error {
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Branch: branch,
 		Agent: "claude-coder-" + strings.ToLower(id) + "-a7", State: Working, Round: 1, Eval: true, EvalMode: mode,
 		Dispatched: nowISO(), RoundStart: nowISO(), Criteria: len(Criteria(t.Acceptance))}
+	if run.CINone, err = r.ciMode(t.Project); err != nil {
+		return err
+	}
+	if cmd, _ := r.projectGate(t.Project); run.CINone && strings.TrimSpace(cmd) == "" {
+		return fmt.Errorf("%w: %s: project %s has ci_gate none and no gate_cmd, so nothing would test it", ErrRefused, id, t.Project)
+	}
 	url := r.findPR(run, t)
 	if url == "" {
 		return fmt.Errorf("%w: %s: no open PR for %s (push the prepared branch and open a draft PR first)", ErrRefused, id, branch)
@@ -103,21 +109,32 @@ func (r *Runner) EvalStart(id, mode string) error {
 	return r.Store.PutRun(run)
 }
 
+// evalBase is the task's kickoff without its steps for opening a PR (an eval has its draft PR), and its last line.
+func evalBase(run *Run, t *Task) (string, string) {
+	base := *run
+	base.CINone = false
+	return Kickoff(&base, t), kickoffEnd(&base)
+}
+
 // EvalKickoff reads like a resumed task: the change is already on the branch, the review and the rest of the role
 // steps are still to do. It does not say the run is an eval.
 func EvalKickoff(run *Run, t *Task) string {
-	k := Kickoff(run, t)
-	return strings.TrimSuffix(k, fmt.Sprintf("\nBranch %s, base %s. Follow your role steps; stop when the PR is open and CI is green.", run.Branch, run.Base)) +
+	k, end := evalBase(run, t)
+	last := "push, wait for CI once and stop"
+	if run.CINone {
+		last = "push and stop (this project has no PR checks to wait for)"
+	}
+	return strings.TrimSuffix(k, end) +
 		fmt.Sprintf("\nBranch %s, base %s. An earlier session of this task has ended after the implementation: the change is committed "+
 			"on the branch and its draft PR %s is open. Do not start over. Continue your role steps from there: check the change "+
 			"against the spec and the criteria, run the affected tests, run /code-review, fix the findings, write the .hivemill files, "+
-			"push, wait for CI once and stop.", run.Branch, run.Base, run.PRURL)
+			"%s.", run.Branch, run.Base, run.PRURL, last)
 }
 
 // EvalReviewKickoff asks only for the review: /code-review on the committed change, findings written, no code change.
 func EvalReviewKickoff(run *Run, t *Task) string {
-	k := Kickoff(run, t)
-	return strings.TrimSuffix(k, fmt.Sprintf("\nBranch %s, base %s. Follow your role steps; stop when the PR is open and CI is green.", run.Branch, run.Base)) +
+	k, end := evalBase(run, t)
+	return strings.TrimSuffix(k, end) +
 		fmt.Sprintf("\nBranch %s, base %s. The change is committed on the branch and its draft PR %s is open. Your only job now is the "+
 			"review step: run /code-review on the branch, wait for it, then write .hivemill/findings.json with every finding and "+
 			"\"resolution\": \"open\". Do not change, commit or push code. Then stop.", run.Branch, run.Base, run.PRURL)
