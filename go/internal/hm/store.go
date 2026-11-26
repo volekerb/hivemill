@@ -853,23 +853,27 @@ func (s *SQLite) RetireAskRef(id int64) error {
 	return err
 }
 
-// RetireRun moves the run of a task aside (key T-x#n), with the refs of its held-run questions: the task has no run
-// again, and the old row stays for the record.
+// RetireHeldAsks ends the held-run questions of a task before it gets a new run: open ones are withdrawn, and none of
+// them (answered ones included) applies to the new run or blocks a question about it.
+func (s *SQLite) RetireHeldAsks(task string) error {
+	if _, err := s.db.Exec(`UPDATE hm_asks SET status='withdrawn', answer='the run was replaced', answered_by='runner', answered=?
+		WHERE status='open' AND (ref=? OR ref LIKE ?)`, nowISO(), "held:"+task, "held:"+task+":%"); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`UPDATE hm_asks SET ref = 'used:' || id || ':' || ref WHERE ref=? OR ref LIKE ?`,
+		"held:"+task, "held:"+task+":%")
+	return err
+}
+
+// RetireRun moves the run of a task aside (key T-x#n) and ends its held-run questions: the task has no run again, and
+// the old row stays for the record.
 func (s *SQLite) RetireRun(task string) error {
-	tx, err := s.db.Begin()
-	if err != nil {
+	if err := s.RetireHeldAsks(task); err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.Exec(`UPDATE hm_runs SET task = task || '#' || (SELECT COUNT(*) FROM hm_runs WHERE task=? OR task LIKE ?)
-		WHERE task=?`, task, task+"#%", task); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`UPDATE hm_asks SET ref = 'used:' || id || ':' || ref WHERE ref=? OR ref LIKE ?`,
-		"held:"+task, "held:"+task+":%"); err != nil {
-		return err
-	}
-	return tx.Commit()
+	_, err := s.db.Exec(`UPDATE hm_runs SET task = task || '#' || (SELECT COUNT(*) FROM hm_runs WHERE task=? OR task LIKE ?)
+		WHERE task=?`, task, task+"#%", task)
+	return err
 }
 
 // CloseAsk answers (status answered) or withdraws (status withdrawn) an open question.

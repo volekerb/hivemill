@@ -153,6 +153,9 @@ func TestRequeueFailedTask(t *testing.T) {
 	if err := r.Requeue("T-0001"); err != nil {
 		t.Fatal(err)
 	}
+	if open, _ := s.Asks("open"); len(open) != 0 {
+		t.Errorf("a question about the retired run stays open: %+v", open)
+	}
 	task, _ := s.Task("T-0001")
 	got, err := r.ReadyIn([]string{"www"})
 	if err != nil || task.Status != "todo" || len(got) != 1 {

@@ -91,6 +91,9 @@ func (r *Runner) answeredHeld(run *Run, list []Terminal, listed bool) {
 		return
 	}
 	a := found[len(found)-1]
+	if t, err := r.Store.Task(run.Task); err != nil || t.Status == "cancelled" {
+		return // the owner cancelled the task: no answer brings it back
+	}
 	if run.PRURL != "" {
 		if pr, err := PRView(r.Tools, run.PRURL); err != nil || pr.State != "OPEN" {
 			return // checkHeld records a merged or closed PR; an unread one waits for the next pass
@@ -115,6 +118,7 @@ func (r *Runner) answeredHeld(run *Run, list []Terminal, listed bool) {
 		}
 	}
 	run.Outcome, run.FailReason, run.Ended, run.MergeHold = "", "", "", ""
+	run.IdleSince, run.IdleNudges, run.Resumes = "", 0, 0 // the counts from before the hold are not this round's
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "internal")
 	if merge {
 		run.State = Merging

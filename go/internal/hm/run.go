@@ -316,6 +316,11 @@ func (r *Runner) Start(id string) error {
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
 		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
 		Mirror: mirror, RemoteHome: remoteHome}
+	if s, err := r.sq(); err == nil { // an answer about an earlier run (stopped, then started again) is not about this one
+		if err := s.RetireHeldAsks(id); err != nil {
+			return err
+		}
+	}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
 	}
@@ -368,9 +373,6 @@ func (r *Runner) Requeue(id string) error {
 				return fmt.Errorf("%w: the worktree of %s is still on %s; try again", ErrRefused, id, run.Machine)
 			}
 		}
-		if err := s.RetireRun(id); err != nil {
-			return err
-		}
 	}
 	// the old run's PR is not the new run's: an open one on the branch is found again by its head
 	if err := r.Store.TaskPR(id, "", ""); err != nil {
@@ -378,6 +380,12 @@ func (r *Runner) Requeue(id string) error {
 	}
 	if err := r.Store.TaskStatus(id, "todo", "internal"); err != nil {
 		return err
+	}
+	// last: a requeue that failed above can be run again, and a run still in place is never dispatched over
+	if run != nil {
+		if err := s.RetireRun(id); err != nil {
+			return err
+		}
 	}
 	_ = r.Store.Event(r.actor(), "task", id, "run-requeue", nil)
 	r.printf("%s: todo again; the next dispatch starts a new run\n", id)
