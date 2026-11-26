@@ -693,6 +693,7 @@ func stepClone(c *Ctx) (string, error) {
 }
 
 func stepLink(c *Ctx) (string, error) {
+	installSkills(c)
 	target := filepath.Join(c.fh, "bin", "factory")
 	if c.plan {
 		c.emit(fmt.Sprintf("    $ ln -s %s %s", target, c.factory))

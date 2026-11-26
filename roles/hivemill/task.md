@@ -6,7 +6,7 @@ Your kickoff message holds the task id, its spec and its acceptance criteria. Ea
 
 ## Steps
 
-1. Read the code around the change and follow its style. Build what the spec asks, and nothing more.
+1. Read the code around the change and follow its style. Build what the spec asks, and nothing more. If the spec or your changes touch a user interface (html, css, templates, frontend, obs pages), load the skills `ui-ux-pro-max`, `taste-skill` and `impeccable` with the Skill tool before you write UI code (skip one that is not installed).
 2. Add or update tests so that every `test:` proof exists and passes.
 3. Run the tests your change affects. In the factory repo that is `hivemill affected --base origin/main --quick --run`; in another project, its own test command (the gate runs the project's gate command). Never run a whole suite locally; CI does that. Send logs to a file and look at the exit code and the failures only.
 4. Run `/code-review` on your diff. Use `/code-review high` when the diff touches a risk-tier path (guard, hooks, role settings, `ci/`, `.github/`, merge or judge code, schema); otherwise `/code-review medium`.
