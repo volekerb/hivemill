@@ -357,7 +357,7 @@ class RealGitTest(unittest.TestCase):
         self.assertFalse((Path(self.repo) / "scout").exists())
         lines = []
         code = rc.main([self.sha, "--version", "0.3.1", "--repo", "acme/widget"], run=self.runner, probe=lambda a, e, p: (True, "ok"),
-                       root=self.repo, out=lines.append, env=dict(os.environ))
+                       root=self.repo, out=lines.append, env=dict(os.environ, FACTORY_HOME=self.repo))
         self.assertEqual(([status(lines, c) for c in CHECKS], code), (["PASS"] * len(CHECKS), 0), lines)
 
     def test_commit_off_main_fails_on_main_real_repo(self):

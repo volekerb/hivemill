@@ -11,7 +11,7 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Removed
 
-- **The release check no longer needs `scout/` or the cursor adapter.** The `cursor-runtime` check and its required `scout/` and cursor adapter files are gone from `ci/release_check.py` and the Go gate; the other checks are unchanged (T-1934).
+- **The release check drops its `cursor-runtime` check.** `ci/release_check.py` and the Go gate no longer require the `scout/` runtime files or the cursor adapter by name; the other checks are unchanged (T-1934).
 
 ### Fixed
 
