@@ -117,6 +117,23 @@ func TestRefileRepointsAfterCancel(t *testing.T) {
 	late := refileAdd(t, s, "zz-test late", "todo", `["T-0001"]`)
 	repoint(t, r)
 	wantDeps(t, s, late, `["T-0004"]`)
+
+	// the replacement is dropped and the first id is filed again: the dependents move on
+	cancelTask(t, s, third)
+	fourth := refileAdd(t, s, "zz-test fourth", "todo", "[]") // T-0006
+	refileOf(t, s, fourth, old)
+	repoint(t, r)
+	wantDeps(t, s, dep, `["T-0006"]`)
+
+	// a run held for the owner may still merge: its task is not failed
+	held := refileAdd(t, s, "zz-test held", "blocked", "[]")                  // T-0007
+	onHeld := refileAdd(t, s, "zz-test on held", "todo", `["T-0007"]`)        // T-0008
+	refileOf(t, s, refileAdd(t, s, "zz-test held again", "todo", "[]"), held) // T-0009
+	if err := s.PutRun(&Run{Task: held, State: Held}); err != nil {
+		t.Fatal(err)
+	}
+	repoint(t, r)
+	wantDeps(t, s, onHeld, `["T-0007"]`)
 }
 
 // A planner title "(re-file of T-x" counts as the flag.
@@ -131,4 +148,17 @@ func TestRefileTitleFallback(t *testing.T) {
 	cancelTask(t, s, b)
 	repoint(t, r)
 	wantDeps(t, s, dep, `["T-0004","T-0005"]`)
+
+	// a split: the flagged piece takes the dependents, not a later piece with the title only
+	c := refileAdd(t, s, "zz-test c", "todo", "[]")                 // T-0006
+	onC := refileAdd(t, s, "zz-test on c", "todo", `["T-0006"]`)    // T-0007
+	flagged := refileAdd(t, s, "zz-test c, the part", "todo", "[]") // T-0008
+	refileAdd(t, s, "(re-file of T-0006) zz-test other part", "todo", "[]")
+	refileOf(t, s, flagged, c)
+	cancelTask(t, s, c)
+	repoint(t, r)
+	wantDeps(t, s, onC, `["T-0008"]`)
+	if all, _ := r.Log.Read(); len(all) == 0 || all[len(all)-1].Project != "www" {
+		t.Errorf("the event names no project: %+v", all)
+	}
 }

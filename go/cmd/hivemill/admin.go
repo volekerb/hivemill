@@ -503,8 +503,15 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			if !taskRe.MatchString(of) {
 				return fail(stderr, fmt.Errorf("--refile-of: %q is not a task id", of))
 			}
-			if _, err := s.Task(of); err != nil {
+			old, err := s.Task(of)
+			if err != nil {
 				return fail(stderr, fmt.Errorf("--refile-of: %w", err))
+			}
+			if g, err := s.Goal(strings.ToUpper(*goal)); err == nil && g.Project != old.Project {
+				return fail(stderr, fmt.Errorf("%w: --refile-of %s is a task of another project", hm.ErrRefused, of))
+			}
+			if strings.Contains(deps, `"`+of+`"`) {
+				return fail(stderr, fmt.Errorf("%w: --depends names %s, which this task files again: it could never start", hm.ErrRefused, of))
 			}
 		}
 		id, err := s.AddTask(strings.ToUpper(*goal), strings.TrimSpace(*title), sp, a, status, deps, *prio)

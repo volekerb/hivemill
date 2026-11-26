@@ -22,12 +22,12 @@ func (s *SQLite) SetRefileOf(task, of string) error {
 }
 
 type refileRow struct {
-	id, goal, title, status, depends, of, run string
+	id, goal, project, title, status, depends, of string
 }
 
 func (s *SQLite) refileRows() ([]refileRow, error) {
-	rows, err := s.db.Query(`SELECT t.id, t.goal_id, t.title, t.status, t.depends_on, COALESCE(f.refile_of,''), COALESCE(h.state,'')
-		FROM tasks t LEFT JOIN hm_refile f ON f.task=t.id LEFT JOIN hm_runs h ON h.task=t.id ORDER BY t.id`)
+	rows, err := s.db.Query(`SELECT t.id, t.goal_id, COALESCE(g.project_id,''), t.title, t.status, t.depends_on, COALESCE(f.refile_of,'')
+		FROM tasks t LEFT JOIN goals g ON g.id=t.goal_id LEFT JOIN hm_refile f ON f.task=t.id ORDER BY t.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (s *SQLite) refileRows() ([]refileRow, error) {
 	var out []refileRow
 	for rows.Next() {
 		var x refileRow
-		if err := rows.Scan(&x.id, &x.goal, &x.title, &x.status, &x.depends, &x.of, &x.run); err != nil {
+		if err := rows.Scan(&x.id, &x.goal, &x.project, &x.title, &x.status, &x.depends, &x.of); err != nil {
 			return nil, err
 		}
 		out = append(out, x)
@@ -60,17 +60,31 @@ func (r *Runner) RepointRefiles() error {
 	if err != nil {
 		return err
 	}
-	dead, refiles := map[string]bool{}, map[string][]string{}
+	runs, err := s.Runs()
+	if err != nil {
+		return err
+	}
+	failed := map[string]bool{}
+	for _, x := range runs {
+		// a run held for the owner may still merge
+		failed[x.Task] = x.State == Failed && !heldForOwner(&x)
+	}
+	dead, refiles, origin, flagged := map[string]bool{}, map[string][]string{}, map[string]string{}, map[string]bool{}
 	for _, t := range tasks {
 		// a failed run leaves its task blocked; a task set back to todo or done after it is not failed any more
-		dead[t.id] = t.status == "cancelled" || (t.run == Failed && t.status == "blocked")
+		dead[t.id] = t.status == "cancelled" || (failed[t.id] && t.status == "blocked")
+		flagged[t.of] = true
+	}
+	for _, t := range tasks {
 		of := t.of
-		if m := refileTitle.FindStringSubmatch(t.title); of == "" && m != nil {
+		// the flag beats titles: on a split, only the flagged piece takes the dependents
+		if m := refileTitle.FindStringSubmatch(t.title); of == "" && m != nil && !flagged[strings.ToUpper(m[1])] {
 			of = strings.ToUpper(m[1])
 		}
 		// only a later id re-files an earlier one, so the chains cannot loop
 		if of != "" && taskNum(t.id) > taskNum(of) {
 			refiles[of] = append(refiles[of], t.id)
+			origin[t.id] = of
 		}
 	}
 	var successor func(string) string
@@ -95,10 +109,14 @@ func (r *Runner) RepointRefiles() error {
 		}
 		next, moved := []string{}, [][2]string{}
 		for _, d := range deps {
-			if dead[d] {
-				if to := successor(d); to != "" && to != t.id {
-					moved = append(moved, [2]string{d, to})
-					d = to
+			// a dead re-file with no successor of its own: another re-file of what it replaced takes over
+			for o := d; dead[d] && o != ""; o = origin[o] {
+				if to := successor(o); to != "" {
+					if to != t.id {
+						moved = append(moved, [2]string{d, to})
+						d = to
+					}
+					break
 				}
 			}
 			if !slices.Contains(next, d) {
@@ -120,7 +138,7 @@ func (r *Runner) RepointRefiles() error {
 		}
 		for _, m := range moved {
 			r.printf("%s: depends %s -> %s (re-filed)\n", t.id, m[0], m[1])
-			_ = r.Log.Emit("task.depends_repointed", nil, Event{TaskID: t.id, GoalID: t.goal, Data: map[string]any{"from": m[0], "to": m[1]}})
+			_ = r.Log.Emit("task.depends_repointed", nil, Event{TaskID: t.id, GoalID: t.goal, Project: t.project, Data: map[string]any{"from": m[0], "to": m[1]}})
 		}
 	}
 	return nil
