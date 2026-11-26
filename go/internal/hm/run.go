@@ -23,10 +23,10 @@ const (
 	Failed    = "failed"
 	Reverted  = "reverted"
 	Cancelled = "cancelled"
-	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, holds no slot
+	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, counts against max_waiting
 )
 
-// Active reports whether a run still holds a slot.
+// Active reports whether a run is unfinished and each pass advances it; busy and waiting say which cap it counts against.
 func Active(state string) bool {
 	switch state {
 	case Working, Gated, Judging, Judged, Merging:
@@ -47,9 +47,12 @@ type Runner struct {
 	ReadyWait time.Duration
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
-	usageFiles  [][]byte               // the remote usage files of this pass
-	usageRead   bool                   // usageFiles has been read in this pass
-	loads       map[string]loadReading // CPU load per machine, see load.go
+	// SSH runs command on a clone-mode session machine, with stdin (clonemachine.go).
+	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	usageFiles [][]byte               // the remote usage files of this pass
+	usageRead  bool                   // usageFiles has been read in this pass
+	inDaemon   bool                   // this process runs the daemon's passes
+	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -58,7 +61,7 @@ func NewRunner(e Env, out io.Writer) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{Env: e, Store: s, Tools: RealTools(e), Out: out, Poll: 2 * time.Second, RemoteUsage: readRemoteUsage,
+	return &Runner{Env: e, Store: s, Tools: RealTools(e), Out: out, Poll: 2 * time.Second, RemoteUsage: readRemoteUsage, SSH: sshTransport,
 		Log: Log{Path: filepath.Join(e.StateDir(), "events.jsonl"), Machine: s.Cfg("machine_name")}}, nil
 }
 
@@ -108,15 +111,58 @@ func (r *Runner) ModelFor(risky bool) (string, string, error) {
 	return m, eff, nil
 }
 
-func (r *Runner) activeCount() int {
+// busy reports whether a run does work: its session writes or judges, or the runner runs its proofs or gate_cmd (the
+// gate and the eval gate run while the run is still working). Only these runs count against max_concurrent.
+func busy(state string) bool { return state == Working || state == Judging }
+
+// waiting reports whether an unfinished run does no work: it waits for CI (gated), for the merge (judged, merging) or
+// for the owner (held). These runs count against max_waiting.
+func waiting(x *Run) bool {
+	return (Active(x.State) && !busy(x.State)) || (heldForOwner(x) && !x.Eval)
+}
+
+// runCounts is the number of busy and of waiting runs.
+func (r *Runner) runCounts() (working, waits int) {
 	runs, _ := r.Store.Runs()
-	n := 0
-	for _, x := range runs {
-		if Active(x.State) {
-			n++
+	for i := range runs {
+		switch {
+		case busy(runs[i].State):
+			working++
+		case waiting(&runs[i]):
+			waits++
 		}
 	}
-	return n
+	return working, waits
+}
+
+// runCapBlock says why the run caps hold a new run now ("" = they do not).
+func (r *Runner) runCapBlock() string {
+	if why := r.waitingBlock(); why != "" {
+		return why
+	}
+	working, _ := r.runCounts()
+	if limit := cfgInt(r.Store, "max_concurrent"); working >= limit {
+		return fmt.Sprintf("max_concurrent=%d runs are working", limit)
+	}
+	return ""
+}
+
+// waitingBlock is the max_waiting part of runCapBlock. Reaching the cap emits one dispatch.paused_waiting event; the
+// next one comes only after the count has been seen below the cap again.
+func (r *Runner) waitingBlock() string {
+	_, waits := r.runCounts()
+	if limit := cfgInt(r.Store, "max_waiting"); waits >= limit {
+		why := fmt.Sprintf("max_waiting=%d: %d runs wait for CI, a merge or the owner", limit, waits)
+		if r.Store.Meta("waiting_paused") == "" {
+			_ = r.Log.Emit("dispatch.paused_waiting", nil, Event{Data: map[string]any{"why": why, "waiting": waits, "max_waiting": limit}})
+			_ = r.Store.SetMeta("waiting_paused", nowISO())
+		}
+		return why
+	}
+	if r.Store.Meta("waiting_paused") != "" {
+		_ = r.Store.SetMeta("waiting_paused", "")
+	}
+	return ""
 }
 
 // Candidates are ready tasks a plain pass may start (config projects): deps done, spec set, spec gate passing.
@@ -166,11 +212,19 @@ func (r *Runner) Start(id string) error {
 	if probs := LintProblems(t.Acceptance); len(probs) > 0 {
 		return fmt.Errorf("%w: %s fails the spec gate (`hivemill task lint %s`):\n  - %s", ErrRefused, id, id, strings.Join(probs, "\n  - "))
 	}
+	ciNone, err := r.ciMode(t.Project)
+	if err != nil {
+		return err
+	}
+	if cmd, _ := r.projectGate(t.Project); ciNone && strings.TrimSpace(cmd) == "" {
+		return fmt.Errorf("%w: %s: project %s has ci_gate none and no gate_cmd, so nothing would test it; set a gate_cmd or ci_gate pr",
+			ErrRefused, id, t.Project)
+	}
 	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
-	if limit := cfgInt(r.Store, "max_concurrent"); r.activeCount() >= limit {
-		return fmt.Errorf("%w: max_concurrent=%d runs are active", ErrRefused, limit)
+	if why := r.runCapBlock(); why != "" {
+		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
 	if r.Draining() {
 		return fmt.Errorf("%w: drain mode is on (`hivemill resume` lifts it)", ErrRefused)
@@ -202,6 +256,19 @@ func (r *Runner) Start(id string) error {
 	if branch == "" {
 		branch = "factory/" + strings.ToLower(id)
 	}
+	// held until the run is saved: the removal of an ended run's remote worktree takes it too
+	l := r.lock(id, false)
+	if l == nil {
+		return fmt.Errorf("%w: %s is busy; try again", ErrRefused, id)
+	}
+	locked := true
+	unlock := func() {
+		if locked {
+			locked = false
+			l.Close()
+		}
+	}
+	defer unlock()
 	var pl Placement
 	if caps.Probe { // the probe refreshes the local reading, which needs no remote read to be seen
 		pl.Skipped = []string{"the usage probe runs only on the local core"}
@@ -212,7 +279,19 @@ func (r *Runner) Start(id string) error {
 	if err != nil {
 		return err
 	}
-	if pl.Machine != "" {
+	mirror, remoteHome := "", ""
+	if pl.Machine != "" && r.cloneMode(pl.Machine) { // its own clone there; the one here stays as the mirror
+		rhome, err := r.remoteHomeOf(pl.Machine)
+		remote := ""
+		if err == nil {
+			remote, err = r.remoteWorktree(pl.Machine, rhome, t, branch)
+		}
+		if err != nil {
+			pl.Skipped, pl.Machine = append(pl.Skipped, pl.Machine+": "+err.Error()), ""
+		} else {
+			mirror, remoteHome, wt = wt, rhome, remote
+		}
+	} else if pl.Machine != "" {
 		if why := r.cloneOn(pl.Machine, wt); why != "" {
 			pl.Skipped, pl.Machine = append(pl.Skipped, pl.Machine+": "+why), ""
 		}
@@ -225,17 +304,21 @@ func (r *Runner) Start(id string) error {
 	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
 	// session's first mid-work stop as a gate attempt, and they describe another head.
 	for _, f := range []string{"findings.json", "evidence.json"} {
-		_ = os.Remove(filepath.Join(wt, ".hivemill", f))
+		if mirror == "" { // remoteWorktree removed them in a remote worktree
+			_ = os.Remove(filepath.Join(wt, ".hivemill", f))
+		}
 	}
 	// The worker guard (unchanged) lets a pane push only HEAD:factory/<task> for FACTORY_AGENT
 	// claude-coder-t-NNNN(-aN); the lane's own suffix -a7 keeps the name apart from old-pipeline coders.
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
-		Criteria: len(Criteria(t.Acceptance)), Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t)}
+		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
+		Mirror: mirror, RemoteHome: remoteHome}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
 	}
+	unlock()
 	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why,
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
@@ -243,7 +326,7 @@ func (r *Runner) Start(id string) error {
 	if err := r.launchTask(run, Kickoff(run, t)); err != nil {
 		return err
 	}
-	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], wt,
+	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,
 		machineLabel(pl.Machine))
 	return nil
 }
@@ -272,6 +355,15 @@ func (r *Runner) launchTask(run *Run, kickoff string) error {
 	return nil
 }
 
+// kickoffEnd is the last line of a kickoff; without PR checks there is no green CI to stop on.
+func kickoffEnd(run *Run) string {
+	until := "the PR is open and CI is green"
+	if run.CINone {
+		until = "the PR is open"
+	}
+	return fmt.Sprintf("\nBranch %s, base %s. Follow your role steps; stop when %s.", run.Branch, run.Base, until)
+}
+
 // Kickoff is the first message of a task session: the task itself, so the session needs no lookup.
 func Kickoff(run *Run, t *Task) string {
 	var b strings.Builder
@@ -285,7 +377,11 @@ func Kickoff(run *Run, t *Task) string {
 	if run.WorkflowAgents > 0 {
 		fmt.Fprintf(&b, "\n%s\n", workflowRequest(run.WorkflowAgents))
 	}
-	fmt.Fprintf(&b, "\nBranch %s, base %s. Follow your role steps; stop when the PR is open and CI is green.", run.Branch, run.Base)
+	if run.CINone {
+		b.WriteString("\nThis project has no PR checks (ci_gate none): the factory runs the project's gate command as the CI. " +
+			"Skip the CI wait of your role steps (no `gh pr checks`): push, open the PR and stop.\n")
+	}
+	b.WriteString(kickoffEnd(run))
 	return b.String()
 }
 
@@ -374,12 +470,19 @@ func (r *Runner) fail(run *Run, reason string) {
 }
 
 // resume sends text to the same warm task session and starts a new round.
-func (r *Runner) resume(run *Run, text string) {
+func (r *Runner) resume(run *Run, text string) { r.resumeAs(run, "resume", text) }
+
+// resumeAs is resume with the kind the prompt is recorded under.
+func (r *Runner) resumeAs(run *Run, kind, text string) {
 	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
 	// are deferred until the session writes fresh findings.
 	if run.Worktree != "" {
 		dir := filepath.Join(run.Worktree, ".hivemill")
-		_ = os.Rename(filepath.Join(dir, "findings.json"), filepath.Join(dir, fmt.Sprintf("findings-r%d.json", run.Round)))
+		old := fmt.Sprintf("findings-r%d.json", run.Round)
+		if err := r.at(run).rename(filepath.Join(dir, "findings.json"), filepath.Join(dir, old)); err != nil {
+			r.printf("%s: %v\n", run.Task, err)
+			text = "First move .hivemill/findings.json to .hivemill/" + old + " (the factory could not). " + text
+		}
 	}
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
@@ -388,6 +491,7 @@ func (r *Runner) resume(run *Run, text string) {
 		r.fail(run, "cannot reach the task session: "+err.Error())
 		return
 	}
+	r.recordPrompt(run, "task", kind, text)
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-resume", truncate(text, 300))
 }
 
@@ -411,6 +515,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
+	defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
 	if err != nil {
@@ -437,6 +542,8 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.RevertCheck(); err != nil {
 		r.printf("revert check: %v\n", err)
 	}
+	// every pass records a waiting pause that starts or ends, also one that dispatches nothing below
+	paused := r.waitingBlock()
 	if !startNew || r.Draining() {
 		return nil
 	}
@@ -447,12 +554,16 @@ func (r *Runner) Pass(startNew bool) error {
 		r.printf("dispatch held: %s\n", why)
 		return nil
 	}
+	if paused != "" {
+		r.printf("dispatch held: %s\n", paused)
+		return nil
+	}
 	cands, err := r.Candidates()
 	if err != nil {
 		return err
 	}
 	for _, t := range cands {
-		if r.activeCount() >= cfgInt(r.Store, "max_concurrent") {
+		if r.runCapBlock() != "" {
 			break
 		}
 		if err := r.Start(t.ID); err != nil {
@@ -519,6 +630,7 @@ func (r *Runner) gated(run *Run) {
 		r.ciOverdue(run, now) // an unreadable PR is a pending one
 		return
 	}
+	run.MergeHold = "" // set again below by what still holds the run
 	switch {
 	case pr.State == "MERGED" && run.Eval:
 		r.fail(run, "eval PR was merged outside the runner: eval runs are never merged")
@@ -529,31 +641,41 @@ func (r *Runner) gated(run *Run) {
 	case pr.Mergeable == "CONFLICTING":
 		run.History = append(run.History, fmt.Sprintf("round %d: the PR conflicts with %s", run.Round, run.Base))
 		r.resume(run, fmt.Sprintf("Your PR conflicts with %s. Run `git fetch origin && git merge origin/%s`, resolve, re-run the "+
-			"affected tests, push, wait for CI once and stop.", run.Base, run.Base))
+			"affected tests, %s.", run.Base, run.Base, r.pushAndStop(run.Project)))
 	default:
 		run.Head, run.MergeHold = pr.HeadRefOid, ""
 		r.ciPolled(run, now)
-		verdict, failed := CIVerdict(pr.Checks)
-		switch {
-		case verdict != "green":
-			run.CI.Green = 0
-		case run.CI.Green == 0:
-			run.CI.Green = now.Unix()
+		var verdict string
+		var failed []string
+		none, err := r.ciMode(run.Project)
+		if err != nil {
+			run.MergeHold = err.Error()
+			r.ciOverdue(run, now)
+			return
 		}
-		if verdict == "green" && !r.ciSettled(run, pr.Checks, now) {
-			verdict = "pending"
+		if none {
+			if err := r.localCI(run, pr.HeadRefOid); err != nil {
+				run.MergeHold = err.Error()
+				r.ciOverdue(run, now)
+				return
+			}
+			r.postLocalCI(run)
+			verdict, failed = run.LocalCI.verdict(pr.HeadRefOid)
+		} else {
+			verdict, failed = CIVerdict(pr.Checks)
+			switch {
+			case verdict != "green":
+				run.CI.Green = 0
+			case run.CI.Green == 0:
+				run.CI.Green = now.Unix()
+			}
+			if verdict == "green" && !r.ciSettled(run, pr.Checks, now) {
+				verdict = "pending"
+			}
 		}
 		switch verdict {
 		case "red":
-			run.CIRounds++
-			_ = r.Log.Emit("ci.red", run, Event{Data: map[string]any{"failed": failed, "ci_round": run.CIRounds}})
-			if run.CIRounds > cfgInt(r.Store, "ci_rounds_max") {
-				r.fail(run, fmt.Sprintf("CI red %d times: %s", run.CIRounds, strings.Join(failed, ", ")))
-				return
-			}
-			run.History = append(run.History, fmt.Sprintf("round %d: CI red (%s)", run.Round, strings.Join(failed, ", ")))
-			r.resume(run, "CI is red on your PR: "+strings.Join(failed, ", ")+". Read the failing log (`gh run view --log-failed`), "+
-				"fix it, push, wait for CI once with one blocking command, and stop.")
+			r.redCI(run, failed)
 		case "green":
 			if err := r.StartJudge(run); err != nil {
 				r.fail(run, "the judge did not start: "+err.Error())
@@ -589,14 +711,26 @@ func (r *Runner) judged(run *Run) {
 		r.fail(run, fmt.Sprintf("judge REJECT x%d: %s", run.JudgeRounds, reasons))
 		return
 	}
-	r.resume(run, "The judge rejected the PR. Fix this, push, wait for CI once and stop:\n- "+strings.Join(v.Reasons, "\n- "))
+	r.resumeAs(run, "judge", "The judge rejected the PR. Fix this, "+r.pushAndStop(run.Project)+":\n- "+strings.Join(v.Reasons, "\n- "))
 }
 
 // Stop cancels a run: its terminals close and the task goes back to todo.
 func (r *Runner) Stop(task string) error {
+	// a gate of this task holds the lock and saves the run when it ends: cancel after it, or the cancel is lost
+	l := r.lock(task, false)
+	if l == nil {
+		r.printf("%s: waiting for a running step of the task (a gate) to end\n", task)
+		l = r.lock(task, true)
+	}
+	if l != nil {
+		defer l.Close()
+	}
 	run, err := r.Store.Run(task)
 	if err != nil || run == nil {
 		return fmt.Errorf("no run for %s", task)
+	}
+	if run.State == Merged { // the step waited for has merged it
+		return fmt.Errorf("%w: %s is merged already", ErrRefused, task)
 	}
 	r.closeSessions(run)
 	r.endCIWait(run)
@@ -615,7 +749,7 @@ func (r *Runner) Status() error {
 	}
 	for _, x := range runs {
 		hold := ""
-		if x.State == Merging && x.MergeHold != "" {
+		if (x.State == Merging || x.State == Gated) && x.MergeHold != "" {
 			hold = " hold: " + truncate(x.MergeHold, 100)
 		}
 		r.printf("%s %-9s round %d blocks %d judge %d ci %d on %s %s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
@@ -675,8 +809,15 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 		return
 	}
 	run.IdleNudges++
-	_ = r.Prompt(run.Agent, "You stopped before your task was finished. Continue your role steps from where you are: finish the "+
-		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop.")
+	wait := "wait for CI once, then stop"
+	if r.ciNone(run.Project) {
+		wait = "then stop (this project has no PR checks to wait for)"
+	}
+	nudge := "You stopped before your task was finished. Continue your role steps from where you are: finish the " +
+		"review, write the .hivemill files, push, open the PR, " + wait + "."
+	if r.Prompt(run.Agent, nudge) == nil {
+		r.recordPrompt(run, "task", "nudge", nudge)
+	}
 	_ = r.Log.Emit("session.nudged", run, Event{Role: "task"})
 }
 
