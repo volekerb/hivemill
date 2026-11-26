@@ -302,6 +302,43 @@ export default class Dashboard extends View {
     return sec;
   }
 
+  // Every machine with its figures: sessions, memory, load, disk, swap, uptime. A figure turns red past its limit.
+  resources(t, k, d, views) {
+    const rows = machineRows(d);
+    if (!rows.length) return null;
+    const gb = (mb) => (mb / 1024).toFixed(mb >= 10240 ? 0 : 1);
+    const fac = {};
+    for (const v of views.filter((x) => x.loaded)) for (const m of v.machines) fac[m.name] = { ...m, cap: v.cap };
+    const COLS = [["Sessions", 84], ["Memory used", 112], ["Load", 92], ["Disk free", 84], ["Swap used", 100], ["Up", 56]];
+    const cell = (w, text, bad) => h_flex().flex_none().w(w).justify_end().child(div().text_size(13).text_color(text === "–" ? k.dim : bad ? k.bad : k.fg).child(text));
+    const box = v_flex().rounded(8).border(1).border_color(k.line).bg(t.surface).overflow_hidden();
+    box.child(h_flex().px(14).pt(10).pb(8).gap(12).items_center().border_b(1).border_color(k.line).text_size(12).text_color(k.dim)
+      .child(div().flex_1().min_w(0).child("Machine"))
+      .children(COLS.map(([label, w]) => h_flex().flex_none().w(w).justify_end().child(label))));
+    rows.forEach((m, i) => {
+      const f = fac[m.name ?? ""] ?? null;
+      const memUsed = m.mem_total_mb && m.mem_available_mb != null ? 1 - m.mem_available_mb / m.mem_total_mb : null;
+      const load = m.load?.[0];
+      const swap = m.swap_total_mb > 0 ? m.swap_used_mb / m.swap_total_mb : null;
+      const diskLow = m.disk_free_gb != null && m.disk_total_gb && (m.disk_free_gb < 20 || m.disk_free_gb / m.disk_total_gb < 0.05);
+      const sub = !m.ok ? `unreachable${m.at ? `, last seen ${ago(m.at)} ago` : ""}`
+        : [m.role ? "runs a factory" : null, [m.os, m.arch].filter(Boolean).join(" ") || null, m.cpus ? `${m.cpus} cores` : null].filter(Boolean).join(", ");
+      const sessions = f ? (f.down ? "down" : `${f.running}${f.cap != null ? ` of ${f.cap}` : ""}`) : m.agents ? String(m.agents) : "–";
+      const row = h_flex().id(`res-${m.key}`).px(14).py(10).gap(12).items_center()
+        .child(v_flex().flex_1().min_w(0)
+          .child(div().truncate().text_size(13).font_semibold().text_color(k.fg).child(m.label))
+          .child(div().truncate().text_size(12).text_color(m.ok ? k.dim : k.bad).child(sub)))
+        .child(cell(84, m.ok ? sessions : "–", Boolean(f?.down)))
+        .child(cell(112, m.ok && m.mem_total_mb ? `${gb(m.mem_total_mb - (m.mem_available_mb ?? 0))} of ${gb(m.mem_total_mb)} GB` : "–", memUsed != null && memUsed >= 0.92))
+        .child(cell(92, m.ok && load != null ? `${load.toFixed(1)}${m.cpus ? ` of ${m.cpus}` : ""}` : "–", load != null && m.cpus && load / m.cpus >= 0.95))
+        .child(cell(84, m.ok && m.disk_free_gb != null ? `${m.disk_free_gb} GB` : "–", diskLow))
+        .child(cell(100, m.ok && swap != null && !hidden("swap") ? `${gb(m.swap_used_mb)} of ${gb(m.swap_total_mb)} GB` : "–", swap != null && swap >= 0.95))
+        .child(cell(56, m.ok && m.uptime_s ? dur(m.uptime_s) : "–", false));
+      box.child(i < rows.length - 1 ? row.border_b(1).border_color(k.line) : row);
+    });
+    return v_flex().child(this.heading(k, "Resources", "sessions are the factory's count; load is the 1-minute average")).child(box);
+  }
+
   aside(t, k, d, views) {
     const col = v_flex();
     const u = usage(d);
@@ -328,22 +365,6 @@ export default class Dashboard extends View {
       col.child(h_flex().pt(4).text_size(13).child(this.link(k, "spend-open", "Spend by day and task", () => openUrl(webUrl("/spend", live[0].factory)))));
     }
 
-    const rows = machineRows(d);
-    if (rows.length) {
-      col.child(this.heading(k, "Machines"));
-      rows.forEach((m, i) => {
-        const bad = [];
-        if (!m.ok) bad.push(`unreachable${m.at ? `, last seen ${ago(m.at)} ago` : ""}`);
-        else {
-          if (m.swap_total_mb && m.swap_used_mb / m.swap_total_mb >= 0.95 && !hidden("swap")) bad.push(`swap full, ${((m.mem_available_mb ?? 0) / 1024).toFixed(1)} GB RAM free`);
-          if (m.disk_free_gb != null && m.disk_total_gb && (m.disk_free_gb < 20 || m.disk_free_gb / m.disk_total_gb < 0.05)) bad.push(`${m.disk_free_gb} GB disk free`);
-        }
-        const row = h_flex().id(`mach-${m.key}`).py(6).gap(12)
-          .child(div().flex_none().text_size(13).text_color(k.fg).child(m.label))
-          .child(h_flex().flex_1().min_w(0).justify_end().child(div().truncate().text_size(13).text_color(bad.length ? k.bad : k.dim).child(bad.length ? bad.join(", ") : "fine")));
-        col.child(i < rows.length - 1 ? row.border_b(1).border_color(k.line) : row);
-      });
-    }
     return col;
   }
 
@@ -366,6 +387,8 @@ export default class Dashboard extends View {
     if (items.length) main.child(this.needsList(k, items));
     for (const a of notes) main.child(div().pt(10).text_size(13).text_color(a.level === "danger" ? k.bad : k.muted).child(a.text));
     main.child(this.heading(k, "Factories", "today")).child(this.factoriesTable(t, k, views));
+    const res = this.resources(t, k, d, views);
+    if (res) main.child(res);
     for (const v of views.filter((x) => x.loaded)) {
       const look = this.lookSection(k, v);
       if (look) main.child(look);
