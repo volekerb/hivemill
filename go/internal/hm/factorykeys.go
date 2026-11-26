@@ -83,13 +83,15 @@ func CheckFactoryKey(key, value string) error {
 	return nil
 }
 
-// repoEntry is the slug of one entry of a repo list. A list split on spaces or semicolons would match no repo, and so
-// check nothing: such an entry is not one.
+// repoEntry is the slug of one entry of a repo list. A list split on anything but commas would match no repo, and so
+// check nothing: an entry is one only when its slug is a plain OWNER/NAME.
 func repoEntry(x string) (string, bool) {
-	if strings.ContainsAny(strings.TrimSpace(x), " \t\r\n;") {
+	s, ok := guard.CIRepoSlug(x)
+	// CIRepoSlug keeps the last two path parts, so a space further left would go unseen
+	if !ok || !slugRe.MatchString(s) || strings.ContainsAny(strings.TrimSpace(x), " \t\r\n;|") {
 		return "", false
 	}
-	return guard.CIRepoSlug(x)
+	return s, true
 }
 
 // SetFactoryKey checks and writes a factory config key.

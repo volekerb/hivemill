@@ -331,6 +331,9 @@ func TestFactoryKeysAreChecked(t *testing.T) {
 		{"public_text_repos", "not a slug", false},
 		{"public_text_repos", "acme/www acme/api", false},
 		{"public_text_repos", "acme/www;acme/api", false},
+		{"public_text_repos", "acme/www|acme/api", false},
+		{"public_text_repos", "acme/www:acme/api", false},
+		{"public_text_repos", "https://github.com/acme/www.git", true},
 		{"model", "x", false},
 	} {
 		if err := CheckFactoryKey(c.k, c.v); (err == nil) != c.ok {
