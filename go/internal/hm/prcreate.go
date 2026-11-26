@@ -141,7 +141,10 @@ func (r *Runner) publicTextRepo(repo string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("cannot read public_text_repos: %w", err)
 	}
-	want, _ := guard.CIRepoSlug(repo)
+	want, ok := repoEntry(repo) // as strict as a list entry: a longer path must not read as another repo
+	if !ok {
+		return false, fmt.Errorf("repo %q is not OWNER/NAME, so public_text_repos cannot be checked", repo)
+	}
 	listed := false
 	for _, x := range strings.Split(list, ",") {
 		if strings.TrimSpace(x) == "" {
@@ -149,7 +152,7 @@ func (r *Runner) publicTextRepo(repo string) (bool, error) {
 		}
 		s, ok := repoEntry(x)
 		if !ok {
-			return false, fmt.Errorf("public_text_repos: %q is not OWNER/NAME", strings.TrimSpace(x))
+			return false, fmt.Errorf("public_text_repos: %q is not OWNER/NAME (the owner fixes it with `hivemill config public_text_repos OWNER/NAME,...`)", strings.TrimSpace(x))
 		}
 		listed = listed || s == want
 	}

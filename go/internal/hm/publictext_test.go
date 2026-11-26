@@ -73,7 +73,7 @@ func TestPublicTextSkipsOwnerTermsForPrivateRepo(t *testing.T) {
 
 func TestPublicTextSecretsStillCheckedForPrivateRepo(t *testing.T) {
 	r, wt := publicTextCase(t, "acme/other", "cfg.txt", "id "+ptKey)
-	// the environment's terms are not loaded either
+	// the environment's terms only mask the output, they are no hit
 	t.Setenv("SCRUB_TERMS_FILE", r.Store.FactoryCfg("scrub_terms_file"))
 	ok, note := r.publicText("acme/app", wt, "main", nil)
 	if ok || !strings.Contains(note, "(secrets) on the commits") || !strings.Contains(note, "aws-access-key-id") ||
@@ -103,6 +103,46 @@ func TestPublicTextBadRepoListRefuses(t *testing.T) {
 	r, wt := publicTextCase(t, "acme/app acme/api", "notes.txt", "about "+ptTerm)
 	if ok, note := r.publicText("acme/app", wt, "main", nil); ok || !strings.Contains(note, "is not OWNER/NAME") {
 		t.Errorf("bad list: %v %q", ok, note)
+	}
+}
+
+// In a private repo the owner terms are no hit, but they still mask a secret hit's location in the note.
+func TestPublicTextPrivateRepoNoteMasksOwnerTerms(t *testing.T) {
+	r, wt := publicTextCase(t, "acme/other", ptTerm+"/creds.txt", "id "+ptKey)
+	ok, note := r.publicText("acme/app", wt, "main", nil)
+	if ok || !strings.Contains(note, "aws-access-key-id") || strings.Contains(note, ptTerm) || strings.Contains(note, ptKey) {
+		t.Errorf("private repo note: %v %q", ok, note)
+	}
+}
+
+// A private repo needs no terms: an unreadable terms file hides every location in the note instead of blocking.
+func TestPublicTextPrivateRepoUnreadableTermsHidesLocations(t *testing.T) {
+	r, wt := publicTextCase(t, "acme/other", ptTerm+"/creds.txt", "id "+ptKey)
+	if err := os.Remove(r.Store.FactoryCfg("scrub_terms_file")); err != nil {
+		t.Fatal(err)
+	}
+	ok, note := r.publicText("acme/app", wt, "main", nil)
+	if ok || !strings.Contains(note, "aws-access-key-id") || !strings.Contains(note, "hidden") ||
+		strings.Contains(note, ptTerm) || strings.Contains(note, ptKey) {
+		t.Errorf("unreadable terms: %v %q", ok, note)
+	}
+	// a clean private commit passes
+	r, wt = publicTextCase(t, "acme/other", "notes.txt", "hello")
+	if err := os.Remove(r.Store.FactoryCfg("scrub_terms_file")); err != nil {
+		t.Fatal(err)
+	}
+	if ok, note := r.publicText("acme/app", wt, "main", nil); !ok {
+		t.Errorf("unreadable terms, clean commit: %q", note)
+	}
+}
+
+// A run repo that is not OWNER/NAME matches no entry; it must not pass as a private repo.
+func TestPublicTextBadRunRepoRefuses(t *testing.T) {
+	r, wt := publicTextCase(t, "acme/app", "notes.txt", "about "+ptTerm)
+	for _, repo := range []string{"", "x/acme/app", "https://github.com/acme/app/tree/main"} {
+		if ok, note := r.publicText(repo, wt, "main", nil); ok || !strings.Contains(note, "is not OWNER/NAME") {
+			t.Errorf("run repo %q: %v %q", repo, ok, note)
+		}
 	}
 }
 

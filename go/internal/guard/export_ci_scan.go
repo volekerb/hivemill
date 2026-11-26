@@ -52,6 +52,7 @@ type ciPair struct{ id, masked string }
 type ciScanner struct {
 	extra       bool
 	secretsOnly bool     // skip the identityRules (secretsonly.go)
+	blind       bool     // secretsOnly and the terms could not be read: no printed text is shown at all
 	keys        [][]rune // fold key of each term, in the (sorted) order the terms were given
 	order       []int    // indexes into keys by decreasing length (stable): the alternation order of Scanner.term_re
 	short       []bool   // term is at most shortTerm characters: whole words only
@@ -159,19 +160,27 @@ func (sc *ciScanner) termSpans(text string) [][2]int {
 
 // matches is Scanner.matches / GuardScanner.matches: GENERIC, the owner terms, then (guard) EXTRA.
 func (sc *ciScanner) matches(line string) []ciMatch {
+	return sc.spansOf(line, !sc.secretsOnly)
+}
+
+// spansOf is matches; with all set it keeps the owner terms and identity rules in secretsOnly too, which hideAll needs
+// to mask printed text.
+func (sc *ciScanner) spansOf(line string, all bool) []ciMatch {
 	var out []ciMatch
 	for _, r := range genRules {
-		if sc.secretsOnly && identityRules[r.id] {
+		if !all && identityRules[r.id] {
 			continue
 		}
 		for _, sp := range r.spans(line) {
 			out = append(out, ciMatch{r.id, sp[0], sp[1]})
 		}
 	}
-	for _, sp := range sc.termSpans(line) {
-		out = append(out, ciMatch{idOwnerTerm, sp[0], sp[1]})
+	if all { // terms loaded in secretsOnly mask the output (hideTerms, hideAll) and are never a hit
+		for _, sp := range sc.termSpans(line) {
+			out = append(out, ciMatch{idOwnerTerm, sp[0], sp[1]})
+		}
 	}
-	if sc.extra {
+	if sc.extra || (all && sc.secretsOnly) { // extraRule is identity rules only: masked in secretsOnly, never a hit
 		for _, r := range extraRule {
 			for _, sp := range r.spans(line) {
 				out = append(out, ciMatch{r.id, sp[0], sp[1]})
@@ -224,6 +233,9 @@ func (sc *ciScanner) scanLine(line string) []ciPair {
 
 // hideTerms is Scanner.hide_terms: owner terms inside printed text print as owner-term#<n>.
 func (sc *ciScanner) hideTerms(text string) string {
+	if sc.blind {
+		return "(hidden: owner terms unreadable)"
+	}
 	spans := sc.termSpans(text)
 	if len(spans) == 0 {
 		return text
@@ -241,7 +253,7 @@ func (sc *ciScanner) hideTerms(text string) string {
 
 // hideAll is Scanner.hide_all: every hit (not only owner terms) in text that is about to be printed is masked.
 func (sc *ciScanner) hideAll(text string) string {
-	ms := sc.matches(text)
+	ms := sc.spansOf(text, true)
 	sort.SliceStable(ms, func(a, b int) bool {
 		if ms[a].start != ms[b].start {
 			return ms[a].start < ms[b].start
@@ -268,6 +280,9 @@ func (sc *ciScanner) hideAll(text string) string {
 
 // shown is scrub_scan.shown: a raw path as one line of printable text, every hit masked, control characters escaped.
 func (sc *ciScanner) shown(path []byte) string {
+	if sc.blind {
+		return sc.hideTerms("")
+	}
 	text := sc.hideAll(pyDecodeReplace(path))
 	var b strings.Builder
 	for i := 0; i < len(text); i++ {

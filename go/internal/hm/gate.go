@@ -360,12 +360,14 @@ func (r *Runner) publicText(repo, wt, base string, pr *PR) (bool, string) {
 		return false, err.Error()
 	}
 	scan, args := guard.CISecretsGuardMain, []string(nil)
-	if public {
-		terms, why := r.guardArgs()
-		if why != "" {
-			return false, why
-		}
+	terms, why := r.guardArgs()
+	switch {
+	case public && why != "":
+		return false, why
+	case public:
 		scan, args = guard.CIPublicTextGuardMain, terms
+	case why == "": // private repo: the terms only mask what the note shows
+		args = terms
 	}
 	check := func(what, stdin string, mode ...string) (bool, string) {
 		var out, errb bytes.Buffer

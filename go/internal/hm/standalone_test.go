@@ -334,6 +334,17 @@ func TestFactoryKeysAreChecked(t *testing.T) {
 		{"public_text_repos", "acme/www|acme/api", false},
 		{"public_text_repos", "acme/www:acme/api", false},
 		{"public_text_repos", "https://github.com/acme/www.git", true},
+		{"public_text_repos", "git" + "@github.com:acme/www.git", true}, // built from parts: no email shape in the file
+		{"public_text_repos", "github.com/acme/www", true},
+		{"public_text_repos", "/srv/src/acme/www.git", true},
+		{"public_text_repos", "file:///srv/src/acme/www", true},
+		{"public_text_repos", "github.com/acme/www/", true},
+		{"public_text_repos", "github.com:acme/www", true},
+		{"public_text_repos", "https://github.com/acme/www/tree/main", false},
+		{"public_text_repos", "localhost/acme/www", false},
+		{"public_text_repos", "acme/www/acme/api", false},
+		{"public_text_repos", "acme/www#acme/api", false},
+		{"public_text_repos", "acme/www?acme/api", false},
 		{"model", "x", false},
 	} {
 		if err := CheckFactoryKey(c.k, c.v); (err == nil) != c.ok {

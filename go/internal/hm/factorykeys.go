@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -84,15 +85,35 @@ func CheckFactoryKey(key, value string) error {
 }
 
 // repoEntry is the slug of one entry of a repo list. A list split on anything but commas would match no repo, and so
-// check nothing: an entry is one only when its slug is a plain OWNER/NAME.
+// check nothing: an entry is one only when its slug is a plain OWNER/NAME and nothing CIRepoSlug drops could hide another
+// repo (bin/factory's forms: OWNER/NAME, a URL, an scp form, host/OWNER/NAME, an absolute path).
 func repoEntry(x string) (string, bool) {
 	s, ok := guard.CIRepoSlug(x)
-	// CIRepoSlug keeps the last two path parts, so a space further left would go unseen
-	if !ok || !slugRe.MatchString(s) || strings.ContainsAny(strings.TrimSpace(x), " \t\r\n;|") {
+	t := strings.TrimSpace(x)
+	// CIRepoSlug drops a ?query or #fragment and keeps the last two path parts: neither may hide a repo
+	if !ok || !slugRe.MatchString(s) || strings.ContainsAny(t, " \t\r\n;|?#") {
+		return "", false
+	}
+	switch t = strings.TrimSuffix(t, "/"); {
+	case strings.HasPrefix(t, "/"), strings.HasPrefix(strings.ToLower(t), "file://"): // a local path: its last two parts
+		return s, true
+	case repoURL.MatchString(t): // scheme://host/OWNER/NAME, never a longer path such as .../tree/main
+		t = repoURL.ReplaceAllString(t, "")
+	case repoScp.MatchString(t): // [user@]host:OWNER/NAME
+		t = repoScp.ReplaceAllString(t, "")
+	case strings.Count(t, "/") == 2 && strings.Contains(t[:strings.Index(t, "/")], "."): // host/OWNER/NAME
+		t = t[strings.Index(t, "/")+1:]
+	}
+	if !slugRe.MatchString(strings.TrimSuffix(t, ".git")) {
 		return "", false
 	}
 	return s, true
 }
+
+var (
+	repoURL = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*://[^/\s]*/`)
+	repoScp = regexp.MustCompile(`^(?:[^@/\s]+@)?[^:/\s]+:`)
+)
 
 // SetFactoryKey checks and writes a factory config key.
 func SetFactoryKey(s *SQLite, key, value string) error {

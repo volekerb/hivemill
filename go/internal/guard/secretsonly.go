@@ -15,7 +15,8 @@ var identityRules = map[string]bool{
 	idOwnerTerm: true, "home-path": true, "rfc1918": true, "cgnat": true, "email": true, "ipv4": true, "private-host": true,
 }
 
-// CISecretsGuardMain is CIPublicTextGuardMain with the secret rules only: no owner terms are loaded and none are needed.
+// CISecretsGuardMain is CIPublicTextGuardMain with the secret rules only. Owner terms are optional (--terms-file):
+// loaded ones mask hit locations in the output and are never a hit.
 func CISecretsGuardMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return ciPTGMain(args, stdin, stdout, stderr, true)
 }

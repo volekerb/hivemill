@@ -278,14 +278,16 @@ func ciPTG(args []string, stdin io.Reader, out, errw *ciOut, secretsOnly bool) (
 		return 2, nil
 	}
 	var terms []string
+	blind := false
 	switch {
-	case secretsOnly: // no owner terms at all
-	case a.noTerms:
+	case secretsOnly || a.noTerms: // terms optional; in secretsOnly they only mask hit locations, never hit
 		files := a.termFiles
 		if v := os.Getenv(termsVar); v != "" {
 			files = append(append([]string(nil), files...), v)
 		}
-		if terms, err = ciLoadTerms(files); err != nil {
+		if terms, err = ciLoadTerms(files); err != nil && secretsOnly {
+			blind, err = true, nil // no terms are needed here, so an unreadable file hides every location instead
+		} else if err != nil {
 			return 0, err
 		}
 	default:
@@ -293,11 +295,11 @@ func ciPTG(args []string, stdin io.Reader, out, errw *ciOut, secretsOnly bool) (
 			return 0, err
 		}
 	}
-	if len(terms) > 0 {
+	if len(terms) > 0 && !secretsOnly {
 		errw.printf("public-text-guard: %d owner term(s) loaded\n", len(terms))
 	}
 	sc := newCIScanner(terms, !secretsOnly) // extraRule holds identity rules only
-	sc.secretsOnly = secretsOnly
+	sc.secretsOnly, sc.blind = secretsOnly, blind
 	var hits []ciHit
 	switch a.mode {
 	case "text":
