@@ -113,7 +113,8 @@ test("board: today's tasks in the column of where they are, per project, with wh
   const b = D.boardOf(w);
   assert.deepEqual(Object.fromEntries(Object.entries(b).map(([k, v]) => [k, v.length])), { working: 3, ci: 2, merge: 2, held: 2, done: 4 });
   assert.deepEqual(b.merge.map((c) => [c.task, c.bad]), [["T-0106", true], ["T-0107", true]], "longest first, over the limit marked");
-  assert.match(b.merge[0].note, /^to merge 2h 0m$/);
+  assert.equal(b.merge[0].note, "2h 0m, over the limit");
+  assert.equal(b.working.find((c) => c.task === "T-0102").note, "in the gate, 1m");
   assert.equal(b.held[0].note, "32m, tier T3 is above T2; the owner merges");
   assert.deepEqual(b.done.map((c) => c.note).sort(), ["failed: budget", "failed: stalled", "failed: stalled", "merged"]);
   assert.equal(D.boardOf(w, "none-such").working.length, 0);

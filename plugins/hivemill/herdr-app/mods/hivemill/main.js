@@ -62,7 +62,7 @@ export default class Dashboard extends View {
     this.me = Math.random().toString(36).slice(2);
     this.mode = props()?.mode === "bar" ? "bar" : "full";
     this.width = 0;
-    this.tab = "overview"; // overview | board | traces | spend
+    this.tab = ["board", "traces", "spend"].includes(props()?.view) ? props().view : "overview"; // props {view} opens on that tab
     this.fac = null; // the factory the Board, Traces and Spend tabs show (its key); null = the first
     this.project = null; // the Board's project; null = all
     try {
@@ -173,7 +173,7 @@ export default class Dashboard extends View {
     const hex = String(t.background ?? "#161514").replace("#", "");
     const lum = hex.length >= 6 ? (parseInt(hex.slice(0, 2), 16) * 299 + parseInt(hex.slice(2, 4), 16) * 587 + parseInt(hex.slice(4, 6), 16) * 114) / 1000 : 0;
     const dark = lum < 140;
-    return { accent: dark ? "#f0a23b" : "#a8650a", ci: dark ? "#8a8578" : "#8c887e", merge: dark ? "#5d594f" : "#c4c0b6", bad: t.blocked, fg: t.foreground, muted: t.muted, dim: t.dim, line: t.border, hover: t.hover };
+    return { accent: dark ? "#f0a23b" : "#a8650a", ci: dark ? "#8a8578" : "#8c887e", merge: dark ? "#5d594f" : "#c4c0b6", bad: t.blocked, fg: t.foreground, muted: t.muted, dim: t.muted, faint: t.dim, line: t.border, hover: t.hover };
   }
 
   link(k, id, text, onClick) {
@@ -233,7 +233,7 @@ export default class Dashboard extends View {
     const COLS = [["Working", 64], ["In CI", 52], ["To merge", 68], ["Held", 48], ["Merged", 60], ["Spent", 64]];
     const cell = (w, value, live, bad = false) => h_flex().flex_none().w(w).justify_end()
       .child(value === 0 || value == null
-        ? div().text_size(15).text_color(k.dim).child(value == null ? "–" : "0")
+        ? div().text_size(15).text_color(k.faint).child(value == null ? "–" : "0")
         : div().text_size(15).font_semibold().text_color(!live ? k.muted : bad ? k.bad : k.fg).child(String(value)));
     const box = v_flex().rounded(8).border(1).border_color(k.line).bg(t.surface).overflow_hidden();
     box.child(h_flex().px(14).pt(10).pb(8).gap(12).items_center().border_b(1).border_color(k.line).text_size(12).text_color(k.dim)
@@ -313,7 +313,7 @@ export default class Dashboard extends View {
     const fac = {};
     for (const v of views.filter((x) => x.loaded)) for (const m of v.machines) fac[m.name] = { ...m, cap: v.cap };
     const COLS = [["Sessions", 84], ["Memory used", 112], ["Load", 92], ["Disk free", 84], ["Swap used", 100], ["Up", 56]];
-    const cell = (w, text, bad) => h_flex().flex_none().w(w).justify_end().child(div().text_size(13).text_color(text === "–" ? k.dim : bad ? k.bad : k.fg).child(text));
+    const cell = (w, text, bad) => h_flex().flex_none().w(w).justify_end().child(div().text_size(13).text_color(text === "–" ? k.faint : bad ? k.bad : k.fg).child(text));
     const box = v_flex().rounded(8).border(1).border_color(k.line).bg(t.surface).overflow_hidden();
     box.child(h_flex().px(14).pt(10).pb(8).gap(12).items_center().border_b(1).border_color(k.line).text_size(12).text_color(k.dim)
       .child(div().flex_1().min_w(0).child("Machine"))
@@ -474,11 +474,11 @@ export default class Dashboard extends View {
       cards.slice(0, LIMIT[id]).forEach((c) => col.child(
         v_flex().id(`card-${id}-${c.key}`).px(12).py(9).gap(1).border_b(1).border_color(k.line).cursor_pointer().hover((st) => st.bg(k.hover))
           .on_click((_e, cx) => this.openTrace(cx, v, c.key))
-          .child(div().truncate().text_size(13).text_color(k.fg).child(c.title ? clean(c.title) : demo() ? "Task" : c.task))
-          .child(h_flex().gap(8).text_size(12)
-            .child(div().flex_none().text_color(k.dim).child(demo() || !c.title ? "" : c.task))
-            .child(h_flex().flex_1().min_w(0).justify_end().child(div().truncate().text_color(c.bad ? k.bad : k.dim).child(clean(c.note ?? "")))))));
-      if (!cards.length) col.child(div().px(12).py(10).text_size(12).text_color(k.dim).child("none"));
+          .when(Boolean(c.title), (el) => el.child(div().truncate().text_size(13).text_color(k.fg).child(clean(c.title ?? ""))))
+          .child(h_flex().gap(8).text_size(c.title ? 12 : 13)
+            .child(div().flex_none().text_color(c.title ? k.dim : k.fg).child(demo() ? (c.title ? "" : "Task") : c.task))
+            .child(h_flex().flex_1().min_w(0).justify_end().child(div().truncate().text_size(12).text_color(c.bad ? k.bad : k.dim).child(clean(c.note ?? "")))))));
+      if (!cards.length) col.child(div().px(12).py(10).text_size(12).text_color(k.faint).child("none"));
       if (cards.length > LIMIT[id]) col.child(div().px(12).py(8).text_size(12).text_color(k.dim).child(`and ${cards.length - LIMIT[id]} more`));
       box.child(i < BOARD.length - 1 ? col.border_r(1).border_color(k.line) : col);
     });
@@ -550,13 +550,14 @@ export default class Dashboard extends View {
       const max = Math.max(1, ...s.daily.map((x) => x.usd ?? 0));
       out.child(this.heading(k, `Per day${lab}`, s.perPR != null ? `${money(s.perPR)} per merged PR` : null));
       const days = v_flex();
-      for (const x of s.daily) days.child(h_flex().py(5).gap(12).items_center().text_size(13)
+      const from = Math.max(0, s.daily.findIndex((x) => x.usd));
+      for (const x of s.daily.slice(from)) days.child(h_flex().py(5).gap(12).items_center().text_size(13)
         .child(div().flex_none().w(92).text_color(k.muted).child(String(x.day).slice(5)))
         .child(h_flex().flex_1().child(div().h(8).rounded(2).w(Math.max(x.usd ? 3 : 0, Math.round(((x.usd ?? 0) / max) * 420))).bg(x.usd === max ? k.accent : k.merge)))
-        .child(h_flex().flex_none().w(72).justify_end().child(div().text_color(x.usd ? k.fg : k.dim).child(x.usd ? money(x.usd) : "0"))));
+        .child(h_flex().flex_none().w(72).justify_end().child(div().text_color(x.usd ? k.fg : k.faint).child(x.usd ? money(x.usd) : "0"))));
       out.child(days);
       if (s.roles.length) out.child(this.heading(k, `By role${lab}`, "last 7 days"))
-        .child(table(`role-${v.key}`, [["Role", 0], ["Polling", 90], ["Spent", 90]], s.roles.map((r) => ({ cells: [{ text: r.role }, { text: r.pollingPct != null ? `${Math.round(r.pollingPct)}%` : "–", color: r.pollingPct >= 30 ? k.bad : k.muted }, { text: money(r.usd) }] }))));
+        .child(table(`role-${v.key}`, [["Role", 0], ["Of it, waiting", 110], ["Spent", 90]], s.roles.map((r) => ({ cells: [{ text: r.role }, { text: r.pollingPct != null ? `${Math.round(r.pollingPct)}%` : "–", color: r.pollingPct >= 30 ? k.bad : k.muted }, { text: money(r.usd) }] }))));
       if (s.top.length && !demo()) out.child(this.heading(k, `Most expensive tasks${lab}`, "last 7 days"))
         .child(table(`top-${v.key}`, [["Task", 0], ["Sessions", 90], ["Spent", 90]], s.top.map((x) => ({
           go: (cx) => this.openTrace(cx, v, x.key),

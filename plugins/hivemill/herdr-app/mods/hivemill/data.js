@@ -589,7 +589,7 @@ export function boardOf(v, project = null) {
   const mine = (r) => project == null || (r.project ?? "") === project;
   const over = new Set(v.stuck.map((r) => r.key));
   for (const r of v.running.filter(mine))
-    cols[r.stage === "ci" ? "ci" : r.stage === "merge" ? "merge" : "working"].push({ ...r, note: `${STAGE_WORDS[r.stage] ?? r.stage ?? ""} ${dur(r.age_s)}`.trim(), bad: over.has(r.key) });
+    cols[r.stage === "ci" ? "ci" : r.stage === "merge" ? "merge" : "working"].push({ ...r, note: `${r.stage === "gate" || r.stage === "judge" ? `${STAGE_WORDS[r.stage]}, ` : ""}${dur(r.age_s)}${over.has(r.key) ? ", over the limit" : ""}`, bad: over.has(r.key) });
   for (const n of v.needs.filter((x) => x.kind === "held" && mine(x)))
     cols.held.push({ key: n.key, task: n.task, title: n.title, project: n.project, age_s: n.age_s, note: `${dur(n.age_s)}, ${n.text}`, bad: true, pr: n.pr });
   for (const r of v.today.filter(mine)) {
