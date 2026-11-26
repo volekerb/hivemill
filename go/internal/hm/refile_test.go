@@ -1,0 +1,217 @@
+package hm
+
+import (
+	"slices"
+	"testing"
+	"time"
+)
+
+func refileAdd(t *testing.T, s *SQLite, title, status, deps string) string {
+	t.Helper()
+	id, err := s.AddTask("G-001", title, "spec", "1. works - cmd:true => exit 0", status, deps, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func wantDeps(t *testing.T, s *SQLite, id, want string) {
+	t.Helper()
+	task, err := s.Task(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.DependsOn != want {
+		t.Errorf("%s depends %s, want %s", id, task.DependsOn, want)
+	}
+}
+
+func repoint(t *testing.T, r *Runner) {
+	t.Helper()
+	if err := r.RepointRefiles(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func repointEvents(t *testing.T, r *Runner) (out []string) {
+	t.Helper()
+	all, err := r.Log.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range all {
+		if e.Event == "task.depends_repointed" {
+			out = append(out, e.TaskID+" "+e.Data["from"].(string)+">"+e.Data["to"].(string))
+		}
+	}
+	return out
+}
+
+func mustRead(t *testing.T, r *Runner) []Event {
+	t.Helper()
+	all, err := r.Log.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return all
+}
+
+func cancelTask(t *testing.T, s *SQLite, id string) {
+	t.Helper()
+	if err := s.UpdateTask(id, map[string]any{"status": "cancelled"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func refileOf(t *testing.T, s *SQLite, id, of string) {
+	t.Helper()
+	if _, err := s.db.Exec(`INSERT INTO hm_refile(task,refile_of) VALUES(?,?)`, id, of); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The old task is cancelled or failed already when the re-file is added.
+func TestRefileRepointsDependents(t *testing.T) {
+	r, s, _ := plannerRunner(t, "")
+	old := refileAdd(t, s, "zz-test old", "todo", "[]")                        // T-0001
+	other := refileAdd(t, s, "zz-test other", "todo", "[]")                    // T-0002
+	todo := refileAdd(t, s, "zz-test todo", "todo", `["T-0001","T-0002"]`)     // T-0003
+	draft := refileAdd(t, s, "zz-test draft", "draft", `["T-0001"]`)           // T-0004
+	running := refileAdd(t, s, "zz-test running", "in_progress", `["T-0001"]`) // T-0005
+	failed := refileAdd(t, s, "zz-test failed", "blocked", "[]")               // T-0006
+	waits := refileAdd(t, s, "zz-test waits", "todo", `["T-0006"]`)            // T-0007
+	cancelTask(t, s, old)
+	if err := s.PutRun(&Run{Task: failed, State: Failed}); err != nil {
+		t.Fatal(err)
+	}
+	next := refileAdd(t, s, "zz-test again", "todo", "[]") // T-0008
+	refileOf(t, s, next, old)
+	next2 := refileAdd(t, s, "zz-test again", "todo", "[]") // T-0009
+	refileOf(t, s, next2, failed)
+	repoint(t, r)
+	repoint(t, r)
+	wantDeps(t, s, todo, `["T-0008","T-0002"]`)
+	wantDeps(t, s, draft, `["T-0008"]`)
+	wantDeps(t, s, running, `["T-0001"]`)
+	wantDeps(t, s, waits, `["T-0009"]`)
+	wantDeps(t, s, other, `[]`)
+	got := repointEvents(t, r)
+	want := []string{"T-0003 T-0001>T-0008", "T-0004 T-0001>T-0008", "T-0007 T-0006>T-0009"}
+	if !slices.Equal(got, want) {
+		t.Errorf("events %q, want %q", got, want)
+	}
+}
+
+// The old task is cancelled, or its run fails, after the re-file is added.
+func TestRefileRepointsAfterCancel(t *testing.T) {
+	r, s, _ := plannerRunner(t, "")
+	old := refileAdd(t, s, "zz-test old", "todo", "[]")         // T-0001
+	dep := refileAdd(t, s, "zz-test dep", "todo", `["T-0001"]`) // T-0002
+	next := refileAdd(t, s, "zz-test again", "todo", "[]")      // T-0003
+	refileOf(t, s, next, old)
+	repoint(t, r)
+	wantDeps(t, s, dep, `["T-0001"]`)
+	cancelTask(t, s, old)
+	repoint(t, r)
+	wantDeps(t, s, dep, `["T-0003"]`)
+
+	// a re-file of the re-file: the dependent follows the chain, also when the run fails
+	third := refileAdd(t, s, "zz-test third", "todo", "[]") // T-0004
+	refileOf(t, s, third, next)
+	run := &Run{Task: next, Goal: "G-001", Project: "www"}
+	r.fail(run, "zz-test failure")
+	wantDeps(t, s, dep, `["T-0004"]`)
+
+	// a dependent filed late on the first id goes to the end of the chain in one step
+	late := refileAdd(t, s, "zz-test late", "todo", `["T-0001"]`)
+	repoint(t, r)
+	wantDeps(t, s, late, `["T-0004"]`)
+
+	// the replacement is dropped and the first id is filed again: the dependents move on
+	cancelTask(t, s, third)
+	repoint(t, r)
+	wantDeps(t, s, dep, `["T-0004"]`)                         // no newer re-file yet: it keeps waiting, not on an older one
+	fourth := refileAdd(t, s, "zz-test fourth", "todo", "[]") // T-0006
+	refileOf(t, s, fourth, old)
+	repoint(t, r)
+	wantDeps(t, s, dep, `["T-0006"]`)
+
+	// a run held for the owner may still merge: its task is not failed
+	held := refileAdd(t, s, "zz-test held", "blocked", "[]")                  // T-0007
+	onHeld := refileAdd(t, s, "zz-test on held", "todo", `["T-0007"]`)        // T-0008
+	refileOf(t, s, refileAdd(t, s, "zz-test held again", "todo", "[]"), held) // T-0009
+	if err := s.PutRun(&Run{Task: held, State: Held}); err != nil {
+		t.Fatal(err)
+	}
+	repoint(t, r)
+	wantDeps(t, s, onHeld, `["T-0007"]`)
+}
+
+// A planner title "(re-file of T-x" counts as the flag.
+func TestRefileTitleFallback(t *testing.T) {
+	r, s, _ := plannerRunner(t, "")
+	a := refileAdd(t, s, "zz-test a", "todo", "[]")                      // T-0001
+	b := refileAdd(t, s, "zz-test b", "todo", "[]")                      // T-0002
+	dep := refileAdd(t, s, "zz-test dep", "todo", `["T-0001","T-0002"]`) // T-0003
+	refileAdd(t, s, "(re-file of T-0001) zz-test a", "todo", "[]")       // T-0004
+	refileAdd(t, s, "zz-test b (Re-file of T-2: smaller)", "todo", "[]")
+	cancelTask(t, s, a)
+	cancelTask(t, s, b)
+	repoint(t, r)
+	wantDeps(t, s, dep, `["T-0004","T-0005"]`)
+
+	// a split: the flagged piece takes the dependents, not a later piece with the title only
+	c := refileAdd(t, s, "zz-test c", "todo", "[]")                 // T-0006
+	onC := refileAdd(t, s, "zz-test on c", "todo", `["T-0006"]`)    // T-0007
+	flagged := refileAdd(t, s, "zz-test c, the part", "todo", "[]") // T-0008
+	refileAdd(t, s, "(re-file of T-0006) zz-test other part", "todo", "[]")
+	refileOf(t, s, flagged, c)
+	cancelTask(t, s, c)
+	repoint(t, r)
+	wantDeps(t, s, onC, `["T-0008"]`)
+	cancelTask(t, s, flagged)
+	repoint(t, r)
+	wantDeps(t, s, onC, `["T-0008"]`) // not the title-only piece, also once the flagged one is dead
+
+	gone := refileAdd(t, s, "zz-test gone", "todo", "[]")
+	waiter := refileAdd(t, s, "zz-test waiter", "todo", `["`+gone+`"]`)
+	refileAdd(t, s, "zz-test stuck (re-file of "+gone+")", "todo", `["`+gone+`"]`)
+	cancelTask(t, s, gone)
+	repoint(t, r)
+	wantDeps(t, s, waiter, `["`+gone+`"]`) // a re-file that waits on what it replaces can never start
+	if all, _ := r.Log.Read(); len(all) == 0 || all[len(all)-1].Project != "www" {
+		t.Errorf("the event names no project: %+v", all)
+	}
+	rows, err := r.ReportRows()
+	if err != nil || len(rows) != 0 {
+		t.Errorf("a re-pointed task is no report row: %v %v", rows, err)
+	}
+	if o := BuildObs(mustRead(t, r), ObsFilter{}, "", nil, time.Now()); len(o.Tasks) != 0 {
+		t.Errorf("a re-pointed task is no obs task: %v", o.Tasks)
+	}
+
+	// no cycle: a re-file that waits on the dependent is not used
+	d := refileAdd(t, s, "zz-test d", "todo", "[]")
+	onD := refileAdd(t, s, "zz-test on d", "todo", `["`+d+`"]`)
+	refileOf(t, s, refileAdd(t, s, "zz-test d again", "todo", `["`+onD+`"]`), d)
+	cancelTask(t, s, d)
+	repoint(t, r)
+	wantDeps(t, s, onD, `["`+d+`"]`)
+
+	// a title that names a task of another project is ignored
+	if err := s.AddProject(Project{ID: "api", RepoPath: "/nonexistent", GHRepo: "zz-test/api"}); err != nil {
+		t.Fatal(err)
+	}
+	goal, err := s.NewGoal("api", "zz-test other", "", "", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := refileAdd(t, s, "zz-test e", "todo", "[]")
+	onE := refileAdd(t, s, "zz-test on e", "todo", `["`+e+`"]`)
+	if _, err := s.AddTask(goal, "(re-file of "+e+") elsewhere", "spec", "", "todo", "[]", 1); err != nil {
+		t.Fatal(err)
+	}
+	cancelTask(t, s, e)
+	repoint(t, r)
+	wantDeps(t, s, onE, `["`+e+`"]`)
+}
