@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Removed
+
+- Old-chain delete step 1: the `factory-forward` ssh forwarder, the `factory-go-version` command and their packages (`internal/forward`, `internal/buildinfo`) are gone, with the tests that built or exercised the forwarder (T-1932).
+
 ### Fixed
 
 - **The PR body check accepts a runner given by path**, such as `~/.local/go/bin/go test ./...`: it compares the base name of the first word (T-1940).

@@ -1,5 +1,4 @@
 """T-0031: workers may never mutate the live herdr through bin/factory (herdr() role gate)."""
-import json
 import os
 import pwd
 import shutil
@@ -295,52 +294,6 @@ class WorkerCommandTests(WorkerGateBase):
                 self.assertIn("only the cleaner", p.stderr)
         p = self.ok("clean", "--dry-run", **self.worker("cleaner"))
         self.assertNotIn("may not", p.stderr)
-
-
-class ForwardedMachineIdentityTests(WorkerGateBase):
-    """G-057 T-1586: a call `factory-forward --serve` runs (FACTORY_FORWARDED=1) must name a live worker row started on a
-    configured worker machine, with that row's role. Real entry point: bin/factory as a subprocess."""
-
-    def setUp(self):
-        super().setUp()
-        self.ok("config", "machine_hq", "hqhost", agent="owner")
-        self.ok("config", "worker_machines", "workerhost", agent="owner")
-        for name in ("zz-test-coder", "zz-test-judge"):  # recorded on workerhost (a judge row there is never trusted)
-            self.env.sql("UPDATE agents SET spawn_args=? WHERE name=?", (json.dumps({"machine": "workerhost"}), name))
-
-    def forwarded(self, agent, role, *argv):
-        env = {"FACTORY_FORWARDED": "1", "FACTORY_ROLE": role}
-        if agent is None:
-            return self.env.run(*argv, extra_env=env)
-        return self.env.run(*argv, agent=agent, extra_env=env)
-
-    def test_forwarded_machine_identity_accepts_a_live_workerhost_coder(self):
-        p = self.forwarded("zz-test-coder", "coder", "inbox")
-        self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertNotIn("refused", p.stderr)
-        self.assertEqual(self.forwarded(None, "", "--version").returncode, 0)  # the preflight's round trip needs no row
-
-    def test_forwarded_machine_identity_refuses_unknown_wrong_role_and_local_rows(self):
-        cases = [("zz-nobody", "coder"),          # no such agent
-                 (None, "coder"),                 # no FACTORY_AGENT at all
-                 ("zz-test-coder", "judge"),      # the role is not the row's
-                 ("zz-test-qa", "qa"),            # a hqhost-local row (no spawn_args.machine)
-                 ("zz-test-judge", "judge"),      # HQ/lead/judge roles are always refused (R1)
-                 ("zz-test-lead", "lead")]
-        for agent, role in cases:
-            with self.subTest(agent=agent, role=role):
-                p = self.forwarded(agent, role, "inbox")
-                self.assertEqual(p.returncode, 3, p.stdout + p.stderr)
-                self.assertIn("refused: forwarded call from unknown agent", p.stderr)
-        self.env.sql("UPDATE agents SET status='done' WHERE name='zz-test-coder'")
-        self.assertEqual(self.forwarded("zz-test-coder", "coder", "inbox").returncode, 3)  # not live any more
-
-    def test_forwarded_machine_identity_needs_a_configured_worker_machine(self):
-        self.env.sql("DELETE FROM config WHERE key='worker_machines'")
-        p = self.forwarded("zz-test-coder", "coder", "inbox")
-        self.assertEqual(p.returncode, 3, p.stderr)
-        self.assertIn("refused: forwarded call from unknown agent", p.stderr)
-        self.assertEqual(self.env.run("inbox", agent="zz-test-coder").returncode, 0)  # not forwarded: unchanged
 
 
 if __name__ == "__main__":
