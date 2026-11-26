@@ -311,6 +311,13 @@ class WorkflowTest(unittest.TestCase):
         self.assertNotIn("ci/ci_tier.py", self.wf)
         self.assertEqual(self.wf.count('"$RUNNER_TEMP/ci-tier" classify'), 3)
         self.assertEqual(self.wf.count('full "base commit has no ci-tier"; exit 0'), 3)
+        # ci-tier is built in the tier step, so each job's setup-go must come before it.
+        for job in ("ci-tier", "docs-check", "unittest-shard", "go"):
+            body = re.split(r"(?m)^  [A-Za-z0-9_-]+:\n", self.wf.split("\n  %s:\n" % job, 1)[1], 1)[0]
+            tier = re.search(r"- name: Tier (\(rules from the base commit\)|tool from the base commit)", body)
+            setup = body.find("uses: actions/setup-go@v7")
+            self.assertTrue(tier, job)
+            self.assertTrue(0 <= setup < tier.start(), job)
         self.assertIn("  ci-tier:\n", self.wf)
 
     def test_push_and_dispatch_run_full(self):
