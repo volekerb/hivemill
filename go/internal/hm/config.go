@@ -21,6 +21,8 @@ var Defaults = map[string]string{
 	"gate_wait_s":      "900",               // wait for a test slot before leaving the affected tests to CI
 	"judge_rounds_max": "2",                 // judge REJECT rounds before FAIL
 	"ci_rounds_max":    "3",                 // red-CI rounds sent back to the session before FAIL
+	"ci_poll_s":        "60",                // a gated run reads its PR at most this often (and once per pass)
+	"ci_timeout_s":     "2700",              // checks still pending after this: one owner alert, the run stays
 	"auto_revert":      "off",               // on: a runner merge that turns main red is reverted through a PR
 	// dispatch caps: active runs may finish; only new runs wait
 	"max_five_hour_pct":        "92",   // plan 5-hour usage at or over this (fresh reading) holds new runs
