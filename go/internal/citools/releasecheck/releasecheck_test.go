@@ -209,7 +209,7 @@ func TestAllGreenPrintsOwnerCommands(t *testing.T) {
 	}
 }
 
-// A tree with no scout/ dir passes: every read of a scout/ file or import of scout fails, and the gate stays green.
+// A tree with no scout/ dir passes: a `<sha>:scout/` read or a `from scout.` import fails, and the gate stays green.
 func TestPassesOnTreeWithoutScoutDir(t *testing.T) {
 	f := newFake(t)
 	for _, use := range []string{":scout/", "from scout."} { // not bare "scout": the checkout path may contain it
