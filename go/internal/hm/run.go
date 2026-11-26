@@ -202,9 +202,9 @@ func (r *Runner) Start(id string) error {
 	}
 	// one dispatch at a time across processes (the edge pass, a stable pass, a start by hand): the checks below hold
 	// until the run is saved
-	dl := r.lock("dispatch", true)
+	dl := r.lock("dispatch", false) // no wait: a slow start in one channel must not stall the pass of the other
 	if dl == nil {
-		return fmt.Errorf("%w: cannot take the dispatch lock", ErrRefused)
+		return fmt.Errorf("%w: another start is in progress; try again", ErrRefused)
 	}
 	dispatching := true
 	release := func() {
@@ -525,18 +525,32 @@ func (r *Runner) PassProject(project string, startNew bool) error {
 	if err := r.checkProject(project); err != nil {
 		return err
 	}
-	return r.pass(project, startNew)
+	if err := r.pass(project, startNew); err != nil {
+		return err
+	}
+	switch {
+	case r.passSkipped:
+		return ErrPassSkipped
+	case r.stepErrs > 0:
+		return fmt.Errorf("project %s: %d steps of the pass failed", project, r.stepErrs)
+	}
+	return nil
 }
 
 // pass runs the projects of this process, or only the project `only`, which has its own pass lock.
 func (r *Runner) pass(only string, startNew bool) error {
 	r.stepErrs, r.passSkipped = 0, false
 	lockName, mine := "pass", func(p string) bool { return r.Delegate(p) == "" }
-	if only != "" {
+	if only != "" && r.stableFor(only) == "" { // an edge project: never beside the full pass
+		mine = func(p string) bool { return p == only }
+	} else if only != "" {
 		lockName, mine = "pass-"+only, func(p string) bool { return p == only }
 	}
 	// the daemon reuses the Runner: each pass, a skipped one too, reads the machines again
 	r.usageFiles, r.usageRead = nil, false
+	if only == "" && !r.inDaemon {
+		defer r.waitStable() // registered first, so it runs after the pass lock is released
+	}
 	l := r.lock(lockName, false) // one pass at a time: a timer tick that finds a pass running exits at once
 	if l == nil {
 		r.passSkipped = true
@@ -546,9 +560,6 @@ func (r *Runner) pass(only string, startNew bool) error {
 	defer l.Close()
 	if only == "" {
 		r.stablePasses(startNew) // first: nothing that fails below holds a stable project back
-		if !r.inDaemon {
-			defer r.waitStable()
-		}
 	}
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)

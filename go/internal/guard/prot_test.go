@@ -39,7 +39,7 @@ func TestProtTreesBlocked(t *testing.T) {
 	cmds := []string{
 		"echo x > ~/.local/lib/fact*/worker-guard.stamp", "echo x > ~/.local/g?/go.env", "echo x > ~/.config/go/env",
 		"echo x > @L/run/settin?s/coder.json", "echo x > @L/rol*/hooks/worker-guard.py",
-		"curl -sSLo ~/.local/go/go.env URL", "wget -O ~/.local/lib/factory/worker-guard URL", "wget -P ~/.local/go URL",
+		"curl -sSLo ~/.local/go/go.env URL", "wget -O ~/.local/lib/factory/worker-guard URL", "wget -P ~/.local/go URL", "cp /tmp/x ~/.local/lib/hivemill/stable/hivemill",
 		"go build -o @L/bin/x ./cmd/x", "gcc -o ~/.local/go/x a.c", "tar -C ~/.local/go -xf a.tar",
 		"tar xf a.tar --directory=@L/go", "tar -cf ~/.local/go/x.tar foo", "unzip -d ~/.config/factory a.zip",
 		"7z x a.7z -o@L/bin", "go env -w GOFLAGS=-mod=mod", "go env -u GOFLAGS", "go -C ~/.local/go build ./...",
@@ -91,7 +91,7 @@ func TestProtEditTools(t *testing.T) {
 	live, wt, _ := protFixture(t)
 	home := mustHost().pwDir
 	for _, p := range []string{home + "/.local/lib/factory/worker-guard", home + "/.config/factory/live_home",
-		home + "/.local/go/go.env", home + "/.config/go/env", live + "/bin/factory_cli.py", live + "/go/cmd/x.go",
+		home + "/.local/go/go.env", home + "/.config/go/env", home + "/.local/lib/hivemill/stable/hivemill", live + "/bin/factory_cli.py", live + "/go/cmd/x.go",
 		live + "/roles/hooks/worker-guard.py", live + "/roles/settings/coder.json.in", live + "/run/settings/coder.json"} {
 		data := map[string]any{"tool_name": "Write", "tool_input": map[string]any{"file_path": p}, "cwd": wt}
 		if rc, _ := PersistEdit(data, "coder"); rc != 2 {

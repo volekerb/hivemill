@@ -160,7 +160,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		case a == "":
 			err = r.Pass(true)
 		case a == "--project" && (len(args) == 3 || (len(args) == 4 && arg(3) == "--no-start")):
-			err = r.PassProject(arg(2), len(args) == 3)
+			signal.Ignore(syscall.SIGPIPE) // the daemon may stop while this pass still runs: it finishes its steps
+			if err = r.PassProject(arg(2), len(args) == 3); errors.Is(err, hm.ErrPassSkipped) {
+				return hm.ExitPassSkipped
+			}
 		case a == "hook-session":
 			err = r.SessionHook(stdin)
 		case a == "status":

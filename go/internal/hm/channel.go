@@ -25,10 +25,16 @@ const (
 	ChannelStable = "stable"
 	// promoteAfter is how long the edge build must have run clean before it may become the stable one.
 	promoteAfter = 24 * time.Hour
-	// stablePassTimeout bounds one project pass of the stable binary.
-	stablePassTimeout = 30 * time.Minute
-	edgeMeta          = "edge_build"
+	// stableMargin is the time of a stable project pass beside its longest gate_cmd (gate_timeout_s).
+	stableMargin = 30 * time.Minute
+	edgeMeta     = "edge_build"
+	stableMeta   = "stable_sha" // the checksum of the promoted binary
+	// ExitPassSkipped is the exit code of `run --project` when another pass of the project runs.
+	ExitPassSkipped = 4
 )
+
+// ErrPassSkipped is a project pass that did not run.
+var ErrPassSkipped = errors.New("another pass is running")
 
 // channelKey is the project of a `project.<id>.channel` config key.
 func channelKey(key string) (string, bool) {
@@ -53,13 +59,17 @@ func StableBinary(userHome string) string {
 	return filepath.Join(userHome, ".local", "lib", "hivemill", "stable", "hivemill")
 }
 
-// stableFor is the promoted binary of a stable-channel project ("" for edge, or when nothing is promoted yet).
+// stableFor is the promoted binary of a stable-channel project ("" for edge, when nothing is promoted yet, or when the
+// file is not the one that was promoted: the daemon never runs a file something else wrote there).
 func (r *Runner) stableFor(project string) string {
 	if project == "" || r.Channel(project) != ChannelStable {
 		return ""
 	}
 	bin := StableBinary(r.Env.UserHome)
 	if st, err := os.Stat(bin); err != nil || !st.Mode().IsRegular() || st.Mode().Perm()&0o111 == 0 {
+		return ""
+	}
+	if sum, _, err := fileSum(bin); err != nil || sum != r.Store.Meta(stableMeta) {
 		return ""
 	}
 	return bin
@@ -130,11 +140,12 @@ func (r *Runner) stablePasses(startNew bool) {
 		// the child is not the daemon: it must not ping the daemon's watchdog socket
 		env := append(slices.DeleteFunc(os.Environ(), func(v string) bool { return strings.HasPrefix(v, "NOTIFY_SOCKET=") }),
 			"FACTORY_HOME="+r.Env.Home)
+		limit := time.Duration(cfgInt(r.Store, "gate_timeout_s"))*time.Second + stableMargin
 		r.stableWG.Add(1)
 		go func() {
 			defer r.stableWG.Done()
 			defer r.stableRunning.Delete(id)
-			rc, out := r.Tools.Sh("", stablePassTimeout, env, argv...)
+			rc, out := r.Tools.Sh("", limit, env, argv...)
 			if s := strings.TrimSpace(out); s != "" {
 				r.printf("%s\n", s)
 			}
@@ -153,7 +164,11 @@ func (r *Runner) waitStable() {
 // stableResult counts the failed stable passes in a row of a project; at stableFailAlert it raises one alert.
 func (r *Runner) stableResult(project string, rc int) {
 	key := "stable_fail:" + project
+	if rc == ExitPassSkipped {
+		return // neither good nor bad
+	}
 	if rc == 0 {
+		_ = r.Store.CloseAlert("hivemill-stable", project)
 		if r.Store.Meta(key) != "" {
 			_ = r.Store.SetMeta(key, "")
 		}
@@ -345,6 +360,9 @@ func (r *Runner) Promote(now time.Time) (string, error) {
 	}
 	if err == nil {
 		err = os.Rename(tmp.Name(), dst) // atomic: a running stable process keeps its own file
+	}
+	if err == nil {
+		err = r.Store.SetMeta(stableMeta, sum)
 	}
 	if err != nil {
 		return "", err

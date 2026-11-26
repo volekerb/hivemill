@@ -15,7 +15,7 @@ import (
 var protLiveSubdirs = [][]string{{"go"}, {"roles", "hooks"}, {"roles", "settings"}, {"bin"}}
 
 var protMarkers = []string{".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
-	"run/settings", "run/guard_impl", "run/cli_impl"}
+	"run/settings", "run/guard_impl", "run/cli_impl", ".local/lib/hivemill/stable"}
 
 const protWhy = "it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; ~/.local/bin: first on the tick's PATH; " +
 	"~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, " +
@@ -32,7 +32,8 @@ func protTrees() []string {
 	}
 	base := []string{h.cfgDir, h.libDir, pyJoin(pyJoin(h.pwDir, ".config"), "factory"),
 		pyJoin(pyJoin(pyJoin(h.pwDir, ".local"), "lib"), "factory"), pyJoin(pyJoin(h.pwDir, ".local"), "go"),
-		pyJoin(pyJoin(h.pwDir, ".config"), "go")}
+		pyJoin(pyJoin(h.pwDir, ".config"), "go"),
+		pyJoin(pyJoin(pyJoin(pyJoin(h.pwDir, ".local"), "lib"), "hivemill"), "stable")} // the binary `release promote` writes (T-2085)
 	base = append(base, h.binDirs...) // T-0957 family
 	for _, home := range homes {
 		base = append(base, pyJoin(pyJoin(home, "run"), "settings"), pyJoin(pyJoin(home, "run"), "guard_impl"), pyJoin(pyJoin(home, "run"), "cli_impl"))

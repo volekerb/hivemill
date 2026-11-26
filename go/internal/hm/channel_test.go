@@ -59,6 +59,14 @@ func TestStableChannelUsesStableBinary(t *testing.T) {
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if got := r.Delegate("www"); got != "" {
+		t.Errorf("a file that no promote wrote is never run: %q", got)
+	}
+	sum, _, err := fileSum(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.SetMeta(stableMeta, sum)
 	var calls []string
 	r.Tools.Sh = func(_ string, _ time.Duration, _ []string, argv ...string) (int, string) {
 		if argv[0] == bin {

@@ -375,7 +375,7 @@ EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, th
 # whole live checkout. Reads and runs stay allowed; worktrees are not under them.
 PROT_LIVE_SUBDIRS = ("go", "roles/hooks", "roles/settings", "bin")
 PROT_MARKERS = (".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
-                "run/settings", "run/guard_impl", "run/cli_impl")  # an expansion we cannot resolve that spells one of these counts
+                "run/settings", "run/guard_impl", "run/cli_impl", ".local/lib/hivemill/stable")  # an expansion we cannot resolve that spells one of these counts
 PROT_WHY = ("it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; ~/.local/bin: first on the tick's PATH; "
             "~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, "
             "<live>/bin, <live>/roles/hooks, <live>/roles/settings: what the tick builds, runs and renders); only the owner "
@@ -389,7 +389,8 @@ def prot_trees():
     override = os.environ.get("WORKER_GUARD_LIVE_HOME")
     homes = {os.path.realpath(override)} if override else set(LIVE_HOMES)
     base = [CFG_DIR, LIB_DIR, os.path.join(PW_DIR, ".config", "factory"), os.path.join(PW_DIR, ".local", "lib", "factory"),
-            os.path.join(PW_DIR, ".local", "go"), os.path.join(PW_DIR, ".config", "go")] + sorted(BIN_DIRS)  # T-0957 family
+            os.path.join(PW_DIR, ".local", "go"), os.path.join(PW_DIR, ".config", "go"),
+            os.path.join(PW_DIR, ".local", "lib", "hivemill", "stable")] + sorted(BIN_DIRS)  # T-0957 family; hivemill/stable: T-2085
     for h in homes:
         base += [os.path.join(h, "run", "settings"), os.path.join(h, "run", "guard_impl"), os.path.join(h, "run", "cli_impl")]
         base += [os.path.join(h, *sub.split("/")) for sub in PROT_LIVE_SUBDIRS]
