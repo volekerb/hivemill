@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).
+
 - **Warm standby.** `docs/standby.md` is the failover runbook; `hivemill standby check --from HOST` restores the primary's newest snapshot into a temporary home (the daemon runs it monthly when `standby_from` is set), and a `daemon.lock` stops a second writer on another machine unless `hivemill daemon --take-over` is given (T-2086).
 
 - **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
