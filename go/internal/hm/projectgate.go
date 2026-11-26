@@ -30,14 +30,20 @@ func (r *Runner) projectGate(project string) (string, time.Duration) {
 // runProjectGate runs the gate command with bash in the clone (the environment without Claude or GitHub tokens) and
 // passes on exit 0. The output goes to gate-cmd.log in the round's log dir.
 func (r *Runner) runProjectGate(wt, cmd string, limit time.Duration, logdir string) (bool, string) {
+	rc, _, note := r.execProjectGate(wt, cmd, limit, logdir)
+	return rc == 0, note
+}
+
+// execProjectGate is runProjectGate with the exit code and the whole output.
+func (r *Runner) execProjectGate(wt, cmd string, limit time.Duration, logdir string) (int, string, string) {
 	rc, text := r.Tools.Sh(wt, limit, cleanEnv(), "bash", "-c", cmd)
 	log := filepath.Join(logdir, "gate-cmd.log")
 	_ = os.WriteFile(log, []byte(text), 0o600)
 	switch {
 	case rc == 0:
-		return true, fmt.Sprintf("project gate `%s` ok", cmd)
+		return rc, text, fmt.Sprintf("project gate `%s` ok", cmd)
 	case rc == 124:
-		return false, fmt.Sprintf("project gate `%s` timed out after %s (log %s)", cmd, limit, log)
+		return rc, text, fmt.Sprintf("project gate `%s` timed out after %s (log %s)", cmd, limit, log)
 	}
-	return false, fmt.Sprintf("project gate `%s` exited %d (log %s):\n%s", cmd, rc, log, lastLines(text, 8))
+	return rc, text, fmt.Sprintf("project gate `%s` exited %d (log %s):\n%s", cmd, rc, log, lastLines(text, 8))
 }
