@@ -103,6 +103,9 @@ type FlowPage struct {
 	StuckAfter  string     `json:"stuck_after"`
 	MergedByDay []DayCount `json:"merged_per_day"`
 	Merged      int        `json:"merged"`
+	PRs         int        `json:"prs"`              // tasks in the window with a PR
+	Rounds2     int        `json:"prs_2plus_rounds"` // of PRs
+	Banners     []string   `json:"banners"`
 	// Chart is the merged-per-day SVG.
 	Chart template.HTML `json:"-"`
 }
@@ -154,6 +157,12 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 		}
 		if parseTS(t.Last).After(wN) {
 			p.Tasks = append(p.Tasks, f)
+			if t.PR != "" {
+				p.PRs++
+				if t.Rounds >= 2 {
+					p.Rounds2++
+				}
+			}
 		}
 	}
 	sort.SliceStable(p.Tasks, func(i, j int) bool { return p.Tasks[i].Total > p.Tasks[j].Total })
@@ -165,6 +174,16 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 	}
 	p.Chart = barChart(bars, []string{"merged"}, "merged PRs", func(v float64) string { return fmt.Sprintf("%.0f", v) })
 	return p
+}
+
+// roundsBanners is the review-rounds recommendation: one line when strictly more than pct percent of PRs needed 2+
+// rounds.
+func (p *FlowPage) roundsBanners(pct int) []string {
+	if p.PRs == 0 || p.Rounds2*100 <= pct*p.PRs {
+		return []string{}
+	}
+	share := math.Round(100 * float64(p.Rounds2) / float64(p.PRs))
+	return []string{fmt.Sprintf("%d of %d PRs (%.0f%%) needed 2+ review rounds.", p.Rounds2, p.PRs, share)}
 }
 
 // SpendDay is the day's cost by role.
