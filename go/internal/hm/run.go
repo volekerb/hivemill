@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -53,6 +54,7 @@ type Runner struct {
 	inDaemon   bool                   // this process runs the daemon's passes
 	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
 	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
+	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
 	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 

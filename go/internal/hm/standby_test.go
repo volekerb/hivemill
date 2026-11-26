@@ -207,6 +207,10 @@ func TestDaemonTakeOver(t *testing.T) {
 	if _, err := os.Stat(r.Env.DaemonLockPath()); !os.IsNotExist(err) {
 		t.Errorf("a clean stop leaves the lock: %v", err)
 	}
+	// the new owner is gone again: the old daemon still may not claim the home back
+	if err := r.refreshDaemonLock("zz-primary", time.Now()); !errors.Is(err, ErrRefused) || lockHost(r) != "" {
+		t.Errorf("old daemon after the new one stopped: %v, lock %q", err, lockHost(r))
+	}
 
 	writeForeignLock(t, r, time.Minute)
 	ctx, cancel := context.WithCancel(context.Background())

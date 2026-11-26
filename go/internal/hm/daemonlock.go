@@ -86,18 +86,26 @@ func (r *Runner) claimDaemonLock(host string, now time.Time) error {
 		return fmt.Errorf("%w: a hivemill daemon on %s wrote %s %s ago; stop it, or start with --take-over when it is dead",
 			ErrRefused, who, path, age.Round(time.Second))
 	}
+	r.takenOver.Store(nil)
 	return writeDaemonLock(path, host, now)
 }
 
 // refreshDaemonLock renews the heartbeat. It refuses when another host took the lock: this daemon must stop writing.
+// The refusal stays after the new owner has removed its file, so a long pass cannot end with the old daemon claiming
+// the home again.
 func (r *Runner) refreshDaemonLock(host string, now time.Time) error {
+	refused := func(by string) error { return fmt.Errorf("%w: the daemon on %s took over this home", ErrRefused, by) }
+	if by := r.takenOver.Load(); by != nil {
+		return refused(*by)
+	}
 	path := r.Env.DaemonLockPath()
 	l, _, err := readDaemonLock(path, now)
 	if err != nil {
 		return fmt.Errorf("daemon lock: %w", err)
 	}
 	if l != nil && l.Host != "" && l.Host != host {
-		return fmt.Errorf("%w: the daemon on %s took over this home", ErrRefused, l.Host)
+		r.takenOver.Store(&l.Host)
+		return refused(l.Host)
 	}
 	return writeDaemonLock(path, host, now)
 }
