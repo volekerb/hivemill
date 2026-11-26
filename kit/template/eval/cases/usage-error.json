@@ -1,0 +1,6 @@
+{
+  "name": "an unknown flag is a usage error",
+  "argv": ["--no-such-flag"],
+  "exitCode": 2,
+  "stderrContains": ["usage"]
+}
