@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// Agent is one agents row (the columns web/tokens.py reads). An empty string is SQL NULL: Python treats None and ""
+// Agent is one agents row (the columns attribution reads). An empty string is SQL NULL: Python treats None and ""
 // alike everywhere these fields are used.
 type Agent struct {
 	Name, Role, GoalID, TaskID, SessionID, Started, Ended string
