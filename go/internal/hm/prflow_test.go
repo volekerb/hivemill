@@ -270,6 +270,30 @@ func TestPRFlowCIRunningTimeoutReruns(t *testing.T) {
 	}
 }
 
+func TestPRFlowRefusedCancelStillEscalates(t *testing.T) {
+	f := flowRunner(t)
+	f.r.Tools.GH = func(dir string, args ...string) (int, string, string) {
+		rc, out, errs := f.gh(dir, args...)
+		if len(args) > 1 && args[0] == "run" && args[1] == "cancel" {
+			return 1, "", "zz: server error"
+		}
+		return rc, out, errs
+	}
+	f.add(t, 1, Gated, check("unit", "IN_PROGRESS", "", 7))
+	f.pass(t)
+	f.age(t, 1, 2*time.Hour)
+	f.pass(t)
+	if run := f.run(t, 1); len(run.Rerun.Pending)+len(run.Rerun.Masked) != 0 {
+		t.Fatalf("masked a run that was not cancelled: %+v", run.Rerun)
+	}
+	f.pass(t)
+	f.age(t, 1, 2*time.Hour)
+	f.pass(t)
+	if run := f.run(t, 1); run.State != Failed || run.FailReason != "CI timed out" {
+		t.Errorf("second overrun: %s %q", run.State, run.FailReason)
+	}
+}
+
 func TestPRFlowFlakyRerunOnce(t *testing.T) {
 	f := flowRunner(t)
 	f.base = []string{baseNode("m0", "COMPLETED", "SUCCESS")} // "unit" passed on main an hour ago

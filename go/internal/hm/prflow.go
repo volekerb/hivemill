@@ -277,19 +277,23 @@ func (r *Runner) ciTimedOut(run *Run) {
 	if run.CI != nil && !run.CI.Alerted {
 		run.CI.Since = time.Now().Unix() // the second attempt is not an unsettled CI yet
 	}
+	var ids []string
 	for _, c := range rows {
-		if id := actionsRun(c); !slices.Contains(rr.Pending, id) {
+		if id := actionsRun(c); !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	for _, id := range ids {
+		// a run that was not cancelled keeps its real results, so its next overrun still fails the run
+		if rc, _, errs := r.Tools.GH("", "run", "cancel", id, "-R", run.Repo); rc != 0 {
+			r.printf("%s: gh run cancel %s: %s\n", run.Task, id, firstLine(errs))
+		} else if !slices.Contains(rr.Pending, id) {
 			rr.Pending = append(rr.Pending, id)
 		}
 	}
 	for _, c := range pr.Checks { // a re-run of the whole run replaces its finished jobs too
 		if slices.Contains(rr.Pending, actionsRun(c)) {
 			rr.Masked = append(rr.Masked, link(c))
-		}
-	}
-	for _, id := range rr.Pending {
-		if rc, _, errs := r.Tools.GH("", "run", "cancel", id, "-R", run.Repo); rc != 0 {
-			r.printf("%s: gh run cancel %s: %s\n", run.Task, id, firstLine(errs))
 		}
 	}
 	r.enterFlow(run, FlowCIQueued, pr.HeadRefOid) // a new budget for the second attempt
@@ -395,7 +399,7 @@ func (r *Runner) flakyRerun(run *Run, head string, failed []map[string]any) bool
 	for _, id := range ids {
 		if rc, _, errs := r.Tools.GH("", "run", "rerun", id, "--failed", "-R", run.Repo); rc != 0 {
 			r.printf("%s: gh run rerun %s: %s\n", run.Task, id, firstLine(errs))
-			break
+			continue
 		}
 		done = append(done, id)
 	}
@@ -404,6 +408,9 @@ func (r *Runner) flakyRerun(run *Run, head string, failed []map[string]any) bool
 	}
 	rr := r.rerunState(run, head)
 	rr.Flaky = true
+	if run.CI != nil && !run.CI.Alerted {
+		run.CI.Since = time.Now().Unix() // as for a timeout re-run
+	}
 	for _, l := range links { // only what is running again reads as pending
 		if slices.Contains(done, actionsRun(map[string]any{"detailsUrl": l})) {
 			rr.Masked = append(rr.Masked, l)
