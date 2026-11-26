@@ -44,8 +44,7 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 		"git clone -- " + hiRepo + " " + fh + ".installing", fac + " init", fac + " config serve_bind 127.0.0.1",
 		fac + " config serve_port 9000", fac + " config max_live_agents 3", fac + " config scout_enabled 0",
 		fac + " project add demo --name demo --repo /r --gh o/r",
-		"bash " + fh + "/systemd/install.sh --with-serve",
-		"systemctl --user start herdr-server.service factory-tick.timer factory-serve.service factory-up.service",
+		"systemctl --user daemon-reload", hiEnable,
 	}
 	prev := -1
 	for _, w := range want {
@@ -58,6 +57,16 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 			t.Errorf("call %q out of order (%d < %d)", w, i, prev)
 		}
 		prev = i
+	}
+	unitDir := filepath.Join(home, ".config", "systemd", "user")
+	for _, u := range hiUnits {
+		b, err := os.ReadFile(filepath.Join(unitDir, u))
+		if err != nil || string(b) != u+"\n" {
+			t.Errorf("installed unit %s = %q, %v", u, b, err)
+		}
+	}
+	if ents, err := os.ReadDir(unitDir); err != nil || len(ents) != len(hiUnits) {
+		t.Errorf("unit dir holds %v, %v; want only %v", ents, err, hiUnits)
 	}
 	got, err := os.Readlink(fac)
 	if err != nil || got != filepath.Join(fh, "bin", "factory") {
@@ -87,17 +96,15 @@ func TestHivemillInstallNoSystemdRunStartsBackgroundAndWarns(t *testing.T) {
 	if !hiResultPass.MatchString(hiLast(out)) {
 		t.Errorf("last line %q", hiLast(out))
 	}
-	fac := filepath.Join(home, ".local", "bin", "factory")
-	var got []string
-	for _, p := range h.popens {
-		got = append(got, strings.Join(p, " "))
+	hiEq(t, len(h.popens), 0, "popens")
+	hiIn(t, out, "then run `hivemill daemon`")
+	if hiExists(filepath.Join(home, ".config", "systemd")) {
+		t.Error("--no-systemd installed units")
 	}
-	hiEq(t, strings.Join(got, "|"), "herdr server|"+fac+" serve --bind 127.0.0.1", "background starts")
-	hiIn(t, out, "WARNING: no tick timer: agents will not be nudged and queued spawns will not start")
 	a := h.argvs()
-	ws, up := hiIndex(a, "herdr workspace list"), hiIndex(a, fac+" up")
-	if ws < 0 || up < 0 || ws >= up {
-		t.Errorf("herdr workspace list (%d) must precede factory up (%d)", ws, up)
+	fac := filepath.Join(home, ".local", "bin", "factory")
+	if bad := hiFind(a, func(s string) bool { return s == fac+" up" || strings.HasPrefix(s, "herdr workspace") }); len(bad) > 0 {
+		t.Errorf("a herdr or factory start ran: %v", bad)
 	}
 	if bad := hiFind(a, func(s string) bool {
 		return strings.Contains(s, "systemctl") && !strings.Contains(s, "show-environment")

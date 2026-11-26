@@ -39,6 +39,26 @@ const (
 	hiToken  = "ghp_" + "abcdefghijklmnopqrstuvwxyzABCDEFGHIJ" // ghp_ + 36 letters
 )
 
+// hiUnits are the unit files a Linux install copies from the clone's systemd/ folder.
+var hiUnits = []string{"hivemill.service", "hivemill-digest.service", "hivemill-digest.timer",
+	"hivemill-health.service", "hivemill-health.timer"}
+
+const hiEnable = "systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer"
+
+// hiWriteUnits puts the unit files under <clone>/systemd/, each holding its own name.
+func hiWriteUnits(t *testing.T, clone string) {
+	t.Helper()
+	dir := filepath.Join(clone, "systemd")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range hiUnits {
+		if err := os.WriteFile(filepath.Join(dir, u), []byte(u+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 var hiResultPass = regexp.MustCompile(`^RESULT PASS url=http://127\.0\.0\.1:[0-9]+/ version=[0-9]+\.[0-9]+\.[0-9]+$`)
 
 type hiRule struct {
@@ -243,6 +263,7 @@ func (h *hiHost) Run(argv []string, cwd string, timeout time.Duration, mutate bo
 		if err := os.MkdirAll(argv[len(argv)-1], 0o755); err != nil {
 			h.t.Fatal(err)
 		}
+		hiWriteUnits(h.t, argv[len(argv)-1])
 		return 0, ""
 	case a0 == "factory":
 		switch {
@@ -376,6 +397,7 @@ func hiMakeInstall(t *testing.T, home string, db bool) {
 	if err := os.MkdirAll(filepath.Join(fh, sub), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	hiWriteUnits(t, fh) // a clone, whole or partial, holds the unit files
 	if db {
 		if err := os.WriteFile(filepath.Join(fh, "db", "factory.db"), nil, 0o644); err != nil {
 			t.Fatal(err)

@@ -103,14 +103,17 @@ func TestHivemillInstallDryRunChangesNothingAndListsArgv(t *testing.T) {
 	hiIn(t, out, "checkout --detach refs/tags/v0.10.0")
 	hiIn(t, out, "config max_live_agents 3")
 	hiIn(t, out, "project add demo --name demo --repo /r")
-	hiIn(t, out, "systemctl --user start herdr-server.service factory-tick.timer factory-serve.service factory-up.service")
+	for _, u := range hiUnits {
+		hiIn(t, out, "copy "+filepath.Join(fh, "systemd", u)+" -> "+filepath.Join(home, ".config", "systemd", "user", u))
+	}
+	hiIn(t, out, hiEnable)
 }
 
 func TestHivemillInstallServeBindBeforeAnyServeStartInBothPlans(t *testing.T) {
 	for _, c := range []struct {
 		extra []string
 		start string
-	}{{nil, "systemctl --user start"}, {[]string{"--no-systemd"}, "serve --bind"}} {
+	}{{nil, hiEnable}, {[]string{"--no-systemd"}, "`hivemill daemon`"}} {
 		_, out, _ := hiRun(hiNew(t, hiHome(t)), append([]string{"--dry-run"}, c.extra...)...)
 		bind, serve := -1, -1
 		for i, ln := range strings.Split(out, "\n") {
@@ -126,7 +129,7 @@ func TestHivemillInstallServeBindBeforeAnyServeStartInBothPlans(t *testing.T) {
 			continue
 		}
 		if bind >= serve {
-			t.Errorf("%v: serve_bind (line %d) must precede the serve start (line %d)", c.extra, bind, serve)
+			t.Errorf("%v: serve_bind (line %d) must precede the service start or daemon hint (line %d)", c.extra, bind, serve)
 		}
 	}
 }
