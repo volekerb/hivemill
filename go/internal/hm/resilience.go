@@ -215,6 +215,10 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		} else {
 			_ = r.Heartbeat(time.Now())
 		}
+		// taken over during the pass: no planner, backup or standby check; the top of the loop ends this daemon
+		if errors.Is(r.refreshDaemonLock(host, time.Now()), ErrRefused) {
+			continue
+		}
 		r.PlannerPass(time.Now()) // held runs to the owner queue; keep the planner alive and wake it on events
 		r.OtelTail(time.Now())    // otel_endpoint set: finished tasks go out as traces (never fails the pass)
 		if r.BackupDue(time.Now()) {

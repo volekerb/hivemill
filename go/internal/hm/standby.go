@@ -187,6 +187,9 @@ func (r *Runner) StandbyPass(bin string, now time.Time) {
 	default:
 		return // still running
 	}
+	if res.from != strings.TrimSpace(r.Store.Cfg("standby_from")) {
+		return // the source changed meanwhile: the new one is still due
+	}
 	_ = r.Store.SetMeta("last_standby_check", strconv.FormatInt(now.Unix(), 10))
 	if res.err != nil {
 		res.msg = res.err.Error()
