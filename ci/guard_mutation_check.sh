@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Guard mutation check (T-1963): prove the ported guard tests catch a broken rule.
 #   guard_mutation_check.sh PATCH TESTREGEX
+#   guard_mutation_check.sh --self-test   (T-1957: runs check on a tiny module with a breaking and a comment-only patch)
 # PATCH is a git-style diff (a/ b/ paths, repo-relative) that breaks a guard rule. The tests matching TESTREGEX must
 # pass before the patch and fail with it applied. The patch is applied in place and undone on exit; no tree copy.
 set -u
@@ -49,8 +50,34 @@ check() {
 	echo "mutation caught"; exit 0
 }
 
+self_test() { # build a tiny module, then check must catch break.patch and must reject comment.patch
+	local d
+	d=$(mktemp -d) || exit 1
+	trap 'rm -rf "$d"' EXIT
+	mkdir -p "$d/go/internal/guard"
+	printf '%s\n' 'module selftest' '' 'go 1.22' > "$d/go/go.mod"
+	printf '%s\n' 'package guard' '' 'func Allow() bool { return true }' > "$d/go/internal/guard/g.go"
+	printf '%s\n' 'package guard' '' 'import "testing"' '' \
+		'func TestAllow(t *testing.T) {' '	if !Allow() {' '		t.Fatal("Allow() = false, want true")' '	}' '}' \
+		> "$d/go/internal/guard/g_test.go"
+	printf '%s\n' '--- a/go/internal/guard/g.go' '+++ b/go/internal/guard/g.go' '@@ -1,3 +1,3 @@' ' package guard' ' ' \
+		'-func Allow() bool { return true }' '+func Allow() bool { return false }' > "$d/break.patch"
+	printf '%s\n' '--- a/go/internal/guard/g.go' '+++ b/go/internal/guard/g.go' '@@ -1,3 +1,4 @@' ' package guard' ' ' \
+		'+// Allow reports whether the call is allowed.' ' func Allow() bool { return true }' > "$d/comment.patch"
+	if ! (check "$d" "$d/break.patch" '^TestAllow$') > "$d/break.log" 2>&1; then
+		cat "$d/break.log"; echo "self-test failed: break.patch was not caught"; exit 1
+	fi
+	if (check "$d" "$d/comment.patch" '^TestAllow$') > "$d/comment.log" 2>&1; then
+		cat "$d/comment.log"; echo "self-test failed: comment.patch counted as caught"; exit 1
+	fi
+	echo "self-test ok"; exit 0
+}
+
+if [ "${1:-}" = --self-test ] && [ $# -eq 1 ]; then
+	self_test
+fi
 if [ $# -ne 2 ]; then
-	echo "usage: $0 PATCH TESTREGEX" >&2; exit 2
+	echo "usage: $0 PATCH TESTREGEX | $0 --self-test" >&2; exit 2
 fi
 if [ ! -r "$1" ] || [ -d "$1" ]; then
 	echo "patch not found: $1"; exit 1
