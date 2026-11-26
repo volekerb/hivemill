@@ -606,7 +606,8 @@ class CorpusSanityTests(unittest.TestCase):
                     path = f.name
                 try:
                     p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker",
-                                        "--corpus", path, "--timeout", "30"], capture_output=True, text=True, timeout=600, env=env)
+                                        "--corpus", path, "--timeout", "30"], capture_output=True, text=True,
+                                       timeout=600 * harness.time_scale(), env=env)
                 finally:
                     os.unlink(path)
                 self.assertEqual(p.returncode, 0, p.stdout + p.stderr)

@@ -75,25 +75,37 @@ def _block(rows, i):
 
 
 def _triggers(rows):
-    """({trigger: lineno}, {trigger: [child key names]}) from the top-level `on:` key."""
+    """({trigger: lineno}, {trigger: [child key names]}) from the top-level `on:` key.
+
+    A form this cannot read is reported as the trigger '<unparsed>', which no self-hosted workflow may have.
+    """
     found, kids = {}, {}
     for i, (n, raw, ind) in enumerate(rows):
         m = KEY.match(raw)
         if ind or not m or m.group(2) != "on":
             continue
-        inline = m.group(3).strip()
+        inline = re.sub(r"(^|\s+)#.*$", "", m.group(3)).strip()
         if inline:
+            if inline.startswith("["):  # a flow list may go on over the next lines
+                k = i + 1
+                while "]" not in inline and k < len(rows):
+                    inline += " " + re.sub(r"(^|\s+)#.*$", "", rows[k][1]).strip()
+                    k += 1
             for t in re.findall(r"[A-Za-z_][\w-]*", inline):
                 found[t] = n
+            if not found:
+                found["<unparsed>"] = n
             return found, kids
         end = _block(rows, i)
         base = rows[i + 1][2] if i + 1 < end else 0
         cur = None
         for k in range(i + 1, end):
             kn, kraw, kind = rows[k]
-            item = re.match(r"^\s*-\s+([A-Za-z_][\w-]*)\s*$", kraw)
+            item = re.match(r"""^\s*-\s+["']?([A-Za-z_][\w-]*)["']?(?:\s+#.*)?\s*$""", kraw)
             km = KEY.match(kraw)
-            if kind == base and item:
+            if kind == base and not item and not km:
+                found["<unparsed>"] = kn
+            elif kind == base and item:
                 found[item.group(1)] = kn
             elif kind == base and km:
                 cur = km.group(2)
@@ -101,6 +113,8 @@ def _triggers(rows):
                 kids[cur] = []
             elif cur and km:
                 kids[cur].append(km.group(2))
+        if not found:
+            found["<unparsed>"] = n
     return found, kids
 
 
@@ -274,6 +288,18 @@ class RunnerRule(PolicyBase):  # a
             bad = wf.replace("on:\n", "on:\n  %s:\n" % trigger, 1)
             self.assertNotEqual(bad, wf)
             self.assertBlocked(bad, trigger)
+
+    def test_self_hosted_trigger_spellings_cannot_hide_a_trigger(self):
+        wf = GOOD.replace("runs-on: ubuntu-latest", "runs-on: " + SELF_HOSTED_SAME_REPO)
+        block = "on:\n  pull_request:\n    branches: [main]\n  workflow_dispatch:\n"
+        self.assertIn(block, wf)
+        for on, want in (("on:\n  - push\n  - issue_comment  # chat\n", "issue_comment"),
+                         ("on:\n  - push\n  - 'issue_comment'\n", "issue_comment"),
+                         ("on: [push,\n  issue_comment]\n", "issue_comment"),
+                         ("on:  # events\n  issue_comment:\n", "issue_comment"),
+                         ("on:\n- issue_comment\n", "<unparsed>"),
+                         ("on:\n  - push\n  - *chat\n", "<unparsed>")):
+            self.assertBlocked(wf.replace(block, on), want)
 
     def test_self_hosted_for_forks_blocked(self):
         # a fork must never reach the self-hosted runners: every other spelling is blocked
