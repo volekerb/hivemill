@@ -119,8 +119,9 @@ else
 fi
 case "$host" in ''|-*|*[!A-Za-z0-9._@-]*) echo "remote-gate: GATE_REMOTE_HOST='$host' is not set or not a plain ssh host name" >&2; exit 2 ;; esac
 
+# No connection sharing: the remote driver watches its sshd, which must end when this client does, not with a shared master.
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=4
-          -o ForwardAgent=no -o ForwardX11=no -o ClearAllForwardings=yes -o SendEnv=-* -o RequestTTY=no)
+          -o ControlMaster=no -o ControlPath=none -o ForwardAgent=no -o ForwardX11=no -o ClearAllForwardings=yes -o SendEnv=-* -o RequestTTY=no)
 # GATE_REMOTE_HOST=local: the runner already is on the test host; the same steps run here without ssh (same shipping
 # into <run root>/fg-XXXXXX, same env -i, lock, CPU and RAM cap and cleanup).
 # GATE_REMOTE_HOST naming the machine this script runs on (its `hostname -s` or `hostname`) means local too: no ssh to

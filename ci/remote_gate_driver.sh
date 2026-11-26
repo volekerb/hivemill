@@ -98,25 +98,23 @@ if [ "${1-}" = --jobs ]; then
   job_cap "$2" "$3" "$4"
   exit
 fi
-# proc_stat PID: "<state> <ppid> <start time in clock ticks>" from /proc (the comm field may hold spaces).
-proc_stat() {
-  local s
-  s=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
-  s=${s##*) }
-  awk '{print $1, $2, $20}' <<<"$s"
+# read_stat PID: st_state, st_ppid, st_pgrp and st_start (clock ticks) from /proc/PID/stat; fails when it cannot be read.
+# Shell builtins only: a fork that fails on a loaded host must not look like a dead process.
+read_stat() {
+  local s= f
+  { IFS= read -r -d '' s < "/proc/$1/stat"; } 2>/dev/null || :
+  [ -n "$s" ] || return 1
+  s=${s##*) }   # the comm field may hold spaces
+  f=($s)
+  st_state=${f[0]} st_ppid=${f[1]} st_pgrp=${f[2]} st_start=${f[19]}
 }
-# proc_start PID: the start time of a live (not zombie) process; fails when there is none.
-proc_start() {
-  local state ppid start
-  read -r state ppid start < <(proc_stat "$1") || return 1
-  case "$state" in Z|X) return 1 ;; esac
-  echo "$start"
-}
-# still_alive PID START: that same process (not a reused pid) is still running.
+# still_alive PID START: that same process (not a reused pid, not a zombie) is still running. A /proc entry that exists but
+# cannot be read is not "gone". START "unreadable" (a parent hidden by hidepid) can only be checked with kill -0.
 still_alive() {
-  local now
-  now=$(proc_start "$1") || return 1
-  [ "$now" = "$2" ]
+  if [ "$2" = unreadable ]; then kill -0 "$1" 2>/dev/null; return; fi
+  if ! read_stat "$1"; then [ -e "/proc/$1" ]; return; fi
+  case "$st_state" in Z|X) return 1 ;; esac
+  [ "$st_start" = "$2" ]
 }
 if [ "$#" -ne 4 ]; then echo "remote-gate-driver: usage: remote_gate_driver.sh <run dir> <head> <base> <shards>" >&2; exit 2; fi
 run=$1 head_sha=$2 base_sha=$3 shards=$4
@@ -137,13 +135,15 @@ if [ "${REMOTE_GATE_LEADER-}" != 1 ]; then
   [ -z "${REMOTE_GATE_SCRIPT_PID-}" ] || w=0
   while [ "$w" -gt 1 ] && [ -r "/proc/$w/comm" ]; do
     case "$(cat "/proc/$w/comm")" in sshd*) break ;; esac
-    read -r _ w _ < <(proc_stat "$w") || w=0
+    if read_stat "$w"; then w=$st_ppid; else w=0; fi
   done
   case "$(cat "/proc/$w/comm" 2>/dev/null)" in sshd*) ;; *) w=0 ;; esac   # an unreadable ancestor is not "gone"
   watch=
   for p in "$PPID" "$w" "${REMOTE_GATE_SCRIPT_PID-}"; do
     case "$p" in ''|0|1|*[!0-9]*) continue ;; esac
-    s=$(proc_start "$p") || s=gone
+    if read_stat "$p"; then s=$st_start
+    elif kill -0 "$p" 2>/dev/null; then s=unreadable
+    else s=gone; fi
     watch="$watch $p:$s"
   done
   pin=(); command -v taskset >/dev/null && pin=(taskset -c "0-$((cores - 1))")
@@ -200,12 +200,11 @@ stale_holder() {
 }
 # group_pids PGID: the live (not zombie) processes of that group.
 group_pids() {
-  local d stat
+  local d
   for d in /proc/[0-9]*; do
-    stat=$(cat "$d/stat" 2>/dev/null) || continue
-    stat=${stat##*) }
-    case "$stat" in Z*|X*) continue ;; esac
-    [ "$(awk '{print $3}' <<<"$stat")" != "$1" ] || echo "${d#/proc/}"
+    read_stat "${d#/proc/}" || continue
+    case "$st_state" in Z|X) continue ;; esac
+    [ "$st_pgrp" != "$1" ] || echo "${d#/proc/}"
   done
 }
 # group_holds_lock PGID: some process of that group has the lock file ($lock) open.
@@ -222,11 +221,10 @@ group_holds_lock() {
 # its process group, when the pid is still that driver (and leads its group), or when it is gone and only its jobs are left.
 # A reused pid is never signalled.
 stop_holder() {
-  local pid=$1 stat i
+  local pid=$1 i
   [ "$pid" -gt 1 ] || return 0
-  if stat=$(cat "/proc/$pid/stat" 2>/dev/null); then
-    stat=${stat##*) }
-    [ "$(awk '{print $3, $20}' <<<"$stat")" = "$pid $2" ] || return 0
+  if read_stat "$pid"; then
+    [ "$st_pgrp $st_start" = "$pid $2" ] || return 0
     if still_alive "$pid" "$2"; then grep -qa remote_gate_driver.sh "/proc/$pid/cmdline" || return 0; fi
   else
     group_holds_lock "$pid" || return 0   # no driver left: signal only a group that still has the lock open
@@ -246,7 +244,8 @@ meta_lock() { exec 8>>"$lock.meta"; flock 8 & wait "$!"; }
 # take_record: fd 9 has the flock; record us as the holder, unless a takeover replaced the file meanwhile.
 take_record() {
   [ "/proc/$$/fd/9" -ef "$lock" ] || return 1
-  if ! echo "$$ $(proc_start "$$") $(date +%s) $limit" > "$lock"; then   # no retry: we would only spin on our own lock
+  read_stat "$$"
+  if ! echo "$$ $st_start $(date +%s) $limit" > "$lock"; then   # no retry: we would only spin on our own lock
     echo "remote-gate-driver: cannot write the holder record to ~/factory-gate/.lock (disk full?)" >&2
     exit 1
   fi
