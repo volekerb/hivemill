@@ -74,6 +74,12 @@ def _block(rows, i):
     return j
 
 
+def _flow_line(s):
+    """One line of a flow value: quoted names unquoted, other quoted text blanked (brackets and # in it are text), comment cut."""
+    s = re.sub(r"'[^']*'|\"[^\"]*\"", lambda q: q.group(0)[1:-1] if re.fullmatch(r"[A-Za-z_][\w-]*", q.group(0)[1:-1]) else "_q", s)
+    return re.sub(r"(^|\s+)#.*$", "", s).strip()
+
+
 def _flow_top(s):
     """Top-level names of a scalar, a flow list or a flow mapping: not nested keys or values."""
     if s[0] not in "[{":
@@ -96,20 +102,20 @@ def _flow_top(s):
 def _triggers(rows):
     """({trigger: lineno}, {trigger: [child key names]}) from the top-level `on:` key.
 
-    A form this cannot read is reported as the trigger '<unparsed>', which no self-hosted workflow may have.
+    A form this cannot read is reported as the trigger '<unparsed>', which fails every workflow.
     """
     found, kids = {}, {}
     for i, (n, raw, ind) in enumerate(rows):
         m = KEY.match(raw)
         if ind or not m or m.group(2) != "on":
             continue
-        inline = re.sub(r"(^|\s+)#.*$", "", m.group(3)).strip()
+        inline = _flow_line(m.group(3))
         if inline:
             if inline[0] in "[{":  # a flow list or mapping may go on over the next lines
                 k = i + 1
                 depth = lambda s: s.count("[") + s.count("{") - s.count("]") - s.count("}")
                 while depth(inline) > 0 and k < len(rows):
-                    inline += " " + re.sub(r"(^|\s+)#.*$", "", rows[k][1]).strip()
+                    inline += " " + _flow_line(rows[k][1])
                     k += 1
                 if depth(inline) != 0:
                     return {"<unparsed>": n}, kids
@@ -156,6 +162,8 @@ def _check_workflow(path, text):
     rel, out = str(path), []
     rows = list(_lines(text))
     found, kids = _triggers(rows)
+    if "<unparsed>" in found:
+        out.append("%s:%d: the `on:` triggers are in a form this check cannot read; use a block or a one-line list" % (rel, found["<unparsed>"]))
     for t in sorted(BANNED_TRIGGERS & set(found)):
         why = "burns minutes unattended" if t == "schedule" else "runs with a write token / secrets on fork code"
         out.append("%s:%d: trigger '%s' not allowed (%s)" % (rel, found[t], t, why))
@@ -330,6 +338,11 @@ class RunnerRule(PolicyBase):  # a
                          ("? on\n: [issue_comment]\n", "<unparsed>")):
             self.assertBlocked(wf.replace(block, on), want)
         self.assertClean(wf.replace(block, "on: {pull_request: {branches: [main]},\n  workflow_dispatch: {}}\n"))
+        self.assertBlocked(wf.replace(block, "on: {push: {branches: ['[', 'x #y']}, issue_comment: {}}\n"),
+                           "issue_comment")
+        # a hosted workflow whose triggers cannot be read fails too, so a banned trigger cannot hide there
+        for on in ("on:\n- schedule\n", "on: [push,\n", "on :\n  schedule:\n"):
+            self.assertBlocked(GOOD.replace(block, on), "cannot read")
 
     def test_self_hosted_for_forks_blocked(self):
         # a fork must never reach the self-hosted runners: every other spelling is blocked

@@ -165,7 +165,9 @@ jobs:
           d=$(dirname "$(command -v go)")
           PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF -e "$d" -e "$d/" | paste -sd: -)
           # Private TMPDIR, as in guard-diff: shards on the shared hm-ci host must not share fixed-name test fixtures.
+          # 711 as in the local gate: the subuid sandbox tests run as another uid that must traverse it.
           TMPDIR=$(mktemp -d /tmp/hm-shard.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
           trap 'rm -rf "$TMPDIR"' EXIT
           only=()
           if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
