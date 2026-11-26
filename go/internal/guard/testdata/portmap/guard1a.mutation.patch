@@ -1,0 +1,13 @@
+diff --git a/go/internal/guard/frontend.go b/go/internal/guard/frontend.go
+index d3e966d57..4617c7637 100644
+--- a/go/internal/guard/frontend.go
++++ b/go/internal/guard/frontend.go
+@@ -89,7 +89,7 @@ var (
+ 	// BroadReads is worker-guard.py:BROAD_READS: subcommand -> second words that are blocked; a nil set
+ 	// means any (or no) second word.
+ 	BroadReads = map[string]map[string]struct{}{
+-		"res": nil, "agents": nil, "scorecard": nil, "digest": nil, "config": nil, "flags": nil,
++		"res": nil, "agents": nil, "scorecard": nil, "digest": nil, "config": nil,
+ 		"goal": set("list"), "task": set("list", "ready"), "team": set("list"),
+ 		"project": set("list"), "lesson": set("list"),
+ 	}
