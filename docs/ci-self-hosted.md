@@ -36,7 +36,9 @@ Kernel and user settings:
 
 `actions/setup-go` installs into the runner's tool cache, and the install is not safe when two runners share one: jobs that start together delete each other's half-copied files and fail with `Failed to download version ... ENOENT ... copyfile`, or find a Go that does not run. This happens on the first jobs after the cache is empty, so after every Go version bump in `go/go.mod`.
 
-For each runner, add `AGENT_TOOLSDIRECTORY=<that runner's own directory>/toolcache` to the `.env` file in the runner's install directory (replacing any shared value), then restart the runner service. Until that is applied, re-run the failed jobs once: the first run leaves the version cached.
+For each runner, set `AGENT_TOOLSDIRECTORY=<that runner's own directory>/toolcache` in the `.env` file in the runner's install directory. Remove any other `AGENT_TOOLSDIRECTORY` or `RUNNER_TOOL_CACHE` setting that points at a shared directory (in `.env` and in the service unit), restart the runner service, and check that the next `setup-go` log names a path under that runner's own directory.
+
+Until that is applied, re-run the failed jobs after the run has finished: the last install of a burst usually leaves a good copy in the cache. If a re-run still fails, stop the runners, delete the broken version directory under the tool cache's `go/` together with its `x64.complete` marker, start them and re-run.
 
 ## Python must live outside the runner's home
 
