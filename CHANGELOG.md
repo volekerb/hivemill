@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Removed
 
+- **CI and the remote gate no longer compile or run `bin/factory`.** The two `unittest-shard` steps and the gate's `py-compile` and `factory-help` steps are gone; the gate test's probe is the head-tree `ci/shard.py` (T-1973).
+
 - **The release check drops its `cursor-runtime` check.** `ci/release_check.py` and the Go gate no longer require the `scout/` runtime files or the cursor adapter by name; the other checks are unchanged (T-1934).
 
 - Old-chain delete step 1: the `factory-forward` ssh forwarder, the `factory-go-version` command and their packages (`internal/forward`, `internal/buildinfo`) are gone, with the tests that built or exercised the forwarder (T-1932).
