@@ -380,7 +380,7 @@ func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, n
 			continue
 		}
 		var t *ObsTask
-		if e.TaskID != "" {
+		if e.TaskID != "" && e.Event != repointedEvent {
 			k := TaskKey(origin, e.TaskID)
 			if t = o.Tasks[k]; t == nil {
 				t = &ObsTask{Key: k, Task: e.TaskID, Origin: origin, Harness: e.Harness, Start: e.TS,

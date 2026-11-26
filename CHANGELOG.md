@@ -13,6 +13,8 @@ v0.1.0 summarises the changes merged during private development.
 
 - **The `hivemill obs` task page shows the task as one timeline.** `/task?k=<machine>/<task>` has a header with title, goal, status, total cost and the other task fields, then one row per step with time, role, cost and its PR or session link; failed, blocked and held steps stand out. The raw sessions and events lists are collapsed at the end (T-2026).
 
+- **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
+
 - **A red CI resumes the task session with the failed logs.** The runner names each failed job and sends the last 80 lines of its failed log (read through `ghx`); a session whose pane has closed is relaunched by its session id. A startup failure counts as red. (T-2001)
 
 - **The runner reports todo tasks that cannot start.** `hivemill task list --startable` and `--blocked` (with the reason: lint, deps or a run) show what a pass starts and skips. A todo task failing the spec gate logs one `task.unstartable` event and gives the planner one wake reason; when a run slot is free and nothing is startable, the wake says how many tasks deps and lint block. The idle alert counts startable tasks (T-2048).
