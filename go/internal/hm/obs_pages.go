@@ -530,7 +530,7 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 		case !ok:
 			listed[src.Machine] = len(p.Machines)
 			p.Machines = append(p.Machines, row)
-		case !p.Machines[i].Own && src.Pulled > p.Machines[i].Pulled: // a newer copy of one machine's log
+		case !p.Machines[i].Own && parseTS(src.Pulled).After(parseTS(p.Machines[i].Pulled)): // a newer copy of one machine's log
 			p.Machines[i] = row
 		}
 	}
