@@ -44,7 +44,7 @@ There is one table, `hm_asks`. A question never blocks other work: the planner k
 
 These run whether or not the dead-man check passes. They write owner alert feed rows, never a message to the boss; each row they open (like `hivemill-planner` and `hivemill-digest`) also goes out as an owner alert: `<home>/logs/alerts.log`, then `alert_cmd` or a macOS notification ([option-b-runner.md](option-b-runner.md#health-and-alerts)). `hivemill health` prints them without `--alert`. The exit code still reflects only the heartbeat.
 
-- `hivemill-idle`: no task was dispatched for `idle_alert_h` (2) hours while an active goal exists and a run slot is free (drain off). The text names the likely causes: `projects` is empty, the goal's project is not in `projects`, dispatch is held by a cap, there are 0 lint-passing ready tasks, or the planner is off or lost. It is raised at most once per `alert_every_s`, and closed when the condition clears.
+- `hivemill-idle`: no task was dispatched for `idle_alert_min` (20) minutes (`idle_alert_h`, 2 hours, is the fallback when `idle_alert_min` is 0) while an active goal exists and a run slot is free (drain off). The text names the likely causes: `projects` is empty, the goal's project is not in `projects`, dispatch is held by a cap, there are 0 lint-passing ready tasks, or the planner is off or lost. It is raised at most once per `alert_every_s`, and closed when the condition clears.
 - `hivemill-asks`: open owner questions older than `ask_alert_h` (1), in one digest row. A new row replaces the open one only when the list changes.
 
 ## Morning digest
@@ -71,7 +71,8 @@ Schedules at 07:30:
 | `planner_model` | `claude-opus-5-5` | the planner's model (never Fable) |
 | `planner_effort` | `medium` | its `--effort` |
 | `planner_wake_gap_s` | `600` | at most one wake per this many seconds |
-| `idle_alert_h` | `2` | starvation alert after this many hours without a dispatch |
+| `idle_alert_min` | `20` | starvation alert after this many minutes without a dispatch |
+| `idle_alert_h` | `2` | fallback in hours, used when `idle_alert_min` is 0 (or empty) |
 | `ask_alert_h` | `1` | owner questions older than this go out in the digest alert |
 
 ## Rollback

@@ -91,7 +91,7 @@ type OwnerAlert struct {
 }
 
 // OwnerChecks are the starvation and owner-queue checks (they do not change the dead-man result):
-//   - hivemill-idle: no task dispatched for idle_alert_h while an active goal exists and a run slot is free (drain off),
+//   - hivemill-idle: no task dispatched for idle_alert_min (else idle_alert_h) while an active goal exists and a run slot is free (drain off),
 //     with the likely causes;
 //   - hivemill-asks: owner questions open for longer than ask_alert_h, in one digest.
 func (r *Runner) OwnerChecks(now time.Time) []OwnerAlert {
@@ -150,7 +150,10 @@ func (r *Runner) idleCheck(s *SQLite, now time.Time) *OwnerAlert {
 			}
 		}
 	}
-	limit := time.Duration(cfgInt(r.Store, "idle_alert_h")) * time.Hour
+	limit := time.Duration(cfgInt(r.Store, "idle_alert_min")) * time.Minute
+	if strings.TrimSpace(r.Store.Cfg("idle_alert_min")) == "" || limit == 0 {
+		limit = time.Duration(cfgInt(r.Store, "idle_alert_h")) * time.Hour
+	}
 	if last.IsZero() || now.Sub(last) < limit {
 		return nil
 	}
