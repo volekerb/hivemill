@@ -14,6 +14,12 @@ DEPENDABOT = next((p for p in (ROOT / "ci" / "public-overlay" / ".github" / "dep
                   ROOT / ".github" / "dependabot.yml")
 
 ALLOWED_RUNNERS = {"ubuntu-latest", "ubuntu-24.04", "ubuntu-22.04"}
+# Owner decision 2026-11-26: our own PRs and pushes may run on the self-hosted `hm-ci` runners (a dedicated user without
+# sudo or the owner's credentials). Exactly this expression is allowed, character for character: a fork PR always gets
+# ubuntu-latest, and fork PRs also need approval to run (repo setting fork-pr-contributor-approval). Any other
+# self-hosted form stays blocked.
+SELF_HOSTED_SAME_REPO = ("${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == "
+                         "github.repository) && fromJSON('[\"self-hosted\",\"hm-ci\"]') || 'ubuntu-latest' }}")
 BANNED_TRIGGERS = {"pull_request_target", "workflow_run", "schedule"}
 FORK_EXPR = re.compile(r"\$\{\{(.*)")  # to end of line: a literal } (format('{0}', ..)) must not hide the rest
 FORK_TEXT = re.compile(r"github\.event\.pull_request\.|github\.event\.issue\.|github\.head_ref")
@@ -123,7 +129,7 @@ def _check_workflow(path, text):
         key, val = (m.group(2), m.group(3).strip()) if m else (None, "")
         if key == "runs-on":
             v = re.sub(r"\s+#.*$", "", val).strip("'\"")
-            if v not in ALLOWED_RUNNERS:
+            if v not in ALLOWED_RUNNERS and re.sub(r"\s+#.*$", "", val) != SELF_HOSTED_SAME_REPO:
                 out.append("%s:%d: runs-on '%s' is not a free standard runner (%s)"
                            % (rel, n, v, ", ".join(sorted(ALLOWED_RUNNERS))))
         if key == "permissions":
@@ -252,6 +258,17 @@ class RunnerRule(PolicyBase):  # a
     def test_quoted_key_and_trailing_comment(self):
         self.assertBlocked(GOOD.replace("runs-on: ubuntu-latest", "'runs-on': self-hosted"), "runs-on", 10)
         self.assertClean(GOOD.replace("ubuntu-latest", "ubuntu-latest # standard"))
+
+    def test_same_repo_self_hosted_expression_allowed(self):
+        self.assertClean(GOOD.replace("runs-on: ubuntu-latest", "runs-on: " + SELF_HOSTED_SAME_REPO))
+
+    def test_self_hosted_for_forks_blocked(self):
+        # a fork must never reach the self-hosted runners: every other spelling is blocked
+        for bad in (SELF_HOSTED_SAME_REPO.replace("|| 'ubuntu-latest'", "|| fromJSON('[\"self-hosted\",\"hm-ci\"]')"),
+                    SELF_HOSTED_SAME_REPO.replace("github.event.pull_request.head.repo.full_name == github.repository", "true"),
+                    SELF_HOSTED_SAME_REPO.replace("!=", "=="),
+                    "${{ fromJSON('[\"self-hosted\",\"hm-ci\"]') }}"):
+            self.assertBlocked(GOOD.replace("runs-on: ubuntu-latest", "runs-on: " + bad), "runs-on", 10)
 
     def test_standard_runners_allowed(self):
         for r in sorted(ALLOWED_RUNNERS):
