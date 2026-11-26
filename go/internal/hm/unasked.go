@@ -21,7 +21,9 @@ var unaskedRiskPaths = []string{
 	"go/internal/hm/risk.go", "go/internal/hm/tierrules.go", "go/internal/hm/session.go", "go/internal/hm/store.go",
 	"go/internal/hm/resilience.go", "go/internal/sandbox/**", "go/internal/macbox/**", "go/internal/gowrap/**",
 	"go/internal/hm/assets/task*", "go/internal/hm/assets/planner*", "go/internal/hm/assets/skills.json",
-	"go/internal/hm/assets/tier_rules.json", "go/internal/citools/risktier/**",
+	"go/internal/hm/assets/tier_rules.json", "go/internal/citools/risktier/**", "go/internal/citools/affected/**",
+	"go/internal/hm/spec.go", "go/internal/hm/scope.go", "go/internal/hm/proofrun.go", "go/internal/hm/tools.go",
+	"go/internal/gitx/**", "go/internal/ghx/**", "go/cmd/hivemill/**",
 	"bin/factory", "bin/factory_cli.py",
 }
 
@@ -101,8 +103,8 @@ func overruleMerge(v *Verdict, risk func(Change) string) {
 }
 
 // reportUnasked runs once, when the run's PR has merged: one judge.unasked_ok event per cleared unasked change of the
-// last verdict (a MERGE, or a HOLD the owner merged), and one PR comment that lists them. The repo may be public, so text that the public-text guard does not pass
-// is left out of the comment.
+// last verdict (a MERGE, or a HOLD the owner merged), and one PR comment that lists them. The repo may be public, so
+// text that the public-text guard does not pass is left out of the comment.
 func (r *Runner) reportUnasked(run *Run) {
 	if run.Eval || len(run.Verdicts) == 0 {
 		return
@@ -132,14 +134,21 @@ func (r *Runner) reportUnasked(run *Run) {
 	if why == "" {
 		rc, _ = r.guardText(args, list.String())
 	}
-	if rc == 0 {
-		body += list.String()
-	} else {
+	switch {
+	case why != "":
+		r.printf("%s: unasked changes left out of the PR comment: %s\n", run.Task, why)
+		body += fmt.Sprintf("%d changes, left out here: the public-text guard could not run. See the daily digest.\n", n)
+	case rc != 0:
 		body += fmt.Sprintf("%d changes, left out here: the public-text guard did not pass them. See the daily digest.\n", n)
+	default:
+		body += list.String()
 	}
 	if rc, _, errs := r.Tools.GH(body, "pr", "comment", run.PRURL, "--body-file", "-"); rc != 0 {
 		r.printf("%s: PR comment failed: %s\n", run.Task, firstLine(errs))
 	}
 }
 
-func oneLine(s string, max int) string { return truncate(strings.Join(strings.Fields(s), " "), max) }
+// oneLine is s on one line, at most max bytes, never ending in half a character.
+func oneLine(s string, max int) string {
+	return strings.ToValidUTF8(truncate(strings.Join(strings.Fields(s), " "), max), "")
+}

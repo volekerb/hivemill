@@ -372,8 +372,8 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	if pr.MergeCommit != nil {
 		run.MergeSHA = pr.MergeCommit.Oid
 	}
-	// merged by hand while a later round runs: the last verdict is not about what merged
-	stale := run.State == Working || run.State == Judging
+	// merged by hand while a new judge runs, or at a head the judge never saw: the last verdict is not about what merged
+	stale := run.State == Judging || (pr.HeadRefOid != "" && pr.HeadRefOid != run.JudgeHead)
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))

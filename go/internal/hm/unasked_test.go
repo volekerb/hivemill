@@ -146,15 +146,24 @@ func TestJudgeUnaskedRiskPathHolds(t *testing.T) {
 		t.Errorf("misquoted criterion beside a HOLD: %q", out)
 	}
 
-	// the owner merges the held PR: its unasked change is listed; a merge by hand during a later round lists nothing
-	for state, want := range map[string]int{Held: 1, Working: 0} {
+	// the owner merges the held PR, or the judged head by hand: its unasked change is listed. A head the judge never
+	// saw, or a merge while a new judge runs, lists nothing
+	for _, tc := range []struct {
+		state string
+		moved bool
+		want  int
+	}{{Held, false, 1}, {Working, false, 1}, {Held, true, 0}, {Judging, false, 0}} {
 		r, s, comments := unaskedRun(t, "roles/x.md")
 		judgeSays(t, r, mergeWith(change("roles/x.md")))
 		run, _ := verdictOf(t, s)
-		run.State = state
-		r.finish(run, &PR{State: "MERGED"})
-		if len(*comments) != want {
-			t.Errorf("merged from %s: comments %q", state, *comments)
+		run.State = tc.state
+		head := run.JudgeHead
+		if tc.moved {
+			head = "another-head"
+		}
+		r.finish(run, &PR{State: "MERGED", HeadRefOid: head})
+		if len(*comments) != tc.want {
+			t.Errorf("%+v: comments %q", tc, *comments)
 		}
 	}
 }
