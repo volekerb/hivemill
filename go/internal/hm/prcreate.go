@@ -104,6 +104,7 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		ghTitle, body = ScrubSecrets(ghTitle), ScrubSecrets(body)
 		if r.publicTextRepo(repo) {
 			if why := r.prTextHits(ghTitle, body, branch); why != "" {
 				return "", fmt.Errorf("%w: pr create refused (public text): %s", ErrRefused, why)
