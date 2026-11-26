@@ -9,6 +9,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 ### Runner and shared
 
 - [option-b-runner.md](option-b-runner.md): the runner (`hivemill`, Go): one Claude Code session per task, the spec gate, the Stop-hook gate, a fresh judge, mechanical merge, budgets, daemon, backup and deployment profiles. Start here.
+- [standby.md](standby.md): the warm standby for `hivemill`: set up, the monthly `standby check`, fail over, hand back and the daemon lock.
 - [hivemill-planner.md](hivemill-planner.md): the `hivemill` planner session (keeps ready queues full), the owner queue (`hivemill ask`), wakes, starvation alerts and the morning digest.
 - [hivemill-observability.md](hivemill-observability.md): `hivemill obs` (read-only local page: portfolio, project, goal, task, session), `obs pull` from other machines, and the OpenTelemetry export of tasks as traces.
 - [design/obs-ui.md](design/obs-ui.md): the design direction for the `hivemill obs` pages: tokens, per-page rules, states and accessibility.
