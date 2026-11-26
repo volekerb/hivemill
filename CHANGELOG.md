@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A red CI resumes the task session with the failed logs.** The runner names each failed job and sends the last 80 lines of its failed log (read through `ghx`); a session whose pane has closed is relaunched by its session id. A startup failure counts as red. (T-2001)
+
 - **The runner reports todo tasks that cannot start.** `hivemill task list --startable` and `--blocked` (with the reason: lint, deps or a run) show what a pass starts and skips. A todo task failing the spec gate logs one `task.unstartable` event and gives the planner one wake reason; when a run slot is free and nothing is startable, the wake says how many tasks deps and lint block. The idle alert counts startable tasks (T-2048).
 
 - **A task session that stops on a worker-guard block fails at once.** The Stop hook fails the run with `guard block: ` and the guard message instead of leaving it idle until it fails as stalled (T-2012).
