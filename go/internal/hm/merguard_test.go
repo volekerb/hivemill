@@ -30,11 +30,12 @@ var t3Base = map[string]string{
 	"roles/settings/zz.json.in":     `{"permissions":{"allow":["Read"],"deny":["Bash(rm:*)","Bash(sudo:*)"]}}`,
 	"go/internal/guard/zz_test.go":  "package guard\n\nfunc TestZZ(t *testing.T) {\n\tcheck(\"zz one\")\n}\n",
 	"go/internal/guard/zz_guard.go": "package guard\n",
+	"go/internal/shlex/zz.go":       "package shlex\n",
 	".github/workflows/tests.yml":   "on: push\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make test\n",
 }
 
 // a T3 change no limit covers
-var t3Clean = map[string]string{"go/internal/guard/zz_guard.go": "package guard\n\n// zz\n"}
+var t3Clean = map[string]string{"go/internal/shlex/zz.go": "package shlex\n\n// zz\n"}
 
 func newT3(t *testing.T, change map[string]string) *t3Fixture {
 	t.Helper()
@@ -241,7 +242,85 @@ func TestT3ConfigOff(t *testing.T) {
 	}
 }
 
-// a PR that renames away a required job never gets that check: the owner is asked instead of waiting for ever
+// limitsOf is what Check finds in one changed file of a green, mergeable PR.
+func limitsOf(f DiffFile) string {
+	return strings.Join(limitList(Check(Diff{f}, PRStatus{CI: "green", Mergeable: "MERGEABLE"})), "; ")
+}
+
+func TestT3GoGuardEditHeld(t *testing.T) {
+	f := newT3(t, map[string]string{"go/internal/guard/zz_guard.go": "package guard\n\n// zz\n"})
+	f.held(t, "d) go/internal/guard/zz_guard.go: changes the Go guard")
+	if got := limitsOf(DiffFile{Path: "go/cmd/worker-guard/main.go", New: "package main\n", Added: true}); !strings.Contains(got, "d)") {
+		t.Errorf("worker-guard: %q", got)
+	}
+	if got := limitsOf(DiffFile{Path: "go/internal/guard/testdata/zz.txt", New: "zz\n", Added: true}); got != "" {
+		t.Errorf("test data: %q", got)
+	}
+}
+
+func TestT3MerguardEditHeld(t *testing.T) {
+	// below T3 by the tier rules, still held
+	f := newT3(t, map[string]string{"go/internal/hm/merguard.go": "package hm\n"})
+	f.held(t, "f) go/internal/hm/merguard.go: changes the merge guard")
+
+	f = newT3(t, map[string]string{"go/internal/hm/config.go": "package hm\n\nvar Defaults = map[string]string{\n\t\"t3_auto_merge\": \"on\", // zz\n}\n"})
+	f.held(t, "f) go/internal/hm/config.go: changes the t3_auto_merge default")
+
+	for _, p := range []string{"go/internal/hm/tierrules.go", "go/internal/hm/assets/tier_rules.json"} {
+		if got := limitsOf(DiffFile{Path: p, Old: "a", New: "b"}); !strings.Contains(got, "f) "+p) {
+			t.Errorf("%s: %q", p, got)
+		}
+	}
+	same := DiffFile{Path: configGo, Old: "\"t3_auto_merge\": \"on\", // a\n", New: "// b\n\"t3_auto_merge\":    \"on\", // c\n"}
+	if got := limitsOf(same); got != "" {
+		t.Errorf("unchanged default: %q", got)
+	}
+}
+
+func TestT3HookRemovalHeld(t *testing.T) {
+	settings := func(mode, hooks string) string {
+		return `{"permissions":{"defaultMode":"` + mode + `"}` + hooks + `}`
+	}
+	hook := func(matcher string, cmds ...string) string {
+		var hs []string
+		for _, c := range cmds {
+			hs = append(hs, `{"type":"command","command":"`+c+`"}`)
+		}
+		return `,"hooks":{"PreToolUse":[{"matcher":"` + matcher + `","hooks":[` + strings.Join(hs, ",") + `]}]}`
+	}
+	old := settings("default", hook("Bash", "zz-a", "zz-b"))
+	for _, c := range []struct{ name, new, want string }{
+		{"hook removed", settings("default", hook("Bash", "zz-a")), "removes or edits hooks entry"},
+		{"mode changed", settings("bypassPermissions", hook("Bash", "zz-a", "zz-b")), "changes defaultMode"},
+		{"matcher changed", settings("default", hook("Read", "zz-a", "zz-b")), "removes or edits hooks entry"},
+		{"no hooks", settings("default", ""), "removes or edits hooks entry"},
+		{"reordered and added", settings("default", hook("Bash", "zz-b", "zz-a", "zz-c")), ""},
+	} {
+		got := limitsOf(DiffFile{Path: "roles/settings/zz.json.in", Old: old, New: c.new})
+		if (c.want == "" && got != "") || !strings.Contains(got, c.want) {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+	f := newT3(t, map[string]string{"roles/settings/zz.json.in": `{"permissions":{"defaultMode":"bypassPermissions","allow":["Read"],"deny":["Bash(rm:*)","Bash(sudo:*)"]}}`})
+	f.held(t, "a) roles/settings/zz.json.in: changes defaultMode")
+}
+
+func TestT3GuardSkipAddedHeld(t *testing.T) {
+	f := newT3(t, map[string]string{
+		"go/internal/guard/zz_test.go": "//go:build !zz\n\npackage guard\n\nfunc TestZZ(t *testing.T) {\n\tt.SkipNow()\n\tcheck(\"zz one\")\n}\n",
+	})
+	f.held(t, "b) go/internal/guard/zz_test.go: adds a test skip", "b) go/internal/guard/zz_test.go: adds a build constraint")
+	for _, call := range []string{`t.Skip("zz")`, `t.Skipf("%s", "zz")`, `t.SkipNow()`} {
+		if got := limitsOf(DiffFile{Path: "go/cmd/worker-guard/zz_test.go", New: "\t" + call + "\n", Added: true}); !strings.Contains(got, "adds a test skip") {
+			t.Errorf("%s: %q", call, got)
+		}
+	}
+	if got := limitsOf(DiffFile{Path: "go/cmd/worker-guard/zz_test.go", New: "\t// t.Skip()\n", Added: true}); got != "" {
+		t.Errorf("commented skip: %q", got)
+	}
+}
+
+// a PR that renames away a required job never gets that check:the owner is asked instead of waiting for ever
 func TestMergeGuardMissingRequiredCheck(t *testing.T) {
 	require := func(f *t3Fixture) {
 		if _, err := f.s.db.Exec(`INSERT OR REPLACE INTO config(key,value) VALUES('required_checks','unit')`); err != nil {

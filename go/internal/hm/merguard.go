@@ -15,7 +15,7 @@ import (
 
 // Limit is one reason a T3 PR goes to the owner.
 type Limit struct {
-	Rule string `json:"rule"` // a: deny/ask | b: guard tests | c: workflows | d: merge rights, guard rules | e: PR state
+	Rule string `json:"rule"` // a: deny/ask/hooks | b: guard tests | c: workflows | d: merge rights, guard | e: PR state | f: this gate
 	File string `json:"file,omitempty"`
 	Why  string `json:"why"`
 }
@@ -64,6 +64,8 @@ func Check(diff Diff, st PRStatus) []Limit {
 			checkSettings(f, add)
 		}
 		checkGuardTests(f, add)
+		checkGuardSource(f, add)
+		checkGate(f, add)
 		if strings.HasPrefix(f.Path, ".github/workflows/") {
 			o, n := workflowJobs(f.Old), workflowJobs(f.New)
 			for _, id := range sortedKeys(o) {
@@ -150,7 +152,63 @@ func settingsLists(content string) (map[string][]string, error) {
 		return nil, err
 	}
 	lists(v, map[string]bool{"deny": true, "ask": true, "allow": true}, out)
+	hookEntries(v, out)
+	defaultModes(v, out)
 	return out, nil
+}
+
+// hookEntries collects every hook under the top-level hooks key, each with its event and matcher.
+func hookEntries(v any, out map[string][]string) {
+	top, _ := v.(map[string]any)
+	hooks, ok := top["hooks"]
+	if !ok {
+		return
+	}
+	add := func(x ...any) {
+		b, _ := json.Marshal(x)
+		out["hooks"] = append(out["hooks"], string(b))
+	}
+	events, ok := hooks.(map[string]any)
+	if !ok {
+		add(hooks)
+		return
+	}
+	for event, val := range events {
+		groups, ok := val.([]any)
+		if !ok {
+			add(event, val)
+			continue
+		}
+		for _, g := range groups {
+			m, _ := g.(map[string]any)
+			inner, ok := m["hooks"].([]any)
+			if !ok {
+				add(event, g)
+				continue
+			}
+			for _, h := range inner {
+				add(event, m["matcher"], h)
+			}
+		}
+	}
+}
+
+// defaultModes collects every defaultMode value, at any depth.
+func defaultModes(v any, out map[string][]string) {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, val := range x {
+			if k == "defaultMode" {
+				b, _ := json.Marshal(val)
+				out[k] = append(out[k], string(b))
+			}
+			defaultModes(val, out)
+		}
+	case []any:
+		for _, val := range x {
+			defaultModes(val, out)
+		}
+	}
 }
 
 var ghMergeRe = regexp.MustCompile(`\bgh\b.*\bpr\b.*\bmerge\b.*--(admin|auto)\b`)
@@ -174,15 +232,19 @@ func allowsForcedMerge(entry string) bool {
 	return wild && (strings.HasPrefix(merge, lit) || strings.HasPrefix(lit, merge+" "))
 }
 
-// checkSettings: limit a (a deny or ask entry is gone or changed) and limit d (a new allow of gh pr merge --admin/--auto).
+// checkSettings: limit a (a deny, ask or hook entry is gone or changed, or defaultMode changed) and limit d (a new allow
+// of gh pr merge --admin/--auto).
 func checkSettings(f DiffFile, add addLimit) {
 	o, oerr := settingsLists(f.Old)
 	n, nerr := settingsLists(f.New)
 	if oerr != nil || nerr != nil {
-		add("a", f.Path, "not readable as JSON, so its deny and ask arrays cannot be compared")
+		add("a", f.Path, "not readable as JSON, so its deny, ask and hooks entries cannot be compared")
 		return
 	}
-	for _, k := range []string{"deny", "ask"} {
+	if len(removed(o["defaultMode"], n["defaultMode"]))+len(removed(n["defaultMode"], o["defaultMode"])) > 0 {
+		add("a", f.Path, "changes defaultMode")
+	}
+	for _, k := range []string{"deny", "ask", "hooks"} {
 		for _, e := range removed(o[k], n[k]) {
 			add("a", f.Path, "removes or edits %s entry %s", k, truncate(e, 100))
 		}
@@ -244,13 +306,69 @@ func isGuardTest(p string) bool {
 	return false
 }
 
-// checkGuardTests: limit b (a guard test file, test function or case is gone).
+var skipRe = regexp.MustCompile(`\.Skip(f|Now)?\(`)
+
+// checkGuardSkips: limit b (a guard test file gains a skip or a new build constraint), a new file included.
+func checkGuardSkips(f DiffFile, add addLimit) {
+	if !strings.HasSuffix(f.Path, ".go") {
+		return
+	}
+	skips := func(s string) int { return len(skipRe.FindAllString(strings.Join(codeLines(s), "\n"), -1)) }
+	if skips(f.New) > skips(f.Old) {
+		add("b", f.Path, "adds a test skip")
+	}
+	builds := func(s string) []string {
+		var out []string
+		for _, ln := range strings.Split(s, "\n") {
+			if ln = strings.Join(strings.Fields(ln), " "); strings.HasPrefix(ln, "//go:build") {
+				out = append(out, ln)
+			}
+		}
+		return out
+	}
+	if added := removed(builds(f.New), builds(f.Old)); len(added) > 0 {
+		add("b", f.Path, "adds a build constraint: %s", truncate(added[0], 80))
+	}
+}
+
+// checkGuardSource: limit d for the Go guard, the default guard: any change that is not a test or test data.
+func checkGuardSource(f DiffFile, add addLimit) {
+	if (strings.HasPrefix(f.Path, "go/internal/guard/") || strings.HasPrefix(f.Path, "go/cmd/worker-guard/")) && !isGuardTest(f.Path) {
+		add("d", f.Path, "changes the Go guard")
+	}
+}
+
+const configGo = "go/internal/hm/config.go"
+
+var t3DefaultRe = regexp.MustCompile(`t3_auto_merge"[^,\n]*`)
+
+// checkGate: limit f (the PR changes this gate, the tier classification or the t3_auto_merge default).
+func checkGate(f DiffFile, add addLimit) {
+	switch f.Path {
+	case "go/internal/hm/merguard.go":
+		add("f", f.Path, "changes the merge guard")
+	case "go/internal/hm/tierrules.go", "go/internal/hm/assets/tier_rules.json":
+		add("f", f.Path, "changes the tier classification")
+	case configGo:
+		value := func(s string) []string { return t3DefaultRe.FindAllString(strings.Join(codeLines(s), "\n"), -1) }
+		o, n := value(f.Old), value(f.New)
+		if len(removed(o, n))+len(removed(n, o)) > 0 {
+			add("f", f.Path, "changes the t3_auto_merge default")
+		}
+	}
+}
+
+// checkGuardTests: limit b (a guard test file, test function or case is gone, or a skip is added).
 func checkGuardTests(f DiffFile, add addLimit) {
 	if f.Path == "ci/guard_corpus.json" {
 		checkCorpus(f, add)
 		return
 	}
-	if !isGuardTest(f.Path) || f.Added {
+	if !isGuardTest(f.Path) {
+		return
+	}
+	checkGuardSkips(f, add)
+	if f.Added {
 		return
 	}
 	if f.Deleted {
@@ -420,6 +538,6 @@ func (r *Runner) readDiff(wt, base, head string) (Diff, error) {
 
 // limited: Check reads the content of this path, so readDiff fetches it.
 func limited(p string) bool {
-	return isSettings(p) || isGuardTest(p) || p == "ci/guard_corpus.json" || strings.HasPrefix(p, ".github/workflows/") ||
+	return isSettings(p) || isGuardTest(p) || p == configGo || p == "ci/guard_corpus.json" || strings.HasPrefix(p, ".github/workflows/") ||
 		strings.HasPrefix(p, "roles/hooks/worker-guard")
 }

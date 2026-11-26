@@ -274,8 +274,21 @@ func (r *Runner) Merge(run *Run) {
 // t3Guard runs the hard limits when a T3 merge is up for decision: Decide would merge, or sends the run back for red CI
 // or a conflict (limit e: a judged T3 run goes to the owner instead). A hold on missing required checks is also looked
 // at, since a PR that removes or renames the job would wait for ever: only a limit c makes that a decision. guarded is
-// false when no T3 decision is due; wait names why one cannot be taken yet.
+// false when no T3 decision is due; wait names why one cannot be taken yet. Below T3 only limit f is checked, since the
+// gate's own files are not sensitive paths of the tier rules.
 func (r *Runner) t3Guard(run *Run, in MergeInput, d MergeDecision) (guarded bool, limits []Limit, wait string) {
+	if d.Action == "merge" && !tierAbove(in.Tier, MaxMechTier) {
+		diff, err := r.readDiff(run.Worktree, run.Base, in.Head)
+		if err != nil {
+			return false, nil, "the merge guard cannot read the diff: " + err.Error()
+		}
+		for _, l := range Check(diff, PRStatus{CI: "green", Mergeable: "MERGEABLE"}) {
+			if l.Rule == "f" {
+				limits = append(limits, l)
+			}
+		}
+		return len(limits) > 0, limits, ""
+	}
 	missing := d.Action == "hold" && in.CI == "green" && len(in.MissingChecks) > 0
 	if in.Tier != "T3" || !in.T3Auto || in.PRState != "OPEN" || in.LaneVerdict != "pass" || (d.Action != "merge" && d.Action != "resume" && !missing) {
 		return false, nil, ""
