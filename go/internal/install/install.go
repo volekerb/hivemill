@@ -838,7 +838,7 @@ func stepServices(c *Ctx) (string, error) {
 	if a.NoSystemd {
 		return servicesBackground(c)
 	}
-	if _, _, err := c.do([]string{"bash", filepath.Join(c.fh, "systemd", "install.sh"), "--with-serve"}, "systemd install", c.fh, 600*time.Second, true); err != nil {
+	if err := installUnits(c); err != nil {
 		return "", err
 	}
 	if a.Linger {
@@ -847,52 +847,55 @@ func stepServices(c *Ctx) (string, error) {
 			c.emit(fmt.Sprintf("    warning: loginctl enable-linger was refused (rc=%d); the factory will not start at boot until you run it with the right to do so", rc))
 		}
 	}
-	if _, err := c.doDefault([]string{"systemctl", "--user", "start", "herdr-server.service", "factory-tick.timer",
-		"factory-serve.service", "factory-up.service"}, "systemctl start"); err != nil {
+	if _, err := c.doDefault([]string{"systemctl", "--user", "daemon-reload"}, "systemctl daemon-reload"); err != nil {
 		return "", err
 	}
-	return "systemd user units installed and started (the tick timer keeps the factory running)", nil
+	if _, err := c.doDefault([]string{"systemctl", "--user", "enable", "--now", "hivemill.service", "hivemill-digest.timer",
+		"hivemill-health.timer"}, "systemctl enable"); err != nil {
+		return "", err
+	}
+	return "hivemill systemd user units installed, enabled and started", nil
 }
 
-func servicesBackground(c *Ctx) (string, error) {
-	logdir := filepath.Join(c.home, ".cache", "hivemill-install")
-	if c.plan {
-		c.emit("    $ mkdir -p " + logdir)
-		c.emit("    $ (background) herdr server")
-	} else {
-		if err := c.host.Mkdirs(logdir); err != nil {
-			return "", fmt.Errorf("create %s: %w", logdir, err)
-		}
-		if err := c.host.Popen([]string{"herdr", "server"}, filepath.Join(logdir, "herdr-server.log")); err != nil {
-			return "", err
-		}
+// systemdUnits are the files of the clone's systemd/ folder that a Linux install copies.
+var systemdUnits = []string{"hivemill.service", "hivemill-digest.service", "hivemill-digest.timer",
+	"hivemill-health.service", "hivemill-health.timer"}
+
+// installUnits copies the hivemill units from the clone into the systemd user unit dir. WriteText renames into
+// place, so a link left there by an earlier install is replaced and its target is not written through.
+func installUnits(c *Ctx) error {
+	config := c.host.Environ()["XDG_CONFIG_HOME"]
+	if config == "" {
+		config = filepath.Join(c.home, ".config")
 	}
-	ready := false
-	for i := 0; i < 20; i++ {
+	dir := filepath.Join(config, "systemd", "user")
+	if c.plan {
+		c.emit("    $ mkdir -p " + dir)
+	} else if err := c.host.Mkdirs(dir); err != nil {
+		return fmt.Errorf("create %s: %w", dir, err)
+	}
+	for _, u := range systemdUnits {
+		src, dst := filepath.Join(c.fh, "systemd", u), filepath.Join(dir, u)
 		if c.plan {
-			c.emit("    $ herdr workspace list   (until exit 0, 20 s)")
-			ready = true
-			break
+			c.emit(fmt.Sprintf("    copy %s -> %s", src, dst))
+			continue
 		}
-		if rc, _ := c.read([]string{"herdr", "workspace", "list"}, 60*time.Second); rc == 0 {
-			ready = true
-			break
+		b, err := c.host.ReadFile(src)
+		if err != nil {
+			return stepWrap(err, "read "+u)
 		}
-		c.host.Sleep(time.Second)
+		if err := c.host.WriteText(dst, string(b)); err != nil {
+			return stepWrap(err, "install "+u)
+		}
 	}
-	if !ready {
-		return "", stepf("`herdr workspace list` never exited 0 within 20 s (see %s/herdr-server.log)", logdir)
-	}
-	if c.plan {
-		c.emit(fmt.Sprintf("    $ (background) %s serve --bind %s", c.factory, Loopback))
-	} else if err := c.host.Popen([]string{c.factory, "serve", "--bind", Loopback}, filepath.Join(logdir, "factory-serve.log")); err != nil {
-		return "", err
-	}
-	if _, err := c.doDefault([]string{c.factory, "up"}, "factory up"); err != nil {
-		return "", err
-	}
-	c.emit("WARNING: no tick timer: agents will not be nudged and queued spawns will not start")
-	return "herdr server and factory serve running in the background; factory up ran once", nil
+	return nil
+}
+
+// servicesBackground is --no-systemd (and --no-boot-units on macOS): it starts nothing and says how to.
+func servicesBackground(c *Ctx) (string, error) {
+	c.emit(fmt.Sprintf("    no service was started. To run hivemill by hand: build it (cd %s && go build -o %s ./cmd/hivemill), then run `hivemill daemon`",
+		filepath.Join(c.fh, "go"), filepath.Join(c.bindir, "hivemill")))
+	return "no services started; run `hivemill daemon` by hand", nil
 }
 
 // agentStatus maps NAME -> STATUS from the table `factory agents` prints.
@@ -1027,7 +1030,7 @@ func runSteps(c *Ctx) int {
 		if !c.plan && !c.args.NoSystemd && c.host.GOOS() != "darwin" {
 			if rc, _ := c.read([]string{"systemctl", "--user", "show-environment"}, 60*time.Second); rc != 0 {
 				return stopf(3, "no user systemd session here. Either log in to a session that has one, or re-run with "+
-					"--no-systemd (CI, containers: the factory then runs as plain background processes without a tick timer)")
+					"--no-systemd (CI, containers: no service is started; run `hivemill daemon` by hand)")
 			}
 		}
 		if c.plan {

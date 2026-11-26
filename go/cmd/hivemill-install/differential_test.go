@@ -53,7 +53,8 @@ func runWith(t *testing.T, argv []string, env []string) (int, string) {
 }
 
 // TestDryRunMatchesPythonReference is the r2 guard: the same inputs through plugins/hivemill/scripts/install.py
-// and through this command must print the same dry-run plan and exit with the same code.
+// and through this command must print the same dry-run plan and exit with the same code. The services step is not
+// compared: the Go installer installs the hivemill units, the Python reference still starts the old ones.
 func TestDryRunMatchesPythonReference(t *testing.T) {
 	ref := filepath.Join("..", "..", "..", "plugins", "hivemill", "scripts", "install.py")
 	if _, err := os.Stat(ref); err != nil {
@@ -91,11 +92,31 @@ func TestDryRunMatchesPythonReference(t *testing.T) {
 			if prc == 2 {
 				pout, gout = beforeUsage(pout), beforeUsage(gout)
 			}
+			pout, gout = withoutServices(pout), withoutServices(gout)
 			if pout != gout {
 				t.Errorf("output differs\npython:\n%s\ngo:\n%s", pout, gout)
 			}
 		})
 	}
+}
+
+// withoutServices cuts the lines of the services step, keeping its header and everything from the next step on.
+func withoutServices(s string) string {
+	var kept []string
+	skip := false
+	for _, ln := range strings.Split(s, "\n") {
+		header := strings.HasPrefix(ln, "[plan] ")
+		if header {
+			skip = false
+		}
+		if !skip {
+			kept = append(kept, ln)
+		}
+		if header && strings.HasSuffix(ln, " services") {
+			skip = true
+		}
+	}
+	return strings.Join(kept, "\n")
 }
 
 func beforeUsage(s string) string {

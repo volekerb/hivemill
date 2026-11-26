@@ -7,7 +7,7 @@ worker runs on the coordinator.
 
 ## Placement
 
-Two config keys, both read when a task session is about to start:
+Two config keys, read when a task session is about to start (and again by a gate that needs another machine, below):
 
 | key | default | meaning |
 |---|---|---|
@@ -22,6 +22,9 @@ session runs on the local core. A worker qualifies only when one `hc exec --on <
 - **Same user home path.** Settings, `~/.claude/projects` and the spawn script use absolute paths.
 - **A forwarding `hivemill`.** `~/.local/bin/hivemill local coordinator` must print a coordinator (see below). The
   runner asks only after the marker matched, so a machine that runs its own hivemill is never touched.
+- **CPU headroom.** A machine whose 1-minute load average is above 1.5 x its CPU count takes no new run while
+  another machine that qualifies is below that. If every one is above it, load excludes none, and a load that cannot
+  be read excludes nothing. The same probe reads load and CPU count, and one reading holds for 60 s.
 - **Enough memory.** On Linux this is MemAvailable from `/proc/meminfo`. On macOS it is free, inactive and
   speculative pages from `vm_stat`, and 0 while the memory pressure level is not normal.
 
@@ -34,8 +37,23 @@ Each skipped machine and its reason go into the `task.dispatched` event (`skippe
 When `session_machines` is set, the dispatch memory cap (`mem_floor_mb`) checks the coordinator only when the
 session would run there. A busy coordinator then does not hold dispatch while a worker has room.
 
+### Gate proofs
+
+The gate re-runs the `test:` and `cmd:` proofs on the run's machine (the eval re-run and the goal's checks too), in the
+same clone path over the shared home, so they use that machine's CPU and toolchain. A worker is reached with
+`hc exec --on <machine>`, under `env -i` with `PATH`, `HOME`, `LANG` and `FACTORY_HOME` only. No other variable of the
+coordinator reaches a proof there. The 15-minute limit and the exit code rules are the
+same as on the coordinator, and the worker applies the limit too (`timeout`, where it has one).
+
+If the run's machine cannot be reached or cannot read the clone, the proofs go to the least loaded (1-minute load per
+CPU) other machine in `session_machines` that qualifies, else to the local core. A connection that drops under a proof
+runs that proof again on the next choice.
+
 ### What is recorded
 
+- Each gate proof writes `gate.proof_run` with `data.machine` (where it ran), `criterion`, `exit` and `seconds`. A move
+  to another machine writes `gate.proof_fallback` with `machine`, `to` and `why`. The Machines table of the obs now page
+  sums the proofs and their minutes (wall time, not CPU time) per machine.
 - The run records its machine, `Machine` in `hm_runs.data`. Empty means the local core.
 - `session.started` and `task.dispatched` events carry `data.machine`: where the session runs (`local` for the local
   core). The top-level `machine` of an event is the coordinator that wrote it (`hivemill obs`).
@@ -89,9 +107,10 @@ Then, on the coordinator: `hivemill config session_machines worker1,local`.
 
 ### Known limits
 
-- **Gate proof re-runs run on the coordinator.** The Stop hook (`hivemill gate hook`) is forwarded, so the gate
-  re-runs the `test:` and `cmd:` proofs on the coordinator, in the same clone path over the shared home. This
-  works, but the proofs use the coordinator's CPU and toolchain, not the worker's.
+- **Only the proofs move.** The Stop hook (`hivemill gate hook`) is forwarded, so the rest of the gate, including its
+  affected-test run, still uses the coordinator's CPU and toolchain.
+- **A lost proof is not stopped.** After a dropped connection the first process may still run on its worker (up to
+  the 15-minute limit where the worker has `timeout`) while the proof runs again in the same clone.
 - **Plan usage.** The worker writes its own `~/.claude/usage-limits.json`, and only the coordinator's copy feeds the
   usage caps. Sessions on the coordinator (planner, judges) keep that copy fresh. With none running there, the reading ages, and the usage probe rule applies.
 - **The worker guard runs on the worker,** through the guard shim or `hivemill guard`. Where it falls back to the
