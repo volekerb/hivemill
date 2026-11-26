@@ -2,6 +2,7 @@ package hm
 
 import (
 	"fmt"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -59,7 +60,8 @@ func isCommand(text string) bool {
 		for len(toks) > 0 && envPrefixRe.MatchString(toks[0]) {
 			toks = toks[1:]
 		}
-		if len(toks) >= 2 && (runners[toks[0]] || strings.HasPrefix(toks[0], "ci/") || strings.HasPrefix(toks[0], "./")) {
+		// path.Base leaves a bare name as is, so a runner given by path counts too (T-1979).
+		if len(toks) >= 2 && (runners[path.Base(toks[0])] || strings.HasPrefix(toks[0], "ci/") || strings.HasPrefix(toks[0], "./")) {
 			return true
 		}
 	}

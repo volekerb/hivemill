@@ -946,6 +946,70 @@ func TestObsFlowBannerHTML(t *testing.T) {
 	})
 }
 
+// stageFixture is a running obs page over one merged task with the given hours in dispatched, gate, ci and judge.
+func stageFixture(t *testing.T, hours [4]int) (*Runner, http.Handler) {
+	t.Helper()
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	at := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -2)
+	var evs []Event
+	add := func(kind, role string, h int) {
+		evs = append(evs, ev(at.Format(time.RFC3339), kind, "T-1", "G-1", "www", "", role, nil))
+		at = at.Add(time.Duration(h) * time.Hour)
+	}
+	add("task.dispatched", "", hours[0])
+	add("gate.blocked", "", hours[1])
+	add("gate.passed", "", hours[2])
+	add("session.started", "judge", hours[3])
+	add("pr.merged", "", 0)
+	writeEvents(t, r.Log.Path, evs...)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, h
+}
+
+func TestObsBannerStage(t *testing.T) {
+	t.Run("below", func(t *testing.T) {
+		_, h := stageFixture(t, [4]int{3, 3, 2, 2}) // the largest share is exactly 30%
+		if p := flowBanners(t, h); len(p.Tasks) != 1 || p.Tasks[0].Total != 10*3600 || len(p.Banners) != 0 {
+			t.Fatalf("no banner: %+v", p)
+		}
+		lone := &FlowPage{Tasks: []FlowTask{{Seconds: map[string]int64{"ci": 3600, "gate": 0}}}}
+		if b := lone.stageBanners(30); b != nil {
+			t.Fatalf("no banner for a lone stage: %q", b)
+		}
+	})
+	t.Run("above", func(t *testing.T) {
+		_, h := stageFixture(t, [4]int{2, 0, 7, 1})
+		want := "ci holds 7 of 10 stage hours (70%)."
+		if p := flowBanners(t, h); !reflect.DeepEqual(p.Banners, []string{want}) {
+			t.Fatalf("one banner: %q", p.Banners)
+		}
+		html := flowBannerHTML(t, h)
+		if len(html) != 1 || !strings.Contains(html[0], want) {
+			t.Fatalf("one banner element: %q", html)
+		}
+		if strings.Contains(html[0], "<button") || strings.Contains(html[0], "<form") || strings.Contains(html[0], "<a") {
+			t.Fatalf("a banner is text only: %s", html[0])
+		}
+	})
+}
+
+func TestObsBannerStageConfig(t *testing.T) {
+	r, h := stageFixture(t, [4]int{2, 0, 7, 1})
+	if p := flowBanners(t, h); len(p.Banners) != 1 {
+		t.Fatalf("one banner at the default: %q", p.Banners)
+	}
+	if err := r.Store.SetCfg("obs_banner_stage_pct", "90"); err != nil {
+		t.Fatal(err)
+	}
+	if p := flowBanners(t, h); len(p.Banners) != 0 {
+		t.Fatalf("70%% is under the configured 90%%: %q", p.Banners)
+	}
+}
+
 func TestSessionPollingUSD(t *testing.T) {
 	r, _ := testRunner(t, "")
 	dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "p")
