@@ -295,7 +295,7 @@ func (r *Runner) checkHeld(run *Run) {
 func (r *Runner) refresh(run *Run) {
 	wt, base := run.Worktree, run.Base
 	email := r.Store.FactoryCfg("noreply_email")
-	if rc, _, errs := r.Tools.Git(wt, "-c", "user.email="+email, "-c", "user.name="+nameOf(email), "merge", "--no-edit", "origin/"+base); rc != 0 {
+	if rc, _, errs := gitAs(r.Env, email, wt, "merge", "--no-edit", "origin/"+base); rc != 0 {
 		r.Tools.Git(wt, "merge", "--abort")
 		run.MergeHold = "refresh failed: " + firstLine(errs)
 		return
@@ -444,7 +444,7 @@ func (r *Runner) openRevert(x *Run, st map[string]any) (string, error) {
 		return "", err
 	}
 	email := r.Store.FactoryCfg("noreply_email")
-	if rc, _, errs := r.Tools.Git(wt, "-c", "user.email="+email, "-c", "user.name="+nameOf(email), "revert", "--no-edit", x.MergeSHA); rc != 0 {
+	if rc, _, errs := gitAs(r.Env, email, wt, "revert", "--no-edit", x.MergeSHA); rc != 0 {
 		return "", fmt.Errorf("git revert %.12s: %s", x.MergeSHA, firstLine(errs))
 	}
 	if rc, _, errs := r.Tools.Git(wt, "push", "-q", "origin", "HEAD:"+branch); rc != 0 {
