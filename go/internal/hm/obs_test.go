@@ -863,7 +863,7 @@ func roundsFixture(t *testing.T, many int) (*Runner, http.Handler) {
 	evs := []Event{e("ci.red", "T-5", nil), e("ci.red", "T-5", nil)}
 	for i := 1; i <= 4; i++ {
 		task := fmt.Sprintf("T-%d", i)
-		evs = append(evs, e("pr.opened", task, map[string]any{"pr": task}), e("judge.verdict", task, map[string]any{"verdict": "PASS"}))
+		evs = append(evs, e("pr.merged", task, map[string]any{"pr": task}), e("judge.verdict", task, map[string]any{"verdict": "PASS"}))
 		if i <= many {
 			evs = append(evs, e("ci.red", task, nil))
 		}

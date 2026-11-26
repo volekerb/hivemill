@@ -20,7 +20,7 @@ func init() {
 	Defaults["obs_port"] = "7461"             // `hivemill obs`: the read-only page on 127.0.0.1:<port>
 	Defaults["otel_endpoint"] = ""            // OTLP/HTTP base URL: the daemon sends each finished task as a trace; empty = off
 	Defaults["obs_banner_polling_pct"] = "20" // the Spend page warns when polling is above this percent of spend
-	Defaults["obs_banner_rounds_pct"] = "30"  // the Flow page warns when more than this percent of PRs needed 2+ review rounds
+	Defaults["obs_banner_rounds_pct"] = "30"  // the Flow API returns a banner when more than this percent of PRs needed 2+ review rounds
 }
 
 // MachineName is the configured machine name, else the short hostname.
