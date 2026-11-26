@@ -214,7 +214,7 @@ func cmdProject(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 // cmdGoal is `hivemill goal new|list|show|close`.
 func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	usage := "usage: hivemill goal new --project ID --title TEXT [--intent TEXT] [--criteria TEXT|--criteria-file F] [--priority N] | " +
-		"goal list [--status S] | goal show G-001 | goal close G-001 [--cancel] [--force]"
+		"goal list [--status S] | goal show G-001 | goal close G-001 [--cancel] [--force] | goal status G-001 active|blocked|done|cancelled"
 	s := sqliteOf(r, stderr)
 	if s == nil {
 		return 1
@@ -305,6 +305,38 @@ func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		st := "done"
 		if *cancel {
 			st = "cancelled"
+		}
+		if err := s.SetGoalStatus(id, st); err != nil {
+			return fail(stderr, err)
+		}
+		fmt.Fprintf(stdout, "%s %s\n", id, st)
+	case "status":
+		if len(args) != 3 || !goalRe.MatchString(args[1]) {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		id, st := strings.ToUpper(args[1]), strings.ToLower(args[2])
+		switch st {
+		case "active", "blocked", "done", "cancelled":
+		default:
+			fmt.Fprintf(stderr, "hivemill: unknown goal status %q (active, blocked, done, cancelled)\n", st)
+			return 2
+		}
+		if _, err := s.Goal(id); err != nil {
+			if strings.HasPrefix(err.Error(), "no goal ") {
+				fmt.Fprintf(stderr, "hivemill: unknown goal %s\n", id)
+				return 2
+			}
+			return fail(stderr, err)
+		}
+		if st == "done" || st == "cancelled" {
+			n, _, err := s.GoalOpenTasks(id)
+			if err != nil {
+				return fail(stderr, err)
+			}
+			if n > 0 {
+				return fail(stderr, fmt.Errorf("%w: %s has %d open tasks (cancel them, or use goal close --force)", hm.ErrRefused, id, n))
+			}
 		}
 		if err := s.SetGoalStatus(id, st); err != nil {
 			return fail(stderr, err)

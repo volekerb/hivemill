@@ -147,3 +147,35 @@ func TestLaunchdDaemonPlist(t *testing.T) {
 		}
 	}
 }
+
+func TestGoalStatus(t *testing.T) {
+	c, _ := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "g")
+	if out := c.ok("goal", "status", "G-001", "blocked"); out != "G-001 blocked\n" {
+		t.Errorf("blocked: %q", out)
+	}
+	if out := c.ok("goal", "show", "G-001"); !strings.HasPrefix(out, "G-001 blocked") {
+		t.Errorf("show: %q", out)
+	}
+	if out := c.ok("goal", "status", "G-001", "active"); out != "G-001 active\n" {
+		t.Errorf("active: %q", out)
+	}
+	if code, _, errs := c.run("", "goal", "status", "G-001", "bogus"); code != 2 || !strings.Contains(errs, "unknown goal status") {
+		t.Errorf("unknown status: exit %d %q", code, errs)
+	}
+	if code, _, errs := c.run("", "goal", "status", "G-099", "blocked"); code != 2 || !strings.Contains(errs, "unknown goal") {
+		t.Errorf("unknown goal: exit %d %q", code, errs)
+	}
+	c.ok("task", "add", "--goal", "G-001", "--title", "x", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0")
+	if code, _, _ := c.run("", "goal", "status", "G-001", "done"); code != 3 {
+		t.Errorf("done with open tasks: exit %d, want 3", code)
+	}
+	c.ok("task", "cancel", "T-0001")
+	if out := c.ok("goal", "status", "G-001", "Cancelled"); out != "G-001 cancelled\n" {
+		t.Errorf("cancelled: %q", out)
+	}
+	if code, _, _ := c.run("", "goal", "status", "G-001"); code != 2 {
+		t.Errorf("missing status: exit %d, want 2", code)
+	}
+}
