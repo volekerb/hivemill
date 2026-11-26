@@ -268,6 +268,21 @@ type SpendPage struct {
 	Chart               template.HTML `json:"-"`
 }
 
+// Summary is the chart in one line of text: the highest day, the earliest of equals.
+func (p *SpendPage) Summary() string {
+	var day string
+	var top float64
+	for _, d := range p.Daily {
+		if sum := d.Task + d.Judge + d.Planner; sum > top {
+			day, top = d.Day, sum
+		}
+	}
+	if day == "" {
+		return "No cost in this range."
+	}
+	return fmt.Sprintf("Highest day: %s at $%.2f.", day, top)
+}
+
 // SpendGroups are the groupings of the table.
 var SpendGroups = []string{"goal", "task", "model", "machine"}
 
