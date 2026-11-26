@@ -12,7 +12,8 @@ import (
 // Defaults are the runner's own config keys (table hm_config). They are independent of the old pipeline's caps
 // (max_live_agents, max_total_claude, dispatch_max_per_tick are never read).
 var Defaults = map[string]string{
-	"max_concurrent": "2",                 // active runs at one time
+	"max_concurrent": "2",                 // working runs at one time (working, judging)
+	"max_waiting":    "20",                // waiting runs (CI, merge, held for the owner): reached = no new run
 	"projects":       "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
 	"model":          "claude-sonnet-5-5", // task session and judge
 	"risk_model":     "claude-opus-5-5",   // when a declared-scope or changed file is a sensitive path, or the task is T3
