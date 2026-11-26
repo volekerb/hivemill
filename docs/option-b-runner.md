@@ -220,12 +220,12 @@ To upgrade:
 
 One runner serves every project, so a bad new build must not stall all of them. A project is on the `edge` channel (default: the installed binary) or on `stable` (`hivemill config project.<id>.channel stable`).
 
-`hivemill release promote` copies the binary the daemon runs to `~/.local/lib/hivemill/stable/hivemill`. It refuses until that build has run 24 h with no failed pass and no auto-revert. A failed pass (the pass or any run step returned an error), a pass that never ended, a gap in the passes longer than `health_max_age_s`, an auto-revert or another build starts the 24 h again.
+`hivemill release promote` copies the binary the daemon runs to `~/.local/lib/hivemill/stable/hivemill`. It refuses until that build has run 24 h with no failed pass and no auto-revert. A failed pass (an error from the pass, a run step, the revert check or a start that was not a refusal), a pass that never ended, a gap in the passes longer than `health_max_age_s`, an auto-revert or another build starts the 24 h again. A pass skipped because another one ran earns no time. An auto-revert of a stable-channel project does not count against edge.
 
 For a stable-channel project:
-- the daemon's pass skips it and runs `<stable> run --project ID` as a subprocess first; a failure there is printed and does not fail the edge pass;
+- the daemon's pass skips it and starts `<stable> run --project ID` as a subprocess beside its own work; a failure there does not fail the edge pass, and the third in a row alerts the owner;
 - its local task and judge sessions get settings and a `PATH` that call the stable binary;
-- `run`, `gate`, `judge`, `merge` and `eval` calls for its tasks, and its session hooks, are handed to the stable binary.
+- `run --project ID`, the `run`, `gate`, `judge`, `merge` and `eval` calls for its tasks, and its session hooks, are handed to the stable binary. A hook whose stable binary crashes lets the session stop.
 
 Until a binary is promoted, edge runs the project. The factory DB is shared, so a schema change must stay readable by the stable binary.
 

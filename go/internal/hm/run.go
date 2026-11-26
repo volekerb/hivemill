@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -47,12 +48,16 @@ type Runner struct {
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
 	// SSH runs command on a clone-mode session machine, with stdin (clonemachine.go).
-	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
-	usageFiles [][]byte               // the remote usage files of this pass
-	usageRead  bool                   // usageFiles has been read in this pass
-	inDaemon   bool                   // this process runs the daemon's passes
-	stepErrs   int                    // run steps of the last pass that failed
-	loads      map[string]loadReading // CPU load per machine, see load.go
+	SSH           func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	usageFiles    [][]byte               // the remote usage files of this pass
+	usageRead     bool                   // usageFiles has been read in this pass
+	inDaemon      bool                   // this process runs the daemon's passes
+	stepErrs      int                    // run steps of the last pass that failed
+	passSkipped   bool                   // the last pass did not run: another one held the lock
+	outMu         sync.Mutex             // guards Out
+	stableRunning sync.Map               // projects whose stable pass runs
+	stableWG      sync.WaitGroup         // the stable passes
+	loads         map[string]loadReading // CPU load per machine, see load.go
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -72,7 +77,11 @@ func (r *Runner) actor() string {
 	return "owner"
 }
 
-func (r *Runner) printf(f string, a ...any) { fmt.Fprintf(r.Out, f, a...) }
+func (r *Runner) printf(f string, a ...any) {
+	r.outMu.Lock() // stable passes print beside the pass
+	defer r.outMu.Unlock()
+	fmt.Fprintf(r.Out, f, a...)
+}
 
 // lock takes the per-task lock file; wait=false returns nil while another process (a gate hook) holds it.
 func (r *Runner) lock(task string, wait bool) *os.File {
@@ -191,6 +200,20 @@ func (r *Runner) Start(id string) error {
 		return fmt.Errorf("%w: %s: project %s has ci_gate none and no gate_cmd, so nothing would test it; set a gate_cmd or ci_gate pr",
 			ErrRefused, id, t.Project)
 	}
+	// one dispatch at a time across processes (the edge pass, a stable pass, a start by hand): the checks below hold
+	// until the run is saved
+	dl := r.lock("dispatch", true)
+	if dl == nil {
+		return fmt.Errorf("%w: cannot take the dispatch lock", ErrRefused)
+	}
+	dispatching := true
+	release := func() {
+		if dispatching {
+			dispatching = false
+			dl.Close()
+		}
+	}
+	defer release()
 	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
@@ -293,6 +316,7 @@ func (r *Runner) Start(id string) error {
 		return err
 	}
 	unlock()
+	release()
 	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why,
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
@@ -506,7 +530,7 @@ func (r *Runner) PassProject(project string, startNew bool) error {
 
 // pass runs the projects of this process, or only the project `only`, which has its own pass lock.
 func (r *Runner) pass(only string, startNew bool) error {
-	r.stepErrs = 0
+	r.stepErrs, r.passSkipped = 0, false
 	lockName, mine := "pass", func(p string) bool { return r.Delegate(p) == "" }
 	if only != "" {
 		lockName, mine = "pass-"+only, func(p string) bool { return p == only }
@@ -515,12 +539,16 @@ func (r *Runner) pass(only string, startNew bool) error {
 	r.usageFiles, r.usageRead = nil, false
 	l := r.lock(lockName, false) // one pass at a time: a timer tick that finds a pass running exits at once
 	if l == nil {
+		r.passSkipped = true
 		r.printf("another pass is running; skipped\n")
 		return nil
 	}
 	defer l.Close()
 	if only == "" {
 		r.stablePasses(startNew) // first: nothing that fails below holds a stable project back
+		if !r.inDaemon {
+			defer r.waitStable()
+		}
 	}
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
@@ -556,10 +584,12 @@ func (r *Runner) pass(only string, startNew bool) error {
 		}
 	}
 	if err := r.revertCheck(mine); err != nil {
+		r.stepErrs++
 		r.printf("revert check: %v\n", err)
 	}
 	if only == "" {
 		if err := r.reportUnstartable(); err != nil {
+			r.stepErrs++
 			r.printf("unstartable tasks: %v\n", err)
 		}
 	}
@@ -591,6 +621,9 @@ func (r *Runner) pass(only string, startNew bool) error {
 			continue
 		}
 		if err := r.Start(t.ID); err != nil {
+			if !errors.Is(err, ErrRefused) {
+				r.stepErrs++
+			}
 			r.printf("%s: %v\n", t.ID, err)
 		}
 	}

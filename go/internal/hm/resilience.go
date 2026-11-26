@@ -205,7 +205,11 @@ func (r *Runner) Daemon(ctx context.Context) error {
 			r.edgePassStart(bin, sum, time.Now())
 		}
 		err := r.Pass(true)
-		if sum != "" {
+		switch {
+		case sum == "":
+		case r.passSkipped:
+			r.edgePassSkipped()
+		default:
 			r.edgePassEnd(err != nil || r.stepErrs > 0, time.Now())
 		}
 		if err != nil {

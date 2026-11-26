@@ -79,6 +79,15 @@ func TestStableChannelUsesStableBinary(t *testing.T) {
 	if got := out.String(); !strings.Contains(got, "T-0002: ") || strings.Contains(got, "T-0001: ") {
 		t.Errorf("edge pass output: %s", got)
 	}
+	// the third failed stable pass in a row is told to the owner
+	for range stableFailAlert - 1 {
+		if err := r.Pass(false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := s.Meta("stable_fail:www"); got != "3" || !strings.Contains(out.String(), "stable pass failed") {
+		t.Errorf("failed stable passes: %q, %s", got, out.String())
+	}
 	// merge and gate steps of the project's task are handed to the stable binary, the other project's are not
 	if r.DelegateTask("T-0001") != bin || r.DelegateTask("T-0002") != "" {
 		t.Errorf("delegate: %q, %q", r.DelegateTask("T-0001"), r.DelegateTask("T-0002"))
@@ -170,6 +179,16 @@ func TestPromoteNeeds24hClean(t *testing.T) {
 	build("build three") // installed, the daemon still runs build two
 	refused("the file changed under the daemon")
 	build("build two")
+	// a pass that did not run earns nothing; one that never ended (no daemon holds its lock) blocks the promote
+	before := r.readEdge().LastEnd
+	r.edgePassStart(edge, sum, now)
+	r.edgePassSkipped()
+	if b := r.readEdge(); b.LastEnd != before || b.Running {
+		t.Errorf("skipped pass: %+v", b)
+	}
+	r.edgePassStart(edge, sum, now)
+	refused("the daemon died in a pass")
+	r.edgePassEnd(false, now)
 	dst, err := r.Promote(now)
 	if err != nil {
 		t.Fatal(err)

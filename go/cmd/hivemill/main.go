@@ -147,6 +147,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	}
 	if bin := stableStep(r, args, env.Actor); bin != "" {
 		if code, started := runStable(bin, env.Home, args, stdin, stdout, stderr); started {
+			if hook && code != 0 { // a hook blocks by its output; a crash (a Go panic exits 2) must not block the session
+				hookLog(env, fmt.Sprintf("stable binary: exit %d", code))
+				return 0
+			}
 			return code
 		}
 	}

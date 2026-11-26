@@ -29,6 +29,8 @@ func stableStep(r *hm.Runner, args []string, actor string) string {
 	switch args[0] {
 	case "run":
 		switch arg(1) {
+		case "--project":
+			return r.Delegate(arg(2))
 		case "hook-session":
 			return r.DelegateAgent(actor)
 		case "stop":

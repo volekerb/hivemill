@@ -449,7 +449,9 @@ func (r *Runner) revertCheck(mine func(project string) bool) error {
 		}
 		x.State, x.Outcome, x.RevertedBy = Reverted, "reverted", id
 		_ = r.Store.PutRun(x)
-		r.edgeDirty() // an auto-revert: the edge build starts its clean time over before a promote
+		if r.stableFor(x.Project) == "" {
+			r.edgeDirty() // an auto-revert: the edge build starts its clean time over before a promote
+		}
 		_ = r.Log.Emit("pr.reverted", x, Event{Data: map[string]any{"revert_task": id, "merge_sha": x.MergeSHA}})
 	}
 	return nil

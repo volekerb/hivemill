@@ -14,6 +14,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -101,8 +103,12 @@ func (r *Runner) DelegateAgent(agent string) string {
 	return ""
 }
 
-// stablePasses runs a pass of every delegated project through the stable binary. A failure is printed and stays with
-// that project: it neither fails the edge pass nor stops the other projects.
+// stableFailAlert is the number of failed stable passes in a row after which the owner is told.
+const stableFailAlert = 3
+
+// stablePasses starts a pass of every delegated project through the stable binary, each one beside the edge pass, so a
+// slow or broken stable pass holds back no other project. A project whose last stable pass still runs is left alone.
+// The daemon does not wait for them; waitStable does for a command run by hand.
 func (r *Runner) stablePasses(startNew bool) {
 	projects, err := r.Store.ProjectIDs()
 	if err != nil {
@@ -118,14 +124,59 @@ func (r *Runner) stablePasses(startNew bool) {
 		if !startNew {
 			argv = append(argv, "--no-start")
 		}
-		rc, out := r.Tools.Sh("", stablePassTimeout, append(os.Environ(), "FACTORY_HOME="+r.Env.Home), argv...)
-		if s := strings.TrimSpace(out); s != "" {
-			r.printf("%s\n", s)
+		if _, running := r.stableRunning.LoadOrStore(id, true); running {
+			continue
 		}
-		if rc != 0 {
-			r.printf("project %s: stable pass failed: exit %d\n", id, rc)
-		}
+		// the child is not the daemon: it must not ping the daemon's watchdog socket
+		env := append(slices.DeleteFunc(os.Environ(), func(v string) bool { return strings.HasPrefix(v, "NOTIFY_SOCKET=") }),
+			"FACTORY_HOME="+r.Env.Home)
+		r.stableWG.Add(1)
+		go func() {
+			defer r.stableWG.Done()
+			defer r.stableRunning.Delete(id)
+			rc, out := r.Tools.Sh("", stablePassTimeout, env, argv...)
+			if s := strings.TrimSpace(out); s != "" {
+				r.printf("%s\n", s)
+			}
+			r.stableResult(id, rc)
+		}()
 	}
+}
+
+// waitStable waits for the stable passes this process started, pinging the watchdog meanwhile.
+func (r *Runner) waitStable() {
+	stop := r.keepAlive(time.Minute)
+	defer stop()
+	r.stableWG.Wait()
+}
+
+// stableResult counts the failed stable passes in a row of a project; at stableFailAlert it raises one alert.
+func (r *Runner) stableResult(project string, rc int) {
+	key := "stable_fail:" + project
+	if rc == 0 {
+		if r.Store.Meta(key) != "" {
+			_ = r.Store.SetMeta(key, "")
+		}
+		return
+	}
+	r.printf("project %s: stable pass failed: exit %d\n", project, rc)
+	n, _ := strconv.Atoi(r.Store.Meta(key))
+	n++
+	_ = r.Store.SetMeta(key, strconv.Itoa(n))
+	if n != stableFailAlert {
+		return
+	}
+	_ = r.Log.Emit("release.stable_failed", nil, Event{Data: map[string]any{"project": project, "exit": rc, "passes": n}})
+	_ = r.Store.AlertFeed("hivemill-stable", project, "hivemill run --project "+project)
+	if _, err := r.Alert("hivemill stable passes fail", fmt.Sprintf("Project %s: %d stable passes failed in a row (exit %d). "+
+		"It does not advance. Run `hivemill run --project %s` to see why.", project, n, rc, project)); err != nil {
+		r.printf("alert: %v\n", err)
+	}
+}
+
+// undrained are the projects of ids that are not in drain mode.
+func (r *Runner) undrained(ids []string) []string {
+	return slices.DeleteFunc(slices.Clone(ids), r.ProjectDraining)
 }
 
 // checkProject refuses a project id the factory does not know.
@@ -225,6 +276,13 @@ func (r *Runner) edgePassEnd(failed bool, now time.Time) {
 	r.writeEdge(b)
 }
 
+// edgePassSkipped records that the pass did not run (another one held the lock): it earns no clean time.
+func (r *Runner) edgePassSkipped() {
+	b := r.readEdge()
+	b.Running = false
+	r.writeEdge(b)
+}
+
 // edgeDirty ends the clean time (an auto-revert).
 func (r *Runner) edgeDirty() {
 	if b := r.readEdge(); b.SHA256 != "" {
@@ -251,6 +309,9 @@ func (r *Runner) Promote(now time.Time) (string, error) {
 	}
 	if b.Since == 0 || b.LastEnd < b.Since {
 		return "", fmt.Errorf("%w: the edge build had a failed pass or an auto-revert and has no good pass since", ErrRefused)
+	}
+	if b.Running && !r.DaemonRunning() {
+		return "", fmt.Errorf("%w: a pass of the edge build never ended: the daemon died in it", ErrRefused)
 	}
 	if age := now.Sub(time.Unix(b.LastEnd, 0)); age > time.Duration(cfgInt(r.Store, "health_max_age_s"))*time.Second {
 		return "", fmt.Errorf("%w: the last good pass of the edge build ended %s ago; is the daemon running?", ErrRefused, age.Round(time.Second))
