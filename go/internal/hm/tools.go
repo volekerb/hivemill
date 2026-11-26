@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -145,6 +146,37 @@ func checkName(c map[string]any) string {
 	return name
 }
 
+// ciCancelledRuns lists the Actions run ids of the newest check rows (per workflow and name) that ended CANCELLED.
+func ciCancelledRuns(checks []map[string]any) []string {
+	newest := map[string]map[string]any{}
+	for _, c := range checks {
+		wf, _ := c["workflowName"].(string)
+		n, _ := c["name"].(string)
+		k := wf + "\x00" + n
+		at, _ := c["startedAt"].(string)
+		if old, ok := newest[k]; ok {
+			if oat, _ := old["startedAt"].(string); at < oat {
+				continue
+			}
+		}
+		newest[k] = c
+	}
+	seen := map[string]bool{}
+	var ids []string
+	for _, c := range newest {
+		if concl, _ := c["conclusion"].(string); !strings.EqualFold(concl, "CANCELLED") {
+			continue
+		}
+		link, _ := c["detailsUrl"].(string)
+		if m := actionsLinkRe.FindStringSubmatch(link); m != nil && !seen[m[1]] {
+			seen[m[1]] = true
+			ids = append(ids, m[1])
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
 // ciRows is CIVerdict with the failed rows themselves.
 func ciRows(checks []map[string]any) (string, []map[string]any) {
 	type key struct{ wf, name string }
@@ -191,7 +223,9 @@ func ciRows(checks []map[string]any) (string, []map[string]any) {
 		concl := strings.ToUpper(strings.TrimSpace(str(c, "conclusion")))
 		finished := strings.ToUpper(str(c, "status")) == "COMPLETED" || (concl != "" && strings.TrimSpace(str(c, "completedAt")) != "") ||
 			concl == "STARTUP_FAILURE" // such a check never ran: it may carry neither a status nor a time
-		if !finished {
+		if !finished || concl == "CANCELLED" {
+			// cancelled is not a failure: GitHub cancels a run that a newer one superseded or that sat in a full queue.
+			// It is pending (never green) until a re-run finishes; Merge re-runs it (rerunCancelled).
 			done = false
 		} else if concl != "SUCCESS" && concl != "NEUTRAL" && concl != "SKIPPED" {
 			failed = append(failed, c)

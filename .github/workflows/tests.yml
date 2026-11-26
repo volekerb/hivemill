@@ -292,6 +292,8 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     # Two corpus passes (both modes, then evaluator) take about 32 min on a hosted runner; only guard-path PRs run them.
+    # Go guard paths (go/internal/guard, go/cmd/worker-guard, go/internal/shlex) do not trigger it: the step runs
+    # --impl python and proves nothing about Go (docs/guard-diff.md); Go guard coverage is the go job's tests.
     timeout-minutes: 45
     env:
       GOTOOLCHAIN: local
@@ -318,7 +320,7 @@ jobs:
         run: |
           if [ "$EVENT" != pull_request ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request: skipped"; exit 0; fi
           changed=$(git diff --name-only --no-renames "$BASE_SHA" HEAD)
-          if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|ci/(public_text_guard|scrub_scan)\.py$|\.github/workflows/tests\.yml$|go/internal/guard/|go/cmd/worker-guard/|go/internal/shlex/)'; then
+          if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|ci/(public_text_guard|scrub_scan)\.py$|\.github/workflows/tests\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
