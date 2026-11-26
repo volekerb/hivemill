@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const threeCriteria = "1. a cmd: true => exit 0\n2. b cmd: true => exit 0\n3. c cmd: true => exit 0"
@@ -22,6 +23,10 @@ func TestLargeTask(t *testing.T) {
 		"six FILES paths":  {Task{Spec: "FILES: a/1.go, a/2.go, a/3.go, a/4.go, a/5.go, a/6.go"}, true},
 		"six allowed paths": {Task{Acceptance: "1. scope cmd: git diff --name-only origin/main | " +
 			"grep -vE '^(cmd/|docs/|internal/|roles/|ci/|README\\.md$)' => empty"}, true},
+		"six unanchored paths": {Task{Acceptance: "1. scope cmd: git diff --name-only origin/main | " +
+			"grep -vE 'cmd/|docs/|internal/|roles/|ci/|web/' => empty"}, true},
+		"six paths in a group": {Task{Acceptance: "1. scope cmd: git diff --name-only origin/main | " +
+			"grep -vE '^(docs/(a|b|c)\\.md|docs/d\\.md|docs/e\\.md|docs/[f|g]\\.md)$' => empty"}, true},
 		"two allowed paths": {Task{Acceptance: "1. scope cmd: git diff --name-only origin/main | grep -vE '^(docs/|internal/)' => empty"}, false},
 		"three paths declared twice": {Task{Spec: "FILES: docs/, internal/, roles/",
 			Acceptance: "1. scope cmd: git diff --name-only origin/main | grep -vE '^(docs/|internal/|roles/)' => empty"}, false},
@@ -93,6 +98,35 @@ func TestWorkflowAgentsCountTowardTheSessionUsage(t *testing.T) {
 	back, _ := usageOf(Event{CostUSD: &cost, Data: map[string]any{"workflow_agents": float64(2)}})
 	if back.WorkflowAgents != 2 || u.data()["workflow_agents"] != 2 {
 		t.Errorf("workflow_agents does not round-trip: %+v %v", back, u.data())
+	}
+	row := Row{Sessions: map[string]string{}}
+	row.apply(Event{Event: "session.ended", Session: "s9", CostUSD: &cost, Data: map[string]any{"workflow_agents": float64(3)}})
+	if row.logged["s9"] != 3 {
+		t.Errorf("the report does not keep the logged workflow agents: %v", row.logged)
+	}
+}
+
+func TestIdleWatchWaitsForARunningWorkflow(t *testing.T) {
+	r, s := testRunner(t, "")
+	_ = s.AddSession(Session{SID: "sid-w", Task: "T-0001", Role: "task", Agent: "a", Started: nowISO()})
+	p := filepath.Join(r.Env.UserHome, ".claude", "projects", "p", "sid-w", "subagents", "workflows", "wf_1", "agent-a.jsonl")
+	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+	if err := os.WriteFile(p, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-time.Hour).Format(time.RFC3339)
+	list := []Terminal{{Name: "a", Status: "idle"}}
+	run := &Run{Task: "T-0001", Agent: "a", State: Working, WorkflowAgents: 6, IdleSince: old, IdleNudges: 1}
+	r.idleWatch(run, list)
+	if run.State != Working || run.IdleSince != "" {
+		t.Errorf("a running workflow counted as idle: %s %q", run.State, run.IdleSince)
+	}
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(p, past, past)
+	run.IdleSince = old
+	r.idleWatch(run, list)
+	if run.State == Working {
+		t.Errorf("a finished workflow must not hold off the stall: %s", run.State)
 	}
 }
 

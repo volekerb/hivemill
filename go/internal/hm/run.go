@@ -633,7 +633,7 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 			idle = t.Status == "idle" || t.Status == "done"
 		}
 	}
-	if !idle {
+	if !idle || run.WorkflowAgents > 0 && r.workflowBusy(run, time.Now().Add(-15*time.Minute)) {
 		run.IdleSince = ""
 		return
 	}

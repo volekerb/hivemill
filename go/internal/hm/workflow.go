@@ -2,8 +2,11 @@ package hm
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // A large task has at least this many acceptance criteria or scope paths, or is T3.
@@ -21,11 +24,59 @@ func scopePaths(t *Task) int {
 		files[f] = true
 	}
 	for _, re := range s.Allow {
-		for _, p := range regexPrefixes(re.String()) {
-			allow[p.lit] = true
+		for _, p := range alternatives(re.String()) {
+			allow[p] = true
 		}
 	}
 	return max(len(files), len(allow))
+}
+
+// alternatives splits a regex source at every | outside a character class, without the anchors and groups around each
+// part: the paths an allow-list names, anchored or not.
+func alternatives(re string) []string {
+	var out []string
+	start, class := 0, false
+	add := func(end int) {
+		p := strings.ReplaceAll(re[start:end], "(?:", "")
+		if p = strings.Trim(p, "^$()"); p != "" {
+			out = append(out, p)
+		}
+	}
+	for i := 0; i < len(re); i++ {
+		switch c := re[i]; {
+		case c == '\\':
+			i++
+		case class:
+			class = c != ']'
+		case c == '[':
+			class = true
+		case c == '|':
+			add(i)
+			start = i + 1
+		}
+	}
+	add(len(re))
+	return out
+}
+
+// workflowBusy reports whether a subagent or workflow agent of the run's task sessions wrote its transcript since t: a
+// session waiting for its workflow reads idle.
+func (r *Runner) workflowBusy(run *Run, t time.Time) bool {
+	sess, _ := r.Store.Sessions(run.Task)
+	for _, s := range sess {
+		if s.Role != "task" {
+			continue
+		}
+		dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "*", s.SID, "subagents")
+		plain, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+		flows, _ := filepath.Glob(filepath.Join(dir, "workflows", "*", "*.jsonl"))
+		for _, f := range append(plain, flows...) {
+			if fi, err := os.Stat(f); err == nil && fi.ModTime().After(t) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // LargeTask is the rule of task_workflows=large.
