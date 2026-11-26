@@ -17,14 +17,15 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 fixture=$root/go/internal/hm/testdata/obs_fixture
 chrome=${CHROME:-$HOME/.local/bin/chrome-headless-shell}
 [ -x "$chrome" ] || die "no headless browser at $chrome (set CHROME)"
+[ "$(basename "$chrome")" = chrome-headless-shell ] || die "CHROME must name a chrome-headless-shell binary: $chrome"
 go=${GO:-$(command -v go || echo "$HOME/.local/go/bin/go")}
 
 tmp=$(mktemp -d)
 server=
 cleanup() {
   if [ -n "$server" ]; then
-    kill "$server" 2>/dev/null || true
-    wait "$server" 2>/dev/null || true
+    kill %1 2>/dev/null || true
+    wait 2>/dev/null || true
   fi
   rm -rf "$tmp"
 }
@@ -32,7 +33,13 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-(cd "$root/go" && GOTOOLCHAIN=local "$go" build -o "$tmp/hivemill" ./cmd/hivemill)
+# Every command below is called by its plain name: go, chrome-headless-shell and the fresh hivemill in $tmp/bin.
+mkdir -p "$tmp/bin"
+chrome_dir=$(dirname "$chrome")
+go_dir=$(dirname "$go")
+export PATH="$tmp/bin:$chrome_dir:$go_dir:$PATH"
+
+(cd "$root/go" && GOTOOLCHAIN=local go build -o "$tmp/bin/hivemill" ./cmd/hivemill)
 
 # The throwaway factory home: an empty DB, box-a's log and the log "pulled" from box-b.
 home=$tmp/factory
@@ -53,7 +60,7 @@ for name, text in texts.items():
 EOF
 
 # env -i: no FACTORY_*, coordinator or HOME of the caller reaches the server.
-hm() { exec env -i PATH="$PATH" HOME="$tmp/user" FACTORY_HOME="$home" "$tmp/hivemill" "$@"; }
+hm() { exec env -i PATH="$PATH" HOME="$tmp/user" FACTORY_HOME="$home" hivemill "$@"; }
 # Without machine_name the page would show this machine's hostname.
 (hm config machine_name box-a) >"$tmp/config.log" 2>&1 || { cat "$tmp/config.log" >&2; die "config failed"; }
 
@@ -61,13 +68,14 @@ port=$(python3 -I -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0
 url=http://127.0.0.1:$port
 hm obs --port "$port" >"$tmp/obs.log" 2>&1 &
 server=$!
+# The server is the only background job of this script: it is %1 below.
 ready=
 for _ in $(seq 100); do
-  kill -0 "$server" 2>/dev/null || break
+  kill -0 %1 2>/dev/null || break
   if curl -fsS -o /dev/null "$url/spend" 2>/dev/null; then ready=1; break; fi
   sleep 0.1
 done
-[ -n "$ready" ] && kill -0 "$server" 2>/dev/null || { cat "$tmp/obs.log" >&2; die "hivemill obs did not start"; }
+[ -n "$ready" ] && kill -0 %1 2>/dev/null || { cat "$tmp/obs.log" >&2; die "hivemill obs did not start"; }
 
 # Blink's preferred colour scheme: 0 is dark, 1 is light. The pages follow prefers-color-scheme.
 for page in spend flow; do
@@ -75,7 +83,7 @@ for page in spend flow; do
   for theme in light:1 dark:0; do
     png=$out/$page-${theme%:*}.png
     rm -f "$png"
-    "$chrome" --headless --hide-scrollbars --window-size=1280,900 --user-data-dir="$tmp/chrome" \
+    chrome-headless-shell --headless --hide-scrollbars --window-size=1280,900 --user-data-dir="$tmp/chrome" \
       --blink-settings=preferredColorScheme="${theme#*:}" --screenshot="$png" "$url/$page" \
       >"$tmp/chrome.log" 2>&1 || { cat "$tmp/chrome.log" >&2; die "screenshot of /$page failed"; }
     [ -s "$png" ] || { cat "$tmp/chrome.log" >&2; die "no screenshot written: $png"; }
