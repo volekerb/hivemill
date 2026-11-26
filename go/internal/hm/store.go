@@ -63,6 +63,10 @@ type Run struct {
 	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
 	// post_merge_cmd of the project, after this run's merge (postmerge.go): "" none, pending, ok or red.
 	PostMerge string `json:"post_merge,omitempty"`
+	// working time limit (worktime.go), per round: the highest run.long_working percent sent and the one resume
+	LongPct        int    `json:",omitempty"`
+	LongResumed    string `json:",omitempty"`
+	LongSendFailed string `json:",omitempty"` // the first time that message could not be sent
 }
 
 // Session is one Claude session of a run (task, judge).

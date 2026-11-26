@@ -283,6 +283,10 @@ func DecideWake(in WakeInput) WakeDecision {
 		d.Advance, d.Why = true, "nothing changed"
 		return d
 	}
+	// dead_dep items go last: there can be many, and WakeMessage cuts the end of a long list
+	sort.SliceStable(levels, func(i, j int) bool {
+		return !strings.HasPrefix(levels[i], "dead_dep:") && strings.HasPrefix(levels[j], "dead_dep:")
+	})
 	d.Reasons = Coalesce(in.Events, levels)
 	if !in.Force {
 		if !in.LastWake.IsZero() && in.Now.Sub(in.LastWake) < in.MinGap {
@@ -445,8 +449,9 @@ func fileSize(p string) int64 {
 }
 
 // PlannerLevels are the level reasons: projects with an active goal whose startable tasks are below planner_queue_min,
-// projects with an active goal that a pass never dispatches (not in config projects), active goals whose tasks are all
-// done, one unstartable item per todo task that fails the spec gate, and none_startable when the queue is starved.
+// projects with an active goal that a pass never dispatches (not in config projects), todo tasks of active goals that
+// depend on a cancelled or failed task (deadDepLevel), active goals whose tasks are all done, one unstartable item per
+// todo task that fails the spec gate, and none_startable when the queue is starved.
 func (r *Runner) PlannerLevels() ([]string, error) {
 	s, err := r.sq()
 	if err != nil {
@@ -496,6 +501,9 @@ func (r *Runner) PlannerLevels() ([]string, error) {
 		}
 		open, done := 0, 0
 		for _, t := range ts {
+			if l := r.deadDepLevel(t); l != "" {
+				out = append(out, l)
+			}
 			switch t.Status {
 			case "done":
 				done++
