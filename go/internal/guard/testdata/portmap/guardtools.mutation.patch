@@ -1,0 +1,13 @@
+diff --git a/go/internal/guard/frontend.go b/go/internal/guard/frontend.go
+index d3e966d57..f19548239 100644
+--- a/go/internal/guard/frontend.go
++++ b/go/internal/guard/frontend.go
+@@ -29,7 +29,7 @@ const (
+ 
+ var (
+ 	FactoryUnitCmds  = set("up", "tick", "relaunch", "spawn", "clean")
+-	PrivWords        = set("sudo", "su", "doas", "pkexec", "docker")
++	PrivWords        = set("sudo", "su", "pkexec", "docker")
+ 	WrapData         = set("alias", "ln", "cp", "mv", "install", "rsync", "nc", "ncat", "netcat", "socat")
+ 	PersistEditTools = set("Edit", "Write", "MultiEdit", "NotebookEdit")
+ 	TermsRoles       = set("coder", "qa", "reviewer", "judge", "pm")
