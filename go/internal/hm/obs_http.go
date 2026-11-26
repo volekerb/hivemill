@@ -70,7 +70,7 @@ func (s *obsServer) usages(ids []string) map[string]SessUsage {
 
 func (s *obsServer) load(f ObsFilter) (*Obs, []ObsSource, error) {
 	srcs := s.r.ObsSources(true)
-	evs, err := LoadObsEvents(srcs)
+	evs, sources, err := loadObs(srcs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -81,7 +81,12 @@ func (s *obsServer) load(f ObsFilter) (*Obs, []ObsSource, error) {
 			ids = append(ids, e.Session)
 		}
 	}
-	return BuildObs(evs, f, me, s.usages(uniq(ids)), s.now()), srcs, nil
+	o := BuildObs(evs, f, me, s.usages(uniq(ids)), s.now())
+	s.r.listMachines(o, sources)
+	for i := range srcs {
+		srcs[i].Machine = sources[i]
+	}
+	return o, srcs, nil
 }
 
 // ObsHandler is the page. It answers GET and HEAD only, and only for a loopback Host (no DNS rebinding).
@@ -383,7 +388,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		p.NowPg = o.BuildNow(days, p.PFilter, p.Me, o.OpenAsks(p.Me, asks, ok), ok, srcs)
 		p.Portfolio = p.NowPg.Portfolio
 		for _, src := range srcs {
-			p.Sources = append(p.Sources, sourceLine{ObsSource: src, Last: o.LastSeen[src.Label]})
+			p.Sources = append(p.Sources, sourceLine{ObsSource: src, Last: o.LastSeen[src.Machine]})
 		}
 		if req.URL.Path == "/api/obs/now" {
 			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "days": days, "page": p.NowPg})
@@ -400,7 +405,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		p.Title = "Project " + p.Project
 		p.Crumbs = append(p.Crumbs, crumb{p.Project, ""})
 		for _, g := range o.Goals(projectKey(p.Project)) {
-			if g.Machines[p.Me] { // goal ids are per factory DB: only a goal this machine ran has its title here
+			if g.origins[p.Me] { // goal ids are per factory DB: only a goal this machine ran has its title here
 				g.Title = s.goalTitle(g.Goal)
 			}
 			p.Goals = append(p.Goals, g)
@@ -415,7 +420,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			p.Project = or(p.Tasks[0].Project, NoProject)
 		}
 		for _, t := range p.Tasks {
-			if t.Machine == p.Me {
+			if t.Origin == p.Me {
 				p.GoalTitle = s.goalTitle(p.Goal)
 				break
 			}
@@ -431,7 +436,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		t := p.Task
 		p.Title = "Task " + t.Task
-		if t.Machine == s.r.Machine() {
+		if t.Origin == s.r.Machine() {
 			if x, err := s.r.Store.Task(t.Task); err == nil && x != nil {
 				p.TaskTitle = x.Title
 			}
