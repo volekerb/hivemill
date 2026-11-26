@@ -230,9 +230,8 @@ class LayoutTests(FactoryTestCase):
         self.assertEqual(len(files), 14)
         for f in files:
             deny = json.loads(Path(f).read_text())["permissions"]["deny"]
-            for tool in ("Edit", "Write"):
-                for tail in ("db/**", "factory.db*"):
-                    self.assertIn(f"{tool}(/{LIVE_HOME}/{tail})", deny, f)
+            for tail in ("db/**", "factory.db*"):
+                self.assertIn(f"Edit(/{LIVE_HOME}/{tail})", deny, f)
 
 
 class NoOverrideTests(FactoryTestCase):

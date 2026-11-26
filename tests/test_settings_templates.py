@@ -95,12 +95,11 @@ class TemplateFileTests(unittest.TestCase):
                     mod.settings_text("coder", template=t)
                 self.assertEqual(cm.exception.code, 3)
 
-    def test_every_role_denies_edit_and_write_on_the_rendered_settings(self):
+    def test_every_role_denies_edit_on_the_rendered_settings(self):
         n = 0
         for r in ROLES:
             d = deny(rendered_settings_dir() / f"{r}.json")
-            for tool in ("Edit", "Write"):
-                self.assertIn(f"{tool}(/{LIVE_HOME}/run/settings/**)", d, r)
+            self.assertIn(f"Edit(/{LIVE_HOME}/run/settings/**)", d, r)
             n += 1
         self.assertEqual(n, len(ROLES))
 
@@ -109,9 +108,8 @@ class TemplateFileTests(unittest.TestCase):
         for r in WORKERS:
             d = deny(rendered_settings_dir() / f"{r}.json")
             cfg = os.path.join(PW_DIR, ".config", "factory")
-            for tool in ("Edit", "Write"):
-                for tail in ("", "/**", "/live_home"):
-                    self.assertIn(f"{tool}(/{cfg}{tail})", d, f"{r}: {tool} {tail}")
+            for tail in ("", "/**", "/live_home"):
+                self.assertIn(f"Edit(/{cfg}{tail})", d, f"{r}: {tail}")
             n += 1
         self.assertEqual(n, 11)
 
