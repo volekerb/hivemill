@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"factory/go/internal/citools/risktier"
 )
@@ -22,6 +23,7 @@ type MergeInput struct {
 	Tier           string   `json:"tier"` // T0..T3, "" = cannot classify
 	Behind         bool     `json:"behind"`
 	MergeClean     bool     `json:"merge_clean"`
+	BehindOK       bool     `json:"behind_ok"` // stale_policy behind_ok holds: merge behind main without a refresh (docs/stale-policy.md)
 	Frozen         bool     `json:"frozen"`
 	RedMain        bool     `json:"red_main"`
 	FixTask        bool     `json:"fix_task"` // this task is the named red-main fix task
@@ -59,7 +61,7 @@ func Decide(in MergeInput) MergeDecision {
 		return MergeDecision{"rejudge", fmt.Sprintf("no judge MERGE on head %.8s (the head moved after the verdict)", in.Head)}
 	case in.Mergeable == "CONFLICTING" || (in.Behind && !in.MergeClean):
 		return MergeDecision{"resume", "the branch conflicts with the base branch"}
-	case in.Behind:
+	case in.Behind && !in.BehindOK:
 		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
 	case in.CI == "red":
 		return MergeDecision{"resume", ciRed}
@@ -129,6 +131,9 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 		in.Behind = true
 		rc, _, _ := r.Tools.Git(wt, "merge-tree", "--write-tree", "origin/"+base, pr.HeadRefOid)
 		in.MergeClean = rc == 0
+		if in.MergeClean && pr.Mergeable == "MERGEABLE" {
+			in.BehindOK = r.behindOK(run.Repo, wt, base, pr.HeadRefOid)
+		}
 	}
 	if t != nil {
 		in.Tier = r.tierOf(t.Project, wt, base, pr.HeadRefOid)
@@ -526,4 +531,62 @@ func (r *Runner) checkMergeCommit(run *Run) {
 	_ = r.Store.Event(r.actor(), "task", run.Task, "noreply-violation", why)
 	_ = r.Store.AlertFeed("hivemill-noreply", run.Task, run.PRURL)
 	_ = r.Log.Emit("pr.noreply_violation", run, Event{Data: map[string]any{"why": why}})
+}
+
+// behindOK is the Go port of the old chain's stale_policy=behind_ok (T-1676, docs/stale-policy.md): a clean, MERGEABLE
+// head that is behind main merges without a refresh when GitHub's protection of the base is not strict, no workflow
+// file changed on main since the merge-base, and no file changed on main since the merge-base is also changed by the PR.
+// A refresh pushes a merge commit and restarts the PR's CI, so with several PRs waiting every merge restarted all of
+// them (2026-11-26: PRs sat 2 h in merging behind a full Actions queue). Every doubt answers false (refresh as before).
+func (r *Runner) behindOK(repo, wt, base, head string) bool {
+	if strings.EqualFold(r.Store.FactoryCfg("stale_policy"), "strict") {
+		return false
+	}
+	if !r.protectionNotStrict(repo, base) {
+		return false
+	}
+	rc, mb, _ := r.Tools.Git(wt, "merge-base", "origin/"+base, head)
+	mb = strings.TrimSpace(mb)
+	if rc != 0 || mb == "" {
+		return false
+	}
+	rc1, mainFiles, _ := r.Tools.Git(wt, "diff", "--name-only", mb, "origin/"+base)
+	rc2, prFiles, _ := r.Tools.Git(wt, "diff", "--name-only", mb, head)
+	if rc1 != 0 || rc2 != 0 {
+		return false
+	}
+	return behindSafe(strings.Fields(mainFiles), strings.Fields(prFiles))
+}
+
+// behindSafe: no workflow file changed on main and no file changed on both sides.
+func behindSafe(mainFiles, prFiles []string) bool {
+	pr := map[string]bool{}
+	for _, f := range prFiles {
+		pr[f] = true
+	}
+	for _, f := range mainFiles {
+		if strings.HasPrefix(f, ".github/workflows/") || pr[f] {
+			return false
+		}
+	}
+	return true
+}
+
+// protectionNotStrict reads required_status_checks.strict of the base branch, cached 10 minutes; unknown = strict.
+func (r *Runner) protectionNotStrict(repo, base string) bool {
+	key := "stale_strict:" + strings.ToLower(repo) + ":" + base
+	if v := r.Store.Meta(key); v != "" {
+		if f := strings.SplitN(v, " ", 2); len(f) == 2 {
+			if t, err := time.Parse(time.RFC3339, f[1]); err == nil && time.Since(t) < 10*time.Minute {
+				return f[0] == "false"
+			}
+		}
+	}
+	rc, out, _ := r.Tools.GH("", "api", "repos/"+repo+"/branches/"+base+"/protection", "--jq", ".required_status_checks.strict")
+	v := strings.TrimSpace(out)
+	if rc != 0 || (v != "false" && v != "true") {
+		return false
+	}
+	_ = r.Store.SetMeta(key, v+" "+time.Now().UTC().Format(time.RFC3339))
+	return v == "false"
 }
