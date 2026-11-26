@@ -23,10 +23,10 @@ const (
 	Failed    = "failed"
 	Reverted  = "reverted"
 	Cancelled = "cancelled"
-	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, holds no slot
+	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, counts against max_waiting
 )
 
-// Active reports whether a run still holds a slot.
+// Active reports whether a run is unfinished and each pass advances it; busy and waiting say which cap it counts against.
 func Active(state string) bool {
 	switch state {
 	case Working, Gated, Judging, Judged, Merging:
@@ -110,15 +110,58 @@ func (r *Runner) ModelFor(risky bool) (string, string, error) {
 	return m, eff, nil
 }
 
-func (r *Runner) activeCount() int {
+// busy reports whether a run does work: its session writes or judges, or the runner runs its proofs or gate_cmd (the
+// gate and the eval gate run while the run is still working). Only these runs count against max_concurrent.
+func busy(state string) bool { return state == Working || state == Judging }
+
+// waiting reports whether an unfinished run does no work: it waits for CI (gated), for the merge (judged, merging) or
+// for the owner (held). These runs count against max_waiting.
+func waiting(x *Run) bool {
+	return (Active(x.State) && !busy(x.State)) || (heldForOwner(x) && !x.Eval)
+}
+
+// runCounts is the number of busy and of waiting runs.
+func (r *Runner) runCounts() (working, waits int) {
 	runs, _ := r.Store.Runs()
-	n := 0
-	for _, x := range runs {
-		if Active(x.State) {
-			n++
+	for i := range runs {
+		switch {
+		case busy(runs[i].State):
+			working++
+		case waiting(&runs[i]):
+			waits++
 		}
 	}
-	return n
+	return working, waits
+}
+
+// runCapBlock says why the run caps hold a new run now ("" = they do not).
+func (r *Runner) runCapBlock() string {
+	if why := r.waitingBlock(); why != "" {
+		return why
+	}
+	working, _ := r.runCounts()
+	if limit := cfgInt(r.Store, "max_concurrent"); working >= limit {
+		return fmt.Sprintf("max_concurrent=%d runs are working", limit)
+	}
+	return ""
+}
+
+// waitingBlock is the max_waiting part of runCapBlock. Reaching the cap emits one dispatch.paused_waiting event; the
+// next one comes only after the count has been seen below the cap again.
+func (r *Runner) waitingBlock() string {
+	_, waits := r.runCounts()
+	if limit := cfgInt(r.Store, "max_waiting"); waits >= limit {
+		why := fmt.Sprintf("max_waiting=%d: %d runs wait for CI, a merge or the owner", limit, waits)
+		if r.Store.Meta("waiting_paused") == "" {
+			_ = r.Log.Emit("dispatch.paused_waiting", nil, Event{Data: map[string]any{"why": why, "waiting": waits, "max_waiting": limit}})
+			_ = r.Store.SetMeta("waiting_paused", nowISO())
+		}
+		return why
+	}
+	if r.Store.Meta("waiting_paused") != "" {
+		_ = r.Store.SetMeta("waiting_paused", "")
+	}
+	return ""
 }
 
 // Candidates are ready tasks a plain pass may start (config projects): deps done, spec set, spec gate passing.
@@ -171,8 +214,8 @@ func (r *Runner) Start(id string) error {
 	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
-	if limit := cfgInt(r.Store, "max_concurrent"); r.activeCount() >= limit {
-		return fmt.Errorf("%w: max_concurrent=%d runs are active", ErrRefused, limit)
+	if why := r.runCapBlock(); why != "" {
+		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
 	if r.Draining() {
 		return fmt.Errorf("%w: drain mode is on (`hivemill resume` lifts it)", ErrRefused)
@@ -477,6 +520,8 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.RevertCheck(); err != nil {
 		r.printf("revert check: %v\n", err)
 	}
+	// every pass records a waiting pause that starts or ends, also one that dispatches nothing below
+	paused := r.waitingBlock()
 	if !startNew || r.Draining() {
 		return nil
 	}
@@ -487,12 +532,16 @@ func (r *Runner) Pass(startNew bool) error {
 		r.printf("dispatch held: %s\n", why)
 		return nil
 	}
+	if paused != "" {
+		r.printf("dispatch held: %s\n", paused)
+		return nil
+	}
 	cands, err := r.Candidates()
 	if err != nil {
 		return err
 	}
 	for _, t := range cands {
-		if r.activeCount() >= cfgInt(r.Store, "max_concurrent") {
+		if r.runCapBlock() != "" {
 			break
 		}
 		if err := r.Start(t.ID); err != nil {
