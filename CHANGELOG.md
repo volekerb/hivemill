@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Changed
+
+- **The Herdr app dashboard reads each factory's obs API.** One card per factory (working, waiting for CI, waiting to merge, held, needs you, planner, merges, machines), one "Needs you" list over all factories, and no number shown as live after its source stopped answering. The spawn gate, lanes and the old server's address are gone. `install.py --herdr-app` takes `--factory [LABEL=]URL` in place of `--factory-url`, `--factory-machine`, `--factory-web-url` and `--orgs`, and drops the old settings keys with a note. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md) and [docs/design/multi-factory.md](docs/design/multi-factory.md).
+
 ### Added
 
 - **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).

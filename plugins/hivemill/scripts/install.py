@@ -4,8 +4,7 @@
   install.py --check | --dry-run | --yes  [--ref REF|latest] [--repo-url URL] [--project-id ID --project-repo PATH]
              [--project-name NAME] [--project-gh OWNER/NAME] [--max-agents N] [--port N] [--no-systemd]
              [--linger] [--no-scout] [--resume]
-  install.py --herdr-app --dry-run | --yes  [--factory-url URL] [--factory-machine NAME] [--factory-web-url URL]
-             [--orgs auto|claude|cursor|claude,cursor] [--no-switch] [--no-sidebar]
+  install.py --herdr-app --dry-run | --yes  [--factory [LABEL=]URL]... [--no-switch] [--no-sidebar]
              (the dashboard for the Herdr app, on the machine you work from: docs/herdr-app-dashboard.md)
 
 It never prompts, never reads stdin and never reads, prints or stores a token. It installs into ~/factory and
@@ -724,7 +723,8 @@ def run_steps(c):
 HERDR_APP_MOD = "hivemill"
 HERDR_APP_LAYOUT = "hivemill"
 HERDR_APP_FILES = ("main.js", "data.js", "mod.json")
-HERDR_APP_ORGS = ("claude", "cursor")
+OBS_PORT = 7461  # `hivemill obs` (config obs_port)
+HERDR_APP_OLD_KEYS = ("factory", "teams", "orgs")  # settings of the dashboard before it read the obs API
 BAR = {"mod": HERDR_APP_MOD, "props": {"mode": "bar"}}
 
 
@@ -762,21 +762,36 @@ def bar_layout(main, hide_sidebar=False):
     return lay, bool(found)
 
 
+def parse_factory(spec):
+    """--factory [LABEL=]URL -> {"url": ..., "label": ...}; the URL is where that factory's `hivemill obs` answers."""
+    label, sep, url = spec.partition("=")
+    if not sep or re.match(r"^https?://", spec):
+        label, url = "", spec
+    if not re.match(r"^https?://[^\s=]+$", url) or (sep and not label.strip() and url != spec):
+        return None
+    out = {"url": url.rstrip("/")}
+    if label.strip():
+        out["label"] = label.strip()
+    return out
+
+
 def dashboard_config(existing, args):
-    """~/.config/hivemill/dashboard.json: the existing one with only the flags given changed; projects are kept."""
+    """~/.config/hivemill/dashboard.json: the existing one with only the flags given changed; projects are kept.
+    --factory replaces the list of factories (an entry whose URL stays keeps its other fields). The old dashboard's
+    keys (factory, teams, orgs) named a server that is gone: they are dropped."""
     cfg = dict(existing or {})
-    factory = dict(cfg.get("factory") or {})
-    factory.setdefault("url", "http://%s:%d" % (LOOPBACK, DEFAULT_PORT))
-    if args.factory_url:
-        factory["url"] = args.factory_url
-    if args.factory_machine is not None:
-        factory["machine"] = args.factory_machine or None
-    if args.factory_web_url:
-        factory["web_url"] = args.factory_web_url
-    cfg["factory"] = factory
-    if args.orgs:
-        cfg["orgs"] = "auto" if args.orgs == "auto" else args.orgs.split(",")
-    cfg.setdefault("orgs", "auto")
+    for k in HERDR_APP_OLD_KEYS:
+        cfg.pop(k, None)
+    old = cfg.get("factories")
+    old = [f for f in (old if isinstance(old, list) else []) if isinstance(f, dict) and isinstance(f.get("url"), str) and f["url"]]
+    if args.factory:
+        by_url = dict((f["url"].rstrip("/"), f) for f in old)
+        new = []
+        for spec in args.factory:
+            f = parse_factory(spec)
+            new.append(dict(by_url.get(f["url"], {}), **f))
+        old = new
+    cfg["factories"] = old or [{"url": "http://%s:%d" % (LOOPBACK, OBS_PORT)}]
     cfg.setdefault("projects", [])
     return cfg
 
@@ -814,10 +829,12 @@ def run_herdr_app(host, args, out):
             for f in HERDR_APP_FILES:
                 host.install_file(os.path.join(src, f), os.path.join(mod_dir, f), mode=0o644)
         name = "config"
-        c.emit("[%s] 2 config: %s %s (factory %s%s, orgs %s, %d project(s))" % (
-            "plan" if c.plan else "run", "update" if existing is not None else "write", cfg_path, cfg["factory"]["url"],
-            " via machine " + cfg["factory"]["machine"] if cfg["factory"].get("machine") else "",
-            cfg["orgs"] if isinstance(cfg["orgs"], str) else ",".join(cfg["orgs"]), len(cfg["projects"])))
+        c.emit("[%s] 2 config: %s %s (%d factor%s: %s; %d project(s))" % (
+            "plan" if c.plan else "run", "update" if existing is not None else "write", cfg_path, len(cfg["factories"]),
+            "y" if len(cfg["factories"]) == 1 else "ies", ", ".join(f["url"] for f in cfg["factories"]), len(cfg["projects"])))
+        dropped = [k for k in HERDR_APP_OLD_KEYS if k in (existing or {})]
+        if dropped:
+            c.note("dropped the old dashboard's settings (%s): the dashboard now reads each factory's `hivemill obs`" % ", ".join(dropped))
         if not c.plan:
             host.mkdirs(os.path.dirname(cfg_path))
             write_text(cfg_path, json.dumps(cfg, indent=2) + "\n")
@@ -902,28 +919,23 @@ def parse(argv):
     p.add_argument("--resume", action="store_true")
     dash = p.add_argument_group("Herdr app dashboard (--herdr-app with --dry-run or --yes)")
     dash.add_argument("--herdr-app", action="store_true", help="install the Hivemill dashboard into the Herdr app here")
-    dash.add_argument("--factory-url", help="the factory web UI as seen from --factory-machine (default http://127.0.0.1:%d)" % DEFAULT_PORT)
-    dash.add_argument("--factory-machine", help="an `hc machine ls` name to reach the factory from ('' clears it)")
-    dash.add_argument("--factory-web-url", help="the factory web UI as your browser reaches it, for the Open links")
-    dash.add_argument("--orgs", help="auto (default), claude, cursor, or claude,cursor")
+    dash.add_argument("--factory", action="append", metavar="[LABEL=]URL",
+                      help="a factory's `hivemill obs` address, e.g. Workshop=http://HOST:%d; repeat it per factory "
+                           "(default http://127.0.0.1:%d)" % (OBS_PORT, OBS_PORT))
     dash.add_argument("--no-switch", action="store_true", help="do not switch the app to the Hivemill layout")
     dash.add_argument("--no-sidebar", action="store_true", help="hide the sidebar in the Hivemill layout (a machine kept for screenshots)")
     a = p.parse_args(argv)
     if sum((a.check, a.dry_run, a.yes)) != 1:
         raise Stop(2, "usage error: pass exactly one of --check, --dry-run, --yes\n" + p.format_usage().strip())
-    dash_flags = (a.factory_url, a.factory_machine, a.factory_web_url, a.orgs, a.no_switch, a.no_sidebar)
+    dash_flags = (a.factory, a.no_switch, a.no_sidebar)
     if not a.herdr_app and any(x is not None and x is not False for x in dash_flags):
-        raise Stop(2, "usage error: --factory-url, --factory-machine, --factory-web-url, --orgs, --no-switch and --no-sidebar need --herdr-app")
+        raise Stop(2, "usage error: --factory, --no-switch and --no-sidebar need --herdr-app")
     if a.herdr_app:
         if a.check:
             raise Stop(2, "usage error: --herdr-app goes with --dry-run or --yes")
-        if a.orgs and a.orgs != "auto" and not set(a.orgs.split(",")) <= set(HERDR_APP_ORGS):
-            raise Stop(2, "usage error: --orgs takes auto, claude, cursor or claude,cursor")
-        for v in (a.factory_url, a.factory_web_url):
-            if v and not re.match(r"^https?://[^\s]+$", v):
-                raise Stop(2, "usage error: --factory-url and --factory-web-url must be http(s) URLs")
-        if a.factory_machine and not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*$", a.factory_machine):
-            raise Stop(2, "usage error: --factory-machine must be a machine name from `hc machine ls`")
+        for spec in a.factory or []:
+            if parse_factory(spec) is None:
+                raise Stop(2, "usage error: --factory takes URL or LABEL=URL, with an http(s) URL")
     if bool(a.project_id) != bool(a.project_repo):
         raise Stop(2, "usage error: --project-id and --project-repo go together")
     if (a.project_name or a.project_gh) and not a.project_id:

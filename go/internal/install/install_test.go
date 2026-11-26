@@ -49,11 +49,12 @@ func TestUsageErrorsExitTwoAndNeverEchoValues(t *testing.T) {
 		{"--dry-run", "--project-id", "p"},
 		{"--dry-run", "--project-repo", "/x"},
 		{"--dry-run", "--project-name", "n"},
-		{"--dry-run", "--factory-url", "http://x"},
+		{"--dry-run", "--factory", "http://x"},
 		{"--check", "--herdr-app"},
-		{"--dry-run", "--herdr-app", "--orgs", "bogus"},
-		{"--dry-run", "--herdr-app", "--factory-url", "ftp://x"},
-		{"--dry-run", "--herdr-app", "--factory-machine", "bad name"},
+		{"--dry-run", "--herdr-app", "--factory", "ftp://x"},
+		{"--dry-run", "--herdr-app", "--factory", "=http://x"},
+		{"--dry-run", "--herdr-app", "--factory", "Name=not a url"},
+		{"--dry-run", "--herdr-app", "--factory-url", "http://x"}, // the old dashboard's flag
 		{"--dry-run", "extra"},
 		{"--dry-run", "--yes=1"},
 		{"--dry-run", "--project-id"},
@@ -75,7 +76,7 @@ func TestValidArgumentsAreAccepted(t *testing.T) {
 		{"--check"},
 		{"--dry-run", "--ref=v0.4.0", "--port", "9000", "--max-agents", "3", "--project-id", "p", "--project-repo", "/x",
 			"--project-name", "n", "--project-gh", "a/b", "--no-systemd", "--linger", "--no-scout", "--resume"},
-		{"--dry-run", "--herdr-app", "--factory-machine", "", "--orgs", "claude,cursor", "--factory-url", "http://127.0.0.1:1"},
+		{"--dry-run", "--herdr-app", "--factory", "Workshop=http://127.0.0.1:1", "--factory=http://127.0.0.1:2", "--factory=Pilot=http://127.0.0.1:3/"},
 	}
 	for _, argv := range cases {
 		if _, err := ParseArgs(argv); err != nil {
@@ -160,14 +161,33 @@ func TestVersionAndPythonRegexAreUnicode(t *testing.T) {
 	}
 }
 
-func TestHTTPURLRegexpMatchesPython(t *testing.T) {
-	// Python: re.match(r"^https?://[^\s]+$", s): "$" also matches before a final newline, \s covers NBSP and \v.
+func TestFactoryURLRegexpMatchesPython(t *testing.T) {
+	// Python: re.match(r"^https?://[^\s=]+$", s): "$" also matches before a final newline, \s covers NBSP and \v.
 	for s, want := range map[string]bool{
-		"http://x": true, "https://x/y?z=1": true, "http://x\n": true,
+		"http://x": true, "https://x/y?z": true, "https://x/y?z=1": false, "http://x\n": true,
 		"http://x y": false, "http://x y": false, "http://x\vy": false, "ftp://x": false, "http://": false,
 	} {
-		if got := httpURLRe.MatchString(s); got != want {
+		if got := factoryURLRe.MatchString(s); got != want {
 			t.Errorf("%q: %v, want %v", s, got, want)
+		}
+	}
+}
+
+func TestParseFactory(t *testing.T) {
+	for spec, want := range map[string][3]string{
+		"http://h:7461":           {"", "http://h:7461", "ok"},
+		"http://h:7461//":         {"", "http://h:7461", "ok"},
+		"Workshop=http://h:7461/": {"Workshop", "http://h:7461", "ok"},
+		" My box =https://h":      {"My box", "https://h", "ok"},
+		"=http://h":               {},
+		"Name=ftp://h":            {},
+		"Name=not a url":          {},
+		"http://h/?a=b":           {},
+		"":                        {},
+	} {
+		label, url, ok := parseFactory(spec)
+		if got := [3]string{label, url, map[bool]string{true: "ok"}[ok]}; got != want {
+			t.Errorf("%q: %v, want %v", spec, got, want)
 		}
 	}
 }

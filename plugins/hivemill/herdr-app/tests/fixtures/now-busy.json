@@ -1,0 +1,238 @@
+{
+ "days": 30,
+ "filter": {},
+ "now": "2026-11-14T10:00:00Z",
+ "project": "",
+ "page": {
+  "running": [
+   {
+    "key": "box-a/T-0101",
+    "task": "T-0101",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "open",
+    "stage": "dispatched",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 600,
+    "seconds": {
+     "dispatched": 600
+    },
+    "total_sec": 1200,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0102",
+    "task": "T-0102",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "open",
+    "stage": "gate",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 40,
+    "seconds": {
+     "gate": 40
+    },
+    "total_sec": 640,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0103",
+    "task": "T-0103",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "open",
+    "stage": "judge",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 90,
+    "seconds": {
+     "judge": 90
+    },
+    "total_sec": 690,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0104",
+    "task": "T-0104",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "open",
+    "stage": "ci",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 900,
+    "seconds": {
+     "ci": 900
+    },
+    "total_sec": 1500,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0105",
+    "task": "T-0105",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-b",
+    "outcome": "open",
+    "stage": "ci",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 300,
+    "seconds": {
+     "ci": 300
+    },
+    "total_sec": 900,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0106",
+    "task": "T-0106",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-b",
+    "outcome": "open",
+    "stage": "merge",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 7200,
+    "seconds": {
+     "merge": 7200
+    },
+    "total_sec": 7800,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0107",
+    "task": "T-0107",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "open",
+    "stage": "merge",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 4000,
+    "seconds": {
+     "merge": 4000
+    },
+    "total_sec": 4600,
+    "usd": 1.5,
+    "sessions": 2
+   }
+  ],
+  "held": [
+   {
+    "key": "box-a/T-0110",
+    "task": "T-0110",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "held: owner",
+    "stage": "held",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 1920,
+    "seconds": {
+     "held": 1920
+    },
+    "total_sec": 2520,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0111",
+    "task": "T-0111",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "held: owner",
+    "stage": "held",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 600,
+    "seconds": {
+     "held": 600
+    },
+    "total_sec": 1200,
+    "usd": 1.5,
+    "sessions": 2
+   }
+  ],
+  "open_asks": [
+   {
+    "project": "app",
+    "open": 2
+   }
+  ],
+  "open_asks_local_only": true,
+  "planner": [
+   {
+    "machine": "box-a",
+    "session": "s-1",
+    "last_event": "session.started",
+    "last_at": "2026-11-13T10:00:00Z",
+    "sessions": 1,
+    "usd": 3.0
+   }
+  ],
+  "projects": [
+   {
+    "project": "(no project)",
+    "usd_today": 0,
+    "usd_7d": 3.0,
+    "usd_30d": 3.0,
+    "tasks": 9,
+    "active": 9,
+    "merged": 5,
+    "usd_window": 3.0,
+    "usd_per_merged_pr": null,
+    "two_plus_rounds_pct": 10.0,
+    "median_hours_to_merge": null,
+    "open_asks": 0,
+    "cost_pending": 0
+   },
+   {
+    "project": "app",
+    "usd_today": 40.0,
+    "usd_7d": 120.0,
+    "usd_30d": 120.0,
+    "tasks": 9,
+    "active": 9,
+    "merged": 5,
+    "usd_window": 120.0,
+    "usd_per_merged_pr": 5.6,
+    "two_plus_rounds_pct": 10.0,
+    "median_hours_to_merge": 0.75,
+    "open_asks": 0,
+    "cost_pending": 0
+   },
+   {
+    "project": "all",
+    "usd_today": 40.0,
+    "usd_7d": 123.0,
+    "usd_30d": 123.0,
+    "tasks": 9,
+    "active": 9,
+    "merged": 5,
+    "usd_window": 123.0,
+    "usd_per_merged_pr": 5.6,
+    "two_plus_rounds_pct": 10.0,
+    "median_hours_to_merge": 0.75,
+    "open_asks": 0,
+    "cost_pending": 0
+   }
+  ],
+  "machines": [
+   {
+    "label": "box-a",
+    "path": "",
+    "local": true,
+    "machine": "box-a",
+    "Last": "2026-11-14T09:59:00Z"
+   }
+  ]
+ }
+}
