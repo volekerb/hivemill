@@ -2,6 +2,7 @@ package hm
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,6 +17,7 @@ type fakeRemote struct {
 	t    *testing.T
 	home string
 	log  []string
+	env  []string // the machine's own extra environment
 }
 
 func newFakeRemote(t *testing.T, r *Runner) *fakeRemote {
@@ -28,7 +30,7 @@ func newFakeRemote(t *testing.T, r *Runner) *fakeRemote {
 		env := []string{"HOME=" + m.home, "PATH=" + os.Getenv("PATH"), "GIT_CONFIG_NOSYSTEM=1",
 			"GIT_AUTHOR_NAME=zz", "GIT_AUTHOR_EMAIL=zz@users.noreply.github.com", "GIT_COMMITTER_NAME=zz",
 			"GIT_COMMITTER_EMAIL=zz@users.noreply.github.com"}
-		return run(timeout, m.home, stdin, env, "sh", "-c", command)
+		return run(timeout, m.home, stdin, append(env, m.env...), "sh", "-c", command)
 	}
 	return m
 }
@@ -172,5 +174,68 @@ func TestCloneMachineWorktree(t *testing.T) {
 	}
 	if got, _ := s.Run("T-0001"); !got.RemoteDone {
 		t.Error("the run must record the removal")
+	}
+}
+
+func TestCloneMachineGateReadsRemote(t *testing.T) {
+	r, s, _, _ := cloneRunner(t)
+	if err := r.Start("T-0001"); err != nil {
+		t.Fatal(err)
+	}
+	run1, _ := s.Run("T-0001")
+	wt := run1.Worktree
+	// the session's work and its .hivemill files exist on the machine only
+	if err := os.WriteFile(filepath.Join(wt, "marker.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, wt, "add", "marker.txt")
+	mustGit(t, wt, "commit", "-qm", "work")
+	mustGit(t, wt, "push", "-q", "origin", "HEAD:factory/t-0001")
+	head := mustGit(t, wt, "rev-parse", "HEAD")
+	_ = os.MkdirAll(filepath.Join(wt, ".hivemill"), 0o755)
+	_ = writeFile(filepath.Join(wt, ".hivemill", "findings.json"), fmt.Sprintf(`{"head": %q, "findings": [{"severity": "low",
+		"file": "marker.txt", "line": 1, "issue": "zz remote finding", "resolution": "fixed: done"}]}`, head), 0o600)
+	_ = writeFile(filepath.Join(wt, ".hivemill", "evidence.json"), `{"criteria": [{"id": 1}]}`, 0o600)
+
+	rec := r.Gate(run1)
+	if rec.Head != head {
+		t.Errorf("gate head %q, want the remote HEAD %q", rec.Head, head)
+	}
+	if len(rec.Findings) != 1 || rec.Findings[0].Issue != "zz remote finding" {
+		t.Errorf("findings not read from the machine: %+v", rec.Findings)
+	}
+	for _, p := range rec.Problems {
+		if strings.HasPrefix(p, "review:") || strings.HasPrefix(p, "pr:") {
+			continue
+		}
+		if strings.Contains(p, "findings.json") || strings.Contains(p, "evidence.json") || strings.HasPrefix(p, "criterion ") ||
+			strings.HasPrefix(p, "committed") || strings.HasPrefix(p, "identity") {
+			t.Errorf("problem: %s", p)
+		}
+	}
+	// the proof passes only where marker.txt is: in the worktree on the machine
+	if len(rec.Reruns) != 1 || rec.Reruns[0].OK == nil || !*rec.Reruns[0].OK {
+		t.Errorf("rerun on the machine: %+v (problems %v)", rec.Reruns, rec.Problems)
+	}
+	if _, err := os.Stat(filepath.Join(run1.Mirror, ".hivemill", "findings.json")); err == nil {
+		t.Error("the coordinator's clone must not hold the session's files")
+	}
+	if got := mustGit(t, run1.Mirror, "rev-parse", "HEAD"); got != head {
+		t.Errorf("the mirror is at %q, want %q", got, head)
+	}
+}
+
+func TestCloneMachineProofEnv(t *testing.T) {
+	r, s, m, _ := cloneRunner(t)
+	if err := r.Start("T-0001"); err != nil {
+		t.Fatal(err)
+	}
+	run1, _ := s.Run("T-0001")
+	m.env = []string{"CLAUDECODE=1", "CLAUDE_CODE_OAUTH_TOKEN=zz", "GH_TOKEN=zz", "GITHUB_TOKEN=zz", "ZZ_KEPT=1"}
+	// the proof sees none of the machine's tokens or Claude variables, and the rest of its environment
+	got := r.RerunProofs(run1, []Criterion{{ID: 1, Kind: "cmd", Expect: "exit 0",
+		Proof: `test "$ZZ_KEPT" = 1 && ! env | grep -E '^(CLAUDE|GH_TOKEN=|GITHUB_TOKEN=)'`}}, t.TempDir())
+	if len(got) != 1 || got[0].OK == nil || !*got[0].OK {
+		t.Errorf("a proof on the machine sees its Claude or GitHub variables: %+v", got)
 	}
 }
