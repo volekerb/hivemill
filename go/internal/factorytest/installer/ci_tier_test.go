@@ -64,8 +64,9 @@ func docsTierJobSkipErrors(text string) []string {
 			}
 		}
 		chunks := stepSplit.Split(parts[1], -1)[1:]
-		if len(chunks) != 8 {
-			errs = append(errs, fmt.Sprintf("%s: expected 8 steps, got %d", job, len(chunks)))
+		want := map[string]int{"unittest-shard": 6, "go": 8}[job]
+		if len(chunks) != want {
+			errs = append(errs, fmt.Sprintf("%s: expected %d steps, got %d", job, want, len(chunks)))
 			continue
 		}
 		for i, c := range chunks {
@@ -477,7 +478,7 @@ func TestCiTierPushAndDispatchRunFull(t *testing.T) {
 func TestCiTierHeavyStepsAreGatedOnTier(t *testing.T) {
 	wf := tierWorkflow(t)
 	contains(t, wf, "steps.tier.outputs.go == 'true'")
-	if n := strings.Count(wf, "steps.tier.outputs.mode != 'docs'"); n != 5 {
+	if n := strings.Count(wf, "steps.tier.outputs.mode != 'docs'"); n != 3 {
 		t.Fatalf("mode != docs count %d", n)
 	}
 	contains(t, wf, "--only")
