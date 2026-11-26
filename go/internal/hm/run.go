@@ -23,10 +23,10 @@ const (
 	Failed    = "failed"
 	Reverted  = "reverted"
 	Cancelled = "cancelled"
-	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, holds no slot
+	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, counts against max_waiting
 )
 
-// Active reports whether a run still holds a slot.
+// Active reports whether a run is unfinished and each pass advances it; busy and waiting say which cap it counts against.
 func Active(state string) bool {
 	switch state {
 	case Working, Gated, Judging, Judged, Merging:
@@ -483,6 +483,10 @@ func (r *Runner) Pass(startNew bool) error {
 	}
 	if err := r.RevertCheck(); err != nil {
 		r.printf("revert check: %v\n", err)
+	}
+	// every pass ends a waiting pause that is over, also one that dispatches nothing below
+	if _, waits := r.runCounts(); waits < cfgInt(r.Store, "max_waiting") && r.Store.Meta("waiting_paused") != "" {
+		_ = r.Store.SetMeta("waiting_paused", "")
 	}
 	if !startNew || r.Draining() {
 		return nil
