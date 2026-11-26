@@ -1,0 +1,43 @@
+{{define "now"}}{{with .NowPg}}
+<h2>Running</h2>
+<div class="scroll"><table>
+<tr><th>task</th><th>machine</th><th>project</th><th>stage</th><th class="num">in stage</th><th class="num">sessions</th><th class="num">$</th></tr>
+{{range .Running}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td>{{.Stage}}</td><td class="num">{{dur .AgeSec}}</td><td class="num">{{.Sessions}}</td><td class="num">{{usd .USD}}</td></tr>
+{{else}}<tr><td colspan="7" class="muted">nothing is running</td></tr>{{end}}
+</table></div>
+<h2>Held for the owner</h2>
+<div class="scroll"><table>
+<tr><th>task</th><th>machine</th><th>project</th><th class="num">held for</th><th class="num">$</th></tr>
+{{range .Held}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td class="num">{{dur .AgeSec}}</td><td class="num">{{usd .USD}}</td></tr>
+{{else}}<tr><td colspan="5" class="muted">no held run</td></tr>{{end}}
+</table></div>
+<h2>Open questions</h2>
+<div class="scroll"><table>
+<tr><th>project</th><th class="num">open</th></tr>
+{{range .Asks}}<tr><td>{{.Project}}</td><td class="num">{{.Open}}</td></tr>
+{{else}}<tr><td colspan="2" class="muted">none</td></tr>{{end}}
+</table></div>
+<h2>Planner</h2>
+<div class="scroll"><table>
+<tr><th>machine</th><th>newest event</th><th>at</th><th>session</th><th class="num">sessions ({{$.Days}}d)</th><th class="num">$</th></tr>
+{{range .Planner}}<tr><td>{{.Machine}}</td><td>{{.LastEvent}}</td><td>{{when .LastAt}}</td><td><a href="{{$.Q "/session" "s" .Session}}"><code>{{short .Session}}</code></a></td><td class="num">{{.Sessions}}</td><td class="num">{{usd .USD}}</td></tr>
+{{else}}<tr><td colspan="6" class="muted">no planner session</td></tr>{{end}}
+</table></div>
+<h2>Projects</h2>
+<div class="scroll"><table>
+<tr><th>project</th><th class="num">$ today</th><th class="num">$ 7d</th><th class="num">$ 30d</th><th class="num">tasks</th><th class="num">active</th><th class="num">merged ({{$.Days}}d)</th><th class="num">$ / merged PR</th><th class="num">2+ rounds %</th><th class="num">median h</th><th class="num">open questions</th></tr>
+{{range .Portfolio}}<tr{{if eq .Project "all"}} class="total"{{end}}>
+  <td>{{if eq .Project "all"}}all projects{{else}}<a href="{{$.Q "/project" "p" .Project}}">{{.Project}}</a>{{end}}{{if .CostPending}} <span class="warn" title="sessions with no cost yet (remote, still running)">({{.CostPending}} pending)</span>{{end}}</td>
+  <td class="num">{{usd .USDToday}}</td><td class="num">{{usd .USD7d}}</td><td class="num">{{usd .USD30d}}</td>
+  <td class="num">{{.Tasks}}</td><td class="num">{{.Active}}</td><td class="num">{{.Merged}}</td>
+  <td class="num">{{if .PerMergedPR}}${{fp .PerMergedPR}}{{else}}-{{end}}</td><td class="num">{{fp .TwoPlusPct}}</td><td class="num">{{fp .MedianHours}}</td>
+  <td class="num">{{.OpenAsks}}</td>
+</tr>{{end}}
+</table></div>
+<p class="muted">$ at API prices; a session's whole cost counts on the day it started. Merged, $/merged PR, 2+ rounds and median hours (dispatch to merge) are <code>hivemill report</code>'s rules. Open questions: this machine's from its owner queue, pulled machines' from their ask events.</p>
+<h2 id="machines">Machines</h2>
+<div class="scroll"><table>
+<tr><th>machine</th><th>source</th><th>newest event</th><th>pulled</th></tr>
+{{range .Machines}}<tr><td><a href="{{$.Q "/" "machine" .Label}}">{{.Label}}</a></td><td>{{if .Own}}this machine{{else}}pulled{{end}}</td><td>{{when .Last}}</td><td>{{if .Pulled}}{{when .Pulled}}{{else}}-{{end}}</td></tr>{{end}}
+</table></div>
+{{end}}{{end}}
