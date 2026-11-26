@@ -269,7 +269,8 @@ func (r *Runner) overBudget(run *Run) bool {
 	if total <= limit {
 		return false
 	}
-	r.fail(run, fmt.Sprintf("budget: sessions cost $%.2f, over task_budget_usd $%.2f", total, limit))
+	r.closeSessions(run) // first: fail reads the cost, which must not still be growing
+	r.fail(run, fmt.Sprintf("budget:sessions cost $%.2f, over task_budget_usd $%.2f", total, limit))
 	return true
 }
 

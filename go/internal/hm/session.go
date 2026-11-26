@@ -246,8 +246,8 @@ func (r *Runner) Close(name string) {
 	if name == "" {
 		return
 	}
+	_ = r.Store.AgentEnded(name) // first: a hook that kills its own terminal does not outlive the kill
 	r.Tools.HC("kill", name)
-	_ = r.Store.AgentEnded(name)
 }
 
 func nowISO() string { return time.Now().Format(time.RFC3339) }

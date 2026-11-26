@@ -59,7 +59,7 @@ func (r *Runner) closeSessions(run *Run) {
 		if name == "" {
 			return
 		}
-		if alive(list, ok, name) {
+		if ok && alive(list, ok, name) {
 			_ = r.Log.Emit("session.closed", run, Event{Role: role, Data: map[string]any{"agent": name, "machine": machineLabel(machine)}})
 		}
 		r.Close(name)
