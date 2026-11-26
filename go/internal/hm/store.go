@@ -46,12 +46,13 @@ type Run struct {
 	// Eval runs (eval.go) measure the review layers on a prepared branch and are never merged.
 	Eval             bool
 	EvalMode, CINote string
-	LastBlock        string // the problems of the last gate block, to tell progress from a repeated block
-	BlockStops       int    // gate stops blocked in this round, progress or not (hard limit 3x gate_max_blocks)
-	WorkflowAgents   int    `json:",omitempty"` // agent cap of the workflow request in the first prompt; 0 = no request
-	Machine          string `json:",omitempty"` // hc machine of the task session ("" = the local core); resumes go there too
-	Guarded          string `json:",omitempty"` // head and limits of the last merge.guarded event
-	Unattended       bool   `json:",omitempty"` // the runner merges this T3 run without the owner
+	LastBlock        string  // the problems of the last gate block, to tell progress from a repeated block
+	BlockStops       int     // gate stops blocked in this round, progress or not (hard limit 3x gate_max_blocks)
+	WorkflowAgents   int     `json:",omitempty"` // agent cap of the workflow request in the first prompt; 0 = no request
+	Machine          string  `json:",omitempty"` // hc machine of the task session ("" = the local core); resumes go there too
+	CI               *CIWait `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
+	Guarded          string  `json:",omitempty"` // head and limits of the last merge.guarded event
+	Unattended       bool    `json:",omitempty"` // the runner merges this T3 run without the owner
 }
 
 // Session is one Claude session of a run (task, judge).
@@ -77,6 +78,7 @@ type Store interface {
 	Meta(key string) string
 	SetMeta(key, value string) error
 	AlertFeed(kind, ref, link string) error
+	CloseAlert(kind, ref string) error
 	AgentLive(name, role, task, goal, team, model, sid, cwd, args string) error
 	AgentEnded(name string) error
 	AgentSession(name, sid string) error
@@ -864,6 +866,12 @@ func (s *SQLite) ReplaceAlert(kind, ref, link string) (bool, error) {
 		return false, err
 	}
 	return true, s.AlertFeed(kind, ref, link)
+}
+
+// CloseAlert closes the open owner alert feed rows of one kind and ref.
+func (s *SQLite) CloseAlert(kind, ref string) error {
+	_, err := s.db.Exec(`UPDATE owner_alert_feed SET closed=? WHERE kind=? AND ref=? AND closed IS NULL`, s.now(), kind, ref)
+	return err
 }
 
 // CloseAlertKind closes the open owner alert feed rows of a kind (its condition cleared).
