@@ -62,7 +62,7 @@ export default class Dashboard extends View {
     this.me = Math.random().toString(36).slice(2);
     this.mode = props()?.mode === "bar" ? "bar" : "full";
     this.width = 0;
-    this.tab = ["board", "traces", "spend"].includes(props()?.view) ? props().view : "overview"; // props {view} opens on that tab
+    this.tab = ["spend"].includes(props()?.view) ? props().view : "overview"; // props {view} opens on that tab
     this.fac = null; // the factory the Board, Traces and Spend tabs show (its key); null = the first
     this.project = null; // the Board's project; null = all
     try {
@@ -403,7 +403,8 @@ export default class Dashboard extends View {
 
     const wide = this.width >= 1040;
     const side = this.aside(t, k, d, views);
-    const tabs = [["overview", "Overview"], ["board", "Board"], ["traces", "Traces"], ["spend", "Spend"]];
+    // Board and Traces are built but not shown: they wait for task titles in the factory API and an approved design.
+    const tabs = [["overview", "Overview"], ["spend", "Spend"]];
     const header = h_flex().pb(14).gap(14).items_center().text_size(13)
       .child(div().font_semibold().text_color(k.fg).child("Hivemill"))
       .child(div().flex_1().text_color(k.dim).child(`${views.length} factor${views.length === 1 ? "y" : "ies"}, ${fresh}`))
@@ -560,7 +561,7 @@ export default class Dashboard extends View {
         .child(table(`role-${v.key}`, [["Role", 0], ["Of it, waiting", 110], ["Spent", 90]], s.roles.map((r) => ({ cells: [{ text: r.role }, { text: r.pollingPct != null ? `${Math.round(r.pollingPct)}%` : "–", color: r.pollingPct >= 30 ? k.bad : k.muted }, { text: money(r.usd) }] }))));
       if (s.top.length && !demo()) out.child(this.heading(k, `Most expensive tasks${lab}`, "last 7 days"))
         .child(table(`top-${v.key}`, [["Task", 0], ["Sessions", 90], ["Spent", 90]], s.top.map((x) => ({
-          go: (cx) => this.openTrace(cx, v, x.key),
+          go: () => openUrl(taskUrl(v.factory, x.key)),
           cells: [{ text: x.title ? `${x.title}` : x.task, color: k.fg }, { text: x.sessions != null ? String(x.sessions) : "–", color: k.muted }, { text: money(x.usd), color: x.usd > 10 ? k.bad : k.fg }] }))));
       out.child(h_flex().pt(10).text_size(13).child(this.link(k, `sp-${v.key}`, `Open the Spend page${lab}`, () => openUrl(webUrl("/spend", v.factory)))));
     }
