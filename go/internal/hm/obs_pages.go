@@ -539,7 +539,30 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 			p.Machines = append(p.Machines, sourceLine{ObsSource: ObsSource{Label: m, Machine: m}, Last: o.LastSeen[m]})
 		}
 	}
+	o.proofTime(p.Machines, wN)
 	return p
+}
+
+// proofTime fills each machine's gate proofs since from: data.machine of gate.proof_run, "local" being the writer.
+func (o *Obs) proofTime(rows []sourceLine, from time.Time) {
+	runs, secs := map[string]int{}, map[string]float64{}
+	for _, t := range o.Tasks {
+		for _, e := range t.Events {
+			if e.Event != "gate.proof_run" || !evTime(e).After(from) {
+				continue
+			}
+			m, _ := e.Data["machine"].(string)
+			if m == "" || m == localMachine {
+				m = t.Origin // e.Machine is the run's placement, not where the proof ran
+			}
+			s, _ := e.Data["seconds"].(float64)
+			runs[m]++
+			secs[m] += s
+		}
+	}
+	for i := range rows {
+		rows[i].Proofs, rows[i].ProofMin = runs[rows[i].Machine], round2(secs[rows[i].Machine]/60)
+	}
 }
 
 // projectKeyLabel maps the filter's value to the portfolio's project label.

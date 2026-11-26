@@ -27,6 +27,15 @@ func TestParseProbe(t *testing.T) {
 	if p.Home != "/u" || p.OS != "Linux" || p.Marker != "tok" || p.Coordinator != "coord" || p.MemMB != 8904 {
 		t.Errorf("linux probe %+v", p)
 	}
+	if p := ParseProbe("os=Linux\nload=3.50 1.00 0.50 2/300 9\ncpus=4\n---mem\n"); p.Load != (Load{3.5, 4}) {
+		t.Errorf("linux load %+v", p.Load)
+	}
+	if p := ParseProbe("os=Darwin\nload={ 2.25 1.00 0.50 }\ncpus=8\n---mem\n"); p.Load != (Load{2.25, 8}) {
+		t.Errorf("darwin load %+v", p.Load)
+	}
+	if p := ParseProbe("os=Linux\nload=\ncpus=\n---mem\n"); p.Load.known() || p.Load.overloaded() {
+		t.Errorf("unreadable load %+v", p.Load)
+	}
 	// (9650 + 100000 + 2750) pages x 16 KiB = 1756 MB
 	if p := ParseProbe("os=Darwin\n---mem\npressure=1\n" + vmStatText); p.MemMB != 1756 {
 		t.Errorf("darwin probe %+v", p)
@@ -46,6 +55,8 @@ type fakeWorker struct {
 	shared      bool
 	home, coord string
 	cloneHead   string
+	load        float64 // 1-minute load; reported when cpus is set
+	cpus        int
 }
 
 func placementRunner(t *testing.T, workers map[string]fakeWorker) (*Runner, *SQLite, *[]string) {
@@ -78,8 +89,12 @@ func placementRunner(t *testing.T, workers map[string]fakeWorker) (*Runner, *SQL
 			if home == "" {
 				home = r.Env.UserHome
 			}
-			return 0, fmt.Sprintf("home=%s\nos=Linux\nmarker=%s\ncoordinator=%s\n---mem\n"+meminfoText, home, marker, w.coord,
-				w.memMB*1024), ""
+			cpu := ""
+			if w.cpus > 0 {
+				cpu = fmt.Sprintf("load=%g 0.50 0.20 1/100 42\ncpus=%d\n", w.load, w.cpus)
+			}
+			return 0, fmt.Sprintf("home=%s\nos=Linux\nmarker=%s\ncoordinator=%s\n%s---mem\n"+meminfoText, home, marker, w.coord,
+				cpu, w.memMB*1024), ""
 		}
 		return 0, "{}", ""
 	}
@@ -90,6 +105,13 @@ func withLocalMem(t *testing.T, mb int) {
 	old := MemAvailableMB
 	MemAvailableMB = func() int { return mb }
 	t.Cleanup(func() { MemAvailableMB = old })
+	withLocalLoad(t, Load{})
+}
+
+func withLocalLoad(t *testing.T, l Load) {
+	old := LocalLoad
+	LocalLoad = func() Load { return l }
+	t.Cleanup(func() { LocalLoad = old })
 }
 
 func TestPickMachine(t *testing.T) {
