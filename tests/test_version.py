@@ -149,6 +149,15 @@ class TestReleaseWorkflow(unittest.TestCase):
         self.assertEqual(len(create), 1)
         self.assertLess(check[0], create[0])
 
+    def test_go_tool_is_built_before_use(self):
+        lines = (ROOT / ".github" / "workflows" / "release.yml").read_text().splitlines()
+        build = [i for i, l in enumerate(lines) if 'go build -o "$RUNNER_TEMP/ci-changelog" ./cmd/ci-changelog' in l]
+        uses = [i for i, l in enumerate(lines) if '"$RUNNER_TEMP/ci-changelog" --' in l]
+        self.assertEqual(len(build), 1)
+        self.assertEqual(len(uses), 3)
+        self.assertLess(build[0], min(uses))
+        self.assertFalse(any("ci/changelog.py" in l for l in lines))
+
 
 if __name__ == "__main__":
     unittest.main()
