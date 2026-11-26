@@ -479,7 +479,11 @@ func TestCiTierClassifierRunsFromTheBaseCommit(t *testing.T) {
 	tierStep := regexp.MustCompile(`- name: Tier (\(rules from the base commit\)|tool from the base commit)`)
 	nextJob := regexp.MustCompile(`(?m)^  [A-Za-z0-9_-]+:\n`)
 	for _, job := range []string{"ci-tier", "docs-check", "unittest-shard", "go"} {
-		body := strings.SplitN(wf, "\n  "+job+":\n", 2)[1]
+		parts := strings.SplitN(wf, "\n  "+job+":\n", 2)
+		if len(parts) != 2 {
+			t.Fatalf("job %s: header not found in tests.yml", job)
+		}
+		body := parts[1]
 		if loc := nextJob.FindStringIndex(body); loc != nil {
 			body = body[:loc[0]]
 		}

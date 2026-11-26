@@ -167,7 +167,7 @@ jobs:
           # zsh reads .zshenv: the sandbox PATH-order regression tests must run in CI, not skip.
           sudo apt-get install -y zsh
           (cd go && GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
-          # setup-go put its go on PATH only to build ci-shard: take that one directory off so the shards see the PATH they saw before.
+          # setup-go put its go on PATH only to build ci-tier and ci-shard: take that one directory off so the shards see the PATH they saw before.
           d=$(dirname "$(command -v go)")
           PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF -e "$d" -e "$d/" | paste -sd: -)
           only=()
