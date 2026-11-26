@@ -120,7 +120,7 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 		in.RedMain = true
 		in.FixTask = fmt.Sprint(st["task"]) == run.Task
 	}
-	wt, base := run.Worktree, run.Base
+	wt, base := run.coordWT(), run.Base
 	r.Tools.Git(wt, "fetch", "-q", "origin", base)
 	_, local, _ := r.Tools.Git(wt, "rev-parse", "HEAD")
 	if local != pr.HeadRefOid {
@@ -323,7 +323,7 @@ func (r *Runner) checkHeld(run *Run) {
 // refresh merges origin/<base> into the branch (a merge commit, never a force-push), pushes it and carries the judge's
 // MERGE to the new head: the judged change is the same, and CI must go green again before the merge.
 func (r *Runner) refresh(run *Run) {
-	wt, base := run.Worktree, run.Base
+	wt, base := run.coordWT(), run.Base
 	email := r.Store.FactoryCfg("noreply_email")
 	if rc, _, errs := gitAs(r.Env, email, wt, "merge", "--no-edit", "origin/"+base); rc != 0 {
 		r.Tools.Git(wt, "merge", "--abort")
@@ -338,6 +338,16 @@ func (r *Runner) refresh(run *Run) {
 	_, run.Head, _ = r.Tools.Git(wt, "rev-parse", "HEAD")
 	run.JudgeHead = run.Head
 	run.Refreshes++
+	if run.cloned() { // a resumed session must start from the refreshed head, and the worktree's removal looks for it
+		at := r.at(run)
+		rc, _, errs := at.git(run.Worktree, "fetch", "-q", "origin", run.Branch, base)
+		if rc == 0 {
+			rc, _, errs = at.git(run.Worktree, "merge", "-q", "--ff-only", "origin/"+run.Branch)
+		}
+		if rc != 0 {
+			r.printf("%s: %s on %s stays behind the refreshed branch: %s\n", run.Task, run.Worktree, run.Machine, firstLine(errs))
+		}
+	}
 	_ = r.Store.Verdict(run.Task, run.PRURL, run.Head, "pass", fmt.Sprintf("carried from %.12s: clean merge of origin/%s only", old, base), "hivemill")
 	_ = r.Log.Emit("pr.refreshed", run, Event{Data: map[string]any{"head": run.Head, "from": old}})
 }
@@ -400,11 +410,15 @@ func (r *Runner) GoalCheck(run *Run) {
 		_ = r.Log.Emit("goal.checked", run, Event{Data: map[string]any{"result": "skipped", "why": "no cmd: check in the goal's success criteria"}})
 		return
 	}
-	r.Tools.Git(run.Worktree, "fetch", "-q", "origin", run.Base)
-	r.Tools.Git(run.Worktree, "checkout", "-q", "--detach", "origin/"+run.Base)
+	here := *run // merged main is checked here, for a clone-mode run too
+	if run.cloned() {
+		here.Worktree, here.Mirror, here.Machine = run.Mirror, "", ""
+	}
+	r.Tools.Git(here.Worktree, "fetch", "-q", "origin", run.Base)
+	r.Tools.Git(here.Worktree, "checkout", "-q", "--detach", "origin/"+run.Base)
 	dir := filepath.Join(r.Env.StateDir(), "runs", run.Task)
 	_ = os.MkdirAll(dir, 0o700)
-	res := r.RerunProofs(run, checks, dir)
+	res := r.RerunProofs(&here, checks, dir)
 	ok := true
 	for _, x := range res {
 		ok = ok && x.OK != nil && *x.OK
