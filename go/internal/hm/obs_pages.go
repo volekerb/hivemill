@@ -524,6 +524,9 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 	listed := map[string]bool{}
 	for _, src := range srcs {
 		src.Machine = or(src.Machine, src.Label)
+		if listed[src.Machine] { // a second copy of one machine's log
+			continue
+		}
 		listed[src.Machine] = true
 		p.Machines = append(p.Machines, sourceLine{ObsSource: src, Last: o.LastSeen[src.Machine]})
 	}

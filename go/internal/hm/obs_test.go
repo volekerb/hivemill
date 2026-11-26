@@ -1064,6 +1064,7 @@ func TestObsShowsThePlacementMachine(t *testing.T) {
 		ev(ts("03:01"), "session.started", "T-2", "G-1", "www", "s-near", "task", placed("local")),
 		// the judge of a placed task runs on this machine
 		ev(ts("02:02"), "session.started", "T-1", "G-1", "www", "s-judge", "judge", placed("local")),
+		ev(ts("02:03"), "session.closed", "T-1", "G-1", "www", "", "judge", placed("local")),
 		// dispatched again, to the other machine: the first run stays where it ran
 		ev(ts("04:00"), "task.dispatched", "T-2", "G-1", "www", "", "", placed("box-c")),
 		ev(ts("04:01"), "session.started", "T-2", "G-1", "www", "s-again", "task", placed("box-c")),
@@ -1089,7 +1090,7 @@ func TestObsShowsThePlacementMachine(t *testing.T) {
 		t.Fatalf("T-1: %+v", t1)
 	}
 	for _, e := range t1.Events {
-		if e.Session != "s-judge" && e.Machine != "box-c" {
+		if e.Role != "judge" && e.Machine != "box-c" {
 			t.Fatalf("event %s on %s", e.Event, e.Machine)
 		}
 	}
@@ -1102,8 +1103,12 @@ func TestObsShowsThePlacementMachine(t *testing.T) {
 		t.Fatalf("T-2 %+v asks %v seen %v", o.Tasks["box-a/T-2"], o.EventAsks, o.LastSeen)
 	}
 	near, err := r.LoadObs(ObsFilter{Machine: "box-a"}, true, time.Now())
-	if err != nil || near.Sessions["s-near"] == nil || !near.Sessions["s-near"].CostKnown || near.Sessions["s-judge"] == nil || near.Tasks["box-a/T-2"].Machine != "box-a" {
+	if err != nil || near.Sessions["s-near"] == nil || !near.Sessions["s-near"].CostKnown || near.Sessions["s-judge"] == nil || near.Sessions["s-far"] != nil {
 		t.Fatalf("the first run's session.ended: %v %v", err, near.Sessions)
+	}
+	// a task with a line on the machine is whole: merged on the other machine is not open here
+	if t1 := near.Tasks["box-a/T-1"]; t1 == nil || t1.Row.Outcome != "merged" || t1.Machine != "box-c" || t1.Row.USD != 2 {
+		t.Fatalf("T-1 under the filter: %+v", t1)
 	}
 	far, err := r.LoadObs(ObsFilter{Machine: "box-c"}, true, time.Now())
 	if err != nil || far.Sessions["s-far"] == nil || far.Sessions["s-near"] != nil || far.Tasks["box-a/T-1"] == nil {
