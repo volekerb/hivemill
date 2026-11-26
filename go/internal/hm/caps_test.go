@@ -1,6 +1,8 @@
 package hm
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -143,5 +145,97 @@ func TestUsageProbe(t *testing.T) {
 	}
 	if probes() != 0 {
 		t.Errorf("no probe event without a dispatch: %d", probes())
+	}
+}
+
+func TestUsageNewestAcrossMachines(t *testing.T) {
+	r, s, _ := placementRunner(t, nil)
+	_ = s.SetCfg("session_machines", "local,coord-core,-oBad,w-down,w1")
+	now := time.Unix(1795548325, 0)
+	dir := filepath.Join(r.Env.UserHome, ".claude")
+	_ = os.MkdirAll(dir, 0o700)
+	reading := func(pct int, age int64) string {
+		return fmt.Sprintf(`{"five_hour_pct": "%d", "seven_day_pct": "12", "updated_at": %d}`, pct, now.Unix()-age)
+	}
+	_ = os.WriteFile(filepath.Join(dir, "usage-limits.json"), []byte(reading(10, 3600)), 0o600)
+	var remote string
+	var asked []string
+	r.RemoteUsage = func(m string) ([]byte, error) {
+		asked = append(asked, m)
+		if m != "w1" {
+			return nil, errors.New("down")
+		}
+		return []byte(remote), nil
+	}
+	cases := []struct {
+		name, body string
+		pct        float64
+		age        int
+	}{
+		{"fresh remote", reading(20, 30), 20, 30},
+		{"older remote", reading(20, 7200), 10, 3600},
+		{"garbage remote", "not json", 10, 3600},
+		{"remote without updated_at", `{"five_hour_pct": "20", "seven_day_pct": "12"}`, 10, 3600},
+		{"remote far ahead", reading(20, -61), 10, 3600},
+		{"remote 1 s ahead", reading(20, -1), 20, 0},
+		{"remote 5 s ahead", reading(20, -5), 20, 0},
+	}
+	for _, c := range cases {
+		remote, asked = c.body, nil
+		r.usageFiles, r.usageRead = nil, false
+		got := r.ReadCaps(now)
+		if got.Usage.FiveHour == nil || *got.Usage.FiveHour != c.pct || got.Usage.AgeS != c.age {
+			t.Errorf("%s: %+v, want 5h %v age %d", c.name, got.Usage, c.pct, c.age)
+		}
+		if why := got.UsageUnknown(s); (why == "") != (c.pct == 20) {
+			t.Errorf("%s: UsageUnknown %q", c.name, why)
+		}
+		r.ReadCaps(now) // the same pass: no second read
+		if strings.Join(asked, ",") != "w-down,w1" {
+			t.Errorf("%s: read %v", c.name, asked)
+		}
+	}
+	asked = nil
+	if err := r.Pass(false); err != nil {
+		t.Fatal(err)
+	}
+	r.ReadCaps(now)
+	if strings.Join(asked, ",") != "w-down,w1" {
+		t.Errorf("a new pass reads the machines again: %v", asked)
+	}
+}
+
+func TestProbeRunsLocal(t *testing.T) {
+	r, s, calls := placementRunner(t, map[string]fakeWorker{"w1": {memMB: 9000, shared: true, coord: "c"}})
+	setupRoles(t, r)
+	withLocalMem(t, 8000)
+	_ = s.SetCfg("session_machines", "w1")
+	_ = s.SetCfg("usage_require_5h", "off")
+	dir := filepath.Join(r.Env.UserHome, ".claude")
+	_ = os.MkdirAll(dir, 0o700)
+	_ = os.WriteFile(filepath.Join(dir, "usage-limits.json"), []byte(fmt.Sprintf(
+		`{"five_hour_pct": "", "seven_day_pct": "12", "updated_at": %d}`, time.Now().Add(-time.Hour).Unix())), 0o600)
+	// a clone that exists already, so Start reaches the placement of the run
+	task, err := s.Task("T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = os.MkdirAll(filepath.Join(r.Env.Home, "worktrees", task.Goal+"-"+task.ID, ".git", "info"), 0o755)
+	r.Tools.Git = func(string, ...string) (int, string, string) { return 0, strings.Repeat("a", 40), "" }
+	_, _ = s.db.Exec(`UPDATE tasks SET status='todo'`)
+	startErr := r.Start("T-0001")
+	run, err := s.Run("T-0001")
+	if err != nil || run == nil {
+		t.Fatalf("no run: %v, start: %v", err, startErr)
+	}
+	if run.Machine != "" {
+		t.Errorf("the probe run is placed on %q", run.Machine)
+	}
+	ev, _ := os.ReadFile(r.Log.Path)
+	if !strings.Contains(string(ev), "the usage probe runs only on the local core") || !strings.Contains(string(ev), `"event":"usage.probe"`) {
+		t.Errorf("events: %s", ev)
+	}
+	if j := strings.Join(*calls, "\n"); strings.Contains(j, "--on w1") {
+		t.Errorf("a probe never touches w1:\n%s", j)
 	}
 }

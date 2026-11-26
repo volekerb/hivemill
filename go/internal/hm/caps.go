@@ -46,15 +46,42 @@ func ReadUsage(userHome string, now time.Time) Usage {
 	if err != nil {
 		return Usage{AgeS: -1}
 	}
+	u, _ := parseUsage(b, now)
+	return u
+}
+
+// parseUsage parses the content of one usage file; dated says whether it has an updated_at.
+func parseUsage(b []byte, now time.Time) (u Usage, dated bool) {
 	var m map[string]any
 	if json.Unmarshal(b, &m) != nil {
-		return Usage{AgeS: -1}
+		return Usage{AgeS: -1}, false
 	}
-	u := Usage{FiveHour: pctField(m["five_hour_pct"]), SevenDay: pctField(m["seven_day_pct"]), Found: true, AgeS: -1}
-	if ts := pctField(m["updated_at"]); ts != nil {
+	u = Usage{FiveHour: pctField(m["five_hour_pct"]), SevenDay: pctField(m["seven_day_pct"]), Found: true, AgeS: -1}
+	ts := pctField(m["updated_at"])
+	if ts != nil {
 		u.AgeS = int(now.Sub(time.Unix(int64(*ts), 0)).Seconds())
 	}
-	return u
+	return u, ts != nil
+}
+
+// remoteSkewS is how far ahead of now a remote reading's updated_at may be (clock skew between machines).
+const remoteSkewS = 60
+
+// newestUsage is the newest reading of the local file and the files of the session machines: a session placed on
+// another machine refreshes only that machine's file.
+func (r *Runner) newestUsage(now time.Time) Usage {
+	best := ReadUsage(r.Env.UserHome, now)
+	for _, b := range r.remoteUsageFiles() {
+		u, dated := parseUsage(b, now)
+		if !dated || u.AgeS < -remoteSkewS {
+			continue
+		}
+		u.AgeS = max(u.AgeS, 0)
+		if !best.Found || best.AgeS < 0 || u.AgeS < best.AgeS {
+			best = u
+		}
+	}
+	return best
 }
 
 // MemAvailableMB is the free memory of this machine in MB (-1 when it cannot be read): MemAvailable of /proc/meminfo
@@ -107,7 +134,7 @@ type Caps struct {
 
 // ReadCaps gathers usage, memory and spend. Spend sums the session transcripts at API prices.
 func (r *Runner) ReadCaps(now time.Time) Caps {
-	c := Caps{Usage: ReadUsage(r.Env.UserHome, now), MemMB: MemAvailableMB(), MemMin: cfgInt(r.Store, "mem_floor_mb"),
+	c := Caps{Usage: r.newestUsage(now), MemMB: MemAvailableMB(), MemMin: cfgInt(r.Store, "mem_floor_mb"),
 		TodayUSD: map[string]float64{}}
 	c.DayCap, c.HasDay = cfgFloat(r.Store, "project_daily_budget_usd")
 	c.WeekCap, c.HasWeek = cfgFloat(r.Store, "weekly_budget_usd")

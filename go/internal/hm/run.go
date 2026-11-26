@@ -45,6 +45,10 @@ type Runner struct {
 	Poll  time.Duration
 	// ReadyWait bounds the wait for a new session's TUI (0 = 90 s).
 	ReadyWait time.Duration
+	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
+	RemoteUsage func(machine string) ([]byte, error)
+	usageFiles  [][]byte // the remote usage files of this pass
+	usageRead   bool     // usageFiles has been read in this pass
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -53,7 +57,7 @@ func NewRunner(e Env, out io.Writer) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{Env: e, Store: s, Tools: RealTools(e), Out: out, Poll: 2 * time.Second,
+	return &Runner{Env: e, Store: s, Tools: RealTools(e), Out: out, Poll: 2 * time.Second, RemoteUsage: readRemoteUsage,
 		Log: Log{Path: filepath.Join(e.StateDir(), "events.jsonl"), Machine: s.Cfg("machine_name")}}, nil
 }
 
@@ -197,7 +201,12 @@ func (r *Runner) Start(id string) error {
 	if branch == "" {
 		branch = "factory/" + strings.ToLower(id)
 	}
-	pl := r.PickMachine()
+	var pl Placement
+	if caps.Probe { // the probe refreshes the local reading, which needs no remote read to be seen
+		pl.Skipped = []string{"the usage probe runs only on the local core"}
+	} else {
+		pl = r.PickMachine()
+	}
 	wt, err := r.Clone(t, branch)
 	if err != nil {
 		return err
@@ -389,6 +398,8 @@ func (r *Runner) Pass(startNew bool) error {
 		return nil
 	}
 	defer l.Close()
+	// the daemon reuses the Runner: each pass reads the machines again
+	r.usageFiles, r.usageRead = nil, false
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
