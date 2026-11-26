@@ -178,7 +178,7 @@ func (r *Runner) idleCheck(s *SQLite, now time.Time) *OwnerAlert {
 		causes = append(causes, "dispatch held: "+why)
 	}
 	if _, waits := r.runCounts(); waits >= cfgInt(r.Store, "max_waiting") {
-		causes = append(causes, fmt.Sprintf("dispatch paused: %d runs wait, max_waiting=%d (merge or close held PRs)", waits, cfgInt(r.Store, "max_waiting")))
+		causes = append(causes, fmt.Sprintf("dispatch paused: %d runs wait, max_waiting=%d (see why they wait: CI, a red main or held PRs)", waits, cfgInt(r.Store, "max_waiting")))
 	}
 	if len(projects) > 0 {
 		if ready, err := r.ReadyIn(projects); err == nil && len(ready) == 0 {

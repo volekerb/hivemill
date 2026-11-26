@@ -484,10 +484,8 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.RevertCheck(); err != nil {
 		r.printf("revert check: %v\n", err)
 	}
-	// every pass ends a waiting pause that is over, also one that dispatches nothing below
-	if _, waits := r.runCounts(); waits < cfgInt(r.Store, "max_waiting") && r.Store.Meta("waiting_paused") != "" {
-		_ = r.Store.SetMeta("waiting_paused", "")
-	}
+	// every pass records a waiting pause that starts or ends, also one that dispatches nothing below
+	paused := r.waitingBlock()
 	if !startNew || r.Draining() {
 		return nil
 	}
@@ -498,8 +496,8 @@ func (r *Runner) Pass(startNew bool) error {
 		r.printf("dispatch held: %s\n", why)
 		return nil
 	}
-	if why := r.waitingBlock(); why != "" {
-		r.printf("dispatch held: %s\n", why)
+	if paused != "" {
+		r.printf("dispatch held: %s\n", paused)
 		return nil
 	}
 	cands, err := r.Candidates()
