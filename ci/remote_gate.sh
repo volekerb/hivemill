@@ -21,8 +21,6 @@
 #
 # Step -> tests.yml job (all steps run, failures do not stop later steps, like fail-fast: false):
 #   toolchain             (setup-python 3.13, setup-go go.mod toolchain, apt zsh: checked, never installed)
-#   py-compile            unittest-shard: python -m py_compile bin/factory bin/factory_cli.py
-#   factory-help          unittest-shard: python bin/factory --help
 #   unittest              unittest-shard (1..10) + unittest fan-in "every module ran exactly once":
 #                         $FACTORY_MAIN/tests/gate_shards.py (ci/shard.py run + verify) with GATE_SHARDS <= the job cap
 #   go-modules            go: setup-go module download (go mod download; the only step with network, GOPROXY default)
