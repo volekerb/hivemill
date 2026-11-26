@@ -90,12 +90,15 @@ None of these guards changes a config key.
 | `t3_auto_merge` | `on` | a T3 PR with a judge MERGE merges unless a hard limit holds it (step 7); `off` holds every T3 PR for the owner, and so does a config read that fails |
 | `pass_interval_s` | `60` | daemon: seconds between passes |
 | `resume_max` | `3` | lost sessions resumed per run before FAIL `session lost` |
+| `run_max_working_min` | `180` | minutes a run may stay in `working` in one round without a passing gate. Then one resume; 30 minutes later FAIL `timed out: N minutes in working`. `0` or `off`: no limit |
 | `health_max_age_s` | `300` | `hivemill health` fails when the last good pass is older |
 | `alert_every_s` | `3600` | at most one dead-man alert per this many seconds |
 | `backup_interval` | `off` | daemon snapshot schedule (`6h`, `30m`) |
 | `backup_keep` | `7` | snapshots kept |
 | `backup_dir` | empty | snapshot dir; empty = `state/hivemill/backups` |
 | `backup_target` | empty | `file:///path`, `s3://…` or `sftp://…` (see Backup) |
+| `standby_from` | empty | on a standby machine: where the primary's snapshots are, for the daemon's `standby check` ([standby.md](standby.md)); empty = no check |
+| `standby_check_days` | `30` | days between those checks; `0` = off |
 | `max_five_hour_pct` | `92` | a fresh (under 3 h old) plan 5-hour usage reading at or over this holds new runs; same file and meaning as the old pipeline (`~/.claude/usage-limits.json`) |
 | `max_seven_day_pct` | `95` | the same for the 7-day usage |
 | `mem_floor_mb` | `1024` | MemAvailable below this holds new runs |
@@ -124,7 +127,8 @@ hivemill gate T-1234                # run the gate checks now, print them
 hivemill judge packet T-1234        # print what the judge reads
 hivemill merge T-1234 --dry-run     # print the merge input and decision
 hivemill report [--json]            # scoreboard
-hivemill daemon                     # the pass loop (systemd/launchd run it)
+hivemill daemon [--take-over]       # the pass loop (systemd/launchd run it)
+hivemill standby check --from HOST  # restore HOST's newest snapshot into a temp home and read it (standby.md)
 hivemill health [--alert]           # dead-man check
 hivemill drain [--status] | resume  # stop / resume new dispatch
 hivemill backup | restore <snap> [--dry-run]
@@ -153,7 +157,7 @@ hivemill config projects www         # only now does a plain pass dispatch from 
 - `task add` runs the spec gate and refuses criteria that fail it, printing why. `--draft` stores the task as status `draft` instead: it is never dispatched, and its criteria may still fail. `task update` re-runs the spec gate whenever it changes the criteria or the status of a task that can be dispatched, so promoting a draft (`--status todo`) needs passing criteria. `task cancel` and `task update --status` refuse a task with an active run (`hivemill run stop` first).
 - `goal new` files the goal as `active` (the old CLI starts at `proposed`); `goal close` refuses a goal with open tasks unless `--force`.
 - Sessions (`FACTORY_AGENT`) may only run `task lint|list|show`, `report` and `health`: a session never changes a task row, because the gate re-runs the proofs stored there. A task session also runs `hivemill pr create --title 'T-1234: ...' --body -` (body on stdin) and `hivemill pr ready`: like `factory pr`, the repo and base come from the task's project and the head from the session's own branch (`factory/<task>`), never from arguments, `GH_REPO` or `GH_HOST`; in a `public_text_repos` repo the title, body and branch must pass the public-text check. Raw `gh pr create` stays denied.
-- `init` also writes an empty `ci/scrub_allowlist.txt` (no hit allowlisted) when the home has none; the guard, the pre-push hook and the gate's public-text check read it from there. It sets `noreply_email` from `git config --global user.email` when that is a noreply address and nothing else set it. `scrub_terms_file` has no default: until `hivemill config scrub_terms_file /abs/path` names the owner terms, the gate's public-text check fails (it never passes without terms). Nothing reads `~/.config/factory`.
+- `init` also writes an empty `ci/scrub_allowlist.txt` (no hit allowlisted) when the home has none; the guard, the pre-push hook and the gate's public-text check read it from there. It sets `noreply_email` from `git config --global user.email` when that is a noreply address and nothing else set it. The gate and the merge check owner terms (and home paths, emails, private addresses and hosts) only for a repo in `public_text_repos` (case-insensitive `OWNER/NAME`); every other repo gets the secret checks (tokens, keys) alone, so list each public repo there. `scrub_terms_file` has no default: until `hivemill config scrub_terms_file /abs/path` names the owner terms, the public-text check of a `public_text_repos` repo fails (it never passes without terms). Nothing reads `~/.config/factory`.
 - **Worker guard.** The settings run `sh <home>/roles/hooks/worker-guard --role R` on every tool call. A repo checkout has that shim and renders exactly as before. For a home without it, the hook is `hivemill guard --home <home> --role R` (wrapped so that any exit but 0 or 2, a missing binary included, blocks): the Go worker guard in-process (`guard.HookMain`, the same code as `go/cmd/worker-guard`), with the home added to the guard's live homes, so its `run/`, `roles/hooks`, `bin/`, `go/` and DB stay protected even when `~/.config/factory/live_home` names another home. No rule is relaxed. The two decisions the Go guard hands to the Python hook (an archive member list, a DB value the export lacks) block, since a standalone home has no Python hook.
 - **Guard export.** The guard decides a coder's push pin, own goal, test sandbox and public-text config from `run/guard-export.json` and blocks when it is missing or older than 15 minutes. In every home, factory checkout or standalone, the daemon writes it at start and every minute, and every runner pass and session start writes it too. `hivemill guard export` (owner, director or boss) writes it on demand. If the daemon stops for 15 minutes, sessions are blocked until it runs again.
 - **Workspace trust.** Sessions run in `<home>/worktrees/...` with `--add-dir <home>`; a folder Claude Code does not trust shows the "trust this folder?" prompt and the session would wait there. Claude Code has no documented command or flag that grants trust, so `init` only reads `~/.claude.json` and prints, for an untrusted home or worktree root, what the owner runs once: `cd <home> && claude`, accept, quit (and the same in `<home>/worktrees`). While a session starts, the runner reads its screen (`hc read`); at the trust prompt it closes the terminal and fails the start with that instruction instead of waiting 90 s. Nothing in hivemill answers the prompt.
@@ -168,7 +172,7 @@ The runner needs no open client. The owner's laptop can be closed, and the runne
 
 ### Supervision
 
-`hivemill daemon` runs the pass loop in-process: one pass every `pass_interval_s` (60), a heartbeat after each good pass, and a scheduled backup when one is due. Only one daemon runs per factory home (`state/hivemill/locks/daemon.lock`), and each pass also takes `pass.lock`, so a manual `hivemill run` never overlaps it. On SIGTERM it finishes the current pass and exits.
+`hivemill daemon` runs the pass loop in-process: one pass every `pass_interval_s` (60), a heartbeat after each good pass, and a scheduled backup when one is due. Only one daemon runs per factory home (`state/hivemill/locks/daemon.lock` on one machine, the heartbeat file `state/hivemill/daemon.lock` across machines: [standby.md](standby.md#the-daemon-lock)), and each pass also takes `pass.lock`, so a manual `hivemill run` never overlaps it. On SIGTERM it finishes the current pass and exits.
 
 - **Linux:** the user unit `systemd/hivemill.service` (`Type=notify`, `WatchdogSec=900`, `Restart=always`). The daemon sends `READY=1` at start and `WATCHDOG=1` after every pass, so a hung pass is restarted. Install it with `install -m 644 systemd/hivemill.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now hivemill.service`. User lingering must be on (`loginctl enable-linger`).
 - **macOS:** the LaunchAgent `hivemill.daemon` (`RunAtLoad`, `KeepAlive`), from `launchd/hivemill.daemon.plist.in`, and the LaunchAgent `hivemill.health` (`hivemill health --alert` every 5 minutes, `StartInterval` 300, log `<home>/logs/hivemill.health.log`), from `launchd/hivemill.health.plist.in`: `hivemill launchd health --out ~/Library/LaunchAgents/hivemill.health.plist`, then `launchctl bootstrap` it the same way. `hivemill launchd daemon [--home DIR] [--out FILE]` renders it with `FACTORY_HOME`, a PATH that has `~/.local/bin` (claude, hc, hivemill), `/opt/homebrew/bin` (gh) and the system dirs, and the log at `<home>/logs/hivemill.daemon.log`. Install it with `hivemill launchd daemon --out ~/Library/LaunchAgents/hivemill.daemon.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/hivemill.daemon.plist`.
@@ -190,9 +194,13 @@ Every side effect checks before it acts, so a pass that crashed half way can saf
 
 `TestStepsAreIdempotent` and `TestReconcileResumesALostSessionThenFails` run these steps twice.
 
+**Working time limit.** A session that waits in a loop costs almost nothing, so the budget never stops it. Each round (dispatch, or a resume for red CI or a judge REJECT) may stay in `working` for `run_max_working_min` minutes. The runner writes `run.long_working` at 50% and 100% of the limit. At the limit it sends the session one message ("You have worked N minutes without a passing gate. Stop any wait loop, finish or report what blocks you."). A run still in `working` 30 minutes later is FAIL `timed out: N minutes in working`.
+
+**Dead dependencies.** A todo task whose `depends_on` names a cancelled or failed task can never start. It is a planner level reason, `dead_dep:<task>=<dependency>(cancelled|failed)` (see [hivemill-planner.md](hivemill-planner.md)).
+
 ### Health and alerts
 
-`hivemill health` exits 0 when the last good pass is less than `health_max_age_s` (300) old, and 1 otherwise. It also prints the starvation and owner-queue checks, and `--alert` raises them ([hivemill-planner.md](hivemill-planner.md#alerts-hivemill-health---alert)). The timer `systemd/hivemill-health.timer` (with `hivemill-health.service`) on Linux, or the LaunchAgent `hivemill.health` on macOS, runs `hivemill health --alert` every 5 minutes. When the check fails, it opens one row in the factory's owner alert feed (`factory alerts`; sent to the phone only when `owner_alert_send=1`) and raises one owner alert: a line in `<home>/logs/alerts.log`, then `alert_cmd` when it is set, else a macOS notification (`osascript`, the text passed as arguments) on macOS and nothing more elsewhere. Both happen at most once per `alert_every_s` (3600). Every other owner alert that opens a feed row (`hivemill-idle`, `hivemill-asks`, `hivemill-planner`, `hivemill-digest`) goes out the same way. To keep the old message to the planner session on a factory checkout: `hivemill config alert_cmd 'factory msg --kind alert claude-boss "$1" "$2"'`.
+`hivemill health` exits 0 when the last good pass is less than `health_max_age_s` (300) old, and 1 otherwise. It also prints the starvation and owner-queue checks, and `--alert` raises them ([hivemill-planner.md](hivemill-planner.md#alerts-hivemill-health---alert)). The timer `systemd/hivemill-health.timer` (with `hivemill-health.service`) on Linux, or the LaunchAgent `hivemill.health` on macOS, runs `hivemill health --alert` every 5 minutes. When the check fails, it opens one row in the factory's owner alert feed (`factory alerts`; sent to the phone only when `owner_alert_send=1`) and raises one owner alert: a line in `<home>/logs/alerts.log`, then `alert_cmd` when it is set, else a macOS notification (`osascript`, the text passed as arguments) on macOS and nothing more elsewhere. Both happen at most once per `alert_every_s` (3600). Every other owner alert that opens a feed row (`hivemill-idle`, `hivemill-asks`, `hivemill-planner`, `hivemill-digest`, `hivemill-standby`) goes out the same way. To keep the old message to the planner session on a factory checkout: `hivemill config alert_cmd 'factory msg --kind alert claude-boss "$1" "$2"'`.
 
 ### Backup
 
@@ -202,6 +210,7 @@ Every side effect checks before it acts, so a pass that crashed half way can saf
   - `file:///path` (a mounted disk or NAS share) gets a copy of each snapshot, with the same retention.
   - `s3://…` (AWS, MinIO, B2, R2) and `sftp://…` use Litestream for continuous replication when it is on PATH. Fill in `systemd/litestream.yml.in` as `~/.config/hivemill/litestream.yml`, with credentials in the environment, never in the repo, and enable `systemd/hivemill-litestream.service`. Without Litestream, those targets get no upload: snapshots stay local, and `hivemill backup` says so.
   - Litestream is never required.
+- **Warm standby.** A second machine that can take over from these snapshots: [standby.md](standby.md).
 - **Hosted (Postgres).** Backups are the database's job (managed point-in-time recovery). Nothing is built for it.
 
 ### Drain and upgrade

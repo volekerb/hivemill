@@ -30,11 +30,12 @@ class WorkflowWiring(unittest.TestCase):
     def test_job_runs_on_each_guard_path(self):
         block = job_block(WF, JOB)
         pattern = re.search(r"grep -E -q '([^']+)'", block).group(1)
-        for path in ("go/cmd/worker-guard/main.go", "go/internal/shlex/shlex.go",
-                     "roles/hooks/some-hook.py", "roles/settings/coder.json.in", "ci/guard_corpus.json",
-                     "ci/guard_diff.py", "ci/public_text_guard.py", "ci/scrub_scan.py", ".github/workflows/tests.yml", "go/internal/guard/guard.go"):
+        for path in ("roles/hooks/some-hook.py", "roles/settings/coder.json.in", "ci/guard_corpus.json",
+                     "ci/guard_diff.py", "ci/public_text_guard.py", "ci/scrub_scan.py", ".github/workflows/tests.yml"):
             self.assertRegex(path, pattern, path)
-        for path in ("docs/guard-diff.md", "ci/shard.py", "roles/prompts/coder.md", "go/internal/other/x.go"):
+        # Go guard paths: the step runs --impl python and proves nothing about Go (docs/guard-diff.md), so they skip it
+        for path in ("docs/guard-diff.md", "ci/shard.py", "roles/prompts/coder.md", "go/internal/other/x.go",
+                     "go/cmd/worker-guard/main.go", "go/internal/shlex/shlex.go", "go/internal/guard/guard.go"):
             self.assertNotRegex(path, pattern, path)
 
     def test_base_tool_archive_carries_every_file_guard_diff_reads_next_to_itself(self):

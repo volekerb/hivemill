@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -23,10 +24,11 @@ var FactoryKeys = map[string]string{
 	"noreply_email": "the commit identity of every session, checked by the gate and the merge (" +
 		"`hivemill config noreply_email ID+USER" + NoreplySuffix + "`)",
 	"scrub_terms_file": "the owner terms file (absolute path, kept outside every repo) the public-text checks need; " +
-		"without it the gate's public-text check fails (`hivemill config scrub_terms_file /abs/path`)",
-	"public_text_repos": "comma list of OWNER/NAME repos whose pushes and PR text the guard and the pre-push hook check",
-	"frozen_repos":      "comma list of OWNER/NAME repos the runner never merges into",
-	"required_checks":   "comma list of CI check names every PR needs before a merge (a project's own list wins)",
+		"without it the gate's public-text check fails for a public_text_repos repo (`hivemill config scrub_terms_file /abs/path`)",
+	"public_text_repos": "comma list of OWNER/NAME repos whose pushes and PR text the guard, the pre-push hook and the gate " +
+		"check for owner terms (the gate checks every other repo for secrets only)",
+	"frozen_repos":    "comma list of OWNER/NAME repos the runner never merges into",
+	"required_checks": "comma list of CI check names every PR needs before a merge (a project's own list wins)",
 }
 
 // FactoryKeyNames returns the factory config keys, sorted.
@@ -71,7 +73,7 @@ func CheckFactoryKey(key, value string) error {
 			if strings.TrimSpace(x) == "" {
 				continue
 			}
-			if _, ok := guard.CIRepoSlug(x); !ok {
+			if _, ok := repoEntry(x); !ok {
 				return fmt.Errorf("%s: %q is not OWNER/NAME", key, strings.TrimSpace(x))
 			}
 		}
@@ -81,6 +83,37 @@ func CheckFactoryKey(key, value string) error {
 	}
 	return nil
 }
+
+// repoEntry is the slug of one entry of a repo list. A list split on anything but commas would match no repo, and so
+// check nothing: an entry is one only when its slug is a plain OWNER/NAME and nothing CIRepoSlug drops could hide another
+// repo (bin/factory's forms: OWNER/NAME, a URL, an scp form, host/OWNER/NAME, an absolute path).
+func repoEntry(x string) (string, bool) {
+	s, ok := guard.CIRepoSlug(x)
+	t := strings.TrimSpace(x)
+	// CIRepoSlug drops a ?query or #fragment and keeps the last two path parts: neither may hide a repo
+	if !ok || !slugRe.MatchString(s) || strings.ContainsAny(t, " \t\r\n;|?#") {
+		return "", false
+	}
+	switch t = strings.TrimSuffix(t, "/"); {
+	case strings.HasPrefix(t, "/"), strings.HasPrefix(strings.ToLower(t), "file://"): // a local path: its last two parts
+		return s, true
+	case repoURL.MatchString(t): // scheme://host/OWNER/NAME, never a longer path such as .../tree/main
+		t = repoURL.ReplaceAllString(t, "")
+	case repoScp.MatchString(t): // [user@]host:OWNER/NAME
+		t = repoScp.ReplaceAllString(t, "")
+	case strings.Count(t, "/") == 2 && strings.Contains(t[:strings.Index(t, "/")], "."): // host/OWNER/NAME
+		t = t[strings.Index(t, "/")+1:]
+	}
+	if !slugRe.MatchString(strings.TrimSuffix(t, ".git")) {
+		return "", false
+	}
+	return s, true
+}
+
+var (
+	repoURL = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*://[^/\s]*/`)
+	repoScp = regexp.MustCompile(`^(?:[^@/\s]+@)?[^:/\s]+:`)
+)
 
 // SetFactoryKey checks and writes a factory config key.
 func SetFactoryKey(s *SQLite, key, value string) error {

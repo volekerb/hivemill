@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -51,6 +52,9 @@ type Runner struct {
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
+	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
+	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
+	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
 	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 
@@ -459,6 +463,7 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	}
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
+	run.LongPct, run.LongResumed, run.LongSendFailed = 0, "", ""
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	send := r.Prompt
 	list, listed := Terminals(r.Tools)
@@ -584,7 +589,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	}
 	switch run.State {
 	case Working:
-		r.idleWatch(run, list)
+		if !listed || !r.workingLimit(run, time.Now()) { // sessions that cannot be listed are never failed on time
+			r.idleWatch(run, list)
+		}
 	case Gated:
 		r.gated(run)
 	case Judging:
