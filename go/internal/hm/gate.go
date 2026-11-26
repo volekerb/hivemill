@@ -182,9 +182,12 @@ func cleanEnv() []string {
 	return out
 }
 
-// RerunProofs runs every test: and cmd: proof of the DB criteria (never the session's evidence file).
-func (r *Runner) RerunProofs(wt string, crit []Criterion, logdir string) []Rerun {
+// RerunProofs runs every test: and cmd: proof of the DB criteria (never the session's evidence file) in the run's
+// clone, on the run's machine (proofrun.go).
+func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun {
 	var out []Rerun
+	wt := run.Worktree
+	proofs := &proofRunner{r: r, run: run}
 	for _, c := range crit {
 		x := Rerun{ID: c.ID, Kind: c.Kind}
 		var argv []string
@@ -205,7 +208,7 @@ func (r *Runner) RerunProofs(wt string, crit []Criterion, logdir string) []Rerun
 		default:
 			argv = []string{"bash", "-c", c.Proof}
 		}
-		rc, text := r.Tools.Sh(dir, 15*time.Minute, cleanEnv(), argv...)
+		rc, text := proofs.sh(c.ID, dir, argv)
 		x.Log = filepath.Join(logdir, fmt.Sprintf("proof-%d.log", c.ID))
 		_ = os.WriteFile(x.Log, []byte(text), 0o600)
 		ok := rc == 0
@@ -422,7 +425,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 		add("evidence", false, p)
 	}
 	if len(ev) == 0 {
-		rec.Reruns = r.RerunProofs(wt, crit, logdir)
+		rec.Reruns = r.RerunProofs(run, crit, logdir)
 		for _, x := range rec.Reruns {
 			if x.OK != nil && !*x.OK {
 				rec.Problems = append(rec.Problems, fmt.Sprintf("criterion %d (%s): the factory re-ran its proof and it failed: %s", x.ID, x.Kind, x.Note))
