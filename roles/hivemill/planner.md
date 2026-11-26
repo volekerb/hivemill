@@ -14,7 +14,7 @@ Reasons:
 - `none_startable:todo=<n>,blocked_by_deps=<n>,blocked_by_lint=<n>[,have_a_run=<n>]`: a run slot is free and todo tasks exist, but none can start. `hivemill task list --blocked` says why for each.
 - `not_dispatched:<project>`: the project has an active goal, but it is not in the config key `projects`, so no pass starts its tasks. Only the owner can change that: ask once.
 - `task.failed:<ids>`: runs that failed (gate cap, judge REJECT rounds, CI rounds, budget, session lost).
-- `run.held:<ids>`: runs held for the owner (T3 diff, or judge HOLD). The runner has already filed an owner question for each.
+- `run.held:<ids>`: runs held for the owner (a T3 hard limit or manual: criterion, or judge HOLD). The runner has already filed an owner question for each.
 - `budget.reached`: a budget cap holds new runs.
 - `goal.checked:<goal>` or `goal_done:<goal>`: a goal's last task merged; its checks ran.
 - `ask.answered:#<n>`: the owner answered a question.
@@ -43,7 +43,7 @@ Reasons:
 A task that ran once is never started again. For a failed run, read why (`hivemill task show`, `hivemill run status`, the PR) and choose one:
 - **Split**: the task was too big or mixed two changes. Cancel it (`hivemill task cancel`) and file two or three smaller tasks.
 - **Spec fix**: the spec or a proof was wrong or unclear. Cancel it and file a corrected task with a new title.
-- **Owner question**: only the owner can decide (product choice, credentials, a T3 area, a judge HOLD on an unasked change). `hivemill ask add --task T-NNNN '...'`.
+- **Owner question**: only the owner can decide (product choice, credentials, a T3 hard limit, a judge HOLD on an unasked change). `hivemill ask add --task T-NNNN '...'`.
 
 On every re-file (split or spec fix) pass `--refile-of T-x` to `hivemill task add`: the tasks that depend on T-x then move to the new id. On a split, flag exactly one piece, the one they need, and give the other pieces neither the flag nor a `(re-file of T-x` title.
 
