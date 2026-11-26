@@ -91,11 +91,16 @@ wait "$!"
 """
 FAKE_FACTORY = """#!/usr/bin/env python3
 import json, os, time
+mark = %r
 shipped = sorted(os.path.relpath(os.path.join(d, f)) for d, _, fs in os.walk(".") if ".git" not in d for f in fs)
-json.dump({"env": dict(os.environ), "cwd": os.getcwd(),
-           "modes": {k: oct(os.stat(p).st_mode & 0o777) for k, p in (("run", os.path.dirname(os.environ["HOME"])),
-                                                                      ("tmp", os.environ["TMPDIR"]))}, "files": sorted(os.listdir(".")), "shipped": shipped,
-           "cli": open("lib/cli.py").read()}, open(%r, "w"))
+# every shard (and verify) runs this at once: write a temp file and rename, so a reader never sees a partial dump
+tmp = f"{mark}.{os.getpid()}"
+with open(tmp, "w") as out:
+    json.dump({"env": dict(os.environ), "cwd": os.getcwd(),
+               "modes": {k: oct(os.stat(p).st_mode & 0o777) for k, p in (("run", os.path.dirname(os.environ["HOME"])),
+                                                                          ("tmp", os.environ["TMPDIR"]))}, "files": sorted(os.listdir(".")), "shipped": shipped,
+               "cli": open("lib/cli.py").read()}, out)
+os.replace(tmp, mark)
 time.sleep(%d)
 """
 
