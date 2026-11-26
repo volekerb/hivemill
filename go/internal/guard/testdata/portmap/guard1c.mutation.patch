@@ -1,0 +1,13 @@
+diff --git a/go/internal/guard/builtinassign.go b/go/internal/guard/builtinassign.go
+index 575b0e134..198194d8b 100644
+--- a/go/internal/guard/builtinassign.go
++++ b/go/internal/guard/builtinassign.go
+@@ -13,7 +13,7 @@ import (
+ const wordClass = `\p{L}\p{N}_`
+ 
+ var (
+-	reProtectedName = regexp.MustCompile(`^(?:HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_[` + wordClass + `]*)\n?$`) // T-0788: zsh `path` is tied to PATH
++	reProtectedName = regexp.MustCompile(`^(?:HOME|XDG_CONFIG_HOME|PATH|path|GIT_[` + wordClass + `]*)\n?$`) // T-0788: zsh `path` is tied to PATH
+ 	reParamDefault  = regexp.MustCompile(`\$\{(!?[A-Za-z_][` + wordClass + `]*):{0,2}=`)
+ 	reSubscriptAsg  = regexp.MustCompile(`^([A-Za-z_][` + wordClass + `]*)\[[^\]]*\]\+?=`)
+ 	reClusterV      = regexp.MustCompile(`^-[A-Za-z]*v$`)
