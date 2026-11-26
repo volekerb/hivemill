@@ -7,9 +7,9 @@ The algorithm that keeps runner PRs from getting stuck. It is deterministic: eve
 At its start a pass reads every open runner PR with one batched GraphQL query (`gh api graphql`) and caches the answer for the pass:
 
 - per PR: state, draft, mergeable, head SHA, title, body, merge commit, and the check runs with status, timestamps and job link;
-- per repo and base branch: the base protection (strict or not) and the checks of the last 30 base commits (main's push runs, and which job names passed in the last 24 h).
+- per repo and base branch: the base protection (strict or not) and the GitHub Actions checks of the last 30 base commits (main's push runs, and which job names passed in the last 24 h).
 
-The pass makes no other `gh` status call. A PR the query could not read counts as pending until the next pass. The only other `gh` calls are the actions below (re-run, cancel, failed-job logs, merge and its confirmation, revert). A pass with no open runner PR makes no call. Commands run by hand (`hivemill merge T`) read their one PR directly.
+The pass makes no other `gh` status call. A PR the query could not read counts as pending until the next pass. The only other `gh` calls are the actions below (re-run, cancel, failed-job logs, merge and its confirmation, revert). A pass with no open runner PR makes no call, except to read the base of a red main whose merge train still has to be blamed. Commands run by hand (`hivemill merge T`) read their one PR directly.
 
 ## 2. Flow states and budgets
 
@@ -31,16 +31,16 @@ A new state, or a new head in a CI state, is a new entry. `ci_running` does not 
 
 Each happens at most once per state entry.
 
-- `ci_queued`: nothing on GitHub (the queue cannot be hurried). Record `ci.queue_slow`. While any PR is queued over budget, no PR is refreshed, because a refresh adds CI runs to the same queue.
-- `ci_running`: cancel the unfinished Actions runs and re-run them (`gh run rerun`, on the first pass that sees them stopped). A second overrun on the same head fails the run: `CI timed out`. Checks that are not Actions runs cannot be re-run; they raise one owner alert and the run stays.
-- A red CI where every failed job passed on main in the last 24 h under the same name: re-run the failed jobs once per head (`gh run rerun --failed`, event `ci.rerun`). A second red resumes the task session with the log tails.
+- `ci_queued`: nothing on GitHub (the queue cannot be hurried). Record `ci.queue_slow`. While any PR is queued over budget (an Actions job of its head is still queued), no PR is refreshed, because a refresh adds CI runs to the same queue.
+- `ci_running`: cancel the unfinished Actions runs and re-run them (`gh run rerun`, on the first pass that sees them stopped). A second overrun on the same head fails the run: `CI timed out`. Waiting for a runner is not charged: the action waits until a job has been running for a whole budget, and until then the budget moves on. Jobs that stay queued raise the CI wait alert. A project with `ci_gate: none` has nothing to cancel. Checks that are not Actions runs cannot be re-run; they raise one owner alert and the run stays.
+- A red CI where every failed job passed on main in the last 24 h under the same name: re-run the failed jobs once per head (`gh run rerun --failed`, event `ci.rerun`), which starts a new `ci_running` budget. A second red resumes the task session with the log tails.
 - `held_owner`: one owner alert. The delegate path answers held asks. The runner never waits on an LLM to merge a green PR.
 
 ## 4. Merging
 
 - Runs ready to merge go in FIFO order by the time the judge gave its verdict.
 - **Merge train.** While main's push run for the previous runner merge is pending, up to `merge_train` (3) more merges may go out, as long as no two merges of the train change the same file. The train empties when the push run of main's head is green. A pending head that is not a runner merge (someone else pushed) holds as before.
-- A red push run of any commit of the train stops it. With `auto_revert=on` the culprit is reverted; merges that rode the train after it do not block that revert, since they share no file with it.
+- A red push run of any commit of the train stops it. With `auto_revert=on` the culprit is reverted; merges that rode the train after it do not block that revert, since they share no file with it. A cancelled push run of an earlier merge is skipped when the culprit is picked. A merge confirmed by a later pass joins the train then.
 
 ## 5. Stale PRs
 

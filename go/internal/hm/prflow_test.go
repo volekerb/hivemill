@@ -122,9 +122,9 @@ func prLink(n int) string { return fmt.Sprintf("https://github.com/zz-test/www/p
 
 // check is one rollup node of Actions run id.
 func check(name, status, conclusion string, id int) string {
-	return fmt.Sprintf(`{"__typename":"CheckRun","name":"%s","status":"%s","conclusion":"%s","startedAt":"2026-11-26T10:00:00Z",`+
+	return fmt.Sprintf(`{"__typename":"CheckRun","name":"%s","status":"%s","conclusion":"%s","startedAt":"%s",`+
 		`"completedAt":"%s","detailsUrl":"https://github.com/zz-test/www/actions/runs/%d/job/%d",`+
-		`"checkSuite":{"workflowRun":{"workflow":{"name":"tests"}}}}`, name, status, conclusion,
+		`"checkSuite":{"workflowRun":{"workflow":{"name":"tests"}}}}`, name, status, conclusion, time.Now().Add(-3*time.Hour).Format(time.RFC3339),
 		map[bool]string{true: "2026-11-26T10:05:00Z"}[status == "COMPLETED"], id, id*10)
 }
 
@@ -407,5 +407,53 @@ func TestPRFlowNoRefreshWhileQueueSlow(t *testing.T) {
 	f.pass(t)
 	if hold := f.run(t, 1).MergeHold; strings.HasPrefix(hold, "refresh: held") {
 		t.Errorf("the queue moved: hold %q", hold)
+	}
+}
+
+func TestPRFlowTimeoutChargesOnlyRunnerTime(t *testing.T) {
+	f := flowRunner(t)
+	f.add(t, 1, Gated, check("unit", "COMPLETED", "SUCCESS", 7)+","+check("e2e", "QUEUED", "", 7))
+	f.pass(t)
+	f.age(t, 1, 2*time.Hour)
+	f.pass(t)
+	if got := f.ghCalls("run "); len(got) != 0 {
+		t.Fatalf("a job still waiting for a runner was cancelled: %q", got)
+	}
+	if run := f.run(t, 1); run.Flow.Acted || run.Flow.BudgetS <= 7200 {
+		t.Errorf("the budget must move on: %+v", run.Flow)
+	}
+}
+
+func TestPRFlowQueueSlowNeedsAQueuedJob(t *testing.T) {
+	f := flowRunner(t)
+	f.add(t, 1, Gated, "")
+	f.pass(t)
+	f.age(t, 1, time.Hour)
+	f.r.poll = f.r.pollPRs([]Run{*f.run(t, 1)})
+	if f.r.queuedTooLong([]Run{*f.run(t, 1)}) {
+		t.Error("a head with no checks says nothing about the queue")
+	}
+}
+
+func TestPRFlowTrainCulpritAndLateConfirm(t *testing.T) {
+	f := flowRunner(t)
+	run := f.add(t, 1, Merging, "")
+	run.Car, run.Rode = &trainCar{Files: []string{"a.go"}}, false
+	f.r.finish(run, &PR{State: "MERGED", MergeCommit: &struct {
+		Oid string `json:"oid"`
+	}{Oid: "sha1"}})
+	if got := f.r.train("zz-test/www", "main"); len(got.Cars) != 1 || got.Cars[0].SHA != "sha1" || run.Car != nil {
+		t.Fatalf("a merge confirmed later must join the train: %+v", got)
+	}
+	f.r.setTrain("zz-test/www", "main", train{Cars: []trainCar{{SHA: "sha1"}, {SHA: "sha2"}}})
+	f.r.poll = &prPoll{bases: map[string]*basePoll{}}
+	if got := f.r.culprit("zz-test/www", "main", "sha2"); got != "" {
+		t.Errorf("an unread base blames nobody, got %q", got)
+	}
+	f.base = []string{baseNode("sha2", "COMPLETED", "FAILURE"), baseNode("sha1", "COMPLETED", "CANCELLED")}
+	f.add(t, 2, Gated, "")
+	f.r.poll = f.r.pollPRs([]Run{*f.run(t, 2)})
+	if got := f.r.culprit("zz-test/www", "main", "sha2"); got != "sha2" {
+		t.Errorf("a cancelled push run must not hold the blame back, got %q", got)
 	}
 }

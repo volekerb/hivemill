@@ -141,7 +141,7 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 	if t != nil {
 		in.Tier = r.tierOf(t.Project, wt, base, pr.HeadRefOid)
 	}
-	if rc, out, _ := r.Tools.Git(wt, "diff", "--name-only", "origin/"+base+"..."+pr.HeadRefOid); rc == 0 {
+	if rc, out, _ := r.Tools.Git(wt, "diff", "--name-only", "--no-renames", "origin/"+base+"..."+pr.HeadRefOid); rc == 0 {
 		in.Files = strings.Fields(out)
 	}
 	_, mainHead, _ := r.Tools.Git(wt, "rev-parse", "origin/"+base)
@@ -283,9 +283,10 @@ func (r *Runner) Merge(run *Run) {
 		}
 		r.refresh(run)
 	case "merge":
+		// kept on the run: a merge confirmed by a later pass joins the train too
+		run.Car, run.Rode = &trainCar{Files: in.Files}, in.MainRun == "pending"
 		r.mergeNow(run, in.Head)
 		if run.State == Merged {
-			r.joinTrain(run, in.Files, in.MainRun == "pending")
 			_ = r.Store.PutRun(run) // before the next run of the pass reads the train
 		}
 	}
@@ -399,6 +400,7 @@ func (r *Runner) mergeNow(run *Run, sha string) {
 	}
 	rc, _, errs := r.Tools.GH("", "pr", "merge", run.PRURL, "--squash", "--match-head-commit", sha)
 	if rc != 0 {
+		run.Car = nil
 		run.MergeHold = "gh pr merge failed: " + firstLine(errs)
 		return
 	}
@@ -413,6 +415,10 @@ func (r *Runner) mergeNow(run *Run, sha string) {
 func (r *Runner) finish(run *Run, pr *PR) {
 	if pr.MergeCommit != nil {
 		run.MergeSHA = pr.MergeCommit.Oid
+	}
+	if run.Car != nil {
+		r.joinTrain(run, run.Car.Files, run.Rode)
+		run.Car = nil
 	}
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	_ = r.Store.TaskStatus(run.Task, "done", "")
@@ -592,8 +598,8 @@ func (r *Runner) behindOK(repo, wt, base, head string) bool {
 	if rc != 0 || mb == "" {
 		return false
 	}
-	rc1, mainFiles, _ := r.Tools.Git(wt, "diff", "--name-only", mb, "origin/"+base)
-	rc2, prFiles, _ := r.Tools.Git(wt, "diff", "--name-only", mb, head)
+	rc1, mainFiles, _ := r.Tools.Git(wt, "diff", "--name-only", "--no-renames", mb, "origin/"+base)
+	rc2, prFiles, _ := r.Tools.Git(wt, "diff", "--name-only", "--no-renames", mb, head)
 	if rc1 != 0 || rc2 != 0 {
 		return false
 	}

@@ -51,7 +51,7 @@ const (
 		`... on CheckRun{name status conclusion startedAt completedAt detailsUrl checkSuite{workflowRun{workflow{name}}}} ` +
 		`... on StatusContext{context state createdAt targetUrl}}}}}}}`
 	baseFields = `branchProtectionRule{requiresStatusChecks requiresStrictStatusChecks} target{... on Commit{history(first:30){nodes{oid ` +
-		`checkSuites(first:10){nodes{status conclusion workflowRun{event workflow{name resourcePath}} ` +
+		`checkSuites(first:10,filterBy:{appId:15368}){nodes{status conclusion workflowRun{event workflow{name resourcePath}} ` +
 		`checkRuns(first:30){nodes{name conclusion completedAt}}}}}}}}`
 )
 
@@ -120,7 +120,8 @@ func pollRuns(runs []Run) []Run {
 	return out
 }
 
-// pollPRs reads every PR of runs with one GraphQL query; no runs, no call.
+// pollPRs reads every PR of runs with one GraphQL query, plus the base of a red main whose merge train still has to be
+// blamed (culprit); nothing to read, no call.
 func (r *Runner) pollPRs(runs []Run) *prPoll {
 	p := &prPoll{prs: map[string]*PR{}, errs: map[string]error{}, bases: map[string]*basePoll{}}
 	type ref struct {
@@ -130,7 +131,7 @@ func (r *Runner) pollPRs(runs []Run) *prPoll {
 	}
 	repos := map[string]*ref{}
 	var order []string
-	for _, x := range pollRuns(runs) {
+	for _, x := range append(pollRuns(runs), r.blameRuns(runs)...) {
 		m := prURLRe.FindStringSubmatch(x.PRURL)
 		if m == nil {
 			p.errs[x.PRURL] = fmt.Errorf("poll: %s is not a pull request link", x.PRURL)
@@ -142,7 +143,9 @@ func (r *Runner) pollPRs(runs []Run) *prPoll {
 			g = &ref{owner: m[1], name: m[2], urls: map[string]string{}}
 			repos[k], order = g, append(order, k)
 		}
-		g.urls[m[3]] = x.PRURL
+		if x.State != Merged {
+			g.urls[m[3]] = x.PRURL
+		}
 		if x.Base != "" && !slices.Contains(g.bases, x.Base) {
 			g.bases = append(g.bases, x.Base)
 		}
@@ -250,7 +253,8 @@ func (r *Runner) prView(run *Run) (*PR, error) {
 	return &c, nil
 }
 
-// pushState is the tests.yml push run of a base commit: green, red, pending, or "" when the commit has none.
+// pushState is the tests.yml push run of a base commit: green, red, pending, cancelled (cancelled or skipped: it will
+// give no result), or "" when the commit has none.
 func (b *basePoll) pushState(oid string) string {
 	for _, c := range b.Commits {
 		if c.Oid != oid {
@@ -267,7 +271,7 @@ func (b *basePoll) pushState(oid string) string {
 			case s.Conclusion == "SUCCESS":
 				state = "green"
 			case s.Conclusion == "CANCELLED" || s.Conclusion == "SKIPPED":
-				state = or(state, "pending")
+				state = or(state, "cancelled")
 			default:
 				return "red"
 			}
@@ -283,7 +287,9 @@ func isMainTests(s baseSuite) bool {
 
 // mainState is mainRun from the poll: the push run of head, none when the base has no such workflow.
 func (b *basePoll) mainState(head string) string {
-	if s := b.pushState(head); s != "" {
+	if s := b.pushState(head); s == "cancelled" {
+		return "pending"
+	} else if s != "" {
 		return s
 	}
 	for _, c := range b.Commits {

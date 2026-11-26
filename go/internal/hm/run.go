@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -699,8 +700,8 @@ func (r *Runner) gated(run *Run) {
 				r.fail(run, "the judge did not start: "+err.Error())
 			}
 		default:
-			// in a pass, Actions checks over budget are re-run (trackFlow); the rest alert the owner
-			if _, actions := unfinishedActions(pr.Checks); r.poll == nil || none || !actions {
+			// in a pass, running Actions checks over budget are re-run (trackFlow); the rest alert the owner
+			if rows, actions := unfinishedActions(pr.Checks); r.poll == nil || none || !actions || !slices.ContainsFunc(rows, onRunner) {
 				r.ciOverdue(run, now)
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -234,6 +235,10 @@ func (r *Runner) trackFlow(run *Run) {
 // ciTimedOut is the ci_running overrun: the first one cancels the unfinished Actions runs to re-run them, the second
 // one fails the run.
 func (r *Runner) ciTimedOut(run *Run) {
+	if r.ciNone(run.Project) {
+		run.Flow.Acted = true // the gate is the runner's own: no Actions run to cancel
+		return
+	}
 	pr, err := r.prView(run)
 	if err != nil {
 		return // the next pass
@@ -244,6 +249,14 @@ func (r *Runner) ciTimedOut(run *Run) {
 		return
 	}
 	rows, actions := unfinishedActions(pr.Checks)
+	if actions {
+		// time waiting for a runner is not charged: act once a job has run for a whole budget
+		if wait := run.Flow.BudgetS - longestRunning(rows); wait > 0 {
+			since, _ := time.Parse(time.RFC3339, run.Flow.Since)
+			run.Flow.BudgetS = int64(time.Since(since).Seconds()) + max(wait, 60)
+			return
+		}
+	}
 	if !actions {
 		run.Flow.Acted = true
 		if run.State == Merging && len(rows) > 0 { // a gated run is alerted by its CI wait (ciOverdue)
@@ -273,6 +286,23 @@ func (r *Runner) ciTimedOut(run *Run) {
 	}
 	r.enterFlow(run, FlowCIQueued, pr.HeadRefOid) // a new budget for the second attempt
 }
+
+// longestRunning is the seconds the longest running of the rows has run; one with no start time counts as forever.
+func longestRunning(rows []map[string]any) (s int64) {
+	for _, c := range rows {
+		if !onRunner(c) {
+			continue
+		}
+		started, err := time.Parse(time.RFC3339, rowStr(c, "startedAt"))
+		if err != nil {
+			return math.MaxInt64
+		}
+		s = max(s, int64(time.Since(started).Seconds()))
+	}
+	return s
+}
+
+func onRunner(c map[string]any) bool { return strings.EqualFold(rowStr(c, "status"), "IN_PROGRESS") }
 
 func (r *Runner) rerunState(run *Run, head string) *RerunState {
 	if run.Rerun == nil || run.Rerun.Head != head {
@@ -345,11 +375,13 @@ func (r *Runner) flakyRerun(run *Run, head string, failed []map[string]any) bool
 	}
 	rr := r.rerunState(run, head)
 	rr.Flaky, rr.Masked = true, append(rr.Masked, links...)
+	r.enterFlow(run, FlowCIRunning, head) // the second attempt gets its own budget
 	_ = r.Log.Emit("ci.rerun", run, Event{Data: map[string]any{"head": head, "reason": "flaky", "runs": ids}})
 	return true
 }
 
-// queuedTooLong reports whether any PR has been waiting for a CI runner over its budget.
+// queuedTooLong reports whether any PR has been waiting for a CI runner over its budget: an Actions job of its head is
+// still queued (a head with no checks or only commit statuses says nothing about the queue).
 func (r *Runner) queuedTooLong(runs []Run) bool {
 	for _, x := range pollRuns(runs) {
 		f := x.Flow
@@ -360,7 +392,14 @@ func (r *Runner) queuedTooLong(runs []Run) bool {
 		if err != nil || int64(time.Since(since).Seconds()) < f.BudgetS {
 			continue
 		}
-		if state, _, ok := r.ciFlow(&x); !ok || state == FlowCIQueued {
+		if state, _, ok := r.ciFlow(&x); ok && state != FlowCIQueued {
+			continue
+		}
+		pr, err := r.prView(&x)
+		if err != nil {
+			return true // unreadable: keep holding
+		}
+		if slices.ContainsFunc(pr.Checks, func(c map[string]any) bool { return actionsRun(c) != "" && unfinished(c) }) {
 			return true
 		}
 	}
@@ -468,21 +507,40 @@ func (r *Runner) joinTrain(run *Run, files []string, rode bool) {
 	r.setTrain(run.Repo, run.Base, t)
 }
 
+// blameRuns are the merged runs a red main may be blamed on (auto_revert=on); the poll reads their base even when no PR
+// is open.
+func (r *Runner) blameRuns(runs []Run) (out []Run) {
+	if r.Store.Cfg("auto_revert") != "on" {
+		return nil
+	}
+	for _, x := range runs {
+		if x.State != Merged || x.MergeSHA == "" {
+			continue
+		}
+		if _, red := r.Store.RedMain(strings.ToLower(x.Repo)); red &&
+			slices.ContainsFunc(r.train(x.Repo, x.Base).Cars, func(c trainCar) bool { return c.SHA == x.MergeSHA }) {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
 // culprit is the merge a red main at sha is blamed on: the first red commit of the train up to sha. "" while an earlier
-// push run of the train is still pending.
+// push run of the train is still pending or the base was not read. A cancelled push run is skipped.
 func (r *Runner) culprit(repo, base, sha string) string {
 	if r.poll == nil {
 		return sha
 	}
 	b := r.poll.bases[baseKey(repo, base)]
 	t := r.train(repo, base)
-	if b == nil || !slices.ContainsFunc(t.Cars, func(c trainCar) bool { return c.SHA == sha }) {
+	at := slices.IndexFunc(t.Cars, func(c trainCar) bool { return c.SHA == sha })
+	if at < 0 || (b == nil && at == 0) {
 		return sha
 	}
-	for _, c := range t.Cars {
-		if c.SHA == sha {
-			break
-		}
+	if b == nil {
+		return ""
+	}
+	for _, c := range t.Cars[:at] {
 		switch b.pushState(c.SHA) {
 		case "red":
 			return c.SHA

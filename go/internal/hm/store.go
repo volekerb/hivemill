@@ -59,6 +59,7 @@ type Run struct {
 	Flow       *FlowState  `json:",omitempty"`
 	Rerun      *RerunState `json:",omitempty"`
 	Rode       bool        `json:",omitempty"`
+	Car        *trainCar   `json:",omitempty"` // a merge asked of gh and not yet on the train
 	mergeStage string      // set by Merge for the flow state of this step
 	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
 	Mirror, RemoteHome string `json:",omitempty"`
