@@ -10,7 +10,7 @@ import (
 )
 
 // Owner alerts: the dead-man alert of `hivemill health --alert`, and every other alert that opens an owner alert feed
-// row (hivemill-idle, hivemill-asks, hivemill-planner, hivemill-digest). Every alert is appended to <home>/logs/alerts.log.
+// row (hivemill-idle, hivemill-asks, hivemill-planner, hivemill-digest, hivemill-ci). Every alert is appended to <home>/logs/alerts.log.
 // Then alert_cmd, when set, runs as `sh -c "$alert_cmd" hivemill-alert TITLE TEXT` (also in the environment as
 // HIVEMILL_ALERT_TITLE and HIVEMILL_ALERT_TEXT; the text is never pasted into the command). Without alert_cmd, macOS
 // shows a notification (osascript); other systems only log. On a factory checkout, alert_cmd can keep the old
@@ -22,7 +22,7 @@ var GOOS = runtime.GOOS
 // AlertLog is the file every alert is appended to.
 func (e Env) AlertLog() string { return filepath.Join(e.Home, "logs", "alerts.log") }
 
-// ownerAlert sends a feed row that was just opened (hivemill-idle, -asks, -planner, -digest) through Alert. A delivery
+// ownerAlert sends a feed row that was just opened (hivemill-idle, -asks, -planner, -digest, -ci) through Alert. A delivery
 // failure is printed; the feed row stays open either way.
 func (r *Runner) ownerAlert(kind, text string) {
 	if _, err := r.Alert(kind, text); err != nil {
