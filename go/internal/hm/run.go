@@ -86,22 +86,33 @@ func (r *Runner) printf(f string, a ...any) {
 
 // lock takes the per-task lock file; wait=false returns nil while another process (a gate hook) holds it.
 func (r *Runner) lock(task string, wait bool) *os.File {
+	f, _ := r.lockErr(task, wait)
+	return f
+}
+
+// lockErr is lock with the reason: errLockBusy when another holder has it, else the open or flock error.
+func (r *Runner) lockErr(task string, wait bool) (*os.File, error) {
 	dir := filepath.Join(r.Env.StateDir(), "locks")
 	_ = os.MkdirAll(dir, 0o700)
 	f, err := os.OpenFile(filepath.Join(dir, task+".lock"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	how := syscall.LOCK_EX
 	if !wait {
 		how |= syscall.LOCK_NB
 	}
-	if syscall.Flock(int(f.Fd()), how) != nil {
+	if err := syscall.Flock(int(f.Fd()), how); err != nil {
 		f.Close()
-		return nil
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, errLockBusy
+		}
+		return nil, err
 	}
-	return f
+	return f, nil
 }
+
+var errLockBusy = errors.New("lock held by another process")
 
 // ModelFor picks the session model: model_task / model_task-judge override, else risk_model or model. Fable is refused.
 func (r *Runner) ModelFor(risky bool) (string, string, error) {
@@ -553,7 +564,10 @@ func (r *Runner) pass(only string, startNew bool) error {
 	if only == "" && !r.inDaemon {
 		defer r.waitStable() // registered first, so it runs after the pass lock is released
 	}
-	l := r.lock(lockName, false) // one pass at a time: a timer tick that finds a pass running exits at once
+	l, lerr := r.lockErr(lockName, false) // one pass at a time: a timer tick that finds a pass running exits at once
+	if lerr != nil && !errors.Is(lerr, errLockBusy) {
+		return fmt.Errorf("pass lock %s: %w", lockName, lerr) // not a skip: a broken lock dir must fail the pass
+	}
 	if l == nil {
 		r.passSkipped = true
 		r.printf("another pass is running; skipped\n")
