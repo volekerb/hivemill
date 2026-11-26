@@ -32,6 +32,17 @@ def make_tree(fail=False):
     return d
 
 
+_RESET_SIGNALS = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
+
+
+def default_signals():
+    # A caller that ignores or blocks TERM (a hook runner can) passes that to the gate, and bash cannot trap a signal
+    # ignored on entry, so the child starts with these signals at their defaults and unblocked.
+    for s in _RESET_SIGNALS:
+        signal.signal(s, signal.SIG_DFL)
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, _RESET_SIGNALS)
+
+
 def run(tree, shards, report=None):
     env = {**os.environ, "FACTORY_TEST_SLOT_HELD": "1", "GATE_SHARDS": str(shards), "GATE_REPORT_DIR": str(report)}
     return subprocess.run([sys.executable, str(HELPER)], cwd=tree, env=env, capture_output=True, text=True, timeout=120)
@@ -461,7 +472,8 @@ class RemoteGate(unittest.TestCase):
     def test_sigterm_to_the_process_group_removes_the_remote_dir(self):
         self.commit_head(sleep=120)
         p = subprocess.Popen(["bash", str(GATE_SH)], cwd=self.tree, env=self.env, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT, text=True, start_new_session=True)
+                             stderr=subprocess.STDOUT, text=True, start_new_session=True,
+                             preexec_fn=default_signals)
         self.addCleanup(lambda: p.poll() is None and os.killpg(p.pid, 9))
         for _ in range(600):
             if self.mark.exists():
