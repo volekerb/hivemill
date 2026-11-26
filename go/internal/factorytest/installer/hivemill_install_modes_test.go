@@ -22,7 +22,7 @@ func TestHivemillInstallCheckAllPresentExit0AndReadOnly(t *testing.T) {
 	}
 	want := "python3>=3.11,git,gh,gh-auth,herdr,claude,claude-auth,systemd-user,ram,cpu,go"
 	hiEq(t, strings.Join(names, ","), want, "check names")
-	hiIn(t, out, "warn go ")
+	hiIn(t, out, "ok go ")
 	hiEq(t, hiLast(out), "suggested-max-agents 6", "last line")
 	hiEq(t, len(h.muts), 0, "mutations")
 }
@@ -90,7 +90,7 @@ func TestHivemillInstallCheckOldPythonIsMissing(t *testing.T) {
 func TestHivemillInstallDryRunChangesNothingAndListsArgv(t *testing.T) {
 	home := hiHome(t)
 	fh := filepath.Join(home, "factory")
-	h := hiNew(t, home, hiTools("git"))
+	h := hiNew(t, home, hiTools("git", "go"))
 	rc, out, _ := hiRun(h, "--dry-run", "--project-id", "demo", "--project-repo", "/r", "--max-agents", "3")
 	hiEq(t, rc, 0, "rc: "+out)
 	hiEq(t, len(h.muts), 0, "mutations")
