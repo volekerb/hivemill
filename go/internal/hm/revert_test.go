@@ -29,6 +29,10 @@ func sh(t *testing.T, dir string, args ...string) string {
 // of a runner PR -> that run is found -> a revert commit is pushed on a new task branch -> a revert PR is opened, named
 // the red-main fix task, and recorded. A second pass changes nothing.
 func TestAutoRevertEndToEnd(t *testing.T) {
+	t.Setenv("GIT_AUTHOR_EMAIL", "other@example.com")
+	t.Setenv("GIT_COMMITTER_EMAIL", "other@example.com")
+	t.Setenv("GIT_AUTHOR_NAME", "other")
+	t.Setenv("GIT_COMMITTER_NAME", "other")
 	r, s := testRunner(t, "")
 	tmp := t.TempDir()
 	bare := filepath.Join(tmp, "origin.git")
