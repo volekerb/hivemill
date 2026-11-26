@@ -11,6 +11,7 @@ func TestKickoffNamesTheUISkillsForAUIScopedSpec(t *testing.T) {
 		"FILES: go/internal/hm/assets/obs/flow.html", "restyle the header in app.css", "change the frontend",
 		"add a banner to the obs Flow page", "a new dashboard for spend", "edit templates/mail.txt",
 		"web/App.tsx shows the total",
+		"obs Flow rule-6 largest-stage banner", "FILES: go/internal/hm/obs_pages.go",
 	} {
 		k := Kickoff(run, &Task{ID: "T-1", Title: "t", Spec: spec})
 		for _, want := range []string{"ui-ux-pro-max", "taste-skill", "impeccable", "Before you write any UI code"} {

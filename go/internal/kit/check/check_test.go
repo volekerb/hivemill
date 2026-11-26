@@ -281,7 +281,7 @@ func TestExternalSkill(t *testing.T) {
 	const sha = "0123456789012345678901234567890123456789"
 	good := `{"schemaVersion":1,"skills":[{"name":"demo","description":"d","use_when":"w",` +
 		`"repo":"https://github.com/o/r","commit":"` + sha + `","path":"skills/demo","license":"MIT",` +
-		`"install":"git fetch ` + sha + `"}]}`
+		`"install":"git fetch ` + sha + ` # demo@` + sha[:12] + `"}]}`
 	about := func(registry, note string) string {
 		root := t.TempDir()
 		put(t, root, "kit/skills.json", registry)
@@ -309,6 +309,7 @@ func TestExternalSkill(t *testing.T) {
 		"use_when is required":    swap(`"use_when":"w",`, ""),
 		"path must be a relative": swap("skills/demo", "../x"),
 		"names the pinned commit": swap("git fetch "+sha, "git pull"),
+		"install must be":         swap("demo@"+sha[:12], "demo@old"),
 		"repo must be https":      swap("https://github.com/o/r", "git@x:o/r"),
 		"license must name":       swap(`"license":"MIT",`, ""),
 	} {

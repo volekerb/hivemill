@@ -100,3 +100,23 @@ func TestInstallSkillsRefusesAnInvalidEntry(t *testing.T) {
 		t.Fatalf("calls: %q\n%s", h.calls, out)
 	}
 }
+
+func TestInstallSkillsFollowsAMovedPinAndRepairsABrokenFetch(t *testing.T) {
+	c, h, out := skillCtx(t, demoRegistry)
+	installSkills(c)
+	next := strings.Repeat("a", 40)
+	if err := os.WriteFile(filepath.Join(c.fh, "kit", "skills.json"),
+		[]byte(strings.Replace(demoRegistry, skillSHA, next, 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// an interrupted fetch left an empty directory of the new pin
+	src := filepath.Join(c.home, ".local", "share", "hivemill", "skills", "demo@"+next[:12])
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	installSkills(c)
+	cur, err := os.Readlink(filepath.Join(c.home, ".claude", "skills", "demo"))
+	if err != nil || cur != filepath.Join(src, "skills", "demo") || len(h.calls) != 6 {
+		t.Fatalf("link %q, %v, calls %q\n%s", cur, err, h.calls, out)
+	}
+}

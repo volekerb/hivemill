@@ -10,7 +10,8 @@ import (
 // uiRe finds the signs of a task that creates or changes a user interface: UI source files, template and obs page
 // paths, and the words for them.
 var uiRe = regexp.MustCompile(`(?i)\.(html?|gohtml|tmpl|css|scss|sass|less|jsx|tsx|vue|svelte|astro)\b|` +
-	`\b(front-?end|dashboards?|user interface)\b|\btemplates/|assets/obs\b|\bobs(\s+\w+)?\s+pages?\b`)
+	`\b(front-?end|dashboards?|user interface)\b|\btemplates/|assets/obs\b|\bobs_pages\.go\b|` +
+	`\bobs\s+(now|spend|flow)\b|\bobs(\s+\w+)?\s+pages?\b`)
 
 // uiSkills are the skills of the built-in kit/skills.json whose use_when is about a user interface.
 func uiSkills() []string {

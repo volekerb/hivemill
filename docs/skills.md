@@ -25,8 +25,8 @@ review the upstream diff before you move it. Licences and why nothing is copied 
 
 `hivemill-install` installs them in its `link` step. For each external skill of the clone's `kit/skills.json` it
 fetches the pinned commit into `~/.local/share/hivemill/skills/<name>@<sha>` and links the skill directory to
-`~/.claude/skills/<name>`, the skills directory of the workers. An existing `~/.claude/skills/<name>` is kept as it
-is. A failed fetch is reported and does not stop the install; run the installer again with `--resume`.
+`~/.claude/skills/<name>`, the skills directory of the workers. A link that the installer made follows a moved pin on
+the next run; any other existing `~/.claude/skills/<name>` is kept as it is. A failed fetch is reported and does not stop the install; run the installer again with `--resume`.
 
 On a machine that is already installed, run the `install` command of each entry:
 

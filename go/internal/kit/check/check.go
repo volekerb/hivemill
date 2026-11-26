@@ -190,7 +190,8 @@ func validExternal(e Entry, bad func(string, ...any)) {
 	if e.License == "" {
 		bad("license must name the upstream licence, or \"none\"")
 	}
-	if e.Install == "" || !strings.Contains(e.Install, e.Commit) {
+	if e.Install == "" || !strings.Contains(e.Install, e.Commit) ||
+		(len(e.Commit) >= 12 && !strings.Contains(e.Install, e.Name+"@"+e.Commit[:12])) {
 		bad("install must be a command that names the pinned commit")
 	}
 	if e.UseWhen == "" {
@@ -208,9 +209,12 @@ func checkThirdParty(root string, e Entry, c *collector) {
 		c.add(thirdPartyPath, "cannot read: "+err.Error())
 		return
 	}
-	if !strings.Contains(string(b), e.Name) || !strings.Contains(string(b), e.Commit) {
-		c.add(thirdPartyPath, fmt.Sprintf("must name external skill %q and its pinned commit", e.Name))
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.Contains(line, e.Name) && strings.Contains(line, e.Commit) {
+			return
+		}
 	}
+	c.add(thirdPartyPath, fmt.Sprintf("must name external skill %q and its pinned commit on one line", e.Name))
 }
 
 func loadMarketplace(root string, c *collector) []map[string]any {

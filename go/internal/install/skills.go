@@ -24,8 +24,8 @@ type externalSkill struct {
 
 // installSkills puts the external skills of the clone's kit/skills.json into the workers' skills directory
 // (~/.claude/skills; workers run with the user's HOME). Each repository is fetched at its pinned commit and the skill
-// directory is linked. An existing skill of the same name is kept. A skill is optional: a failure is reported and the
-// install goes on.
+// directory is linked. A skill of the same name that the installer did not link is kept; its own link follows the pin.
+// A skill is optional: a failure is reported and the install goes on.
 func installSkills(c *Ctx) {
 	raw, err := c.host.ReadFile(filepath.Join(c.fh, "kit", "skills.json"))
 	if err != nil {
@@ -57,14 +57,22 @@ func installSkills(c *Ctx) {
 func installSkill(c *Ctx, s externalSkill) error {
 	skillsDir := filepath.Join(c.home, ".claude", "skills")
 	dest := filepath.Join(skillsDir, s.Name)
-	if c.host.Exists(dest) {
-		c.note("skills: kept the existing " + dest)
-		return nil
-	}
 	store := filepath.Join(c.home, ".local", "share", "hivemill", "skills")
 	src := filepath.Join(store, s.Name+"@"+s.Commit[:12])
 	target := filepath.Join(src, filepath.FromSlash(s.Path))
-	if !c.host.Exists(src) {
+	// a store directory without the SKILL.md is the rest of an interrupted fetch and is fetched again
+	fetched := c.host.Exists(filepath.Join(target, "SKILL.md"))
+	relink := false
+	if c.host.Exists(dest) {
+		cur, err := c.host.Readlink(dest)
+		ours := err == nil && strings.HasPrefix(cur, filepath.Join(store, s.Name+"@"))
+		if !ours || (cur == target && fetched) {
+			c.note("skills: kept the existing " + dest)
+			return nil
+		}
+		relink = true
+	}
+	if !fetched {
 		// fetch beside src and rename after the checkout, so a failed fetch is not taken for a finished one
 		part := src + ".installing"
 		if !c.plan {
@@ -85,12 +93,15 @@ func installSkill(c *Ctx, s externalSkill) error {
 		}
 		if c.plan {
 			c.emit(fmt.Sprintf("    $ mv %s %s", part, src))
-		} else if err := c.host.Rename(part, src); err != nil {
-			return fmt.Errorf("move the skill into place: %w", err)
+		} else {
+			c.host.Rmtree(src)
+			if err := c.host.Rename(part, src); err != nil {
+				return fmt.Errorf("move the skill into place: %w", err)
+			}
 		}
 	}
 	if c.plan {
-		c.emit(fmt.Sprintf("    $ ln -s %s %s", target, dest))
+		c.emit(fmt.Sprintf("    $ ln -sfn %s %s", target, dest))
 		return nil
 	}
 	if !c.host.Exists(filepath.Join(target, "SKILL.md")) {
@@ -98,6 +109,9 @@ func installSkill(c *Ctx, s externalSkill) error {
 	}
 	if err := c.host.Mkdirs(skillsDir); err != nil {
 		return fmt.Errorf("create %s: %w", skillsDir, err)
+	}
+	if relink {
+		c.host.Rmtree(dest) // removes the old link, not what it points to
 	}
 	if err := c.host.Symlink(target, dest); err != nil {
 		return fmt.Errorf("link %s: %w", dest, err)

@@ -87,6 +87,7 @@ type Host interface {
 	ExtractMember(tarball, member, dest string) error
 	ExtractZipMember(zipfile, member, dest string) error
 	Symlink(target, link string) error
+	Readlink(path string) (string, error)
 	Popen(argv []string, logpath string) error
 	WriteText(path, text string) error
 	// IsTerminal reports whether stdin, stdout and stderr are all terminals (character devices).
@@ -494,6 +495,8 @@ func (h *OSHost) Symlink(target, link string) error {
 	}
 	return os.Symlink(target, link)
 }
+
+func (h *OSHost) Readlink(path string) (string, error) { return os.Readlink(path) }
 
 // Popen starts argv detached in its own session with output appended to logpath.
 func (h *OSHost) Popen(argv []string, logpath string) error {
