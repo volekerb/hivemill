@@ -127,7 +127,7 @@ type Placement struct {
 }
 
 // PickMachine picks the machine of a new task session: among the session_machines entries that are eligible (at least
-// machine_mem_floor_mb MemAvailable, the marker probe), the one with the fewest active runs; a tie goes to the earlier
+// machine_mem_floor_mb MemAvailable, the marker probe), the one with the fewest run sessions (activeByMachine); a tie goes to the earlier
 // entry. An entry overloaded on CPU is passed over while another eligible one reads below the limit. The local core
 // counts when listed. Skipped says why each entry was passed. No eligible entry: the local core.
 func (r *Runner) PickMachine() Placement {
@@ -153,7 +153,7 @@ func (r *Runner) PickMachine() Placement {
 			}
 			c = cand{name: localMachine, load: r.cachedLoad(localMachine, LocalLoad())}
 		} else {
-			load, why := r.eligible(m, floor)
+			load, why := r.eligibleFor(m, floor)
 			if why != "" {
 				pl.Skipped = append(pl.Skipped, m+": "+why)
 				continue
@@ -180,12 +180,16 @@ func (r *Runner) PickMachine() Placement {
 	return pl
 }
 
-// activeByMachine counts the active runs per machine; "" is the local core (a run on the core's own name counts there).
+// activeByMachine counts the sessions of runs per machine: every busy run, and every waiting run whose task session is
+// still open. "" is the local core (a run on the core's own name counts there).
 func (r *Runner) activeByMachine(core string) map[string]int {
 	load := map[string]int{}
 	runs, _ := r.Store.Runs()
+	list, listed := Terminals(r.Tools)
 	for _, x := range runs {
-		if !Active(x.State) {
+		// without a listing, an unfinished run counts and a held one (hold closed its session) does not
+		open := x.Agent != "" && (listed && alive(list, true, x.Agent) || !listed && Active(x.State))
+		if !busy(x.State) && !(waiting(&x) && open) {
 			continue
 		}
 		m := x.Machine
@@ -202,6 +206,14 @@ func mbText(mb int) string {
 		return "unknown"
 	}
 	return strconv.Itoa(mb) + " MB"
+}
+
+// eligibleFor is the probe of m's mode: a clone-mode machine shares nothing with this one.
+func (r *Runner) eligibleFor(m string, floor int) (Load, string) {
+	if r.cloneMode(m) {
+		return r.cloneEligible(m, floor)
+	}
+	return r.eligible(m, floor)
 }
 
 // eligible probes machine m and says why it may not take a session ("" = it may), with its CPU load when it may.

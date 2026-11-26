@@ -75,6 +75,25 @@ type obsServer struct {
 	usage  map[string]SessUsage
 	now    func() time.Time
 	wide   bool // bound beyond loopback: an IP literal Host is answered too
+
+	coreMu sync.Mutex
+	coreAt time.Time // when hc was last asked
+	core   string    // the last core name hc gave
+}
+
+// coreTTL is how long one `hc server status` answer, a failure too, serves the page.
+const coreTTL = 30 * time.Second
+
+// coreName is Runner.knownCoreName asked at most once per coreTTL. A failed call keeps the last name hc gave, so this
+// machine is not listed a second time under it.
+func (s *obsServer) coreName() string {
+	s.coreMu.Lock()
+	defer s.coreMu.Unlock()
+	if s.coreAt.IsZero() || s.now().Sub(s.coreAt) >= coreTTL {
+		s.core = or(s.r.knownCoreName(), s.core)
+		s.coreAt = s.now() // after the call: a hung hc can outlast coreTTL and must still be cached
+	}
+	return s.core
 }
 
 // usages prices this machine's sessions from their transcripts at most once a minute.
@@ -108,11 +127,14 @@ func (s *obsServer) load(f ObsFilter) (*Obs, []ObsSource, error) {
 		}
 	}
 	o := BuildObs(evs, f, me, s.usages(uniq(ids)), s.now())
-	s.r.listMachines(o, sources)
-	for i := range srcs {
-		srcs[i].Machine = sources[i]
+	s.r.listMachines(o, sources, s.coreName)
+	listed := srcs[:0]
+	for i, src := range srcs {
+		if src.Machine = sources[i]; src.Machine != "" { // "": the lines' own machines are listed instead
+			listed = append(listed, src)
+		}
 	}
-	return o, srcs, nil
+	return o, listed, nil
 }
 
 // ObsHandler is the page. It answers GET and HEAD only, and only for a loopback Host (no DNS rebinding).
@@ -370,6 +392,11 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("Cache-Control", "no-store")
+	if req.URL.Path == "/api/obs/task" && req.Method != http.MethodGet {
+		h.Set("Allow", "GET")
+		http.Error(w, "read-only", http.StatusMethodNotAllowed)
+		return
+	}
 	if req.Method != http.MethodGet && req.Method != http.MethodHead {
 		h.Set("Allow", "GET, HEAD")
 		http.Error(w, "read-only", http.StatusMethodNotAllowed)
@@ -502,6 +529,16 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		p.Sessions, p.Events = o.TaskSessions(t), t.Events
 		p.Crumbs = append(p.Crumbs, crumb{or(t.Project, NoProject), p.Q("/project", "p", or(t.Project, NoProject))},
 			crumb{or(t.Goal, "(no goal)"), p.Q("/goal", "g", t.Goal, "p", or(t.Project, NoProject))}, crumb{t.Task + " @" + t.Machine, ""})
+	case "/api/obs/task":
+		t := o.Tasks[q.Get("k")]
+		if t == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "no task " + q.Get("k") + " (with these filters)"})
+			return
+		}
+		jsonOut(buildTrace(t))
+		return
 	case "/session":
 		p.Kind = "session"
 		p.Session = o.Sessions[q.Get("s")]
