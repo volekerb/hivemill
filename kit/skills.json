@@ -1,4 +1,35 @@
 {
   "schemaVersion": 1,
-  "skills": []
+  "skills": [
+    {
+      "name": "ui-ux-pro-max",
+      "description": "UI/UX design reference: styles, palettes, font pairings, layout and UX rules, searchable by stack.",
+      "use_when": "task creates or changes a user interface (pages, components, styles, dashboards)",
+      "repo": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+      "commit": "b73ee96f8d4ff7bbc279c52dadcd907ffe23629c",
+      "path": ".claude/skills/ui-ux-pro-max",
+      "license": "MIT",
+      "install": "d=~/.local/share/hivemill/skills/ui-ux-pro-max@b73ee96f8d4f; git init -q $d && git -C $d fetch --depth 1 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill b73ee96f8d4ff7bbc279c52dadcd907ffe23629c && git -C $d checkout -q --detach FETCH_HEAD && mkdir -p ~/.claude/skills && test ! -e ~/.claude/skills/ui-ux-pro-max && ln -sn $d/.claude/skills/ui-ux-pro-max ~/.claude/skills/ui-ux-pro-max"
+    },
+    {
+      "name": "taste-skill",
+      "description": "Anti-generic frontend design rules for landing pages, portfolios and redesigns.",
+      "use_when": "task creates or changes a user interface (pages, components, styles, dashboards)",
+      "repo": "https://github.com/Leonxlnx/taste-skill",
+      "commit": "d1a2bb41d927083ac7118f60cfc9cdf711810ea0",
+      "path": "skills/taste-skill",
+      "license": "MIT",
+      "install": "d=~/.local/share/hivemill/skills/taste-skill@d1a2bb41d927; git init -q $d && git -C $d fetch --depth 1 https://github.com/Leonxlnx/taste-skill d1a2bb41d927083ac7118f60cfc9cdf711810ea0 && git -C $d checkout -q --detach FETCH_HEAD && mkdir -p ~/.claude/skills && test ! -e ~/.claude/skills/taste-skill && ln -sn $d/skills/taste-skill ~/.claude/skills/taste-skill"
+    },
+    {
+      "name": "impeccable",
+      "description": "Frontend design commands and checks: critique, audit, polish and harden an interface.",
+      "use_when": "task creates or changes a user interface (pages, components, styles, dashboards)",
+      "repo": "https://github.com/pbakaus/impeccable",
+      "commit": "2fc5e1459efbbf06d92c7306517c286bf12490cf",
+      "path": ".claude/skills/impeccable",
+      "license": "Apache-2.0",
+      "install": "d=~/.local/share/hivemill/skills/impeccable@2fc5e1459efb; git init -q $d && git -C $d fetch --depth 1 https://github.com/pbakaus/impeccable 2fc5e1459efbbf06d92c7306517c286bf12490cf && git -C $d checkout -q --detach FETCH_HEAD && mkdir -p ~/.claude/skills && test ! -e ~/.claude/skills/impeccable && ln -sn $d/.claude/skills/impeccable ~/.claude/skills/impeccable"
+    }
+  ]
 }

@@ -24,13 +24,20 @@ type Finding struct {
 // String renders the finding as "kit-check: <path>: <problem>".
 func (f Finding) String() string { return "kit-check: " + f.Path + ": " + f.Problem }
 
-// Entry is one skill in kit/skills.json.
+// Entry is one skill in kit/skills.json. A kit skill has a plugin and a binary in this repo. An external skill has
+// repo set instead: its files stay in their own repository, pinned to a commit.
 type Entry struct {
 	Name        string `json:"name"`
 	Level       string `json:"level"`
 	Plugin      string `json:"plugin"`
 	Binary      string `json:"binary"`
 	Description string `json:"description"`
+	UseWhen     string `json:"use_when"`
+	Repo        string `json:"repo"`
+	Commit      string `json:"commit"`
+	Path        string `json:"path"`
+	License     string `json:"license"`
+	Install     string `json:"install"`
 }
 
 // Registry is kit/skills.json.
@@ -45,6 +52,7 @@ const MaxRegistrySchema = 1
 const (
 	registryPath    = "kit/skills.json"
 	marketplacePath = ".claude-plugin/marketplace.json"
+	thirdPartyPath  = "kit/skills/THIRD_PARTY.md"
 	templateDir     = "kit/template"
 	templateName    = "example"
 )
@@ -52,6 +60,8 @@ const (
 var (
 	nameRe   = regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}$`)
 	pinRe    = regexp.MustCompile(`(?m)^SHA_(LINUX|DARWIN)_(AMD64|ARM64)="([0-9a-f]{64})"\s*$`)
+	repoRe   = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+	commitRe = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	versRe   = regexp.MustCompile(`(?m)^VERSION="([^"]*)"\s*$`)
 	levels   = map[string]bool{"SOLO": true, "HOMELAB": true, "FULL": true}
 	wantPins = []string{"SHA_LINUX_AMD64", "SHA_LINUX_ARM64", "SHA_DARWIN_AMD64", "SHA_DARWIN_ARM64"}
@@ -76,6 +86,10 @@ func Run(root string) Result {
 		seen := map[string]bool{}
 		for _, e := range reg.Skills {
 			if !validEntry(e, seen, c) {
+				continue
+			}
+			if e.Repo != "" {
+				checkThirdParty(root, e, c)
 				continue
 			}
 			checkMarketplace(market, e, c)
@@ -138,6 +152,19 @@ func validEntry(e Entry, seen map[string]bool, c *collector) bool {
 		return false
 	}
 	seen[e.Name] = true
+	if e.Description == "" || len([]rune(e.Description)) > 200 {
+		bad("description must be 1 to 200 chars")
+	}
+	if len([]rune(e.UseWhen)) > 200 {
+		bad("use_when must be at most 200 chars")
+	}
+	if e.Repo != "" {
+		validExternal(e, bad)
+		return ok
+	}
+	if e.Commit != "" || e.Path != "" || e.License != "" || e.Install != "" {
+		bad("commit, path, license and install need repo (an external skill)")
+	}
 	if !levels[e.Level] {
 		bad("level must be SOLO, HOMELAB or FULL")
 	}
@@ -147,10 +174,43 @@ func validEntry(e Entry, seen map[string]bool, c *collector) bool {
 	if e.Binary != "hm-"+e.Name {
 		bad("binary must be hm-%s", e.Name)
 	}
-	if e.Description == "" || len([]rune(e.Description)) > 200 {
-		bad("description must be 1 to 200 chars")
-	}
 	return ok
+}
+
+func validExternal(e Entry, bad func(string, ...any)) {
+	if !repoRe.MatchString(e.Repo) {
+		bad("repo must be https://github.com/OWNER/REPO")
+	}
+	if !commitRe.MatchString(e.Commit) {
+		bad("commit must be a full 40-character commit SHA")
+	}
+	if !filepath.IsLocal(e.Path) {
+		bad("path must be a relative directory inside the repository")
+	}
+	if e.License == "" {
+		bad("license must name the upstream licence, or \"none\"")
+	}
+	if e.Install == "" || !strings.Contains(e.Install, e.Commit) {
+		bad("install must be a command that names the pinned commit")
+	}
+	if e.UseWhen == "" {
+		bad("use_when is required")
+	}
+	if e.Level != "" || e.Plugin != "" || e.Binary != "" {
+		bad("an external skill has no level, plugin or binary")
+	}
+}
+
+// checkThirdParty wants the licence note of an external skill to name it and its pin.
+func checkThirdParty(root string, e Entry, c *collector) {
+	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(thirdPartyPath)))
+	if err != nil {
+		c.add(thirdPartyPath, "cannot read: "+err.Error())
+		return
+	}
+	if !strings.Contains(string(b), e.Name) || !strings.Contains(string(b), e.Commit) {
+		c.add(thirdPartyPath, fmt.Sprintf("must name external skill %q and its pinned commit", e.Name))
+	}
 }
 
 func loadMarketplace(root string, c *collector) []map[string]any {

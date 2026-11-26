@@ -192,3 +192,4 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [scout-nsbox.md](scout-nsbox.md): environment and working-directory rules in the eval sandbox.
 - [scout-timestamps.md](scout-timestamps.md): sortable timestamps across DST switches.
 - [kit/ADD-A-SKILL.md](kit/ADD-A-SKILL.md): adding a Hivemill Kit skill in one PR, validated by kit-check.
+- [skills.md](skills.md): the registered UI/UX skills, how sessions use them and how they are installed.

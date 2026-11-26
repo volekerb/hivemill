@@ -276,3 +276,44 @@ func TestMissingRegistryAndVersion(t *testing.T) {
 		}
 	}
 }
+
+func TestExternalSkill(t *testing.T) {
+	const sha = "0123456789012345678901234567890123456789"
+	good := `{"schemaVersion":1,"skills":[{"name":"demo","description":"d","use_when":"w",` +
+		`"repo":"https://github.com/o/r","commit":"` + sha + `","path":"skills/demo","license":"MIT",` +
+		`"install":"git fetch ` + sha + `"}]}`
+	about := func(registry, note string) string {
+		root := t.TempDir()
+		put(t, root, "kit/skills.json", registry)
+		if note != "" {
+			put(t, root, "kit/skills/THIRD_PARTY.md", note)
+		}
+		var b []string
+		for _, f := range Run(root).Findings {
+			if f.Path == "kit/skills.json" || f.Path == "kit/skills/THIRD_PARTY.md" || strings.HasPrefix(f.Path, "go/cmd/") {
+				b = append(b, f.String())
+			}
+		}
+		return strings.Join(b, "\n")
+	}
+	note := "demo " + sha
+	if got := about(good, note); got != "" {
+		t.Fatalf("a good external skill has findings:\n%s", got)
+	}
+	swap := func(old, repl string) string { return about(strings.Replace(good, old, repl, 1), note) }
+	for want, got := range map[string]string{
+		"full 40-character":       swap(`"commit":"`+sha, `"commit":"main`),
+		"no level, plugin":        swap(`"license"`, `"binary":"hm-demo","license"`),
+		"cannot read":             about(good, ""),
+		"and its pinned commit":   about(good, "demo at another pin"),
+		"use_when is required":    swap(`"use_when":"w",`, ""),
+		"path must be a relative": swap("skills/demo", "../x"),
+		"names the pinned commit": swap("git fetch "+sha, "git pull"),
+		"repo must be https":      swap("https://github.com/o/r", "git@x:o/r"),
+		"license must name":       swap(`"license":"MIT",`, ""),
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("want %q in:\n%s", want, got)
+		}
+	}
+}
