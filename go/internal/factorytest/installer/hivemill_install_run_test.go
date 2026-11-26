@@ -726,8 +726,19 @@ func TestHivemillInstallNoTTYOpenStdinDoesNotBlock(t *testing.T) {
 	}
 	defer r.Close()
 	defer w.Close()
+	// stub tools first on PATH, so that the tools step finds them and downloads nothing
+	stubDir := t.TempDir()
+	for name, body := range map[string]string{
+		"claude": "#!/bin/sh\necho '1.0.0 (stub claude)'\n",
+		"herdr":  "#!/bin/sh\necho 'herdr 1.0.0 (stub)'\n",
+		"gh":     "#!/bin/sh\n[ \"$1 $2\" = 'auth status' ] && exit 1\necho 'gh version 1.0.0 (stub)'\n",
+	} {
+		if err := os.WriteFile(filepath.Join(stubDir, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	c := exec.Command(buildCmd(t, "hivemill-install"), "--yes", "--no-systemd")
-	c.Env = hiPlainEnv(home)
+	c.Env = []string{"HOME=" + home, "PATH=" + stubDir + ":/usr/bin:/bin"}
 	c.Stdin = r
 	var out, errb bytes.Buffer
 	c.Stdout, c.Stderr = &out, &errb
@@ -750,6 +761,7 @@ func TestHivemillInstallNoTTYOpenStdinDoesNotBlock(t *testing.T) {
 		if rc != 3 || !strings.Contains(all, "not logged in. Do this, then re-run the installer with --resume:") {
 			t.Errorf("rc=%d\n%s", rc, all)
 		}
+		hiNotIn(t, all, "claude installer")
 	case <-time.After(30 * time.Second):
 		_ = c.Process.Kill()
 		t.Fatal("the installer blocked with an open stdin pipe")
