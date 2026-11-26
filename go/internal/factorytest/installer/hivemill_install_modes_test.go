@@ -3,7 +3,6 @@ package installer
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -101,8 +100,8 @@ func TestHivemillInstallDryRunChangesNothingAndListsArgv(t *testing.T) {
 	}
 	hiIn(t, out, fmt.Sprintf("git clone -- %s %s", hiRepo, fh+".installing"))
 	hiIn(t, out, "checkout --detach refs/tags/v0.10.0")
-	hiIn(t, out, "config max_live_agents 3")
-	hiIn(t, out, "project add demo --name demo --repo /r")
+	hiNotIn(t, out, "config max_live_agents")
+	hiNotIn(t, out, "project add")
 	hiIn(t, out, "systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer")
 	for _, unit := range []string{"herdr-server", "factory-tick", "factory-serve", "factory-up"} {
 		hiNotIn(t, out, unit)
@@ -110,11 +109,11 @@ func TestHivemillInstallDryRunChangesNothingAndListsArgv(t *testing.T) {
 }
 
 func TestHivemillInstallServeBindBeforeAnyServeStartInBothPlans(t *testing.T) {
-	// The installer starts no factory serve any more: the bind is still configured and neither plan starts one.
+	// The installer starts no factory serve any more: neither plan configures a bind or starts one.
 	for _, extra := range [][]string{nil, {"--no-systemd"}} {
 		rc, out, _ := hiRun(hiNew(t, hiHome(t)), append([]string{"--dry-run"}, extra...)...)
 		hiEq(t, rc, 0, "rc: "+out)
-		hiIn(t, out, "config serve_bind 127.0.0.1")
+		hiNotIn(t, out, "config serve_bind")
 		hiNotIn(t, out, "serve --bind")
 		hiNotIn(t, out, "factory-serve")
 	}
@@ -255,17 +254,9 @@ func TestHivemillInstallResumeRecordsNoCheckoutAndKeepsConfig(t *testing.T) {
 	}); len(bad) > 0 {
 		t.Errorf("a resume must not touch the clone: %v", bad)
 	}
-	setRe := regexp.MustCompile(`factory config \w+ \S+`)
-	if bad := hiFind(joined, func(a string) bool { return setRe.MatchString(a) && !strings.Contains(a, "config serve_") }); len(bad) > 0 {
-		t.Errorf("config was set on resume: %v", bad)
-	}
-	if bad := hiFind(joined, hiSub("config serve_bind 127.0.0.1")); len(bad) > 0 {
-		t.Errorf("an existing bind must be kept: %v", bad)
-	}
-	if bad := hiFind(joined, func(a string) bool { return strings.HasSuffix(a, " init") }); len(bad) > 0 {
-		t.Errorf("init ran on resume: %v", bad)
-	}
-	hiEq(t, hiLast(out), "RESULT PASS url=http://127.0.0.1:9100/ version=0.3.0", "result line")
+	// no config is read or set: an existing bind and port are kept as they are, and the result names the default port
+	hiNoOldChain(t, joined)
+	hiEq(t, hiLast(out), "RESULT PASS url=http://127.0.0.1:8765/ version=0.3.0", "result line")
 }
 
 func TestHivemillInstallResumeSetsOnlyPassedOptions(t *testing.T) {
@@ -273,10 +264,5 @@ func TestHivemillInstallResumeSetsOnlyPassedOptions(t *testing.T) {
 	hiMakeInstall(t, home, true)
 	h := hiNew(t, home, hiRules(hiRule1("config serve_bind", 0, hiOther+"\n")))
 	hiRun(h, "--yes", "--resume", "--no-systemd", "--max-agents", "4")
-	setRe := regexp.MustCompile(`config (max_live_agents|serve_\w+|scout_enabled) \S+$`)
-	sets := hiFind(h.argvs(), setRe.MatchString)
-	hiEq(t, len(sets), 1, fmt.Sprint("config sets: ", sets))
-	if len(sets) == 1 && !strings.HasSuffix(sets[0], "config max_live_agents 4") {
-		t.Errorf("sets = %v", sets)
-	}
+	hiNoOldChain(t, h.argvs()) // not even the passed option is set any more
 }

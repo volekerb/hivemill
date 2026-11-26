@@ -64,17 +64,12 @@ func (r hostRunner) Kickstart(uid int, label string) error {
 
 func (c *Ctx) agentsDir() string { return filepath.Join(c.home, "Library", "LaunchAgents") }
 
-// bootLabels is the jobs this run manages, in bootstrap order: serve only with --with-serve.
-func (c *Ctx) bootLabels() []string {
-	var l []string
-	for _, name := range ldLabels {
-		if name == "hivemill.serve" && !c.args.WithServe {
-			continue
-		}
-		l = append(l, name)
-	}
-	return l
-}
+// bootJobs are the launchd jobs an install writes, in bootstrap order.
+var bootJobs = []string{"hivemill.daemon", "hivemill.digest", "hivemill.health"}
+
+// The renderer accepts, and uninstall removes, every label in ldLabels: add the installed jobs to the older ones,
+// so that --uninstall-boot-units still cleans a machine an earlier installer set up.
+func init() { ldLabels = append(append([]string(nil), bootJobs...), ldLabels...) }
 
 func (c *Ctx) launchdVars() ldVars {
 	// agent bin dirs first (the claude installer and our tools), then the Homebrew and system dirs
@@ -91,7 +86,7 @@ func (c *Ctx) launchdVars() ldVars {
 func stepBootUnits(c *Ctx) (string, error) {
 	uid := c.host.Euid()
 	dir := c.agentsDir()
-	labels := c.bootLabels()
+	labels := bootJobs
 	tdir := filepath.Join(c.fh, "launchd")
 	tm := ldNewTemplates(hostFS{c.host, tdir})
 	vars := c.launchdVars()
@@ -153,7 +148,7 @@ func stepBootUnits(c *Ctx) (string, error) {
 			return "", stepWrap(err, "bootstrap "+l)
 		}
 	}
-	return fmt.Sprintf("launchd agents %s installed in %s and bootstrapped (the tick runs every minute)", strings.Join(labels, ", "), dir), nil
+	return fmt.Sprintf("launchd agents %s installed in %s and bootstrapped", strings.Join(labels, ", "), dir), nil
 }
 
 // runUninstallBootUnits is --uninstall-boot-units on macOS: boot out every hivemill.* job, remove the plists.
