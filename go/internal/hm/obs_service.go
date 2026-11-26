@@ -132,6 +132,9 @@ func installObsUnit(e Env, h ServiceHost, restart bool) ([]string, error) {
 	}
 	for _, c := range cmds {
 		if err := h.must(c...); err != nil {
+			if statErr != nil { // a kept unit is never started again: remove ours so the next init retries
+				_ = os.Remove(unit)
+			}
 			return notes, err
 		}
 	}
@@ -225,6 +228,9 @@ func installObsAgent(e Env, h ServiceHost, restart bool) ([]string, error) {
 			kick = []string{"launchctl", "kickstart", "-k", target + "/hivemill.obs"}
 		}
 		if err := h.must(kick...); err != nil {
+			if statErr != nil { // as on Linux: the next init retries
+				_ = os.Remove(plist)
+			}
 			return notes, fmt.Errorf("launchctl bootstrap: %s; %w", strings.TrimSpace(out), err)
 		}
 	}

@@ -68,6 +68,24 @@ func TestObsServiceNextToTheDaemon(t *testing.T) {
 			t.Errorf("an existing unit was overwritten or started: %v", *calls)
 		}
 	})
+	t.Run("failed start is retried", func(t *testing.T) {
+		for goos, name := range map[string]string{"linux": ".config/systemd/user/hivemill", "darwin": "Library/LaunchAgents/hivemill."} {
+			e, h, _ := setup(t, goos)
+			daemon, obs := name+".service", name+"-obs.service"
+			text := "[Service]\nEnvironment=FACTORY_HOME=" + e.Home + "\n"
+			if goos == "darwin" {
+				daemon, obs = name+"daemon.plist", name+"obs.plist"
+				text = "<key>FACTORY_HOME</key><string>" + e.Home + "</string>"
+			}
+			write(t, filepath.Join(h.UserHome, daemon), text)
+			write(t, filepath.Join(e.Home, "systemd", "hivemill-obs.service"), "[Service]\nExecStart=x\n")
+			h.Run = func(...string) (int, string) { return 1, "no bus" }
+			InstallObsService(e, h, false)
+			if _, err := os.Stat(filepath.Join(h.UserHome, obs)); !os.IsNotExist(err) {
+				t.Errorf("%s: %s stays after a failed start: %v", goos, obs, err)
+			}
+		}
+	})
 	t.Run("darwin", func(t *testing.T) {
 		e, h, calls := setup(t, "darwin")
 		agents := filepath.Join(h.UserHome, "Library", "LaunchAgents")

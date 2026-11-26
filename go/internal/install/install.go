@@ -788,8 +788,8 @@ func stepServices(c *Ctx) (string, error) {
 	return "hivemill systemd user units installed, enabled and started", setObsListen(c)
 }
 
-const obsAsk = "The dashboard (hivemill obs) listens on loopback only. To open it from your LAN, type this machine's " +
-	"IP address and press Enter (empty keeps the current setting):"
+const obsAsk = "The dashboard (hivemill obs) listens on loopback unless set otherwise. To open it from your LAN, type " +
+	"this machine's IP address and press Enter (empty keeps the current setting):"
 
 // setObsListen takes --obs-listen, or asks on a terminal, and stores the address with `hivemill init`, which also
 // restarts obs (not with --no-systemd) and prints its warning about a non-loopback address.

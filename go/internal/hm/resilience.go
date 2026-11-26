@@ -188,9 +188,9 @@ func (r *Runner) ObsDown() string {
 	return ""
 }
 
-// ObsAlert follows ObsDown: it opens the owner alert feed row and raises the owner alert while the dashboard is down,
-// at most once per alert_every_s (also across a recovery: a flapping obs alerts no more often), and closes the row
-// when why is "".
+// ObsAlert follows ObsDown: while the dashboard is down it keeps the owner alert feed row open and raises the owner
+// alert at most once per alert_every_s (also across a recovery: a flapping obs alerts no more often); it closes the
+// row when why is "".
 func (r *Runner) ObsAlert(now time.Time, why string) (bool, error) {
 	s, err := r.sq()
 	if err != nil {
@@ -199,10 +199,6 @@ func (r *Runner) ObsAlert(now time.Time, why string) (bool, error) {
 	if why == "" {
 		return false, s.CloseAlertKind("hivemill-obs-down")
 	}
-	if last, err := strconv.ParseInt(r.Store.Meta("obs_alerted"), 10, 64); err == nil &&
-		now.Sub(time.Unix(last, 0)) < time.Duration(cfgInt(r.Store, "alert_every_s"))*time.Second {
-		return false, nil
-	}
 	link, check := "journalctl --user -u hivemill-obs.service", "Check `systemctl --user status hivemill-obs.service`."
 	if GOOS == "darwin" {
 		log := filepath.Join(r.Env.Home, "logs", "hivemill.obs.log")
@@ -210,6 +206,10 @@ func (r *Runner) ObsAlert(now time.Time, why string) (bool, error) {
 	}
 	if err := r.Store.AlertFeed("hivemill-obs-down", "hivemill", link); err != nil {
 		return false, err
+	}
+	if last, err := strconv.ParseInt(r.Store.Meta("obs_alerted"), 10, 64); err == nil &&
+		now.Sub(time.Unix(last, 0)) < time.Duration(cfgInt(r.Store, "alert_every_s"))*time.Second {
+		return false, nil
 	}
 	if _, err := r.Alert("hivemill obs is down", why+". "+check); err != nil {
 		fmt.Fprintf(os.Stderr, "hivemill: alert: %v\n", err)
