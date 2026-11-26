@@ -101,8 +101,8 @@ func TestWorkflowAgentsCountTowardTheSessionUsage(t *testing.T) {
 	}
 	row := Row{Sessions: map[string]string{}}
 	row.apply(Event{Event: "session.ended", Session: "s9", CostUSD: &cost, Data: map[string]any{"workflow_agents": float64(3)}})
-	if row.logged["s9"] != 3 {
-		t.Errorf("the report does not keep the logged workflow agents: %v", row.logged)
+	if row.logged["s9"].WorkflowAgents != 3 || row.logged["s9"].USD != cost {
+		t.Errorf("the report does not keep the logged usage: %v", row.logged)
 	}
 }
 

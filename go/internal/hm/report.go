@@ -46,9 +46,9 @@ type Row struct {
 	Eval          bool               `json:"eval,omitempty"` // eval runs (eval.go) are listed apart and left out of the totals
 	// WorkflowAsked: a dispatch asked the session to use a workflow. WorkflowAgents: how many Workflow agents its task
 	// sessions ran, from their transcripts; above 0 the task counts as one with workflows.
-	WorkflowAsked  bool           `json:"workflow_asked,omitempty"`
-	WorkflowAgents int            `json:"workflow_agents,omitempty"`
-	logged         map[string]int // session.ended workflow agents per session
+	WorkflowAsked  bool                 `json:"workflow_asked,omitempty"`
+	WorkflowAgents int                  `json:"workflow_agents,omitempty"`
+	logged         map[string]SessUsage // session.ended usage per session, for transcripts that are not here
 	dispatched     string
 	merged         string
 }
@@ -101,10 +101,15 @@ func (r *Runner) ReportRows() ([]Row, error) {
 		costs[sid] = u.USD
 	}
 	for _, x := range rows {
+		for sid, u := range x.logged {
+			if _, ok := x.Sessions[sid]; ok && costs[sid] == 0 {
+				costs[sid] = u.USD // as on obs: the logged $ when no transcript prices the session
+			}
+		}
 		x.finish(costs)
 		for sid, role := range x.Sessions {
 			if role != "judge" {
-				x.WorkflowAgents += max(use[sid].WorkflowAgents, x.logged[sid]) // logged: the transcripts are not here
+				x.WorkflowAgents += max(use[sid].WorkflowAgents, x.logged[sid].WorkflowAgents)
 			}
 		}
 		out = append(out, *x)
@@ -131,9 +136,9 @@ func (x *Row) apply(e Event) {
 	case "session.ended":
 		if u, ok := usageOf(e); ok { // cumulative, as on obs: the last line wins
 			if x.logged == nil {
-				x.logged = map[string]int{}
+				x.logged = map[string]SessUsage{}
 			}
-			x.logged[e.Session] = u.WorkflowAgents
+			x.logged[e.Session] = u
 		}
 	case "gate.blocked":
 		x.GateBlocks++
