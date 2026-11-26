@@ -350,8 +350,23 @@ function loadFlow(cx, f) {
         flow: { stuck: (r.stuck ?? []).map(runRow), stuckAfter: r.stuck_after ?? null, perDay: r.merged_per_day ?? [], merged: r.merged ?? 0, days: r.days ?? 14, at: Date.now() },
       });
       const day = (await factoryGet(f, "flow?days=1", 20)).flow ?? {};
-      putFac(f.key, { failed: failedOf(day.tasks ?? []) });
+      putFac(f.key, { failed: failedOf(day.tasks ?? []), today: (day.tasks ?? []).slice(0, 200).map(runRow) });
     } catch {}
+    cx.notify();
+  });
+}
+
+// One task's trace (its steps from dispatch to merge), asked when someone opens it.
+export function loadTrace(cx, f, key) {
+  putFac(f.key, { trace: { key, loading: true } });
+  cx.spawn(async (cx) => {
+    try {
+      const tr = await factoryGet(f, `task?k=${encodeURIComponent(key)}`, 12);
+      putFac(f.key, { trace: { key, task: tr.task, goal: tr.goal ?? null, project: tr.project ?? null, usd: tr.total_usd ?? null,
+        steps: (tr.steps ?? []).slice(-400).map((s) => ({ ts: s.ts, kind: s.kind, role: s.role ?? null, model: s.model ?? null, machine: s.machine ?? null, summary: String(s.summary ?? "").slice(0, 600), usd: s.cost_usd ?? null, pr: s.links?.pr ?? null })) } });
+    } catch (e) {
+      putFac(f.key, { trace: { key, error: String(e?.message ?? e) } });
+    }
     cx.notify();
   });
 }
@@ -393,7 +408,8 @@ function spendOf(s) {
   return {
     usd: s.usd ?? null, days: s.days ?? 7, pollingPct: s.polling_pct ?? null,
     daily: (s.daily ?? []).map((x) => ({ day: x.day, usd: (x.task ?? 0) + (x.judge ?? 0) + (x.planner ?? 0) })),
-    top: (s.rows ?? []).filter((x) => x.task_key).sort((a, b) => (b.usd ?? 0) - (a.usd ?? 0)).slice(0, 6).map((x) => ({ key: x.task_key, usd: x.usd })),
+    top: (s.rows ?? []).filter((x) => x.task_key).sort((a, b) => (b.usd ?? 0) - (a.usd ?? 0)).slice(0, 12).map((x) => ({ key: x.task_key, usd: x.usd, sessions: x.sessions ?? null })),
+    roles: (s.roles ?? []).map((x) => ({ role: x.role, usd: x.usd, pollingPct: x.polling_pct ?? null })), unattributed: s.unattributed_usd ?? null,
   };
 }
 
@@ -551,16 +567,41 @@ export function factoryViews(d = data(), spaceList = spaces()) {
       ...base, state, loaded: true, drift, counts, waiting: counts.ci + counts.merge + counts.held, running,
       needs, needsCount: n.asks.reduce((s, a) => s + a.open, 0) + n.held.length,
       stuck: (st.flow?.stuck ?? []).map((r) => aged(r, st.flow.at)), stuckAfter: st.flow?.stuckAfter ?? null,
-      failed: st.failed ?? null,
+      failed: st.failed ?? null, trace: st.trace ?? null,
+      today: (st.today ?? []).map((r) => ({ ...r, title: named(r.task, r.title) })),
       planner: planner && { on: !/^session\.(ended|closed)$/.test(planner.last_event ?? ""), at: Date.parse(planner.last_at) || null },
       projects: n.projects.map((p) => p.project).filter((p) => p !== "all" && !/^\(/.test(p)),
       merged: { today: perDay.length ? perDay[perDay.length - 1].n : null, perDay, total: st.flow?.merged ?? null, days: st.flow?.days ?? null },
       spend: { today: all?.usd_today ?? null, week: all?.usd_7d ?? null, perPR: all?.per_pr ?? null, hours: all?.hours ?? null, pending: all?.pending ?? 0,
-        daily: (st.spend?.daily ?? []).slice(-7), top: (st.spend?.top ?? []).map((x) => ({ ...x, task: String(x.key).split("/").pop(), title: named(String(x.key).split("/").pop(), null) })), pollingPct: st.spend?.pollingPct ?? null },
+        daily: (st.spend?.daily ?? []).slice(-7), top: (st.spend?.top ?? []).map((x) => ({ ...x, task: String(x.key).split("/").pop(), title: named(String(x.key).split("/").pop(), null) })), pollingPct: st.spend?.pollingPct ?? null,
+        roles: st.spend?.roles ?? [], unattributed: st.spend?.unattributed ?? null },
       machines: (st.mach?.rows ?? []).map((m) => ({ ...m, label: labelFor(m.name, d) })), cap: st.mach?.cap ?? null,
     };
   });
 }
+
+// The board of one factory: every task with an event today, in the column of where it is now. project: null = all.
+// A card's "why" says why it is not moving (over the stuck limit, or how it failed).
+export const BOARD = [["working", "Working"], ["ci", "In CI"], ["merge", "To merge"], ["held", "Held for you"], ["done", "Done today"]];
+export function boardOf(v, project = null) {
+  const cols = Object.fromEntries(BOARD.map(([k]) => [k, []]));
+  if (!v?.loaded) return cols;
+  const mine = (r) => project == null || (r.project ?? "") === project;
+  const over = new Set(v.stuck.map((r) => r.key));
+  for (const r of v.running.filter(mine))
+    cols[r.stage === "ci" ? "ci" : r.stage === "merge" ? "merge" : "working"].push({ ...r, note: `${STAGE_WORDS[r.stage] ?? r.stage ?? ""} ${dur(r.age_s)}`.trim(), bad: over.has(r.key) });
+  for (const n of v.needs.filter((x) => x.kind === "held" && mine(x)))
+    cols.held.push({ key: n.key, task: n.task, title: n.title, project: n.project, age_s: n.age_s, note: `${dur(n.age_s)}, ${n.text}`, bad: true, pr: n.pr });
+  for (const r of v.today.filter(mine)) {
+    const o = String(r.outcome ?? "");
+    if (o === "merged") cols.done.push({ ...r, note: "merged", bad: false });
+    else if (o.startsWith("FAIL")) cols.done.push({ ...r, note: `failed: ${o.replace(/^FAIL:?\s*/, "").split(":")[0]}`, bad: true });
+    else if (o === "cancelled" || o === "reverted") cols.done.push({ ...r, note: o, bad: o === "reverted" });
+  }
+  for (const k of ["working", "ci", "merge", "held"]) cols[k].sort((a, b) => (b.age_s ?? 0) - (a.age_s ?? 0));
+  return cols;
+}
+export const STAGE_WORDS = { dispatched: "working", gate: "in the gate", judge: "with the judge", ci: "in CI", merge: "to merge", held: "held" };
 
 // The status bar's factory segments: "<label> 11 working · 14 waiting", "<label> unreachable" or "<label>…".
 export function barSegments(d = data()) {

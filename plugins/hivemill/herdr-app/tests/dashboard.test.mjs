@@ -106,6 +106,36 @@ test("task titles: the API's own, else the worker tab's name on one of the facto
   assert.deepEqual(Object.keys(D.tabTitles(S.spaces)).sort(), ["T-0101", "T-0107", "T-0110"]);
 });
 
+test("board: today's tasks in the column of where they are, per project, with why a card is not moving", async () => {
+  standardSetup();
+  await collect(fx("dashboard.json"));
+  const w = view("Workshop");
+  const b = D.boardOf(w);
+  assert.deepEqual(Object.fromEntries(Object.entries(b).map(([k, v]) => [k, v.length])), { working: 3, ci: 2, merge: 2, held: 2, done: 4 });
+  assert.deepEqual(b.merge.map((c) => [c.task, c.bad]), [["T-0106", true], ["T-0107", true]], "longest first, over the limit marked");
+  assert.match(b.merge[0].note, /^to merge 2h 0m$/);
+  assert.equal(b.held[0].note, "32m, tier T3 is above T2; the owner merges");
+  assert.deepEqual(b.done.map((c) => c.note).sort(), ["failed: budget", "failed: stalled", "failed: stalled", "merged"]);
+  assert.equal(D.boardOf(w, "none-such").working.length, 0);
+  assert.equal(D.boardOf(w, "app").working.length, 3);
+  assert.equal(D.boardOf(view("Pilot")).working.length, 1);
+});
+
+test("a task's trace is fetched on demand and kept small", async () => {
+  standardSetup();
+  await collect(fx("dashboard.json"));
+  const pending = [];
+  const cx = { spawn: (fn) => pending.push(Promise.resolve().then(() => fn(cx))), notify() {} };
+  D.loadTrace(cx, D.factoriesOf()[0], "box-a/T-0110");
+  assert.equal(view("Workshop").trace.loading, true);
+  while (pending.length) await pending.shift();
+  const tr = view("Workshop").trace;
+  assert.deepEqual([tr.key, tr.task, tr.usd, tr.steps.length, tr.steps[1].kind], ["box-a/T-0110", "T-0110", 6.15, 2, "run.held"]);
+  D.loadTrace(cx, D.factoriesOf()[0], "box-a/none");
+  while (pending.length) await pending.shift();
+  assert.ok(view("Workshop").trace.error);
+});
+
 test("a held run's trace is asked once, not on every poll", async () => {
   standardSetup();
   await collect(fx("dashboard.json"));
