@@ -24,6 +24,8 @@ var unaskedRiskPaths = []string{
 	"go/internal/hm/assets/tier_rules.json", "go/internal/citools/risktier/**", "go/internal/citools/affected/**",
 	"go/internal/hm/spec.go", "go/internal/hm/scope.go", "go/internal/hm/proofrun.go", "go/internal/hm/tools.go",
 	"go/internal/gitx/**", "go/internal/ghx/**", "go/cmd/hivemill/**",
+	"go/internal/hm/ciwait.go", "go/internal/hm/projectgate.go", "go/internal/hm/pr*", "go/internal/hm/touchedproofs.go",
+	"go/internal/hm/wholemodule.go", "go/internal/hm/trust.go", "go/internal/install/**", "ci/**",
 	"bin/factory", "bin/factory_cli.py",
 }
 
@@ -104,8 +106,9 @@ func overruleMerge(v *Verdict, risk func(Change) string) {
 
 // reportUnasked runs once, when the run's PR has merged: one judge.unasked_ok event per cleared unasked change of the
 // last verdict (a MERGE, or a HOLD the owner merged), and one PR comment that lists them. The repo may be public, so
-// text that the public-text guard does not pass is left out of the comment.
-func (r *Runner) reportUnasked(run *Run) {
+// text that the public-text guard does not pass is left out of the comment. The comment says so when the merged head is
+// not the judged one.
+func (r *Runner) reportUnasked(run *Run, merged string) {
 	if run.Eval || len(run.Verdicts) == 0 {
 		return
 	}
@@ -129,6 +132,9 @@ func (r *Runner) reportUnasked(run *Run) {
 		return
 	}
 	body := "Unasked changes merged\n\nNo task criterion asked for these; the judge found them plausibly fine.\n\n"
+	if merged != "" && merged != run.JudgeHead {
+		body += fmt.Sprintf("The judge read head %.12s; the PR merged at %.12s. What changed in between was not judged.\n\n", run.JudgeHead, merged)
+	}
 	args, why := r.guardArgs()
 	rc := 1
 	if why == "" {

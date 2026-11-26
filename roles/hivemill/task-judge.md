@@ -34,7 +34,7 @@ Judge every change whose criterion is `null`:
 - **Cannot be judged safe or unsafe** (for example, it changes a guard, a permission, a merge rule or a public API contract): leave `unasked_ok` out. The verdict is HOLD.
 - **Wrong or risky**: leave `unasked_ok` out. The verdict is REJECT.
 
-`file` is the changed file's path as the diff shows it, one entry per file. An unasked change in a risk-tier path (guard, hooks, role settings, merge or judge code, `.github/workflows`) is never `unasked_ok`: the runner turns such a MERGE into a HOLD.
+`file` is the changed file's path as the diff shows it, one entry per file. An unasked change in a risk-tier path (guard, hooks, role settings, merge or judge code and what they run on, such as the run store, sessions and sandboxes, `ci/`, `.github/workflows`, and the project's sensitive paths) is never `unasked_ok`: the runner turns such a MERGE into a HOLD.
 
 The packet's "Scope check" section lists the scope the task declares and flags every changed file outside it. Each change in a flagged file needs its own mapping, like any other change.
 
