@@ -23,6 +23,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **`ci/guard_port_check.py` checks a guard port case map**: every old guard test in the map exactly once, each new name a test added to `go/internal/guard`, and the test count grown by the non-duplicate lines. Format in [docs/guard-port.md](https://github.com/volekerb/hivemill/blob/main/docs/guard-port.md) (T-1937).
+
 - **`hivemill goal status G-NNN active|blocked|done|cancelled`** parks, reopens, finishes or cancels a goal, replacing the old Python CLI for this (T-1896).
 
 - **Token-spend spike alert.** The tick now runs `hm-spend report` every 15 minutes and sends the boss one escalation per clock hour when the last hour cost more than $20 or more than twice the 24 h hourly average, naming the top 3 sessions, their agents and findings. A failing hm-spend writes one event, never an alert. See [docs/spend-alert.md](https://github.com/volekerb/hivemill/blob/main/docs/spend-alert.md) (T-1824).
