@@ -48,6 +48,15 @@ func hiCloneWithUnits(t *testing.T) hiRule {
 	}}
 }
 
+// hiNoOldChain fails for any call of a factory verb the installer no longer runs.
+func hiNoOldChain(t *testing.T, argvs []string) {
+	t.Helper()
+	re := regexp.MustCompile(`/factory (init|config|project|up|agents)\b`)
+	if bad := hiFind(argvs, re.MatchString); len(bad) > 0 {
+		t.Errorf("old-chain calls: %v", bad)
+	}
+}
+
 // ------------------------------------------------------------------------------------------------ TestFullRun
 
 func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
@@ -64,9 +73,7 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 	a := h.argvs()
 	fac := filepath.Join(home, ".local", "bin", "factory")
 	want := []string{
-		"git clone -- " + hiRepo + " " + fh + ".installing", fac + " init", fac + " config serve_bind 127.0.0.1",
-		fac + " config serve_port 9000", fac + " config max_live_agents 3", fac + " config scout_enabled 0",
-		fac + " project add demo --name demo --repo /r --gh o/r",
+		"git clone -- " + hiRepo + " " + fh + ".installing",
 		"systemctl --user daemon-reload",
 		"systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer",
 	}
@@ -82,6 +89,7 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 		}
 		prev = i
 	}
+	hiNoOldChain(t, a)
 	if !hiExists(filepath.Join(home, ".config", "systemd", "user", "hivemill.service")) {
 		t.Error("hivemill.service not installed")
 	}
@@ -144,30 +152,33 @@ func TestHivemillInstallListedProjectIsSkipped(t *testing.T) {
 	hiUnits(t, filepath.Join(home, "factory"))
 	rc, out, _ := hiRun(h, "--yes", "--resume", "--project-id", "demo", "--project-repo", "/r")
 	hiEq(t, rc, 0, out)
-	if bad := hiFind(h.argvs(), hiSub("project add")); len(bad) > 0 {
-		t.Errorf("a listed project was added: %v", bad)
-	}
+	hiNoOldChain(t, h.argvs())
 }
 
+// The next three names predate the removal of the agent and UI checks; they are kept so that no test function
+// disappears.
 func TestHivemillInstallQueuedAgentsCountAsStarted(t *testing.T) {
 	h := hiNew(t, hiHome(t), hiRules(hiRule1(" agents", 0, "NAME ORG ROLE STATUS\nboss claude boss queued\ndirector claude director live\n")))
 	rc, out, _ := hiRun(h, "--yes", "--no-systemd")
 	hiEq(t, rc, 0, out)
+	hiNoOldChain(t, h.argvs())
 }
 
 func TestHivemillInstallAgentsNeverLiveFailsSmoke(t *testing.T) {
 	h := hiNew(t, hiHome(t), hiRules(hiRule1(" agents", 0, "NAME ORG ROLE STATUS\n")))
 	rc, out, _ := hiRun(h, "--yes", "--no-systemd")
-	hiEq(t, rc, 1, "rc")
-	hiEq(t, hiLast(out), "RESULT FAIL step=smoke", "last line")
+	hiEq(t, rc, 0, out)
+	hiNoOldChain(t, h.argvs())
+	hiNotIn(t, out, "factory agents")
 }
 
 func TestHivemillInstallUINotAnsweringFailsSmoke(t *testing.T) {
 	h := hiNew(t, hiHome(t))
-	h.httpFn = func(string) int { return 0 }
+	asked := 0
+	h.httpFn = func(string) int { asked++; return 0 }
 	rc, out, _ := hiRun(h, "--yes", "--no-systemd")
-	hiEq(t, rc, 1, "rc")
-	hiEq(t, hiLast(out), "RESULT FAIL step=smoke", "last line")
+	hiEq(t, rc, 0, out)
+	hiEq(t, asked, 0, "UI requests")
 }
 
 func TestHivemillInstallFailingStepResultFailAndExit1(t *testing.T) {
@@ -178,11 +189,12 @@ func TestHivemillInstallFailingStepResultFailAndExit1(t *testing.T) {
 	hiNotIn(t, out, "RESULT PASS")
 }
 
+// The name predates the removal of the init step; it is kept so that no test function disappears.
 func TestHivemillInstallInitWithoutInitialisedLineFails(t *testing.T) {
 	h := hiNew(t, hiHome(t), hiRules(hiRule1("factory init", 0, "something else")))
 	rc, out, _ := hiRun(h, "--yes", "--no-systemd")
-	hiEq(t, rc, 1, "rc")
-	hiEq(t, hiLast(out), "RESULT FAIL step=init", "last line")
+	hiEq(t, rc, 0, out)
+	hiNoOldChain(t, h.argvs())
 }
 
 // ------------------------------------------------------------------------------------------------ TestNoToken
