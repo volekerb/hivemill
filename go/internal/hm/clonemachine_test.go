@@ -17,6 +17,7 @@ type fakeRemote struct {
 	t    *testing.T
 	home string
 	log  []string
+	env  []string // the machine's own extra environment
 }
 
 func newFakeRemote(t *testing.T, r *Runner) *fakeRemote {
@@ -29,7 +30,7 @@ func newFakeRemote(t *testing.T, r *Runner) *fakeRemote {
 		env := []string{"HOME=" + m.home, "PATH=" + os.Getenv("PATH"), "GIT_CONFIG_NOSYSTEM=1",
 			"GIT_AUTHOR_NAME=zz", "GIT_AUTHOR_EMAIL=zz@users.noreply.github.com", "GIT_COMMITTER_NAME=zz",
 			"GIT_COMMITTER_EMAIL=zz@users.noreply.github.com"}
-		return run(timeout, m.home, stdin, env, "sh", "-c", command)
+		return run(timeout, m.home, stdin, append(env, m.env...), "sh", "-c", command)
 	}
 	return m
 }
@@ -221,5 +222,20 @@ func TestCloneMachineGateReadsRemote(t *testing.T) {
 	}
 	if got := mustGit(t, run1.Mirror, "rev-parse", "HEAD"); got != head {
 		t.Errorf("the mirror is at %q, want %q", got, head)
+	}
+}
+
+func TestCloneMachineProofEnv(t *testing.T) {
+	r, s, m, _ := cloneRunner(t)
+	if err := r.Start("T-0001"); err != nil {
+		t.Fatal(err)
+	}
+	run1, _ := s.Run("T-0001")
+	m.env = []string{"CLAUDECODE=1", "CLAUDE_CODE_OAUTH_TOKEN=zz", "GH_TOKEN=zz", "GITHUB_TOKEN=zz", "ZZ_KEPT=1"}
+	// the proof sees none of the machine's tokens or Claude variables, and the rest of its environment
+	got := r.RerunProofs(run1, []Criterion{{ID: 1, Kind: "cmd", Expect: "exit 0",
+		Proof: `test "$ZZ_KEPT" = 1 && ! env | grep -E '^(CLAUDE|GH_TOKEN=|GITHUB_TOKEN=)'`}}, t.TempDir())
+	if len(got) != 1 || got[0].OK == nil || !*got[0].OK {
+		t.Errorf("a proof on the machine sees its Claude or GitHub variables: %+v", got)
 	}
 }

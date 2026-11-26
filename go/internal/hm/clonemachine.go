@@ -163,12 +163,16 @@ func (p place) git(dir string, args ...string) (int, string, string) {
 	return rc, strings.TrimSpace(out), strings.TrimSpace(errs)
 }
 
-// sh runs argv in dir and returns its combined output. env applies here only: the other machine has its own.
+// remoteCleanEnv is cleanEnv() for the other machine's own environment.
+const remoteCleanEnv = `unset GH_TOKEN GITHUB_TOKEN $(env | sed -n 's/^\(CLAUDE[A-Za-z0-9_]*\)=.*/\1/p'); `
+
+// sh runs argv in dir and returns its combined output. env applies here only: the other machine has its own, from
+// which the same variables are removed.
 func (p place) sh(dir string, timeout time.Duration, env []string, argv ...string) (int, string) {
 	if p.machine == "" {
 		return p.r.Tools.Sh(dir, timeout, env, argv...)
 	}
-	rc, out, errs := p.rsh("", timeout, "unset GH_TOKEN GITHUB_TOKEN; cd "+shlex.Quote(dir)+" || exit 127; exec "+quoteAll(argv)+" 2>&1")
+	rc, out, errs := p.rsh("", timeout, remoteCleanEnv+"cd "+shlex.Quote(dir)+" || exit 127; exec "+quoteAll(argv)+" 2>&1")
 	return rc, out + errs
 }
 
