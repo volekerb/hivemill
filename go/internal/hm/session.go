@@ -167,6 +167,7 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 		return "", err
 	}
 	if err := r.WriteGuardExport(time.Now()); err != nil { // the new agent's goal, before its first tool call
+		_ = r.Store.AgentEnded(l.Name) // no terminal was started
 		return "", err
 	}
 	// Pin the terminal to this machine: an hc wrapper may place worker-named terminals elsewhere, where the hook

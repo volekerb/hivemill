@@ -145,6 +145,18 @@ func TestStepsAreIdempotent(t *testing.T) {
 	if runs != 1 {
 		t.Errorf("a judge started twice runs %d terminals, want 1", runs)
 	}
+	// a guard export that cannot be written starts no terminal and leaves no live agent
+	exp := filepath.Join(r.Env.Home, "run", "guard-export.json")
+	_ = os.Remove(exp)
+	_ = os.MkdirAll(filepath.Join(exp, "x"), 0o700)
+	l.Name = "claude-task-judge-t-0001-r2"
+	if _, err := r.StartSession(run, l); err == nil || runs != 1 {
+		t.Errorf("no export, no session: err %v, runs %d", err, runs)
+	}
+	var status string
+	if err := s.db.QueryRow(`SELECT status FROM agents WHERE name=?`, l.Name).Scan(&status); err != nil || status == "live" {
+		t.Errorf("the unstarted agent is %q (%v)", status, err)
+	}
 	// revert: the second attempt finds the task the first one filed
 	title := "Revert T-0001: main red after its merge"
 	id, _ := s.NewTask("G-001", title, "spec", "1. x - manual: y")
