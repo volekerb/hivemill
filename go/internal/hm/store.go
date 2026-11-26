@@ -46,11 +46,18 @@ type Run struct {
 	// Eval runs (eval.go) measure the review layers on a prepared branch and are never merged.
 	Eval             bool
 	EvalMode, CINote string
-	LastBlock        string  // the problems of the last gate block, to tell progress from a repeated block
-	BlockStops       int     // gate stops blocked in this round, progress or not (hard limit 3x gate_max_blocks)
-	WorkflowAgents   int     `json:",omitempty"` // agent cap of the workflow request in the first prompt; 0 = no request
-	Machine          string  `json:",omitempty"` // hc machine of the task session ("" = the local core); resumes go there too
-	CI               *CIWait `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
+	LastBlock        string // the problems of the last gate block, to tell progress from a repeated block
+	BlockStops       int    // gate stops blocked in this round, progress or not (hard limit 3x gate_max_blocks)
+	WorkflowAgents   int    `json:",omitempty"` // agent cap of the workflow request in the first prompt; 0 = no request
+	Machine          string `json:",omitempty"` // hc machine of the task session ("" = the local core); resumes go there too
+	// Projects with ci_gate none (cigate.go): the mode at dispatch, the last gate_cmd result and the one commented.
+	CINone   bool     `json:",omitempty"`
+	LocalCI  *LocalCI `json:",omitempty"`
+	CIPosted string   `json:",omitempty"`
+	CI       *CIWait  `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
+	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
+	Mirror, RemoteHome string `json:",omitempty"`
+	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
 }
 
 // Session is one Claude session of a run (task, judge).
@@ -134,7 +141,25 @@ func OpenSQLite(path string) (*SQLite, error) {
 		db.Close()
 		return nil, fmt.Errorf("cannot create the hm tables in %s: %w", path, err)
 	}
+	if err := addCIGate(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("cannot add projects.ci_gate in %s: %w", path, err)
+	}
 	return &SQLite{db: db, Now: time.Now}, nil
+}
+
+// addCIGate adds projects.ci_gate (” = the factory's judge_ci_gate) to a factory DB that has the table without it.
+func addCIGate(db *sql.DB) error {
+	var cols, have int
+	const q = `SELECT COUNT(*), COALESCE(SUM(name='ci_gate'),0) FROM pragma_table_info('projects')`
+	if err := db.QueryRow(q).Scan(&cols, &have); err != nil || cols == 0 || have > 0 {
+		return err
+	}
+	_, err := db.Exec(`ALTER TABLE projects ADD COLUMN ci_gate TEXT NOT NULL DEFAULT ''`)
+	if err != nil && strings.Contains(err.Error(), "duplicate column") {
+		return nil // another process added it first
+	}
+	return err
 }
 
 func (s *SQLite) Close() error { return s.db.Close() }
@@ -264,7 +289,11 @@ func (s *SQLite) Cfg(key string) string {
 }
 
 func (s *SQLite) SetCfg(key, value string) error {
-	if _, ok := Defaults[key]; !ok {
+	if modeKey(key) { // machine_<name>_mode: one key per session machine (docs/machines.md)
+		if value != modeShared && value != modeClone {
+			return fmt.Errorf("%s must be %s or %s", key, modeShared, modeClone)
+		}
+	} else if _, ok := Defaults[key]; !ok {
 		return fmt.Errorf("unknown key %s; known: %s", key, strings.Join(DefaultKeys(), ", "))
 	}
 	if key == "model" || key == "risk_model" || key == "planner_model" {
@@ -484,14 +513,14 @@ func (s *SQLite) TaskByTitle(goal, title string) (string, error) {
 
 // FactorySchema is the part of the factory DB the runner reads and writes, with the columns of the existing factory
 // schema (same names and order). `hivemill init` runs it on a new home. Every statement is IF NOT EXISTS and none
-// alters a table, so on an existing factory DB it changes nothing.
+// alters a table, so on an existing factory DB it changes nothing (OpenSQLite adds the one newer column, ci_gate).
 const FactorySchema = `
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, repo_path TEXT, gh_repo TEXT,
   base_branch TEXT NOT NULL DEFAULT 'main', auto_merge INTEGER NOT NULL DEFAULT 1,
   notes TEXT, created TEXT NOT NULL, required_checks TEXT NOT NULL DEFAULT '', gate_cmd TEXT NOT NULL DEFAULT '',
-  gate_count_cmd TEXT NOT NULL DEFAULT '', gate_timeout_s INTEGER NOT NULL DEFAULT 3600);
+  gate_count_cmd TEXT NOT NULL DEFAULT '', gate_timeout_s INTEGER NOT NULL DEFAULT 3600, ci_gate TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS goals (
   id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), title TEXT NOT NULL,
   intent TEXT, success_criteria TEXT, status TEXT NOT NULL DEFAULT 'proposed',
