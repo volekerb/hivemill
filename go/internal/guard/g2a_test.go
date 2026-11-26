@@ -419,11 +419,46 @@ func TestG2PersistLocalBinBlockMessageNamesLocalBin(t *testing.T) {
 	}
 }
 
+// g2LbRun is the run of ~/.local/bin/factory in g2LbAllowed: the guard reads the file it names, so it runs against a
+// temp passwd home (lbRunIn) and its answer does not depend on the machine's ~/.local/bin (T-2041).
+const g2LbRun = "~/.local/bin/factory whoami"
+
+// g2LbPyFactory is a Python ~/.local/bin/factory, as on a box where it links to the Python CLI.
+const g2LbPyFactory = "#!/usr/bin/env python3\nimport sys\nprint(sys.argv)\n"
+
+// g2LbBashFactory is a bash forwarder ~/.local/bin/factory whose env loop has a dynamic command word.
+const g2LbBashFactory = "#!/usr/bin/env bash\nenv_args=()\n" +
+	"while IFS=\"=\" read -r k v; do env_args+=(\"$k=$v\"); done\nexec env \"${env_args[@]}\" python3 -m factory \"$@\"\n"
+
+// lbRunIn runs cmd for role coder with ~ resolving to a temp passwd home whose .local/bin/factory is factory: the
+// guard expands ~ to the passwd home (g2Opts.pw) and reads a run script through $HOME (expandUser), so both name it.
+func (p *g2PEnv) lbRunIn(cmd, factory string) g2Res {
+	p.t.Helper()
+	pw := g2TempPw(p.t, map[string]string{"factory": factory})
+	pl := map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": cmd}}
+	return g2HookJSON(p.t, pl, g2Opts{args: g2RoleArgs("coder"), cwd: g2RepoRoot(p.t),
+		set: map[string]string{"FACTORY_HOME": p.home, "HOME": pw}, pw: pw})
+}
+
 func TestG2PersistLocalBinReadsRunsLookAlikesAndTextAreAllowed(t *testing.T) {
 	p := g2NewP(t)
 	for _, cmd := range g2LbAllowed(p) {
+		if cmd == g2LbRun {
+			g2WantExit(t, cmd, p.lbRunIn(cmd, g2LbPyFactory), 0)
+			continue
+		}
 		g2WantExit(t, cmd, p.bashIn(cmd, "coder", false, g2RepoRoot(t)), 0)
 	}
+}
+
+func TestG2LocalBinRunIsHostIndependent(t *testing.T) {
+	p := g2NewP(t)
+	r := p.lbRunIn(g2LbRun, g2LbBashFactory)
+	g2WantExit(t, "bash factory", r, 2)
+	if !strings.Contains(r.stderr, "dynamic command word") {
+		t.Errorf("bash factory: stderr does not name the dynamic command word: %q", r.stderr)
+	}
+	g2WantExit(t, "python factory", p.lbRunIn(g2LbRun, g2LbPyFactory), 0)
 }
 
 func TestG2PersistLocalBinBlockedForEveryWorkerRole(t *testing.T) {
