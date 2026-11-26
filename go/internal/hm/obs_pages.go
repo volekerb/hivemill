@@ -94,6 +94,11 @@ func flowOf(t *ObsTask, now time.Time) FlowTask {
 	}
 	if state, _ := pr.Data["state"].(string); state != "" && t.Terminal == "" {
 		since := evTime(pr)
+		if s, _ := pr.Data["since"].(string); s != "" { // a budget moved within one entry
+			if t0, err := time.Parse(time.RFC3339, s); err == nil {
+				since = t0
+			}
+		}
 		f.PRState = fmt.Sprintf("%s %d/%d", state, max(0, int(now.Sub(since).Minutes())), num(pr.Data["budget_s"])/60)
 		f.PRSince, f.PRStale = since.UTC().Format(time.RFC3339), stale
 	}

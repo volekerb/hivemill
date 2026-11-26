@@ -400,7 +400,7 @@ func (r *Runner) mergeNow(run *Run, sha string) {
 	}
 	rc, _, errs := r.Tools.GH("", "pr", "merge", run.PRURL, "--squash", "--match-head-commit", sha)
 	if rc != 0 {
-		run.Car = nil
+		run.Car, run.Rode = nil, false
 		run.MergeHold = "gh pr merge failed: " + firstLine(errs)
 		return
 	}

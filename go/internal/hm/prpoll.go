@@ -29,6 +29,7 @@ type basePoll struct {
 type baseCommit struct {
 	Oid    string
 	Suites []baseSuite
+	More   bool // the commit has more workflow runs than the poll read
 }
 
 // baseSuite is one workflow run on a base commit.
@@ -51,7 +52,7 @@ const (
 		`... on CheckRun{name status conclusion startedAt completedAt detailsUrl checkSuite{workflowRun{workflow{name}}}} ` +
 		`... on StatusContext{context state createdAt targetUrl}}}}}}}`
 	baseFields = `branchProtectionRule{requiresStatusChecks requiresStrictStatusChecks} target{... on Commit{history(first:30){nodes{oid ` +
-		`checkSuites(first:10,filterBy:{appId:15368}){nodes{status conclusion workflowRun{event workflow{name resourcePath}} ` +
+		`checkSuites(first:20,filterBy:{appId:15368}){pageInfo{hasNextPage} nodes{status conclusion workflowRun{event workflow{name resourcePath}} ` +
 		`checkRuns(first:30){nodes{name conclusion completedAt}}}}}}}}`
 )
 
@@ -78,7 +79,8 @@ type gqlRef struct {
 			Nodes []struct {
 				Oid         string
 				CheckSuites struct {
-					Nodes []struct {
+					PageInfo struct{ HasNextPage bool }
+					Nodes    []struct {
 						Status, Conclusion string
 						WorkflowRun        *struct {
 							Event    string
@@ -220,7 +222,7 @@ func (r *Runner) pollPRs(runs []Run) *prPoll {
 				bp.NotStrict = rule.RequiresStatusChecks && !rule.RequiresStrictStatusChecks
 			}
 			for _, c := range n.Target.History.Nodes {
-				bc := baseCommit{Oid: c.Oid}
+				bc := baseCommit{Oid: c.Oid, More: c.CheckSuites.PageInfo.HasNextPage}
 				for _, s := range c.CheckSuites.Nodes {
 					if s.WorkflowRun == nil {
 						continue
@@ -275,6 +277,9 @@ func (b *basePoll) pushState(oid string) string {
 			default:
 				return "red"
 			}
+		}
+		if state == "" && c.More {
+			return "pending" // tests.yml may be among the runs not read: never "none"
 		}
 		return state
 	}

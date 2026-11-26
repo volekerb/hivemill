@@ -32,7 +32,7 @@ A new state, or a new head in a CI state, is a new entry. `ci_running` does not 
 Each happens at most once per state entry.
 
 - `ci_queued`: nothing on GitHub (the queue cannot be hurried). Record `ci.queue_slow`. While any PR is queued over budget (an Actions job of its head is still queued), no PR is refreshed, because a refresh adds CI runs to the same queue.
-- `ci_running`: cancel the unfinished Actions runs and re-run them (`gh run rerun`, on the first pass that sees them stopped). A second overrun on the same head fails the run: `CI timed out`. Waiting for a runner is not charged: the action waits until a job has been running for a whole budget, and until then the budget moves on. Jobs that stay queued raise the CI wait alert. A project with `ci_gate: none` has nothing to cancel. Checks that are not Actions runs cannot be re-run; they raise one owner alert and the run stays.
+- `ci_running`: cancel the unfinished Actions runs and re-run them (`gh run rerun`, on the first pass that sees them stopped). A second overrun on the same head fails the run: `CI timed out`. Waiting for a runner is not charged: the action waits until a job has been running for a whole budget, and until then the budget moves on. Jobs that stay queued raise the CI wait alert (a merging run: once per entry, also when `ci_queued` runs out). Commit statuses alone count as running. A run id that `gh run rerun` refuses 5 times is given up; the others still re-run. A project with `ci_gate: none` has nothing to cancel. Checks that are not Actions runs cannot be re-run; they raise one owner alert and the run stays.
 - A red CI where every failed job passed on main in the last 24 h under the same name: re-run the failed jobs once per head (`gh run rerun --failed`, event `ci.rerun`), which starts a new `ci_running` budget. A second red resumes the task session with the log tails.
 - `held_owner`: one owner alert. The delegate path answers held asks. The runner never waits on an LLM to merge a green PR.
 
@@ -40,7 +40,7 @@ Each happens at most once per state entry.
 
 - Runs ready to merge go in FIFO order by the time the judge gave its verdict.
 - **Merge train.** While main's push run for the previous runner merge is pending, up to `merge_train` (3) more merges may go out, as long as no two merges of the train change the same file. The train empties when the push run of main's head is green. A pending head that is not a runner merge (someone else pushed) holds as before.
-- A red push run of any commit of the train stops it. With `auto_revert=on` the culprit is reverted; merges that rode the train after it do not block that revert, since they share no file with it. A cancelled push run of an earlier merge is skipped when the culprit is picked. A merge confirmed by a later pass joins the train then.
+- A red push run of any commit of the train stops it. With `auto_revert=on` the culprit is reverted; merges that rode the train after it do not block that revert, since they share no file with it. When an earlier merge's push run was cancelled and no green run follows it before the red one, nobody is auto-reverted: the red-main bisect task finds the culprit. A base commit with more workflow runs than the poll reads counts as pending when `tests.yml` is not among them. A merge confirmed by a later pass joins the train then.
 
 ## 5. Stale PRs
 

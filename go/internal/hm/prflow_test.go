@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -453,7 +454,22 @@ func TestPRFlowTrainCulpritAndLateConfirm(t *testing.T) {
 	f.base = []string{baseNode("sha2", "COMPLETED", "FAILURE"), baseNode("sha1", "COMPLETED", "CANCELLED")}
 	f.add(t, 2, Gated, "")
 	f.r.poll = f.r.pollPRs([]Run{*f.run(t, 2)})
-	if got := f.r.culprit("zz-test/www", "main", "sha2"); got != "sha2" {
-		t.Errorf("a cancelled push run must not hold the blame back, got %q", got)
+	if got := f.r.culprit("zz-test/www", "main", "sha2"); got != "" {
+		t.Errorf("an earlier cancelled push run leaves the blame to the bisect task, got %q", got)
+	}
+}
+
+func TestPRFlowTimeoutOfAJobThatStartedLate(t *testing.T) {
+	f := flowRunner(t)
+	hourAgo := `"startedAt":"` + time.Now().Add(-time.Hour).UTC().Format(time.RFC3339) + `"`
+	f.add(t, 1, Gated, regexp.MustCompile(`"startedAt":"[^"]*"`).ReplaceAllString(check("unit", "IN_PROGRESS", "", 7), hourAgo))
+	f.pass(t)
+	f.age(t, 1, 2*time.Hour)
+	run := f.run(t, 1)
+	run.Flow.BudgetS, run.CI.Polled = 7000, 0 // moved on while the job waited for a runner
+	f.put(t, run)
+	f.pass(t)
+	if got := f.ghCalls("run cancel"); len(got) != 1 {
+		t.Errorf("an hour on a runner is over the budget: %q", got)
 	}
 }

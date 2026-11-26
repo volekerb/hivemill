@@ -33,16 +33,17 @@ type FlowState struct {
 	State, Since, Head string
 	BudgetS            int64
 	Acted, Stale       bool // the overrun action and the stale event of this entry are done
+	Alerted            bool `json:",omitempty"` // the CI wait of a merging run was alerted
 }
 
 // RerunState is what the controller re-ran on one head (Run.Rerun).
 type RerunState struct {
 	Head     string
-	Overruns int  // ci_running budgets that ran out
-	Flaky    bool // the failed jobs were re-run once
-	Tries    int
-	Pending  []string // cancelled Actions run ids still to re-run
-	Masked   []string // check links whose old result reads as pending until the new run replaces them
+	Overruns int            // ci_running budgets that ran out
+	Flaky    bool           // the failed jobs were re-run once
+	Tries    map[string]int // failed `gh run rerun` calls per run id
+	Pending  []string       // cancelled Actions run ids still to re-run
+	Masked   []string       // check links whose old result reads as pending until the new run replaces them
 }
 
 // String is "<state> <minutes>/<budget>".
@@ -115,7 +116,9 @@ func (r *Runner) ciFlow(run *Run) (state, head string, ok bool) {
 	if f := run.Flow; f != nil && f.State == FlowCIRunning && f.Head == head {
 		return FlowCIRunning, head, true
 	}
-	started := r.ciNone(run.Project) || slices.ContainsFunc(pr.Checks, func(c map[string]any) bool {
+	// commit statuses alone never say "started": count them as running, so their budget can run out
+	statuses := len(pr.Checks) > 0 && !slices.ContainsFunc(pr.Checks, func(c map[string]any) bool { return actionsRun(c) != "" || rowStr(c, "status") != "" })
+	started := r.ciNone(run.Project) || statuses || slices.ContainsFunc(pr.Checks, func(c map[string]any) bool {
 		s := strings.ToUpper(rowStr(c, "status"))
 		return s == "IN_PROGRESS" || (s == "COMPLETED" && !strings.EqualFold(rowStr(c, "conclusion"), "SKIPPED"))
 	})
@@ -166,7 +169,7 @@ func (r *Runner) flowBudget(state string) int64 {
 
 // enterFlow starts a new entry of a flow state; "" leaves the flow.
 func (r *Runner) enterFlow(run *Run, state, head string) {
-	if f := run.Flow; f != nil && f.Acted {
+	if f := run.Flow; f != nil && (f.Acted || f.Alerted) {
 		kind := map[string]string{FlowHeldOwner: "hivemill-held", FlowCIRunning: "hivemill-ci"}[f.State]
 		if kind != "" {
 			if err := r.Store.CloseAlert(kind, run.Task); err != nil {
@@ -219,6 +222,7 @@ func (r *Runner) trackFlow(run *Run) {
 	case FlowCIQueued:
 		f.Acted = true
 		_ = r.Log.Emit("ci.queue_slow", run, Event{Data: map[string]any{"head": f.Head, "limit_s": f.BudgetS, "pr": run.PRURL}})
+		r.alertMergingCI(run, "jobs still wait for a runner")
 	case FlowCIRunning:
 		r.ciTimedOut(run)
 	case FlowHeldOwner:
@@ -243,28 +247,30 @@ func (r *Runner) ciTimedOut(run *Run) {
 	if err != nil {
 		return // the next pass
 	}
-	if rr := run.Rerun; rr != nil && rr.Head == pr.HeadRefOid && rr.Overruns > 0 {
-		r.fail(run, "CI timed out")
-		r.enterFlow(run, "", "")
-		return
-	}
 	rows, actions := unfinishedActions(pr.Checks)
 	if actions {
 		// time waiting for a runner is not charged: act once a job has run for a whole budget
-		if wait := run.Flow.BudgetS - longestRunning(rows); wait > 0 {
+		if wait := r.flowBudget(FlowCIRunning) - longestRunning(rows); wait > 0 {
 			since, _ := time.Parse(time.RFC3339, run.Flow.Since)
 			run.Flow.BudgetS = int64(time.Since(since).Seconds()) + max(wait, 60)
+			_ = r.Log.Emit("pr.flow", run, Event{Data: map[string]any{"state": run.Flow.State, "since": run.Flow.Since,
+				"budget_s": run.Flow.BudgetS, "pr": run.PRURL}})
+			if !slices.ContainsFunc(rows, onRunner) {
+				r.alertMergingCI(run, "jobs still wait for a runner")
+			}
 			return
 		}
 	}
 	if !actions {
 		run.Flow.Acted = true
-		if run.State == Merging && len(rows) > 0 { // a gated run is alerted by its CI wait (ciOverdue)
-			if err := r.Store.AlertFeed("hivemill-ci", run.Task, run.PRURL); err != nil {
-				r.printf("%s: alert feed: %v\n", run.Task, err)
-			}
-			r.ownerAlert("hivemill-ci", run.Task+": checks that cannot be re-run are over their budget on "+run.PRURL)
+		if len(rows) > 0 {
+			r.alertMergingCI(run, "checks that cannot be re-run are over their budget")
 		}
+		return
+	}
+	if rr := run.Rerun; rr != nil && rr.Head == pr.HeadRefOid && rr.Overruns > 0 {
+		r.fail(run, "CI timed out")
+		r.enterFlow(run, "", "")
 		return
 	}
 	rr := r.rerunState(run, pr.HeadRefOid)
@@ -285,6 +291,19 @@ func (r *Runner) ciTimedOut(run *Run) {
 		}
 	}
 	r.enterFlow(run, FlowCIQueued, pr.HeadRefOid) // a new budget for the second attempt
+}
+
+// alertMergingCI alerts the owner once per flow entry that a merging run waits on CI; a gated run is alerted by its CI
+// wait (ciOverdue).
+func (r *Runner) alertMergingCI(run *Run, why string) {
+	if run.State != Merging || run.Flow.Alerted {
+		return
+	}
+	run.Flow.Alerted = true
+	if err := r.Store.AlertFeed("hivemill-ci", run.Task, run.PRURL); err != nil {
+		r.printf("%s: alert feed: %v\n", run.Task, err)
+	}
+	r.ownerAlert("hivemill-ci", run.Task+": "+why+" on "+run.PRURL)
 }
 
 // longestRunning is the seconds the longest running of the rows has run; one with no start time counts as forever.
@@ -329,9 +348,12 @@ func (r *Runner) rerunPending(run *Run) {
 		}
 		if rc, _, errs := r.Tools.GH("", "run", "rerun", id, "-R", run.Repo); rc != 0 {
 			r.printf("%s: gh run rerun %s: %s\n", run.Task, id, firstLine(errs))
-			if rr.Tries++; rr.Tries >= rerunTries {
-				rr.Pending, rr.Masked = nil, nil
-				return
+			if rr.Tries == nil {
+				rr.Tries = map[string]int{}
+			}
+			if rr.Tries[id]++; rr.Tries[id] >= rerunTries { // give this run up: its real result is read again
+				rr.Masked = slices.DeleteFunc(rr.Masked, func(l string) bool { return actionsRun(map[string]any{"detailsUrl": l}) == id })
+				continue
 			}
 			left = append(left, id)
 			continue
@@ -367,16 +389,26 @@ func (r *Runner) flakyRerun(run *Run, head string, failed []map[string]any) bool
 		}
 		links = append(links, link(c))
 	}
+	var done []string
 	for _, id := range ids {
 		if rc, _, errs := r.Tools.GH("", "run", "rerun", id, "--failed", "-R", run.Repo); rc != 0 {
 			r.printf("%s: gh run rerun %s: %s\n", run.Task, id, firstLine(errs))
-			return false
+			break
 		}
+		done = append(done, id)
+	}
+	if len(done) == 0 {
+		return false
 	}
 	rr := r.rerunState(run, head)
-	rr.Flaky, rr.Masked = true, append(rr.Masked, links...)
+	rr.Flaky = true
+	for _, l := range links { // only what is running again reads as pending
+		if slices.Contains(done, actionsRun(map[string]any{"detailsUrl": l})) {
+			rr.Masked = append(rr.Masked, l)
+		}
+	}
 	r.enterFlow(run, FlowCIRunning, head) // the second attempt gets its own budget
-	_ = r.Log.Emit("ci.rerun", run, Event{Data: map[string]any{"head": head, "reason": "flaky", "runs": ids}})
+	_ = r.Log.Emit("ci.rerun", run, Event{Data: map[string]any{"head": head, "reason": "flaky", "runs": done}})
 	return true
 }
 
@@ -526,7 +558,8 @@ func (r *Runner) blameRuns(runs []Run) (out []Run) {
 }
 
 // culprit is the merge a red main at sha is blamed on: the first red commit of the train up to sha. "" while an earlier
-// push run of the train is still pending or the base was not read. A cancelled push run is skipped.
+// push run of the train is still pending or the base was not read, and when an earlier one was cancelled with no green run
+// after it: that merge may be the one that broke main, so the bisect task finds it.
 func (r *Runner) culprit(repo, base, sha string) string {
 	if r.poll == nil {
 		return sha
@@ -540,13 +573,21 @@ func (r *Runner) culprit(repo, base, sha string) string {
 	if b == nil {
 		return ""
 	}
+	unknown := false
 	for _, c := range t.Cars[:at] {
 		switch b.pushState(c.SHA) {
 		case "red":
 			return c.SHA
 		case "pending":
 			return ""
+		case "cancelled":
+			unknown = true
+		case "green":
+			unknown = false
 		}
+	}
+	if unknown {
+		return ""
 	}
 	return sha
 }
