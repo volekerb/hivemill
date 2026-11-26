@@ -42,8 +42,8 @@ func clearedUnasked(c Change) bool {
 }
 
 // unaskedRisk says, for one cleared change of the run's diff, why it may touch a risk-tier path ("" = it does not).
-// While the diff changes such a path, a change is outside it only when its file names another changed file. Anything
-// the runner cannot decide counts as risk.
+// While the diff changes such a path, every cleared change counts: the file field is the judge's own claim, so it is
+// only shown in the reason and never clears a change. Anything the runner cannot decide counts as risk.
 func (r *Runner) unaskedRisk(run *Run) func(Change) string {
 	rules, _, err := r.TierRules(run.Project)
 	if err != nil {
@@ -64,16 +64,14 @@ func (r *Runner) unaskedRisk(run *Run) func(Change) string {
 		}
 	}
 	return func(c Change) string {
-		f := strings.TrimSpace(c.File)
-		switch {
-		case len(risky) == 0:
+		if len(risky) == 0 {
 			return ""
-		case slices.Contains(risky, f):
-			return f + " is a risk-tier path"
-		case !slices.Contains(files, f):
-			return "the diff changes the risk-tier path " + risky[0] + " and the change names no changed file"
 		}
-		return ""
+		why := "the diff changes the risk-tier path " + risky[0]
+		if f := strings.TrimSpace(c.File); f != "" {
+			why += "; the judge names the file " + truncate(f, 200)
+		}
+		return why
 	}
 }
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "hivemill/judge-verdict.schema.json",
   "title": "Judge verdict (harness-neutral)",
-  "description": "The judge's decision on one PR head, the last JSON block of the judge session's final message. The runner turns a MERGE into a REJECT when a change with a null criterion is not marked unasked_ok with a why, into a HOLD when a marked one may touch a risk-tier path, and refuses a MERGE with an empty changes list or a criterion that does not quote the task.",
+  "description": "The judge's decision on one PR head, the last JSON block of the judge session's final message. The runner turns a MERGE into a REJECT when a change with a null criterion is not marked unasked_ok with a why, into a HOLD when a marked one comes in a diff that changes a risk-tier path, and refuses a MERGE with an empty changes list or a criterion that does not quote the task.",
   "type": "object",
   "required": ["verdict", "reasons", "criteria_assessed", "changes"],
   "properties": {
@@ -37,7 +37,7 @@
           },
           "unasked_ok": {"type": "boolean", "description": "A null-criterion change that adds no new risk and fits the task's intent: it merges and is listed for the owner."},
           "why": {"type": "string", "description": "One line: why the unasked change is fine. Required with unasked_ok."},
-          "file": {"type": "string", "description": "The changed file of an unasked_ok change. Needed when the diff also changes a risk-tier path."}
+          "file": {"type": "string", "description": "The changed file of an unasked_ok change. Shown in the HOLD reason; it never clears a change."}
         }
       }
     }

@@ -132,7 +132,7 @@ func TestJudgeUnaskedRiskPathHolds(t *testing.T) {
 	}
 	for _, risky := range []string{"go/internal/guard/git.go", "roles/hooks/worker-guard", "roles/settings/coder.json.in",
 		"go/internal/hm/merge.go", "go/internal/hm/judge.go", ".github/workflows/tests.yml"} {
-		for _, file := range []string{risky, "", "not/in/the/diff.go"} {
+		for _, file := range []string{risky, "", "not/in/the/diff.go", "web/a.html"} {
 			r, s, _ := unaskedRun(t, "web/a.html", risky)
 			judgeSays(t, r, mergeWith(change(file)))
 			run, v := verdictOf(t, s)
@@ -142,12 +142,6 @@ func TestJudgeUnaskedRiskPathHolds(t *testing.T) {
 			if lv, _, _ := s.LaneVerdict("T-0001", run.JudgeHead); lv != "fail" {
 				t.Errorf("%s: lane verdict %q", risky, lv)
 			}
-		}
-		// a change in another file of the same diff is not in the risk path
-		r, s, _ := unaskedRun(t, "web/a.html", risky)
-		judgeSays(t, r, mergeWith(change("web/a.html")))
-		if _, v := verdictOf(t, s); v.Verdict != VerdictMerge {
-			t.Errorf("%s: a change outside it: %+v", risky, v)
 		}
 	}
 	r, s, _ := unaskedRun(t) // the changed files cannot be listed
@@ -182,6 +176,17 @@ func TestJudgeUnaskedRiskPathHolds(t *testing.T) {
 		if len(*comments) != tc.want || (tc.want == 1 && strings.Contains((*comments)[0], "was not judged") != tc.moved) {
 			t.Errorf("%+v: comments %q", tc, *comments)
 		}
+	}
+}
+
+// naming a harmless changed file does not clear a change while the diff also changes a risk-tier file
+func TestJudgeUnaskedRiskDiffHoldsAll(t *testing.T) {
+	r, s, _ := unaskedRun(t, "go/internal/hm/merge.go", "web/a.html")
+	judgeSays(t, r, mergeWith(okChange))
+	_, v := verdictOf(t, s)
+	if v.Verdict != VerdictHold || v.JudgeVerdict != VerdictMerge ||
+		!strings.Contains(v.Reasons[0], "risk-tier path go/internal/hm/merge.go; the judge names the file web/a.html") {
+		t.Errorf("verdict %+v", v)
 	}
 }
 
