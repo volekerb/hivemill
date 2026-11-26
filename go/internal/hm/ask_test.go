@@ -28,4 +28,5 @@ func TestIdleAlertMinutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(21*time.Minute, false)
+	check(121*time.Minute, true)
 }
