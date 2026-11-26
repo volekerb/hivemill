@@ -190,3 +190,4 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [scout-eval.md](scout-eval.md): running one sandboxed evaluator trial.
 - [scout-nsbox.md](scout-nsbox.md): environment and working-directory rules in the eval sandbox.
 - [scout-timestamps.md](scout-timestamps.md): sortable timestamps across DST switches.
+- [kit/ADD-A-SKILL.md](kit/ADD-A-SKILL.md): adding a Hivemill Kit skill in one PR, validated by kit-check.

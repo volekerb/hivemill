@@ -504,3 +504,218 @@ func TestOpenAsksCountPulledMachinesFromEvents(t *testing.T) {
 		t.Fatalf("no local DB: events for every machine: %v", got)
 	}
 }
+
+// stampedBoxA is boxA written as this machine's own log (every line carries machine box-a), with a transcript for
+// every session so SessionUsages prices them, as the report does.
+func stampedBoxA(t *testing.T, r *Runner, day string) {
+	t.Helper()
+	evs := boxA(day)
+	for i := range evs {
+		evs[i].Machine = "box-a"
+		evs[i].CostUSD = nil
+	}
+	var kept []Event
+	for _, e := range evs {
+		if e.Event != "session.ended" { // priced from the transcripts, like a live session
+			kept = append(kept, e)
+		}
+	}
+	writeEvents(t, r.Log.Path, kept...)
+	dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "p")
+	_ = os.MkdirAll(dir, 0o700)
+	for i, sid := range []string{"s-task-1", "s-judge-1", "s-task-2", "s-plan"} {
+		usage := map[string]any{"input_tokens": 100000 * (i + 1), "output_tokens": 20000 * (i + 1), "cache_read_input_tokens": 50000,
+			"cache_creation_input_tokens": 1000}
+		line, _ := json.Marshal(map[string]any{"type": "assistant", "timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+			"requestId": "q-" + sid, "message": map[string]any{"id": "m-" + sid, "model": "claude-sonnet-5-5", "usage": usage}})
+		if err := os.WriteFile(filepath.Join(dir, sid+".jsonl"), append(line, '\n'), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func obsGet(t *testing.T, h http.Handler, target string) (int, string) {
+	t.Helper()
+	req := httptest.NewRequest("GET", target, nil)
+	req.Host = "127.0.0.1:7461"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w.Code, w.Body.String()
+}
+
+func withinPct(a, b, pct float64) bool {
+	if b == 0 {
+		return a == 0
+	}
+	d := (a - b) / b
+	if d < 0 {
+		d = -d
+	}
+	return d <= pct/100
+}
+
+func TestObsSpendMatchesReport(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	stampedBoxA(t, r, day)
+	rows, err := r.ReportRows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report float64 // what hivemill report prints as the cost of the tasks
+	for _, x := range rows {
+		report += x.USD
+	}
+	if report <= 0 {
+		t.Fatalf("the report priced nothing: %+v", rows)
+	}
+	planner := SessionUsages(r.Env.UserHome, []string{"s-plan"})["s-plan"].USD
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, body := obsGet(t, h, "/api/obs/spend?by=task")
+	var api struct {
+		Spend SpendPage `json:"spend"`
+	}
+	if code != 200 || json.Unmarshal([]byte(body), &api) != nil {
+		t.Fatalf("api %d: %s", code, body)
+	}
+	var tasks float64
+	for _, row := range api.Spend.Rows {
+		if row.TaskKey != "" {
+			tasks += row.USD
+		}
+	}
+	if !withinPct(tasks, report, 1) {
+		t.Fatalf("task spend %.4f, report %.4f", tasks, report)
+	}
+	if !withinPct(api.Spend.Total, report+planner, 1) {
+		t.Fatalf("total %.4f, report %.4f + planner %.4f", api.Spend.Total, report, planner)
+	}
+	var daily, byRole float64
+	for _, d := range api.Spend.Daily {
+		daily += d.Task + d.Judge + d.Planner
+		if d.Planner > 0 {
+			byRole += d.Planner
+		}
+	}
+	if !withinPct(daily, api.Spend.Total, 1) || !withinPct(byRole, planner, 1) {
+		t.Fatalf("the daily chart (%.4f, planner %.4f) differs from the table (%.4f, planner %.4f)", daily, byRole, api.Spend.Total, planner)
+	}
+	for _, by := range SpendGroups { // every grouping sums to the same total
+		_, body := obsGet(t, h, "/api/obs/spend?by="+by)
+		var g struct {
+			Spend SpendPage `json:"spend"`
+		}
+		if json.Unmarshal([]byte(body), &g) != nil || g.Spend.By != by || !withinPct(g.Spend.Total, api.Spend.Total, 0.01) || len(g.Spend.Rows) == 0 {
+			t.Fatalf("by %s: %s", by, body)
+		}
+		var sum float64
+		for _, row := range g.Spend.Rows {
+			sum += row.USD
+		}
+		if !withinPct(sum, g.Spend.Total, 0.01) {
+			t.Fatalf("by %s: rows sum %.4f, total %.4f", by, sum, g.Spend.Total)
+		}
+	}
+	if _, page := obsGet(t, h, "/spend?by=task"); !strings.Contains(page, `href="/task?k=box-a%2FT-1"`) {
+		t.Fatalf("a task row opens the task:\n%s", page)
+	}
+}
+
+func TestObsFlowStages(t *testing.T) {
+	day := "2026-11-20"
+	evs := boxA(day)
+	ts := func(h string) string { return day + "T" + h + ":00Z" }
+	evs = append(evs,
+		ev(ts("04:00"), "task.dispatched", "T-4", "G-1", "www", "", "", nil), // 2.5 h in dispatched: stuck
+		ev(ts("06:00"), "task.dispatched", "T-5", "G-1", "www", "", "", nil), // 30 min: not stuck
+	)
+	for i := range evs {
+		evs[i].Machine = "box-a"
+	}
+	now, _ := time.Parse(time.RFC3339, ts("06:30"))
+	o := BuildObs(evs, ObsFilter{}, "box-a", nil, now)
+	f := o.BuildFlow(30, "")
+	by := map[string]FlowTask{}
+	for _, x := range f.Tasks {
+		by[x.Task] = x
+	}
+	t1 := by["T-1"]
+	want := map[string]int64{"dispatched": 2400, "gate": 0, "ci": 1800, "judge": 600, "merge": 2400}
+	for st, sec := range want {
+		if t1.Seconds[st] != sec {
+			t.Errorf("T-1 %s: %d s, want %d (%+v)", st, t1.Seconds[st], sec, t1.Seconds)
+		}
+	}
+	if t1.Stage != "" || t1.Total != 7200 {
+		t.Errorf("T-1 finished in 2 h: %+v", t1)
+	}
+	if by["T-2"].Seconds["dispatched"] != 3600 || by["T-2"].Stage != "" {
+		t.Errorf("T-2: %+v", by["T-2"])
+	}
+	if by["T-4"].Stage != "dispatched" || by["T-4"].AgeSec != 9000 || by["T-5"].AgeSec != 1800 {
+		t.Errorf("open runs: %+v %+v", by["T-4"], by["T-5"])
+	}
+	if len(f.Stuck) != 1 || f.Stuck[0].Task != "T-4" {
+		t.Errorf("stuck now: %+v", f.Stuck)
+	}
+	if f.Merged != 1 || f.MergedByDay[len(f.MergedByDay)-1].Day != day || f.MergedByDay[len(f.MergedByDay)-1].N != 1 {
+		t.Errorf("merged per day: %+v", f.MergedByDay)
+	}
+	if !strings.Contains(string(f.Chart), "<svg") || !strings.Contains(string(f.Chart), `class="tick"`) {
+		t.Error("the merged chart has axes")
+	}
+}
+
+func TestObsPagesRender(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	stampedBoxA(t, r, day)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ext := regexp.MustCompile(`https?://|(src|href)="//`)
+	for _, path := range []string{"/", "/spend", "/flow"} {
+		for _, theme := range []string{"", "light", "dark"} {
+			target := path
+			if theme != "" {
+				target += "?theme=" + theme
+			}
+			code, body := obsGet(t, h, target)
+			if code != 200 || strings.Contains(body, "<svg") == (path == "/") || !strings.Contains(body, `class="on"`) {
+				t.Fatalf("%s: %d\n%s", target, code, body)
+			}
+			if theme != "" && !strings.Contains(body, `data-theme="`+theme+`"`) || theme == "" && strings.Contains(body, "data-theme") {
+				t.Errorf("%s: theme attribute", target)
+			}
+			if ext.MatchString(body) || strings.Contains(body, "<script") {
+				t.Errorf("%s: an external URL or a script", target)
+			}
+		}
+	}
+	_, css := obsGet(t, h, "/assets/obs/app.css")
+	for _, want := range []string{`[data-theme="dark"]`, "prefers-color-scheme: dark", "--honey"} {
+		if !strings.Contains(css, want) {
+			t.Errorf("stylesheet lacks %q", want)
+		}
+	}
+	if ext.MatchString(css) || strings.Contains(css, "box-shadow") {
+		t.Error("the stylesheet loads nothing and has no shadow")
+	}
+	for _, path := range []string{"/api/obs/now", "/api/obs/spend", "/api/obs/flow"} {
+		code, body := obsGet(t, h, path)
+		var v map[string]any
+		if code != 200 || json.Unmarshal([]byte(body), &v) != nil || v["now"] == nil {
+			t.Errorf("%s: %d %s", path, code, body)
+		}
+	}
+	_, body := obsGet(t, h, "/flow?project=www")
+	if !strings.Contains(body, "T-1") {
+		t.Errorf("project filter:\n%s", body)
+	}
+}
