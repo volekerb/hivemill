@@ -44,8 +44,13 @@ type Row struct {
 	GoalCheck     string             `json:"goal_check,omitempty"`
 	OwnerCheck    bool               `json:"needs_owner_check"`
 	Eval          bool               `json:"eval,omitempty"` // eval runs (eval.go) are listed apart and left out of the totals
-	dispatched    string
-	merged        string
+	// WorkflowAsked: a dispatch asked the session to use a workflow. WorkflowAgents: how many Workflow agents its task
+	// sessions ran, from their transcripts; above 0 the task counts as one with workflows.
+	WorkflowAsked  bool                 `json:"workflow_asked,omitempty"`
+	WorkflowAgents int                  `json:"workflow_agents,omitempty"`
+	logged         map[string]SessUsage // session.ended usage per session, for transcripts that are not here
+	dispatched     string
+	merged         string
 }
 
 // Baseline is the old pipeline, measured 2026-11-24 (factory review).
@@ -90,9 +95,23 @@ func (r *Runner) ReportRows() ([]Row, error) {
 			ids = append(ids, sid)
 		}
 	}
-	costs := SessionCosts(r.Env.UserHome, ids)
+	costs := map[string]float64{}
+	use := SessionUsages(r.Env.UserHome, ids)
+	for sid, u := range use {
+		costs[sid] = u.USD
+	}
 	for _, x := range rows {
+		for sid, u := range x.logged {
+			if _, ok := x.Sessions[sid]; ok && costs[sid] == 0 {
+				costs[sid] = u.USD // as on obs: the logged $ when no transcript prices the session
+			}
+		}
 		x.finish(costs)
+		for sid, role := range x.Sessions {
+			if role != "judge" {
+				x.WorkflowAgents += max(use[sid].WorkflowAgents, x.logged[sid].WorkflowAgents)
+			}
+		}
 		out = append(out, *x)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Task < out[j].Task })
@@ -106,11 +125,21 @@ func (x *Row) apply(e Event) {
 		if e.Data["eval"] == true {
 			x.Eval = true
 		}
+		if e.Data["workflow"] == true {
+			x.WorkflowAsked = true
+		}
 		if x.dispatched == "" {
 			x.dispatched = e.TS
 		}
 	case "session.started":
 		x.Sessions[e.Session] = e.Role
+	case "session.ended":
+		if u, ok := usageOf(e); ok { // cumulative, as on obs: the last line wins
+			if x.logged == nil {
+				x.logged = map[string]SessUsage{}
+			}
+			x.logged[e.Session] = u
+		}
 	case "gate.blocked":
 		x.GateBlocks++
 	case "gate.passed":
@@ -195,19 +224,77 @@ type Totals struct {
 	EvalUSD                   float64 `json:",omitempty"`
 	PerMergedPR, MedianHours  *float64
 	TwoPlusRoundsPct          *float64
-	Baseline                  map[string]any
+	// the dispatched tasks that ran workflow agents and those that did not (eval runs left out)
+	WithWorkflow, WithoutWorkflow Side
+	Baseline                      map[string]any
+}
+
+// Side is one side of the workflow comparison.
+type Side struct {
+	Tasks, Asked, Merged int
+	USD                  float64
+	PerMergedTask        *float64 // the side's whole spend over its merged tasks
+	RoundsPerTask        *float64 // judge verdicts plus red CI rounds
+	MedianHours          *float64 // dispatch to merge
+}
+
+func side(rows []Row) Side {
+	var s Side
+	var hours []float64
+	rounds := 0
+	for _, x := range rows {
+		s.Tasks++
+		s.USD += x.USD
+		rounds += len(x.Judge) + x.CIRounds
+		if x.WorkflowAsked {
+			s.Asked++
+		}
+		if x.Outcome == "merged" {
+			s.Merged++
+			if x.HoursToMerge != nil {
+				hours = append(hours, *x.HoursToMerge)
+			}
+		}
+	}
+	s.USD = round2(s.USD)
+	if s.Tasks > 0 {
+		n := round2(float64(rounds) / float64(s.Tasks))
+		s.RoundsPerTask = &n
+	}
+	if s.Merged > 0 {
+		p := round2(s.USD / float64(s.Merged))
+		s.PerMergedTask = &p
+	}
+	s.MedianHours = median(hours)
+	return s
+}
+
+func median(v []float64) *float64 {
+	if len(v) == 0 {
+		return nil
+	}
+	sort.Float64s(v)
+	return &v[len(v)/2]
 }
 
 // Summarise computes the totals.
 func Summarise(rows []Row) Totals {
 	t := Totals{Baseline: Baseline}
 	var hours []float64
+	var with, without []Row
 	multi := 0
 	for _, x := range rows {
 		if x.Eval {
 			t.EvalRuns++
 			t.EvalUSD += x.USD
 			continue
+		}
+		switch {
+		case x.dispatched == "":
+		case x.WorkflowAgents > 0:
+			with = append(with, x)
+		default:
+			without = append(without, x)
 		}
 		t.Tasks++
 		t.USD += x.USD
@@ -229,11 +316,8 @@ func Summarise(rows []Row) Totals {
 		m := round2(100 * float64(multi) / float64(t.Merged))
 		t.TwoPlusRoundsPct = &m
 	}
-	if len(hours) > 0 {
-		sort.Float64s(hours)
-		h := hours[len(hours)/2]
-		t.MedianHours = &h
-	}
+	t.MedianHours = median(hours)
+	t.WithWorkflow, t.WithoutWorkflow = side(with), side(without)
 	return t
 }
 
@@ -262,8 +346,8 @@ func (r *Runner) Report(asJSON bool) error {
 		drain = "DRAIN on (no new runs), "
 	}
 	r.printf("%s%s; backup: %s\n", drain, caps.Header(r.Store), r.ReplicationPlan())
-	r.printf("%-7s %-10s %6s %6s %6s %6s %3s %-12s %2s %5s %4s %4s %3s %5s sessions\n", "task", "outcome", "$", "$task", "$judge", "h",
-		"blk", "judge", "ci", "fix", "crit", "prov", "man", "rfail")
+	r.printf("%-7s %-10s %6s %6s %6s %6s %3s %-12s %2s %5s %4s %4s %3s %5s %3s sessions\n", "task", "outcome", "$", "$task", "$judge", "h",
+		"blk", "judge", "ci", "fix", "crit", "prov", "man", "rfail", "wf")
 	for _, x := range rows {
 		var ss []string
 		for sid, role := range x.Sessions {
@@ -274,9 +358,9 @@ func (r *Runner) Report(asJSON bool) error {
 		if judge == "" {
 			judge = "-"
 		}
-		r.printf("%-7s %-10s %6.2f %6.2f %6.2f %6s %3d %-12s %2d %2d/%-2d %4d %4d %3d %5d %s\n", x.Task, truncate(x.Outcome, 10), x.USD,
+		r.printf("%-7s %-10s %6.2f %6.2f %6.2f %6s %3d %-12s %2d %2d/%-2d %4d %4d %3d %5d %3d %s\n", x.Task, truncate(x.Outcome, 10), x.USD,
 			x.USDTask, x.USDJudge, fp(x.HoursToMerge), x.GateBlocks, truncate(judge, 12), x.CIRounds, x.Fixed, x.Findings, x.Criteria,
-			x.Proven, x.Manual, x.RerunFailures, strings.Join(ss, " "))
+			x.Proven, x.Manual, x.RerunFailures, x.WorkflowAgents, strings.Join(ss, " "))
 	}
 	for _, x := range rows {
 		if x.OwnerCheck {
@@ -290,6 +374,16 @@ func (r *Runner) Report(asJSON bool) error {
 		tot.USD, fp(tot.PerMergedPR), fp(tot.MedianHours), fp(tot.TwoPlusRoundsPct), tot.GateBlocks)
 	if tot.EvalRuns > 0 {
 		r.printf("eval (not in the totals): %d tasks, $%.2f\n", tot.EvalRuns, tot.EvalUSD)
+	}
+	if tot.WithWorkflow.Tasks+tot.WithoutWorkflow.Tasks > 0 {
+		r.printf("\n%-17s %5s %5s %6s %13s %11s %17s\n", "workflows", "tasks", "asked", "merged", "$/merged task", "rounds/task", "median h to merge")
+		for _, x := range []struct {
+			name string
+			s    Side
+		}{{"with workflows", tot.WithWorkflow}, {"without workflows", tot.WithoutWorkflow}} {
+			r.printf("%-17s %5d %5d %6d %13s %11s %17s\n", x.name, x.s.Tasks, x.s.Asked, x.s.Merged, fp(x.s.PerMergedTask), fp(x.s.RoundsPerTask),
+				fp(x.s.MedianHours))
+		}
 	}
 	r.printf("baseline: $/merged PR %v, 2+ rounds %v%%, median h open-to-merge %v\n", Baseline["usd_per_merged_pr"],
 		Baseline["two_plus_rounds_pct"], Baseline["median_hours_open_to_merge"])

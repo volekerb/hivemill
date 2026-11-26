@@ -10,7 +10,7 @@
 //	hivemill merge T-1234          one merge attempt of a run in state merging (or print its decision with --dry-run)
 //	hivemill report [--json]       scoreboard
 //	hivemill eval T-1234 [--judge-only|--review-only]  eval run on a prepared branch with a draft PR: measures gate, review and judge, never merges
-//	hivemill task lint T-1234      spec gate: every acceptance criterion names its proof
+//	hivemill task lint T-1234|--all  spec gate: every criterion names its proof, none runs a whole Go module (--all: todo and draft tasks)
 //	hivemill task add|list|show|update|cancel   file and change tasks (add and update refuse criteria that fail the spec gate; --draft)
 //	hivemill goal new|list|show|close           goals
 //	hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... | project list | project profile ID [--sensitive GLOB]...
@@ -29,7 +29,7 @@
 //	hivemill planner start|stop|status|wake [REASON]   the planner session (keeps ready queues full; woken by the daemon)
 //	hivemill ask add|list|answer|withdraw              the owner queue
 //	hivemill digest [--date D] [--json] [--send]        the morning digest of one day (default yesterday)
-//	hivemill obs [--port N] [--json] | obs pull --from HOST:PATH | obs sources   read-only page, multi-machine roll-up
+//	hivemill obs [--listen HOST] [--port N] [--json] | obs pull --from HOST:PATH | obs sources   read-only page, multi-machine roll-up
 //	hivemill otel export [--since D] [--endpoint URL] [--pulled] [--dry-run]       tasks as OpenTelemetry traces
 package main
 
@@ -66,7 +66,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
-		"obs [--port N] [--json] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
+		"obs [--listen HOST] [--port N] [--json] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
 		"otel export [--since D] [--endpoint URL] [--pulled] [--dry-run]"
 	if len(args) > 0 && args[0] == "guard" && !isGuardExport(args) { // a hook: its arguments and stdin are the guard's, never a help request
 		return cmdGuard(args[1:], stdin, stdout, stderr)

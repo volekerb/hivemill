@@ -70,6 +70,7 @@ type Bucket struct {
 	AvgContext     int64   `json:"avg_context_tokens"`
 	SpawnCost      float64 `json:"spawn_usd"`
 	PollingCost    float64 `json:"polling_usd"`
+	WorkflowAgents int     `json:"workflow_agents,omitempty"` // Workflow agent transcripts of the session (SessionCosts only)
 	WorkCost       float64 `json:"work_usd"`
 	first          time.Time
 }
@@ -277,9 +278,8 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 		rel, _ := filepath.Rel(root, path)
 		project := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
 		session := strings.TrimSuffix(filepath.Base(path), ".jsonl")
-		// Subagent transcripts live in <project>/<parent session>/subagents/agent-*.jsonl.
-		if parts := strings.Split(filepath.ToSlash(rel), "/"); len(parts) == 4 && parts[2] == "subagents" {
-			parent[session] = parts[1]
+		if p, _, ok := subagentOf(strings.Split(filepath.ToSlash(rel), "/")); ok {
+			parent[session] = p
 		}
 		return readFile(path, func(text string) bool {
 			if role[session] == "" {
