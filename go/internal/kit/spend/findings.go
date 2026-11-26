@@ -23,7 +23,7 @@ func findings(rep *Report, models, sessions map[string]*Bucket) []Finding {
 		if m.Unpriced > 0 {
 			out = append(out, Finding{Code: "unpriced", Level: "medium",
 				Text:   fmt.Sprintf("%s: %d requests have no price, so the totals miss them", name, m.Unpriced),
-				Advice: "Add the model to go/internal/tokens/prices.go and web/prices.py."})
+				Advice: "Add the model to go/internal/tokens/prices.go."})
 		}
 	}
 	var big []string
