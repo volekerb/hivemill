@@ -49,8 +49,13 @@ func (r *Runner) Queue(projects []string) (ready []Task, blocked []BlockedTask, 
 		}
 		var deps, open []string
 		_ = json.Unmarshal([]byte(t.DependsOn), &deps)
+		_, dead := r.deadDeps(t)
 		for _, d := range deps {
 			if done[d] {
+				continue
+			}
+			if why := dead[d]; why != "" { // can never be done: re-point or drop it
+				open = append(open, d+" "+why)
 				continue
 			}
 			state := "missing"

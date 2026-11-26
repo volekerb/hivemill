@@ -147,6 +147,36 @@ func TestDeadDependencyMakesPlannerItem(t *testing.T) {
 	}
 }
 
+func TestDeadDependencyListedAsBlocked(t *testing.T) {
+	r, s, _ := queueFixture(t) // T-0003 waits on T-0001 and the unknown T-0099
+	line := func() string {
+		t.Helper()
+		for _, l := range listQueue(t, r, true) {
+			if strings.HasPrefix(l, "T-0003 ") {
+				return l
+			}
+		}
+		t.Fatal("T-0003 is not listed as blocked")
+		return ""
+	}
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(s.UpdateTask("T-0001", map[string]any{"status": "cancelled"}))
+	if got, want := line(), "T-0003 G-001 zz-test task: deps: T-0001 cancelled, T-0099 (missing)"; got != want {
+		t.Fatalf("cancelled: %q, want %q", got, want)
+	}
+	// T-0004 has a failed run
+	must(s.UpdateTask("T-0004", map[string]any{"status": "blocked"}))
+	must(s.UpdateTask("T-0003", map[string]any{"depends_on": `["T-0004"]`}))
+	if got, want := line(), "T-0003 G-001 zz-test task: deps: T-0004 failed"; got != want {
+		t.Fatalf("failed: %q, want %q", got, want)
+	}
+}
+
 func TestTaskPromptNoForeignWaitLoop(t *testing.T) {
 	for _, p := range []string{"assets/task.md", "../../../roles/hivemill/task.md"} {
 		b, err := os.ReadFile(p)
