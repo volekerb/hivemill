@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Removed
+
+- The release check no longer runs `cursor-runtime`, so it stops needing the old chain's `scout/` files and cursor adapter (T-1908).
+
 ### Fixed
 
 - **`factory schedule` works on a box running the Python defaults.** The tick built `factory-go` and the guard binary only when `cli_impl`, `tick_impl` or `guard_impl` asked for Go, so `factory schedule add` failed with "needs the Go CLI binary". Both binaries are now built on every tick when a `go/` tree and a Go toolchain exist. Dispatch is unchanged: no command routes to Go unless its impl flag says so (T-1804).

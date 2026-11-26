@@ -151,7 +151,6 @@ func (f *fake) run(argv []string, cwd string, env []string, timeout time.Duratio
 		write(f.t, filepath.Join(src, "VERSION"), version+"\n")
 		write(f.t, filepath.Join(src, "ci", "release-notes", version+".md"), f.notes)
 		write(f.t, filepath.Join(src, "CHANGELOG.md"), "## ["+version+"] - x\n")
-		write(f.t, filepath.Join(src, "scout", "agent_runtime.py"), "")
 		return 0, "", ""
 	case strings.Contains(key, "rev-parse --verify"):
 		return 0, sha + "\n", ""
@@ -192,7 +191,7 @@ func TestAllGreenPrintsOwnerCommands(t *testing.T) {
 	if rc != 0 {
 		t.Fatalf("rc %d\n%s\n%s", rc, out, errText)
 	}
-	for _, name := range []string{"on-main", "version", "ci-green", "notes", "fresh-install-smoke", "public-text", "tag-free", "cursor-runtime"} {
+	for _, name := range []string{"on-main", "version", "ci-green", "notes", "fresh-install-smoke", "public-text", "tag-free"} {
 		if !strings.Contains(out, "PASS "+name+": ") {
 			t.Errorf("no PASS for %s:\n%s", name, out)
 		}
@@ -210,6 +209,35 @@ func TestAllGreenPrintsOwnerCommands(t *testing.T) {
 	}
 }
 
+// The checkout is a real clone of a tree with no scout/ dir; the other processes stay fake.
+func TestPassesOnATreeWithoutScout(t *testing.T) {
+	root := pyRepo(t, "bin/factory", "ci/demo_seed.py")
+	write(t, filepath.Join(root, "CHANGELOG.md"), "## ["+version+"] - x\n")
+	write(t, filepath.Join(root, "ci", "release-notes", version+".md"), goodNotes)
+	for _, args := range [][]string{{"add", "-A"},
+		{"-c", "user.name=T", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "notes"},
+		{"update-ref", "refs/remotes/origin/main", "HEAD"}} {
+		gitOut(t, root, args...)
+	}
+	if _, err := os.Stat(filepath.Join(root, "scout")); !os.IsNotExist(err) {
+		t.Fatalf("the tree must have no scout/ dir: %v", err)
+	}
+	f := newFake(t)
+	run := func(argv []string, cwd string, env []string, timeout time.Duration) (int, string, string) {
+		if argv[0] == "git" && !strings.Contains(strings.Join(argv, " "), "remote") {
+			return RunCmd(argv, cwd, gitEnv(), timeout)
+		}
+		return f.run(argv, cwd, env, timeout)
+	}
+	probe := func(argv []string, env []string, port int) (bool, string) { return true, "HTTP 200 on /" }
+	var o, e bytes.Buffer
+	head := strings.TrimSpace(gitOut(t, root, "rev-parse", "HEAD"))
+	rc := Exec([]string{head, "--version", version, "--repo", root}, run, probe, []string{"HOME=/h"}, &o, &e)
+	if rc != 0 || strings.Contains(o.String(), "FAIL") {
+		t.Fatalf("rc %d\n%s\n%s", rc, o.String(), e.String())
+	}
+}
+
 func TestEachCheckCanFail(t *testing.T) {
 	cases := map[string]struct {
 		key  string
@@ -221,7 +249,6 @@ func TestEachCheckCanFail(t *testing.T) {
 		"tag-free": {"ls-remote", func() (int, string, string) { return 0, "abc\trefs/tags/v0.6.0\n", "" }, "FAIL tag-free: tag v0.6.0 already exists on origin"},
 		"smoke":    {"--version", func() (int, string, string) { return 0, "hivemill 0.5.0\n", "" }, "FAIL fresh-install-smoke: "},
 		"public":   {"public_text_guard.py", func() (int, string, string) { return 2, "", "no terms" }, "FAIL public-text: public_text_guard.py exit 2 (owner terms not loaded"},
-		"cursor":   {"from scout.agent_runtime", func() (int, string, string) { return 1, "", "boom\n" }, "FAIL cursor-runtime: runtime resolve check failed: boom"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
