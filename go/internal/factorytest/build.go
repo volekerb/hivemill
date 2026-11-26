@@ -146,10 +146,13 @@ func doBuild() (builtTools, error) {
 		}
 		// first build wins (atomic): replacing a racing test binary's file would change the inode its Envs hard-link
 		err := os.Link(tmp, b.out)
-		os.Remove(tmp)
-		if err != nil && !errors.Is(err, fs.ErrExist) {
-			return builtTools{}, err
+		if err != nil && !errors.Is(err, fs.ErrExist) { // no hard links on this filesystem
+			err = os.Rename(tmp, b.out)
+			if err != nil {
+				return builtTools{}, err
+			}
 		}
+		os.Remove(tmp) // already gone after the rename fallback
 		buildCount++
 		logBuild(dir, b.pkg)
 	}
