@@ -164,7 +164,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			// signal would be inherited by every git, gh and gate command. The pass ends itself at the limit, so a hung
 			// one that no daemon watches releases its lock.
 			signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
-			defer time.AfterFunc(r.StablePassLimit(), func() { os.Exit(1) }).Stop()
+			defer time.AfterFunc(r.StablePassLimit(arg(2)), func() { os.Exit(1) }).Stop()
 			if err = r.PassProject(arg(2), len(args) == 3); errors.Is(err, hm.ErrPassSkipped) {
 				return hm.ExitPassSkipped
 			}

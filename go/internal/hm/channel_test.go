@@ -96,6 +96,16 @@ func TestStableChannelUsesStableBinary(t *testing.T) {
 	if got := s.Meta("stable_fail:www"); got != "3" || !strings.Contains(out.String(), "stable pass failed") {
 		t.Errorf("failed stable passes: %q, %s", got, out.String())
 	}
+	// the limit of a stable pass follows the project's own gate timeout
+	_, _ = s.db.Exec(`ALTER TABLE projects ADD COLUMN gate_cmd TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE projects ADD COLUMN gate_timeout_s INTEGER NOT NULL DEFAULT 3600`)
+	before := r.StablePassLimit("www")
+	if _, err := s.db.Exec(`UPDATE projects SET gate_timeout_s=7200 WHERE id='www'`); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.StablePassLimit("www"); got <= before || got < 2*time.Hour {
+		t.Errorf("pass limit %s, was %s", got, before)
+	}
 	// back to edge: the count starts anew
 	_ = s.SetCfg("project.www.channel", ChannelEdge)
 	if err := r.Pass(false); err != nil {

@@ -162,7 +162,7 @@ func (r *Runner) stablePasses(startNew bool) {
 		// the child is not the daemon: it must not ping the daemon's watchdog socket
 		env := append(slices.DeleteFunc(os.Environ(), func(v string) bool { return strings.HasPrefix(v, "NOTIFY_SOCKET=") }),
 			"FACTORY_HOME="+r.Env.Home)
-		limit := r.StablePassLimit()
+		limit := r.StablePassLimit(id)
 		r.stableWG.Add(1)
 		go func() {
 			defer r.stableWG.Done()
@@ -176,9 +176,14 @@ func (r *Runner) stablePasses(startNew bool) {
 	}
 }
 
-// StablePassLimit bounds one project pass of the stable binary: a full gate for every run slot, plus stableMargin.
-func (r *Runner) StablePassLimit() time.Duration {
-	return time.Duration(cfgInt(r.Store, "gate_timeout_s")*max(1, cfgInt(r.Store, "max_concurrent")))*time.Second + stableMargin
+// StablePassLimit bounds one project pass of the stable binary: a full project gate (the project's gate_timeout_s) for
+// every run slot, plus stableMargin.
+func (r *Runner) StablePassLimit(project string) time.Duration {
+	_, gate := r.projectGate(project)
+	if gate <= 0 {
+		gate = time.Hour
+	}
+	return gate*time.Duration(max(1, cfgInt(r.Store, "max_concurrent"))) + stableMargin
 }
 
 // clearStableFail forgets the failed stable passes of a project and closes their alert.
