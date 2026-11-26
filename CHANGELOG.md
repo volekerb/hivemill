@@ -11,6 +11,14 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).
+
+- **Warm standby.** `docs/standby.md` is the failover runbook; `hivemill standby check --from HOST` restores the primary's newest snapshot into a temporary home (the daemon runs it monthly when `standby_from` is set), and a `daemon.lock` stops a second writer on another machine unless `hivemill daemon --take-over` is given (T-2086).
+
+- **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
+
+- **A red CI resumes the task session with the failed logs.** The runner names each failed job and sends the last 80 lines of its failed log (read through `ghx`); a session whose pane has closed is relaunched by its session id. A startup failure counts as red. (T-2001)
+
 - **The runner reports todo tasks that cannot start.** `hivemill task list --startable` and `--blocked` (with the reason: lint, deps or a run) show what a pass starts and skips. A todo task failing the spec gate logs one `task.unstartable` event and gives the planner one wake reason; when a run slot is free and nothing is startable, the wake says how many tasks deps and lint block. The idle alert counts startable tasks (T-2048).
 
 - **A task session that stops on a worker-guard block fails at once.** The Stop hook fails the run with `guard block: ` and the guard message instead of leaving it idle until it fails as stalled (T-2012).
@@ -60,6 +68,8 @@ v0.1.0 summarises the changes merged during private development.
 ### Changed
 
 - **The hivemill runner waits for CI itself after the gate.** It reads a gated run's PR every `ci_poll_s` (60), starts the judge once the checks are green with the required ones present (without a required list: still green one poll later), and alerts the owner once after `ci_timeout_s` (2700) while the run stays (T-2000).
+
+- **The tests workflow uses the Go `ci-shard` and `ci-test-count-gate`.** `tests.yml` builds `go/cmd/ci-shard` and `go/cmd/ci-test-count-gate` once per job and runs them for shard `run` and `verify` and the test-count `count` (with `--python-only`, so the gate compares the same numbers) and `check`, instead of `ci/shard.py` and `ci/test_count_gate.py`, which stay for now. Until `ci-shard` ports the `SHARD_DEEP`/`SHARD_BASE` scoping and parallel module runs, every shard runs all its modules one at a time (T-1927).
 
 - **The release workflow uses the Go `ci-changelog`.** `release.yml` builds `go/cmd/ci-changelog` once and runs it for `--check-version`, `--release-notes` and `--prerelease` instead of `ci/changelog.py`, which stays for now (T-1948).
 

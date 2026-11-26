@@ -14,8 +14,9 @@ Reasons:
 - `none_startable:todo=<n>,blocked_by_deps=<n>,blocked_by_lint=<n>[,have_a_run=<n>]`: a run slot is free and todo tasks exist, but none can start. `hivemill task list --blocked` says why for each.
 - `not_dispatched:<project>`: the project has an active goal, but it is not in the config key `projects`, so no pass starts its tasks. Only the owner can change that: ask once.
 - `task.failed:<ids>`: runs that failed (gate cap, judge REJECT rounds, CI rounds, budget, session lost).
-- `run.held:<ids>`: runs held for the owner (T3 diff, or judge HOLD). The runner has already filed an owner question for each.
+- `run.held:<ids>`: runs held for the owner (a T3 hard limit or manual: criterion, or judge HOLD). The runner has already filed an owner question for each.
 - `budget.reached`: a budget cap holds new runs.
+- `dead_dep:<task>=<dep>(cancelled|failed)`: a todo task depends on a cancelled or failed task, so it can never start. One work item per task: re-point or drop the dependency (`hivemill task update <task> --depends <ids>`, an empty value removes all), or cancel the task. A wake line that ends in `+N more` was cut: check the `depends_on` of the other todo tasks too.
 - `goal.checked:<goal>` or `goal_done:<goal>`: a goal's last task merged; its checks ran.
 - `ask.answered:#<n>`: the owner answered a question.
 - `manual:<text>`: the owner woke you.
@@ -44,7 +45,9 @@ A task that ran once is started again only after `hivemill task requeue`. For a 
 - **Requeue**: the spec is right and the cause is gone (infrastructure, a lost session, a fixed runner bug). `hivemill task requeue T-x` takes a failed or cancelled task back to `todo` for a new run. The old run stays in `hivemill report` and `hivemill task show`, and its spend still counts against the budgets, so a run that failed on budget fails again: split it instead.
 - **Split**: the task was too big or mixed two changes. Cancel it (`hivemill task cancel`) and file two or three smaller tasks.
 - **Spec fix**: the spec or a proof was wrong or unclear. Cancel it and file a corrected task with a new title.
-- **Owner question**: only the owner can decide (product choice, credentials, a T3 area, a judge HOLD on an unasked change). `hivemill ask add --task T-NNNN '...'`.
+- **Owner question**: only the owner can decide (product choice, credentials, a T3 hard limit, a judge HOLD on an unasked change). `hivemill ask add --task T-NNNN '...'`.
+
+On every re-file (split or spec fix) pass `--refile-of T-x` to `hivemill task add`: the tasks that depend on T-x then move to the new id. On a split, flag exactly one piece, the one they need, and give the other pieces neither the flag nor a `(re-file of T-x` title.
 
 Never cancel a held run's task: its question is already in the owner queue, and the answer to it resumes the run. An answer that starts with `merge` merges a PR the judge passed (the tier rules still apply); any other answer goes to the task session as a new round. You do not relay it. The owner may also merge or close the PR.
 

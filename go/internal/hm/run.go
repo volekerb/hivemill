@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -23,7 +24,7 @@ const (
 	Failed    = "failed"
 	Reverted  = "reverted"
 	Cancelled = "cancelled"
-	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, counts against max_waiting
+	Held      = "held" // the owner decides (a hard limit, judge HOLD, a tier the runner does not merge); not a failure, counts against max_waiting
 )
 
 // Active reports whether a run is unfinished and each pass advances it; busy and waiting say which cap it counts against.
@@ -52,6 +53,9 @@ type Runner struct {
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
+	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
+	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
+	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
 	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 
@@ -362,21 +366,8 @@ func (r *Runner) Requeue(id string) error {
 	return nil
 }
 
-// launchTask starts the task session of a run, closing one of the same name first.
-func (r *Runner) launchTask(run *Run, kickoff string) error {
-	if list, ok := Terminals(r.Tools); ok && alive(list, true, run.Agent) {
-		r.Close(run.Agent) // a session left open by an earlier FAIL; its transcript stays resumable by session id
-	}
-	if _, err := r.StartSession(run, r.taskLaunch(run, kickoff)); err != nil {
-		r.fail(run, "the session did not start: "+err.Error())
-		_ = r.Store.PutRun(run)
-		return err
-	}
-	return nil
-}
-
-// taskLaunch is the task session of a run in its clone, with the noreply identity and the scrub terms.
-func (r *Runner) taskLaunch(run *Run, kickoff string) Launch {
+// taskEnv is the environment of a task session, started or relaunched: the noreply identity and the scrub terms.
+func (r *Runner) taskEnv() map[string]string {
 	env := map[string]string{}
 	if email := r.Store.FactoryCfg("noreply_email"); email != "" {
 		env["GIT_AUTHOR_EMAIL"], env["GIT_COMMITTER_EMAIL"] = email, email
@@ -385,8 +376,24 @@ func (r *Runner) taskLaunch(run *Run, kickoff string) Launch {
 	if terms := r.Store.FactoryCfg("scrub_terms_file"); terms != "" {
 		env["SCRUB_TERMS_FILE"] = terms
 	}
-	return Launch{Role: "task", Name: run.Agent, Cwd: run.Worktree, Model: run.Model, Effort: run.Effort,
-		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: kickoff, Env: env, Machine: run.Machine}
+	return env
+}
+
+// launchTask starts the task session of a run in its clone, with the noreply identity and the scrub terms.
+func (r *Runner) launchTask(run *Run, kickoff string) error {
+	name, wt, model, effort := run.Agent, run.Worktree, run.Model, run.Effort
+	env := r.taskEnv()
+	if list, ok := Terminals(r.Tools); ok && alive(list, true, name) {
+		r.Close(name) // a session left open by an earlier FAIL; its transcript stays resumable by session id
+	}
+	_, err := r.StartSession(run, Launch{Role: "task", Name: name, Cwd: wt, Model: model, Effort: effort,
+		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task.md"), Kickoff: kickoff, Env: env, Machine: run.Machine})
+	if err != nil {
+		r.fail(run, "the session did not start: "+err.Error())
+		_ = r.Store.PutRun(run)
+		return err
+	}
+	return nil
 }
 
 // kickoffEnd is the last line of a kickoff; without PR checks there is no green CI to stop on.
@@ -500,13 +507,15 @@ func (r *Runner) fail(run *Run, reason string) {
 		return
 	}
 	_ = r.Store.PutRun(run) // before the close: an unsaved state would be resumed by the next pass
+	r.repointRefiles()      // after the save: it reads the run state
 	r.closeSessions(run)
 }
 
-// resume sends text to the task session and starts a new round; a session that is gone is started again, resumed.
+// resume sends text to the same task session and starts a new round. A session whose pane has closed (a held run closes
+// it) is relaunched by its session id with text as its first message.
 func (r *Runner) resume(run *Run, text string) { r.resumeAs(run, "resume", text) }
 
-// resumeAs is resume with the kind the prompt is recorded under.
+// resumeAs is resume with the kind a prompt to the warm session is recorded under (a relaunch records its own).
 func (r *Runner) resumeAs(run *Run, kind, text string) {
 	if err := r.remakeWorktree(run); err != nil {
 		r.fail(run, "cannot make the worktree again: "+err.Error())
@@ -524,10 +533,21 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	}
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
+	run.LongPct, run.LongResumed, run.LongSendFailed = 0, "", ""
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
-	if err := r.deliver(run, kind, text); err != nil {
+	send := r.Prompt
+	list, listed := Terminals(r.Tools)
+	relaunch := listed && !alive(list, true, run.Agent) && !(run.Machine != "" && machineDown(r.Tools, run.Machine)) &&
+		r.sessionID(run.Task, run.Agent) != ""
+	if relaunch {
+		send = func(name, text string) error { return r.resumeSession(run, name, text) }
+	}
+	if err := send(run.Agent, text); err != nil {
 		r.fail(run, "cannot reach the task session: "+err.Error())
 		return
+	}
+	if !relaunch {
+		r.recordPrompt(run, "task", kind, text)
 	}
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-resume", truncate(text, 300))
 }
@@ -549,33 +569,6 @@ func (r *Runner) remakeWorktree(run *Run) error {
 	return nil
 }
 
-// deliver sends text to the warm task session. One that is gone (a held run closes it) is resumed by its recorded
-// session id with text as the first message.
-func (r *Runner) deliver(run *Run, kind, text string) error {
-	list, ok := Terminals(r.Tools)
-	if ok && !alive(list, true, run.Agent) && !(run.Machine != "" && machineDown(r.Tools, run.Machine)) {
-		l := r.taskLaunch(run, text)
-		sess, _ := r.Store.Sessions(run.Task)
-		for _, s := range sess {
-			if s.Role == "task" && s.Agent == run.Agent {
-				l.Resume = s.SID
-				if s.Model != "" {
-					l.Model, l.Effort = s.Model, s.Effort
-				}
-			}
-		}
-		if l.Resume != "" {
-			_, err := r.StartSession(run, l) // records the prompt itself
-			return err
-		}
-	}
-	if err := r.Prompt(run.Agent, text); err != nil {
-		return err
-	}
-	r.recordPrompt(run, "task", kind, text)
-	return nil
-}
-
 func truncate(s string, n int) string {
 	if len(s) > n {
 		return s[:n]
@@ -583,7 +576,7 @@ func truncate(s string, n int) string {
 	return s
 }
 
-// Pass advances every active run once (at most one gh read per run), checks for a revert, then starts ready tasks.
+// Pass advances every active run once (one gh read per run; a red CI also reads the failed logs), checks for a revert, then starts ready tasks.
 func (r *Runner) Pass(startNew bool) error {
 	// the daemon reuses the Runner: each pass, a skipped one too, reads the machines again
 	r.usageFiles, r.usageRead = nil, false
@@ -626,6 +619,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.RevertCheck(); err != nil {
 		r.printf("revert check: %v\n", err)
 	}
+	r.repointRefiles() // a cancel by another tool, or a new dependency on an old id
 	if err := r.reportUnstartable(); err != nil {
 		r.printf("unstartable tasks: %v\n", err)
 	}
@@ -685,7 +679,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	}
 	switch run.State {
 	case Working:
-		r.idleWatch(run, list)
+		if !listed || !r.workingLimit(run, time.Now()) { // sessions that cannot be listed are never failed on time
+			r.idleWatch(run, list)
+		}
 	case Gated:
 		r.gated(run)
 	case Judging:
@@ -733,7 +729,8 @@ func (r *Runner) gated(run *Run) {
 		run.Head, run.MergeHold = pr.HeadRefOid, ""
 		r.ciPolled(run, now)
 		var verdict string
-		var failed []string
+		var failed []string       // ci_gate none: what failed in gate_cmd
+		var rows []map[string]any // PR checks: the failed rows, for their logs
 		none, err := r.ciMode(run.Project)
 		if err != nil {
 			run.MergeHold = err.Error()
@@ -749,7 +746,7 @@ func (r *Runner) gated(run *Run) {
 			r.postLocalCI(run)
 			verdict, failed = run.LocalCI.verdict(pr.HeadRefOid)
 		} else {
-			verdict, failed = CIVerdict(pr.Checks)
+			verdict, rows = ciRows(pr.Checks)
 			switch {
 			case verdict != "green":
 				run.CI.Green = 0
@@ -762,7 +759,16 @@ func (r *Runner) gated(run *Run) {
 		}
 		switch verdict {
 		case "red":
-			r.redCI(run, failed)
+			if run.Machine != "" && machineDown(r.Tools, run.Machine) {
+				run.MergeHold = "CI is red; waiting for machine " + run.Machine + " to resume the session"
+				r.ciOverdue(run, now)
+				return
+			}
+			if none {
+				r.redCI(run, failed)
+			} else {
+				r.ciRed(run, rows)
+			}
 		case "green":
 			if err := r.StartJudge(run); err != nil {
 				r.fail(run, "the judge did not start: "+err.Error())

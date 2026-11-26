@@ -31,6 +31,7 @@ var Defaults = map[string]string{
 	"ci_poll_s":        "60",   // a gated run reads its PR at most this often (and once per pass)
 	"ci_timeout_s":     "2700", // checks still pending after this: one owner alert, the run stays
 	"auto_revert":      "off",  // on: a runner merge that turns main red is reverted through a PR
+	"t3_auto_merge":    "on",   // a T3 PR with a judge MERGE merges unless a hard limit holds it (merguard.go); off = held
 	// dispatch caps: active runs may finish; only new runs wait
 	"max_five_hour_pct":        "92",   // plan 5-hour usage at or over this (fresh reading) holds new runs
 	"max_seven_day_pct":        "95",   // plan 7-day usage at or over this holds new runs
@@ -42,12 +43,15 @@ var Defaults = map[string]string{
 	"weekly_budget_usd":        "off",  // all runs, sessions started in the last 7 days; reached = no new run
 	"pass_interval_s":          "60",   // `hivemill daemon`: seconds between passes
 	"resume_max":               "3",    // lost sessions relaunched with claude --resume per run, then FAIL "session lost"
+	"run_max_working_min":      "180",  // minutes in working per round; then one resume, FAIL "timed out" 30 later; 0 or off = no limit
 	"health_max_age_s":         "300",  // `hivemill health` fails when the last good pass is older
 	"alert_every_s":            "3600", // at most one dead-man alert per this many seconds
 	"backup_interval":          "off",  // daemon snapshot schedule as a Go duration (6h, 30m); off = only `hivemill backup`
 	"backup_keep":              "7",    // snapshots kept (in backup_dir and in a file:// target)
 	"backup_dir":               "",     // empty = state/hivemill/backups
 	"backup_target":            "",     // file:///path (copy) | s3://bucket/path | sftp://host/path (litestream when installed)
+	"standby_from":             "",     // on the standby: HOST or HOST:DIR of the primary's snapshots (docs/standby.md); empty = no check
+	"standby_check_days":       "30",   // daemon `standby check` of standby_from every this many days; 0 = off
 	"alert_cmd":                "",     // owner alerts: run as sh -c "$alert_cmd" hivemill-alert TITLE TEXT; empty = log, plus a notification on macOS
 	// planner (planner.go): one long-lived session that keeps the ready queues full and turns failures into a next step
 	"planner_queue_min":  "3",               // lint-passing ready tasks wanted per project with an active goal

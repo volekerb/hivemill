@@ -283,6 +283,10 @@ func DecideWake(in WakeInput) WakeDecision {
 		d.Advance, d.Why = true, "nothing changed"
 		return d
 	}
+	// dead_dep items go last: there can be many, and WakeMessage cuts the end of a long list
+	sort.SliceStable(levels, func(i, j int) bool {
+		return !strings.HasPrefix(levels[i], "dead_dep:") && strings.HasPrefix(levels[j], "dead_dep:")
+	})
 	d.Reasons = Coalesce(in.Events, levels)
 	if !in.Force {
 		if !in.LastWake.IsZero() && in.Now.Sub(in.LastWake) < in.MinGap {
@@ -444,8 +448,9 @@ func fileSize(p string) int64 {
 }
 
 // PlannerLevels are the level reasons: projects with an active goal whose startable tasks are below planner_queue_min,
-// projects with an active goal that a pass never dispatches (not in config projects), active goals whose tasks are all
-// done, one unstartable item per todo task that fails the spec gate, and none_startable when the queue is starved.
+// projects with an active goal that a pass never dispatches (not in config projects), todo tasks of active goals that
+// depend on a cancelled or failed task (deadDepLevel), active goals whose tasks are all done, one unstartable item per
+// todo task that fails the spec gate, and none_startable when the queue is starved.
 func (r *Runner) PlannerLevels() ([]string, error) {
 	s, err := r.sq()
 	if err != nil {
@@ -495,6 +500,9 @@ func (r *Runner) PlannerLevels() ([]string, error) {
 		}
 		open, done := 0, 0
 		for _, t := range ts {
+			if l := r.deadDepLevel(t); l != "" {
+				out = append(out, l)
+			}
 			switch t.Status {
 			case "done":
 				done++
@@ -525,19 +533,24 @@ func (r *Runner) syncHeldAsks() {
 		if !heldForOwner(x) || x.Eval {
 			continue
 		}
-		ref := fmt.Sprintf("held:%s:%d", x.Task, x.Round)
-		held[ref] = true
-		q := fmt.Sprintf("%s is held for you: %s. PR %s. Merge it by hand, close it, or answer with what to change.", x.Task,
-			truncate(or(x.MergeHold, x.FailReason), 300), or(x.PRURL, "-"))
-		if id, created, err := s.AddAsk(Ask{Ref: ref, Project: x.Project, Goal: x.Goal, Task: x.Task, Question: q, AskedBy: "runner"}); err == nil && created {
-			_ = r.Log.Emit("ask.added", nil, Event{Project: x.Project, Data: map[string]any{"id": id, "by": "runner", "task": x.Task}})
-		}
+		held[heldRef(x)] = true
+		r.fileHeldAsk(s, x, truncate(or(x.MergeHold, x.FailReason), 300))
 	}
 	open, _ := s.Asks("open")
 	for _, a := range open {
 		if strings.HasPrefix(a.Ref, "held:") && !held[a.Ref] {
 			_ = s.CloseAsk(a.ID, "withdrawn", "the run is no longer held", "runner")
 		}
+	}
+}
+
+func heldRef(x *Run) string { return fmt.Sprintf("held:%s:%d", x.Task, x.Round) }
+
+// fileHeldAsk files the one owner question of a held round; a second call for the round adds nothing.
+func (r *Runner) fileHeldAsk(s *SQLite, x *Run, why string) {
+	q := fmt.Sprintf("%s is held for you: %s. PR %s. Merge it by hand, close it, or answer with what to change.", x.Task, why, or(x.PRURL, "-"))
+	if id, created, err := s.AddAsk(Ask{Ref: heldRef(x), Project: x.Project, Goal: x.Goal, Task: x.Task, Question: q, AskedBy: "runner"}); err == nil && created {
+		_ = r.Log.Emit("ask.added", nil, Event{Project: x.Project, Data: map[string]any{"id": id, "by": "runner", "task": x.Task}})
 	}
 }
 

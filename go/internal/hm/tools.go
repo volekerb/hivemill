@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
+	"factory/go/internal/ghx"
 	"factory/go/internal/gitx"
 )
 
@@ -28,7 +30,15 @@ func RealTools(e Env) Tools {
 	return Tools{
 		Git: func(repo string, args ...string) (int, string, string) { return gitx.RC(repo, o, args...) },
 		GH: func(input string, args ...string) (int, string, string) {
-			return run(120*time.Second, "", input, nil, append([]string{"gh"}, args...)...)
+			res, err := ghx.Run(nil, input, 120*time.Second, args...)
+			var timeout *gitx.TimeoutError
+			switch {
+			case errors.As(err, &timeout):
+				return 124, res.Stdout, res.Stderr + "\ntimed out after 2m0s"
+			case err != nil && !errors.Is(err, exec.ErrWaitDelay): // ErrWaitDelay: gh exited 0, a child kept a pipe open
+				return 127, res.Stdout, err.Error()
+			}
+			return res.ExitCode, res.Stdout, res.Stderr
 		},
 		HC: func(args ...string) (int, string, string) {
 			return run(90*time.Second, "", "", nil, append([]string{"hc"}, args...)...)
@@ -119,6 +129,56 @@ func PRView(t Tools, url string) (*PR, error) {
 // CIVerdict is ci_verdict(): green = at least one check and all completed successful (success, neutral, skipped);
 // red = all completed and some failed; pending otherwise. Only the newest run of each check counts.
 func CIVerdict(checks []map[string]any) (string, []string) {
+	verdict, rows := ciRows(checks)
+	var failed []string
+	for _, c := range rows {
+		failed = append(failed, checkName(c))
+	}
+	return verdict, failed
+}
+
+// checkName is the name of a rollup row (a commit status has only a context).
+func checkName(c map[string]any) string {
+	if name, _ := c["name"].(string); name != "" {
+		return name
+	}
+	name, _ := c["context"].(string)
+	return name
+}
+
+// ciCancelledRuns lists the Actions run ids of the newest check rows (per workflow and name) that ended CANCELLED.
+func ciCancelledRuns(checks []map[string]any) []string {
+	newest := map[string]map[string]any{}
+	for _, c := range checks {
+		wf, _ := c["workflowName"].(string)
+		n, _ := c["name"].(string)
+		k := wf + "\x00" + n
+		at, _ := c["startedAt"].(string)
+		if old, ok := newest[k]; ok {
+			if oat, _ := old["startedAt"].(string); at < oat {
+				continue
+			}
+		}
+		newest[k] = c
+	}
+	seen := map[string]bool{}
+	var ids []string
+	for _, c := range newest {
+		if concl, _ := c["conclusion"].(string); !strings.EqualFold(concl, "CANCELLED") {
+			continue
+		}
+		link, _ := c["detailsUrl"].(string)
+		if m := actionsLinkRe.FindStringSubmatch(link); m != nil && !seen[m[1]] {
+			seen[m[1]] = true
+			ids = append(ids, m[1])
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// ciRows is CIVerdict with the failed rows themselves.
+func ciRows(checks []map[string]any) (string, []map[string]any) {
 	type key struct{ wf, name string }
 	latest := map[key]map[string]any{}
 	order := []key{}
@@ -146,18 +206,14 @@ func CIVerdict(checks []map[string]any) (string, []string) {
 	if len(order) == 0 {
 		return "pending", nil
 	}
-	var failed []string
+	var failed []map[string]any
 	done := true
 	for _, k := range order {
 		c := latest[k]
-		name := str(c, "name")
-		if name == "" {
-			name = str(c, "context")
-		}
 		if k.wf == "ctx" {
 			switch strings.ToUpper(str(c, "state")) {
 			case "FAILURE", "ERROR":
-				failed = append(failed, name)
+				failed = append(failed, c)
 			case "SUCCESS":
 			default:
 				done = false
@@ -165,11 +221,14 @@ func CIVerdict(checks []map[string]any) (string, []string) {
 			continue
 		}
 		concl := strings.ToUpper(strings.TrimSpace(str(c, "conclusion")))
-		finished := strings.ToUpper(str(c, "status")) == "COMPLETED" || (concl != "" && strings.TrimSpace(str(c, "completedAt")) != "")
-		if !finished {
+		finished := strings.ToUpper(str(c, "status")) == "COMPLETED" || (concl != "" && strings.TrimSpace(str(c, "completedAt")) != "") ||
+			concl == "STARTUP_FAILURE" // such a check never ran: it may carry neither a status nor a time
+		if !finished || concl == "CANCELLED" {
+			// cancelled is not a failure: GitHub cancels a run that a newer one superseded or that sat in a full queue.
+			// It is pending (never green) until a re-run finishes; Merge re-runs it (rerunCancelled).
 			done = false
 		} else if concl != "SUCCESS" && concl != "NEUTRAL" && concl != "SKIPPED" {
-			failed = append(failed, name)
+			failed = append(failed, c)
 		}
 	}
 	if !done {
@@ -198,7 +257,21 @@ func Terminals(t Tools) ([]Terminal, bool) {
 	if json.Unmarshal([]byte(out), &doc) != nil {
 		return nil, false
 	}
-	return doc.Terminals, true
+	return ownTerminals(doc.Terminals), true
+}
+
+// ownTerminals drops the terminals other machines' cores started (address "machine/t1"). This core's own terminals
+// have a bare address (t1) or, when it started them on another machine, "machine~t1". Without the filter, a runner
+// whose hc also lists another runner's machine took that runner's planner for its own (2026-11-26: a second
+// runner saw the first runner's "planner" and never started its own).
+func ownTerminals(list []Terminal) []Terminal {
+	out := list[:0:0]
+	for _, t := range list {
+		if !strings.Contains(t.Address, "/") {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func alive(list []Terminal, ok bool, name string) bool {

@@ -31,6 +31,10 @@ type FlowTask struct {
 	AgeSec  int64            `json:"age_sec,omitempty"` // seconds in the current stage
 	Seconds map[string]int64 `json:"seconds"`           // stage -> seconds (the current stage counts up to now)
 	Total   int64            `json:"total_sec"`
+	// from the last run.long_working of the working spell the run is still in (worktime.go)
+	LongPct    int   `json:"long_pct,omitempty"`    // 50 or 100: the part of the limit it passed
+	WorkingSec int64 `json:"working_sec,omitempty"` // seconds in working, up to now
+	LimitSec   int64 `json:"limit_sec,omitempty"`   // run_max_working_min
 }
 
 // flowOf walks the task's events once. dispatched: the agent builds; gate: it fixes what the gate blocked; ci: gate
@@ -48,6 +52,9 @@ func flowOf(t *ObsTask, now time.Time) FlowTask {
 			f.Seconds[stage] += int64(ts.Sub(at).Seconds())
 		}
 		stage, at = to, ts
+		if e.Event != "gate.blocked" { // a blocked gate leaves the run in working; every other move ends that spell
+			f.LongPct, f.WorkingSec, f.LimitSec = 0, 0, 0
+		}
 	}
 	for _, e := range evs {
 		switch e.Event {
@@ -69,13 +76,18 @@ func flowOf(t *ObsTask, now time.Time) FlowTask {
 			}
 		case "run.held":
 			move(e, "held")
+		case "run.long_working":
+			f.LongPct, f.LimitSec = num(e.Data["pct"]), int64(num(e.Data["limit"]))*60
+			f.WorkingSec = int64(num(e.Data["minutes"]))*60 + max(0, int64(now.Sub(evTime(e)).Seconds()))
 		default:
 			if terminalEvents[e.Event] {
 				move(e, "")
 			}
 		}
 	}
-	if stage != "" && t.Terminal == "" {
+	if stage == "" || t.Terminal != "" {
+		f.LongPct, f.WorkingSec, f.LimitSec = 0, 0, 0
+	} else {
 		f.Stage, f.Since = stage, at.UTC().Format(time.RFC3339)
 		if now.After(at) {
 			f.AgeSec = int64(now.Sub(at).Seconds())
@@ -100,6 +112,7 @@ type FlowPage struct {
 	Stages      []string   `json:"stages"`
 	Tasks       []FlowTask `json:"tasks"`
 	Stuck       []FlowTask `json:"stuck"`
+	Long        []FlowTask `json:"long_working"` // runs past half of run_max_working_min, whatever the range
 	StuckAfter  string     `json:"stuck_after"`
 	MergedByDay []DayCount `json:"merged_per_day"`
 	Merged      int        `json:"merged"`
@@ -155,6 +168,9 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 		if f.Stage != "" && f.Stage != "held" && time.Duration(f.AgeSec)*time.Second > StuckAfter {
 			p.Stuck = append(p.Stuck, f) // stuck now, whatever the range
 		}
+		if f.LongPct > 0 {
+			p.Long = append(p.Long, f)
+		}
 		if parseTS(t.Last).After(wN) {
 			p.Tasks = append(p.Tasks, f)
 			if t.PR != "" {
@@ -167,6 +183,7 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 	}
 	sort.SliceStable(p.Tasks, func(i, j int) bool { return p.Tasks[i].Total > p.Tasks[j].Total })
 	sort.SliceStable(p.Stuck, func(i, j int) bool { return p.Stuck[i].AgeSec > p.Stuck[j].AgeSec })
+	sort.SliceStable(p.Long, func(i, j int) bool { return p.Long[i].WorkingSec > p.Long[j].WorkingSec })
 	var bars []chartBar
 	for _, d := range dayList(o.Now, days) {
 		p.MergedByDay = append(p.MergedByDay, DayCount{d, perDay[d]})
@@ -260,6 +277,21 @@ type SpendPage struct {
 	Daily               []SpendDay    `json:"daily"`
 	Rows                []SpendRow    `json:"rows"`
 	Chart               template.HTML `json:"-"`
+}
+
+// Summary is the chart in one line of text: the highest day, the earliest of equals.
+func (p *SpendPage) Summary() string {
+	var day string
+	var top float64
+	for _, d := range p.Daily {
+		if sum := d.Task + d.Judge + d.Planner; sum > top {
+			day, top = d.Day, sum
+		}
+	}
+	if day == "" {
+		return "No cost in this range."
+	}
+	return fmt.Sprintf("Highest day: %s at $%.2f.", day, top)
 }
 
 // SpendGroups are the groupings of the table.
@@ -603,6 +635,8 @@ func barChart(bars []chartBar, series []string, yLabel string, fmtY func(float64
 	top = niceMax(top)
 	pw, ph := w-ml-mr, h-mt-mb
 	var sb strings.Builder
+	// The box scrolls instead of letting the SVG scale below its viewBox, so chart text stays at 12px.
+	fmt.Fprintf(&sb, `<div class="chartbox" tabindex="0" role="region" aria-label="%s chart">`, template.HTMLEscapeString(yLabel))
 	fmt.Fprintf(&sb, `<svg class="chart" viewBox="0 0 %.0f %.0f" role="img" aria-label="%s">`, w, h, template.HTMLEscapeString(yLabel))
 	// legend
 	for i, s := range series {
@@ -654,9 +688,15 @@ func barChart(bars []chartBar, series []string, yLabel string, fmtY func(float64
 	}
 	fmt.Fprintf(&sb, `<line class="axis" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/><line class="axis" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>`,
 		ml, mt, ml, mt+ph, ml, mt+ph, w-mr, mt+ph)
-	sb.WriteString(`</svg>`)
+	sb.WriteString(`</svg></div>`)
 	return template.HTML(sb.String())
 }
+
+// Top reports whether the page is a top section (now, spend, flow, machines) rather than a drill-down or a not-found page.
+func (p *obsPage) Top() bool { return p.Kind == p.Section }
+
+// Current reports whether the sidebar entry for section s is the page being shown; only top sections have one.
+func (p *obsPage) Current(s string) bool { return p.Top() && p.Section == s }
 
 // dur is a seconds count as "1h 05m", "12m" or "40s".
 func dur(sec int64) string {

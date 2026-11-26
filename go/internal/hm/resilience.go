@@ -2,6 +2,7 @@ package hm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -50,10 +51,13 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 		if run.Resumes >= cfgInt(r.Store, "resume_max") {
 			r.fail(run, fmt.Sprintf("session lost: %s is gone after %d resumes", name, run.Resumes))
 			fixed = append(fixed, "session lost, run failed")
-		} else if err := r.resumeSession(run, name); err != nil {
+		} else if err := r.resumeSession(run, name, ""); err != nil {
 			fixed = append(fixed, "resume of "+name+" failed: "+firstLine(err.Error()))
 		} else {
 			run.Resumes++
+			if name == run.Agent { // the time the session was gone is not its fault: a new message and a new grace
+				run.LongResumed, run.LongSendFailed = "", ""
+			}
 			fixed = append(fixed, "session "+name+" resumed")
 		}
 	}
@@ -65,16 +69,25 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 	return true
 }
 
-// resumeSession relaunches a lost task or judge session in a new hc terminal with the same settings and model.
-func (r *Runner) resumeSession(run *Run, name string) error {
-	sess, _ := r.Store.Sessions(run.Task)
-	sid, model, effort := "", run.Model, run.Effort
+// sessionID is the id of the last session recorded for the agent ("": none).
+func (r *Runner) sessionID(task, name string) (sid string) {
+	sess, _ := r.Store.Sessions(task)
 	for _, s := range sess {
 		if s.Agent == name {
 			sid = s.SID
-			if s.Model != "" {
-				model, effort = s.Model, s.Effort
-			}
+		}
+	}
+	return sid
+}
+
+// resumeSession relaunches a task or judge session in a new hc terminal with the same settings and model. text is its
+// first message; empty says that the session was lost.
+func (r *Runner) resumeSession(run *Run, name, text string) error {
+	sess, _ := r.Store.Sessions(run.Task)
+	sid, model, effort := r.sessionID(run.Task, name), run.Model, run.Effort
+	for _, s := range sess {
+		if s.Agent == name && s.Model != "" {
+			model, effort = s.Model, s.Effort
 		}
 	}
 	if sid == "" {
@@ -86,9 +99,11 @@ func (r *Runner) resumeSession(run *Run, name string) error {
 	if strings.Contains(name, "judge") {
 		role, prompt, machine = "task-judge", "task-judge.md", "" // the judge stays on the local core
 		kick = "The factory restarted your session after it was lost. Finish your verdict with the JSON block."
-	} else if email := r.Store.FactoryCfg("noreply_email"); email != "" {
-		env = map[string]string{"GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_EMAIL": email, "GIT_AUTHOR_NAME": nameOf(email),
-			"GIT_COMMITTER_NAME": nameOf(email)}
+	} else {
+		env = r.taskEnv()
+	}
+	if text != "" {
+		kick = text
 	}
 	_, err := r.StartSession(run, Launch{Role: role, Name: name, Cwd: run.Worktree, Model: model, Effort: effort,
 		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", prompt), Kickoff: kick, Env: env, Resume: sid,
@@ -168,13 +183,23 @@ func sdNotify(state string) {
 }
 
 // Daemon runs the pass loop in-process until ctx ends (SIGTERM): one pass every pass_interval_s, a heartbeat and a
-// watchdog ping after each pass. Only one daemon runs per factory home (its lock).
+// watchdog ping after each pass. Only one daemon runs per factory home: its flock on this machine and its daemon lock
+// (daemonlock.go) across machines.
 func (r *Runner) Daemon(ctx context.Context) error {
 	l := r.lock("daemon", false)
 	if l == nil {
 		return fmt.Errorf("%w: another hivemill daemon holds the lock", ErrRefused)
 	}
 	defer l.Close()
+	host, release, err := r.holdDaemonLock(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	bin, err := os.Executable()
+	if err != nil {
+		bin = "hivemill"
+	}
 	r.inDaemon = true
 	if err := r.WriteGuardExport(time.Now()); err != nil { // at start, even when another process holds the pass lock
 		r.printf("guard export: %v\n", err)
@@ -182,10 +207,20 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
 	sdNotify("READY=1")
 	for {
+		if err := r.refreshDaemonLock(host, time.Now()); errors.Is(err, ErrRefused) { // another host took over
+			sdNotify("STOPPING=1")
+			return err
+		} else if err != nil { // a full disk or a brief I/O error does not stop the runner
+			r.printf("daemon lock: %v\n", err)
+		}
 		if err := r.Pass(true); err != nil {
 			r.printf("pass: %v\n", err)
 		} else {
 			_ = r.Heartbeat(time.Now())
+		}
+		// taken over during the pass: no planner, backup or standby check; the top of the loop ends this daemon
+		if errors.Is(r.refreshDaemonLock(host, time.Now()), ErrRefused) {
+			continue
 		}
 		r.PlannerPass(time.Now()) // held runs to the owner queue; keep the planner alive and wake it on events
 		r.OtelTail(time.Now())    // otel_endpoint set: finished tasks go out as traces (never fails the pass)
@@ -194,6 +229,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 				r.printf("backup: %v\n", err)
 			}
 		}
+		r.StandbyPass(bin, time.Now())
 		sdNotify("WATCHDOG=1")
 		select {
 		case <-ctx.Done():

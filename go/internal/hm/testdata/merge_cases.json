@@ -602,6 +602,105 @@
    },
    "action": "block",
    "why_has": "draft"
+  },
+  {
+   "name": "stale head, clean merge, behind_ok: merge without a refresh",
+   "source": "tests/test_mech_merge.py, tests/test_judge*.py, docs/mech-merge.md, docs/red-main.md (cases restated, not ported)",
+   "input": {
+    "pr_state": "OPEN",
+    "draft": false,
+    "mergeable": "MERGEABLE",
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "lane_verdict": "pass",
+    "ci": "green",
+    "missing_checks": [],
+    "tier": "T2",
+    "behind": true,
+    "merge_clean": true,
+    "frozen": false,
+    "red_main": false,
+    "fix_task": false,
+    "main_run": "green",
+    "identity_ok": true,
+    "public_text_ok": true,
+    "behind_ok": true
+   },
+   "action": "merge",
+   "why_has": "all checks pass"
+  },
+  {
+   "name": "stale head, behind_ok, red CI: resume",
+   "source": "tests/test_mech_merge.py, tests/test_judge*.py, docs/mech-merge.md, docs/red-main.md (cases restated, not ported)",
+   "input": {
+    "pr_state": "OPEN",
+    "draft": false,
+    "mergeable": "MERGEABLE",
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "lane_verdict": "pass",
+    "ci": "red",
+    "missing_checks": [],
+    "tier": "T2",
+    "behind": true,
+    "merge_clean": true,
+    "frozen": false,
+    "red_main": false,
+    "fix_task": false,
+    "main_run": "green",
+    "identity_ok": true,
+    "public_text_ok": true,
+    "behind_ok": true
+   },
+   "action": "resume",
+   "why_has": ""
+  },
+  {
+   "name": "stale head, behind_ok, conflicting: resume",
+   "source": "tests/test_mech_merge.py, tests/test_judge*.py, docs/mech-merge.md, docs/red-main.md (cases restated, not ported)",
+   "input": {
+    "pr_state": "OPEN",
+    "draft": false,
+    "mergeable": "CONFLICTING",
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "lane_verdict": "pass",
+    "ci": "green",
+    "missing_checks": [],
+    "tier": "T2",
+    "behind": true,
+    "merge_clean": true,
+    "frozen": false,
+    "red_main": false,
+    "fix_task": false,
+    "main_run": "green",
+    "identity_ok": true,
+    "public_text_ok": true,
+    "behind_ok": true
+   },
+   "action": "resume",
+   "why_has": "conflicts"
+  },
+  {
+   "name": "stale head, CI still running: hold, refresh only after green",
+   "source": "tests/test_mech_merge.py, tests/test_judge*.py, docs/mech-merge.md, docs/red-main.md (cases restated, not ported)",
+   "input": {
+    "pr_state": "OPEN",
+    "draft": false,
+    "mergeable": "MERGEABLE",
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "lane_verdict": "pass",
+    "ci": "pending",
+    "missing_checks": [],
+    "tier": "T2",
+    "behind": true,
+    "merge_clean": true,
+    "frozen": false,
+    "red_main": false,
+    "fix_task": false,
+    "main_run": "green",
+    "identity_ok": true,
+    "public_text_ok": true
+   },
+   "action": "hold",
+   "why_has": "CI"
   }
  ]
 }
