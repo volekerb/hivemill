@@ -231,12 +231,12 @@ func (r *Runner) Start(id string) error {
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
-		Criteria: len(Criteria(t.Acceptance)), Machine: pl.Machine}
+		Criteria: len(Criteria(t.Acceptance)), Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t)}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
 	}
 	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why,
-		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped}})
+		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
 	if err := r.launchTask(run, Kickoff(run, t)); err != nil {
@@ -281,6 +281,9 @@ func Kickoff(run *Run, t *Task) string {
 		fmt.Fprintf(&b, "%d. %s\n", c.ID, c.Text)
 	}
 	b.WriteString(uiSkillNote(t))
+	if run.WorkflowAgents > 0 {
+		fmt.Fprintf(&b, "\n%s\n", workflowRequest(run.WorkflowAgents))
+	}
 	fmt.Fprintf(&b, "\nBranch %s, base %s. Follow your role steps; stop when the PR is open and CI is green.", run.Branch, run.Base)
 	return b.String()
 }
@@ -631,7 +634,7 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 			idle = t.Status == "idle" || t.Status == "done"
 		}
 	}
-	if !idle {
+	if !idle || r.workflowBusy(run, time.Now().Add(-15*time.Minute)) {
 		run.IdleSince = ""
 		return
 	}

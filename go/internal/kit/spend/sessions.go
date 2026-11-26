@@ -6,8 +6,21 @@ import (
 	"strings"
 )
 
-// SessionCosts is the cost at API prices of each given session id, its subagent transcripts
-// (<project>/<session>/subagents/*.jsonl) included. It reads only those files under root (~/.claude/projects).
+// subagentOf reads a transcript's path under the root (split at "/"): a subagent transcript is
+// <project>/<session>/subagents/*.jsonl, or <project>/<session>/subagents/workflows/<run>/*.jsonl for a Workflow agent.
+func subagentOf(parts []string) (session string, workflow, ok bool) {
+	if len(parts) < 4 || parts[2] != "subagents" {
+		return "", false, false
+	}
+	workflow = len(parts) == 6 && parts[3] == "workflows"
+	if len(parts) != 4 && !workflow {
+		return "", false, false
+	}
+	return parts[1], workflow, true
+}
+
+// SessionCosts is the cost at API prices of each given session id, its subagent and Workflow agent transcripts
+// (see subagentOf) included. It reads only those files under root (~/.claude/projects).
 func SessionCosts(root string, sessions []string) map[string]Bucket {
 	want := map[string]bool{}
 	for _, s := range sessions {
@@ -22,14 +35,18 @@ func SessionCosts(root string, sessions []string) map[string]Bucket {
 		rel, _ := filepath.Rel(root, path)
 		parts := strings.Split(filepath.ToSlash(rel), "/")
 		owner := strings.TrimSuffix(parts[len(parts)-1], ".jsonl")
-		if len(parts) == 4 && parts[2] == "subagents" {
-			owner = parts[1]
+		session, workflow, sub := subagentOf(parts)
+		if sub {
+			owner = session
 		}
 		if !want[owner] {
 			return nil
 		}
 		b := out[owner]
 		b.Key = owner
+		if workflow && strings.HasPrefix(parts[len(parts)-1], "agent-") {
+			b.WorkflowAgents++
+		}
 		_ = readFile(path, func(string) bool { return false }, func(r Request) { b.add(r) }, nil, seen)
 		out[owner] = b
 		return nil
