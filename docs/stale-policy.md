@@ -113,3 +113,7 @@ Rollback: `factory config stale_no_refresh off` restores the behaviour before T-
 A PR that is merely behind (MERGEABLE or UNKNOWN: BEHIND, CLEAN, UNSTABLE, BLOCKED) keeps its head sha, so the
 reviewer and QA verdicts still match it. `stale_policy` and the branch protection no longer change this. The reviewer
 and QA spawns never push (dry run). Tests: `tests/test_spawn_precheck.py` (`test_t1788_*`).
+
+## Go runner (2026-11-26)
+
+The Go runner (go/internal/hm/merge.go, behindOK) applies the same rule: a clean, MERGEABLE head behind main merges without a refresh when the base protection is not strict (read live, cached 10 minutes), no file under .github/workflows/ changed on main since the merge-base (wider than tests.yml alone), and no file changed on main since the merge-base is also changed by the PR. Config stale_policy=strict turns it off. Without it, every merge refreshed every waiting PR and restarted its CI.
