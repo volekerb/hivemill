@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -168,6 +169,33 @@ func openHomeDB(home string) (*sql.DB, error) {
 // port of ci/affected.py (the tests it selects are the factory repo's Python tests, run with python3).
 func cmdAffected(args []string, stdout, stderr io.Writer) int {
 	return affected.Main(args, stdout, stderr)
+}
+
+// cmdProofs is `hivemill proofs touched --base REF [--root DIR]`: the tests of every JS package changed since REF, a
+// project's gate proof. The test output goes to stderr, one line per package to stdout.
+func cmdProofs(args []string, stdout, stderr io.Writer) int {
+	usage := "usage: hivemill proofs touched --base REF [--root DIR]"
+	if len(args) == 0 || args[0] != "touched" {
+		fmt.Fprintln(stderr, usage)
+		return 2
+	}
+	fs := newFlags("proofs touched", stderr)
+	base := fs.String("base", "", "the ref the branch is compared with")
+	root := fs.String("root", ".", "the checkout")
+	if fs.Parse(args[1:]) != nil || fs.NArg() > 0 || *base == "" {
+		fmt.Fprintln(stderr, usage)
+		return 2
+	}
+	return hm.TouchedRun{Root: *root, Base: *base, Out: stdout, Exec: func(dir string, argv []string) (int, error) {
+		cmd := exec.Command(argv[0], argv[1:]...)
+		cmd.Dir, cmd.Stdout, cmd.Stderr = dir, stderr, stderr
+		err := cmd.Run()
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			return ee.ExitCode(), nil
+		}
+		return 0, err
+	}}.Run()
 }
 
 // cmdPR is `hivemill pr create --title TITLE --body - | pr ready` for a task session.
