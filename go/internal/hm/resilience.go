@@ -50,7 +50,7 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 		if run.Resumes >= cfgInt(r.Store, "resume_max") {
 			r.fail(run, fmt.Sprintf("session lost: %s is gone after %d resumes", name, run.Resumes))
 			fixed = append(fixed, "session lost, run failed")
-		} else if err := r.resumeSession(run, name); err != nil {
+		} else if err := r.resumeSession(run, name, ""); err != nil {
 			fixed = append(fixed, "resume of "+name+" failed: "+firstLine(err.Error()))
 		} else {
 			run.Resumes++
@@ -65,16 +65,25 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 	return true
 }
 
-// resumeSession relaunches a lost task or judge session in a new hc terminal with the same settings and model.
-func (r *Runner) resumeSession(run *Run, name string) error {
-	sess, _ := r.Store.Sessions(run.Task)
-	sid, model, effort := "", run.Model, run.Effort
+// sessionID is the id of the last session recorded for the agent ("": none).
+func (r *Runner) sessionID(task, name string) (sid string) {
+	sess, _ := r.Store.Sessions(task)
 	for _, s := range sess {
 		if s.Agent == name {
 			sid = s.SID
-			if s.Model != "" {
-				model, effort = s.Model, s.Effort
-			}
+		}
+	}
+	return sid
+}
+
+// resumeSession relaunches a task or judge session in a new hc terminal with the same settings and model. text is its
+// first message; empty says that the session was lost.
+func (r *Runner) resumeSession(run *Run, name, text string) error {
+	sess, _ := r.Store.Sessions(run.Task)
+	sid, model, effort := r.sessionID(run.Task, name), run.Model, run.Effort
+	for _, s := range sess {
+		if s.Agent == name && s.Model != "" {
+			model, effort = s.Model, s.Effort
 		}
 	}
 	if sid == "" {
@@ -86,9 +95,11 @@ func (r *Runner) resumeSession(run *Run, name string) error {
 	if strings.Contains(name, "judge") {
 		role, prompt, machine = "task-judge", "task-judge.md", "" // the judge stays on the local core
 		kick = "The factory restarted your session after it was lost. Finish your verdict with the JSON block."
-	} else if email := r.Store.FactoryCfg("noreply_email"); email != "" {
-		env = map[string]string{"GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_EMAIL": email, "GIT_AUTHOR_NAME": nameOf(email),
-			"GIT_COMMITTER_NAME": nameOf(email)}
+	} else {
+		env = r.taskEnv()
+	}
+	if text != "" {
+		kick = text
 	}
 	_, err := r.StartSession(run, Launch{Role: role, Name: name, Cwd: run.Worktree, Model: model, Effort: effort,
 		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", prompt), Kickoff: kick, Env: env, Resume: sid,
