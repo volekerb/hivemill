@@ -521,8 +521,16 @@ func (o *Obs) BuildNow(days int, project, me string, asks map[string]int, ok boo
 			p.Portfolio = append(p.Portfolio, l)
 		}
 	}
+	listed := map[string]bool{}
 	for _, src := range srcs {
-		p.Machines = append(p.Machines, sourceLine{ObsSource: src, Last: o.LastSeen[src.Label]})
+		src.Machine = or(src.Machine, src.Label)
+		listed[src.Machine] = true
+		p.Machines = append(p.Machines, sourceLine{ObsSource: src, Last: o.LastSeen[src.Machine]})
+	}
+	for _, m := range o.Machines { // a session machine has no log of its own
+		if !listed[m] {
+			p.Machines = append(p.Machines, sourceLine{ObsSource: ObsSource{Label: m, Machine: m}, Last: o.LastSeen[m]})
+		}
 	}
 	return p
 }

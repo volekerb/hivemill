@@ -1042,3 +1042,81 @@ func TestSessionPollingUSD(t *testing.T) {
 		t.Fatalf("old line: %+v", got)
 	}
 }
+
+func TestObsShowsThePlacementMachine(t *testing.T) {
+	r, s := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	if err := s.SetCfg("session_machines", "local,box-c,box-d,core-a"); err != nil {
+		t.Fatal(err)
+	}
+	// session_machines also names this machine by its hc core name: it is listed once
+	r.Tools.HC = func(...string) (int, string, string) { return 0, `{"core":{"name":"core-a"}}`, "" }
+	day := time.Now().UTC().Format("2006-01-02")
+	ts := func(h string) string { return day + "T" + h + ":00Z" }
+	placed := func(m string) map[string]any { return map[string]any{"machine": m} }
+	evs := []Event{
+		ev(ts("00:30"), "ask.added", "T-1", "G-1", "www", "", "", map[string]any{"id": 1.0}),
+		ev(ts("01:00"), "task.dispatched", "T-1", "G-1", "www", "", "", placed("box-c")),
+		ev(ts("01:01"), "session.started", "T-1", "G-1", "www", "s-far", "task", placed("box-c")),
+		cost(ev(ts("02:00"), "session.ended", "T-1", "G-1", "www", "s-far", "task", nil), 2, 1, 1),
+		ev(ts("02:01"), "pr.merged", "T-1", "G-1", "www", "", "", nil),
+		ev(ts("03:00"), "task.dispatched", "T-2", "G-1", "www", "", "", placed("local")),
+		ev(ts("03:01"), "session.started", "T-2", "G-1", "www", "s-near", "task", placed("local")),
+		// dispatched again, to the other machine: the first run stays where it ran
+		ev(ts("04:00"), "task.dispatched", "T-2", "G-1", "www", "", "", placed("box-c")),
+		ev(ts("04:01"), "session.started", "T-2", "G-1", "www", "s-again", "task", placed("box-c")),
+		// every session of the task is ended after the last run: the first run's stays on its machine
+		cost(ev(ts("05:00"), "session.ended", "T-2", "G-1", "www", "s-near", "task", nil), 1, 1, 1),
+	}
+	for i := range evs {
+		evs[i].Machine = "box-a"
+	}
+	writeEvents(t, r.Log.Path, evs...)
+	// a pulled copy with no event yet
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "box-e", "events.jsonl"))
+
+	o, err := r.LoadObs(ObsFilter{}, true, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(o.Machines, ","); got != "box-a,box-c,box-d,box-e" {
+		t.Fatalf("machines %s", got)
+	}
+	t1 := o.Tasks["box-a/T-1"]
+	if t1 == nil || t1.Machine != "box-c" || t1.Origin != "box-a" || t1.Row.Outcome != "merged" {
+		t.Fatalf("T-1: %+v", t1)
+	}
+	for _, e := range t1.Events {
+		if e.Machine != "box-c" {
+			t.Fatalf("event %s on %s", e.Event, e.Machine)
+		}
+	}
+	for id, want := range map[string]string{"s-far": "box-c", "s-near": "box-a", "s-again": "box-c"} {
+		if s := o.Sessions[id]; s.Machine != want {
+			t.Fatalf("session %s on %s, want %s", id, s.Machine, want)
+		}
+	}
+	if o.Tasks["box-a/T-2"].Machine != "box-c" || o.Sessions["s-near"].Machine != "box-a" || o.EventAsks["box-a"]["www"] != 1 || o.LastSeen["box-c"] != ts("04:01") || o.LastSeen["box-a"] != ts("05:00") {
+		t.Fatalf("T-2 %+v asks %v seen %v", o.Tasks["box-a/T-2"], o.EventAsks, o.LastSeen)
+	}
+	near, err := r.LoadObs(ObsFilter{Machine: "box-a"}, true, time.Now())
+	if err != nil || near.Sessions["s-near"] == nil || !near.Sessions["s-near"].CostKnown {
+		t.Fatalf("the first run's session.ended: %v %v", err, near.Sessions)
+	}
+	far, err := r.LoadObs(ObsFilter{Machine: "box-c"}, true, time.Now())
+	if err != nil || far.Sessions["s-far"] == nil || far.Sessions["s-near"] != nil || far.Tasks["box-a/T-1"] == nil {
+		t.Fatalf("machine filter: %v %v", err, far.Sessions)
+	}
+
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "http://localhost:7461/", nil))
+	for _, m := range []string{"box-c", "box-d", "box-e"} {
+		if !strings.Contains(w.Body.String(), `href="/?machine=`+m+`">`+m+`</a>`) {
+			t.Fatalf("machines table lacks %s: %s", m, w.Body.String())
+		}
+	}
+}

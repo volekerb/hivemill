@@ -30,7 +30,9 @@ Every line has `ts`, `event`, `harness` and `machine`. Where they apply, it also
 | task | machine/`task_id` | outcome, $, rounds, findings, PR, trace id, its sessions, and the timeline of its events |
 | session | `session_id` | role, model, effort, harness, machine, start and end, $, tokens, and its events |
 
-- **Task key.** Task ids are numbered by each factory DB, so two machines can both have a `T-0042`. A task is therefore keyed by machine and task id. Projects and goals are grouped by name across machines.
+- **Task key.** Task ids are numbered by each factory DB, so two machines can both have a `T-0042`. A task is therefore keyed by the machine that wrote its log and the task id. Projects and goals are grouped by name across machines.
+- **Placed runs.** A run placed on another machine (`session_machines`) is logged by the coordinator. The views, the `machine` filter and the traces show such a task's events and sessions on the placement machine (the `data.machine` of its `task.dispatched`; `local` means the coordinator). The key keeps the coordinator's name.
+- **Which machines are listed.** Every machine in the logs, every placement, every `session_machines` entry and every pulled copy, including those with no run.
 - **Spend columns.** These sum the sessions *started* in the window. A session's whole cost counts on its start day, as in the digest.
 - **Outcome columns.** These are `hivemill report`'s rules (`Summarise`), applied to the tasks with an event in the last `days` days (30 by default):
   - $ per merged PR is the $ of those tasks divided by the number merged.
@@ -94,7 +96,7 @@ The protocol is OTLP/HTTP with the JSON encoding, POSTed to `<endpoint>/v1/trace
 
 | OTel | hivemill |
 |---|---|
-| trace | one task on one machine. The trace id is the first 16 bytes of sha256 of `machine/task`, so exporting a task again gives the same ids |
+| trace | one task on one machine. The trace id is the first 16 bytes of sha256 of `machine/task` (the machine that wrote the log, also for a placed run), so exporting a task again gives the same ids |
 | resource | `service.name=hivemill`, `host.name` and `hivemill.machine` = the machine |
 | root span `task T-…` | from the first event to the terminal one. Attributes: `hivemill.task_id`, `goal_id`, `project`, `machine`, `harness`, `outcome`, `usd`, `rounds`, `gate_blocks`, `ci_rounds`, `pr`, `eval`, and the token totals. Status is OK when merged and ERROR on FAIL |
 | child span `session <role>` | one per session (task, judge, planner). Attributes: `hivemill.session_id`, `role`, `model` (also `gen_ai.request.model`), `effort`, `harness`, `machine`, `usd`, `tokens`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `hivemill.tokens.cache_read`, `hivemill.tokens.cache_write`; `hivemill.cost_known=false` while the cost is pending |
