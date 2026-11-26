@@ -25,12 +25,35 @@ import (
 
 const hiClaudeInstallerURL = "https://claude.ai/install.sh"
 
+// hiUnits puts the hivemill unit files the services step copies into the clone at dir.
+func hiUnits(t *testing.T, dir string) {
+	t.Helper()
+	sd := filepath.Join(dir, "systemd")
+	if err := os.MkdirAll(sd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range []string{"hivemill.service", "hivemill-digest.service", "hivemill-digest.timer",
+		"hivemill-health.service", "hivemill-health.timer"} {
+		if err := os.WriteFile(filepath.Join(sd, u), []byte("# "+u+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// hiCloneWithUnits makes the fake `git clone` leave a clone that holds the unit files.
+func hiCloneWithUnits(t *testing.T) hiRule {
+	return hiRule{"git clone", func(argv []string) (int, string) {
+		hiUnits(t, argv[len(argv)-1])
+		return 0, ""
+	}}
+}
+
 // ------------------------------------------------------------------------------------------------ TestFullRun
 
 func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 	home := hiHome(t)
 	fh := filepath.Join(home, "factory")
-	h := hiNew(t, home)
+	h := hiNew(t, home, hiRules(hiCloneWithUnits(t)))
 	rc, out, _ := hiRun(h, "--yes", "--port", "9000", "--max-agents", "3", "--no-scout",
 		"--project-id", "demo", "--project-repo", "/r", "--project-gh", "o/r")
 	hiEq(t, rc, 0, out)
@@ -44,8 +67,8 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 		"git clone -- " + hiRepo + " " + fh + ".installing", fac + " init", fac + " config serve_bind 127.0.0.1",
 		fac + " config serve_port 9000", fac + " config max_live_agents 3", fac + " config scout_enabled 0",
 		fac + " project add demo --name demo --repo /r --gh o/r",
-		"bash " + fh + "/systemd/install.sh --with-serve",
-		"systemctl --user start herdr-server.service factory-tick.timer factory-serve.service factory-up.service",
+		"systemctl --user daemon-reload",
+		"systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer",
 	}
 	prev := -1
 	for _, w := range want {
@@ -58,6 +81,9 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 			t.Errorf("call %q out of order (%d < %d)", w, i, prev)
 		}
 		prev = i
+	}
+	if !hiExists(filepath.Join(home, ".config", "systemd", "user", "hivemill.service")) {
+		t.Error("hivemill.service not installed")
 	}
 	got, err := os.Readlink(fac)
 	if err != nil || got != filepath.Join(fh, "bin", "factory") {
@@ -79,6 +105,7 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 	}
 }
 
+// The name predates the removal of the background starts; it is kept so that no test function disappears.
 func TestHivemillInstallNoSystemdRunStartsBackgroundAndWarns(t *testing.T) {
 	home := hiHome(t)
 	h := hiNew(t, home)
@@ -87,17 +114,11 @@ func TestHivemillInstallNoSystemdRunStartsBackgroundAndWarns(t *testing.T) {
 	if !hiResultPass.MatchString(hiLast(out)) {
 		t.Errorf("last line %q", hiLast(out))
 	}
-	fac := filepath.Join(home, ".local", "bin", "factory")
-	var got []string
-	for _, p := range h.popens {
-		got = append(got, strings.Join(p, " "))
-	}
-	hiEq(t, strings.Join(got, "|"), "herdr server|"+fac+" serve --bind 127.0.0.1", "background starts")
-	hiIn(t, out, "WARNING: no tick timer: agents will not be nudged and queued spawns will not start")
+	hiEq(t, len(h.popens), 0, "background starts")
+	hiIn(t, out, "`hivemill daemon`")
 	a := h.argvs()
-	ws, up := hiIndex(a, "herdr workspace list"), hiIndex(a, fac+" up")
-	if ws < 0 || up < 0 || ws >= up {
-		t.Errorf("herdr workspace list (%d) must precede factory up (%d)", ws, up)
+	if hiIndex(a, filepath.Join(home, ".local", "bin", "factory")+" up") >= 0 {
+		t.Errorf("factory up ran: %v", a)
 	}
 	if bad := hiFind(a, func(s string) bool {
 		return strings.Contains(s, "systemctl") && !strings.Contains(s, "show-environment")
@@ -107,7 +128,7 @@ func TestHivemillInstallNoSystemdRunStartsBackgroundAndWarns(t *testing.T) {
 }
 
 func TestHivemillInstallLingerRefusalIsAWarning(t *testing.T) {
-	h := hiNew(t, hiHome(t), hiRules(hiRule1("loginctl enable-linger", 1, "Access denied")))
+	h := hiNew(t, hiHome(t), hiRules(hiCloneWithUnits(t), hiRule1("loginctl enable-linger", 1, "Access denied")))
 	rc, out, _ := hiRun(h, "--yes", "--linger")
 	hiEq(t, rc, 0, out)
 	hiIn(t, out, "enable-linger was refused")
@@ -120,6 +141,7 @@ func TestHivemillInstallListedProjectIsSkipped(t *testing.T) {
 	home := hiHome(t)
 	h := hiNew(t, home, hiRules(hiRule1("project list", 0, "ID NAME\ndemo Demo\n")))
 	hiMakeInstall(t, home, false) // partial clone: --resume
+	hiUnits(t, filepath.Join(home, "factory"))
 	rc, out, _ := hiRun(h, "--yes", "--resume", "--project-id", "demo", "--project-repo", "/r")
 	hiEq(t, rc, 0, out)
 	if bad := hiFind(h.argvs(), hiSub("project add")); len(bad) > 0 {
@@ -704,8 +726,19 @@ func TestHivemillInstallNoTTYOpenStdinDoesNotBlock(t *testing.T) {
 	}
 	defer r.Close()
 	defer w.Close()
+	// stub tools first on PATH, so that the tools step finds them and downloads nothing
+	stubDir := t.TempDir()
+	for name, body := range map[string]string{
+		"claude": "#!/bin/sh\necho '1.0.0 (stub claude)'\n",
+		"herdr":  "#!/bin/sh\necho 'herdr 1.0.0 (stub)'\n",
+		"gh":     "#!/bin/sh\n[ \"$1 $2\" = 'auth status' ] && exit 1\necho 'gh version 1.0.0 (stub)'\n",
+	} {
+		if err := os.WriteFile(filepath.Join(stubDir, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	c := exec.Command(buildCmd(t, "hivemill-install"), "--yes", "--no-systemd")
-	c.Env = hiPlainEnv(home)
+	c.Env = []string{"HOME=" + home, "PATH=" + stubDir + ":/usr/bin:/bin"}
 	c.Stdin = r
 	var out, errb bytes.Buffer
 	c.Stdout, c.Stderr = &out, &errb
@@ -728,6 +761,7 @@ func TestHivemillInstallNoTTYOpenStdinDoesNotBlock(t *testing.T) {
 		if rc != 3 || !strings.Contains(all, "not logged in. Do this, then re-run the installer with --resume:") {
 			t.Errorf("rc=%d\n%s", rc, all)
 		}
+		hiNotIn(t, all, "claude installer")
 	case <-time.After(30 * time.Second):
 		_ = c.Process.Kill()
 		t.Fatal("the installer blocked with an open stdin pipe")

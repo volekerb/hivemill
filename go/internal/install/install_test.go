@@ -352,8 +352,7 @@ func TestDryRunPrintsPlanAndChangesNothing(t *testing.T) {
 		"    $ " + home + "/.local/bin/factory config max_live_agents 3\n",
 		"    $ " + home + "/.local/bin/factory config scout_enabled 0\n",
 		"    $ " + home + "/.local/bin/factory project add p --name p --repo /x --gh a/b\n",
-		"    $ (background) herdr server\n",
-		"WARNING: no tick timer",
+		"run `hivemill daemon`",
 		"GET http://127.0.0.1:9000/ and /goals",
 		"plan only: nothing was changed\n",
 	} {
@@ -378,7 +377,7 @@ func TestDryRunPinnedRefAndSystemd(t *testing.T) {
 	if rc != 0 {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
-	for _, want := range []string{"fetch origin -- abc123", "checkout --detach FETCH_HEAD", "$ bash " + f.HomeDir + "/factory/systemd/install.sh --with-serve", "$ loginctl enable-linger", "$ systemctl --user start herdr-server.service factory-tick.timer factory-serve.service factory-up.service"} {
+	for _, want := range []string{"fetch origin -- abc123", "checkout --detach FETCH_HEAD", "copy " + f.HomeDir + "/factory/systemd/hivemill.service -> ", "$ loginctl enable-linger", "$ systemctl --user daemon-reload", "$ systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("plan lacks %q\n%s", want, out)
 		}
@@ -388,6 +387,103 @@ func TestDryRunPinnedRefAndSystemd(t *testing.T) {
 			t.Error("a pinned ref needs no ls-remote")
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------------------------- systemd units
+
+var wantUnits = []string{"hivemill.service", "hivemill-digest.service", "hivemill-digest.timer",
+	"hivemill-health.service", "hivemill-health.timer"}
+
+// repoUnit is the content of a unit file of the repo's systemd folder.
+func repoUnit(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("../../../systemd", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// unitsFake is a Linux fake host whose clone holds the repo's unit files.
+func unitsFake(t *testing.T) *fakeHost {
+	t.Helper()
+	f := newFake(t)
+	dst := filepath.Join(f.HomeDir, "factory", "systemd")
+	mustMkdir(t, dst)
+	for _, u := range wantUnits {
+		mustWrite(t, filepath.Join(dst, u), repoUnit(t, u))
+	}
+	return f
+}
+
+func TestInstallSystemdUnits(t *testing.T) {
+	services := func(t *testing.T, f *fakeHost, a *Args) string {
+		t.Helper()
+		var out strings.Builder
+		if _, err := stepServices(NewCtx(f, a, &out, false)); err != nil {
+			t.Fatalf("services: %v\n%s", err, out.String())
+		}
+		return out.String()
+	}
+	t.Run("written", func(t *testing.T) {
+		f := unitsFake(t)
+		dir := filepath.Join(f.HomeDir, ".config", "systemd", "user")
+		// a link from an earlier install must be replaced, not written through
+		mustMkdir(t, dir)
+		other := filepath.Join(f.HomeDir, "other")
+		mustWrite(t, other, "untouched")
+		if err := os.Symlink(other, filepath.Join(dir, "hivemill.service")); err != nil {
+			t.Fatal(err)
+		}
+		services(t, f, &Args{})
+		for _, u := range wantUnits {
+			p := filepath.Join(dir, u)
+			got, err := os.ReadFile(p)
+			if err != nil || string(got) != repoUnit(t, u) {
+				t.Errorf("%s = %q, %v; want the repo content", u, got, err)
+			}
+			if st, err := os.Lstat(p); err != nil || !st.Mode().IsRegular() {
+				t.Errorf("%s is not a regular file: %v", u, err)
+			}
+		}
+		if got, err := os.ReadFile(other); err != nil || string(got) != "untouched" {
+			t.Errorf("link target = %q, %v", got, err)
+		}
+		if ents, err := os.ReadDir(dir); err != nil || len(ents) != len(wantUnits) {
+			t.Errorf("unit dir holds %v, %v", ents, err)
+		}
+	})
+	t.Run("order", func(t *testing.T) {
+		f := unitsFake(t)
+		xdg := filepath.Join(f.HomeDir, "xdg")
+		f.Env["XDG_CONFIG_HOME"] = xdg
+		services(t, f, &Args{})
+		var got []string
+		for _, c := range f.calls {
+			got = append(got, strings.Join(c, " "))
+		}
+		want := []string{"systemctl --user daemon-reload",
+			"systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer"}
+		if strings.Join(got, "\n") != strings.Join(want, "\n") {
+			t.Errorf("calls = %q, want %q", got, want)
+		}
+		if _, err := os.Stat(filepath.Join(xdg, "systemd", "user", "hivemill.service")); err != nil {
+			t.Errorf("XDG_CONFIG_HOME ignored: %v", err)
+		}
+	})
+	t.Run("nosystemd", func(t *testing.T) {
+		f := unitsFake(t)
+		out := services(t, f, &Args{NoSystemd: true})
+		if _, err := os.Stat(filepath.Join(f.HomeDir, ".config")); !os.IsNotExist(err) {
+			t.Errorf("--no-systemd wrote under .config: %v", err)
+		}
+		if len(f.calls) != 0 || len(f.popens) != 0 {
+			t.Errorf("--no-systemd ran calls=%v popens=%v", f.calls, f.popens)
+		}
+		if !strings.Contains(out, "`hivemill daemon`") {
+			t.Errorf("no hint to run the daemon:\n%s", out)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------------------------- a real run
@@ -415,8 +511,8 @@ func TestYesRunPasses(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(f.HomeDir, "factory")); err != nil {
 		t.Errorf("clone not moved into place: %v", err)
 	}
-	if len(f.popens) != 2 {
-		t.Errorf("popens = %v, want herdr server and factory serve", f.popens)
+	if len(f.popens) != 0 {
+		t.Errorf("popens = %v, want none", f.popens)
 	}
 	if !f.mutated("config serve_port 9100") || f.mutated("config max_live_agents") {
 		t.Errorf("config calls wrong: %v", f.muts)

@@ -100,27 +100,8 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 	}
 	in.LaneVerdict, _, _ = r.Store.LaneVerdict(run.Task, pr.HeadRefOid)
 	in.CI, _ = CIVerdict(pr.Checks)
-	present := map[string]bool{}
-	for _, c := range pr.Checks {
-		if n, _ := c["name"].(string); n != "" {
-			present[n] = true
-		}
-		if n, _ := c["context"].(string); n != "" {
-			present[n] = true
-		}
-	}
+	_, in.MissingChecks = r.missingChecks(run.Task, pr.Checks)
 	t, _ := r.Store.Task(run.Task)
-	req := r.Store.FactoryCfg("required_checks")
-	if t != nil {
-		if p := r.projectRequired(t.Project); p != "" {
-			req = p
-		}
-	}
-	for _, c := range csv(req) {
-		if !present[c] {
-			in.MissingChecks = append(in.MissingChecks, c)
-		}
-	}
 	slug := strings.ToLower(run.Repo)
 	for _, f := range csv(r.Store.FactoryCfg("frozen_repos")) {
 		in.Frozen = in.Frozen || strings.EqualFold(f, slug)
@@ -374,7 +355,7 @@ func (r *Runner) GoalCheck(run *Run) {
 	r.Tools.Git(run.Worktree, "checkout", "-q", "--detach", "origin/"+run.Base)
 	dir := filepath.Join(r.Env.StateDir(), "runs", run.Task)
 	_ = os.MkdirAll(dir, 0o700)
-	res := r.RerunProofs(run.Worktree, checks, dir)
+	res := r.RerunProofs(run, checks, dir)
 	ok := true
 	for _, x := range res {
 		ok = ok && x.OK != nil && *x.OK

@@ -47,8 +47,9 @@ type Runner struct {
 	ReadyWait time.Duration
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
-	usageFiles  [][]byte // the remote usage files of this pass
-	usageRead   bool     // usageFiles has been read in this pass
+	usageFiles  [][]byte               // the remote usage files of this pass
+	usageRead   bool                   // usageFiles has been read in this pass
+	loads       map[string]loadReading // CPU load per machine, see load.go
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -373,7 +374,10 @@ func (r *Runner) fail(run *Run, reason string) {
 }
 
 // resume sends text to the same warm task session and starts a new round.
-func (r *Runner) resume(run *Run, text string) {
+func (r *Runner) resume(run *Run, text string) { r.resumeAs(run, "resume", text) }
+
+// resumeAs is resume with the kind the prompt is recorded under.
+func (r *Runner) resumeAs(run *Run, kind, text string) {
 	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
 	// are deferred until the session writes fresh findings.
 	if run.Worktree != "" {
@@ -387,6 +391,7 @@ func (r *Runner) resume(run *Run, text string) {
 		r.fail(run, "cannot reach the task session: "+err.Error())
 		return
 	}
+	r.recordPrompt(run, "task", kind, text)
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-resume", truncate(text, 300))
 }
 
@@ -472,7 +477,12 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	if err != nil || run == nil {
 		return "", err
 	}
-	defer func() { _ = r.Store.PutRun(run) }()
+	defer func() {
+		if run.State != Gated {
+			r.endCIWait(run) // the run left the CI wait, however it did
+		}
+		_ = r.Store.PutRun(run)
+	}()
 	if Active(run.State) && run.State != Merging && r.overBudget(run) {
 		return run.State, nil
 	}
@@ -502,9 +512,15 @@ func last(xs []string) string {
 }
 
 func (r *Runner) gated(run *Run) {
+	now := time.Now()
+	if !r.ciPollDue(run, now) {
+		return
+	}
 	pr, err := PRView(r.Tools, run.PRURL)
 	if err != nil {
+		r.ciPolled(run, now)
 		run.MergeHold = err.Error()
+		r.ciOverdue(run, now) // an unreadable PR is a pending one
 		return
 	}
 	switch {
@@ -519,10 +535,18 @@ func (r *Runner) gated(run *Run) {
 		r.resume(run, fmt.Sprintf("Your PR conflicts with %s. Run `git fetch origin && git merge origin/%s`, resolve, re-run the "+
 			"affected tests, push, wait for CI once and stop.", run.Base, run.Base))
 	default:
-		if pr.HeadRefOid != run.Head {
-			run.Head = pr.HeadRefOid
-		}
+		run.Head, run.MergeHold = pr.HeadRefOid, ""
+		r.ciPolled(run, now)
 		verdict, failed := CIVerdict(pr.Checks)
+		switch {
+		case verdict != "green":
+			run.CI.Green = 0
+		case run.CI.Green == 0:
+			run.CI.Green = now.Unix()
+		}
+		if verdict == "green" && !r.ciSettled(run, pr.Checks, now) {
+			verdict = "pending"
+		}
 		switch verdict {
 		case "red":
 			run.CIRounds++
@@ -532,12 +556,14 @@ func (r *Runner) gated(run *Run) {
 				return
 			}
 			run.History = append(run.History, fmt.Sprintf("round %d: CI red (%s)", run.Round, strings.Join(failed, ", ")))
-			r.resume(run, "CI is red on your PR: "+strings.Join(failed, ", ")+". Read the failing log (`gh run view --log-failed`), "+
+			r.resumeAs(run, "ci", "CI is red on your PR: "+strings.Join(failed, ", ")+". Read the failing log (`gh run view --log-failed`), "+
 				"fix it, push, wait for CI once with one blocking command, and stop.")
 		case "green":
 			if err := r.StartJudge(run); err != nil {
 				r.fail(run, "the judge did not start: "+err.Error())
 			}
+		default:
+			r.ciOverdue(run, now)
 		}
 	}
 }
@@ -567,7 +593,7 @@ func (r *Runner) judged(run *Run) {
 		r.fail(run, fmt.Sprintf("judge REJECT x%d: %s", run.JudgeRounds, reasons))
 		return
 	}
-	r.resume(run, "The judge rejected the PR. Fix this, push, wait for CI once and stop:\n- "+strings.Join(v.Reasons, "\n- "))
+	r.resumeAs(run, "judge", "The judge rejected the PR. Fix this, push, wait for CI once and stop:\n- "+strings.Join(v.Reasons, "\n- "))
 }
 
 // Stop cancels a run: its terminals close and the task goes back to todo.
@@ -577,6 +603,7 @@ func (r *Runner) Stop(task string) error {
 		return fmt.Errorf("no run for %s", task)
 	}
 	r.closeSessions(run)
+	r.endCIWait(run)
 	run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
 	r.endSessions(run)
 	_ = r.Log.Emit("task.cancelled", run, Event{})
@@ -652,8 +679,11 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 		return
 	}
 	run.IdleNudges++
-	_ = r.Prompt(run.Agent, "You stopped before your task was finished. Continue your role steps from where you are: finish the "+
-		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop.")
+	nudge := "You stopped before your task was finished. Continue your role steps from where you are: finish the " +
+		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop."
+	if r.Prompt(run.Agent, nudge) == nil {
+		r.recordPrompt(run, "task", "nudge", nudge)
+	}
 	_ = r.Log.Emit("session.nudged", run, Event{Role: "task"})
 }
 
