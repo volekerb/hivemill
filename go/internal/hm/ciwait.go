@@ -13,7 +13,7 @@ import (
 type CIWait struct {
 	Head          string
 	Since, Polled int64 // unix seconds: the wait began, the last poll
-	Seen          int64 // unix seconds: the first successful read of the PR
+	Green         int64 // unix seconds: the first of the green reads in a row (0: the last read was not green)
 	Alerted       bool  // the timeout alert was sent
 }
 
@@ -49,13 +49,13 @@ func (r *Runner) endCIWait(run *Run) {
 }
 
 // ciSettled reports whether a green rollup is final: every required check is on the PR (right after a push not all are
-// registered yet). Without a required list, green must still hold one poll after the first read of the head.
+// registered yet). Without a required list, green must still hold one poll after the first green read.
 func (r *Runner) ciSettled(run *Run, checks []map[string]any, now time.Time) bool {
 	required, missing := r.missingChecks(run.Task, checks)
 	if len(required) > 0 {
 		return len(missing) == 0
 	}
-	return now.Unix()-run.CI.Seen >= r.ciInterval()
+	return now.Unix()-run.CI.Green >= r.ciInterval()
 }
 
 // missingChecks returns the check names a task's PR must have (its project's list, else the factory's) and those of

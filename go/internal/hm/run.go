@@ -529,10 +529,13 @@ func (r *Runner) gated(run *Run) {
 	default:
 		run.Head, run.MergeHold = pr.HeadRefOid, ""
 		r.ciPolled(run, now)
-		if run.CI.Seen == 0 {
-			run.CI.Seen = now.Unix()
-		}
 		verdict, failed := CIVerdict(pr.Checks)
+		switch {
+		case verdict != "green":
+			run.CI.Green = 0
+		case run.CI.Green == 0:
+			run.CI.Green = now.Unix()
+		}
 		if verdict == "green" && !r.ciSettled(run, pr.Checks, now) {
 			verdict = "pending"
 		}

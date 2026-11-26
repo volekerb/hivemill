@@ -60,7 +60,9 @@ func ciRunner(t *testing.T) *ciFake {
 // poll moves the wait one ci_poll_s back and reads the PR again.
 func (f *ciFake) poll() {
 	f.run.CI.Polled -= 60
-	f.run.CI.Seen -= 60
+	if f.run.CI.Green != 0 {
+		f.run.CI.Green -= 60
+	}
 	f.r.gated(f.run)
 }
 
@@ -110,10 +112,12 @@ func TestCIWaitGreenToJudge(t *testing.T) {
 		t.Fatalf("green starts the judge: %s (%s) judges=%d", f.run.State, f.run.FailReason, f.judges)
 	}
 
-	// Without a required list, the first green read of a head is read again.
+	// Without a required list, the first green read is read again, also after earlier pending reads.
 	f = ciRunner(t)
-	f.checks = `[` + unitOK + `]`
+	f.checks = `[` + e2eBusy + `]`
 	f.r.gated(f.run)
+	f.checks = `[` + unitOK + `]`
+	f.poll()
 	if f.run.State != Gated {
 		t.Fatalf("first green read: %s", f.run.State)
 	}
@@ -155,8 +159,9 @@ func TestCIWaitTimeoutAlerts(t *testing.T) {
 
 	// A pass that takes the run out of the wait closes the alert; the wait survives the store.
 	f.checks = `[` + unitOK + `]`
+	f.poll()
 	f.run.CI.Polled -= 60
-	f.run.CI.Seen -= 60
+	f.run.CI.Green -= 60
 	if err := f.s.PutRun(f.run); err != nil {
 		t.Fatal(err)
 	}
