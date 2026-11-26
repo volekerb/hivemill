@@ -43,6 +43,7 @@ var Defaults = map[string]string{
 	"weekly_budget_usd":        "off",  // all runs, sessions started in the last 7 days; reached = no new run
 	"pass_interval_s":          "60",   // `hivemill daemon`: seconds between passes
 	"resume_max":               "3",    // lost sessions relaunched with claude --resume per run, then FAIL "session lost"
+	"run_max_working_min":      "180",  // minutes in working per round; then one resume, FAIL "timed out" 30 later; 0 or off = no limit
 	"health_max_age_s":         "300",  // `hivemill health` fails when the last good pass is older
 	"alert_every_s":            "3600", // at most one dead-man alert per this many seconds
 	"backup_interval":          "off",  // daemon snapshot schedule as a Go duration (6h, 30m); off = only `hivemill backup`

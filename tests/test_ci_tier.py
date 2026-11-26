@@ -48,7 +48,7 @@ def docs_tier_job_skip_errors(text):
         if any(line.startswith("    if:") for line in header.splitlines()):
             errors.append("%s has a job-level if" % job)
         chunks = re.split(r"(?m)^      - ", steps)[1:]
-        want = {"unittest-shard": 6, "go": 8}[job]
+        want = {"unittest-shard": 6, "go": 9}[job]
         if len(chunks) != want:
             errors.append("%s: expected %d steps, got %d" % (job, want, len(chunks)))
             continue
@@ -304,9 +304,21 @@ class WorkflowTest(unittest.TestCase):
                          ["ci-tier", "docs-check", "unittest-shard (${{ matrix.shard }})", "go", "guard-unittest-shard (${{ matrix.shard }})", "guard-unittest", "guard-diff", "guard-self-compare", "guard-evaluator-home-loosen", "guard-equiv-shard (${{ matrix.shard }})", "guard-equiv", "guard-equiv-rest", "unittest"])
 
     def test_classifier_runs_from_the_base_commit(self):
-        self.assertEqual(self.wf.count('git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py'), 4)
-        self.assertNotIn("python ci/ci_tier.py", self.wf)
-        self.assertEqual(self.wf.count('python "$RUNNER_TEMP/base/ci/ci_tier.py" classify'), 3)
+        archive = ('git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier go/internal/citools/affected '
+                   'go/internal/citools/tier')
+        self.assertEqual(self.wf.count(archive), 4)
+        self.assertEqual(self.wf.count('(cd "$RUNNER_TEMP/base/go" && go build -o "$RUNNER_TEMP/ci-tier" ./cmd/ci-tier)'), 4)
+        self.assertNotIn("ci/ci_tier.py", self.wf)
+        self.assertEqual(self.wf.count('"$RUNNER_TEMP/ci-tier" classify'), 3)
+        self.assertEqual(self.wf.count('full "base commit has no ci-tier"; exit 0'), 3)
+        # ci-tier is built in the tier step, so each job's setup-go must come before it.
+        for job in ("ci-tier", "docs-check", "unittest-shard", "go"):
+            self.assertIn("\n  %s:\n" % job, self.wf, job)
+            body = re.split(r"(?m)^  [A-Za-z0-9_-]+:\n", self.wf.split("\n  %s:\n" % job, 1)[1], 1)[0]
+            tier = re.search(r"- name: Tier (\(rules from the base commit\)|tool from the base commit)", body)
+            setup = body.find("uses: actions/setup-go@v7")
+            self.assertTrue(tier, job)
+            self.assertTrue(0 <= setup < tier.start(), job)
         self.assertIn("  ci-tier:\n", self.wf)
 
     def test_push_and_dispatch_run_full(self):
@@ -314,7 +326,7 @@ class WorkflowTest(unittest.TestCase):
 
     def test_heavy_steps_are_gated_on_tier(self):
         self.assertIn("steps.tier.outputs.go == 'true'", self.wf)
-        self.assertEqual(self.wf.count("steps.tier.outputs.mode != 'docs'"), 3)
+        self.assertEqual(self.wf.count("steps.tier.outputs.mode != 'docs'"), 2)
         self.assertIn("--only", self.wf)
 
     def test_docs_fast_lane_skips_heavy_jobs(self):
@@ -333,7 +345,8 @@ class WorkflowTest(unittest.TestCase):
             self.assertIn(skip, job_block(job), job)
         docs = self.wf.split("  docs-check:\n", 1)[1].split("\n  unittest-shard:\n", 1)[0]
         self.assertIn("needs.ci-tier.outputs.mode == 'docs'", docs)
-        self.assertIn('git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py', docs)
+        self.assertIn('git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier', docs)
+        self.assertIn('"$RUNNER_TEMP/ci-tier" docs-check', docs)
         gate = self.wf.split('      - name: Docs lane or every shard and guard job succeeded', 1)[1].split("      - uses:", 1)[0]
         self.assertIn('if [ "$MODE" = "docs" ]; then', gate)
         self.assertIn("DOCS_CHECK_RESULT", gate)
