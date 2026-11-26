@@ -151,7 +151,7 @@ func (r *Runner) idleCheck(s *SQLite, now time.Time) *OwnerAlert {
 		}
 	}
 	limit := time.Duration(cfgInt(r.Store, "idle_alert_min")) * time.Minute
-	if strings.TrimSpace(r.Store.Cfg("idle_alert_min")) == "" || limit == 0 {
+	if strings.TrimSpace(r.Store.Cfg("idle_alert_min")) == "" || limit <= 0 {
 		limit = time.Duration(cfgInt(r.Store, "idle_alert_h")) * time.Hour
 	}
 	if last.IsZero() || now.Sub(last) < limit {
