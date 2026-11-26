@@ -19,8 +19,8 @@ var obsDocTokens = []string{"--bg", "--panel", "--head", "--fg", "--muted", "--l
 
 const obsCSP = "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 
-// obsShellPages are the pages the shell tests walk: the three top sections, a drill-down and a not-found page.
-var obsShellPages = []string{"/", "/spend", "/flow", "/project?p=demo-app", "/nope"}
+// obsShellPages are the pages the shell tests walk: the four top sections, a drill-down and a not-found page.
+var obsShellPages = []string{"/", "/spend", "/flow", "/machines", "/project?p=demo-app", "/nope"}
 
 // obsFixtureHandler serves testdata/obs_fixture: box-a's log and the log pulled from box-b, with the dates moved so
 // the newest day is yesterday and the fixture falls in the page's window (as ci/obs_screens.sh does).
@@ -178,29 +178,35 @@ func TestObsShellNavCurrentAndSkipLink(t *testing.T) {
 	h := obsFixtureHandler(t)
 	current := regexp.MustCompile(`<a [^>]*aria-current="page"[^>]*>([^<]*)</a>`)
 	rendered := regexp.MustCompile(`rendered \d{4}-\d\d-\d\d \d\d:\d\d`)
-	own := map[string]string{"/": "Now", "/spend": "Spend", "/flow": "Flow"}
+	own := map[string]string{"/": "Now", "/spend": "Spend", "/flow": "Flow", "/machines": "Machines"}
 	for _, path := range obsShellPages {
-		code, body := obsGet(t, h, path)
-		if want := own[path]; want != "" {
-			got := current.FindAllStringSubmatch(body, -1)
-			if code != 200 || len(got) != 1 || got[0][1] != want || strings.Count(body, `aria-current="page"`) != 1 {
-				t.Errorf("%s: %d, aria-current on %v, want only %s", path, code, got, want)
+		name := strings.Trim(strings.SplitN(path, "?", 2)[0], "/")
+		if name == "" {
+			name = "now"
+		}
+		t.Run(name, func(t *testing.T) {
+			code, body := obsGet(t, h, path)
+			if want := own[path]; want != "" {
+				got := current.FindAllStringSubmatch(body, -1)
+				if code != 200 || len(got) != 1 || got[0][1] != want || strings.Count(body, `aria-current="page"`) != 1 {
+					t.Errorf("%s: %d, aria-current on %v, want only %s", path, code, got, want)
+				}
+				if strings.Contains(body, `class="crumbs"`) {
+					t.Errorf("%s: a top section has no breadcrumb", path)
+				}
+			} else if strings.Contains(body, "aria-current") {
+				t.Errorf("%s: a drill-down or not-found page has no current entry", path)
 			}
-			if strings.Contains(body, `class="crumbs"`) {
-				t.Errorf("%s: a top section has no breadcrumb", path)
+			if !strings.Contains(body, `<a class="skip" href="#main">`) || !strings.Contains(body, `<main id="main"`) {
+				t.Errorf("%s: no skip link to main", path)
 			}
-		} else if strings.Contains(body, "aria-current") {
-			t.Errorf("%s: a drill-down or not-found page has no current entry", path)
-		}
-		if !strings.Contains(body, `<a class="skip" href="#main">`) || !strings.Contains(body, `<main id="main"`) {
-			t.Errorf("%s: no skip link to main", path)
-		}
-		if !rendered.MatchString(body) {
-			t.Errorf("%s: no render time in the header", path)
-		}
-		if strings.Contains(body, "loopback") {
-			t.Errorf("%s: the footer still says loopback", path)
-		}
+			if !rendered.MatchString(body) {
+				t.Errorf("%s: no render time in the header", path)
+			}
+			if strings.Contains(body, "loopback") {
+				t.Errorf("%s: the footer still says loopback", path)
+			}
+		})
 	}
 	code, body := obsGet(t, h, "/nope")
 	if code != 404 || !strings.Contains(body, `<aside class="side">`) || !strings.Contains(body, `<p class="bad notfound">`) ||

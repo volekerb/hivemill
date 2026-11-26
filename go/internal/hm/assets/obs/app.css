@@ -73,6 +73,13 @@ tr.total td { font-weight:600; border-top:1px solid var(--fg); }
 dl.kv { display:grid; grid-template-columns:max-content 1fr; gap:4px 16px; margin:8px 0; }
 dl.kv dt { color:var(--muted); }
 dl.kv dd { margin:0; }
+.machines { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:0 24px; font-variant-numeric:tabular-nums; }
+.machine { border-top:1px solid var(--line); padding:8px 0 16px; min-width:0; overflow-wrap:anywhere; }
+.machine.is-down { border-top:2px solid var(--bad); }
+.machine h2 { margin:0; color:var(--fg); font-size:1rem; text-transform:none; letter-spacing:0; }
+.machine h2 span { font-size:0.75rem; font-weight:400; margin-left:8px; }
+.machine h2 .bad { font-weight:600; }
+.machine ul { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:0 12px; }
 footer { margin-top:32px; font-size:0.75rem; border-top:1px solid var(--line); padding-top:8px; }
 
 /* Charts: the SVG never draws below its viewBox width (760), so its 12px text never shrinks; it scrolls in its box. */
