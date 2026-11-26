@@ -118,7 +118,7 @@ func hiNew(t *testing.T, home string, opts ...hiOpt) *hiHost {
 	h := &hiHost{
 		OSHost: &install.OSHost{HomeDir: home, Env: map[string]string{"PATH": filepath.Join(home, ".local", "bin") + ":/usr/bin"}},
 		t:      t, euid: 1000, ghAuth: true, systemd: true, tags: hiTags, origin: hiRepo, mem: 16, cpus: 8, machine: "x86_64",
-		tools: map[string]bool{"git": true, "herdr": true, "gh": true, "claude": true}, assets: map[string][]byte{},
+		tools: map[string]bool{"git": true, "herdr": true, "gh": true, "claude": true, "go": true}, assets: map[string][]byte{},
 	}
 	for _, o := range opts {
 		o(h)
@@ -225,8 +225,22 @@ func (h *hiHost) Run(argv []string, cwd string, timeout time.Duration, mutate bo
 			return 0, "Logged in"
 		}
 		return 1, "You are not logged in"
-	case a0 == "go":
+	case a0 == "go" && !h.tools["go"]:
 		return 127, "not found"
+	case a0 == "go" && eq("version"):
+		return 0, "go version go1.25.0 linux/amd64\n"
+	case a0 == "go" && len(rest) == 4 && rest[0] == "build" && rest[1] == "-o": // writes the binary it is asked for
+		if err := os.MkdirAll(filepath.Dir(rest[2]), 0o755); err != nil {
+			h.t.Fatal(err)
+		}
+		if err := os.WriteFile(rest[2], []byte(rest[3]), 0o755); err != nil {
+			h.t.Fatal(err)
+		}
+		// the clone being built holds VERSION, which smoke reads
+		if err := os.WriteFile(filepath.Join(filepath.Dir(cwd), "VERSION"), []byte("0.3.0\n"), 0o644); err != nil {
+			h.t.Fatal(err)
+		}
+		return 0, ""
 	case a0 == "systemctl" && len(rest) >= 2 && rest[0] == "--user" && rest[1] == "show-environment":
 		if h.systemd {
 			return 0, ""
@@ -244,26 +258,8 @@ func (h *hiHost) Run(argv []string, cwd string, timeout time.Duration, mutate bo
 			h.t.Fatal(err)
 		}
 		return 0, ""
-	case a0 == "factory":
-		switch {
-		case eq("init"):
-			db := filepath.Join(h.HomeDir, "factory", "db")
-			if err := os.MkdirAll(db, 0o755); err != nil {
-				h.t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(db, "factory.db"), nil, 0o644); err != nil {
-				h.t.Fatal(err)
-			}
-			return 0, "initialised /x\n"
-		case eq("--version"):
-			return 0, "hivemill 0.3.0 (git abc123)\n"
-		case eq("agents"):
-			return 0, hiAgents
-		case len(rest) >= 2 && rest[0] == "project" && rest[1] == "list":
-			return 0, "ID NAME\n"
-		case len(rest) == 2 && rest[0] == "config":
-			return 0, ""
-		}
+	case a0 == "hivemill" && eq("health"): // a new install: no database yet
+		return 1, "hivemill: cannot open database /x/factory.db: no such file\n"
 	}
 	return 0, ""
 }
