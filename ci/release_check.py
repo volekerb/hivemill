@@ -30,6 +30,8 @@ PLACEHOLDER_RES = (re.compile(r"TODO|TBD|FIXME|XXX|__[A-Z_]+__|<[a-z][a-z -]*>|<
 SMOKE_VERSION_RE = re.compile(r"^hivemill (\S+)(?:\s|$)")
 REMOTE_RE = re.compile(r"^(?:https://github\.com/|git@github\.com:)([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
 SMOKE_WAIT_S = 20
+
+
 class UsageError(Exception):
     pass
 
