@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Added
+
+- **Task sessions are asked to use dynamic workflows for large tasks.** `task_workflows` = `off` | `large` (default) | `all` puts the owner's request for the Workflow tool, with at most `task_workflow_agents` (6) agents, into the first prompt of a task session. Large means 4 or more acceptance criteria, 6 or more scope paths, or T3. The task role allows the Workflow tool. Workflow agents' spend and tokens now count toward their task (they were missed), and `hivemill report` compares tasks with and without workflows: $ per merged task, rounds per task and time to merge (T-1986).
+
 ### Removed
 
 - **CI and the remote gate no longer compile or run `bin/factory`.** The two `unittest-shard` steps and the gate's `py-compile` and `factory-help` steps are gone; the gate test's probe is the head-tree `ci/shard.py` (T-1973).

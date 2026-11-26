@@ -15,14 +15,20 @@ type SessUsage struct {
 	CacheRead  int64   `json:"cache_read_tokens"`
 	CacheWrite int64   `json:"cache_write_tokens"`
 	PollingUSD float64 `json:"polling_usd"` // spend.Bucket.PollingCost: tiny-output requests, never a transcript's first
+	// WorkflowAgents is how many Workflow agents the session ran; their spend and tokens are in the fields above.
+	WorkflowAgents int `json:"workflow_agents,omitempty"`
 }
 
 // Tokens is every token the session's requests carried.
 func (u SessUsage) Tokens() int64 { return u.Input + u.Output + u.CacheRead + u.CacheWrite }
 
 func (u SessUsage) data() map[string]any {
-	return map[string]any{"input_tokens": u.Input, "output_tokens": u.Output, "cache_read_tokens": u.CacheRead,
+	d := map[string]any{"input_tokens": u.Input, "output_tokens": u.Output, "cache_read_tokens": u.CacheRead,
 		"cache_write_tokens": u.CacheWrite, "polling_usd": u.PollingUSD}
+	if u.WorkflowAgents > 0 {
+		d["workflow_agents"] = u.WorkflowAgents
+	}
+	return d
 }
 
 // usageOf reads the usage a session.ended line carries (cost_usd plus the token counts and polling_usd in data; a line
@@ -34,7 +40,7 @@ func usageOf(e Event) (SessUsage, bool) {
 	n := func(k string) int64 { f, _ := e.Data[k].(float64); return int64(f) }
 	polling, _ := e.Data["polling_usd"].(float64)
 	return SessUsage{USD: *e.CostUSD, PollingUSD: polling, Input: n("input_tokens"), Output: n("output_tokens"), CacheRead: n("cache_read_tokens"),
-		CacheWrite: n("cache_write_tokens")}, true
+		CacheWrite: n("cache_write_tokens"), WorkflowAgents: int(n("workflow_agents"))}, true
 }
 
 // SessionUsages is SessionCosts with the token counts: each session's $ (rounded like SessionCosts), tokens and polling $.
@@ -45,7 +51,7 @@ func SessionUsages(userHome string, ids []string) map[string]SessUsage {
 	}
 	for k, b := range spend.SessionCosts(filepath.Join(userHome, ".claude", "projects"), ids) {
 		out[k] = SessUsage{USD: math.Round(b.Cost*10000) / 10000, PollingUSD: math.Round(b.PollingCost*10000) / 10000, Input: b.Input, Output: b.Output, CacheRead: b.CacheRead,
-			CacheWrite: b.CacheWrite}
+			CacheWrite: b.CacheWrite, WorkflowAgents: b.WorkflowAgents}
 	}
 	return out
 }
