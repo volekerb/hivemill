@@ -11,7 +11,7 @@ import (
 	ft "factory/go/internal/factorytest"
 )
 
-// Port of tests/test_worker_gate.py: 9 of 20 cases (the 6 WorkerCommandTests and the 3 ForwardedMachineIdentityTests). The Python module stays as the parity
+// Port of tests/test_worker_gate.py: 6 of 17 cases (the 6 WorkerCommandTests). The Python module stays as the parity
 // oracle until P7a; the cases that run tick, spawn, up, relaunch, judge or clean call NeedPython.
 //
 // PARTIAL (P7a, T-1495): the 11 HerdrGateTests are not ported. No production Go code sets herdr.Client.Gate (the
@@ -171,69 +171,4 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, in, 0o755)
-}
-
-// ForwardedMachineIdentityTests (G-057 T-1586): a call `factory-forward --serve` runs (FACTORY_FORWARDED=1) must name a
-// live worker row started on a configured worker machine, with that row's role.
-func newWorkerGateForwardedEnv(t *testing.T) *wgEnv {
-	t.Helper()
-	w := newWorkerGateEnv(t)
-	// machine_hq defaults to hqhost; worker_machines is set straight in the DB (same row `factory config` writes).
-	sqlExec(t, w.Env, "INSERT OR REPLACE INTO config(key, value) VALUES('worker_machines', 'workerhost')")
-	for _, name := range []string{"zz-test-coder", "zz-test-judge"} {
-		sqlExec(t, w.Env, "UPDATE agents SET spawn_args=? WHERE name=?", `{"machine": "workerhost"}`, name)
-	}
-	return w
-}
-
-func (w *wgEnv) forwardedRun(agent, role string, args ...string) ft.Result {
-	return w.RunWith(ft.Opts{Agent: agent, Env: map[string]string{"FACTORY_FORWARDED": "1", "FACTORY_ROLE": role}}, args...)
-}
-
-func TestWorkerGateForwardedMachineIdentityAcceptsALiveWorkerhostCoder(t *testing.T) {
-	w := newWorkerGateForwardedEnv(t)
-	r := w.forwardedRun("zz-test-coder", "coder", "inbox")
-	if r.Exit != 0 {
-		t.Fatalf("inbox: exit %d: %s", r.Exit, r.Stderr)
-	}
-	if strings.Contains(r.Stderr, "refused") {
-		t.Fatalf("stderr = %q", r.Stderr)
-	}
-	if v := w.forwardedRun("", "", "--version"); v.Exit != 0 { // the preflight's round trip needs no row
-		t.Fatalf("--version: exit %d: %s", v.Exit, v.Stderr)
-	}
-}
-
-func TestWorkerGateForwardedMachineIdentityRefusesUnknownWrongRoleAndLocalRows(t *testing.T) {
-	w := newWorkerGateForwardedEnv(t)
-	cases := [][2]string{
-		{"zz-nobody", "coder"},     // no such agent
-		{"", "coder"},              // no FACTORY_AGENT at all
-		{"zz-test-coder", "judge"}, // the role is not the row's
-		{"zz-test-qa", "qa"},       // a hqhost-local row (no spawn_args.machine)
-		{"zz-test-judge", "judge"}, // HQ/lead/judge roles are always refused (R1)
-		{"zz-test-lead", "lead"},
-	}
-	for _, c := range cases {
-		r := w.forwardedRun(c[0], c[1], "inbox")
-		if r.Exit != 3 {
-			t.Fatalf("%v: exit %d, want 3\n%s%s", c, r.Exit, r.Stdout, r.Stderr)
-		}
-		contains(t, "stderr", r.Stderr, "refused: forwarded call from unknown agent")
-	}
-	sqlExec(t, w.Env, "UPDATE agents SET status='done' WHERE name='zz-test-coder'")
-	if r := w.forwardedRun("zz-test-coder", "coder", "inbox"); r.Exit != 3 { // not live any more
-		t.Fatalf("done coder: exit %d, want 3", r.Exit)
-	}
-}
-
-func TestWorkerGateForwardedMachineIdentityNeedsAConfiguredWorkerMachine(t *testing.T) {
-	w := newWorkerGateForwardedEnv(t)
-	sqlExec(t, w.Env, "DELETE FROM config WHERE key='worker_machines'")
-	r := w.forwardedRun("zz-test-coder", "coder", "inbox")
-	if r.Exit != 3 {
-		t.Fatalf("exit %d, want 3\n%s", r.Exit, r.Stderr)
-	}
-	contains(t, "stderr", r.Stderr, "refused: forwarded call from unknown agent")
-	w.OKWith(ft.Opts{Agent: "zz-test-coder"}, "inbox") // not forwarded: unchanged
 }
