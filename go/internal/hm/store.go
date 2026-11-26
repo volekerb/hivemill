@@ -304,6 +304,9 @@ func (s *SQLite) SetCfg(key, value string) error {
 	if err := checkWorkflowCfg(key, value); err != nil {
 		return err
 	}
+	if err := checkGoalCfg(key, value); err != nil {
+		return err
+	}
 	_, err := s.db.Exec(`INSERT INTO hm_config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, value)
 	return err
 }
