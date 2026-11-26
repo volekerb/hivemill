@@ -95,7 +95,8 @@ func LoadObsEvents(srcs []ObsSource) ([]Event, error) {
 }
 
 // loadObs is LoadObsEvents plus the machine each source is of: the one its stamped lines all name (counting lines
-// already read from another source, so a second copy of a log adds no machine), else its label.
+// already read from another source, so a second copy of a log adds no machine), else its label. A pulled log whose
+// lines all name a machine, but not one and the same, has no line under its label: its source machine is "".
 func loadObs(srcs []ObsSource) ([]Event, []string, error) {
 	from := map[[32]byte]int{}
 	var out []Event
@@ -137,6 +138,8 @@ func loadObs(srcs []ObsSource) ([]Event, []string, error) {
 		}
 		if ms := setKeys(all); !s.Own && len(ms) == 1 {
 			machine = ms[0]
+		} else if !s.Own && len(ms) > 1 && !all[""] {
+			machine = ""
 		}
 		machines = append(machines, machine)
 		name := s.Label
@@ -210,13 +213,13 @@ func (o *Obs) addMachines(names ...string) {
 }
 
 // listMachines adds every session_machines entry ("local" or the local core's name is this machine) and every source's
-// machine.
-func (r *Runner) listMachines(o *Obs, sources []string) {
+// machine. coreName is asked only when an entry is not "local".
+func (r *Runner) listMachines(o *Obs, sources []string, coreName func() string) {
 	names := append([]string(nil), sources...)
 	core, coreRead := "", false
 	for _, m := range csv(r.Store.Cfg("session_machines")) {
 		if m != localMachine && !coreRead {
-			core, coreRead = r.coreName(), true
+			core, coreRead = coreName(), true
 		}
 		if m == localMachine || (core != "" && m == core) {
 			m = r.Machine()
@@ -292,8 +295,8 @@ type Obs struct {
 	EventAsks map[string]map[string]int `json:"-"`
 }
 
-// OpenAsks is the open owner questions per project: this machine's from its DB (local, when ok), every other
-// machine's from its event log.
+// OpenAsks is the open owner questions per project: this machine's from its DB (local, when ok and the machine filter
+// takes this machine), every other machine's from its event log.
 func (o *Obs) OpenAsks(me string, local map[string]int, ok bool) map[string]int {
 	out := map[string]int{}
 	for m, by := range o.EventAsks {
@@ -304,7 +307,7 @@ func (o *Obs) OpenAsks(me string, local map[string]int, ok bool) map[string]int 
 			out[p] += n
 		}
 	}
-	if ok {
+	if ok && o.Filter.onMachine(me) {
 		for p, n := range local {
 			out[p] += n
 		}
@@ -341,11 +344,11 @@ func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, n
 			}
 		}
 		hs[e.Harness] = true
-		if f.Harness != "" && e.Harness != f.Harness ||
-			!f.onMachine(e.Machine) && !inFilter[TaskKey(origin, e.TaskID)] {
+		if f.Harness != "" && e.Harness != f.Harness {
 			continue
 		}
-		if strings.HasPrefix(e.Event, "ask.") && f.onMachine(e.Machine) {
+		// an ask belongs to the machine that filed it, wherever its task ran
+		if strings.HasPrefix(e.Event, "ask.") && f.onMachine(origin) {
 			if id, ok := e.Data["id"].(float64); ok {
 				k := fmt.Sprintf("%s/%d", origin, int64(id))
 				switch e.Event {
@@ -355,6 +358,9 @@ func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, n
 					delete(openAsk, k)
 				}
 			}
+		}
+		if !f.onMachine(e.Machine) && !inFilter[TaskKey(origin, e.TaskID)] {
+			continue
 		}
 		var t *ObsTask
 		if e.TaskID != "" {
@@ -631,7 +637,7 @@ func (r *Runner) LoadObs(f ObsFilter, withPulled bool, now time.Time) (*Obs, err
 		}
 	}
 	o := BuildObs(evs, f, me, SessionUsages(r.Env.UserHome, uniq(ids)), now)
-	r.listMachines(o, sources)
+	r.listMachines(o, sources, r.coreName)
 	return o, nil
 }
 

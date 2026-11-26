@@ -75,6 +75,24 @@ type obsServer struct {
 	usage  map[string]SessUsage
 	now    func() time.Time
 	wide   bool // bound beyond loopback: an IP literal Host is answered too
+
+	coreMu sync.Mutex
+	coreAt time.Time // when hc was last asked
+	core   string    // the last core name hc gave
+}
+
+// coreTTL is how long one `hc server status` answer, a failure too, serves the page.
+const coreTTL = 30 * time.Second
+
+// coreName is Runner.coreName asked at most once per coreTTL. A failed call keeps the last name hc gave, so this
+// machine is not listed a second time under it.
+func (s *obsServer) coreName() string {
+	s.coreMu.Lock()
+	defer s.coreMu.Unlock()
+	if now := s.now(); s.coreAt.IsZero() || now.Sub(s.coreAt) >= coreTTL {
+		s.core, s.coreAt = or(s.r.coreName(), s.core), now
+	}
+	return s.core
 }
 
 // usages prices this machine's sessions from their transcripts at most once a minute.
@@ -108,11 +126,14 @@ func (s *obsServer) load(f ObsFilter) (*Obs, []ObsSource, error) {
 		}
 	}
 	o := BuildObs(evs, f, me, s.usages(uniq(ids)), s.now())
-	s.r.listMachines(o, sources)
-	for i := range srcs {
-		srcs[i].Machine = sources[i]
+	s.r.listMachines(o, sources, s.coreName)
+	listed := srcs[:0]
+	for i, src := range srcs {
+		if src.Machine = sources[i]; src.Machine != "" { // "": the lines' own machines are listed instead
+			listed = append(listed, src)
+		}
 	}
-	return o, srcs, nil
+	return o, listed, nil
 }
 
 // ObsHandler is the page. It answers GET and HEAD only, and only for a loopback Host (no DNS rebinding).
