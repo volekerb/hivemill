@@ -168,7 +168,7 @@ jobs:
           # 711 as in the local gate: the subuid sandbox tests run as another uid that must traverse it.
           TMPDIR=$(mktemp -d /tmp/hm-shard.XXXXXX); export TMPDIR
           chmod 711 "$TMPDIR"
-          trap 'rm -rf "$TMPDIR"' EXIT
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           only=()
           if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
           "$RUNNER_TEMP/ci-shard" run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json" "${only[@]}"
@@ -383,7 +383,7 @@ jobs:
           # guard_diff keeps fixtures at fixed names under TMPDIR: a private one per pass, so parallel passes and
           # other runners (same user) cannot overwrite each other's. --timeout: hook calls are slow on a busy host.
           tmp_both=$(mktemp -d /tmp/gd.XXXXXX); tmp_eval=$(mktemp -d /tmp/gd.XXXXXX)
-          trap 'rm -rf "$tmp_both" "$tmp_eval"' EXIT
+          trap 'rm -rf "$tmp_both" "$tmp_eval" || true' EXIT
           allow_both=(); allow_eval=()
           if [ -n "$files" ]; then
             # --allow-loosen matches expanded commands: listed /tmp/guard-diff-* fixtures move with each pass's TMPDIR,
@@ -437,7 +437,7 @@ jobs:
           rc=0
           # Private TMPDIR and longer hook timeout, as in guard-diff: the hm-ci host is shared.
           TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
-          trap 'rm -rf "$TMPDIR"' EXIT
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator --timeout 30 | tee "$RUNNER_TEMP/gd-self.txt" || rc=1
           if ! grep -F ' 0 loosened, 0 tightened' "$RUNNER_TEMP/gd-self.txt"; then
             echo "evaluator self-compare: expected summary ' 0 loosened, 0 tightened' in stdout" >&2
@@ -491,7 +491,7 @@ jobs:
           rc=0
           # Private TMPDIR and longer hook timeout, as in guard-diff: the hm-ci host is shared.
           TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
-          trap 'rm -rf "$TMPDIR"' EXIT
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator --timeout 30 >"$out" 2>&1 || rc=$?
           cat "$out"
           if [ "$rc" -eq 0 ]; then
@@ -595,7 +595,7 @@ jobs:
         if: steps.paths.outputs.run == 'true'
         run: |
           TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
-          trap 'rm -rf "$TMPDIR"' EXIT
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --role-shard ${{ matrix.shard }} --role-shards 4 --mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict --timeout 30
 
   # Fan-in: the required check name stays exactly "guard-equiv". needs.guard-equiv.result is the matrix.
