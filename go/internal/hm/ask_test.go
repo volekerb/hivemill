@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// The idle alert limit is idle_alert_min (default 20); with 0 or empty it is idle_alert_h again.
+// The idle alert limit is idle_alert_min (default 20); when empty, 0 or negative it is idle_alert_h again.
 func TestIdleAlertMinutes(t *testing.T) {
 	r, s, _ := plannerRunner(t, "")
 	now := time.Now()
@@ -24,7 +24,7 @@ func TestIdleAlertMinutes(t *testing.T) {
 		t.Error("19 min without a dispatch: alert")
 	}
 	_ = s.SetCfg("idle_alert_h", "2")
-	for _, v := range []string{"0", ""} {
+	for _, v := range []string{"0", "", "-5"} {
 		if err := s.SetCfg("idle_alert_min", v); err != nil {
 			t.Fatal(err)
 		}
