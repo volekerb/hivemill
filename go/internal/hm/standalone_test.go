@@ -46,15 +46,25 @@ func TestGuardExportIsWrittenForAStandaloneHome(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(r.Env.Home, "ci", "scrub_allowlist.txt")); err != nil {
 		t.Errorf("the pass gives the home its allowlist: %v", err)
 	}
-	// a factory checkout: the Python tick owns the file
+	// a factory checkout (it has bin/) gets it too: the old tick no longer runs
 	_ = os.Remove(p)
 	_ = os.MkdirAll(filepath.Join(r.Env.Home, "bin"), 0o755)
 	_ = os.WriteFile(filepath.Join(r.Env.Home, "bin", "factory_cli.py"), []byte("#"), 0o644)
 	if err := r.WriteGuardExport(now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(p); err == nil {
-		t.Error("the runner must not write the export of a factory checkout")
+	if _, err := os.Stat(p); err != nil {
+		t.Errorf("a factory checkout needs the export: %v", err)
+	}
+	// no agents table: an empty map, not an error
+	if _, err := s.db.Exec(`DROP TABLE agents`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.WriteGuardExport(now); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ = os.ReadFile(p); !strings.Contains(string(b), `"agent_goals":{}`) {
+		t.Errorf("no agents table: %s", b)
 	}
 }
 

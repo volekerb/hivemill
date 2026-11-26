@@ -19,6 +19,7 @@
 //	hivemill config [KEY [VALUE]]  runner settings (table hm_config) and the factory keys noreply_email, scrub_terms_file, ...
 //	hivemill pr create --title T --body - | pr ready   a task session opens the PR of its own task (repo and branch from the DB)
 //	hivemill guard --home DIR --role ROLE   the worker guard hook of a standalone home's sessions (exit 2 blocks)
+//	hivemill guard export          write run/guard-export.json now (the daemon writes it every minute)
 //	hivemill check public-text --home DIR REMOTE URL   the pre-push hook of a task clone (ci/pre_push_public_text.py in Go)
 //	hivemill affected --base REF [--run] [--quick]     ci/affected.py in Go
 //	hivemill daemon                the pass loop in-process (systemd Type=notify, launchd KeepAlive)
@@ -64,10 +65,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		"project add|list | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
 		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
-		"guard --home DIR --role ROLE | check public-text --home DIR REMOTE URL | affected --base REF | " +
+		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
 		"obs [--port N] [--json] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
 		"otel export [--since D] [--endpoint URL] [--pulled] [--dry-run]"
-	if len(args) > 0 && args[0] == "guard" { // a hook: its arguments and stdin are the guard's, never a help request
+	if len(args) > 0 && args[0] == "guard" && !isGuardExport(args) { // a hook: its arguments and stdin are the guard's, never a help request
 		return cmdGuard(args[1:], stdin, stdout, stderr)
 	}
 	help := len(args) == 0
@@ -312,6 +313,12 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		return cmdProject(r, args[1:], stdout, stderr)
 	case "config":
 		return cmdConfig(r, args[1:], stdout, stderr)
+	case "guard": // only `guard export` reaches here
+		if len(args) != 2 {
+			fmt.Fprintln(stderr, "usage: hivemill guard export")
+			return 2
+		}
+		err = r.WriteGuardExport(time.Now())
 	case "pr":
 		return cmdPR(r, args[1:], stdin, stdout, stderr)
 	default:
@@ -330,6 +337,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		return 1
 	}
 	return 0
+}
+
+// isGuardExport: `guard export` is a runner command that opens the DB; every other `guard ...` is the hook.
+func isGuardExport(args []string) bool {
+	return len(args) > 1 && args[0] == "guard" && args[1] == "export"
 }
 
 func or(a, b string) string {

@@ -179,3 +179,16 @@ func TestGoalStatus(t *testing.T) {
 		t.Errorf("missing status: exit %d, want 2", code)
 	}
 }
+
+func TestGuardExportCommand(t *testing.T) {
+	c, home := standalone(t)
+	p := filepath.Join(home, "run", "guard-export.json")
+	_ = os.Remove(p)
+	c.ok("guard", "export")
+	if _, err := os.Stat(p); err != nil {
+		t.Fatalf("guard export wrote nothing: %v", err)
+	}
+	if code, _, errs := c.run("", "guard", "export", "x"); code != 2 || !strings.Contains(errs, "usage: hivemill guard export") {
+		t.Errorf("extra argument: exit %d %q", code, errs)
+	}
+}
