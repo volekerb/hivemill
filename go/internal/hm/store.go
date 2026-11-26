@@ -55,6 +55,11 @@ type Run struct {
 	LocalCI  *LocalCI `json:",omitempty"`
 	CIPosted string   `json:",omitempty"`
 	CI       *CIWait  `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
+	// the PR flow controller (prflow.go): the flow state, what it re-ran, and a merge that rode the train
+	Flow       *FlowState  `json:",omitempty"`
+	Rerun      *RerunState `json:",omitempty"`
+	Rode       bool        `json:",omitempty"`
+	mergeStage string      // set by Merge for the flow state of this step
 	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
 	Mirror, RemoteHome string `json:",omitempty"`
 	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good

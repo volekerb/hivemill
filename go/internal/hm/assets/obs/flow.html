@@ -1,6 +1,18 @@
 {{define "flow"}}{{with .FlowPg}}
 {{range .Banners}}<p class="banner">{{.}}</p>
 {{end -}}
+<h2>Stuck PRs</h2>
+<div class="scroll"><table>
+<tr><th>task</th><th>machine</th><th>project</th><th>state, minutes/budget</th><th>since</th><th>reason</th></tr>
+{{range .StuckPRs}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td class="warn">{{.PRState}}</td><td>{{when .PRSince}}</td><td>{{.PRStale}}</td></tr>
+{{else}}<tr><td colspan="6" class="muted">no PR is stale</td></tr>{{end}}
+</table></div>
+<h2>Open PRs</h2>
+<div class="scroll"><table>
+<tr><th>task</th><th>machine</th><th>project</th><th>state, minutes/budget</th><th>since</th></tr>
+{{range .OpenPRs}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td>{{.PRState}}</td><td>{{when .PRSince}}</td></tr>
+{{else}}<tr><td colspan="5" class="muted">no open PR has a flow state</td></tr>{{end}}
+</table></div>
 <h2>Stuck now (a stage for more than {{.StuckAfter}})</h2>
 <div class="scroll"><table>
 <tr><th>task</th><th>machine</th><th>project</th><th>stage</th><th class="num">in stage</th><th>since</th></tr>

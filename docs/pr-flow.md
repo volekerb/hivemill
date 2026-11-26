@@ -1,3 +1,67 @@
+# PR flow controller (`hivemill` pass)
+
+The algorithm that keeps runner PRs from getting stuck. It is deterministic: every step is code in the pass, every action is an event, and no session or agent polls a PR. The report tool of the same name is described in the second half of this file.
+
+## 1. One poll per pass
+
+At its start a pass reads every open runner PR with one batched GraphQL query (`gh api graphql`) and caches the answer for the pass:
+
+- per PR: state, draft, mergeable, head SHA, title, body, merge commit, and the check runs with status, timestamps and job link;
+- per repo and base branch: the base protection (strict or not) and the checks of the last 30 base commits (main's push runs, and which job names passed in the last 24 h).
+
+The pass makes no other `gh` status call. A PR the query could not read counts as pending until the next pass. The only other `gh` calls are the actions below (re-run, cancel, failed-job logs, merge and its confirmation, revert). A pass with no open runner PR makes no call. Commands run by hand (`hivemill merge T`) read their one PR directly.
+
+## 2. Flow states and budgets
+
+Each run with a PR has a flow state, set from the run state and the poll. The state, its entry time and its budget are stored on the run. `hivemill run status` and the obs Flow page show `<state> <minutes>/<budget>`.
+
+| State | Meaning | Budget |
+|---|---|---|
+| `ci_queued` | checks wait for a runner; none has started | `ci_queue_max_min` (40) |
+| `ci_running` | a check of this head has started | `ci_timeout_s` (2700 s) |
+| `judge` | the judge session runs or its verdict is being applied | `stale_pr_min` |
+| `merge_ready` | green and judged; merges in its turn | `stale_pr_min` |
+| `main_wait` | waits for main (red, or its push run is pending) | `stale_pr_min` |
+| `refresh` | behind main and has to merge it first | `stale_pr_min` |
+| `held_owner` | held for the owner | `ask_alert_h` |
+
+A new state, or a new head in a CI state, is a new entry. `ci_running` does not fall back to `ci_queued` while the head stays the same. Each entry is recorded as a `pr.flow` event. A run that is working again (red CI, conflict, judge REJECT) has no flow state.
+
+## 3. Actions when a budget runs out
+
+Each happens at most once per state entry.
+
+- `ci_queued`: nothing on GitHub (the queue cannot be hurried). Record `ci.queue_slow`. While any PR is queued over budget, no PR is refreshed, because a refresh adds CI runs to the same queue.
+- `ci_running`: cancel the unfinished Actions runs and re-run them (`gh run rerun`, on the first pass that sees them stopped). A second overrun on the same head fails the run: `CI timed out`. Checks that are not Actions runs cannot be re-run; they raise one owner alert and the run stays.
+- A red CI where every failed job passed on main in the last 24 h under the same name: re-run the failed jobs once per head (`gh run rerun --failed`, event `ci.rerun`). A second red resumes the task session with the log tails.
+- `held_owner`: one owner alert. The delegate path answers held asks. The runner never waits on an LLM to merge a green PR.
+
+## 4. Merging
+
+- Runs ready to merge go in FIFO order by the time the judge gave its verdict.
+- **Merge train.** While main's push run for the previous runner merge is pending, up to `merge_train` (3) more merges may go out, as long as no two merges of the train change the same file. The train empties when the push run of main's head is green. A pending head that is not a runner merge (someone else pushed) holds as before.
+- A red push run of any commit of the train stops it. With `auto_revert=on` the culprit is reverted; merges that rode the train after it do not block that revert, since they share no file with it.
+
+## 5. Stale PRs
+
+A flow state that has not changed for `stale_pr_min` (90) emits one `pr.stale` event with the reason (the merge hold, else the state). The obs Flow page lists it under **Stuck PRs** until the state changes.
+
+## 6. Rate
+
+At most one GraphQL call per pass, plus the actions above. The runner counts the `gh` calls of its passes per hour; `hivemill digest` reports them.
+
+## Events
+
+| Event | Data |
+|---|---|
+| `pr.flow` | `state` (empty: left the flow), `budget_s`, `pr` |
+| `pr.stale` | `state`, `reason`, `minutes`, `pr` |
+| `ci.queue_slow` | `head`, `limit_s`, `pr` |
+| `ci.rerun` | `head`, `reason` (`timeout` or `flaky`), `runs` |
+| `pr.held_alert` | `limit_s`, `pr` |
+
+---
+
 # PR flow report (`go/cmd/pr-flow`)
 
 Read-only measurement of how fast pull requests move through the pipeline: merges per day, open-to-merge time,

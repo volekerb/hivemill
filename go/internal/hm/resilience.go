@@ -27,7 +27,7 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 		}
 	}
 	if (run.State == Working || run.State == Judging) && run.PRURL != "" {
-		if pr, err := PRView(r.Tools, run.PRURL); err == nil && pr.State != "OPEN" {
+		if pr, err := r.prView(run); err == nil && pr.State != "OPEN" {
 			if pr.State == "MERGED" && !run.Eval {
 				r.finish(run, pr)
 				fixed = append(fixed, "PR merged by hand")
