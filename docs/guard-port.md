@@ -41,7 +41,7 @@ Test files are read from git, at the merge base of the base ref (default `origin
 - a. the old names in the map are exactly the `func Test...` names in the `--old` files at the base: none missing, none extra, none twice;
 - b. each `NewTestName` is a `func Test...` in `go/internal/guard/*_test.go` at `HEAD` and not at the base, and appears once in the map;
 - c. each `ExistingTestName` is a `func Test...` in `go/internal/guard/*_test.go` at the base and still at `HEAD`;
-- d. the number of `func Test...` in `go/internal/guard/*_test.go` at `HEAD` minus the number at the base equals the number of non-duplicate map lines.
+- d. the number of `func Test...` in `go/internal/guard/*_test.go` at `HEAD` minus the number at the base equals the number of non-duplicate map lines; also, no guard test at the base is gone at `HEAD`, and every test added at `HEAD` is a `NewTestName` in the map.
 
 Only files directly in `go/internal/guard/` count, not its subdirectories. A test is a `func TestXxx(` at the start of a line where `Xxx` does not start with a lowercase letter; `TestMain` is setup, not a case, and is skipped.
 

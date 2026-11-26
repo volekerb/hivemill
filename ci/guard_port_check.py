@@ -136,6 +136,13 @@ def check(cwd, map_text, olds, base, head="HEAD"):
         failures.append("d: %s gained %d tests (%d at %s, %d at %s) but the map has "
                         "%d non-duplicate lines" % (GUARD_DIR, delta, len(ref_guard),
                                                     base, len(head_guard), head, nondup))
+    # d, by name: no base guard test removed, no added test left unmapped
+    for name in sorted(ref_set - head_set):
+        failures.append("d: %s is in %s at %s but gone at %s"
+                        % (name, GUARD_DIR, base, head))
+    for name in sorted(head_set - ref_set - set(news)):
+        failures.append("d: %s is added to %s at %s but not in the map"
+                        % (name, GUARD_DIR, head))
     return failures
 
 
@@ -174,21 +181,29 @@ def self_test():
         _write(tmp, GUARD_DIR + "/sub/b_test.go", _go("TestSubdirIgnored"))
         _write(tmp, old, _go("TestFoo", "TestBar", "TestMain", "Testhelper"))
         _commit(tmp, "base")
-        git(tmp, "tag", "base")
+        git(tmp, "-c", "tag.gpgSign=false", "tag", "base")
         _write(tmp, GUARD_DIR + "/g1_test.go", _go("TestG1Foo"))
         _commit(tmp, "port")
-        git(tmp, "tag", "port")
+        git(tmp, "-c", "tag.gpgSign=false", "tag", "port")
         _write(tmp, GUARD_DIR + "/extra_test.go", _go("TestG1Extra"))
         _commit(tmp, "extra")
-        git(tmp, "tag", "extra")
+        git(tmp, "-c", "tag.gpgSign=false", "tag", "extra")
         git(tmp, "checkout", "-q", "-b", "rename", "port")
         _write(tmp, GUARD_DIR + "/a_test.go", _go("TestExisting2"))
         _commit(tmp, "rename")
-        git(tmp, "tag", "renamed")
+        git(tmp, "-c", "tag.gpgSign=false", "tag", "renamed")
+        git(tmp, "checkout", "-q", "-b", "swapb", "port")
+        os.remove(os.path.join(tmp, GUARD_DIR, "sub", "b_test.go"))
+        _write(tmp, GUARD_DIR + "/a_test.go", _go("TestExisting", "TestOther"))
+        _commit(tmp, "add other")
+        git(tmp, "-c", "tag.gpgSign=false", "tag", "withother")
+        _write(tmp, GUARD_DIR + "/a_test.go", _go("TestExisting", "TestJunk"))
+        _commit(tmp, "swap")
+        git(tmp, "-c", "tag.gpgSign=false", "tag", "swap")
         git(tmp, "checkout", "-q", "-b", "mainmoved", "base")
         _write(tmp, GUARD_DIR + "/other_test.go", _go("TestG2Other"))
         _commit(tmp, "other batch")
-        git(tmp, "tag", "mainmoved")
+        git(tmp, "-c", "tag.gpgSign=false", "tag", "mainmoved")
 
         good = "# batch\n\nTestFoo -> TestG1Foo\nTestBar -> duplicate-of TestExisting\n"
         cases = [
@@ -210,12 +225,14 @@ def self_test():
              "TestFoo -> TestG1Foo\nTestBar -> duplicate-of TestNope\n", "port", "c:"),
             ("d pass: count matches", good, "port", "!d:"),
             ("d fail: unmapped extra test at HEAD", good, "extra", "d:"),
+            ("d fail: base test deleted, offset by an unmapped one", good, "swap", "d: TestOther is"),
             ("pass: base moved on after the branch point", good, "port", None),
             ("malformed line", good + "TestFoo => TestG1Foo\n", "port", "map line"),
         ]
         bad = 0
         for label, text, head, expect in cases:
-            ref = "mainmoved" if "base moved" in label else "base"
+            ref = ("mainmoved" if "base moved" in label
+                   else "withother" if head == "swap" else "base")
             fails = check(tmp, text, [old], ref, head)
             joined = "\n".join(fails)
             if expect is None:
@@ -255,7 +272,7 @@ def main(argv=None):
         with open(args.map) as f:
             text = f.read()
     except OSError as e:
-        print("guard_port_check: cannot read map: %s" % e)
+        print("guard_port_check: cannot read map: %s" % e, file=sys.stderr)
         return 1
     olds = [repo_path(top, p) for p in args.old]
     failures = check(top, text, olds, args.base)
