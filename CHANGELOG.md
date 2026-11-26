@@ -35,7 +35,7 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Changed
 
-- **The release workflow uses the Go `ci-changelog`.** `release.yml` builds `go/cmd/ci-changelog` once and runs it for `--check-version`, `--release-notes` and `--prerelease` instead of `ci/changelog.py`, which stays for now (T-1926).
+- **The release workflow uses the Go `ci-changelog`.** `release.yml` builds `go/cmd/ci-changelog` once and runs it for `--check-version`, `--release-notes` and `--prerelease` instead of `ci/changelog.py`, which stays for now (T-1948).
 
 ## [0.5.0] - Unreleased
 
