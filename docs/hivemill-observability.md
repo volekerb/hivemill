@@ -53,7 +53,7 @@ hivemill obs sources             # the logs it reads
 ```
 
 - **Binding and requests.** The page binds to 127.0.0.1 only and answers only GET and HEAD. A request whose `Host` is not a loopback name gets 403, which blocks DNS rebinding.
-- **Self-contained.** It is plain HTML from `html/template` with one embedded stylesheet (`app.css`). There is no script, and nothing is loaded from another origin; the CSP header starts with `default-src 'none'` and allows styles only from the page itself. The only outbound links are the PRs' own `https://github.com/...` URLs.
+- **Self-contained.** It is plain HTML from `html/template` with one embedded stylesheet (`app.css`). There is no script, and nothing is loaded from another origin; the CSP header starts with `default-src 'none'` and allows stylesheets only from its own origin, so inline styles are blocked. The only outbound links are the PRs' own `https://github.com/...` URLs.
 - **Filters.** `machine`, `harness` and `days` are query parameters, and every link keeps them. `GET /api/portfolio` returns the same filters' portfolio as JSON.
 - **Open owner questions.** This machine's come from its `hm_asks` table. A pulled machine's are counted from its log: `ask.added` minus `ask.answered` and `ask.withdrawn` (same id).
 
