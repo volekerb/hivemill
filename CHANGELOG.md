@@ -69,6 +69,8 @@ v0.1.0 summarises the changes merged during private development.
 
 - **The hivemill runner waits for CI itself after the gate.** It reads a gated run's PR every `ci_poll_s` (60), starts the judge once the checks are green with the required ones present (without a required list: still green one poll later), and alerts the owner once after `ci_timeout_s` (2700) while the run stays (T-2000).
 
+- **The tests workflow uses the Go `ci-shard` and `ci-test-count-gate`.** `tests.yml` builds `go/cmd/ci-shard` and `go/cmd/ci-test-count-gate` once per job and runs them for shard `run` and `verify` and the test-count `count` (with `--python-only`, so the gate compares the same numbers) and `check`, instead of `ci/shard.py` and `ci/test_count_gate.py`, which stay for now. Until `ci-shard` ports the `SHARD_DEEP`/`SHARD_BASE` scoping and parallel module runs, every shard runs all its modules one at a time (T-1927).
+
 - **The release workflow uses the Go `ci-changelog`.** `release.yml` builds `go/cmd/ci-changelog` once and runs it for `--check-version`, `--release-notes` and `--prerelease` instead of `ci/changelog.py`, which stays for now (T-1948).
 
 ## [0.5.0] - Unreleased
