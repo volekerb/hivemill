@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A summary API and a hub for several factories.** `GET /api/obs/v1/summary` gives one factory's identity (`obs_label`), run counts, one "needs you" list (questions with their text, held runs with reason and PR, failures that were not re-filed, runs over a per-stage limit, system lines), planner state, merges, spend, budget and machines. With `obs_peers` set, a factory's obs serves the All factories page at `/all`; `hivemill obs --hub --peers ...` serves it on a machine with no factory. Bound beyond loopback, obs no longer names file paths or pull sources. See [docs/hivemill-observability.md](docs/hivemill-observability.md#several-factories-the-summary-api-and-the-hub).
+
 - **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
 
 - **A red CI resumes the task session with the failed logs.** The runner names each failed job and sends the last 80 lines of its failed log (read through `ghx`); a session whose pane has closed is relaunched by its session id. A startup failure counts as red. (T-2001)
