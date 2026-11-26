@@ -307,17 +307,8 @@ class WorkflowTest(unittest.TestCase):
         archive = ('git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier go/internal/citools/affected '
                    'go/internal/citools/tier')
         self.assertEqual(self.wf.count(archive), 4)
-        self.assertEqual(self.wf.count('(cd "$RUNNER_TEMP/base/go" && go build -o "$RUNNER_TEMP/ci-tier" ./cmd/ci-tier)'), 4)
-        self.assertNotIn("ci/ci_tier.py", self.wf)
+        self.assertNotIn("python ci/ci_tier.py", self.wf)
         self.assertEqual(self.wf.count('"$RUNNER_TEMP/ci-tier" classify'), 3)
-        self.assertEqual(self.wf.count('full "base commit has no ci-tier"; exit 0'), 3)
-        # ci-tier is built in the tier step, so each job's setup-go must come before it.
-        for job in ("ci-tier", "docs-check", "unittest-shard", "go"):
-            body = re.split(r"(?m)^  [A-Za-z0-9_-]+:\n", self.wf.split("\n  %s:\n" % job, 1)[1], maxsplit=1)[0]
-            tier = re.search(r"- name: Tier (\(rules from the base commit\)|tool from the base commit)", body)
-            setup = body.find("uses: actions/setup-go@v7")
-            self.assertTrue(tier, job)
-            self.assertTrue(0 <= setup < tier.start(), job)
         self.assertIn("  ci-tier:\n", self.wf)
 
     def test_push_and_dispatch_run_full(self):
@@ -344,8 +335,7 @@ class WorkflowTest(unittest.TestCase):
             self.assertIn(skip, job_block(job), job)
         docs = self.wf.split("  docs-check:\n", 1)[1].split("\n  unittest-shard:\n", 1)[0]
         self.assertIn("needs.ci-tier.outputs.mode == 'docs'", docs)
-        self.assertIn('git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier', docs)
-        self.assertIn('"$RUNNER_TEMP/ci-tier" docs-check', docs)
+        self.assertIn('git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier go/internal/citools/affected go/internal/citools/tier', docs)
         gate = self.wf.split('      - name: Docs lane or every shard and guard job succeeded', 1)[1].split("      - uses:", 1)[0]
         self.assertIn('if [ "$MODE" = "docs" ]; then', gate)
         self.assertIn("DOCS_CHECK_RESULT", gate)

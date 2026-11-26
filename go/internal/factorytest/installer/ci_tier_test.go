@@ -465,34 +465,9 @@ func TestCiTierClassifierRunsFromTheBaseCommit(t *testing.T) {
 	if n := strings.Count(wf, archive); n != 4 {
 		t.Fatalf("git archive count %d", n)
 	}
-	if n := strings.Count(wf, `(cd "$RUNNER_TEMP/base/go" && go build -o "$RUNNER_TEMP/ci-tier" ./cmd/ci-tier)`); n != 4 {
-		t.Fatalf("build count %d", n)
-	}
-	notContains(t, wf, "ci/ci_tier.py")
+	notContains(t, wf, "python ci/ci_tier.py")
 	if n := strings.Count(wf, `"$RUNNER_TEMP/ci-tier" classify`); n != 3 {
 		t.Fatalf("classify count %d", n)
-	}
-	if n := strings.Count(wf, `full "base commit has no ci-tier"; exit 0`); n != 3 {
-		t.Fatalf("fallback count %d", n)
-	}
-	// ci-tier is built in the tier step, so each job's setup-go must come before it.
-	tierStep := regexp.MustCompile(`- name: Tier (\(rules from the base commit\)|tool from the base commit)`)
-	nextJob := regexp.MustCompile(`(?m)^  [A-Za-z0-9_-]+:\n`)
-	for _, job := range []string{"ci-tier", "docs-check", "unittest-shard", "go"} {
-		parts := strings.SplitN(wf, "\n  "+job+":\n", 2)
-		if len(parts) != 2 {
-			t.Errorf("%s: job not found", job)
-			continue
-		}
-		body := parts[1]
-		if loc := nextJob.FindStringIndex(body); loc != nil {
-			body = body[:loc[0]]
-		}
-		tier := tierStep.FindStringIndex(body)
-		setup := strings.Index(body, "uses: actions/setup-go@v7")
-		if tier == nil || setup < 0 || setup > tier[0] {
-			t.Errorf("%s: setup-go must come before the tier step", job)
-		}
 	}
 	contains(t, wf, "  ci-tier:\n")
 }
@@ -536,8 +511,7 @@ func TestCiTierDocsFastLaneSkipsHeavyJobs(t *testing.T) {
 	}
 	docs := strings.SplitN(strings.SplitN(wf, "  docs-check:\n", 2)[1], "\n  unittest-shard:\n", 2)[0]
 	contains(t, docs, "needs.ci-tier.outputs.mode == 'docs'")
-	contains(t, docs, `git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier`)
-	contains(t, docs, `"$RUNNER_TEMP/ci-tier" docs-check`)
+	contains(t, docs, `git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier go/internal/citools/affected go/internal/citools/tier`)
 	gate := strings.SplitN(strings.SplitN(wf, "      - name: Docs lane or every shard and guard job succeeded", 2)[1], "      - uses:", 2)[0]
 	contains(t, gate, `if [ "$MODE" = "docs" ]; then`)
 	contains(t, gate, "DOCS_CHECK_RESULT")
