@@ -362,6 +362,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case "/spend", "/api/obs/spend":
 		p.Kind, p.Section, p.Title = "spend", "spend", "Spend"
 		p.SpendPg = o.BuildSpend(days, p.PFilter, q.Get("by"))
+		p.SpendPg.Banners = p.SpendPg.pollingBanners(cfgInt(s.r.Store, "obs_banner_polling_pct"))
 		if req.URL.Path == "/api/obs/spend" {
 			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "spend": p.SpendPg})
 			return

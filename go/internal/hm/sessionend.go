@@ -14,6 +14,7 @@ type SessUsage struct {
 	Output     int64   `json:"output_tokens"`
 	CacheRead  int64   `json:"cache_read_tokens"`
 	CacheWrite int64   `json:"cache_write_tokens"`
+	PollingUSD float64 `json:"polling_usd"` // spend.Bucket.PollingCost: tiny-output requests, never a transcript's first
 }
 
 // Tokens is every token the session's requests carried.
@@ -21,27 +22,29 @@ func (u SessUsage) Tokens() int64 { return u.Input + u.Output + u.CacheRead + u.
 
 func (u SessUsage) data() map[string]any {
 	return map[string]any{"input_tokens": u.Input, "output_tokens": u.Output, "cache_read_tokens": u.CacheRead,
-		"cache_write_tokens": u.CacheWrite}
+		"cache_write_tokens": u.CacheWrite, "polling_usd": u.PollingUSD}
 }
 
-// usageOf reads the usage a session.ended line carries (cost_usd plus the token counts in data).
+// usageOf reads the usage a session.ended line carries (cost_usd plus the token counts and polling_usd in data; a line
+// written before polling_usd counts as 0).
 func usageOf(e Event) (SessUsage, bool) {
 	if e.CostUSD == nil {
 		return SessUsage{}, false
 	}
 	n := func(k string) int64 { f, _ := e.Data[k].(float64); return int64(f) }
-	return SessUsage{USD: *e.CostUSD, Input: n("input_tokens"), Output: n("output_tokens"), CacheRead: n("cache_read_tokens"),
+	polling, _ := e.Data["polling_usd"].(float64)
+	return SessUsage{USD: *e.CostUSD, PollingUSD: polling, Input: n("input_tokens"), Output: n("output_tokens"), CacheRead: n("cache_read_tokens"),
 		CacheWrite: n("cache_write_tokens")}, true
 }
 
-// SessionUsages is SessionCosts with the token counts: each session's $ (rounded like SessionCosts) and tokens.
+// SessionUsages is SessionCosts with the token counts: each session's $ (rounded like SessionCosts), tokens and polling $.
 func SessionUsages(userHome string, ids []string) map[string]SessUsage {
 	out := map[string]SessUsage{}
 	if len(ids) == 0 {
 		return out
 	}
 	for k, b := range spend.SessionCosts(filepath.Join(userHome, ".claude", "projects"), ids) {
-		out[k] = SessUsage{USD: math.Round(b.Cost*10000) / 10000, Input: b.Input, Output: b.Output, CacheRead: b.CacheRead,
+		out[k] = SessUsage{USD: math.Round(b.Cost*10000) / 10000, PollingUSD: math.Round(b.PollingCost*10000) / 10000, Input: b.Input, Output: b.Output, CacheRead: b.CacheRead,
 			CacheWrite: b.CacheWrite}
 	}
 	return out
