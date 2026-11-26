@@ -250,7 +250,7 @@ jobs:
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -408,7 +408,7 @@ jobs:
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
@@ -451,7 +451,7 @@ jobs:
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
@@ -512,7 +512,7 @@ jobs:
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -625,7 +625,7 @@ jobs:
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly

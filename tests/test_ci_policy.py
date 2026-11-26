@@ -90,6 +90,8 @@ def _flow_line(s):
             out.append(body if re.fullmatch(r"[A-Za-z_][\w-]*", body) else "_q")
             i = q.end()
             continue
+        if c in "*&!?|>%@`" and starts:  # alias, anchor, tag, key or block indicator: not read, so fail closed
+            return "\x00"
         out.append(c)
         i += 1
     return "".join(out).strip()
@@ -362,7 +364,8 @@ class RunnerRule(PolicyBase):  # a
         # a hosted workflow whose triggers cannot be read fails too, so a banned trigger cannot hide there
         for on in ("on:\n- schedule\n", "on: [push,\n", "on :\n  schedule:\n",
                    'on: {push: {branches: ["a\\"b"]}, schedule: {}}\n',
-                   "on: {push: {branches: ['a\n  ]}']}, schedule: {}}\n"):
+                   "on: {push: {branches: ['a\n  ]}']}, schedule: {}}\n",
+                   "on: [push, *t]\n", "on: {push: {}, *t : {}}\n", "on: [push, !!str schedule]\n"):
             self.assertBlocked(GOOD.replace(block, on), "cannot read")
 
     def test_self_hosted_for_forks_blocked(self):
