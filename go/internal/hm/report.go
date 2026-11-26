@@ -345,6 +345,9 @@ func (r *Runner) Report(asJSON bool) error {
 	if r.Draining() {
 		drain = "DRAIN on (no new runs), "
 	}
+	if ps := r.DrainedProjects(); len(ps) > 0 {
+		drain += "DRAIN on for " + strings.Join(ps, ",") + ", "
+	}
 	r.printf("%s%s; backup: %s\n", drain, caps.Header(r.Store), r.ReplicationPlan())
 	r.printf("%-7s %-10s %6s %6s %6s %6s %3s %-12s %2s %5s %4s %4s %3s %5s %3s sessions\n", "task", "outcome", "$", "$task", "$judge", "h",
 		"blk", "judge", "ci", "fix", "crit", "prov", "man", "rfail", "wf")

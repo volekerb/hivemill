@@ -3,6 +3,7 @@
 //
 //	hivemill run [T-1234]          one pass (advance every run, revert check, start ready tasks), or start one task
 //	hivemill run status|stop T-1234
+//	hivemill run --project ID [--no-start]   one pass of one project (how the daemon runs a stable-channel one)
 //	hivemill gate hook             Stop hook of a task session (reads the hook JSON on stdin)
 //	hivemill gate T-1234           run the gate checks of a run now and print them
 //	hivemill judge hook            Stop hook of a judge session
@@ -26,7 +27,8 @@
 //	    [--ios-dir DIR --xcode-workspace PATH|--xcode-project PATH --xcode-scheme NAME]   and xcodebuild on an iOS change
 //	hivemill daemon                the pass loop in-process (systemd Type=notify, launchd KeepAlive)
 //	hivemill health [--alert]      exit 0 when the last good pass is recent; --alert raises the rate-limited dead-man alert
-//	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
+//	hivemill drain [--status|--project ID] | resume [--project ID]   no new dispatch while active runs finish / lift it
+//	hivemill release promote       make the running edge binary the stable one, after 24 h clean
 //	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
 //	hivemill planner start|stop|status|wake [REASON]   the planner session (keeps ready queues full; woken by the daemon)
 //	hivemill ask add|list|answer|withdraw              the owner queue
@@ -64,7 +66,7 @@ func main() {
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
 		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close|status | " +
-		"project add|list | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status] | resume | " +
+		"project add|list | config [KEY [VALUE]] | daemon | health [--alert] | drain [--status|--project ID] | resume [--project ID] | release promote | run --project ID [--no-start] | " +
 		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
@@ -143,11 +145,18 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			return 3
 		}
 	}
+	if bin := stableStep(r, args, env.Actor); bin != "" {
+		if code, started := runStable(bin, env.Home, args, stdin, stdout, stderr); started {
+			return code
+		}
+	}
 	switch args[0] {
 	case "run":
 		switch a := arg(1); {
 		case a == "":
 			err = r.Pass(true)
+		case a == "--project" && (len(args) == 3 || (len(args) == 4 && arg(3) == "--no-start")):
+			err = r.PassProject(arg(2), len(args) == 3)
 		case a == "hook-session":
 			err = r.SessionHook(stdin)
 		case a == "status":
@@ -272,16 +281,49 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			return 1
 		}
 	case "drain":
-		if arg(1) != "--status" {
+		switch {
+		case len(args) == 1:
 			err = r.SetDrain(true)
+		case len(args) == 2 && arg(1) == "--status":
+		case len(args) == 3 && arg(1) == "--project":
+			err = r.SetProjectDrain(arg(2), true)
+		default:
+			fmt.Fprintln(stderr, "usage: hivemill drain [--status | --project ID]")
+			return 2
 		}
 		if err == nil {
 			fmt.Fprintf(stdout, "drain %v\n", r.Draining())
+			if ps := r.DrainedProjects(); len(ps) > 0 {
+				fmt.Fprintf(stdout, "drained projects: %s\n", strings.Join(ps, ", "))
+			}
 			err = r.Status()
 		}
 	case "resume":
-		err = r.SetDrain(false)
-		fmt.Fprintln(stdout, "drain off: new runs may start")
+		switch {
+		case len(args) == 1:
+			if err = r.SetDrain(false); err == nil {
+				fmt.Fprintln(stdout, "drain off: new runs may start")
+				if ps := r.DrainedProjects(); len(ps) > 0 {
+					fmt.Fprintf(stdout, "still drained: %s (`hivemill resume --project ID`)\n", strings.Join(ps, ", "))
+				}
+			}
+		case len(args) == 3 && arg(1) == "--project":
+			if err = r.SetProjectDrain(arg(2), false); err == nil {
+				fmt.Fprintf(stdout, "project %s: drain off\n", arg(2))
+			}
+		default:
+			fmt.Fprintln(stderr, "usage: hivemill resume [--project ID]")
+			return 2
+		}
+	case "release":
+		if len(args) != 2 || arg(1) != "promote" {
+			fmt.Fprintln(stderr, "usage: hivemill release promote")
+			return 2
+		}
+		var p string
+		if p, err = r.Promote(time.Now()); err == nil {
+			fmt.Fprintf(stdout, "stable: %s\n", p)
+		}
 	case "backup":
 		var p string
 		p, err = r.Backup(time.Now())

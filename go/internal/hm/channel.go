@@ -1,0 +1,293 @@
+package hm
+
+// Release channels and per-project drain: one runner serves every project, and a project on the stable channel is run
+// by the last promoted binary, so a bad edge build does not stall it. The daemon (edge) skips such a project in its
+// own pass and runs `<stable> run --project ID` instead; the sessions of the project call the stable binary from their
+// hooks and PATH. Until a binary is promoted, a stable project is run by edge.
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+const (
+	ChannelEdge   = "edge"
+	ChannelStable = "stable"
+	// promoteAfter is how long the edge build must have run clean before it may become the stable one.
+	promoteAfter = 24 * time.Hour
+	// stablePassTimeout bounds one project pass of the stable binary.
+	stablePassTimeout = 30 * time.Minute
+	edgeMeta          = "edge_build"
+)
+
+// channelKey is the project of a `project.<id>.channel` config key.
+func channelKey(key string) (string, bool) {
+	id, ok := strings.CutPrefix(key, "project.")
+	if !ok {
+		return "", false
+	}
+	id, ok = strings.CutSuffix(id, ".channel")
+	return id, ok && id != ""
+}
+
+// Channel is the release channel of a project: edge unless its config says stable.
+func (r *Runner) Channel(project string) string {
+	if r.Store.Cfg("project."+project+".channel") == ChannelStable {
+		return ChannelStable
+	}
+	return ChannelEdge
+}
+
+// StableBinary is where `hivemill release promote` puts the stable build.
+func StableBinary(userHome string) string {
+	return filepath.Join(userHome, ".local", "lib", "hivemill", "stable", "hivemill")
+}
+
+// stableFor is the promoted binary of a stable-channel project ("" for edge, or when nothing is promoted yet).
+func (r *Runner) stableFor(project string) string {
+	if project == "" || r.Channel(project) != ChannelStable {
+		return ""
+	}
+	bin := StableBinary(r.Env.UserHome)
+	if st, err := os.Stat(bin); err != nil || !st.Mode().IsRegular() || st.Mode().Perm()&0o111 == 0 {
+		return ""
+	}
+	return bin
+}
+
+// Delegate is the binary that must run a step of the project instead of this process ("": this process runs it).
+func (r *Runner) Delegate(project string) string {
+	bin := r.stableFor(project)
+	if bin == "" {
+		return ""
+	}
+	self, err := SelfBinary()
+	if err != nil {
+		return "" // cannot tell who we are: run here rather than start a loop
+	}
+	if p, err := filepath.EvalSymlinks(bin); err == nil && p == self {
+		return "" // this process is the stable binary
+	}
+	return bin
+}
+
+// DelegateTask is Delegate for the project of a task's run or task row.
+func (r *Runner) DelegateTask(task string) string {
+	if run, err := r.Store.Run(task); err == nil && run != nil {
+		return r.Delegate(run.Project)
+	}
+	if t, err := r.Store.Task(task); err == nil {
+		return r.Delegate(t.Project)
+	}
+	return ""
+}
+
+// DelegateAgent is Delegate for the run an agent session (task or judge) works for.
+func (r *Runner) DelegateAgent(agent string) string {
+	if agent == "" {
+		return ""
+	}
+	if run := r.runFor(agent); run != nil {
+		return r.Delegate(run.Project)
+	}
+	return ""
+}
+
+// stablePasses runs a pass of every delegated project through the stable binary. A failure is printed and stays with
+// that project: it neither fails the edge pass nor stops the other projects.
+func (r *Runner) stablePasses(startNew bool) {
+	projects, err := r.Store.ProjectIDs()
+	if err != nil {
+		r.printf("stable channel: %v\n", err)
+		return
+	}
+	for _, id := range projects {
+		bin := r.Delegate(id)
+		if bin == "" {
+			continue
+		}
+		argv := []string{bin, "run", "--project", id}
+		if !startNew {
+			argv = append(argv, "--no-start")
+		}
+		rc, out := r.Tools.Sh("", stablePassTimeout, append(os.Environ(), "FACTORY_HOME="+r.Env.Home), argv...)
+		if s := strings.TrimSpace(out); s != "" {
+			r.printf("%s\n", s)
+		}
+		if rc != 0 {
+			r.printf("project %s: stable pass failed: exit %d\n", id, rc)
+		}
+	}
+}
+
+// checkProject refuses a project id the factory does not know.
+func (r *Runner) checkProject(id string) error {
+	ids, err := r.Store.ProjectIDs()
+	if err != nil {
+		return err
+	}
+	for _, x := range ids {
+		if x == id {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: no project %q (known: %s)", ErrRefused, id, strings.Join(ids, ", "))
+}
+
+// ProjectDraining reports drain mode of one project: no new runs for it, active runs finish.
+func (r *Runner) ProjectDraining(project string) bool {
+	return project != "" && r.Store.Meta("drain:"+project) == "on"
+}
+
+// SetProjectDrain turns drain mode of one project on or off.
+func (r *Runner) SetProjectDrain(project string, on bool) error {
+	if err := r.checkProject(project); err != nil {
+		return err
+	}
+	v := "off"
+	if on {
+		v = "on"
+	}
+	return r.Store.SetMeta("drain:"+project, v)
+}
+
+// DrainedProjects are the projects in drain mode.
+func (r *Runner) DrainedProjects() []string {
+	ids, err := r.Store.ProjectIDs()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, id := range ids {
+		if r.ProjectDraining(id) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// edgeBuild is the daemon's record of the binary it runs and of its clean time.
+type edgeBuild struct {
+	Path    string `json:"path"`
+	SHA256  string `json:"sha256"`
+	Since   int64  `json:"since"`    // start of the clean time (0: the last pass failed, or an auto-revert)
+	LastEnd int64  `json:"last_end"` // end of the last good pass
+	Running bool   `json:"running"`  // a pass started and has not ended: found set at a start, that pass died
+}
+
+func (r *Runner) readEdge() (b edgeBuild) {
+	_ = json.Unmarshal([]byte(r.Store.Meta(edgeMeta)), &b)
+	return b
+}
+
+func (r *Runner) writeEdge(b edgeBuild) {
+	text, err := json.Marshal(b)
+	if err == nil {
+		err = r.Store.SetMeta(edgeMeta, string(text))
+	}
+	if err != nil {
+		r.printf("edge build record: %v\n", err)
+	}
+}
+
+// edgePassStart records that a pass of the build (path, sum) starts. The clean time starts over for another build,
+// after a pass that never ended, and after a time with no good pass (the build did not run then).
+func (r *Runner) edgePassStart(path, sum string, now time.Time) {
+	b := r.readEdge()
+	gap := now.Sub(time.Unix(b.LastEnd, 0))
+	if b.SHA256 != sum || b.Running || gap > time.Duration(cfgInt(r.Store, "health_max_age_s"))*time.Second {
+		b.Since = 0
+	}
+	if b.Since == 0 {
+		b.Since = now.Unix()
+	}
+	b.Path, b.SHA256, b.Running = path, sum, true
+	r.writeEdge(b)
+}
+
+// edgePassEnd records the end of that pass; a failed one ends the clean time.
+func (r *Runner) edgePassEnd(failed bool, now time.Time) {
+	b := r.readEdge()
+	b.Running = false
+	if failed {
+		b.Since = 0
+	} else {
+		b.LastEnd = now.Unix()
+	}
+	r.writeEdge(b)
+}
+
+// edgeDirty ends the clean time (an auto-revert).
+func (r *Runner) edgeDirty() {
+	if b := r.readEdge(); b.SHA256 != "" {
+		b.Since = 0
+		r.writeEdge(b)
+	}
+}
+
+func fileSum(path string) (string, []byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", nil, err
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), data, nil
+}
+
+// Promote copies the running edge binary to the stable path, once it has run promoteAfter with no failed pass and no
+// auto-revert. It returns the stable path.
+func (r *Runner) Promote(now time.Time) (string, error) {
+	b := r.readEdge()
+	if b.SHA256 == "" {
+		return "", fmt.Errorf("%w: no record of a running edge build; `hivemill daemon` writes it", ErrRefused)
+	}
+	if b.Since == 0 || b.LastEnd < b.Since {
+		return "", fmt.Errorf("%w: the edge build had a failed pass or an auto-revert and has no good pass since", ErrRefused)
+	}
+	if age := now.Sub(time.Unix(b.LastEnd, 0)); age > time.Duration(cfgInt(r.Store, "health_max_age_s"))*time.Second {
+		return "", fmt.Errorf("%w: the last good pass of the edge build ended %s ago; is the daemon running?", ErrRefused, age.Round(time.Second))
+	}
+	if clean := time.Unix(b.LastEnd, 0).Sub(time.Unix(b.Since, 0)); clean < promoteAfter {
+		return "", fmt.Errorf("%w: the edge build has run clean for %s of %s", ErrRefused, clean.Round(time.Minute), promoteAfter)
+	}
+	sum, data, err := fileSum(b.Path)
+	if errors.Is(err, fs.ErrNotExist) || (err == nil && sum != b.SHA256) {
+		return "", fmt.Errorf("%w: %s changed since the daemon started it; restart the daemon and let the new build run %s",
+			ErrRefused, b.Path, promoteAfter)
+	}
+	if err != nil {
+		return "", err
+	}
+	dst := StableBinary(r.Env.UserHome)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return "", err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(dst), ".promote-*")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmp.Name()) // gone after the rename
+	_, err = tmp.Write(data)
+	if err == nil {
+		err = tmp.Chmod(0o755)
+	}
+	if e := tmp.Close(); err == nil {
+		err = e
+	}
+	if err == nil {
+		err = os.Rename(tmp.Name(), dst) // atomic: a running stable process keeps its own file
+	}
+	if err != nil {
+		return "", err
+	}
+	_ = r.Log.Emit("release.promoted", nil, Event{Data: map[string]any{"sha256": sum, "from": b.Path}})
+	return dst, nil
+}

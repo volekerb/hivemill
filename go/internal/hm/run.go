@@ -51,6 +51,7 @@ type Runner struct {
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
+	stepErrs   int                    // run steps of the last pass that failed
 	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 
@@ -198,6 +199,9 @@ func (r *Runner) Start(id string) error {
 	}
 	if r.Draining() {
 		return fmt.Errorf("%w: drain mode is on (`hivemill resume` lifts it)", ErrRefused)
+	}
+	if r.ProjectDraining(t.Project) {
+		return fmt.Errorf("%w: project %s is in drain mode (`hivemill resume --project %s` lifts it)", ErrRefused, t.Project, t.Project)
 	}
 	caps := r.ReadCaps(time.Now())
 	if why := caps.DispatchBlock(r.Store, t.Project); why != "" {
@@ -489,25 +493,50 @@ func truncate(s string, n int) string {
 }
 
 // Pass advances every active run once (one gh read per run; a red CI also reads the failed logs), checks for a revert, then starts ready tasks.
-func (r *Runner) Pass(startNew bool) error {
+// A project on the stable channel is not run here: the pass starts the stable binary for it (PassProject).
+func (r *Runner) Pass(startNew bool) error { return r.pass("", startNew) }
+
+// PassProject is the pass of one project, whatever its channel (`hivemill run --project ID`).
+func (r *Runner) PassProject(project string, startNew bool) error {
+	if err := r.checkProject(project); err != nil {
+		return err
+	}
+	return r.pass(project, startNew)
+}
+
+// pass runs the projects of this process, or only the project `only`, which has its own pass lock.
+func (r *Runner) pass(only string, startNew bool) error {
+	r.stepErrs = 0
+	lockName, mine := "pass", func(p string) bool { return r.Delegate(p) == "" }
+	if only != "" {
+		lockName, mine = "pass-"+only, func(p string) bool { return p == only }
+	}
 	// the daemon reuses the Runner: each pass, a skipped one too, reads the machines again
 	r.usageFiles, r.usageRead = nil, false
-	l := r.lock("pass", false) // one pass at a time: a timer tick that finds a pass running exits at once
+	l := r.lock(lockName, false) // one pass at a time: a timer tick that finds a pass running exits at once
 	if l == nil {
 		r.printf("another pass is running; skipped\n")
 		return nil
 	}
 	defer l.Close()
+	if only == "" {
+		r.stablePasses(startNew) // first: nothing that fails below holds a stable project back
+	}
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
-	defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
+	if only == "" {
+		defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
+	}
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
 	if err != nil {
 		return err
 	}
 	for _, x := range runs {
+		if !mine(x.Project) {
+			continue
+		}
 		if heldForOwner(&x) && !x.Eval {
 			if l := r.lock(x.Task, false); l != nil {
 				if run, _ := r.Store.Run(x.Task); run != nil && heldForOwner(run) {
@@ -521,15 +550,18 @@ func (r *Runner) Pass(startNew bool) error {
 			st, err := r.Advance(x.Task, list, ok)
 			if err != nil {
 				st = "error: " + firstLine(err.Error())
+				r.stepErrs++
 			}
 			r.printf("%s: %s\n", x.Task, st)
 		}
 	}
-	if err := r.RevertCheck(); err != nil {
+	if err := r.revertCheck(mine); err != nil {
 		r.printf("revert check: %v\n", err)
 	}
-	if err := r.reportUnstartable(); err != nil {
-		r.printf("unstartable tasks: %v\n", err)
+	if only == "" {
+		if err := r.reportUnstartable(); err != nil {
+			r.printf("unstartable tasks: %v\n", err)
+		}
 	}
 	// every pass records a waiting pause that starts or ends, also one that dispatches nothing below
 	paused := r.waitingBlock()
@@ -554,6 +586,9 @@ func (r *Runner) Pass(startNew bool) error {
 	for _, t := range cands {
 		if r.runCapBlock() != "" {
 			break
+		}
+		if !mine(t.Project) || r.ProjectDraining(t.Project) {
+			continue
 		}
 		if err := r.Start(t.ID); err != nil {
 			r.printf("%s: %v\n", t.ID, err)

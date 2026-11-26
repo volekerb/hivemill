@@ -192,8 +192,23 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	}
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
 	sdNotify("READY=1")
+	bin, err := SelfBinary()
+	sum := ""
+	if err == nil {
+		sum, _, err = fileSum(bin) // the build this process started with
+	}
+	if err != nil {
+		r.printf("edge build record: %v\n", err)
+	}
 	for {
-		if err := r.Pass(true); err != nil {
+		if sum != "" {
+			r.edgePassStart(bin, sum, time.Now())
+		}
+		err := r.Pass(true)
+		if sum != "" {
+			r.edgePassEnd(err != nil || r.stepErrs > 0, time.Now())
+		}
+		if err != nil {
 			r.printf("pass: %v\n", err)
 		} else {
 			_ = r.Heartbeat(time.Now())
