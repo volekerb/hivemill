@@ -768,6 +768,7 @@ jobs:
       - name: Every module ran exactly once
         if: needs.ci-tier.outputs.mode != 'docs'
         run: |
+          set -o pipefail
           only=()
           if [ "${{ needs.ci-tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
           "$RUNNER_TEMP/ci-shard" verify --total "$SHARDS" --dir "$RUNNER_TEMP/reports" "${only[@]}" | tee "$RUNNER_TEMP/summary.txt"
