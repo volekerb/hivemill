@@ -130,6 +130,27 @@ func TestSessionsCannotChangeTasks(t *testing.T) {
 	}
 }
 
+func TestTaskListQueueFlags(t *testing.T) {
+	c, _ := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "g")
+	c.ok("config", "projects", "www")
+	acc := "1. a - cmd:true => exit 0"
+	c.ok("task", "add", "--goal", "G-001", "--title", "first", "--spec", "s", "--acceptance", acc)
+	c.ok("task", "add", "--goal", "G-001", "--title", "second", "--spec", "s", "--acceptance", acc, "--depends", "T-0001")
+	if out := c.ok("task", "list", "--startable"); out != "T-0001 G-001 first\n" {
+		t.Errorf("startable: %q", out)
+	}
+	if out := c.ok("task", "list", "--blocked"); out != "T-0002 G-001 second: deps: T-0001 (todo)\n" {
+		t.Errorf("blocked: %q", out)
+	}
+	for _, args := range [][]string{{"--startable", "--blocked"}, {"--blocked", "--goal", "G-001"}, {"--startable", "--status", "todo"}} {
+		if code, _, _ := c.run("", append([]string{"task", "list"}, args...)...); code != 2 {
+			t.Errorf("%v: exit %d, want 2", args, code)
+		}
+	}
+}
+
 func TestTaskLintAll(t *testing.T) {
 	c, home := standalone(t)
 	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
