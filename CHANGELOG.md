@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`hivemill proofs touched --ios-dir` no longer passes on a mistyped directory.** An iOS directory that is missing under the root, or differs in letter case from the real one, is now a usage error (exit 2) that names it, not `SKIP xcodebuild: no iOS change` (T-2074).
+
 ### Added
 
 - **The runner reports todo tasks that cannot start.** `hivemill task list --startable` and `--blocked` (with the reason: lint, deps or a run) show what a pass starts and skips. A todo task failing the spec gate logs one `task.unstartable` event and gives the planner one wake reason; when a run slot is free and nothing is startable, the wake says how many tasks deps and lint block. The idle alert counts startable tasks (T-2048).

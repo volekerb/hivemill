@@ -168,7 +168,9 @@ func TestTouchedXcodeFailsOffDarwin(t *testing.T) {
 }
 
 func TestTouchedXcodeSkipsWithoutIOSChange(t *testing.T) {
-	code, out, calls := touchedXcode(touchedRepo(t, "README.md", "iosx/y.swift"), "linux", "App")
+	root := touchedRepo(t, "README.md", "iosx/y.swift")
+	touchedWrite(t, root, "ios/keep", "") // the iOS directory exists and the branch does not touch it
+	code, out, calls := touchedXcode(root, "linux", "App")
 	if code != 0 || len(calls) != 0 || out != "no package changed\nSKIP xcodebuild: no iOS change\n" {
 		t.Fatalf("code %d calls %q out %q", code, calls, out)
 	}
@@ -188,6 +190,63 @@ func TestTouchedXcodeNeedsScheme(t *testing.T) {
 			t.Fatalf("%+v: code %d: %s", r, code, buf.String())
 		}
 	}
+}
+
+// wantBadIOSDir runs the iOS proof with dir as the iOS directory and expects the usage error that names it.
+func wantBadIOSDir(t *testing.T, root, dir string) {
+	t.Helper()
+	var out bytes.Buffer
+	code := TouchedRun{Root: root, Base: "main", Out: &out, IOSDir: dir}.Run()
+	if code != 2 || !strings.HasPrefix(out.String(), `proofs touched: bad iOS directory "`+dir+`": `) {
+		t.Fatalf("%s: code %d: %s", dir, code, out.String())
+	}
+}
+
+func TestTouchedIOSDirMissing(t *testing.T) {
+	root := touchedRepo(t, "README.md")
+	wantBadIOSDir(t, root, "ios")
+	// A file is not a directory, and every element of a nested path is checked.
+	wantBadIOSDir(t, root, "README.md")
+	touchedWrite(t, root, "apps/ios/keep", "")
+	wantBadIOSDir(t, root, "apps/mac")
+	wantBadIOSDir(t, root, "app/ios")
+}
+
+func TestTouchedIOSDirWrongCase(t *testing.T) {
+	root := touchedRepo(t, "README.md")
+	touchedWrite(t, root, "ios/keep", "")
+	wantBadIOSDir(t, root, "IOS")
+	touchedWrite(t, root, "apps/ios/keep", "")
+	wantBadIOSDir(t, root, "Apps/ios")
+}
+
+func TestTouchedIOSDirExists(t *testing.T) {
+	root := touchedRepo(t, "README.md")
+	touchedWrite(t, root, "ios/keep", "")
+	touchedWrite(t, root, "apps/ios/keep", "")
+	for _, dir := range []string{"ios", "./ios/", "apps/ios", "."} {
+		if dir == "." { // the root itself: any change is an iOS change
+			if err := (TouchedRun{IOSDir: dir}).checkIOSDir(root); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		code, out, calls := touchedXcodeDir(root, dir)
+		if code != 0 || calls != 0 || out != "no package changed\nSKIP xcodebuild: no iOS change\n" {
+			t.Fatalf("%s: code %d calls %d out %q", dir, code, calls, out)
+		}
+	}
+}
+
+// touchedXcodeDir runs the iOS proof with dir as the iOS directory; it returns the exit code, the output and the
+// number of Exec calls.
+func touchedXcodeDir(root, dir string) (code int, out string, calls int) {
+	var buf bytes.Buffer
+	code = TouchedRun{Root: root, Base: "main", Out: &buf, IOSDir: dir, Exec: func(string, []string) (int, error) {
+		calls++
+		return 0, nil
+	}}.Run()
+	return code, buf.String(), calls
 }
 
 func TestTouchedRunNoPackagesChanged(t *testing.T) {
