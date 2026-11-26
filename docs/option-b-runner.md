@@ -82,7 +82,7 @@ None of these guards changes a config key.
 | `auto_revert` | `off` | `on` turns on the mechanical revert |
 | `pass_interval_s` | `60` | daemon: seconds between passes |
 | `resume_max` | `3` | lost sessions resumed per run before FAIL `session lost` |
-| `run_max_working_min` | `180` | minutes a run may stay in `working` in one round without a passing gate. Then one resume; 30 minutes later FAIL `timed out: N minutes in working`. `0`: no limit |
+| `run_max_working_min` | `180` | minutes a run may stay in `working` in one round without a passing gate. Then one resume; 30 minutes later FAIL `timed out: N minutes in working`. `0` or `off`: no limit |
 | `health_max_age_s` | `300` | `hivemill health` fails when the last good pass is older |
 | `alert_every_s` | `3600` | at most one dead-man alert per this many seconds |
 | `backup_interval` | `off` | daemon snapshot schedule (`6h`, `30m`) |

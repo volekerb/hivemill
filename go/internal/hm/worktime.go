@@ -18,7 +18,7 @@ const workGrace = 30 * time.Minute
 func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 	limit := cfgInt(r.Store, "run_max_working_min")
 	start, err := time.Parse(time.RFC3339, run.RoundStart)
-	if limit <= 0 || err != nil {
+	if limit <= 0 || err != nil || r.Store.Cfg("run_max_working_min") == "off" {
 		return false
 	}
 	spent := now.Sub(start)
@@ -35,7 +35,8 @@ func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 	}
 	reason := fmt.Sprintf("timed out: %d minutes in working", mins)
 	if resumed, err := time.Parse(time.RFC3339, run.LongResumed); err == nil {
-		if now.Sub(resumed) < workGrace {
+		// a disconnected worker keeps its session, which may be finishing: wait for it to come back
+		if now.Sub(resumed) < workGrace || (run.Machine != "" && machineDown(r.Tools, run.Machine)) {
 			return false
 		}
 		r.fail(run, reason)
@@ -47,13 +48,17 @@ func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 	if err := r.Prompt(run.Agent, text); err != nil {
 		r.printf("%s: working limit resume: %v\n", run.Task, err)
 		// The next pass tries again. The grace runs from the first failed send, not from the limit: the daemon may have
-		// been down past it. A disconnected worker keeps its session, so its run is never failed for this.
+		// been down past it. A disconnected worker keeps its session: it is never failed, and its outage does not count.
+		if run.Machine != "" && machineDown(r.Tools, run.Machine) {
+			run.LongSendFailed = ""
+			return false
+		}
 		first, perr := time.Parse(time.RFC3339, run.LongSendFailed)
 		if perr != nil {
 			run.LongSendFailed = now.Format(time.RFC3339)
 			return false
 		}
-		if now.Sub(first) < workGrace || (run.Machine != "" && machineDown(r.Tools, run.Machine)) {
+		if now.Sub(first) < workGrace {
 			return false
 		}
 		r.fail(run, reason)
@@ -67,7 +72,8 @@ func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 }
 
 // deadDeps lists the dependencies of t that can never be done, as id -> "cancelled" or "failed", in the order of the
-// depends list: the task is cancelled, or its run failed and nothing finished the task since.
+// depends list: the task is cancelled, or its run failed and the task is still where the failure left it (blocked; a
+// task set back to todo is being retried, and a run held for the owner's merge can still merge).
 func (r *Runner) deadDeps(t Task) (ids []string, why map[string]string) {
 	var deps []string
 	_ = json.Unmarshal([]byte(t.DependsOn), &deps)
@@ -80,7 +86,8 @@ func (r *Runner) deadDeps(t Task) (ids []string, why map[string]string) {
 		state := ""
 		if d.Status == "cancelled" {
 			state = "cancelled"
-		} else if run, err := r.Store.Run(id); err == nil && run != nil && run.State == Failed && !run.Eval {
+		} else if run, err := r.Store.Run(id); err == nil && run != nil && d.Status == "blocked" && run.State == Failed && !run.Eval &&
+			!heldForOwner(run) {
 			state = "failed"
 		}
 		if state != "" {

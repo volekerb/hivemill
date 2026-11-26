@@ -62,11 +62,12 @@ func TestRunMaxWorkingResumes(t *testing.T) {
 		t.Fatalf("run: %+v", run)
 	}
 
-	// 0 = off
-	r, s, run, sent := longRun(t, now, 1000*time.Minute)
-	_ = s.SetCfg("run_max_working_min", "0")
-	if r.workingLimit(run, now) || len(*sent) != 0 || events(t, r, "run.long_working") != 0 {
-		t.Fatalf("off: sends %v", *sent)
+	for _, off := range []string{"0", "off"} {
+		r, s, run, sent := longRun(t, now, 1000*time.Minute)
+		_ = s.SetCfg("run_max_working_min", off)
+		if r.workingLimit(run, now) || len(*sent) != 0 || events(t, r, "run.long_working") != 0 {
+			t.Fatalf("%s: sends %v", off, *sent)
+		}
 	}
 }
 
@@ -127,6 +128,16 @@ func TestDeadDependencyMakesPlannerItem(t *testing.T) {
 		if got := dead(); got != want {
 			t.Fatalf("items: %q, want %q", got, want)
 		}
+	}
+	// a failed task set back to todo is being retried, and a run held for the owner's merge can still merge
+	must(s.UpdateTask("T-0004", map[string]any{"status": "todo"}))
+	if got := dead(); got != "dead_dep:T-0003=T-0001(cancelled)" {
+		t.Fatalf("retried dependency: %s", got)
+	}
+	must(s.UpdateTask("T-0004", map[string]any{"status": "blocked"}))
+	must(s.PutRun(&Run{Task: "T-0004", Goal: "G-001", Project: "www", State: Held}))
+	if got := dead(); got != "dead_dep:T-0003=T-0001(cancelled)" {
+		t.Fatalf("held dependency: %s", got)
 	}
 	// re-pointed, or no longer waiting: no item
 	must(s.UpdateTask("T-0003", map[string]any{"depends_on": `["T-0002"]`}))
