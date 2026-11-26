@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -752,5 +753,131 @@ func TestObsPagesRender(t *testing.T) {
 	_, body := obsGet(t, h, "/flow?project=www")
 	if !strings.Contains(body, "T-1") {
 		t.Errorf("project filter:\n%s", body)
+	}
+}
+
+// pollingFixture is a running obs page over one task and one judge session with the given $ and polling $.
+func pollingFixture(t *testing.T, taskUSD, taskPolling, judgeUSD, judgePolling float64) (*Runner, http.Handler) {
+	t.Helper()
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	ts := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
+	ended := func(sid, role string, usd, polling float64) Event {
+		e := cost(ev(ts, "session.ended", "T-1", "G-1", "www", sid, role, nil), usd, 1, 2)
+		e.Data["polling_usd"] = polling
+		return e
+	}
+	writeEvents(t, r.Log.Path, ended("s-task", "task", taskUSD, taskPolling), ended("s-judge", "judge", judgeUSD, judgePolling))
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, h
+}
+
+var bannerHTML = regexp.MustCompile(`(?s)<p class="banner">.*?</p>`)
+
+// spendBanners is the API's page model and the banner elements of the HTML page.
+func spendBanners(t *testing.T, h http.Handler) (SpendPage, []string) {
+	t.Helper()
+	code, body := obsGet(t, h, "/api/obs/spend")
+	var api struct {
+		Spend SpendPage `json:"spend"`
+	}
+	if code != 200 || json.Unmarshal([]byte(body), &api) != nil || !strings.Contains(body, `"banners":[`) {
+		t.Fatalf("api %d: %s", code, body)
+	}
+	code, page := obsGet(t, h, "/spend")
+	if code != 200 {
+		t.Fatalf("page %d: %s", code, page)
+	}
+	return api.Spend, bannerHTML.FindAllString(page, -1)
+}
+
+func TestObsBannerPolling(t *testing.T) {
+	t.Run("below", func(t *testing.T) {
+		_, h := pollingFixture(t, 8, 1.6, 2, 0.4) // exactly 20% everywhere: not above
+		p, html := spendBanners(t, h)
+		if p.PollingUSD != 2 || p.PollingPct != 20 || len(p.Banners) != 0 || len(html) != 0 {
+			t.Fatalf("no banner at the threshold: %+v %q", p, html)
+		}
+	})
+	t.Run("above", func(t *testing.T) {
+		_, h := pollingFixture(t, 8, 3, 2, 0.6) // 36%
+		p, html := spendBanners(t, h)
+		want := "Polling is 36% of spend ($3.60). Action: replace wait turns with one blocking command."
+		if len(p.Banners) != 1 || p.Banners[0] != want || len(html) != 1 || !strings.Contains(html[0], want) {
+			t.Fatalf("one banner: %q %q", p.Banners, html)
+		}
+		if strings.Contains(html[0], "<button") || strings.Contains(html[0], "<form") || strings.Contains(html[0], "<a ") {
+			t.Fatalf("a banner is text only: %s", html[0])
+		}
+	})
+}
+
+func TestObsBannerPollingRole(t *testing.T) {
+	_, h := pollingFixture(t, 9, 0.9, 1, 0.5) // factory 14%, judge 50%
+	p, html := spendBanners(t, h)
+	want := "Polling is 50% of judge spend ($0.50). Action: replace wait turns with one blocking command."
+	if len(p.Banners) != 1 || p.Banners[0] != want || len(html) != 1 {
+		t.Fatalf("the role banner: %q %q", p.Banners, html)
+	}
+	roles := []SpendRole{{"task", 9, 0.9, 10}, {"judge", 1, 0.5, 50}}
+	if !reflect.DeepEqual(p.Roles, roles) {
+		t.Fatalf("roles: %+v", p.Roles)
+	}
+}
+
+func TestObsBannerPollingJustAbove(t *testing.T) {
+	_, h := pollingFixture(t, 8, 1.62, 2, 0.4) // 20.2%
+	if p, _ := spendBanners(t, h); len(p.Banners) != 1 || !strings.HasPrefix(p.Banners[0], "Polling is 20.2% of spend") {
+		t.Fatalf("the printed share reads above the threshold: %q", p.Banners)
+	}
+	_, h = pollingFixture(t, 160, 33, 40, 8) // 20.5% rounds up, never to the even 20
+	if p, _ := spendBanners(t, h); len(p.Banners) != 1 || !strings.HasPrefix(p.Banners[0], "Polling is 21% of spend") {
+		t.Fatalf("20.5%%: %q", p.Banners)
+	}
+}
+
+func TestObsBannerPollingConfig(t *testing.T) {
+	r, h := pollingFixture(t, 8, 3, 2, 0.6)
+	if err := r.Store.SetCfg("obs_banner_polling_pct", "50"); err != nil {
+		t.Fatal(err)
+	}
+	if p, html := spendBanners(t, h); len(p.Banners) != 0 || len(html) != 0 {
+		t.Fatalf("36%% is under the configured 50%%: %q %q", p.Banners, html)
+	}
+}
+
+func TestSessionPollingUSD(t *testing.T) {
+	r, _ := testRunner(t, "")
+	dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "p")
+	_ = os.MkdirAll(dir, 0o700)
+	var raw []byte
+	for i, out := range []int{2000, 10} { // the second request is a wait turn
+		usage := map[string]any{"input_tokens": 1000, "output_tokens": out, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+		id := string(rune('a' + i))
+		line, _ := json.Marshal(map[string]any{"type": "assistant", "timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+			"requestId": "q-" + id, "message": map[string]any{"id": "m-" + id, "model": "claude-sonnet-5-5", "usage": usage}})
+		raw = append(raw, append(line, '\n')...)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "s-1.jsonl"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	u := SessionUsages(r.Env.UserHome, []string{"s-1"})["s-1"]
+	if u.PollingUSD <= 0 || u.PollingUSD >= u.USD {
+		t.Fatalf("polling part: %+v", u)
+	}
+	b, _ := json.Marshal(Event{CostUSD: &u.USD, Data: u.data()})
+	var e Event
+	if err := json.Unmarshal(b, &e); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := usageOf(e); !ok || got != u {
+		t.Fatalf("session.ended round trip: %+v, want %+v", got, u)
+	}
+	delete(e.Data, "polling_usd") // a line from before the field
+	if got, ok := usageOf(e); !ok || got.PollingUSD != 0 {
+		t.Fatalf("old line: %+v", got)
 	}
 }

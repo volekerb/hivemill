@@ -1,4 +1,6 @@
 {{define "spend"}}{{with .SpendPg}}
+{{range .Banners}}<p class="banner">{{.}}</p>
+{{end -}}
 <h2>Cost per day, by role</h2>
 {{.Chart}}
 <h2>{{usd .Total}} in {{.Days}} days{{if .Pending}} <span class="warn">({{.Pending}} sessions with no cost yet)</span>{{end}}</h2>
