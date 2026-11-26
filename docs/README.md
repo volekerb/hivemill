@@ -116,6 +116,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [../CONTRIBUTING.md](../CONTRIBUTING.md): how to propose and land a change.
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
+- [old-chain-deletion-map.md](old-chain-deletion-map.md): what depends on the old chain (`bin/factory`, web, scout, skilleval, retro, the Go port, systemd) and the order to delete it in.
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
 - [scrub-scan.md](scrub-scan.md): the scanner that catches owner-specific or sensitive data.
 - [adr/README.md](adr/README.md): index of architecture decision records.
