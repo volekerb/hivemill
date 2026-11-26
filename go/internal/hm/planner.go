@@ -255,26 +255,26 @@ func (r *Runner) enqueuePlannerWork(events, levels []string, syncLevels bool) {
 	if err != nil {
 		return
 	}
-	add := func(x string, isLevel bool) {
-		kind, ref, _ := strings.Cut(x, ":")
-		if isLevel {
-			ref, _, _ = strings.Cut(ref, "=")
-		}
+	add := func(kind, ref string) {
 		if err := s.EnqueuePlannerWork(kind, ref); err != nil {
 			r.printf("planner: work queue: %v\n", err)
 		}
 	}
 	for _, x := range events {
-		add(x, false)
+		kind, ref, _ := strings.Cut(x, ":")
+		add(kind, ref)
 	}
 	if !syncLevels {
 		return
 	}
 	live := map[string]bool{}
 	for _, x := range levels {
-		add(x, true)
 		kind, ref, _ := strings.Cut(x, ":")
 		ref, _, _ = strings.Cut(ref, "=")
+		if kind == "none_startable" {
+			ref = "" // what follows is live counts, not a subject
+		}
+		add(kind, ref)
 		live[kind+":"+ref] = true
 	}
 	open, err := s.OpenPlannerWork()
@@ -289,7 +289,8 @@ func (r *Runner) enqueuePlannerWork(events, levels []string, syncLevels bool) {
 	}
 }
 
-var plannerLevelKinds = map[string]bool{"queue_low": true, "not_dispatched": true, "goal_done": true}
+var plannerLevelKinds = map[string]bool{"queue_low": true, "not_dispatched": true, "goal_done": true, "unstartable": true,
+	"none_startable": true}
 
 // PlannerDone closes planner work rows with close_reason done. An unknown or closed id fails and closes none.
 func (r *Runner) PlannerDone(ids []int64, note string) error {
