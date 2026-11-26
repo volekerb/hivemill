@@ -45,8 +45,20 @@ Test files are read from git, at the merge base of the base ref (default `origin
 
 Only files directly in `go/internal/guard/` count, not its subdirectories. A test is a `func TestXxx(` at the start of a line where `Xxx` does not start with a lowercase letter; `TestMain` is setup, not a case, and is skipped.
 
-The map works per test function. It does not see table rows or subtests inside a function, nor `Fuzz...` targets; the planned mutation check below is meant to cover what a function's cases catch. `python3 ci/guard_port_check.py --self-test` runs a pass and a fail case for each of a to d in a temporary git repo.
+The map works per test function. It does not see table rows or subtests inside a function, nor `Fuzz...` targets; the mutation check below is meant to cover what a function's cases catch. `python3 ci/guard_port_check.py --self-test` runs a pass and a fail case for each of a to d in a temporary git repo.
 
 ## Mutation check
 
-Planned, not in the repo yet: the mutation check `ci/guard_mutation_check.sh` (next task) takes `go/internal/guard/testdata/portmap/<batch>.mutation.patch`.
+```
+bash ci/guard_mutation_check.sh PATCH TESTREGEX
+bash ci/guard_mutation_check.sh --self-test
+```
+
+PATCH is a git-style diff (`a/` `b/` paths, repo-relative) that breaks a guard rule, such as `go/internal/guard/testdata/portmap/<batch>.mutation.patch`. The guard tests matching TESTREGEX must pass before the patch and fail with it applied. The patch is applied in place and undone on exit.
+
+- exit 0: the mutation was caught: the tests pass on the tree and a test fails with the patch.
+- exit 1: not caught or not checked: the patch file is missing or does not apply, the baseline tests fail or none match, the tests still pass with the patch, or the patch breaks the build.
+- exit 2: usage error (wrong arguments) or not in a git work tree.
+- exit 3: the undo failed; restore the files the patch names.
+
+`--self-test` builds a small module in a temporary directory and runs the check twice: a patch that breaks `Allow()` must be caught, and a comment-only patch must not be. It prints `self-test ok` and exits 0, else exits 1.
