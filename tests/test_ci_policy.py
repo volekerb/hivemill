@@ -86,11 +86,14 @@ def _triggers(rows):
             continue
         inline = re.sub(r"(^|\s+)#.*$", "", m.group(3)).strip()
         if inline:
-            if inline.startswith("["):  # a flow list may go on over the next lines
+            if inline[0] in "[{":  # a flow list or mapping may go on over the next lines
                 k = i + 1
-                while "]" not in inline and k < len(rows):
+                depth = lambda s: s.count("[") + s.count("{") - s.count("]") - s.count("}")
+                while depth(inline) > 0 and k < len(rows):
                     inline += " " + re.sub(r"(^|\s+)#.*$", "", rows[k][1]).strip()
                     k += 1
+                if depth(inline) != 0:
+                    return {"<unparsed>": n}, kids
             for t in re.findall(r"[A-Za-z_][\w-]*", inline):
                 found[t] = n
             if not found:
@@ -115,7 +118,8 @@ def _triggers(rows):
                 kids[cur].append(km.group(2))
         if not found:
             found["<unparsed>"] = n
-    return found, kids
+        return found, kids
+    return {"<unparsed>": 1}, kids  # no top-level `on:` this can read, e.g. `on :` or `? on`
 
 
 def _write_ok(found, kids):
@@ -298,7 +302,12 @@ class RunnerRule(PolicyBase):  # a
                          ("on: [push,\n  issue_comment]\n", "issue_comment"),
                          ("on:  # events\n  issue_comment:\n", "issue_comment"),
                          ("on:\n- issue_comment\n", "<unparsed>"),
-                         ("on:\n  - push\n  - *chat\n", "<unparsed>")):
+                         ("on:\n  - push\n  - *chat\n", "<unparsed>"),
+                         ("on: {push,\n  issue_comment}\n", "issue_comment"),
+                         ("on: {push: {branches: [main]},\n  issue_comment: {}}\n", "issue_comment"),
+                         ("on: [push,\n", "<unparsed>"),
+                         ("on :\n  issue_comment:\n", "<unparsed>"),
+                         ("? on\n: [issue_comment]\n", "<unparsed>")):
             self.assertBlocked(wf.replace(block, on), want)
 
     def test_self_hosted_for_forks_blocked(self):
