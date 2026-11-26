@@ -3,15 +3,19 @@
 If you use the [Herdr app](https://herdr.dev) (the desktop client of herdr-core), Hivemill can live inside it. The dashboard shows every factory you run. A factory is one hivemill runner with its own `hivemill obs` server.
 
 - **A status bar** across the bottom of the window. One segment per factory (`Workshop 11 working · 14 waiting  2 need you`), then Claude weekly usage and today's spend, and on the right the most urgent alert. Clicking it opens the dashboard.
-- **A dashboard tab**, with two views:
+- **A dashboard tab**, with four views:
   - **Overview.** One headline says how many runs wait for you; each is listed with its title, the reason in a sentence and one button to its PR. Then the factories as one table: working, in CI, to merge, held, merged and spent today, with a thin bar that shows where the runs sit. Then Resources: every machine with its sessions, memory, load, disk, swap and uptime, a figure in red when it is past its limit. Then, per factory, what is worth a look (runs long in one stage, today's failures by reason) and the runs, longest in stage first. A narrow column holds Claude usage and spend.
+  - **Board.** One factory's tasks as cards in six columns: queued, working, in CI, to merge, held for you, done today. Inside a column the cards sit under the reason they wait there ("Main's checks still running", "CI red, repairing", "Waiting for another task"), trouble in red. A column shows a few cards per reason and counts the rest. A click on a card opens its trace. Pick the factory and the project above the columns.
+  - **Traces.** Lists of tasks (needs a look, running, merged today, failed today) and, for the picked task, its run as phases: build, gate, CI, judge, merge. Each phase has its time and cost; each step its time; steps that repeat are folded into one row. A prompt step shows the start of the prompt's text. A tab opened with props `{view: "traces", task: KEY}` starts on that task.
   - **Spend.** Today's total, spend per day, by role with the share spent waiting, and the most expensive tasks of the last 7 days.
+
+  Board and Traces read `/api/obs/v1/board` and `/api/obs/v1/task`. A factory on a build before these says so on the Board; Traces then shows the plain steps, without titles and prompt text.
 
 The look follows [design/obs-ui.md](design/obs-ui.md): no cards and no number tiles, hairlines, one accent, red only for trouble. A task shows its title when the factory's API gives one, else the name of its worker tab in the app.
 
 The app's own agents list already shows every agent, so the dashboard does not repeat it. New alerts also appear as notifications; clicking one opens the dashboard.
 
-This is a Herdr app mod: JavaScript the app runs natively, not a web view. It only reads. Its source is each factory's obs API (`/api/obs/now`, `flow`, `machines`, `spend`, `task`), described in [hivemill-observability.md](hivemill-observability.md). The design behind it is [design/multi-factory.md](design/multi-factory.md).
+This is a Herdr app mod: JavaScript the app runs natively, not a web view. It only reads. Its source is each factory's obs API (`/api/obs/now`, `flow`, `machines`, `spend`, `task`, and `v1/board`, `v1/task`), described in [hivemill-observability.md](hivemill-observability.md). The design behind it is [design/multi-factory.md](design/multi-factory.md).
 
 ## Install
 
