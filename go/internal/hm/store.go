@@ -51,6 +51,9 @@ type Run struct {
 	WorkflowAgents   int     `json:",omitempty"` // agent cap of the workflow request in the first prompt; 0 = no request
 	Machine          string  `json:",omitempty"` // hc machine of the task session ("" = the local core); resumes go there too
 	CI               *CIWait `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
+	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
+	Mirror, RemoteHome string `json:",omitempty"`
+	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
 }
 
 // Session is one Claude session of a run (task, judge).
@@ -264,7 +267,11 @@ func (s *SQLite) Cfg(key string) string {
 }
 
 func (s *SQLite) SetCfg(key, value string) error {
-	if _, ok := Defaults[key]; !ok {
+	if modeKey(key) { // machine_<name>_mode: one key per session machine (docs/machines.md)
+		if value != modeShared && value != modeClone {
+			return fmt.Errorf("%s must be %s or %s", key, modeShared, modeClone)
+		}
+	} else if _, ok := Defaults[key]; !ok {
 		return fmt.Errorf("unknown key %s; known: %s", key, strings.Join(DefaultKeys(), ", "))
 	}
 	if key == "model" || key == "risk_model" || key == "planner_model" {

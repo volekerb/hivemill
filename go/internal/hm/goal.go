@@ -40,7 +40,8 @@ func (r *Runner) goalPrompt(harness string, run *Run, t *Task, kickoff string) s
 	if full := cond + "\n" + kickoff; goalLen(full) <= goalMax {
 		return "/goal " + full
 	}
-	if err := writeFile(filepath.Join(run.Worktree, kickoffFile), kickoff+"\n", 0o600); err != nil {
+	// at(run): a clone-mode run has its worktree on the session machine
+	if err := r.at(run).write(filepath.Join(run.Worktree, kickoffFile), []byte(kickoff+"\n"), 0o600); err != nil {
 		fmt.Fprintf(os.Stderr, "hivemill: %s: %v (the session starts without /goal)\n", run.Task, err)
 		return kickoff
 	}

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const goalHead = "/goal Every acceptance criterion below passes when run exactly as written in the worktree, the branch is " +
@@ -81,6 +82,24 @@ func TestGoalPromptStaysWithinTheConditionLimit(t *testing.T) {
 	k := Kickoff(run, &Task{ID: "T-1", Spec: long})
 	if got := r.goalPrompt(Harness, run, task, k); got != k {
 		t.Errorf("an unwritable kickoff file must leave the full kickoff, got:\n%.200s", got)
+	}
+}
+
+func TestGoalPromptWritesTheKickoffOnTheCloneMachine(t *testing.T) {
+	r, _, run, task := goalFixture(t)
+	run.Machine, run.Mirror, run.Worktree = "box", run.Worktree, "/remote/wt"
+	var machine, stdin, command string
+	r.SSH = func(m, in string, _ time.Duration, c string) (int, string, string) {
+		machine, stdin, command = m, in, c
+		return 0, "", ""
+	}
+	k := Kickoff(run, &Task{ID: "T-1", Spec: strings.Repeat("x", goalMax)})
+	got := r.goalPrompt(Harness, run, task, k)
+	if !strings.Contains(got, "First read "+kickoffFile) {
+		t.Errorf("no pointer in the prompt:\n%.300s", got)
+	}
+	if machine != "box" || stdin != k+"\n" || !strings.Contains(command, "/remote/wt/"+kickoffFile) {
+		t.Errorf("kickoff not written over ssh: machine %q, command %q", machine, command)
 	}
 }
 

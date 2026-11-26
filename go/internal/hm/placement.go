@@ -153,7 +153,7 @@ func (r *Runner) PickMachine() Placement {
 			}
 			c = cand{name: localMachine, load: r.cachedLoad(localMachine, LocalLoad())}
 		} else {
-			load, why := r.eligible(m, floor)
+			load, why := r.eligibleFor(m, floor)
 			if why != "" {
 				pl.Skipped = append(pl.Skipped, m+": "+why)
 				continue
@@ -202,6 +202,14 @@ func mbText(mb int) string {
 		return "unknown"
 	}
 	return strconv.Itoa(mb) + " MB"
+}
+
+// eligibleFor is the probe of m's mode: a clone-mode machine shares nothing with this one.
+func (r *Runner) eligibleFor(m string, floor int) (Load, string) {
+	if r.cloneMode(m) {
+		return r.cloneEligible(m, floor)
+	}
+	return r.eligible(m, floor)
 }
 
 // eligible probes machine m and says why it may not take a session ("" = it may), with its CPU load when it may.
