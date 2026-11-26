@@ -677,6 +677,30 @@
    },
    "action": "resume",
    "why_has": "conflicts"
+  },
+  {
+   "name": "stale head, CI still running: hold, refresh only after green",
+   "source": "tests/test_mech_merge.py, tests/test_judge*.py, docs/mech-merge.md, docs/red-main.md (cases restated, not ported)",
+   "input": {
+    "pr_state": "OPEN",
+    "draft": false,
+    "mergeable": "MERGEABLE",
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "lane_verdict": "pass",
+    "ci": "pending",
+    "missing_checks": [],
+    "tier": "T2",
+    "behind": true,
+    "merge_clean": true,
+    "frozen": false,
+    "red_main": false,
+    "fix_task": false,
+    "main_run": "green",
+    "identity_ok": true,
+    "public_text_ok": true
+   },
+   "action": "hold",
+   "why_has": "CI"
   }
  ]
 }
