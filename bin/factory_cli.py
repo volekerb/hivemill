@@ -133,7 +133,7 @@ UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from 
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
 OWNER_CAP_KEYS = ("max_live_agents", "max_total_claude", "min_mem_available_mb", "max_five_hour_pct", "max_seven_day_pct",
                   "gate_max_load_ratio", "tmp_max_pct", "max_live_leads", "reserved_worker_slots", "lead_parking",
-                  "max_live_judges")
+                  "max_live_judges", "max_day_pct")
 TASK_STATUSES = ["todo", "in_progress", "in_review", "blocked", "done", "cancelled"]
 TASK_WAITS = ["owner", "internal"]
 TASK_ID_RE = re.compile(r"^T-\d+$", re.I)
@@ -201,6 +201,9 @@ DEFAULT_CONFIG = {
     "tmp_max_pct": "90",         # the gate closes when the filesystem holding /tmp is this full (it is RAM-backed tmpfs on your-box)
     "max_five_hour_pct": "92",
     "max_seven_day_pct": "92",
+    # P0 daily usage cap (owner M41393): "" = off. Else the spawn gate closes when the weekly usage % is more than this many
+    # points above the weekly % recorded at day_start_hour (docs/daily-usage-cap.md). Owner-only, like max_seven_day_pct.
+    "max_day_pct": "",
     # After a fresh 5h or 7d reading at/over its cap, non-cursor spawns stay queued while the reading is stale or
     # unreadable, and until this many consecutive fresh readings are under both caps. No at-cap reading yet: unchanged.
     "usage_reopen_samples": "3",
@@ -2997,6 +3000,61 @@ def _usage_cap_gate(con, u):
     return True, (f"weekly usage stale: 5h {_pct_text(u.get('five_hour'))} · week {_pct_text(u.get('seven_day'))} "
                   f"({u.get('age_min')} min old); holding the queue until fresh readings are below the cap")
 
+DAY_CAP_KEY = "day-usage-baseline"
+
+
+def _day_cap_limit(text):
+    """max_day_pct as a float in (0, 100], or None when it is empty or not such a number (off)."""
+    try:
+        v = float((text or "").strip())
+    except ValueError:
+        return None
+    return v if math.isfinite(v) and 0 < v <= 100 else None
+
+
+def day_cap_state(con, u, now=None):
+    """The daily usage cap (max_day_pct) as a dict, or None when the cap is off (key empty or invalid).
+
+    The baseline is the weekly % first read fresh at or after the latest day_start_hour boundary; it is kept in the throttle
+    table as {"day": "<date of that boundary>", "pct": x}. A new boundary replaces it (rollover). A weekly reset (current below
+    the baseline) lowers the baseline to the current value. Keys: limit, start (ISO of the day start), base (None until a fresh
+    reading), cur, used (None without both), over (used > limit)."""
+    limit = _day_cap_limit(cfg(con, "max_day_pct"))
+    if limit is None:
+        return None
+    now = now or digest_clock()
+    ds, _ = day_hours(con)
+    start = now.replace(hour=ds, minute=0, second=0, microsecond=0)
+    if now < start:
+        start -= dt.timedelta(days=1)
+    day = start.date().isoformat()
+    row = con.execute("SELECT ts FROM throttle WHERE key=?", (DAY_CAP_KEY,)).fetchone()
+    try:
+        saved = json.loads(row["ts"]) if row else None
+    except (json.JSONDecodeError, TypeError):
+        saved = None
+    base = None
+    if isinstance(saved, dict) and saved.get("day") == day and isinstance(saved.get("pct"), (int, float)):
+        base = float(saved["pct"])
+    cur = u.get("seven_day") if u.get("fresh") and not u.get("unreadable") else None
+    if cur is not None and (base is None or cur < base):
+        base = float(cur)
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                    (DAY_CAP_KEY, json.dumps({"day": day, "pct": base}, separators=(",", ":"))))
+    used = None if base is None or cur is None else cur - base
+    return {"limit": limit, "start": start.strftime("%Y-%m-%d %H:%M"), "base": base, "cur": cur, "used": used,
+            "over": used is not None and used > limit}
+
+
+def _day_cap_text(st):
+    """The `factory res` line of the daily cap, state st from day_cap_state."""
+    if st is None:
+        return "daily cap: off (max_day_pct empty)"
+    used = "n/a" if st["used"] is None else f"{st['used']:.0f}%"
+    return (f"daily cap: used {used} of max_day_pct {st['limit']:g}% since {st['start']} "
+            f"(gate {'closed' if st['over'] else 'open'})")
+
+
 # G-057: only these roles may be placed off machine_hq. HQ, leads, judges and the other roles stay put (R1).
 PLACEMENT_WORKER_ROLES = ("coder", "qa", "reviewer", "cleaner")
 _MACHINE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
@@ -3503,6 +3561,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
     u = usage()
     if runtime != "cursor":
         _usage_arm(con, u)  # before the pane, memory and load returns, or a full box never latches an at-cap reading
+        day_cap = day_cap_state(con, u)  # same reason: the day-start baseline is recorded even when a full box returns early
     procs = total_claude_procs()
     total = procs["total"]
     starting = 0
@@ -3588,6 +3647,10 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
         blocked, why = _usage_cap_gate(con, u)
         if blocked:
             return False, why, stats
+        day = day_cap
+        if day and day["over"]:
+            return False, (f"daily usage cap: weekly usage rose {day['used']:.0f}% since {day['start']} "
+                           f"(from {day['base']:.0f}% to {day['cur']:.0f}%) > max_day_pct {day['limit']:g}%"), stats
     if runtime == "cursor" and role:
         from web import cursor_limits
         slug = role_model(con, role, org="cursor")
@@ -4052,6 +4115,11 @@ def _config_value_rules(key, value):
         die(f"{a.key} takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
     if a.key == "noreply_email" and a.value.strip() and not a.value.strip().lower().endswith(NOREPLY_SUFFIX):
         die(f"noreply_email must end in {NOREPLY_SUFFIX} (e.g. 123+handle{NOREPLY_SUFFIX}), or be empty", 2)
+    if a.key == "max_day_pct":
+        a.value = a.value.strip()
+        if a.value and _day_cap_limit(a.value) is None:
+            die(f"max_day_pct takes a number above 0 and up to 100 (percent points of weekly usage per day) or empty for off, "
+                f"not {a.value!r}: fix it with `factory config max_day_pct 10`", 2)
     if a.key == "opus_effort":
         check_effort_level(a.value.strip())
     if a.key == "scout_triage_per_run":
@@ -17420,6 +17488,7 @@ def cmd_res(a):
     else:
         print(f"claude processes {s['total']}/{s['total_cap']} on host (factory {s['factory_procs']} · other {s['total'] - s['factory_procs']})")
     print(usage_text(u))
+    print(_day_cap_text(day_cap_state(con, u)))
     mode = cfg(con, "lead_less_dispatch")
     if mode != "0":
         cut = (dt.datetime.now().astimezone() - dt.timedelta(hours=1)).isoformat(timespec="seconds")

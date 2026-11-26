@@ -234,6 +234,7 @@ INSERT INTO config(key,value) VALUES('judge_wait_main_run','0');
 INSERT INTO config(key,value) VALUES('lead_less_dispatch','0');
 INSERT INTO config(key,value) VALUES('lead_parking','0');
 INSERT INTO config(key,value) VALUES('lead_wake_debounce_s','0');
+INSERT INTO config(key,value) VALUES('max_day_pct','');
 INSERT INTO config(key,value) VALUES('max_five_hour_pct','92');
 INSERT INTO config(key,value) VALUES('max_live_agents','6');
 INSERT INTO config(key,value) VALUES('max_live_judges','3');

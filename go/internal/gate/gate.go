@@ -98,6 +98,10 @@ func LoadConfig(get func(key string) (string, error)) (Config, error) {
 	c.MaxFiveHourPct, c.FiveHourText = hardFloat("max_five_hour_pct")
 	c.MaxSevenDayPct, c.SevenDayText = hardFloat("max_seven_day_pct")
 	c.LoadRatio, c.LoadRatioText = hardFloat("gate_max_load_ratio")
+	if v := text("max_day_pct"); err == nil && pyStrip(v) != "" {
+		// the daily cap keeps its baseline in the throttle table, which only Python writes: Python answers
+		err = fmt.Errorf("config max_day_pct %q: %w", v, ErrUnparsable)
+	}
 	c.MaxLiveLeads = softInt("max_live_leads", 4)
 	c.ReservedWorkerSlots = softInt("reserved_worker_slots", 10)
 	c.ReviewReservedSlots = softInt("review_reserved_slots", 2)

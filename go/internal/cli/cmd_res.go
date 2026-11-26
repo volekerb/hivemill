@@ -490,6 +490,8 @@ func runRes(c *ctx, _ any) (int, error) {
 		fmt.Fprintf(w, "claude processes %d/%d on host (factory %d · other %d)\n", *s.Total, s.TotalCap, *s.FactoryProcs, *s.Total-*s.FactoryProcs)
 	}
 	fmt.Fprintln(w, s.Usage.Text())
+	// max_day_pct set: LoadConfig already handed the command to Python (the baseline row is Python's); so it is off here
+	fmt.Fprintln(w, "daily cap: off (max_day_pct empty)")
 	mode, err := cfgText(c, "lead_less_dispatch")
 	if err != nil {
 		return 0, err

@@ -59,6 +59,7 @@ var DefaultConfig = []ConfigDefault{
 	{"tmp_max_pct", "90"},
 	{"max_five_hour_pct", "92"},
 	{"max_seven_day_pct", "92"},
+	{"max_day_pct", ""},
 	{"usage_reopen_samples", "3"},
 	{"nudge_cooldown_s", "120"},
 	{"cursor_kickoff_grace_s", "180"},
