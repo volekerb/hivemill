@@ -32,4 +32,23 @@ func TestBodyProblems(t *testing.T) {
 	if p := BodyProblems(strings.Replace(goodBody, "## Risk", "Tests removed: old flaky one\n\n## Risk", 1), true); len(p) != 0 {
 		t.Errorf("test drop explained: %v", p)
 	}
+	byPath := strings.Replace(goodBody, "`python3 -m unittest test_x` -> Ran 3 tests, OK",
+		"`cd go && GOTOOLCHAIN=local ~/.local/go/bin/go test -count=1 ./internal/hm` -> ok", 1)
+	if p := BodyProblems(byPath, false); len(p) != 0 {
+		t.Errorf("runner by path: %v", p)
+	}
+}
+
+// TestIsCommandRunnerByPath: a runner given by path counts by its base name (T-1979).
+func TestIsCommandRunnerByPath(t *testing.T) {
+	for cmd, want := range map[string]bool{
+		"cd go && GOTOOLCHAIN=local ~/.local/go/bin/go test ./...": true,
+		"/usr/bin/python3 -m unittest x":                           true,
+		"~/notes/readme.md here":                                   false,
+		"go test ./...":                                            true,
+	} {
+		if got := isCommand(cmd); got != want {
+			t.Errorf("isCommand(%q) = %v, want %v", cmd, got, want)
+		}
+	}
 }
