@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **Stable runner channel per project and per-project drain.** `project.<id>.channel` is `edge` or `stable`; a stable project's pass runs through the stable binary, which `hivemill release promote` updates only after 24 hours clean on edge. `hivemill drain --project` and `resume --project` stop and restart starts for one project. The stable binary dir is a guard protected tree (T-2085).
+
 - **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
 
 - **A red CI resumes the task session with the failed logs.** The runner names each failed job and sends the last 80 lines of its failed log (read through `ghx`); a session whose pane has closed is relaunched by its session id. A startup failure counts as red. (T-2001)
