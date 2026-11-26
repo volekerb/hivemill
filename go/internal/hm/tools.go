@@ -223,7 +223,21 @@ func Terminals(t Tools) ([]Terminal, bool) {
 	if json.Unmarshal([]byte(out), &doc) != nil {
 		return nil, false
 	}
-	return doc.Terminals, true
+	return ownTerminals(doc.Terminals), true
+}
+
+// ownTerminals drops the terminals other machines' cores started (address "machine/t1"). This core's own terminals
+// have a bare address (t1) or, when it started them on another machine, "machine~t1". Without the filter, a runner
+// whose hc also lists another runner's machine took that runner's planner for its own (2026-11-26: a second
+// runner saw the first runner's "planner" and never started its own).
+func ownTerminals(list []Terminal) []Terminal {
+	out := list[:0:0]
+	for _, t := range list {
+		if !strings.Contains(t.Address, "/") {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func alive(list []Terminal, ok bool, name string) bool {
