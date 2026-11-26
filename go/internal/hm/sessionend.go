@@ -50,6 +50,26 @@ func SessionUsages(userHome string, ids []string) map[string]SessUsage {
 	return out
 }
 
+// closeSessions ends the run's judge and task terminals (by name, on whichever machine they run, as `run stop` does)
+// and logs session.closed for each one still listed live. The worktree stays. Save a terminal run before calling it:
+// the task terminal may be the one whose Stop hook runs this process, so it closes last and is logged before the kill.
+func (r *Runner) closeSessions(run *Run) {
+	list, ok := Terminals(r.Tools)
+	end := func(name, role, machine string) {
+		if name == "" {
+			return
+		}
+		if alive(list, ok, name) {
+			_ = r.Log.Emit("session.closed", run, Event{Role: role, Data: map[string]any{"agent": name, "machine": machineLabel(machine)}})
+		}
+		r.Close(name)
+	}
+	for _, j := range run.Judges {
+		end(j, "judge", "") // the judge stays on the local core
+	}
+	end(run.Agent, "task", run.Machine)
+}
+
 // endSessions writes one session.ended line per session of the run, with its $ and tokens, and returns the total $.
 // The cost is cumulative (the whole transcript), so a later line for the same session supersedes an earlier one.
 func (r *Runner) endSessions(run *Run) float64 {
