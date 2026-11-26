@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -1232,4 +1233,144 @@ func TestObsShowsThePlacementMachine(t *testing.T) {
 			t.Fatalf("machines table lacks %s: %s", m, w.Body.String())
 		}
 	}
+}
+
+func TestObsServerStatusCachedAndNoDuplicateCore(t *testing.T) {
+	r, s := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	if err := s.SetCfg("session_machines", "local,box-c,core-a"); err != nil {
+		t.Fatal(err)
+	}
+	calls, down := 0, false
+	r.Tools.HC = func(args ...string) (int, string, string) {
+		if args[0] != "server" {
+			return 0, "", ""
+		}
+		calls++
+		if down {
+			return 1, "", "no server"
+		}
+		return 0, `{"core":{"name":"core-a"}}`, ""
+	}
+	now := time.Now()
+	srv := &obsServer{r: r, now: func() time.Time { return now }}
+	check := func(after time.Duration, wantCalls int, want string) {
+		t.Helper()
+		now = now.Add(after)
+		o, _, err := srv.load(ObsFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Join(o.Machines, ","); got != want || calls != wantCalls {
+			t.Fatalf("machines %s after %d calls, want %s after %d", got, calls, want, wantCalls)
+		}
+	}
+	check(0, 1, "box-a,box-c")
+	check(29*time.Second, 1, "box-a,box-c")
+	down = true
+	check(time.Second, 2, "box-a,box-c") // the call fails: the core is still listed once
+	down = false
+	check(29*time.Second, 2, "box-a,box-c") // the failure is cached too
+	check(time.Second, 3, "box-a,box-c")
+
+	// a restarted server whose hc is down still knows the name
+	calls, down = 0, true
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a,box-c")
+	check(29*time.Second, 1, "box-a,box-c")
+
+	// hc never answered: either entry may be this machine, so neither is listed from the config alone
+	if err := os.Remove(filepath.Join(r.Env.StateDir(), "core_name")); err != nil {
+		t.Fatal(err)
+	}
+	calls = 0
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a")
+	check(29*time.Second, 1, "box-a")
+
+	// a call that hangs past the 30 s is cached from the time it returned
+	calls = 0
+	r.Tools.HC = func(...string) (int, string, string) {
+		calls++
+		now = now.Add(90 * time.Second)
+		return 1, "", "timeout"
+	}
+	srv = &obsServer{r: r, now: srv.now}
+	check(0, 1, "box-a")
+	check(29*time.Second, 1, "box-a")
+}
+
+func TestObsAsksUnderTheirMachine(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	a := func(h, kind, machine, task, project string, id float64) Event {
+		e := ev(day+"T"+h+":00Z", kind, task, "", project, "", "", map[string]any{"id": id})
+		e.Machine = machine
+		return e
+	}
+	placed := a("00:00", "task.dispatched", "box-a", "T-1", "www", 0)
+	placed.Data = map[string]any{"machine": "box-c"}
+	writeEvents(t, r.Log.Path, placed,
+		a("01:00", "ask.added", "", "", "www", 1),    // no machine field: this machine
+		a("02:00", "ask.added", "", "T-1", "www", 2)) // filed here, about a task placed on box-c
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "box-b", "events.jsonl"), a("03:00", "ask.added", "box-b", "", "api", 1))
+
+	for _, c := range []struct {
+		machine  string
+		www, api int
+	}{{"", 2, 1}, {"box-a", 2, 0}, {"box-b", 0, 1}, {"box-c", 0, 0}} {
+		o, err := r.LoadObs(ObsFilter{Machine: c.machine}, true, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := o.OpenAsks("box-a", nil, false); got["www"] != c.www || got["api"] != c.api {
+			t.Errorf("machine %q, from events: %v", c.machine, got)
+		}
+		// this machine's asks come from its DB
+		if got := o.OpenAsks("box-a", map[string]int{"www": c.www}, true); got["www"] != c.www || got["api"] != c.api {
+			t.Errorf("machine %q, from the DB: %v", c.machine, got)
+		}
+		wantDB := 0
+		if c.machine == "" || c.machine == "box-a" {
+			wantDB = 5
+		}
+		if got := o.OpenAsks("box-a", map[string]int{"www": 5}, true); got["www"] != wantDB {
+			t.Errorf("machine %q: DB asks %v, want %d", c.machine, got, wantDB)
+		}
+	}
+}
+
+func TestObsPulledLogNoEmptyMachine(t *testing.T) {
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	day := time.Now().UTC().Format("2006-01-02")
+	on := func(h, machine, task string) Event {
+		e := ev(day+"T"+h+":00Z", "task.dispatched", task, "", "api", "", "", nil)
+		e.Machine = machine
+		return e
+	}
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "alias-b", "events.jsonl"), on("01:00", "box-b", "T-1"), on("02:00", "box-c", "T-2"))
+	check := func(want string) {
+		t.Helper()
+		o, srcs, err := (&obsServer{r: r, now: time.Now}).load(ObsFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rows []string
+		for _, m := range o.BuildNow(30, "", "box-a", nil, false, srcs).Machines {
+			rows = append(rows, m.Machine)
+		}
+		sort.Strings(rows)
+		if got, page := strings.Join(o.Machines, ","), strings.Join(rows, ","); got != want || page != want {
+			t.Fatalf("machines %s, page rows %s, want %s", got, page, want)
+		}
+		if o.Tasks["box-b/T-1"] == nil || o.Tasks["box-c/T-2"] == nil {
+			t.Fatalf("tasks: %v", o.TaskList("", ""))
+		}
+	}
+	check("box-a,box-b,box-c")
+	// a line with no machine name takes the pull label, which then has something to show
+	writeEvents(t, filepath.Join(r.Env.ObsDir(), "alias-b", "events.jsonl"), on("03:00", "", "T-3"))
+	check("alias-b,box-a,box-b,box-c")
 }
