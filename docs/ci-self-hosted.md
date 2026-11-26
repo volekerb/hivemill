@@ -32,6 +32,12 @@ Kernel and user settings:
 - Unprivileged user namespaces enabled, including new mount, PID and network namespaces. Check as the runner user: `unshare -r -n -m --pid --fork --mount-proc true` must exit 0.
 - A subordinate id range of at least 2 ids for the runner user in both `/etc/subuid` and `/etc/subgid` (`usermod --add-subuids`, `--add-subgids`).
 
+## Each runner needs its own tool cache
+
+`actions/setup-go` installs into the runner's tool cache, and the install is not safe when two runners share one: jobs that start together delete each other's half-copied files and fail with `Failed to download version ... ENOENT ... copyfile`, or find a Go that does not run. This happens on the first jobs after the cache is empty, so after every Go version bump in `go/go.mod`.
+
+For each runner, add `AGENT_TOOLSDIRECTORY=<that runner's own directory>/toolcache` to the `.env` file in the runner's install directory (replacing any shared value), then restart the runner service. Until that is applied, re-run the failed jobs once: the first run leaves the version cached.
+
 ## Python must live outside the runner's home
 
 The test sandboxes hide the user's home directory. A Python installed there (as `actions/setup-python` does on a self-hosted runner) does not exist inside the box, and sandbox tests fail with `No such file or directory` or `Permission denied`. So `tests.yml` runs `setup-python` only on GitHub-hosted runners, and the self-hosted runners use `/usr/bin/python3`. Workflow commands say `python3`.
