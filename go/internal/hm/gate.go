@@ -280,7 +280,7 @@ func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun 
 		default:
 			argv = []string{"bash", "-c", c.Proof}
 		}
-		rc, text := proofs.sh(c.ID, dir, argv)
+		rc, text, limit := proofs.sh(c.ID, dir, argv)
 		x.Log = filepath.Join(logdir, fmt.Sprintf("proof-%d.log", c.ID))
 		_ = os.WriteFile(x.Log, []byte(text), 0o600)
 		ok := rc == 0
@@ -289,7 +289,7 @@ func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun 
 			ok, x.Note = ExpectOK(c.Expect, rc, text)
 		}
 		if rc == 124 {
-			ok, x.Note = false, "timed out after 15m"
+			ok, x.Note = false, timeoutNote(limit)
 		}
 		x.OK = &ok
 		out = append(out, x)
