@@ -2,10 +2,39 @@ package hm
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 )
+
+// The task page takes both themes from app.css and loads nothing from outside. The one http address it may hold is the
+// task's PR, as a link a reader follows.
+func TestObsTracePageThemes(t *testing.T) {
+	h, err := traceRunner(t).ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, css := obsGet(t, h, "/assets/obs/app.css")
+	if !strings.Contains(css, "@media (prefers-color-scheme: dark)") {
+		t.Error("the shared stylesheet has no dark rule")
+	}
+	ref := regexp.MustCompile(`(?i)<([a-z][a-z0-9]*)\b[^>]*?\s(src|href)\s*=\s*["']?\s*((?:https?:|//)[^"'\s>]*)`)
+	for _, target := range []string{"/task?k=box-a/T-1", "/task?k=box-a/T-1&theme=light", "/task?k=box-a/T-1&theme=dark", "/task?k=box-a/T-2"} {
+		code, body := obsGet(t, h, target)
+		if code != http.StatusOK || !strings.Contains(body, `<link rel="stylesheet" href="/assets/obs/app.css">`) {
+			t.Fatalf("%s: %d, no shared stylesheet:\n%s", target, code, body)
+		}
+		if strings.Contains(body, "<script") || strings.Contains(body, "<style") || strings.Contains(body, "style=") {
+			t.Errorf("%s: a script or its own style", target)
+		}
+		for _, m := range ref.FindAllStringSubmatch(body, -1) {
+			if m[1] != "a" || m[2] != "href" || m[3] != tracePR {
+				t.Errorf("%s: external reference %q", target, m[0])
+			}
+		}
+	}
+}
 
 func TestObsTracePage(t *testing.T) {
 	h, err := traceRunner(t).ObsHandler()
