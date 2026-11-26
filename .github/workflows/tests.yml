@@ -200,12 +200,12 @@ jobs:
         if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
         with:
           python-version: "3.13"
-      # setup-go runs before the tier step: it builds ci-tier from the base commit.
+      # This setup-go builds ci-tier from the base commit in the tier step; no cache, so a go=false run saves no near-empty cache.
       - uses: actions/setup-go@v7
         if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
         with:
           go-version-file: go/go.mod
-          cache-dependency-path: go/go.mod
+          cache: false
       - name: Tier (rules from the base commit)
         id: tier
         if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
@@ -230,6 +230,11 @@ jobs:
           "$RUNNER_TEMP/ci-tier" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       # No go/** change (and not a full run): the job reports success without building.
+      - uses: actions/setup-go@v7
+        if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.mod
       - name: gofmt
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
         run: |

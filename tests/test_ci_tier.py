@@ -48,7 +48,7 @@ def docs_tier_job_skip_errors(text):
         if any(line.startswith("    if:") for line in header.splitlines()):
             errors.append("%s has a job-level if" % job)
         chunks = re.split(r"(?m)^      - ", steps)[1:]
-        want = {"unittest-shard": 6, "go": 8}[job]
+        want = {"unittest-shard": 6, "go": 9}[job]
         if len(chunks) != want:
             errors.append("%s: expected %d steps, got %d" % (job, want, len(chunks)))
             continue
