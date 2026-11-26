@@ -47,8 +47,9 @@ type Runner struct {
 	ReadyWait time.Duration
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
-	usageFiles  [][]byte // the remote usage files of this pass
-	usageRead   bool     // usageFiles has been read in this pass
+	usageFiles  [][]byte               // the remote usage files of this pass
+	usageRead   bool                   // usageFiles has been read in this pass
+	loads       map[string]loadReading // CPU load per machine, see load.go
 }
 
 // NewRunner opens the factory DB of the environment.

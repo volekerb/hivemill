@@ -138,6 +138,9 @@ type crumb struct{ Label, Href string }
 type sourceLine struct {
 	ObsSource
 	Last string
+	// the gate proofs the machine ran in the page's window, and their wall time (gate.proof_run)
+	Proofs   int     `json:"proof_runs,omitempty"`
+	ProofMin float64 `json:"proof_minutes,omitempty"`
 }
 
 type obsPage struct {

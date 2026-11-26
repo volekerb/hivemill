@@ -137,7 +137,7 @@ func (r *Runner) EvalGate(run *Run) *GateRecord {
 		if err == nil {
 			logdir := filepath.Join(r.Env.StateDir(), "runs", run.Task, "eval-gate")
 			_ = os.MkdirAll(logdir, 0o700)
-			rec.Reruns = r.RerunProofs(run.Worktree, Criteria(t.Acceptance), logdir)
+			rec.Reruns = r.RerunProofs(run, Criteria(t.Acceptance), logdir)
 			for _, x := range rec.Reruns {
 				if x.OK != nil && !*x.OK {
 					rec.Problems = append(rec.Problems, fmt.Sprintf("criterion %d (%s): the factory re-ran its proof and it failed: %s", x.ID, x.Kind, x.Note))
