@@ -49,6 +49,8 @@ var Defaults = map[string]string{
 	"backup_keep":              "7",    // snapshots kept (in backup_dir and in a file:// target)
 	"backup_dir":               "",     // empty = state/hivemill/backups
 	"backup_target":            "",     // file:///path (copy) | s3://bucket/path | sftp://host/path (litestream when installed)
+	"standby_from":             "",     // on the standby: HOST or HOST:DIR of the primary's snapshots (docs/standby.md); empty = no check
+	"standby_check_days":       "30",   // daemon `standby check` of standby_from every this many days; 0 = off
 	"alert_cmd":                "",     // owner alerts: run as sh -c "$alert_cmd" hivemill-alert TITLE TEXT; empty = log, plus a notification on macOS
 	// planner (planner.go): one long-lived session that keeps the ready queues full and turns failures into a next step
 	"planner_queue_min":  "3",               // lint-passing ready tasks wanted per project with an active goal
