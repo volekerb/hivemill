@@ -82,6 +82,7 @@ type Store interface {
 	DoneTasks() (map[string]bool, error)
 	FactoryCfg(key string) string
 	Cfg(key string) string
+	CfgErr(key string) (string, error)
 	SetCfg(key, value string) error
 	Meta(key string) string
 	SetMeta(key, value string) error
@@ -290,6 +291,20 @@ func (s *SQLite) Cfg(key string) string {
 		return v
 	}
 	return Defaults[key]
+}
+
+// CfgErr reads an hm_config key like Cfg, but returns the read error instead of the default (no row is the default,
+// any other failure is an error), so a caller can fail closed.
+func (s *SQLite) CfgErr(key string) (string, error) {
+	var v string
+	err := s.db.QueryRow(`SELECT value FROM hm_config WHERE key=?`, key).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Defaults[key], nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return v, nil
 }
 
 func (s *SQLite) SetCfg(key, value string) error {

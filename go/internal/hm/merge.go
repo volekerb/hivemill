@@ -141,7 +141,8 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 	}
 	if t != nil {
 		in.Tier = r.tierOf(t.Project, wt, base, pr.HeadRefOid)
-		in.T3Auto = r.Store.Cfg("t3_auto_merge") == "on"
+		v, err := r.Store.CfgErr("t3_auto_merge") // fails closed: a read error holds the PR
+		in.T3Auto = err == nil && v == "on"
 		for _, c := range Criteria(t.Acceptance) {
 			in.T3Auto = in.T3Auto && c.Kind != "manual" // a manual: criterion is the owner's to check
 		}

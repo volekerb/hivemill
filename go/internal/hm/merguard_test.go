@@ -330,6 +330,25 @@ func TestT3RiskTierEditHeld(t *testing.T) {
 	}
 }
 
+func TestT3TierRulesJSONEditHeld(t *testing.T) {
+	f := newT3(t, map[string]string{"ci/tier_rules.json": "{}\n"})
+	f.held(t, "f) ci/tier_rules.json: changes the tier classification")
+}
+
+func TestT3ConfigReadErrorHeld(t *testing.T) {
+	f := newT3(t, t3Clean)
+	if _, err := f.s.db.Exec(`ALTER TABLE hm_config RENAME TO hm_config_gone`); err != nil { // the read fails
+		t.Fatal(err)
+	}
+	if _, err := f.s.CfgErr("t3_auto_merge"); err == nil {
+		t.Fatal("CfgErr: want a read error")
+	}
+	f.r.Merge(f.run)
+	if f.run.State != Held || len(f.merges) != 0 || len(f.events(t, "merge.guarded")) != 0 {
+		t.Fatalf("state %s (%s), merges %v", f.run.State, f.run.MergeHold, f.merges)
+	}
+}
+
 func TestT3MergeGoEditHeld(t *testing.T) {
 	f := newT3(t, map[string]string{"go/internal/hm/merge.go": "package hm\n"})
 	f.held(t, "f) go/internal/hm/merge.go: changes the merge step")
