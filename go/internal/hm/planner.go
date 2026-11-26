@@ -343,10 +343,11 @@ func levelKey(level string) string {
 }
 
 // maxUnstartableIDs keeps the unstartable reason inside the wake line.
-const maxUnstartableIDs = 40
+const maxUnstartableIDs = 20
 
 // groupUnstartable writes the per-task unstartable levels as one reason ("unstartable:T-1,T-2,+3_more"), so many of them
-// are not cut from the wake line one by one.
+// are not cut from the wake line one by one. It goes before the other levels: those hold and are listed again by
+// `planner status`, while a task id cut here would not be heard again.
 func groupUnstartable(levels []string) []string {
 	var out, ids []string
 	for _, x := range levels {
@@ -360,7 +361,7 @@ func groupUnstartable(levels []string) []string {
 		ids = append(ids[:maxUnstartableIDs], fmt.Sprintf("+%d_more", n))
 	}
 	if len(ids) > 0 {
-		out = append(out, "unstartable:"+strings.Join(ids, ","))
+		out = append([]string{"unstartable:" + strings.Join(ids, ",")}, out...)
 	}
 	return out
 }

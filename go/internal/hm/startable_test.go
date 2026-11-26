@@ -167,7 +167,7 @@ func TestIdleAlertUsesStartable(t *testing.T) {
 	for i := range maxUnstartableIDs + 2 {
 		many = append(many, fmt.Sprintf("unstartable:T-%04d", i))
 	}
-	if got := Coalesce(nil, many); len(got) != 1 || !strings.HasSuffix(got[0], ",T-0039,+2_more") {
+	if got := Coalesce(nil, append([]string{"goal_done:G-001"}, many...)); len(got) != 2 || !strings.HasSuffix(got[0], ",T-0019,+2_more") {
 		t.Fatalf("grouped: %q", got)
 	}
 	// no free slot: the queue is not starved yet
@@ -175,5 +175,14 @@ func TestIdleAlertUsesStartable(t *testing.T) {
 	_ = s.PutRun(&Run{Task: "T-0098", Goal: "G-001", Project: "www", State: Working})
 	if lv, _ := r.PlannerLevels(); strings.Contains(strings.Join(lv, " "), "none_startable") {
 		t.Fatalf("no slot is free: %v", lv)
+	}
+	// once heard, a busy slot does not drop it, so a freed one is not news
+	_ = s.SetMeta("planner_fp", "none_startable:todo=5,blocked_by_deps=3,blocked_by_lint=1")
+	if lv, _ := r.PlannerLevels(); !strings.Contains(strings.Join(lv, " "), "none_startable") {
+		t.Fatalf("a heard level was dropped: %v", lv)
+	}
+	_ = s.SetCfg("max_waiting", "0")
+	if lv, _ := r.PlannerLevels(); strings.Contains(strings.Join(lv, " "), "none_startable") {
+		t.Fatalf("dispatch is paused: %v", lv)
 	}
 }

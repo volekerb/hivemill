@@ -101,12 +101,15 @@ func blockedCounts(blocked []BlockedTask) map[string]int {
 }
 
 // noneStartable is the planner's level reason for a starved queue: a run slot is free, no task of the configured projects
-// is startable and todo tasks exist ("" otherwise). It holds no spaces, as every level reason.
+// is startable and todo tasks exist ("" otherwise, and while drain or max_waiting holds dispatch). Once the planner heard
+// it, it holds with every slot busy too, so a slot that fills and frees again is not news. No spaces, as every level.
 func (r *Runner) noneStartable(ready []Task, blocked []BlockedTask) string {
 	if len(ready) > 0 || len(blocked) == 0 {
 		return ""
 	}
-	if working, _ := r.runCounts(); working >= cfgInt(r.Store, "max_concurrent") {
+	working, waits := r.runCounts()
+	if r.Draining() || waits >= cfgInt(r.Store, "max_waiting") ||
+		(working >= cfgInt(r.Store, "max_concurrent") && !strings.Contains(r.Store.Meta("planner_fp"), "none_startable:")) {
 		return ""
 	}
 	n := blockedCounts(blocked)
@@ -146,7 +149,8 @@ func (r *Runner) reportUnstartable() error {
 		now = append(now, b.Task.ID)
 	}
 	for _, id := range told {
-		if t, err := r.Store.Task(id); err == nil && !queued[id] && t.Status == "todo" {
+		if t, err := r.Store.Task(id); err == nil && !queued[id] && t.Status == "todo" &&
+			(strings.TrimSpace(t.Spec) == "" || len(LintProblems(t.Acceptance)) > 0) {
 			now = append(now, id)
 		}
 	}
