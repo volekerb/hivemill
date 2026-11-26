@@ -29,6 +29,7 @@ const (
 	darwinBootNote     = "boot units: launchd user agents (hivemill.*) in ~/Library/LaunchAgents"
 	darwinLingerNote   = "--linger: not applicable on macOS (launchd user agents run while you are logged in)"
 	aptHint            = "sudo apt-get install -y git python3"
+	goHint             = "install Go from https://go.dev/dl"
 )
 
 // Asset is one pinned download.
@@ -56,7 +57,7 @@ var (
 
 var (
 	tagRe     = regexp.MustCompile(`^v(\p{Nd}+)\.(\p{Nd}+)\.(\p{Nd}+)\n?$`) // Python \d and $ semantics
-	versionRe = regexp.MustCompile(`hivemill (\p{Nd}+\.\p{Nd}+\.\p{Nd}+)`)
+	versionRe = regexp.MustCompile(`(\p{Nd}+\.\p{Nd}+\.\p{Nd}+)`)           // the clone's VERSION file
 	pyVerRe   = regexp.MustCompile(`Python (\p{Nd}+)\.(\p{Nd}+)`)
 )
 
@@ -69,7 +70,6 @@ type Ctx struct {
 	home    string
 	fh      string
 	bindir  string
-	factory string
 	n       int
 	tmp     string
 	ref     string
@@ -82,7 +82,7 @@ func NewCtx(host Host, args *Args, out io.Writer, plan bool) *Ctx {
 	home := host.Home()
 	bindir := filepath.Join(home, ".local", "bin")
 	return &Ctx{host: host, args: args, out: out, plan: plan, home: home, fh: filepath.Join(home, "factory"),
-		bindir: bindir, factory: filepath.Join(bindir, "factory"), port: args.Port}
+		bindir: bindir, port: args.Port}
 }
 
 // emit prints one redacted line. A write error on the output stream cannot be reported anywhere else.
@@ -296,7 +296,7 @@ func checkItems(h Host, noSystemd bool) ([]checkItem, float64, bool) {
 	if rc == 0 {
 		add("ok", "go", pyStrip(out))
 	} else {
-		add("warn", "go", "not found; optional, guard_impl defaults to python")
+		add("missing", "go", "not found; "+goHint)
 	}
 	return items, gib, haveMem
 }
@@ -407,8 +407,16 @@ func checkPrereqs(c *Ctx) error {
 	if rc, _ = c.read([]string{"git", "--version"}, 60*time.Second); rc != 0 {
 		missing = append(missing, "git")
 	}
+	var hints []string
 	if len(missing) > 0 {
-		return stopf(3, "missing: %s. Run this yourself, then re-run the installer:\n  %s", strings.Join(missing, ", "), c.hint())
+		hints = append(hints, c.hint())
+	}
+	if rc, _ = c.read([]string{"go", "version"}, 60*time.Second); rc != 0 {
+		missing = append(missing, "go")
+		hints = append(hints, goHint)
+	}
+	if len(missing) > 0 {
+		return stopf(3, "missing: %s. Run this yourself, then re-run the installer:\n  %s", strings.Join(missing, ", "), strings.Join(hints, "\n  "))
 	}
 	return nil
 }
@@ -417,7 +425,7 @@ func stepPrereqs(c *Ctx) (string, error) {
 	if err := checkPrereqs(c); err != nil {
 		return "", err
 	}
-	return "python3>=3.11 and git present (the installer itself needs no Python)", nil
+	return "python3>=3.11, git and go present (the installer itself needs no Python)", nil
 }
 
 func sha256File(path string) (string, error) {
@@ -694,17 +702,28 @@ func stepClone(c *Ctx) (string, error) {
 
 func stepLink(c *Ctx) (string, error) {
 	installSkills(c)
-	target := filepath.Join(c.fh, "bin", "factory")
-	if c.plan {
-		c.emit(fmt.Sprintf("    $ ln -s %s %s", target, c.factory))
-	} else {
-		if err := c.host.Mkdirs(c.bindir); err != nil {
-			return "", fmt.Errorf("create %s: %w", c.bindir, err)
-		}
-		if err := c.host.Symlink(target, c.factory); err != nil {
+	for _, name := range builtBinaries { // both build before either is linked
+		argv := []string{"go", "build", "-o", filepath.Join(c.fh, "bin", name), "./cmd/" + name}
+		if _, _, err := c.do(argv, "go build "+name, filepath.Join(c.fh, "go"), 900*time.Second, true); err != nil {
 			return "", err
 		}
 	}
+	if !c.plan {
+		if err := c.host.Mkdirs(c.bindir); err != nil {
+			return "", fmt.Errorf("create %s: %w", c.bindir, err)
+		}
+	}
+	var links []string
+	for _, name := range builtBinaries {
+		target, link := filepath.Join(c.fh, "bin", name), filepath.Join(c.bindir, name)
+		links = append(links, link)
+		if c.plan {
+			c.emit(fmt.Sprintf("    $ ln -s %s %s", target, link))
+		} else if err := c.host.Symlink(target, link); err != nil {
+			return "", err
+		}
+	}
+	linked := "linked " + strings.Join(links, " and ")
 	onPath := false
 	for _, p := range strings.Split(c.host.Environ()["PATH"], ":") {
 		if strings.TrimRight(p, "/") == c.bindir {
@@ -713,10 +732,13 @@ func stepLink(c *Ctx) (string, error) {
 	}
 	if !onPath {
 		c.emit(fmt.Sprintf("    note: %s is not on your PATH. Add this line to your shell profile yourself: export PATH=\"$HOME/.local/bin:$PATH\"", c.bindir))
-		return fmt.Sprintf("linked %s; not on PATH, calling it by absolute path", c.factory), nil
+		return linked + "; not on PATH, calling them by absolute path", nil
 	}
-	return "linked " + c.factory, nil
+	return linked, nil
 }
+
+// builtBinaries are the commands the link step builds from the clone's go/ module and links into the bin dir.
+var builtBinaries = []string{"hivemill", "worker-guard"}
 
 func stepServices(c *Ctx) (string, error) {
 	a := c.args
@@ -786,8 +808,7 @@ func installUnits(c *Ctx) error {
 
 // servicesBackground is --no-systemd (and --no-boot-units on macOS): it starts nothing and says how to.
 func servicesBackground(c *Ctx) (string, error) {
-	c.emit(fmt.Sprintf("    no service was started. To run hivemill by hand: build it (cd %s && go build -o %s ./cmd/hivemill), then run `hivemill daemon`",
-		filepath.Join(c.fh, "go"), filepath.Join(c.bindir, "hivemill")))
+	c.emit("    no service was started. To run hivemill by hand: run `hivemill daemon`")
 	return "no services started; run `hivemill daemon` by hand", nil
 }
 
@@ -821,18 +842,35 @@ func indexOf(s []string, v string) int {
 	return -1
 }
 
+// stepSmoke runs the linked hivemill. A new install has no database and no daemon pass yet, and health exits 1 for
+// both: those answers show a working binary and pass; any other failure does not.
 func stepSmoke(c *Ctx) (string, error) {
+	hivemill := filepath.Join(c.bindir, "hivemill")
 	if c.plan {
-		c.emit(fmt.Sprintf("    $ %s --version   (expects 'hivemill X.Y.Z')", c.factory))
+		c.emit(fmt.Sprintf("    $ %s health", hivemill))
 		return "plan", nil
 	}
-	rc, out := c.read([]string{c.factory, "--version"}, 60*time.Second)
-	m := versionRe.FindStringSubmatch(out)
-	if rc != 0 || m == nil {
-		return "", stepf("`factory --version` did not print 'hivemill X.Y.Z':\n%s", tailOf(out))
+	rc, out := c.read([]string{hivemill, "health"}, 60*time.Second)
+	state := "healthy"
+	switch {
+	case rc == 0:
+	case rc == 1 && strings.Contains(out, "cannot open database"):
+		state = "no database yet (run `hivemill init`)"
+	case rc == 1 && strings.Contains(out, "last good pass"):
+		state = "no recent daemon pass"
+	default:
+		return "", stepf("`hivemill health` failed (rc=%d):\n%s", rc, tailOf(out))
+	}
+	b, err := c.host.ReadFile(filepath.Join(c.fh, "VERSION"))
+	if err != nil {
+		return "", stepWrap(err, "read VERSION")
+	}
+	m := versionRe.FindStringSubmatch(string(b))
+	if m == nil {
+		return "", stepf("%s/VERSION holds no X.Y.Z version", c.fh)
 	}
 	c.version = m[1]
-	return "version " + c.version, nil
+	return fmt.Sprintf("hivemill runs, %s; version %s", state, c.version), nil
 }
 
 type step struct {

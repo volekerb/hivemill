@@ -57,7 +57,7 @@ func newFake(t *testing.T) *fakeHost {
 	env := map[string]string{"PATH": filepath.Join(home, ".local", "bin") + ":/usr/bin"}
 	f := &fakeHost{
 		OSHost: &OSHost{HomeDir: home, Env: env}, euid: 1000, machine: "x86_64", mem: 16, cpus: 8,
-		tools:  map[string]bool{"git": true, "herdr": true, "gh": true, "claude": true, "python3": true},
+		tools:  map[string]bool{"git": true, "herdr": true, "gh": true, "claude": true, "python3": true, "go": true},
 		ghAuth: true, systemd: true, tags: testTags, origin: testRepo, assets: map[string][]byte{}, httpRC: map[string]int{},
 	}
 	return f
@@ -134,8 +134,25 @@ func (f *fakeHost) Run(argv []string, cwd string, timeout time.Duration, mutate 
 		return 0, "Python 3.13.5\n"
 	case len(argv) == 2 && argv[1] == "--version" && f.tools[name]:
 		return 0, name + " version 1.2.3\n"
-	case len(argv) == 2 && argv[1] == "version" && name == "go":
-		return 1, "go: not found"
+	case name == "go" && !f.tools["go"]:
+		return 127, "go: not found"
+	case name == "go" && len(argv) == 2 && argv[1] == "version":
+		return 0, "go version go1.25.0 linux/amd64\n"
+	case name == "go" && len(argv) == 5 && argv[1] == "build" && argv[2] == "-o": // writes the binary it is asked for
+		if cwd != filepath.Join(f.HomeDir, "factory", "go") {
+			return 1, "go build outside the clone's go/ folder: " + cwd
+		}
+		if err := os.MkdirAll(filepath.Dir(argv[3]), 0o755); err != nil {
+			return 1, err.Error()
+		}
+		if err := os.WriteFile(argv[3], []byte(argv[4]), 0o755); err != nil {
+			return 1, err.Error()
+		}
+		// the clone being built holds VERSION, which smoke reads; a --resume run never ran the fake clone
+		if err := os.WriteFile(filepath.Join(filepath.Dir(cwd), "VERSION"), []byte("0.4.0\n"), 0o644); err != nil {
+			return 1, err.Error()
+		}
+		return 0, ""
 	case name == "gh" && joined == "gh auth status":
 		if f.ghAuth {
 			return 0, "Logged in"
@@ -154,14 +171,17 @@ func (f *fakeHost) Run(argv []string, cwd string, timeout time.Duration, mutate 
 		if err := os.MkdirAll(argv[len(argv)-1], 0o755); err != nil {
 			return 1, err.Error()
 		}
+		if err := os.WriteFile(filepath.Join(argv[len(argv)-1], "VERSION"), []byte("0.4.0\n"), 0o644); err != nil {
+			return 1, err.Error()
+		}
 		return 0, "Cloning"
 	case argv[0] == "git" && f.tools["git"]:
 		return 0, ""
-	case name == "factory" && len(argv) == 2 && argv[1] == "--version":
-		return 0, "hivemill 0.4.0\n"
+	case name == "hivemill" && len(argv) == 2 && argv[1] == "health": // a new install: no database yet
+		return 1, "hivemill: cannot open database /x/factory.db: no such file\n"
 	case name == "herdr" && len(argv) == 3 && argv[1] == "workspace":
 		return 0, "ok"
-	case name == "factory" || name == "bash" || name == "systemctl" || name == "loginctl" || name == "launchctl":
+	case name == "bash" || name == "systemctl" || name == "loginctl" || name == "launchctl":
 		return 0, ""
 	}
 	return 127, "not found: " + joined
