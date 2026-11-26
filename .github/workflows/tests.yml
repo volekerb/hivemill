@@ -355,7 +355,6 @@ jobs:
             echo "corpus: base has no ci/guard_corpus.json, using the PR copy only"
           fi
           # planned loosening: PR-added ci/allow_loosen_*.json, merged into one list and printed for the reviewer
-          allow=()
           files=$(git diff --name-only --diff-filter=AM "$BASE_SHA" HEAD -- 'ci/allow_loosen_*.json')
           if [ -n "$files" ]; then
             echo "PLANNED LOOSENING listed by this PR (reviewer: check it against the spec):"
@@ -367,16 +366,23 @@ jobs:
               out += json.load(open(p, encoding="utf-8"))
           print(json.dumps(out))
           PY
-            allow=(--allow-loosen "$RUNNER_TEMP/allow_loosen.json")
           fi
           rc=0
           # guard_diff keeps fixtures at fixed names under TMPDIR: a private one per pass, so parallel passes and
           # other runners (same user) cannot overwrite each other's. --timeout: hook calls are slow on a busy host.
           tmp_both=$(mktemp -d /tmp/gd.XXXXXX); tmp_eval=$(mktemp -d /tmp/gd.XXXXXX)
           trap 'rm -rf "$tmp_both" "$tmp_eval"' EXIT
-          TMPDIR="$tmp_both" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both --timeout 30 "${allow[@]}" | tee "$RUNNER_TEMP/gd-both.txt" &
+          allow_both=(); allow_eval=()
+          if [ -n "$files" ]; then
+            # --allow-loosen matches expanded commands: listed /tmp/guard-diff-* fixtures move with each pass's TMPDIR.
+            sed "s#/tmp/guard-diff-#$tmp_both/guard-diff-#g" "$RUNNER_TEMP/allow_loosen.json" > "$RUNNER_TEMP/allow_both.json"
+            sed "s#/tmp/guard-diff-#$tmp_eval/guard-diff-#g" "$RUNNER_TEMP/allow_loosen.json" > "$RUNNER_TEMP/allow_eval.json"
+            allow_both=(--allow-loosen "$RUNNER_TEMP/allow_both.json")
+            allow_eval=(--allow-loosen "$RUNNER_TEMP/allow_eval.json")
+          fi
+          TMPDIR="$tmp_both" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both --timeout 30 "${allow_both[@]}" | tee "$RUNNER_TEMP/gd-both.txt" &
           both=$!
-          TMPDIR="$tmp_eval" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator --timeout 30 "${allow[@]}" | tee "$RUNNER_TEMP/gd-eval.txt" &
+          TMPDIR="$tmp_eval" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator --timeout 30 "${allow_eval[@]}" | tee "$RUNNER_TEMP/gd-eval.txt" &
           eval_pass=$!
           wait "$both" || rc=1
           wait "$eval_pass" || rc=1
