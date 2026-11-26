@@ -51,6 +51,7 @@ type Runner struct {
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
+	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
 	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 

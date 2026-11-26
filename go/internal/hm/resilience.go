@@ -179,13 +179,23 @@ func sdNotify(state string) {
 }
 
 // Daemon runs the pass loop in-process until ctx ends (SIGTERM): one pass every pass_interval_s, a heartbeat and a
-// watchdog ping after each pass. Only one daemon runs per factory home (its lock).
+// watchdog ping after each pass. Only one daemon runs per factory home: its flock on this machine and its daemon lock
+// (daemonlock.go) across machines.
 func (r *Runner) Daemon(ctx context.Context) error {
 	l := r.lock("daemon", false)
 	if l == nil {
 		return fmt.Errorf("%w: another hivemill daemon holds the lock", ErrRefused)
 	}
 	defer l.Close()
+	host, release, err := r.holdDaemonLock(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	bin, err := os.Executable()
+	if err != nil {
+		bin = "hivemill"
+	}
 	r.inDaemon = true
 	if err := r.WriteGuardExport(time.Now()); err != nil { // at start, even when another process holds the pass lock
 		r.printf("guard export: %v\n", err)
@@ -193,6 +203,10 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
 	sdNotify("READY=1")
 	for {
+		if err := r.refreshDaemonLock(host, time.Now()); err != nil {
+			sdNotify("STOPPING=1")
+			return err
+		}
 		if err := r.Pass(true); err != nil {
 			r.printf("pass: %v\n", err)
 		} else {
@@ -205,6 +219,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 				r.printf("backup: %v\n", err)
 			}
 		}
+		r.StandbyPass(bin, time.Now())
 		sdNotify("WATCHDOG=1")
 		select {
 		case <-ctx.Done():
