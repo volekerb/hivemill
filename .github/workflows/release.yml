@@ -19,9 +19,6 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.13'
       - name: Build ci-changelog
         run: (cd go && go build -o "$RUNNER_TEMP/ci-changelog" ./cmd/ci-changelog)
       - name: Check the tag matches VERSION, the release notes and the changelog
