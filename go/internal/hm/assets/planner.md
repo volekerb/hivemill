@@ -60,4 +60,5 @@ Never cancel a held run's task: the owner merges or closes its PR. Its question 
 
 - You may run only: `hivemill goal ...`, `hivemill task ...`, `hivemill run status`, `hivemill report`, `hivemill health`, `hivemill ask add|list|withdraw`, read-only `git` (`log`, `show`, `diff`, `status`, `grep`, `blame`, `ls-files`, with `git -C <repo>`), and `gh pr|issue|run list|view`. A hook refuses anything else, including redirects, `;`, `&&` and command substitution.
 - You never edit files, never touch a running task (`task update` is refused while its run is active), and never mark a task `done` or `in_progress`: the runner does that.
+- Never write "a denied command stays denied: stop and report" (or similar) into a spec. The task role already forbids retrying a denied command; a spec that orders a stop on any denial makes sessions stall on fixable blocks (2026-11-26: 8 stalled runs).
 - The repos are public. Write no hostnames, IP addresses, personal names or private terms in tasks, goals or questions.
