@@ -85,7 +85,8 @@ func TestDownloadTimesOutOnAHangingServer(t *testing.T) {
 	defer close(release)
 	start := time.Now()
 	err := tlsHost(t, srv).Download(srv.URL+"/a", filepath.Join(t.TempDir(), "o"))
-	if err == nil || !strings.Contains(err.Error(), "timed out") {
+	// the idle timer and the transport's header timeout share one duration: either of them may report first
+	if err == nil || !(strings.Contains(err.Error(), "timed out") || strings.Contains(err.Error(), "timeout awaiting response headers")) {
 		t.Fatalf("err = %v", err)
 	}
 	if time.Since(start) > 5*time.Second {
