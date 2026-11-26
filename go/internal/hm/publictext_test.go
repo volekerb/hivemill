@@ -98,6 +98,14 @@ func TestPublicTextUnreadableRepoListRefuses(t *testing.T) {
 	}
 }
 
+// A stored list that hivemill config would refuse must not pass as "not listed" either.
+func TestPublicTextBadRepoListRefuses(t *testing.T) {
+	r, wt := publicTextCase(t, "acme/app acme/api", "notes.txt", "about "+ptTerm)
+	if ok, note := r.publicText("acme/app", wt, "main", nil); ok || !strings.Contains(note, "is not OWNER/NAME") {
+		t.Errorf("bad list: %v %q", ok, note)
+	}
+}
+
 func TestPublicTextOwnerTermsForPublicRepo(t *testing.T) {
 	r, wt := publicTextCase(t, "acme/other, Acme/App", "notes.txt", "about "+ptTerm)
 	ok, note := r.publicText("acme/APP", wt, "main", nil)

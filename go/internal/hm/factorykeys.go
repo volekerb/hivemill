@@ -72,8 +72,7 @@ func CheckFactoryKey(key, value string) error {
 			if strings.TrimSpace(x) == "" {
 				continue
 			}
-			// a list split on spaces or semicolons would match no repo, and so check nothing
-			if _, ok := guard.CIRepoSlug(x); !ok || strings.ContainsAny(strings.TrimSpace(x), " \t\r\n;") {
+			if _, ok := repoEntry(x); !ok {
 				return fmt.Errorf("%s: %q is not OWNER/NAME", key, strings.TrimSpace(x))
 			}
 		}
@@ -82,6 +81,15 @@ func CheckFactoryKey(key, value string) error {
 		return fmt.Errorf("unknown factory key %s; known: %s", key, strings.Join(FactoryKeyNames(), ", "))
 	}
 	return nil
+}
+
+// repoEntry is the slug of one entry of a repo list. A list split on spaces or semicolons would match no repo, and so
+// check nothing: such an entry is not one.
+func repoEntry(x string) (string, bool) {
+	if strings.ContainsAny(strings.TrimSpace(x), " \t\r\n;") {
+		return "", false
+	}
+	return guard.CIRepoSlug(x)
 }
 
 // SetFactoryKey checks and writes a factory config key.

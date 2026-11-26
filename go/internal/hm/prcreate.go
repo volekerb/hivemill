@@ -128,19 +128,26 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 	return out, nil
 }
 
-// publicTextRepo: the repo is in public_text_repos. A list that cannot be read is an error, never "not listed".
+// publicTextRepo: the repo is in public_text_repos. A list that cannot be read or holds a bad entry (stored by
+// another writer than `hivemill config`) is an error, never "not listed".
 func (r *Runner) publicTextRepo(repo string) (bool, error) {
 	list, err := r.Store.FactoryCfgErr("public_text_repos")
 	if err != nil {
 		return false, fmt.Errorf("cannot read public_text_repos: %w", err)
 	}
 	want, _ := guard.CIRepoSlug(repo)
+	listed := false
 	for _, x := range strings.Split(list, ",") {
-		if s, ok := guard.CIRepoSlug(x); ok && s == want {
-			return true, nil
+		if strings.TrimSpace(x) == "" {
+			continue
 		}
+		s, ok := repoEntry(x)
+		if !ok {
+			return false, fmt.Errorf("public_text_repos: %q is not OWNER/NAME", strings.TrimSpace(x))
+		}
+		listed = listed || s == want
 	}
-	return false, nil
+	return listed, nil
 }
 
 // prTextHits runs the public-text guard on the title, body and branch; "" = clean. A guard that cannot decide (no

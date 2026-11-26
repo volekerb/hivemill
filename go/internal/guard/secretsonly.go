@@ -8,8 +8,9 @@ import (
 // The secret checks alone (T-2098): the gate runs them for a repo that is not in public_text_repos. Owner terms and the
 // rules below (who and where, not a credential) are a publication concern; every other rule reports a token or key.
 
-// identityRules are the rule ids that are no secret. A rule not listed here counts as a secret, so a new one is
-// checked in private repos too.
+// identityRules are the rule ids that are no secret. A genRules rule not listed here counts as a secret, so a new one
+// is checked in private repos too. extraRule holds identity rules only and is off as a whole in this mode: a token or
+// key rule belongs in genRules.
 var identityRules = map[string]bool{
 	idOwnerTerm: true, "home-path": true, "rfc1918": true, "cgnat": true, "email": true, "ipv4": true, "private-host": true,
 }
