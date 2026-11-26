@@ -39,13 +39,31 @@ func pctField(v any) *float64 {
 	return &f
 }
 
-// ReadUsage parses the usage file the status line writes (the old pipeline's source). Claude Code puts
-// rate_limits.five_hour in the status line input only while the API reports a 5-hour window, so the field can be empty.
+// ReadUsage parses the usage file the status line writes on this machine (the old pipeline's source).
 func ReadUsage(userHome string, now time.Time) Usage {
 	b, err := os.ReadFile(filepath.Join(userHome, ".claude", "usage-limits.json"))
 	if err != nil {
 		return Usage{AgeS: -1}
 	}
+	return parseUsage(b, now)
+}
+
+// newestUsage is the reading the caps use: the one with the newest updated_at among the local file and the files of the
+// session machines, so a session placed elsewhere refreshes it too. A remote reading with no usable updated_at never
+// replaces the local one.
+func (r *Runner) newestUsage(now time.Time) Usage {
+	best := ReadUsage(r.Env.UserHome, now)
+	for _, b := range r.remoteUsage() {
+		if u := parseUsage(b, now); u.Found && u.AgeS >= 0 && (best.AgeS < 0 || u.AgeS < best.AgeS) {
+			best = u
+		}
+	}
+	return best
+}
+
+// parseUsage parses the text of a usage file. Claude Code puts
+// rate_limits.five_hour in the status line input only while the API reports a 5-hour window, so the field can be empty.
+func parseUsage(b []byte, now time.Time) Usage {
 	var m map[string]any
 	if json.Unmarshal(b, &m) != nil {
 		return Usage{AgeS: -1}
@@ -107,7 +125,7 @@ type Caps struct {
 
 // ReadCaps gathers usage, memory and spend. Spend sums the session transcripts at API prices.
 func (r *Runner) ReadCaps(now time.Time) Caps {
-	c := Caps{Usage: ReadUsage(r.Env.UserHome, now), MemMB: MemAvailableMB(), MemMin: cfgInt(r.Store, "mem_floor_mb"),
+	c := Caps{Usage: r.newestUsage(now), MemMB: MemAvailableMB(), MemMin: cfgInt(r.Store, "mem_floor_mb"),
 		TodayUSD: map[string]float64{}}
 	c.DayCap, c.HasDay = cfgFloat(r.Store, "project_daily_budget_usd")
 	c.WeekCap, c.HasWeek = cfgFloat(r.Store, "weekly_budget_usd")
@@ -155,7 +173,7 @@ func (c *Caps) DispatchBlock(s Store, project string) string {
 	c.Probe = false
 	if why := c.UsageUnknown(s); why != "" {
 		if c.probeAllowed(s) {
-			c.Probe = true // one run may start; it renders a status line and so refreshes the reading
+			c.Probe = true // one run may start, on the local core; it renders a status line and so refreshes the reading
 		} else {
 			return "usage unknown: " + why
 		}

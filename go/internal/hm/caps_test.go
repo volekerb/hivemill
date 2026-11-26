@@ -145,3 +145,84 @@ func TestUsageProbe(t *testing.T) {
 		t.Errorf("no probe event without a dispatch: %d", probes())
 	}
 }
+
+// A session on another machine refreshes only its own usage file: the newest reading of all machines counts.
+func TestUsageNewestAcrossMachines(t *testing.T) {
+	r, s := testRunner(t, "")
+	_ = s.SetCfg("session_machines", "local,w-down,w1")
+	file := func(sevenDay string, at time.Time) string {
+		return `{"five_hour_pct": "10", "seven_day_pct": "` + sevenDay + `", "updated_at": ` + strconv.FormatInt(at.Unix(), 10) + `}`
+	}
+	dir := filepath.Join(r.Env.UserHome, ".claude")
+	_ = os.MkdirAll(dir, 0o700)
+	local := func(body string) { _ = os.WriteFile(filepath.Join(dir, "usage-limits.json"), []byte(body), 0o600) }
+	now := time.Now()
+	local(file("12", now.Add(-time.Hour)))
+	remote, reads := file("34", now.Add(-time.Minute)), []string{}
+	r.Tools.Sh = func(_ string, timeout time.Duration, _ []string, argv ...string) (int, string) {
+		if timeout != 5*time.Second || strings.Join(argv[:3], " ") != "hc exec --on" {
+			t.Errorf("remote read: timeout %s argv %q", timeout, argv)
+		}
+		reads = append(reads, argv[3])
+		if argv[3] != "w1" {
+			return 124, "timed out"
+		}
+		return 0, remote + "\nwarning: {on stderr}"
+	}
+	c := r.ReadCaps(now)
+	if why := c.UsageUnknown(s); why != "" || c.Usage.SevenDay == nil || *c.Usage.SevenDay != 34 {
+		t.Fatalf("stale local + fresh remote: %q %+v", why, c.Usage)
+	}
+	r.ReadCaps(now)
+	if got := strings.Join(reads, ","); got != "w-down,w1" {
+		t.Errorf("one read per machine until the next pass, local not read over hc: %s", got)
+	}
+	local(file("56", now))
+	if c = r.ReadCaps(now); *c.Usage.SevenDay != 56 {
+		t.Errorf("a newer local reading wins: %+v", c.Usage)
+	}
+	local(file("12", now.Add(-time.Hour)))
+	remote = "no such file"
+	if err := r.Pass(false); err != nil {
+		t.Fatal(err)
+	}
+	if c = r.ReadCaps(now); c.UsageUnknown(s) == "" || *c.Usage.SevenDay != 12 || len(reads) != 4 {
+		t.Errorf("a pass reads again and an unreadable machine is skipped: %+v reads %v", c.Usage, reads)
+	}
+}
+
+// The probe run must refresh the coordinator's reading, so it is not placed on another machine.
+func TestProbeRunsLocal(t *testing.T) {
+	r, s, calls := placementRunner(t, map[string]fakeWorker{"w1": {memMB: 9000, shared: true, coord: "c", cloneHead: strings.Repeat("a", 40)}})
+	setupRoles(t, r)
+	withLocalMem(t, 8000)
+	_ = s.SetCfg("session_machines", "w1")
+	_ = s.SetCfg("usage_require_5h", "off")
+	dir := filepath.Join(r.Env.UserHome, ".claude")
+	_ = os.MkdirAll(dir, 0o700)
+	_ = os.WriteFile(filepath.Join(dir, "usage-limits.json"), []byte(`{"seven_day_pct": "12", "updated_at": `+
+		strconv.FormatInt(time.Now().Add(-time.Hour).Unix(), 10)+`}`), 0o600)
+	r.Tools.Sh = func(string, time.Duration, []string, ...string) (int, string) { return 1, "unreachable" }
+	r.Tools.Git = func(_ string, args ...string) (int, string, string) {
+		if args[0] == "rev-parse" {
+			return 0, strings.Repeat("a", 40), ""
+		}
+		return 0, "", ""
+	}
+	task, err := s.Task("T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = s.db.Exec(`UPDATE tasks SET status='todo'`)
+	_ = os.MkdirAll(filepath.Join(r.Env.Home, "worktrees", task.Goal+"-T-0001", ".git"), 0o755)
+	if err := r.Start("T-0001"); err != nil {
+		t.Fatal(err)
+	}
+	run, _ := s.Run("T-0001")
+	if run == nil || run.Machine != "" {
+		t.Fatalf("the probe run is local: %+v", run)
+	}
+	if j := strings.Join(*calls, "\n"); strings.Contains(j, "--on w1") || !strings.Contains(j, "--on coord-core sh ") {
+		t.Errorf("no call to w1, the session starts on the core:\n%s", j)
+	}
+}

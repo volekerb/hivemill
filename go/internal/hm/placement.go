@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"factory/go/internal/gate"
 )
@@ -206,6 +207,35 @@ func (r *Runner) eligible(m string, floor int) string {
 		return fmt.Sprintf("%s MemAvailable < %d MB", mbText(p.MemMB), floor)
 	}
 	return ""
+}
+
+// usageReadTimeout bounds the read of one machine's usage file.
+const usageReadTimeout = 5 * time.Second
+
+// remoteUsage is the usage file of every session machine but "local" that could be read, over the transport of the
+// placement probe (hc exec; run through Tools.Sh for the short timeout). It reads once and keeps the result in memory
+// until the next pass. A machine that cannot be read is skipped.
+func (r *Runner) remoteUsage() [][]byte {
+	if r.usageRead {
+		return r.usageRemote
+	}
+	r.usageRead, r.usageRemote = true, nil
+	for _, m := range csv(r.Store.Cfg("session_machines")) {
+		if m == localMachine || !validMachine(m) {
+			continue
+		}
+		rc, out := r.Tools.Sh(r.Env.Home, usageReadTimeout, nil, "hc", "exec", "--on", m, "sh", "-c",
+			`cat "$HOME/.claude/usage-limits.json"`)
+		i := strings.IndexByte(out, '{')
+		if rc != 0 || i < 0 {
+			continue
+		}
+		var doc json.RawMessage // the first JSON value only: Sh appends stderr after the file
+		if json.NewDecoder(strings.NewReader(out[i:])).Decode(&doc) == nil {
+			r.usageRemote = append(r.usageRemote, doc)
+		}
+	}
+	return r.usageRemote
 }
 
 // validMachine refuses a name hc or ssh could read as an option or a path.

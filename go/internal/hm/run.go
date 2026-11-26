@@ -45,6 +45,9 @@ type Runner struct {
 	Poll  time.Duration
 	// ReadyWait bounds the wait for a new session's TUI (0 = 90 s).
 	ReadyWait time.Duration
+	// usageRemote caches the usage files of the session machines for one pass (usageRead: they were read).
+	usageRemote [][]byte
+	usageRead   bool
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -197,7 +200,13 @@ func (r *Runner) Start(id string) error {
 	if branch == "" {
 		branch = "factory/" + strings.ToLower(id)
 	}
-	pl := r.PickMachine()
+	// The usage probe runs on the local core: it is the one run that must refresh the reading.
+	pl := Placement{}
+	if caps.Probe {
+		pl.Skipped = []string{"usage probe: runs on " + localMachine}
+	} else {
+		pl = r.PickMachine()
+	}
 	wt, err := r.Clone(t, branch)
 	if err != nil {
 		return err
@@ -389,6 +398,8 @@ func (r *Runner) Pass(startNew bool) error {
 		return nil
 	}
 	defer l.Close()
+	// The usage files of the session machines are read again, once per pass.
+	r.usageRead = false
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
