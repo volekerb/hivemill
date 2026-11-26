@@ -406,7 +406,7 @@ def check_prereqs(c):
 
 def step_prereqs(c):
     check_prereqs(c)
-    return "python3>=3.11, git and go present (the factory itself needs no Python at runtime)"
+    return "python3>=3.11, git and go present"
 
 
 def fetch_verified(c, name, url, size, sha):
