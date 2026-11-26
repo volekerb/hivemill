@@ -22,7 +22,7 @@ import (
 // the list with tarfile.open(path, "r|*", ignore_zeros=True) and zipfile.ZipFile; this file follows CPython 3.13's
 // code paths step by step (stream offsets, header errors, pax records, the zip central directory) so a crafted archive
 // gets the same member list. Where Go cannot follow (xz, a gzip FEXTRA field, a truncated or multi-stream compressed
-// stream, very deep header chains, huge header blocks) it refuses: it never lists fewer members than Python would.
+// stream (a second bzip2 stream or gzip member), very deep header chains, huge header blocks) it refuses: it never lists fewer members than Python would.
 
 // archiveSizeMax is ARCHIVE_SIZE_MAX: the largest archive file the hook lists before refusing.
 const archiveSizeMax = 256 << 20
@@ -235,6 +235,33 @@ func bz2SecondStream(f *os.File) (bool, error) {
 	}
 }
 
+// gzMemberEnd reads the first gzip member's deflate data. At its end it skips the 8-byte CRC/ISIZE trailer and
+// refuses when a second gzip member follows: Python reads only the first member, but gzip -d (and so tar -xzf)
+// extracts them all, so listing the first alone could miss members.
+type gzMemberEnd struct {
+	r   io.Reader
+	raw *bufio.Reader
+	end error // the answer once the member has ended
+}
+
+func (g *gzMemberEnd) Read(p []byte) (int, error) {
+	if g.end != nil {
+		return 0, g.end
+	}
+	n, err := g.r.Read(p)
+	if err != io.EOF {
+		return n, err
+	}
+	g.end = err
+	if _, derr := g.raw.Discard(8); derr != nil {
+		return n, err
+	}
+	if next, _ := g.raw.Peek(2); bytes.Equal(next, []byte{0x1f, 0x8b}) {
+		g.end = &pyErr{"ReadError", "gzip multi-member stream"}
+	}
+	return n, g.end
+}
+
 // openTarStream is _Stream(name, "r", "*"): _StreamProxy reads the first block to pick the compression.
 func openTarStream(f *os.File) (*tarStream, error) {
 	fr := fileErrReader{f}
@@ -291,7 +318,7 @@ func openTarStream(f *os.File) (*tarStream, error) {
 				return nil, err
 			}
 		}
-		return &tarStream{src: &decReader{r: flate.NewReader(raw)}}, nil
+		return &tarStream{src: &decReader{r: &gzMemberEnd{r: flate.NewReader(raw), raw: raw}}}, nil
 	case len(first) >= 10 && string(first[0:3]) == "BZh" && string(first[4:10]) == "1AY&SY":
 		multi, err := bz2SecondStream(f)
 		if err != nil {
