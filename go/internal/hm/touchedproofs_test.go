@@ -1,0 +1,136 @@
+package hm
+
+import (
+	"bytes"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+)
+
+func touchedWrite(t *testing.T, root, rel, body string) {
+	t.Helper()
+	p := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func touchedGit(t *testing.T, root string, args ...string) {
+	t.Helper()
+	c := exec.Command("git", append([]string{"-C", root, "-c", "user.name=t", "-c", "user.email=t@example.invalid",
+		"-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"}, args...)...)
+	if out, err := c.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v: %s", args, err, out)
+	}
+}
+
+// touchedRepo is a repo with packages a and b on main, and a branch that changes the named files.
+func touchedRepo(t *testing.T, changed ...string) string {
+	t.Helper()
+	root := t.TempDir()
+	touchedGit(t, root, "init", "-q", "-b", "main")
+	touchedWrite(t, root, "a/package.json", `{"scripts":{"test":"tsx test.ts"}}`)
+	touchedWrite(t, root, "b/package.json", `{"devDependencies":{"vitest":"1"}}`)
+	touchedWrite(t, root, "README.md", "x\n")
+	touchedGit(t, root, "add", "-A")
+	touchedGit(t, root, "commit", "-qm", "base")
+	touchedGit(t, root, "checkout", "-qb", "work")
+	for _, c := range changed {
+		touchedWrite(t, root, c, "changed\n")
+	}
+	touchedGit(t, root, "add", "-A")
+	touchedGit(t, root, "commit", "-qm", "work", "--allow-empty")
+	return root
+}
+
+// touchedRun runs the proofs with a fake Exec that fails the packages in red; it returns the exit code, the output
+// and the directories Exec ran in.
+func touchedRun(root string, red ...string) (int, string, []string) {
+	var out bytes.Buffer
+	var ran []string
+	code := TouchedRun{Root: root, Base: "main", Out: &out, Exec: func(dir string, _ []string) (int, error) {
+		ran = append(ran, filepath.Base(dir))
+		if slices.Contains(red, filepath.Base(dir)) {
+			return 1, nil
+		}
+		return 0, nil
+	}}.Run()
+	return code, out.String(), ran
+}
+
+func TestTouchedPackagesNearestPackageJSON(t *testing.T) {
+	root := t.TempDir()
+	touchedWrite(t, root, "a/package.json", "{}")
+	touchedWrite(t, root, "a/nested/package.json", "{}")
+	got := TouchedPackages(root, []string{"a/nested/src/x.ts", "a/src/deep/gone.ts", "a/y.ts", "a/package.json", "README.md", "other/z.ts"})
+	if want := []string{"a", "a/nested"}; !slices.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	touchedWrite(t, root, "package.json", "{}")
+	if got := TouchedPackages(root, []string{"README.md"}); !slices.Equal(got, []string{"."}) {
+		t.Fatalf("root package: got %v", got)
+	}
+}
+
+func TestPackageTestArgvScriptVitestNone(t *testing.T) {
+	for _, c := range []struct {
+		body string
+		want string
+	}{
+		{`{"scripts":{"test":"vitest run"},"devDependencies":{"vitest":"1"}}`, "npm run test --prefix DIR"},
+		{`{"devDependencies":{"vitest":"1"}}`, "npx vitest run --root DIR"},
+		{`{"dependencies":{"vitest":"1"}}`, "npx vitest run --root DIR"},
+		{`{"scripts":{"build":"tsc"}}`, ""},
+	} {
+		dir := t.TempDir()
+		touchedWrite(t, dir, "package.json", c.body)
+		argv, ok := PackageTestArgv(dir)
+		if got := strings.ReplaceAll(strings.Join(argv, " "), dir, "DIR"); got != c.want || ok != (c.want != "") {
+			t.Errorf("%s: got %q %v, want %q", c.body, got, ok, c.want)
+		}
+	}
+}
+
+func TestTouchedRunFailsOnRedPackage(t *testing.T) {
+	root := touchedRepo(t, "a/x.ts", "b/y.ts")
+	code, out, ran := touchedRun(root, "a")
+	if code != 1 || !slices.Equal(ran, []string{"a", "b"}) {
+		t.Fatalf("code %d ran %v: %s", code, ran, out)
+	}
+	if !strings.Contains(out, "FAIL npm run test --prefix ") || !strings.Contains(out, "PASS npx vitest run --root ") {
+		t.Fatalf("output: %s", out)
+	}
+	// A package.json the branch broke fails; it is not skipped as having no tests.
+	root = touchedRepo(t, "a/package.json")
+	if code, out, ran := touchedRun(root); code != 1 || len(ran) != 0 || !strings.HasPrefix(out, "FAIL a: package.json: ") {
+		t.Fatalf("broken package.json: code %d ran %v: %s", code, ran, out)
+	}
+	var buf bytes.Buffer
+	if code := (TouchedRun{Root: root, Base: "no-such-ref", Out: &buf}).Run(); code != 2 {
+		t.Fatalf("bad base: code %d: %s", code, buf.String())
+	}
+}
+
+func TestTouchedRunAllGreen(t *testing.T) {
+	root := touchedRepo(t, "a/x.ts", "b/y.ts")
+	code, out, _ := touchedRun(root)
+	want := "PASS npm run test --prefix " + filepath.Join(root, "a") + "\n" +
+		"PASS npx vitest run --root " + filepath.Join(root, "b") + "\n"
+	if code != 0 || out != want {
+		t.Fatalf("code %d, out %q, want %q", code, out, want)
+	}
+}
+
+func TestTouchedRunNoPackagesChanged(t *testing.T) {
+	root := touchedRepo(t, "README.md")
+	code, out, ran := touchedRun(root)
+	if code != 0 || out != "no package changed\n" || len(ran) != 0 {
+		t.Fatalf("code %d ran %v out %q", code, ran, out)
+	}
+}
