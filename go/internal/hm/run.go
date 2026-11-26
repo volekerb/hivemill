@@ -599,7 +599,7 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	}
 	switch run.State {
 	case Working:
-		if !r.workingLimit(run, time.Now()) {
+		if !listed || !r.workingLimit(run, time.Now()) { // sessions that cannot be listed are never failed on time
 			r.idleWatch(run, list)
 		}
 	case Gated:

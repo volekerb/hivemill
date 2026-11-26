@@ -18,7 +18,7 @@ const workGrace = 30 * time.Minute
 func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 	limit := cfgInt(r.Store, "run_max_working_min")
 	start, err := time.Parse(time.RFC3339, run.RoundStart)
-	if limit <= 0 || err != nil || r.Store.Cfg("run_max_working_min") == "off" {
+	if limit <= 0 || err != nil || strings.EqualFold(strings.TrimSpace(r.Store.Cfg("run_max_working_min")), "off") {
 		return false
 	}
 	spent := now.Sub(start)
@@ -35,8 +35,12 @@ func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 	}
 	reason := fmt.Sprintf("timed out: %d minutes in working", mins)
 	if resumed, err := time.Parse(time.RFC3339, run.LongResumed); err == nil {
-		// a disconnected worker keeps its session, which may be finishing: wait for it to come back
-		if now.Sub(resumed) < workGrace || (run.Machine != "" && machineDown(r.Tools, run.Machine)) {
+		// a disconnected worker keeps its session, which may be finishing: its grace starts over until it is back
+		if run.Machine != "" && machineDown(r.Tools, run.Machine) {
+			run.LongResumed = now.Format(time.RFC3339)
+			return false
+		}
+		if now.Sub(resumed) < workGrace {
 			return false
 		}
 		r.fail(run, reason)

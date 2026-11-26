@@ -222,3 +222,28 @@ func TestRunMaxWorkingShowsInFlow(t *testing.T) {
 		t.Fatalf("page:\n%s", page)
 	}
 }
+
+// Time a worker is disconnected after the resume does not count against its grace.
+func TestRunMaxWorkingOutageRestartsTheGrace(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	r, _, run, _ := longRun(t, now, 180*time.Minute)
+	run.Machine = "w1"
+	state := "connected"
+	up := r.Tools.HC
+	r.Tools.HC = func(args ...string) (int, string, string) {
+		if args[0] == "ls" {
+			return 0, `{"machines": [{"name": "w1", "state": "` + state + `"}], "terminals": []}`, ""
+		}
+		return up(args...)
+	}
+	r.workingLimit(run, now)
+	state = "disconnected"
+	r.workingLimit(run, now.Add(2*time.Hour))
+	state = "connected"
+	if r.workingLimit(run, now.Add(2*time.Hour+29*time.Minute)) || run.State != Working {
+		t.Fatalf("just reconnected: %s", run.State)
+	}
+	if !r.workingLimit(run, now.Add(2*time.Hour+30*time.Minute)) || run.State != Failed {
+		t.Fatalf("a full grace after the outage: %s", run.State)
+	}
+}
