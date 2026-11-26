@@ -131,7 +131,7 @@ func cfgFloat(s Store, key string) (float64, bool) {
 // Caps is the state of every dispatch cap at one moment.
 type Caps struct {
 	Usage           Usage
-	Active          int  // runs holding a slot now
+	Active          int  // unfinished runs now (Active)
 	Probe           bool // set by DispatchBlock: the usage reading is stale, but one probe run may refresh it
 	MemMB, MemMin   int
 	TodayUSD        map[string]float64 // per project, sessions started today (local time)
