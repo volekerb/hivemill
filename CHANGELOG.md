@@ -33,6 +33,10 @@ v0.1.0 summarises the changes merged during private development.
 
 - **Scheduled jobs now fire from the tick.** Before, `factory schedule` only stored jobs and nothing fired them. Now the Python tick runs `factory-go schedule due --json` and mails each due job to the director, the run's token cap is applied through the goal's `token_limit`, and days the tick missed are not back-filled. See [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md#tick-claiming-due-jobs) (#777).
 
+### Changed
+
+- **The release workflow uses the Go `ci-changelog`.** `release.yml` builds `go/cmd/ci-changelog` once and runs it for `--check-version`, `--release-notes` and `--prerelease` instead of `ci/changelog.py`, which stays for now (T-1926).
+
 ## [0.5.0] - Unreleased
 
 See [What's new in v0.5.0](https://github.com/volekerb/hivemill/blob/main/docs/releases/v0.5.0-announcement.md) for a short plain-English summary of this release.

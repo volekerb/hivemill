@@ -143,7 +143,7 @@ class TestCheckVersion(unittest.TestCase):
 class TestReleaseWorkflow(unittest.TestCase):
     def test_check_step_precedes_release_creation(self):
         lines = (ROOT / ".github" / "workflows" / "release.yml").read_text().splitlines()
-        check = [i for i, l in enumerate(lines) if 'changelog.py --check-version "${GITHUB_REF_NAME#v}"' in l]
+        check = [i for i, l in enumerate(lines) if 'ci-changelog" --check-version "${GITHUB_REF_NAME#v}"' in l]
         create = [i for i, l in enumerate(lines) if "gh release create" in l]
         self.assertEqual(len(check), 1)
         self.assertEqual(len(create), 1)
