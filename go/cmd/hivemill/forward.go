@@ -31,7 +31,7 @@ var (
 
 // runsHere are the subcommands that open no DB and act on this machine: the guard hook (every tool call: an ssh hop
 // each would be slow), the clone's pre-push check and the affected-test runner (the session's CPU, not the
-// coordinator's). They run on the worker even when it forwards.
+// coordinator's). They run on the worker even when it forwards. `guard export` reads the DB, so it forwards.
 var runsHere = map[string]bool{"guard": true, "check": true, "affected": true}
 
 // coordinator is the ssh name this machine forwards to ("" = run here).
@@ -99,7 +99,7 @@ func preMain(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int
 		return cmdLocal(args[1:], uh, stdout, stderr), true
 	}
 	coord := coordinator(os.Getenv, uh)
-	if coord == "" || (len(args) > 0 && runsHere[args[0]]) {
+	if coord == "" || (len(args) > 0 && runsHere[args[0]] && !isGuardExport(args)) {
 		return 0, false
 	}
 	cwd, err := os.Getwd()
