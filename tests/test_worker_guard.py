@@ -731,10 +731,10 @@ class ClaudeGuardTests(unittest.TestCase):
                 added |= {f"Bash({c}:*)" for c in ("hc server stop", "herdr-core server stop", "hc kill", "hc rm", "hc run")}  # T-1446
                 added.add("Edit(/@FACTORY_LIVE_HOME@/run/guard-export.json*)")  # T-0883
 
-                def kept(rules):  # T-2093: path rules count as Edit(...); the MultiEdit and Advisor tools are gone
-                    rules = (re.sub(r"^(Write|MultiEdit|NotebookEdit)\(", "Edit(", x) for x in rules)
-                    return sorted(set(rules) - added - {"MultiEdit", "Advisor"})
-                self.assertEqual(kept(tdeny), kept(old))
+                # T-2093: on main only, path rules count as Edit(...) and the gone MultiEdit and Advisor tools drop out;
+                # the tree is compared as written, so a rule turned back into a no-op fails here
+                old = {re.sub(r"^(Write|MultiEdit|NotebookEdit)\(", "Edit(", x) for x in old} - {"MultiEdit", "Advisor"}
+                self.assertEqual(sorted(x for x in tdeny if x not in added), sorted(old - added))
 
 if __name__ == "__main__":
     unittest.main()

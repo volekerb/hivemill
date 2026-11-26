@@ -27,12 +27,12 @@ class AdvisorDenyTests(unittest.TestCase):
         self.assertTrue(set(ROLES) <= names, f"roles without settings: {set(ROLES) - names}")
         self.assertIn("boss", names)
 
-    def test_every_settings_file_denies_advisor_and_disables_it(self):
+    def test_every_settings_file_disables_advisor(self):
         self.assertGreaterEqual(len(SETTINGS), 12)
         for p in SETTINGS:
             self.assertEqual(problems(json.loads(p.read_text())), [], p.name)
 
-    def test_checker_rejects_missing_deny_or_env(self):
+    def test_checker_rejects_missing_env(self):
         d = json.loads(SETTINGS[0].read_text())
         no_env = json.loads(json.dumps(d))
         del no_env["env"]["CLAUDE_CODE_DISABLE_ADVISOR_TOOL"]

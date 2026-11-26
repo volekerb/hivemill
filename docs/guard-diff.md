@@ -60,6 +60,8 @@ The tool also diffs `roles/settings/<role>.json.in` against `--base` (a base tha
 - the `env` block, as `K=V`;
 - the template set: a role whose template is on base but gone from the tree.
 
+One exception: a removed `Write(<path>)`, `MultiEdit(<path>)` or `NotebookEdit(<path>)` deny is not reported when the tree denies `Edit(<path>)`, because Claude Code applies path rules only through `Edit` (T-2093).
+
 A removed `deny` or `ask` rule, an added `allow` rule, a removed hook, a removed or changed `env` entry or a removed template prints `SETTINGS-LOOSENED <role> <kind> removed|added: <rule>` (for a removed template: `SETTINGS-LOOSENED <role> template removed`) and counts as LOOSENED. A hook line reads for example `SETTINGS-LOOSENED qa hook removed: PreToolUse|Edit|Write|MultiEdit|NotebookEdit|command|python3 ...`. `--allow-loosen` takes the same text without the prefix, one `<role> <kind> removed: <rule>` or `<role> template removed` per line. The base role names are listed with `git ls-tree -z`, so a role name with a non-ASCII character is not missed. The reverse of a loosening prints `SETTINGS-TIGHTENED`; a new `env` key (or the new value of a changed key) prints `SETTINGS-CHANGED <role> env added: K=V` and is not counted. See `docs/settings-templates.md`.
 
 ## Exit codes

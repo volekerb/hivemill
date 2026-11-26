@@ -115,7 +115,7 @@ class LiveCheckoutDeny(unittest.TestCase):
                     for path in (f"{LIVE}/{entry}", f"{LIVE}/{RUNTIME_CHILDREN[entry]}"):
                         self.assertTrue(denied(deny, tool, path), f"{role}: {tool} not denied for {path}")
 
-    def test_runtime_notebookedit_data_dirs_have_literal_rules(self):
+    def test_runtime_data_dirs_have_literal_edit_rules(self):
         # denied() also accepts a bare tool name, so check the literal rule text
         for role in ("coder", "qa"):
             deny = settings(role)["permissions"]["deny"]
