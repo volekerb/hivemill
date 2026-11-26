@@ -477,7 +477,12 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	if err != nil || run == nil {
 		return "", err
 	}
-	defer func() { _ = r.Store.PutRun(run) }()
+	defer func() {
+		if run.State != Gated {
+			r.endCIWait(run) // the run left the CI wait, however it did
+		}
+		_ = r.Store.PutRun(run)
+	}()
 	if Active(run.State) && run.State != Merging && r.overBudget(run) {
 		return run.State, nil
 	}
@@ -507,9 +512,15 @@ func last(xs []string) string {
 }
 
 func (r *Runner) gated(run *Run) {
+	now := time.Now()
+	if !r.ciPollDue(run, now) {
+		return
+	}
 	pr, err := PRView(r.Tools, run.PRURL)
 	if err != nil {
+		r.ciPolled(run, now)
 		run.MergeHold = err.Error()
+		r.ciOverdue(run, now) // an unreadable PR is a pending one
 		return
 	}
 	switch {
@@ -524,10 +535,18 @@ func (r *Runner) gated(run *Run) {
 		r.resume(run, fmt.Sprintf("Your PR conflicts with %s. Run `git fetch origin && git merge origin/%s`, resolve, re-run the "+
 			"affected tests, push, wait for CI once and stop.", run.Base, run.Base))
 	default:
-		if pr.HeadRefOid != run.Head {
-			run.Head = pr.HeadRefOid
-		}
+		run.Head, run.MergeHold = pr.HeadRefOid, ""
+		r.ciPolled(run, now)
 		verdict, failed := CIVerdict(pr.Checks)
+		switch {
+		case verdict != "green":
+			run.CI.Green = 0
+		case run.CI.Green == 0:
+			run.CI.Green = now.Unix()
+		}
+		if verdict == "green" && !r.ciSettled(run, pr.Checks, now) {
+			verdict = "pending"
+		}
 		switch verdict {
 		case "red":
 			run.CIRounds++
@@ -543,6 +562,8 @@ func (r *Runner) gated(run *Run) {
 			if err := r.StartJudge(run); err != nil {
 				r.fail(run, "the judge did not start: "+err.Error())
 			}
+		default:
+			r.ciOverdue(run, now)
 		}
 	}
 }
@@ -582,6 +603,7 @@ func (r *Runner) Stop(task string) error {
 		return fmt.Errorf("no run for %s", task)
 	}
 	r.closeSessions(run)
+	r.endCIWait(run)
 	run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
 	r.endSessions(run)
 	_ = r.Log.Emit("task.cancelled", run, Event{})
