@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -494,6 +495,27 @@ func TestObsListenFlag(t *testing.T) {
 	}
 	if err := r.ServeObs(ctx, "evil.example:0"); err == nil {
 		t.Error("ServeObs took a host name")
+	}
+}
+
+func TestObsListenIPv4Only(t *testing.T) {
+	l, err := obsSocket(ObsAddr("0.0.0.0", 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	a := l.Addr().(*net.TCPAddr)
+	if a.IP.To4() == nil {
+		t.Fatalf("0.0.0.0 opened %s, not an IPv4 socket", a)
+	}
+	c, err := net.DialTimeout("tcp4", ObsAddr("127.0.0.1", a.Port), time.Second)
+	if err != nil {
+		t.Fatalf("IPv4 dial: %v", err)
+	}
+	_ = c.Close()
+	if c, err := net.DialTimeout("tcp6", ObsAddr("::1", a.Port), time.Second); err == nil {
+		_ = c.Close()
+		t.Fatal("0.0.0.0 accepted an IPv6 connection")
 	}
 }
 

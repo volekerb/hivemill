@@ -128,16 +128,30 @@ func (r *Runner) obsHandler(wide bool) (http.Handler, error) {
 	return s, nil
 }
 
+// obsSocket opens the listener for addr. An IPv4 literal gets "tcp4": on "tcp", Go turns 0.0.0.0 into a dual-stack
+// socket that also accepts IPv6.
+func obsSocket(addr string) (net.Listener, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkBindHost(host); err != nil {
+		return nil, err
+	}
+	network := "tcp"
+	if net.ParseIP(host).To4() != nil {
+		network = "tcp4"
+	}
+	return net.Listen(network, addr)
+}
+
 // ServeObs serves the page on addr (an IP address or localhost, with a port) until ctx ends.
 func (r *Runner) ServeObs(ctx context.Context, addr string) error {
-	host, _, err := net.SplitHostPort(addr)
+	h, err := r.obsHandler(CheckLoopback(addr) != nil)
 	if err != nil {
 		return err
 	}
-	if err := checkBindHost(host); err != nil {
-		return err
-	}
-	h, err := r.obsHandler(CheckLoopback(addr) != nil)
+	l, err := obsSocket(addr)
 	if err != nil {
 		return err
 	}
@@ -148,7 +162,7 @@ func (r *Runner) ServeObs(ctx context.Context, addr string) error {
 		defer cancel()
 		_ = srv.Shutdown(sc)
 	}()
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
