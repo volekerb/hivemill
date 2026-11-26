@@ -3,18 +3,11 @@
 If you use the [Herdr app](https://herdr.dev) (the desktop client of herdr-core), Hivemill can live inside it. The dashboard shows every factory you run. A factory is one hivemill runner with its own `hivemill obs` server.
 
 - **A status bar** across the bottom of the window. One segment per factory (`Workshop 11 working · 14 waiting  2 need you`), then Claude weekly usage and today's spend, and on the right the most urgent alert. Clicking it opens the dashboard.
-- **A dashboard tab** with these cards:
-  - **Needs you:** one list over all factories and this computer. Open owner questions, runs held for you with the reason, an unreachable factory, a machine that is down, runs long in one stage, an agent waiting on a person.
-  - **One card per factory:** runs working, in CI (waiting for it), waiting to merge, held, and what needs you; the planner; what needs you, each line a link to the PR or the task; runs over the stuck limit; today's failed runs by reason; the longest-running runs; merges per day; the factory's machines.
-  - **Budget & cost:** Claude 7-day and 5-hour usage, spend today and over 7 days (all factories and each one), cost per merged PR, time to merge, spend per day and the most expensive tasks.
-  - **Machines:** this computer and each `hc machine ls` machine: reachable or not, OS and CPUs, uptime, agents, and memory, load, disk and swap.
+- **A dashboard tab**, with two views:
+  - **Overview.** One headline says how many runs wait for you; each is listed with its title, the reason in a sentence and one button to its PR. Then the factories as one table: working, in CI, to merge, held, merged and spent today, with a thin bar that shows where the runs sit. Then Resources: every machine with its sessions, memory, load, disk, swap and uptime, a figure in red when it is past its limit. Then, per factory, what is worth a look (runs long in one stage, today's failures by reason) and the runs, longest in stage first. A narrow column holds Claude usage and spend.
+  - **Spend.** Today's total, spend per day, by role with the share spent waiting, and the most expensive tasks of the last 7 days.
 
-![The dashboard tab, dark theme: what needs you, budget and cost, and one card per factory](img/herdr-dashboard-dark.png)
-![The dashboard tab, light theme](img/herdr-dashboard-light.png)
-![The status bar, dark theme: one segment per factory](img/herdr-bar-dark.png)
-![The status bar, light theme](img/herdr-bar-light.png)
-
-The pictures are taken in demo mode, so factories and machines carry generic names and task ids are left out.
+The look follows [design/obs-ui.md](design/obs-ui.md): no cards and no number tiles, hairlines, one accent, red only for trouble. A task shows its title when the factory's API gives one, else the name of its worker tab in the app.
 
 The app's own agents list already shows every agent, so the dashboard does not repeat it. New alerts also appear as notifications; clicking one opens the dashboard.
 

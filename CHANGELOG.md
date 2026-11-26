@@ -11,7 +11,7 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Changed
 
-- **The Herdr app dashboard reads each factory's obs API.** One card per factory (working, waiting for CI, waiting to merge, held, needs you, planner, merges, machines), one "Needs you" list over all factories, and no number shown as live after its source stopped answering. The spawn gate, lanes and the old server's address are gone. `install.py --herdr-app` takes `--factory [LABEL=]URL` in place of `--factory-url`, `--factory-machine`, `--factory-web-url` and `--orgs`, and drops the old settings keys with a note. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md) and [docs/design/multi-factory.md](docs/design/multi-factory.md).
+- **The Herdr app dashboard reads each factory's obs API.** One headline for the runs that wait for you, the factories as one table, a Resources table per machine, and a Spend view, and no number shown as live after its source stopped answering. The spawn gate, lanes and the old server's address are gone. `install.py --herdr-app` takes `--factory [LABEL=]URL` in place of `--factory-url`, `--factory-machine`, `--factory-web-url` and `--orgs`, and drops the old settings keys with a note. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md) and [docs/design/multi-factory.md](docs/design/multi-factory.md).
 
 ### Added
 
