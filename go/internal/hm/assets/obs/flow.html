@@ -1,4 +1,6 @@
 {{define "flow"}}{{with .FlowPg}}
+{{range .Banners}}<p class="banner">{{.}}</p>
+{{end -}}
 <h2>Stuck now (a stage for more than {{.StuckAfter}})</h2>
 <div class="scroll"><table>
 <tr><th>task</th><th>machine</th><th>project</th><th>stage</th><th class="num">in stage</th><th>since</th></tr>
