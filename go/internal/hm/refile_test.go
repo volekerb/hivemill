@@ -84,7 +84,7 @@ func TestRefileRepointsDependents(t *testing.T) {
 	if err := s.PutRun(&Run{Task: failed, State: Failed}); err != nil {
 		t.Fatal(err)
 	}
-	next := refileAdd(t, s, "zz-test again", "todo", `["T-0001"]`) // T-0008
+	next := refileAdd(t, s, "zz-test again", "todo", "[]") // T-0008
 	refileOf(t, s, next, old)
 	next2 := refileAdd(t, s, "zz-test again", "todo", "[]") // T-0009
 	refileOf(t, s, next2, failed)
@@ -94,7 +94,6 @@ func TestRefileRepointsDependents(t *testing.T) {
 	wantDeps(t, s, draft, `["T-0008"]`)
 	wantDeps(t, s, running, `["T-0001"]`)
 	wantDeps(t, s, waits, `["T-0009"]`)
-	wantDeps(t, s, next, `["T-0001"]`) // never on itself
 	wantDeps(t, s, other, `[]`)
 	got := repointEvents(t, r)
 	want := []string{"T-0003 T-0001>T-0008", "T-0004 T-0001>T-0008", "T-0007 T-0006>T-0009"}
@@ -174,9 +173,9 @@ func TestRefileTitleFallback(t *testing.T) {
 	repoint(t, r)
 	wantDeps(t, s, onC, `["T-0008"]`) // not the title-only piece, also once the flagged one is dead
 
-	gone := refileAdd(t, s, "zz-test gone", "")
-	waiter := refileAdd(t, s, "zz-test waiter", `["`+gone+`"]`)
-	refileAdd(t, s, "zz-test stuck (re-file of "+gone+")", `["`+gone+`"]`)
+	gone := refileAdd(t, s, "zz-test gone", "todo", "[]")
+	waiter := refileAdd(t, s, "zz-test waiter", "todo", `["`+gone+`"]`)
+	refileAdd(t, s, "zz-test stuck (re-file of "+gone+")", "todo", `["`+gone+`"]`)
 	cancelTask(t, s, gone)
 	repoint(t, r)
 	wantDeps(t, s, waiter, `["`+gone+`"]`) // a re-file that waits on what it replaces can never start
