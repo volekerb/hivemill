@@ -209,10 +209,12 @@ func TestAllGreenPrintsOwnerCommands(t *testing.T) {
 	}
 }
 
-// A tree with no scout/ dir passes: every git or python call that names scout fails, and the gate stays green.
+// A tree with no scout/ dir passes: every read of a scout/ file or import of scout fails, and the gate stays green.
 func TestPassesOnTreeWithoutScoutDir(t *testing.T) {
 	f := newFake(t)
-	f.over["scout"] = func() (int, string, string) { return 128, "", "no scout/ in this tree" }
+	for _, use := range []string{":scout/", "from scout."} { // not bare "scout": the checkout path may contain it
+		f.over[use] = func() (int, string, string) { return 128, "", "no scout/ in this tree" }
+	}
 	rc, out, errText := f.exec(sha, "--version", version, "--repo", "example-org/hivemill")
 	if rc != 0 || strings.Contains(out, "FAIL") {
 		t.Fatalf("rc %d\n%s\n%s", rc, out, errText)
