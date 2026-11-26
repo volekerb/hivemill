@@ -13,13 +13,14 @@ func TestObsTracePage(t *testing.T) {
 		t.Fatal(err)
 	}
 	code, body := obsGet(t, h, "/task?k=box-a/T-1")
-	head, raw, collapsed := strings.Cut(body, "<details><summary>Raw task fields, sessions and events</summary>")
+	head, raw, collapsed := strings.Cut(body, "<details><summary>Raw sessions and events</summary>")
 	if code != http.StatusOK || !collapsed {
 		t.Fatalf("%d, no collapsed raw block:\n%s", code, body)
 	}
 	for _, want := range []string{"<dt>goal</dt><dd>G-1", `<dt>status</dt><dd class="ok">merged`, "<dt>total cost</dt><dd>$3.00",
 		`<a href="` + tracePR + `" rel="noreferrer">PR</a>`, `<a href="/session?s=s-task-1">`, "$2.50",
-		`<td class="bad"><strong>blocked</strong>`, `<td class="warn"><strong>held</strong>`} {
+		`<td class="bad"><strong>blocked</strong>`, `<td class="warn"><strong>held</strong>`,
+		"<dt>machine / harness</dt>", "<dt>cost split</dt><dd>task $", "<dt>rounds</dt>", "<dt>findings</dt>", "<dt>trace id</dt><dd><code>"} {
 		if !strings.Contains(head, want) {
 			t.Errorf("trace lacks %q:\n%s", want, head)
 		}
@@ -52,7 +53,7 @@ func TestObsTracePage(t *testing.T) {
 	}
 
 	for _, target := range []string{"/session?s=s-task-1", "/task?k=nope"} {
-		if _, body = obsGet(t, h, target); strings.Contains(body, "<details><summary>Raw task fields") {
+		if _, body = obsGet(t, h, target); strings.Contains(body, "<details><summary>Raw sessions") {
 			t.Errorf("%s has the trace page", target)
 		}
 	}
