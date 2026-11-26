@@ -45,7 +45,7 @@ Every line has `ts`, `event`, `harness` and `machine`. Where they apply, it also
 
 ## `hivemill obs`
 
-The sidebar has three pages: Now (`/`), Spend (`/spend`) and Flow (`/flow`); the project, goal, task and session drill-down stays under Now.
+The sidebar has three pages: Now (`/`), Spend (`/spend`) and Flow (`/flow`); the project, goal, task and session drill-down stays under Now. Flow also lists the runs past half of `run_max_working_min` in `working` (event `run.long_working`), with the time worked, the limit and the share passed; the table is hidden when there are none.
 
 ```
 hivemill obs                     # http://127.0.0.1:7461/ (config obs_port), Ctrl-C stops
