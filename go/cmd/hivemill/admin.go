@@ -350,7 +350,7 @@ func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 }
 
 const taskUsage = "usage: hivemill task lint|show|cancel T-1234 | task lint --all | task list [--goal G] [--status S] | task list --startable|--blocked | " +
-	"task add --goal G --title TEXT (--spec TEXT|--spec-file F) (--acceptance TEXT|--acceptance-file F) [--priority N] [--depends T-1,T-2] [--draft] | " +
+	"task add --goal G --title TEXT (--spec TEXT|--spec-file F) (--acceptance TEXT|--acceptance-file F) [--priority N] [--depends T-1,T-2] [--refile-of T-1234] [--draft] | " +
 	"task update T-1234 [--title] [--spec|--spec-file] [--acceptance|--acceptance-file] [--status S] [--priority N] [--depends T-1,T-2]"
 
 // lintReport prints the parsed criteria and the spec gate result; it returns the problems.
@@ -466,6 +466,7 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		accFile := fs.String("acceptance-file", "", "read the acceptance criteria from a file (- = stdin)")
 		prio := fs.Int("priority", 1, "task priority (lower dispatches first)")
 		depends := fs.String("depends", "", "comma-separated task ids that must be done first")
+		refileOf := fs.String("refile-of", "", "the cancelled or failed task this one files again: its dependents move to the new id")
 		draft := fs.Bool("draft", false, "store it as status draft: never dispatched, criteria may still fail the spec gate")
 		if fs.Parse(args[1:]) != nil || fs.NArg() > 0 || !goalRe.MatchString(*goal) || strings.TrimSpace(*title) == "" {
 			fmt.Fprintln(stderr, taskUsage)
@@ -497,12 +498,32 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			fmt.Fprint(stderr, lint.String())
 			return fail(stderr, fmt.Errorf("%w: the criteria fail the spec gate; fix them, or file it with --draft", hm.ErrRefused))
 		}
-		id, err := s.AddTask(strings.ToUpper(*goal), strings.TrimSpace(*title), sp, a, status, deps, *prio)
+		of := strings.ToUpper(strings.TrimSpace(*refileOf))
+		if of != "" {
+			if !taskRe.MatchString(of) {
+				return fail(stderr, fmt.Errorf("--refile-of: %q is not a task id", of))
+			}
+			old, err := s.Task(of)
+			if err != nil {
+				return fail(stderr, fmt.Errorf("--refile-of: %w", err))
+			}
+			if g, err := s.Goal(strings.ToUpper(*goal)); err == nil && g.Project != old.Project {
+				return fail(stderr, fmt.Errorf("%w: --refile-of %s is a task of another project", hm.ErrRefused, of))
+			}
+			if old.Status == "done" {
+				return fail(stderr, fmt.Errorf("%w: --refile-of %s is done; a re-file replaces a cancelled or failed task", hm.ErrRefused, of))
+			}
+			if waitsOn(s, deps, of) {
+				return fail(stderr, fmt.Errorf("%w: --depends leads to %s, which this task files again: it could never start", hm.ErrRefused, of))
+			}
+		}
+		id, err := s.AddTask(strings.ToUpper(*goal), strings.TrimSpace(*title), sp, a, status, deps, *prio, of)
 		if err != nil {
 			return fail(stderr, err)
 		}
 		fmt.Fprint(stdout, strings.Replace(lint.String(), "new task", id, 1))
 		fmt.Fprintf(stdout, "%s %s in %s\n", id, status, strings.ToUpper(*goal))
+		repoint(r, stderr)
 	case "list":
 		fs := newFlags("task list", stderr)
 		goal := fs.String("goal", "", "only tasks of this goal")
@@ -646,6 +667,7 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			return fail(stderr, err)
 		}
 		fmt.Fprintf(stdout, "%s updated (%s), status %s\n", id, strings.Join(sortedKeys(set), ", "), newStatus)
+		repoint(r, stderr)
 	case "cancel":
 		id, ok := idArg()
 		if !ok || len(args) != 2 {
@@ -662,11 +684,42 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			return fail(stderr, err)
 		}
 		fmt.Fprintf(stdout, "%s cancelled\n", id)
+		repoint(r, stderr)
 	default:
 		fmt.Fprintln(stderr, taskUsage)
 		return 2
 	}
 	return 0
+}
+
+// waitsOn reports whether the depends list leads to the task `on`, directly or through other tasks.
+func waitsOn(s *hm.SQLite, depends, on string) bool {
+	var queue []string
+	_ = json.Unmarshal([]byte(depends), &queue)
+	seen := map[string]bool{}
+	for ; len(queue) > 0; queue = queue[1:] {
+		id := queue[0]
+		if id == on {
+			return true
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if t, err := s.Task(id); err == nil {
+			var next []string
+			_ = json.Unmarshal([]byte(t.DependsOn), &next)
+			queue = append(queue, next...)
+		}
+	}
+	return false
+}
+
+// repoint moves dependents to re-filed tasks after a task change; the change stands when it fails (a pass retries).
+func repoint(r *hm.Runner, stderr io.Writer) {
+	if err := r.RepointRefiles(); err != nil {
+		fmt.Fprintln(stderr, "hivemill: re-point re-filed tasks:", err)
+	}
 }
 
 func prio(t *hm.Task) string {
