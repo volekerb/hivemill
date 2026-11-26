@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -519,5 +520,30 @@ func TestCleanFinishesAnInterruptedGzip(t *testing.T) {
 	f.clean(t, false)
 	if !exists(f.transcript) {
 		t.Fatal("a transcript that differs from the archive was removed")
+	}
+}
+
+// The daemon's clean goroutine waits on a context; a take-over must end it too, or the old daemon never exits.
+func TestDaemonTakenOverStopsClean(t *testing.T) {
+	r, s := testRunner(t, "")
+	_ = s.SetCfg("pass_interval_s", "1")
+	_ = s.SetCfg("clean_every_min", "off")
+	done := make(chan error, 1)
+	go func() { done <- r.Daemon(context.Background()) }()
+	end := time.After(20 * time.Second)
+	for {
+		if h := lockHost(r); h != "" { // the daemon is up: another host takes the home
+			writeForeignLock(t, r, 0)
+		}
+		select {
+		case err := <-done:
+			if !errors.Is(err, ErrRefused) {
+				t.Fatalf("taken-over daemon: %v", err)
+			}
+			return
+		case <-end:
+			t.Fatal("the taken-over daemon never returned")
+		case <-time.After(10 * time.Millisecond):
+		}
 	}
 }
