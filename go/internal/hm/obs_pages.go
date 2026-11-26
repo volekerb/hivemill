@@ -31,10 +31,6 @@ type FlowTask struct {
 	AgeSec  int64            `json:"age_sec,omitempty"` // seconds in the current stage
 	Seconds map[string]int64 `json:"seconds"`           // stage -> seconds (the current stage counts up to now)
 	Total   int64            `json:"total_sec"`
-	// The PR flow state of the pass (docs/pr-flow.md), from the newest pr.flow event.
-	PRState string `json:"pr_state,omitempty"` // "<state> <minutes>/<budget>"
-	PRSince string `json:"pr_since,omitempty"`
-	PRStale string `json:"pr_stale,omitempty"` // why pr.stale was recorded for this state entry
 }
 
 // flowOf walks the task's events once. dispatched: the agent builds; gate: it fixes what the gate blocked; ci: gate
@@ -46,8 +42,6 @@ func flowOf(t *ObsTask, now time.Time) FlowTask {
 	sort.SliceStable(evs, func(i, j int) bool { return evTime(evs[i]).Before(evTime(evs[j])) })
 	var stage string
 	var at time.Time
-	var pr Event // the newest pr.flow
-	var stale string
 	move := func(e Event, to string) {
 		ts := evTime(e)
 		if stage != "" && !at.IsZero() && ts.After(at) {
@@ -57,13 +51,6 @@ func flowOf(t *ObsTask, now time.Time) FlowTask {
 	}
 	for _, e := range evs {
 		switch e.Event {
-		case "pr.flow":
-			pr = e
-			if e.Data["since"] == nil { // a new entry; a moved budget keeps the stale mark
-				stale = ""
-			}
-		case "pr.stale":
-			stale = fmt.Sprint(e.Data["reason"])
 		case "task.dispatched":
 			move(e, "dispatched")
 		case "gate.blocked":
@@ -95,16 +82,6 @@ func flowOf(t *ObsTask, now time.Time) FlowTask {
 			f.Seconds[stage] += f.AgeSec
 		}
 	}
-	if state, _ := pr.Data["state"].(string); state != "" && t.Terminal == "" {
-		since := evTime(pr)
-		if s, _ := pr.Data["since"].(string); s != "" { // a budget moved within one entry
-			if t0, err := time.Parse(time.RFC3339, s); err == nil {
-				since = t0
-			}
-		}
-		f.PRState = fmt.Sprintf("%s %d/%d", state, max(0, int(now.Sub(since).Minutes())), num(pr.Data["budget_s"])/60)
-		f.PRSince, f.PRStale = since.UTC().Format(time.RFC3339), stale
-	}
 	for _, s := range f.Seconds {
 		f.Total += s
 	}
@@ -124,8 +101,6 @@ type FlowPage struct {
 	Tasks       []FlowTask `json:"tasks"`
 	Stuck       []FlowTask `json:"stuck"`
 	StuckAfter  string     `json:"stuck_after"`
-	OpenPRs     []FlowTask `json:"open_prs"`  // PRs with a flow state, oldest entry first
-	StuckPRs    []FlowTask `json:"stuck_prs"` // of those, the stale ones
 	MergedByDay []DayCount `json:"merged_per_day"`
 	Merged      int        `json:"merged"`
 	PRs         int        `json:"prs"`              // tasks in the window with a PR
@@ -180,12 +155,6 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 		if f.Stage != "" && f.Stage != "held" && time.Duration(f.AgeSec)*time.Second > StuckAfter {
 			p.Stuck = append(p.Stuck, f) // stuck now, whatever the range
 		}
-		if f.PRState != "" {
-			p.OpenPRs = append(p.OpenPRs, f) // open now, whatever the range
-		}
-		if f.PRStale != "" {
-			p.StuckPRs = append(p.StuckPRs, f)
-		}
 		if parseTS(t.Last).After(wN) {
 			p.Tasks = append(p.Tasks, f)
 			if t.PR != "" {
@@ -198,9 +167,6 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 	}
 	sort.SliceStable(p.Tasks, func(i, j int) bool { return p.Tasks[i].Total > p.Tasks[j].Total })
 	sort.SliceStable(p.Stuck, func(i, j int) bool { return p.Stuck[i].AgeSec > p.Stuck[j].AgeSec })
-	for _, l := range [][]FlowTask{p.OpenPRs, p.StuckPRs} {
-		sort.SliceStable(l, func(i, j int) bool { return l[i].PRSince < l[j].PRSince })
-	}
 	var bars []chartBar
 	for _, d := range dayList(o.Now, days) {
 		p.MergedByDay = append(p.MergedByDay, DayCount{d, perDay[d]})

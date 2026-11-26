@@ -758,34 +758,6 @@ func TestObsSpendUnattributed(t *testing.T) {
 	}
 }
 
-func TestObsFlowPRStates(t *testing.T) {
-	ts := func(h string) string { return "2026-11-20T" + h + ":00Z" }
-	flow := func(h, task, state string, budget float64) Event {
-		return ev(ts(h), "pr.flow", task, "G-1", "www", "", "", map[string]any{"state": state, "budget_s": budget})
-	}
-	var evs []Event
-	for _, task := range []string{"T-1", "T-2", "T-3"} {
-		evs = append(evs, ev(ts("01:00"), "task.dispatched", task, "G-1", "www", "", "", nil))
-	}
-	evs = append(evs,
-		flow("02:00", "T-1", "ci_queued", 2400),
-		ev(ts("03:30"), "pr.stale", "T-1", "G-1", "www", "", "", map[string]any{"reason": "checks never started"}),
-		flow("02:00", "T-2", "ci_running", 1800),
-		ev(ts("03:30"), "pr.stale", "T-2", "G-1", "www", "", "", map[string]any{"reason": "old"}),
-		flow("03:40", "T-2", "judge", 1800), // a new state ends the stale mark
-		flow("02:00", "T-3", "merge_ready", 1800),
-		flow("03:00", "T-3", "", 0), // left the flow
-	)
-	now, _ := time.Parse(time.RFC3339, ts("04:00"))
-	f := BuildObs(evs, ObsFilter{}, "box-a", nil, now).BuildFlow(30, "")
-	if len(f.OpenPRs) != 2 || f.OpenPRs[0].Task != "T-1" || f.OpenPRs[0].PRState != "ci_queued 120/40" || f.OpenPRs[1].PRState != "judge 20/30" {
-		t.Errorf("open PRs: %+v", f.OpenPRs)
-	}
-	if len(f.StuckPRs) != 1 || f.StuckPRs[0].Task != "T-1" || f.StuckPRs[0].PRStale != "checks never started" {
-		t.Errorf("stuck PRs: %+v", f.StuckPRs)
-	}
-}
-
 func TestObsFlowStages(t *testing.T) {
 	day := "2026-11-20"
 	evs := boxA(day)

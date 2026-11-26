@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A PR flow controller keeps runner PRs moving.** Each pass reads all open runner PRs with one batched GraphQL query, gives every flow state a time budget with a fixed action when it runs out, merges a train of PRs that share no file, and emits `pr.stale` for a PR that stops changing. New config keys: `ci_queue_max_min`, `merge_train`, `stale_pr_min`. See [docs/pr-flow.md](https://github.com/volekerb/hivemill/blob/main/docs/pr-flow.md) (T-2079).
+
 - **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
 
 - **A red CI resumes the task session with the failed logs.** The runner names each failed job and sends the last 80 lines of its failed log (read through `ghx`); a session whose pane has closed is relaunched by its session id. A startup failure counts as red. (T-2001)

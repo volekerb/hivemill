@@ -13,7 +13,7 @@ The pass makes no other `gh` status call. A PR the query could not read counts a
 
 ## 2. Flow states and budgets
 
-Each run with a PR has a flow state, set from the run state and the poll. The state, its entry time and its budget are stored on the run. `hivemill run status` and the obs Flow page show `<state> <minutes>/<budget>`.
+Each run with a PR has a flow state, set from the run state and the poll. The state, its entry time and its budget are stored on the run. `hivemill run status` shows `<state> <minutes>/<budget>`.
 
 | State | Meaning | Budget |
 |---|---|---|
@@ -44,7 +44,7 @@ Each happens at most once per state entry.
 
 ## 5. Stale PRs
 
-A flow state that has not changed for `stale_pr_min` (90) emits one `pr.stale` event with the reason (the merge hold, else the state). The obs Flow page lists it under **Stuck PRs** until the state changes.
+A flow state that has not changed for `stale_pr_min` (90) emits one `pr.stale` event with the reason (the merge hold, else the state). A **Stuck PRs** view on the obs Flow page is the owner's part and is not built here.
 
 ## 6. Rate
 
