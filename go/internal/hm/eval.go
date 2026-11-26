@@ -174,10 +174,7 @@ func (r *Runner) evalFinish(run *Run, state, outcome string) {
 	// its terminal ends the hook process, and an unsaved state would be resumed by the next pass.
 	defer func() {
 		_ = r.Store.PutRun(run)
-		r.Close(run.Agent)
-		for _, j := range run.Judges {
-			r.Close(j)
-		}
+		r.closeSessions(run)
 	}()
 	total := r.endSessions(run)
 	data := map[string]any{"mode": run.EvalMode, "outcome": outcome, "gate_blocks": run.GateBlocksTotal, "ci_rounds": run.CIRounds,
