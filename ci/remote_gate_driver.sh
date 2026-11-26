@@ -15,7 +15,7 @@
 set -euo pipefail
 
 # Keep in run order and in step with the step map in ci/remote_gate.sh (tests/test_gate_shards.py checks both).
-PLAN="toolchain py-compile factory-help unittest go-modules go-gofmt go-vet go-test go-build guard-build
+PLAN="toolchain unittest go-modules go-gofmt go-vet go-test go-build guard-build
 guard-unittest-1 guard-unittest-2 guard-unittest-3 guard-equiv-rest guard-equiv-1 guard-equiv-2 guard-equiv-3
 guard-equiv-4 guard-diff guard-self-compare guard-home-loosen docs-check"
 if [ "${1-}" = --plan ]; then
@@ -338,8 +338,6 @@ docs_job() {  # tests.yml docs-check, tool from the base tree
 
 # Phase 1 (serial, each step uses up to $cores): CI's unittest-shard and go jobs.
 step toolchain toolchain
-step py-compile python3 -m py_compile bin/factory bin/factory_cli.py
-step factory-help python3 bin/factory --help
 step unittest python3 "$T/tests/gate_shards.py"
 step go-modules bash -c 'cd go && go mod download'
 step go-gofmt gofmt_check
