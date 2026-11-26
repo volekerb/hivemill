@@ -132,7 +132,7 @@ func (r *Runner) idleCheck(s *SQLite, now time.Time) *OwnerAlert {
 	active := 0
 	var last time.Time
 	for _, x := range runs {
-		if Active(x.State) {
+		if busy(x.State) {
 			active++
 		}
 		if at, err := time.Parse(time.RFC3339, x.Dispatched); err == nil && at.After(last) {
