@@ -65,12 +65,14 @@ func Decide(in MergeInput) MergeDecision {
 		return MergeDecision{"rejudge", fmt.Sprintf("no judge MERGE on head %.8s (the head moved after the verdict)", in.Head)}
 	case in.Mergeable == "CONFLICTING" || (in.Behind && !in.MergeClean):
 		return MergeDecision{"resume", "the branch conflicts with the base branch"}
-	case in.Behind && !in.BehindOK:
-		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
 	case in.CI == "red":
 		return MergeDecision{"resume", ciRed}
 	case in.CI != "green":
+		// before a refresh: a refresh restarts CI and cancels the run in flight, so a PR behind a fast-moving main never
+		// finished CI (2026-11-26). Refresh once the current head is green, then CI runs once on the combined tree.
 		return MergeDecision{"hold", ciPending}
+	case in.Behind && !in.BehindOK:
+		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
 	case len(in.MissingChecks) > 0:
 		return MergeDecision{"hold", "required checks missing: " + strings.Join(in.MissingChecks, ", ")}
 	case in.Tier == "":
@@ -244,6 +246,9 @@ func (r *Runner) Merge(run *Run) {
 			return
 		}
 	}
+	if d.Why == ciPending && !r.ciNone(run.Project) {
+		r.rerunCancelled(run, pr.Checks)
+	}
 	guarded, limits, wait := r.t3Guard(run, in, d)
 	if wait != "" {
 		run.MergeHold = "hold: " + wait
@@ -277,6 +282,10 @@ func (r *Runner) Merge(run *Run) {
 		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
 		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+".")
 	case "refresh":
+		if h := r.refreshHolder(run); h != "" {
+			run.MergeHold = "hold: waiting for " + h + " to merge (one refresh at a time per repo)"
+			return
+		}
 		r.refresh(run)
 	case "merge":
 		r.mergeNow(run, in.Head, guarded)
@@ -676,14 +685,19 @@ func (r *Runner) behindOK(repo, wt, base, head string) bool {
 	return behindSafe(strings.Fields(mainFiles), strings.Fields(prFiles))
 }
 
-// behindSafe: no workflow file changed on main and no file changed on both sides.
+// sharedOK names files that most PRs and most merges both edit, where a clean git merge (MergeClean, checked before
+// behindOK) is all the safety needed: CHANGELOG.md entries never change behaviour. Counting them as overlap made every
+// merge to main refresh every waiting PR and restart its CI (175 refreshes on 2026-11-26, one PR refreshed 17 times).
+var sharedOK = map[string]bool{"CHANGELOG.md": true}
+
+// behindSafe: no workflow file changed on main and no file other than sharedOK changed on both sides.
 func behindSafe(mainFiles, prFiles []string) bool {
 	pr := map[string]bool{}
 	for _, f := range prFiles {
 		pr[f] = true
 	}
 	for _, f := range mainFiles {
-		if strings.HasPrefix(f, ".github/workflows/") || pr[f] {
+		if strings.HasPrefix(f, ".github/workflows/") || (pr[f] && !sharedOK[f]) {
 			return false
 		}
 	}
@@ -707,4 +721,40 @@ func (r *Runner) protectionNotStrict(repo, base string) bool {
 	}
 	_ = r.Store.SetMeta(key, v+" "+time.Now().UTC().Format(time.RFC3339))
 	return v == "false"
+}
+
+// rerunCancelled re-runs the cancelled Actions runs of the head, at most once per run per 10 minutes. A cancelled run is
+// not a failure (the task session is not resumed for it), and without a re-run the PR would wait on it forever.
+func (r *Runner) rerunCancelled(run *Run, checks []map[string]any) {
+	for _, id := range ciCancelledRuns(checks) {
+		key := "ci_rerun:" + id
+		if v := r.Store.Meta(key); v != "" {
+			if t, err := time.Parse(time.RFC3339, v); err == nil && time.Since(t) < 10*time.Minute {
+				continue
+			}
+		}
+		_ = r.Store.SetMeta(key, time.Now().UTC().Format(time.RFC3339))
+		rc, _, errs := r.Tools.GH("", "run", "rerun", id, "--failed", "-R", run.Repo)
+		_ = r.Log.Emit("ci.rerun", run, Event{Data: map[string]any{"run_id": id, "rc": rc, "err": firstLine(errs)}})
+	}
+}
+
+// refreshSlotTTL bounds how long one run may hold its repo's refresh slot (a CI run plus margin).
+const refreshSlotTTL = 40 * time.Minute
+
+// refreshHolder makes refreshes serial per repo, a merge queue of one: the run that holds the slot may refresh, and so
+// may a run that takes a free slot. A slot is free when its holder is no longer merging or held it longer than
+// refreshSlotTTL. Without it every green PR behind main refreshed in the same pass, and each merge sent the others
+// round again (2026-11-26). It returns the holder's task, or "" when this run may refresh.
+func (r *Runner) refreshHolder(run *Run) string {
+	key := "refresh_slot:" + strings.ToLower(run.Repo)
+	if f := strings.SplitN(r.Store.Meta(key), " ", 2); len(f) == 2 && f[0] != run.Task {
+		if t, err := time.Parse(time.RFC3339, f[1]); err == nil && time.Since(t) < refreshSlotTTL {
+			if h, err := r.Store.Run(f[0]); err == nil && h != nil && h.State == Merging {
+				return f[0]
+			}
+		}
+	}
+	_ = r.Store.SetMeta(key, run.Task+" "+time.Now().UTC().Format(time.RFC3339))
+	return ""
 }
