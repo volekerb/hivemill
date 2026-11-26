@@ -226,6 +226,8 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: gofmt
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
         run: |
@@ -273,10 +275,15 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Guard hook unittests (GUARD_IMPL=diff)
         run: |
           start=$(date +%s)
           rc=0
+          # Private TMPDIR: the guard fixtures use fixed names under it, and the hm-ci runners share one uid and /tmp.
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --shard "${{ matrix.shard }}" --shards 3 || rc=$?
           echo "guard-unittest shard ${{ matrix.shard }}: job time $(( $(date +%s) - start ))s rc=$rc"
           exit "$rc"
@@ -329,6 +336,8 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Guard paths changed?
         id: paths
         env:
@@ -427,6 +436,8 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: evaluator self-compare (real corpus)
         run: |
           set -o pipefail
@@ -470,6 +481,8 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: evaluator home-check loosening probe (real corpus)
         run: |
           set -o pipefail
@@ -582,6 +595,8 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Build worker-guard once
         if: steps.paths.outputs.run == 'true'
         run: |
@@ -593,7 +608,9 @@ jobs:
             mkdir -p "$HOME/.local"
             ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
           fi
-          ls -l "$HOME/.local/go/bin/go" || echo "no ~/.local/go on this runner: the REAL_GO tests skip"
+          # A self-hosted runner without it would skip the REAL_GO tests and still pass: fail instead (docs/ci-self-hosted.md).
+          ls -l "$HOME/.local/go/bin/go"
+          "$HOME/.local/go/bin/go" version
       - name: guard_diff strict Go gate (corpus, one role shard; shard 1 also runs hq)
         if: steps.paths.outputs.run == 'true'
         run: |
@@ -691,6 +708,8 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Build worker-guard once
         if: steps.paths.outputs.run == 'true'
         run: |
@@ -702,10 +721,14 @@ jobs:
             mkdir -p "$HOME/.local"
             ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
           fi
-          ls -l "$HOME/.local/go/bin/go" || echo "no ~/.local/go on this runner: the REAL_GO tests skip"
+          # A self-hosted runner without it would skip the REAL_GO tests and still pass: fail instead (docs/ci-self-hosted.md).
+          ls -l "$HOME/.local/go/bin/go"
+          "$HOME/.local/go/bin/go" version
       - name: Routed unittest modules under GUARD_IMPL=diff (not in guard-diff)
         if: steps.paths.outputs.run == 'true'
         run: |
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 ci/guard_impl_unittest.py list --routed-rest
           GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --routed-rest
       - name: REAL_GO build tests (tests/test_guard_build.py)
