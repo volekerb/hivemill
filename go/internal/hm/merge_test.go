@@ -84,3 +84,20 @@ func TestNoreplyBeforeAndAfterMerge(t *testing.T) {
 		}
 	}
 }
+
+// gh can exit non-zero after the merge went through (on the branch delete): GitHub's state decides.
+func TestMergeNowConfirmsMerged(t *testing.T) {
+	f := newT3(t, t3Clean)
+	gh := f.r.Tools.GH
+	f.r.Tools.GH = func(dir string, args ...string) (int, string, string) {
+		rc, out, errs := gh(dir, args...)
+		if len(args) > 1 && args[0] == "pr" && args[1] == "merge" {
+			return 1, "", "zz: cannot delete the branch"
+		}
+		return rc, out, errs
+	}
+	f.r.Merge(f.run)
+	if f.run.State != Merged || f.run.MergeHold != "" || len(f.merges) != 1 {
+		t.Fatalf("state %s (%s), merges %v", f.run.State, f.run.MergeHold, f.merges)
+	}
+}
