@@ -11,6 +11,7 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item (T-2049).
 - **A task session that stops on a worker-guard block fails at once.** The Stop hook fails the run with `guard block: ` and the guard message instead of leaving it idle until it fails as stalled (T-2012).
 - **`hivemill obs` serves a task's timeline as JSON.** `GET /api/obs/task?k=<machine>/<task>` returns its steps in time order with the cost per step, the total, and the PR and session links (T-2025).
 
