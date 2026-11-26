@@ -38,6 +38,6 @@
 <h2 id="machines">Machines</h2>
 <div class="scroll"><table>
 <tr><th>machine</th><th>source</th><th>newest event</th><th>pulled</th></tr>
-{{range .Machines}}<tr><td><a href="{{$.Q "/" "machine" .Label}}">{{.Label}}</a></td><td>{{if .Own}}this machine{{else}}pulled{{end}}</td><td>{{when .Last}}</td><td>{{if .Pulled}}{{when .Pulled}}{{else}}-{{end}}</td></tr>{{end}}
+{{range .Machines}}<tr><td><a href="{{$.Q "/" "machine" .Machine}}">{{.Machine}}</a></td><td>{{if .Own}}this machine{{else if .Path}}pulled{{else}}-{{end}}</td><td>{{if .Last}}{{when .Last}}{{else}}-{{end}}</td><td>{{if .Pulled}}{{when .Pulled}}{{else}}-{{end}}</td></tr>{{end}}
 </table></div>
 {{end}}{{end}}
