@@ -221,7 +221,7 @@ func TestCheckAllPresentExitsZero(t *testing.T) {
 
 func TestCheckMissingExitsThree(t *testing.T) {
 	f := newFake(t)
-	f.tools = map[string]bool{"git": true}
+	f.tools = map[string]bool{"git": true, "go": true}
 	f.systemd = false
 	f.mem, f.cpus = 1.5, 1
 	rc, out, _ := runMain(t, f, "--check")
@@ -330,7 +330,7 @@ func TestRefusals(t *testing.T) {
 
 func TestDryRunPrintsPlanAndChangesNothing(t *testing.T) {
 	f := newFake(t)
-	f.tools = map[string]bool{"git": true, "python3": true}
+	f.tools = map[string]bool{"git": true, "python3": true, "go": true}
 	rc, out, _ := runMain(t, f, "--dry-run", "--no-systemd", "--port", "9000", "--max-agents", "3", "--no-scout",
 		"--project-id", "p", "--project-repo", "/x", "--project-gh", "a/b")
 	if rc != 0 {
@@ -498,13 +498,13 @@ func TestYesRunPasses(t *testing.T) {
 	if last := lines[len(lines)-1]; last != "RESULT PASS url=http://127.0.0.1:9100/ version=0.4.0" {
 		t.Errorf("last line = %q", last)
 	}
-	for _, want := range []string{"[ok] 4 clone: cloned " + testRepo + " at v0.10.0", "[ok] 7 smoke: version 0.4.0"} {
+	for _, want := range []string{"[ok] 4 clone: cloned " + testRepo + " at v0.10.0", "[ok] 7 smoke: hivemill runs, no database yet (run `hivemill init`); version 0.4.0"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q\n%s", want, out)
 		}
 	}
-	link := filepath.Join(f.HomeDir, ".local", "bin", "factory")
-	if tgt, err := os.Readlink(link); err != nil || tgt != filepath.Join(f.HomeDir, "factory", "bin", "factory") {
+	link := filepath.Join(f.HomeDir, ".local", "bin", "hivemill")
+	if tgt, err := os.Readlink(link); err != nil || tgt != filepath.Join(f.HomeDir, "factory", "bin", "hivemill") {
 		t.Errorf("link = %q, %v", tgt, err)
 	}
 	if _, err := os.Stat(filepath.Join(f.HomeDir, "factory")); err != nil {
@@ -594,7 +594,7 @@ func TestFetchVerifiedRefusesWrongSizeAndHash(t *testing.T) {
 func TestToolsAreInstalledOnlyWhenVerified(t *testing.T) {
 	f := newFake(t)
 	f.login(t)
-	f.tools = map[string]bool{"git": true, "python3": true, "claude": true}
+	f.tools = map[string]bool{"git": true, "python3": true, "claude": true, "go": true}
 	f.assets[HerdrAssets["x86_64"].URL] = []byte("tampered")
 	rc, out, _ := runMain(t, f, "--yes", "--no-systemd")
 	if rc != 1 || !strings.Contains(out, "RESULT FAIL step=tools") || !strings.Contains(out, "size mismatch") {
@@ -767,7 +767,7 @@ func TestDarwinCheckRAMReadFailureFails(t *testing.T) {
 
 func TestDarwinDryRun(t *testing.T) {
 	f := newDarwin(t)
-	f.tools = map[string]bool{"git": true, "python3": true}
+	f.tools = map[string]bool{"git": true, "python3": true, "go": true}
 	rc, out, _ := runMain(t, f, "--dry-run", "--linger")
 	if rc != 0 {
 		t.Fatalf("rc=%d\n%s", rc, out)
@@ -792,7 +792,7 @@ func TestDarwinDryRun(t *testing.T) {
 
 func TestDarwinMissingGitHintsXcode(t *testing.T) {
 	f := newDarwin(t)
-	f.tools = map[string]bool{"python3": true}
+	f.tools = map[string]bool{"python3": true, "go": true}
 	rc, out, errw := runMain(t, f, "--dry-run")
 	if rc != 3 || !strings.Contains(out+errw, "xcode-select --install") || strings.Contains(out+errw, "apt-get") {
 		t.Errorf("rc=%d\n%s%s", rc, out, errw)
@@ -802,7 +802,7 @@ func TestDarwinMissingGitHintsXcode(t *testing.T) {
 func darwinToolsFake(t *testing.T, zb []byte) (*fakeHost, *Ctx) {
 	t.Helper()
 	f := newDarwin(t)
-	f.tools = map[string]bool{"git": true, "python3": true, "claude": true, "herdr": true}
+	f.tools = map[string]bool{"git": true, "python3": true, "claude": true, "herdr": true, "go": true}
 	f.assets[GHAssets["darwin/aarch64"].URL] = zb
 	c := NewCtx(f, &Args{}, &bytes.Buffer{}, false)
 	c.tmp = t.TempDir()
@@ -861,5 +861,119 @@ func TestDarwinZipMemberMissingFails(t *testing.T) {
 	f.tools["gh"] = false
 	if _, err := stepTools(c); err == nil || !strings.Contains(err.Error(), "not found in gh.zip") {
 		t.Errorf("err %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------------------------- built binaries
+
+func TestInstallSymlinks(t *testing.T) {
+	linked := func(t *testing.T, f *fakeHost) {
+		t.Helper()
+		for _, name := range []string{"hivemill", "worker-guard"} {
+			link, built := filepath.Join(f.HomeDir, ".local", "bin", name), filepath.Join(f.HomeDir, "factory", "bin", name)
+			if tgt, err := os.Readlink(link); err != nil || tgt != built {
+				t.Fatalf("%s -> %q (%v), want %s", link, tgt, err, built)
+			}
+			if b, err := os.ReadFile(link); err != nil || string(b) != "./cmd/"+name {
+				t.Fatalf("%s is not the built %s: %q %v", link, name, b, err)
+			}
+		}
+		if _, err := os.Lstat(filepath.Join(f.HomeDir, ".local", "bin", "factory")); !os.IsNotExist(err) {
+			t.Fatalf("a factory link was made: %v", err)
+		}
+	}
+	install := func(t *testing.T, f *fakeHost, args ...string) string {
+		t.Helper()
+		rc, out, errw := runMain(t, f, append([]string{"--yes", "--no-systemd", "--repo-url", testRepo}, args...)...)
+		if rc != 0 {
+			t.Fatalf("rc=%d\n%s%s", rc, out, errw)
+		}
+		return out
+	}
+	t.Run("links", func(t *testing.T) {
+		f := newFake(t)
+		f.login(t)
+		install(t, f)
+		linked(t, f)
+		health := filepath.Join(f.HomeDir, ".local", "bin", "hivemill") + " health"
+		for _, c := range f.calls {
+			if strings.Join(c, " ") == health {
+				return
+			}
+		}
+		t.Fatalf("smoke did not run %s: %v", health, f.calls)
+	})
+	t.Run("rerun", func(t *testing.T) {
+		f := newFake(t)
+		f.login(t)
+		install(t, f)
+		install(t, f, "--resume")
+		linked(t, f)
+	})
+	t.Run("dryrun", func(t *testing.T) {
+		f := newFake(t)
+		f.login(t)
+		out := install(t, f, "--dry-run")
+		fh, bin := filepath.Join(f.HomeDir, "factory"), filepath.Join(f.HomeDir, ".local", "bin")
+		for _, name := range []string{"hivemill", "worker-guard"} {
+			for _, want := range []string{
+				"    $ go build -o " + filepath.Join(fh, "bin", name) + " ./cmd/" + name + "\n",
+				"    $ ln -s " + filepath.Join(fh, "bin", name) + " " + filepath.Join(bin, name) + "\n",
+			} {
+				if !strings.Contains(out, want) {
+					t.Errorf("plan lacks %q:\n%s", want, out)
+				}
+			}
+		}
+		if len(f.muts) != 0 {
+			t.Errorf("the dry run ran %v", f.muts)
+		}
+		for _, p := range []string{fh, bin} {
+			if _, err := os.Lstat(p); !os.IsNotExist(err) {
+				t.Errorf("the dry run made %s: %v", p, err)
+			}
+		}
+	})
+}
+
+func TestInstallGoRequired(t *testing.T) {
+	f := newFake(t)
+	f.login(t)
+	delete(f.tools, "go")
+	rc, out, _ := runMain(t, f, "--yes", "--no-systemd", "--repo-url", testRepo)
+	if rc != 3 || !strings.Contains(out, "missing: go.") || !strings.Contains(out, "https://go.dev/dl") {
+		t.Fatalf("rc=%d\n%s", rc, out)
+	}
+	if len(f.muts) != 0 {
+		t.Fatalf("something ran without go: %v", f.muts)
+	}
+	rc, out, _ = runMain(t, f, "--check")
+	if rc != 3 || !strings.Contains(out, "missing go not found; install Go from https://go.dev/dl\n") {
+		t.Fatalf("--check rc=%d\n%s", rc, out)
+	}
+}
+
+// Smoke passes only on an answer of `hivemill health` itself.
+func TestInstallSmokeHealthAnswers(t *testing.T) {
+	for _, tc := range []struct {
+		rc   int
+		out  string
+		pass bool
+	}{
+		{0, "last good pass 5s ago; drain false\n", true},
+		{1, "last good pass 0s ago; drain false\n", true},
+		{1, "hivemill: cannot open database /x: no such file\n", true},
+		{1, "hivemill: cannot create the hm tables in /x: disk full\n", false},
+		{2, "panic: boom\n", false},
+		{127, "not found\n", false},
+	} {
+		f := newFake(t)
+		mustMkdir(t, filepath.Join(f.HomeDir, "factory"))
+		mustWrite(t, filepath.Join(f.HomeDir, "factory", "VERSION"), "1.2.3\n")
+		f.rules = func([]string) (int, string, bool) { return tc.rc, tc.out, true }
+		c := NewCtx(f, &Args{}, &bytes.Buffer{}, false)
+		if _, err := stepSmoke(c); (err == nil) != tc.pass {
+			t.Errorf("rc=%d %q: err=%v, want pass=%v", tc.rc, tc.out, err, tc.pass)
+		}
 	}
 }
