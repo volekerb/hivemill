@@ -145,20 +145,16 @@ jobs:
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
         with:
           go-version-file: go/go.mod
-          cache-dependency-path: go/go.mod
+          cache: false
       - name: Run shard
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
         run: |
           # zsh reads .zshenv: the sandbox PATH-order regression tests must run in CI, not skip.
           sudo apt-get install -y zsh
-          (cd go && go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
-          # go is on PATH only to build ci-shard: take it off so the shards skip the same Go-needing tests as before.
-          while gobin=$(command -v go) && [ "${gobin#/}" != "$gobin" ]; do
-            d=$(dirname "$gobin")
-            new=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxE "${d//./\\.}/*" | paste -sd: -)
-            [ "$new" = "$PATH" ] && break
-            PATH=$new
-          done
+          (cd go && GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
+          # setup-go put its go on PATH only to build ci-shard: take that one directory off so the shards see the PATH they saw before.
+          d=$(dirname "$(command -v go)")
+          PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF -e "$d" -e "$d/" | paste -sd: -)
           only=()
           if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
           "$RUNNER_TEMP/ci-shard" run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json" "${only[@]}"
@@ -752,12 +748,12 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
-          cache-dependency-path: go/go.mod
+          cache: false
       # ci-shard verify and ci-test-count-gate (go/cmd), built once for the steps below (the count gate runs on docs PRs too).
       - name: Build ci-shard and ci-test-count-gate
         run: |
-          (cd go && go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
-          (cd go && go build -o "$RUNNER_TEMP/ci-test-count-gate" ./cmd/ci-test-count-gate)
+          (cd go && GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
+          (cd go && GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/ci-test-count-gate" ./cmd/ci-test-count-gate)
       - uses: actions/download-artifact@v8
         if: needs.ci-tier.outputs.mode == 'affected'
         with:
