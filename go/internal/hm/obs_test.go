@@ -1283,14 +1283,14 @@ func TestObsServerStatusCachedAndNoDuplicateCore(t *testing.T) {
 	check(0, 1, "box-a,box-c")
 	check(29*time.Second, 1, "box-a,box-c")
 
-	// hc never answered: either entry may be this machine, so neither is listed from the config alone
+	// hc never answered: every entry is listed from the config, the core under its own name too
 	if err := os.Remove(filepath.Join(r.Env.StateDir(), "core_name")); err != nil {
 		t.Fatal(err)
 	}
 	calls = 0
 	srv = &obsServer{r: r, now: srv.now}
-	check(0, 1, "box-a")
-	check(29*time.Second, 1, "box-a")
+	check(0, 1, "box-a,box-c,core-a")
+	check(29*time.Second, 1, "box-a,box-c,core-a")
 
 	// a call that hangs past the 30 s is cached from the time it returned
 	calls = 0
@@ -1300,8 +1300,8 @@ func TestObsServerStatusCachedAndNoDuplicateCore(t *testing.T) {
 		return 1, "", "timeout"
 	}
 	srv = &obsServer{r: r, now: srv.now}
-	check(0, 1, "box-a")
-	check(29*time.Second, 1, "box-a")
+	check(0, 1, "box-a,box-c,core-a")
+	check(29*time.Second, 1, "box-a,box-c,core-a")
 }
 
 func TestObsAsksUnderTheirMachine(t *testing.T) {
