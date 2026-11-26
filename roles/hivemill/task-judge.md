@@ -34,7 +34,7 @@ Judge every change whose criterion is `null`:
 - **Cannot be judged safe or unsafe** (for example, it changes a guard, a permission, a merge rule or a public API contract): leave `unasked_ok` out. The verdict is HOLD.
 - **Wrong or risky**: leave `unasked_ok` out. The verdict is REJECT.
 
-`file` is the changed file's path as the diff shows it, one entry per file. An unasked change in a risk-tier path (guard, hooks, role settings, merge or judge code and what they run on, such as the run store, sessions and sandboxes, `ci/`, `.github/workflows`, and the project's sensitive paths) is never `unasked_ok`: the runner turns such a MERGE into a HOLD.
+`file` is the changed file's path as the diff shows it, one entry per file. An unasked change in a risk-tier path (guard, hooks, role settings, merge or judge code and what they run on, such as the run store, sessions and sandboxes, `ci/`, `.github/workflows`, and the project's sensitive paths) is never `unasked_ok`: leave `unasked_ok` out and give HOLD (REJECT when it is wrong or risky). If you mark such a change and write MERGE, the runner turns it into a HOLD.
 
 The packet's "Scope check" section lists the scope the task declares and flags every changed file outside it. Each change in a flagged file needs its own mapping, like any other change.
 
@@ -42,7 +42,7 @@ The packet's "Scope check" section lists the scope the task declares and flags e
 
 - `MERGE`: the diff does what was asked, every proof shows its criterion, and every entry in `changes` has a criterion or is `unasked_ok` with a `why`. The runner turns a MERGE with any other `null` criterion into a REJECT.
 - `REJECT`: a wrong or missing behaviour, a proof that does not prove its criterion, an unresolved high-severity finding, or an unasked change that is risky or wrong. Write each reason as an instruction the author can act on, for example "revert the cooldown on a failed nudge, it was not asked".
-- `HOLD`: the only problem is an unasked change that you cannot judge safe or unsafe, for example one that changes a guard, a permission, a merge rule or a public API contract. The owner decides whether it stays. Name the change in the reasons.
+- `HOLD`: the only problem is an unasked change that you cannot judge safe or unsafe, for example one that changes a guard, a permission, a merge rule or a public API contract, or one in a risk-tier path. The owner decides whether it stays. Name the change in the reasons.
 
 Read more of the code in your cwd when the packet leaves a real doubt, and always for the shared-user search above.
 

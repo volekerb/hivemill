@@ -26,6 +26,7 @@ var unaskedRiskPaths = []string{
 	"go/internal/gitx/**", "go/internal/ghx/**", "go/cmd/hivemill/**",
 	"go/internal/hm/ciwait.go", "go/internal/hm/projectgate.go", "go/internal/hm/pr*", "go/internal/hm/touchedproofs.go",
 	"go/internal/hm/wholemodule.go", "go/internal/hm/trust.go", "go/internal/install/**", "ci/**",
+	"go/internal/hm/factorykeys.go", "go/internal/hm/config.go", "go/internal/gate/**",
 	"bin/factory", "bin/factory_cli.py",
 }
 
