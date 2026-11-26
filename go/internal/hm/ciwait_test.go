@@ -1,8 +1,11 @@
 package hm
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -185,5 +188,105 @@ func TestCIWaitTimeoutAlerts(t *testing.T) {
 	f.poll()
 	if *msgs != 1 || f.run.State != Gated || f.run.MergeHold == "" {
 		t.Errorf("unreadable PR: %d messages, %s hold=%q", *msgs, f.run.State, f.run.MergeHold)
+	}
+}
+
+func TestCIWaitRedResumes(t *testing.T) {
+	var log strings.Builder
+	for i := 1; i <= 100; i++ {
+		fmt.Fprintf(&log, "unit\tTest\t\x1b[31mlog line %03d\x1b[0m\n", i)
+	}
+	const red = `[{"name":"unit","status":"COMPLETED","conclusion":"FAILURE",` +
+		`"detailsUrl":"https://github.com/zz-test/www/actions/runs/11/job/22"},` +
+		`{"name":"lint","conclusion":"STARTUP_FAILURE","detailsUrl":"https://github.com/zz-test/www/actions/runs/33"},` +
+		e2eOK + `]`
+	for _, pane := range []string{"live", "closed"} {
+		f := ciRunner(t)
+		f.checks = red
+		f.run.Agent, f.run.Model, f.run.Effort = "claude-task-t-0001", "claude-sonnet-5-5", "high"
+		var logReads []string
+		view := f.r.Tools.GH
+		f.r.Tools.GH = func(in string, args ...string) (int, string, string) {
+			if args[0] != "run" {
+				return view(in, args...)
+			}
+			logReads = append(logReads, strings.Join(args, " "))
+			if slices.Contains(args, "22") {
+				return 0, log.String(), ""
+			}
+			return 0, "the workflow file is invalid", ""
+		}
+		var sent []string
+		launches := 0
+		f.r.Tools.HC = func(args ...string) (int, string, string) {
+			switch args[0] {
+			case "send":
+				sent = append(sent, args[2])
+			case "run":
+				launches++
+			case "ls":
+				if pane == "live" {
+					return 0, `{"terminals":[{"name":"claude-task-t-0001","state":"live"}]}`, ""
+				}
+				return 0, `{"terminals":[]}`, ""
+			}
+			return 0, "", ""
+		}
+		for _, name := range []string{"task.json.in", "task.md"} {
+			if err := os.WriteFile(filepath.Join(f.r.Env.Home, "roles", "hivemill", name), []byte("{}"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := f.s.AddSession(Session{SID: "sid-1", Task: "T-0001", Role: "task", Agent: f.run.Agent}); err != nil {
+			t.Fatal(err)
+		}
+
+		f.r.gated(f.run)
+
+		want := map[string]int{"live": 0, "closed": 1}[pane]
+		if f.run.State != Working || f.run.CIRounds != 1 || f.run.Round != 2 || launches != want || len(sent) != 1 {
+			t.Fatalf("%s: %s (%s) ci=%d round=%d launches=%d messages=%d", pane, f.run.State, f.run.FailReason,
+				f.run.CIRounds, f.run.Round, launches, len(sent))
+		}
+		for _, s := range []string{"CI is red on your PR: unit, lint.", "=== unit: last lines of the failed log ===",
+			"log line 021\n", "log line 100", "=== lint:", "the workflow file is invalid"} {
+			if !strings.Contains(sent[0], s) {
+				t.Errorf("%s: the resume text lacks %q", pane, s)
+			}
+		}
+		if strings.Contains(sent[0], "log line 020") || strings.Contains(sent[0], "\x1b") {
+			t.Errorf("%s: more than the last 80 lines, or escape codes", pane)
+		}
+		if got := strings.Join(logReads, "; "); got != "run view --job 22 --log-failed --repo zz-test/www; "+
+			"run view 33 --log-failed --repo zz-test/www" {
+			t.Errorf("%s: log reads %q", pane, got)
+		}
+		script, err := os.ReadFile(filepath.Join(f.r.Env.StateDir(), "spawn", f.run.Agent+".sh"))
+		if resumed := err == nil && strings.Contains(string(script), "sid-1"); resumed != (pane == "closed") {
+			t.Errorf("%s: resumed by session id = %v", pane, resumed)
+		}
+		// one send, one record: a relaunch records its own as resume
+		kind := map[string]string{"live": "ci", "closed": "resume"}[pane]
+		if ev := eventsOf(t, f.r, "prompt.sent"); len(ev) != 1 || ev[0].Data["kind"] != kind {
+			t.Errorf("%s: prompt.sent %+v", pane, ev)
+		}
+	}
+
+	// Past ci_rounds_max the run fails.
+	f := ciRunner(t)
+	f.checks, f.run.CIRounds = red, 3
+	f.r.gated(f.run)
+	if f.run.State != Failed || !strings.Contains(f.run.FailReason, "CI red 4 times") {
+		t.Errorf("over the limit: %s %q", f.run.State, f.run.FailReason)
+	}
+	// A red PR whose machine is disconnected waits and counts no round.
+	f = ciRunner(t)
+	f.checks, f.run.Machine = red, "m1"
+	f.r.Tools.HC = func(...string) (int, string, string) {
+		return 0, `{"terminals":[],"machines":[{"name":"m1","state":"disconnected"}]}`, ""
+	}
+	f.r.gated(f.run)
+	if f.run.State != Gated || f.run.CIRounds != 0 || f.run.MergeHold == "" {
+		t.Errorf("machine down: %s ci=%d hold=%q", f.run.State, f.run.CIRounds, f.run.MergeHold)
 	}
 }
