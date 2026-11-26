@@ -50,10 +50,11 @@ type ciPair struct{ id, masked string }
 
 // ciScanner is scrub_scan.Scanner (extra false) or public_text_guard.GuardScanner (extra true).
 type ciScanner struct {
-	extra bool
-	keys  [][]rune // fold key of each term, in the (sorted) order the terms were given
-	order []int    // indexes into keys by decreasing length (stable): the alternation order of Scanner.term_re
-	short []bool   // term is at most shortTerm characters: whole words only
+	extra       bool
+	secretsOnly bool     // skip the identityRules (secretsonly.go)
+	keys        [][]rune // fold key of each term, in the (sorted) order the terms were given
+	order       []int    // indexes into keys by decreasing length (stable): the alternation order of Scanner.term_re
+	short       []bool   // term is at most shortTerm characters: whole words only
 }
 
 func newCIScanner(terms []string, extra bool) *ciScanner {
@@ -160,6 +161,9 @@ func (sc *ciScanner) termSpans(text string) [][2]int {
 func (sc *ciScanner) matches(line string) []ciMatch {
 	var out []ciMatch
 	for _, r := range genRules {
+		if sc.secretsOnly && identityRules[r.id] {
+			continue
+		}
 		for _, sp := range r.spans(line) {
 			out = append(out, ciMatch{r.id, sp[0], sp[1]})
 		}

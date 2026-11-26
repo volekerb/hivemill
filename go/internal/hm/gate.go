@@ -295,23 +295,45 @@ func lastLines(s string, n int) string {
 	return strings.Join(ls, "\n")
 }
 
-// publicText runs the public-text guard (owner terms, secrets) over what the branch publishes and over the PR text.
-func (r *Runner) publicText(wt, base string, pr *PR) (bool, string) {
-	args, why := r.guardArgs()
-	if why != "" {
-		return false, why
+// publicText runs the public-text guard over what the branch publishes and over the PR text: owner terms and secrets
+// for a public_text_repos repo, the secret checks alone for any other. A failure names the part that failed.
+func (r *Runner) publicText(repo, wt, base string, pr *PR) (bool, string) {
+	public := r.publicTextRepo(repo)
+	scan, args := guard.CISecretsGuardMain, []string(nil)
+	if public {
+		terms, why := r.guardArgs()
+		if why != "" {
+			return false, why
+		}
+		scan, args = guard.CIPublicTextGuardMain, terms
+	}
+	check := func(what, stdin string, mode ...string) (bool, string) {
+		var out, errb bytes.Buffer
+		rc := scan(append(append([]string{}, args...), mode...), strings.NewReader(stdin), &out, &errb)
+		if rc == 0 {
+			return true, ""
+		}
+		// no hit line (the guard could not decide): name the check that was running
+		part := "secrets"
+		switch owner, secrets := guard.CIHitParts(out.String()); {
+		case owner && secrets:
+			part = "owner terms and secrets"
+		case owner || public && !secrets:
+			part = "owner terms"
+		}
+		return false, fmt.Sprintf("public-text guard (%s) on %s exited %d: %s", part, what, rc, lastLines(out.String()+errb.String(), 6))
 	}
 	allow := filepath.Join(r.Env.Home, "ci", "scrub_allowlist.txt")
-	var out, errb bytes.Buffer
-	rc := guard.CIPublicTextGuardMain(append(append([]string{}, args...), "push", "origin/"+base, "HEAD", "--repo", wt, "--allowlist", allow),
-		strings.NewReader(""), &out, &errb)
-	if rc != 0 {
-		return false, fmt.Sprintf("public-text guard on the commits exited %d: %s", rc, lastLines(out.String()+errb.String(), 6))
+	if ok, note := check("the commits", "", "push", "origin/"+base, "HEAD", "--repo", wt, "--allowlist", allow); !ok {
+		return false, note
 	}
 	if pr != nil {
-		if rc, hits := r.guardText(args, pr.Title+"\n"+pr.Body); rc != 0 {
-			return false, fmt.Sprintf("public-text guard on the PR title/body exited %d: %s", rc, lastLines(hits, 6))
+		if ok, note := check("the PR title/body", pr.Title+"\n"+pr.Body, "text", "-"); !ok {
+			return false, note
 		}
+	}
+	if !public {
+		return true, "no secrets (owner terms not checked: the repo is not in public_text_repos)"
 	}
 	return true, "no hits"
 }
@@ -408,7 +430,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 			rec.Tier, rec.TierWhy = tier, strings.Join(why, "; ")
 		}
 	}
-	ok, note := r.publicText(wt, base, pr)
+	ok, note := r.publicText(run.Repo, wt, base, pr)
 	add("public-text", ok, note)
 	none, modeErr := r.ciMode(t.Project)
 	cmd, limit := r.projectGate(t.Project)

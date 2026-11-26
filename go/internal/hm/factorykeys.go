@@ -23,10 +23,11 @@ var FactoryKeys = map[string]string{
 	"noreply_email": "the commit identity of every session, checked by the gate and the merge (" +
 		"`hivemill config noreply_email ID+USER" + NoreplySuffix + "`)",
 	"scrub_terms_file": "the owner terms file (absolute path, kept outside every repo) the public-text checks need; " +
-		"without it the gate's public-text check fails (`hivemill config scrub_terms_file /abs/path`)",
-	"public_text_repos": "comma list of OWNER/NAME repos whose pushes and PR text the guard and the pre-push hook check",
-	"frozen_repos":      "comma list of OWNER/NAME repos the runner never merges into",
-	"required_checks":   "comma list of CI check names every PR needs before a merge (a project's own list wins)",
+		"without it the gate's public-text check fails for a public_text_repos repo (`hivemill config scrub_terms_file /abs/path`)",
+	"public_text_repos": "comma list of OWNER/NAME repos whose pushes and PR text the guard, the pre-push hook and the gate " +
+		"check for owner terms (the gate checks every other repo for secrets only)",
+	"frozen_repos":    "comma list of OWNER/NAME repos the runner never merges into",
+	"required_checks": "comma list of CI check names every PR needs before a merge (a project's own list wins)",
 }
 
 // FactoryKeyNames returns the factory config keys, sorted.
