@@ -50,7 +50,8 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           "$RUNNER_TEMP/ci-changelog" --release-notes "$version" > "$RUNNER_TEMP/notes.md"
           flags=()
-          if [ "$("$RUNNER_TEMP/ci-changelog" --prerelease "$version")" = "true" ]; then
+          pre=$("$RUNNER_TEMP/ci-changelog" --prerelease "$version")
+          if [ "$pre" = "true" ]; then
             flags+=(--prerelease)
           fi
           gh release create "$GITHUB_REF_NAME" --title "Hivemill $GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}" dist/hivemill-install-*
