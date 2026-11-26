@@ -533,19 +533,24 @@ func (r *Runner) syncHeldAsks() {
 		if !heldForOwner(x) || x.Eval {
 			continue
 		}
-		ref := fmt.Sprintf("held:%s:%d", x.Task, x.Round)
-		held[ref] = true
-		q := fmt.Sprintf("%s is held for you: %s. PR %s. Merge it by hand, close it, or answer with what to change.", x.Task,
-			truncate(or(x.MergeHold, x.FailReason), 300), or(x.PRURL, "-"))
-		if id, created, err := s.AddAsk(Ask{Ref: ref, Project: x.Project, Goal: x.Goal, Task: x.Task, Question: q, AskedBy: "runner"}); err == nil && created {
-			_ = r.Log.Emit("ask.added", nil, Event{Project: x.Project, Data: map[string]any{"id": id, "by": "runner", "task": x.Task}})
-		}
+		held[heldRef(x)] = true
+		r.fileHeldAsk(s, x, truncate(or(x.MergeHold, x.FailReason), 300))
 	}
 	open, _ := s.Asks("open")
 	for _, a := range open {
 		if strings.HasPrefix(a.Ref, "held:") && !held[a.Ref] {
 			_ = s.CloseAsk(a.ID, "withdrawn", "the run is no longer held", "runner")
 		}
+	}
+}
+
+func heldRef(x *Run) string { return fmt.Sprintf("held:%s:%d", x.Task, x.Round) }
+
+// fileHeldAsk files the one owner question of a held round; a second call for the round adds nothing.
+func (r *Runner) fileHeldAsk(s *SQLite, x *Run, why string) {
+	q := fmt.Sprintf("%s is held for you: %s. PR %s. Merge it by hand, close it, or answer with what to change.", x.Task, why, or(x.PRURL, "-"))
+	if id, created, err := s.AddAsk(Ask{Ref: heldRef(x), Project: x.Project, Goal: x.Goal, Task: x.Task, Question: q, AskedBy: "runner"}); err == nil && created {
+		_ = r.Log.Emit("ask.added", nil, Event{Project: x.Project, Data: map[string]any{"id": id, "by": "runner", "task": x.Task}})
 	}
 }
 
