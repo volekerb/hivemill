@@ -124,10 +124,18 @@ func TestStandbyCheckRestoresToTemp(t *testing.T) {
 		t.Error("not due after 30 days")
 	}
 	fail = ""
-	taken = taken.Add(30 * 24 * time.Hour)
-	pass()
+	r.StandbyPassed("zz-other", taken)
+	if open() != 1 {
+		t.Error("a check of another source closed the alert")
+	}
+	// a good check by hand closes it too and restarts the period
+	later := taken.Add(30 * 24 * time.Hour)
+	r.StandbyPassed("zz-primary", later)
 	if open() != 0 {
 		t.Error("a good check leaves the alert row open")
+	}
+	if r.StandbyDue(later) {
+		t.Error("due right after a good check by hand")
 	}
 }
 

@@ -41,13 +41,27 @@ It copies the newest `factory-*.db` snapshot, restores it into a temporary home,
 
 Point `standby_from` at the place you would really restore from.
 
-The daemon runs the check every `standby_check_days` (default 30; `0` turns it off) when `standby_from` is set. A failure raises a `hivemill-standby` owner alert and writes a `standby.check` event. The daemon waits the full period after a failure too, so run the command by hand once you have fixed the cause.
+The daemon runs the check every `standby_check_days` (default 30; `0` turns it off) when `standby_from` is set. A failure raises a `hivemill-standby` owner alert and writes a `standby.check` event. The daemon waits the full period after a failure too, so run the command by hand once you have fixed the cause, with `--from` exactly as `standby_from` has it: an OK then closes the alert and starts a new period.
 
 Read the age in the OK line: the check passes with an old snapshot. It also does not prove that `claude`, `gh` or the project checkouts work on the standby.
 
 ## Fail over
 
-1. **Make sure the primary daemon is stopped and stays stopped.** On the primary: `systemctl --user disable --now hivemill.service` (macOS: `launchctl bootout` the `hivemill.daemon` agent). If you cannot reach it, keep it powered off or off the network until you can do this. The two machines have separate homes, so the daemon lock cannot stop a primary that comes back.
+The `systemctl` commands below are for Linux. On macOS, to stop the daemon and keep it stopped after a reboot or login:
+
+```
+launchctl disable gui/$(id -u)/hivemill.daemon
+launchctl bootout gui/$(id -u)/hivemill.daemon
+```
+
+To start it again (this replaces `enable --now`):
+
+```
+launchctl enable gui/$(id -u)/hivemill.daemon
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/hivemill.daemon.plist
+```
+
+1. **Make sure the primary daemon is stopped and stays stopped.** On the primary: `systemctl --user disable --now hivemill.service`. Stopping the daemon does not stop the task, judge and planner sessions it started: end their terminals too, or they keep writing and pushing to the branches the standby resumes. If you cannot reach it, keep it powered off or off the network until you can do this. The two machines have separate homes, so the daemon lock cannot stop a primary that comes back.
 2. On the standby, stop its daemon: `systemctl --user disable --now hivemill.service`.
 3. Restore the newest snapshot (copy it to the standby first when it is not on a share):
 
@@ -81,4 +95,6 @@ When you know the other daemon is dead and do not want to wait:
 hivemill daemon --take-over
 ```
 
-A daemon that finds another host in the file stops with an error instead of writing on. The lock is a guard against mistakes, not a fence: it cannot interrupt a pass that is already running, and it knows nothing about a home it cannot see. Do not share a home over a network filesystem to get a standby; SQLite is not safe there.
+A daemon that finds another host in the file stops with an error instead of writing on.
+
+On a home that two machines share, disable the other machine's unit: a clean stop of the active daemon removes the file, and a unit that retries would claim the home during a restart. The lock tells machines apart by host name only, so two machines with the same name (a cloned VM) are not held off. The lock is a guard against mistakes, not a fence: it cannot interrupt a pass that is already running, and it knows nothing about a home it cannot see. Do not share a home over a network filesystem to get a standby; SQLite is not safe there.

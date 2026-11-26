@@ -83,6 +83,13 @@ func (r *Runner) fetchSnapshot(from, dst string) (string, time.Time, error) {
 // StandbyCheck restores the newest snapshot of from into a temporary home, runs `run status` and `goal list` of the
 // binary bin against it and returns the OK line. The home of this runner is not touched.
 func (r *Runner) StandbyCheck(from, bin string, now time.Time) (string, error) {
+	// a check cut off by a stop leaves its copy of the DB behind; no check runs for an hour
+	old, _ := filepath.Glob(filepath.Join(os.TempDir(), "hivemill-standby-*"))
+	for _, d := range old {
+		if st, err := os.Stat(d); err == nil && time.Since(st.ModTime()) > time.Hour {
+			_ = os.RemoveAll(d)
+		}
+	}
 	tmp, err := os.MkdirTemp("", "hivemill-standby-")
 	if err != nil {
 		return "", err
@@ -126,6 +133,16 @@ func (r *Runner) StandbyDue(now time.Time) bool {
 	return err != nil || now.Sub(time.Unix(last, 0)) >= time.Duration(days)*24*time.Hour
 }
 
+// StandbyPassed records a good check of the configured source: the alert closes and the next one is a full period away.
+// A check of another source says nothing about standby_from.
+func (r *Runner) StandbyPassed(from string, now time.Time) {
+	if strings.TrimSpace(from) != strings.TrimSpace(r.Store.Cfg("standby_from")) {
+		return
+	}
+	_ = r.Store.SetMeta("last_standby_check", strconv.FormatInt(now.Unix(), 10))
+	_ = r.Store.CloseAlert("hivemill-standby", "standby")
+}
+
 // standbyResult is the outcome of a check that ran beside the pass loop.
 type standbyResult struct {
 	from, msg string
@@ -164,7 +181,7 @@ func (r *Runner) StandbyPass(bin string, now time.Time) {
 	_ = r.Log.Emit("standby.check", nil, Event{Data: map[string]any{"ok": res.err == nil, "result": res.msg}})
 	r.printf("standby check: %s\n", res.msg)
 	if res.err == nil {
-		_ = r.Store.CloseAlert("hivemill-standby", "standby")
+		r.StandbyPassed(res.from, now)
 		return
 	}
 	_ = r.Store.AlertFeed("hivemill-standby", "standby", "hivemill standby check")

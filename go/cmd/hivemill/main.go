@@ -262,6 +262,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			msg, err = r.StandbyCheck(args[3], bin, time.Now())
 		}
 		if err == nil {
+			r.StandbyPassed(args[3], time.Now())
 			fmt.Fprintln(stdout, msg)
 		}
 	case "health":
