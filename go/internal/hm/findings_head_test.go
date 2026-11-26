@@ -204,6 +204,19 @@ func TestFindingsRefuseCloneTricks(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
+	// an ignored .gitattributes over tracked files
+	p = newReviewRepo(t)
+	p.git("config", "core.excludesFile", filepath.Join(p.dir, ".git", "zz-ignore"))
+	for file, text := range map[string]string{".git/zz-ignore": ".gitattributes\n", ".gitattributes": "*.txt merge=union\n"} {
+		if err := os.WriteFile(filepath.Join(p.dir, file), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p.moveBase("shared.txt", "base\n2\n3\n4\n5\n6\n7\n8\n9\n")
+	p.merge("origin/main")
+	if !p.stale(p.reviewed) {
+		t.Error("ignored .gitattributes over tracked files: accepted")
+	}
 	p = newReviewRepo(t)
 	p.moveBase("other.txt", "base\n")
 	p.merge("origin/main")

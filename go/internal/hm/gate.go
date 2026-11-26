@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -124,7 +125,7 @@ func (r *Runner) onlyBaseMerges(wt, base, reviewed, head string) bool {
 }
 
 // localMergeRules reports whether the clone has uncommitted rules that change how git merges (a merge driver, a default
-// driver, info/attributes, an untracked .gitattributes), or cannot be asked: git would then repeat a merge the review
+// driver, info/attributes, an untracked .gitattributes over tracked files), or cannot be asked: git would then repeat a merge the review
 // never saw, such as a union of two conflicting sides.
 func (r *Runner) localMergeRules(wt string) bool {
 	g := r.Tools.Git
@@ -141,9 +142,22 @@ func (r *Runner) localMergeRules(wt string) bool {
 	if _, err := os.Stat(attrs); !os.IsNotExist(err) {
 		return true
 	}
-	// ignored files are left out: installed dependencies ship their own, which touch no tracked file
-	rc, others, _ := g(wt, "ls-files", "--others", "--exclude-standard", "--", ":(glob)**/.gitattributes")
-	return rc != 0 || strings.TrimSpace(others) != ""
+	// Ignored files count too. One whose directory holds no tracked file (an installed dependency's own) shapes no merge.
+	rc, others, _ := g(wt, "ls-files", "-z", "--others", "--", ":(glob)**/.gitattributes")
+	if rc != 0 {
+		return true
+	}
+	var dirs []string
+	for _, f := range strings.Split(others, "\x00") {
+		if f != "" {
+			dirs = append(dirs, ":(literal)"+path.Dir(f))
+		}
+	}
+	if len(dirs) == 0 {
+		return false
+	}
+	rc, tracked, _ := g(wt, append([]string{"ls-files", "--"}, dirs...)...)
+	return rc != 0 || strings.TrimSpace(tracked) != ""
 }
 
 // ReviewRan reports whether a /code-review ran in this round: Claude Code records a forked skill run as
