@@ -256,7 +256,6 @@ var gtHqOnlyAllowed = []string{
 	"python3 -W ignore bin/factory tick", "bash -c 'echo `date`'", "echo `git log -1`",
 }
 
-
 func TestGTPrivGuardPrivBlockedInBothModes(t *testing.T) {
 	if len(gtPrivBlocked) < 20 {
 		t.Fatalf("only %d blocked commands", len(gtPrivBlocked))
