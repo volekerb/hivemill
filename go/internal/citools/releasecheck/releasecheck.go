@@ -5,7 +5,7 @@
 //	ci-release-check --repo DIR [--require-no-python]        (python-under check only)
 //
 // Checks (one PASS/FAIL line each, all run): on-main, version, ci-green, notes, fresh-install-smoke, public-text,
-// tag-free, cursor-runtime. Exit 0 all pass (tag commands printed), 1 a check failed, 2 usage error or unresolvable
+// tag-free. Exit 0 all pass (tag commands printed), 1 a check failed, 2 usage error or unresolvable
 // SHA. Read-only: it never tags, pushes or creates a release; it only prints the commands for the owner.
 //
 // The v0.6.0 rule (G-048 SC2): no Python file under bin/, roles/hooks/, web/, scout/, retro/,
@@ -13,7 +13,7 @@
 // --require-no-python a non-zero count fails the gate (default off until the P7 stage removes the Python).
 //
 // --repo is OWNER/NAME as in the Python tool, or an existing directory: the checkout to inspect. With a directory
-// and no SHA only the python-under check runs. Until P5b/P7 the smoke, public-text and cursor-runtime checks still
+// and no SHA only the python-under check runs. Until P5b/P7 the smoke and public-text checks still
 // run the Python tools of the checked-out tree through python3.
 package releasecheck
 
@@ -47,19 +47,8 @@ var (
 	shaRe          = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	slugRe         = regexp.MustCompile(`^[^/\s]+/[^/\s]+$`)
 	smokeWait      = 20 * time.Second
-	cursorPaths    = []string{"scout/cursor_harness.py", "roles/hooks/cursor-guard-adapter.py", "scout/agent_runtime.py"}
 	pythonRuleDirs = []string{"bin/", "roles/hooks/", "web/", "scout/", "retro/", "plugins/hivemill/scripts/"}
-	cursorSnippet  = `
-from scout.agent_runtime import parse_runtimes, resolve_runtime
-if resolve_runtime("pm", "") != "claude":
-    raise SystemExit("empty agent_runtimes: pm must resolve to claude")
-m = parse_runtimes("*=cursor")
-if m.get("coder") != "cursor":
-    raise SystemExit("*=cursor: coder must resolve to cursor")
-if resolve_runtime("evaluator", "*=cursor") != "claude":
-    raise SystemExit("*=cursor: evaluator must stay claude")
-`
-	errUsage = errors.New("usage")
+	errUsage       = errors.New("usage")
 )
 
 // RunFunc runs argv and returns (exit code, stdout, stderr). A missing program is 127, a timeout 124.
@@ -392,43 +381,6 @@ func (g *Gate) tagFree() (bool, string) {
 	return true, tag + " is not on origin"
 }
 
-func (g *Gate) fileAtSHA(rel string) bool {
-	rc, _, _ := g.git("show", g.SHA+":"+rel)
-	return rc == 0
-}
-
-func (g *Gate) cursorRuntimeTree() string {
-	src := filepath.Join(g.tmp, "src")
-	if st, err := os.Stat(filepath.Join(src, "scout", "agent_runtime.py")); err == nil && st.Mode().IsRegular() {
-		return src
-	}
-	return g.Root
-}
-
-func (g *Gate) cursorRuntime() (bool, string) {
-	var missing []string
-	for _, p := range cursorPaths {
-		if !g.fileAtSHA(p) {
-			missing = append(missing, p)
-		}
-	}
-	if len(missing) > 0 {
-		return false, fmt.Sprintf("missing at %s: %s", short(g.SHA), strings.Join(missing, ", "))
-	}
-	tree := g.cursorRuntimeTree()
-	env := append(g.envWithout("PYTHONPATH"), "PYTHONPATH="+tree)
-	rc, out, err := g.Run([]string{g.Python, "-c", cursorSnippet}, tree, env, 60*time.Second)
-	if rc != 0 {
-		msg := fmt.Sprintf("exit %d", rc)
-		if t := trim(either(err, out)); t != "" {
-			lines := strings.Split(t, "\n")
-			msg = lines[len(lines)-1]
-		}
-		return false, "runtime resolve check failed: " + msg
-	}
-	return true, "cursor harness files present; pm/claude, coder/cursor, evaluator/claude resolve"
-}
-
 func (g *Gate) prepareCheckout() string {
 	src := filepath.Join(g.tmp, "src")
 	rc, _, err := g.Run([]string{"git", "clone", "--quiet", "--no-checkout", "--shared", g.Root, src}, "", nil, 0)
@@ -451,12 +403,12 @@ func (g *Gate) RunAll(out func(string)) bool {
 	g.tmp = tmp
 	defer os.RemoveAll(tmp)
 	broken := g.prepareCheckout()
-	needsSrc := map[string]bool{"notes": true, "fresh-install-smoke": true, "public-text": true, "cursor-runtime": true}
+	needsSrc := map[string]bool{"notes": true, "fresh-install-smoke": true, "public-text": true}
 	checks := []struct {
 		name string
 		fn   func() (bool, string)
 	}{{"on-main", g.onMain}, {"version", g.versionCheck}, {"ci-green", g.ciGreen}, {"notes", g.notes},
-		{"fresh-install-smoke", g.smoke}, {"public-text", g.publicText}, {"tag-free", g.tagFree}, {"cursor-runtime", g.cursorRuntime}}
+		{"fresh-install-smoke", g.smoke}, {"public-text", g.publicText}, {"tag-free", g.tagFree}}
 	all := true
 	for _, c := range checks {
 		ok, detail := false, broken

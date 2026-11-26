@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Removed
+
+- **The release check no longer needs the old chain.** The `cursor-runtime` check and its required `scout/` and cursor adapter files are gone from `ci/release_check.py` and the Go gate; the other checks are unchanged (T-1934).
+
 ### Fixed
 
 - **The PR body check accepts a runner given by path**, such as `~/.local/go/bin/go test ./...`: it compares the base name of the first word (T-1940).
