@@ -341,6 +341,43 @@ func TestPRFlowFlakyRerunOnce(t *testing.T) {
 	}
 }
 
+// a T3 auto-merge run gets the flaky re-run before the hard limits; a red that stays holds it for the owner
+func TestPRFlowT3FlakyRerunBeforeLimits(t *testing.T) {
+	f := flowRunner(t)
+	f.base = []string{baseNode("m0", "COMPLETED", "SUCCESS")}
+	f.judged(t, 1, "2026-11-26T10:00:00Z", "go/internal/shlex/zz.go")
+	mustGit(t, f.repo, "checkout", "-q", "pr1")
+	if err := os.MkdirAll(filepath.Join(f.repo, "go/internal/shlex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f.commit(t, "go/internal/shlex/zz.go") // a T3 path
+	rc, head, errs := gitx.RC(f.repo, gitx.Options{Home: f.r.Env.Home}, "rev-parse", "HEAD")
+	if rc != 0 {
+		t.Fatal(errs)
+	}
+	mustGit(t, f.repo, "checkout", "-q", "main")
+	run := f.run(t, 1)
+	run.Head = strings.TrimSpace(head)
+	f.prs[1].head = run.Head
+	f.put(t, run)
+	if err := f.s.Verdict(run.Task, run.PRURL, run.Head, "pass", "ok", "task-judge"); err != nil {
+		t.Fatal(err)
+	}
+	f.prs[1].checks = check("unit", "COMPLETED", "FAILURE", 7)
+	f.pass(t)
+	if got := f.ghCalls("run rerun"); len(got) != 1 {
+		t.Fatalf("flaky re-run: %q, %s %q", got, f.run(t, 1).State, f.run(t, 1).MergeHold)
+	}
+	if run := f.run(t, 1); run.State != Merging {
+		t.Fatalf("after the re-run: %s %q", run.State, run.MergeHold)
+	}
+	f.prs[1].checks = strings.Replace(f.prs[1].checks, "job/70", "job/71", 1)
+	f.pass(t)
+	if run := f.run(t, 1); run.State != Held || !strings.Contains(run.MergeHold, "T3 hard limits: e)") {
+		t.Errorf("a red that stays: %s %q", run.State, run.MergeHold)
+	}
+}
+
 func TestPRFlowMergeTrain(t *testing.T) {
 	f := flowRunner(t)
 	f.base = []string{baseNode("m0", "COMPLETED", "SUCCESS")}

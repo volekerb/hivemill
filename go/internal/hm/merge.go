@@ -259,6 +259,13 @@ func (r *Runner) Merge(run *Run) {
 			return
 		}
 	}
+	// before the T3 limits: a flaky red is re-run, and only a red that stays sends a T3 run to the owner
+	if d.Action == "resume" && d.Why == ciRed && !r.ciNone(run.Project) {
+		if _, failed := ciRows(pr.Checks); r.flakyRerun(run, in.Head, failed) {
+			run.MergeHold, run.mergeStage = "re-running failed jobs that passed on "+run.Base+" in the last 24 h", flowStageCI
+			return
+		}
+	}
 	guarded, limits, wait := r.t3Guard(run, in, d)
 	if wait != "" {
 		run.MergeHold = "hold: " + wait
@@ -288,12 +295,6 @@ func (r *Runner) Merge(run *Run) {
 			_, failed := run.LocalCI.verdict(in.Head)
 			r.redCI(run, failed)
 			return
-		}
-		if d.Why == ciRed && !r.ciNone(run.Project) {
-			if _, failed := ciRows(pr.Checks); r.flakyRerun(run, in.Head, failed) {
-				run.MergeHold, run.mergeStage = "re-running failed jobs that passed on "+run.Base+" in the last 24 h", flowStageCI
-				return
-			}
 		}
 		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
 		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+".")
