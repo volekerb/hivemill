@@ -2,6 +2,7 @@ package hm
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -846,6 +847,82 @@ func TestObsBannerPollingConfig(t *testing.T) {
 	}
 	if p, html := spendBanners(t, h); len(p.Banners) != 0 || len(html) != 0 {
 		t.Fatalf("36%% is under the configured 50%%: %q %q", p.Banners, html)
+	}
+}
+
+// roundsFixture is a running obs page over ten PR tasks, the first reworked of them with 2 review rounds, and one task
+// with 2 rounds but no PR, which never counts.
+func roundsFixture(t *testing.T, reworked int) (*Runner, http.Handler) {
+	t.Helper()
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	ts := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
+	red := func(task string) Event {
+		return ev(ts, "ci.red", task, "G-1", "www", "", "", map[string]any{"failed": []any{"go"}})
+	}
+	verdict := func(task string, data map[string]any) Event {
+		return ev(ts, "judge.verdict", task, "G-1", "www", "", "", data)
+	}
+	evs := []Event{red("T-99"), red("T-99")}
+	for i := 1; i <= 10; i++ {
+		task := fmt.Sprintf("T-%d", i)
+		evs = append(evs, verdict(task, map[string]any{"verdict": "MERGE", "pr": "https://github.com/zz-test/www/pull/" + task}))
+		if i <= reworked {
+			evs = append(evs, red(task))
+		}
+	}
+	writeEvents(t, r.Log.Path, evs...)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, h
+}
+
+// flowBanners is the API's banners and the banner elements of the HTML page.
+func flowBanners(t *testing.T, h http.Handler) ([]string, []string) {
+	t.Helper()
+	code, body := obsGet(t, h, "/api/obs/flow")
+	var api struct {
+		Flow FlowPage `json:"flow"`
+	}
+	if code != 200 || json.Unmarshal([]byte(body), &api) != nil || !strings.Contains(body, `"banners":[`) {
+		t.Fatalf("api %d: %s", code, body)
+	}
+	code, page := obsGet(t, h, "/flow")
+	if code != 200 {
+		t.Fatalf("page %d: %s", code, page)
+	}
+	return api.Flow.Banners, bannerHTML.FindAllString(page, -1)
+}
+
+func TestObsBannerRounds(t *testing.T) {
+	t.Run("below", func(t *testing.T) {
+		_, h := roundsFixture(t, 3) // exactly 30%: not above
+		if banners, html := flowBanners(t, h); len(banners) != 0 || len(html) != 0 {
+			t.Fatalf("no banner at the threshold: %q %q", banners, html)
+		}
+	})
+	t.Run("above", func(t *testing.T) {
+		_, h := roundsFixture(t, 4)
+		banners, html := flowBanners(t, h)
+		want := "4 of 10 PRs (40%) needed 2+ review rounds."
+		if len(banners) != 1 || banners[0] != want || len(html) != 1 || !strings.Contains(html[0], "4 of 10 PRs (40%)") {
+			t.Fatalf("one banner: %q %q", banners, html)
+		}
+		if strings.Contains(html[0], "<button") || strings.Contains(html[0], "<form") || strings.Contains(html[0], "<a ") {
+			t.Fatalf("a banner is text only: %s", html[0])
+		}
+	})
+}
+
+func TestObsBannerRoundsConfig(t *testing.T) {
+	r, h := roundsFixture(t, 4)
+	if err := r.Store.SetCfg("obs_banner_rounds_pct", "90"); err != nil {
+		t.Fatal(err)
+	}
+	if banners, html := flowBanners(t, h); len(banners) != 0 || len(html) != 0 {
+		t.Fatalf("40%% is under the configured 90%%: %q %q", banners, html)
 	}
 }
 

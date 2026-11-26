@@ -103,6 +103,9 @@ type FlowPage struct {
 	StuckAfter  string     `json:"stuck_after"`
 	MergedByDay []DayCount `json:"merged_per_day"`
 	Merged      int        `json:"merged"`
+	Banners     []string   `json:"banners"`
+	prs         int        // tasks of Tasks that have a PR
+	reworked    int        // those of prs with 2+ review rounds
 	// Chart is the merged-per-day SVG.
 	Chart template.HTML `json:"-"`
 }
@@ -154,6 +157,12 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 		}
 		if parseTS(t.Last).After(wN) {
 			p.Tasks = append(p.Tasks, f)
+			if t.PR != "" {
+				p.prs++
+				if t.Rounds >= 2 {
+					p.reworked++
+				}
+			}
 		}
 	}
 	sort.SliceStable(p.Tasks, func(i, j int) bool { return p.Tasks[i].Total > p.Tasks[j].Total })
@@ -165,6 +174,25 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 	}
 	p.Chart = barChart(bars, []string{"merged"}, "merged PRs", func(v float64) string { return fmt.Sprintf("%.0f", v) })
 	return p
+}
+
+// roundsBanners is the review-rounds recommendation: one line when the share of PRs that needed 2+ rounds is strictly
+// above pct.
+func (p *FlowPage) roundsBanners(pct int) []string {
+	if p.prs == 0 || 100*p.reworked <= pct*p.prs {
+		return []string{}
+	}
+	share := shownShare(100*float64(p.reworked)/float64(p.prs), pct)
+	return []string{fmt.Sprintf("%d of %d PRs (%s%%) needed 2+ review rounds.", p.reworked, p.prs, share)}
+}
+
+// shownShare prints a banner's share, which is above pct: a whole percent, with a decimal when that would not read as
+// above the threshold.
+func shownShare(share float64, pct int) string {
+	if math.Round(share) <= float64(pct) {
+		return fmt.Sprintf("%.1f", math.Ceil(share*10)/10)
+	}
+	return fmt.Sprintf("%.0f", math.Round(share)) // %.0f alone rounds 20.5 down
 }
 
 // SpendDay is the day's cost by role.
@@ -234,11 +262,7 @@ func spendRole(s *ObsSession) string {
 func (p *SpendPage) pollingBanners(pct int) []string {
 	over := func(polling, usd float64) bool { return usd > 0 && 100*polling-float64(pct)*usd > 1e-9 }
 	line := func(share float64, of string, polling float64) []string {
-		shown := fmt.Sprintf("%.0f", math.Round(share)) // %.0f alone rounds 20.5 down
-		if math.Round(share) <= float64(pct) {          // never print a share that reads as not above the threshold
-			shown = fmt.Sprintf("%.1f", math.Ceil(share*10)/10)
-		}
-		return []string{fmt.Sprintf("Polling is %s%% of %s ($%.2f). Action: replace wait turns with one blocking command.", shown, of, polling)}
+		return []string{fmt.Sprintf("Polling is %s%% of %s ($%.2f). Action: replace wait turns with one blocking command.", shownShare(share, pct), of, polling)}
 	}
 	if over(p.PollingUSD, p.Total) {
 		return line(p.PollingPct, "spend", p.PollingUSD)
