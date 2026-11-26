@@ -21046,6 +21046,35 @@
       "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
       "cmd": "~/.local/go/bin/go -C . run x@latest",
       "role": "reviewer"
+    },
+    "git fetch $(echo --upload-pack=x) origin",
+    "git fetch `echo --upload-pack=x` origin",
+    "git fetch ${X} origin",
+    "git fetch $'--output=x' origin",
+    "git fetch {--output=x,y} origin",
+    "git show $(echo --upload-pack=x) origin",
+    "git show `echo --upload-pack=x` origin",
+    "git show ${X} origin",
+    "git show $'--output=x' origin",
+    "git show {--output=x,y} origin",
+    "git log $(echo --upload-pack=x) origin",
+    "git log `echo --upload-pack=x` origin",
+    "git log ${X} origin",
+    "git log $'--output=x' origin",
+    "git log {--output=x,y} origin",
+    "git diff $(echo --upload-pack=x) origin",
+    "git diff `echo --upload-pack=x` origin",
+    "git diff ${X} origin",
+    "git diff $'--output=x' origin",
+    "git diff {--output=x,y} origin",
+    "git $(echo log)",
+    "git `echo log`",
+    "bash -c 'git fetch $(echo --upload-pack=x) origin'",
+    "bash -c 'git log `echo --output=x`'",
+    {
+      "cmd": "git diff $(git merge-base origin/main HEAD)..HEAD",
+      "role": "coder",
+      "note": "T-0206: was must_allow; the spec refuses a substitution in a diff token"
     }
   ],
   "must_allow": [
@@ -23576,10 +23605,6 @@
       "role": "coder"
     },
     {
-      "cmd": "git diff $(git merge-base origin/main HEAD)..HEAD",
-      "role": "coder"
-    },
-    {
       "cmd": "tar -tf a.tar",
       "role": "qa"
     },
@@ -25947,6 +25972,9 @@
       "note": "T-1498 round 8 (N12): a pkg@version argument downloads the module unless GOPROXY=off",
       "cmd": "~/.local/go/bin/go run .",
       "role": "reviewer"
-    }
+    },
+    "git log --format='%h %s'",
+    "git diff origin/main...HEAD",
+    "git commit -m \"$(cat <<'EOF'\nT-1: subject\nEOF\n)\""
   ]
 }

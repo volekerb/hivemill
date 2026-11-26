@@ -320,6 +320,47 @@ class NoFalsePositiveTests(GitGuardBase):
                 self.allowed(cmd, cwd=self.home)
 
 
+class ExpansionOptionTests(GitGuardBase):
+    """T-0206: worker mode refuses a shell expansion in the git subcommand token and in the tokens of a transport or diff
+    command, because the shell can turn it into an option (--upload-pack, --output, --ext-diff) at run time. Python hook
+    only: the Go mirror is a follow-up (G-016)."""
+
+    FORMS = ("$(echo --upload-pack=x)", "`echo --upload-pack=x`", "${X}", "$'--output=x'", "{--output=x,y}",
+             "--exec$(echo)", '"$(echo --output=x)"')
+    SUBS = ("fetch", "show", "log", "diff", "pull", "ls-remote")
+
+    def test_expansion_refused_in_transport_and_diff_tokens(self):
+        for sub in self.SUBS:
+            for form in self.FORMS:
+                cmd = f"git {sub} {form} origin"
+                for c in (cmd, f"cd . && {cmd}", "bash -c " + __import__("shlex").quote(cmd)):
+                    with self.subTest(cmd=c):
+                        self.blocked_python_hook(c)
+
+    def test_subcommand_token_expansion_refused(self):
+        for c in ("git $(echo log)", "git `echo log`", 'git "$(echo log)"', "git ${S} origin", "git {log,diff}"):
+            with self.subTest(cmd=c):
+                self.blocked_python_hook(c)
+
+    def test_substitution_and_backtick_agree(self):
+        a = self.run_hook("git fetch $(echo --upload-pack=x) origin")
+        b = self.run_hook("git fetch `echo --upload-pack=x` origin")
+        self.assertEqual((a.returncode, b.returncode), (2, 2), (a.stderr, b.stderr))
+
+    def test_normal_coder_git_allowed(self):
+        msg = "git commit -m \"$(cat <<'EOF'\nT-1: subject\n\nbody\nEOF\n)\""
+        for c in (msg, "git log --format='%h %s'", "git log --format='%h %s' -3 HEAD@{1}", "git diff origin/main...HEAD",
+                  "git fetch origin", "git show HEAD~1 --stat", "git status"):
+            with self.subTest(cmd=c):
+                self.allowed_python_hook(c)
+
+    def test_hq_mode_unchanged(self):
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git fetch $(echo origin)"}, "cwd": self.wt})
+        env = dict(os.environ, HOME=self.tmp, FACTORY_HOME=self.home, WORKER_GUARD_LIVE_HOME=self.home)
+        p = subprocess.run([sys.executable, HOOK, "--hq"], input=payload, capture_output=True, text=True, env=env)
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+
 class RealHookTests(unittest.TestCase):
     def test_real_live_home_status_allowed(self):
         env = {k: v for k, v in os.environ.items() if k != "WORKER_GUARD_LIVE_HOME"}
