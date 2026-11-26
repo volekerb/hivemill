@@ -104,6 +104,8 @@ def _flow_top(s):
     out, depth, value = [], 0, False
     for tok in re.findall(r"""[\[\]{},:]|["']?[A-Za-z_][\w-]*["']?""", s):
         if tok in "[{":
+            if depth == 1 and not value:
+                out.append("<unparsed>")  # a list item or key that is itself a list or mapping
             depth += 1
         elif tok in "]}":
             depth -= 1
@@ -365,7 +367,8 @@ class RunnerRule(PolicyBase):  # a
         for on in ("on:\n- schedule\n", "on: [push,\n", "on :\n  schedule:\n",
                    'on: {push: {branches: ["a\\"b"]}, schedule: {}}\n',
                    "on: {push: {branches: ['a\n  ]}']}, schedule: {}}\n",
-                   "on: [push, *t]\n", "on: {push: {}, *t : {}}\n", "on: [push, !!str schedule]\n"):
+                   "on: [push, *t]\n", "on: {push: {}, *t : {}}\n", "on: [push, !!str schedule]\n",
+                   "on: [push, {schedule: {}}]\n"):
             self.assertBlocked(GOOD.replace(block, on), "cannot read")
 
     def test_self_hosted_for_forks_blocked(self):

@@ -204,7 +204,8 @@ jobs:
     needs: ci-tier
     # Docs tier skips unittest-shard and go at step level: the jobs run, every step is skipped, and unittest-shard (1) through (10) and go report success.
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 40
+    # Slower on the shared hm-ci host (see unittest-shard): 60 minutes, and 50 for go test.
+    timeout-minutes: 60
     env:
       GOTOOLCHAIN: local
     defaults:
@@ -267,7 +268,12 @@ jobs:
           fi
       - run: go vet ./...
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
-      - run: go test ${{ github.event_name == 'workflow_dispatch' && '-race' || '' }} -count=1 -timeout 30m ./...
+      - run: |
+          # Private TMPDIR, as in the shards: go jobs on the shared hm-ci host must not share fixtures under /tmp.
+          TMPDIR=$(mktemp -d /tmp/hm-go.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || echo "cleanup left files in $TMPDIR" >&2' EXIT
+          go test ${{ github.event_name == 'workflow_dispatch' && '-race' || '' }} -count=1 -timeout 50m ./...
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
       - run: go build ./...
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
@@ -311,6 +317,7 @@ jobs:
           rc=0
           # Private TMPDIR: the guard fixtures use fixed names under it, and the hm-ci runners share one uid and /tmp.
           TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
           trap 'rm -rf "$TMPDIR" || true' EXIT
           GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --shard "${{ matrix.shard }}" --shards 3 || rc=$?
           echo "guard-unittest shard ${{ matrix.shard }}: job time $(( $(date +%s) - start ))s rc=$rc"
@@ -476,6 +483,7 @@ jobs:
           rc=0
           # Private TMPDIR and longer hook timeout, as in guard-diff: the hm-ci host is shared.
           TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
           trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator --timeout 30 | tee "$RUNNER_TEMP/gd-self.txt" || rc=1
           if ! grep -F ' 0 loosened, 0 tightened' "$RUNNER_TEMP/gd-self.txt"; then
@@ -532,6 +540,7 @@ jobs:
           rc=0
           # Private TMPDIR and longer hook timeout, as in guard-diff: the hm-ci host is shared.
           TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
           trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator --timeout 30 >"$out" 2>&1 || rc=$?
           cat "$out"
@@ -638,11 +647,14 @@ jobs:
           fi
           # A self-hosted runner without it would skip the REAL_GO tests and still pass: fail instead (docs/ci-self-hosted.md).
           ls -l "$HOME/.local/go/bin/go"
-          "$HOME/.local/go/bin/go" version
+          want=$(awk '$1 == "toolchain" {print $2}' go/go.mod)
+          got=$("$HOME/.local/go/bin/go" env GOVERSION)
+          if [ -n "$want" ] && [ "$got" != "$want" ]; then echo "~/.local/go is $got, go/go.mod wants $want" >&2; exit 1; fi
       - name: guard_diff strict Go gate (corpus, one role shard; shard 1 also runs hq)
         if: steps.paths.outputs.run == 'true'
         run: |
           TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
           trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --role-shard ${{ matrix.shard }} --role-shards 4 --mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict --timeout 30
 
@@ -751,11 +763,14 @@ jobs:
           fi
           # A self-hosted runner without it would skip the REAL_GO tests and still pass: fail instead (docs/ci-self-hosted.md).
           ls -l "$HOME/.local/go/bin/go"
-          "$HOME/.local/go/bin/go" version
+          want=$(awk '$1 == "toolchain" {print $2}' go/go.mod)
+          got=$("$HOME/.local/go/bin/go" env GOVERSION)
+          if [ -n "$want" ] && [ "$got" != "$want" ]; then echo "~/.local/go is $got, go/go.mod wants $want" >&2; exit 1; fi
       - name: Routed unittest modules under GUARD_IMPL=diff (not in guard-diff)
         if: steps.paths.outputs.run == 'true'
         run: |
           TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
           trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 ci/guard_impl_unittest.py list --routed-rest
           GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --routed-rest
@@ -763,6 +778,9 @@ jobs:
         if: ${{ !cancelled() && steps.paths.outputs.run == 'true' }}
         run: |
           set -o pipefail
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 -m unittest discover -s tests -p test_guard_build.py -v 2>&1 | tee "$RUNNER_TEMP/real-go.txt"
           python3 -m unittest tests.test_guard_impl.SeedGuardExportTests.test_go_binary_accepts_the_seeded_export -v 2>&1 | tee -a "$RUNNER_TEMP/real-go.txt"
           echo "REAL_GO skipped: $(grep -c 'skipped' "$RUNNER_TEMP/real-go.txt" || true)"
