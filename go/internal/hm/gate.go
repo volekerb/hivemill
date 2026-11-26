@@ -92,8 +92,9 @@ func checkFindings(path string) ([]string, []Finding, string) {
 // onlyBaseMerges reports whether head is the reviewed commit plus nothing but clean merges of origin/base, so the review
 // still holds. Each commit on head's first-parent path down to reviewed must merge a commit of origin/base, and its tree
 // must be exactly git's own merge of its two parents: a conflict resolution or any edit in the merge needs a new review.
-// The session owns the clone, so the base is named by its full ref, replace objects are off, and a clone with local merge
-// rules is refused.
+// A local branch named like the base, a replace ref or a local merge rule must not widen this by accident, so the base is
+// named by its full ref, replace objects are off and such rules refuse. This is no defence against a forged clone: the
+// head in findings.json is the session's own statement.
 func (r *Runner) onlyBaseMerges(wt, base, reviewed, head string) bool {
 	g := func(args ...string) (int, string, string) {
 		return r.Tools.Git(wt, append([]string{"--no-replace-objects", "-c", "core.attributesFile=/dev/null"}, args...)...)
@@ -140,7 +141,8 @@ func (r *Runner) localMergeRules(wt string) bool {
 	if _, err := os.Stat(attrs); !os.IsNotExist(err) {
 		return true
 	}
-	rc, others, _ := g(wt, "ls-files", "--others", "--", ":(glob)**/.gitattributes")
+	// ignored files are left out: installed dependencies ship their own, which touch no tracked file
+	rc, others, _ := g(wt, "ls-files", "--others", "--exclude-standard", "--", ":(glob)**/.gitattributes")
 	return rc != 0 || strings.TrimSpace(others) != ""
 }
 

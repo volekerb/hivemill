@@ -96,6 +96,17 @@ func TestFindingsAcceptBaseMergeOnly(t *testing.T) {
 	if p.stale(p.reviewed) {
 		t.Error("one merge of main: refused")
 	}
+	// an installed dependency's own .gitattributes, ignored by git
+	p.git("config", "core.excludesFile", filepath.Join(p.dir, ".git", "zz-ignore"))
+	for file, text := range map[string]string{".git/zz-ignore": "node_modules/\n", "node_modules/x/.gitattributes": "* text\n"} {
+		_ = os.MkdirAll(filepath.Dir(filepath.Join(p.dir, file)), 0o755)
+		if err := os.WriteFile(filepath.Join(p.dir, file), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if p.stale(p.reviewed) {
+		t.Error("ignored .gitattributes: refused")
+	}
 	// a second merge, of a change to a file the task changed too, that git merges without a conflict
 	p.moveBase("shared.txt", "1\n2\n3\n4\n5\n6\n7\n8\nbase\n")
 	p.moveBase("more.txt", "base\n") // main moves on after the commit the task merges
