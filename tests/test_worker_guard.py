@@ -725,13 +725,16 @@ class ClaudeGuardTests(unittest.TestCase):
                 with open(os.path.join(ROOT, rel)) as f:
                     tdeny = json.load(f)["permissions"]["deny"]
                 # only these may differ from main: PRIV denies (T-0057), db/** denies (T-0159), advisor (T-0250)
-                added = {"Advisor", "Bash(claude:*)", "Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)", "Bash(pkexec:*)",
-                         "Bash(docker:*)", "Edit(/@FACTORY_LIVE_HOME@/db/**)", "Write(/@FACTORY_LIVE_HOME@/db/**)",  # T-A
-                         "Edit(/@FACTORY_LIVE_HOME@/run/settings/**)", "Write(/@FACTORY_LIVE_HOME@/run/settings/**)"}  # T-B2
+                added = {"Bash(claude:*)", "Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)", "Bash(pkexec:*)",
+                         "Bash(docker:*)", "Edit(/@FACTORY_LIVE_HOME@/db/**)",  # T-A
+                         "Edit(/@FACTORY_LIVE_HOME@/run/settings/**)"}  # T-B2
                 added |= {f"Bash({c}:*)" for c in ("hc server stop", "herdr-core server stop", "hc kill", "hc rm", "hc run")}  # T-1446
-                added |= {f"{t}(/@FACTORY_LIVE_HOME@/run/guard-export.json*)"
-                          for t in ("Edit", "Write", "MultiEdit", "NotebookEdit")}  # T-0883
-                self.assertEqual([x for x in tdeny if x not in added], [x for x in old if x not in added])
+                added.add("Edit(/@FACTORY_LIVE_HOME@/run/guard-export.json*)")  # T-0883
+
+                def kept(rules):  # T-2093: path rules count as Edit(...); the MultiEdit and Advisor tools are gone
+                    rules = (re.sub(r"^(Write|MultiEdit|NotebookEdit)\(", "Edit(", x) for x in rules)
+                    return sorted(set(rules) - added - {"MultiEdit", "Advisor"})
+                self.assertEqual(kept(tdeny), kept(old))
 
 if __name__ == "__main__":
     unittest.main()

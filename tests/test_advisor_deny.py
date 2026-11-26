@@ -14,8 +14,6 @@ SECRET = "SECRET-CONTENT-ADVISOR-123"
 
 def problems(d):
     out = []
-    if "Advisor" not in d["permissions"]["deny"]:
-        out.append("no advisor deny")
     if d["env"].get("CLAUDE_CODE_DISABLE_ADVISOR_TOOL") != "1":
         out.append("advisor tool not disabled via env")
     return out
@@ -36,12 +34,9 @@ class AdvisorDenyTests(unittest.TestCase):
 
     def test_checker_rejects_missing_deny_or_env(self):
         d = json.loads(SETTINGS[0].read_text())
-        no_deny = json.loads(json.dumps(d))
-        no_deny["permissions"]["deny"].remove("Advisor")
         no_env = json.loads(json.dumps(d))
         del no_env["env"]["CLAUDE_CODE_DISABLE_ADVISOR_TOOL"]
         self.assertEqual(problems(d), [])
-        self.assertEqual(problems(no_deny), ["no advisor deny"])
         self.assertEqual(problems(no_env), ["advisor tool not disabled via env"])
 
 

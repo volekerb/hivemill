@@ -1051,6 +1051,24 @@ class SettingsFollowUpTests(GuardDiffCase):
         self.assertIn("SETTINGS-LOOSENED qa ask removed: Bash(rm -rf *)", p.stdout)
         self.assertIn("1 loosened", p.stdout)
 
+    def test_path_deny_moved_to_edit_is_not_loosened(self):
+        def old_rules(d):
+            d["permissions"]["deny"] += ["Write(/x/**)", "MultiEdit(/x/**)", "NotebookEdit(/x/**)"]
+        self.commit_base(old_rules)
+        self.edit_tree(lambda d: d["permissions"].__setitem__(
+            "deny", [r for r in d["permissions"]["deny"] if not r.endswith("(/x/**)")] + ["Edit(/x/**)"]))
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("SETTINGS-LOOSENED", p.stdout)
+
+    def test_path_deny_without_edit_of_same_path_is_loosened(self):
+        self.commit_base(lambda d: d["permissions"]["deny"].append("Write(/x/**)"))
+        self.edit_tree(lambda d: d["permissions"].__setitem__(
+            "deny", [r for r in d["permissions"]["deny"] if r != "Write(/x/**)"] + ["Edit(/y/**)"]))
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-LOOSENED qa deny removed: Write(/x/**)", p.stdout)
+
     def test_added_ask_rule_is_tightened(self):
         self.commit_base(self.seed)
         self.edit_tree(lambda d: d["permissions"]["ask"].append("Bash(curl *)"))

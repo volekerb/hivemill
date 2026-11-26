@@ -17,8 +17,8 @@ BASELINE = [
     "Bash(gh pr merge:*)", "Bash(sqlite3:*)", "Bash(herdr server stop:*)", "Bash(herdr agent start:*)",
     "Bash(git push origin main:*)", "Bash(git push --force:*)", "Bash(git push -f:*)",
     "Bash(rm -rf ~/factory:*)", "Edit(/" + LIVE_HOME + "/factory.db*)",
-    "Write(/" + LIVE_HOME + "/exports/**)", "Edit(/" + LIVE_HOME + "/state/**)",
-    "Write(/" + LIVE_HOME + "/bin/**)", "Edit(/" + LIVE_HOME + "/roles/**)",
+    "Edit(/" + LIVE_HOME + "/exports/**)", "Edit(/" + LIVE_HOME + "/state/**)",
+    "Edit(/" + LIVE_HOME + "/bin/**)", "Edit(/" + LIVE_HOME + "/roles/**)",
 ]
 NEW = ("scout", "evaluator")
 
@@ -72,8 +72,8 @@ class SettingsTests(unittest.TestCase):
         d = settings("evaluator")["permissions"]
         for rule in ("WebFetch", "WebSearch", "Bash(curl:*)", "Bash(wget:*)", "Bash(gh:*)", "Bash(pip:*)",
                      "Bash(npm:*)", "Bash(npx:*)", "Bash(ssh:*)", "Bash(scp:*)", "Bash(git push:*)",
-                     "Bash(herdr:*)", "Edit(/" + LIVE_HOME + "/**)", "Write(/" + LIVE_HOME + "/**)",
-                     "Edit(/" + HOME_DIR + "/.claude/**)", "Write(/" + HOME_DIR + "/.claude/**)"):
+                     "Bash(herdr:*)", "Edit(/" + LIVE_HOME + "/**)",
+                     "Edit(/" + HOME_DIR + "/.claude/**)"):
             self.assertIn(rule, d["deny"])
         for rule in ("Edit", "Write"):  # the sandbox itself stays writable
             self.assertNotIn(rule, d["deny"])
