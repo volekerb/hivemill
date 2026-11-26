@@ -15,7 +15,7 @@ import (
 // prompts, merge and judge code, workflows. The project's sensitive_paths of the tier rules count as well.
 var unaskedRiskPaths = []string{
 	".github/workflows/**", "roles/**",
-	"go/internal/guard/**", "go/cmd/worker-guard/**", "go/internal/shlex/**", "go/internal/spawn/settings.go",
+	"go/internal/guard/**", "go/cmd/worker-guard/**", "go/internal/shlex/**", "go/internal/spawn/**",
 	"go/internal/hm/*hook*", "go/internal/hm/guard*", "go/internal/hm/judge*", "go/internal/hm/unasked*",
 	"go/internal/hm/merge*", "go/internal/hm/run.go", "go/internal/hm/gate.go", "go/internal/hm/cigate.go",
 	"go/internal/hm/risk.go", "go/internal/hm/tierrules.go", "go/internal/hm/session.go", "go/internal/hm/store.go",
@@ -28,6 +28,8 @@ var unaskedRiskPaths = []string{
 	"go/internal/hm/wholemodule.go", "go/internal/hm/trust.go", "go/internal/install/**", "ci/**",
 	"go/internal/hm/factorykeys.go", "go/internal/hm/config.go", "go/internal/gate/**",
 	"bin/factory", "bin/factory_cli.py",
+	"go/internal/hm/assets.go", "go/internal/hm/clonemachine.go", "go/internal/hm/sessionend.go",
+	"go/internal/hm/release.go", "go/internal/hm/ask.go", "go/internal/hm/refile.go", "kit/skills.json", "launchd/**",
 }
 
 func unmappedChange(c Change) bool {
@@ -117,13 +119,15 @@ func (r *Runner) reportUnasked(run *Run, merged string) {
 	if v.Verdict == VerdictReject {
 		return
 	}
-	var list strings.Builder
+	var list, full strings.Builder
 	n := 0
 	for _, c := range v.Changes {
 		if !clearedUnasked(c) {
 			continue
 		}
 		n++
+		// the guard reads the uncut text: a cut could split a private term and hide it
+		fmt.Fprintf(&full, "%s\n%s\n", strings.Join(strings.Fields(c.Change), " "), strings.Join(strings.Fields(c.Why), " "))
 		change, why := oneLine(c.Change, 300), oneLine(c.Why, 300)
 		_ = r.Log.Emit("judge.unasked_ok", run, Event{Role: "judge", Data: map[string]any{"change": change, "why": why, "pr": run.PRURL}})
 		// an indented code block: quoted diff lines cannot mention anyone or break the markdown
@@ -139,7 +143,7 @@ func (r *Runner) reportUnasked(run *Run, merged string) {
 	args, why := r.guardArgs()
 	rc := 1
 	if why == "" {
-		rc, _ = r.guardText(args, list.String())
+		rc, _ = r.guardText(args, full.String())
 	}
 	switch {
 	case why != "":

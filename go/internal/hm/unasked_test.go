@@ -93,6 +93,23 @@ func TestJudgeUnaskedOKMerges(t *testing.T) {
 	}
 }
 
+// a private term that the 300-byte cut would split still keeps the list out of the public comment
+func TestJudgeUnaskedCommentGuardsUncutText(t *testing.T) {
+	r, s, comments := unaskedRun(t, "web/a.html")
+	terms := filepath.Join(t.TempDir(), "terms")
+	_ = os.WriteFile(terms, []byte("zzprivateterm\n"), 0o600)
+	if err := s.SetFactoryCfg("scrub_terms_file", terms); err != nil {
+		t.Fatal(err)
+	}
+	long := strings.Repeat("a ", 147) + "zzprivateterm"
+	judgeSays(t, r, mergeWith(`{"change": "`+long+`", "criterion": null, "unasked_ok": true, "why": "w", "file": "web/a.html"}`))
+	run, _ := verdictOf(t, s)
+	r.finish(run, &PR{State: "MERGED"})
+	if len(*comments) != 1 || !strings.Contains((*comments)[0], "did not pass") || strings.Contains((*comments)[0], "zzpr") {
+		t.Errorf("comments %q", *comments)
+	}
+}
+
 func TestJudgeUnaskedWithoutFlagRejects(t *testing.T) {
 	for _, bad := range []string{
 		`{"change": "a new cooldown", "criterion": null}`,
