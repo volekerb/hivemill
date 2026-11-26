@@ -16,7 +16,7 @@ import (
 	"factory/go/internal/hm"
 )
 
-const obsUsage = "usage: hivemill obs [--port N] [--json] [--days N] [--machine M] [--harness H] | " +
+const obsUsage = "usage: hivemill obs [--listen HOST] [--port N] [--json] [--days N] [--machine M] [--harness H] | " +
 	"obs pull --from HOST:PATH [--from ...] [--as NAME] | obs sources"
 
 const otelUsage = "usage: hivemill otel export [--since 24h|YYYY-MM-DD] [--endpoint URL] [--pulled] [--dry-run]"
@@ -53,7 +53,8 @@ func cmdObs(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 	}
 	fs := flag.NewFlagSet("obs", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	port := fs.Int("port", 0, "port on 127.0.0.1 (default: config obs_port)")
+	listen := fs.String("listen", "", "bind IP address or localhost (default: config obs_listen, 127.0.0.1)")
+	port := fs.Int("port", 0, "port (default: config obs_port)")
 	asJSON := fs.Bool("json", false, "print the portfolio as JSON and exit")
 	days := fs.Int("days", 30, "outcome window in days")
 	machine := fs.String("machine", "", "only this machine")
@@ -82,7 +83,12 @@ func cmdObs(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "hivemill: obs: bad port (config obs_port)")
 		return 2
 	}
-	addr := hm.ObsAddr(*port)
+	host, err := hm.ObsListen(*listen, r.Store.Cfg("obs_listen"), stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, "hivemill:", err)
+		return 2
+	}
+	addr := hm.ObsAddr(host, *port)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 	fmt.Fprintf(stdout, "hivemill obs: http://%s/ (read-only; Ctrl-C stops)\n", addr)
