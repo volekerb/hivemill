@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -63,11 +64,15 @@ func run(timeout time.Duration, dir, input string, env []string, argv ...string)
 		cmd.Env = env
 	}
 	cmd.Stdin = strings.NewReader(input)
+	cmd.WaitDelay = 30 * time.Second // a child left holding the output pipe must not block past the command
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()
 	if ctx.Err() == context.DeadlineExceeded {
 		return 124, out.String(), errb.String() + fmt.Sprintf("\ntimed out after %s", timeout)
+	}
+	if errors.Is(err, exec.ErrWaitDelay) {
+		err = nil // the command itself exited 0
 	}
 	if ee, ok := err.(*exec.ExitError); ok {
 		return ee.ExitCode(), out.String(), errb.String()
