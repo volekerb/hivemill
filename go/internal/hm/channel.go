@@ -69,10 +69,29 @@ func (r *Runner) stableFor(project string) string {
 	if st, err := os.Stat(bin); err != nil || !st.Mode().IsRegular() || st.Mode().Perm()&0o111 == 0 {
 		return ""
 	}
-	if sum, _, err := fileSum(bin); err != nil || sum != r.Store.Meta(stableMeta) {
+	if want := r.Store.Meta(stableMeta); want == "" || r.stableSum(bin) != want {
 		return ""
 	}
 	return bin
+}
+
+// stableSum is the checksum of the promoted binary, read again only when its size or time changed: a pass asks for it
+// once per run row.
+func (r *Runner) stableSum(bin string) string {
+	st, err := os.Stat(bin)
+	if err != nil {
+		return ""
+	}
+	key := fmt.Sprintf("%s|%d|%d", bin, st.Size(), st.ModTime().UnixNano())
+	if v, ok := r.stableSums.Load(key); ok {
+		return v.(string)
+	}
+	sum, _, err := fileSum(bin)
+	if err != nil {
+		return ""
+	}
+	r.stableSums.Store(key, sum)
+	return sum
 }
 
 // Delegate is the binary that must run a step of the project instead of this process ("": this process runs it).
@@ -128,6 +147,9 @@ func (r *Runner) stablePasses(startNew bool) {
 	for _, id := range projects {
 		bin := r.Delegate(id)
 		if bin == "" {
+			if r.Channel(id) == ChannelEdge {
+				r.clearStableFail(id) // moved back to edge: its next stable failures alert again
+			}
 			continue
 		}
 		argv := []string{bin, "run", "--project", id}
@@ -140,7 +162,7 @@ func (r *Runner) stablePasses(startNew bool) {
 		// the child is not the daemon: it must not ping the daemon's watchdog socket
 		env := append(slices.DeleteFunc(os.Environ(), func(v string) bool { return strings.HasPrefix(v, "NOTIFY_SOCKET=") }),
 			"FACTORY_HOME="+r.Env.Home)
-		limit := time.Duration(cfgInt(r.Store, "gate_timeout_s"))*time.Second + stableMargin
+		limit := r.StablePassLimit()
 		r.stableWG.Add(1)
 		go func() {
 			defer r.stableWG.Done()
@@ -151,6 +173,19 @@ func (r *Runner) stablePasses(startNew bool) {
 			}
 			r.stableResult(id, rc)
 		}()
+	}
+}
+
+// StablePassLimit bounds one project pass of the stable binary: a full gate for every run slot, plus stableMargin.
+func (r *Runner) StablePassLimit() time.Duration {
+	return time.Duration(cfgInt(r.Store, "gate_timeout_s")*max(1, cfgInt(r.Store, "max_concurrent")))*time.Second + stableMargin
+}
+
+// clearStableFail forgets the failed stable passes of a project and closes their alert.
+func (r *Runner) clearStableFail(project string) {
+	if key := "stable_fail:" + project; r.Store.Meta(key) != "" {
+		_ = r.Store.SetMeta(key, "")
+		_ = r.Store.CloseAlert("hivemill-stable", project)
 	}
 }
 
@@ -168,10 +203,7 @@ func (r *Runner) stableResult(project string, rc int) {
 		return // neither good nor bad
 	}
 	if rc == 0 {
-		_ = r.Store.CloseAlert("hivemill-stable", project)
-		if r.Store.Meta(key) != "" {
-			_ = r.Store.SetMeta(key, "")
-		}
+		r.clearStableFail(project)
 		return
 	}
 	r.printf("project %s: stable pass failed: exit %d\n", project, rc)
@@ -366,6 +398,11 @@ func (r *Runner) Promote(now time.Time) (string, error) {
 	}
 	if err != nil {
 		return "", err
+	}
+	if ids, err := r.Store.ProjectIDs(); err == nil {
+		for _, id := range ids {
+			r.clearStableFail(id) // another binary: count anew
+		}
 	}
 	_ = r.Log.Emit("release.promoted", nil, Event{Data: map[string]any{"sha256": sum, "from": b.Path}})
 	return dst, nil

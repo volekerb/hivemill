@@ -96,6 +96,15 @@ func TestStableChannelUsesStableBinary(t *testing.T) {
 	if got := s.Meta("stable_fail:www"); got != "3" || !strings.Contains(out.String(), "stable pass failed") {
 		t.Errorf("failed stable passes: %q, %s", got, out.String())
 	}
+	// back to edge: the count starts anew
+	_ = s.SetCfg("project.www.channel", ChannelEdge)
+	if err := r.Pass(false); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Meta("stable_fail:www"); got != "" {
+		t.Errorf("failed passes after the switch to edge: %q", got)
+	}
+	_ = s.SetCfg("project.www.channel", ChannelStable)
 	// merge and gate steps of the project's task are handed to the stable binary, the other project's are not
 	if r.DelegateTask("T-0001") != bin || r.DelegateTask("T-0002") != "" {
 		t.Errorf("delegate: %q, %q", r.DelegateTask("T-0001"), r.DelegateTask("T-0002"))

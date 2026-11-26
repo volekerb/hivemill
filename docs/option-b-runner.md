@@ -227,7 +227,7 @@ For a stable-channel project:
 - its local task and judge sessions get settings and a `PATH` that call the stable binary;
 - `run --project ID`, the `run`, `gate`, `judge`, `merge` and `eval` calls for its tasks, and its session hooks, are handed to the stable binary. A hook whose stable binary crashes lets the session stop.
 
-Until a binary is promoted, edge runs the project; so it does when the file at the stable path is not the one `release promote` wrote. Each channel dispatches its own projects, so a free run slot goes to whichever pass reaches it first, not by priority across channels. The factory DB is shared, so a schema change must stay readable by the stable binary.
+Until a binary is promoted, edge runs the project; so it does when the file at the stable path is not the one `release promote` wrote. Sessions already running keep the stable binary in their hooks after the project goes back to edge, until they are relaunched. Each channel dispatches its own projects, so a free run slot goes to whichever pass reaches it first, not by priority across channels. The factory DB is shared, so a schema change must stay readable by the stable binary.
 
 ### Deployment profiles
 

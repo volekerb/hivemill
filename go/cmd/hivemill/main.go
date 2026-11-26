@@ -160,7 +160,11 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		case a == "":
 			err = r.Pass(true)
 		case a == "--project" && (len(args) == 3 || (len(args) == 4 && arg(3) == "--no-start")):
-			signal.Ignore(syscall.SIGPIPE) // the daemon may stop while this pass still runs: it finishes its steps
+			// The daemon may stop while this pass still runs: it finishes its steps. Notify, not Ignore: an ignored
+			// signal would be inherited by every git, gh and gate command. The pass ends itself at the limit, so a hung
+			// one that no daemon watches releases its lock.
+			signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
+			defer time.AfterFunc(r.StablePassLimit(), func() { os.Exit(1) }).Stop()
 			if err = r.PassProject(arg(2), len(args) == 3); errors.Is(err, hm.ErrPassSkipped) {
 				return hm.ExitPassSkipped
 			}

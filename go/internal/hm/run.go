@@ -55,6 +55,7 @@ type Runner struct {
 	stepErrs      int                    // run steps of the last pass that failed
 	passSkipped   bool                   // the last pass did not run: another one held the lock
 	outMu         sync.Mutex             // guards Out
+	stableSums    sync.Map               // path|size|mtime of the stable binary to its checksum
 	stableRunning sync.Map               // projects whose stable pass runs
 	stableWG      sync.WaitGroup         // the stable passes
 	loads         map[string]loadReading // CPU load per machine, see load.go
