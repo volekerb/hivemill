@@ -12,13 +12,13 @@ func sessionTmpRoot(userHome string) string {
 	return filepath.Join(userHome, ".cache", "hivemill", "tmp")
 }
 
-// sessionEnv is the base env of a session. TMPDIR and CLAUDE_CODE_TMPDIR are the session's own dir; the go temp dir and
-// build cache are shared by all sessions.
+// sessionEnv is the base env of a session. TMPDIR is the session's own dir; the go temp dir and build cache are shared
+// by all sessions. CLAUDE_CODE_TMPDIR stays /tmp: the worker guards accept a scratchpad only under /tmp/claude-<uid>/.
 func sessionEnv(userHome, name string) map[string]string {
 	tmp := filepath.Join(sessionTmpRoot(userHome), name)
 	godir := filepath.Join(userHome, ".cache", "hivemill", "go")
 	return map[string]string{"PATH": sessionPath(userHome), "LANG": "C.UTF-8", "TERM": "xterm-256color", "HOME": userHome,
-		"FACTORY_AGENT": name, "TMPDIR": tmp, "CLAUDE_CODE_TMPDIR": tmp,
+		"FACTORY_AGENT": name, "TMPDIR": tmp, "CLAUDE_CODE_TMPDIR": "/tmp",
 		"GOTMPDIR": filepath.Join(godir, "tmp"), "GOCACHE": filepath.Join(godir, "build")}
 }
 

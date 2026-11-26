@@ -11,7 +11,7 @@ func TestSessionEnvValues(t *testing.T) {
 	env := sessionEnv("/h", "t-1")
 	for k, want := range map[string]string{
 		"TMPDIR":             "/h/.cache/hivemill/tmp/t-1",
-		"CLAUDE_CODE_TMPDIR": "/h/.cache/hivemill/tmp/t-1",
+		"CLAUDE_CODE_TMPDIR": "/tmp",
 		"GOTMPDIR":           "/h/.cache/hivemill/go/tmp",
 		"GOCACHE":            "/h/.cache/hivemill/go/build",
 		"HOME":               "/h",
