@@ -145,8 +145,12 @@ jobs:
           python3 "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       # setup-go builds ci-shard in the next step (the step count and docs gates are pinned by tests/test_ci_tier.py).
+      # GOTOOLCHAIN=local, as in the Go jobs: go.mod's "go" line is the spec, so a cached Go is used. Without it setup-go
+      # wants the exact "toolchain" version, and ten shards installing it into one shared tool cache break each other.
       - uses: actions/setup-go@v7
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
+        env:
+          GOTOOLCHAIN: local
         with:
           go-version-file: go/go.mod
           cache: false
@@ -779,6 +783,8 @@ jobs:
         with:
           python-version: "3.13"
       - uses: actions/setup-go@v7
+        env:
+          GOTOOLCHAIN: local
         with:
           go-version-file: go/go.mod
           cache: false
