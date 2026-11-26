@@ -49,7 +49,7 @@ Or, from G-048 P5c: `go run ./cmd/ci-release-check <sha> [--version X.Y.Z] [--re
 1. `on-main`: the SHA is on the first-parent history of origin/main.
 2. `version`: the version is `X.Y.Z` and equals `VERSION` at the SHA.
 3. `ci-green`: a completed, successful `tests.yml` push run exists for the SHA (push runs on main run the full suite).
-4. `notes`: `GOTOOLCHAIN=local go run ./cmd/ci-changelog --check-version VERSION` (from `go/`) passes and the release notes contain 0 placeholders (the FAIL line names each hit with its line number).
+4. `notes`: `GOTOOLCHAIN=local go run ./cmd/ci-changelog --check-version <version>` (from `go/`) passes and the release notes contain 0 placeholders (the FAIL line names each hit with its line number).
 5. `fresh-install-smoke`: from a detached checkout of the SHA, with a temporary `HOME` and `FACTORY_HOME`, `factory --version` prints `hivemill <version>`, `ci/demo_seed.py` succeeds and `factory serve` on the demo home answers HTTP 200. The live factory is never touched.
 6. `public-text`: the public-text guard passes on the release notes. Without owner terms the guard exits 2 and the check fails; it is never skipped.
 7. `tag-free`: `v<version>` is not on origin yet.
