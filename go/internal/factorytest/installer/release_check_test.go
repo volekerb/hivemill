@@ -1,6 +1,6 @@
 package installer
 
-// Port of tests/test_release_check.py (42 cases) to the Go ci-release-check tool.
+// Port of tests/test_release_check.py (40 cases) to the Go ci-release-check tool.
 //
 // Unit-style cases (CheckTest) call releasecheck.Exec with a fake process runner, the same process boundary the
 // Python tests inject (git, gh and the python children). The real-git cases build a temp repo and use the real
@@ -14,8 +14,6 @@ package installer
 //     ci/release-notes/<ver>.md, written by the fake clone. "### Upgrade" is the last line of the fake notes.
 //   - --repo is a DIR or an OWNER/NAME slug, never both, so the real-git cases pass --repo DIR and the repo gets an
 //     origin remote that names acme/widget.
-//   - test_cursor_runtime_resolve_contract runs the real scout/agent_runtime.py through python3 (the Python original
-//     imported it directly).
 //   - Default env gets a throw-away FACTORY_HOME so the config lookup never reads the real ~/factory.
 
 import (
@@ -36,7 +34,7 @@ import (
 
 var rcSHA = strings.Repeat("a", 40)
 
-var rcChecks = []string{"on-main", "version", "ci-green", "notes", "fresh-install-smoke", "public-text", "tag-free", "cursor-runtime"}
+var rcChecks = []string{"on-main", "version", "ci-green", "notes", "fresh-install-smoke", "public-text", "tag-free"}
 
 const rcTermsEnv = "SCRUB_" + "TERMS_FILE"
 
@@ -120,12 +118,11 @@ func (f *rcFake) run(argv []string, cwd string, env []string, timeout time.Durat
 		return r.rc, r.out, r.err
 	}
 	switch {
-	case k == "git-clone": // the fake checkout: what the notes check and the cursor tree read
+	case k == "git-clone": // the fake checkout: what the notes check reads
 		src := argv[len(argv)-1]
 		rcWrite(f.t, filepath.Join(src, "VERSION"), f.version+"\n")
 		rcWrite(f.t, filepath.Join(src, "CHANGELOG.md"), f.changelog)
 		rcWrite(f.t, filepath.Join(src, "ci", "release-notes", f.version+".md"), f.notes)
-		rcWrite(f.t, filepath.Join(src, "scout", "agent_runtime.py"), "")
 		return 0, "", ""
 	case k == "git-show:VERSION":
 		if r, ok := f.over["git-show"]; ok {
@@ -530,43 +527,6 @@ func TestReleaseCheckTagFreeFailLsRemoteError(t *testing.T) {
 	rcAssertFail(t, "tag-free", "0.3.1", map[string]rcRes{"git-ls-remote": {128, "", "no network"}}, nil)
 }
 
-func TestReleaseCheckCursorRuntimePassesOnRealTree(t *testing.T) {
-	_, lines := rcGo(t, newRCFake(t, "0.3.1", nil))
-	if s := rcStatus(t, lines, "cursor-runtime"); s != "PASS" {
-		t.Fatalf("%s: %v", s, lines)
-	}
-	contains(t, rcLine(t, lines, "cursor-runtime"), "pm/claude")
-}
-
-func TestReleaseCheckCursorRuntimeResolveContract(t *testing.T) {
-	py, err := exec.LookPath("python3")
-	if err != nil {
-		t.Skip("python3 not installed")
-	}
-	root, err := ft.RepoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	snippet := "from scout.agent_runtime import parse_runtimes, resolve_runtime\n" +
-		"print(resolve_runtime('pm', ''), parse_runtimes('*=cursor').get('coder'), resolve_runtime('evaluator', '*=cursor'))\n"
-	c := exec.Command(py, "-c", snippet)
-	c.Dir = root
-	c.Env = append(os.Environ(), "PYTHONPATH="+root)
-	out, err := c.CombinedOutput()
-	if err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
-	if got := strings.TrimSpace(string(out)); got != "claude cursor claude" {
-		t.Fatalf("got %q, want %q", got, "claude cursor claude")
-	}
-}
-
-func TestReleaseCheckCursorRuntimeFailMissingAdapter(t *testing.T) {
-	path := "roles/hooks/cursor-guard-adapter.py"
-	lines := rcAssertFail(t, "cursor-runtime", "0.3.1", map[string]rcRes{"git-show:" + path: {128, "", "missing"}}, nil)
-	rcLine(t, lines, "FAIL cursor-runtime:")
-}
-
 func TestReleaseCheckUnresolvableShaExit2(t *testing.T) {
 	f := newRCFake(t, "0.3.1", map[string]rcRes{"git-rev-parse": {128, "", "Needed a single revision"}})
 	code, lines := rcGo(t, f)
@@ -699,7 +659,7 @@ func TestReleaseCheckTempRemovedAfterFailure(t *testing.T) {
 	}
 }
 
-// rcRepo is the Python RealGitTest.setUp: a real temp repo with a stub CLI, the cursor runtime files, origin/main
+// rcRepo is the Python RealGitTest.setUp: a real temp repo with a stub CLI, origin/main
 // at the first commit and a "side" commit off main.
 type rcRepoFix struct {
 	dir, sha, side string
@@ -715,10 +675,6 @@ func newRCRepo(t *testing.T) *rcRepoFix {
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 not installed")
 	}
-	root, err := ft.RepoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
 	r := &rcRepoFix{dir: t.TempDir()}
 	rcWrite(t, filepath.Join(r.dir, "bin", "factory"), "import sys\nprint('hivemill 0.3.1 (git x)' if sys.argv[1:] == ['--version'] else '')\n")
 	rcWrite(t, filepath.Join(r.dir, "ci", "demo_seed.py"), "import sys,os\nos.makedirs(sys.argv[2])\n")
@@ -726,13 +682,6 @@ func newRCRepo(t *testing.T) *rcRepoFix {
 	// the Go notes check runs in-process on the checkout, so the notes are real files here (Python stubbed changelog.py)
 	rcWrite(t, filepath.Join(r.dir, "CHANGELOG.md"), "## [0.3.1] - x\n")
 	rcWrite(t, filepath.Join(r.dir, "ci", "release-notes", "0.3.1.md"), "Notes.\n\n### Upgrade\n\nRun it.\n")
-	for _, rel := range []string{"scout/cursor_harness.py", "roles/hooks/cursor-guard-adapter.py", "scout/agent_runtime.py", "scout/__init__.py"} {
-		b, err := os.ReadFile(filepath.Join(root, rel))
-		if err != nil {
-			t.Fatal(err)
-		}
-		rcWrite(t, filepath.Join(r.dir, rel), string(b))
-	}
 	r.git(t, "init", "-q", "-b", "main")
 	r.git(t, "remote", "add", "origin", "https://github.com/acme/widget.git")
 	r.git(t, "add", ".")
@@ -777,6 +726,22 @@ func TestReleaseCheckOnMainAndSmokePassOnRealRepo(t *testing.T) {
 	got := []string{rcStatus(t, lines, "on-main"), rcStatus(t, lines, "fresh-install-smoke")}
 	if got[0] != "PASS" || got[1] != "PASS" || code != 0 {
 		t.Fatalf("%v exit %d: %v", got, code, lines)
+	}
+}
+
+func TestReleaseCheckPassesWithoutScoutDirRealRepo(t *testing.T) {
+	r := newRCRepo(t)
+	if _, err := os.Stat(filepath.Join(r.dir, "scout")); !os.IsNotExist(err) {
+		t.Fatalf("the fixture must have no scout/ dir: %v", err)
+	}
+	code, lines := r.exec(t, r.sha)
+	for _, name := range rcChecks {
+		if s := rcStatus(t, lines, name); s != "PASS" {
+			t.Errorf("%s %s: %v", name, s, lines)
+		}
+	}
+	if code != 0 {
+		t.Fatalf("exit %d: %v", code, lines)
 	}
 }
 

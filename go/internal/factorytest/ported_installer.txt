@@ -6,7 +6,7 @@
 tests/test_hivemill_install.py 69 -> internal/factorytest/installer:TestHivemillInstall 72
 tests/test_hivemill_plugin.py 27 -> internal/factorytest/installer:TestHivemillPlugin 27
 tests/test_plugins.py 9 -> internal/factorytest/installer:TestPlugins 9
-tests/test_release_check.py 42 -> internal/factorytest/installer:TestReleaseCheck 42
+tests/test_release_check.py 40 -> internal/factorytest/installer:TestReleaseCheck 40
 tests/test_demo_tour.py 9 -> internal/factorytest/installer:TestDemoTour 9
 tests/test_ci_tier.py 32 -> internal/factorytest/installer:TestCiTier 32
 tests/test_affected.py 38 -> internal/factorytest/installer:TestAffected 38
