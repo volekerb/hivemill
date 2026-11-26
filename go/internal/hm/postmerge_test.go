@@ -559,3 +559,40 @@ func TestPostMergeCancelledGoalStaysCancelled(t *testing.T) {
 		t.Errorf("alert rows: %d %v", n, err)
 	}
 }
+
+// A run the red holds neither keeps nor blocks the repo's refresh slot.
+func TestPostMergeRedFreesRefreshSlot(t *testing.T) {
+	r, s, _ := pmRunner(t)
+	held, fix := pmRun("T-0001", "www"), pmRun("T-0002", "www")
+	for _, x := range []*Run{held, fix} {
+		if err := s.PutRun(x); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if h := r.refreshHolder(held); h != "" {
+		t.Fatalf("free slot held by %s", h)
+	}
+	if h := r.refreshHolder(fix); h != held.Task {
+		t.Fatalf("before the red: holder %q", h)
+	}
+	if err := s.SetRedMain("zz-test/www", map[string]any{"source": postMergeSource, "task": fix.Task}); err != nil {
+		t.Fatal(err)
+	}
+	if h := r.refreshHolder(fix); h != "" {
+		t.Errorf("the fix-forward waits for %s", h)
+	}
+}
+
+// A PR merged by hand that does not name its merge commit yet: the run waits, its lost session is not resumed or failed.
+func TestPostMergeByHandWaitsForCommit(t *testing.T) {
+	r, s, _ := pmRunner(t)
+	r.Tools.GH = func(string, ...string) (int, string, string) { return 0, `{"state":"MERGED"}`, "" }
+	run := pmRun("T-0001", "www")
+	run.State, run.Agent = Working, "gone"
+	if !r.reconcile(run, nil, true) {
+		t.Error("the pass went on with the run")
+	}
+	if x, _ := s.Run("T-0001"); run.State != Working || run.Resumes != 0 || x == nil || x.PostMerge != PostMergePending {
+		t.Errorf("run %s, %d resumes, stored %+v", run.State, run.Resumes, x)
+	}
+}

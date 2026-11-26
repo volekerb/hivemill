@@ -167,10 +167,16 @@ func (r *Runner) postMergeHold(run *Run) string {
 	if r.postMergePending(run) {
 		return postMergeRunning
 	}
-	if st, red := r.Store.RedMain(strings.ToLower(run.Repo)); red && fromPostMerge(st) && !mayMergeRed(st, run.Task) {
+	if r.postMergeRedHolds(run) {
 		return postMergeHeld
 	}
 	return ""
+}
+
+// postMergeRedHolds: a red post_merge_cmd holds the run, which is not one of the tasks that may merge on that red.
+func (r *Runner) postMergeRedHolds(run *Run) bool {
+	st, red := r.Store.RedMain(strings.ToLower(run.Repo))
+	return red && fromPostMerge(st) && !mayMergeRed(st, run.Task)
 }
 
 // PostMergeCheck starts the oldest pending post_merge_cmd of every project that has none running. It does not wait:

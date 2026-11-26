@@ -293,6 +293,10 @@ func (r *Runner) Merge(run *Run) {
 		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
 		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+".")
 	case "refresh":
+		if r.postMergeRedHolds(run) { // it cannot merge: the refresh slot is for the fix-forward
+			run.MergeHold = "hold: " + postMergeHeld
+			return
+		}
 		if h := r.refreshHolder(run); h != "" {
 			run.MergeHold = "hold: waiting for " + h + " to merge (one refresh at a time per repo)"
 			return
@@ -838,7 +842,7 @@ func (r *Runner) refreshHolder(run *Run) string {
 	key := "refresh_slot:" + strings.ToLower(run.Repo)
 	if f := strings.SplitN(r.Store.Meta(key), " ", 2); len(f) == 2 && f[0] != run.Task {
 		if t, err := time.Parse(time.RFC3339, f[1]); err == nil && time.Since(t) < refreshSlotTTL {
-			if h, err := r.Store.Run(f[0]); err == nil && h != nil && h.State == Merging {
+			if h, err := r.Store.Run(f[0]); err == nil && h != nil && h.State == Merging && !r.postMergeRedHolds(h) {
 				return f[0]
 			}
 		}

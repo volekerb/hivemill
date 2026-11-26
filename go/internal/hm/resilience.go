@@ -31,6 +31,9 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 		if pr, err := PRView(r.Tools, run.PRURL); err == nil && pr.State != "OPEN" {
 			if pr.State == "MERGED" && !run.Eval {
 				r.finishMergedElsewhere(run, pr)
+				if run.State != Merged { // waits for the merge commit: its session is not lost, the run has not failed
+					return true
+				}
 				fixed = append(fixed, "PR merged by hand")
 			} else {
 				r.fail(run, "the PR was closed by hand")
@@ -193,6 +196,9 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		return err
 	}
 	defer release()
+	// also ends when another host takes over, so a running post_merge_cmd does not outlive this daemon
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	bin, err := os.Executable()
 	if err != nil {
 		bin = "hivemill"
@@ -206,6 +212,8 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	for {
 		if err := r.refreshDaemonLock(host, time.Now()); errors.Is(err, ErrRefused) { // another host took over
 			sdNotify("STOPPING=1")
+			cancel()
+			r.WaitPostMerge()
 			return err
 		} else if err != nil { // a full disk or a brief I/O error does not stop the runner
 			r.printf("daemon lock: %v\n", err)
