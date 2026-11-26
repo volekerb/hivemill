@@ -1,7 +1,6 @@
 package hm
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -168,35 +167,6 @@ func (r *Runner) waitingBlock() string {
 // Candidates are ready tasks a plain pass may start (config projects): deps done, spec set, spec gate passing.
 func (r *Runner) Candidates() ([]Task, error) { return r.ReadyIn(csv(r.Store.Cfg("projects"))) }
 
-// ReadyIn are the tasks of these projects a pass would start: todo, deps done, spec set, spec gate passing, and never run
-// before (a task with any run, failed or cancelled included, is not started again: file a new one).
-func (r *Runner) ReadyIn(projects []string) ([]Task, error) {
-	ts, err := r.Store.ReadyTasks(projects)
-	if err != nil || len(ts) == 0 {
-		return nil, err
-	}
-	done, err := r.Store.DoneTasks()
-	if err != nil {
-		return nil, err
-	}
-	var out []Task
-	for _, t := range ts {
-		var deps []string
-		_ = json.Unmarshal([]byte(t.DependsOn), &deps)
-		ok := strings.TrimSpace(t.Spec) != "" && len(LintProblems(t.Acceptance)) == 0
-		for _, d := range deps {
-			ok = ok && done[d]
-		}
-		if old, _ := r.Store.Run(t.ID); old != nil {
-			ok = false
-		}
-		if ok {
-			out = append(out, t)
-		}
-	}
-	return out, nil
-}
-
 // ErrRefused is a start the runner refuses (exit 3).
 var ErrRefused = errors.New("refused")
 
@@ -302,8 +272,8 @@ func (r *Runner) Start(id string) error {
 			caps.MemMin, strings.Join(pl.Skipped, "; "))
 	}
 	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
-	// session's first mid-work stop as a gate attempt, and they describe another head.
-	for _, f := range []string{"findings.json", "evidence.json"} {
+	// session's first mid-work stop as a gate attempt, and they describe another head. An old blocked.md would end its /goal.
+	for _, f := range []string{"findings.json", "evidence.json", "blocked.md"} {
 		if mirror == "" { // remoteWorktree removed them in a remote worktree
 			_ = os.Remove(filepath.Join(wt, ".hivemill", f))
 		}
@@ -323,7 +293,7 @@ func (r *Runner) Start(id string) error {
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
-	if err := r.launchTask(run, Kickoff(run, t)); err != nil {
+	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, Kickoff(run, t))); err != nil {
 		return err
 	}
 	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,
@@ -541,6 +511,9 @@ func (r *Runner) Pass(startNew bool) error {
 	}
 	if err := r.RevertCheck(); err != nil {
 		r.printf("revert check: %v\n", err)
+	}
+	if err := r.reportUnstartable(); err != nil {
+		r.printf("unstartable tasks: %v\n", err)
 	}
 	// every pass records a waiting pause that starts or ends, also one that dispatches nothing below
 	paused := r.waitingBlock()

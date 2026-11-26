@@ -271,7 +271,7 @@ else
 fi
 mkdir -p .hivemill .git/info .git/hooks
 grep -qxF '/.hivemill/' .git/info/exclude 2>/dev/null || printf '\n/.hivemill/\n' >> .git/info/exclude
-rm -f .hivemill/findings.json .hivemill/evidence.json
+rm -f .hivemill/findings.json .hivemill/evidence.json .hivemill/blocked.md
 cat > .git/hooks/pre-push
 chmod 755 .git/hooks/pre-push`, shlex.Quote(url), shlex.Quote(path.Join(base, "cache", strings.ReplaceAll(name, "/", "-")+".git")),
 		shlex.Quote(wt), shlex.Quote(branch), shlex.Quote(t.Base))
