@@ -49,6 +49,8 @@ type Run struct {
 	LastBlock        string // the problems of the last gate block, to tell progress from a repeated block
 	BlockStops       int    // gate stops blocked in this round, progress or not (hard limit 3x gate_max_blocks)
 	Machine          string `json:",omitempty"` // hc machine of the task session ("" = the local core); resumes go there too
+	Guarded          string `json:",omitempty"` // head and limits of the last merge.guarded event
+	Unattended       bool   `json:",omitempty"` // the runner merges this T3 run without the owner
 }
 
 // Session is one Claude session of a run (task, judge).

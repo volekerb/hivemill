@@ -12,7 +12,7 @@ Reasons:
 - `queue_low:<project>=<ready>/<min>`: fewer lint-passing ready tasks than `planner_queue_min` in a project with an active goal.
 - `not_dispatched:<project>`: the project has an active goal, but it is not in the config key `projects`, so no pass starts its tasks. Only the owner can change that: ask once.
 - `task.failed:<ids>`: runs that failed (gate cap, judge REJECT rounds, CI rounds, budget, session lost).
-- `run.held:<ids>`: runs held for the owner (T3 diff, or judge HOLD). The runner has already filed an owner question for each.
+- `run.held:<ids>`: runs held for the owner (a T3 hard limit or manual: criterion, or judge HOLD). The runner has already filed an owner question for each.
 - `budget.reached`: a budget cap holds new runs.
 - `goal.checked:<goal>` or `goal_done:<goal>`: a goal's last task merged; its checks ran.
 - `ask.answered:#<n>`: the owner answered a question.
@@ -39,7 +39,7 @@ Reasons:
 A task that ran once is never started again. For a failed run, read why (`hivemill task show`, `hivemill run status`, the PR) and choose one:
 - **Split**: the task was too big or mixed two changes. Cancel it (`hivemill task cancel`) and file two or three smaller tasks.
 - **Spec fix**: the spec or a proof was wrong or unclear. Cancel it and file a corrected task with a new title.
-- **Owner question**: only the owner can decide (product choice, credentials, a T3 area, a judge HOLD on an unasked change). `hivemill ask add --task T-NNNN '...'`.
+- **Owner question**: only the owner can decide (product choice, credentials, a T3 hard limit, a judge HOLD on an unasked change). `hivemill ask add --task T-NNNN '...'`.
 
 Never cancel a held run's task: the owner merges or closes its PR. Its question is already in the owner queue.
 

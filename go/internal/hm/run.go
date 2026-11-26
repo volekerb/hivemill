@@ -23,7 +23,7 @@ const (
 	Failed    = "failed"
 	Reverted  = "reverted"
 	Cancelled = "cancelled"
-	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, holds no slot
+	Held      = "held" // the owner decides (a hard limit, judge HOLD, a tier the runner does not merge); not a failure, holds no slot
 )
 
 // Active reports whether a run still holds a slot.

@@ -14,7 +14,7 @@ const Harness = "claude-code"
 
 // Event is one line of state/hivemill/events.jsonl (docs/option-b-runner.md#event-log). Known kinds:
 // task.dispatched, session.started, session.ended, session.closed, gate.blocked, gate.passed, review.findings, ci.red,
-// pr.refreshed, judge.verdict, pr.merged, pr.reverted, task.failed, task.cancelled, goal.checked.
+// pr.refreshed, judge.verdict, merge.guarded, pr.merged,pr.reverted, task.failed, task.cancelled, goal.checked.
 type Event struct {
 	TS      string         `json:"ts"`
 	Event   string         `json:"event"`
