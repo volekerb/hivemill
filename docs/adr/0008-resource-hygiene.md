@@ -102,7 +102,7 @@ Every kind has built-in predicates (cannot be disabled) and lists the actions it
 ## G. Schedule
 - macOS: ~/Library/LaunchAgents/dev.hivemill.clean.plist, StartCalendarInterval daily (default 04:30), ProgramArguments <abs hm-clean> run --scheduled --mode <m>, StandardOutPath/StandardErrorPath in the state dir, loaded with `launchctl bootstrap gui/<uid>`; `launchctl kickstart` for "run now".
 - Linux: ~/.config/systemd/user/hm-clean.service (Type=oneshot, Nice=10, IOSchedulingClass=idle) + hm-clean.timer (OnCalendar=*-*-* 04:30, Persistent=true, RandomizedDelaySec=15m), `systemctl --user enable --now hm-clean.timer`.
-- Reuse: go/internal/launchd is fixed to the four factory labels and FactoryHome; go/internal/schedule is the factory DB schedules table. Neither fits as is. hm-clean renders its own two templates in go/internal/kit/clean/schedule and may import exported go/internal/launchd helpers read-only; it never edits them.
+- Reuse: go/internal/launchd was deleted as dead code (it was fixed to the four factory labels and FactoryHome); go/internal/schedule is the factory DB schedules table. Neither fits as is. hm-clean renders its own two templates in go/internal/kit/clean/schedule.
 - `schedule status` prints the next run and the last result from the state dir.
 
 ## H. Skill layout decision (SC6) and dependency on G-059
