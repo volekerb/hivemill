@@ -76,10 +76,23 @@ def _block(rows, i):
 
 def _flow_line(s):
     """One line of a flow value: quoted names unquoted, other quoted text blanked (brackets and # in it are text), comment cut."""
-    if "\\" in s or s.count("'") % 2 or s.count('"') % 2:  # escapes or a quote open across lines: reported as unparsed
-        return "\x00"
-    s = re.sub(r"'[^']*'|\"[^\"]*\"", lambda q: q.group(0)[1:-1] if re.fullmatch(r"[A-Za-z_][\w-]*", q.group(0)[1:-1]) else "_q", s)
-    return re.sub(r"(^|\s+)#.*$", "", s).strip()
+    out, i = [], 0
+    while i < len(s):
+        c = s[i]
+        starts = i == 0 or s[i - 1] in " \t[{,:"  # a quote opens a scalar only at its start (`it's` is plain text)
+        if c == "#" and starts and (i == 0 or s[i - 1] in " \t"):
+            break  # a comment
+        if c in "'\"" and starts:
+            q = re.compile(r"'(?:[^']|'')*'" if c == "'" else r'"[^"\\]*"').match(s, i)
+            if not q:  # an escape, or a quote open across lines: the caller reports the value as unparsed
+                return "\x00"
+            body = q.group(0)[1:-1]
+            out.append(body if re.fullmatch(r"[A-Za-z_][\w-]*", body) else "_q")
+            i = q.end()
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out).strip()
 
 
 def _flow_top(s):
@@ -342,6 +355,8 @@ class RunnerRule(PolicyBase):  # a
                          ("? on\n: [issue_comment]\n", "<unparsed>")):
             self.assertBlocked(wf.replace(block, on), want)
         self.assertClean(wf.replace(block, "on: {pull_request: {branches: [main]},\n  workflow_dispatch: {}}\n"))
+        self.assertClean(wf.replace(block, "on: [push, pull_request]  # don't add schedule here\n"))
+        self.assertClean(wf.replace(block, "on: {pull_request: {branches: [it's]}}\n"))
         self.assertBlocked(wf.replace(block, "on: {push: {branches: ['[', 'x #y']}, issue_comment: {}}\n"),
                            "issue_comment")
         # a hosted workflow whose triggers cannot be read fails too, so a banned trigger cannot hide there
