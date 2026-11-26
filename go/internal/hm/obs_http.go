@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,15 +18,39 @@ import (
 	"time"
 )
 
-// `hivemill obs`: a read-only dashboard on 127.0.0.1. html/template pages and one embedded stylesheet, no script,
+// `hivemill obs`: a read-only dashboard, on 127.0.0.1 unless --listen says otherwise. html/template pages and one embedded stylesheet, no script,
 // nothing loaded from another origin. Sidebar: Now, Spend, Flow; the drill-down zoom (project -> goal -> task ->
 // session) stays under Now. Header: project, time range, machine, harness, theme. JSON of every page: /api/obs/*.
 
 //go:embed assets/obs
 var obsFS embed.FS
 
-// ObsAddr is the listen address: loopback only.
-func ObsAddr(port int) string { return net.JoinHostPort("127.0.0.1", strconv.Itoa(port)) }
+// ObsAddr is the listen address of host and port.
+func ObsAddr(host string, port int) string { return net.JoinHostPort(host, strconv.Itoa(port)) }
+
+// ObsListen picks the bind host: --listen, else config obs_listen, else 127.0.0.1. It takes an IP literal or
+// localhost, and warns on stderr when the host is not loopback.
+func ObsListen(flagHost, cfgHost string, stderr io.Writer) (string, error) {
+	host := strings.TrimSpace(or(strings.TrimSpace(flagHost), strings.TrimSpace(cfgHost)))
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if err := checkBindHost(host); err != nil {
+		return "", err
+	}
+	if !loopbackHost(host) {
+		fmt.Fprintf(stderr, "WARNING: hivemill obs listens on %s: the page is read-only but readable by anyone on that network\n", host)
+	}
+	return host, nil
+}
+
+// checkBindHost refuses a host that is not an IP literal or localhost.
+func checkBindHost(h string) error {
+	if h != "localhost" && net.ParseIP(h) == nil {
+		return fmt.Errorf("obs listens on an IP address or localhost, not %q", h)
+	}
+	return nil
+}
 
 // CheckLoopback refuses an address that is not a loopback address.
 func CheckLoopback(addr string) error {
@@ -49,6 +74,7 @@ type obsServer struct {
 	priced time.Time
 	usage  map[string]SessUsage
 	now    func() time.Time
+	wide   bool // bound beyond loopback: an IP literal Host is answered too
 }
 
 // usages prices this machine's sessions from their transcripts at most once a minute.
@@ -90,21 +116,28 @@ func (s *obsServer) load(f ObsFilter) (*Obs, []ObsSource, error) {
 }
 
 // ObsHandler is the page. It answers GET and HEAD only, and only for a loopback Host (no DNS rebinding).
-func (r *Runner) ObsHandler() (http.Handler, error) {
+func (r *Runner) ObsHandler() (http.Handler, error) { return r.obsHandler(false) }
+
+// obsHandler is ObsHandler; wide also answers a Host that is an IP literal (a DNS name stays refused).
+func (r *Runner) obsHandler(wide bool) (http.Handler, error) {
 	t, err := template.New("page.html").Funcs(obsFuncs).ParseFS(obsFS, "assets/obs/*.html")
 	if err != nil {
 		return nil, err
 	}
-	s := &obsServer{r: r, tmpl: t, now: time.Now}
+	s := &obsServer{r: r, tmpl: t, now: time.Now, wide: wide}
 	return s, nil
 }
 
-// ServeObs serves the page on addr until ctx ends.
+// ServeObs serves the page on addr (an IP address or localhost, with a port) until ctx ends.
 func (r *Runner) ServeObs(ctx context.Context, addr string) error {
-	if err := CheckLoopback(addr); err != nil {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
 		return err
 	}
-	h, err := r.ObsHandler()
+	if err := checkBindHost(host); err != nil {
+		return err
+	}
+	h, err := r.obsHandler(CheckLoopback(addr) != nil)
 	if err != nil {
 		return err
 	}
@@ -131,6 +164,14 @@ func loopbackHost(h string) bool {
 	}
 	ip := net.ParseIP(h)
 	return ip != nil && ip.IsLoopback()
+}
+
+// ipHost reports whether a Host header names an IP literal, with or without a port.
+func ipHost(h string) bool {
+	if x, _, err := net.SplitHostPort(h); err == nil {
+		h = x
+	}
+	return net.ParseIP(strings.Trim(h, "[]")) != nil
 }
 
 type crumb struct{ Label, Href string }
@@ -317,8 +358,8 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "read-only", http.StatusMethodNotAllowed)
 		return
 	}
-	if !loopbackHost(req.Host) {
-		http.Error(w, "loopback only", http.StatusForbidden)
+	if !loopbackHost(req.Host) && !(s.wide && ipHost(req.Host)) {
+		http.Error(w, "host refused", http.StatusForbidden)
 		return
 	}
 	if req.URL.Path == "/assets/obs/app.css" {

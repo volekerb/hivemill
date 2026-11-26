@@ -1,6 +1,7 @@
 package hm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -431,8 +432,80 @@ func TestObsPageIsReadOnlyLoopbackAndZooms(t *testing.T) {
 			t.Errorf("%s accepted", a)
 		}
 	}
-	if CheckLoopback(ObsAddr(7461)) != nil || CheckLoopback("[::1]:1") != nil {
+	if CheckLoopback(ObsAddr("127.0.0.1", 7461)) != nil || CheckLoopback("[::1]:1") != nil {
 		t.Error("loopback refused")
+	}
+}
+
+func TestObsListenDefaultLoopback(t *testing.T) {
+	r, _ := obsRunner(t)
+	var warn strings.Builder
+	for _, cfg := range []string{"", r.Store.Cfg("obs_listen")} {
+		if h, err := ObsListen("", cfg, &warn); err != nil || h != "127.0.0.1" {
+			t.Fatalf("config %q: %q %v", cfg, h, err)
+		}
+	}
+	for _, in := range []string{"localhost", "::1"} {
+		if h, err := ObsListen(in, "0.0.0.0", &warn); err != nil || h != in {
+			t.Fatalf("flag %q over config: %q %v", in, h, err)
+		}
+	}
+	if warn.Len() != 0 {
+		t.Fatalf("a warning on loopback: %q", warn.String())
+	}
+}
+
+func TestObsListenFlag(t *testing.T) {
+	for _, c := range [][2]string{{"0.0.0.0", ""}, {"", "0.0.0.0"}, {"0.0.0.0", "127.0.0.1"}} {
+		var warn strings.Builder
+		h, err := ObsListen(c[0], c[1], &warn)
+		if err != nil || h != "0.0.0.0" || ObsAddr(h, 7461) != "0.0.0.0:7461" {
+			t.Fatalf("%q: %q %v", c, h, err)
+		}
+		if w := warn.String(); !strings.HasPrefix(w, "WARNING:") || strings.Count(w, "\n") != 1 || !strings.Contains(w, "anyone on that network") {
+			t.Fatalf("%q: warning %q", c, w)
+		}
+	}
+	r, _ := obsRunner(t)
+	for _, c := range []struct {
+		wide bool
+		host string
+		code int
+	}{
+		{true, "192.0.2.1:7461", 200}, {true, "[2001:db8::1]:7461", 200}, {true, "localhost:7461", 200},
+		{true, "evil.example:7461", 403}, {false, "192.0.2.1:7461", 403},
+	} {
+		h, err := r.obsHandler(c.wide)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Host = c.host
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != c.code {
+			t.Errorf("wide=%v Host %s: %d, want %d", c.wide, c.host, w.Code, c.code)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := r.ServeObs(ctx, ObsAddr("0.0.0.0", 0)); err != nil {
+		t.Errorf("a non-loopback IP address: %v", err)
+	}
+	if err := r.ServeObs(ctx, "evil.example:0"); err == nil {
+		t.Error("ServeObs took a host name")
+	}
+}
+
+func TestObsListenBadHost(t *testing.T) {
+	for _, in := range []string{"box-b", "evil.example", "127.0.0.1:7461", "[::1]"} {
+		var warn strings.Builder
+		if h, err := ObsListen(in, "", &warn); err == nil || warn.Len() != 0 {
+			t.Errorf("flag %q: %q %v %q", in, h, err, warn.String())
+		}
+		if h, err := ObsListen("", in, &warn); err == nil {
+			t.Errorf("config %q: %q accepted", in, h)
+		}
 	}
 }
 
