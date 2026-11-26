@@ -92,12 +92,16 @@ func checkFindings(path string) ([]string, []Finding, string) {
 // onlyBaseMerges reports whether head is the reviewed commit plus nothing but clean merges of origin/base, so the review
 // still holds. Each commit on head's first-parent path down to reviewed must merge a commit of origin/base, and its tree
 // must be exactly git's own merge of its two parents: a conflict resolution or any edit in the merge needs a new review.
+// The session owns the clone, so the base is named by its full ref, replace objects are off, and a clone with local merge
+// rules is refused.
 func (r *Runner) onlyBaseMerges(wt, base, reviewed, head string) bool {
-	g := r.Tools.Git
-	if !commitRe.MatchString(reviewed) { // session text: only a full commit id reaches git
+	g := func(args ...string) (int, string, string) {
+		return r.Tools.Git(wt, append([]string{"--no-replace-objects", "-c", "core.attributesFile=/dev/null"}, args...)...)
+	}
+	if !commitRe.MatchString(reviewed) || r.localMergeRules(wt) { // session text: only a full commit id reaches git
 		return false
 	}
-	rc, log, _ := g(wt, "log", "--first-parent", "--format=%H %P %T", reviewed+".."+head)
+	rc, log, _ := g("log", "--first-parent", "--format=%H %P %T", reviewed+".."+head)
 	if rc != 0 || log == "" {
 		return false
 	}
@@ -107,15 +111,37 @@ func (r *Runner) onlyBaseMerges(wt, base, reviewed, head string) bool {
 		if len(f) != 4 || f[0] != next {
 			return false
 		}
-		if rc, _, _ := g(wt, "merge-base", "--is-ancestor", f[2], "origin/"+base); rc != 0 {
+		if rc, _, _ := g("merge-base", "--is-ancestor", f[2], "refs/remotes/origin/"+base); rc != 0 {
 			return false
 		}
-		if rc, out, _ := g(wt, "merge-tree", "--write-tree", f[1], f[2]); rc != 0 || strings.TrimSpace(out) != f[3] {
+		if rc, out, _ := g("merge-tree", "--write-tree", f[1], f[2]); rc != 0 || strings.TrimSpace(out) != f[3] {
 			return false
 		}
 		next = f[1]
 	}
 	return next == reviewed
+}
+
+// localMergeRules reports whether the clone has uncommitted rules that change how git merges (a merge driver, a default
+// driver, info/attributes, an untracked .gitattributes), or cannot be asked: git would then repeat a merge the review
+// never saw, such as a union of two conflicting sides.
+func (r *Runner) localMergeRules(wt string) bool {
+	g := r.Tools.Git
+	if rc, _, _ := g(wt, "config", "--get-regexp", `^merge\.(default$|.*\.driver$)`); rc != 1 { // 1 = no such key
+		return true
+	}
+	rc, attrs, _ := g(wt, "rev-parse", "--git-path", "info/attributes")
+	if attrs = strings.TrimSpace(attrs); rc != 0 || attrs == "" {
+		return true
+	}
+	if !filepath.IsAbs(attrs) {
+		attrs = filepath.Join(wt, attrs)
+	}
+	if _, err := os.Stat(attrs); !os.IsNotExist(err) {
+		return true
+	}
+	rc, others, _ := g(wt, "ls-files", "--others", "--", ":(glob)**/.gitattributes")
+	return rc != 0 || strings.TrimSpace(others) != ""
 }
 
 // ReviewRan reports whether a /code-review ran in this round: Claude Code records a forked skill run as

@@ -154,6 +154,54 @@ func TestFindingsRefuseMergeOfNonBase(t *testing.T) {
 	}
 }
 
+// The clone is the session's: nothing in it may make another commit pass for main, or another tree for a clean merge.
+func TestFindingsRefuseCloneTricks(t *testing.T) {
+	// a local branch that shadows the short name origin/main
+	p := newReviewRepo(t)
+	p.advance("side", "side.txt", "side\n")
+	p.git("branch", "origin/main", "side")
+	p.merge("side")
+	if !p.stale(p.reviewed) {
+		t.Error("branch named origin/main: accepted")
+	}
+
+	// a replace ref that shows an edited merge as the clean one
+	p = newReviewRepo(t)
+	p.moveBase("other.txt", "base\n")
+	p.merge("origin/main")
+	clean := p.git("rev-parse", "HEAD")
+	p.commit("own.txt", "own\n")
+	edited := p.git("commit-tree", "HEAD^{tree}", "-p", p.reviewed, "-p", "origin/main", "-m", "merge")
+	p.git("reset", "-q", "--hard", edited)
+	p.git("replace", edited, clean)
+	if !p.stale(p.reviewed) {
+		t.Error("replace ref: accepted")
+	}
+
+	// local merge rules that join both sides of a conflict
+	for name, file := range map[string]string{"untracked .gitattributes": ".gitattributes", "info/attributes": ".git/info/attributes"} {
+		p = newReviewRepo(t)
+		if err := os.MkdirAll(filepath.Join(p.dir, ".git", "info"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(p.dir, file), []byte("*.txt merge=union\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		p.moveBase("shared.txt", "base\n2\n3\n4\n5\n6\n7\n8\n9\n")
+		p.merge("origin/main")
+		if !p.stale(p.reviewed) {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	p = newReviewRepo(t)
+	p.moveBase("other.txt", "base\n")
+	p.merge("origin/main")
+	p.git("config", "merge.default", "union")
+	if !p.stale(p.reviewed) {
+		t.Error("merge.default: accepted")
+	}
+}
+
 func TestTaskPromptMergesBeforeReview(t *testing.T) {
 	asset, err := Asset("task.md")
 	if err != nil {
