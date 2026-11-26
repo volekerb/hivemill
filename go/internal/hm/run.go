@@ -179,6 +179,10 @@ func (r *Runner) Start(id string) error {
 		r.usageAlert(caps, why)
 		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
+	if caps.Probe && caps.MemMB >= 0 && caps.MemMB < caps.MemMin {
+		return fmt.Errorf("%w: memory: %d MB available, floor %d MB, and the usage probe runs on %s", ErrRefused, caps.MemMB,
+			caps.MemMin, localMachine)
+	}
 	if caps.Probe {
 		_ = r.Log.Emit("usage.probe", nil, Event{TaskID: id, Data: map[string]any{"why": caps.UsageUnknown(r.Store),
 			"note": "one run starts to refresh the stale usage reading; no second run until it is fresh"}})

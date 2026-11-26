@@ -177,7 +177,7 @@ func TestUsageNewestAcrossMachines(t *testing.T) {
 	if got := strings.Join(reads, ","); got != "w-down,w1" {
 		t.Errorf("one read per machine until the next pass, local not read over hc: %s", got)
 	}
-	local(file("56", now))
+	local(file("56", now.Add(30*time.Second))) // slightly ahead of this clock: fresh, not "no updated_at"
 	if c = r.ReadCaps(now); *c.Usage.SevenDay != 56 {
 		t.Errorf("a newer local reading wins: %+v", c.Usage)
 	}
@@ -219,6 +219,14 @@ func TestProbeRunsLocal(t *testing.T) {
 		t.Fatal(err)
 	}
 	run, _ := s.Run("T-0001")
+	defer func() { // the probe never moves to a worker: a local core below the floor refuses it
+		_ = s.PutRun(&Run{Task: "T-0001", State: Cancelled})
+		_, _ = s.db.Exec(`UPDATE tasks SET status='todo'`)
+		withLocalMem(t, 100)
+		if err := r.Start("T-0001"); err == nil || !strings.Contains(err.Error(), "the usage probe runs on local") {
+			t.Errorf("probe below the local floor: %v", err)
+		}
+	}()
 	if run == nil || run.Machine != "" {
 		t.Fatalf("the probe run is local: %+v", run)
 	}

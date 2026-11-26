@@ -48,6 +48,9 @@ func ReadUsage(userHome string, now time.Time) Usage {
 	return parseUsage(b, now)
 }
 
+// usageSkewS is how far in the future an updated_at may be and still count as written now.
+const usageSkewS = 60
+
 // newestUsage is the reading the caps use: the one with the newest updated_at among the local file and the files of the
 // session machines, so a session placed elsewhere refreshes it too. A remote reading with no usable updated_at never
 // replaces the local one.
@@ -71,6 +74,11 @@ func parseUsage(b []byte, now time.Time) Usage {
 	u := Usage{FiveHour: pctField(m["five_hour_pct"]), SevenDay: pctField(m["seven_day_pct"]), Found: true, AgeS: -1}
 	if ts := pctField(m["updated_at"]); ts != nil {
 		u.AgeS = int(now.Sub(time.Unix(int64(*ts), 0)).Seconds())
+		// A file written while the other machines were being read, or by a machine whose clock runs a little ahead, is
+		// fresh. Further in the future stays negative: not trusted.
+		if u.AgeS < 0 && u.AgeS >= -usageSkewS {
+			u.AgeS = 0
+		}
 	}
 	return u
 }
