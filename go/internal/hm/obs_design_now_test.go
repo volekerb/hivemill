@@ -11,7 +11,7 @@ import (
 
 // the Now page's sections in the order docs/design/obs-ui.md gives them.
 var obsNowSections = []struct{ id, title string }{
-	{"held", "Held"}, {"questions", "Open questions"}, {"running", "Running"},
+	{"held", "Held for the owner"}, {"questions", "Open questions"}, {"running", "Running"},
 	{"planner", "Planner"}, {"projects", "Projects"}, {"machines", "Machines"},
 }
 

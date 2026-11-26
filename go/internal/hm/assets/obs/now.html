@@ -1,7 +1,7 @@
 {{define "now"}}{{with .NowPg}}
 <p><a href="#held">{{len .Held}} held</a> · <a href="#questions">{{.Questions}} open question{{if ne .Questions 1}}s{{end}}</a> · <a href="#running">{{len .Running}} running</a> · <a href="#planner">planner</a> · <a href="#projects">projects</a> · <a href="#machines">machines</a></p>
 
-<h2 id="held">Held</h2>
+<h2 id="held">Held for the owner</h2>
 {{if .Held}}<div class="scroll" tabindex="0" role="region" aria-labelledby="held"><table>
 <tr><th scope="col">task</th><th scope="col">machine</th><th scope="col">project</th><th scope="col" class="num">held for</th><th scope="col" class="num">$</th></tr>
 {{range .Held}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td class="num">{{dur .AgeSec}}</td><td class="num">{{usd .USD}}</td></tr>
