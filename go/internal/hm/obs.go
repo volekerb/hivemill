@@ -229,8 +229,8 @@ func (r *Runner) knownCoreName() string {
 }
 
 // listMachines adds every session_machines entry ("local" or the local core's name is this machine) and every source's
-// machine. coreName is asked only when an entry is not "local". While it is unknown, such an entry may be this machine
-// under its hc name, so it is listed only through its logs and placements.
+// machine. coreName is asked only when an entry is not "local". While it is unknown, every entry is listed from the
+// config, so this machine may show twice (once under its hc name).
 func (r *Runner) listMachines(o *Obs, sources []string, coreName func() string) {
 	names := append([]string(nil), sources...)
 	core, coreRead := "", false
@@ -240,8 +240,6 @@ func (r *Runner) listMachines(o *Obs, sources []string, coreName func() string) 
 		}
 		if m == localMachine || (core != "" && m == core) {
 			m = r.Machine()
-		} else if core == "" && m != r.Machine() {
-			continue
 		}
 		names = append(names, m)
 	}

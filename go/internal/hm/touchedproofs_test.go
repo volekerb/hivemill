@@ -127,6 +127,69 @@ func TestTouchedRunAllGreen(t *testing.T) {
 	}
 }
 
+// touchedXcode runs the iOS proof of root with a green fake Exec; it returns the exit code, the output and each call
+// as its directory followed by its argv.
+func touchedXcode(root, goos, scheme string) (int, string, [][]string) {
+	var out bytes.Buffer
+	var calls [][]string
+	code := TouchedRun{Root: root, Base: "main", Out: &out, GOOS: goos, IOSDir: "ios", Workspace: "App.xcworkspace",
+		Scheme: scheme, Exec: func(dir string, argv []string) (int, error) {
+			calls = append(calls, append([]string{dir}, argv...))
+			return 0, nil
+		}}.Run()
+	return code, out.String(), calls
+}
+
+func TestTouchedXcodeRunsOnDarwin(t *testing.T) {
+	root := touchedRepo(t, "ios/App/Main.swift")
+	code, out, calls := touchedXcode(root, "darwin", "App")
+	dir := filepath.Join(root, "ios")
+	want := []string{dir, "xcodebuild", "-workspace", filepath.Join(dir, "App.xcworkspace"), "-scheme", "App",
+		"-destination", "generic/platform=iOS Simulator", "-configuration", "Debug", "build", "CODE_SIGNING_ALLOWED=NO"}
+	if code != 0 || len(calls) != 1 || !slices.Equal(calls[0], want) || !strings.Contains(out, "PASS xcodebuild\n") {
+		t.Fatalf("code %d calls %q: %s", code, calls, out)
+	}
+	// A project instead of a workspace, and a red build.
+	var buf bytes.Buffer
+	var argv []string
+	code = TouchedRun{Root: root, Base: "main", Out: &buf, GOOS: "darwin", IOSDir: "ios/", Project: "App.xcodeproj",
+		Scheme: "App", Exec: func(_ string, a []string) (int, error) { argv = a; return 65, nil }}.Run()
+	if code != 1 || !slices.Equal(argv[1:3], []string{"-project", filepath.Join(dir, "App.xcodeproj")}) ||
+		!strings.Contains(buf.String(), "FAIL xcodebuild\n") {
+		t.Fatalf("project: code %d argv %q: %s", code, argv, buf.String())
+	}
+}
+
+func TestTouchedXcodeFailsOffDarwin(t *testing.T) {
+	code, out, calls := touchedXcode(touchedRepo(t, "ios/App/Main.swift"), "linux", "App")
+	if code != 1 || len(calls) != 0 || !strings.Contains(out, "FAIL xcodebuild: needs a darwin machine\n") {
+		t.Fatalf("code %d calls %q: %s", code, calls, out)
+	}
+}
+
+func TestTouchedXcodeSkipsWithoutIOSChange(t *testing.T) {
+	code, out, calls := touchedXcode(touchedRepo(t, "README.md", "iosx/y.swift"), "linux", "App")
+	if code != 0 || len(calls) != 0 || out != "no package changed\nSKIP xcodebuild: no iOS change\n" {
+		t.Fatalf("code %d calls %q out %q", code, calls, out)
+	}
+}
+
+func TestTouchedXcodeNeedsScheme(t *testing.T) {
+	root := touchedRepo(t, "ios/App/Main.swift", "a/x.ts")
+	code, out, calls := touchedXcode(root, "darwin", "")
+	if code != 2 || len(calls) != 0 {
+		t.Fatalf("code %d calls %q: %s", code, calls, out)
+	}
+	// Settings without an iOS directory, or one outside the root, are usage errors, never a silent pass.
+	for _, r := range []TouchedRun{{Scheme: "App"}, {IOSDir: "../ios"}} {
+		var buf bytes.Buffer
+		r.Root, r.Base, r.Out = root, "main", &buf
+		if code := r.Run(); code != 2 {
+			t.Fatalf("%+v: code %d: %s", r, code, buf.String())
+		}
+	}
+}
+
 func TestTouchedRunNoPackagesChanged(t *testing.T) {
 	root := touchedRepo(t, "README.md")
 	code, out, ran := touchedRun(root)
