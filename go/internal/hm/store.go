@@ -293,15 +293,13 @@ func (s *SQLite) Cfg(key string) string {
 	return Defaults[key]
 }
 
-// CfgErr reads an hm_config key like Cfg, but returns the read error instead of the default (no row is the default,
-// any other failure is an error), so a caller can fail closed.
+// CfgErr is Cfg for a gate that must fail closed: only a missing row falls back to Defaults, a read error is returned.
 func (s *SQLite) CfgErr(key string) (string, error) {
 	var v string
-	err := s.db.QueryRow(`SELECT value FROM hm_config WHERE key=?`, key).Scan(&v)
-	if errors.Is(err, sql.ErrNoRows) {
+	switch err := s.db.QueryRow(`SELECT value FROM hm_config WHERE key=?`, key).Scan(&v); {
+	case errors.Is(err, sql.ErrNoRows):
 		return Defaults[key], nil
-	}
-	if err != nil {
+	case err != nil:
 		return "", err
 	}
 	return v, nil

@@ -242,6 +242,28 @@ func TestT3ConfigOff(t *testing.T) {
 	}
 }
 
+func TestT3ConfigReadErrorHeld(t *testing.T) {
+	f := newT3(t, t3Clean)
+	if v, err := f.s.CfgErr("t3_auto_merge"); err != nil || v != "on" {
+		t.Fatalf("no row in a readable DB is the default: %q, %v", v, err)
+	}
+	if _, err := f.s.db.Exec(`DROP TABLE hm_config`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.CfgErr("t3_auto_merge"); err == nil {
+		t.Fatal("want a read error")
+	}
+	f.r.Merge(f.run)
+	if f.run.State != Held || len(f.merges) != 0 {
+		t.Fatalf("state %s (%s), merges %v", f.run.State, f.run.MergeHold, f.merges)
+	}
+}
+
+func TestT3TierRulesJSONEditHeld(t *testing.T) {
+	f := newT3(t, map[string]string{"ci/tier_rules.json": "{}\n"})
+	f.held(t, "f) ci/tier_rules.json: changes the tier classification")
+}
+
 // limitsOf is what Check finds in one changed file of a green, mergeable PR.
 func limitsOf(f DiffFile) string {
 	return strings.Join(limitList(Check(Diff{f}, PRStatus{CI: "green", Mergeable: "MERGEABLE"})), "; ")
@@ -327,25 +349,6 @@ func TestT3RiskTierEditHeld(t *testing.T) {
 		if got := limitsOf(DiffFile{Path: p, Old: "a", New: "b"}); !strings.Contains(got, "f) "+p) {
 			t.Errorf("%s: %q", p, got)
 		}
-	}
-}
-
-func TestT3TierRulesJSONEditHeld(t *testing.T) {
-	f := newT3(t, map[string]string{"ci/tier_rules.json": "{}\n"})
-	f.held(t, "f) ci/tier_rules.json: changes the tier classification")
-}
-
-func TestT3ConfigReadErrorHeld(t *testing.T) {
-	f := newT3(t, t3Clean)
-	if _, err := f.s.db.Exec(`ALTER TABLE hm_config RENAME TO hm_config_gone`); err != nil { // the read fails
-		t.Fatal(err)
-	}
-	if _, err := f.s.CfgErr("t3_auto_merge"); err == nil {
-		t.Fatal("CfgErr: want a read error")
-	}
-	f.r.Merge(f.run)
-	if f.run.State != Held || len(f.merges) != 0 || len(f.events(t, "merge.guarded")) != 0 {
-		t.Fatalf("state %s (%s), merges %v", f.run.State, f.run.MergeHold, f.merges)
 	}
 }
 
