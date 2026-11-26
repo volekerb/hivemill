@@ -71,7 +71,6 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 	}
 	hiEq(t, hiLast(out), "RESULT PASS url=http://127.0.0.1:9000/ version=0.3.0", "result line")
 	a := h.argvs()
-	fac := filepath.Join(home, ".local", "bin", "factory")
 	want := []string{
 		"git clone -- " + hiRepo + " " + fh + ".installing",
 		"systemctl --user daemon-reload",
@@ -93,9 +92,11 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 	if !hiExists(filepath.Join(home, ".config", "systemd", "user", "hivemill.service")) {
 		t.Error("hivemill.service not installed")
 	}
-	got, err := os.Readlink(fac)
-	if err != nil || got != filepath.Join(fh, "bin", "factory") {
-		t.Errorf("factory link = %q, %v", got, err)
+	for _, name := range []string{"hivemill", "worker-guard"} {
+		got, err := os.Readlink(filepath.Join(home, ".local", "bin", name))
+		if err != nil || got != filepath.Join(fh, "bin", name) {
+			t.Errorf("%s link = %q, %v", name, got, err)
+		}
 	}
 	if len(hiFind(a, hiSub("loginctl"))) > 0 {
 		t.Error("linger only with --linger")
@@ -252,7 +253,7 @@ func hiHerdrCase(t *testing.T, sha string, size int64) (*hiHost, string, int, st
 	home := hiHome(t)
 	payload := []byte("\x7fELF fake herdr")
 	table := hiFakeAssets("herdr", payload, sha, size)
-	h := hiNew(t, home, hiTools("git", "gh", "claude"))
+	h := hiNew(t, home, hiTools("git", "gh", "claude", "go"))
 	h.assets[table["x86_64"].URL] = payload
 	hiSwapAssets(t, &install.HerdrAssets, table)
 	rc, out, _ := hiRun(h, "--yes", "--no-systemd")
@@ -351,7 +352,7 @@ func TestHivemillInstallGHTarballVerifiedAndMemberExtracted(t *testing.T) {
 	ghBin := filepath.Join(home, ".local", "bin", "gh")
 	payload := hiTarball(t, hiTarEntry{name: hiGHMember(t), body: "#!/bin/sh\n"})
 	table := hiFakeAssets("gh.tar.gz", payload, "", -1)
-	h := hiNew(t, home, hiTools("git", "herdr", "claude"))
+	h := hiNew(t, home, hiTools("git", "herdr", "claude", "go"))
 	h.assets[table["x86_64"].URL] = payload
 	hiSwapAssets(t, &install.GHAssets, table)
 	rc, out, _ := hiRun(h, "--yes", "--no-systemd")
@@ -363,7 +364,7 @@ func TestHivemillInstallGHTarballVerifiedAndMemberExtracted(t *testing.T) {
 	hiEq(t, string(b), "#!/bin/sh\n", "gh content")
 
 	bad := hiFakeAssets("gh.tar.gz", payload, strings.Repeat("1", 64), -1)
-	h2 := hiNew(t, home, hiTools("git", "herdr", "claude"))
+	h2 := hiNew(t, home, hiTools("git", "herdr", "claude", "go"))
 	h2.assets[bad["x86_64"].URL] = payload
 	if err := os.Remove(ghBin); err != nil {
 		t.Fatal(err)
@@ -446,11 +447,11 @@ func TestHivemillInstallInstallFileOverDanglingAndLoopSymlinks(t *testing.T) {
 	}
 }
 
-// Extra: the factory link refuses a dangling or looping symlink that points elsewhere, and keeps one that is right.
+// Extra: a binary link refuses a dangling or looping symlink that points elsewhere, and keeps one that is right.
 func TestHivemillInstallSymlinkDanglingAndLoopFactoryLink(t *testing.T) {
 	td := t.TempDir()
 	host := &install.OSHost{HomeDir: td, Env: map[string]string{}}
-	target := filepath.Join(td, "factory", "bin", "factory")
+	target := filepath.Join(td, "factory", "bin", "hivemill")
 	dangling := filepath.Join(td, "dangling")
 	if err := os.Symlink("/nonexistent/elsewhere", dangling); err != nil {
 		t.Fatal(err)
@@ -484,7 +485,7 @@ func TestHivemillInstallSymlinkDanglingAndLoopFactoryLink(t *testing.T) {
 func hiClaudeCase(t *testing.T, mkdtemp func() (string, error)) (*hiHost, int, string) {
 	t.Helper()
 	payload := []byte("#!/bin/sh\necho hi\n")
-	h := hiNew(t, hiHome(t), hiTools("git", "herdr", "gh"))
+	h := hiNew(t, hiHome(t), hiTools("git", "herdr", "gh", "go"))
 	h.assets[hiClaudeInstallerURL] = payload
 	h.mkdtempFn = mkdtemp
 	rc, out, _ := hiRun(h, "--yes", "--no-systemd")
@@ -530,7 +531,7 @@ func TestHivemillInstallNonHTTPSDownloadRefused(t *testing.T) {
 }
 
 func TestHivemillInstallUnsupportedArchFailsCleanly(t *testing.T) {
-	h := hiNew(t, hiHome(t), hiTools("git", "gh", "claude"))
+	h := hiNew(t, hiHome(t), hiTools("git", "gh", "claude", "go"))
 	h.machine = "riscv64"
 	rc, out, _ := hiRun(h, "--yes", "--no-systemd")
 	hiEq(t, rc, 1, "rc")
@@ -742,6 +743,7 @@ func TestHivemillInstallNoTTYOpenStdinDoesNotBlock(t *testing.T) {
 	stubDir := t.TempDir()
 	for name, body := range map[string]string{
 		"claude": "#!/bin/sh\necho '1.0.0 (stub claude)'\n",
+		"go":     "#!/bin/sh\necho 'go version go1.25.0 linux/amd64'\n",
 		"herdr":  "#!/bin/sh\necho 'herdr 1.0.0 (stub)'\n",
 		"gh":     "#!/bin/sh\n[ \"$1 $2\" = 'auth status' ] && exit 1\necho 'gh version 1.0.0 (stub)'\n",
 	} {
