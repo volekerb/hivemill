@@ -16,7 +16,8 @@ const (
 	kickoffFile = ".hivemill/kickoff.md"
 	// goalExits are the ways to end the goal that no proof can show: without them it would drive a session that has to
 	// stop (task.md) on to the turn limit.
-	goalExits = "A manual: criterion counts as met once .hivemill/evidence.json notes it. The condition is also met when " +
+	goalExits = "A manual: criterion counts as met once .hivemill/evidence.json notes it, a test: or flow: criterion once the " +
+		"command the session ran for it exited 0. The condition is also met when " +
 		".hivemill/blocked.md is written, or the session has said that the spec is wrong or impossible and stopped.\n"
 )
 

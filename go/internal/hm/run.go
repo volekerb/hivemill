@@ -223,8 +223,8 @@ func (r *Runner) Start(id string) error {
 			caps.MemMin, strings.Join(pl.Skipped, "; "))
 	}
 	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
-	// session's first mid-work stop as a gate attempt, and they describe another head.
-	for _, f := range []string{"findings.json", "evidence.json"} {
+	// session's first mid-work stop as a gate attempt, and they describe another head. An old blocked.md would end its /goal.
+	for _, f := range []string{"findings.json", "evidence.json", "blocked.md"} {
 		_ = os.Remove(filepath.Join(wt, ".hivemill", f))
 	}
 	// The worker guard (unchanged) lets a pane push only HEAD:factory/<task> for FACTORY_AGENT
