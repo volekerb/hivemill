@@ -38,6 +38,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [machine-sync.md](machine-sync.md): the owner-run tool that copies allow-listed secret files to a worker machine (chmod 600, never printed).
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-flow.md](pr-flow.md): read-only PR flow report: merges per day, open-to-merge time and stage hours per org.
+- [verify.md](verify.md): the verify harness: run a change in a temp home (cli) or check the dashboard mod, with a step trace and exit 0/1.
 - [diff-checklist.md](diff-checklist.md): the diff-checklist tool: match checklist items to a diff, render and verify the PR body block.
 - [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
 - [researcher.md](researcher.md): the researcher role, its per-task research directory and where its findings go.
