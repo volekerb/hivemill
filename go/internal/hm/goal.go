@@ -14,6 +14,10 @@ import (
 const (
 	goalMax     = 4000
 	kickoffFile = ".hivemill/kickoff.md"
+	// goalExits are the ways to end the goal that no proof can show: without them it would drive a session that has to
+	// stop (task.md) on to the turn limit.
+	goalExits = "A manual: criterion counts as met once .hivemill/evidence.json notes it. The condition is also met when " +
+		".hivemill/blocked.md is written, or the session has said that the spec is wrong or impossible and stopped.\n"
 )
 
 func goalLen(s string) int { return len(utf16.Encode([]rune(s))) } // characters as Claude Code counts them
@@ -31,7 +35,7 @@ func (r *Runner) goalPrompt(harness string, run *Run, t *Task, kickoff string) s
 	for _, c := range Criteria(t.Acceptance) {
 		fmt.Fprintf(&list, "%d. %s\n", c.ID, c.Text)
 	}
-	cond := head + list.String()
+	cond := head + list.String() + goalExits
 	if full := cond + "\n" + kickoff; goalLen(full) <= goalMax {
 		return "/goal " + full
 	}
@@ -46,7 +50,7 @@ func (r *Runner) goalPrompt(harness string, run *Run, t *Task, kickoff string) s
 		pointer += "\n" + workflowRequest(run.WorkflowAgents)
 	}
 	if goalLen(cond+pointer) > goalMax {
-		cond = strings.Replace(head, "criterion below", "criterion in "+kickoffFile, 1)
+		cond = strings.Replace(head, "criterion below", "criterion in "+kickoffFile, 1) + goalExits
 	}
 	return "/goal " + cond + pointer
 }

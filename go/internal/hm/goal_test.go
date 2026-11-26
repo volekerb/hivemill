@@ -26,7 +26,7 @@ func TestGoalPromptWithTaskGoalOn(t *testing.T) {
 	r, s, run, task := goalFixture(t) // task_goal 1 and task_goal_turns 60 are the defaults
 	k := Kickoff(run, task)
 	got := r.goalPrompt(Harness, run, task, k)
-	want := goalHead + "60 turns.\n1. one - cmd:true => exit 0\n2. two - cmd:true => exit 0\n\n" + k
+	want := goalHead + "60 turns.\n1. one - cmd:true => exit 0\n2. two - cmd:true => exit 0\n" + goalExits + "\n" + k
 	if got != want {
 		t.Errorf("prompt:\n%s\nwant:\n%s", got, want)
 	}
@@ -68,7 +68,7 @@ func TestGoalPromptStaysWithinTheConditionLimit(t *testing.T) {
 		if !strings.HasPrefix(got, "/goal ") || goalLen(strings.TrimPrefix(got, "/goal ")) > goalMax {
 			t.Errorf("%s: not a /goal within the limit (%d):\n%.300s", name, goalLen(got), got)
 		}
-		for _, part := range []string{c.want, "First read " + kickoffFile, "Use at most 6 agents."} {
+		for _, part := range []string{c.want, goalExits, "First read " + kickoffFile, "Use at most 6 agents."} {
 			if !strings.Contains(got, part) {
 				t.Errorf("%s: %q not in the prompt", name, part)
 			}
