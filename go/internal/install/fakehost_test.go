@@ -157,16 +157,8 @@ func (f *fakeHost) Run(argv []string, cwd string, timeout time.Duration, mutate 
 		return 0, "Cloning"
 	case argv[0] == "git" && f.tools["git"]:
 		return 0, ""
-	case name == "factory" && len(argv) == 2 && argv[1] == "init":
-		return 0, "initialised ~/factory/db/factory.db\n"
 	case name == "factory" && len(argv) == 2 && argv[1] == "--version":
 		return 0, "hivemill 0.4.0\n"
-	case name == "factory" && len(argv) == 2 && argv[1] == "agents":
-		return 0, testAgents
-	case name == "factory" && len(argv) == 3 && argv[1] == "project" && argv[2] == "list":
-		return 0, "\n"
-	case name == "factory" && len(argv) == 3 && argv[1] == "config":
-		return 0, ""
 	case name == "herdr" && len(argv) == 3 && argv[1] == "workspace":
 		return 0, "ok"
 	case name == "factory" || name == "bash" || name == "systemctl" || name == "loginctl" || name == "launchctl":
