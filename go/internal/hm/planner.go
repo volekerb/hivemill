@@ -300,7 +300,7 @@ func (r *Runner) PlannerDone(ids []int64, note string) error {
 	if err := s.ClosePlannerWork(ids, "done"); err != nil {
 		return err
 	}
-	_ = r.Log.Emit("planner.work_done", nil, Event{Role: "planner", Data: map[string]any{"ids": ids, "note": note}})
+	_ = r.Log.Emit("planner.work_done", nil, Event{Role: r.Env.Actor, Data: map[string]any{"ids": ids, "note": note}})
 	return nil
 }
 
@@ -586,7 +586,7 @@ func (r *Runner) PlannerStatus(now time.Time) error {
 		r.printf("open owner questions: %d\n", len(open))
 		work, werr := s.OpenPlannerWork()
 		if werr != nil {
-			r.printf("planner work: %v\n", werr)
+			return werr
 		}
 		r.printf("open work: %d\n", len(work))
 		for _, w := range work {
