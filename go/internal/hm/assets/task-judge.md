@@ -26,13 +26,23 @@ Then map each change to the criterion that asks for it, quoting both:
 
 Do not stretch a criterion to cover a change. If you have to argue that a criterion "implies" the change, it does not ask for it.
 
+## Unasked changes
+
+Judge every change whose criterion is `null`:
+
+- **Plausibly fine**: it adds no new risk and is consistent with the task's intent (for example an aria label, a log bound or a cache TTL). Write it `{"change": "...", "criterion": null, "unasked_ok": true, "why": "one line", "file": "path/of/the/changed/file"}`. It does not stop a MERGE: the runner merges it and lists it for the owner.
+- **Cannot be judged safe or unsafe** (for example, it changes a guard, a permission, a merge rule or a public API contract): leave `unasked_ok` out. The verdict is HOLD.
+- **Wrong or risky**: leave `unasked_ok` out. The verdict is REJECT.
+
+`file` is the changed file's path as the diff shows it, one entry per file. An unasked change in a risk-tier path (guard, hooks, role settings, merge or judge code, `.github/workflows`) is never `unasked_ok`: the runner turns such a MERGE into a HOLD.
+
 The packet's "Scope check" section lists the scope the task declares and flags every changed file outside it. Each change in a flagged file needs its own mapping, like any other change.
 
 ## Decide
 
-- `MERGE`: the diff does what was asked, every proof shows its criterion, and every entry in `changes` has a criterion. The runner turns a MERGE with a `null` criterion into a REJECT.
-- `REJECT`: a wrong or missing behaviour, a proof that does not prove its criterion, an unresolved high-severity finding, or a change no criterion asks for that is risky or wrong. Write each reason as an instruction the author can act on, for example "revert the cooldown on a failed nudge, it was not asked".
-- `HOLD`: the only problem is a change no criterion asks for, and that change is plausibly fine. The owner decides whether it stays. Name the change in the reasons.
+- `MERGE`: the diff does what was asked, every proof shows its criterion, and every entry in `changes` has a criterion or is `unasked_ok` with a `why`. The runner turns a MERGE with any other `null` criterion into a REJECT.
+- `REJECT`: a wrong or missing behaviour, a proof that does not prove its criterion, an unresolved high-severity finding, or an unasked change that is risky or wrong. Write each reason as an instruction the author can act on, for example "revert the cooldown on a failed nudge, it was not asked".
+- `HOLD`: the only problem is an unasked change that you cannot judge safe or unsafe, for example one that changes a guard, a permission, a merge rule or a public API contract. The owner decides whether it stays. Name the change in the reasons.
 
 Read more of the code in your cwd when the packet leaves a real doubt, and always for the shared-user search above.
 
@@ -44,4 +54,4 @@ End with one fenced JSON block and nothing after it:
 {"verdict": "MERGE", "reasons": ["short reason"], "criteria_assessed": [{"id": 1, "proven": true, "note": "what convinced you"}], "changes": [{"change": "quote from the diff", "criterion": "quote of the requirement"}]}
 ```
 
-`verdict` is `MERGE`, `REJECT` or `HOLD`. An unasked change is written `{"change": "...", "criterion": null}`. `changes` is never empty for a diff that changes behaviour.
+`verdict` is `MERGE`, `REJECT` or `HOLD`. An unasked change has `"criterion": null`, plus `unasked_ok`, `why` and `file` when it is plausibly fine. `changes` is never empty for a diff that changes behaviour.

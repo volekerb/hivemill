@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "hivemill/judge-verdict.schema.json",
   "title": "Judge verdict (harness-neutral)",
-  "description": "The judge's decision on one PR head, the last JSON block of the judge session's final message. The runner turns a MERGE into a REJECT when any change has a null criterion, and refuses a MERGE with an empty changes list or a criterion that does not quote the task.",
+  "description": "The judge's decision on one PR head, the last JSON block of the judge session's final message. The runner turns a MERGE into a REJECT when a change with a null criterion is not marked unasked_ok with a why, into a HOLD when a marked one may touch a risk-tier path, and refuses a MERGE with an empty changes list or a criterion that does not quote the task.",
   "type": "object",
   "required": ["verdict", "reasons", "criteria_assessed", "changes"],
   "properties": {
     "verdict": {
       "enum": ["MERGE", "REJECT", "HOLD"],
-      "description": "HOLD: the diff makes a change no criterion asks for, but the change is plausibly fine; the owner decides."
+      "description": "HOLD: the diff makes a change no criterion asks for that cannot be judged safe or unsafe; the owner decides."
     },
     "reasons": {"type": "array", "minItems": 1, "items": {"type": "string"}},
     "criteria_assessed": {
@@ -34,7 +34,10 @@
           "criterion": {
             "type": ["string", "null"],
             "description": "A word-for-word quote of the task criterion or spec requirement that asks for this change (never a proof command); null when nothing in the task asks for it."
-          }
+          },
+          "unasked_ok": {"type": "boolean", "description": "A null-criterion change that adds no new risk and fits the task's intent: it merges and is listed for the owner."},
+          "why": {"type": "string", "description": "One line: why the unasked change is fine. Required with unasked_ok."},
+          "file": {"type": "string", "description": "The changed file of an unasked_ok change. Needed when the diff also changes a risk-tier path."}
         }
       }
     }

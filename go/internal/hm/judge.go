@@ -30,10 +30,14 @@ type Verdict struct {
 type Change struct {
 	Change    string  `json:"change"`
 	Criterion *string `json:"criterion"`
+	// UnaskedOK with a Why: no criterion asks for the change and the judge found it plausibly fine (unasked.go).
+	UnaskedOK bool   `json:"unasked_ok,omitempty"`
+	Why       string `json:"why,omitempty"`
+	File      string `json:"file,omitempty"` // the changed file of an unasked_ok change
 }
 
-// Verdicts the judge may give. HOLD parks the PR for the owner: the change may be fine, but nothing in the task asked
-// for it.
+// Verdicts the judge may give. HOLD parks the PR for the owner: nothing in the task asked for a change, and it cannot
+// be judged safe or unsafe.
 const (
 	VerdictMerge  = "MERGE"
 	VerdictReject = "REJECT"
@@ -41,7 +45,8 @@ const (
 )
 
 const verdictShape = `{"verdict": "MERGE"|"REJECT"|"HOLD", "reasons": [...], "criteria_assessed": [{"id": 1, "proven": true, "note": "..."}], ` +
-	`"changes": [{"change": "<quote from the diff>", "criterion": "<quote of the criterion's requirement>" or null}]}`
+	`"changes": [{"change": "<quote from the diff>", "criterion": "<quote of the criterion's requirement>" or null, ` +
+	`"unasked_ok": true, "why": "<one line>", "file": "<changed file>" (the last three only for a plausibly fine unasked change)}]}`
 
 const diffMax = 60000
 
@@ -93,7 +98,7 @@ func ChangeProblems(v *Verdict, t *Task) (unmapped, misquoted []string) {
 	}
 	spec, acc := normQuote(t.Spec), normQuote(t.Acceptance)
 	for _, c := range v.Changes {
-		if c.Criterion == nil || strings.TrimSpace(*c.Criterion) == "" {
+		if unmappedChange(c) {
 			unmapped = append(unmapped, truncate(c.Change, 200))
 			continue
 		}
@@ -122,15 +127,6 @@ func normQuote(s string) string {
 	s = quoteCharsRe.ReplaceAllString(strings.ToLower(s), "")
 	s = strings.Join(strings.Fields(s), " ")
 	return strings.TrimRight(s, " .…")
-}
-
-// overruleMerge turns a MERGE whose change list has an unmapped change into a REJECT: an unasked change never merges
-// on the judge's word alone.
-func overruleMerge(v *Verdict, unmapped []string) {
-	v.JudgeVerdict, v.Verdict = v.Verdict, VerdictReject
-	reasons := []string{"the judge said MERGE, but these changes map to no task criterion; remove them, or the owner " +
-		"adds a criterion that asks for them: " + strings.Join(unmapped, " | ")}
-	v.Reasons = append(reasons, v.Reasons...)
 }
 
 // Packet assembles the judge's input deterministically from the DB, the gate record and git.
@@ -225,7 +221,7 @@ func ScopeSection(s Scope, files []string) string {
 		return b.String()
 	}
 	fmt.Fprintf(&b, "- FLAGGED: %d of %d changed files are outside the declared scope. Each change in them must map to a "+
-		"criterion, or the verdict is REJECT (or HOLD when the change is plausibly fine):\n", len(out), len(files))
+		"criterion or be marked unasked_ok (plausibly fine), or the verdict is REJECT or HOLD:\n", len(out), len(files))
 	for _, x := range out {
 		fmt.Fprintf(&b, "  - %s\n", x)
 	}
@@ -346,8 +342,8 @@ func (r *Runner) JudgeHook(in io.Reader, out io.Writer) error {
 	return r.RecordVerdict(run, v, h.SessionID, r.Env.Actor)
 }
 
-// mergeChangeCheck holds a MERGE to its change list. A change mapped to no criterion overrules it to REJECT at once.
-// An empty list, or a criterion quote that is not in the task, is a malformed verdict: the stop is refused once so the
+// mergeChangeCheck holds a MERGE to its change list. overruleMerge decides about changes mapped to no criterion at
+// once. An empty list, or a criterion quote that is not in the task, is a malformed verdict: the stop is refused once so the
 // judge can fix it, and a second one counts as REJECT.
 func (r *Runner) mergeChangeCheck(run *Run, v *Verdict) error {
 	if len(v.Changes) == 0 {
@@ -357,14 +353,14 @@ func (r *Runner) mergeChangeCheck(run *Run, v *Verdict) error {
 	if err != nil {
 		return nil // the runner cannot read the task: the mapping stays unchecked, the merge gate still applies
 	}
-	unmapped, misquoted := ChangeProblems(v, t)
-	if len(unmapped) > 0 {
-		overruleMerge(v, unmapped)
+	_, misquoted := ChangeProblems(v, t)
+	overruleMerge(v, r.unaskedRisk(run))
+	if v.Verdict != VerdictMerge {
 		return nil
 	}
 	if len(misquoted) > 0 {
 		return errors.New("each criterion must quote the task's own words for what was asked, never a proof command: " +
-			strings.Join(misquoted, "; ") + ". Quote the requirement word for word, or set criterion to null and give REJECT or HOLD")
+			strings.Join(misquoted, "; ") + ". Quote the requirement word for word, or set criterion to null and mark it unasked_ok, or give REJECT or HOLD")
 	}
 	return nil
 }
