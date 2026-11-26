@@ -178,10 +178,9 @@ class CursorProcGateTests(FactoryTestCase):
 
     def test_fresh_cursor_spawn_refused_on_load(self):
         self.ok("config", "agent_runtimes", "*=cursor", agent="zz-test-director")
-        cap = 10.0  # load_cap with FACTORY_LOADAVG=0 in env; use high load
         p = self.ok("spawn", "coder", "--name", "zz-load-coder", "--goal", "G-001",
                     "--team", "g-001-a", "--task", "T-0001", agent="zz-test-director",
-                    extra_env={"FACTORY_LOADAVG": str(cap + 5)})
+                    extra_env={"FACTORY_LOADAVG": "100000"})  # above ratio x CPUs on any host
         self.assertIn("QUEUED", p.stdout)
         self.assertIn("load1", p.stdout)
 

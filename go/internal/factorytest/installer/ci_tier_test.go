@@ -464,8 +464,10 @@ func TestCiTierClassifierRunsFromTheBaseCommit(t *testing.T) {
 	if n := strings.Count(wf, `git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py`); n != 4 {
 		t.Fatalf("git archive count %d", n)
 	}
-	notContains(t, wf, "python ci/ci_tier.py")
-	if n := strings.Count(wf, `python "$RUNNER_TEMP/base/ci/ci_tier.py" classify`); n != 3 {
+	if regexp.MustCompile(`python3? ci/ci_tier\.py`).MatchString(wf) {
+		t.Fatal("classifier run from the PR head")
+	}
+	if n := len(regexp.MustCompile(`python3? "\$RUNNER_TEMP/base/ci/ci_tier\.py" classify`).FindAllString(wf, -1)); n != 3 {
 		t.Fatalf("classify count %d", n)
 	}
 	contains(t, wf, "  ci-tier:\n")
@@ -516,13 +518,35 @@ func TestCiTierDocsFastLaneSkipsHeavyJobs(t *testing.T) {
 	contains(t, gate, "DOCS_CHECK_RESULT")
 }
 
-func TestCiTierRunnersAreFree(t *testing.T) {
-	set := map[string]bool{}
-	for _, m := range regexp.MustCompile(`runs-on: (\S+)`).FindAllStringSubmatch(tierWorkflow(t), -1) {
-		set[m[1]] = true
+// tierSelfHostedSameRepo is SELF_HOSTED_SAME_REPO of tests/test_ci_policy.py: the only allowed self-hosted form.
+const tierSelfHostedSameRepo = "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == " +
+	"github.repository) && fromJSON('[\"self-hosted\",\"hm-ci\"]') || 'ubuntu-latest' }}"
+
+// tierDisallowedRunners returns the runs-on values that are neither ubuntu-latest nor tierSelfHostedSameRepo.
+func tierDisallowedRunners(t *testing.T, wf string) []string {
+	t.Helper()
+	found := regexp.MustCompile(`runs-on: (.+)`).FindAllStringSubmatch(wf, -1)
+	if len(found) == 0 {
+		t.Fatal("no runs-on")
 	}
-	if len(set) != 1 || !set["ubuntu-latest"] {
-		t.Fatalf("runners %v", set)
+	comment := regexp.MustCompile(`\s+#.*$`)
+	var bad []string
+	for _, m := range found {
+		if v := strings.TrimSpace(comment.ReplaceAllString(m[1], "")); v != "ubuntu-latest" && v != tierSelfHostedSameRepo {
+			bad = append(bad, v)
+		}
+	}
+	return bad
+}
+
+func TestCiTierRunnersAreFree(t *testing.T) {
+	if bad := tierDisallowedRunners(t, tierWorkflow(t)); len(bad) != 0 {
+		t.Fatalf("runners %q", bad)
+	}
+	for _, v := range []string{"self-hosted", strings.Replace(tierSelfHostedSameRepo, "!=", "==", 1), "${{ matrix.os }}"} {
+		if bad := tierDisallowedRunners(t, "runs-on: "+v+"\n"); len(bad) != 1 {
+			t.Errorf("%q allowed", v)
+		}
 	}
 }
 

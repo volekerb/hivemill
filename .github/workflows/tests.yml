@@ -23,6 +23,8 @@ permissions:
 env:
   # Keep equal to the length of the unittest-shard matrix (tests/test_shard.py checks it).
   SHARDS: 10
+  # Self-hosted hm-ci runners are shared and run at low CPU priority: tests multiply their time limits by this.
+  HM_TEST_TIME_SCALE: 3
   # ci/shard.py scoping: the deep run (workflow_dispatch) runs every module; a PR or push leaves the Python-vs-Go
   # corpus module to it, and runs the guard hook modules only when the diff from SHARD_BASE touches a guard path.
   SHARD_DEEP: ${{ github.event_name == 'workflow_dispatch' }}
@@ -42,6 +44,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Tier (rules from the base commit)
@@ -62,7 +65,7 @@ jobs:
           if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
             full "base commit has no ci/ci_tier.py"; exit 0
           fi
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+          python3 "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       - uses: actions/upload-artifact@v7
         if: steps.tier.outputs.mode == 'affected'
@@ -83,6 +86,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Tier tool from the base commit
@@ -95,8 +99,8 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" docs-check --root . --base "$BASE_SHA" --head HEAD
-          python -m unittest discover -s tests -p test_docs_index.py
+          python3 "$RUNNER_TEMP/base/ci/ci_tier.py" docs-check --root . --base "$BASE_SHA" --head HEAD
+          python3 -m unittest discover -s tests -p test_docs_index.py
           echo '### docs-only PR: docs fast lane (docs check + docs index passed)' >> "$GITHUB_STEP_SUMMARY"
 
   # Single-job equivalent for local runs: python -m unittest discover -s tests -v
@@ -116,7 +120,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
-        if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+        if: ${{ runner.environment == 'github-hosted' && (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') }}
         with:
           python-version: "3.13"
       - name: Tier (rules from the base commit)
@@ -138,7 +142,7 @@ jobs:
           if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
             full "base commit has no ci/ci_tier.py"; exit 0
           fi
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+          python3 "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       # zsh reads .zshenv: the sandbox PATH-order regression tests must run in CI, not skip.
       - name: Install zsh
@@ -149,7 +153,7 @@ jobs:
         run: |
           only=()
           if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
-          python ci/shard.py run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json" "${only[@]}"
+          python3 ci/shard.py run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json" "${only[@]}"
       - uses: actions/upload-artifact@v7
         if: ${{ always() && (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
         with:
@@ -174,7 +178,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
-        if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+        if: ${{ runner.environment == 'github-hosted' && (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') }}
         with:
           python-version: "3.13"
       - name: Tier (rules from the base commit)
@@ -196,7 +200,7 @@ jobs:
           if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
             full "base commit has no ci/ci_tier.py"; exit 0
           fi
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+          python3 "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       # No go/** change (and not a full run): the job reports success without building.
       - uses: actions/setup-go@v7
@@ -242,6 +246,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Install zsh
@@ -283,7 +288,8 @@ jobs:
     needs: ci-tier
     if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
-    # Two corpus passes (both modes, then evaluator) take about 32 min on a hosted runner; only guard-path PRs run them.
+    # Two corpus passes (both modes and evaluator) run side by side: one after the other they pass the limit on a busy
+    # hm-ci runner (low CPU priority). Only guard-path PRs run them.
     timeout-minutes: 45
     env:
       GOTOOLCHAIN: local
@@ -294,6 +300,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Install zsh
@@ -355,8 +362,13 @@ jobs:
             allow=(--allow-loosen "$RUNNER_TEMP/allow_loosen.json")
           fi
           rc=0
-          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both "${allow[@]}" | tee "$RUNNER_TEMP/gd-both.txt" || rc=1
-          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator "${allow[@]}" | tee "$RUNNER_TEMP/gd-eval.txt" || rc=1
+          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both "${allow[@]}" > "$RUNNER_TEMP/gd-both.txt" &
+          both=$!
+          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator "${allow[@]}" > "$RUNNER_TEMP/gd-eval.txt" &
+          eval_pass=$!
+          wait "$both" || rc=1
+          wait "$eval_pass" || rc=1
+          cat "$RUNNER_TEMP/gd-both.txt" "$RUNNER_TEMP/gd-eval.txt"
           grep -E '^(LOOSENED|SETTINGS-LOOSENED|TIMEOUT)' "$RUNNER_TEMP/gd-both.txt" "$RUNNER_TEMP/gd-eval.txt" || echo "no LOOSENED/TIMEOUT lines"
           echo "guard_diff failing runs: $rc"
           exit $rc
@@ -376,6 +388,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Install zsh
@@ -415,6 +428,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Install zsh
@@ -521,7 +535,7 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
           fi
       - uses: actions/setup-python@v7
-        if: steps.paths.outputs.run == 'true'
+        if: ${{ runner.environment == 'github-hosted' && (steps.paths.outputs.run == 'true') }}
         with:
           python-version: "3.13"
       - name: Install zsh
@@ -624,7 +638,7 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
           fi
       - uses: actions/setup-python@v7
-        if: steps.paths.outputs.run == 'true'
+        if: ${{ runner.environment == 'github-hosted' && (steps.paths.outputs.run == 'true') }}
         with:
           python-version: "3.13"
       - name: Install zsh
@@ -735,6 +749,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - uses: actions/download-artifact@v8
@@ -753,7 +768,7 @@ jobs:
         run: |
           only=()
           if [ "${{ needs.ci-tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
-          python ci/shard.py verify --total "$SHARDS" --dir "$RUNNER_TEMP/reports" "${only[@]}" | tee "$RUNNER_TEMP/summary.txt"
+          python3 ci/shard.py verify --total "$SHARDS" --dir "$RUNNER_TEMP/reports" "${only[@]}" | tee "$RUNNER_TEMP/summary.txt"
           { echo '### unittest shards'; cat "$RUNNER_TEMP/summary.txt"; } >> "$GITHUB_STEP_SUMMARY"
 
       # Test-count gate (ci/test_count_gate.py): discovery counts, PR merge ref vs base sha.
@@ -773,6 +788,6 @@ jobs:
           # Live body first (a re-run reuses the old payload); payload body as fallback.
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body > "$RUNNER_TEMP/body.txt" \
             || printf '%s' "$PAYLOAD_BODY" > "$RUNNER_TEMP/body.txt"
-          pr=$(python ci/test_count_gate.py count .)
-          base=$(python ci/test_count_gate.py count base)
-          python ci/test_count_gate.py check --base "$base" --pr "$pr" --body-file "$RUNNER_TEMP/body.txt"
+          pr=$(python3 ci/test_count_gate.py count .)
+          base=$(python3 ci/test_count_gate.py count base)
+          python3 ci/test_count_gate.py check --base "$base" --pr "$pr" --body-file "$RUNNER_TEMP/body.txt"

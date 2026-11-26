@@ -1,4 +1,5 @@
 """Tests for ci/affected.py: affected-test selection from a git diff, in temp git repos."""
+import math
 import os
 import re
 import subprocess
@@ -39,6 +40,10 @@ def main():
 ''' % ", ".join("hub(%d)" % i for i in range(16))
 
 SMOKE = ["test_db_layout.py", "test_inbox.py", "test_judge.py"]
+
+
+# --budget (whole seconds) that the fast modules fit in on a slow or busy host; the slow one never does
+BUDGET = str(math.ceil(5 * harness.time_scale()))
 
 
 class AffectedTest(unittest.TestCase):
@@ -400,9 +405,9 @@ class AffectedTest(unittest.TestCase):
         self.write("tests/test_beta.py",
                    "import unittest\nclass T(unittest.TestCase):\n    def test_ok(self):\n        self.assertTrue(True)\n")
         self.write("tests/test_gamma.py",
-                   "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(60)\n")
+                   "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(600)\n")
         self.commit()
-        r = self.affected("--budget", "3", "--run")
+        r = self.affected("--budget", BUDGET, "--run")
         self.assertEqual(r.returncode, 4, r.stdout + r.stderr)
         self.assertRegex(r.stdout, r"Ran 1 tests in \d+ modules: OK")  # beta ran; gamma was killed at the cap
         self.assertIn("elapsed", r.stdout)
@@ -421,11 +426,11 @@ class AffectedTest(unittest.TestCase):
         self.write("tests/test_beta.py",
                    "import unittest\nclass T(unittest.TestCase):\n    def test_ok(self):\n        self.assertTrue(True)\n")
         self.write("tests/test_gamma.py",
-                   "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(60)\n")
+                   "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(600)\n")
         self.commit()
         t0 = time.monotonic()
-        r = self.affected("--budget", "2", "--run")
-        self.assertLess(time.monotonic() - t0, 2 + 5)
+        r = self.affected("--budget", BUDGET, "--run")
+        self.assertLess(time.monotonic() - t0, 10 * harness.time_scale())
         self.assertEqual(r.returncode, 4, r.stdout + r.stderr)
         self.assertRegex(r.stderr, r"budget spent, not run: test_gamma\.py.*rely on CI")
 

@@ -151,7 +151,8 @@ func TestCursorProcGateFreshCursorSpawnRefusedOnLoad(t *testing.T) {
 	e := gateEnv(t)
 	e.NeedPython()
 	e.OKWith(ft.Opts{Agent: director}, "config", "agent_runtimes", "*=cursor")
-	r := e.OKWith(ft.Opts{Agent: director, Env: map[string]string{"FACTORY_LOADAVG": "15.0"}},
+	// far above gate_max_load_ratio x CPUs on any host
+	r := e.OKWith(ft.Opts{Agent: director, Env: map[string]string{"FACTORY_LOADAVG": "100000"}},
 		"spawn", "coder", "--name", "zz-load-coder", "--goal", "G-001", "--team", "g-001-a", "--task", "T-0001")
 	contains(t, "stdout", r.Stdout, "QUEUED")
 	contains(t, "stdout", r.Stdout, "load1")

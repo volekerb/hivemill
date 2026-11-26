@@ -2,7 +2,7 @@
 
 ## Policy
 
-- GitHub Actions runs on **free standard hosted runners only** (`ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`). No self-hosted, larger or paid runners, no paid features. The paid Actions budget is **$0**.
+- GitHub Actions runs on **free standard hosted runners only** (`ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`). No larger or paid runners, no paid features. The one self-hosted exception is the free `hm-ci` runners for same-repository code ([ci-self-hosted.md](ci-self-hosted.md)); forks stay on hosted runners. The paid Actions budget is **$0**.
 - The **local gate** (`factory gate run`) is the factory's merge gate. GitHub required checks are used only while they are free; they are never the only thing standing between a change and `main`.
 - Fork pull requests never get secrets or a write token: workflows run on `pull_request` (not `pull_request_target`), with read-only permissions and no secrets other than the built-in `GITHUB_TOKEN`.
 
@@ -25,7 +25,7 @@ It scans `.github/workflows/*.yml|*.yaml`, `ci/public-overlay/.github/workflows/
 
 | Rule | Check |
 |---|---|
-| a | every `runs-on:` is `ubuntu-latest`, `ubuntu-24.04` or `ubuntu-22.04` (no `self-hosted`, no matrix-expanded value) |
+| a | every `runs-on:` is `ubuntu-latest`, `ubuntu-24.04` or `ubuntu-22.04` or exactly the same-repository `hm-ci` expression (no other `self-hosted` form, no matrix-expanded value) |
 | b | no `pull_request_target`, `workflow_run` or `schedule` trigger |
 | c | a top-level `permissions:` block that grants only `read`; a job-level `contents: write` is allowed only when the workflow triggers on `push: tags` and/or `workflow_dispatch` |
 | d | no `secrets.` reference except `secrets.GITHUB_TOKEN` (`github.token` is fine); no `secrets: inherit` |

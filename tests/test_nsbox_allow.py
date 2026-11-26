@@ -618,9 +618,13 @@ print(json.dumps(out))
             self.assertEqual(out[p], "blocked", p)
         self.assertEqual(out["ls"], sorted({d.split("/")[2] for d in nsbox.run_keep_ro() if os.path.isdir(d)}))
 
-    @unittest.skipUnless(os.path.exists("/run/docker.sock"), "no /run/docker.sock on this host to compare against")
     def test_without_the_mask_the_host_socket_is_reachable(self):
         # control: proves the probe can connect at all, so "blocked" above is the mask and not a broken probe
+        with socket.socket(socket.AF_UNIX) as c:
+            try:
+                c.connect("/run/docker.sock")  # no sandbox: skip only when this user cannot connect at all
+            except OSError as e:
+                self.skipTest(f"cannot connect to /run/docker.sock even outside the sandbox: {e}")
         r = self.run_in("import socket; s = socket.socket(socket.AF_UNIX); s.connect('/run/docker.sock'); print('ok')",
                         run_mask=False)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "ok"), r.stderr)

@@ -447,7 +447,7 @@ func TestHivemillPluginIosReleaseNodeTests(t *testing.T) {
 	sort.Strings(tests)
 	cmd := exec.Command(node, append([]string{"--test", "--test-reporter=tap"}, tests...)...)
 	cmd.Dir = repo
-	done := time.AfterFunc(300*time.Second, func() { _ = cmd.Process.Kill() })
+	done := time.AfterFunc(time.Duration(ft.TimeScale()*float64(300*time.Second)), func() { _ = cmd.Process.Kill() })
 	b, err := cmd.CombinedOutput()
 	done.Stop()
 	if err != nil {

@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ci"))
 
 import ci_tier  # noqa: E402
+from test_ci_policy import SELF_HOSTED_SAME_REPO  # noqa: E402
 
 TIER = str(ROOT / "ci" / "ci_tier.py")
 BIN_SRC = "def cmd_other():\n    return 1\n\n\ndef cmd_judge():\n    return 1\n\n\ndef judge_pick():\n    return 1\n\n\ndef gate_x():\n    return 1\n"
@@ -305,8 +306,8 @@ class WorkflowTest(unittest.TestCase):
 
     def test_classifier_runs_from_the_base_commit(self):
         self.assertEqual(self.wf.count('git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py'), 4)
-        self.assertNotIn("python ci/ci_tier.py", self.wf)
-        self.assertEqual(self.wf.count('python "$RUNNER_TEMP/base/ci/ci_tier.py" classify'), 3)
+        self.assertNotRegex(self.wf, r"python3? ci/ci_tier\.py")
+        self.assertEqual(len(re.findall(r'python3? "\$RUNNER_TEMP/base/ci/ci_tier\.py" classify', self.wf)), 3)
         self.assertIn("  ci-tier:\n", self.wf)
 
     def test_push_and_dispatch_run_full(self):
@@ -339,7 +340,15 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("DOCS_CHECK_RESULT", gate)
 
     def test_runners_are_free(self):
-        self.assertEqual(set(re.findall(r"runs-on: (\S+)", self.wf)), {"ubuntu-latest"})
+        # same rule as tests/test_ci_policy.py: hosted, or exactly the same-repo self-hosted expression
+        def disallowed(wf):
+            found = [re.sub(r"\s+#.*$", "", v).strip() for v in re.findall(r"runs-on: (.+)", wf)]
+            self.assertTrue(found)
+            return [v for v in found if v not in ("ubuntu-latest", SELF_HOSTED_SAME_REPO)]
+
+        self.assertEqual(disallowed(self.wf), [])
+        for bad in ("self-hosted", SELF_HOSTED_SAME_REPO.replace("!=", "=="), "${{ matrix.os }}"):
+            self.assertEqual(disallowed("runs-on: %s\n" % bad), [bad])
 
     def test_docs_tier_required_jobs_skip_steps_not_the_job(self):
         tests_yml = os.environ.get("TESTS_YML")

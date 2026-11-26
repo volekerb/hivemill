@@ -12,11 +12,13 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -639,12 +641,15 @@ func TestAffectedWithoutQuickFullStillRunsEverything(t *testing.T) {
 	contains(t, r.out, "FULL (")
 }
 
+// affBudget is a --budget (whole seconds) that the fast modules fit in on a slow or busy host; the slow one never does.
+func affBudget() string { return strconv.Itoa(int(math.Ceil(5 * ft.TimeScale()))) }
+
 func TestAffectedBudgetStopsStartingModulesAndSaysRelyOnCi(t *testing.T) {
 	f := newAff(t)
 	f.write("tests/test_beta.py", okTest)
-	f.write("tests/test_gamma.py", "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(60)\n")
+	f.write("tests/test_gamma.py", "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(600)\n")
 	f.commit()
-	r := f.affected("--budget", "3", "--run")
+	r := f.affected("--budget", affBudget(), "--run")
 	if r.code != 4 {
 		t.Fatalf("exit %d: %s%s", r.code, r.out, r.err)
 	}
@@ -671,11 +676,11 @@ func TestAffectedQuickZeroTestsWithSkippedModuleExits1(t *testing.T) {
 func TestAffectedBudgetKillsAModuleRunningPastIt(t *testing.T) {
 	f := newAff(t)
 	f.write("tests/test_beta.py", okTest)
-	f.write("tests/test_gamma.py", "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(60)\n")
+	f.write("tests/test_gamma.py", "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(600)\n")
 	f.commit()
 	t0 := time.Now() // upper bound only; the assertion is a generous kill-deadline, not a data input
-	r := f.affected("--budget", "2", "--run")
-	if time.Since(t0) >= 7*time.Second {
+	r := f.affected("--budget", affBudget(), "--run")
+	if time.Since(t0) >= time.Duration(10*ft.TimeScale()*float64(time.Second)) {
 		t.Fatalf("took %v", time.Since(t0))
 	}
 	if r.code != 4 {
