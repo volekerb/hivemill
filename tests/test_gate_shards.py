@@ -89,13 +89,18 @@ trap 'exit 143' TERM
 HOME="$FAKE_REMOTE_HOME" bash -c "$*" <&0 &
 wait "$!"
 """
-FAKE_FACTORY = """#!/usr/bin/env python3
-import json, os, time
+# The probe is the fake tree's ci/shard.py: the driver's unittest step runs it (tests/gate_shards.py calls the tree's
+# ci/shard.py once per shard, then `verify`). Only shard 1 records, and atomically, so parallel shards cannot clash.
+FAKE_SHARD = """#!/usr/bin/env python3
+import json, os, sys, time
+if sys.argv[1:4] != ["run", "--shard", "1"]:
+    sys.exit(1)
 shipped = sorted(os.path.relpath(os.path.join(d, f)) for d, _, fs in os.walk(".") if ".git" not in d for f in fs)
 json.dump({"env": dict(os.environ), "cwd": os.getcwd(),
            "modes": {k: oct(os.stat(p).st_mode & 0o777) for k, p in (("run", os.path.dirname(os.environ["HOME"])),
                                                                       ("tmp", os.environ["TMPDIR"]))}, "files": sorted(os.listdir(".")), "shipped": shipped,
-           "cli": open("bin/factory_cli.py").read()}, open(%r, "w"))
+           "cli": open("ci/data.py").read()}, open(%r + ".tmp", "w"))
+os.replace(%r + ".tmp", %r)
 time.sleep(%d)
 """
 
@@ -129,9 +134,9 @@ class RemoteGate(unittest.TestCase):
         self.commit_head(sleep=0)
 
     def commit_head(self, sleep):
-        (self.tree / "bin").mkdir(exist_ok=True)
-        (self.tree / "bin" / "factory").write_text(FAKE_FACTORY % (str(self.mark), sleep))
-        (self.tree / "bin" / "factory_cli.py").write_text("X = 1\n")
+        (self.tree / "ci").mkdir(exist_ok=True)
+        (self.tree / "ci" / "shard.py").write_text(FAKE_SHARD % ((str(self.mark),) * 3 + (sleep,)))
+        (self.tree / "ci" / "data.py").write_text("X = 1\n")
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", f"head sleep {sleep}")
 
@@ -289,7 +294,7 @@ class RemoteGate(unittest.TestCase):
             self.assertIn("refusing", p.stderr)
             self.assertIn("untracked.txt", p.stderr)
         (self.tree / "untracked.txt").unlink()
-        (self.tree / "bin" / "factory_cli.py").write_text("X = 2\n")  # tracked, modified
+        (self.tree / "ci" / "data.py").write_text("X = 2\n")  # tracked, modified
         self.assertEqual(self.gate().returncode, 2)
         self.assertEqual(self.ssh_calls(), [])
 
@@ -337,20 +342,20 @@ class RemoteGate(unittest.TestCase):
         for k in ("FACTORY_HOME", "TMPDIR"):
             self.assertTrue(seen["env"][k].startswith(run_dir + "/"), seen["env"][k])
         # the head tree is the archive (plus the rebuilt history): no .ssh, .claude, db
-        self.assertEqual(sorted(set(seen["files"]) - {".git"}), ["bin", "tests"])
+        self.assertEqual(sorted(set(seen["files"]) - {".git"}), ["ci", "tests"])
 
     def test_head_ships_every_tracked_file_despite_export_attributes(self):
         # git archive would honour the PR's own .gitattributes: drop tests/ and rewrite the export-subst file
-        cli = self.tree / "bin" / "factory_cli.py"
+        cli = self.tree / "ci" / "data.py"
         (self.tree / ".gitattributes").write_text("tests/** export-ignore\ntests export-ignore\n"
-                                                  "bin/factory_cli.py export-subst\n")
+                                                  "ci/data.py export-subst\n")
         cli.write_text("X = '$Format:%H$'\n")
         git(self.tree, "add", "-A")
         git(self.tree, "commit", "-q", "-m", "hide tests")
         p = self.gate()
         self.assertIn("remote-gate-driver: FAIL", p.stdout, p.stdout + p.stderr)
         seen = json.loads(self.mark.read_text())
-        self.assertEqual(sorted(set(seen["files"]) - {".git"}), [".gitattributes", "bin", "tests"])
+        self.assertEqual(sorted(set(seen["files"]) - {".git"}), [".gitattributes", "ci", "tests"])
         self.assertIn("tests/test_a.py", seen["shipped"], "export-ignore hid tests/test_a.py from the gate")
         self.assertEqual(seen["cli"], "X = '$Format:%H$'\n", "export-subst rewrote a shipped file")
         self.assertEqual(self.run_dirs(p.stdout), [])
@@ -359,8 +364,8 @@ class RemoteGate(unittest.TestCase):
         # a PR force-adds a file plus a .gitignore rule for it: the rebuilt repo must still diff it (docs-check
         # lints only the files in `git diff gate-base HEAD`)
         diff_out = self.tmp / "remote-diff.txt"
-        (self.tree / "bin" / "factory").write_text(
-            "#!/usr/bin/env python3\nimport subprocess\n"
+        (self.tree / "ci" / "shard.py").write_text(
+            "#!/usr/bin/env python3\nimport subprocess, sys\nsys.argv[1:4] == ['run', '--shard', '1'] or sys.exit(1)\n"
             f"open({str(diff_out)!r}, 'w').write(subprocess.run(['git', 'diff', '--name-only', 'gate-base', 'HEAD'],"
             " capture_output=True, text=True, check=True).stdout)\n")
         (self.tree / "docs").mkdir()
@@ -378,7 +383,7 @@ class RemoteGate(unittest.TestCase):
         self.assertEqual(self.run_dirs(p.stdout), [])
 
     def test_tree_changed_after_the_checks_is_refused_and_nothing_is_shipped(self):
-        cases = {"modified": f"echo 'X = 3' > {self.tree}/bin/factory_cli.py",
+        cases = {"modified": f"echo 'X = 3' > {self.tree}/ci/data.py",
                  "staged": f"cd {self.tree} && echo y > new.txt && git add new.txt",
                  "deleted": f"rm {self.tree}/tests/test_a.py",
                  "head moved": f"cd {self.tree} && git -c user.name=t -c user.email=t@example.invalid "
@@ -461,7 +466,7 @@ class RemoteGate(unittest.TestCase):
             if self.mark.exists():
                 break
             time.sleep(0.1)
-        self.assertTrue(self.mark.exists(), "the run never reached factory-help")
+        self.assertTrue(self.mark.exists(), "the run never reached the unittest step")
         run_dir = json.loads(self.mark.read_text())["env"]["HOME"].rsplit("/", 1)[0]
         self.addCleanup(shutil.rmtree, run_dir, True)
         self.assertTrue(os.path.isdir(run_dir), run_dir)

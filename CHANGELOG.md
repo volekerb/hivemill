@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Removed
+
+- **CI and the remote gate no longer compile or run the old Python CLI.** The two `bin/factory` steps of the unittest-shard job in `tests.yml` and the `py-compile` and `factory-help` steps of `ci/remote_gate_driver.sh` are gone, a step towards deleting `bin/` ([old-chain deletion map](https://github.com/volekerb/hivemill/blob/main/docs/old-chain-deletion-map.md), T-1909).
+
 ### Fixed
 
 - **`factory schedule` works on a box running the Python defaults.** The tick built `factory-go` and the guard binary only when `cli_impl`, `tick_impl` or `guard_impl` asked for Go, so `factory schedule add` failed with "needs the Go CLI binary". Both binaries are now built on every tick when a `go/` tree and a Go toolchain exist. Dispatch is unchanged: no command routes to Go unless its impl flag says so (T-1804).
