@@ -260,7 +260,8 @@
       "Bash(GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/go version:*)",
       "Bash(GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/gofmt -l:*)",
       "Bash(GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod ~/.local/go/bin/gofmt -d:*)",
-      "Workflow(coder-skills:multi-angle-review)"
+      "Workflow(coder-skills:multi-angle-review)",
+      "Workflow"
     ]
   },
   "enabledPlugins": {
