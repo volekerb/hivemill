@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
+	"factory/go/internal/ghx"
 	"factory/go/internal/gitx"
 )
 
@@ -27,7 +29,15 @@ func RealTools(e Env) Tools {
 	return Tools{
 		Git: func(repo string, args ...string) (int, string, string) { return gitx.RC(repo, o, args...) },
 		GH: func(input string, args ...string) (int, string, string) {
-			return run(120*time.Second, "", input, nil, append([]string{"gh"}, args...)...)
+			res, err := ghx.Run(nil, input, 120*time.Second, args...)
+			var timeout *gitx.TimeoutError
+			switch {
+			case errors.As(err, &timeout):
+				return 124, res.Stdout, res.Stderr + "\ntimed out after 2m0s"
+			case err != nil && !errors.Is(err, exec.ErrWaitDelay): // ErrWaitDelay: gh exited 0, a child kept a pipe open
+				return 127, res.Stdout, err.Error()
+			}
+			return res.ExitCode, res.Stdout, res.Stderr
 		},
 		HC: func(args ...string) (int, string, string) {
 			return run(90*time.Second, "", "", nil, append([]string{"hc"}, args...)...)
@@ -114,6 +124,25 @@ func PRView(t Tools, url string) (*PR, error) {
 // CIVerdict is ci_verdict(): green = at least one check and all completed successful (success, neutral, skipped);
 // red = all completed and some failed; pending otherwise. Only the newest run of each check counts.
 func CIVerdict(checks []map[string]any) (string, []string) {
+	verdict, rows := ciRows(checks)
+	var failed []string
+	for _, c := range rows {
+		failed = append(failed, checkName(c))
+	}
+	return verdict, failed
+}
+
+// checkName is the name of a rollup row (a commit status has only a context).
+func checkName(c map[string]any) string {
+	if name, _ := c["name"].(string); name != "" {
+		return name
+	}
+	name, _ := c["context"].(string)
+	return name
+}
+
+// ciRows is CIVerdict with the failed rows themselves.
+func ciRows(checks []map[string]any) (string, []map[string]any) {
 	type key struct{ wf, name string }
 	latest := map[key]map[string]any{}
 	order := []key{}
@@ -141,18 +170,14 @@ func CIVerdict(checks []map[string]any) (string, []string) {
 	if len(order) == 0 {
 		return "pending", nil
 	}
-	var failed []string
+	var failed []map[string]any
 	done := true
 	for _, k := range order {
 		c := latest[k]
-		name := str(c, "name")
-		if name == "" {
-			name = str(c, "context")
-		}
 		if k.wf == "ctx" {
 			switch strings.ToUpper(str(c, "state")) {
 			case "FAILURE", "ERROR":
-				failed = append(failed, name)
+				failed = append(failed, c)
 			case "SUCCESS":
 			default:
 				done = false
@@ -160,11 +185,12 @@ func CIVerdict(checks []map[string]any) (string, []string) {
 			continue
 		}
 		concl := strings.ToUpper(strings.TrimSpace(str(c, "conclusion")))
-		finished := strings.ToUpper(str(c, "status")) == "COMPLETED" || (concl != "" && strings.TrimSpace(str(c, "completedAt")) != "")
+		finished := strings.ToUpper(str(c, "status")) == "COMPLETED" || (concl != "" && strings.TrimSpace(str(c, "completedAt")) != "") ||
+			concl == "STARTUP_FAILURE" // such a check never ran: it may carry neither a status nor a time
 		if !finished {
 			done = false
 		} else if concl != "SUCCESS" && concl != "NEUTRAL" && concl != "SKIPPED" {
-			failed = append(failed, name)
+			failed = append(failed, c)
 		}
 	}
 	if !done {
