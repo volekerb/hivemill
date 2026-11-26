@@ -55,6 +55,8 @@ var Defaults = map[string]string{
 	// session placement (placement.go, docs/hivemill-machines.md): task sessions on other hc machines
 	"session_machines":     "",     // hc machines for task sessions in order, e.g. worker1,local; empty = local core only
 	"machine_mem_floor_mb": "2500", // a listed machine needs this much MemAvailable to take a new task session
+	// `hivemill obs` bind host (obs_http.go): an IP address or localhost; beyond loopback that network can read the page
+	"obs_listen": "127.0.0.1",
 }
 
 // DefaultKeys returns the config keys, sorted.
