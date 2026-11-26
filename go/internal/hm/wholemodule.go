@@ -40,15 +40,21 @@ func wholeModuleIn(dir, command string) bool {
 	subtree := func(d string) bool {
 		return slices.ContainsFunc(strings.Split(d, "/"), func(s string) bool { return s == "internal" || s == "cmd" || s == "pkg" })
 	}
-	var shells []string // the directory outside each open subshell
+	var shells, pushed []string // the directory outside each open subshell and each pushd
 	var inShell, inGo, inTest bool
 	goDir := dir
+	skip := -1 // the index of a redirect target or a -C directory: never read as a command
 	for i, w := range words {
+		if i == skip {
+			continue
+		}
 		next := ""
 		if i+1 < len(words) {
 			next = words[i+1]
 		}
 		switch {
+		case strings.ContainsAny(w, "<>") && strings.Trim(w, "<>&|") == "": // a redirect: the command goes on
+			skip = i + 1
 		case w != "" && strings.Trim(w, "();<>|&") == "": // an operator ends the command
 			for _, c := range w {
 				if c == '(' {
@@ -58,11 +64,15 @@ func wholeModuleIn(dir, command string) bool {
 				}
 			}
 			inShell, inGo, inTest = false, false, false
-		case w == "cd" || w == "pushd":
+		case w == "cd":
 			dir = join(dir, next)
+		case w == "pushd":
+			pushed, dir = append(pushed, dir), join(dir, next)
+		case w == "popd" && len(pushed) > 0:
+			dir, pushed = pushed[len(pushed)-1], pushed[:len(pushed)-1]
 		case path.Base(w) == "sh" || path.Base(w) == "bash" || path.Base(w) == "zsh":
 			inShell = true
-		case inShell && strings.HasPrefix(w, "-") && strings.HasSuffix(w, "c"):
+		case inShell && strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "--") && strings.Contains(w, "c"):
 			if wholeModuleIn(dir, next) {
 				return true
 			}
@@ -70,7 +80,9 @@ func wholeModuleIn(dir, command string) bool {
 		case path.Base(w) == "go":
 			inGo, inTest, goDir = true, false, dir
 		case inGo && w == "-C":
-			goDir = join(dir, next)
+			goDir, skip = join(dir, next), i+1
+		case inGo && strings.HasPrefix(w, "-C="):
+			goDir = join(dir, strings.TrimPrefix(w, "-C="))
 		case inGo && w == "test":
 			inTest = true
 		case inTest && w == "./..." && !subtree(goDir):

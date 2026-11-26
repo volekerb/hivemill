@@ -624,7 +624,8 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		if (accChanged || stChanged) && newStatus != "draft" && newStatus != "done" && newStatus != "cancelled" {
 			var lint strings.Builder
 			probs := lintReport(&lint, id, newAcc)
-			if !accChanged && t.Status != "draft" { // a status change of a filed task: the dispatch gate
+			filed := t.Status == "todo" || t.Status == "blocked" || t.Status == "in_progress" || t.Status == "in_review"
+			if !accChanged && filed { // a status change of a filed task: the dispatch gate
 				probs = hm.LintProblems(newAcc)
 			}
 			if len(probs) > 0 {

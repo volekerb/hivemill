@@ -150,6 +150,11 @@ func TestTaskLintAll(t *testing.T) {
 	if code, _, _ := c.run("", "task", "update", "T-0002", "--status", "todo"); code != 3 {
 		t.Errorf("promote a draft offender: exit %d, want 3", code)
 	}
+	c.ok("task", "update", "T-0002", "--status", "cancelled")
+	if code, _, _ := c.run("", "task", "update", "T-0002", "--status", "todo"); code != 3 {
+		t.Errorf("promote through cancelled: exit %d, want 3", code)
+	}
+	c.ok("task", "update", "T-0002", "--status", "draft")
 	if code, _, _ := c.run("", "task", "update", "T-0001", "--acceptance", whole); code != 3 {
 		t.Errorf("new offending criteria: exit %d, want 3", code)
 	}
