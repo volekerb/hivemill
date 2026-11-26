@@ -61,6 +61,8 @@ type Run struct {
 	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
 	Mirror, RemoteHome string `json:",omitempty"`
 	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
+	// post_merge_cmd of the project, after this run's merge (postmerge.go): "" none, pending, ok or red.
+	PostMerge string `json:"post_merge,omitempty"`
 }
 
 // Session is one Claude session of a run (task, judge).
@@ -104,6 +106,7 @@ type Store interface {
 	Sessions(task string) ([]Session, error)
 	RedMain(slug string) (map[string]any, bool)
 	SetRedMainFix(slug, task string) error
+	SetRedMain(slug string, rec map[string]any) error
 	Close() error
 }
 
@@ -150,7 +153,28 @@ func OpenSQLite(path string) (*SQLite, error) {
 		db.Close()
 		return nil, fmt.Errorf("cannot add projects.ci_gate in %s: %w", path, err)
 	}
+	if err := addPostMerge(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("cannot add the post_merge columns in %s: %w", path, err)
+	}
 	return &SQLite{db: db, Now: time.Now}, nil
+}
+
+// addPostMerge adds the post_merge_cmd settings (postmerge.go) to an hm_project that has the table without them.
+func addPostMerge(db *sql.DB) error {
+	for col, decl := range map[string]string{"post_merge_cmd": "TEXT NOT NULL DEFAULT ''", "post_merge_timeout_s": "INTEGER NOT NULL DEFAULT 0"} {
+		var have int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('hm_project') WHERE name=?`, col).Scan(&have); err != nil {
+			return err
+		}
+		if have > 0 {
+			continue
+		}
+		if _, err := db.Exec(`ALTER TABLE hm_project ADD COLUMN ` + col + ` ` + decl); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
 }
 
 // addCIGate adds projects.ci_gate (” = the factory's judge_ci_gate) to a factory DB that has the table without it.
@@ -499,6 +523,20 @@ func (s *SQLite) SetRedMainFix(slug, task string) error {
 	m["task"] = task
 	b, _ := json.Marshal(m)
 	_, err := s.db.Exec(`UPDATE config SET value=? WHERE key=?`, string(b), "red_main:"+slug)
+	return err
+}
+
+// SetRedMain writes a repo's red-main record; a nil record removes it.
+func (s *SQLite) SetRedMain(slug string, rec map[string]any) error {
+	if rec == nil {
+		_, err := s.db.Exec(`DELETE FROM config WHERE key=?`, "red_main:"+slug)
+		return err
+	}
+	b, err := json.Marshal(rec)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, "red_main:"+slug, string(b))
 	return err
 }
 

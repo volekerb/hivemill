@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A project can run a command after each merge.** `hivemill project profile ID --post-merge-cmd CMD` runs it with the merge commit in `$HIVEMILL_MERGE_SHA`; the project's next merge waits for it. A red result holds the project's merges and files one fix-forward task; the events are `post_merge.ok` and `post_merge.red` (T-2087).
+
 - **Warm standby.** `docs/standby.md` is the failover runbook; `hivemill standby check --from HOST` restores the primary's newest snapshot into a temporary home (the daemon runs it monthly when `standby_from` is set), and a `daemon.lock` stops a second writer on another machine unless `hivemill daemon --take-over` is given (T-2086).
 
 - **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).

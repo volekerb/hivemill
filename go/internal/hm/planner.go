@@ -387,7 +387,8 @@ func WakeMessage(now time.Time, reasons []string, asksOpen int) string {
 }
 
 // wakeKinds are the event-log kinds that wake the planner.
-var wakeKinds = map[string]bool{"task.failed": true, "run.held": true, "budget.reached": true, "goal.checked": true, "ask.answered": true}
+var wakeKinds = map[string]bool{"task.failed": true, "run.held": true, "budget.reached": true, "goal.checked": true, "ask.answered": true,
+	"post_merge.red": true}
 
 // wakeEvents reads the event log from the planner's byte cursor: the wake reasons in it, and the offset after its last
 // complete line. A log shorter than the cursor was replaced, so it is read from the start.

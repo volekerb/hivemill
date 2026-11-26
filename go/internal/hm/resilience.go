@@ -30,7 +30,7 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 	if (run.State == Working || run.State == Judging) && run.PRURL != "" {
 		if pr, err := PRView(r.Tools, run.PRURL); err == nil && pr.State != "OPEN" {
 			if pr.State == "MERGED" && !run.Eval {
-				r.finish(run, pr)
+				r.finishMergedElsewhere(run, pr)
 				fixed = append(fixed, "PR merged by hand")
 			} else {
 				r.fail(run, "the PR was closed by hand")
@@ -197,7 +197,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	if err != nil {
 		bin = "hivemill"
 	}
-	r.inDaemon = true
+	r.inDaemon, r.stop = true, ctx
 	if err := r.WriteGuardExport(time.Now()); err != nil { // at start, even when another process holds the pass lock
 		r.printf("guard export: %v\n", err)
 	}
@@ -231,6 +231,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			sdNotify("STOPPING=1")
+			r.WaitPostMerge() // ctx killed a running post_merge_cmd: it stays pending and runs again
 			return nil
 		case <-time.After(time.Duration(cfgInt(r.Store, "pass_interval_s")) * time.Second):
 		}

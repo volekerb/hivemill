@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"factory/go/internal/ghx"
@@ -22,6 +23,8 @@ type Tools struct {
 	GH  func(input string, args ...string) (int, string, string)
 	HC  func(args ...string) (int, string, string)
 	Sh  func(dir string, timeout time.Duration, env []string, argv ...string) (int, string)
+	// ShGroup is Sh in its own process group, which the timeout or the end of ctx kills whole (nil: Sh is used).
+	ShGroup func(ctx context.Context, dir string, timeout time.Duration, env []string, argv ...string) (int, string)
 }
 
 // RealTools runs git through gitx (hooks off, https only, live-checkout moves refused), gh and hc.
@@ -47,6 +50,7 @@ func RealTools(e Env) Tools {
 			rc, out, errs := run(timeout, dir, "", env, argv...)
 			return rc, out + errs
 		},
+		ShGroup: shGroup,
 	}
 }
 
@@ -65,10 +69,24 @@ func gitAs(e Env, email, repo string, args ...string) (int, string, string) {
 	return gitx.RC(repo, o, append([]string{"-c", "user.email=" + email, "-c", "user.name=" + nameOf(email)}, args...)...)
 }
 
+// shGroup: the end of parent returns -1, the timeout 124.
+func shGroup(parent context.Context, dir string, timeout time.Duration, env []string, argv ...string) (int, string) {
+	rc, out, errs := runIn(parent, true, timeout, dir, "", env, argv...)
+	return rc, out + errs
+}
+
 func run(timeout time.Duration, dir, input string, env []string, argv ...string) (int, string, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	return runIn(context.Background(), false, timeout, dir, input, env, argv...)
+}
+
+func runIn(parent context.Context, group bool, timeout time.Duration, dir, input string, env []string, argv ...string) (int, string, string) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	if group {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	}
 	cmd.Dir = dir
 	if env != nil {
 		cmd.Env = env
@@ -80,6 +98,9 @@ func run(timeout time.Duration, dir, input string, env []string, argv ...string)
 	err := cmd.Run()
 	if ctx.Err() == context.DeadlineExceeded {
 		return 124, out.String(), errb.String() + fmt.Sprintf("\ntimed out after %s", timeout)
+	}
+	if parent.Err() != nil && err != nil {
+		return -1, out.String(), errb.String() + "\nstopped"
 	}
 	if errors.Is(err, exec.ErrWaitDelay) {
 		err = nil // the command itself exited 0

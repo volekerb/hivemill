@@ -24,13 +24,16 @@ type ProjectProfile struct {
 	ID             string
 	SensitivePaths []string // replaces sensitive_paths of the tier rules; nil = keep the file's
 	TierRules      string   // absolute path of the project's tier rules file; "" = the home's or the built-in one
+	PostMergeCmd   string   // run in the project checkout after each merge (postmerge.go); "" = none
+	PostMergeSecs  int      // its timeout; 0 = 900
 }
 
 // Profile reads a project's profile (an empty one when it has none).
 func (s *SQLite) Profile(id string) (ProjectProfile, error) {
 	p := ProjectProfile{ID: id}
 	var sp, tr string
-	err := s.db.QueryRow(`SELECT sensitive_paths, tier_rules FROM hm_project WHERE id=?`, id).Scan(&sp, &tr)
+	err := s.db.QueryRow(`SELECT sensitive_paths, tier_rules, post_merge_cmd, post_merge_timeout_s
+		FROM hm_project WHERE id=?`, id).Scan(&sp, &tr, &p.PostMergeCmd, &p.PostMergeSecs)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, nil
 	}
@@ -43,8 +46,10 @@ func (s *SQLite) Profile(id string) (ProjectProfile, error) {
 
 // SetProfile writes a project's profile.
 func (s *SQLite) SetProfile(p ProjectProfile) error {
-	_, err := s.db.Exec(`INSERT INTO hm_project(id,sensitive_paths,tier_rules) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET
-		sensitive_paths=excluded.sensitive_paths, tier_rules=excluded.tier_rules`, p.ID, strings.Join(p.SensitivePaths, ","), p.TierRules)
+	_, err := s.db.Exec(`INSERT INTO hm_project(id,sensitive_paths,tier_rules,post_merge_cmd,post_merge_timeout_s) VALUES(?,?,?,?,?)
+		ON CONFLICT(id) DO UPDATE SET sensitive_paths=excluded.sensitive_paths, tier_rules=excluded.tier_rules,
+		post_merge_cmd=excluded.post_merge_cmd, post_merge_timeout_s=excluded.post_merge_timeout_s`,
+		p.ID, strings.Join(p.SensitivePaths, ","), p.TierRules, p.PostMergeCmd, p.PostMergeSecs)
 	return err
 }
 

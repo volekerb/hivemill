@@ -148,7 +148,21 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	case "run":
 		switch a := arg(1); {
 		case a == "":
+			// post_merge_cmd has its own process group, so a Ctrl-C does not reach it: kill it before the pass exits
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			r.StopOn(ctx)
+			sig := make(chan os.Signal, 1)
+			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				<-sig
+				signal.Stop(sig) // a second one ends the process at once
+				cancel()
+				r.WaitPostMerge()
+				os.Exit(130)
+			}()
 			err = r.Pass(true)
+			r.WaitPostMerge()
 		case a == "hook-session":
 			err = r.SessionHook(stdin)
 		case a == "status":

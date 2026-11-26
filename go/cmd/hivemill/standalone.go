@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/url"
@@ -257,7 +259,8 @@ func cmdPR(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Write
 // cmdProfile is `hivemill project profile ID [--sensitive GLOB]... [--tier-rules FILE] [--clear]`: the project's own
 // tier settings (print them when no flag is given).
 func cmdProfile(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
-	usage := "usage: hivemill project profile ID [--sensitive GLOB]... [--tier-rules /abs/tier_rules.json] [--clear]"
+	usage := "usage: hivemill project profile ID [--sensitive GLOB]... [--tier-rules /abs/tier_rules.json] [--clear] " +
+		"[--post-merge-cmd CMD] [--post-merge-timeout-s N]"
 	s := sqliteOf(r, stderr)
 	if s == nil {
 		return 1
@@ -275,6 +278,8 @@ func cmdProfile(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 	fs.Var(&sens, "sensitive", "a sensitive path glob (repeat); replaces sensitive_paths of the tier rules for this project")
 	rules := fs.String("tier-rules", "", "the project's own tier rules file (absolute path, the ci/tier_rules.json format)")
 	clear := fs.Bool("clear", false, "drop the project's sensitive paths and rules file")
+	postCmd := fs.String("post-merge-cmd", "", "run in the project checkout after each merge, with $HIVEMILL_MERGE_SHA; empty removes it")
+	postSecs := fs.Int("post-merge-timeout-s", 0, "its timeout in seconds (default 900)")
 	if fs.Parse(args[1:]) != nil || fs.NArg() > 0 {
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -284,6 +289,17 @@ func cmdProfile(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 		return fail(stderr, err)
 	}
 	changed := *clear || len(sens) > 0 || *rules != ""
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	if given["post-merge-cmd"] {
+		p.PostMergeCmd, changed = strings.TrimSpace(*postCmd), true
+	}
+	if given["post-merge-timeout-s"] {
+		if *postSecs <= 0 {
+			return fail(stderr, fmt.Errorf("%w: --post-merge-timeout-s needs a positive number of seconds", hm.ErrUsage))
+		}
+		p.PostMergeSecs, changed = *postSecs, true
+	}
 	if *clear {
 		p.SensitivePaths, p.TierRules = nil, ""
 	}
@@ -311,12 +327,20 @@ func cmdProfile(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 		if err := s.SetProfile(p); err != nil {
 			return fail(stderr, err)
 		}
+		if given["post-merge-cmd"] && p.PostMergeCmd == "" {
+			if err := r.ClearPostMergeRed(id); err != nil {
+				return fail(stderr, err)
+			}
+		}
 	}
 	_, from, err := r.TierRules(id)
 	if err != nil {
 		return fail(stderr, err)
 	}
 	fmt.Fprintf(stdout, "%s sensitive_paths %q tier_rules %q (tier rules: %s)\n", id, strings.Join(p.SensitivePaths, ","), p.TierRules, from)
+	if p.PostMergeCmd != "" {
+		fmt.Fprintf(stdout, "%s post_merge_cmd %q post_merge_timeout_s %d\n", id, p.PostMergeCmd, cmp.Or(p.PostMergeSecs, 900))
+	}
 	return 0
 }
 

@@ -8308,8 +8308,7 @@ def mech_main_run_refusal(con, slugs, git_repo, task_id=None):
         if run.get("headSha") != head:
             return f"no push run yet for main {head[:8]}; hold"
         if concl != "success":
-            st = red_main_state(con, slug)
-            if task_id and st and st.get("task") == task_id:
+            if red_main_may_merge(red_main_state(con, slug), task_id):
                 continue  # failed run for current main head: the revert/fix task may land on red main
             return f"main push run {rid} {concl or 'unknown'}; hold"
     return None
@@ -9078,6 +9077,18 @@ def red_main_state(con, slug):
     return st if isinstance(st, dict) else {"run": "?", "sha": "", "url": "", "since": ""}  # an unreadable record keeps the freeze (fail closed)
 
 
+def red_main_may_merge(st, task_id):
+    """The task may merge while record `st` holds the repo: the stored "task", and for a record of hivemill's post_merge_cmd
+    also its revert task, the task the director named and the fix task of the push-run record under `prev`."""
+    if not (st and task_id):
+        return False
+    names = [st.get("task")]
+    if st.get("source") == "post_merge":
+        prev = st.get("prev")
+        names += [st.get("revert"), st.get("named"), prev.get("task") if isinstance(prev, dict) else None]
+    return task_id in names
+
+
 def red_main_refusal(con, slugs, task_id=None):
     """Why a merge into one of `slugs` (OWNER/NAME) must wait: the latest completed push run of tests.yml on main is red
     (T-0614 signal, kept by red_main_check). None with red_main_freeze off, or when none of the repos is red. The revert/fix
@@ -9086,7 +9097,7 @@ def red_main_refusal(con, slugs, task_id=None):
         return None
     for slug in slugs:
         st = red_main_state(con, slug)
-        if st and not (task_id and st.get("task") == task_id):
+        if st and not red_main_may_merge(st, task_id):
             return f"red main: run {st.get('run')} on {slug} failed ({st.get('url') or 'no url'}); merges wait for a green push run"
     return None
 
@@ -9114,7 +9125,7 @@ def main_run_refusal(con, slugs, task_id=None):
         return None
     for slug in slugs:
         st = red_main_state(con, slug)
-        fix = bool(st and task_id and st.get("task") == task_id)
+        fix = red_main_may_merge(st, task_id)
         try:
             head, run = main_head_run(slug)
         except (OSError, ValueError, subprocess.TimeoutExpired) as e:
@@ -9134,6 +9145,35 @@ def _red_main_set(con, slug, st):
     else:
         con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (key, json.dumps(st)))
+
+
+def _red_main_split(con, slug):
+    """(hivemill's post_merge record or None, the push-run record or None) of a repo."""
+    st = red_main_state(con, slug)
+    if st and st.get("source") == "post_merge":
+        return st, st.get("prev")
+    return None, st
+
+
+def _red_main_write(con, slug, rec):
+    """Store the push-run record `rec` (None = it is over), under a post_merge record if one holds the repo. One write
+    transaction: hivemill writes the same row."""
+    nested = con.in_transaction
+    if not nested:
+        con.execute("BEGIN IMMEDIATE")
+    try:
+        post = _red_main_split(con, slug)[0]
+        if post:
+            kept = {k: v for k, v in post.items() if k != "prev"}
+            _red_main_set(con, slug, dict(kept, prev=rec) if rec else kept)
+        else:
+            _red_main_set(con, slug, rec)
+        if not nested:
+            con.execute("COMMIT")
+    except BaseException:
+        if not nested and con.in_transaction:
+            con.execute("ROLLBACK")
+        raise
 
 
 def _red_main_latest(slug):
@@ -9220,8 +9260,10 @@ def cmd_redmain(a):
         die(f"{slug} is not frozen (no red_main record): nothing to name a fix task for", 2)
     if not con.execute("SELECT 1 FROM tasks WHERE id=?", (a.task,)).fetchone():
         die(f"no task {a.task}: see `factory task show`", 2)
-    old = st.get("task") or ""
-    st["task"] = a.task
+    # a post_merge record keeps its fix-forward task; the director's goes beside it
+    key = "named" if st.get("source") == "post_merge" else "task"
+    old = st.get(key) or ""
+    st[key] = a.task
     _red_main_set(con, slug, st)
     event(con, "redmain", slug, "red-main-fix-task", f"{old or '-'} -> {a.task}")
     print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
@@ -9263,7 +9305,8 @@ def red_main_check(con):
                 continue
             if run is None:
                 continue
-            old = red_main_state(con, slug)
+            # a record of hivemill's post_merge_cmd is its own to clear: the push-run record lives under its `prev`
+            old = _red_main_split(con, slug)[1]
             if run["conclusion"] in RED_MAIN_BAD:
                 if old and str(old.get("run")) == str(run["databaseId"]):
                     continue
@@ -9272,9 +9315,9 @@ def red_main_check(con):
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
                     tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
                 kept = (old or {}).get("task") or ""
-                _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
-                                          "task": tid or kept,
-                                          "since": (old or {}).get("since") or now()})
+                rec = {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
+                       "task": tid or kept, "since": (old or {}).get("since") or now()}
+                _red_main_write(con, slug, rec)  # reads again: hivemill may have written while the task was filed
                 event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
                 send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
@@ -9288,8 +9331,8 @@ def red_main_check(con):
                 if not mark or _red_main_green_run(mark["value"]) != str(run["databaseId"]):  # the mark is the green run's own start
                     con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                                 (f"red_main_green:{slug}", json.dumps({"run": run["databaseId"], "created": run.get("createdAt") or ""})))
-                if old:
-                    _red_main_set(con, slug, None)
+                if old:  # the push-run record is over; a post_merge record stays, without it
+                    _red_main_write(con, slug, None)
                     event_as(con, "tick", "redmain", slug, "red-main-clear", f"run {run['databaseId']} green")
     except Exception as e:  # noqa: BLE001 — the tick must go on
         try:

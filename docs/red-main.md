@@ -18,6 +18,10 @@ The revert/fix task the check files may itself merge during the freeze (matched 
 
 **Naming the fix task by hand.** `factory redmain fix <OWNER/NAME> <T-id>` (director only) sets the stored fix task of a frozen repo (event `red-main-fix-task`), so that task may merge during the freeze. Use it when no revert task was filed, otherwise the fix PR cannot merge.
 
+## A red `post_merge_cmd`
+
+A project's `post_merge_cmd` ([option-b-runner.md](option-b-runner.md)) writes the same `red_main:<owner/name>` row, with `source: post_merge`. `hivemill` holds that repo's merges on it even with `red_main_freeze` off, and a green command clears it. A green command leaves the monitor's own record alone. The monitor neither replaces nor clears a `post_merge` row: its own record lives under that row's `prev` (kept there by a red command, or written there by a push run that turns red meanwhile, which files its task as usual). A green command puts it back, unless a push run went green in between. While the `post_merge` row holds, the fix-forward task, the auto-revert task, the monitor's fix task and a task named with `factory redmain fix` may merge. A second red command keeps a fix-forward task that is still open. The runner reactivates a `done` goal of the fix-forward task; a cancelled or blocked goal stays so and opens a `post-merge-stuck` alert row. `max_waiting` does not hold the start. A red revert is not reverted again. A command that cannot run stays pending, holds the project's merges and opens a `post-merge-stuck` alert row. Stopping the daemon (or interrupting `hivemill run`) kills a running command; it runs again. The row is per repository, so give one repository only one project with a `post_merge_cmd`.
+
 ## One bisect + revert task per red run (T-1772)
 
 The task filed for a red run is titled `Red main: bisect + revert <repo> run <id>`, has priority 1 and names the merge commits since the last green main. With `judge_ci_gate=none` this is the only CI safety net; see `docs/judge-ci-gate.md`.

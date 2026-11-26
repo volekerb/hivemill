@@ -147,7 +147,8 @@ func sqliteOf(r *hm.Runner, stderr io.Writer) *hm.SQLite {
 // proof can name); the profile holds the project's own tier settings.
 func cmdProject(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 	usage := "usage: hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] [--name NAME] | project list | " +
-		"project profile ID [--sensitive GLOB]... [--tier-rules FILE] [--clear]"
+		"project profile ID [--sensitive GLOB]... [--tier-rules FILE] [--clear] " +
+		"[--post-merge-cmd CMD] [--post-merge-timeout-s N]"
 	s := sqliteOf(r, stderr)
 	if s == nil {
 		return 1

@@ -28,8 +28,10 @@ type MergeInput struct {
 	BehindOK       bool     `json:"behind_ok"` // stale_policy behind_ok holds: merge behind main without a refresh (docs/stale-policy.md)
 	Frozen         bool     `json:"frozen"`
 	RedMain        bool     `json:"red_main"`
-	FixTask        bool     `json:"fix_task"` // this task is the named red-main fix task
-	MainRun        string   `json:"main_run"` // newest main push run for main's head: green | red | pending | none | unknown
+	FixTask        bool     `json:"fix_task"`                 // this task is the named red-main fix task
+	MainRun        string   `json:"main_run"`                 // newest main push run for main's head: green | red | pending | none | unknown
+	PostMerge      bool     `json:"post_merge,omitempty"`     // post_merge_cmd of an earlier merge of the project has not finished
+	PostMergeRed   bool     `json:"post_merge_red,omitempty"` // the red-main record comes from post_merge_cmd
 	IdentityOK     bool     `json:"identity_ok"`
 	PublicTextOK   bool     `json:"public_text_ok"`
 	PublicTextNote string   `json:"public_text_note,omitempty"`
@@ -79,6 +81,10 @@ func Decide(in MergeInput) MergeDecision {
 		return MergeDecision{"block", "the risk tier cannot be decided; the owner merges"}
 	case tierAbove(in.Tier, MaxMechTier) && !(in.Tier == "T3" && in.T3Auto):
 		return MergeDecision{"block", "tier " + in.Tier + " is above " + MaxMechTier + "; the owner merges"}
+	case in.PostMerge:
+		return MergeDecision{"hold", postMergeRunning}
+	case in.RedMain && in.PostMergeRed && !in.FixTask:
+		return MergeDecision{"hold", postMergeHeld}
 	case in.RedMain && !in.FixTask:
 		return MergeDecision{"hold", "main is red; merges wait for a green push run"}
 	case in.MainRun == "pending" || in.MainRun == "unknown":
@@ -122,10 +128,12 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 	for _, f := range csv(r.Store.FactoryCfg("frozen_repos")) {
 		in.Frozen = in.Frozen || strings.EqualFold(f, slug)
 	}
-	if st, red := r.Store.RedMain(slug); red && r.Store.FactoryCfg("red_main_freeze") == "1" {
-		in.RedMain = true
-		in.FixTask = fmt.Sprint(st["task"]) == run.Task
+	// a red post_merge_cmd holds its project's merges whether or not red_main_freeze is on
+	if st, red := r.Store.RedMain(slug); red && (r.Store.FactoryCfg("red_main_freeze") == "1" || fromPostMerge(st)) {
+		in.RedMain, in.PostMergeRed = true, fromPostMerge(st)
+		in.FixTask = fmt.Sprint(st["task"]) == run.Task || fromPostMerge(st) && mayMergeRed(st, run.Task)
 	}
+	in.PostMerge = r.postMergePending(run)
 	wt, base := run.coordWT(), run.Base
 	r.Tools.Git(wt, "fetch", "-q", "origin", base)
 	_, local, _ := r.Tools.Git(wt, "rev-parse", "HEAD")
@@ -231,6 +239,9 @@ func (r *Runner) Merge(run *Run) {
 		run.MergeHold = err.Error()
 		return
 	}
+	if pr.State == "OPEN" && run.PostMerge == PostMergePending {
+		run.PostMerge = "" // the merge that was not confirmed did not happen
+	}
 	d := Decide(in)
 	run.MergeHold = d.Action + ": " + d.Why
 	if pr.State == "OPEN" && r.ciNone(run.Project) {
@@ -263,7 +274,7 @@ func (r *Runner) Merge(run *Run) {
 	}
 	switch d.Action {
 	case "done":
-		r.finish(run, pr)
+		r.finishMergedElsewhere(run, pr)
 	case "hold":
 	case "block":
 		if OwnerMerges(d.Why) {
@@ -413,7 +424,7 @@ func (r *Runner) checkHeld(run *Run) {
 	case "MERGED":
 		run.Unattended = false // merged by hand
 		_ = r.Log.Emit("run.reconciled", run, Event{Data: map[string]any{"repaired": []string{"held PR merged by the owner"}}})
-		r.finish(run, pr)
+		r.finishMergedElsewhere(run, pr)
 	case "CLOSED":
 		r.fail(run, "the owner closed the held PR")
 	}
@@ -465,27 +476,89 @@ func (r *Runner) mergeNow(run *Run, sha string, t3 bool) {
 	if l != nil {
 		defer l.Close()
 	}
+	// read again under the lock: another process may have merged, or a post_merge_cmd turned red, since gatherMerge
+	if why := r.postMergeHold(run); why != "" {
+		run.MergeHold = "hold: " + why
+		return
+	}
 	run.Unattended = t3 // kept when only a later pass confirms the merge
 	rc, _, errs := r.Tools.GH("", "pr", "merge", run.PRURL, "--squash", "--delete-branch", "--match-head-commit", sha)
 	pr, err := PRView(r.Tools, run.PRURL)
 	switch {
 	case err == nil && pr.State == "MERGED": // gh can also fail after the merge, on the branch delete
-		r.finish(run, pr)
+		if !r.awaitsMergeCommit(run, pr) {
+			r.finish(run, pr)
+		}
 	case rc != 0:
+		run.MergeHold = "gh pr merge failed: " + firstLine(errs)
 		if err == nil {
 			run.Unattended = false // not merged: a later merge by hand is not the runner's
+		} else {
+			r.holdForPostMerge(run) // it may have merged all the same
 		}
-		run.MergeHold = "gh pr merge failed: " + firstLine(errs)
 	default:
 		run.MergeHold = "merge not confirmed yet"
+		r.holdForPostMerge(run)
 	}
 }
 
+// holdForPostMerge: with a post_merge_cmd, a merge that is not recorded yet is stored as pending, so the project's next
+// merge waits all the same. The caller holds the merge lock.
+func (r *Runner) holdForPostMerge(run *Run) bool {
+	if cmd, _, err := r.postMergeCfg(run.Project); err == nil && cmd == "" {
+		return false
+	}
+	run.PostMerge = PostMergePending
+	_ = r.Store.PutRun(run)
+	return true
+}
+
+// awaitsMergeCommit: post_merge_cmd runs on the merge commit, so a merged PR that does not name it yet is not recorded.
+func (r *Runner) awaitsMergeCommit(run *Run, pr *PR) bool {
+	if pr.MergeCommit != nil && pr.MergeCommit.Oid != "" || !r.holdForPostMerge(run) {
+		return false
+	}
+	run.MergeHold = "merge commit not known yet"
+	return true
+}
+
+// finishMergedElsewhere finishes a run whose PR someone else merged. Only the record is written under the merge lock:
+// the rest (a goal check can run for long) must not hold other projects' merges.
+func (r *Runner) finishMergedElsewhere(run *Run, pr *PR) {
+	l := r.lock("merge", true)
+	waits := r.awaitsMergeCommit(run, pr)
+	if !waits {
+		r.recordMerged(run, pr)
+	}
+	if l != nil {
+		l.Close()
+	}
+	if !waits {
+		r.closeOut(run)
+	}
+}
+
+// finish records the merge of a run and closes it out. The caller holds the merge lock.
 func (r *Runner) finish(run *Run, pr *PR) {
+	r.recordMerged(run, pr)
+	r.closeOut(run)
+}
+
+// recordMerged marks the run merged and, with a post_merge_cmd, stores it as pending.
+func (r *Runner) recordMerged(run *Run, pr *PR) {
 	if pr.MergeCommit != nil {
 		run.MergeSHA = pr.MergeCommit.Oid
 	}
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
+	run.PostMerge = "" // a marker of the unconfirmed merge goes; below says whether a command is due
+	if cmd, _, err := r.postMergeCfg(run.Project); (err != nil || cmd != "") && run.MergeSHA != "" {
+		run.PostMerge = PostMergePending
+		_ = r.Store.PutRun(run) // now, under the merge lock: the project's next merge must see it
+	}
+}
+
+// closeOut is what follows a recorded merge.
+func (r *Runner) closeOut(run *Run) {
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
 	data := map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL, "merged_at": run.Merged}
@@ -547,7 +620,8 @@ func (r *Runner) RevertCheck() error {
 	}
 	for i := range runs {
 		x := &runs[i]
-		if x.State != Merged || x.MergeSHA == "" || x.RevertedBy != "" {
+		// a red revert is not reverted back: that would repeat for ever. Its fix-forward task or the owner takes it.
+		if x.State != Merged || x.MergeSHA == "" || x.RevertedBy != "" || x.Kind == "revert" {
 			continue
 		}
 		st, red := r.Store.RedMain(strings.ToLower(x.Repo))
@@ -565,11 +639,25 @@ func (r *Runner) RevertCheck() error {
 		if err != nil {
 			return err
 		}
-		x.State, x.Outcome, x.RevertedBy = Reverted, "reverted", id
-		_ = r.Store.PutRun(x)
+		if x, err = r.markReverted(x.Task, id); err != nil {
+			return err
+		}
 		_ = r.Log.Emit("pr.reverted", x, Event{Data: map[string]any{"revert_task": id, "merge_sha": x.MergeSHA}})
 	}
 	return nil
+}
+
+// markReverted reads the run again under the merge lock: a finishing post_merge_cmd writes the same record.
+func (r *Runner) markReverted(task, by string) (*Run, error) {
+	if l := r.lock("merge", true); l != nil {
+		defer l.Close()
+	}
+	x, err := r.Store.Run(task)
+	if err != nil || x == nil {
+		return nil, fmt.Errorf("read run %s: %v", task, err)
+	}
+	x.State, x.Outcome, x.RevertedBy = Reverted, "reverted", by
+	return x, r.Store.PutRun(x)
 }
 
 func (r *Runner) openRevert(x *Run, st map[string]any) (string, error) {
@@ -577,8 +665,8 @@ func (r *Runner) openRevert(x *Run, st map[string]any) (string, error) {
 	if old, _ := r.Store.TaskByTitle(x.Goal, title); old != "" {
 		return old, nil // idempotent: a pass that crashed after filing the revert task does not file a second one
 	}
-	id, err := r.Store.NewTask(x.Goal, title, fmt.Sprintf("Mechanical revert of %.12s (%s): main's push run %v failed on it.", x.MergeSHA, x.PRURL, st["run"]),
-		"1. main is green again - manual: the red-main monitor clears it")
+	id, err := r.Store.NewTask(x.Goal, title, fmt.Sprintf("Mechanical revert of %.12s (%s): %s on it.", x.MergeSHA, x.PRURL, redCause(st)),
+		"1. main is green again - manual: "+redClearer(st)+" clears it")
 	if err != nil {
 		return "", err
 	}
@@ -598,10 +686,10 @@ func (r *Runner) openRevert(x *Run, st map[string]any) (string, error) {
 	if rc, _, errs := r.Tools.Git(wt, "push", "-q", "origin", "HEAD:"+branch); rc != 0 {
 		return "", fmt.Errorf("push %s: %s", branch, firstLine(errs))
 	}
-	body := fmt.Sprintf("## Summary\nReverts %s (%s): main's push run %v failed on its merge commit.\n\n## Why\n%s: mechanical revert by "+
+	body := fmt.Sprintf("## Summary\nReverts %s (%s): %s on its merge commit.\n\n## Why\n%s: mechanical revert by "+
 		"`hivemill` (auto_revert=on).\n\n## Changes\n- `git revert %.12s`\n\n## Test evidence\n`git revert --no-edit` -> exit 0; CI on this "+
 		"PR decides.\n\n## Risk / rollback\nRe-land the original PR after a fix.\n\n<details><summary>Acceptance walk</summary>\n\n"+
-		"## Acceptance walk\n1. main green again - manual\n</details>\n", x.Task, x.PRURL, st["run"], id, x.MergeSHA)
+		"## Acceptance walk\n1. main green again - manual\n</details>\n", x.Task, x.PRURL, redCause(st), id, x.MergeSHA)
 	rc, out, errs := r.Tools.GH(body, "pr", "create", "-R", x.Repo, "--head", branch, "--base", x.Base, "--title",
 		truncate(id+": "+title, 72), "--body-file", "-")
 	if rc != 0 {
@@ -611,7 +699,7 @@ func (r *Runner) openRevert(x *Run, st map[string]any) (string, error) {
 	_, head, _ := r.Tools.Git(wt, "rev-parse", "HEAD")
 	_ = r.Store.TaskPR(id, url, "")
 	_ = r.Store.TaskStatus(id, "in_review", "")
-	_ = r.Store.SetRedMainFix(strings.ToLower(x.Repo), id)
+	_ = r.nameRevert(strings.ToLower(x.Repo), id)
 	marker := "claude-task-judge-" + strings.ToLower(id) + "-revert" // the runner_managed marker the old pipeline respects
 	_ = r.Store.AgentLive(marker, "task-judge", id, x.Goal, "", "", "", wt, `{"lane":"option-b","kind":"revert"}`)
 	_ = r.Store.AgentEnded(marker)

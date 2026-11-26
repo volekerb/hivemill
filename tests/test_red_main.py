@@ -1,6 +1,7 @@
 """G-022 T-0623: red-main monitor and merge freeze. The tick reads the latest completed tests.yml push run on main
 (stub gh `run list`); red freezes cmd_judge merges with the run id, messages the director once and files a revert task;
 green clears; red_main_freeze=0 (the default) changes nothing. Temp FACTORY_HOME, the tests/stubs gh."""
+import json
 import unittest
 
 from harness import REPO, FactoryTestCase
@@ -77,6 +78,26 @@ class RedMainTests(FactoryTestCase):
         # T-1772: exactly one P1 bisect + revert task per red run
         self.assertIn("bisect + revert", tasks[0]["title"])
         self.assertEqual(tasks[0]["priority"], 1)
+
+    def test_push_runs_leave_post_merge_record(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        rec = {"source": "post_merge", "run": "post_merge", "task": "T-0009", "prev": {"run": 900, "task": "T-0008"}}
+        self.env.sql("INSERT INTO config(key,value) VALUES('red_main:acme/priv',?)", (json.dumps(rec),))
+
+        def stored():
+            return json.loads(self.env.sql("SELECT value FROM config WHERE key='red_main:acme/priv'")[0]["value"])
+
+        self.runs(RED)
+        self.tick()
+        got = stored()  # the push run is recorded and gets its task underneath; the command's record is unchanged
+        self.assertEqual({k: got[k] for k in ("source", "run", "task")}, {k: rec[k] for k in ("source", "run", "task")})
+        self.assertEqual(str(got["prev"]["run"]), str(RED["databaseId"]))
+        self.assertTrue(got["prev"]["task"])
+        self.runs(NEWER_GOOD, RED)
+        self.tick()
+        del rec["prev"]  # the push-run record underneath is over, the command's own stays
+        self.assertEqual(stored(), rec)
 
     def test_green_run_clears_freeze(self):
         self.ok("config", "red_main_freeze", "1")
@@ -311,6 +332,19 @@ class RedMainTests(FactoryTestCase):
             con = f.db()
             self.assertIsNone(f.red_main_refusal(con, ["acme/priv"], "T-0002"))
             self.assertIn("run 901", f.red_main_refusal(con, ["acme/priv"], "T-0001"))
+
+    def test_post_merge_record_tasks_may_merge(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.env.seed_task(tid="T-0002", pr_url="https://github.com/acme/priv/pull/2")
+        rec = {"source": "post_merge", "run": "post_merge", "task": "T-0009", "revert": "T-0007", "prev": {"run": 900, "task": "T-0008"}}
+        self.env.sql("INSERT INTO config(key,value) VALUES('red_main:acme/priv',?)", (json.dumps(rec),))
+        p = self.env.run("redmain", "fix", "acme/priv", "T-0002", agent="zz-test-director")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        with self.env.load_factory() as f:
+            con = f.db()
+            for tid in ("T-0009", "T-0007", "T-0008", "T-0002"):  # the director's task keeps the fix-forward beside it
+                self.assertIsNone(f.red_main_refusal(con, ["acme/priv"], tid), tid)
+            self.assertIn("red main", f.red_main_refusal(con, ["acme/priv"], "T-0001"))
 
     def test_redmain_fix_refusals(self):
         self.hive_setup()

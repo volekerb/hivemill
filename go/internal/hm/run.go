@@ -1,12 +1,14 @@
 package hm
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -51,6 +53,8 @@ type Runner struct {
 	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
+	postMerges sync.WaitGroup         // post_merge_cmd runs in the background (postmerge.go)
+	stop       context.Context        // the daemon's: it ends when the daemon stops
 	inDaemon   bool                   // this process runs the daemon's passes
 	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
 	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
@@ -197,7 +201,7 @@ func (r *Runner) Start(id string) error {
 	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
-	if why := r.runCapBlock(); why != "" {
+	if why := r.startBlock(id); why != "" {
 		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
 	if r.Draining() {
@@ -435,6 +439,9 @@ func (r *Runner) prepareClone(wt string) error {
 
 func (r *Runner) fail(run *Run, reason string) {
 	run.State, run.Outcome, run.FailReason, run.Ended = Failed, "failed", reason, nowISO()
+	if run.PostMerge == PostMergePending && run.MergeSHA == "" {
+		run.PostMerge = "" // a failed run was never merged: it holds nothing
+	}
 	_ = r.Store.TaskStatus(run.Task, "blocked", "owner")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-fail", truncate(reason, 900))
 	if !run.Eval {
@@ -530,6 +537,7 @@ func (r *Runner) Pass(startNew bool) error {
 			r.printf("%s: %s\n", x.Task, st)
 		}
 	}
+	r.PostMergeCheck() // starts the commands in the background: other projects do not wait for them
 	if err := r.RevertCheck(); err != nil {
 		r.printf("revert check: %v\n", err)
 	}
@@ -550,16 +558,15 @@ func (r *Runner) Pass(startNew bool) error {
 		return nil
 	}
 	if paused != "" {
-		r.printf("dispatch held: %s\n", paused)
-		return nil
+		r.printf("dispatch held: %s\n", paused) // only a post_merge fix-forward task still starts
 	}
 	cands, err := r.Candidates()
 	if err != nil {
 		return err
 	}
 	for _, t := range cands {
-		if r.runCapBlock() != "" {
-			break
+		if r.startBlock(t.ID) != "" {
+			continue
 		}
 		if err := r.Start(t.ID); err != nil {
 			r.printf("%s: %v\n", t.ID, err)
@@ -736,6 +743,13 @@ func (r *Runner) Stop(task string) error {
 	}
 	if run.State == Merged { // the step waited for has merged it
 		return fmt.Errorf("%w: %s is merged already", ErrRefused, task)
+	}
+	// a merge that was not confirmed holds the project's merges: a cancelled run would never release them
+	if run.PostMerge == PostMergePending && run.MergeSHA == "" {
+		if pr, err := PRView(r.Tools, run.PRURL); err != nil || pr.State == "MERGED" {
+			return fmt.Errorf("%w: %s may be merged already; a later pass records it", ErrRefused, task)
+		}
+		run.PostMerge = ""
 	}
 	r.closeSessions(run)
 	r.endCIWait(run)
