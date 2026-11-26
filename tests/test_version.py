@@ -1,4 +1,4 @@
-"""VERSION file, `factory --version` and `ci/changelog.py --check-version` (T-0792)."""
+"""VERSION file, `factory --version`, `ci/changelog.py --check-version` (T-0792) and the release workflow's Go ci-changelog steps."""
 import os
 import re
 import shutil
@@ -143,11 +143,20 @@ class TestCheckVersion(unittest.TestCase):
 class TestReleaseWorkflow(unittest.TestCase):
     def test_check_step_precedes_release_creation(self):
         lines = (ROOT / ".github" / "workflows" / "release.yml").read_text().splitlines()
-        check = [i for i, l in enumerate(lines) if 'changelog.py --check-version "${GITHUB_REF_NAME#v}"' in l]
+        check = [i for i, l in enumerate(lines) if 'ci-changelog" --check-version "${GITHUB_REF_NAME#v}"' in l]
         create = [i for i, l in enumerate(lines) if "gh release create" in l]
         self.assertEqual(len(check), 1)
         self.assertEqual(len(create), 1)
         self.assertLess(check[0], create[0])
+
+    def test_go_tool_is_built_before_use(self):
+        lines = (ROOT / ".github" / "workflows" / "release.yml").read_text().splitlines()
+        build = [i for i, l in enumerate(lines) if '-o "$RUNNER_TEMP/ci-changelog" ./cmd/ci-changelog' in l]
+        uses = [i for i, l in enumerate(lines) if '"$RUNNER_TEMP/ci-changelog" --' in l]
+        self.assertEqual(len(build), 1)
+        self.assertEqual(len(uses), 3)
+        self.assertLess(build[0], min(uses))
+        self.assertFalse(any("ci/changelog.py" in l for l in lines))
 
 
 if __name__ == "__main__":
