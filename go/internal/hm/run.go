@@ -47,9 +47,11 @@ type Runner struct {
 	ReadyWait time.Duration
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
-	usageFiles  [][]byte               // the remote usage files of this pass
-	usageRead   bool                   // usageFiles has been read in this pass
-	loads       map[string]loadReading // CPU load per machine, see load.go
+	// SSH runs command on a clone-mode session machine, with stdin (clonemachine.go).
+	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	usageFiles [][]byte               // the remote usage files of this pass
+	usageRead  bool                   // usageFiles has been read in this pass
+	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -58,7 +60,7 @@ func NewRunner(e Env, out io.Writer) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{Env: e, Store: s, Tools: RealTools(e), Out: out, Poll: 2 * time.Second, RemoteUsage: readRemoteUsage,
+	return &Runner{Env: e, Store: s, Tools: RealTools(e), Out: out, Poll: 2 * time.Second, RemoteUsage: readRemoteUsage, SSH: sshTransport,
 		Log: Log{Path: filepath.Join(e.StateDir(), "events.jsonl"), Machine: s.Cfg("machine_name")}}, nil
 }
 
@@ -202,6 +204,19 @@ func (r *Runner) Start(id string) error {
 	if branch == "" {
 		branch = "factory/" + strings.ToLower(id)
 	}
+	// held until the run is saved: the removal of an ended run's remote worktree takes it too
+	l := r.lock(id, false)
+	if l == nil {
+		return fmt.Errorf("%w: %s is busy; try again", ErrRefused, id)
+	}
+	locked := true
+	unlock := func() {
+		if locked {
+			locked = false
+			l.Close()
+		}
+	}
+	defer unlock()
 	var pl Placement
 	if caps.Probe { // the probe refreshes the local reading, which needs no remote read to be seen
 		pl.Skipped = []string{"the usage probe runs only on the local core"}
@@ -212,7 +227,19 @@ func (r *Runner) Start(id string) error {
 	if err != nil {
 		return err
 	}
-	if pl.Machine != "" {
+	mirror, remoteHome := "", ""
+	if pl.Machine != "" && r.cloneMode(pl.Machine) { // its own clone there; the one here stays as the mirror
+		rhome, err := r.remoteHomeOf(pl.Machine)
+		remote := ""
+		if err == nil {
+			remote, err = r.remoteWorktree(pl.Machine, rhome, t, branch)
+		}
+		if err != nil {
+			pl.Skipped, pl.Machine = append(pl.Skipped, pl.Machine+": "+err.Error()), ""
+		} else {
+			mirror, remoteHome, wt = wt, rhome, remote
+		}
+	} else if pl.Machine != "" {
 		if why := r.cloneOn(pl.Machine, wt); why != "" {
 			pl.Skipped, pl.Machine = append(pl.Skipped, pl.Machine+": "+why), ""
 		}
@@ -225,17 +252,21 @@ func (r *Runner) Start(id string) error {
 	// A reused clone may hold the review files of an earlier run of this task: they would make the gate treat the new
 	// session's first mid-work stop as a gate attempt, and they describe another head.
 	for _, f := range []string{"findings.json", "evidence.json"} {
-		_ = os.Remove(filepath.Join(wt, ".hivemill", f))
+		if mirror == "" { // remoteWorktree removed them in a remote worktree
+			_ = os.Remove(filepath.Join(wt, ".hivemill", f))
+		}
 	}
 	// The worker guard (unchanged) lets a pane push only HEAD:factory/<task> for FACTORY_AGENT
 	// claude-coder-t-NNNN(-aN); the lane's own suffix -a7 keeps the name apart from old-pipeline coders.
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
-		Criteria: len(Criteria(t.Acceptance)), Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t)}
+		Criteria: len(Criteria(t.Acceptance)), Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
+		Mirror: mirror, RemoteHome: remoteHome}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
 	}
+	unlock()
 	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why,
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
@@ -243,7 +274,7 @@ func (r *Runner) Start(id string) error {
 	if err := r.launchTask(run, Kickoff(run, t)); err != nil {
 		return err
 	}
-	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], wt,
+	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,
 		machineLabel(pl.Machine))
 	return nil
 }
@@ -379,7 +410,11 @@ func (r *Runner) resume(run *Run, text string) {
 	// are deferred until the session writes fresh findings.
 	if run.Worktree != "" {
 		dir := filepath.Join(run.Worktree, ".hivemill")
-		_ = os.Rename(filepath.Join(dir, "findings.json"), filepath.Join(dir, fmt.Sprintf("findings-r%d.json", run.Round)))
+		old := fmt.Sprintf("findings-r%d.json", run.Round)
+		if err := r.at(run).rename(filepath.Join(dir, "findings.json"), filepath.Join(dir, old)); err != nil {
+			r.printf("%s: %v\n", run.Task, err)
+			text = "First move .hivemill/findings.json to .hivemill/" + old + " (the factory could not). " + text
+		}
 	}
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
@@ -411,6 +446,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
+	defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
 	if err != nil {
