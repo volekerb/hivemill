@@ -370,6 +370,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case "/flow", "/api/obs/flow":
 		p.Kind, p.Section, p.Title = "flow", "flow", "Flow"
 		p.FlowPg = o.BuildFlow(days, p.PFilter)
+		p.FlowPg.Banners = p.FlowPg.roundsBanners(cfgInt(s.r.Store, "obs_banner_rounds_pct"))
 		if req.URL.Path == "/api/obs/flow" {
 			jsonOut(map[string]any{"now": o.Now, "filter": f, "project": p.PFilter, "flow": p.FlowPg})
 			return

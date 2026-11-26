@@ -2,6 +2,7 @@ package hm
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -846,6 +847,71 @@ func TestObsBannerPollingConfig(t *testing.T) {
 	}
 	if p, html := spendBanners(t, h); len(p.Banners) != 0 || len(html) != 0 {
 		t.Fatalf("36%% is under the configured 50%%: %q %q", p.Banners, html)
+	}
+}
+
+// roundsFixture is a running obs page over four PRs, the first many of which needed 2 review rounds.
+func roundsFixture(t *testing.T, many int) (*Runner, http.Handler) {
+	t.Helper()
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	ts := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
+	e := func(kind, task string, data map[string]any) Event {
+		return ev(ts, kind, task, "G-1", "www", "", "", data)
+	}
+	// T-5 has no PR, so it is not counted, whatever its rounds.
+	evs := []Event{e("ci.red", "T-5", nil), e("ci.red", "T-5", nil)}
+	for i := 1; i <= 4; i++ {
+		task := fmt.Sprintf("T-%d", i)
+		evs = append(evs, e("pr.merged", task, map[string]any{"pr": task}), e("judge.verdict", task, map[string]any{"verdict": "PASS"}))
+		if i <= many {
+			evs = append(evs, e("ci.red", task, nil))
+		}
+	}
+	writeEvents(t, r.Log.Path, evs...)
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, h
+}
+
+// flowBanners is the API's Flow page model.
+func flowBanners(t *testing.T, h http.Handler) FlowPage {
+	t.Helper()
+	code, body := obsGet(t, h, "/api/obs/flow")
+	var api struct {
+		Flow FlowPage `json:"flow"`
+	}
+	if code != 200 || json.Unmarshal([]byte(body), &api) != nil || !strings.Contains(body, `"banners":[`) {
+		t.Fatalf("api %d: %s", code, body)
+	}
+	return api.Flow
+}
+
+func TestObsBannerRounds(t *testing.T) {
+	t.Run("below", func(t *testing.T) {
+		_, h := roundsFixture(t, 1) // 25%
+		if p := flowBanners(t, h); p.PRs != 4 || p.Rounds2 != 1 || len(p.Banners) != 0 {
+			t.Fatalf("no banner: %+v", p)
+		}
+	})
+	t.Run("above", func(t *testing.T) {
+		_, h := roundsFixture(t, 2)
+		want := []string{"2 of 4 PRs (50%) needed 2+ review rounds."}
+		if p := flowBanners(t, h); p.PRs != 4 || p.Rounds2 != 2 || !reflect.DeepEqual(p.Banners, want) {
+			t.Fatalf("one banner: %+v", p)
+		}
+	})
+}
+
+func TestObsBannerRoundsConfig(t *testing.T) {
+	r, h := roundsFixture(t, 2)
+	if err := r.Store.SetCfg("obs_banner_rounds_pct", "60"); err != nil {
+		t.Fatal(err)
+	}
+	if p := flowBanners(t, h); len(p.Banners) != 0 {
+		t.Fatalf("50%% is under the configured 60%%: %q", p.Banners)
 	}
 }
 
