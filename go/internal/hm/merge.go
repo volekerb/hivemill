@@ -61,12 +61,14 @@ func Decide(in MergeInput) MergeDecision {
 		return MergeDecision{"rejudge", fmt.Sprintf("no judge MERGE on head %.8s (the head moved after the verdict)", in.Head)}
 	case in.Mergeable == "CONFLICTING" || (in.Behind && !in.MergeClean):
 		return MergeDecision{"resume", "the branch conflicts with the base branch"}
-	case in.Behind && !in.BehindOK:
-		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
 	case in.CI == "red":
 		return MergeDecision{"resume", ciRed}
 	case in.CI != "green":
+		// before a refresh: a refresh restarts CI and cancels the run in flight, so a PR behind a fast-moving main never
+		// finished CI (2026-11-26). Refresh once the current head is green, then CI runs once on the combined tree.
 		return MergeDecision{"hold", ciPending}
+	case in.Behind && !in.BehindOK:
+		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
 	case len(in.MissingChecks) > 0:
 		return MergeDecision{"hold", "required checks missing: " + strings.Join(in.MissingChecks, ", ")}
 	case in.Tier == "":
