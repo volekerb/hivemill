@@ -67,6 +67,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Changed
 
+- **The tests workflow classifies the tier with the Go `ci-tier`.** The three classify steps and the docs-check step build `go/cmd/ci-tier` from the base commit's archive instead of running `ci/ci_tier.py`, so a PR still cannot loosen its own tier; a base without the Go tool still gets the full suite (T-1933).
+
 - **The hivemill runner waits for CI itself after the gate.** It reads a gated run's PR every `ci_poll_s` (60), starts the judge once the checks are green with the required ones present (without a required list: still green one poll later), and alerts the owner once after `ci_timeout_s` (2700) while the run stays (T-2000).
 
 - **The tests workflow uses the Go `ci-shard` and `ci-test-count-gate`.** `tests.yml` builds `go/cmd/ci-shard` and `go/cmd/ci-test-count-gate` once per job and runs them for shard `run` and `verify` and the test-count `count` (with `--python-only`, so the gate compares the same numbers) and `check`, instead of `ci/shard.py` and `ci/test_count_gate.py`, which stay for now. Until `ci-shard` ports the `SHARD_DEEP`/`SHARD_BASE` scoping and parallel module runs, every shard runs all its modules one at a time (T-1927).
