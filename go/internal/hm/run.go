@@ -502,6 +502,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
+	r.pushGuardExports(time.Now())  // and so does the guard on a clone-mode machine
 	defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
@@ -678,9 +679,7 @@ func (r *Runner) gated(run *Run) {
 				r.ciRed(run, rows)
 			}
 		case "green":
-			if err := r.StartJudge(run); err != nil {
-				r.fail(run, "the judge did not start: "+err.Error())
-			}
+			r.startJudge(run)
 		default:
 			r.ciOverdue(run, now)
 		}

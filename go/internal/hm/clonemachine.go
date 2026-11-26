@@ -6,12 +6,14 @@ package hm
 // text, risk tier) and for the merge. Run.Mirror != "" marks such a run; Run.Worktree is then a path on Run.Machine.
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -363,6 +365,86 @@ func (r *Runner) mapHome(p, remoteHome string) string {
 		return path.Join(remoteHome, rest)
 	}
 	return p
+}
+
+// pushGuardExport writes the guard export of a clone-mode machine: the coordinator's, with this machine's paths. The
+// guard there fails closed when the file is missing or old, as it does here.
+func (r *Runner) pushGuardExport(machine, remoteHome string, now time.Time) error {
+	s, ok := r.Store.(*SQLite)
+	if !ok {
+		return nil
+	}
+	doc, err := s.GuardExportDoc(now)
+	if err != nil {
+		return fmt.Errorf("guard export: %w", err)
+	}
+	if cfg, ok := doc["config"].(map[string]string); ok {
+		for k, v := range cfg {
+			if strings.HasSuffix(k, "_file") {
+				cfg[k] = r.mapHome(v, remoteHome)
+			}
+		}
+	}
+	if wts, ok := doc["task_worktrees"].(map[string]string); ok {
+		runs, err := r.Store.Runs()
+		if err != nil {
+			return err
+		}
+		for _, x := range runs {
+			if x.cloned() && x.Machine == machine {
+				wts[x.Task] = x.Worktree
+			}
+		}
+	}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+	return place{r: r, machine: machine}.write(path.Join(remoteBase(remoteHome), "run", "guard-export.json"), b, 0o600)
+}
+
+// pushGuardExports refreshes the export of every machine with an active clone-mode run.
+func (r *Runner) pushGuardExports(now time.Time) {
+	runs, err := r.Store.Runs()
+	if err != nil {
+		return
+	}
+	homes := map[string]string{}
+	for _, x := range runs {
+		if x.cloned() && Active(x.State) {
+			homes[x.Machine] = x.RemoteHome
+		}
+	}
+	machines := make([]string, 0, len(homes))
+	for m := range homes {
+		machines = append(machines, m)
+	}
+	sort.Strings(machines)
+	for _, m := range machines {
+		if err := r.pushGuardExport(m, homes[m], now); err != nil {
+			r.printf("guard export on %s: %v\n", m, err)
+		}
+	}
+}
+
+// remoteSettings renders a role's settings for a clone-mode machine and writes them there. The guard hook always runs
+// that machine's `hivemill guard`; a template whose guard hook cannot be rewritten is refused.
+func (r *Runner) remoteSettings(machine, remoteHome, role string) (string, error) {
+	base := remoteBase(remoteHome)
+	text, err := renderRole(r.Env.Home, Env{Home: base, UserHome: remoteHome}, role)
+	if err != nil {
+		return "", err
+	}
+	o := jsonInner("sh " + GuardShim(base) + " ")
+	if !strings.Contains(text, o) {
+		return "", fmt.Errorf("%w: the %s settings have no guard hook", ErrRefused, role)
+	}
+	text = strings.ReplaceAll(text, o, jsonInner(StandaloneGuardCommand(remoteBin(remoteHome), base)+" "))
+	if !json.Valid([]byte(text)) {
+		return "", fmt.Errorf("the %s settings render to invalid JSON", role)
+	}
+	dst := path.Join(base, "state", "hivemill", "settings", role+".json")
+	return dst, place{r: r, machine: machine}.write(dst, []byte(text), 0o644)
 }
 
 // cloneEligible probes a clone-mode machine and says why it may not take a session ("" = it may): `machine add` set it

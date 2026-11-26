@@ -31,6 +31,7 @@ func (r *Runner) keepGuardExport(ctx context.Context) {
 			if err := r.WriteGuardExport(now); err != nil {
 				r.printf("guard export: %v\n", err)
 			}
+			r.pushGuardExports(now)
 		}
 	}
 }
