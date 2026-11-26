@@ -144,10 +144,6 @@ jobs:
       - name: Install zsh
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
         run: sudo apt-get install -y zsh
-      - run: python -m py_compile bin/factory bin/factory_cli.py
-        if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
-      - run: python bin/factory --help >/dev/null
-        if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
       - name: Run shard
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
         run: |

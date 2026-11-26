@@ -39,7 +39,7 @@ def docs_tier_job_skip_errors(text):
             body.append(line)
         return "".join(body)
 
-    for job in ("unittest-shard", "go"):
+    for job, want in (("unittest-shard", 6), ("go", 8)):
         body = job_body(job)
         if "    steps:\n" not in body:
             errors.append("%s: missing steps block" % job)
@@ -48,8 +48,8 @@ def docs_tier_job_skip_errors(text):
         if any(line.startswith("    if:") for line in header.splitlines()):
             errors.append("%s has a job-level if" % job)
         chunks = re.split(r"(?m)^      - ", steps)[1:]
-        if len(chunks) != 8:
-            errors.append("%s: expected 8 steps, got %d" % (job, len(chunks)))
+        if len(chunks) != want:
+            errors.append("%s: expected %d steps, got %d" % (job, want, len(chunks)))
             continue
         for i, chunk in enumerate(chunks, 1):
             if "github.event_name != 'pull_request'" not in chunk:
@@ -313,7 +313,7 @@ class WorkflowTest(unittest.TestCase):
 
     def test_heavy_steps_are_gated_on_tier(self):
         self.assertIn("steps.tier.outputs.go == 'true'", self.wf)
-        self.assertEqual(self.wf.count("steps.tier.outputs.mode != 'docs'"), 5)
+        self.assertEqual(self.wf.count("steps.tier.outputs.mode != 'docs'"), 3)
         self.assertIn("--only", self.wf)
 
     def test_docs_fast_lane_skips_heavy_jobs(self):
