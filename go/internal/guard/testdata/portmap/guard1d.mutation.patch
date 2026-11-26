@@ -1,0 +1,13 @@
+diff --git a/go/internal/guard/nopush_inline.go b/go/internal/guard/nopush_inline.go
+index 9745207a9..ae2b6707d 100644
+--- a/go/internal/guard/nopush_inline.go
++++ b/go/internal/guard/nopush_inline.go
+@@ -280,7 +280,7 @@ func inlineGhAPIBody(s string) bool {
+ 
+ // interpInlinePush is a port of Analyzer.interp_inline_push.
+ func (a *Analyzer) interpInlinePush(name string, rest []string) error {
+-	if !inlineCodeInterp(name) {
++	if true { // mutation: no inline-code scan
+ 		return nil
+ 	}
+ 	iname := name
